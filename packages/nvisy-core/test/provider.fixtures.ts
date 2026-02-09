@@ -68,11 +68,14 @@ export const ExampleProvider = Provider.withAuthentication("example", {
 });
 
 export const ExampleSource = Stream.createSource("read", ExampleClient, {
-	types: [TestRow, Cursor, Params],
+	type: TestRow,
+	context: Cursor,
+	params: Params,
 	reader: (client, ctx, params) => readStream(client, ctx, params),
 });
 
 export const ExampleTarget = Stream.createTarget("write", ExampleClient, {
-	types: [TestRow, Params],
+	type: TestRow,
+	params: Params,
 	writer: (_client, _params) => async (_item) => {},
 });

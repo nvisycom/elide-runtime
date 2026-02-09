@@ -5,11 +5,10 @@ import type {
 	AnyProviderFactory,
 	AnyStreamSource,
 	AnyStreamTarget,
-	Datatype,
+	DatatypeDescriptor,
 	PluginInstance,
 } from "@nvisy/core";
-import { ValidationError } from "@nvisy/core";
-import { filetypeinfo } from "magic-bytes.js";
+import { type Blob, ValidationError } from "@nvisy/core";
 
 const logger = getLogger(["nvisy", "registry"]);
 
@@ -49,7 +48,7 @@ export class Registry {
 	readonly #loaders = new Map<string, AnyLoaderInstance>();
 	readonly #providers = new Map<string, AnyProviderFactory>();
 	readonly #streams = new Map<string, AnyStreamSource | AnyStreamTarget>();
-	readonly #datatypes = new Map<string, Datatype>();
+	readonly #datatypes = new Map<string, DatatypeDescriptor>();
 	readonly #plugins = new Set<string>();
 
 	/** Snapshot of all registered actions and providers with their schemas. */
@@ -159,7 +158,7 @@ export class Registry {
 	}
 
 	/** Look up a data type by name. */
-	getDataType(name: string): Datatype {
+	getDataType(name: string): DatatypeDescriptor {
 		return this.#getOrThrow(this.#datatypes, name, "datatype");
 	}
 
@@ -184,7 +183,7 @@ export class Registry {
 	}
 
 	/** Look up a data type by name, returning undefined if not found. */
-	findDataType(name: string): Datatype | undefined {
+	findDataType(name: string): DatatypeDescriptor | undefined {
 		return this.#datatypes.get(name);
 	}
 
@@ -192,40 +191,32 @@ export class Registry {
 	 * Find a loader that matches the given blob by content type, magic bytes, or extension.
 	 *
 	 * Matching priority:
-	 * 1. If blob has contentType, match by contentType first
-	 * 2. Detect file type from magic bytes and match by extension
-	 * 3. Fall back to file extension from blob.path
+	 * 1. If blob has provided MIME (contentType), match by contentType first
+	 * 2. Match by identified (magic bytes) extension
+	 * 3. Fall back to provided extension from blob path
 	 */
-	findLoaderForBlob(blob: {
-		path: string;
-		contentType?: string;
-		data?: Uint8Array;
-	}): AnyLoaderInstance | undefined {
-		if (blob.contentType) {
+	findLoaderForBlob(blob: Blob): AnyLoaderInstance | undefined {
+		const provided = blob.provided;
+		if (provided.mime) {
 			for (const loader of this.#loaders.values()) {
-				if (loader.contentTypes.includes(blob.contentType)) {
+				if (loader.contentTypes.includes(provided.mime)) {
 					return loader;
 				}
 			}
 		}
 
-		if (blob.data) {
-			const detected = filetypeinfo(blob.data);
-			const first = detected[0];
-			if (first?.extension) {
-				const ext = `.${first.extension}`;
-				for (const loader of this.#loaders.values()) {
-					if (loader.extensions.includes(ext)) {
-						return loader;
-					}
+		const identified = blob.identified;
+		if (identified.extension) {
+			for (const loader of this.#loaders.values()) {
+				if (loader.extensions.includes(identified.extension)) {
+					return loader;
 				}
 			}
 		}
 
-		const ext = this.#getExtension(blob.path);
-		if (ext) {
+		if (provided.extension) {
 			for (const loader of this.#loaders.values()) {
-				if (loader.extensions.includes(ext)) {
+				if (loader.extensions.includes(provided.extension)) {
 					return loader;
 				}
 			}
@@ -241,13 +232,5 @@ export class Registry {
 			throw ValidationError.notFound(name, kind, "registry");
 		}
 		return entry;
-	}
-
-	#getExtension(path: string): string | undefined {
-		const lastDot = path.lastIndexOf(".");
-		if (lastDot === -1 || lastDot === path.length - 1) {
-			return undefined;
-		}
-		return path.slice(lastDot).toLowerCase();
 	}
 }

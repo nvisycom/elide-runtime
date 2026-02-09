@@ -7,10 +7,22 @@
 export type { ActionInstance } from "./action.js";
 export { Action } from "./action.js";
 export type {
+	BlobOptions,
 	ChunkOptions,
-	CompositeElementOptions,
-	Datatype,
+	DatatypeDescriptor,
 	DocumentOptions,
+	Filetype,
+} from "./datatypes/index.js";
+export {
+	Blob,
+	Chunk,
+	Data,
+	Datatype,
+	Document,
+	Embedding,
+} from "./datatypes/index.js";
+export type {
+	CompositeElementOptions,
 	ElementOptions,
 	ElementProvenance,
 	EmailElementOptions,
@@ -21,21 +33,15 @@ export type {
 	Link,
 	TableCellData,
 	TableElementOptions,
-} from "./datatypes/index.js";
+} from "./documents/elements.js";
 export {
-	Blob,
-	Chunk,
 	CompositeElement,
-	Data,
-	Datatypes,
-	Document,
 	Element,
 	EmailElement,
-	Embedding,
 	FormElement,
 	ImageElement,
 	TableElement,
-} from "./datatypes/index.js";
+} from "./documents/elements.js";
 export type {
 	ElementCategory,
 	ElementCoordinates,

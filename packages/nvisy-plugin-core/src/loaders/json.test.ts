@@ -34,7 +34,6 @@ describe("jsonLoader", () => {
 			);
 
 			expect(docs).toHaveLength(1);
-			expect(docs[0]!.sourceType).toBe("json");
 		});
 
 		it("promotes scalar fields to metadata", async () => {
@@ -51,7 +50,7 @@ describe("jsonLoader", () => {
 			});
 		});
 
-		it("explodes JSON arrays into one document per element", async () => {
+		it("creates one document from a JSON array", async () => {
 			const json = JSON.stringify([
 				{ id: 1, text: "first" },
 				{ id: 2, text: "second" },
@@ -61,9 +60,17 @@ describe("jsonLoader", () => {
 				jsonLoader.load(blob, { encoding: "utf-8" }),
 			);
 
-			expect(docs).toHaveLength(2);
-			expect(docs[0]!.metadata).toMatchObject({ id: 1, arrayIndex: 0 });
-			expect(docs[1]!.metadata).toMatchObject({ id: 2, arrayIndex: 1 });
+			expect(docs).toHaveLength(1);
+			expect(docs[0]!.content).toBe(
+				JSON.stringify(
+					[
+						{ id: 1, text: "first" },
+						{ id: 2, text: "second" },
+					],
+					null,
+					2,
+				),
+			);
 		});
 
 		it("handles string JSON values", async () => {
@@ -87,30 +94,29 @@ describe("jsonLoader", () => {
 			expect(docs[0]!.content).toBe(JSON.stringify(obj, null, 2));
 		});
 
-		it("derives documents from blob", async () => {
-			const json = JSON.stringify([{ a: 1 }, { b: 2 }]);
+		it("derives document from blob", async () => {
+			const json = JSON.stringify({ a: 1 });
 			const blob = new Blob("data.json", Buffer.from(json));
 			const docs = await collectDocs(
 				jsonLoader.load(blob, { encoding: "utf-8" }),
 			);
 
-			for (const doc of docs) {
-				expect(doc.parentId).toBe(blob.id);
-			}
+			expect(docs[0]!.parentId).toBe(blob.id);
 		});
 	});
 
 	describe("JSONL files", () => {
-		it("creates one document per line", async () => {
+		it("creates one document from JSONL", async () => {
 			const jsonl = '{"id":1}\n{"id":2}\n{"id":3}';
 			const blob = new Blob("data.jsonl", Buffer.from(jsonl));
 			const docs = await collectDocs(
 				jsonLoader.load(blob, { encoding: "utf-8" }),
 			);
 
-			expect(docs).toHaveLength(3);
-			expect(docs[0]!.metadata).toMatchObject({ id: 1, lineIndex: 0 });
-			expect(docs[2]!.metadata).toMatchObject({ id: 3, lineIndex: 2 });
+			expect(docs).toHaveLength(1);
+			expect(docs[0]!.content).toBe(
+				JSON.stringify([{ id: 1 }, { id: 2 }, { id: 3 }], null, 2),
+			);
 		});
 
 		it("skips empty lines", async () => {
@@ -120,7 +126,10 @@ describe("jsonLoader", () => {
 				jsonLoader.load(blob, { encoding: "utf-8" }),
 			);
 
-			expect(docs).toHaveLength(2);
+			expect(docs).toHaveLength(1);
+			expect(docs[0]!.content).toBe(
+				JSON.stringify([{ a: 1 }, { b: 2 }], null, 2),
+			);
 		});
 
 		it("handles .ndjson extension", async () => {
@@ -130,19 +139,17 @@ describe("jsonLoader", () => {
 				jsonLoader.load(blob, { encoding: "utf-8" }),
 			);
 
-			expect(docs).toHaveLength(2);
+			expect(docs).toHaveLength(1);
 		});
 
-		it("derives documents from blob", async () => {
+		it("derives document from blob", async () => {
 			const jsonl = '{"a":1}\n{"b":2}';
 			const blob = new Blob("data.jsonl", Buffer.from(jsonl));
 			const docs = await collectDocs(
 				jsonLoader.load(blob, { encoding: "utf-8" }),
 			);
 
-			for (const doc of docs) {
-				expect(doc.parentId).toBe(blob.id);
-			}
+			expect(docs[0]!.parentId).toBe(blob.id);
 		});
 	});
 

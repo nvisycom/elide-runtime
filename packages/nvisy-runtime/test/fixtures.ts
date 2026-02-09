@@ -66,7 +66,9 @@ export const sourceEntries: TestRow[] = [
 ];
 
 export const testSourceStream = Stream.createSource("read", TestClient, {
-	types: [TestRow, TestContext, TestParams],
+	type: TestRow,
+	context: TestContext,
+	params: TestParams,
 	reader: async function* (_client, _ctx, _params) {
 		for (const row of sourceEntries) {
 			yield { data: row, context: { cursor: row.id } } as Resumable<
@@ -84,7 +86,8 @@ export const testSourceStream = Stream.createSource("read", TestClient, {
 export const writtenItems: Data[] = [];
 
 export const testTargetStream = Stream.createTarget("write", TestClient, {
-	types: [TestRow, TestParams],
+	type: TestRow,
+	params: TestParams,
 	writer: (_client, _params) => {
 		return async (item: TestRow) => {
 			writtenItems.push(item);

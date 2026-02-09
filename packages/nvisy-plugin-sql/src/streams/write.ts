@@ -14,7 +14,8 @@ const logger = getLogger(["nvisy", "sql"]);
  * an individual INSERT statement.
  */
 export const write = Stream.createTarget("write", KyselyClient, {
-	types: [Row, SqlParams],
+	type: Row,
+	params: SqlParams,
 	writer: (client, params) => async (item: Row) => {
 		const record = item.columns as Record<string, unknown>;
 		if (Object.keys(record).length === 0) return;

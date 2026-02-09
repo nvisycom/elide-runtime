@@ -33,7 +33,9 @@ export type ObjectCursor = z.infer<typeof ObjectCursor>;
  * list API.
  */
 export const read = Stream.createSource("read", ObjectStoreClient, {
-	types: [Blob, ObjectCursor, ObjectParams],
+	type: Blob,
+	context: ObjectCursor,
+	params: ObjectParams,
 	reader: (client, cursor, params) => readStream(client, cursor, params),
 });
 
@@ -71,7 +73,7 @@ async function* readStream(
 				const { data, contentType } = await client.get(key);
 				totalObjects++;
 				yield {
-					data: new Blob(key, data, contentType),
+					data: new Blob(key, data, { contentType }),
 					context: { lastKey: key } as ObjectCursor,
 				};
 			} catch (error) {

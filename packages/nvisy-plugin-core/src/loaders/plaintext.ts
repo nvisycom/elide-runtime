@@ -7,7 +7,7 @@
  * @module
  */
 
-import { Document, Loader } from "@nvisy/core";
+import { type Blob, Document, Loader } from "@nvisy/core";
 import { z } from "zod";
 
 /** Schema for plaintext loader parameters. */
@@ -33,10 +33,15 @@ export const plaintextLoader = Loader.define<PlaintextParams>("plaintext", {
 	extensions: [".txt"],
 	contentTypes: ["text/plain"],
 	params: plaintextParamsSchema,
-	async *load(blob, params) {
-		const content = blob.data.toString(params.encoding);
-		const doc = new Document(content, { sourceType: "text" });
-		doc.deriveFrom(blob);
-		yield doc;
-	},
+	load: loadPlaintext,
 });
+
+async function* loadPlaintext(
+	blob: Blob,
+	params: PlaintextParams,
+): AsyncGenerator<Document> {
+	const content = blob.data.toString(params.encoding);
+	const doc = new Document(content);
+	doc.deriveFrom(blob);
+	yield doc;
+}

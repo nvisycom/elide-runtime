@@ -10,7 +10,7 @@
  */
 
 import type { ActionInstance } from "./action.js";
-import type { Datatype } from "./datatypes/index.js";
+import type { DatatypeDescriptor } from "./datatypes/index.js";
 import type { LoaderInstance } from "./loader.js";
 import type { ProviderFactory } from "./provider.js";
 import type { StreamSource, StreamTarget } from "./stream.js";
@@ -48,7 +48,7 @@ export interface PluginInstance {
 	/** Loaders keyed by their ID. */
 	readonly loaders: Readonly<Record<string, AnyLoaderInstance>>;
 	/** Custom data types keyed by their ID. */
-	readonly datatypes: Readonly<Record<string, Datatype>>;
+	readonly datatypes: Readonly<Record<string, DatatypeDescriptor>>;
 }
 
 class PluginBuilder implements PluginInstance {
@@ -59,7 +59,7 @@ class PluginBuilder implements PluginInstance {
 	> = {};
 	readonly actions: Readonly<Record<string, AnyActionInstance>> = {};
 	readonly loaders: Readonly<Record<string, AnyLoaderInstance>> = {};
-	readonly datatypes: Readonly<Record<string, Datatype>> = {};
+	readonly datatypes: Readonly<Record<string, DatatypeDescriptor>> = {};
 
 	constructor(id: string) {
 		this.id = id;
@@ -98,7 +98,7 @@ class PluginBuilder implements PluginInstance {
 	}
 
 	/** Add custom data types to this plugin. */
-	withDatatypes(...datatypes: Datatype[]): this {
+	withDatatypes(...datatypes: DatatypeDescriptor[]): this {
 		const record = { ...this.datatypes };
 		for (const d of datatypes) record[d.id] = d;
 		(this as { datatypes: typeof record }).datatypes = record;

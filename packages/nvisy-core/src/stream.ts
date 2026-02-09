@@ -64,12 +64,12 @@ export type WriterFn<TClient, TData extends Data, TParam> = (
  * @template TParam - Configuration parameters for the source.
  */
 export interface SourceConfig<TClient, TData extends Data, TCtx, TParam> {
-	/** Type information: data class, context schema, and param schema. */
-	readonly types: [
-		dataClass: ClassRef<TData>,
-		contextSchema: z.ZodType<TCtx>,
-		paramSchema: z.ZodType<TParam>,
-	];
+	/** Class reference for the data type produced. */
+	readonly type: ClassRef<TData>;
+	/** Zod schema for validating and parsing resumption context. */
+	readonly context: z.ZodType<TCtx>;
+	/** Zod schema for validating stream parameters. */
+	readonly params: z.ZodType<TParam>;
 	/** The reader function that produces data items. */
 	readonly reader: ReaderFn<TClient, TData, TCtx, TParam>;
 }
@@ -82,8 +82,10 @@ export interface SourceConfig<TClient, TData extends Data, TCtx, TParam> {
  * @template TParam - Configuration parameters for the target.
  */
 export interface TargetConfig<TClient, TData extends Data, TParam> {
-	/** Type information: data class and param schema. */
-	readonly types: [dataClass: ClassRef<TData>, paramSchema: z.ZodType<TParam>];
+	/** Class reference for the data type consumed. */
+	readonly type: ClassRef<TData>;
+	/** Zod schema for validating stream parameters. */
+	readonly params: z.ZodType<TParam>;
 	/** The writer function that persists data items. */
 	readonly writer: WriterFn<TClient, TData, TParam>;
 }
@@ -229,7 +231,11 @@ export const Stream = {
 		clientClass: ClassRef<TClient>,
 		config: SourceConfig<TClient, TData, TCtx, TParam>,
 	): StreamSource<TClient, TData, TCtx, TParam> {
-		const [dataClass, contextSchema, paramSchema] = config.types;
+		const {
+			type: dataClass,
+			context: contextSchema,
+			params: paramSchema,
+		} = config;
 		return new StreamSourceImpl({
 			id,
 			clientClass,
@@ -252,7 +258,7 @@ export const Stream = {
 		clientClass: ClassRef<TClient>,
 		config: TargetConfig<TClient, TData, TParam>,
 	): StreamTarget<TClient, TData, TParam> {
-		const [dataClass, paramSchema] = config.types;
+		const { type: dataClass, params: paramSchema } = config;
 		return new StreamTargetImpl({
 			id,
 			clientClass,

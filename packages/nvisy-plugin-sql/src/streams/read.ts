@@ -17,7 +17,9 @@ const logger = getLogger(["nvisy", "sql"]);
  * have been yielded.
  */
 export const read = Stream.createSource("read", KyselyClient, {
-	types: [Row, SqlCursor, SqlParams],
+	type: Row,
+	context: SqlCursor,
+	params: SqlParams,
 	reader: (client, cursor, params) => readStream(client, cursor, params),
 });
 

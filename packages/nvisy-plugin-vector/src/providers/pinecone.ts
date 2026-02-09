@@ -30,13 +30,13 @@ class PineconeVectorClient extends VectorClient {
 	}
 
 	async upsert(vectors: UpsertVector[]): Promise<void> {
-		await this.#index.upsert(
-			vectors.map((v) => ({
+		await this.#index.upsert({
+			records: vectors.map((v) => ({
 				id: v.id,
 				values: [...v.vector],
 				metadata: v.metadata as Record<string, string>,
 			})),
-		);
+		});
 	}
 }
 

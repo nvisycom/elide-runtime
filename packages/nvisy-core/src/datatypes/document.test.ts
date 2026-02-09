@@ -37,11 +37,9 @@ describe("Document", () => {
 				text: "hi",
 			});
 			const doc = Document.fromElements([el], {
-				sourceType: "html",
 				title: "My Page",
 			});
 			expect(doc.title).toBe("My Page");
-			expect(doc.sourceType).toBe("html");
 		});
 	});
 
@@ -132,16 +130,6 @@ describe("Document", () => {
 			const doc = Document.fromElements([]);
 			expect(doc.content).toBe("");
 			expect(doc.elements).toEqual([]);
-		});
-
-		it("preserves sourceType", () => {
-			const el = new Element({
-				type: "narrative-text",
-				text: "text",
-			});
-			const doc = Document.fromElements([el], { sourceType: "pdf" });
-			expect(doc.sourceType).toBe("pdf");
-			expect(doc.elements).toHaveLength(1);
 		});
 	});
 

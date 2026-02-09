@@ -19,11 +19,12 @@ export type WriteParams = z.infer<typeof WriteParams>;
  * via the provider client's `put` method.
  */
 export const write = Stream.createTarget("write", ObjectStoreClient, {
-	types: [Blob, WriteParams],
+	type: Blob,
+	params: WriteParams,
 	writer: (client, params) => async (item: Blob) => {
 		const key = params.prefix ? `${params.prefix}${item.path}` : item.path;
 		try {
-			await client.put(key, item.data, item.contentType);
+			await client.put(key, item.data, item.provided.mime);
 			logger.debug("Put object {key} ({size} bytes)", {
 				key,
 				size: item.size,

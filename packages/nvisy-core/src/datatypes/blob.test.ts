@@ -10,18 +10,16 @@ describe("Blob", () => {
 		expect(blob.data.toString()).toBe("hello world");
 	});
 
-	it("contentType is optional and defaults to undefined", () => {
+	it("provided.mime is undefined when no contentType given", () => {
 		const blob = new Blob("file.bin", Buffer.from([0x00, 0x01]));
-		expect(blob.contentType).toBeUndefined();
+		expect(blob.provided.mime).toBeUndefined();
 	});
 
-	it("accepts contentType in constructor", () => {
-		const blob = new Blob(
-			"report.pdf",
-			Buffer.from("pdf content"),
-			"application/pdf",
-		);
-		expect(blob.contentType).toBe("application/pdf");
+	it("provided.mime reflects constructor contentType", () => {
+		const blob = new Blob("report.pdf", Buffer.from("pdf content"), {
+			contentType: "application/pdf",
+		});
+		expect(blob.provided.mime).toBe("application/pdf");
 	});
 
 	it("size returns byte length of data", () => {
@@ -64,6 +62,69 @@ describe("Blob", () => {
 			bucket: "my-bucket",
 		});
 		expect(blob.metadata).toEqual({ source: "s3", bucket: "my-bucket" });
+	});
+
+	describe("createdAt / updatedAt", () => {
+		it("defaults to undefined when not provided", () => {
+			const blob = new Blob("file.txt", Buffer.from(""));
+			expect(blob.createdAt).toBeUndefined();
+			expect(blob.updatedAt).toBeUndefined();
+		});
+
+		it("stores and returns the dates when provided", () => {
+			const created = new Date("2025-01-01T00:00:00Z");
+			const updated = new Date("2025-06-15T12:00:00Z");
+			const blob = new Blob("file.txt", Buffer.from(""), {
+				createdAt: created,
+				updatedAt: updated,
+			});
+			expect(blob.createdAt).toBe(created);
+			expect(blob.updatedAt).toBe(updated);
+		});
+	});
+
+	describe("provided", () => {
+		it("extracts extension from path", () => {
+			const blob = new Blob("report.pdf", Buffer.from(""));
+			expect(blob.provided.extension).toBe(".pdf");
+		});
+
+		it("includes mime from contentType", () => {
+			const blob = new Blob("report.pdf", Buffer.from(""), {
+				contentType: "application/pdf",
+			});
+			expect(blob.provided.mime).toBe("application/pdf");
+		});
+
+		it("omits extension for extensionless path", () => {
+			const blob = new Blob("Makefile", Buffer.from(""));
+			expect(blob.provided.extension).toBeUndefined();
+		});
+
+		it("lowercases the extension", () => {
+			const blob = new Blob("photo.JPG", Buffer.from(""));
+			expect(blob.provided.extension).toBe(".jpg");
+		});
+
+		it("handles paths with multiple dots", () => {
+			const blob = new Blob("archive.tar.gz", Buffer.from(""));
+			expect(blob.provided.extension).toBe(".gz");
+		});
+	});
+
+	describe("identified", () => {
+		it("detects PDF from magic bytes", () => {
+			const pdfHeader = Buffer.from("%PDF-1.4 ...");
+			const blob = new Blob("mystery.bin", pdfHeader);
+			expect(blob.identified.extension).toBe(".pdf");
+			expect(blob.identified.mime).toBe("application/pdf");
+		});
+
+		it("returns empty filetype for unrecognizable bytes (e.g. CSV)", () => {
+			const blob = new Blob("data.csv", Buffer.from("a,b\n1,2"));
+			expect(blob.identified.extension).toBeUndefined();
+			expect(blob.identified.mime).toBeUndefined();
+		});
 	});
 
 	it("handles various path formats", () => {

@@ -27,7 +27,7 @@
 		"graphology": "^0.26.0",
 		"graphology-dag": "^0.4.1",
 		"graphology-types": "^0.24.8",
-		"magic-bytes.js": "^1.13.0",
+
 		"zod": "^4.3.6"
 	},
 	"engines": {

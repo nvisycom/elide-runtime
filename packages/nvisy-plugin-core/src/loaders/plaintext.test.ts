@@ -31,7 +31,6 @@ describe("plaintextLoader", () => {
 
 		expect(docs).toHaveLength(1);
 		expect(docs[0]!.content).toBe("Hello, world!");
-		expect(docs[0]!.sourceType).toBe("text");
 	});
 
 	it("derives document from blob (sets parentId)", async () => {

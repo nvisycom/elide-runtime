@@ -22,7 +22,7 @@
 	"dependencies": {
 		"@logtape/logtape": "^2.0.2",
 		"@nvisy/core": "*",
-		"@pinecone-database/pinecone": "^4.0.0",
+		"@pinecone-database/pinecone": "^7.0.0",
 		"@qdrant/js-client-rest": "^1.13.0",
 		"@zilliz/milvus2-sdk-node": "^2.5.0",
 		"pg": "^8.13.0",

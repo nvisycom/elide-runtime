@@ -1,7 +1,7 @@
 import {
 	Blob,
 	Chunk,
-	Datatypes,
+	Datatype,
 	Document,
 	Embedding,
 	Plugin,
@@ -11,10 +11,10 @@ import { csvLoader, jsonLoader, plaintextLoader } from "./loaders/index.js";
 
 export const corePlugin = Plugin.define("core")
 	.withDatatypes(
-		Datatypes.define("document", Document),
-		Datatypes.define("blob", Blob),
-		Datatypes.define("chunk", Chunk),
-		Datatypes.define("embedding", Embedding),
+		Datatype.define("document", Document),
+		Datatype.define("blob", Blob),
+		Datatype.define("chunk", Chunk),
+		Datatype.define("embedding", Embedding),
 	)
 	.withActions(chunkSimple, partition)
 	.withLoaders(plaintextLoader, csvLoader, jsonLoader);
@@ -35,3 +35,8 @@ export type { JsonParams } from "./loaders/json.js";
 export { jsonLoader, jsonParamsSchema } from "./loaders/json.js";
 export type { PlaintextParams } from "./loaders/plaintext.js";
 export { plaintextLoader, plaintextParamsSchema } from "./loaders/plaintext.js";
+export type {
+	DelimiterSplitOptions,
+	RegexSplitOptions,
+} from "./splitter/index.js";
+export { splitByDelimiter, splitByRegex } from "./splitter/index.js";

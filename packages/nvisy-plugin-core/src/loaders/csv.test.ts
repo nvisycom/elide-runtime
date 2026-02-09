@@ -24,7 +24,7 @@ describe("csvLoader", () => {
 		expect(csvLoader.contentTypes).toContain("text/csv");
 	});
 
-	it("parses CSV with headers into one document per row", async () => {
+	it("parses CSV with headers into a single document", async () => {
 		const csv = "name,age\nAlice,30\nBob,25";
 		const blob = new Blob("data.csv", Buffer.from(csv));
 		const docs = await collectDocs(
@@ -35,41 +35,8 @@ describe("csvLoader", () => {
 			}),
 		);
 
-		expect(docs).toHaveLength(2);
-		expect(docs[0]!.content).toBe("name: Alice\nage: 30");
-		expect(docs[1]!.content).toBe("name: Bob\nage: 25");
-	});
-
-	it("stores header values as metadata", async () => {
-		const csv = "name,age\nAlice,30";
-		const blob = new Blob("data.csv", Buffer.from(csv));
-		const docs = await collectDocs(
-			csvLoader.load(blob, {
-				delimiter: ",",
-				hasHeader: true,
-				encoding: "utf-8",
-			}),
-		);
-
-		expect(docs[0]!.metadata).toMatchObject({
-			name: "Alice",
-			age: "30",
-			rowIndex: 0,
-		});
-	});
-
-	it("sets sourceType to csv", async () => {
-		const csv = "a,b\n1,2";
-		const blob = new Blob("data.csv", Buffer.from(csv));
-		const docs = await collectDocs(
-			csvLoader.load(blob, {
-				delimiter: ",",
-				hasHeader: true,
-				encoding: "utf-8",
-			}),
-		);
-
-		expect(docs[0]!.sourceType).toBe("csv");
+		expect(docs).toHaveLength(1);
+		expect(docs[0]!.content).toBe("name: Alice\nage: 30\n\nname: Bob\nage: 25");
 	});
 
 	it("parses CSV without headers", async () => {
@@ -83,9 +50,8 @@ describe("csvLoader", () => {
 			}),
 		);
 
-		expect(docs).toHaveLength(2);
-		expect(docs[0]!.content).toBe("Alice,30");
-		expect(docs[1]!.content).toBe("Bob,25");
+		expect(docs).toHaveLength(1);
+		expect(docs[0]!.content).toBe("Alice,30\nBob,25");
 	});
 
 	it("supports tab delimiter for TSV", async () => {
@@ -114,9 +80,7 @@ describe("csvLoader", () => {
 			}),
 		);
 
-		expect(docs[0]!.metadata).toMatchObject({
-			address: "123 Main St, Apt 4",
-		});
+		expect(docs[0]!.content).toContain("address: 123 Main St, Apt 4");
 	});
 
 	it("handles escaped quotes in fields", async () => {
@@ -130,12 +94,10 @@ describe("csvLoader", () => {
 			}),
 		);
 
-		expect(docs[0]!.metadata).toMatchObject({
-			note: 'She said "hello"',
-		});
+		expect(docs[0]!.content).toContain('note: She said "hello"');
 	});
 
-	it("derives documents from blob", async () => {
+	it("derives document from blob", async () => {
 		const csv = "a\n1\n2";
 		const blob = new Blob("data.csv", Buffer.from(csv));
 		const docs = await collectDocs(
@@ -146,9 +108,7 @@ describe("csvLoader", () => {
 			}),
 		);
 
-		for (const doc of docs) {
-			expect(doc.parentId).toBe(blob.id);
-		}
+		expect(docs[0]!.parentId).toBe(blob.id);
 	});
 
 	it("handles empty file", async () => {
@@ -189,7 +149,8 @@ describe("csvLoader", () => {
 			}),
 		);
 
-		expect(docs).toHaveLength(2);
+		expect(docs).toHaveLength(1);
+		expect(docs[0]!.content).toBe("name: Alice\nage: 30\n\nname: Bob\nage: 25");
 	});
 
 	it("uses defaults for optional params", async () => {

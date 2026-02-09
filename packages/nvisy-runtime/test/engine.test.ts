@@ -222,11 +222,9 @@ describe("execute", () => {
 		});
 
 		const failSource = Stream.createSource("read", FailClient, {
-			types: [
-				Document,
-				z.object({}).default({}),
-				z.record(z.string(), z.unknown()),
-			],
+			type: Document,
+			context: z.object({}).default({}),
+			params: z.record(z.string(), z.unknown()),
 			// biome-ignore lint/correctness/useYield: intentionally throws before yielding to test error handling
 			reader: async function* () {
 				throw new RuntimeError("Non-retryable failure", {
@@ -236,7 +234,8 @@ describe("execute", () => {
 		});
 
 		const failTarget = Stream.createTarget("write", FailClient, {
-			types: [Document, z.record(z.string(), z.unknown())],
+			type: Document,
+			params: z.record(z.string(), z.unknown()),
 			writer: () => async () => {},
 		});
 
@@ -326,11 +325,9 @@ describe("execute", () => {
 		});
 
 		const retrySource = Stream.createSource("read", RetryClient, {
-			types: [
-				Document,
-				z.object({}).default({}),
-				z.record(z.string(), z.unknown()),
-			],
+			type: Document,
+			context: z.object({}).default({}),
+			params: z.record(z.string(), z.unknown()),
 			reader: async function* () {
 				attempts++;
 				if (attempts < 3) {
@@ -344,7 +341,8 @@ describe("execute", () => {
 		});
 
 		const retryTarget = Stream.createTarget("write", RetryClient, {
-			types: [Document, z.record(z.string(), z.unknown())],
+			type: Document,
+			params: z.record(z.string(), z.unknown()),
 			writer: () => async () => {},
 		});
 

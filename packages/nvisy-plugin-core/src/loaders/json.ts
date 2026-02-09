@@ -1,18 +1,14 @@
 /**
  * JSON / JSON Lines loader.
  *
- * Converts `.json` and `.jsonl` blobs into Documents.
- *
- * - **`.json`** — if the root value is an array, each element becomes
- *   a Document; otherwise the entire file becomes a single Document.
- * - **`.jsonl`** — each non-empty line is parsed as a separate JSON
- *   object and becomes its own Document.
+ * Converts `.json`, `.jsonl`, and `.ndjson` blobs into a single
+ * Document whose content is the pretty-printed JSON text.
+ * For JSONL/NDJSON files the lines are collected into an array first.
  *
  * @module
  */
 
-import type { Blob, Metadata } from "@nvisy/core";
-import { Document, Loader } from "@nvisy/core";
+import { type Blob, Document, Loader } from "@nvisy/core";
 import { z } from "zod";
 
 /** Schema for JSON loader parameters. */
@@ -29,64 +25,35 @@ export const jsonParamsSchema = z
 export type JsonParams = z.infer<typeof jsonParamsSchema>;
 
 /**
- * Loader that converts JSON / JSONL blobs into Documents.
+ * Loader that converts JSON / JSONL blobs into a single Document.
  *
- * Each JSON value is stringified as the Document's content, with
- * scalar fields promoted to metadata when the value is an object.
+ * Scalar object fields are promoted to metadata.
  */
 export const jsonLoader = Loader.define<JsonParams>("json", {
 	extensions: [".json", ".jsonl", ".ndjson"],
 	contentTypes: ["application/json", "application/x-ndjson"],
 	params: jsonParamsSchema,
-	async *load(blob, params) {
-		const text = blob.data.toString(params.encoding);
-		const isJsonLines =
-			blob.path.endsWith(".jsonl") || blob.path.endsWith(".ndjson");
-
-		if (isJsonLines) {
-			yield* loadJsonLines(text, blob);
-		} else {
-			yield* loadJson(text, blob);
-		}
-	},
+	load: loadJson,
 });
 
-/** Parse a single JSON file. Arrays are exploded into one Document per element. */
-function* loadJson(text: string, blob: Blob): Generator<Document> {
-	const parsed: unknown = JSON.parse(text);
+async function* loadJson(
+	blob: Blob,
+	params: JsonParams,
+): AsyncGenerator<Document> {
+	const text = blob.data.toString(params.encoding);
+	const isJsonLines =
+		blob.path.endsWith(".jsonl") || blob.path.endsWith(".ndjson");
 
-	if (Array.isArray(parsed)) {
-		for (let i = 0; i < parsed.length; i++) {
-			yield toDocument(parsed[i], blob, { arrayIndex: i });
-		}
-	} else {
-		yield toDocument(parsed, blob, {});
-	}
-}
-
-/** Parse newline-delimited JSON (one object per line). */
-function* loadJsonLines(text: string, blob: Blob): Generator<Document> {
-	const lines = text.split(/\r?\n/);
-	let index = 0;
-
-	for (const line of lines) {
-		const trimmed = line.trim();
-		if (trimmed.length === 0) continue;
-
-		const parsed: unknown = JSON.parse(trimmed);
-		yield toDocument(parsed, blob, { lineIndex: index });
-		index++;
-	}
-}
-
-/** Convert a parsed JSON value into a Document with metadata. */
-function toDocument(value: unknown, blob: Blob, baseMeta: Metadata): Document {
+	const parsed: unknown = isJsonLines ? parseJsonLines(text) : JSON.parse(text);
 	const content =
-		typeof value === "string" ? value : JSON.stringify(value, null, 2);
-	const metadata: Metadata = { ...baseMeta };
+		typeof parsed === "string" ? parsed : JSON.stringify(parsed, null, 2);
 
-	if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-		for (const [k, v] of Object.entries(value)) {
+	const doc = new Document(content);
+	doc.deriveFrom(blob);
+
+	if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+		const metadata: Record<string, string | number | boolean> = {};
+		for (const [k, v] of Object.entries(parsed)) {
 			if (
 				typeof v === "string" ||
 				typeof v === "number" ||
@@ -95,9 +62,21 @@ function toDocument(value: unknown, blob: Blob, baseMeta: Metadata): Document {
 				metadata[k] = v;
 			}
 		}
+		if (Object.keys(metadata).length > 0) {
+			doc.withMetadata(metadata);
+		}
 	}
 
-	return new Document(content, { sourceType: "json" })
-		.deriveFrom(blob)
-		.withMetadata(metadata);
+	yield doc;
+}
+
+/** Parse newline-delimited JSON into an array of values. */
+function parseJsonLines(text: string): unknown[] {
+	const results: unknown[] = [];
+	for (const line of text.split(/\r?\n/)) {
+		const trimmed = line.trim();
+		if (trimmed.length === 0) continue;
+		results.push(JSON.parse(trimmed));
+	}
+	return results;
 }

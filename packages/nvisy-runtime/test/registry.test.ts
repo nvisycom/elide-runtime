@@ -1,4 +1,4 @@
-import { Datatypes, Document, Plugin, ValidationError } from "@nvisy/core";
+import { Datatype, Document, Plugin, ValidationError } from "@nvisy/core";
 import { describe, expect, it } from "vitest";
 import { Registry } from "../src/registry.js";
 import {
@@ -49,7 +49,7 @@ describe("Registry", () => {
 	it("loads datatypes and resolves them", () => {
 		const registry = new Registry();
 		const plugin = Plugin.define("dt").withDatatypes(
-			Datatypes.define("document", Document),
+			Datatype.define("document", Document),
 		);
 		registry.load(plugin);
 

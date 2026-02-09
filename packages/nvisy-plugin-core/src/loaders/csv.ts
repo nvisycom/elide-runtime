@@ -1,17 +1,16 @@
 /**
  * CSV loader.
  *
- * Converts `.csv` and `.tsv` blobs into Documents. Each row becomes
- * a separate Document whose content is built from the cell values.
- * When a header row is present, cell values are formatted as
- * `"column: value"` lines; otherwise raw comma-separated values are
- * used as content.
+ * Converts `.csv` and `.tsv` blobs into a single Document.
+ * When a header row is present the content is formatted as
+ * `"column: value"` blocks separated by blank lines; otherwise
+ * raw delimited rows are used.
  *
  * @module
  */
 
-import type { Metadata } from "@nvisy/core";
-import { Document, Loader } from "@nvisy/core";
+import { type Blob, Document, Loader } from "@nvisy/core";
+import { parse } from "csv-parse/sync";
 import { z } from "zod";
 
 /** Schema for CSV loader parameters. */
@@ -32,89 +31,48 @@ export const csvParamsSchema = z
 export type CsvParams = z.infer<typeof csvParamsSchema>;
 
 /**
- * Loader that converts CSV/TSV blobs into one Document per row.
+ * Loader that converts CSV/TSV blobs into a single Document.
  *
- * Header columns are stored as metadata on each Document.
+ * Header columns are stored as metadata on the Document.
  */
 export const csvLoader = Loader.define<CsvParams>("csv", {
 	extensions: [".csv", ".tsv"],
 	contentTypes: ["text/csv", "text/tab-separated-values"],
 	params: csvParamsSchema,
-	async *load(blob, params) {
-		const text = blob.data.toString(params.encoding);
-		const lines = parseLines(text);
-		if (lines.length === 0) return;
-
-		let headers: string[] | null = null;
-		let startIndex = 0;
-
-		if (params.hasHeader && lines.length > 0) {
-			headers = splitRow(lines[0]!, params.delimiter);
-			startIndex = 1;
-		}
-
-		for (let i = startIndex; i < lines.length; i++) {
-			const cells = splitRow(lines[i]!, params.delimiter);
-			const content = headers
-				? headers.map((h, j) => `${h}: ${cells[j] ?? ""}`).join("\n")
-				: cells.join(params.delimiter);
-
-			const metadata: Metadata = {
-				rowIndex: i - startIndex,
-				...(headers
-					? Object.fromEntries(headers.map((h, j) => [h, cells[j] ?? ""]))
-					: {}),
-			};
-
-			const doc = new Document(content, { sourceType: "csv" })
-				.deriveFrom(blob)
-				.withMetadata(metadata);
-			yield doc;
-		}
-	},
+	load: loadCsv,
 });
 
-/** Split text into non-empty lines, handling \r\n and \n. */
-function parseLines(text: string): string[] {
-	return text.split(/\r?\n/).filter((line) => line.length > 0);
-}
+async function* loadCsv(
+	blob: Blob,
+	params: CsvParams,
+): AsyncGenerator<Document> {
+	const text = blob.data.toString(params.encoding);
+	if (text.trim().length === 0) return;
 
-/** Split a single CSV row on the delimiter, respecting double-quoted fields. */
-function splitRow(line: string, delimiter: string): string[] {
-	const fields: string[] = [];
-	let current = "";
-	let inQuotes = false;
-	let i = 0;
+	const records: string[][] = parse(text, {
+		delimiter: params.delimiter,
+		relax_column_count: true,
+		skip_empty_lines: true,
+	});
+	if (records.length === 0) return;
 
-	while (i < line.length) {
-		const char = line[i]!;
+	let headers: string[] | null = null;
+	let dataRows: string[][] = records;
 
-		if (inQuotes) {
-			if (char === '"') {
-				if (i + 1 < line.length && line[i + 1] === '"') {
-					current += '"';
-					i += 2;
-				} else {
-					inQuotes = false;
-					i++;
-				}
-			} else {
-				current += char;
-				i++;
-			}
-		} else if (char === '"') {
-			inQuotes = true;
-			i++;
-		} else if (line.startsWith(delimiter, i)) {
-			fields.push(current);
-			current = "";
-			i += delimiter.length;
-		} else {
-			current += char;
-			i++;
-		}
+	if (params.hasHeader) {
+		headers = records[0]!;
+		dataRows = records.slice(1);
 	}
 
-	fields.push(current);
-	return fields;
+	if (dataRows.length === 0) return;
+
+	const content = headers
+		? dataRows
+				.map((row) => headers.map((h, j) => `${h}: ${row[j] ?? ""}`).join("\n"))
+				.join("\n\n")
+		: dataRows.map((row) => row.join(params.delimiter)).join("\n");
+
+	const doc = new Document(content);
+	doc.deriveFrom(blob);
+	yield doc;
 }

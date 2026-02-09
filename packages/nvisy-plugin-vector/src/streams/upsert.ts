@@ -16,7 +16,8 @@ export type UpsertParams = z.infer<typeof UpsertParams>;
  * via the provider client's `upsert` method.
  */
 export const upsert = Stream.createTarget("upsert", VectorClient, {
-	types: [Embedding, UpsertParams],
+	type: Embedding,
+	params: UpsertParams,
 	writer:
 		(client: VectorClient, _params: UpsertParams) =>
 		async (item: Embedding) => {

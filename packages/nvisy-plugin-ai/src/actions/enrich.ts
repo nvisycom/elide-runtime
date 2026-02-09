@@ -121,7 +121,6 @@ async function* transformEnrich(
 		}
 
 		yield new Document(doc.content, {
-			...(doc.sourceType != null ? { sourceType: doc.sourceType } : {}),
 			...(doc.elements != null ? { elements: doc.elements } : {}),
 		})
 			.deriveFrom(doc)

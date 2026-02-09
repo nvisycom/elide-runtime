@@ -67,11 +67,7 @@ export async function* applyLoaderBridge(
 			continue;
 		}
 
-		const loader = registry.findLoaderForBlob({
-			path: item.path,
-			data: item.data,
-			...(item.contentType && { contentType: item.contentType }),
-		});
+		const loader = registry.findLoaderForBlob(item);
 
 		if (!loader) {
 			if (options?.ignoreUnsupported) {
@@ -81,7 +77,7 @@ export async function* applyLoaderBridge(
 				continue;
 			}
 			throw new RuntimeError(
-				`No loader found for blob: ${item.path} (contentType: ${item.contentType ?? "unknown"})`,
+				`No loader found for blob: ${item.path} (mime: ${item.provided.mime ?? "unknown"})`,
 				{ source: "bridge", retryable: false },
 			);
 		}

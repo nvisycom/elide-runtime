@@ -1,3 +1,8 @@
+//! Checksum and format validators for detected entity values.
+//!
+//! These functions are referenced by pattern definitions in `patterns.json`
+//! and are also used directly by [`DetectChecksumAction`](crate::actions::detect_checksum::DetectChecksumAction).
+
 /// Validate a US Social Security Number.
 pub fn validate_ssn(value: &str) -> bool {
     let parts: Vec<&str> = value.split('-').collect();

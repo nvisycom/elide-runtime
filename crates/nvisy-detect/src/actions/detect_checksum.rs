@@ -1,42 +1,48 @@
-use async_trait::async_trait;
+//! Checksum-based entity validation action.
+
 use std::any::Any;
 use tokio::sync::mpsc;
 
-use nvisy_core::data::DataValue;
+use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::datatypes::entity::Entity;
-use nvisy_core::errors::NvisyError;
+use nvisy_core::error::{Error, ErrorKind};
 use nvisy_core::traits::action::Action;
-use nvisy_core::types::DetectionMethod;
+use nvisy_core::datatypes::entity::DetectionMethod;
 
 use crate::patterns::validators::luhn_check;
 
+/// Validates previously detected entities using checksum algorithms.
+///
+/// Entities whose type has a registered validator (e.g. Luhn for credit cards)
+/// are verified. Valid matches receive a confidence boost and are re-emitted
+/// with [`DetectionMethod::Checksum`]. Invalid matches can optionally be
+/// dropped from the pipeline.
+///
+/// # Parameters (JSON)
+///
+/// | Key               | Type   | Default | Description                                          |
+/// |-------------------|--------|---------|------------------------------------------------------|
+/// | `dropInvalid`     | `bool` | `true`  | Whether to discard entities that fail validation.    |
+/// | `confidenceBoost` | `f64`  | `0.05`  | Amount added to confidence on successful validation. |
 pub struct DetectChecksumAction;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Action for DetectChecksumAction {
     fn id(&self) -> &str {
         "detect-checksum"
     }
 
-    fn input_type(&self) -> &str {
-        "entity"
-    }
-
-    fn output_type(&self) -> &str {
-        "entity"
-    }
-
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), NvisyError> {
+    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
         Ok(())
     }
 
     async fn execute(
         &self,
-        mut input: mpsc::Receiver<DataValue>,
-        output: mpsc::Sender<DataValue>,
+        mut input: mpsc::Receiver<Blob>,
+        output: mpsc::Sender<Blob>,
         params: serde_json::Value,
         _client: Option<Box<dyn Any + Send>>,
-    ) -> Result<u64, NvisyError> {
+    ) -> Result<u64, Error> {
         let drop_invalid = params
             .get("dropInvalid")
             .and_then(|v| v.as_bool())
@@ -48,8 +54,15 @@ impl Action for DetectChecksumAction {
 
         let mut count = 0u64;
 
-        while let Some(item) = input.recv().await {
-            if let DataValue::Entity(entity) = item {
+        while let Some(mut blob) = input.recv().await {
+            let entities: Vec<Entity> = blob.get_artifacts("entities").map_err(|e| {
+                Error::new(ErrorKind::Runtime, format!("failed to read entities artifact: {e}"))
+            })?;
+
+            // Clear existing entities -- we will re-add validated ones
+            blob.artifacts.remove("entities");
+
+            for entity in entities {
                 let validator = get_validator(&entity.entity_type);
 
                 if let Some(validate) = validator {
@@ -71,19 +84,24 @@ impl Action for DetectChecksumAction {
                         boosted.data.parent_id = entity.data.parent_id;
                         boosted.source_id = entity.source_id;
 
+                        blob.add_artifact("entities", &boosted).map_err(|e| {
+                            Error::new(ErrorKind::Runtime, format!("failed to add entity artifact: {e}"))
+                        })?;
+
                         count += 1;
-                        if output.send(DataValue::Entity(boosted)).await.is_err() {
-                            return Ok(count);
-                        }
                         continue;
                     }
                 }
 
-                // No validator or not valid but not dropping — pass through
+                // No validator or not valid but not dropping -- pass through
+                blob.add_artifact("entities", &entity).map_err(|e| {
+                    Error::new(ErrorKind::Runtime, format!("failed to add entity artifact: {e}"))
+                })?;
                 count += 1;
-                if output.send(DataValue::Entity(entity)).await.is_err() {
-                    return Ok(count);
-                }
+            }
+
+            if output.send(blob).await.is_err() {
+                return Ok(count);
             }
         }
 
@@ -91,6 +109,7 @@ impl Action for DetectChecksumAction {
     }
 }
 
+/// Returns the checksum validator function for a given entity type, if one exists.
 fn get_validator(entity_type: &str) -> Option<fn(&str) -> bool> {
     match entity_type {
         "credit_card" => Some(luhn_check),

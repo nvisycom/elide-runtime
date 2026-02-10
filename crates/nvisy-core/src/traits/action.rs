@@ -1,22 +1,22 @@
+//! The `Action` trait -- the fundamental processing unit in a pipeline.
+
 use std::any::Any;
 
-use async_trait::async_trait;
 use tokio::sync::mpsc;
 
-use crate::data::DataValue;
-use crate::errors::NvisyError;
+use crate::datatypes::blob::Blob;
+use crate::error::Error;
 
-/// Type-erased action that consumes from an input channel and produces to an output channel.
-#[async_trait]
+/// A processing step that consumes blobs from an input channel and
+/// produces blobs to an output channel.
+///
+/// Actions are the primary unit of work in a pipeline. Each action
+/// receives blobs via an async MPSC channel, transforms them (possibly
+/// attaching artifacts), and forwards results to the next stage.
+#[async_trait::async_trait]
 pub trait Action: Send + Sync + 'static {
     /// Unique identifier for this action (e.g. "detect-regex").
     fn id(&self) -> &str;
-
-    /// Expected input data type name (e.g. "document").
-    fn input_type(&self) -> &str;
-
-    /// Output data type name (e.g. "entity").
-    fn output_type(&self) -> &str;
 
     /// Whether this action requires a provider client.
     fn requires_client(&self) -> bool {
@@ -29,15 +29,15 @@ pub trait Action: Send + Sync + 'static {
     }
 
     /// Validate action parameters.
-    fn validate_params(&self, params: &serde_json::Value) -> Result<(), NvisyError>;
+    fn validate_params(&self, params: &serde_json::Value) -> Result<(), Error>;
 
-    /// Execute the action, consuming items from input and sending results to output.
+    /// Execute the action, consuming blobs from input and sending results to output.
     /// Returns the number of items processed.
     async fn execute(
         &self,
-        input: mpsc::Receiver<DataValue>,
-        output: mpsc::Sender<DataValue>,
+        input: mpsc::Receiver<Blob>,
+        output: mpsc::Sender<Blob>,
         params: serde_json::Value,
         client: Option<Box<dyn Any + Send>>,
-    ) -> Result<u64, NvisyError>;
+    ) -> Result<u64, Error>;
 }

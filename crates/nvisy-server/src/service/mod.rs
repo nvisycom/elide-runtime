@@ -1,6 +1,11 @@
+//! Shared application services, configuration, and state.
+//!
+//! This module re-exports the primary service types and implements Axum's
+//! [`FromRef`](axum::extract::FromRef) for each sub-state field so that
+//! handlers can extract individual services directly.
+
 pub mod audit_store;
 pub mod config;
-pub mod engine_factory;
 pub mod policy_store;
 pub mod state;
 
@@ -9,7 +14,6 @@ use std::sync::Arc;
 // Re-exports for convenience
 pub use audit_store::AuditStore;
 pub use config::ServerConfig;
-pub use engine_factory::create_registry;
 pub use policy_store::PolicyStore;
 pub use state::AppState;
 
@@ -24,7 +28,6 @@ macro_rules! impl_di {
 }
 
 impl_di! {
-    registry: Arc<nvisy_core::registry::Registry>,
     run_manager: Arc<nvisy_engine::runs::RunManager>,
     policy_store: Arc<PolicyStore>,
     audit_store: Arc<AuditStore>

@@ -1,35 +1,61 @@
-use serde::{Deserialize, Serialize};
-use crate::data::DataItem;
-use crate::types::{EntityCategory, RedactionMethod};
+//! Redaction policies and rules.
 
-/// A single rule within a redaction policy.
+use serde::{Deserialize, Serialize};
+use super::DataItem;
+use crate::datatypes::entity::EntityCategory;
+use crate::datatypes::redaction::RedactionMethod;
+
+/// A single rule within a redaction [`Policy`].
+///
+/// Rules specify which entity categories and types they match, the minimum
+/// confidence threshold, and the redaction method to apply. Rules are
+/// evaluated in ascending priority order.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PolicyRule {
+    /// Unique identifier for this rule within its policy.
     pub id: String,
+    /// Human-readable name for display purposes.
     pub name: String,
+    /// Entity categories this rule applies to. Empty means all categories.
     pub categories: Vec<EntityCategory>,
+    /// Specific entity type names this rule applies to. Empty means all types.
     pub entity_types: Vec<String>,
+    /// Minimum detection confidence required for this rule to trigger.
     pub confidence_threshold: f64,
+    /// Redaction strategy to apply when this rule matches.
     pub method: RedactionMethod,
+    /// Template string for the replacement value (e.g. `"[REDACTED]"`).
     pub replacement_template: String,
+    /// Whether this rule is active. Disabled rules are skipped during evaluation.
     pub enabled: bool,
+    /// Evaluation priority (lower numbers are evaluated first).
     pub priority: i32,
 }
 
-/// A redaction policy containing rules.
+/// A named redaction policy containing an ordered set of rules.
+///
+/// Policies are evaluated by [`find_matching_rule`](Policy::find_matching_rule)
+/// which returns the first matching enabled rule sorted by priority.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Policy {
+    /// Common data-item fields (id, parent_id, metadata).
     #[serde(flatten)]
     pub data: DataItem,
+    /// Human-readable policy name.
     pub name: String,
+    /// Ordered list of redaction rules.
     pub rules: Vec<PolicyRule>,
+    /// Fallback redaction method when no rule matches.
     pub default_method: RedactionMethod,
+    /// Fallback confidence threshold when no rule matches.
     pub default_confidence_threshold: f64,
 }
 
 impl Policy {
+    /// Create a new policy with the given name and rules, using default
+    /// fallback method ([`Mask`](RedactionMethod::Mask)) and threshold (0.5).
     pub fn new(name: impl Into<String>, rules: Vec<PolicyRule>) -> Self {
         Self {
             data: DataItem::new(),
@@ -40,11 +66,13 @@ impl Policy {
         }
     }
 
+    /// Override the fallback redaction method.
     pub fn with_default_method(mut self, method: RedactionMethod) -> Self {
         self.default_method = method;
         self
     }
 
+    /// Override the fallback confidence threshold.
     pub fn with_default_confidence_threshold(mut self, threshold: f64) -> Self {
         self.default_confidence_threshold = threshold;
         self

@@ -1,27 +1,45 @@
+//! Execution planning via topological sort.
+//!
+//! Converts a validated [`Graph`] into an [`ExecutionPlan`] by performing
+//! cycle detection and topological sorting using `petgraph`.
+
 use std::collections::HashMap;
 use petgraph::algo::{is_cyclic_directed, toposort};
 use petgraph::graph::{DiGraph, NodeIndex};
-use crate::schema::{Graph, GraphNode};
-use nvisy_core::errors::NvisyError;
-use nvisy_core::registry::Registry;
+use crate::compiler::graph::{Graph, GraphNode};
+use nvisy_core::error::Error;
 
-/// A node resolved against the registry.
+/// A graph node enriched with topological ordering and adjacency information.
 #[derive(Debug, Clone)]
 pub struct ResolvedNode {
+    /// The original graph node definition.
     pub node: GraphNode,
+    /// Zero-based position in the topological ordering.
     pub topo_order: usize,
+    /// IDs of nodes that feed data into this node.
     pub upstream_ids: Vec<String>,
+    /// IDs of nodes that receive data from this node.
     pub downstream_ids: Vec<String>,
 }
 
 /// A compiled execution plan ready for the executor.
+///
+/// Contains all nodes in topological order along with their adjacency
+/// information so the executor can wire channels and schedule tasks.
 pub struct ExecutionPlan {
+    /// Resolved nodes sorted in topological order.
     pub nodes: Vec<ResolvedNode>,
+    /// Node IDs in topological order.
     pub topo_order: Vec<String>,
 }
 
-/// Build an execution plan from a parsed graph and registry.
-pub fn build_plan(graph: &Graph, registry: &Registry) -> Result<ExecutionPlan, NvisyError> {
+/// Builds an execution plan from a parsed [`Graph`].
+///
+/// Validates that the graph is acyclic, performs a topological sort, and
+/// computes upstream/downstream adjacency lists for each node.
+///
+/// Returns an error if the graph contains a cycle or references unknown nodes.
+pub fn build_plan(graph: &Graph) -> Result<ExecutionPlan, Error> {
     // Build petgraph
     let mut pg: DiGraph<&str, ()> = DiGraph::new();
     let mut index_map: HashMap<&str, NodeIndex> = HashMap::new();
@@ -33,49 +51,25 @@ pub fn build_plan(graph: &Graph, registry: &Registry) -> Result<ExecutionPlan, N
 
     for edge in &graph.edges {
         let from = index_map.get(edge.from.as_str()).ok_or_else(|| {
-            NvisyError::validation(format!("Unknown edge source: {}", edge.from), "compiler")
+            Error::validation(format!("Unknown edge source: {}", edge.from), "compiler")
         })?;
         let to = index_map.get(edge.to.as_str()).ok_or_else(|| {
-            NvisyError::validation(format!("Unknown edge target: {}", edge.to), "compiler")
+            Error::validation(format!("Unknown edge target: {}", edge.to), "compiler")
         })?;
         pg.add_edge(*from, *to, ());
     }
 
     // Cycle detection
     if is_cyclic_directed(&pg) {
-        return Err(NvisyError::validation("Graph contains a cycle", "compiler"));
+        return Err(Error::validation("Graph contains a cycle", "compiler"));
     }
 
     // Topological sort
     let topo = toposort(&pg, None).map_err(|_| {
-        NvisyError::validation("Graph contains a cycle", "compiler")
+        Error::validation("Graph contains a cycle", "compiler")
     })?;
 
     let topo_order: Vec<String> = topo.iter().map(|idx| pg[*idx].to_string()).collect();
-
-    // Resolve nodes against registry
-    for node in &graph.nodes {
-        match node {
-            GraphNode::Action { action, params, .. } => {
-                let _a = registry.get_action(action).ok_or_else(|| {
-                    NvisyError::validation(format!("Unknown action: {}", action), "compiler")
-                })?;
-                _a.validate_params(params)?;
-            }
-            GraphNode::Source { provider, stream, .. } => {
-                let source_key = format!("{}/{}", provider, stream);
-                let _s = registry.get_source(&source_key).ok_or_else(|| {
-                    NvisyError::validation(format!("Unknown source: {}", source_key), "compiler")
-                })?;
-            }
-            GraphNode::Target { provider, stream, .. } => {
-                let target_key = format!("{}/{}", provider, stream);
-                let _t = registry.get_target(&target_key).ok_or_else(|| {
-                    NvisyError::validation(format!("Unknown target: {}", target_key), "compiler")
-                })?;
-            }
-        }
-    }
 
     // Build resolved nodes with adjacency info
     let node_map: HashMap<&str, &GraphNode> = graph.nodes.iter().map(|n| (n.id(), n)).collect();

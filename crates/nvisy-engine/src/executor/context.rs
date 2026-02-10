@@ -1,13 +1,21 @@
-use tokio::sync::{mpsc, watch};
-use nvisy_core::data::DataValue;
+//! Channel primitives used to wire data flow between pipeline nodes.
+//!
+//! [`EdgeChannel`] carries [`Blob`] items along a graph edge, while
+//! [`NodeSignal`] broadcasts node completion.
 
-/// Buffer size for inter-node channels.
+use tokio::sync::{mpsc, watch};
+use nvisy_core::datatypes::blob::Blob;
+
+/// Default buffer size for bounded inter-node MPSC channels.
 pub const CHANNEL_BUFFER_SIZE: usize = 256;
 
-/// Wiring for a single edge: sender + receiver pair.
+/// A bounded MPSC channel pair used to transfer [`Blob`] items along a
+/// single graph edge from an upstream node to a downstream node.
 pub struct EdgeChannel {
-    pub sender: mpsc::Sender<DataValue>,
-    pub receiver: mpsc::Receiver<DataValue>,
+    /// Sending half, held by the upstream node.
+    pub sender: mpsc::Sender<Blob>,
+    /// Receiving half, held by the downstream node.
+    pub receiver: mpsc::Receiver<Blob>,
 }
 
 impl Default for EdgeChannel {
@@ -17,15 +25,21 @@ impl Default for EdgeChannel {
 }
 
 impl EdgeChannel {
+    /// Creates a new edge channel with [`CHANNEL_BUFFER_SIZE`] capacity.
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel(CHANNEL_BUFFER_SIZE);
         Self { sender, receiver }
     }
 }
 
-/// Signals that a node has completed.
+/// A watch channel pair used to signal that a node has completed execution.
+///
+/// The sender broadcasts `true` when the node finishes, and downstream nodes
+/// wait on the receiver before starting.
 pub struct NodeSignal {
+    /// Sending half; set to `true` when the node completes.
     pub sender: watch::Sender<bool>,
+    /// Receiving half; downstream tasks call `wait_for(|&done| done)`.
     pub receiver: watch::Receiver<bool>,
 }
 
@@ -36,6 +50,7 @@ impl Default for NodeSignal {
 }
 
 impl NodeSignal {
+    /// Creates a new node signal initialized to `false` (not completed).
     pub fn new() -> Self {
         let (sender, receiver) = watch::channel(false);
         Self { sender, receiver }

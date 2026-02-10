@@ -1,25 +1,38 @@
+//! Parsed document representation.
+
 use serde::{Deserialize, Serialize};
-use crate::data::DataItem;
+use super::DataItem;
 use crate::documents::elements::Element;
 
 /// A parsed human-readable text representation of a document.
+///
+/// Documents are produced by loaders from raw blobs and contain the
+/// extracted text along with optional structural elements, title, and
+/// source format metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Document {
+    /// Common data-item fields (id, parent_id, metadata).
     #[serde(flatten)]
     pub data: DataItem,
+    /// Full text content of the document.
     pub content: String,
+    /// Document title, if one was extracted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    /// Structural elements (paragraphs, tables, images, etc.) parsed from the document.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elements: Option<Vec<Element>>,
+    /// Original file format (e.g. `"pdf"`, `"docx"`, `"html"`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_format: Option<String>,
+    /// Total number of pages, if the source format is paginated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_count: Option<u32>,
 }
 
 impl Document {
+    /// Create a new document from raw text content.
     pub fn new(content: impl Into<String>) -> Self {
         Self {
             data: DataItem::new(),
@@ -31,21 +44,25 @@ impl Document {
         }
     }
 
+    /// Set the document title (builder pattern).
     pub fn with_title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
         self
     }
 
+    /// Attach parsed structural elements to this document.
     pub fn with_elements(mut self, elements: Vec<Element>) -> Self {
         self.elements = Some(elements);
         self
     }
 
+    /// Record the original file format (e.g. `"pdf"`, `"docx"`).
     pub fn with_source_format(mut self, format: impl Into<String>) -> Self {
         self.source_format = Some(format.into());
         self
     }
 
+    /// Set the total page count for paginated source formats.
     pub fn with_page_count(mut self, count: u32) -> Self {
         self.page_count = Some(count);
         self

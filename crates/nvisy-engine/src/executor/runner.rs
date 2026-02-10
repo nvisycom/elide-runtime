@@ -1,45 +1,56 @@
+//! Graph runner that executes a compiled [`ExecutionPlan`].
+//!
+//! Each node is spawned as a concurrent Tokio task. Data flows between nodes
+//! via bounded MPSC channels, and upstream completion is signalled via watch
+//! channels so downstream tasks wait before starting.
+
 use std::collections::HashMap;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 use uuid::Uuid;
-use nvisy_core::data::DataValue;
-use nvisy_core::errors::NvisyError;
-use nvisy_core::registry::Registry;
+use nvisy_core::datatypes::blob::Blob;
+use nvisy_core::error::Error;
 use crate::compiler::plan::ExecutionPlan;
 use crate::connections::Connections;
 use crate::executor::context::CHANNEL_BUFFER_SIZE;
-use crate::schema::GraphNode;
+use crate::compiler::graph::GraphNode;
 
-/// Result of a single node execution.
+/// Outcome of executing a single node in the pipeline.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NodeResult {
+    /// ID of the node that produced this result.
     pub node_id: String,
+    /// Number of data items processed by this node.
     pub items_processed: u64,
+    /// Error message if the node failed, or `None` on success.
     pub error: Option<String>,
 }
 
-/// Result of an entire graph execution.
+/// Aggregate outcome of executing an entire pipeline graph.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RunResult {
+    /// Unique identifier for this execution run.
     pub run_id: Uuid,
+    /// Per-node results in completion order.
     pub node_results: Vec<NodeResult>,
+    /// `true` if all nodes completed without error.
     pub success: bool,
 }
 
-/// Execute a compiled graph plan.
+/// Executes a compiled [`ExecutionPlan`] by spawning concurrent tasks for each node.
+///
+/// Returns a [`RunResult`] containing per-node outcomes and an overall success flag.
 pub async fn run_graph(
     plan: &ExecutionPlan,
     _connections: &Connections,
-    _registry: &Registry,
-) -> Result<RunResult, NvisyError> {
+) -> Result<RunResult, Error> {
     let run_id = Uuid::new_v4();
 
     // Create channels for each edge
-    // Key: "from_id -> to_id", value: (sender, receiver)
-    let mut senders: HashMap<String, Vec<mpsc::Sender<DataValue>>> = HashMap::new();
-    let mut receivers: HashMap<String, Vec<mpsc::Receiver<DataValue>>> = HashMap::new();
+    let mut senders: HashMap<String, Vec<mpsc::Sender<Blob>>> = HashMap::new();
+    let mut receivers: HashMap<String, Vec<mpsc::Receiver<Blob>>> = HashMap::new();
 
     for node in &plan.nodes {
         let node_id = node.node.id();
@@ -131,9 +142,9 @@ pub async fn run_graph(
 /// Execute a single node with its channels (simplified -- does not use registry directly).
 async fn execute_node(
     _node: &GraphNode,
-    senders: Vec<mpsc::Sender<DataValue>>,
-    mut receivers: Vec<mpsc::Receiver<DataValue>>,
-) -> Result<u64, NvisyError> {
+    senders: Vec<mpsc::Sender<Blob>>,
+    mut receivers: Vec<mpsc::Receiver<Blob>>,
+) -> Result<u64, Error> {
     // For now, forward items from receivers to senders (passthrough behavior).
     // The actual registry-based dispatch happens via the Engine wrapper.
     let mut count = 0u64;

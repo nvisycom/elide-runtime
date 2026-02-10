@@ -1,43 +1,48 @@
-use async_trait::async_trait;
+//! Regex-based PII/PHI entity detection action.
+
 use regex::Regex;
 use std::any::Any;
 use tokio::sync::mpsc;
 
-use nvisy_core::data::DataValue;
-use nvisy_core::datatypes::entity::{Entity, EntityLocation};
-use nvisy_core::errors::NvisyError;
+use nvisy_core::datatypes::blob::Blob;
+use nvisy_core::datatypes::document::Document;
+use nvisy_core::datatypes::entity::{DetectionMethod, Entity, EntityLocation};
+use nvisy_core::error::{Error, ErrorKind};
 use nvisy_core::traits::action::Action;
-use nvisy_core::types::DetectionMethod;
 
 use crate::patterns::{self, PatternDefinition};
 
+/// Scans document text against compiled regex patterns to detect PII/PHI entities.
+///
+/// For each blob the action reads the `"documents"` artifact (or falls back to
+/// the raw blob content), runs every active pattern, optionally validates
+/// matches, and appends resulting [`Entity`] artifacts.
+///
+/// # Parameters (JSON)
+///
+/// | Key                  | Type       | Default | Description                              |
+/// |----------------------|------------|---------|------------------------------------------|
+/// | `confidenceThreshold`| `f64`      | `0.0`   | Minimum pattern confidence to emit.      |
+/// | `patterns`           | `[String]` | all     | Subset of built-in pattern names to use. |
 pub struct DetectRegexAction;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Action for DetectRegexAction {
     fn id(&self) -> &str {
         "detect-regex"
     }
 
-    fn input_type(&self) -> &str {
-        "document"
-    }
-
-    fn output_type(&self) -> &str {
-        "entity"
-    }
-
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), NvisyError> {
+    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
         Ok(())
     }
 
     async fn execute(
         &self,
-        mut input: mpsc::Receiver<DataValue>,
-        output: mpsc::Sender<DataValue>,
+        mut input: mpsc::Receiver<Blob>,
+        output: mpsc::Sender<Blob>,
         params: serde_json::Value,
         _client: Option<Box<dyn Any + Send>>,
-    ) -> Result<u64, NvisyError> {
+    ) -> Result<u64, Error> {
         let confidence_threshold: f64 = params
             .get("confidenceThreshold")
             .and_then(|v| v.as_f64())
@@ -58,8 +63,20 @@ impl Action for DetectRegexAction {
 
         let mut count = 0u64;
 
-        while let Some(item) = input.recv().await {
-            if let DataValue::Document(doc) = &item {
+        while let Some(mut blob) = input.recv().await {
+            let documents: Vec<Document> = blob.get_artifacts("documents").map_err(|e| {
+                Error::new(ErrorKind::Runtime, format!("failed to read documents artifact: {e}"))
+            })?;
+
+            let docs = if documents.is_empty() {
+                // No documents artifact -- treat blob content as plain text
+                let text = String::from_utf8_lossy(&blob.content).into_owned();
+                vec![Document::new(text)]
+            } else {
+                documents
+            };
+
+            for doc in &docs {
                 for (pattern, regex) in &compiled {
                     for mat in regex.find_iter(&doc.content) {
                         let value = mat.as_str();
@@ -91,12 +108,17 @@ impl Action for DetectRegexAction {
                         entity.source_id = Some(doc.data.id);
                         entity.data.parent_id = Some(doc.data.id);
 
+                        blob.add_artifact("entities", &entity).map_err(|e| {
+                            Error::new(ErrorKind::Runtime, format!("failed to add entity artifact: {e}"))
+                        })?;
+
                         count += 1;
-                        if output.send(DataValue::Entity(entity)).await.is_err() {
-                            return Ok(count);
-                        }
                     }
                 }
+            }
+
+            if output.send(blob).await.is_err() {
+                return Ok(count);
             }
         }
 
@@ -104,6 +126,9 @@ impl Action for DetectRegexAction {
     }
 }
 
+/// Resolves the set of active patterns from an optional list of requested names.
+///
+/// When `requested` is `None` or empty, all built-in patterns are returned.
 fn resolve_patterns(requested: &Option<Vec<String>>) -> Vec<&'static PatternDefinition> {
     match requested {
         Some(names) if !names.is_empty() => names

@@ -1,25 +1,34 @@
-use async_trait::async_trait;
+//! AWS S3 (and S3-compatible) provider implementation.
+//!
+//! Provides [`S3ObjectStoreClient`] which implements [`ObjectStoreClient`] and
+//! [`S3ProviderFactory`] which plugs into the engine's provider system.
+
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::Client as S3Client;
 use bytes::Bytes;
 
-use nvisy_core::errors::NvisyError;
+use nvisy_core::error::Error;
 use nvisy_core::traits::provider::{ConnectedInstance, ProviderFactory};
 use crate::client::{GetResult, ListResult, ObjectStoreClient};
 
 /// S3-compatible object store client.
+///
+/// Wraps the AWS SDK [`S3Client`] and scopes all operations to a single bucket.
 pub struct S3ObjectStoreClient {
+    /// Underlying AWS SDK client.
     client: S3Client,
+    /// Target S3 bucket name.
     bucket: String,
 }
 
 impl S3ObjectStoreClient {
+    /// Create a new client bound to the given `bucket`.
     pub fn new(client: S3Client, bucket: String) -> Self {
         Self { client, bucket }
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl ObjectStoreClient for S3ObjectStoreClient {
     async fn list(&self, prefix: &str, cursor: Option<&str>) -> Result<ListResult, Box<dyn std::error::Error + Send + Sync>> {
         let mut req = self.client
@@ -85,31 +94,37 @@ impl ObjectStoreClient for S3ObjectStoreClient {
     }
 }
 
-/// S3 provider factory.
+/// Factory that creates [`S3ObjectStoreClient`] instances from JSON credentials.
+///
+/// Expected credential keys:
+/// - `bucket` (required) -- S3 bucket name.
+/// - `region` (optional, defaults to `us-east-1`).
+/// - `endpoint` (optional) -- custom endpoint URL for S3-compatible services.
+/// - `accessKeyId` / `secretAccessKey` / `sessionToken` (optional) -- static credentials.
 pub struct S3ProviderFactory;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl ProviderFactory for S3ProviderFactory {
     fn id(&self) -> &str { "s3" }
 
-    fn validate_credentials(&self, creds: &serde_json::Value) -> Result<(), NvisyError> {
+    fn validate_credentials(&self, creds: &serde_json::Value) -> Result<(), Error> {
         let bucket = creds.get("bucket").and_then(|v| v.as_str());
         if bucket.is_none() {
-            return Err(NvisyError::validation("Missing 'bucket' in S3 credentials", "s3"));
+            return Err(Error::validation("Missing 'bucket' in S3 credentials", "s3"));
         }
         Ok(())
     }
 
-    async fn verify(&self, creds: &serde_json::Value) -> Result<(), NvisyError> {
+    async fn verify(&self, creds: &serde_json::Value) -> Result<(), Error> {
         self.validate_credentials(creds)?;
         // Could do a HeadBucket call here for verification
         Ok(())
     }
 
-    async fn connect(&self, creds: &serde_json::Value) -> Result<ConnectedInstance, NvisyError> {
+    async fn connect(&self, creds: &serde_json::Value) -> Result<ConnectedInstance, Error> {
         let bucket = creds.get("bucket")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| NvisyError::validation("Missing 'bucket'", "s3"))?
+            .ok_or_else(|| Error::validation("Missing 'bucket'", "s3"))?
             .to_string();
 
         let region = creds.get("region")

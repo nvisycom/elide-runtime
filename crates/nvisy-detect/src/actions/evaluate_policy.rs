@@ -1,42 +1,49 @@
-use async_trait::async_trait;
+//! Policy evaluation action that maps detected entities to redaction instructions.
+
 use std::any::Any;
 use tokio::sync::mpsc;
 
-use nvisy_core::data::DataValue;
+use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::datatypes::entity::Entity;
 use nvisy_core::datatypes::policy::PolicyRule;
 use nvisy_core::datatypes::redaction::Redaction;
-use nvisy_core::errors::NvisyError;
+use nvisy_core::error::{Error, ErrorKind};
 use nvisy_core::traits::action::Action;
-use nvisy_core::types::RedactionMethod;
+use nvisy_core::datatypes::redaction::RedactionMethod;
 
+/// Evaluates policy rules against detected entities and emits [`Redaction`] artifacts.
+///
+/// For each entity the action finds the first matching rule (sorted by priority),
+/// applies its redaction method and replacement template, and writes a
+/// `"redactions"` artifact to the blob. Entities that fall below the confidence
+/// threshold are skipped.
+///
+/// # Parameters (JSON)
+///
+/// | Key                          | Type                  | Default  | Description                                  |
+/// |------------------------------|-----------------------|----------|----------------------------------------------|
+/// | `rules`                      | `[PolicyRule]`        | `[]`     | Ordered policy rules to evaluate.            |
+/// | `defaultMethod`              | `RedactionMethod`     | `Mask`   | Fallback redaction method when no rule matches.|
+/// | `defaultConfidenceThreshold` | `f64`                 | `0.5`    | Fallback confidence threshold.               |
 pub struct EvaluatePolicyAction;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Action for EvaluatePolicyAction {
     fn id(&self) -> &str {
         "evaluate-policy"
     }
 
-    fn input_type(&self) -> &str {
-        "entity"
-    }
-
-    fn output_type(&self) -> &str {
-        "redaction"
-    }
-
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), NvisyError> {
+    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
         Ok(())
     }
 
     async fn execute(
         &self,
-        mut input: mpsc::Receiver<DataValue>,
-        output: mpsc::Sender<DataValue>,
+        mut input: mpsc::Receiver<Blob>,
+        output: mpsc::Sender<Blob>,
         params: serde_json::Value,
         _client: Option<Box<dyn Any + Send>>,
-    ) -> Result<u64, NvisyError> {
+    ) -> Result<u64, Error> {
         let rules: Vec<PolicyRule> = params
             .get("rules")
             .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -55,9 +62,13 @@ impl Action for EvaluatePolicyAction {
 
         let mut count = 0u64;
 
-        while let Some(item) = input.recv().await {
-            if let DataValue::Entity(entity) = item {
-                let rule = find_matching_rule(&entity, &sorted_rules);
+        while let Some(mut blob) = input.recv().await {
+            let entities: Vec<Entity> = blob.get_artifacts("entities").map_err(|e| {
+                Error::new(ErrorKind::Runtime, format!("failed to read entities artifact: {e}"))
+            })?;
+
+            for entity in &entities {
+                let rule = find_matching_rule(entity, &sorted_rules);
                 let method = rule.map(|r| r.method).unwrap_or(default_method);
                 let threshold = rule
                     .map(|r| r.confidence_threshold)
@@ -68,9 +79,9 @@ impl Action for EvaluatePolicyAction {
                 }
 
                 let replacement_value = if let Some(r) = rule {
-                    apply_template(&r.replacement_template, &entity)
+                    apply_template(&r.replacement_template, entity)
                 } else {
-                    apply_default_mask(&entity, default_method)
+                    apply_default_mask(entity, default_method)
                 };
 
                 let mut redaction =
@@ -81,10 +92,15 @@ impl Action for EvaluatePolicyAction {
                 }
                 redaction.data.parent_id = Some(entity.data.id);
 
+                blob.add_artifact("redactions", &redaction).map_err(|e| {
+                    Error::new(ErrorKind::Runtime, format!("failed to add redaction artifact: {e}"))
+                })?;
+
                 count += 1;
-                if output.send(DataValue::Redaction(redaction)).await.is_err() {
-                    return Ok(count);
-                }
+            }
+
+            if output.send(blob).await.is_err() {
+                return Ok(count);
             }
         }
 
@@ -92,6 +108,8 @@ impl Action for EvaluatePolicyAction {
     }
 }
 
+/// Returns the first enabled rule whose category/entity-type filters and confidence
+/// threshold match the given entity, or `None` if no rule applies.
 fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'a PolicyRule> {
     for rule in rules {
         if !rule.enabled {
@@ -113,6 +131,9 @@ fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'
     None
 }
 
+/// Expands a replacement template using entity metadata.
+///
+/// Supported placeholders: `{entityType}`, `{category}`, `{value}`.
 fn apply_template(template: &str, entity: &Entity) -> String {
     template
         .replace("{entityType}", &entity.entity_type)
@@ -123,6 +144,7 @@ fn apply_template(template: &str, entity: &Entity) -> String {
         .replace("{value}", &entity.value)
 }
 
+/// Generates a replacement string for an entity using the given default redaction method.
 fn apply_default_mask(entity: &Entity, method: RedactionMethod) -> String {
     match method {
         RedactionMethod::Mask => "*".repeat(entity.value.len()),

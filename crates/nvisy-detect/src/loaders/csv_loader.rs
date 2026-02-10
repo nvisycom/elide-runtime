@@ -1,13 +1,18 @@
-use async_trait::async_trait;
+//! CSV file loader.
 
 use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::datatypes::document::Document;
-use nvisy_core::errors::NvisyError;
+use nvisy_core::error::Error;
 use nvisy_core::traits::loader::{Loader, LoaderOutput};
 
+/// Loads CSV blobs into a single [`Document`] containing the raw CSV text.
+///
+/// The loader validates that the blob content is valid UTF-8 and tags the
+/// resulting document with `source_format = "csv"`. It handles the `text/csv`
+/// content type and `.csv` file extension.
 pub struct CsvLoader;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader for CsvLoader {
     fn id(&self) -> &str {
         "csv"
@@ -25,9 +30,9 @@ impl Loader for CsvLoader {
         &self,
         blob: &Blob,
         _params: &serde_json::Value,
-    ) -> Result<Vec<LoaderOutput>, NvisyError> {
+    ) -> Result<Vec<LoaderOutput>, Error> {
         let content = String::from_utf8(blob.content.to_vec()).map_err(|e| {
-            NvisyError::validation(format!("Invalid UTF-8 in CSV: {}", e), "csv-loader")
+            Error::validation(format!("Invalid UTF-8 in CSV: {}", e), "csv-loader")
         })?;
         let mut doc = Document::new(content);
         doc.source_format = Some("csv".to_string());

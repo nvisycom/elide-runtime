@@ -1,13 +1,18 @@
-use async_trait::async_trait;
+//! Plain-text file loader.
 
 use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::datatypes::document::Document;
-use nvisy_core::errors::NvisyError;
+use nvisy_core::error::Error;
 use nvisy_core::traits::loader::{Loader, LoaderOutput};
 
+/// Loads plain-text blobs into a single [`Document`].
+///
+/// The loader validates that the blob content is valid UTF-8 and tags the
+/// resulting document with `source_format = "txt"`. It handles the `text/plain`
+/// content type and `.txt` / `.text` file extensions.
 pub struct PlaintextLoader;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Loader for PlaintextLoader {
     fn id(&self) -> &str {
         "plaintext"
@@ -25,9 +30,9 @@ impl Loader for PlaintextLoader {
         &self,
         blob: &Blob,
         _params: &serde_json::Value,
-    ) -> Result<Vec<LoaderOutput>, NvisyError> {
+    ) -> Result<Vec<LoaderOutput>, Error> {
         let content = String::from_utf8(blob.content.to_vec()).map_err(|e| {
-            NvisyError::validation(
+            Error::validation(
                 format!("Invalid UTF-8 in plaintext: {}", e),
                 "plaintext-loader",
             )

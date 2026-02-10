@@ -1,56 +1,58 @@
-use std::fmt;
+//! Unified error types for the nvisy platform.
+//!
+//! All crates in the nvisy workspace use [`Error`] as their primary error
+//! type and [`ErrorKind`] to classify failures.
+
+use derive_more::Display;
 
 /// Classification of error kinds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Used to tag every [`Error`] so callers can programmatically decide
+/// how to handle a failure (e.g. retry on `Timeout`, surface to user
+/// on `Validation`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
 pub enum ErrorKind {
+    /// Input or configuration failed validation checks.
     Validation,
+    /// Could not connect to an external service.
     Connection,
+    /// An operation exceeded its time limit.
     Timeout,
+    /// The operation was explicitly cancelled.
+    #[display("Cancelled")]
     Cancellation,
+    /// A policy rule was violated.
     Policy,
+    /// An internal runtime error occurred.
     Runtime,
+    /// An error originating from the embedded Python bridge.
     Python,
+    /// An error that does not fit any other category.
     Other,
 }
 
-impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Validation => write!(f, "Validation"),
-            Self::Connection => write!(f, "Connection"),
-            Self::Timeout => write!(f, "Timeout"),
-            Self::Cancellation => write!(f, "Cancelled"),
-            Self::Policy => write!(f, "Policy"),
-            Self::Runtime => write!(f, "Runtime"),
-            Self::Python => write!(f, "Python"),
-            Self::Other => write!(f, "Other"),
-        }
-    }
-}
-
-/// Unified error type for the Nvisy platform.
-#[derive(Debug)]
+/// Unified error type for the nvisy platform.
+///
+/// Carries a [`kind`](ErrorKind), a human-readable message, an optional
+/// source component name, a retryable flag, and an optional wrapped cause.
+#[derive(Debug, thiserror::Error)]
+#[error("{kind}: {message}")]
 pub struct Error {
+    /// Classification of the error.
     pub kind: ErrorKind,
+    /// Human-readable description of what went wrong.
     pub message: String,
+    /// Name of the component that produced this error (e.g. `"s3-read"`, `"detect-regex"`).
     pub source_component: Option<String>,
+    /// Whether the operation that failed can be safely retried.
     pub retryable: bool,
+    /// The underlying cause, if any.
+    #[source]
     pub source: Option<Box<dyn std::error::Error + Send + Sync>>,
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.kind, self.message)
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.source.as_ref().map(|e| e.as_ref() as &(dyn std::error::Error + 'static))
-    }
-}
-
 impl Error {
+    /// Create a new error with the given kind and message.
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
         Self {
             kind,
@@ -61,25 +63,30 @@ impl Error {
         }
     }
 
+    /// Attach an underlying cause to this error.
     pub fn with_source(mut self, source: impl std::error::Error + Send + Sync + 'static) -> Self {
         self.source = Some(Box::new(source));
         self
     }
 
+    /// Tag this error with the name of the component that produced it.
     pub fn with_component(mut self, component: impl Into<String>) -> Self {
         self.source_component = Some(component.into());
         self
     }
 
+    /// Mark whether this error is safe to retry.
     pub fn with_retryable(mut self, retryable: bool) -> Self {
         self.retryable = retryable;
         self
     }
 
+    /// Shorthand for a validation error with a source component.
     pub fn validation(message: impl Into<String>, source: impl Into<String>) -> Self {
         Self::new(ErrorKind::Validation, message).with_component(source)
     }
 
+    /// Shorthand for a connection error with a source component and retryable flag.
     pub fn connection(
         message: impl Into<String>,
         source: impl Into<String>,
@@ -90,18 +97,22 @@ impl Error {
             .with_retryable(retryable)
     }
 
+    /// Shorthand for a timeout error (always retryable).
     pub fn timeout(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::Timeout, message).with_retryable(true)
     }
 
+    /// Shorthand for a cancellation error.
     pub fn cancellation(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::Cancellation, message)
     }
 
+    /// Shorthand for a policy violation error.
     pub fn policy(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::Policy, message)
     }
 
+    /// Shorthand for a runtime error with a source component and retryable flag.
     pub fn runtime(
         message: impl Into<String>,
         source: impl Into<String>,
@@ -112,6 +123,7 @@ impl Error {
             .with_retryable(retryable)
     }
 
+    /// Shorthand for a Python bridge error.
     pub fn python(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::Python, message)
     }
@@ -132,6 +144,3 @@ impl From<anyhow::Error> for Error {
 
 /// Convenience type alias for results using the Nvisy error type.
 pub type Result<T> = std::result::Result<T, Error>;
-
-// Keep backward compatibility: NvisyError is an alias for Error.
-pub type NvisyError = Error;

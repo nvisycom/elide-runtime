@@ -1,20 +1,31 @@
+//! Named-entity recognition (NER) detection via a Python AI backend.
+//!
+//! Functions in this module acquire the GIL, call into the Python `nvisy_ai`
+//! module, and convert the returned list of dicts into [`Entity`] values.
+
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use nvisy_core::datatypes::entity::{Entity, EntityLocation};
-use nvisy_core::errors::NvisyError;
-use nvisy_core::types::{DetectionMethod, EntityCategory};
+use nvisy_core::error::Error;
+use nvisy_core::datatypes::entity::{DetectionMethod, EntityCategory};
 use crate::bridge::PythonBridge;
 use crate::error::from_pyerr;
 
-/// Configuration for NER detection.
+/// Configuration for NER detection passed to the Python backend.
 #[derive(Debug, Clone)]
 pub struct NerConfig {
+    /// Entity type labels to detect (e.g., `["PERSON", "SSN"]`).
     pub entity_types: Vec<String>,
+    /// Minimum confidence score to include a detection (0.0 -- 1.0).
     pub confidence_threshold: f64,
+    /// Sampling temperature forwarded to the AI model.
     pub temperature: f64,
+    /// API key for the AI provider.
     pub api_key: String,
+    /// Model identifier (e.g., `"gpt-4"`).
     pub model: String,
+    /// AI provider name (e.g., `"openai"`).
     pub provider: String,
 }
 
@@ -23,7 +34,7 @@ pub async fn detect_ner(
     bridge: &PythonBridge,
     text: &str,
     config: &NerConfig,
-) -> Result<Vec<Entity>, NvisyError> {
+) -> Result<Vec<Entity>, Error> {
     let module_name = bridge.module_name().to_string();
     let text = text.to_string();
     let config = config.clone();
@@ -49,7 +60,7 @@ pub async fn detect_ner(
         })
     })
     .await
-    .map_err(|e| NvisyError::python(format!("Task join error: {}", e)))?
+    .map_err(|e| Error::python(format!("Task join error: {}", e)))?
 }
 
 /// Call Python detect_ner_image function via GIL + spawn_blocking.
@@ -58,7 +69,7 @@ pub async fn detect_ner_image(
     image_data: &[u8],
     mime_type: &str,
     config: &NerConfig,
-) -> Result<Vec<Entity>, NvisyError> {
+) -> Result<Vec<Entity>, Error> {
     let module_name = bridge.module_name().to_string();
     let image_data = image_data.to_vec();
     let mime_type = mime_type.to_string();
@@ -85,26 +96,26 @@ pub async fn detect_ner_image(
         })
     })
     .await
-    .map_err(|e| NvisyError::python(format!("Task join error: {}", e)))?
+    .map_err(|e| Error::python(format!("Task join error: {}", e)))?
 }
 
 /// Parse Python list[dict] response into Vec<Entity>.
-fn parse_python_entities(_py: Python<'_>, result: Bound<'_, PyAny>) -> Result<Vec<Entity>, NvisyError> {
+fn parse_python_entities(_py: Python<'_>, result: Bound<'_, PyAny>) -> Result<Vec<Entity>, Error> {
     let list: &Bound<'_, PyList> = result.downcast().map_err(|e| {
-        NvisyError::python(format!("Expected list from Python: {}", e))
+        Error::python(format!("Expected list from Python: {}", e))
     })?;
 
     let mut entities = Vec::new();
 
     for item in list.iter() {
         let dict: &Bound<'_, PyDict> = item.downcast().map_err(|e| {
-            NvisyError::python(format!("Expected dict in list: {}", e))
+            Error::python(format!("Expected dict in list: {}", e))
         })?;
 
         let category_str: String = dict
             .get_item("category")
             .map_err(from_pyerr)?
-            .ok_or_else(|| NvisyError::python("Missing 'category'"))?
+            .ok_or_else(|| Error::python("Missing 'category'"))?
             .extract()
             .map_err(from_pyerr)?;
 
@@ -119,21 +130,21 @@ fn parse_python_entities(_py: Python<'_>, result: Bound<'_, PyAny>) -> Result<Ve
         let entity_type: String = dict
             .get_item("entity_type")
             .map_err(from_pyerr)?
-            .ok_or_else(|| NvisyError::python("Missing 'entity_type'"))?
+            .ok_or_else(|| Error::python("Missing 'entity_type'"))?
             .extract()
             .map_err(from_pyerr)?;
 
         let value: String = dict
             .get_item("value")
             .map_err(from_pyerr)?
-            .ok_or_else(|| NvisyError::python("Missing 'value'"))?
+            .ok_or_else(|| Error::python("Missing 'value'"))?
             .extract()
             .map_err(from_pyerr)?;
 
         let confidence: f64 = dict
             .get_item("confidence")
             .map_err(from_pyerr)?
-            .ok_or_else(|| NvisyError::python("Missing 'confidence'"))?
+            .ok_or_else(|| Error::python("Missing 'confidence'"))?
             .extract()
             .map_err(from_pyerr)?;
 

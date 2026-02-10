@@ -1,12 +1,21 @@
+//! Request-scoped redaction context for per-invocation control.
+
 use serde::{Deserialize, Serialize};
-use crate::types::{EntityCategory, RedactionMethod};
+use crate::datatypes::entity::EntityCategory;
+use crate::datatypes::redaction::RedactionMethod;
 
 /// Per-entity-type override for the redaction method.
+///
+/// When included in a [`RedactionContext`], this rule overrides the
+/// default redaction method for a specific entity type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EntityRedactionRule {
+    /// The entity type this override applies to (e.g. `"ssn"`, `"email"`).
     pub entity_type: String,
+    /// Redaction strategy to use for this entity type.
     pub method: RedactionMethod,
+    /// Optional custom replacement string for this entity type.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub replacement: Option<String>,
 }
@@ -65,35 +74,42 @@ impl Default for RedactionContext {
 }
 
 impl RedactionContext {
+    /// Create a new context with default settings (mask method, 0.5 min confidence).
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Restrict processing to the given entity categories.
     pub fn with_categories(mut self, categories: Vec<EntityCategory>) -> Self {
         self.categories = categories;
         self
     }
 
+    /// Restrict processing to the given entity type names.
     pub fn with_entity_types(mut self, entity_types: Vec<String>) -> Self {
         self.entity_types = entity_types;
         self
     }
 
+    /// Add a per-entity-type redaction method override.
     pub fn with_rule(mut self, rule: EntityRedactionRule) -> Self {
         self.rules.push(rule);
         self
     }
 
+    /// Set the fallback redaction method when no per-type rule matches.
     pub fn with_default_method(mut self, method: RedactionMethod) -> Self {
         self.default_method = method;
         self
     }
 
+    /// Set the minimum confidence threshold. Entities below this are ignored.
     pub fn with_min_confidence(mut self, confidence: f64) -> Self {
         self.min_confidence = confidence;
         self
     }
 
+    /// Enable or disable image-based detection (faces, license plates, etc.).
     pub fn with_detect_images(mut self, detect: bool) -> Self {
         self.detect_images = detect;
         self

@@ -1,33 +1,20 @@
+//! PII/PHI detection actions and loaders for the nvisy pipeline.
+//!
+//! This crate provides the detection, classification, policy evaluation,
+//! redaction, and audit-trail stages used by the nvisy runtime. It also
+//! ships format-specific loaders (CSV, JSON, plaintext) and a built-in
+//! set of regex patterns compiled from `assets/patterns.json`.
+
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
+/// Pipeline actions for detection, classification, policy, redaction, and audit.
 pub mod actions;
+/// Format-specific blob loaders (CSV, JSON, plaintext).
 pub mod loaders;
+/// Built-in regex pattern definitions and validation helpers.
 pub mod patterns;
 
-use nvisy_core::plugin::PluginDescriptor;
-
-use crate::actions::apply_redaction::ApplyRedactionAction;
-use crate::actions::classify::ClassifyAction;
-use crate::actions::detect_checksum::DetectChecksumAction;
-use crate::actions::detect_regex::DetectRegexAction;
-use crate::actions::emit_audit::EmitAuditAction;
-use crate::actions::evaluate_policy::EvaluatePolicyAction;
-use crate::loaders::csv_loader::CsvLoader;
-use crate::loaders::json_loader::JsonLoader;
-use crate::loaders::plaintext::PlaintextLoader;
-
-/// Create the detect plugin descriptor.
-pub fn detect_plugin() -> PluginDescriptor {
-    PluginDescriptor::new("detect")
-        .with_action(DetectRegexAction)
-        .with_action(DetectChecksumAction)
-        .with_action(EvaluatePolicyAction)
-        .with_action(ApplyRedactionAction)
-        .with_action(ClassifyAction)
-        .with_action(EmitAuditAction)
-        .with_loader(PlaintextLoader)
-        .with_loader(CsvLoader)
-        .with_loader(JsonLoader)
-}
+#[doc(hidden)]
+pub mod prelude;

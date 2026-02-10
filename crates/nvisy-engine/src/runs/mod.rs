@@ -1,3 +1,9 @@
+//! Pipeline run lifecycle management.
+//!
+//! Tracks the status of every pipeline execution from creation through
+//! completion or cancellation. Provides [`RunManager`] for concurrent
+//! read/write access to run state.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
@@ -6,62 +12,88 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use crate::executor::runner::RunResult;
 
-/// Status of a pipeline run.
+/// Lifecycle status of a pipeline run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RunStatus {
+    /// The run has been created but not yet started.
     Pending,
+    /// The run is actively executing nodes.
     Running,
+    /// All nodes completed without error.
     Success,
+    /// Some nodes succeeded while others failed.
     PartialFailure,
+    /// All nodes failed.
     Failure,
+    /// The run was cancelled by the caller.
     Cancelled,
 }
 
-/// Progress of a single node within a run.
+/// Execution progress of a single node within a run.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NodeProgress {
+    /// ID of the node this progress belongs to.
     pub node_id: String,
+    /// Current status of this node.
     pub status: RunStatus,
+    /// Number of data items processed so far.
     pub items_processed: u64,
+    /// Error message if the node failed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
-/// Full state of a run.
+/// Complete mutable state of a pipeline run.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RunState {
+    /// Unique run identifier.
     pub id: Uuid,
+    /// Current overall status.
     pub status: RunStatus,
+    /// Timestamp when the run was created.
     pub created_at: DateTime<Utc>,
+    /// Timestamp when the run finished, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<DateTime<Utc>>,
+    /// Per-node progress keyed by node ID.
     pub node_progress: HashMap<String, NodeProgress>,
+    /// Final result after the run completes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<RunResult>,
 }
 
-/// Summary of a run for listing.
+/// Lightweight summary of a run for listing endpoints.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RunSummary {
+    /// Unique run identifier.
     pub id: Uuid,
+    /// Current overall status.
     pub status: RunStatus,
+    /// Timestamp when the run was created.
     pub created_at: DateTime<Utc>,
+    /// Timestamp when the run finished, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<DateTime<Utc>>,
 }
 
-/// Manages all tracked runs.
+/// Thread-safe manager that tracks all pipeline runs.
+///
+/// Internally uses [`RwLock`]-protected maps so multiple readers can inspect
+/// run state concurrently while writes are serialized.
 pub struct RunManager {
+    /// All known runs keyed by their UUID.
     runs: Arc<RwLock<HashMap<Uuid, RunState>>>,
+    /// Cancellation tokens for runs that are still in progress.
     cancel_tokens: Arc<RwLock<HashMap<Uuid, CancellationToken>>>,
 }
 
 impl RunManager {
+    /// Creates a new, empty run manager.
     pub fn new() -> Self {
         Self {
             runs: Arc::new(RwLock::new(HashMap::new())),

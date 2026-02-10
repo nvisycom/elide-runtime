@@ -1,40 +1,46 @@
-use async_trait::async_trait;
+//! Audit trail emission action.
+
 use std::any::Any;
 use tokio::sync::mpsc;
 
-use nvisy_core::data::DataValue;
+use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::datatypes::audit::Audit;
-use nvisy_core::errors::NvisyError;
+use nvisy_core::error::{Error, ErrorKind};
 use nvisy_core::traits::action::Action;
-use nvisy_core::types::AuditAction;
+use nvisy_core::datatypes::audit::AuditAction;
+use nvisy_core::datatypes::redaction::Redaction;
 
+/// Emits an [`Audit`] record for every [`Redaction`] found in the blob.
+///
+/// Each audit entry captures the redaction method, replacement value, and
+/// (when available) the originating policy rule ID. Optional `runId` and
+/// `actor` parameters are attached to every emitted audit.
+///
+/// # Parameters (JSON)
+///
+/// | Key     | Type     | Default | Description                         |
+/// |---------|----------|---------|-------------------------------------|
+/// | `runId` | `UUID`   | `None`  | Pipeline run identifier to attach.  |
+/// | `actor` | `String` | `None`  | Human or service identity to record.|
 pub struct EmitAuditAction;
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Action for EmitAuditAction {
     fn id(&self) -> &str {
         "emit-audit"
     }
 
-    fn input_type(&self) -> &str {
-        "redaction"
-    }
-
-    fn output_type(&self) -> &str {
-        "audit"
-    }
-
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), NvisyError> {
+    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
         Ok(())
     }
 
     async fn execute(
         &self,
-        mut input: mpsc::Receiver<DataValue>,
-        output: mpsc::Sender<DataValue>,
+        mut input: mpsc::Receiver<Blob>,
+        output: mpsc::Sender<Blob>,
         params: serde_json::Value,
         _client: Option<Box<dyn Any + Send>>,
-    ) -> Result<u64, NvisyError> {
+    ) -> Result<u64, Error> {
         let run_id: Option<uuid::Uuid> = params
             .get("runId")
             .and_then(|v| v.as_str())
@@ -46,8 +52,12 @@ impl Action for EmitAuditAction {
 
         let mut count = 0u64;
 
-        while let Some(item) = input.recv().await {
-            if let DataValue::Redaction(redaction) = item {
+        while let Some(mut blob) = input.recv().await {
+            let redactions: Vec<Redaction> = blob.get_artifacts("redactions").map_err(|e| {
+                Error::new(ErrorKind::Runtime, format!("failed to read redactions artifact: {e}"))
+            })?;
+
+            for redaction in &redactions {
                 let mut audit = Audit::new(AuditAction::Redaction)
                     .with_entity_id(redaction.entity_id)
                     .with_redaction_id(redaction.data.id);
@@ -78,10 +88,15 @@ impl Action for EmitAuditAction {
 
                 audit.data.parent_id = Some(redaction.data.id);
 
+                blob.add_artifact("audits", &audit).map_err(|e| {
+                    Error::new(ErrorKind::Runtime, format!("failed to add audit artifact: {e}"))
+                })?;
+
                 count += 1;
-                if output.send(DataValue::Audit(audit)).await.is_err() {
-                    return Ok(count);
-                }
+            }
+
+            if output.send(blob).await.is_err() {
+                return Ok(count);
             }
         }
 

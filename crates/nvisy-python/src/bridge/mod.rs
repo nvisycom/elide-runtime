@@ -1,10 +1,17 @@
+//! Lightweight handle to a Python module loaded via PyO3.
+
 use pyo3::prelude::*;
-use nvisy_core::errors::NvisyError;
+use nvisy_core::error::Error;
 use crate::error::from_pyerr;
 
-/// Holds a reference to the loaded Python NER module.
+/// Lightweight handle to a Python NER module.
+///
+/// The bridge does **not** hold the GIL or any Python objects; it simply
+/// remembers which module to `import` when a detection function is called.
+/// The default module name is `"nvisy_ai"`.
 #[derive(Clone)]
 pub struct PythonBridge {
+    /// Dotted Python module name to import (e.g., `"nvisy_ai"`).
     module_name: String,
 }
 
@@ -17,7 +24,7 @@ impl PythonBridge {
     }
 
     /// Initialize Python and verify the module can be imported.
-    pub fn init(&self) -> Result<(), NvisyError> {
+    pub fn init(&self) -> Result<(), Error> {
         Python::with_gil(|py| {
             py.import(&self.module_name)
                 .map_err(from_pyerr)?;

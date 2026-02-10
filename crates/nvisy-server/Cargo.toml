@@ -29,9 +29,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = ["schema"] }
 nvisy-engine = { workspace = true, features = ["schema"] }
-nvisy-detect = { workspace = true, features = [] }
-nvisy-object = { workspace = true, features = [] }
-nvisy-python = { workspace = true, features = [] }
 
 # JSON Schema generation
 schemars = { workspace = true }
@@ -50,7 +47,7 @@ tower-http = { workspace = true, features = ["cors", "trace", "request-id", "lim
 
 # OpenAPI / Documentation
 utoipa = { workspace = true, features = ["axum_extras"] }
-utoipa-swagger-ui = { workspace = true, features = ["axum"] }
+utoipa-scalar = { workspace = true, features = ["axum"] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = ["v4"] }

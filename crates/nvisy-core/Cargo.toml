@@ -2,7 +2,7 @@
 
 [package]
 name = "nvisy-core"
-description = "Domain types, traits, errors, and plugin registry for the Nvisy platform"
+description = "Domain types, traits, and errors for the Nvisy platform"
 keywords = ["nvisy", "core", "domain", "types"]
 categories = ["data-structures"]
 
@@ -47,6 +47,7 @@ infer = { workspace = true, features = [] }
 # Error handling
 thiserror = { workspace = true, features = [] }
 anyhow = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["display"] }
 
 # Observability
 tracing = { workspace = true, features = [] }

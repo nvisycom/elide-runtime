@@ -12,6 +12,7 @@ use crate::schema::GraphNode;
 
 /// Result of a single node execution.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct NodeResult {
     pub node_id: String,
     pub items_processed: u64,
@@ -20,6 +21,7 @@ pub struct NodeResult {
 
 /// Result of an entire graph execution.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RunResult {
     pub run_id: Uuid,
     pub node_results: Vec<NodeResult>,

@@ -8,7 +8,7 @@ use nvisy_core::errors::NvisyError;
 use nvisy_core::traits::action::Action;
 use nvisy_core::types::DetectionMethod;
 
-use crate::patterns::credit_card::luhn_check;
+use crate::patterns::validators::luhn_check;
 
 pub struct DetectChecksumAction;
 

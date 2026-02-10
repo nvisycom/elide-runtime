@@ -6,6 +6,7 @@ use crate::types::Metadata;
 
 /// An inline hyperlink within element text.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Link {
     pub text: String,
     pub url: String,
@@ -14,6 +15,7 @@ pub struct Link {
 
 /// An inline formatting span within element text.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EmphasizedText {
     pub text: String,
     pub tag: String,
@@ -21,6 +23,7 @@ pub struct EmphasizedText {
 
 /// A single cell within a table structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct TableCellData {
     pub row: usize,
     pub column: usize,
@@ -31,6 +34,7 @@ pub struct TableCellData {
 
 /// Extraction / OCR provenance data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ElementProvenance {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub confidence: Option<f64>,
@@ -44,6 +48,7 @@ pub struct ElementProvenance {
 
 /// Structured key-value pair from a form.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct FormKeyValuePair {
     pub key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -57,6 +62,7 @@ pub struct FormKeyValuePair {
 /// Combines base element fields with optional type-specific fields
 /// (image, table, form, email) in a flat struct rather than inheritance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Element {
     pub id: Uuid,
     #[serde(rename = "type")]

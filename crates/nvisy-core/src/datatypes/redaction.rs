@@ -5,6 +5,7 @@ use crate::types::RedactionMethod;
 
 /// A redaction decision for a detected entity.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Redaction {
     #[serde(flatten)]
     pub data: DataItem,

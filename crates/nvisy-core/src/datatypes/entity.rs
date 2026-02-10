@@ -5,6 +5,7 @@ use crate::types::{DetectionMethod, EntityCategory};
 
 /// Bounding box for image-based entity locations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BoundingBox {
     pub x: f64,
     pub y: f64,
@@ -14,6 +15,7 @@ pub struct BoundingBox {
 
 /// Location of an entity within its source document.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct EntityLocation {
     pub start_offset: usize,
     pub end_offset: usize,
@@ -27,6 +29,7 @@ pub struct EntityLocation {
 
 /// A detected sensitive data occurrence within a document.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Entity {
     #[serde(flatten)]
     pub data: DataItem,

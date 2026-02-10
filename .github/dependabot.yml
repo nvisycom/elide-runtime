@@ -1,7 +1,6 @@
 version: 2
 updates:
-  # Version updates for npm dependencies
-  - package-ecosystem: "npm"
+  - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -13,18 +12,40 @@ updates:
       - "chore"
     commit-message:
       prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
-    rebase-strategy: "auto"
-    versioning-strategy: "auto"
     groups:
-      npm-dependencies:
+      rust-dependencies:
         patterns:
           - "*"
         update-types:
           - "minor"
           - "patch"
 
-  # Version updates for GitHub Actions
+  - package-ecosystem: "pip"
+    directory: "/packages/nvisy-ai"
+    schedule:
+      interval: "weekly"
+      timezone: "Europe/Berlin"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 3
+    labels:
+      - "chore"
+    commit-message:
+      prefix: "chore(deps-py)"
+
+  - package-ecosystem: "pip"
+    directory: "/packages/nvisy-exif"
+    schedule:
+      interval: "weekly"
+      timezone: "Europe/Berlin"
+      day: "monday"
+      time: "04:00"
+    open-pull-requests-limit: 3
+    labels:
+      - "chore"
+    commit-message:
+      prefix: "chore(deps-py)"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

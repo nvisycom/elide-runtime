@@ -4,6 +4,7 @@ use crate::types::{EntityCategory, RedactionMethod};
 
 /// A single rule within a redaction policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct PolicyRule {
     pub id: String,
     pub name: String,
@@ -18,6 +19,7 @@ pub struct PolicyRule {
 
 /// A redaction policy containing rules.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Policy {
     #[serde(flatten)]
     pub data: DataItem,

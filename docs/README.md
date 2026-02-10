@@ -1,118 +1,93 @@
 # Nvisy Runtime
 
-**An open-source ETL platform purpose-built for LLM and AI data pipelines.**
+**A data protection runtime for AI pipelines.**
 
 ---
 
 ## Abstract
 
-The proliferation of large language models and embedding-based retrieval systems has created a new category of data engineering problem. Teams building AI-powered products must continuously move, transform, and validate data across a fragmented ecosystem of vector databases, model APIs, object stores, relational databases, and file formats — each with its own schema conventions, rate limits, and failure modes.
+AI-powered products handle sensitive data at every stage — ingestion, transformation, enrichment, and storage. PII in documents, faces in images, credentials in logs, and financial data in spreadsheets all require detection, classification, and redaction before downstream consumption.
 
-Existing ETL platforms were designed for tabular, row-oriented data. They lack first-class support for the primitives that define AI workloads: high-dimensional embeddings, completion traces, structured outputs, tool-call logs, audio and image payloads, and fine-tuning datasets. Engineers are left stitching together ad-hoc scripts, battling impedance mismatches between systems that were never designed to interoperate.
-
-**Nvisy Runtime** addresses this gap. It is an open-source, TypeScript-native ETL platform that treats AI data as a first-class citizen. It provides a DAG-based execution engine, a typed primitive system for AI workloads, a broad connector ecosystem, and a declarative graph definition language — all designed to make AI data engineering reliable, observable, and composable.
+**Nvisy Runtime** is a Rust-native data protection platform that treats sensitive data detection as a first-class pipeline primitive. It provides a DAG-based execution engine, typed data primitives with lineage tracking, regex and AI-powered entity detection, configurable redaction policies, and a pluggable connector system — all designed for throughput, correctness, and auditability.
 
 ---
 
 ## Problem Statement
 
-### 1. AI data is structurally different from traditional data
+### 1. Sensitive data is everywhere in AI pipelines
 
-An embedding is not a row. A completion trace carries metadata (model, temperature, token counts, latency, cost) that has no analog in a traditional ETL schema. Fine-tuning datasets impose strict structural contracts. Tool-call sequences are trees, not tables. Current ETL platforms force these structures into tabular representations, losing semantic information and making transformations error-prone.
+Documents, images, API responses, and model outputs all carry PII, PHI, financial data, and credentials. Manual redaction doesn't scale. Teams need automated, configurable detection and redaction that runs inline with their data pipelines.
 
-### 2. The connector ecosystem is fragmented and immature
+### 2. Detection requires multiple methods
 
-Vector databases (Pinecone, Qdrant, Milvus, Weaviate, pgvector) expose incompatible APIs for upsert, query, and metadata filtering. Model provider APIs (OpenAI, Anthropic, Cohere, local inference servers) differ in authentication, rate limiting, batching, and response structure. Object stores, relational databases, and file formats each add their own integration surface. Teams rewrite the same connector logic project after project.
+Regex patterns catch structured data (SSNs, emails, credit cards). AI-powered NER catches unstructured entities (names, addresses, medical terms). Checksum validation reduces false positives. A production system needs all three, composable in a single pipeline.
 
-### 3. Pipeline orchestration for AI workloads has unique requirements
+### 3. Redaction must be auditable
 
-AI pipelines are not simple source-to-sink flows. They involve conditional branching (route data based on classification), fan-out (embed the same text with multiple models), rate-limited external calls (respect API quotas), idempotent retries (avoid duplicate embeddings), and cost tracking (monitor spend per pipeline run). General-purpose orchestrators like Airflow or Prefect can model these patterns, but they provide no native abstractions for them.
+Compliance (GDPR, HIPAA, PCI-DSS) requires proof of what was detected, what was redacted, and how. Every detection and redaction action must produce an audit trail with full lineage.
 
-### 4. Observability is an afterthought
+### 4. Performance matters
 
-When an embedding pipeline fails at 3 AM, engineers need to know: which records failed, at which stage, with what error, and whether retrying is safe. They need lineage — the ability to trace a vector in a database back to the source document, through every transformation it passed through. Current tooling provides none of this out of the box.
+Data protection runs on every record. The runtime must handle high throughput without becoming a bottleneck. Rust provides the performance foundation; Python extensions handle AI workloads where model quality matters more than latency.
 
 ---
 
 ## Design Principles
 
-### AI-native type system
+### Typed data primitives
 
-Every data object flowing through a Nvisy graph is a typed AI primitive: `Embedding`, `Completion`, `StructuredOutput`, `ToolCallTrace`, `ImagePayload`, `AudioPayload`, `FineTuneSample`, or a user-defined extension. Primitives carry domain-specific metadata and enforce structural contracts at compile time (TypeScript) and runtime (validation).
+Every data object flowing through a graph is typed: `Document`, `Blob`, `Entity`, `Redaction`, `Policy`, `Audit`, `Image`. Primitives carry metadata and enforce structural contracts at compile time (Rust) and runtime (serde validation).
 
 ### DAG-based execution
 
-Graphs are directed acyclic graphs of nodes. The runtime resolves dependencies, manages parallelism, handles retries, and tracks execution state. This model supports conditional branching, fan-out/fan-in patterns, and partial re-execution of failed subgraphs — all essential for production AI workloads.
+Graphs are directed acyclic graphs of nodes (sources, actions, targets). The engine resolves dependencies, manages concurrency, handles retries, and tracks execution state.
 
-### Declarative-first, code-escape-hatch
+### Regex + AI detection
 
-Common operations (extract, map, filter, chunk, embed, deduplicate, load) are expressed declaratively in JSON graph definitions. For operations that require custom logic, users drop into TypeScript functions that receive and return typed primitives. The declarative layer compiles down to the same execution graph as hand-written code. Because graphs are plain JSON, they are trivially serializable, storable, versionable, and transmittable over the wire.
+Built-in regex patterns detect structured sensitive data. Python-based NER (via PyO3) detects unstructured entities. Both produce the same `Entity` type, composable in a single pipeline.
 
-### Idiomatic modern JavaScript with structured concurrency
+### Plugin architecture
 
-The platform is built on idiomatic modern JavaScript — `async`/`await`, `AsyncIterable`, and generator functions — with Effection providing structured concurrency for the runtime's DAG executor. This keeps the plugin interface simple (standard async code) while giving the execution engine automatic task cancellation, timeout handling, and resource cleanup.
+Connectors, actions, and loaders register through a plugin system. Each plugin bundles its capabilities under a namespace. The engine resolves references at compilation time.
 
-### Broad, pluggable connectors
+### Audit-first
 
-Connectors are organized into domain-specific packages — SQL, object storage, and vector databases — each installable independently. All connectors implement a standard source/sink interface defined in `nvisy-core`, making community contributions straightforward. Users install only the connector packages they need.
-
-### Library and server modes
-
-Nvisy Runtime can be embedded as an npm package for programmatic use or deployed as a long-lived server with a REST API, scheduler, and dashboard. The same graph definition works in both modes.
+Every detection and redaction produces an `Audit` record. Policies define what to detect and how to redact. The audit trail provides full lineage from source document to redacted output.
 
 ---
 
 ## Core Concepts
 
-### Primitives
+### Entities
 
-A **primitive** is the unit of data in a Nvisy graph. Unlike raw JSON blobs, primitives are typed, validated, and carry metadata relevant to their domain. For example, an `Embedding` primitive contains the vector, its dimensionality, the model that produced it, the source text, and a content hash for deduplication.
+An **Entity** is a detected piece of sensitive data: its category (PII, PHI, financial, credentials), type (SSN, email, face), value, confidence score, detection method, and location within the source document or image.
+
+### Policies
+
+A **Policy** defines detection and redaction rules: which entity categories to scan, minimum confidence thresholds, and per-type redaction methods (mask, replace, hash, encrypt, remove, blur, block, synthesize).
 
 ### Graphs
 
-A **graph** is a DAG of **nodes**. Each node is one of:
-
-- **Source** — reads data from an external system via a connector
-- **Action** — applies a transformation or declarative operation to primitives
-- **Sink** — writes data to an external system via a connector
-- **Branch** — routes primitives to different downstream nodes based on a condition
-- **FanOut / FanIn** — duplicates primitives across parallel subgraphs and merges results
-
-Graphs are defined as JSON structures. This makes them inherently serializable — they can be stored in a database, versioned in source control, transmitted over an API, and reconstructed without loss of fidelity. The programmatic TypeScript API produces the same JSON representation.
+A **Graph** is a DAG of nodes. Source nodes read data, action nodes detect/redact/classify, and target nodes write results. Graphs are defined as JSON and compiled into execution plans.
 
 ### Connectors
 
-A **connector** is an adapter that knows how to read from or write to an external system. All connectors implement the source and sink interfaces defined in `nvisy-core`, and declare their capabilities (batch size, rate limits, supported primitive types). Connectors are organized into domain-specific packages: `nvisy-plugin-sql` for relational databases, `nvisy-plugin-object` for object stores and file formats, and `nvisy-plugin-vector` for vector databases.
-
-### Runtime
-
-The **runtime** is responsible for compiling and executing graphs. It parses JSON graph definitions, compiles them into execution plans, resolves node dependencies, manages concurrency limits, enforces rate limits on external calls, retries failed nodes with configurable backoff, and emits execution events for observability.
+Connectors implement the source and target interfaces. The object storage connector (S3) handles file ingestion and output. Additional connectors register through the plugin system.
 
 ---
 
-## Deployment Modes
+## Deployment
 
-| Mode | Use Case | Entry Point |
-|------|----------|-------------|
-| **Library** | Embedded in application code | `import { Engine } from "@nvisy/runtime"` |
-| **Server** | Production scheduling, monitoring | `@nvisy/server` |
-
-The server mode exposes a REST API for graph management, a scheduler for cron and event-triggered execution, and a web dashboard for monitoring runs, inspecting lineage, and debugging failures.
+The server (`nvisy-server`) is a short-lived Axum HTTP server. It accepts graph definitions, executes them, and reports status. Designed for containerized deployment — the main server spins it up, feeds work, waits for completion.
 
 ---
 
 ## Project Status
 
-Nvisy Runtime is in the specification and design phase. This document serves as the product specification. Implementation will proceed according to the architecture defined in [ARCHITECTURE.md](./ARCHITECTURE.md).
+Active development. The Rust runtime, detection engine, and server are implemented. AI-powered detection runs via Python extensions.
 
 ---
 
 ## License
 
 Apache License 2.0. See [LICENSE.txt](../LICENSE.txt).
-
----
-
-## Contributing
-
-Contribution guidelines will be published once the core architecture stabilizes. The project is designed for community-contributed connectors and actions from the outset.

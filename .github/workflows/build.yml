@@ -4,72 +4,87 @@ on:
   push:
     branches: [main]
     paths:
-      - "packages/**"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig.json"
-      - "vitest.config.ts"
-      - "biome.json"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - ".github/workflows/build.yml"
   pull_request:
     branches: [main]
     paths:
-      - "packages/**"
-      - "package.json"
-      - "package-lock.json"
-      - "tsconfig.json"
-      - "vitest.config.ts"
-      - "biome.json"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - ".github/workflows/build.yml"
   workflow_dispatch:
 
 env:
-  NODE_VERSION: 22
+  CARGO_TERM_COLOR: always
+  PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check formatting & linting
-        run: npx biome check .
-
   check:
-    name: Typecheck
+    name: Check
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Install Node.js
-        uses: actions/setup-node@v6
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python
+        uses: actions/setup-python@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-check-
 
-      - name: Typecheck
-        run: npx tsc -b packages/*/tsconfig.json
+      - name: Cargo check
+        run: cargo check --workspace
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-clippy-
+
+      - name: Clippy
+        run: cargo clippy --workspace -- -D warnings
 
   test:
     name: Test
@@ -78,19 +93,28 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Install Node.js
-        uses: actions/setup-node@v6
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python
+        uses: actions/setup-python@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-test-
 
       - name: Run tests
-        run: npx vitest run --coverage
+        run: cargo test --workspace
 
   build:
     name: Build
@@ -99,16 +123,25 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Install Node.js
-        uses: actions/setup-node@v6
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python
+        uses: actions/setup-python@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-build-
 
-      - name: Build
-        run: npm run build --workspaces --if-present
+      - name: Build release
+        run: cargo build --release

@@ -4,4 +4,4 @@ version = "0.1.0"
 requires-python = ">=3.11"
 
 [tool.uv.workspace]
-members = ["packages/nvisy-ai"]
+members = ["packages/nvisy-ai", "packages/nvisy-exif"]

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct StoredPolicy {
     pub id: Uuid,
     pub name: String,

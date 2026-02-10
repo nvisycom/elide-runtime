@@ -5,3 +5,4 @@ pub mod entity;
 pub mod image;
 pub mod policy;
 pub mod redaction;
+pub mod redaction_context;

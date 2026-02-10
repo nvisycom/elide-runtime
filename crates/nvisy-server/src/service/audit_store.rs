@@ -1,7 +1,7 @@
 use std::sync::RwLock;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct StoredAudit {
     pub id: Uuid,
     pub action: String,

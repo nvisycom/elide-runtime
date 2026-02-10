@@ -4,6 +4,7 @@ use crate::data::DataItem;
 
 /// Content type information for a blob.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct BlobContentInfo {
     /// MIME type provided by the caller (e.g. from HTTP Content-Type header).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -15,11 +16,13 @@ pub struct BlobContentInfo {
 
 /// A binary object from storage (file content + path + content type).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Blob {
     #[serde(flatten)]
     pub data: DataItem,
     pub path: String,
     #[serde(with = "bytes_serde")]
+    #[cfg_attr(feature = "schema", schemars(with = "Vec<u8>"))]
     pub content: Bytes,
     pub provided: BlobContentInfo,
 }

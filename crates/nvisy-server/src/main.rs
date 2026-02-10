@@ -1,10 +1,11 @@
+#![forbid(unsafe_code)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![doc = include_str!("../README.md")]
+
 mod app;
-mod config;
 mod middleware;
-mod routes;
-mod schemas;
+mod handler;
 mod service;
-mod state;
 
 use tracing_subscriber::EnvFilter;
 
@@ -16,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
         .json()
         .init();
 
-    let config = config::ServerConfig::from_env();
+    let config = service::ServerConfig::from_env();
     tracing::info!(host = %config.host, port = config.port, "Starting nvisy-server");
 
     let app = app::build_app(&config).await?;

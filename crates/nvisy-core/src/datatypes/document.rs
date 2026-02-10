@@ -4,6 +4,7 @@ use crate::documents::elements::Element;
 
 /// A parsed human-readable text representation of a document.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Document {
     #[serde(flatten)]
     pub data: DataItem,

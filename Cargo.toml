@@ -49,8 +49,8 @@ tower = { version = "0.5", features = [] }
 tower-http = { version = "0.6", features = [] }
 
 # OpenAPI / Documentation
-utoipa = { version = "5", features = [] }
-utoipa-swagger-ui = { version = "8", features = [] }
+utoipa = { version = "5", features = ["uuid"] }
+utoipa-swagger-ui = { version = "9", features = [] }
 
 # Observability
 tracing = { version = "0.1", features = [] }
@@ -73,10 +73,13 @@ bytes = { version = "1", features = ["serde"] }
 regex = { version = "1.0", features = [] }
 
 # Graph data structures
-petgraph = { version = "0.7", features = [] }
+petgraph = { version = "0.8", features = [] }
 
 # File type detection
-infer = { version = "0.16", features = [] }
+infer = { version = "0.19", features = [] }
+
+# JSON Schema generation
+schemars = { version = "1", features = ["uuid1", "chrono04", "bytes1"] }
 
 # Python interop
 pyo3 = { version = "0.23", features = [] }

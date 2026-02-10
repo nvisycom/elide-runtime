@@ -4,10 +4,12 @@ use crate::data::DataItem;
 
 /// An image extracted from a document or provided directly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct ImageData {
     #[serde(flatten)]
     pub data: DataItem,
     #[serde(with = "crate::datatypes::blob::bytes_serde")]
+    #[cfg_attr(feature = "schema", schemars(with = "Vec<u8>"))]
     pub image_data: Bytes,
     pub mime_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]

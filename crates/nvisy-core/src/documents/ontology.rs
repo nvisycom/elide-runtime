@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Element category — broad grouping of element types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ElementCategory {
     Text,
@@ -16,6 +17,7 @@ pub enum ElementCategory {
 
 /// All element types across all categories.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "kebab-case")]
 pub enum ElementType {
     // Text

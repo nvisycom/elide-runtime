@@ -21,7 +21,13 @@ documentation = { workspace = true }
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[features]
+schema = ["dep:schemars"]
+
 [dependencies]
+# JSON Schema generation
+schemars = { workspace = true, optional = true }
+
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }

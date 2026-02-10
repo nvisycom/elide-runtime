@@ -53,7 +53,7 @@ impl Action for DetectRegexAction {
         // Compile regexes
         let compiled: Vec<(&PatternDefinition, Regex)> = active_patterns
             .iter()
-            .filter_map(|p| Regex::new(p.pattern_str).ok().map(|r| (*p, r)))
+            .filter_map(|p| Regex::new(&p.pattern_str).ok().map(|r| (*p, r)))
             .collect();
 
         let mut count = 0u64;
@@ -76,7 +76,7 @@ impl Action for DetectRegexAction {
 
                         let mut entity = Entity::new(
                             pattern.category,
-                            pattern.entity_type,
+                            &pattern.entity_type,
                             value,
                             DetectionMethod::Regex,
                             pattern.confidence,

@@ -6,6 +6,7 @@ use crate::types::{AuditAction, Metadata};
 
 /// An immutable audit record tracking a data protection event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Audit {
     #[serde(flatten)]
     pub data: DataItem,

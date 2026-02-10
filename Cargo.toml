@@ -1,0 +1,89 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+resolver = "2"
+members = [
+    "./crates/nvisy-core",
+    "./crates/nvisy-detect",
+    "./crates/nvisy-engine",
+    "./crates/nvisy-object",
+    "./crates/nvisy-python",
+    "./crates/nvisy-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+rust-version = "1.85"
+edition = "2024"
+license = "MIT"
+publish = false
+
+authors = ["nvisy <contact@nvisy.com>"]
+repository = "https://github.com/nvisycom/runtime"
+homepage = "https://github.com/nvisycom/runtime"
+documentation = "https://docs.rs/nvisy-runtime"
+
+[workspace.dependencies]
+# Default features are disabled for certain dependencies to allow
+# downstream workspaces/crates to selectively enable them as needed.
+#
+# See for more details: https://github.com/rust-lang/cargo/issues/11329
+
+# Internal crates
+nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
+nvisy-detect = { path = "./crates/nvisy-detect", version = "0.1.0" }
+nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
+nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
+nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
+nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
+
+# Async runtime
+tokio = { version = "1", features = [] }
+tokio-util = { version = "0.7", features = [] }
+futures = { version = "0.3", features = [] }
+async-trait = { version = "0.1", features = [] }
+
+# HTTP server
+axum = { version = "0.8", features = [] }
+tower = { version = "0.5", features = [] }
+tower-http = { version = "0.6", features = [] }
+
+# OpenAPI / Documentation
+utoipa = { version = "5", features = [] }
+utoipa-swagger-ui = { version = "8", features = [] }
+
+# Observability
+tracing = { version = "0.1", features = [] }
+tracing-subscriber = { version = "0.3", features = [] }
+
+# (De)serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = [] }
+
+# Error handling
+thiserror = { version = "2.0", features = [] }
+anyhow = { version = "1.0", features = [] }
+
+# Primitive datatypes
+uuid = { version = "1", features = ["serde", "v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+bytes = { version = "1", features = ["serde"] }
+
+# Text processing
+regex = { version = "1.0", features = [] }
+
+# Graph data structures
+petgraph = { version = "0.7", features = [] }
+
+# File type detection
+infer = { version = "0.16", features = [] }
+
+# Python interop
+pyo3 = { version = "0.23", features = [] }
+
+# AWS SDK
+aws-sdk-s3 = { version = "1", features = [] }
+aws-config = { version = "1", features = [] }
+
+# Randomness
+rand = { version = "0.9", features = [] }

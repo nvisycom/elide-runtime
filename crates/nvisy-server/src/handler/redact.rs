@@ -5,7 +5,7 @@ use axum::{
     Json,
 };
 use std::sync::Arc;
-use nvisy_core::datatypes::redaction_context::RedactionContext;
+use nvisy_core::redaction::RedactionContext;
 use nvisy_engine::runs::RunManager;
 use crate::service::AppState;
 

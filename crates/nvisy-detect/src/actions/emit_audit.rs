@@ -1,36 +1,42 @@
 //! Audit trail emission action.
 
-use std::any::Any;
+use serde::Deserialize;
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
 use nvisy_core::datatypes::blob::Blob;
-use nvisy_core::datatypes::audit::Audit;
+use nvisy_core::ontology::audit::{Audit, AuditAction};
+use nvisy_core::ontology::redaction::Redaction;
 use nvisy_core::error::{Error, ErrorKind};
-use nvisy_core::traits::action::Action;
-use nvisy_core::datatypes::audit::AuditAction;
-use nvisy_core::datatypes::redaction::Redaction;
+use nvisy_core::registry::action::Action;
+
+/// Typed parameters for [`EmitAuditAction`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EmitAuditParams {
+    /// Pipeline run identifier to attach.
+    #[serde(default)]
+    pub run_id: Option<Uuid>,
+    /// Human or service identity to record.
+    #[serde(default)]
+    pub actor: Option<String>,
+}
 
 /// Emits an [`Audit`] record for every [`Redaction`] found in the blob.
 ///
 /// Each audit entry captures the redaction method, replacement value, and
-/// (when available) the originating policy rule ID. Optional `runId` and
-/// `actor` parameters are attached to every emitted audit.
-///
-/// # Parameters (JSON)
-///
-/// | Key     | Type     | Default | Description                         |
-/// |---------|----------|---------|-------------------------------------|
-/// | `runId` | `UUID`   | `None`  | Pipeline run identifier to attach.  |
-/// | `actor` | `String` | `None`  | Human or service identity to record.|
+/// (when available) the originating policy rule ID.
 pub struct EmitAuditAction;
 
 #[async_trait::async_trait]
 impl Action for EmitAuditAction {
+    type Params = EmitAuditParams;
+
     fn id(&self) -> &str {
         "emit-audit"
     }
 
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
+    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
         Ok(())
     }
 
@@ -38,17 +44,10 @@ impl Action for EmitAuditAction {
         &self,
         mut input: mpsc::Receiver<Blob>,
         output: mpsc::Sender<Blob>,
-        params: serde_json::Value,
-        _client: Option<Box<dyn Any + Send>>,
+        params: Self::Params,
     ) -> Result<u64, Error> {
-        let run_id: Option<uuid::Uuid> = params
-            .get("runId")
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.parse().ok());
-        let actor: Option<String> = params
-            .get("actor")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+        let run_id = params.run_id;
+        let actor = params.actor;
 
         let mut count = 0u64;
 

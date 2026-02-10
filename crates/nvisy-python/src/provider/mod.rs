@@ -3,14 +3,21 @@
 //! Registers itself as the `"ai"` provider and yields a [`PythonBridge`]
 //! instance upon connection.
 
+use serde::Deserialize;
+
 use nvisy_core::error::Error;
-use nvisy_core::traits::provider::{ConnectedInstance, ProviderFactory};
+use nvisy_core::registry::provider::{ConnectedInstance, ProviderFactory};
 use crate::bridge::PythonBridge;
 
-/// Factory that creates [`PythonBridge`] instances from JSON credentials.
-///
-/// Expected credential keys:
-/// - `apiKey` (required) -- the API key forwarded to the AI model provider.
+/// Typed credentials for the AI provider.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiCredentials {
+    /// API key forwarded to the AI model provider.
+    pub api_key: String,
+}
+
+/// Factory that creates [`PythonBridge`] instances from typed credentials.
 ///
 /// The Python interpreter is **not** initialized at connection time; it is
 /// lazily loaded on the first NER call.
@@ -18,26 +25,27 @@ pub struct AiProviderFactory;
 
 #[async_trait::async_trait]
 impl ProviderFactory for AiProviderFactory {
+    type Credentials = AiCredentials;
+    type Client = PythonBridge;
+
     fn id(&self) -> &str { "ai" }
 
-    fn validate_credentials(&self, creds: &serde_json::Value) -> Result<(), Error> {
-        if creds.get("apiKey").and_then(|v| v.as_str()).is_none() {
-            return Err(Error::validation("Missing 'apiKey' in AI credentials", "ai"));
-        }
+    fn validate_credentials(&self, _creds: &Self::Credentials) -> Result<(), Error> {
+        // api_key is required by the struct, so if we got here it's present.
         Ok(())
     }
 
-    async fn verify(&self, creds: &serde_json::Value) -> Result<(), Error> {
+    async fn verify(&self, creds: &Self::Credentials) -> Result<(), Error> {
         self.validate_credentials(creds)
     }
 
-    async fn connect(&self, _creds: &serde_json::Value) -> Result<ConnectedInstance, Error> {
+    async fn connect(&self, _creds: &Self::Credentials) -> Result<ConnectedInstance<Self::Client>, Error> {
         let bridge = PythonBridge::default();
         // Don't init here — Python might not be available at connect time
         // Init happens lazily when detect_ner is called
 
         Ok(ConnectedInstance {
-            client: Box::new(bridge),
+            client: bridge,
             disconnect: None,
         })
     }

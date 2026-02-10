@@ -1,8 +1,8 @@
 //! Request-scoped redaction context for per-invocation control.
 
 use serde::{Deserialize, Serialize};
-use crate::datatypes::entity::EntityCategory;
-use crate::datatypes::redaction::RedactionMethod;
+use crate::ontology::entity::EntityCategory;
+use crate::ontology::redaction::RedactionMethod;
 
 /// Per-entity-type override for the redaction method.
 ///

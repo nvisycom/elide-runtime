@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use bytes::Bytes;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use super::DataItem;
+use super::Data;
 
 /// Content type information for a blob.
 ///
@@ -34,7 +34,7 @@ pub struct BlobContentInfo {
 pub struct Blob {
     /// Common data-item fields (id, parent_id, metadata).
     #[serde(flatten)]
-    pub data: DataItem,
+    pub data: Data,
     /// Storage path or key identifying this blob's origin.
     pub path: String,
     /// Raw byte content of the blob.
@@ -60,7 +60,7 @@ impl Blob {
         let content = content.into();
         let detected_mime = infer::get(&content).map(|t| t.mime_type().to_string());
         Self {
-            data: DataItem::new(),
+            data: Data::new(),
             path: path.into(),
             content,
             provided: BlobContentInfo {

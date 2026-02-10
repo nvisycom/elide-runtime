@@ -6,9 +6,9 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use nvisy_core::datatypes::entity::{Entity, EntityLocation};
+use nvisy_core::ontology::entity::{Entity, EntityLocation};
 use nvisy_core::error::Error;
-use nvisy_core::datatypes::entity::{DetectionMethod, EntityCategory};
+use nvisy_core::ontology::entity::{DetectionMethod, EntityCategory};
 use crate::bridge::PythonBridge;
 use crate::error::from_pyerr;
 

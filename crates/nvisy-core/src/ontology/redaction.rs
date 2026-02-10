@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::DataItem;
+use crate::datatypes::Data;
 
 /// Strategy used to redact or obfuscate a detected entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -36,7 +36,7 @@ pub enum RedactionMethod {
 pub struct Redaction {
     /// Common data-item fields (id, parent_id, metadata).
     #[serde(flatten)]
-    pub data: DataItem,
+    pub data: Data,
     /// Identifier of the entity being redacted.
     pub entity_id: Uuid,
     /// Redaction strategy applied to the entity.
@@ -61,7 +61,7 @@ impl Redaction {
         replacement_value: impl Into<String>,
     ) -> Self {
         Self {
-            data: DataItem::new(),
+            data: Data::new(),
             entity_id,
             method,
             replacement_value: replacement_value.into(),

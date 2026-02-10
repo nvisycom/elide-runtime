@@ -1,9 +1,9 @@
 //! Redaction policies and rules.
 
 use serde::{Deserialize, Serialize};
-use super::DataItem;
-use crate::datatypes::entity::EntityCategory;
-use crate::datatypes::redaction::RedactionMethod;
+use crate::datatypes::Data;
+use crate::ontology::entity::EntityCategory;
+use crate::ontology::redaction::RedactionMethod;
 
 /// A single rule within a redaction [`Policy`].
 ///
@@ -42,7 +42,7 @@ pub struct PolicyRule {
 pub struct Policy {
     /// Common data-item fields (id, parent_id, metadata).
     #[serde(flatten)]
-    pub data: DataItem,
+    pub data: Data,
     /// Human-readable policy name.
     pub name: String,
     /// Ordered list of redaction rules.
@@ -58,7 +58,7 @@ impl Policy {
     /// fallback method ([`Mask`](RedactionMethod::Mask)) and threshold (0.5).
     pub fn new(name: impl Into<String>, rules: Vec<PolicyRule>) -> Self {
         Self {
-            data: DataItem::new(),
+            data: Data::new(),
             name: name.into(),
             rules,
             default_method: RedactionMethod::Mask,

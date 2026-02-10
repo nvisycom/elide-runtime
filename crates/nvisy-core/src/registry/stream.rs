@@ -1,7 +1,6 @@
 //! Stream source and target traits for external I/O.
 
-use std::any::Any;
-
+use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 
 use crate::datatypes::blob::Blob;
@@ -13,12 +12,15 @@ use crate::error::Error;
 /// and emit blobs into the pipeline's input channel.
 #[async_trait::async_trait]
 pub trait StreamSource: Send + Sync + 'static {
+    /// Strongly-typed parameters for this stream source.
+    type Params: DeserializeOwned + Send;
+    /// The client type this stream requires.
+    type Client: Send + 'static;
+
     /// Unique identifier for this stream source (e.g. `"s3-read"`).
     fn id(&self) -> &str;
-    /// The provider this stream requires (e.g. `"s3"`).
-    fn required_provider_id(&self) -> &str;
     /// Validate source parameters before execution.
-    fn validate_params(&self, params: &serde_json::Value) -> Result<(), Error>;
+    fn validate_params(&self, params: &Self::Params) -> Result<(), Error>;
 
     /// Read blobs from the external system and send them to `output`.
     ///
@@ -26,8 +28,8 @@ pub trait StreamSource: Send + Sync + 'static {
     async fn read(
         &self,
         output: mpsc::Sender<Blob>,
-        params: serde_json::Value,
-        client: Box<dyn Any + Send>,
+        params: Self::Params,
+        client: Self::Client,
     ) -> Result<u64, Error>;
 }
 
@@ -37,12 +39,15 @@ pub trait StreamSource: Send + Sync + 'static {
 /// them to a storage backend.
 #[async_trait::async_trait]
 pub trait StreamTarget: Send + Sync + 'static {
+    /// Strongly-typed parameters for this stream target.
+    type Params: DeserializeOwned + Send;
+    /// The client type this stream requires.
+    type Client: Send + 'static;
+
     /// Unique identifier for this stream target (e.g. `"s3-write"`).
     fn id(&self) -> &str;
-    /// The provider this stream requires (e.g. `"s3"`).
-    fn required_provider_id(&self) -> &str;
     /// Validate target parameters before execution.
-    fn validate_params(&self, params: &serde_json::Value) -> Result<(), Error>;
+    fn validate_params(&self, params: &Self::Params) -> Result<(), Error>;
 
     /// Receive blobs from `input` and write them to the external system.
     ///
@@ -50,7 +55,7 @@ pub trait StreamTarget: Send + Sync + 'static {
     async fn write(
         &self,
         input: mpsc::Receiver<Blob>,
-        params: serde_json::Value,
-        client: Box<dyn Any + Send>,
+        params: Self::Params,
+        client: Self::Client,
     ) -> Result<u64, Error>;
 }

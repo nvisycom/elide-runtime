@@ -2,12 +2,13 @@
 //!
 //! Import everything from this module to get the most commonly used
 //! types without individual `use` statements.
+
 pub use crate::datatypes::blob::Blob;
-pub use crate::datatypes::DataItem;
+pub use crate::datatypes::Data;
 pub use crate::error::{Error, ErrorKind, Result};
-pub use crate::traits::action::Action;
-pub use crate::traits::loader::Loader;
-pub use crate::traits::provider::{ConnectedInstance, ProviderFactory};
-pub use crate::traits::stream::{StreamSource, StreamTarget};
-pub use crate::datatypes::entity::{DetectionMethod, EntityCategory};
-pub use crate::datatypes::redaction::RedactionMethod;
+pub use crate::registry::action::Action;
+pub use crate::registry::loader::Loader;
+pub use crate::registry::provider::{ConnectedInstance, ProviderFactory};
+pub use crate::registry::stream::{StreamSource, StreamTarget};
+pub use crate::ontology::entity::{DetectionMethod, EntityCategory};
+pub use crate::ontology::redaction::RedactionMethod;

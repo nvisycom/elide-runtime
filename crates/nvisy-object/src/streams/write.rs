@@ -1,42 +1,46 @@
 //! Streaming writer that uploads blobs to an S3-compatible store.
 
-use std::any::Any;
+use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::error::Error;
-use nvisy_core::traits::stream::StreamTarget;
+use nvisy_core::registry::stream::StreamTarget;
 use crate::client::ObjectStoreBox;
+
+/// Typed parameters for [`ObjectWriteStream`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectWriteParams {
+    /// Key prefix prepended to each blob path.
+    #[serde(default)]
+    pub prefix: String,
+}
 
 /// A [`StreamTarget`] that receives [`Blob`]s from the input channel and
 /// uploads each one to an S3-compatible object store.
-///
-/// # Parameters (JSON)
-///
-/// - `prefix` -- key prefix prepended to each blob path (default: `""`).
 pub struct ObjectWriteStream;
 
 #[async_trait::async_trait]
 impl StreamTarget for ObjectWriteStream {
-    fn id(&self) -> &str { "write" }
-    fn required_provider_id(&self) -> &str { "s3" }
+    type Params = ObjectWriteParams;
+    type Client = ObjectStoreBox;
 
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
+    fn id(&self) -> &str { "write" }
+
+    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
         Ok(())
     }
 
     async fn write(
         &self,
         mut input: mpsc::Receiver<Blob>,
-        params: serde_json::Value,
-        client: Box<dyn Any + Send>,
+        params: Self::Params,
+        client: Self::Client,
     ) -> Result<u64, Error> {
-        let store_box = client.downcast::<ObjectStoreBox>().map_err(|_| {
-            Error::runtime("Invalid client type for object write stream", "object/write", false)
-        })?;
-        let store_client = &store_box.0;
+        let store_client = &client.0;
 
-        let prefix = params.get("prefix").and_then(|v| v.as_str()).unwrap_or("");
+        let prefix = &params.prefix;
         let mut total = 0u64;
 
         while let Some(blob) = input.recv().await {

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::DataItem;
+use crate::datatypes::Data;
 
 /// Category of sensitive data an entity belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -80,7 +80,7 @@ pub struct EntityLocation {
 pub struct Entity {
     /// Common data-item fields (id, parent_id, metadata).
     #[serde(flatten)]
-    pub data: DataItem,
+    pub data: Data,
     /// Broad classification of the sensitive data.
     pub category: EntityCategory,
     /// Specific type label (e.g. `"ssn"`, `"email"`, `"credit_card"`).
@@ -109,7 +109,7 @@ impl Entity {
         location: EntityLocation,
     ) -> Self {
         Self {
-            data: DataItem::new(),
+            data: Data::new(),
             category,
             entity_type: entity_type.into(),
             value: value.into(),

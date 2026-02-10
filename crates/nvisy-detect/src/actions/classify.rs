@@ -1,12 +1,11 @@
 //! Sensitivity classification action.
 
-use std::any::Any;
 use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
-use nvisy_core::datatypes::entity::Entity;
+use nvisy_core::ontology::entity::Entity;
 use nvisy_core::error::{Error, ErrorKind};
-use nvisy_core::traits::action::Action;
+use nvisy_core::registry::action::Action;
 
 /// Assigns a sensitivity level to each blob based on its detected entities.
 ///
@@ -18,11 +17,13 @@ pub struct ClassifyAction;
 
 #[async_trait::async_trait]
 impl Action for ClassifyAction {
+    type Params = ();
+
     fn id(&self) -> &str {
         "classify"
     }
 
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
+    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
         Ok(())
     }
 
@@ -30,8 +31,7 @@ impl Action for ClassifyAction {
         &self,
         mut input: mpsc::Receiver<Blob>,
         output: mpsc::Sender<Blob>,
-        _params: serde_json::Value,
-        _client: Option<Box<dyn Any + Send>>,
+        _params: Self::Params,
     ) -> Result<u64, Error> {
         let mut count = 0u64;
 
@@ -78,7 +78,7 @@ fn compute_sensitivity_level(entities: &[Entity]) -> String {
 
     let has_high_confidence = entities.iter().any(|e| e.confidence >= 0.9);
     let has_critical_types = entities.iter().any(|e| {
-        matches!(e.category, nvisy_core::datatypes::entity::EntityCategory::Credentials)
+        matches!(e.category, nvisy_core::ontology::entity::EntityCategory::Credentials)
             || e.entity_type == "ssn"
             || e.entity_type == "credit_card"
     });

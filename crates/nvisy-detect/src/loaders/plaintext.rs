@@ -3,7 +3,7 @@
 use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::datatypes::document::Document;
 use nvisy_core::error::Error;
-use nvisy_core::traits::loader::{Loader, LoaderOutput};
+use nvisy_core::registry::loader::{Loader, LoaderOutput};
 
 /// Loads plain-text blobs into a single [`Document`].
 ///
@@ -14,6 +14,8 @@ pub struct PlaintextLoader;
 
 #[async_trait::async_trait]
 impl Loader for PlaintextLoader {
+    type Params = ();
+
     fn id(&self) -> &str {
         "plaintext"
     }
@@ -29,7 +31,7 @@ impl Loader for PlaintextLoader {
     async fn load(
         &self,
         blob: &Blob,
-        _params: &serde_json::Value,
+        _params: &Self::Params,
     ) -> Result<Vec<LoaderOutput>, Error> {
         let content = String::from_utf8(blob.content.to_vec()).map_err(|e| {
             Error::validation(

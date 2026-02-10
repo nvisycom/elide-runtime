@@ -1,15 +1,32 @@
 //! Policy evaluation action that maps detected entities to redaction instructions.
 
-use std::any::Any;
+use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
-use nvisy_core::datatypes::entity::Entity;
-use nvisy_core::datatypes::policy::PolicyRule;
-use nvisy_core::datatypes::redaction::Redaction;
+use nvisy_core::ontology::entity::Entity;
+use nvisy_core::redaction::policy::PolicyRule;
+use nvisy_core::ontology::redaction::{Redaction, RedactionMethod};
 use nvisy_core::error::{Error, ErrorKind};
-use nvisy_core::traits::action::Action;
-use nvisy_core::datatypes::redaction::RedactionMethod;
+use nvisy_core::registry::action::Action;
+
+/// Typed parameters for [`EvaluatePolicyAction`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvaluatePolicyParams {
+    /// Ordered policy rules to evaluate.
+    #[serde(default)]
+    pub rules: Vec<PolicyRule>,
+    /// Fallback redaction method when no rule matches.
+    #[serde(default = "default_method")]
+    pub default_method: RedactionMethod,
+    /// Fallback confidence threshold.
+    #[serde(default = "default_threshold")]
+    pub default_confidence_threshold: f64,
+}
+
+fn default_method() -> RedactionMethod { RedactionMethod::Mask }
+fn default_threshold() -> f64 { 0.5 }
 
 /// Evaluates policy rules against detected entities and emits [`Redaction`] artifacts.
 ///
@@ -17,23 +34,17 @@ use nvisy_core::datatypes::redaction::RedactionMethod;
 /// applies its redaction method and replacement template, and writes a
 /// `"redactions"` artifact to the blob. Entities that fall below the confidence
 /// threshold are skipped.
-///
-/// # Parameters (JSON)
-///
-/// | Key                          | Type                  | Default  | Description                                  |
-/// |------------------------------|-----------------------|----------|----------------------------------------------|
-/// | `rules`                      | `[PolicyRule]`        | `[]`     | Ordered policy rules to evaluate.            |
-/// | `defaultMethod`              | `RedactionMethod`     | `Mask`   | Fallback redaction method when no rule matches.|
-/// | `defaultConfidenceThreshold` | `f64`                 | `0.5`    | Fallback confidence threshold.               |
 pub struct EvaluatePolicyAction;
 
 #[async_trait::async_trait]
 impl Action for EvaluatePolicyAction {
+    type Params = EvaluatePolicyParams;
+
     fn id(&self) -> &str {
         "evaluate-policy"
     }
 
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
+    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
         Ok(())
     }
 
@@ -41,23 +52,12 @@ impl Action for EvaluatePolicyAction {
         &self,
         mut input: mpsc::Receiver<Blob>,
         output: mpsc::Sender<Blob>,
-        params: serde_json::Value,
-        _client: Option<Box<dyn Any + Send>>,
+        params: Self::Params,
     ) -> Result<u64, Error> {
-        let rules: Vec<PolicyRule> = params
-            .get("rules")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or_default();
-        let default_method: RedactionMethod = params
-            .get("defaultMethod")
-            .and_then(|v| serde_json::from_value(v.clone()).ok())
-            .unwrap_or(RedactionMethod::Mask);
-        let default_threshold: f64 = params
-            .get("defaultConfidenceThreshold")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.5);
+        let default_method = params.default_method;
+        let default_threshold = params.default_confidence_threshold;
 
-        let mut sorted_rules = rules;
+        let mut sorted_rules = params.rules;
         sorted_rules.sort_by_key(|r| r.priority);
 
         let mut count = 0u64;

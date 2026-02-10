@@ -1,16 +1,15 @@
 //! Action that applies pending redactions to document text.
 
-use std::any::Any;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::datatypes::document::Document;
-use nvisy_core::datatypes::entity::Entity;
-use nvisy_core::datatypes::redaction::Redaction;
+use nvisy_core::ontology::entity::Entity;
+use nvisy_core::ontology::redaction::Redaction;
 use nvisy_core::error::{Error, ErrorKind};
-use nvisy_core::traits::action::Action;
+use nvisy_core::registry::action::Action;
 
 /// Applies pending [`Redaction`] artifacts to document content.
 ///
@@ -32,11 +31,13 @@ struct PendingRedaction {
 
 #[async_trait::async_trait]
 impl Action for ApplyRedactionAction {
+    type Params = ();
+
     fn id(&self) -> &str {
         "apply-redaction"
     }
 
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
+    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
         Ok(())
     }
 
@@ -44,8 +45,7 @@ impl Action for ApplyRedactionAction {
         &self,
         mut input: mpsc::Receiver<Blob>,
         output: mpsc::Sender<Blob>,
-        _params: serde_json::Value,
-        _client: Option<Box<dyn Any + Send>>,
+        _params: Self::Params,
     ) -> Result<u64, Error> {
         let mut count = 0u64;
 

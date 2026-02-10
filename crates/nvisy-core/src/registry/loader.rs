@@ -1,8 +1,10 @@
 //! The `Loader` trait for converting raw blobs into structured documents or images.
 
+use serde::de::DeserializeOwned;
+
 use crate::datatypes::blob::Blob;
 use crate::datatypes::document::Document;
-use crate::datatypes::image::ImageData;
+use crate::datatypes::document::ImageData;
 use crate::error::Error;
 
 /// Output of a loader -- either a parsed document or an extracted image.
@@ -20,6 +22,9 @@ pub enum LoaderOutput {
 /// content type and extension.
 #[async_trait::async_trait]
 pub trait Loader: Send + Sync + 'static {
+    /// Strongly-typed parameters for this loader.
+    type Params: DeserializeOwned + Send;
+
     /// Unique identifier for this loader (e.g. `"csv"`, `"pdf"`).
     fn id(&self) -> &str;
     /// File extensions this loader handles (e.g. `["csv", "tsv"]`).
@@ -31,6 +36,6 @@ pub trait Loader: Send + Sync + 'static {
     async fn load(
         &self,
         blob: &Blob,
-        params: &serde_json::Value,
+        params: &Self::Params,
     ) -> Result<Vec<LoaderOutput>, Error>;
 }

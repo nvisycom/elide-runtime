@@ -1,44 +1,52 @@
 //! Streaming reader that pulls objects from an S3-compatible store.
 
-use std::any::Any;
+use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::error::Error;
-use nvisy_core::traits::stream::StreamSource;
+use nvisy_core::registry::stream::StreamSource;
 use crate::client::ObjectStoreBox;
+
+/// Typed parameters for [`ObjectReadStream`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectReadParams {
+    /// Object key prefix to filter by.
+    #[serde(default)]
+    pub prefix: String,
+    /// Number of keys to fetch per page.
+    #[serde(default = "default_batch_size")]
+    pub batch_size: usize,
+}
+
+fn default_batch_size() -> usize { 100 }
 
 /// A [`StreamSource`] that lists and fetches objects from an S3-compatible store,
 /// emitting each object as a [`Blob`] onto the output channel.
-///
-/// # Parameters (JSON)
-///
-/// - `prefix` -- object key prefix to filter by (default: `""`).
-/// - `batchSize` -- number of keys to fetch per page (default: `100`).
 pub struct ObjectReadStream;
 
 #[async_trait::async_trait]
 impl StreamSource for ObjectReadStream {
-    fn id(&self) -> &str { "read" }
-    fn required_provider_id(&self) -> &str { "s3" }
+    type Params = ObjectReadParams;
+    type Client = ObjectStoreBox;
 
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
+    fn id(&self) -> &str { "read" }
+
+    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
         Ok(())
     }
 
     async fn read(
         &self,
         output: mpsc::Sender<Blob>,
-        params: serde_json::Value,
-        client: Box<dyn Any + Send>,
+        params: Self::Params,
+        client: Self::Client,
     ) -> Result<u64, Error> {
-        let store_box = client.downcast::<ObjectStoreBox>().map_err(|_| {
-            Error::runtime("Invalid client type for object read stream", "object/read", false)
-        })?;
-        let store_client = &store_box.0;
+        let store_client = &client.0;
 
-        let prefix = params.get("prefix").and_then(|v| v.as_str()).unwrap_or("");
-        let batch_size = params.get("batchSize").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
+        let prefix = &params.prefix;
+        let batch_size = params.batch_size;
 
         let mut cursor: Option<String> = None;
         let mut total = 0u64;

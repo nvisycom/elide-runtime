@@ -3,9 +3,10 @@
 #![doc = include_str!("../README.md")]
 
 pub mod datatypes;
-pub mod documents;
 pub mod error;
-pub mod traits;
+pub mod ontology;
+pub mod redaction;
+pub mod registry;
 
 #[doc(hidden)]
 pub mod prelude;

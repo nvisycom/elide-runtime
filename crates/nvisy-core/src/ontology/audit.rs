@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use super::DataItem;
+use crate::datatypes::Data;
 use crate::datatypes::Metadata;
 
 /// Kind of auditable action recorded in an [`Audit`] entry.
@@ -32,7 +32,7 @@ pub enum AuditAction {
 pub struct Audit {
     /// Common data-item fields (id, parent_id, metadata).
     #[serde(flatten)]
-    pub data: DataItem,
+    pub data: Data,
     /// The kind of event this audit entry records.
     pub action: AuditAction,
     /// UTC timestamp when the event occurred.
@@ -64,7 +64,7 @@ impl Audit {
     /// Create a new audit record for the given action, timestamped to now.
     pub fn new(action: AuditAction) -> Self {
         Self {
-            data: DataItem::new(),
+            data: Data::new(),
             action,
             timestamp: Utc::now(),
             entity_id: None,

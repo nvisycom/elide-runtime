@@ -1,38 +1,45 @@
 //! Regex-based PII/PHI entity detection action.
 
 use regex::Regex;
-use std::any::Any;
+use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::datatypes::document::Document;
-use nvisy_core::datatypes::entity::{DetectionMethod, Entity, EntityLocation};
+use nvisy_core::ontology::entity::{DetectionMethod, Entity, EntityLocation};
 use nvisy_core::error::{Error, ErrorKind};
-use nvisy_core::traits::action::Action;
+use nvisy_core::registry::action::Action;
 
 use crate::patterns::{self, PatternDefinition};
+
+/// Typed parameters for [`DetectRegexAction`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetectRegexParams {
+    /// Minimum pattern confidence to emit.
+    #[serde(default)]
+    pub confidence_threshold: f64,
+    /// Subset of built-in pattern names to use. `None` means all.
+    #[serde(default)]
+    pub patterns: Option<Vec<String>>,
+}
 
 /// Scans document text against compiled regex patterns to detect PII/PHI entities.
 ///
 /// For each blob the action reads the `"documents"` artifact (or falls back to
 /// the raw blob content), runs every active pattern, optionally validates
 /// matches, and appends resulting [`Entity`] artifacts.
-///
-/// # Parameters (JSON)
-///
-/// | Key                  | Type       | Default | Description                              |
-/// |----------------------|------------|---------|------------------------------------------|
-/// | `confidenceThreshold`| `f64`      | `0.0`   | Minimum pattern confidence to emit.      |
-/// | `patterns`           | `[String]` | all     | Subset of built-in pattern names to use. |
 pub struct DetectRegexAction;
 
 #[async_trait::async_trait]
 impl Action for DetectRegexAction {
+    type Params = DetectRegexParams;
+
     fn id(&self) -> &str {
         "detect-regex"
     }
 
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
+    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
         Ok(())
     }
 
@@ -40,17 +47,10 @@ impl Action for DetectRegexAction {
         &self,
         mut input: mpsc::Receiver<Blob>,
         output: mpsc::Sender<Blob>,
-        params: serde_json::Value,
-        _client: Option<Box<dyn Any + Send>>,
+        params: Self::Params,
     ) -> Result<u64, Error> {
-        let confidence_threshold: f64 = params
-            .get("confidenceThreshold")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0);
-
-        let requested_patterns: Option<Vec<String>> = params
-            .get("patterns")
-            .and_then(|v| serde_json::from_value(v.clone()).ok());
+        let confidence_threshold = params.confidence_threshold;
+        let requested_patterns = params.patterns;
 
         // Resolve patterns
         let active_patterns = resolve_patterns(&requested_patterns);

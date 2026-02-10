@@ -1,15 +1,29 @@
 //! Checksum-based entity validation action.
 
-use std::any::Any;
+use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
-use nvisy_core::datatypes::entity::Entity;
+use nvisy_core::ontology::entity::{DetectionMethod, Entity};
 use nvisy_core::error::{Error, ErrorKind};
-use nvisy_core::traits::action::Action;
-use nvisy_core::datatypes::entity::DetectionMethod;
+use nvisy_core::registry::action::Action;
 
 use crate::patterns::validators::luhn_check;
+
+/// Typed parameters for [`DetectChecksumAction`].
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DetectChecksumParams {
+    /// Whether to discard entities that fail validation.
+    #[serde(default = "default_true")]
+    pub drop_invalid: bool,
+    /// Amount added to confidence on successful validation.
+    #[serde(default = "default_boost")]
+    pub confidence_boost: f64,
+}
+
+fn default_true() -> bool { true }
+fn default_boost() -> f64 { 0.05 }
 
 /// Validates previously detected entities using checksum algorithms.
 ///
@@ -17,22 +31,17 @@ use crate::patterns::validators::luhn_check;
 /// are verified. Valid matches receive a confidence boost and are re-emitted
 /// with [`DetectionMethod::Checksum`]. Invalid matches can optionally be
 /// dropped from the pipeline.
-///
-/// # Parameters (JSON)
-///
-/// | Key               | Type   | Default | Description                                          |
-/// |-------------------|--------|---------|------------------------------------------------------|
-/// | `dropInvalid`     | `bool` | `true`  | Whether to discard entities that fail validation.    |
-/// | `confidenceBoost` | `f64`  | `0.05`  | Amount added to confidence on successful validation. |
 pub struct DetectChecksumAction;
 
 #[async_trait::async_trait]
 impl Action for DetectChecksumAction {
+    type Params = DetectChecksumParams;
+
     fn id(&self) -> &str {
         "detect-checksum"
     }
 
-    fn validate_params(&self, _params: &serde_json::Value) -> Result<(), Error> {
+    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
         Ok(())
     }
 
@@ -40,17 +49,10 @@ impl Action for DetectChecksumAction {
         &self,
         mut input: mpsc::Receiver<Blob>,
         output: mpsc::Sender<Blob>,
-        params: serde_json::Value,
-        _client: Option<Box<dyn Any + Send>>,
+        params: Self::Params,
     ) -> Result<u64, Error> {
-        let drop_invalid = params
-            .get("dropInvalid")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true);
-        let confidence_boost = params
-            .get("confidenceBoost")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.05);
+        let drop_invalid = params.drop_invalid;
+        let confidence_boost = params.confidence_boost;
 
         let mut count = 0u64;
 

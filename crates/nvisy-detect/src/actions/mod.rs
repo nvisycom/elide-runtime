@@ -1,6 +1,6 @@
 //! Pipeline actions for the detection and redaction workflow.
 //!
-//! Each sub-module exposes a single [`Action`](nvisy_core::traits::action::Action)
+//! Each sub-module exposes a single [`Action`](nvisy_core::registry::action::Action)
 //! implementation that can be wired into an nvisy execution plan.
 
 /// Applies pending redactions to document content.

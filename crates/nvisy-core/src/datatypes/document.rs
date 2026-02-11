@@ -487,6 +487,58 @@ impl Document {
 }
 
 // ---------------------------------------------------------------------------
+// TabularData
+// ---------------------------------------------------------------------------
+
+/// Tabular data extracted from spreadsheets, CSV files, or database exports.
+///
+/// Represents a two-dimensional table with named columns and string cell
+/// values.  Carries optional metadata about the original file format and
+/// sheet name for multi-sheet workbooks.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct TabularData {
+    /// Common data-item fields (id, parent_id, metadata).
+    #[serde(flatten)]
+    pub data: Data,
+    /// Column header names.
+    pub columns: Vec<String>,
+    /// Row data — each inner Vec has the same length as `columns`.
+    pub rows: Vec<Vec<String>>,
+    /// Original file format (e.g. `"csv"`, `"parquet"`, `"xlsx"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_format: Option<String>,
+    /// Sheet or tab name within a multi-sheet workbook.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sheet_name: Option<String>,
+}
+
+impl TabularData {
+    /// Create new tabular data with the given columns and rows.
+    pub fn new(columns: Vec<String>, rows: Vec<Vec<String>>) -> Self {
+        Self {
+            data: Data::new(),
+            columns,
+            rows,
+            source_format: None,
+            sheet_name: None,
+        }
+    }
+
+    /// Record the original file format (e.g. `"csv"`, `"xlsx"`).
+    pub fn with_source_format(mut self, format: impl Into<String>) -> Self {
+        self.source_format = Some(format.into());
+        self
+    }
+
+    /// Set the sheet name for multi-sheet workbooks.
+    pub fn with_sheet_name(mut self, name: impl Into<String>) -> Self {
+        self.sheet_name = Some(name.into());
+        self
+    }
+}
+
+// ---------------------------------------------------------------------------
 // ImageData
 // ---------------------------------------------------------------------------
 

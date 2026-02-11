@@ -3,7 +3,7 @@
 use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
-use nvisy_core::ontology::entity::Entity;
+use nvisy_ontology::ontology::entity::Entity;
 use nvisy_core::error::{Error, ErrorKind};
 use nvisy_core::registry::action::Action;
 
@@ -78,7 +78,7 @@ fn compute_sensitivity_level(entities: &[Entity]) -> String {
 
     let has_high_confidence = entities.iter().any(|e| e.confidence >= 0.9);
     let has_critical_types = entities.iter().any(|e| {
-        matches!(e.category, nvisy_core::ontology::entity::EntityCategory::Credentials)
+        matches!(e.category, nvisy_ontology::ontology::entity::EntityCategory::Credentials)
             || e.entity_type == "ssn"
             || e.entity_type == "credit_card"
     });

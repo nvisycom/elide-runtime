@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::datatypes::document::Document;
-use nvisy_core::ontology::entity::{DetectionMethod, Entity, EntityLocation};
+use nvisy_ontology::ontology::entity::{DetectionMethod, Entity, EntityLocation};
 use nvisy_core::error::{Error, ErrorKind};
 use nvisy_core::registry::action::Action;
 
@@ -103,6 +103,9 @@ impl Action for DetectRegexAction {
                                 element_id: None,
                                 page_number: None,
                                 bounding_box: None,
+                                row_index: None,
+                                column_index: None,
+                                image_id: None,
                             },
                         );
                         entity.source_id = Some(doc.data.id);

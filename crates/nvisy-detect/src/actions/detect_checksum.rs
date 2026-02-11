@@ -4,7 +4,7 @@ use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
-use nvisy_core::ontology::entity::{DetectionMethod, Entity};
+use nvisy_ontology::ontology::entity::{DetectionMethod, Entity};
 use nvisy_core::error::{Error, ErrorKind};
 use nvisy_core::registry::action::Action;
 

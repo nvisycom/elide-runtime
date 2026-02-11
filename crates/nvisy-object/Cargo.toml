@@ -37,9 +37,11 @@ async-trait = { workspace = true, features = [] }
 uuid = { workspace = true, features = ["v4"] }
 bytes = { workspace = true, features = [] }
 
-# AWS SDK
-aws-sdk-s3 = { workspace = true, features = [] }
-aws-config = { workspace = true, features = [] }
+# S3-compatible object storage
+minio = { workspace = true, features = [] }
+
+# Async streams
+futures = { workspace = true, features = [] }
 
 # Error handling
 thiserror = { workspace = true, features = [] }

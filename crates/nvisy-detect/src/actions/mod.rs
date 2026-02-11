@@ -9,8 +9,14 @@ pub mod apply_redaction;
 pub mod classify;
 /// Validates detected entities using checksum algorithms (e.g. Luhn).
 pub mod detect_checksum;
+/// Aho-Corasick dictionary-based entity detection.
+pub mod detect_dictionary;
+/// Converts user-provided manual annotations into entities.
+pub mod detect_manual;
 /// Scans document text with compiled regex patterns to detect PII/PHI entities.
 pub mod detect_regex;
+/// Column-based rule matching for tabular data.
+pub mod detect_tabular;
 /// Emits audit trail records for every applied redaction.
 pub mod emit_audit;
 /// Evaluates policy rules against detected entities and produces redaction instructions.

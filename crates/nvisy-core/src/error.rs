@@ -27,6 +27,12 @@ pub enum ErrorKind {
     Runtime,
     /// An error originating from the embedded Python bridge.
     Python,
+    /// An internal infrastructure error (filesystem, I/O).
+    InternalError,
+    /// The input was invalid or out of bounds.
+    InvalidInput,
+    /// A serialization or encoding error.
+    Serialization,
     /// An error that does not fit any other category.
     Other,
 }
@@ -131,6 +137,13 @@ impl Error {
     /// Whether this error is retryable.
     pub fn is_retryable(&self) -> bool {
         self.retryable
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Self::new(ErrorKind::InternalError, err.to_string())
+            .with_source(err)
     }
 }
 

@@ -6,6 +6,7 @@
 
 pub mod audit_store;
 pub mod config;
+pub mod pipeline;
 pub mod policy_store;
 pub mod state;
 

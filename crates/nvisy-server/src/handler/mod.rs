@@ -26,7 +26,7 @@ use utoipa::OpenApi;
         audit::get_audit_by_run,
     ),
     components(schemas(
-        redact::RedactRequest,
+        redact::RedactResponse,
         policies::CreatePolicyRequest,
         policies::UpdatePolicyRequest,
     ))

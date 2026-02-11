@@ -4,9 +4,9 @@ use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
-use nvisy_core::ontology::entity::Entity;
-use nvisy_core::redaction::policy::PolicyRule;
-use nvisy_core::ontology::redaction::{Redaction, RedactionMethod};
+use nvisy_ontology::ontology::entity::Entity;
+use nvisy_ontology::redaction::policy::PolicyRule;
+use nvisy_ontology::ontology::redaction::{Redaction, RedactionMethod};
 use nvisy_core::error::{Error, ErrorKind};
 use nvisy_core::registry::action::Action;
 

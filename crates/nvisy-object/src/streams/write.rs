@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 
 use nvisy_core::datatypes::blob::Blob;
 use nvisy_core::error::Error;
-use nvisy_core::registry::stream::StreamTarget;
+use super::StreamTarget;
 use crate::client::ObjectStoreBox;
 
 /// Typed parameters for [`ObjectWriteStream`].

@@ -6,7 +6,10 @@ members = [
     "./crates/nvisy-core",
     "./crates/nvisy-detect",
     "./crates/nvisy-engine",
+    "./crates/nvisy-ingest",
+    "./crates/nvisy-media",
     "./crates/nvisy-object",
+    "./crates/nvisy-ontology",
     "./crates/nvisy-python",
     "./crates/nvisy-server",
 ]
@@ -33,7 +36,10 @@ documentation = "https://docs.rs/nvisy-runtime"
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-detect = { path = "./crates/nvisy-detect", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
+nvisy-ingest = { path = "./crates/nvisy-ingest", version = "0.1.0" }
+nvisy-media = { path = "./crates/nvisy-media", version = "0.1.0" }
 nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
+nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
@@ -66,12 +72,13 @@ anyhow = { version = "1.0", features = [] }
 derive_more = { version = "1", features = ["display"] }
 
 # Primitive datatypes
-uuid = { version = "1", features = ["serde", "v4"] }
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
 chrono = { version = "0.4", features = ["serde"] }
 bytes = { version = "1", features = ["serde"] }
 
 # Text processing
 regex = { version = "1.0", features = [] }
+aho-corasick = { version = "1", features = [] }
 
 # Graph data structures
 petgraph = { version = "0.8", features = [] }
@@ -85,9 +92,41 @@ schemars = { version = "1", features = ["uuid1", "chrono04", "bytes1"] }
 # Python interop
 pyo3 = { version = "0.23", features = [] }
 
-# AWS SDK
-aws-sdk-s3 = { version = "1", features = [] }
-aws-config = { version = "1", features = [] }
+# S3-compatible object storage
+minio = { version = "0.3", features = [] }
+
+# Image processing
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
+imageproc = "0.25"
+
+# Document parsing
+pdf-extract = "0.7"
+lopdf = "0.34"
+scraper = "0.22"
+calamine = "0.33"
+zip = "2"
+quick-xml = "0.37"
+arrow = { version = "54", default-features = false }
+parquet = { version = "54", default-features = false, features = ["arrow"] }
+
+# Encoding
+base64 = "0.22"
+
+# Time
+jiff = "0.2"
+
+# Interned strings
+hipstr = "0.6"
+
+# Hashing
+sha2 = "0.10"
+hex = "0.4"
+
+# Enum derives
+strum = { version = "0.26", features = ["derive"] }
+
+# Testing
+tempfile = "3"
 
 # Randomness
 rand = { version = "0.9", features = [] }

@@ -4,8 +4,9 @@
 
 pub mod datatypes;
 pub mod error;
-pub mod ontology;
-pub mod redaction;
+pub mod fs;
+pub mod io;
+pub mod path;
 pub mod registry;
 
 #[doc(hidden)]

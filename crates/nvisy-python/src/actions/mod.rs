@@ -1,8 +1,12 @@
-//! Pipeline actions that perform AI-powered named-entity recognition.
+//! Pipeline actions that perform AI-powered named-entity recognition and OCR.
 //!
-//! Two actions are provided:
+//! Three actions are provided:
 //! - [`DetectNerAction`] -- runs NER over text documents.
 //! - [`DetectNerImageAction`] -- runs NER over images (OCR + entity detection).
+//! - [`OcrDetectAction`] -- performs OCR on images to extract text regions.
+
+/// OCR detection pipeline action.
+pub mod ocr;
 
 use serde::Deserialize;
 use tokio::sync::mpsc;

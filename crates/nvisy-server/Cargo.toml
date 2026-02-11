@@ -28,7 +28,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = ["schema"] }
+nvisy-detect = { workspace = true }
 nvisy-engine = { workspace = true, features = ["schema"] }
+nvisy-ingest = { workspace = true }
+nvisy-media = { workspace = true }
+nvisy-ontology = { workspace = true }
+nvisy-python = { workspace = true }
 
 # JSON Schema generation
 schemars = { workspace = true }
@@ -41,7 +46,7 @@ serde_json = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 
 # HTTP server
-axum = { workspace = true, features = ["http2", "macros"] }
+axum = { workspace = true, features = ["http2", "macros", "multipart"] }
 tower = { workspace = true, features = ["full"] }
 tower-http = { workspace = true, features = ["cors", "trace", "request-id", "limit"] }
 
@@ -56,6 +61,12 @@ chrono = { workspace = true, features = [] }
 # Observability
 tracing = { workspace = true, features = [] }
 tracing-subscriber = { workspace = true, features = ["fmt", "ansi", "json", "env-filter"] }
+
+# Encoding
+base64 = { workspace = true }
+
+# Binary data
+bytes = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true, features = [] }

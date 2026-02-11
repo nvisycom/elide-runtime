@@ -11,7 +11,7 @@ updates:
     labels:
       - "chore"
     commit-message:
-      prefix: "chore(deps)"
+      prefix: "chore(deps-rs)"
     groups:
       rust-dependencies:
         patterns:
@@ -32,6 +32,13 @@ updates:
       - "chore"
     commit-message:
       prefix: "chore(deps-py)"
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "pip"
     directory: "/packages/nvisy-exif"
@@ -45,6 +52,13 @@ updates:
       - "chore"
     commit-message:
       prefix: "chore(deps-py)"
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"

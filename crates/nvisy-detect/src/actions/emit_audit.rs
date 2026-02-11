@@ -5,8 +5,8 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use nvisy_core::datatypes::blob::Blob;
-use nvisy_core::ontology::audit::{Audit, AuditAction};
-use nvisy_core::ontology::redaction::Redaction;
+use nvisy_ontology::ontology::audit::{Audit, AuditAction};
+use nvisy_ontology::ontology::redaction::Redaction;
 use nvisy_core::error::{Error, ErrorKind};
 use nvisy_core::registry::action::Action;
 

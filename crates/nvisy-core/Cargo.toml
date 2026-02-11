@@ -33,11 +33,11 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 
 # Async runtime
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["sync", "fs", "io-util", "rt"] }
 async-trait = { workspace = true, features = [] }
 
 # Primitive datatypes
-uuid = { workspace = true, features = ["serde", "v4"] }
+uuid = { workspace = true, features = ["serde", "v4", "v7"] }
 chrono = { workspace = true, features = ["serde"] }
 bytes = { workspace = true, features = ["serde"] }
 
@@ -47,7 +47,23 @@ infer = { workspace = true, features = [] }
 # Error handling
 thiserror = { workspace = true, features = [] }
 anyhow = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["display"] }
+derive_more = { workspace = true, features = ["display", "deref", "as_ref"] }
+
+# Time
+jiff = { workspace = true }
+
+# Interned strings
+hipstr = { workspace = true }
+
+# Hashing
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+# Enum derives
+strum = { workspace = true }
 
 # Observability
 tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -9,7 +9,7 @@ pub mod validators;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use nvisy_core::ontology::entity::EntityCategory;
+use nvisy_ontology::ontology::entity::EntityCategory;
 
 /// JSON representation of a pattern loaded from disk.
 #[derive(Debug, Clone, serde::Deserialize)]

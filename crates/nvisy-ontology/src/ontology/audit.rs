@@ -1,14 +1,13 @@
 //! Audit trail records for data protection events.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use nvisy_core::datatypes::Data;
-use nvisy_core::datatypes::Metadata;
+use nvisy_core::path::ContentSource;
 
 /// Kind of auditable action recorded in an [`Audit`] entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AuditAction {
     /// A sensitive entity was detected.
@@ -28,15 +27,16 @@ pub enum AuditAction {
 /// Audit entries are emitted by pipeline actions and form a tamper-evident
 /// log of all detection, redaction, and policy decisions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct Audit {
-    /// Common data-item fields (id, parent_id, metadata).
+    /// Content source identity and lineage.
     #[serde(flatten)]
-    pub data: Data,
+    pub source: ContentSource,
     /// The kind of event this audit entry records.
     pub action: AuditAction,
     /// UTC timestamp when the event occurred.
-    pub timestamp: DateTime<Utc>,
+    #[schemars(with = "String")]
+    pub timestamp: Timestamp,
     /// Identifier of the related entity, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entity_id: Option<Uuid>,
@@ -57,16 +57,16 @@ pub struct Audit {
     pub actor: Option<String>,
     /// Additional unstructured details about the event.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<Metadata>,
+    pub details: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl Audit {
     /// Create a new audit record for the given action, timestamped to now.
     pub fn new(action: AuditAction) -> Self {
         Self {
-            data: Data::new(),
+            source: ContentSource::new(),
             action,
-            timestamp: Utc::now(),
+            timestamp: Timestamp::now(),
             entity_id: None,
             redaction_id: None,
             policy_id: None,
@@ -102,7 +102,7 @@ impl Audit {
     }
 
     /// Attach additional unstructured details to this audit entry.
-    pub fn with_details(mut self, details: Metadata) -> Self {
+    pub fn with_details(mut self, details: serde_json::Map<String, serde_json::Value>) -> Self {
         self.details = Some(details);
         self
     }

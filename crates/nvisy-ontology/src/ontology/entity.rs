@@ -2,11 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use nvisy_core::datatypes::Data;
+use nvisy_core::path::ContentSource;
 
 /// Category of sensitive data an entity belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EntityCategory {
     /// Personally Identifiable Information (names, SSNs, addresses, etc.).
@@ -23,7 +23,7 @@ pub enum EntityCategory {
 
 /// Method used to detect a sensitive entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DetectionMethod {
     /// Regular expression pattern matching.
@@ -44,7 +44,7 @@ pub enum DetectionMethod {
 
 /// Axis-aligned bounding box for image-based entity locations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct BoundingBox {
     /// Horizontal offset of the top-left corner (pixels or normalized).
     pub x: f64,
@@ -58,7 +58,7 @@ pub struct BoundingBox {
 
 /// Location of an entity within its source document or image.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct EntityLocation {
     /// Byte or character offset where the entity starts in the text.
     pub start_offset: usize,
@@ -81,7 +81,7 @@ pub struct EntityLocation {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub column_index: Option<usize>,
-    /// Links this entity to a specific [`ImageData`](nvisy_core::datatypes::document::ImageData).
+    /// Links this entity to a specific image document.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub image_id: Option<Uuid>,
@@ -92,11 +92,11 @@ pub struct EntityLocation {
 /// Entities are produced by detection actions (regex, NER, checksum, etc.)
 /// and later consumed by redaction and audit actions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct Entity {
-    /// Common data-item fields (id, parent_id, metadata).
+    /// Content source identity and lineage.
     #[serde(flatten)]
-    pub data: Data,
+    pub source: ContentSource,
     /// Broad classification of the sensitive data.
     pub category: EntityCategory,
     /// Specific type label (e.g. `"ssn"`, `"email"`, `"credit_card"`).
@@ -109,9 +109,6 @@ pub struct Entity {
     pub confidence: f64,
     /// Where this entity was found in the source document.
     pub location: EntityLocation,
-    /// Identifier of the source blob or document this entity came from.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_id: Option<Uuid>,
 }
 
 impl Entity {
@@ -125,20 +122,19 @@ impl Entity {
         location: EntityLocation,
     ) -> Self {
         Self {
-            data: Data::new(),
+            source: ContentSource::new(),
             category,
             entity_type: entity_type.into(),
             value: value.into(),
             detection_method,
             confidence,
             location,
-            source_id: None,
         }
     }
 
-    /// Link this entity to the blob or document it was extracted from.
-    pub fn with_source_id(mut self, source_id: Uuid) -> Self {
-        self.source_id = Some(source_id);
+    /// Set the parent source for lineage tracking.
+    pub fn with_parent(mut self, parent: &ContentSource) -> Self {
+        self.source = self.source.with_parent(parent);
         self
     }
 }

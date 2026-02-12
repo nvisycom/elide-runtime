@@ -16,10 +16,13 @@ use uuid::Uuid;
 /// This allows for efficient tracking and correlation of content throughout
 /// the processing pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ContentSource {
     /// `UUIDv7` identifier
     id: Uuid,
+    /// Optional parent source for lineage tracking
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parent_id: Option<Uuid>,
 }
 
 impl ContentSource {
@@ -44,6 +47,7 @@ impl ContentSource {
 
         Self {
             id: Uuid::new_v7(timestamp),
+            parent_id: None,
         }
     }
 
@@ -62,7 +66,7 @@ impl ContentSource {
     /// ```
     #[must_use]
     pub fn from_uuid(id: Uuid) -> Self {
-        Self { id }
+        Self { id, parent_id: None }
     }
 
     /// Get the underlying UUID
@@ -111,7 +115,33 @@ impl ContentSource {
     /// ```
     pub fn parse(s: &str) -> Result<Self, uuid::Error> {
         let id = Uuid::parse_str(s)?;
-        Ok(Self { id })
+        Ok(Self { id, parent_id: None })
+    }
+
+    /// Get the parent source identifier, if any.
+    #[must_use]
+    pub fn parent_id(&self) -> Option<Uuid> {
+        self.parent_id
+    }
+
+    /// Set the parent source identifier.
+    pub fn set_parent_id(&mut self, parent_id: Option<Uuid>) {
+        self.parent_id = parent_id;
+    }
+
+    /// Create a copy of this source with the given parent (builder pattern).
+    #[must_use]
+    pub fn with_parent(mut self, parent: &ContentSource) -> Self {
+        self.parent_id = Some(parent.id);
+        self
+    }
+
+    /// Create a new content source derived from this one (new ID, self as parent).
+    #[must_use]
+    pub fn derive(&self) -> Self {
+        let mut child = Self::new();
+        child.parent_id = Some(self.id);
+        child
     }
 
     /// Get the timestamp component from the `UUIDv7`

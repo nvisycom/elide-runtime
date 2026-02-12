@@ -2,13 +2,15 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use tokio::runtime::Handle;
+
 use crate::path::ContentSource;
 
 /// Inner state cleaned up when the last `ContentHandler` reference is dropped.
 struct ContentHandlerInner {
     content_source: ContentSource,
     dir: PathBuf,
-    runtime_handle: tokio::runtime::Handle,
+    runtime_handle: Handle,
 }
 
 impl fmt::Debug for ContentHandlerInner {
@@ -57,16 +59,12 @@ pub struct ContentHandler {
 
 impl ContentHandler {
     /// Creates a new content handler.
-    pub(crate) fn new(
-        content_source: ContentSource,
-        dir: PathBuf,
-        runtime_handle: tokio::runtime::Handle,
-    ) -> Self {
+    pub(crate) fn new(source: ContentSource, dir: PathBuf, handle: Handle) -> Self {
         Self {
             inner: Arc::new(ContentHandlerInner {
-                content_source,
+                content_source: source,
                 dir,
-                runtime_handle,
+                runtime_handle: handle,
             }),
         }
     }

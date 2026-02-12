@@ -160,6 +160,12 @@ pub struct ContentData {
     /// Lazily computed SHA256 hash of the content.
     #[serde(skip)]
     sha256_cache: OnceLock<Bytes>,
+    /// Caller-supplied MIME type (e.g. from HTTP Content-Type header).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime: Option<String>,
+    /// MIME type detected from magic bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detected_mime: Option<String>,
 }
 
 impl ContentData {
@@ -182,6 +188,8 @@ impl ContentData {
             content_source,
             data: ContentBytes::new(data),
             sha256_cache: OnceLock::new(),
+            mime: None,
+            detected_mime: None,
         }
     }
 
@@ -202,6 +210,8 @@ impl ContentData {
             content_source,
             data: ContentBytes::from(text.into()),
             sha256_cache: OnceLock::new(),
+            mime: None,
+            detected_mime: None,
         }
     }
 
@@ -211,7 +221,27 @@ impl ContentData {
             content_source,
             data,
             sha256_cache: OnceLock::new(),
+            mime: None,
+            detected_mime: None,
         }
+    }
+
+    /// Set the caller-provided MIME type (builder pattern).
+    #[must_use]
+    pub fn with_content_type(mut self, mime: impl Into<String>) -> Self {
+        self.mime = Some(mime.into());
+        self
+    }
+
+    /// Get the best-available MIME type (provided takes precedence over detected).
+    #[must_use]
+    pub fn content_type(&self) -> Option<&str> {
+        self.mime.as_deref().or(self.detected_mime.as_deref())
+    }
+
+    /// Detect the MIME type from magic bytes and store it.
+    pub fn detect_mime(&mut self) {
+        self.detected_mime = infer::get(self.data.as_bytes()).map(|t| t.mime_type().to_string());
     }
 
     /// Returns the size of the content in bytes.
@@ -376,13 +406,18 @@ impl Clone for ContentData {
             content_source: self.content_source,
             data: self.data.clone(),
             sha256_cache: new_lock,
+            mime: self.mime.clone(),
+            detected_mime: self.detected_mime.clone(),
         }
     }
 }
 
 impl PartialEq for ContentData {
     fn eq(&self, other: &Self) -> bool {
-        self.content_source == other.content_source && self.data == other.data
+        self.content_source == other.content_source
+            && self.data == other.data
+            && self.mime == other.mime
+            && self.detected_mime == other.detected_mime
     }
 }
 

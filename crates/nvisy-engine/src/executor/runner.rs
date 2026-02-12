@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 use uuid::Uuid;
-use nvisy_core::datatypes::blob::Blob;
+use nvisy_core::io::ContentData;
 use nvisy_core::error::Error;
 use crate::compiler::plan::ExecutionPlan;
 use crate::connections::Connections;
@@ -17,7 +17,7 @@ use crate::compiler::graph::GraphNode;
 
 /// Outcome of executing a single node in the pipeline.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct NodeResult {
     /// ID of the node that produced this result.
     pub node_id: String,
@@ -29,7 +29,7 @@ pub struct NodeResult {
 
 /// Aggregate outcome of executing an entire pipeline graph.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct RunResult {
     /// Unique identifier for this execution run.
     pub run_id: Uuid,
@@ -49,8 +49,8 @@ pub async fn run_graph(
     let run_id = Uuid::new_v4();
 
     // Create channels for each edge
-    let mut senders: HashMap<String, Vec<mpsc::Sender<Blob>>> = HashMap::new();
-    let mut receivers: HashMap<String, Vec<mpsc::Receiver<Blob>>> = HashMap::new();
+    let mut senders: HashMap<String, Vec<mpsc::Sender<ContentData>>> = HashMap::new();
+    let mut receivers: HashMap<String, Vec<mpsc::Receiver<ContentData>>> = HashMap::new();
 
     for node in &plan.nodes {
         let node_id = node.node.id();
@@ -142,8 +142,8 @@ pub async fn run_graph(
 /// Execute a single node with its channels (simplified -- does not use registry directly).
 async fn execute_node(
     _node: &GraphNode,
-    senders: Vec<mpsc::Sender<Blob>>,
-    mut receivers: Vec<mpsc::Receiver<Blob>>,
+    senders: Vec<mpsc::Sender<ContentData>>,
+    mut receivers: Vec<mpsc::Receiver<ContentData>>,
 ) -> Result<u64, Error> {
     // For now, forward items from receivers to senders (passthrough behavior).
     // The actual registry-based dispatch happens via the Engine wrapper.

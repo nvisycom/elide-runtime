@@ -12,7 +12,7 @@ use crate::policies::retry::RetryPolicy;
 /// Nodes are serialized with a `"type"` discriminator so JSON definitions
 /// can specify `"source"`, `"action"`, or `"target"`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum GraphNode {
     /// A data source that reads from an external provider via a named stream.
@@ -109,7 +109,7 @@ impl GraphNode {
 
 /// A directed edge connecting two nodes by their IDs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct GraphEdge {
     /// ID of the upstream (source) node.
     pub from: String,
@@ -121,7 +121,7 @@ pub struct GraphEdge {
 ///
 /// The graph must be a valid DAG (directed acyclic graph) with unique node IDs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct Graph {
     /// All nodes in the pipeline.
     pub nodes: Vec<GraphNode>,

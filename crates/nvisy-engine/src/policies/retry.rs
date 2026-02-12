@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Defaults to 3 retries with a 1 000 ms fixed delay.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct RetryPolicy {
     /// Maximum number of retry attempts after the initial failure.
     #[serde(default = "default_max_retries")]
@@ -39,7 +39,7 @@ impl Default for RetryPolicy {
 
 /// Strategy for computing the delay between retry attempts.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum BackoffStrategy {
     /// Constant delay equal to `delay_ms` on every attempt.

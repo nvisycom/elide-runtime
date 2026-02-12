@@ -2,11 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use nvisy_core::datatypes::Data;
+use nvisy_core::path::ContentSource;
 
 /// Strategy used to redact or obfuscate a detected entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RedactionMethod {
     /// Replace characters with a mask character (e.g. `***-**-1234`).
@@ -32,11 +32,11 @@ pub enum RedactionMethod {
 /// Each `Redaction` is linked to exactly one [`Entity`](super::entity::Entity)
 /// via `entity_id`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct Redaction {
-    /// Common data-item fields (id, parent_id, metadata).
+    /// Content source identity and lineage.
     #[serde(flatten)]
-    pub data: Data,
+    pub source: ContentSource,
     /// Identifier of the entity being redacted.
     pub entity_id: Uuid,
     /// Redaction strategy applied to the entity.
@@ -61,7 +61,7 @@ impl Redaction {
         replacement_value: impl Into<String>,
     ) -> Self {
         Self {
-            data: Data::new(),
+            source: ContentSource::new(),
             entity_id,
             method,
             replacement_value: replacement_value.into(),

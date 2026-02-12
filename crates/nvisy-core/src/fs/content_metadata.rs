@@ -13,12 +13,15 @@ use crate::path::ContentSource;
 ///
 /// This struct stores metadata about content including its source identifier
 /// and file path.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContentMetadata {
     /// Unique identifier for the content source
     pub content_source: ContentSource,
     /// Optional path to the source file
     pub source_path: Option<PathBuf>,
+    /// Arbitrary key-value metadata associated with this content.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl ContentMetadata {
@@ -37,6 +40,7 @@ impl ContentMetadata {
         Self {
             content_source,
             source_path: None,
+            metadata: None,
         }
     }
 
@@ -56,6 +60,7 @@ impl ContentMetadata {
         Self {
             content_source,
             source_path: Some(path.into()),
+            metadata: None,
         }
     }
 

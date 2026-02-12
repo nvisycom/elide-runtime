@@ -19,7 +19,6 @@ pub enum ErrorKind {
     /// An operation exceeded its time limit.
     Timeout,
     /// The operation was explicitly cancelled.
-    #[display("Cancelled")]
     Cancellation,
     /// A policy rule was violated.
     Policy,

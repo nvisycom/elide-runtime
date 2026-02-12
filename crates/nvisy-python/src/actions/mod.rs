@@ -9,13 +9,13 @@
 pub mod ocr;
 
 use serde::Deserialize;
-use tokio::sync::mpsc;
 
-use nvisy_core::datatypes::blob::Blob;
-use nvisy_core::datatypes::document::Document;
-use nvisy_core::datatypes::document::ImageData;
+use nvisy_ingest::handler::{FormatHandler, PlaintextHandler};
+use nvisy_ingest::document::Document;
+use nvisy_ontology::ontology::entity::Entity;
 use nvisy_core::error::Error;
-use nvisy_core::registry::action::Action;
+use nvisy_core::io::ContentData;
+use nvisy_pipeline::action::Action;
 use crate::bridge::PythonBridge;
 use crate::ner::{self, NerConfig};
 
@@ -49,133 +49,133 @@ fn default_provider() -> String { "openai".to_string() }
 
 /// Pipeline action that detects named entities in text documents.
 ///
-/// If the incoming [`Blob`] carries `"documents"` artifacts, each document's
-/// text is sent through the NER model.  Otherwise the raw blob content is
-/// interpreted as UTF-8 text.  Detected entities are stored as `"entities"`
-/// artifacts on the blob.
+/// Each document's text is sent through the NER model. If no documents are
+/// provided, the raw content is interpreted as UTF-8 text. Detected entities
+/// are returned directly.
 pub struct DetectNerAction {
     /// Python bridge used to call the NER model.
     pub bridge: PythonBridge,
+    params: DetectNerParams,
+}
+
+impl DetectNerAction {
+    /// Replace the default bridge with a pre-configured one.
+    pub fn with_bridge(mut self, bridge: PythonBridge) -> Self {
+        self.bridge = bridge;
+        self
+    }
 }
 
 #[async_trait::async_trait]
 impl Action for DetectNerAction {
     type Params = DetectNerParams;
+    type Input = (ContentData, Vec<Document<FormatHandler>>);
+    type Output = Vec<Entity>;
 
     fn id(&self) -> &str { "detect-ner" }
 
-    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
-        Ok(())
+    async fn connect(params: Self::Params) -> Result<Self, Error> {
+        Ok(Self { bridge: PythonBridge::default(), params })
     }
 
     async fn execute(
         &self,
-        mut input: mpsc::Receiver<Blob>,
-        output: mpsc::Sender<Blob>,
-        params: Self::Params,
-    ) -> Result<u64, Error> {
-        let config = ner_config_from_params(&params);
-        let mut count = 0u64;
+        input: Self::Input,
+    ) -> Result<Self::Output, Error> {
+        let (content, documents) = input;
+        let config = ner_config_from_params(&self.params);
 
-        while let Some(mut blob) = input.recv().await {
-            let documents: Vec<Document> = blob.get_artifacts("documents")
-                .map_err(|e| Error::runtime(format!("Failed to get document artifacts: {}", e), "python/ner", false))?;
+        let docs = if documents.is_empty() {
+            let text = content.as_str()
+                .map_err(|e| Error::runtime(
+                    format!("Content is not valid UTF-8: {}", e),
+                    "python/ner",
+                    false,
+                ))?;
+            vec![Document::new(FormatHandler::Plaintext(PlaintextHandler)).with_text(text)]
+        } else {
+            documents
+        };
 
-            let docs = if documents.is_empty() {
-                let text = String::from_utf8(blob.content.to_vec())
-                    .map_err(|e| Error::runtime(format!("Blob content is not valid UTF-8: {}", e), "python/ner", false))?;
-                vec![Document::new(text)]
-            } else {
-                documents
-            };
-
-            for doc in &docs {
-                let entities = ner::detect_ner(&self.bridge, &doc.content, &config).await?;
-                for entity in &entities {
-                    blob.add_artifact("entities", entity)
-                        .map_err(|e| Error::runtime(format!("Failed to add entity artifact: {}", e), "python/ner", false))?;
-                    count += 1;
-                }
-            }
-
-            if output.send(blob).await.is_err() {
-                return Ok(count);
+        let mut all_entities = Vec::new();
+        for doc in &docs {
+            if let Some(ref content) = doc.content {
+                let entities = ner::detect_ner(&self.bridge, content, &config).await?;
+                all_entities.extend(entities);
             }
         }
 
-        Ok(count)
+        Ok(all_entities)
     }
 }
 
 /// Pipeline action that detects named entities in images.
 ///
-/// If the incoming [`Blob`] carries `"images"` artifacts, each image is
-/// processed individually.  Otherwise the raw blob content is treated as a
-/// single image whose MIME type is inferred from the blob metadata.
-/// Detected entities are stored as `"entities"` artifacts on the blob.
+/// Each image is processed individually through NER. If no images are
+/// provided, the raw content is treated as a single image whose MIME type
+/// is inferred from the content metadata. Detected entities are returned
+/// directly.
 pub struct DetectNerImageAction {
     /// Python bridge used to call the NER model.
     pub bridge: PythonBridge,
+    params: DetectNerParams,
+}
+
+impl DetectNerImageAction {
+    /// Replace the default bridge with a pre-configured one.
+    pub fn with_bridge(mut self, bridge: PythonBridge) -> Self {
+        self.bridge = bridge;
+        self
+    }
 }
 
 #[async_trait::async_trait]
 impl Action for DetectNerImageAction {
     type Params = DetectNerParams;
+    type Input = (ContentData, Vec<Document<FormatHandler>>);
+    type Output = Vec<Entity>;
 
     fn id(&self) -> &str { "detect-ner-image" }
 
-    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
-        Ok(())
+    async fn connect(params: Self::Params) -> Result<Self, Error> {
+        Ok(Self { bridge: PythonBridge::default(), params })
     }
 
     async fn execute(
         &self,
-        mut input: mpsc::Receiver<Blob>,
-        output: mpsc::Sender<Blob>,
-        params: Self::Params,
-    ) -> Result<u64, Error> {
-        let config = ner_config_from_params(&params);
-        let mut count = 0u64;
+        input: Self::Input,
+    ) -> Result<Self::Output, Error> {
+        let (content, images) = input;
+        let config = ner_config_from_params(&self.params);
 
-        while let Some(mut blob) = input.recv().await {
-            let images: Vec<ImageData> = blob.get_artifacts("images")
-                .map_err(|e| Error::runtime(format!("Failed to get image artifacts: {}", e), "python/ner-image", false))?;
+        let mut all_entities = Vec::new();
 
-            if images.is_empty() {
-                let mime_type = blob.content_type().unwrap_or("application/octet-stream").to_string();
-                let entities = ner::detect_ner_image(
-                    &self.bridge,
-                    &blob.content,
-                    &mime_type,
-                    &config,
-                ).await?;
-                for entity in &entities {
-                    blob.add_artifact("entities", entity)
-                        .map_err(|e| Error::runtime(format!("Failed to add entity artifact: {}", e), "python/ner-image", false))?;
-                    count += 1;
-                }
-            } else {
-                for img in &images {
+        if images.is_empty() {
+            let mime_type = content.content_type()
+                .unwrap_or("application/octet-stream")
+                .to_string();
+            let entities = ner::detect_ner_image(
+                &self.bridge,
+                content.as_bytes(),
+                &mime_type,
+                &config,
+            ).await?;
+            all_entities.extend(entities);
+        } else {
+            for doc in &images {
+                if let (Some(data), Some(mime)) = (&doc.data, &doc.mime_type) {
                     let entities = ner::detect_ner_image(
                         &self.bridge,
-                        &img.image_data,
-                        &img.mime_type,
+                        data,
+                        mime,
                         &config,
                     ).await?;
-                    for entity in &entities {
-                        blob.add_artifact("entities", entity)
-                            .map_err(|e| Error::runtime(format!("Failed to add entity artifact: {}", e), "python/ner-image", false))?;
-                        count += 1;
-                    }
+                    all_entities.extend(entities);
                 }
-            }
-
-            if output.send(blob).await.is_err() {
-                return Ok(count);
             }
         }
 
-        Ok(count)
+        Ok(all_entities)
     }
 }
 

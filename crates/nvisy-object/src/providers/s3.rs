@@ -1,7 +1,7 @@
 //! S3-compatible provider implementation using the MinIO Rust SDK.
 //!
 //! Provides [`S3ObjectStoreClient`] which implements [`ObjectStoreClient`] and
-//! [`S3ProviderFactory`] which plugs into the engine's provider system.
+//! [`S3Provider`] which plugs into the engine's provider system.
 //!
 //! Works with MinIO, AWS S3, and any S3-compatible service.
 
@@ -14,7 +14,7 @@ use minio::s3::types::{S3Api, ToStream};
 use minio::s3::{Client as MinioClient, ClientBuilder as MinioClientBuilder};
 
 use nvisy_core::error::Error;
-use nvisy_core::registry::provider::{ConnectedInstance, ProviderFactory};
+use nvisy_pipeline::provider::{ConnectedInstance, Provider};
 use crate::client::{GetResult, ListResult, ObjectStoreBox, ObjectStoreClient};
 
 /// S3-compatible object store client.
@@ -131,10 +131,10 @@ pub struct S3Credentials {
 fn default_region() -> String { "us-east-1".to_string() }
 
 /// Factory that creates [`S3ObjectStoreClient`] instances from typed credentials.
-pub struct S3ProviderFactory;
+pub struct S3Provider;
 
 #[async_trait::async_trait]
-impl ProviderFactory for S3ProviderFactory {
+impl Provider for S3Provider {
     type Credentials = S3Credentials;
     type Client = ObjectStoreBox;
 

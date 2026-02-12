@@ -6,7 +6,7 @@
 use serde::Deserialize;
 
 use nvisy_core::error::Error;
-use nvisy_core::registry::provider::{ConnectedInstance, ProviderFactory};
+use nvisy_pipeline::provider::{ConnectedInstance, Provider};
 use crate::bridge::PythonBridge;
 
 /// Typed credentials for the AI provider.
@@ -21,10 +21,10 @@ pub struct AiCredentials {
 ///
 /// The Python interpreter is **not** initialized at connection time; it is
 /// lazily loaded on the first NER call.
-pub struct AiProviderFactory;
+pub struct AiProvider;
 
 #[async_trait::async_trait]
-impl ProviderFactory for AiProviderFactory {
+impl Provider for AiProvider {
     type Credentials = AiCredentials;
     type Client = PythonBridge;
 

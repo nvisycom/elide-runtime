@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// A validated connection to an external service such as S3 or a database.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct Connection {
     /// Provider type identifier (e.g. `"s3"`, `"postgres"`).
     #[serde(rename = "type")]

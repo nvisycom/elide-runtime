@@ -1,7 +1,7 @@
 //! Redaction policies and rules.
 
 use serde::{Deserialize, Serialize};
-use nvisy_core::datatypes::Data;
+use nvisy_core::path::ContentSource;
 use crate::ontology::entity::EntityCategory;
 use crate::ontology::redaction::RedactionMethod;
 
@@ -11,7 +11,7 @@ use crate::ontology::redaction::RedactionMethod;
 /// confidence threshold, and the redaction method to apply. Rules are
 /// evaluated in ascending priority order.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct PolicyRule {
     /// Unique identifier for this rule within its policy.
     pub id: String,
@@ -38,11 +38,11 @@ pub struct PolicyRule {
 /// Policies are evaluated by [`find_matching_rule`](Policy::find_matching_rule)
 /// which returns the first matching enabled rule sorted by priority.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct Policy {
-    /// Common data-item fields (id, parent_id, metadata).
+    /// Content source identity and lineage.
     #[serde(flatten)]
-    pub data: Data,
+    pub source: ContentSource,
     /// Human-readable policy name.
     pub name: String,
     /// Ordered list of redaction rules.
@@ -58,7 +58,7 @@ impl Policy {
     /// fallback method ([`Mask`](RedactionMethod::Mask)) and threshold (0.5).
     pub fn new(name: impl Into<String>, rules: Vec<PolicyRule>) -> Self {
         Self {
-            data: Data::new(),
+            source: ContentSource::new(),
             name: name.into(),
             rules,
             default_method: RedactionMethod::Mask,

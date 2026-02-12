@@ -4,14 +4,13 @@
 resolver = "2"
 members = [
     "./crates/nvisy-core",
-    "./crates/nvisy-detect",
     "./crates/nvisy-engine",
     "./crates/nvisy-ingest",
-    "./crates/nvisy-media",
     "./crates/nvisy-object",
+    "./crates/nvisy-pattern",
+    "./crates/nvisy-pipeline",
     "./crates/nvisy-ontology",
     "./crates/nvisy-python",
-    "./crates/nvisy-server",
 ]
 
 [workspace.package]
@@ -34,14 +33,13 @@ documentation = "https://docs.rs/nvisy-runtime"
 
 # Internal crates
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
-nvisy-detect = { path = "./crates/nvisy-detect", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-ingest = { path = "./crates/nvisy-ingest", version = "0.1.0" }
-nvisy-media = { path = "./crates/nvisy-media", version = "0.1.0" }
 nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
+nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
+nvisy-pipeline = { path = "./crates/nvisy-pipeline", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
-nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
 # Async runtime
 tokio = { version = "1", features = [] }
@@ -49,18 +47,8 @@ tokio-util = { version = "0.7", features = [] }
 futures = { version = "0.3", features = [] }
 async-trait = { version = "0.1", features = [] }
 
-# HTTP server
-axum = { version = "0.8", features = [] }
-tower = { version = "0.5", features = [] }
-tower-http = { version = "0.6", features = [] }
-
-# OpenAPI / Documentation
-utoipa = { version = "5", features = ["uuid"] }
-utoipa-scalar = { version = "0.3", features = [] }
-
 # Observability
 tracing = { version = "0.1", features = [] }
-tracing-subscriber = { version = "0.3", features = [] }
 
 # (De)serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -73,7 +61,6 @@ derive_more = { version = "1", features = ["display"] }
 
 # Primitive datatypes
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
-chrono = { version = "0.4", features = ["serde"] }
 bytes = { version = "1", features = ["serde"] }
 
 # Text processing
@@ -87,7 +74,7 @@ petgraph = { version = "0.8", features = [] }
 infer = { version = "0.19", features = [] }
 
 # JSON Schema generation
-schemars = { version = "1", features = ["uuid1", "chrono04", "bytes1"] }
+schemars = { version = "1", features = ["uuid1", "bytes1"] }
 
 # Python interop
 pyo3 = { version = "0.23", features = [] }
@@ -109,11 +96,8 @@ quick-xml = "0.37"
 arrow = { version = "54", default-features = false }
 parquet = { version = "54", default-features = false, features = ["arrow"] }
 
-# Encoding
-base64 = "0.22"
-
 # Time
-jiff = "0.2"
+jiff = { version = "0.2", features = ["serde"] }
 
 # Interned strings
 hipstr = "0.6"

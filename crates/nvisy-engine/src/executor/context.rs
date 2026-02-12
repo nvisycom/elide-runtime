@@ -1,21 +1,21 @@
 //! Channel primitives used to wire data flow between pipeline nodes.
 //!
-//! [`EdgeChannel`] carries [`Blob`] items along a graph edge, while
+//! [`EdgeChannel`] carries [`ContentData`] items along a graph edge, while
 //! [`NodeSignal`] broadcasts node completion.
 
 use tokio::sync::{mpsc, watch};
-use nvisy_core::datatypes::blob::Blob;
+use nvisy_core::io::ContentData;
 
 /// Default buffer size for bounded inter-node MPSC channels.
 pub const CHANNEL_BUFFER_SIZE: usize = 256;
 
-/// A bounded MPSC channel pair used to transfer [`Blob`] items along a
+/// A bounded MPSC channel pair used to transfer [`ContentData`] items along a
 /// single graph edge from an upstream node to a downstream node.
 pub struct EdgeChannel {
     /// Sending half, held by the upstream node.
-    pub sender: mpsc::Sender<Blob>,
+    pub sender: mpsc::Sender<ContentData>,
     /// Receiving half, held by the downstream node.
-    pub receiver: mpsc::Receiver<Blob>,
+    pub receiver: mpsc::Receiver<ContentData>,
 }
 
 impl Default for EdgeChannel {

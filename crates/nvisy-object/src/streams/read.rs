@@ -3,7 +3,8 @@
 use serde::Deserialize;
 use tokio::sync::mpsc;
 
-use nvisy_core::datatypes::blob::Blob;
+use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 use nvisy_core::error::Error;
 use super::StreamSource;
 use crate::client::ObjectStoreBox;
@@ -23,7 +24,7 @@ pub struct ObjectReadParams {
 fn default_batch_size() -> usize { 100 }
 
 /// A [`StreamSource`] that lists and fetches objects from an S3-compatible store,
-/// emitting each object as a [`Blob`] onto the output channel.
+/// emitting each object as a [`ContentData`] onto the output channel.
 pub struct ObjectReadStream;
 
 #[async_trait::async_trait]
@@ -33,13 +34,9 @@ impl StreamSource for ObjectReadStream {
 
     fn id(&self) -> &str { "read" }
 
-    fn validate_params(&self, _params: &Self::Params) -> Result<(), Error> {
-        Ok(())
-    }
-
     async fn read(
         &self,
-        output: mpsc::Sender<Blob>,
+        output: mpsc::Sender<ContentData>,
         params: Self::Params,
         client: Self::Client,
     ) -> Result<u64, Error> {
@@ -65,13 +62,13 @@ impl StreamSource for ObjectReadStream {
                     .await
                     .map_err(|e| Error::runtime(format!("Get failed for {}: {}", key, e), "object/read", true))?;
 
-                let mut blob = Blob::new(key.clone(), get_result.data);
+                let mut content = ContentData::new(ContentSource::new(), get_result.data);
                 if let Some(ct) = get_result.content_type {
-                    blob = blob.with_content_type(ct);
+                    content = content.with_content_type(ct);
                 }
 
                 total += 1;
-                if output.send(blob).await.is_err() {
+                if output.send(content).await.is_err() {
                     return Ok(total);
                 }
             }

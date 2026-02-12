@@ -17,16 +17,9 @@ repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
-
-[features]
-schema = ["dep:schemars"]
-
 [dependencies]
 # JSON Schema generation
-schemars = { workspace = true, optional = true }
+schemars = { workspace = true }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
@@ -34,11 +27,9 @@ serde_json = { workspace = true, features = [] }
 
 # Async runtime
 tokio = { workspace = true, features = ["sync", "fs", "io-util", "rt"] }
-async-trait = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = ["serde", "v4", "v7"] }
-chrono = { workspace = true, features = ["serde"] }
 bytes = { workspace = true, features = ["serde"] }
 
 # File type detection

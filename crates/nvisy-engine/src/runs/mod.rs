@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -14,7 +14,7 @@ use crate::executor::runner::RunResult;
 
 /// Lifecycle status of a pipeline run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RunStatus {
     /// The run has been created but not yet started.
@@ -33,7 +33,7 @@ pub enum RunStatus {
 
 /// Execution progress of a single node within a run.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct NodeProgress {
     /// ID of the node this progress belongs to.
     pub node_id: String,
@@ -48,17 +48,19 @@ pub struct NodeProgress {
 
 /// Complete mutable state of a pipeline run.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct RunState {
     /// Unique run identifier.
     pub id: Uuid,
     /// Current overall status.
     pub status: RunStatus,
     /// Timestamp when the run was created.
-    pub created_at: DateTime<Utc>,
+    #[schemars(with = "String")]
+    pub created_at: Timestamp,
     /// Timestamp when the run finished, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub completed_at: Option<DateTime<Utc>>,
+    #[schemars(with = "Option<String>")]
+    pub completed_at: Option<Timestamp>,
     /// Per-node progress keyed by node ID.
     pub node_progress: HashMap<String, NodeProgress>,
     /// Final result after the run completes.
@@ -68,17 +70,19 @@ pub struct RunState {
 
 /// Lightweight summary of a run for listing endpoints.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct RunSummary {
     /// Unique run identifier.
     pub id: Uuid,
     /// Current overall status.
     pub status: RunStatus,
     /// Timestamp when the run was created.
-    pub created_at: DateTime<Utc>,
+    #[schemars(with = "String")]
+    pub created_at: Timestamp,
     /// Timestamp when the run finished, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub completed_at: Option<DateTime<Utc>>,
+    #[schemars(with = "Option<String>")]
+    pub completed_at: Option<Timestamp>,
 }
 
 /// Thread-safe manager that tracks all pipeline runs.
@@ -109,7 +113,7 @@ impl RunManager {
         let state = RunState {
             id,
             status: RunStatus::Pending,
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
             completed_at: None,
             node_progress: HashMap::new(),
             result: None,
@@ -138,7 +142,7 @@ impl RunManager {
             } else {
                 RunStatus::Failure
             };
-            state.completed_at = Some(Utc::now());
+            state.completed_at = Some(Timestamp::now());
 
             for nr in &result.node_results {
                 state.node_progress.insert(
@@ -188,7 +192,7 @@ impl RunManager {
             token.cancel();
             if let Some(state) = self.runs.write().await.get_mut(&id) {
                 state.status = RunStatus::Cancelled;
-                state.completed_at = Some(Utc::now());
+                state.completed_at = Some(Timestamp::now());
             }
             true
         } else {

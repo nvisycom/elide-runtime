@@ -9,7 +9,7 @@ use crate::ontology::redaction::RedactionMethod;
 /// When included in a [`RedactionContext`], this rule overrides the
 /// default redaction method for a specific entity type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct EntityRedactionRule {
     /// The entity type this override applies to (e.g. `"ssn"`, `"email"`).
     pub entity_type: String,
@@ -26,7 +26,7 @@ pub struct EntityRedactionRule {
 /// directly into an [`Entity`](crate::ontology::entity::Entity) with
 /// `DetectionMethod::Manual` and confidence 1.0.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct ManualAnnotation {
     /// Broad classification of the annotated data.
     pub category: EntityCategory,
@@ -61,7 +61,7 @@ pub struct ManualAnnotation {
 /// specifying categories, entity types, confidence thresholds, and
 /// redaction methods for a single redaction invocation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(schemars::JsonSchema)]
 pub struct RedactionContext {
     /// Entity categories to scan for. Empty = all.
     #[serde(default)]

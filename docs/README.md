@@ -1,93 +1,53 @@
-# Nvisy Runtime
-
-**A data protection runtime for AI pipelines.**
-
----
+# Multimodal Redaction & Privacy Platform
 
 ## Abstract
 
-AI-powered products handle sensitive data at every stage — ingestion, transformation, enrichment, and storage. PII in documents, faces in images, credentials in logs, and financial data in spreadsheets all require detection, classification, and redaction before downstream consumption.
+As organizations contend with an ever-growing volume of unstructured and multimodal data, the challenge of identifying and redacting sensitive information has become a critical concern. Regulatory frameworks such as GDPR, HIPAA, CCPA, and PCI-DSS impose strict obligations on how personally identifiable information (PII), protected health information (PHI), and other sensitive content must be handled across documents, images, audio, and video.
 
-**Nvisy Runtime** is a Rust-native data protection platform that treats sensitive data detection as a first-class pipeline primitive. It provides a DAG-based execution engine, typed data primitives with lineage tracking, regex and AI-powered entity detection, configurable redaction policies, and a pluggable connector system — all designed for throughput, correctness, and auditability.
+This document series presents the architectural and functional requirements for a multimodal redaction platform capable of extracting content from heterogeneous sources, detecting sensitive data through deterministic and learned methods, applying context-aware redaction, and producing auditable evidence of compliance.
 
----
+The guiding principle is: **extract everything, understand context, redact precisely, prove compliance.**
 
-## Problem Statement
+## Documents
 
-### 1. Sensitive data is everywhere in AI pipelines
+| Document | Scope |
+| --- | --- |
+| [Ingestion & Transformation](INGESTION.md) | Multimodal content extraction and post-redaction output |
+| [Detection](DETECTION.md) | Sensitive data detection across modalities |
+| [Redaction & Review](REDACTION.md) | Context-aware redaction and human-in-the-loop workflows |
+| [Compliance & Audit](COMPLIANCE.md) | Policy engine, explainability, and audit trails |
+| [Infrastructure](INFRASTRUCTURE.md) | Deployment, performance, and security |
+| [Developer Experience](DEVELOPER.md) | APIs, SDKs, tooling, and advanced capabilities |
 
-Documents, images, API responses, and model outputs all carry PII, PHI, financial data, and credentials. Manual redaction doesn't scale. Teams need automated, configurable detection and redaction that runs inline with their data pipelines.
+## Strategic Positioning
 
-### 2. Detection requires multiple methods
+Three viable product directions exist for platforms in this space:
 
-Regex patterns catch structured data (SSNs, emails, credit cards). AI-powered NER catches unstructured entities (names, addresses, medical terms). Checksum validation reduces false positives. A production system needs all three, composable in a single pipeline.
+1. **Compliance-first platform** — targets enterprise procurement cycles driven by regulatory mandates.
+2. **Developer-first redaction API** — prioritizes integration speed, SDK quality, and self-serve adoption.
+3. **AI-native multimodal privacy engine** — leads with model sophistication, context understanding, and semantic redaction.
 
-### 3. Redaction must be auditable
+The strongest long-term defensibility lies in context-aware, explainable, policy-driven multimodal redaction — a convergence of all three directions.
 
-Compliance (GDPR, HIPAA, PCI-DSS) requires proof of what was detected, what was redacted, and how. Every detection and redaction action must produce an audit trail with full lineage.
+## Target Verticals
 
-### 4. Performance matters
+The platform is designed to serve regulated industries where sensitive data handling is a legal and operational requirement:
 
-Data protection runs on every record. The runtime must handle high throughput without becoming a bottleneck. Rust provides the performance foundation; Python extensions handle AI workloads where model quality matters more than latency.
+- **Healthcare**: HIPAA-governed medical records, clinical communications, insurance claims, and patient intake forms.
+- **Legal**: Court filings, discovery documents, attorney-client communications, and case management systems.
+- **Government and defense**: Law enforcement records, intelligence reports, FOIA responses, and classified material processing.
+- **Financial services**: Transaction records, customer onboarding documents, fraud investigation files, and PCI-scoped payment data.
+- **Education**: Student records, admissions documents, and FERPA-governed institutional data.
 
----
+## Glossary
 
-## Design Principles
-
-### Typed data primitives
-
-Every data object flowing through a graph is typed: `Document`, `Blob`, `Entity`, `Redaction`, `Policy`, `Audit`, `Image`. Primitives carry metadata and enforce structural contracts at compile time (Rust) and runtime (serde validation).
-
-### DAG-based execution
-
-Graphs are directed acyclic graphs of nodes (sources, actions, targets). The engine resolves dependencies, manages concurrency, handles retries, and tracks execution state.
-
-### Regex + AI detection
-
-Built-in regex patterns detect structured sensitive data. Python-based NER (via PyO3) detects unstructured entities. Both produce the same `Entity` type, composable in a single pipeline.
-
-### Plugin architecture
-
-Connectors, actions, and loaders register through a plugin system. Each plugin bundles its capabilities under a namespace. The engine resolves references at compilation time.
-
-### Audit-first
-
-Every detection and redaction produces an `Audit` record. Policies define what to detect and how to redact. The audit trail provides full lineage from source document to redacted output.
-
----
-
-## Core Concepts
-
-### Entities
-
-An **Entity** is a detected piece of sensitive data: its category (PII, PHI, financial, credentials), type (SSN, email, face), value, confidence score, detection method, and location within the source document or image.
-
-### Policies
-
-A **Policy** defines detection and redaction rules: which entity categories to scan, minimum confidence thresholds, and per-type redaction methods (mask, replace, hash, encrypt, remove, blur, block, synthesize).
-
-### Graphs
-
-A **Graph** is a DAG of nodes. Source nodes read data, action nodes detect/redact/classify, and target nodes write results. Graphs are defined as JSON and compiled into execution plans.
-
-### Connectors
-
-Connectors implement the source and target interfaces. The object storage connector (S3) handles file ingestion and output. Additional connectors register through the plugin system.
-
----
-
-## Deployment
-
-The server (`nvisy-server`) is a short-lived Axum HTTP server. It accepts graph definitions, executes them, and reports status. Designed for containerized deployment — the main server spins it up, feeds work, waits for completion.
-
----
-
-## Project Status
-
-Active development. The Rust runtime, detection engine, and server are implemented. AI-powered detection runs via Python extensions.
-
----
-
-## License
-
-Apache License 2.0. See [LICENSE.txt](../LICENSE.txt).
+| Term | Definition |
+| --- | --- |
+| **PII** | Personally identifiable information — any data that can identify a specific individual |
+| **PHI** | Protected health information — health data covered under HIPAA |
+| **NER** | Named entity recognition — ML technique for identifying entities (names, locations, organizations) in text |
+| **OCR** | Optical character recognition — extraction of text from images and scanned documents |
+| **RBAC** | Role-based access control — permissions model based on user roles |
+| **SSO** | Single sign-on — authentication mechanism allowing one set of credentials across multiple systems |
+| **SCIM** | System for Cross-domain Identity Management — protocol for automating user provisioning |
+| **KMS** | Key management service — system for managing cryptographic keys |

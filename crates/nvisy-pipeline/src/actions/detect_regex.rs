@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use nvisy_ingest::handler::FormatHandler;
 use nvisy_ingest::document::Document;
-use nvisy_ontology::ontology::entity::{DetectionMethod, Entity, EntityLocation};
+use nvisy_ontology::entity::{DetectionMethod, Entity, EntityLocation, TextLocation};
 use nvisy_core::error::Error;
 use nvisy_pattern::patterns::{self, PatternDefinition};
 
@@ -75,21 +75,19 @@ impl Action for DetectRegexAction {
                     }
 
                     let entity = Entity::new(
-                        pattern.category,
+                        pattern.category.clone(),
                         &pattern.entity_type,
                         value,
                         DetectionMethod::Regex,
                         pattern.confidence,
-                        EntityLocation {
+                        EntityLocation::Text(TextLocation {
                             start_offset: mat.start(),
                             end_offset: mat.end(),
+                            context_start_offset: None,
+                            context_end_offset: None,
                             element_id: None,
                             page_number: None,
-                            bounding_box: None,
-                            row_index: None,
-                            column_index: None,
-                            image_id: None,
-                        },
+                        }),
                     )
                     .with_parent(&doc.source);
 

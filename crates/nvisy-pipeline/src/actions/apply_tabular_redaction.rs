@@ -4,8 +4,8 @@ use serde::Deserialize;
 
 use nvisy_ingest::handler::FormatHandler;
 use nvisy_ingest::document::Document;
-use nvisy_ontology::ontology::entity::Entity;
-use nvisy_ontology::ontology::redaction::{Redaction, RedactionMethod};
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::redaction::{Redaction, RedactionOutput, TextRedactionOutput};
 use nvisy_core::error::Error;
 
 use crate::action::Action;
@@ -53,18 +53,14 @@ impl Action for ApplyTabularRedactionAction {
 
         for entity in &entities {
             if let (Some(row_idx), Some(col_idx)) =
-                (entity.location.row_index, entity.location.column_index)
+                (entity.location.row_index(), entity.location.column_index())
             {
                 if let Some(redaction) = redaction_map.get(&entity.source.as_uuid()) {
                     for doc in &mut documents {
                         if let Some(rows) = &mut doc.rows {
                             if let Some(row) = rows.get_mut(row_idx) {
                                 if let Some(cell) = row.get_mut(col_idx) {
-                                    *cell = apply_cell_redaction(
-                                        cell,
-                                        redaction.method,
-                                        &redaction.replacement_value,
-                                    );
+                                    *cell = apply_cell_redaction(cell, &redaction.output);
                                 }
                             }
                         }
@@ -77,26 +73,25 @@ impl Action for ApplyTabularRedactionAction {
     }
 }
 
-fn apply_cell_redaction(cell: &str, method: RedactionMethod, replacement: &str) -> String {
-    match method {
-        RedactionMethod::Mask => {
+fn apply_cell_redaction(cell: &str, output: &RedactionOutput) -> String {
+    match output {
+        RedactionOutput::Text(TextRedactionOutput::Mask { mask_char, .. }) => {
             // Mask all but last 4 characters
             if cell.len() > 4 {
                 format!(
                     "{}{}",
-                    "*".repeat(cell.len() - 4),
+                    mask_char.to_string().repeat(cell.len() - 4),
                     &cell[cell.len() - 4..]
                 )
             } else {
-                "*".repeat(cell.len())
+                mask_char.to_string().repeat(cell.len())
             }
         }
-        RedactionMethod::Replace => replacement.to_string(),
-        RedactionMethod::Remove => String::new(),
-        RedactionMethod::Hash => {
+        RedactionOutput::Text(TextRedactionOutput::Remove) => String::new(),
+        RedactionOutput::Text(TextRedactionOutput::Hash { .. }) => {
             format!("[HASH:{:x}]", hash_string(cell))
         }
-        _ => replacement.to_string(),
+        _ => output.replacement_value().unwrap_or("").to_string(),
     }
 }
 

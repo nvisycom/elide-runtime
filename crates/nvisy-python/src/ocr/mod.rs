@@ -7,9 +7,10 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use nvisy_ontology::ontology::entity::{BoundingBox, Entity, EntityLocation};
+use nvisy_ontology::entity::{
+    BoundingBox, DetectionMethod, Entity, EntityCategory, EntityLocation, ImageLocation,
+};
 use nvisy_core::error::Error;
-use nvisy_ontology::ontology::entity::{DetectionMethod, EntityCategory};
 use crate::bridge::PythonBridge;
 use crate::error::from_pyerr;
 
@@ -132,16 +133,11 @@ fn parse_ocr_results(result: Bound<'_, PyAny>) -> Result<Vec<Entity>, Error> {
             &text,
             DetectionMethod::Ocr,
             confidence,
-            EntityLocation {
-                start_offset: 0,
-                end_offset: text.len(),
-                element_id: None,
-                page_number: None,
-                bounding_box: Some(BoundingBox { x, y, width, height }),
-                row_index: None,
-                column_index: None,
+            EntityLocation::Image(ImageLocation {
+                bounding_box: BoundingBox { x, y, width, height },
                 image_id: None,
-            },
+                page_number: None,
+            }),
         );
 
         entities.push(entity);

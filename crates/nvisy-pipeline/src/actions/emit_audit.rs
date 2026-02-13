@@ -3,8 +3,8 @@
 use serde::Deserialize;
 use uuid::Uuid;
 
-use nvisy_ontology::ontology::audit::{Audit, AuditAction};
-use nvisy_ontology::ontology::redaction::Redaction;
+use nvisy_ontology::audit::{Audit, AuditAction};
+use nvisy_ontology::redaction::Redaction;
 use nvisy_core::error::Error;
 
 use crate::action::Action;
@@ -66,17 +66,13 @@ impl Action for EmitAuditAction {
 
             let mut details = serde_json::Map::new();
             details.insert(
-                "method".to_string(),
-                serde_json::to_value(redaction.method).unwrap_or_default(),
+                "output".to_string(),
+                serde_json::to_value(&redaction.output).unwrap_or_default(),
             );
-            details.insert(
-                "replacementValue".to_string(),
-                serde_json::Value::String(redaction.replacement_value.clone()),
-            );
-            if let Some(ref rule_id) = redaction.policy_rule_id {
+            if let Some(rule_id) = redaction.policy_rule_id {
                 details.insert(
                     "policyRuleId".to_string(),
-                    serde_json::Value::String(rule_id.clone()),
+                    serde_json::Value::String(rule_id.to_string()),
                 );
             }
             audit = audit.with_details(details);

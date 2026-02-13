@@ -1,11 +1,11 @@
 //! Manual annotation detection action.
 //!
-//! Converts user-provided [`ManualAnnotation`]s into full [`Entity`] objects.
+//! Converts user-provided inclusion [`Annotation`]s into full [`Entity`] objects.
 
 use serde::Deserialize;
 
-use nvisy_ontology::ontology::entity::{DetectionMethod, Entity, EntityLocation};
-use nvisy_ontology::redaction::ManualAnnotation;
+use nvisy_ontology::entity::{DetectionMethod, Entity};
+use nvisy_ontology::detection::{Annotation, AnnotationKind};
 use nvisy_core::error::Error;
 
 use crate::action::Action;
@@ -15,7 +15,7 @@ use crate::action::Action;
 #[serde(rename_all = "camelCase")]
 pub struct DetectManualParams {}
 
-/// Converts each [`ManualAnnotation`] into a full [`Entity`] with
+/// Converts each inclusion [`Annotation`] into a full [`Entity`] with
 /// `DetectionMethod::Manual` and confidence 1.0.
 pub struct DetectManualAction {
     params: DetectManualParams,
@@ -24,7 +24,7 @@ pub struct DetectManualAction {
 #[async_trait::async_trait]
 impl Action for DetectManualAction {
     type Params = DetectManualParams;
-    type Input = Vec<ManualAnnotation>;
+    type Input = Vec<Annotation>;
     type Output = Vec<Entity>;
 
     fn id(&self) -> &str {
@@ -42,22 +42,30 @@ impl Action for DetectManualAction {
         let mut entities = Vec::new();
 
         for ann in &annotations {
+            if ann.kind != AnnotationKind::Inclusion {
+                continue;
+            }
+            let category = match &ann.category {
+                Some(c) => c.clone(),
+                None => continue,
+            };
+            let entity_type = match &ann.entity_type {
+                Some(t) => t.clone(),
+                None => continue,
+            };
+            let value = ann.value.clone().unwrap_or_default();
+            let location = match &ann.location {
+                Some(l) => l.clone(),
+                None => continue,
+            };
+
             let entity = Entity::new(
-                ann.category,
-                &ann.entity_type,
-                &ann.value,
+                category,
+                entity_type,
+                value,
                 DetectionMethod::Manual,
                 1.0,
-                EntityLocation {
-                    start_offset: ann.start_offset.unwrap_or(0),
-                    end_offset: ann.end_offset.unwrap_or(0),
-                    element_id: None,
-                    page_number: ann.page_number,
-                    bounding_box: ann.bounding_box.clone(),
-                    row_index: ann.row_index,
-                    column_index: ann.column_index,
-                    image_id: None,
-                },
+                location,
             );
 
             entities.push(entity);

@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use nvisy_ontology::ontology::entity::{DetectionMethod, Entity};
+use nvisy_ontology::entity::{DetectionMethod, Entity};
 use nvisy_core::error::Error;
 use nvisy_pattern::patterns::validators::luhn_check;
 
@@ -72,7 +72,7 @@ impl Action for DetectChecksumAction {
 
                 if is_valid {
                     let mut boosted = Entity::new(
-                        entity.category,
+                        entity.category.clone(),
                         &entity.entity_type,
                         &entity.value,
                         DetectionMethod::Checksum,

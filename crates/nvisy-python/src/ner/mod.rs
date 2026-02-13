@@ -6,9 +6,8 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use nvisy_ontology::ontology::entity::{Entity, EntityLocation};
+use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityLocation, TextLocation};
 use nvisy_core::error::Error;
-use nvisy_ontology::ontology::entity::{DetectionMethod, EntityCategory};
 use crate::bridge::PythonBridge;
 use crate::error::from_pyerr;
 
@@ -124,7 +123,7 @@ fn parse_python_entities(_py: Python<'_>, result: Bound<'_, PyAny>) -> Result<Ve
             "phi" => EntityCategory::Phi,
             "financial" => EntityCategory::Financial,
             "credentials" => EntityCategory::Credentials,
-            _ => EntityCategory::Custom,
+            other => EntityCategory::Custom(other.to_string()),
         };
 
         let entity_type: String = dict
@@ -164,18 +163,16 @@ fn parse_python_entities(_py: Python<'_>, result: Bound<'_, PyAny>) -> Result<Ve
             category,
             entity_type,
             value,
-            DetectionMethod::AiNer,
+            DetectionMethod::Ner,
             confidence,
-            EntityLocation {
+            EntityLocation::Text(TextLocation {
                 start_offset,
                 end_offset,
+                context_start_offset: None,
+                context_end_offset: None,
                 element_id: None,
                 page_number: None,
-                bounding_box: None,
-                row_index: None,
-                column_index: None,
-                image_id: None,
-            },
+            }),
         );
 
         entities.push(entity);

@@ -20,6 +20,7 @@ documentation = { workspace = true }
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
+nvisy-ontology = { workspace = true, features = [] }
 
 # JSON Schema generation
 schemars = { workspace = true }

@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 use nvisy_ingest::handler::{FormatHandler, PlaintextHandler};
 use nvisy_ingest::document::Document;
-use nvisy_ontology::ontology::entity::Entity;
-use nvisy_ontology::ontology::redaction::Redaction;
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::redaction::Redaction;
 use nvisy_core::error::Error;
 
 use crate::action::Action;
@@ -79,10 +79,25 @@ impl Action for ApplyRedactionAction {
                     continue;
                 }
 
+                let start_offset = match entity.location.start_offset() {
+                    Some(s) => s,
+                    None => continue,
+                };
+                let end_offset = match entity.location.end_offset() {
+                    Some(e) => e,
+                    None => continue,
+                };
+
+                let replacement_value = redaction
+                    .output
+                    .replacement_value()
+                    .unwrap_or("")
+                    .to_string();
+
                 pending.push(PendingRedaction {
-                    start_offset: entity.location.start_offset,
-                    end_offset: entity.location.end_offset,
-                    replacement_value: redaction.replacement_value.clone(),
+                    start_offset,
+                    end_offset,
+                    replacement_value,
                 });
             }
 

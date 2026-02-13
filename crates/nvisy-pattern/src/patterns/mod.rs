@@ -9,7 +9,7 @@ pub mod validators;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use nvisy_ontology::ontology::entity::EntityCategory;
+use nvisy_ontology::entity::EntityCategory;
 
 /// JSON representation of a pattern loaded from disk.
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -52,7 +52,7 @@ fn parse_category(s: &str) -> EntityCategory {
         "phi" => EntityCategory::Phi,
         "financial" => EntityCategory::Financial,
         "credentials" => EntityCategory::Credentials,
-        _ => EntityCategory::Custom,
+        other => EntityCategory::Custom(other.to_string()),
     }
 }
 

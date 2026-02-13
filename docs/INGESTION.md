@@ -8,14 +8,34 @@ The quality of the ingestion layer is a critical success factor. Redaction platf
 
 ## 2. Supported Input Formats
 
-The platform must support ingestion across the following modalities:
+The platform must support ingestion across multiple modalities. Formats are organized into tiers reflecting implementation priority and expected coverage at each stage of the product lifecycle.
 
-- **Documents**: PDF (native and scanned), DOCX, HTML, plain text
-- **Images**: JPG, PNG, TIFF, and other common raster formats
-- **Video**: Standard container formats with frame-level extraction
-- **Audio**: WAV, MP3, and other common audio formats
-- **Structured data**: CSV, JSON, and database connectors
-- **Communications**: Email (with attachments), chat logs (Slack, Teams, WhatsApp exports)
+### Tier 1 — Core (launch requirement)
+
+These formats represent the most common inputs in regulated enterprise environments and must be supported at general availability:
+
+- **PDF**: Native (digitally authored) and scanned, including multi-page documents with mixed content (text, images, tables, forms).
+- **Images**: JPG, PNG, TIFF — the dominant formats for scanned documents, photographs, and screenshots.
+- **Plain text and markup**: TXT, HTML, and Markdown.
+- **Structured data**: CSV and JSON.
+
+### Tier 2 — Extended (near-term)
+
+These formats are frequently encountered in enterprise workflows and should be supported shortly after launch:
+
+- **Office documents**: DOCX, XLSX, PPTX.
+- **Audio**: WAV, MP3, and other common audio formats.
+- **Video**: Standard container formats (MP4, MOV, AVI) with frame-level extraction.
+- **Email**: EML and MSG formats, including inline content and attachments (recursively ingested).
+
+### Tier 3 — Specialized (roadmap)
+
+These formats address long-tail use cases in specific verticals or operational contexts:
+
+- **Communications**: Chat log exports from Slack, Teams, and WhatsApp.
+- **Database connectors**: Direct ingestion from relational databases and message queues.
+- **Archival and compound formats**: ZIP, TAR, and other container formats with recursive extraction of enclosed files.
+- **Domain-specific**: DICOM (medical imaging), GeoTIFF (geospatial), and other vertical-specific formats as demand dictates.
 
 ## 3. Extraction Capabilities
 
@@ -24,6 +44,8 @@ Each modality requires specialized extraction techniques:
 - **Optical character recognition (OCR)**: Layout-aware OCR that preserves spatial relationships between text regions, table cells, headers, and form fields.
 - **Speech-to-text**: Transcription with speaker diarization, enabling attribution of spoken content to individual speakers.
 - **Video frame extraction**: Decomposition of video streams into individual frames for visual analysis, with temporal alignment to audio tracks.
+- **Entity identification in images**: Detection and localization of entities within images — faces, persons, objects, text regions, documents, and other identifiable elements — producing bounding boxes or segmentation masks that downstream detection and redaction stages can operate on.
+- **Entity tracking in video**: Persistent tracking of identified entities across video frames. When a face, person, or object is detected in one frame, the platform must maintain identity continuity across subsequent frames to enable consistent redaction without requiring independent detection on every frame.
 - **Document structure parsing**: Identification of semantic document elements — headings, paragraphs, tables, lists, and form fields — beyond raw text extraction.
 - **Metadata extraction**: Capture of authorship, timestamps, geolocation, and other embedded metadata that may itself constitute sensitive information.
 
@@ -35,14 +57,15 @@ Following redaction, the transformation layer must produce output that meets dow
 
 Redacted output should preserve the structural characteristics of the source document. Tables must remain aligned, page layouts must be maintained, and non-redacted content must remain unaltered.
 
-### 4.2 Export Formats
+### 4.2 Output Formats
 
-The platform should support export as:
+The primary output of the transformation layer is a redacted file in the same format as the input — a PDF produces a redacted PDF, an image produces a redacted image, and so on. The platform must not alter the source format unless explicitly requested.
 
-- Redacted PDF with visual redaction markers
-- Structured JSON with redaction metadata
-- Masked CSV for tabular data
-- Anonymized datasets for analytics consumption
+In addition to the format-preserving primary output, the platform should produce supplementary outputs that serve downstream workflows:
+
+- **Redaction metadata (JSON)**: A structured manifest describing every redaction applied — entity type, location, triggering rule, confidence score, and reviewer disposition. This metadata enables programmatic consumption of redaction results by audit systems, analytics pipelines, and downstream integrations.
+- **Masked structured data (CSV/JSON)**: For tabular or structured inputs, a masked variant in which sensitive cell values are replaced according to the active masking strategy, suitable for analytics or data science consumption.
+- **Anonymized datasets**: Fully de-identified exports intended for secondary use (model training, statistical analysis) where no re-identification pathway should exist.
 
 ### 4.3 Masking Strategies
 

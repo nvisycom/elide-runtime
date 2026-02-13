@@ -1,25 +1,38 @@
 //! Audit trail records for data protection events.
+//!
+//! An [`Audit`] entry records an immutable event in the data protection
+//! pipeline, carrying structured [`Explanation`] metadata for compliance.
+
+pub mod explanation;
+pub mod retention;
+
+pub use explanation::{Explainable, Explanation};
+pub use retention::{RetentionPolicy, RetentionScope};
 
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use uuid::Uuid;
+
 use nvisy_core::path::ContentSource;
+
+/// Types that emit audit records.
+pub trait Auditable {
+    /// Produce an audit record for this event.
+    fn to_audit(&self) -> Audit;
+}
 
 /// Kind of auditable action recorded in an [`Audit`] entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AuditAction {
     /// A sensitive entity was detected.
     Detection,
     /// A redaction was applied to an entity.
     Redaction,
-    /// A policy was evaluated against detected entities.
-    PolicyEval,
-    /// A blob or document was accessed.
-    Access,
-    /// Processed content was exported to an external system.
-    Export,
+    /// A human review was performed on a redaction.
+    Review,
 }
 
 /// An immutable audit record tracking a data protection event.
@@ -27,7 +40,7 @@ pub enum AuditAction {
 /// Audit entries are emitted by pipeline actions and form a tamper-evident
 /// log of all detection, redaction, and policy decisions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 pub struct Audit {
     /// Content source identity and lineage.
     #[serde(flatten)]
@@ -35,7 +48,7 @@ pub struct Audit {
     /// The kind of event this audit entry records.
     pub action: AuditAction,
     /// UTC timestamp when the event occurred.
-    #[schemars(with = "String")]
+    #[cfg_attr(feature = "jsonschema", schemars(with = "String"))]
     pub timestamp: Timestamp,
     /// Identifier of the related entity, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -55,9 +68,12 @@ pub struct Audit {
     /// Human or service account that triggered the event.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actor: Option<String>,
+    /// Structured explainability metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explanation: Option<Explanation>,
     /// Additional unstructured details about the event.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<serde_json::Map<String, serde_json::Value>>,
+    pub details: Option<Map<String, Value>>,
 }
 
 impl Audit {
@@ -73,6 +89,7 @@ impl Audit {
             source_id: None,
             run_id: None,
             actor: None,
+            explanation: None,
             details: None,
         }
     }
@@ -102,7 +119,7 @@ impl Audit {
     }
 
     /// Attach additional unstructured details to this audit entry.
-    pub fn with_details(mut self, details: serde_json::Map<String, serde_json::Value>) -> Self {
+    pub fn with_details(mut self, details: Map<String, Value>) -> Self {
         self.details = Some(details);
         self
     }

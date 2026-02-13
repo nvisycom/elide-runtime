@@ -5,7 +5,9 @@ use serde::Deserialize;
 
 use nvisy_ingest::handler::FormatHandler;
 use nvisy_ingest::document::Document;
-use nvisy_ontology::ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityLocation};
+use nvisy_ontology::entity::{
+    DetectionMethod, Entity, EntityCategory, EntityLocation, TabularLocation,
+};
 use nvisy_core::error::{Error, ErrorKind};
 
 use crate::action::Action;
@@ -99,21 +101,17 @@ impl Action for DetectTabularAction {
                             }
 
                             let entity = Entity::new(
-                                rule.category,
+                                rule.category.clone(),
                                 &rule.entity_type,
                                 cell.as_str(),
                                 DetectionMethod::Composite,
                                 0.9,
-                                EntityLocation {
-                                    start_offset: 0,
-                                    end_offset: cell.len(),
-                                    element_id: None,
-                                    page_number: None,
-                                    bounding_box: None,
-                                    row_index: Some(row_idx),
-                                    column_index: Some(col_idx),
-                                    image_id: None,
-                                },
+                                EntityLocation::Tabular(TabularLocation {
+                                    row_index: row_idx,
+                                    column_index: col_idx,
+                                    start_offset: Some(0),
+                                    end_offset: Some(cell.len()),
+                                }),
                             )
                             .with_parent(&doc.source);
 

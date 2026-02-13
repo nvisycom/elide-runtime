@@ -5,8 +5,8 @@ use serde::Deserialize;
 
 use nvisy_ingest::handler::{FormatHandler, ImageHandler};
 use nvisy_ingest::document::Document;
-use nvisy_ontology::ontology::entity::{BoundingBox, Entity};
-use nvisy_ontology::ontology::redaction::{Redaction, RedactionMethod};
+use nvisy_ontology::entity::{BoundingBox, Entity};
+use nvisy_ontology::redaction::{ImageRedactionOutput, Redaction, RedactionOutput};
 use nvisy_core::error::{Error, ErrorKind};
 
 use crate::action::Action;
@@ -69,12 +69,16 @@ impl Action for ApplyImageRedactionAction {
         let mut block_regions: Vec<BoundingBox> = Vec::new();
 
         for entity in &entities {
-            if let Some(bbox) = &entity.location.bounding_box {
+            if let Some(bbox) = entity.location.bounding_box() {
                 if let Some(redaction) = redaction_map.get(&entity.source.as_uuid()) {
-                    match redaction.method {
-                        RedactionMethod::Blur => blur_regions.push(bbox.clone()),
-                        RedactionMethod::Block => block_regions.push(bbox.clone()),
-                        // Default non-image methods to block for images
+                    match &redaction.output {
+                        RedactionOutput::Image(ImageRedactionOutput::Blur { .. }) => {
+                            blur_regions.push(bbox.clone())
+                        }
+                        RedactionOutput::Image(ImageRedactionOutput::Block { .. }) => {
+                            block_regions.push(bbox.clone())
+                        }
+                        // Default non-image methods, pixelate, and synthesize to block
                         _ => block_regions.push(bbox.clone()),
                     }
                 }

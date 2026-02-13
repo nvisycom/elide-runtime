@@ -2,9 +2,12 @@
 
 use serde::Deserialize;
 
-use nvisy_ontology::ontology::entity::Entity;
-use nvisy_ontology::redaction::policy::PolicyRule;
-use nvisy_ontology::ontology::redaction::{Redaction, RedactionMethod};
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::policy::PolicyRule;
+use nvisy_ontology::redaction::{
+    AudioRedactionOutput, AudioRedactionSpec, ImageRedactionOutput, ImageRedactionSpec, Redaction,
+    RedactionOutput, RedactionSpec, TextRedactionOutput, TextRedactionSpec,
+};
 use nvisy_core::error::Error;
 
 use crate::action::Action;
@@ -16,16 +19,16 @@ pub struct EvaluatePolicyParams {
     /// Ordered policy rules to evaluate.
     #[serde(default)]
     pub rules: Vec<PolicyRule>,
-    /// Fallback redaction method when no rule matches.
-    #[serde(default = "default_method")]
-    pub default_method: RedactionMethod,
+    /// Fallback redaction specification when no rule matches.
+    #[serde(default = "default_spec")]
+    pub default_spec: RedactionSpec,
     /// Fallback confidence threshold.
     #[serde(default = "default_threshold")]
     pub default_confidence_threshold: f64,
 }
 
-fn default_method() -> RedactionMethod {
-    RedactionMethod::Mask
+fn default_spec() -> RedactionSpec {
+    RedactionSpec::Text(TextRedactionSpec::Mask { mask_char: '*' })
 }
 fn default_threshold() -> f64 {
     0.5
@@ -34,7 +37,7 @@ fn default_threshold() -> f64 {
 /// Evaluates policy rules against detected entities and produces [`Redaction`] instructions.
 ///
 /// For each entity the action finds the first matching rule (sorted by priority),
-/// applies its redaction method and replacement template, and creates a
+/// applies its redaction spec and replacement template, and creates a
 /// [`Redaction`]. Entities that fall below the confidence threshold are skipped.
 pub struct EvaluatePolicyAction {
     params: EvaluatePolicyParams,
@@ -58,7 +61,7 @@ impl Action for EvaluatePolicyAction {
         &self,
         entities: Self::Input,
     ) -> Result<Vec<Redaction>, Error> {
-        let default_method = self.params.default_method;
+        let default_spec = &self.params.default_spec;
         let default_threshold = self.params.default_confidence_threshold;
 
         let mut sorted_rules = self.params.rules.clone();
@@ -68,26 +71,22 @@ impl Action for EvaluatePolicyAction {
 
         for entity in &entities {
             let rule = find_matching_rule(entity, &sorted_rules);
-            let method = rule.map(|r| r.method).unwrap_or(default_method);
-            let threshold = rule
-                .map(|r| r.confidence_threshold)
-                .unwrap_or(default_threshold);
+            let spec = rule.map(|r| &r.spec).unwrap_or(default_spec);
 
-            if entity.confidence < threshold {
+            if rule.is_none() && entity.confidence < default_threshold {
                 continue;
             }
 
-            let replacement_value = if let Some(r) = rule {
-                apply_template(&r.replacement_template, entity)
+            let output = if let Some(r) = rule {
+                build_output_from_template(spec, &r.replacement_template, entity)
             } else {
-                apply_default_mask(entity, default_method)
+                build_default_output(entity, spec)
             };
 
-            let mut redaction =
-                Redaction::new(entity.source.as_uuid(), method, replacement_value);
+            let mut redaction = Redaction::new(entity.source.as_uuid(), output);
             redaction = redaction.with_original_value(&entity.value);
             if let Some(r) = rule {
-                redaction = redaction.with_policy_rule_id(&r.id);
+                redaction = redaction.with_policy_rule_id(r.id);
             }
             redaction.source.set_parent_id(Some(entity.source.as_uuid()));
 
@@ -98,25 +97,16 @@ impl Action for EvaluatePolicyAction {
     }
 }
 
-/// Returns the first enabled rule whose category/entity-type filters and confidence
-/// threshold match the given entity, or `None` if no rule applies.
+/// Returns the first enabled rule whose [`EntitySelector`] matches the given entity,
+/// or `None` if no rule applies.
 fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'a PolicyRule> {
     for rule in rules {
         if !rule.enabled {
             continue;
         }
-        if entity.confidence < rule.confidence_threshold {
-            continue;
+        if rule.selector.matches(&entity.category, &entity.entity_type, entity.confidence) {
+            return Some(rule);
         }
-        if !rule.categories.is_empty() && !rule.categories.contains(&entity.category) {
-            continue;
-        }
-        if !rule.entity_types.is_empty()
-            && !rule.entity_types.iter().any(|t| t == &entity.entity_type)
-        {
-            continue;
-        }
-        return Some(rule);
     }
     None
 }
@@ -134,16 +124,106 @@ fn apply_template(template: &str, entity: &Entity) -> String {
         .replace("{value}", &entity.value)
 }
 
-/// Generates a replacement string for an entity using the given default redaction method.
-fn apply_default_mask(entity: &Entity, method: RedactionMethod) -> String {
-    match method {
-        RedactionMethod::Mask => "*".repeat(entity.value.len()),
-        RedactionMethod::Replace => format!("[{}]", entity.entity_type.to_uppercase()),
-        RedactionMethod::Remove => String::new(),
-        RedactionMethod::Hash => format!("[HASH:{}]", entity.entity_type),
-        RedactionMethod::Encrypt => format!("[ENC:{}]", entity.entity_type),
-        RedactionMethod::Blur => format!("[BLURRED:{}]", entity.entity_type),
-        RedactionMethod::Block => "\u{2588}".repeat(entity.value.len()),
-        RedactionMethod::Synthesize => format!("[SYNTH:{}]", entity.entity_type),
+/// Builds a [`RedactionOutput`] from a spec and a policy rule's replacement template.
+fn build_output_from_template(
+    spec: &RedactionSpec,
+    template: &str,
+    entity: &Entity,
+) -> RedactionOutput {
+    let replacement = apply_template(template, entity);
+    build_output_with_replacement(spec, replacement)
+}
+
+/// Generates a [`RedactionOutput`] for an entity using the given default redaction spec.
+fn build_default_output(entity: &Entity, spec: &RedactionSpec) -> RedactionOutput {
+    match spec {
+        RedactionSpec::Text(text) => {
+            let replacement = match text {
+                TextRedactionSpec::Mask { mask_char } => {
+                    mask_char.to_string().repeat(entity.value.len())
+                }
+                TextRedactionSpec::Replace { placeholder } => {
+                    if placeholder.is_empty() {
+                        format!("[{}]", entity.entity_type.to_uppercase())
+                    } else {
+                        apply_template(placeholder, entity)
+                    }
+                }
+                TextRedactionSpec::Remove => String::new(),
+                TextRedactionSpec::Hash => format!("[HASH:{}]", entity.entity_type),
+                TextRedactionSpec::Encrypt { .. } => format!("[ENC:{}]", entity.entity_type),
+                TextRedactionSpec::Synthesize => format!("[SYNTH:{}]", entity.entity_type),
+                TextRedactionSpec::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_type),
+                TextRedactionSpec::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_type),
+                TextRedactionSpec::Aggregate => format!("[AGG:{}]", entity.entity_type),
+                TextRedactionSpec::Generalize { .. } => format!("[GEN:{}]", entity.entity_type),
+                TextRedactionSpec::DateShift { .. } => format!("[SHIFTED:{}]", entity.entity_type),
+            };
+            build_output_with_replacement(spec, replacement)
+        }
+        RedactionSpec::Image(img) => RedactionOutput::Image(match img {
+            ImageRedactionSpec::Blur { sigma } => ImageRedactionOutput::Blur { sigma: *sigma },
+            ImageRedactionSpec::Block { color } => ImageRedactionOutput::Block { color: *color },
+            ImageRedactionSpec::Pixelate { block_size } => {
+                ImageRedactionOutput::Pixelate { block_size: *block_size }
+            }
+            ImageRedactionSpec::Synthesize => ImageRedactionOutput::Synthesize,
+        }),
+        RedactionSpec::Audio(audio) => RedactionOutput::Audio(match audio {
+            AudioRedactionSpec::Silence => AudioRedactionOutput::Silence,
+            AudioRedactionSpec::Remove => AudioRedactionOutput::Remove,
+            AudioRedactionSpec::Synthesize => AudioRedactionOutput::Synthesize,
+        }),
+    }
+}
+
+/// Builds a [`RedactionOutput`] from a spec and a replacement string.
+fn build_output_with_replacement(spec: &RedactionSpec, replacement: String) -> RedactionOutput {
+    match spec {
+        RedactionSpec::Text(text) => RedactionOutput::Text(match text {
+            TextRedactionSpec::Mask { mask_char } => TextRedactionOutput::Mask {
+                replacement,
+                mask_char: *mask_char,
+            },
+            TextRedactionSpec::Replace { .. } => TextRedactionOutput::Replace { replacement },
+            TextRedactionSpec::Hash => TextRedactionOutput::Hash {
+                hash_value: replacement,
+            },
+            TextRedactionSpec::Encrypt { key_id } => TextRedactionOutput::Encrypt {
+                ciphertext: replacement,
+                key_id: key_id.clone(),
+            },
+            TextRedactionSpec::Remove => TextRedactionOutput::Remove,
+            TextRedactionSpec::Synthesize => TextRedactionOutput::Synthesize { replacement },
+            TextRedactionSpec::Pseudonymize => TextRedactionOutput::Pseudonymize {
+                pseudonym: replacement,
+            },
+            TextRedactionSpec::Tokenize { vault_id } => TextRedactionOutput::Tokenize {
+                token: replacement,
+                vault_id: vault_id.clone(),
+            },
+            TextRedactionSpec::Aggregate => TextRedactionOutput::Aggregate { replacement },
+            TextRedactionSpec::Generalize { level } => TextRedactionOutput::Generalize {
+                replacement,
+                level: *level,
+            },
+            TextRedactionSpec::DateShift { offset_days } => TextRedactionOutput::DateShift {
+                replacement,
+                offset_days: *offset_days,
+            },
+        }),
+        RedactionSpec::Image(img) => RedactionOutput::Image(match img {
+            ImageRedactionSpec::Blur { sigma } => ImageRedactionOutput::Blur { sigma: *sigma },
+            ImageRedactionSpec::Block { color } => ImageRedactionOutput::Block { color: *color },
+            ImageRedactionSpec::Pixelate { block_size } => {
+                ImageRedactionOutput::Pixelate { block_size: *block_size }
+            }
+            ImageRedactionSpec::Synthesize => ImageRedactionOutput::Synthesize,
+        }),
+        RedactionSpec::Audio(audio) => RedactionOutput::Audio(match audio {
+            AudioRedactionSpec::Silence => AudioRedactionOutput::Silence,
+            AudioRedactionSpec::Remove => AudioRedactionOutput::Remove,
+            AudioRedactionSpec::Synthesize => AudioRedactionOutput::Synthesize,
+        }),
     }
 }

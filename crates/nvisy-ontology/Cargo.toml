@@ -17,12 +17,16 @@ repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 
+[features]
+default = []
+jsonschema = ["dep:schemars"]
+
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# JSON Schema generation
-schemars = { workspace = true }
+# JSON Schema generation (optional)
+schemars = { workspace = true, optional = true }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
@@ -32,5 +36,8 @@ serde_json = { workspace = true, features = [] }
 uuid = { workspace = true, features = ["serde", "v4"] }
 jiff = { workspace = true }
 
+# Semantic versioning
+semver = { workspace = true }
+
 # Error handling
-derive_more = { workspace = true, features = ["display"] }
+derive_more = { workspace = true, features = ["display", "from"] }

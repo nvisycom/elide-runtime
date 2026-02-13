@@ -1,12 +1,28 @@
 //! Sensitive-data entity types and detection metadata.
+//!
+//! An [`Entity`] represents a single occurrence of sensitive data detected
+//! within a document. Entities are produced by detection actions and consumed
+//! by redaction and audit stages of the pipeline.
+
+pub mod location;
+pub mod model;
+pub mod selector;
+
+pub use location::{
+    AudioLocation, BoundingBox, EntityLocation, ImageLocation, TabularLocation,
+    TextLocation, TimeSpan, VideoLocation,
+};
+pub use model::{ModelInfo, ModelKind};
+pub use selector::EntitySelector;
 
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+use serde_json::{Map, Value};
+
 use nvisy_core::path::ContentSource;
 
 /// Category of sensitive data an entity belongs to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum EntityCategory {
     /// Personally Identifiable Information (names, SSNs, addresses, etc.).
@@ -17,74 +33,41 @@ pub enum EntityCategory {
     Financial,
     /// Secrets and credentials (API keys, passwords, tokens).
     Credentials,
+    /// Legal documents and privileged communications.
+    Legal,
+    /// Biometric data (fingerprints, iris scans, voiceprints).
+    Biometric,
     /// User-defined or plugin-specific category.
-    Custom,
+    Custom(String),
 }
 
 /// Method used to detect a sensitive entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum DetectionMethod {
     /// Regular expression pattern matching.
     Regex,
-    /// Named-entity recognition via AI model.
-    AiNer,
-    /// Lookup in a known-value dictionary.
-    Dictionary,
     /// Checksum or Luhn-algorithm validation.
     Checksum,
-    /// Multiple methods combined to produce a single detection.
-    Composite,
+    /// Lookup in a known-value dictionary.
+    Dictionary,
+    /// Named-entity recognition via AI model.
+    Ner,
+    /// Contextual NLP analysis (discourse-level understanding).
+    ContextualNlp,
     /// OCR text extraction with bounding boxes.
     Ocr,
+    /// Face detection in images or video frames.
+    FaceDetection,
+    /// Object detection in images or video frames.
+    ObjectDetection,
+    /// Entity detection from speech transcription.
+    SpeechTranscript,
+    /// Multiple methods combined to produce a single detection.
+    Composite,
     /// User-provided annotations.
     Manual,
-}
-
-/// Axis-aligned bounding box for image-based entity locations.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
-pub struct BoundingBox {
-    /// Horizontal offset of the top-left corner (pixels or normalized).
-    pub x: f64,
-    /// Vertical offset of the top-left corner (pixels or normalized).
-    pub y: f64,
-    /// Width of the bounding box.
-    pub width: f64,
-    /// Height of the bounding box.
-    pub height: f64,
-}
-
-/// Location of an entity within its source document or image.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
-pub struct EntityLocation {
-    /// Byte or character offset where the entity starts in the text.
-    pub start_offset: usize,
-    /// Byte or character offset where the entity ends in the text.
-    pub end_offset: usize,
-    /// Identifier of the document element containing this entity.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub element_id: Option<String>,
-    /// 1-based page number where the entity was found.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub page_number: Option<u32>,
-    /// Bounding box for image-based detections.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bounding_box: Option<BoundingBox>,
-    /// Tabular row index (0-based).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    pub row_index: Option<usize>,
-    /// Tabular column index (0-based).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    pub column_index: Option<usize>,
-    /// Links this entity to a specific image document.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(default)]
-    pub image_id: Option<Uuid>,
 }
 
 /// A detected sensitive data occurrence within a document.
@@ -92,7 +75,7 @@ pub struct EntityLocation {
 /// Entities are produced by detection actions (regex, NER, checksum, etc.)
 /// and later consumed by redaction and audit actions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 pub struct Entity {
     /// Content source identity and lineage.
     #[serde(flatten)]
@@ -107,8 +90,17 @@ pub struct Entity {
     pub detection_method: DetectionMethod,
     /// Detection confidence score in the range `[0.0, 1.0]`.
     pub confidence: f64,
-    /// Where this entity was found in the source document.
+    /// Where this entity was found in the source content.
     pub location: EntityLocation,
+    /// BCP-47 language tag of the detected content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    /// Detection model that produced this entity.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelInfo>,
+    /// Additional unstructured metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<Map<String, Value>>,
 }
 
 impl Entity {
@@ -129,6 +121,9 @@ impl Entity {
             detection_method,
             confidence,
             location,
+            language: None,
+            model: None,
+            metadata: None,
         }
     }
 

@@ -5,7 +5,9 @@ use serde::Deserialize;
 
 use nvisy_ingest::handler::FormatHandler;
 use nvisy_ingest::document::Document;
-use nvisy_ontology::ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityLocation};
+use nvisy_ontology::entity::{
+    DetectionMethod, Entity, EntityCategory, EntityLocation, TabularLocation, TextLocation,
+};
 use nvisy_core::error::{Error, ErrorKind};
 use nvisy_pattern::dictionaries;
 
@@ -86,21 +88,19 @@ impl Action for DetectDictionaryAction {
                     for mat in ac.find_iter(content) {
                         let value = &values[mat.pattern().as_usize()];
                         let entity = Entity::new(
-                            def.category,
+                            def.category.clone(),
                             &def.entity_type,
                             value.as_str(),
                             DetectionMethod::Dictionary,
                             confidence,
-                            EntityLocation {
+                            EntityLocation::Text(TextLocation {
                                 start_offset: mat.start(),
                                 end_offset: mat.end(),
+                                context_start_offset: None,
+                                context_end_offset: None,
                                 element_id: None,
                                 page_number: None,
-                                bounding_box: None,
-                                row_index: None,
-                                column_index: None,
-                                image_id: None,
-                            },
+                            }),
                         )
                         .with_parent(&doc.source);
                         entities.push(entity);
@@ -119,21 +119,17 @@ impl Action for DetectDictionaryAction {
                             for mat in ac.find_iter(cell) {
                                 let value = &values[mat.pattern().as_usize()];
                                 let entity = Entity::new(
-                                    def.category,
+                                    def.category.clone(),
                                     &def.entity_type,
                                     value.as_str(),
                                     DetectionMethod::Dictionary,
                                     confidence,
-                                    EntityLocation {
-                                        start_offset: mat.start(),
-                                        end_offset: mat.end(),
-                                        element_id: None,
-                                        page_number: None,
-                                        bounding_box: None,
-                                        row_index: Some(row_idx),
-                                        column_index: Some(col_idx),
-                                        image_id: None,
-                                    },
+                                    EntityLocation::Tabular(TabularLocation {
+                                        row_index: row_idx,
+                                        column_index: col_idx,
+                                        start_offset: Some(mat.start()),
+                                        end_offset: Some(mat.end()),
+                                    }),
                                 )
                                 .with_parent(&doc.source);
                                 entities.push(entity);

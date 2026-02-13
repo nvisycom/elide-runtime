@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use nvisy_ingest::handler::{FormatHandler, PlaintextHandler};
 use nvisy_ingest::document::Document;
-use nvisy_ontology::ontology::entity::Entity;
+use nvisy_ontology::entity::Entity;
 use nvisy_core::error::Error;
 use nvisy_core::io::ContentData;
 use nvisy_pipeline::action::Action;

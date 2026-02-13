@@ -1,7 +1,7 @@
 //! Solid color block overlay for image regions.
 
 use image::{DynamicImage, Rgba, RgbaImage};
-use nvisy_ontology::ontology::entity::BoundingBox;
+use nvisy_ontology::entity::BoundingBox;
 
 /// Apply a solid color block overlay to the specified regions of an image.
 ///

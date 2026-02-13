@@ -2,7 +2,7 @@
 
 use image::DynamicImage;
 use imageproc::filter::gaussian_blur_f32;
-use nvisy_ontology::ontology::entity::BoundingBox;
+use nvisy_ontology::entity::BoundingBox;
 
 /// Apply gaussian blur to the specified regions of an image.
 ///

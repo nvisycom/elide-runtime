@@ -23,8 +23,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["image-redaction", "pdf-redaction"]
-# Image blur/block redaction via image + imageproc
-image-redaction = ["dep:image", "dep:imageproc"]
+# Image blur/block redaction via image + imageproc; enables nvisy-ingest/png for PngHandler
+image-redaction = ["dep:image", "dep:imageproc", "nvisy-ingest/png"]
 # PDF reassembly with redacted content via lopdf
 pdf-redaction = ["dep:lopdf"]
 

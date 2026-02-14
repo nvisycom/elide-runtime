@@ -53,28 +53,32 @@ tracing = { version = "0.1", features = [] }
 # (De)serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = [] }
+schemars = { version = "1", features = ["uuid1", "bytes1"] }
 
-# Error handling
+# Derive macros and error handling
 thiserror = { version = "2.0", features = [] }
 anyhow = { version = "1.0", features = [] }
 derive_more = { version = "1", features = ["display", "from"] }
+strum = { version = "0.26", features = ["derive"] }
 
 # Primitive datatypes
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 bytes = { version = "1", features = ["serde"] }
+jiff = { version = "0.2", features = ["serde"] }
+sha2 = { version = "0.10", features = [] }
+hex = { version = "0.4", features = [] }
 
 # Text processing
+hipstr = { version = "0.6", features = [] }
 regex = { version = "1.0", features = [] }
 aho-corasick = { version = "1", features = [] }
+csv = { version = "1", features = [] }
 
 # Graph data structures
 petgraph = { version = "0.8", features = [] }
 
 # File type detection
 infer = { version = "0.19", features = [] }
-
-# JSON Schema generation
-schemars = { version = "1", features = ["uuid1", "bytes1"] }
 
 # Python interop
 pyo3 = { version = "0.23", features = [] }
@@ -94,22 +98,8 @@ calamine = { version = "0.33", features = [] }
 zip = { version = "2", features = [] }
 quick-xml = { version = "0.37", features = [] }
 
-
-# Time
-jiff = { version = "0.2", features = ["serde"] }
-
-# Interned strings
-hipstr = { version = "0.6", features = [] }
-
-# Hashing
-sha2 = { version = "0.10", features = [] }
-hex = { version = "0.4", features = [] }
-
 # Semantic versioning
 semver = { version = "1", features = ["serde"] }
-
-# Enum derives
-strum = { version = "0.26", features = ["derive"] }
 
 # Testing
 tempfile = { version = "3", features = [] }

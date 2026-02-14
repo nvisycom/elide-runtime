@@ -79,22 +79,18 @@ impl Action for DetectTabularAction {
         let mut entities = Vec::new();
 
         for doc in &documents {
-            let columns = match &doc.columns {
-                Some(c) => c,
-                None => continue,
-            };
-            let rows = match &doc.rows {
-                Some(r) => r,
+            let tabular = match doc.tabular() {
+                Some(t) => t,
                 None => continue,
             };
 
-            for (col_idx, col_name) in columns.iter().enumerate() {
+            for (col_idx, col_name) in tabular.columns.iter().enumerate() {
                 for (regex, rule) in &self.compiled_rules {
                     if !regex.is_match(col_name) {
                         continue;
                     }
 
-                    for (row_idx, row) in rows.iter().enumerate() {
+                    for (row_idx, row) in tabular.rows.iter().enumerate() {
                         if let Some(cell) = row.get(col_idx) {
                             if cell.is_empty() {
                                 continue;

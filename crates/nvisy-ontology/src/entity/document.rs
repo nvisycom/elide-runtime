@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum DocumentType {
     /// Plain text (`.txt`, `.log`, etc.).
-    Plaintext,
+    Txt,
     /// Comma-separated values.
     Csv,
     /// JSON data.
@@ -25,8 +25,6 @@ pub enum DocumentType {
     Png,
     /// JPEG image.
     Jpeg,
-    /// TIFF image.
-    Tiff,
     /// WAV audio.
     Wav,
     /// MP3 audio.

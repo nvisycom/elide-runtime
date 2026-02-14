@@ -10,8 +10,9 @@ pub mod ocr;
 
 use serde::Deserialize;
 
-use nvisy_ingest::handler::{FormatHandler, PlaintextHandler};
+use nvisy_ingest::handler::{FormatHandler, TxtHandler};
 use nvisy_ingest::document::Document;
+use nvisy_ingest::document::data::*;
 use nvisy_ontology::entity::Entity;
 use nvisy_core::error::Error;
 use nvisy_core::io::ContentData;
@@ -92,14 +93,17 @@ impl Action for DetectNerAction {
                     "python/ner",
                     false,
                 ))?;
-            vec![Document::new(FormatHandler::Plaintext(PlaintextHandler)).with_text(text)]
+            vec![Document::new(
+                FormatHandler::Txt(TxtHandler),
+                DocumentData::Text(TextData { text: text.to_string() }),
+            )]
         } else {
             documents
         };
 
         let mut all_entities = Vec::new();
         for doc in &docs {
-            if let Some(ref content) = doc.content {
+            if let Some(content) = doc.text() {
                 let entities = ner::detect_ner(&self.bridge, content, &config).await?;
                 all_entities.extend(entities);
             }
@@ -163,11 +167,11 @@ impl Action for DetectNerImageAction {
             all_entities.extend(entities);
         } else {
             for doc in &images {
-                if let (Some(data), Some(mime)) = (&doc.data, &doc.mime_type) {
+                if let Some(image) = doc.image() {
                     let entities = ner::detect_ner_image(
                         &self.bridge,
-                        data,
-                        mime,
+                        &image.bytes,
+                        &image.mime_type,
                         &config,
                     ).await?;
                     all_entities.extend(entities);

@@ -4,12 +4,6 @@
 
 pub mod handler;
 pub mod document;
-pub mod element;
-pub mod text;
-pub mod binary;
-pub mod image;
-pub mod tabular;
-pub mod audio;
 
 #[doc(hidden)]
 pub mod prelude;

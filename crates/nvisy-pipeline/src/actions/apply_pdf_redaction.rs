@@ -63,7 +63,7 @@ impl Action for ApplyPdfRedactionAction {
         // Collect image documents for XObject replacement
         let images: Vec<&Document<FormatHandler>> = documents
             .iter()
-            .filter(|d| d.data.is_some())
+            .filter(|d| d.image().is_some())
             .collect();
 
         if !images.is_empty() {
@@ -118,10 +118,10 @@ impl Action for ApplyPdfRedactionAction {
                         if let (Some(sid), Some(redacted_doc)) =
                             (stream_id, images.get(image_idx))
                         {
-                            if let Some(ref data) = redacted_doc.data {
+                            if let Some(image) = redacted_doc.image() {
                                 let new_stream = lopdf::Stream::new(
                                     lopdf::Dictionary::new(),
-                                    data.to_vec(),
+                                    image.bytes.to_vec(),
                                 );
                                 pdf_doc
                                     .objects

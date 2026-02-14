@@ -83,7 +83,7 @@ impl Action for DetectDictionaryAction {
 
         for doc in &documents {
             // Text content matching
-            if let Some(content) = &doc.content {
+            if let Some(content) = doc.text() {
                 for (def, ac, values) in &self.automata {
                     for mat in ac.find_iter(content) {
                         let value = &values[mat.pattern().as_usize()];
@@ -109,8 +109,8 @@ impl Action for DetectDictionaryAction {
             }
 
             // Tabular content matching
-            if let Some(rows) = &doc.rows {
-                for (row_idx, row) in rows.iter().enumerate() {
+            if let Some(tabular) = doc.tabular() {
+                for (row_idx, row) in tabular.rows.iter().enumerate() {
                     for (col_idx, cell) in row.iter().enumerate() {
                         if cell.is_empty() {
                             continue;

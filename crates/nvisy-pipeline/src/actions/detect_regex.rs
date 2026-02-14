@@ -55,7 +55,7 @@ impl Action for DetectRegexAction {
         let mut entities = Vec::new();
 
         for doc in &documents {
-            let content = match &doc.content {
+            let content = match doc.text() {
                 Some(c) => c,
                 None => continue,
             };

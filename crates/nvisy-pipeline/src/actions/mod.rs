@@ -3,7 +3,7 @@
 //! Each sub-module exposes a single [`Action`](crate::action::Action)
 //! implementation that can be wired into an nvisy execution plan.
 
-/// Applies pending redactions to document content.
+/// Applies pending redactions to document content (text, image, tabular, audio).
 pub mod apply_redaction;
 /// Computes a sensitivity classification for each blob based on detected entities.
 pub mod classify;
@@ -21,13 +21,6 @@ pub mod detect_tabular;
 pub mod emit_audit;
 /// Evaluates policy rules against detected entities and produces redaction instructions.
 pub mod evaluate_policy;
-/// Applies image redactions (blur, block) to image artifacts.
-#[cfg(feature = "image-redaction")]
-pub mod apply_image_redaction;
-/// Applies redactions to tabular data cells.
-pub mod apply_tabular_redaction;
 /// Reassembles redacted content into PDF files.
 #[cfg(feature = "pdf-redaction")]
 pub mod apply_pdf_redaction;
-/// Placeholder for audio redaction.
-pub mod apply_audio_redaction;

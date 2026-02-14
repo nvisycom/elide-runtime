@@ -2,8 +2,9 @@
 
 use serde::Deserialize;
 
-use nvisy_ingest::handler::{FormatHandler, PlaintextHandler};
+use nvisy_ingest::handler::{FormatHandler, TxtHandler};
 use nvisy_ingest::document::Document;
+use nvisy_ingest::document::data::*;
 use nvisy_ontology::entity::Entity;
 use nvisy_core::error::Error;
 use nvisy_core::io::ContentData;
@@ -95,9 +96,9 @@ impl Action for OcrDetectAction {
             all_entities.extend(entities);
         } else {
             for doc in &images {
-                if let (Some(data), Some(mime)) = (&doc.data, &doc.mime_type) {
+                if let Some(image) = doc.image() {
                     let entities =
-                        ocr::detect_ocr(&self.bridge, data, mime, &config)
+                        ocr::detect_ocr(&self.bridge, &image.bytes, &image.mime_type, &config)
                             .await?;
                     for entity in &entities {
                         all_ocr_text.push(entity.value.clone());
@@ -110,7 +111,10 @@ impl Action for OcrDetectAction {
         // Create a Document from concatenated OCR text for downstream processing
         let mut documents = Vec::new();
         if !all_ocr_text.is_empty() {
-            let ocr_doc = Document::new(FormatHandler::Plaintext(PlaintextHandler)).with_text(all_ocr_text.join("\n"));
+            let ocr_doc = Document::new(
+                FormatHandler::Txt(TxtHandler),
+                DocumentData::Text(TextData { text: all_ocr_text.join("\n") }),
+            );
             documents.push(ocr_doc);
         }
 

@@ -15,7 +15,7 @@ use crate::handler::{FormatHandler, Handler};
 /// Fields are grouped by content modality:
 /// - **Text** (`content`, `title`, `elements`, `page_count`) — for PDF, DOCX, HTML, etc.
 /// - **Binary/image** (`data`, `mime_type`, `width`, `height`, etc.) — for images and raw bytes.
-/// - **Tabular** (`columns`, `rows`, `sheet_name`) — for CSV, XLSX, Parquet.
+/// - **Tabular** (`columns`, `rows`, `sheet_name`) — for CSV, XLSX.
 #[derive(Debug, Clone)]
 pub struct Document<H: Handler> {
     /// Content source identity and lineage.

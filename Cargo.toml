@@ -84,27 +84,26 @@ minio = { version = "0.3", features = [] }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
-imageproc = "0.25"
+imageproc = { version = "0.25", features = [] }
 
 # Document parsing
-pdf-extract = "0.7"
-lopdf = "0.34"
-scraper = "0.22"
-calamine = "0.33"
-zip = "2"
-quick-xml = "0.37"
-arrow = { version = "54", default-features = false }
-parquet = { version = "54", default-features = false, features = ["arrow"] }
+pdf-extract = { version = "0.7", features = [] }
+lopdf = { version = "0.34", features = [] }
+scraper = { version = "0.22", features = [] }
+calamine = { version = "0.33", features = [] }
+zip = { version = "2", features = [] }
+quick-xml = { version = "0.37", features = [] }
+
 
 # Time
 jiff = { version = "0.2", features = ["serde"] }
 
 # Interned strings
-hipstr = "0.6"
+hipstr = { version = "0.6", features = [] }
 
 # Hashing
-sha2 = "0.10"
-hex = "0.4"
+sha2 = { version = "0.10", features = [] }
+hex = { version = "0.4", features = [] }
 
 # Semantic versioning
 semver = { version = "1", features = ["serde"] }
@@ -113,7 +112,7 @@ semver = { version = "1", features = ["serde"] }
 strum = { version = "0.26", features = ["derive"] }
 
 # Testing
-tempfile = "3"
+tempfile = { version = "3", features = [] }
 
 # Randomness
 rand = { version = "0.9", features = [] }

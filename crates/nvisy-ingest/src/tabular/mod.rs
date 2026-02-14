@@ -1,7 +1,4 @@
-//! Tabular/spreadsheet file loaders (XLSX, Parquet).
+//! Tabular/spreadsheet file loaders (XLSX).
 
 #[cfg(feature = "xlsx")]
 pub mod xlsx;
-
-#[cfg(feature = "parquet")]
-pub mod parquet;

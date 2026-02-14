@@ -3,8 +3,8 @@
 //! An [`Audit`] entry records an immutable event in the data protection
 //! pipeline, carrying structured [`Explanation`] metadata for compliance.
 
-pub mod explanation;
-pub mod retention;
+mod explanation;
+mod retention;
 
 pub use explanation::{Explainable, Explanation};
 pub use retention::{RetentionPolicy, RetentionScope};

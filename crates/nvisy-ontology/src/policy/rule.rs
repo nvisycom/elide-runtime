@@ -8,16 +8,16 @@ use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use crate::detection::SensitivityLevel;
-use crate::entity::EntitySelector;
+use crate::entity::{DocumentType, EntitySelector};
 use crate::redaction::RedactionSpec;
 
 /// Conditions that must be met for a [`PolicyRule`] to apply.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 pub struct RuleCondition {
-    /// MIME types of documents this rule applies to.
+    /// Document formats this rule applies to. Empty means all formats.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub document_types: Vec<String>,
+    pub document_types: Vec<DocumentType>,
     /// User roles this rule applies to.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub roles: Vec<String>,

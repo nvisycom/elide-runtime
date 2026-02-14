@@ -1,7 +1,7 @@
 //! Sensitivity classification action.
 
 pub use nvisy_ontology::detection::ClassificationResult;
-use nvisy_ontology::detection::SensitivityLevel;
+use nvisy_ontology::detection::{Sensitivity, SensitivityLevel};
 use nvisy_ontology::entity::Entity;
 use nvisy_core::error::Error;
 
@@ -9,8 +9,8 @@ use crate::action::Action;
 
 /// Assigns a sensitivity level based on detected entities.
 ///
-/// The action inspects the entities, computes a [`SensitivityLevel`], and
-/// returns a [`ClassificationResult`].
+/// The action inspects the entities, computes a [`Sensitivity`] assessment,
+/// and returns a [`ClassificationResult`].
 pub struct ClassifyAction;
 
 #[async_trait::async_trait]
@@ -32,12 +32,14 @@ impl Action for ClassifyAction {
         entities: Self::Input,
     ) -> Result<ClassificationResult, Error> {
         let total_entities = entities.len();
-        let sensitivity_level = compute_sensitivity_level(&entities);
+        let level = compute_sensitivity_level(&entities);
 
         Ok(ClassificationResult {
-            sensitivity_level,
+            sensitivity: Sensitivity {
+                level,
+                risk_score: None,
+            },
             total_entities,
-            risk_score: None,
         })
     }
 }

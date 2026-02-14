@@ -101,7 +101,7 @@ impl Handler for DocxHandler {
     fn content_types(&self) -> &[&str] { &["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] }
 }
 
-/// Handles image files (PNG, JPEG, TIFF, etc.).
+/// Handles image files (PNG, JPEG, TIFF).
 #[cfg(feature = "image")]
 #[derive(Debug, Clone)]
 pub struct ImageHandler;
@@ -109,8 +109,8 @@ pub struct ImageHandler;
 #[cfg(feature = "image")]
 impl Handler for ImageHandler {
     fn id(&self) -> &str { "image" }
-    fn extensions(&self) -> &[&str] { &["jpg", "jpeg", "png", "tiff", "bmp", "webp"] }
-    fn content_types(&self) -> &[&str] { &["image/jpeg", "image/png", "image/tiff", "image/bmp", "image/webp"] }
+    fn extensions(&self) -> &[&str] { &["jpg", "jpeg", "png", "tiff"] }
+    fn content_types(&self) -> &[&str] { &["image/jpeg", "image/png", "image/tiff"] }
 }
 
 /// Handles XLSX/XLS spreadsheet files.
@@ -123,18 +123,6 @@ impl Handler for XlsxHandler {
     fn id(&self) -> &str { "xlsx" }
     fn extensions(&self) -> &[&str] { &["xlsx", "xls"] }
     fn content_types(&self) -> &[&str] { &["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel"] }
-}
-
-/// Handles Apache Parquet files.
-#[cfg(feature = "parquet")]
-#[derive(Debug, Clone)]
-pub struct ParquetHandler;
-
-#[cfg(feature = "parquet")]
-impl Handler for ParquetHandler {
-    fn id(&self) -> &str { "parquet" }
-    fn extensions(&self) -> &[&str] { &["parquet"] }
-    fn content_types(&self) -> &[&str] { &["application/x-parquet"] }
 }
 
 /// Handles WAV audio files.
@@ -180,8 +168,6 @@ pub enum FormatHandler {
     Image(ImageHandler),
     #[cfg(feature = "xlsx")]
     Xlsx(XlsxHandler),
-    #[cfg(feature = "parquet")]
-    Parquet(ParquetHandler),
     Wav(WavHandler),
     Mp3(Mp3Handler),
 }
@@ -202,8 +188,7 @@ impl Handler for FormatHandler {
             Self::Image(h) => h.id(),
             #[cfg(feature = "xlsx")]
             Self::Xlsx(h) => h.id(),
-            #[cfg(feature = "parquet")]
-            Self::Parquet(h) => h.id(),
+
             Self::Wav(h) => h.id(),
             Self::Mp3(h) => h.id(),
         }
@@ -224,8 +209,7 @@ impl Handler for FormatHandler {
             Self::Image(h) => h.extensions(),
             #[cfg(feature = "xlsx")]
             Self::Xlsx(h) => h.extensions(),
-            #[cfg(feature = "parquet")]
-            Self::Parquet(h) => h.extensions(),
+
             Self::Wav(h) => h.extensions(),
             Self::Mp3(h) => h.extensions(),
         }
@@ -246,8 +230,7 @@ impl Handler for FormatHandler {
             Self::Image(h) => h.content_types(),
             #[cfg(feature = "xlsx")]
             Self::Xlsx(h) => h.content_types(),
-            #[cfg(feature = "parquet")]
-            Self::Parquet(h) => h.content_types(),
+
             Self::Wav(h) => h.content_types(),
             Self::Mp3(h) => h.content_types(),
         }
@@ -284,10 +267,6 @@ impl From<ImageHandler> for FormatHandler {
 #[cfg(feature = "xlsx")]
 impl From<XlsxHandler> for FormatHandler {
     fn from(h: XlsxHandler) -> Self { Self::Xlsx(h) }
-}
-#[cfg(feature = "parquet")]
-impl From<ParquetHandler> for FormatHandler {
-    fn from(h: ParquetHandler) -> Self { Self::Parquet(h) }
 }
 impl From<WavHandler> for FormatHandler {
     fn from(h: WavHandler) -> Self { Self::Wav(h) }
@@ -343,7 +322,7 @@ pub trait ImageLoader: Handler {
     ) -> Result<Vec<Document<FormatHandler>>, Error>;
 }
 
-/// Loader for spreadsheet/tabular formats (XLSX, Parquet).
+/// Loader for spreadsheet/tabular formats (XLSX).
 #[async_trait::async_trait]
 pub trait SpreadsheetLoader: Handler {
     /// Strongly-typed parameters for this loader.

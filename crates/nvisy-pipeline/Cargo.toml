@@ -31,9 +31,9 @@ pdf-redaction = ["dep:lopdf"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
-nvisy-ontology = { workspace = true }
-nvisy-ingest = { workspace = true }
-nvisy-pattern = { workspace = true }
+nvisy-ontology = { workspace = true, features = [] }
+nvisy-ingest = { workspace = true, features = [] }
+nvisy-pattern = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
@@ -45,18 +45,18 @@ async-trait = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = ["v4"] }
-bytes = { workspace = true }
+bytes = { workspace = true, features = [] }
 
 # Text processing
 regex = { workspace = true, features = [] }
-aho-corasick = { workspace = true }
+aho-corasick = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }
 
 # Image processing (feature-gated)
-image = { workspace = true, optional = true }
-imageproc = { workspace = true, optional = true }
+image = { workspace = true, optional = true, features = [] }
+imageproc = { workspace = true, optional = true, features = [] }
 
 # PDF manipulation (feature-gated)
-lopdf = { workspace = true, optional = true }
+lopdf = { workspace = true, optional = true, features = [] }

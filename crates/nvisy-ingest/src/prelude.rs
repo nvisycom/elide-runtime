@@ -17,9 +17,6 @@ pub use crate::handler::DocxHandler;
 pub use crate::handler::ImageHandler;
 #[cfg(feature = "xlsx")]
 pub use crate::handler::XlsxHandler;
-#[cfg(feature = "parquet")]
-pub use crate::handler::ParquetHandler;
-
 pub use crate::document::Document;
 pub use crate::element::{Element, ElementCategory, ElementType};
 
@@ -37,7 +34,5 @@ pub use crate::binary::docx::DocxLoader;
 pub use crate::image::image::ImageFileLoader;
 #[cfg(feature = "xlsx")]
 pub use crate::tabular::xlsx::XlsxLoader;
-#[cfg(feature = "parquet")]
-pub use crate::tabular::parquet::ParquetLoader;
 pub use crate::audio::wav::WavLoader;
 pub use crate::audio::mp3::Mp3Loader;

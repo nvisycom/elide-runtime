@@ -21,11 +21,11 @@
 //! - Image / video:  [`ImageRedactionMethod`], [`ImageRedactionSpec`], [`ImageRedactionOutput`]
 //! - Audio:          [`AudioRedactionMethod`], [`AudioRedactionSpec`], [`AudioRedactionOutput`]
 
-pub mod method;
-pub mod output;
-pub mod review;
-pub mod spec;
-pub mod summary;
+mod method;
+mod output;
+mod review;
+mod spec;
+mod summary;
 
 pub use method::{
     AudioRedactionMethod, ImageRedactionMethod, RedactionMethod, TextRedactionMethod,

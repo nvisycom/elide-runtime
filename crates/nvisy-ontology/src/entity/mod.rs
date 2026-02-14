@@ -4,10 +4,12 @@
 //! within a document. Entities are produced by detection actions and consumed
 //! by redaction and audit stages of the pipeline.
 
-pub mod location;
-pub mod model;
-pub mod selector;
+mod document;
+mod location;
+mod model;
+mod selector;
 
+pub use document::DocumentType;
 pub use location::{
     AudioLocation, BoundingBox, EntityLocation, ImageLocation, TabularLocation,
     TextLocation, TimeSpan, VideoLocation,

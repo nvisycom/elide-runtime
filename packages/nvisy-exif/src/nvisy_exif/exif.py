@@ -1,6 +1,6 @@
 """EXIF metadata reading and stripping for images.
 
-Uses Pillow for EXIF handling. Supports JPEG, PNG, TIFF, and WebP formats.
+Uses Pillow for EXIF handling. Supports JPEG, PNG, and TIFF formats.
 These functions are designed to be callable from Rust via PyO3.
 """
 
@@ -16,7 +16,7 @@ def read_exif(image_bytes: bytes) -> dict:
     """Read EXIF metadata from image bytes.
 
     Args:
-        image_bytes: Raw image bytes (JPEG, PNG, TIFF, or WebP).
+        image_bytes: Raw image bytes (JPEG, PNG, or TIFF).
 
     Returns:
         Dictionary mapping human-readable tag names to their values.
@@ -40,7 +40,7 @@ def strip_exif(image_bytes: bytes) -> bytes:
     """Remove all EXIF metadata from image bytes.
 
     Args:
-        image_bytes: Raw image bytes (JPEG, PNG, TIFF, or WebP).
+        image_bytes: Raw image bytes (JPEG, PNG, or TIFF).
 
     Returns:
         Image bytes with all EXIF metadata removed, preserving the

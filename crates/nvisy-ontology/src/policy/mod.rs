@@ -4,9 +4,9 @@
 //! how detected entities are redacted. Policies may be associated with a
 //! [`RegulationKind`] and support inheritance via the `extends` field.
 
-pub mod evaluation;
-pub mod regulation;
-pub mod rule;
+mod evaluation;
+mod regulation;
+mod rule;
 
 pub use evaluation::PolicyEvaluation;
 pub use regulation::RegulationKind;

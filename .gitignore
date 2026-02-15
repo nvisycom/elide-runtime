@@ -2,50 +2,57 @@
 Thumbs.db
 .DS_Store
 
-# Editors
+# IDE and Editors
 .vs/
 .vscode/
 .idea/
 .zed/
 
-# Node & JavaScript
-node_modules/
-.vite/
-.astro/
-.output/
-.nuxt/
-.nitro/
-.cache/
+# Rust
+debug/
+target/
+**/*.rs.bk
+*.pdb
 
-# Testing
-playwright-report/
-test-results/
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
+
+# Generated files
+*.pem
+encryption.key
+*.backup
 coverage/
-.lighthouse/
+*.lcov
 
-# Build Output
+# Intermediate output
+.diesel_lock
+crates/nvisy-postgres/src/migrations/
+crates/nvisy-postgres/src/schema.rs.bak
+
+# Build output
 dist/
 build/
-output/
 
-# Environment
+# Environment files
 .env*
 !.env.example
 
 # Logs
+logs/
 *.log
 *.log*
 
-# Generated
-*.pem
+# Backup and temporary files
+*.bak
 *.backup
-*.tsbuildinfo
-
-# Generated config output files
-*.config.d.ts
-*.config.d.ts.map
-*.config.js
-*.config.js.map
+*.tmp
+tmp/
+temp/
 
 # Other
 .ignore*/

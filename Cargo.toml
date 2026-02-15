@@ -1,0 +1,108 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+resolver = "2"
+members = [
+    "./crates/nvisy-core",
+    "./crates/nvisy-engine",
+    "./crates/nvisy-ingest",
+    "./crates/nvisy-object",
+    "./crates/nvisy-pattern",
+    "./crates/nvisy-pipeline",
+    "./crates/nvisy-ontology",
+    "./crates/nvisy-python",
+]
+
+[workspace.package]
+version = "0.1.0"
+rust-version = "1.85"
+edition = "2024"
+license = "MIT"
+publish = false
+
+authors = ["nvisy <contact@nvisy.com>"]
+repository = "https://github.com/nvisycom/runtime"
+homepage = "https://github.com/nvisycom/runtime"
+documentation = "https://docs.rs/nvisy-runtime"
+
+[workspace.dependencies]
+# Default features are disabled for certain dependencies to allow
+# downstream workspaces/crates to selectively enable them as needed.
+#
+# See for more details: https://github.com/rust-lang/cargo/issues/11329
+
+# Internal crates
+nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
+nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
+nvisy-ingest = { path = "./crates/nvisy-ingest", version = "0.1.0" }
+nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
+nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
+nvisy-pipeline = { path = "./crates/nvisy-pipeline", version = "0.1.0" }
+nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
+nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
+
+# Async runtime
+tokio = { version = "1", features = [] }
+tokio-util = { version = "0.7", features = [] }
+futures = { version = "0.3", features = [] }
+async-trait = { version = "0.1", features = [] }
+
+# Observability
+tracing = { version = "0.1", features = [] }
+
+# (De)serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = [] }
+schemars = { version = "1", features = ["uuid1", "bytes1"] }
+
+# Derive macros and error handling
+thiserror = { version = "2.0", features = [] }
+anyhow = { version = "1.0", features = [] }
+derive_more = { version = "1", features = ["display", "from"] }
+strum = { version = "0.26", features = ["derive"] }
+
+# Primitive datatypes
+uuid = { version = "1", features = ["serde", "v4", "v7"] }
+bytes = { version = "1", features = ["serde"] }
+jiff = { version = "0.2", features = ["serde"] }
+sha2 = { version = "0.10", features = [] }
+hex = { version = "0.4", features = [] }
+
+# Text processing
+hipstr = { version = "0.6", features = [] }
+regex = { version = "1.0", features = [] }
+aho-corasick = { version = "1", features = [] }
+csv = { version = "1", features = [] }
+
+# Graph data structures
+petgraph = { version = "0.8", features = [] }
+
+# File type detection
+infer = { version = "0.19", features = [] }
+
+# Python interop
+pyo3 = { version = "0.23", features = [] }
+
+# S3-compatible object storage
+minio = { version = "0.3", features = [] }
+
+# Image processing
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
+imageproc = { version = "0.25", features = [] }
+
+# Document parsing
+pdf-extract = { version = "0.7", features = [] }
+lopdf = { version = "0.34", features = [] }
+scraper = { version = "0.22", features = [] }
+calamine = { version = "0.33", features = [] }
+zip = { version = "2", features = [] }
+quick-xml = { version = "0.37", features = [] }
+
+# Semantic versioning
+semver = { version = "1", features = ["serde"] }
+
+# Testing
+tempfile = { version = "3", features = [] }
+
+# Randomness
+rand = { version = "0.9", features = [] }

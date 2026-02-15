@@ -5,48 +5,50 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
-# Shell-level logger (expands to a printf that runs in the shell).
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY := 1
+
 define log
 printf "[%s] [MAKE] [$(MAKECMDGOALS)] $(1)\n" "$$(date '+%Y-%m-%d %H:%M:%S')"
 endef
 
-WATCH_PATHS := $(foreach p,$(wildcard packages/*/dist),--watch-path=$(p))
-
 .PHONY: dev
-dev: ## Starts build watchers and dev server concurrently.
-	@for pkg in packages/*/; do \
-		npm run build:watch --workspace=$$pkg & \
-	done; \
-	node $(WATCH_PATHS) packages/nvisy-server/dist/main.js & \
-	wait
+dev: ## Starts cargo-watch for the server binary.
+	@cargo watch -x 'run -p nvisy-server'
 
-.PHONY: dev\:prod
-dev\:prod: ## Starts dev server with production log level (info).
-	@for pkg in packages/*/; do \
-		npm run build:watch --workspace=$$pkg & \
-	done; \
-	NODE_ENV=production node $(WATCH_PATHS) packages/nvisy-server/dist/main.js & \
-	wait
+.PHONY: build
+build: ## Builds all crates in release mode.
+	@$(call log,Building workspace...)
+	@cargo build --workspace --release
+	@$(call log,Build complete.)
+
+.PHONY: check
+check: ## Runs cargo check on all crates.
+	@cargo check --workspace
+
+.PHONY: test
+test: ## Runs all tests.
+	@cargo test --workspace
+
+.PHONY: lint
+lint: ## Runs clippy and format check.
+	@$(call log,Running format check...)
+	@cargo fmt --all -- --check
+	@$(call log,Running clippy...)
+	@cargo clippy --workspace -- -D warnings
+	@$(call log,Lint passed.)
+
+.PHONY: fmt
+fmt: ## Formats all Rust code.
+	@cargo fmt --all
 
 .PHONY: ci
-ci: ## Runs all CI checks locally (lint, typecheck, test, build).
-	@$(call log,Running lint...)
-	@npx biome check .
-	@$(call log,Running typecheck...)
-	@npx tsc -b packages/*/tsconfig.json
-	@$(call log,Running tests...)
-	@npx vitest run --coverage
-	@$(call log,Running build...)
-	@npm run build --workspaces --if-present
+ci: lint check test build ## Runs all CI checks locally.
 	@$(call log,All CI checks passed!)
 
 .PHONY: clean
-clean: ## Removes all build artifacts and node_modules.
+clean: ## Removes build artifacts.
 	@$(call log,Cleaning build artifacts...)
-	@npx tsc -b --clean packages/*/tsconfig.json
-	@rm -rf packages/*/dist
-	@$(call log,Removing node_modules...)
-	@rm -rf node_modules packages/*/node_modules package-lock.json
+	@cargo clean
 	@$(call log,Clean complete.)
 
 .PHONY: docker
@@ -54,3 +56,8 @@ docker: ## Builds the Docker image.
 	@$(call log,Building Docker image...)
 	@docker build -f docker/Dockerfile -t nvisy-runtime .
 	@$(call log,Docker image built.)
+
+.PHONY: help
+help: ## Shows this help message.
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'

@@ -1,34 +1,52 @@
-FROM node:22-alpine AS base
+FROM rust:1.85-bookworm AS builder
+
+RUN apt-get update && apt-get install -y python3-dev python3-pip && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-FROM base AS deps
-COPY package.json package-lock.json ./
-COPY packages/nvisy-core/package.json packages/nvisy-core/package.json
-COPY packages/nvisy-runtime/package.json packages/nvisy-runtime/package.json
-COPY packages/nvisy-server/package.json packages/nvisy-server/package.json
-RUN npm ci
+# Copy manifests first to cache dependency builds
+COPY Cargo.toml Cargo.lock ./
+COPY crates/nvisy-core/Cargo.toml crates/nvisy-core/Cargo.toml
+COPY crates/nvisy-detect/Cargo.toml crates/nvisy-detect/Cargo.toml
+COPY crates/nvisy-engine/Cargo.toml crates/nvisy-engine/Cargo.toml
+COPY crates/nvisy-object/Cargo.toml crates/nvisy-object/Cargo.toml
+COPY crates/nvisy-python/Cargo.toml crates/nvisy-python/Cargo.toml
+COPY crates/nvisy-server/Cargo.toml crates/nvisy-server/Cargo.toml
 
-FROM base AS build
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/nvisy-core/node_modules ./packages/nvisy-core/node_modules
-COPY --from=deps /app/packages/nvisy-runtime/node_modules ./packages/nvisy-runtime/node_modules
-COPY --from=deps /app/packages/nvisy-server/node_modules ./packages/nvisy-server/node_modules
+# Create empty src files to satisfy cargo's manifest checks
+RUN for crate in nvisy-core nvisy-detect nvisy-engine nvisy-object nvisy-python; do \
+      mkdir -p crates/$crate/src && echo "" > crates/$crate/src/lib.rs; \
+    done && \
+    mkdir -p crates/nvisy-server/src && echo "fn main() {}" > crates/nvisy-server/src/main.rs
+
+# Create stub READMEs for crates that use doc = include_str!("../README.md")
+RUN for crate in nvisy-core nvisy-detect nvisy-engine nvisy-object nvisy-python nvisy-server; do \
+      touch crates/$crate/README.md; \
+    done
+
+ENV PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+
+# Cache dependency build
+RUN cargo build --release 2>/dev/null || true
+
+# Copy full source and build
 COPY . .
-RUN npm run build
+RUN cargo build --release
 
-FROM base AS runtime
-ENV NODE_ENV=production
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/nvisy-core/node_modules ./packages/nvisy-core/node_modules
-COPY --from=deps /app/packages/nvisy-runtime/node_modules ./packages/nvisy-runtime/node_modules
-COPY --from=deps /app/packages/nvisy-server/node_modules ./packages/nvisy-server/node_modules
-COPY --from=build /app/packages/nvisy-core/dist ./packages/nvisy-core/dist
-COPY --from=build /app/packages/nvisy-core/package.json ./packages/nvisy-core/package.json
-COPY --from=build /app/packages/nvisy-runtime/dist ./packages/nvisy-runtime/dist
-COPY --from=build /app/packages/nvisy-runtime/package.json ./packages/nvisy-runtime/package.json
-COPY --from=build /app/packages/nvisy-server/dist ./packages/nvisy-server/dist
-COPY --from=build /app/packages/nvisy-server/package.json ./packages/nvisy-server/package.json
-COPY package.json package-lock.json ./
+# Runtime stage
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y \
+    python3 python3-pip python3-venv ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+COPY packages/ /opt/nvisy/packages/
+RUN python3 -m pip install --break-system-packages \
+    /opt/nvisy/packages/nvisy-ai \
+    /opt/nvisy/packages/nvisy-exif
+
+COPY --from=builder /app/target/release/nvisy-server /usr/local/bin/nvisy-server
 
 EXPOSE 8080
-CMD ["node", "packages/nvisy-server/dist/main.js"]
+CMD ["nvisy-server"]

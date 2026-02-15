@@ -2,41 +2,45 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-An open-source ETL platform purpose-built for LLM and AI data pipelines.
+A data protection runtime for AI pipelines — detect, redact, and audit sensitive data across documents, images, and streams.
 
-Nvisy Runtime treats AI data as a first-class citizen: embeddings, completions,
-structured outputs, tool-call traces, images, audio, and fine-tuning datasets
-all flow through typed, validated primitives with full lineage tracking.
+Built in Rust with Python extensions for AI-powered detection.
 
-## Packages
+## Workspace
 
-| Package | Description |
-|---------|-------------|
-| [`nvisy-core`](packages/nvisy-core/) | Core data types, errors, and utilities |
-| [`nvisy-runtime`](packages/nvisy-runtime/) | Graph definition, DAG compiler, execution engine |
-| [`nvisy-plugin-ai`](packages/nvisy-plugin-ai/) | AI provider integrations (OpenAI, Anthropic, Google) |
-| [`nvisy-plugin-object`](packages/nvisy-plugin-object/) | Object store integrations (S3, GCS, Parquet, JSONL, CSV) |
-| [`nvisy-plugin-sql`](packages/nvisy-plugin-sql/) | SQL provider integrations (Postgres, MySQL, MSSQL) |
-| [`nvisy-plugin-vector`](packages/nvisy-plugin-vector/) | Vector database integrations (Qdrant, Milvus, Weaviate, Pinecone) |
-| [`nvisy-server`](packages/nvisy-server/) | HTTP execution worker |
+```
+crates/
+  nvisy-core/        Types, traits, plugin registry, error handling
+  nvisy-detect/      Regex patterns, policy evaluation, redaction actions
+  nvisy-engine/      DAG graph compiler and execution engine
+  nvisy-object/      Object storage connectors (S3)
+  nvisy-python/      Python interop for AI-powered NER via PyO3
+  nvisy-server/      Axum HTTP server with REST API
 
-See [packages/](packages/README.md) for detailed descriptions.
+packages/
+  nvisy-ai/          Python: LLM-based entity detection
+  nvisy-exif/        Python: EXIF metadata reading and stripping
+```
 
 ## Quick Start
 
 ```bash
-npm install
-npm run build
+cargo build --workspace
+cargo test --workspace
+cargo run -p nvisy-server
+```
+
+## Development
+
+```bash
+make dev      # cargo-watch dev server
+make ci       # lint + check + test + build
+make help     # list all targets
 ```
 
 ## Documentation
 
-See [`docs/`](docs/) for architecture, intelligence capabilities, provider
-design, and security documentation.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for release notes and version history.
+See [`docs/`](docs/) for architecture and development documentation.
 
 ## License
 

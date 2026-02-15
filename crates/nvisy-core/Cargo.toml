@@ -1,0 +1,60 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-core"
+description = "Domain types, traits, and errors for the Nvisy platform"
+keywords = ["nvisy", "core", "domain", "types"]
+categories = ["data-structures"]
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[dependencies]
+# JSON Schema generation
+schemars = { workspace = true, features = [] }
+
+# (De)serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = [] }
+
+# Async runtime
+tokio = { workspace = true, features = ["sync", "fs", "io-util", "rt"] }
+
+# Primitive datatypes
+uuid = { workspace = true, features = ["serde", "v4", "v7"] }
+bytes = { workspace = true, features = ["serde"] }
+
+# File type detection
+infer = { workspace = true, features = [] }
+
+# Error handling
+thiserror = { workspace = true, features = [] }
+anyhow = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["display", "deref", "as_ref"] }
+
+# Time
+jiff = { workspace = true, features = [] }
+
+# Interned strings
+hipstr = { workspace = true, features = [] }
+
+# Hashing
+sha2 = { workspace = true, features = [] }
+hex = { workspace = true, features = [] }
+
+# Enum derives
+strum = { workspace = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+tempfile = { workspace = true, features = [] }

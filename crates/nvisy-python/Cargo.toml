@@ -1,0 +1,49 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-python"
+description = "PyO3 bridge for AI NER detection via embedded Python"
+keywords = ["nvisy", "python", "pyo3", "ner"]
+categories = ["api-bindings"]
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Internal crates
+nvisy-core = { workspace = true, features = [] }
+nvisy-ontology = { workspace = true, features = [] }
+nvisy-pipeline = { workspace = true, features = [] }
+nvisy-ingest = { workspace = true, features = [] }
+
+# (De)serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = [] }
+
+# Async runtime
+tokio = { workspace = true, features = ["sync", "rt"] }
+async-trait = { workspace = true, features = [] }
+
+# Primitive datatypes
+uuid = { workspace = true, features = ["v4"] }
+
+# Python interop
+pyo3 = { workspace = true, features = ["auto-initialize", "serde"] }
+
+# Error handling
+thiserror = { workspace = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }

@@ -105,4 +105,4 @@ semver = { version = "1", features = ["serde"] }
 tempfile = { version = "3", features = [] }
 
 # Randomness
-rand = { version = "0.9", features = [] }
+rand = { version = "0.10", features = [] }

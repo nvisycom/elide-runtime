@@ -101,9 +101,6 @@ impl Action for EvaluatePolicyAction {
 /// or `None` if no rule applies.
 fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'a PolicyRule> {
     for rule in rules {
-        if !rule.enabled {
-            continue;
-        }
         if rule.selector.matches(&entity.category, &entity.entity_type, entity.confidence) {
             return Some(rule);
         }

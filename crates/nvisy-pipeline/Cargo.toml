@@ -22,11 +22,11 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["image-redaction", "pdf-redaction"]
+default = ["image-redaction", "audio-redaction"]
 # Image blur/block redaction via image + imageproc; enables nvisy-ingest/png for PngHandler
 image-redaction = ["dep:image", "dep:imageproc", "nvisy-ingest/png"]
-# PDF reassembly with redacted content via lopdf
-pdf-redaction = ["dep:lopdf"]
+# Audio redaction pass-through; enables nvisy-ingest/wav for WavHandler
+audio-redaction = ["nvisy-ingest/wav"]
 
 [dependencies]
 # Internal crates
@@ -47,6 +47,9 @@ async-trait = { workspace = true, features = [] }
 uuid = { workspace = true, features = ["v4"] }
 bytes = { workspace = true, features = [] }
 
+# Time
+jiff = { workspace = true, features = [] }
+
 # Text processing
 regex = { workspace = true, features = [] }
 aho-corasick = { workspace = true, features = [] }
@@ -57,6 +60,3 @@ tracing = { workspace = true, features = [] }
 # Image processing (feature-gated)
 image = { workspace = true, optional = true, features = [] }
 imageproc = { workspace = true, optional = true, features = [] }
-
-# PDF manipulation (feature-gated)
-lopdf = { workspace = true, optional = true, features = [] }

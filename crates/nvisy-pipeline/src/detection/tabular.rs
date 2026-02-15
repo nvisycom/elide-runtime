@@ -3,10 +3,10 @@
 use regex::Regex;
 use serde::Deserialize;
 
-use nvisy_ingest::handler::FormatHandler;
+use nvisy_ingest::handler::CsvHandler;
 use nvisy_ingest::document::Document;
 use nvisy_ontology::entity::{
-    DetectionMethod, Entity, EntityCategory, EntityLocation, TabularLocation,
+    DetectionMethod, Entity, EntityCategory, TabularLocation,
 };
 use nvisy_core::error::{Error, ErrorKind};
 
@@ -35,14 +35,13 @@ pub struct DetectTabularParams {
 /// Matches column headers against rules and marks every non-empty cell
 /// in matched columns as an entity.
 pub struct DetectTabularAction {
-    params: DetectTabularParams,
     compiled_rules: Vec<(Regex, ColumnRule)>,
 }
 
 #[async_trait::async_trait]
 impl Action for DetectTabularAction {
     type Params = DetectTabularParams;
-    type Input = Vec<Document<FormatHandler>>;
+    type Input = Vec<Document<CsvHandler>>;
     type Output = Vec<Entity>;
 
     fn id(&self) -> &str {
@@ -66,10 +65,7 @@ impl Action for DetectTabularAction {
                 Ok((re, r.clone()))
             })
             .collect::<Result<Vec<_>, Error>>()?;
-        Ok(Self {
-            params,
-            compiled_rules,
-        })
+        Ok(Self { compiled_rules })
     }
 
     async fn execute(
@@ -79,18 +75,18 @@ impl Action for DetectTabularAction {
         let mut entities = Vec::new();
 
         for doc in &documents {
-            let tabular = match doc.tabular() {
-                Some(t) => t,
+            let headers = match doc.handler().headers() {
+                Some(h) => h,
                 None => continue,
             };
 
-            for (col_idx, col_name) in tabular.columns.iter().enumerate() {
+            for (col_idx, col_name) in headers.iter().enumerate() {
                 for (regex, rule) in &self.compiled_rules {
                     if !regex.is_match(col_name) {
                         continue;
                     }
 
-                    for (row_idx, row) in tabular.rows.iter().enumerate() {
+                    for (row_idx, row) in doc.handler().rows().iter().enumerate() {
                         if let Some(cell) = row.get(col_idx) {
                             if cell.is_empty() {
                                 continue;
@@ -102,13 +98,13 @@ impl Action for DetectTabularAction {
                                 cell.as_str(),
                                 DetectionMethod::Composite,
                                 0.9,
-                                EntityLocation::Tabular(TabularLocation {
-                                    row_index: row_idx,
-                                    column_index: col_idx,
-                                    start_offset: Some(0),
-                                    end_offset: Some(cell.len()),
-                                }),
                             )
+                            .with_tabular_location(TabularLocation {
+                                row_index: row_idx,
+                                column_index: col_idx,
+                                start_offset: Some(0),
+                                end_offset: Some(cell.len()),
+                            })
                             .with_parent(&doc.source);
 
                             entities.push(entity);

@@ -36,6 +36,14 @@ pub use text::json_handler::{
 };
 pub use text::json_loader::{JsonParams, JsonLoader};
 
+#[cfg(feature = "png")]
+pub use image::png::PngHandler;
+
+#[cfg(feature = "wav")]
+pub use audio::wav::WavHandler;
+#[cfg(feature = "mp3")]
+pub use audio::mp3::Mp3Handler;
+
 /// Trait implemented by all format handlers.
 ///
 /// A handler holds loaded, validated content and provides methods to

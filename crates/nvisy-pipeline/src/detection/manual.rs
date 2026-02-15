@@ -17,9 +17,7 @@ pub struct DetectManualParams {}
 
 /// Converts each inclusion [`Annotation`] into a full [`Entity`] with
 /// `DetectionMethod::Manual` and confidence 1.0.
-pub struct DetectManualAction {
-    params: DetectManualParams,
-}
+pub struct DetectManualAction;
 
 #[async_trait::async_trait]
 impl Action for DetectManualAction {
@@ -31,8 +29,8 @@ impl Action for DetectManualAction {
         "detect-manual"
     }
 
-    async fn connect(params: Self::Params) -> Result<Self, Error> {
-        Ok(Self { params })
+    async fn connect(_params: Self::Params) -> Result<Self, Error> {
+        Ok(Self)
     }
 
     async fn execute(
@@ -54,19 +52,19 @@ impl Action for DetectManualAction {
                 None => continue,
             };
             let value = ann.value.clone().unwrap_or_default();
-            let location = match &ann.location {
-                Some(l) => l.clone(),
-                None => continue,
-            };
 
-            let entity = Entity::new(
+            let mut entity = Entity::new(
                 category,
                 entity_type,
                 value,
                 DetectionMethod::Manual,
                 1.0,
-                location,
             );
+            entity.text_location = ann.text_location.clone();
+            entity.image_location = ann.image_location.clone();
+            entity.tabular_location = ann.tabular_location.clone();
+            entity.audio_location = ann.audio_location.clone();
+            entity.video_location = ann.video_location.clone();
 
             entities.push(entity);
         }

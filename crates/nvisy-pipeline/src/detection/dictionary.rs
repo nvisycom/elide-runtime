@@ -3,10 +3,10 @@
 use aho_corasick::AhoCorasick;
 use serde::Deserialize;
 
-use nvisy_ingest::handler::FormatHandler;
+use nvisy_ingest::handler::{TxtHandler, CsvHandler};
 use nvisy_ingest::document::Document;
 use nvisy_ontology::entity::{
-    DetectionMethod, Entity, EntityCategory, EntityLocation, TabularLocation, TextLocation,
+    DetectionMethod, Entity, EntityCategory, TabularLocation, TextLocation,
 };
 use nvisy_core::error::{Error, ErrorKind};
 use nvisy_pattern::dictionaries;
@@ -56,7 +56,7 @@ pub struct DetectDictionaryAction {
 #[async_trait::async_trait]
 impl Action for DetectDictionaryAction {
     type Params = DetectDictionaryParams;
-    type Input = Vec<Document<FormatHandler>>;
+    type Input = (Vec<Document<TxtHandler>>, Vec<Document<CsvHandler>>);
     type Output = Vec<Entity>;
 
     fn id(&self) -> &str {
@@ -76,64 +76,69 @@ impl Action for DetectDictionaryAction {
 
     async fn execute(
         &self,
-        documents: Self::Input,
+        input: Self::Input,
     ) -> Result<Vec<Entity>, Error> {
+        let (text_docs, tabular_docs) = input;
         let confidence = self.params.confidence;
         let mut entities = Vec::new();
 
-        for doc in &documents {
-            // Text content matching
-            if let Some(content) = doc.text() {
-                for (def, ac, values) in &self.automata {
-                    for mat in ac.find_iter(content) {
-                        let value = &values[mat.pattern().as_usize()];
-                        let entity = Entity::new(
-                            def.category.clone(),
-                            &def.entity_type,
-                            value.as_str(),
-                            DetectionMethod::Dictionary,
-                            confidence,
-                            EntityLocation::Text(TextLocation {
-                                start_offset: mat.start(),
-                                end_offset: mat.end(),
-                                context_start_offset: None,
-                                context_end_offset: None,
-                                element_id: None,
-                                page_number: None,
-                            }),
-                        )
-                        .with_parent(&doc.source);
-                        entities.push(entity);
-                    }
-                }
+        // Text content matching
+        for doc in &text_docs {
+            let lines = doc.handler().lines();
+            let mut content = lines.join("\n");
+            if doc.handler().trailing_newline() {
+                content.push('\n');
             }
 
-            // Tabular content matching
-            if let Some(tabular) = doc.tabular() {
-                for (row_idx, row) in tabular.rows.iter().enumerate() {
-                    for (col_idx, cell) in row.iter().enumerate() {
-                        if cell.is_empty() {
-                            continue;
-                        }
-                        for (def, ac, values) in &self.automata {
-                            for mat in ac.find_iter(cell) {
-                                let value = &values[mat.pattern().as_usize()];
-                                let entity = Entity::new(
-                                    def.category.clone(),
-                                    &def.entity_type,
-                                    value.as_str(),
-                                    DetectionMethod::Dictionary,
-                                    confidence,
-                                    EntityLocation::Tabular(TabularLocation {
-                                        row_index: row_idx,
-                                        column_index: col_idx,
-                                        start_offset: Some(mat.start()),
-                                        end_offset: Some(mat.end()),
-                                    }),
-                                )
-                                .with_parent(&doc.source);
-                                entities.push(entity);
-                            }
+            for (def, ac, values) in &self.automata {
+                for mat in ac.find_iter(&content) {
+                    let value = &values[mat.pattern().as_usize()];
+                    let entity = Entity::new(
+                        def.category.clone(),
+                        &def.entity_type,
+                        value.as_str(),
+                        DetectionMethod::Dictionary,
+                        confidence,
+                    )
+                    .with_text_location(TextLocation {
+                        start_offset: mat.start(),
+                        end_offset: mat.end(),
+                        context_start_offset: None,
+                        context_end_offset: None,
+                        element_id: None,
+                        page_number: None,
+                    })
+                    .with_parent(&doc.source);
+                    entities.push(entity);
+                }
+            }
+        }
+
+        // Tabular content matching
+        for doc in &tabular_docs {
+            for (row_idx, row) in doc.handler().rows().iter().enumerate() {
+                for (col_idx, cell) in row.iter().enumerate() {
+                    if cell.is_empty() {
+                        continue;
+                    }
+                    for (def, ac, values) in &self.automata {
+                        for mat in ac.find_iter(cell) {
+                            let value = &values[mat.pattern().as_usize()];
+                            let entity = Entity::new(
+                                def.category.clone(),
+                                &def.entity_type,
+                                value.as_str(),
+                                DetectionMethod::Dictionary,
+                                confidence,
+                            )
+                            .with_tabular_location(TabularLocation {
+                                row_index: row_idx,
+                                column_index: col_idx,
+                                start_offset: Some(mat.start()),
+                                end_offset: Some(mat.end()),
+                            })
+                            .with_parent(&doc.source);
+                            entities.push(entity);
                         }
                     }
                 }

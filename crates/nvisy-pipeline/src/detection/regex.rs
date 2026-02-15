@@ -3,9 +3,9 @@
 use regex::Regex;
 use serde::Deserialize;
 
-use nvisy_ingest::handler::FormatHandler;
+use nvisy_ingest::handler::TxtHandler;
 use nvisy_ingest::document::Document;
-use nvisy_ontology::entity::{DetectionMethod, Entity, EntityLocation, TextLocation};
+use nvisy_ontology::entity::{DetectionMethod, Entity, TextLocation};
 use nvisy_core::error::Error;
 use nvisy_pattern::patterns::{self, PatternDefinition};
 
@@ -27,7 +27,7 @@ pub struct DetectRegexAction {
 #[async_trait::async_trait]
 impl Action for DetectRegexAction {
     type Params = DetectRegexParams;
-    type Input = Vec<Document<FormatHandler>>;
+    type Input = Vec<Document<TxtHandler>>;
     type Output = Vec<Entity>;
 
     fn id(&self) -> &str {
@@ -55,13 +55,14 @@ impl Action for DetectRegexAction {
         let mut entities = Vec::new();
 
         for doc in &documents {
-            let content = match doc.text() {
-                Some(c) => c,
-                None => continue,
-            };
+            let lines = doc.handler().lines();
+            let mut content = lines.join("\n");
+            if doc.handler().trailing_newline() {
+                content.push('\n');
+            }
 
             for (pattern, regex) in &compiled {
-                for mat in regex.find_iter(content) {
+                for mat in regex.find_iter(&content) {
                     let value = mat.as_str();
 
                     if let Some(validate) = pattern.validate {
@@ -80,15 +81,15 @@ impl Action for DetectRegexAction {
                         value,
                         DetectionMethod::Regex,
                         pattern.confidence,
-                        EntityLocation::Text(TextLocation {
-                            start_offset: mat.start(),
-                            end_offset: mat.end(),
-                            context_start_offset: None,
-                            context_end_offset: None,
-                            element_id: None,
-                            page_number: None,
-                        }),
                     )
+                    .with_text_location(TextLocation {
+                        start_offset: mat.start(),
+                        end_offset: mat.end(),
+                        context_start_offset: None,
+                        context_end_offset: None,
+                        element_id: None,
+                        page_number: None,
+                    })
                     .with_parent(&doc.source);
 
                     entities.push(entity);

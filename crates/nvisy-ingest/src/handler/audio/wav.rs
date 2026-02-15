@@ -1,5 +1,7 @@
 //! WAV handler (stub — awaiting migration to Loader/Handler pattern).
 
+use bytes::Bytes;
+
 use nvisy_core::error::Error;
 use nvisy_ontology::entity::DocumentType;
 
@@ -7,8 +9,20 @@ use crate::document::edit_stream::SpanEditStream;
 use crate::document::view_stream::SpanStream;
 use crate::handler::Handler;
 
-#[derive(Debug)]
-pub struct WavHandler;
+#[derive(Debug, Clone)]
+pub struct WavHandler {
+    pub(crate) bytes: Bytes,
+}
+
+impl WavHandler {
+    pub fn new(bytes: Bytes) -> Self {
+        Self { bytes }
+    }
+
+    pub fn bytes(&self) -> &Bytes {
+        &self.bytes
+    }
+}
 
 #[async_trait::async_trait]
 impl Handler for WavHandler {

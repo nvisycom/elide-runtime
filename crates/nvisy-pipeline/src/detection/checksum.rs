@@ -77,8 +77,12 @@ impl Action for DetectChecksumAction {
                         &entity.value,
                         DetectionMethod::Checksum,
                         (entity.confidence + confidence_boost).min(1.0),
-                        entity.location.clone(),
                     );
+                    boosted.text_location = entity.text_location.clone();
+                    boosted.image_location = entity.image_location.clone();
+                    boosted.tabular_location = entity.tabular_location.clone();
+                    boosted.audio_location = entity.audio_location.clone();
+                    boosted.video_location = entity.video_location.clone();
                     boosted.source.set_parent_id(entity.source.parent_id());
 
                     result.push(boosted);

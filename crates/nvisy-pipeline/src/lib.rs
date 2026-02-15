@@ -1,9 +1,10 @@
-//! Pipeline action/provider traits with detection and redaction actions.
+//! Pipeline action/provider traits with detection, redaction, and generation actions.
 //!
 //! This crate consolidates the processing pipeline: the [`Action`] and
-//! [`Provider`] traits, all detection actions (regex, dictionary, checksum,
-//! tabular, manual), policy evaluation, text/image/tabular/PDF/audio
-//! redaction, and audit-trail emission.
+//! [`Provider`] traits, entity detection (regex, dictionary, checksum,
+//! tabular, manual, NER), policy evaluation, content redaction
+//! (text/image/tabular/audio), content generation (OCR, transcription,
+//! synthetic data), and audit-trail emission.
 
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -12,11 +13,11 @@
 pub mod action;
 /// The `Provider` trait — factory for authenticated client connections.
 pub mod provider;
-/// Pipeline actions for detection, redaction, policy, and audit.
-pub mod actions;
-/// Image rendering primitives for redaction overlays.
-#[cfg(feature = "image-redaction")]
-pub mod render;
-
+/// Entity detection actions.
+pub mod detection;
+/// Redaction actions (policy evaluation, apply, audit).
+pub mod redaction;
+/// Content generation actions (OCR, transcription, synthetic data).
+pub mod generation;
 #[doc(hidden)]
 pub mod prelude;

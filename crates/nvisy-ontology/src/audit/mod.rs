@@ -11,7 +11,6 @@ pub use retention::{RetentionPolicy, RetentionScope};
 
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use nvisy_core::path::ContentSource;
@@ -71,56 +70,4 @@ pub struct Audit {
     /// Structured explainability metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub explanation: Option<Explanation>,
-    /// Additional unstructured details about the event.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<Map<String, Value>>,
-}
-
-impl Audit {
-    /// Create a new audit record for the given action, timestamped to now.
-    pub fn new(action: AuditAction) -> Self {
-        Self {
-            source: ContentSource::new(),
-            action,
-            timestamp: Timestamp::now(),
-            entity_id: None,
-            redaction_id: None,
-            policy_id: None,
-            source_id: None,
-            run_id: None,
-            actor: None,
-            explanation: None,
-            details: None,
-        }
-    }
-
-    /// Associate this audit entry with a detected entity.
-    pub fn with_entity_id(mut self, id: Uuid) -> Self {
-        self.entity_id = Some(id);
-        self
-    }
-
-    /// Associate this audit entry with a redaction.
-    pub fn with_redaction_id(mut self, id: Uuid) -> Self {
-        self.redaction_id = Some(id);
-        self
-    }
-
-    /// Associate this audit entry with a pipeline run.
-    pub fn with_run_id(mut self, id: Uuid) -> Self {
-        self.run_id = Some(id);
-        self
-    }
-
-    /// Record the human or service account that triggered the event.
-    pub fn with_actor(mut self, actor: impl Into<String>) -> Self {
-        self.actor = Some(actor.into());
-        self
-    }
-
-    /// Attach additional unstructured details to this audit entry.
-    pub fn with_details(mut self, details: Map<String, Value>) -> Self {
-        self.details = Some(details);
-        self
-    }
 }

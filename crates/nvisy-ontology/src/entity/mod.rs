@@ -11,7 +11,7 @@ mod selector;
 
 pub use document::DocumentType;
 pub use location::{
-    AudioLocation, BoundingBox, EntityLocation, ImageLocation, TabularLocation,
+    AudioLocation, BoundingBox, ImageLocation, TabularLocation,
     TextLocation, TimeSpan, VideoLocation,
 };
 pub use model::{ModelInfo, ModelKind};
@@ -92,8 +92,21 @@ pub struct Entity {
     pub detection_method: DetectionMethod,
     /// Detection confidence score in the range `[0.0, 1.0]`.
     pub confidence: f64,
-    /// Where this entity was found in the source content.
-    pub location: EntityLocation,
+    /// Text location, if this entity was found in text content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_location: Option<TextLocation>,
+    /// Image location, if this entity was found in an image.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_location: Option<ImageLocation>,
+    /// Tabular location, if this entity was found in tabular data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tabular_location: Option<TabularLocation>,
+    /// Audio location, if this entity was found in audio.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_location: Option<AudioLocation>,
+    /// Video location, if this entity was found in video.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_location: Option<VideoLocation>,
     /// BCP-47 language tag of the detected content.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
@@ -113,7 +126,6 @@ impl Entity {
         value: impl Into<String>,
         detection_method: DetectionMethod,
         confidence: f64,
-        location: EntityLocation,
     ) -> Self {
         Self {
             source: ContentSource::new(),
@@ -122,11 +134,45 @@ impl Entity {
             value: value.into(),
             detection_method,
             confidence,
-            location,
+            text_location: None,
+            image_location: None,
+            tabular_location: None,
+            audio_location: None,
+            video_location: None,
             language: None,
             model: None,
             metadata: None,
         }
+    }
+
+    /// Set a text location on this entity.
+    pub fn with_text_location(mut self, location: TextLocation) -> Self {
+        self.text_location = Some(location);
+        self
+    }
+
+    /// Set an image location on this entity.
+    pub fn with_image_location(mut self, location: ImageLocation) -> Self {
+        self.image_location = Some(location);
+        self
+    }
+
+    /// Set a tabular location on this entity.
+    pub fn with_tabular_location(mut self, location: TabularLocation) -> Self {
+        self.tabular_location = Some(location);
+        self
+    }
+
+    /// Set an audio location on this entity.
+    pub fn with_audio_location(mut self, location: AudioLocation) -> Self {
+        self.audio_location = Some(location);
+        self
+    }
+
+    /// Set a video location on this entity.
+    pub fn with_video_location(mut self, location: VideoLocation) -> Self {
+        self.video_location = Some(location);
+        self
     }
 
     /// Set the parent source for lineage tracking.

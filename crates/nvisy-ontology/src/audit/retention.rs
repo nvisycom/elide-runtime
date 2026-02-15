@@ -1,5 +1,7 @@
 //! Data retention policy types.
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 /// What class of data a retention policy applies to.
@@ -29,4 +31,17 @@ pub struct RetentionPolicy {
     /// Description of the retention policy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+}
+
+impl RetentionPolicy {
+    /// Returns the retention duration, or `None` for indefinite retention.
+    ///
+    /// Returns [`Duration::ZERO`] when `zero_retention` is `true`.
+    pub fn duration(&self) -> Option<Duration> {
+        if self.zero_retention {
+            return Some(Duration::ZERO);
+        }
+        self.max_duration_days
+            .map(|days| Duration::from_secs(days * 24 * 60 * 60))
+    }
 }

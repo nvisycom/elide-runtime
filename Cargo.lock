@@ -2191,7 +2191,7 @@ dependencies = [
  "bytes",
  "image",
  "imageproc",
- "lopdf",
+ "jiff",
  "nvisy-core",
  "nvisy-ingest",
  "nvisy-ontology",

@@ -12,7 +12,7 @@ use nvisy_core::error::Error;
 use nvisy_core::fs::ContentHandler;
 use nvisy_ontology::audit::Audit;
 use nvisy_ontology::detection::{ClassificationResult, DetectionResult};
-use nvisy_ontology::policy::{Policy, PolicyEvaluation};
+use nvisy_ontology::policy::{Policies, PolicyEvaluation};
 use nvisy_ontology::redaction::RedactionSummary;
 
 use crate::compiler::graph::Graph;
@@ -24,7 +24,7 @@ pub struct EngineInput {
     /// Handle to the managed directory containing the files to process.
     pub source: ContentHandler,
     /// Policies to apply (at least one).
-    pub policies: Vec<Policy>,
+    pub policies: Policies,
     /// Execution graph defining the pipeline DAG.
     pub graph: Graph,
     /// External service connections for source/target nodes.

@@ -75,7 +75,7 @@ pub struct CsvData {
 }
 
 /// Handler for loaded CSV content.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CsvHandler {
     pub(crate) data: CsvData,
 }
@@ -142,6 +142,11 @@ impl CsvHandler {
     /// All data rows.
     pub fn rows(&self) -> &[Vec<String>] {
         &self.data.rows
+    }
+
+    /// Mutable access to all data rows.
+    pub fn rows_mut(&mut self) -> &mut Vec<Vec<String>> {
+        &mut self.data.rows
     }
 
     /// A specific cell by (row, col).

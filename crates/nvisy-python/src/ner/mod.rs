@@ -6,7 +6,7 @@
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityLocation, TextLocation};
+use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, TextLocation};
 use nvisy_core::error::Error;
 use crate::bridge::PythonBridge;
 use crate::error::from_pyerr;
@@ -165,15 +165,15 @@ fn parse_python_entities(_py: Python<'_>, result: Bound<'_, PyAny>) -> Result<Ve
             value,
             DetectionMethod::Ner,
             confidence,
-            EntityLocation::Text(TextLocation {
-                start_offset,
-                end_offset,
-                context_start_offset: None,
-                context_end_offset: None,
-                element_id: None,
-                page_number: None,
-            }),
-        );
+        )
+        .with_text_location(TextLocation {
+            start_offset,
+            end_offset,
+            context_start_offset: None,
+            context_end_offset: None,
+            element_id: None,
+            page_number: None,
+        });
 
         entities.push(entity);
     }

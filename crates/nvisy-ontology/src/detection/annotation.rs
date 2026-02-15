@@ -8,7 +8,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::entity::{EntityCategory, EntityLocation};
+use crate::entity::{
+    AudioLocation, EntityCategory, ImageLocation, TabularLocation, TextLocation, VideoLocation,
+};
 
 /// The kind of annotation applied to a content region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -55,9 +57,21 @@ pub struct Annotation {
     /// The annotated text or value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
-    /// Location of the annotated region.
+    /// Text location of the annotated region.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub location: Option<EntityLocation>,
+    pub text_location: Option<TextLocation>,
+    /// Image location of the annotated region.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_location: Option<ImageLocation>,
+    /// Tabular location of the annotated region.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tabular_location: Option<TabularLocation>,
+    /// Audio location of the annotated region.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_location: Option<AudioLocation>,
+    /// Video location of the annotated region.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_location: Option<VideoLocation>,
     /// Classification labels attached to this annotation.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub labels: Vec<AnnotationLabel>,

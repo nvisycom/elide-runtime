@@ -9,11 +9,11 @@ pub use crate::detection::{
 };
 pub use crate::entity::{
     AudioLocation, BoundingBox, DetectionMethod, DocumentType, Entity, EntityCategory,
-    EntityLocation, EntitySelector, ImageLocation, ModelInfo, ModelKind, TabularLocation,
+    EntitySelector, ImageLocation, ModelInfo, ModelKind, TabularLocation,
     TextLocation, TimeSpan, VideoLocation,
 };
 pub use crate::policy::{
-    Policy, PolicyEvaluation, PolicyRule, RegulationKind, RuleCondition, RuleKind,
+    Policies, Policy, PolicyEvaluation, PolicyRule, RegulationKind, RuleCondition, RuleKind,
 };
 pub use crate::redaction::{
     AudioRedactionMethod, AudioRedactionOutput, AudioRedactionSpec, ImageRedactionMethod,

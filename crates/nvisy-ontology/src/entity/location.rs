@@ -1,6 +1,5 @@
 //! Spatial and temporal location types for entity positions.
 
-use derive_more::From;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -114,67 +113,3 @@ pub struct VideoLocation {
     pub speaker_id: Option<String>,
 }
 
-/// Location of an entity within its source content.
-///
-/// Each variant is specific to a content modality, carrying only the
-/// fields that make sense for that modality.
-#[derive(Debug, Clone, From, Serialize, Deserialize)]
-#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum EntityLocation {
-    /// Entity found in text content (plain text, HTML, PDF text layer, etc.).
-    Text(TextLocation),
-    /// Entity found in an image.
-    Image(ImageLocation),
-    /// Entity found in a tabular data cell.
-    Tabular(TabularLocation),
-    /// Entity found in an audio stream.
-    Audio(AudioLocation),
-    /// Entity found in a video stream.
-    Video(VideoLocation),
-}
-
-impl EntityLocation {
-    /// Text start offset, if this is a text or tabular location.
-    pub fn start_offset(&self) -> Option<usize> {
-        match self {
-            Self::Text(t) => Some(t.start_offset),
-            Self::Tabular(t) => t.start_offset,
-            _ => None,
-        }
-    }
-
-    /// Text end offset, if this is a text or tabular location.
-    pub fn end_offset(&self) -> Option<usize> {
-        match self {
-            Self::Text(t) => Some(t.end_offset),
-            Self::Tabular(t) => t.end_offset,
-            _ => None,
-        }
-    }
-
-    /// Bounding box, if this is an image or video location.
-    pub fn bounding_box(&self) -> Option<&BoundingBox> {
-        match self {
-            Self::Image(i) => Some(&i.bounding_box),
-            Self::Video(v) => Some(&v.bounding_box),
-            _ => None,
-        }
-    }
-
-    /// Row index, if this is a tabular location.
-    pub fn row_index(&self) -> Option<usize> {
-        match self {
-            Self::Tabular(t) => Some(t.row_index),
-            _ => None,
-        }
-    }
-
-    /// Column index, if this is a tabular location.
-    pub fn column_index(&self) -> Option<usize> {
-        match self {
-            Self::Tabular(t) => Some(t.column_index),
-            _ => None,
-        }
-    }
-}

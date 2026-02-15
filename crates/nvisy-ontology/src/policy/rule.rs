@@ -4,7 +4,6 @@
 //! based on entity categories, types, and confidence thresholds.
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use crate::detection::SensitivityLevel;
@@ -56,11 +55,6 @@ pub enum RuleKind {
 pub struct PolicyRule {
     /// Unique identifier for this rule.
     pub id: Uuid,
-    /// Human-readable name for display purposes.
-    pub name: String,
-    /// Description of the rule's purpose.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
     /// What this rule does when it matches.
     pub kind: RuleKind,
     /// Which entities this rule applies to.
@@ -69,17 +63,9 @@ pub struct PolicyRule {
     pub spec: RedactionSpec,
     /// Template string for the replacement value (e.g. `"[REDACTED]"`).
     pub replacement_template: String,
-    /// Whether this rule is active. Disabled rules are skipped during evaluation.
-    pub enabled: bool,
     /// Evaluation priority (lower numbers are evaluated first).
     pub priority: i32,
     /// Additional conditions for this rule to apply.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conditions: Option<RuleCondition>,
-    /// Regulatory citation or notes explaining the rule.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<String>,
-    /// Additional unstructured metadata.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<Map<String, Value>>,
 }

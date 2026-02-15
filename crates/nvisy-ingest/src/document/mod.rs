@@ -17,8 +17,6 @@ use crate::handler::Handler;
 pub struct Document<H: Handler> {
     /// Content source identity and lineage.
     pub source: ContentSource,
-    /// 1-based page number this was extracted from.
-    pub page_number: Option<u32>,
 
     /// Format handler (holds the loaded data).
     handler: H,
@@ -28,7 +26,6 @@ impl<H: Handler + Clone> Clone for Document<H> {
     fn clone(&self) -> Self {
         Self {
             source: self.source,
-            page_number: self.page_number,
             handler: self.handler.clone(),
         }
     }
@@ -39,7 +36,6 @@ impl<H: Handler> Document<H> {
     pub fn new(handler: H) -> Self {
         Self {
             source: ContentSource::new(),
-            page_number: None,
             handler,
         }
     }
@@ -57,12 +53,6 @@ impl<H: Handler> Document<H> {
     /// The document type of the loaded content.
     pub fn document_type(&self) -> DocumentType {
         self.handler.document_type()
-    }
-
-    /// Set the 1-based page number this was extracted from.
-    pub fn with_page_number(mut self, page: u32) -> Self {
-        self.page_number = Some(page);
-        self
     }
 
     /// Set this document's parent to the given content source.

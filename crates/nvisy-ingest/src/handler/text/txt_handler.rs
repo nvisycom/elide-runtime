@@ -37,7 +37,7 @@ pub struct TxtData {
 /// Handler for loaded plain-text content.
 ///
 /// Each line is independently addressable via [`TxtSpan`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TxtHandler {
     pub(crate) data: TxtData,
 }
@@ -77,6 +77,11 @@ impl Handler for TxtHandler {
 }
 
 impl TxtHandler {
+    /// Create a new handler from parsed text data.
+    pub fn new(data: TxtData) -> Self {
+        Self { data }
+    }
+
     /// All lines in the document.
     pub fn lines(&self) -> &[String] {
         &self.data.lines

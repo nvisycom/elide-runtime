@@ -59,7 +59,7 @@ schemars = { version = "1", features = ["uuid1", "bytes1"] }
 thiserror = { version = "2.0", features = [] }
 anyhow = { version = "1.0", features = [] }
 derive_more = { version = "1", features = ["display", "from"] }
-strum = { version = "0.26", features = ["derive"] }
+strum = { version = "0.27", features = ["derive"] }
 
 # Primitive datatypes
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
@@ -88,14 +88,14 @@ minio = { version = "0.3", features = [] }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
-imageproc = { version = "0.25", features = [] }
+imageproc = { version = "0.26", features = [] }
 
 # Document parsing
 pdf-extract = { version = "0.7", features = [] }
 lopdf = { version = "0.34", features = [] }
 scraper = { version = "0.22", features = [] }
 calamine = { version = "0.33", features = [] }
-zip = { version = "2", features = [] }
+zip = { version = "7", features = [] }
 quick-xml = { version = "0.37", features = [] }
 
 # Semantic versioning
@@ -105,4 +105,4 @@ semver = { version = "1", features = ["serde"] }
 tempfile = { version = "3", features = [] }
 
 # Randomness
-rand = { version = "0.9", features = [] }
+rand = { version = "0.10", features = [] }

@@ -1,29 +1,27 @@
 //! Text rendering and redaction primitives.
 //!
 //! Provides byte-offset replacement, cell-level masking, and the
-//! [`AsText`] trait that text-bearing handlers implement to support
-//! redaction in a single call.
+//! [`AsText`] / [`AsRedactableText`] traits that text-bearing handlers
+//! implement to support redaction in a single call.
 //!
-//! # Trait
+//! # Traits
 //!
-//! [`AsText`] is the main extension point: text format handlers implement
-//! [`content`](AsText::content) and [`replace_content`](AsText::replace_content)
-//! to read and write their backing text, and then get a
-//! [`redact`](AsText::redact) convenience method for free via the default
-//! implementation.
+//! [`AsText`] is the codec extension point: text format handlers
+//! implement [`content`](AsText::content) and
+//! [`replace_content`](AsText::replace_content) to read and write their
+//! backing text.
 //!
-//! # Sub-modules
-//!
-//! | Module | Description |
-//! |--------|-------------|
-//! | [`replace`] | Byte-offset text replacement engine |
-//! | [`mask`] | Cell-level masking and hashing utilities |
+//! [`AsRedactableText`] adds a [`redact`](AsRedactableText::redact)
+//! convenience method that resolves [`TextRedaction`] items into
+//! byte-offset replacements. It is automatically implemented for every
+//! type that implements [`AsText`].
 
-pub mod mask;
-pub mod replace;
+mod mask;
+mod replace;
 
-pub use mask::{hash_string, mask_cell};
-pub use replace::{apply_replacements, PendingReplacement};
+pub use mask::mask_cell;
+
+use replace::{apply_replacements, PendingReplacement};
 
 use nvisy_core::error::Error;
 use nvisy_ontology::redaction::TextRedactionOutput;
@@ -39,19 +37,26 @@ pub struct TextRedaction {
     pub output: TextRedactionOutput,
 }
 
-/// Trait for handlers that hold redactable text content.
+/// Trait for handlers that wrap text content.
 ///
-/// Mirrors [`AsImage`](super::image::AsImage) for the text modality.
 /// Handlers implement [`content`](Self::content) and
-/// [`replace_content`](Self::replace_content), and get
-/// [`redact`](Self::redact) for free.
+/// [`replace_content`](Self::replace_content) to round-trip through
+/// plain text. See [`AsRedactableText`] for the higher-level redaction
+/// API.
 pub trait AsText: Sized {
     /// Return the handler's full text content as a single string.
     fn content(&self) -> String;
 
     /// Build a new handler instance with the given text content.
     fn replace_content(&self, content: &str) -> Result<Self, Error>;
+}
 
+/// Extension trait that adds [`TextRedactionOutput`]-driven redaction
+/// to any [`AsText`] implementor.
+///
+/// This trait is automatically implemented for every type that implements
+/// [`AsText`] — handler authors only need to implement [`AsText`].
+pub trait AsRedactableText: AsText {
     /// Apply a batch of text redactions, returning a new handler.
     ///
     /// Each [`TextRedaction`] identifies a byte range and a
@@ -82,3 +87,6 @@ pub trait AsText: Sized {
         self.replace_content(&result)
     }
 }
+
+/// Blanket implementation: every [`AsText`] type gets [`AsRedactableText`] for free.
+impl<T: AsText> AsRedactableText for T {}

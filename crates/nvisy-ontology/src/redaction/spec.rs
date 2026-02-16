@@ -64,8 +64,20 @@ pub enum TextRedactionSpec {
     },
 }
 
+/// Default mask character for text redaction.
+pub const DEFAULT_MASK_CHAR: char = '*';
+
+/// Default gaussian blur sigma value.
+pub const DEFAULT_BLUR_SIGMA: f32 = 15.0;
+
+/// Default RGBA color for block overlays (opaque black).
+pub const DEFAULT_BLOCK_COLOR: [u8; 4] = [0, 0, 0, 255];
+
+/// Default pixel block size for pixelation/mosaic.
+pub const DEFAULT_PIXELATE_BLOCK_SIZE: u32 = 10;
+
 fn default_mask_char() -> char {
-    '*'
+    DEFAULT_MASK_CHAR
 }
 
 /// Image redaction specification with method-specific configuration.
@@ -96,13 +108,13 @@ pub enum ImageRedactionSpec {
 }
 
 fn default_sigma() -> f32 {
-    15.0
+    DEFAULT_BLUR_SIGMA
 }
 fn default_block_color() -> [u8; 4] {
-    [0, 0, 0, 255]
+    DEFAULT_BLOCK_COLOR
 }
 fn default_block_size() -> u32 {
-    10
+    DEFAULT_PIXELATE_BLOCK_SIZE
 }
 
 /// Audio redaction specification.

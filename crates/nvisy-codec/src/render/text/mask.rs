@@ -16,28 +16,27 @@ use nvisy_ontology::redaction::TextRedactionOutput;
 pub fn mask_cell(cell: &str, output: &TextRedactionOutput) -> String {
     match output {
         TextRedactionOutput::Mask { mask_char, .. } => {
-            if cell.len() > 4 {
-                format!(
-                    "{}{}",
-                    mask_char.to_string().repeat(cell.len() - 4),
-                    &cell[cell.len() - 4..]
-                )
+            let char_count = cell.chars().count();
+            if char_count > 4 {
+                let masked: String = cell
+                    .chars()
+                    .take(char_count - 4)
+                    .map(|_| *mask_char)
+                    .collect();
+                let tail: String = cell.chars().skip(char_count - 4).collect();
+                format!("{masked}{tail}")
             } else {
-                mask_char.to_string().repeat(cell.len())
+                mask_char.to_string().repeat(char_count)
             }
         }
         TextRedactionOutput::Remove => String::new(),
         TextRedactionOutput::Hash { .. } => {
             format!("[HASH:{:x}]", hash_string(cell))
         }
-        TextRedactionOutput::Replace { replacement }
-        | TextRedactionOutput::Synthesize { replacement }
-        | TextRedactionOutput::Aggregate { replacement }
-        | TextRedactionOutput::Generalize { replacement, .. }
-        | TextRedactionOutput::DateShift { replacement, .. } => replacement.clone(),
-        TextRedactionOutput::Encrypt { ciphertext, .. } => ciphertext.clone(),
-        TextRedactionOutput::Pseudonymize { pseudonym } => pseudonym.clone(),
-        TextRedactionOutput::Tokenize { token, .. } => token.clone(),
+        _ => output
+            .replacement_value()
+            .unwrap_or_default()
+            .to_string(),
     }
 }
 

@@ -29,9 +29,10 @@ pub struct RuleCondition {
 }
 
 /// Classifies what a policy rule does when it matches.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum RuleKind {
     /// Apply a redaction to the matched entity.
     Redaction,

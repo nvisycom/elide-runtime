@@ -5,17 +5,16 @@
 //! using alpha-over blending. Regions are clamped to image bounds.
 
 use ::image::{DynamicImage, Rgba, RgbaImage};
-use nvisy_ontology::entity::BoundingBox;
+use nvisy_ontology::entity::BoundingBoxU32;
 
 /// Apply a solid color block overlay to the specified regions of an image.
 ///
-/// Each [`BoundingBox`] describes a rectangular region (in pixel coordinates)
-/// that will be covered with an opaque rectangle of the given `color` (RGBA).
-/// The overlay is composited using alpha-over blending via
-/// [`imageops::overlay`](::image::imageops::overlay).
+/// Each [`BoundingBoxU32`] describes a rectangular region (in pixel
+/// coordinates) that will be covered with an opaque rectangle of the
+/// given `color` (RGBA).
 pub fn apply_block_overlay(
     image: &DynamicImage,
-    regions: &[BoundingBox],
+    regions: &[BoundingBoxU32],
     color: [u8; 4],
 ) -> DynamicImage {
     let color = Rgba(color);
@@ -24,10 +23,7 @@ pub fn apply_block_overlay(
     let img_h = result.height();
 
     for region in regions {
-        let x = region.x.round() as u32;
-        let y = region.y.round() as u32;
-        let w = region.width.round() as u32;
-        let h = region.height.round() as u32;
+        let (x, y, w, h) = (region.x, region.y, region.width, region.height);
 
         if x >= img_w || y >= img_h {
             continue;

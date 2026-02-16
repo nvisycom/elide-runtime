@@ -6,9 +6,10 @@ use serde::{Deserialize, Serialize};
 ///
 /// Drives downstream policy: rules can be scoped to specific sensitivity
 /// levels via [`RuleCondition`](crate::policy::RuleCondition).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum SensitivityLevel {
     /// No sensitive data detected or all data is publicly available.
     Public,

@@ -13,9 +13,10 @@ use crate::entity::{
 };
 
 /// The kind of annotation applied to a content region.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum AnnotationKind {
     /// Pre-identified sensitive region that should be treated as a detection.
     Inclusion,
@@ -26,9 +27,10 @@ pub enum AnnotationKind {
 }
 
 /// The scope to which an annotation label applies.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum AnnotationScope {
     /// Label applies to the entire document.
     Document,

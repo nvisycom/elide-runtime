@@ -9,9 +9,10 @@ use derive_more::From;
 use serde::{Deserialize, Serialize};
 
 /// Redaction strategies for text and tabular content.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum TextRedactionMethod {
     /// Replace characters with a mask character (e.g. `***-**-1234`).
     Mask,
@@ -38,9 +39,10 @@ pub enum TextRedactionMethod {
 }
 
 /// Redaction strategies for image and video regions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum ImageRedactionMethod {
     /// Apply a gaussian blur to the region.
     Blur,
@@ -53,9 +55,10 @@ pub enum ImageRedactionMethod {
 }
 
 /// Redaction strategies for audio segments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum AudioRedactionMethod {
     /// Replace the audio segment with silence.
     Silence,

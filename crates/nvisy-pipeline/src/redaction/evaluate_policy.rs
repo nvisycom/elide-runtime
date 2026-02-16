@@ -53,7 +53,8 @@ impl Action for EvaluatePolicyAction {
         "evaluate-policy"
     }
 
-    async fn connect(params: Self::Params) -> Result<Self, Error> {
+    async fn connect(mut params: Self::Params) -> Result<Self, Error> {
+        params.rules.sort_by_key(|r| r.priority);
         Ok(Self { params })
     }
 
@@ -64,13 +65,10 @@ impl Action for EvaluatePolicyAction {
         let default_spec = &self.params.default_spec;
         let default_threshold = self.params.default_confidence_threshold;
 
-        let mut sorted_rules = self.params.rules.clone();
-        sorted_rules.sort_by_key(|r| r.priority);
-
         let mut redactions = Vec::new();
 
         for entity in &entities {
-            let rule = find_matching_rule(entity, &sorted_rules);
+            let rule = find_matching_rule(entity, &self.params.rules);
             let spec = rule.map(|r| &r.spec).unwrap_or(default_spec);
 
             if rule.is_none() && entity.confidence < default_threshold {
@@ -115,10 +113,7 @@ fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'
 fn apply_template(template: &str, entity: &Entity) -> String {
     template
         .replace("{entityType}", &entity.entity_type)
-        .replace(
-            "{category}",
-            &format!("{:?}", entity.category).to_lowercase(),
-        )
+        .replace("{category}", &entity.category.to_string())
         .replace("{value}", &entity.value)
 }
 
@@ -157,71 +152,75 @@ fn build_default_output(entity: &Entity, spec: &RedactionSpec) -> RedactionOutpu
                 TextRedactionSpec::Generalize { .. } => format!("[GEN:{}]", entity.entity_type),
                 TextRedactionSpec::DateShift { .. } => format!("[SHIFTED:{}]", entity.entity_type),
             };
-            build_output_with_replacement(spec, replacement)
+            RedactionOutput::Text(build_text_output(text, replacement))
         }
-        RedactionSpec::Image(img) => RedactionOutput::Image(match img {
-            ImageRedactionSpec::Blur { sigma } => ImageRedactionOutput::Blur { sigma: *sigma },
-            ImageRedactionSpec::Block { color } => ImageRedactionOutput::Block { color: *color },
-            ImageRedactionSpec::Pixelate { block_size } => {
-                ImageRedactionOutput::Pixelate { block_size: *block_size }
-            }
-            ImageRedactionSpec::Synthesize => ImageRedactionOutput::Synthesize,
-        }),
-        RedactionSpec::Audio(audio) => RedactionOutput::Audio(match audio {
-            AudioRedactionSpec::Silence => AudioRedactionOutput::Silence,
-            AudioRedactionSpec::Remove => AudioRedactionOutput::Remove,
-            AudioRedactionSpec::Synthesize => AudioRedactionOutput::Synthesize,
-        }),
+        RedactionSpec::Image(img) => RedactionOutput::Image(build_image_output(img)),
+        RedactionSpec::Audio(audio) => RedactionOutput::Audio(build_audio_output(audio)),
     }
 }
 
 /// Builds a [`RedactionOutput`] from a spec and a replacement string.
 fn build_output_with_replacement(spec: &RedactionSpec, replacement: String) -> RedactionOutput {
     match spec {
-        RedactionSpec::Text(text) => RedactionOutput::Text(match text {
-            TextRedactionSpec::Mask { mask_char } => TextRedactionOutput::Mask {
-                replacement,
-                mask_char: *mask_char,
-            },
-            TextRedactionSpec::Replace { .. } => TextRedactionOutput::Replace { replacement },
-            TextRedactionSpec::Hash => TextRedactionOutput::Hash {
-                hash_value: replacement,
-            },
-            TextRedactionSpec::Encrypt { key_id } => TextRedactionOutput::Encrypt {
-                ciphertext: replacement,
-                key_id: key_id.clone(),
-            },
-            TextRedactionSpec::Remove => TextRedactionOutput::Remove,
-            TextRedactionSpec::Synthesize => TextRedactionOutput::Synthesize { replacement },
-            TextRedactionSpec::Pseudonymize => TextRedactionOutput::Pseudonymize {
-                pseudonym: replacement,
-            },
-            TextRedactionSpec::Tokenize { vault_id } => TextRedactionOutput::Tokenize {
-                token: replacement,
-                vault_id: vault_id.clone(),
-            },
-            TextRedactionSpec::Aggregate => TextRedactionOutput::Aggregate { replacement },
-            TextRedactionSpec::Generalize { level } => TextRedactionOutput::Generalize {
-                replacement,
-                level: *level,
-            },
-            TextRedactionSpec::DateShift { offset_days } => TextRedactionOutput::DateShift {
-                replacement,
-                offset_days: *offset_days,
-            },
-        }),
-        RedactionSpec::Image(img) => RedactionOutput::Image(match img {
-            ImageRedactionSpec::Blur { sigma } => ImageRedactionOutput::Blur { sigma: *sigma },
-            ImageRedactionSpec::Block { color } => ImageRedactionOutput::Block { color: *color },
-            ImageRedactionSpec::Pixelate { block_size } => {
-                ImageRedactionOutput::Pixelate { block_size: *block_size }
-            }
-            ImageRedactionSpec::Synthesize => ImageRedactionOutput::Synthesize,
-        }),
-        RedactionSpec::Audio(audio) => RedactionOutput::Audio(match audio {
-            AudioRedactionSpec::Silence => AudioRedactionOutput::Silence,
-            AudioRedactionSpec::Remove => AudioRedactionOutput::Remove,
-            AudioRedactionSpec::Synthesize => AudioRedactionOutput::Synthesize,
-        }),
+        RedactionSpec::Text(text) => RedactionOutput::Text(build_text_output(text, replacement)),
+        RedactionSpec::Image(img) => RedactionOutput::Image(build_image_output(img)),
+        RedactionSpec::Audio(audio) => RedactionOutput::Audio(build_audio_output(audio)),
+    }
+}
+
+/// Maps a [`TextRedactionSpec`] and replacement string to a [`TextRedactionOutput`].
+fn build_text_output(spec: &TextRedactionSpec, replacement: String) -> TextRedactionOutput {
+    match spec {
+        TextRedactionSpec::Mask { mask_char } => TextRedactionOutput::Mask {
+            replacement,
+            mask_char: *mask_char,
+        },
+        TextRedactionSpec::Replace { .. } => TextRedactionOutput::Replace { replacement },
+        TextRedactionSpec::Hash => TextRedactionOutput::Hash {
+            hash_value: replacement,
+        },
+        TextRedactionSpec::Encrypt { key_id } => TextRedactionOutput::Encrypt {
+            ciphertext: replacement,
+            key_id: key_id.clone(),
+        },
+        TextRedactionSpec::Remove => TextRedactionOutput::Remove,
+        TextRedactionSpec::Synthesize => TextRedactionOutput::Synthesize { replacement },
+        TextRedactionSpec::Pseudonymize => TextRedactionOutput::Pseudonymize {
+            pseudonym: replacement,
+        },
+        TextRedactionSpec::Tokenize { vault_id } => TextRedactionOutput::Tokenize {
+            token: replacement,
+            vault_id: vault_id.clone(),
+        },
+        TextRedactionSpec::Aggregate => TextRedactionOutput::Aggregate { replacement },
+        TextRedactionSpec::Generalize { level } => TextRedactionOutput::Generalize {
+            replacement,
+            level: *level,
+        },
+        TextRedactionSpec::DateShift { offset_days } => TextRedactionOutput::DateShift {
+            replacement,
+            offset_days: *offset_days,
+        },
+    }
+}
+
+/// Maps an [`ImageRedactionSpec`] to an [`ImageRedactionOutput`].
+fn build_image_output(spec: &ImageRedactionSpec) -> ImageRedactionOutput {
+    match spec {
+        ImageRedactionSpec::Blur { sigma } => ImageRedactionOutput::Blur { sigma: *sigma },
+        ImageRedactionSpec::Block { color } => ImageRedactionOutput::Block { color: *color },
+        ImageRedactionSpec::Pixelate { block_size } => {
+            ImageRedactionOutput::Pixelate { block_size: *block_size }
+        }
+        ImageRedactionSpec::Synthesize => ImageRedactionOutput::Synthesize,
+    }
+}
+
+/// Maps an [`AudioRedactionSpec`] to an [`AudioRedactionOutput`].
+fn build_audio_output(spec: &AudioRedactionSpec) -> AudioRedactionOutput {
+    match spec {
+        AudioRedactionSpec::Silence => AudioRedactionOutput::Silence,
+        AudioRedactionSpec::Remove => AudioRedactionOutput::Remove,
+        AudioRedactionSpec::Synthesize => AudioRedactionOutput::Synthesize,
     }
 }

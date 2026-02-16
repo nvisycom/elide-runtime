@@ -22,9 +22,10 @@ pub trait Auditable {
 }
 
 /// Kind of auditable action recorded in an [`Audit`] entry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum AuditAction {
     /// A sensitive entity was detected.
     Detection,

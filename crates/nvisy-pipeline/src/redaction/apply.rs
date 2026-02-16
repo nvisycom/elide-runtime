@@ -4,19 +4,17 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use serde::Deserialize;
 
-use nvisy_codec::handler::{TxtHandler, CsvHandler, AsText};
+use nvisy_codec::handler::{TxtHandler, CsvHandler};
 use nvisy_codec::document::Document;
-use nvisy_codec::render::text::{TextRedaction, mask_cell};
+use nvisy_codec::render::text::{TextRedaction, AsRedactableText, mask_cell};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::redaction::{Redaction, RedactionOutput};
 use nvisy_core::error::Error;
 
 #[cfg(feature = "image-redaction")]
-use nvisy_codec::handler::{PngHandler, AsImage};
+use nvisy_codec::handler::PngHandler;
 #[cfg(feature = "image-redaction")]
-use nvisy_ontology::entity::BoundingBox;
-#[cfg(feature = "image-redaction")]
-use nvisy_ontology::redaction::ImageRedactionOutput;
+use nvisy_codec::render::image::{ImageRedaction, AsRedactableImage};
 
 #[cfg(feature = "audio-redaction")]
 use nvisy_codec::handler::WavHandler;
@@ -27,36 +25,12 @@ use crate::action::Action;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplyRedactionParams {
-    /// Sigma value for gaussian blur (image redaction).
-    #[cfg(feature = "image-redaction")]
-    #[serde(default = "default_sigma")]
-    pub blur_sigma: f32,
-    /// RGBA color for block overlays (image redaction).
-    #[cfg(feature = "image-redaction")]
-    #[serde(default = "default_block_color")]
-    pub block_color: [u8; 4],
-    /// Pixel block size for pixelation/mosaic (image redaction).
-    #[cfg(feature = "image-redaction")]
-    #[serde(default = "default_pixelate_block_size")]
-    pub pixelate_block_size: u32,
     /// Duration in seconds to crossfade at silence boundaries (audio redaction).
     #[cfg(feature = "audio-redaction")]
     #[serde(default = "default_crossfade_secs")]
     pub crossfade_secs: f64,
 }
 
-#[cfg(feature = "image-redaction")]
-fn default_sigma() -> f32 {
-    15.0
-}
-#[cfg(feature = "image-redaction")]
-fn default_block_color() -> [u8; 4] {
-    [0, 0, 0, 255]
-}
-#[cfg(feature = "image-redaction")]
-fn default_pixelate_block_size() -> u32 {
-    10
-}
 #[cfg(feature = "audio-redaction")]
 fn default_crossfade_secs() -> f64 {
     0.05
@@ -102,6 +76,7 @@ pub struct ApplyRedactionOutput {
 /// - **Audio documents**: stub pass-through (feature-gated)
 /// - **Tabular documents**: cell-level redaction
 pub struct ApplyRedactionAction {
+    #[allow(dead_code)]
     params: ApplyRedactionParams,
 }
 
@@ -134,7 +109,7 @@ impl Action for ApplyRedactionAction {
         // Text documents
         let mut result_text = Vec::new();
         for doc in &input.text_docs {
-            let redacted = apply_text_doc(doc, &entity_map, &redaction_map);
+            let redacted = apply_text_doc(doc, &entity_map, &redaction_map)?;
             result_text.push(redacted);
         }
 
@@ -143,13 +118,7 @@ impl Action for ApplyRedactionAction {
         let mut result_image = Vec::new();
         #[cfg(feature = "image-redaction")]
         for doc in &input.image_docs {
-            let redacted = apply_image_doc(
-                doc,
-                &input.entities,
-                &redaction_map,
-                self.params.blur_sigma,
-                self.params.block_color,
-            )?;
+            let redacted = apply_image_doc(doc, &input.entities, &redaction_map)?;
             result_image.push(redacted);
         }
 
@@ -188,7 +157,7 @@ fn apply_text_doc(
     doc: &Document<TxtHandler>,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &Redaction>,
-) -> Document<TxtHandler> {
+) -> Result<Document<TxtHandler>, Error> {
     let mut redactions: Vec<TextRedaction> = Vec::new();
 
     for (entity_id, redaction) in redaction_map {
@@ -216,13 +185,13 @@ fn apply_text_doc(
     }
 
     if redactions.is_empty() {
-        return doc.clone();
+        return Ok(doc.clone());
     }
 
-    let handler = doc.handler().redact(&redactions).expect("text redaction failed");
+    let handler = doc.handler().redact(&redactions)?;
     let mut result = Document::new(handler);
     result.source.set_parent_id(Some(doc.source.as_uuid()));
-    result
+    Ok(result)
 }
 
 // ---------------------------------------------------------------------------
@@ -234,42 +203,32 @@ fn apply_image_doc(
     doc: &Document<PngHandler>,
     entities: &[Entity],
     redaction_map: &HashMap<Uuid, &Redaction>,
-    blur_sigma: f32,
-    block_color: [u8; 4],
 ) -> Result<Document<PngHandler>, Error> {
-    let mut blur_regions: Vec<BoundingBox> = Vec::new();
-    let mut block_regions: Vec<BoundingBox> = Vec::new();
+    let mut redactions: Vec<ImageRedaction> = Vec::new();
 
     for entity in entities {
         if let Some(ref img_loc) = entity.image_location {
-            let bbox = &img_loc.bounding_box;
             if let Some(redaction) = redaction_map.get(&entity.source.as_uuid()) {
-                match &redaction.output {
-                    RedactionOutput::Image(ImageRedactionOutput::Blur { .. }) => {
-                        blur_regions.push(bbox.clone())
-                    }
-                    RedactionOutput::Image(ImageRedactionOutput::Block { .. }) => {
-                        block_regions.push(bbox.clone())
-                    }
-                    _ => block_regions.push(bbox.clone()),
-                }
+                let output = match &redaction.output {
+                    RedactionOutput::Image(img) => img.clone(),
+                    _ => continue,
+                };
+                redactions.push(ImageRedaction {
+                    bounding_box: img_loc.bounding_box.clone(),
+                    output,
+                });
             }
         }
     }
 
-    if blur_regions.is_empty() && block_regions.is_empty() {
+    if redactions.is_empty() {
         return Ok(doc.clone());
     }
 
-    let mut handler = doc.handler().clone();
-    if !blur_regions.is_empty() {
-        handler = handler.blur(&blur_regions, blur_sigma)?;
-    }
-    if !block_regions.is_empty() {
-        handler = handler.block(&block_regions, block_color)?;
-    }
-
-    Ok(Document::new(handler))
+    let handler = doc.handler().redact(&redactions)?;
+    let mut result = Document::new(handler);
+    result.source.set_parent_id(Some(doc.source.as_uuid()));
+    Ok(result)
 }
 
 // ---------------------------------------------------------------------------

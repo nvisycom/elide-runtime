@@ -39,5 +39,8 @@ jiff = { workspace = true, features = [] }
 # Semantic versioning
 semver = { workspace = true, features = [] }
 
+# Enum utilities
+strum = { workspace = true, features = ["derive"] }
+
 # Error handling
 derive_more = { workspace = true, features = ["display", "from"] }

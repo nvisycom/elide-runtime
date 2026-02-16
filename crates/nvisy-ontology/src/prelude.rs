@@ -9,7 +9,7 @@ pub use crate::detection::{
     Sensitivity, SensitivityLevel,
 };
 pub use crate::entity::{
-    AudioLocation, BoundingBox, DetectionMethod, DocumentType, Entity, EntityCategory,
+    AudioLocation, BoundingBox, BoundingBoxU32, DetectionMethod, DocumentType, Entity, EntityCategory,
     EntitySelector, ImageLocation, ModelInfo, ModelKind, TabularLocation,
     TextLocation, TimeSpan, VideoLocation,
 };

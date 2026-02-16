@@ -1,27 +1,30 @@
-//! Gaussian blur rendering for bounding-box regions.
+//! Pixelation (mosaic) rendering for bounding-box regions.
 //!
 //! The algorithm works per-region:
 //! 1. Crop the rectangular area from the source image.
-//! 2. Apply a gaussian blur with the given `sigma` to the cropped sub-image.
-//! 3. Paste the blurred sub-image back over the original at the same position.
+//! 2. Downscale the crop by the block size factor.
+//! 3. Upscale back to the original size using nearest-neighbour sampling.
+//! 4. Paste the pixelated sub-image back over the original at the same position.
 //!
 //! Regions are clamped to image bounds so that out-of-range coordinates are
 //! silently ignored rather than causing a panic.
 
+use ::image::imageops::FilterType;
 use ::image::DynamicImage;
-use imageproc::filter::gaussian_blur_f32;
 use nvisy_ontology::entity::BoundingBoxU32;
 
-/// Apply gaussian blur to the specified regions of an image.
+/// Apply pixelation (mosaic effect) to the specified regions of an image.
 ///
 /// Each [`BoundingBoxU32`] describes a rectangular region (in pixel
-/// coordinates) that will be blurred with the given `sigma` value.
-pub fn apply_gaussian_blur(
+/// coordinates) that will be pixelated. The `block_size` controls mosaic
+/// granularity — higher values produce larger, blockier pixels.
+pub fn apply_pixelate(
     image: &DynamicImage,
     regions: &[BoundingBoxU32],
-    sigma: f32,
+    block_size: u32,
 ) -> DynamicImage {
     let mut result = image.clone();
+    let block_size = block_size.max(1);
 
     for region in regions {
         let (x, y, w, h) = (region.x, region.y, region.width, region.height);
@@ -38,9 +41,14 @@ pub fn apply_gaussian_blur(
             continue;
         }
 
+        let small_w = (w / block_size).max(1);
+        let small_h = (h / block_size).max(1);
+
         let sub = result.crop_imm(x, y, w, h);
-        let blurred = DynamicImage::ImageRgba8(gaussian_blur_f32(&sub.to_rgba8(), sigma));
-        ::image::imageops::overlay(&mut result, &blurred, x as i64, y as i64);
+        let small = sub.resize_exact(small_w, small_h, FilterType::Nearest);
+        let pixelated = small.resize_exact(w, h, FilterType::Nearest);
+
+        ::image::imageops::overlay(&mut result, &pixelated, x as i64, y as i64);
     }
 
     result

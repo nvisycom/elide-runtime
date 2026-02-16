@@ -34,7 +34,10 @@ pub use output::{
     AudioRedactionOutput, ImageRedactionOutput, RedactionOutput, TextRedactionOutput,
 };
 pub use review::{ReviewDecision, ReviewStatus};
-pub use spec::{AudioRedactionSpec, ImageRedactionSpec, RedactionSpec, TextRedactionSpec};
+pub use spec::{
+    AudioRedactionSpec, ImageRedactionSpec, RedactionSpec, TextRedactionSpec,
+    DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR, DEFAULT_PIXELATE_BLOCK_SIZE,
+};
 pub use summary::RedactionSummary;
 
 use serde::{Deserialize, Serialize};

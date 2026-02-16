@@ -1,54 +1,96 @@
 //! Image rendering primitives for redaction overlays.
 //!
-//! Provides gaussian blur and solid-color block overlay functions that
-//! operate on [`DynamicImage`] values using bounding-box regions.
+//! Provides gaussian blur, solid-color block overlay, and pixelation
+//! functions that operate on [`DynamicImage`] values using bounding-box
+//! regions.
 //!
-//! # Trait
+//! # Traits
 //!
-//! [`AsImage`] is the main extension point: image format handlers implement
-//! [`decode`](AsImage::decode) and [`encode`](AsImage::encode) to round-trip
-//! through [`DynamicImage`], and then get [`blur`](AsImage::blur) and
-//! [`block`](AsImage::block) convenience methods for free via default
-//! implementations.
+//! [`AsImage`] is the codec extension point: image format handlers
+//! implement [`decode`](AsImage::decode) and [`encode`](AsImage::encode)
+//! to round-trip through [`DynamicImage`].
 //!
-//! # Sub-modules
-//!
-//! | Module | Description |
-//! |--------|-------------|
-//! | [`blur`] | Gaussian blur rendering |
-//! | [`block`] | Solid-color block overlay rendering |
+//! [`AsRedactableImage`] adds a [`redact`](AsRedactableImage::redact)
+//! convenience method that dispatches [`ImageRedactionOutput`] variants
+//! to the appropriate rendering primitive. It is automatically
+//! implemented for every type that implements [`AsImage`].
 
 mod blur;
 mod block;
+mod pixelate;
 
-pub use blur::apply_gaussian_blur;
-pub use block::apply_block_overlay;
+use blur::apply_gaussian_blur;
+use block::apply_block_overlay;
+use pixelate::apply_pixelate;
 
 use ::image::DynamicImage;
 use nvisy_core::error::Error;
-use nvisy_ontology::entity::BoundingBox;
+use nvisy_ontology::entity::{BoundingBox, BoundingBoxU32};
+use nvisy_ontology::redaction::ImageRedactionOutput;
+
+/// A located image redaction: pairs a bounding box with an
+/// [`ImageRedactionOutput`] that carries the method-specific parameters.
+pub struct ImageRedaction {
+    /// Bounding box of the region to redact.
+    pub bounding_box: BoundingBox,
+    /// The redaction output that determines the rendering method.
+    pub output: ImageRedactionOutput,
+}
 
 /// Trait for handlers that wrap a raster image.
 ///
-/// Provides [`decode`](Self::decode) / [`encode`](Self::encode) for
-/// round-tripping through [`DynamicImage`], plus convenience methods for
-/// applying blur and block-overlay redactions in a single call.
+/// Handlers implement [`decode`](Self::decode) and [`encode`](Self::encode)
+/// to round-trip through [`DynamicImage`]. See [`AsRedactableImage`] for
+/// the higher-level redaction API.
 pub trait AsImage: Sized {
     /// Decode the handler's raw bytes into a [`DynamicImage`].
     fn decode(&self) -> Result<DynamicImage, Error>;
 
     /// Encode a [`DynamicImage`] back into a new handler instance.
     fn encode(image: &DynamicImage) -> Result<Self, Error>;
+}
 
-    /// Apply gaussian blur to the given bounding-box regions.
-    fn blur(&self, regions: &[BoundingBox], sigma: f32) -> Result<Self, Error> {
-        let img = apply_gaussian_blur(&self.decode()?, regions, sigma);
-        Self::encode(&img)
-    }
+/// Extension trait that adds [`ImageRedactionOutput`]-driven redaction
+/// to any [`AsImage`] implementor.
+///
+/// This trait is automatically implemented for every type that implements
+/// [`AsImage`] — handler authors only need to implement [`AsImage`].
+pub trait AsRedactableImage: AsImage {
+    /// Apply a batch of image redactions, returning a new handler.
+    ///
+    /// Each [`ImageRedaction`] identifies a bounding box and an
+    /// [`ImageRedactionOutput`] that determines the rendering method
+    /// (blur, block, pixelate). The image is decoded once, all
+    /// redactions are applied in order, and then re-encoded.
+    fn redact(&self, redactions: &[ImageRedaction]) -> Result<Self, Error> {
+        if redactions.is_empty() {
+            return Self::encode(&self.decode()?);
+        }
 
-    /// Apply a solid-color block overlay to the given bounding-box regions.
-    fn block(&self, regions: &[BoundingBox], color: [u8; 4]) -> Result<Self, Error> {
-        let img = apply_block_overlay(&self.decode()?, regions, color);
+        let mut img = self.decode()?;
+
+        for r in redactions {
+            let region = BoundingBoxU32::from(&r.bounding_box);
+            let regions = std::slice::from_ref(&region);
+            match &r.output {
+                ImageRedactionOutput::Blur { sigma } => {
+                    img = apply_gaussian_blur(&img, regions, *sigma);
+                }
+                ImageRedactionOutput::Block { color } => {
+                    img = apply_block_overlay(&img, regions, *color);
+                }
+                ImageRedactionOutput::Pixelate { block_size } => {
+                    img = apply_pixelate(&img, regions, *block_size);
+                }
+                ImageRedactionOutput::Synthesize => {
+                    img = apply_block_overlay(&img, regions, [0, 0, 0, 255]);
+                }
+            }
+        }
+
         Self::encode(&img)
     }
 }
+
+/// Blanket implementation: every [`AsImage`] type gets [`AsRedactableImage`] for free.
+impl<T: AsImage> AsRedactableImage for T {}

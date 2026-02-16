@@ -23,6 +23,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["pdf", "docx", "html", "xlsx", "image", "wav", "mp3"]
+
 # PDF parsing and text extraction via pdf-extract + lopdf; enables png for extracted images
 pdf = ["dep:pdf-extract", "dep:lopdf", "png"]
 # Microsoft Word (.docx) parsing via zip + quick-xml; enables image formats for extracted images
@@ -31,11 +32,13 @@ docx = ["dep:zip", "dep:quick-xml", "jpeg", "png"]
 html = ["dep:scraper"]
 # Excel (.xlsx) spreadsheet parsing via calamine
 xlsx = ["dep:calamine"]
+
 # Convenience alias: all image formats
 image = ["jpeg", "png"]
 # Individual image format handlers (each pulls in image + imageproc for rendering)
 jpeg = ["dep:image", "dep:imageproc"]
 png = ["dep:image", "dep:imageproc"]
+
 # Audio format handlers (no additional dependencies)
 wav = []
 mp3 = []
@@ -48,8 +51,6 @@ nvisy-ontology = { workspace = true, features = [] }
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
-
-# Text parsing
 csv = { workspace = true, features = [] }
 
 # Async runtime

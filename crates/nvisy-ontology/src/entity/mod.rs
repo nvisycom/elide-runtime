@@ -11,7 +11,7 @@ mod selector;
 
 pub use document::DocumentType;
 pub use location::{
-    AudioLocation, BoundingBox, ImageLocation, TabularLocation,
+    AudioLocation, BoundingBox, BoundingBoxU32, ImageLocation, TabularLocation,
     TextLocation, TimeSpan, VideoLocation,
 };
 pub use model::{ModelInfo, ModelKind};
@@ -23,9 +23,10 @@ use serde_json::{Map, Value};
 use nvisy_core::path::ContentSource;
 
 /// Category of sensitive data an entity belongs to.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum EntityCategory {
     /// Personally Identifiable Information (names, SSNs, addresses, etc.).
     Pii,
@@ -40,13 +41,15 @@ pub enum EntityCategory {
     /// Biometric data (fingerprints, iris scans, voiceprints).
     Biometric,
     /// User-defined or plugin-specific category.
+    #[strum(to_string = "{0}")]
     Custom(String),
 }
 
 /// Method used to detect a sensitive entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum DetectionMethod {
     /// Regular expression pattern matching.
     Regex,
@@ -179,5 +182,14 @@ impl Entity {
     pub fn with_parent(mut self, parent: &ContentSource) -> Self {
         self.source = self.source.with_parent(parent);
         self
+    }
+
+    /// Copy all location fields from another entity.
+    pub fn copy_locations_from(&mut self, other: &Self) {
+        self.text_location = other.text_location.clone();
+        self.image_location = other.image_location.clone();
+        self.tabular_location = other.tabular_location.clone();
+        self.audio_location = other.audio_location.clone();
+        self.video_location = other.video_location.clone();
     }
 }

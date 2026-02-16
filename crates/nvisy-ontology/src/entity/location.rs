@@ -92,6 +92,9 @@ pub struct AudioLocation {
     /// Speaker identifier from diarization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub speaker_id: Option<String>,
+    /// Links this entity to a specific audio document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_id: Option<Uuid>,
 }
 
 /// Location of an entity within a video stream.

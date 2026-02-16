@@ -4,7 +4,8 @@ pub use crate::audit::{
     Audit, AuditAction, Auditable, Explainable, Explanation, RetentionPolicy, RetentionScope,
 };
 pub use crate::detection::{
-    Annotation, AnnotationKind, AnnotationLabel, ClassificationResult, DetectionResult,
+    Annotation, AnnotationKind, AnnotationLabel, AnnotationScope, ClassificationResult,
+    DetectionResult,
     Sensitivity, SensitivityLevel,
 };
 pub use crate::entity::{

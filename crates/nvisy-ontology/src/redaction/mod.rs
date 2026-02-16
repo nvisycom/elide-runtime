@@ -68,8 +68,9 @@ pub struct Redaction {
     /// Redaction output recording the method used and its result data.
     pub output: RedactionOutput,
     /// The original sensitive value, retained for audit purposes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub original_value: Option<String>,
+    pub original_value: String,
+    /// Detection confidence that led to this redaction.
+    pub confidence: f64,
     /// Identifier of the policy rule that triggered this redaction.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_rule_id: Option<Uuid>,
@@ -84,23 +85,23 @@ pub struct Redaction {
 
 impl Redaction {
     /// Create a new pending redaction for the given entity.
-    pub fn new(entity_id: Uuid, output: impl Into<RedactionOutput>) -> Self {
+    pub fn new(
+        entity_id: Uuid,
+        output: impl Into<RedactionOutput>,
+        original_value: impl Into<String>,
+        confidence: f64,
+    ) -> Self {
         Self {
             source: ContentSource::new(),
             entity_id,
             output: output.into(),
-            original_value: None,
+            original_value: original_value.into(),
+            confidence,
             policy_rule_id: None,
             applied: false,
             version: 1,
             review: None,
         }
-    }
-
-    /// Record the original sensitive value for audit trail purposes.
-    pub fn with_original_value(mut self, value: impl Into<String>) -> Self {
-        self.original_value = Some(value.into());
-        self
     }
 
     /// Associate this redaction with the policy rule that triggered it.

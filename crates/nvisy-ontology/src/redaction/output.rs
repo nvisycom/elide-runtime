@@ -80,6 +80,68 @@ pub enum AudioRedactionOutput {
     Synthesize,
 }
 
+impl TextRedactionOutput {
+    /// Returns the [`TextRedactionMethod`] tag this output corresponds to.
+    pub fn method(&self) -> TextRedactionMethod {
+        match self {
+            Self::Mask { .. } => TextRedactionMethod::Mask,
+            Self::Replace { .. } => TextRedactionMethod::Replace,
+            Self::Hash { .. } => TextRedactionMethod::Hash,
+            Self::Encrypt { .. } => TextRedactionMethod::Encrypt,
+            Self::Remove => TextRedactionMethod::Remove,
+            Self::Synthesize { .. } => TextRedactionMethod::Synthesize,
+            Self::Pseudonymize { .. } => TextRedactionMethod::Pseudonymize,
+            Self::Tokenize { .. } => TextRedactionMethod::Tokenize,
+            Self::Aggregate { .. } => TextRedactionMethod::Aggregate,
+            Self::Generalize { .. } => TextRedactionMethod::Generalize,
+            Self::DateShift { .. } => TextRedactionMethod::DateShift,
+        }
+    }
+
+    /// Returns the text replacement string, regardless of specific method.
+    ///
+    /// Returns `None` for [`Remove`](Self::Remove) — the caller should
+    /// treat that as an empty string (span deleted).
+    pub fn replacement_value(&self) -> Option<&str> {
+        match self {
+            Self::Mask { replacement, .. } => Some(replacement),
+            Self::Replace { replacement } => Some(replacement),
+            Self::Hash { hash_value } => Some(hash_value),
+            Self::Encrypt { ciphertext, .. } => Some(ciphertext),
+            Self::Remove => None,
+            Self::Synthesize { replacement } => Some(replacement),
+            Self::Pseudonymize { pseudonym } => Some(pseudonym),
+            Self::Tokenize { token, .. } => Some(token),
+            Self::Aggregate { replacement } => Some(replacement),
+            Self::Generalize { replacement, .. } => Some(replacement),
+            Self::DateShift { replacement, .. } => Some(replacement),
+        }
+    }
+}
+
+impl ImageRedactionOutput {
+    /// Returns the [`ImageRedactionMethod`] tag this output corresponds to.
+    pub fn method(&self) -> ImageRedactionMethod {
+        match self {
+            Self::Blur { .. } => ImageRedactionMethod::Blur,
+            Self::Block { .. } => ImageRedactionMethod::Block,
+            Self::Pixelate { .. } => ImageRedactionMethod::Pixelate,
+            Self::Synthesize => ImageRedactionMethod::Synthesize,
+        }
+    }
+}
+
+impl AudioRedactionOutput {
+    /// Returns the [`AudioRedactionMethod`] tag this output corresponds to.
+    pub fn method(&self) -> AudioRedactionMethod {
+        match self {
+            Self::Silence => AudioRedactionMethod::Silence,
+            Self::Remove => AudioRedactionMethod::Remove,
+            Self::Synthesize => AudioRedactionMethod::Synthesize,
+        }
+    }
+}
+
 /// Unified redaction output that wraps modality-specific output variants.
 ///
 /// Carries method-specific result data (replacement strings, ciphertext,
@@ -103,19 +165,7 @@ impl RedactionOutput {
     /// Returns `None` for image and audio outputs, or text `Remove`.
     pub fn replacement_value(&self) -> Option<&str> {
         match self {
-            Self::Text(t) => match t {
-                TextRedactionOutput::Mask { replacement, .. } => Some(replacement),
-                TextRedactionOutput::Replace { replacement } => Some(replacement),
-                TextRedactionOutput::Hash { hash_value } => Some(hash_value),
-                TextRedactionOutput::Encrypt { ciphertext, .. } => Some(ciphertext),
-                TextRedactionOutput::Remove => None,
-                TextRedactionOutput::Synthesize { replacement } => Some(replacement),
-                TextRedactionOutput::Pseudonymize { pseudonym } => Some(pseudonym),
-                TextRedactionOutput::Tokenize { token, .. } => Some(token),
-                TextRedactionOutput::Aggregate { replacement } => Some(replacement),
-                TextRedactionOutput::Generalize { replacement, .. } => Some(replacement),
-                TextRedactionOutput::DateShift { replacement, .. } => Some(replacement),
-            },
+            Self::Text(t) => t.replacement_value(),
             Self::Image(_) | Self::Audio(_) => None,
         }
     }
@@ -123,30 +173,9 @@ impl RedactionOutput {
     /// Returns the [`RedactionMethod`] tag this output corresponds to.
     pub fn method(&self) -> RedactionMethod {
         match self {
-            Self::Text(t) => RedactionMethod::Text(match t {
-                TextRedactionOutput::Mask { .. } => TextRedactionMethod::Mask,
-                TextRedactionOutput::Replace { .. } => TextRedactionMethod::Replace,
-                TextRedactionOutput::Hash { .. } => TextRedactionMethod::Hash,
-                TextRedactionOutput::Encrypt { .. } => TextRedactionMethod::Encrypt,
-                TextRedactionOutput::Remove => TextRedactionMethod::Remove,
-                TextRedactionOutput::Synthesize { .. } => TextRedactionMethod::Synthesize,
-                TextRedactionOutput::Pseudonymize { .. } => TextRedactionMethod::Pseudonymize,
-                TextRedactionOutput::Tokenize { .. } => TextRedactionMethod::Tokenize,
-                TextRedactionOutput::Aggregate { .. } => TextRedactionMethod::Aggregate,
-                TextRedactionOutput::Generalize { .. } => TextRedactionMethod::Generalize,
-                TextRedactionOutput::DateShift { .. } => TextRedactionMethod::DateShift,
-            }),
-            Self::Image(i) => RedactionMethod::Image(match i {
-                ImageRedactionOutput::Blur { .. } => ImageRedactionMethod::Blur,
-                ImageRedactionOutput::Block { .. } => ImageRedactionMethod::Block,
-                ImageRedactionOutput::Pixelate { .. } => ImageRedactionMethod::Pixelate,
-                ImageRedactionOutput::Synthesize => ImageRedactionMethod::Synthesize,
-            }),
-            Self::Audio(a) => RedactionMethod::Audio(match a {
-                AudioRedactionOutput::Silence => AudioRedactionMethod::Silence,
-                AudioRedactionOutput::Remove => AudioRedactionMethod::Remove,
-                AudioRedactionOutput::Synthesize => AudioRedactionMethod::Synthesize,
-            }),
+            Self::Text(t) => RedactionMethod::Text(t.method()),
+            Self::Image(i) => RedactionMethod::Image(i.method()),
+            Self::Audio(a) => RedactionMethod::Audio(a.method()),
         }
     }
 }

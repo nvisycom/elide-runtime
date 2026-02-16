@@ -25,15 +25,28 @@ pub enum AnnotationKind {
     Label,
 }
 
+/// The scope to which an annotation label applies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum AnnotationScope {
+    /// Label applies to the entire document.
+    Document,
+    /// Label applies to a specific page.
+    Page,
+    /// Label applies to a specific region or element.
+    Region,
+}
+
 /// A classification label attached to a document or region.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 pub struct AnnotationLabel {
     /// Label name (e.g. `"contains-phi"`, `"gdpr-request"`).
     pub name: String,
-    /// Scope of the label: `"document"` or a region identifier.
+    /// Scope of the label.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub scope: Option<String>,
+    pub scope: Option<AnnotationScope>,
     /// Confidence of the label assignment.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub confidence: Option<f64>,

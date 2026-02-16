@@ -83,8 +83,12 @@ impl Action for EvaluatePolicyAction {
                 build_default_output(entity, spec)
             };
 
-            let mut redaction = Redaction::new(entity.source.as_uuid(), output);
-            redaction = redaction.with_original_value(&entity.value);
+            let mut redaction = Redaction::new(
+                entity.source.as_uuid(),
+                output,
+                &entity.value,
+                entity.confidence,
+            );
             if let Some(r) = rule {
                 redaction = redaction.with_policy_rule_id(r.id);
             }

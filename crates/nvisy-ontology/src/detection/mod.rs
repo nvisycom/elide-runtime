@@ -8,7 +8,7 @@ mod annotation;
 mod classification;
 mod sensitivity;
 
-pub use annotation::{Annotation, AnnotationKind, AnnotationLabel};
+pub use annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};
 pub use classification::ClassificationResult;
 pub use sensitivity::{Sensitivity, SensitivityLevel};
 

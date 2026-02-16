@@ -106,7 +106,7 @@ fn default_block_size() -> u32 {
 }
 
 /// Audio redaction specification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum AudioRedactionSpec {
@@ -116,6 +116,48 @@ pub enum AudioRedactionSpec {
     Remove,
     /// Replace with synthetic audio.
     Synthesize,
+}
+
+impl TextRedactionSpec {
+    /// Returns the [`TextRedactionMethod`] tag this spec corresponds to.
+    pub fn method(&self) -> TextRedactionMethod {
+        match self {
+            Self::Mask { .. } => TextRedactionMethod::Mask,
+            Self::Replace { .. } => TextRedactionMethod::Replace,
+            Self::Hash => TextRedactionMethod::Hash,
+            Self::Encrypt { .. } => TextRedactionMethod::Encrypt,
+            Self::Remove => TextRedactionMethod::Remove,
+            Self::Synthesize => TextRedactionMethod::Synthesize,
+            Self::Pseudonymize => TextRedactionMethod::Pseudonymize,
+            Self::Tokenize { .. } => TextRedactionMethod::Tokenize,
+            Self::Aggregate => TextRedactionMethod::Aggregate,
+            Self::Generalize { .. } => TextRedactionMethod::Generalize,
+            Self::DateShift { .. } => TextRedactionMethod::DateShift,
+        }
+    }
+}
+
+impl ImageRedactionSpec {
+    /// Returns the [`ImageRedactionMethod`] tag this spec corresponds to.
+    pub fn method(&self) -> ImageRedactionMethod {
+        match self {
+            Self::Blur { .. } => ImageRedactionMethod::Blur,
+            Self::Block { .. } => ImageRedactionMethod::Block,
+            Self::Pixelate { .. } => ImageRedactionMethod::Pixelate,
+            Self::Synthesize => ImageRedactionMethod::Synthesize,
+        }
+    }
+}
+
+impl AudioRedactionSpec {
+    /// Returns the [`AudioRedactionMethod`] tag this spec corresponds to.
+    pub fn method(&self) -> AudioRedactionMethod {
+        match self {
+            Self::Silence => AudioRedactionMethod::Silence,
+            Self::Remove => AudioRedactionMethod::Remove,
+            Self::Synthesize => AudioRedactionMethod::Synthesize,
+        }
+    }
 }
 
 /// Unified redaction specification submitted to the engine.
@@ -139,30 +181,9 @@ impl RedactionSpec {
     /// Returns the [`RedactionMethod`] tag this spec corresponds to.
     pub fn method(&self) -> RedactionMethod {
         match self {
-            Self::Text(t) => RedactionMethod::Text(match t {
-                TextRedactionSpec::Mask { .. } => TextRedactionMethod::Mask,
-                TextRedactionSpec::Replace { .. } => TextRedactionMethod::Replace,
-                TextRedactionSpec::Hash => TextRedactionMethod::Hash,
-                TextRedactionSpec::Encrypt { .. } => TextRedactionMethod::Encrypt,
-                TextRedactionSpec::Remove => TextRedactionMethod::Remove,
-                TextRedactionSpec::Synthesize => TextRedactionMethod::Synthesize,
-                TextRedactionSpec::Pseudonymize => TextRedactionMethod::Pseudonymize,
-                TextRedactionSpec::Tokenize { .. } => TextRedactionMethod::Tokenize,
-                TextRedactionSpec::Aggregate => TextRedactionMethod::Aggregate,
-                TextRedactionSpec::Generalize { .. } => TextRedactionMethod::Generalize,
-                TextRedactionSpec::DateShift { .. } => TextRedactionMethod::DateShift,
-            }),
-            Self::Image(i) => RedactionMethod::Image(match i {
-                ImageRedactionSpec::Blur { .. } => ImageRedactionMethod::Blur,
-                ImageRedactionSpec::Block { .. } => ImageRedactionMethod::Block,
-                ImageRedactionSpec::Pixelate { .. } => ImageRedactionMethod::Pixelate,
-                ImageRedactionSpec::Synthesize => ImageRedactionMethod::Synthesize,
-            }),
-            Self::Audio(a) => RedactionMethod::Audio(match a {
-                AudioRedactionSpec::Silence => AudioRedactionMethod::Silence,
-                AudioRedactionSpec::Remove => AudioRedactionMethod::Remove,
-                AudioRedactionSpec::Synthesize => AudioRedactionMethod::Synthesize,
-            }),
+            Self::Text(t) => RedactionMethod::Text(t.method()),
+            Self::Image(i) => RedactionMethod::Image(i.method()),
+            Self::Audio(a) => RedactionMethod::Audio(a.method()),
         }
     }
 }

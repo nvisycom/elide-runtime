@@ -5,9 +5,6 @@
 
 /// Applies pending redactions to document content (text, image, tabular, audio).
 pub mod apply;
-/// Image rendering primitives for redaction overlays.
-#[cfg(feature = "image-redaction")]
-pub mod render;
 /// Emits audit trail records for every applied redaction.
 pub mod emit_audit;
 /// Evaluates policy rules against detected entities and produces redaction instructions.

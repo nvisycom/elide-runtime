@@ -5,7 +5,7 @@ resolver = "2"
 members = [
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
-    "./crates/nvisy-ingest",
+    "./crates/nvisy-codec",
     "./crates/nvisy-object",
     "./crates/nvisy-pattern",
     "./crates/nvisy-pipeline",
@@ -34,7 +34,7 @@ documentation = "https://docs.rs/nvisy-runtime"
 # Internal crates
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
-nvisy-ingest = { path = "./crates/nvisy-ingest", version = "0.1.0" }
+nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-pipeline = { path = "./crates/nvisy-pipeline", version = "0.1.0" }

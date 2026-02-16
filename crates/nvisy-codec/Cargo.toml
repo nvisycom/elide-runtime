@@ -1,10 +1,10 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "nvisy-ingest"
-description = "File-format loaders and unified Document type for the Nvisy multimodal redaction platform"
-keywords = ["nvisy", "ingest", "loader", "pdf", "docx"]
-categories = ["parser-implementations"]
+name = "nvisy-codec"
+description = "File-format codecs — read, edit, and write documents for the Nvisy multimodal redaction platform"
+keywords = ["nvisy", "codec", "loader", "pdf", "docx"]
+categories = ["parser-implementations", "encoding"]
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -33,9 +33,9 @@ html = ["dep:scraper"]
 xlsx = ["dep:calamine"]
 # Convenience alias: all image formats
 image = ["jpeg", "png"]
-# Individual image format handlers (each requires dep:image)
-jpeg = ["dep:image"]
-png = ["dep:image"]
+# Individual image format handlers (each pulls in image + imageproc for rendering)
+jpeg = ["dep:image", "dep:imageproc"]
+png = ["dep:image", "dep:imageproc"]
 # Audio format handlers (no additional dependencies)
 wav = []
 mp3 = []
@@ -75,6 +75,7 @@ quick-xml = { workspace = true, optional = true, features = [] }
 scraper = { workspace = true, optional = true, features = [] }
 calamine = { workspace = true, optional = true, features = [] }
 image = { workspace = true, optional = true, features = [] }
+imageproc = { workspace = true, optional = true, features = [] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

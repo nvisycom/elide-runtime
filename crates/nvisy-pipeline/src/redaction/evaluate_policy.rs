@@ -100,12 +100,9 @@ impl Action for EvaluatePolicyAction {
 /// Returns the first enabled rule whose [`EntitySelector`] matches the given entity,
 /// or `None` if no rule applies.
 fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'a PolicyRule> {
-    for rule in rules {
-        if rule.selector.matches(&entity.category, &entity.entity_type, entity.confidence) {
-            return Some(rule);
-        }
-    }
-    None
+    rules.iter().find(|rule| {
+        rule.selector.matches(&entity.category, &entity.entity_type, entity.confidence)
+    })
 }
 
 /// Expands a replacement template using entity metadata.

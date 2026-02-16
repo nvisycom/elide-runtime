@@ -2,9 +2,8 @@
 
 use serde::Deserialize;
 
-use nvisy_ingest::handler::{FormatHandler, TxtHandler};
-use nvisy_ingest::document::Document;
-use nvisy_ingest::document::data::*;
+use nvisy_codec::handler::{TxtHandler, TxtData, PngHandler};
+use nvisy_codec::document::Document;
 use nvisy_ontology::entity::Entity;
 use nvisy_core::error::Error;
 use nvisy_core::io::ContentData;
@@ -57,8 +56,8 @@ impl OcrDetectAction {
 #[async_trait::async_trait]
 impl Action for OcrDetectAction {
     type Params = OcrDetectParams;
-    type Input = (ContentData, Vec<Document<FormatHandler>>);
-    type Output = (Vec<Entity>, Vec<Document<FormatHandler>>);
+    type Input = (ContentData, Vec<Document<PngHandler>>);
+    type Output = (Vec<Entity>, Vec<Document<TxtHandler>>);
 
     fn id(&self) -> &str {
         "detect-ocr"
@@ -96,26 +95,25 @@ impl Action for OcrDetectAction {
             all_entities.extend(entities);
         } else {
             for doc in &images {
-                if let Some(image) = doc.image() {
-                    let entities =
-                        ocr::detect_ocr(&self.bridge, &image.bytes, &image.mime_type, &config)
-                            .await?;
-                    for entity in &entities {
-                        all_ocr_text.push(entity.value.clone());
-                    }
-                    all_entities.extend(entities);
+                let entities =
+                    ocr::detect_ocr(&self.bridge, doc.handler().bytes(), "image/png", &config)
+                        .await?;
+                for entity in &entities {
+                    all_ocr_text.push(entity.value.clone());
                 }
+                all_entities.extend(entities);
             }
         }
 
         // Create a Document from concatenated OCR text for downstream processing
         let mut documents = Vec::new();
         if !all_ocr_text.is_empty() {
-            let ocr_doc = Document::new(
-                FormatHandler::Txt(TxtHandler),
-                DocumentData::Text(TextData { text: all_ocr_text.join("\n") }),
-            );
-            documents.push(ocr_doc);
+            let text = all_ocr_text.join("\n");
+            let handler = TxtHandler::new(TxtData {
+                lines: text.lines().map(String::from).collect(),
+                trailing_newline: text.ends_with('\n'),
+            });
+            documents.push(Document::new(handler));
         }
 
         Ok((all_entities, documents))

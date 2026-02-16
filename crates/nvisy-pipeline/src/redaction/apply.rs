@@ -4,25 +4,22 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use serde::Deserialize;
 
-use nvisy_ingest::handler::{TxtHandler, TxtData, CsvHandler};
-use nvisy_ingest::document::Document;
+use nvisy_codec::handler::{TxtHandler, TxtData, CsvHandler};
+use nvisy_codec::document::Document;
+use nvisy_codec::render::text::{PendingReplacement, apply_replacements, mask_cell};
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::redaction::{Redaction, RedactionOutput, TextRedactionOutput};
+use nvisy_ontology::redaction::{Redaction, RedactionOutput};
 use nvisy_core::error::Error;
 
 #[cfg(feature = "image-redaction")]
-use bytes::Bytes;
-#[cfg(feature = "image-redaction")]
-use nvisy_ingest::handler::PngHandler;
+use nvisy_codec::handler::{PngHandler, AsImage};
 #[cfg(feature = "image-redaction")]
 use nvisy_ontology::entity::BoundingBox;
 #[cfg(feature = "image-redaction")]
 use nvisy_ontology::redaction::ImageRedactionOutput;
-#[cfg(feature = "image-redaction")]
-use nvisy_core::error::ErrorKind;
 
 #[cfg(feature = "audio-redaction")]
-use nvisy_ingest::handler::WavHandler;
+use nvisy_codec::handler::WavHandler;
 
 use crate::action::Action;
 
@@ -112,16 +109,6 @@ pub struct ApplyRedactionOutput {
 /// - **Tabular documents**: cell-level redaction
 pub struct ApplyRedactionAction {
     params: ApplyRedactionParams,
-}
-
-/// A single text replacement that has been resolved but not yet applied.
-struct PendingRedaction {
-    /// Byte offset where the redaction starts in the original text.
-    start_offset: usize,
-    /// Byte offset where the redaction ends (exclusive) in the original text.
-    end_offset: usize,
-    /// The string that will replace the original span.
-    replacement_value: String,
 }
 
 #[async_trait::async_trait]
@@ -215,7 +202,7 @@ fn apply_text_doc(
         content.push('\n');
     }
 
-    let mut pending: Vec<PendingRedaction> = Vec::new();
+    let mut pending: Vec<PendingReplacement> = Vec::new();
 
     for (entity_id, redaction) in redaction_map {
         let entity = match entity_map.get(entity_id) {
@@ -234,7 +221,7 @@ fn apply_text_doc(
             None => continue,
         };
 
-        let replacement_value = match redaction.output.replacement_value() {
+        let value = match redaction.output.replacement_value() {
             Some(v) => v.to_string(),
             None => {
                 let span_len = end_offset.saturating_sub(start_offset);
@@ -242,10 +229,10 @@ fn apply_text_doc(
             }
         };
 
-        pending.push(PendingRedaction {
-            start_offset,
-            end_offset,
-            replacement_value,
+        pending.push(PendingReplacement {
+            start: start_offset,
+            end: end_offset,
+            value,
         });
     }
 
@@ -253,7 +240,7 @@ fn apply_text_doc(
         return doc.clone();
     }
 
-    let redacted_content = apply_text_redactions(&content, &mut pending);
+    let redacted_content = apply_replacements(&content, &mut pending);
 
     let trailing_newline = redacted_content.ends_with('\n');
     let new_lines: Vec<String> = redacted_content.lines().map(String::from).collect();
@@ -263,32 +250,6 @@ fn apply_text_doc(
     });
     let mut result = Document::new(handler);
     result.source.set_parent_id(Some(doc.source.as_uuid()));
-    result
-}
-
-/// Applies a set of pending redactions to `text`, returning the redacted result.
-///
-/// Replacements are applied right-to-left (descending start offset) so that
-/// earlier byte offsets remain valid after each substitution.
-fn apply_text_redactions(text: &str, pending: &mut [PendingRedaction]) -> String {
-    // Sort by start offset descending (right-to-left) to preserve positions
-    pending.sort_by(|a, b| b.start_offset.cmp(&a.start_offset));
-
-    let mut result = text.to_string();
-    for redaction in pending.iter() {
-        let start = redaction.start_offset.min(result.len());
-        let end = redaction.end_offset.min(result.len());
-        if start >= end {
-            continue;
-        }
-
-        result = format!(
-            "{}{}{}",
-            &result[..start],
-            redaction.replacement_value,
-            &result[end..]
-        );
-    }
     result
 }
 
@@ -304,10 +265,6 @@ fn apply_image_doc(
     blur_sigma: f32,
     block_color: [u8; 4],
 ) -> Result<Document<PngHandler>, Error> {
-    use crate::redaction::render::{blur, block};
-
-    let image_bytes = doc.handler().bytes();
-
     let mut blur_regions: Vec<BoundingBox> = Vec::new();
     let mut block_regions: Vec<BoundingBox> = Vec::new();
 
@@ -332,29 +289,15 @@ fn apply_image_doc(
         return Ok(doc.clone());
     }
 
-    let dyn_img = image::load_from_memory(image_bytes).map_err(|e| {
-        Error::new(ErrorKind::Runtime, format!("image decode failed: {e}"))
-    })?;
-
-    let mut result = dyn_img;
+    let mut handler = doc.handler().clone();
     if !blur_regions.is_empty() {
-        result = blur::apply_gaussian_blur(&result, &blur_regions, blur_sigma);
+        handler = handler.blur(&blur_regions, blur_sigma)?;
     }
     if !block_regions.is_empty() {
-        let color = image::Rgba(block_color);
-        result = block::apply_block_overlay(&result, &block_regions, color);
+        handler = handler.block(&block_regions, block_color)?;
     }
 
-    // Encode back to PNG
-    let mut buf = std::io::Cursor::new(Vec::new());
-    result
-        .write_to(&mut buf, image::ImageFormat::Png)
-        .map_err(|e| {
-            Error::new(ErrorKind::Runtime, format!("image encode failed: {e}"))
-        })?;
-
-    let new_doc = Document::new(PngHandler::new(Bytes::from(buf.into_inner())));
-    Ok(new_doc)
+    Ok(Document::new(handler))
 }
 
 // ---------------------------------------------------------------------------
@@ -385,7 +328,7 @@ fn apply_tabular_doc(
             if let Some(redaction) = redaction_map.get(&entity.source.as_uuid()) {
                 if let Some(row) = result.handler_mut().rows_mut().get_mut(row_idx) {
                     if let Some(cell) = row.get_mut(col_idx) {
-                        *cell = apply_cell_redaction(cell, &redaction.output, params.mask_char);
+                        *cell = mask_cell(cell, &redaction.output, params.mask_char);
                     }
                 }
             }
@@ -395,33 +338,3 @@ fn apply_tabular_doc(
     result
 }
 
-fn apply_cell_redaction(cell: &str, output: &RedactionOutput, default_mask: char) -> String {
-    match output {
-        RedactionOutput::Text(TextRedactionOutput::Mask { mask_char, .. }) => {
-            if cell.len() > 4 {
-                format!(
-                    "{}{}",
-                    mask_char.to_string().repeat(cell.len() - 4),
-                    &cell[cell.len() - 4..]
-                )
-            } else {
-                mask_char.to_string().repeat(cell.len())
-            }
-        }
-        RedactionOutput::Text(TextRedactionOutput::Remove) => String::new(),
-        RedactionOutput::Text(TextRedactionOutput::Hash { .. }) => {
-            format!("[HASH:{:x}]", hash_string(cell))
-        }
-        _ => output
-            .replacement_value()
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| default_mask.to_string().repeat(cell.len())),
-    }
-}
-
-fn hash_string(s: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    s.hash(&mut hasher);
-    hasher.finish()
-}

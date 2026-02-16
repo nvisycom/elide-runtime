@@ -1,4 +1,4 @@
-//! Image format handlers and shared decode helper.
+//! Image format handlers.
 
 #[cfg(feature = "jpeg")]
 pub mod jpeg;

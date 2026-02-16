@@ -6,13 +6,15 @@
 //! - [`OcrDetectAction`] -- performs OCR on images to extract text regions.
 
 /// OCR detection pipeline action.
+#[cfg(feature = "png")]
 pub mod ocr;
 
 use serde::Deserialize;
 
-use nvisy_ingest::handler::{FormatHandler, TxtHandler};
-use nvisy_ingest::document::Document;
-use nvisy_ingest::document::data::*;
+use nvisy_codec::handler::{TxtHandler, TxtData};
+#[cfg(feature = "png")]
+use nvisy_codec::handler::PngHandler;
+use nvisy_codec::document::Document;
 use nvisy_ontology::entity::Entity;
 use nvisy_core::error::Error;
 use nvisy_core::io::ContentData;
@@ -70,7 +72,7 @@ impl DetectNerAction {
 #[async_trait::async_trait]
 impl Action for DetectNerAction {
     type Params = DetectNerParams;
-    type Input = (ContentData, Vec<Document<FormatHandler>>);
+    type Input = (ContentData, Vec<Document<TxtHandler>>);
     type Output = Vec<Entity>;
 
     fn id(&self) -> &str { "detect-ner" }
@@ -93,20 +95,20 @@ impl Action for DetectNerAction {
                     "python/ner",
                     false,
                 ))?;
-            vec![Document::new(
-                FormatHandler::Txt(TxtHandler),
-                DocumentData::Text(TextData { text: text.to_string() }),
-            )]
+            let handler = TxtHandler::new(TxtData {
+                lines: text.lines().map(String::from).collect(),
+                trailing_newline: text.ends_with('\n'),
+            });
+            vec![Document::new(handler)]
         } else {
             documents
         };
 
         let mut all_entities = Vec::new();
         for doc in &docs {
-            if let Some(content) = doc.text() {
-                let entities = ner::detect_ner(&self.bridge, content, &config).await?;
-                all_entities.extend(entities);
-            }
+            let text = doc.handler().lines().join("\n");
+            let entities = ner::detect_ner(&self.bridge, &text, &config).await?;
+            all_entities.extend(entities);
         }
 
         Ok(all_entities)
@@ -119,12 +121,14 @@ impl Action for DetectNerAction {
 /// provided, the raw content is treated as a single image whose MIME type
 /// is inferred from the content metadata. Detected entities are returned
 /// directly.
+#[cfg(feature = "png")]
 pub struct DetectNerImageAction {
     /// Python bridge used to call the NER model.
     pub bridge: PythonBridge,
     params: DetectNerParams,
 }
 
+#[cfg(feature = "png")]
 impl DetectNerImageAction {
     /// Replace the default bridge with a pre-configured one.
     pub fn with_bridge(mut self, bridge: PythonBridge) -> Self {
@@ -133,10 +137,11 @@ impl DetectNerImageAction {
     }
 }
 
+#[cfg(feature = "png")]
 #[async_trait::async_trait]
 impl Action for DetectNerImageAction {
     type Params = DetectNerParams;
-    type Input = (ContentData, Vec<Document<FormatHandler>>);
+    type Input = (ContentData, Vec<Document<PngHandler>>);
     type Output = Vec<Entity>;
 
     fn id(&self) -> &str { "detect-ner-image" }
@@ -167,15 +172,13 @@ impl Action for DetectNerImageAction {
             all_entities.extend(entities);
         } else {
             for doc in &images {
-                if let Some(image) = doc.image() {
-                    let entities = ner::detect_ner_image(
-                        &self.bridge,
-                        &image.bytes,
-                        &image.mime_type,
-                        &config,
-                    ).await?;
-                    all_entities.extend(entities);
-                }
+                let entities = ner::detect_ner_image(
+                    &self.bridge,
+                    doc.handler().bytes(),
+                    "image/png",
+                    &config,
+                ).await?;
+                all_entities.extend(entities);
             }
         }
 

@@ -2195,6 +2195,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-codec"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "calamine",
+ "csv",
+ "futures",
+ "image",
+ "imageproc",
+ "infer",
+ "lopdf",
+ "nvisy-core",
+ "nvisy-ontology",
+ "pdf-extract",
+ "quick-xml 0.37.5",
+ "scraper",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid",
+ "zip",
+]
+
+[[package]]
 name = "nvisy-core"
 version = "0.1.0"
 dependencies = [
@@ -2235,31 +2261,6 @@ dependencies = [
  "tokio-util",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "nvisy-ingest"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "calamine",
- "csv",
- "futures",
- "image",
- "infer",
- "lopdf",
- "nvisy-core",
- "nvisy-ontology",
- "pdf-extract",
- "quick-xml 0.37.5",
- "scraper",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "uuid",
- "zip",
 ]
 
 [[package]]
@@ -2309,12 +2310,9 @@ version = "0.1.0"
 dependencies = [
  "aho-corasick",
  "async-trait",
- "bytes",
- "image",
- "imageproc",
  "jiff",
+ "nvisy-codec",
  "nvisy-core",
- "nvisy-ingest",
  "nvisy-ontology",
  "nvisy-pattern",
  "regex",
@@ -2330,8 +2328,8 @@ name = "nvisy-python"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "nvisy-codec",
  "nvisy-core",
- "nvisy-ingest",
  "nvisy-ontology",
  "nvisy-pipeline",
  "pyo3",

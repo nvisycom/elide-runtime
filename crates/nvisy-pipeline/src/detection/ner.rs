@@ -2,13 +2,13 @@
 
 use serde::Deserialize;
 
-use nvisy_ingest::document::Document;
-use nvisy_ingest::handler::TxtHandler;
+use nvisy_codec::document::Document;
+use nvisy_codec::handler::TxtHandler;
 use nvisy_ontology::entity::Entity;
 use nvisy_core::error::Error;
 
 #[cfg(feature = "image-redaction")]
-use nvisy_ingest::handler::PngHandler;
+use nvisy_codec::handler::PngHandler;
 
 use crate::action::Action;
 

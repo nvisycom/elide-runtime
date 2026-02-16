@@ -23,16 +23,16 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["image-redaction", "audio-redaction"]
-# Image blur/block redaction via image + imageproc; enables nvisy-ingest/png for PngHandler
-image-redaction = ["dep:image", "dep:imageproc", "nvisy-ingest/png"]
-# Audio redaction pass-through; enables nvisy-ingest/wav for WavHandler
-audio-redaction = ["nvisy-ingest/wav"]
+# Image redaction (blur, block); enables nvisy-codec image handlers and rendering
+image-redaction = ["nvisy-codec/png", "nvisy-codec/jpeg"]
+# Audio redaction pass-through; enables nvisy-codec/wav for WavHandler
+audio-redaction = ["nvisy-codec/wav"]
 
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
-nvisy-ingest = { workspace = true, features = [] }
+nvisy-codec = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 
 # (De)serialization
@@ -45,7 +45,6 @@ async-trait = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = ["v4"] }
-bytes = { workspace = true, features = [] }
 
 # Time
 jiff = { workspace = true, features = [] }
@@ -56,7 +55,3 @@ aho-corasick = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }
-
-# Image processing (feature-gated)
-image = { workspace = true, optional = true, features = [] }
-imageproc = { workspace = true, optional = true, features = [] }

@@ -3,8 +3,8 @@
 use regex::Regex;
 use serde::Deserialize;
 
-use nvisy_ingest::handler::CsvHandler;
-use nvisy_ingest::document::Document;
+use nvisy_codec::handler::CsvHandler;
+use nvisy_codec::document::Document;
 use nvisy_ontology::entity::{
     DetectionMethod, Entity, EntityCategory, TabularLocation,
 };

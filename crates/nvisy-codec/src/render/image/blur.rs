@@ -1,13 +1,23 @@
-//! Gaussian blur for image regions.
+//! Gaussian blur rendering for bounding-box regions.
+//!
+//! The algorithm works per-region:
+//! 1. Crop the rectangular area from the source image.
+//! 2. Apply a gaussian blur with the given `sigma` to the cropped sub-image.
+//! 3. Paste the blurred sub-image back over the original at the same position.
+//!
+//! Regions are clamped to image bounds so that out-of-range coordinates are
+//! silently ignored rather than causing a panic.
 
-use image::DynamicImage;
+use ::image::DynamicImage;
 use imageproc::filter::gaussian_blur_f32;
 use nvisy_ontology::entity::BoundingBox;
 
 /// Apply gaussian blur to the specified regions of an image.
 ///
 /// Each [`BoundingBox`] describes a rectangular region (in pixel coordinates)
-/// that will be blurred with the given `sigma` value.
+/// that will be blurred with the given `sigma` value. The algorithm crops
+/// each region, applies [`gaussian_blur_f32`], and pastes the result back,
+/// leaving the rest of the image untouched.
 pub fn apply_gaussian_blur(
     image: &DynamicImage,
     regions: &[BoundingBox],
@@ -36,7 +46,7 @@ pub fn apply_gaussian_blur(
         // Crop the region, blur it, paste it back
         let sub = result.crop_imm(x, y, w, h);
         let blurred = DynamicImage::ImageRgba8(gaussian_blur_f32(&sub.to_rgba8(), sigma));
-        image::imageops::overlay(&mut result, &blurred, x as i64, y as i64);
+        ::image::imageops::overlay(&mut result, &blurred, x as i64, y as i64);
     }
 
     result

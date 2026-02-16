@@ -6,7 +6,7 @@
 use serde::Deserialize;
 
 use nvisy_core::error::Error;
-use nvisy_pipeline::provider::{ConnectedInstance, Provider};
+use nvisy_pipeline::provider::Provider;
 use crate::bridge::PythonBridge;
 
 /// Typed credentials for the AI provider.
@@ -39,14 +39,9 @@ impl Provider for AiProvider {
         self.validate_credentials(creds)
     }
 
-    async fn connect(&self, _creds: &Self::Credentials) -> Result<ConnectedInstance<Self::Client>, Error> {
-        let bridge = PythonBridge::default();
+    async fn connect(&self, _creds: &Self::Credentials) -> Result<Self::Client, Error> {
         // Don't init here — Python might not be available at connect time
         // Init happens lazily when detect_ner is called
-
-        Ok(ConnectedInstance {
-            client: bridge,
-            disconnect: None,
-        })
+        Ok(PythonBridge::default())
     }
 }

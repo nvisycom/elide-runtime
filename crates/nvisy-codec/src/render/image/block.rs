@@ -1,17 +1,24 @@
-//! Solid color block overlay for image regions.
+//! Solid-color block overlay rendering for bounding-box regions.
+//!
+//! For each region the algorithm creates an opaque [`RgbaImage`] rectangle
+//! filled with the requested colour and composites it onto the target image
+//! using alpha-over blending. Regions are clamped to image bounds.
 
-use image::{DynamicImage, Rgba, RgbaImage};
+use ::image::{DynamicImage, Rgba, RgbaImage};
 use nvisy_ontology::entity::BoundingBox;
 
 /// Apply a solid color block overlay to the specified regions of an image.
 ///
 /// Each [`BoundingBox`] describes a rectangular region (in pixel coordinates)
-/// that will be covered with an opaque rectangle of the given `color`.
+/// that will be covered with an opaque rectangle of the given `color` (RGBA).
+/// The overlay is composited using alpha-over blending via
+/// [`imageops::overlay`](::image::imageops::overlay).
 pub fn apply_block_overlay(
     image: &DynamicImage,
     regions: &[BoundingBox],
-    color: Rgba<u8>,
+    color: [u8; 4],
 ) -> DynamicImage {
+    let color = Rgba(color);
     let mut result = image.to_rgba8();
     let img_w = result.width();
     let img_h = result.height();
@@ -29,7 +36,7 @@ pub fn apply_block_overlay(
         let h = h.min(img_h - y);
 
         let block = RgbaImage::from_pixel(w, h, color);
-        image::imageops::overlay(&mut result, &block, x as i64, y as i64);
+        ::image::imageops::overlay(&mut result, &block, x as i64, y as i64);
     }
 
     DynamicImage::ImageRgba8(result)

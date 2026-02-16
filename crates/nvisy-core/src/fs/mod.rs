@@ -33,6 +33,7 @@ mod content_handler;
 mod content_kind;
 mod content_metadata;
 mod content_registry;
+mod document_type;
 
 // Re-export main types
 pub use content_file::ContentFile;
@@ -40,3 +41,4 @@ pub use content_handler::ContentHandler;
 pub use content_kind::ContentKind;
 pub use content_metadata::ContentMetadata;
 pub use content_registry::ContentRegistry;
+pub use document_type::DocumentType;

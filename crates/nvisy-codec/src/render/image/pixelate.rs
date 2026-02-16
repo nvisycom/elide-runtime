@@ -11,7 +11,7 @@
 
 use ::image::imageops::FilterType;
 use ::image::DynamicImage;
-use nvisy_ontology::entity::BoundingBoxU32;
+use nvisy_core::math::BoundingBoxU32;
 
 /// Apply pixelation (mosaic effect) to the specified regions of an image.
 ///

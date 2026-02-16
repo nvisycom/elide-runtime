@@ -9,7 +9,6 @@ members = [
     "./crates/nvisy-object",
     "./crates/nvisy-pattern",
     "./crates/nvisy-pipeline",
-    "./crates/nvisy-ontology",
     "./crates/nvisy-python",
 ]
 
@@ -38,7 +37,6 @@ nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-pipeline = { path = "./crates/nvisy-pipeline", version = "0.1.0" }
-nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
 
 # Async runtime
@@ -82,6 +80,7 @@ infer = { version = "0.19", features = [] }
 
 # Python interop
 pyo3 = { version = "0.23", features = [] }
+pythonize = { version = "0.23", features = [] }
 
 # S3-compatible object storage
 minio = { version = "0.3", features = [] }

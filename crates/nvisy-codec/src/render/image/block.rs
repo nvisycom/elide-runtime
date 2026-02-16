@@ -5,7 +5,7 @@
 //! using alpha-over blending. Regions are clamped to image bounds.
 
 use ::image::{DynamicImage, Rgba, RgbaImage};
-use nvisy_ontology::entity::BoundingBoxU32;
+use nvisy_core::math::BoundingBoxU32;
 
 /// Apply a solid color block overlay to the specified regions of an image.
 ///

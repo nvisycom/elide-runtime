@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use nvisy_codec::handler::TxtHandler;
 use nvisy_codec::document::Document;
-use nvisy_ontology::entity::{DetectionMethod, Entity, TextLocation};
+use crate::ontology::entity::{DetectionMethod, Entity, TextLocation};
 use nvisy_core::error::Error;
 use nvisy_pattern::patterns::{self, PatternDefinition};
 

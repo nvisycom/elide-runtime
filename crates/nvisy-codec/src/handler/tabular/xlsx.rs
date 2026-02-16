@@ -1,7 +1,7 @@
 //! XLSX handler (stub — awaiting migration to Loader/Handler pattern).
 
 use nvisy_core::error::Error;
-use nvisy_ontology::entity::DocumentType;
+use nvisy_core::fs::DocumentType;
 
 use crate::document::edit_stream::SpanEditStream;
 use crate::document::view_stream::SpanStream;

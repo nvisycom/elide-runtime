@@ -25,8 +25,8 @@ use pixelate::apply_pixelate;
 
 use ::image::DynamicImage;
 use nvisy_core::error::Error;
-use nvisy_ontology::entity::{BoundingBox, BoundingBoxU32};
-use nvisy_ontology::redaction::ImageRedactionOutput;
+use nvisy_core::math::{BoundingBox, BoundingBoxU32};
+use crate::render::output::ImageRedactionOutput;
 
 /// A located image redaction: pairs a bounding box with an
 /// [`ImageRedactionOutput`] that carries the method-specific parameters.

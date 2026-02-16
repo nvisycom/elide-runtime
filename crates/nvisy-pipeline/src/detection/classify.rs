@@ -1,8 +1,8 @@
 //! Sensitivity classification action.
 
-pub use nvisy_ontology::detection::ClassificationResult;
-use nvisy_ontology::detection::{Sensitivity, SensitivityLevel};
-use nvisy_ontology::entity::Entity;
+pub use crate::ontology::detection::ClassificationResult;
+use crate::ontology::detection::{Sensitivity, SensitivityLevel};
+use crate::ontology::entity::Entity;
 use nvisy_core::error::Error;
 
 use crate::action::Action;
@@ -60,7 +60,7 @@ fn compute_sensitivity_level(entities: &[Entity]) -> SensitivityLevel {
     let has_critical_types = entities.iter().any(|e| {
         matches!(
             e.category,
-            nvisy_ontology::entity::EntityCategory::Credentials
+            nvisy_core::entity::EntityCategory::Credentials
         ) || e.entity_type == "ssn"
             || e.entity_type == "credit_card"
     });

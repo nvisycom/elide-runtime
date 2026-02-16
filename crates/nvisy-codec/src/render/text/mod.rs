@@ -24,7 +24,7 @@ pub use mask::mask_cell;
 use replace::{apply_replacements, PendingReplacement};
 
 use nvisy_core::error::Error;
-use nvisy_ontology::redaction::TextRedactionOutput;
+use crate::render::output::TextRedactionOutput;
 
 /// A located text redaction: pairs a byte range with a
 /// [`TextRedactionOutput`] that carries the already-resolved replacement.

@@ -2,12 +2,15 @@
 
 use serde::Deserialize;
 
-use nvisy_ontology::entity::Entity;
-use nvisy_ontology::policy::PolicyRule;
-use nvisy_ontology::redaction::{
-    AudioRedactionOutput, AudioRedactionSpec, ImageRedactionOutput, ImageRedactionSpec, Redaction,
-    RedactionOutput, RedactionSpec, TextRedactionOutput, TextRedactionSpec,
+use nvisy_codec::render::output::{
+    AudioRedactionOutput, ImageRedactionOutput, RedactionOutput, TextRedactionOutput,
 };
+use crate::ontology::redaction::{
+    AudioRedactionSpec, ImageRedactionSpec, Redaction,
+    RedactionSpec, TextRedactionSpec,
+};
+use crate::ontology::entity::Entity;
+use crate::ontology::policy::PolicyRule;
 use nvisy_core::error::Error;
 
 use crate::action::Action;

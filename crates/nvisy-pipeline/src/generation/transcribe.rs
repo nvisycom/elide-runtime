@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{WavHandler, TxtHandler};
-use nvisy_ontology::entity::Entity;
+use crate::ontology::entity::Entity;
 use nvisy_core::error::Error;
 
 use crate::action::Action;
@@ -41,7 +41,7 @@ pub struct GenerateTranscribeInput {
 
 /// Typed output for [`GenerateTranscribeAction`].
 pub struct GenerateTranscribeOutput {
-    /// Detected entities with [`AudioLocation`](nvisy_ontology::entity::AudioLocation).
+    /// Detected entities with [`AudioLocation`](crate::ontology::entity::AudioLocation).
     pub entities: Vec<Entity>,
     /// Transcripts as new text documents.
     pub text_docs: Vec<Document<TxtHandler>>,

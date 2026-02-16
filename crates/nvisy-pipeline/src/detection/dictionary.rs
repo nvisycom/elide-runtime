@@ -5,8 +5,9 @@ use serde::Deserialize;
 
 use nvisy_codec::handler::{TxtHandler, CsvHandler};
 use nvisy_codec::document::Document;
-use nvisy_ontology::entity::{
-    DetectionMethod, Entity, EntityCategory, TabularLocation, TextLocation,
+use nvisy_core::entity::EntityCategory;
+use crate::ontology::entity::{
+    DetectionMethod, Entity, TabularLocation, TextLocation,
 };
 use nvisy_core::error::{Error, ErrorKind};
 use nvisy_pattern::dictionaries;

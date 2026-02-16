@@ -1,16 +1,15 @@
-//! Python/PyO3 bridge for AI-powered NER detection.
+//! Python/PyO3 bridge for AI-powered NER and OCR detection.
 //!
 //! This crate embeds a CPython interpreter via PyO3 and delegates named-entity
-//! recognition (NER) to a Python module (`nvisy_ai`).  It exposes pipeline
-//! [`Action`](nvisy_pipeline::action::Action) implementations as well as a
-//! [`Provider`](nvisy_pipeline::provider::Provider) for the
-//! `"ai"` provider.
+//! recognition (NER) and OCR to a Python module (`nvisy_ai`).  It implements
+//! the [`NerBackend`](nvisy_pipeline::detection::ner::NerBackend) and
+//! [`OcrBackend`](nvisy_pipeline::generation::ocr::OcrBackend) traits for
+//! [`PythonBridge`](bridge::PythonBridge), returning raw JSON to the pipeline.
 
 #![deny(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-pub mod actions;
 pub mod bridge;
 pub mod error;
 pub mod ner;

@@ -8,7 +8,7 @@ pub use crate::detection::dictionary::{DetectDictionaryAction, DetectDictionaryP
 pub use crate::detection::tabular::{DetectTabularAction, DetectTabularParams, ColumnRule};
 pub use crate::detection::manual::{DetectManualAction, DetectManualParams};
 pub use crate::detection::checksum::{DetectChecksumAction, DetectChecksumParams};
-pub use crate::detection::ner::{DetectNerAction, DetectNerParams, DetectNerInput};
+pub use crate::detection::ner::{DetectNerAction, DetectNerParams, DetectNerInput, NerBackend, NerConfig};
 pub use crate::detection::classify::{ClassifyAction, ClassificationResult};
 pub use crate::redaction::evaluate_policy::{EvaluatePolicyAction, EvaluatePolicyParams};
 pub use crate::redaction::apply::{
@@ -22,6 +22,7 @@ pub use crate::generation::synthetic::{
 #[cfg(feature = "image-redaction")]
 pub use crate::generation::ocr::{
     GenerateOcrAction, GenerateOcrParams, GenerateOcrInput, GenerateOcrOutput,
+    OcrBackend, OcrConfig,
 };
 
 #[cfg(feature = "audio-redaction")]

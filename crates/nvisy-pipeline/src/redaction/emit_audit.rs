@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 use nvisy_core::error::Error;
 use nvisy_core::path::ContentSource;
-use nvisy_ontology::audit::{Audit, AuditAction};
-use nvisy_ontology::redaction::Redaction;
+use crate::ontology::audit::{Audit, AuditAction};
+use crate::ontology::redaction::Redaction;
 
 use crate::action::Action;
 
@@ -65,7 +65,6 @@ impl Action for EmitAuditAction {
                 source_id: None,
                 run_id: self.params.run_id,
                 actor: self.params.actor.clone(),
-                explanation: None,
             };
 
             audits.push(audit);

@@ -95,7 +95,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use nvisy_core::path::ContentSource;
-    use nvisy_ontology::entity::DocumentType;
+    use nvisy_core::fs::DocumentType;
     use serde_json::json;
 
     fn content_from_str(s: &str) -> ContentData {

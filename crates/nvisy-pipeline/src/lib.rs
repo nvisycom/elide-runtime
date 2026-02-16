@@ -15,9 +15,11 @@ pub mod action;
 pub mod provider;
 /// Entity detection actions.
 pub mod detection;
-/// Redaction actions (policy evaluation, apply, audit).
-pub mod redaction;
 /// Content generation actions (OCR, transcription, synthetic data).
 pub mod generation;
+/// Domain types: entity, detection, policy, and redaction.
+pub mod ontology;
+/// Redaction actions (policy evaluation, apply, audit).
+pub mod redaction;
 #[doc(hidden)]
 pub mod prelude;

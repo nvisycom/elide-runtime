@@ -2202,15 +2202,16 @@ dependencies = [
  "bytes",
  "calamine",
  "csv",
+ "derive_more 1.0.0",
  "futures",
  "image",
  "imageproc",
  "infer",
  "lopdf",
  "nvisy-core",
- "nvisy-ontology",
  "pdf-extract",
  "quick-xml 0.37.5",
+ "schemars",
  "scraper",
  "serde",
  "serde_json",
@@ -2232,6 +2233,7 @@ dependencies = [
  "infer",
  "jiff",
  "schemars",
+ "semver",
  "serde",
  "serde_json",
  "sha2",
@@ -2250,10 +2252,11 @@ dependencies = [
  "anyhow",
  "jiff",
  "nvisy-core",
- "nvisy-ontology",
+ "nvisy-pipeline",
  "petgraph",
  "rand 0.10.0",
  "schemars",
+ "semver",
  "serde",
  "serde_json",
  "thiserror",
@@ -2282,25 +2285,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-ontology"
-version = "0.1.0"
-dependencies = [
- "derive_more 1.0.0",
- "jiff",
- "nvisy-core",
- "schemars",
- "semver",
- "serde",
- "serde_json",
- "strum",
- "uuid",
-]
-
-[[package]]
 name = "nvisy-pattern"
 version = "0.1.0"
 dependencies = [
- "nvisy-ontology",
+ "nvisy-core",
  "serde",
  "serde_json",
 ]
@@ -2311,14 +2299,17 @@ version = "0.1.0"
 dependencies = [
  "aho-corasick",
  "async-trait",
+ "derive_more 1.0.0",
  "jiff",
  "nvisy-codec",
  "nvisy-core",
- "nvisy-ontology",
  "nvisy-pattern",
  "regex",
+ "schemars",
+ "semver",
  "serde",
  "serde_json",
+ "strum",
  "tokio",
  "tracing",
  "uuid",
@@ -2329,17 +2320,15 @@ name = "nvisy-python"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "nvisy-codec",
  "nvisy-core",
- "nvisy-ontology",
  "nvisy-pipeline",
  "pyo3",
+ "pythonize",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -2702,7 +2691,6 @@ dependencies = [
  "pyo3-build-config",
  "pyo3-ffi",
  "pyo3-macros",
- "serde",
  "unindent",
 ]
 
@@ -2749,6 +2737,16 @@ dependencies = [
  "pyo3-build-config",
  "quote",
  "syn 2.0.114",
+]
+
+[[package]]
+name = "pythonize"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91a6ee7a084f913f98d70cdc3ebec07e852b735ae3059a1500db2661265da9ff"
+dependencies = [
+ "pyo3",
+ "serde",
 ]
 
 [[package]]

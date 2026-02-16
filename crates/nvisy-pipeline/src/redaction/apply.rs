@@ -7,8 +7,9 @@ use serde::Deserialize;
 use nvisy_codec::handler::{TxtHandler, CsvHandler};
 use nvisy_codec::document::Document;
 use nvisy_codec::render::text::{TextRedaction, AsRedactableText, mask_cell};
-use nvisy_ontology::entity::Entity;
-use nvisy_ontology::redaction::{Redaction, RedactionOutput};
+use nvisy_codec::render::output::RedactionOutput;
+use crate::ontology::redaction::Redaction;
+use crate::ontology::entity::Entity;
 use nvisy_core::error::Error;
 
 #[cfg(feature = "image-redaction")]

@@ -3,7 +3,7 @@
 //! These functions are used by tabular redaction actions to transform
 //! individual cell values according to a [`TextRedactionOutput`] variant.
 
-use nvisy_ontology::redaction::TextRedactionOutput;
+use crate::render::output::TextRedactionOutput;
 
 /// Redact a single cell value according to `output`.
 ///

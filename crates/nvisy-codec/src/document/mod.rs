@@ -5,7 +5,7 @@ pub mod edit_stream;
 
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
-use nvisy_ontology::entity::DocumentType;
+use nvisy_core::fs::DocumentType;
 
 use crate::handler::Handler;
 

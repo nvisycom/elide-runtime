@@ -57,7 +57,7 @@ mod tests {
     use bytes::Bytes;
     use futures::StreamExt;
     use nvisy_core::path::ContentSource;
-    use nvisy_ontology::entity::DocumentType;
+    use nvisy_core::fs::DocumentType;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

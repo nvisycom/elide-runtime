@@ -36,6 +36,8 @@ pub use text::json_handler::{
 };
 pub use text::json_loader::{JsonParams, JsonLoader};
 
+pub use crate::render::text::AsText;
+
 #[cfg(feature = "png")]
 pub use image::png::PngHandler;
 #[cfg(any(feature = "png", feature = "jpeg"))]

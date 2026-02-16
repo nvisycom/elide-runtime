@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use serde::Deserialize;
 
-use nvisy_codec::handler::{TxtHandler, TxtData, CsvHandler};
+use nvisy_codec::handler::{TxtHandler, CsvHandler, AsText};
 use nvisy_codec::document::Document;
-use nvisy_codec::render::text::{PendingReplacement, apply_replacements, mask_cell};
+use nvisy_codec::render::text::{TextRedaction, mask_cell};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::redaction::{Redaction, RedactionOutput};
 use nvisy_core::error::Error;
@@ -27,9 +27,6 @@ use crate::action::Action;
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplyRedactionParams {
-    /// Default mask character for text [`Mask`](nvisy_ontology::redaction::TextRedactionOutput::Mask) redactions.
-    #[serde(default = "default_mask_char")]
-    pub mask_char: char,
     /// Sigma value for gaussian blur (image redaction).
     #[cfg(feature = "image-redaction")]
     #[serde(default = "default_sigma")]
@@ -48,9 +45,6 @@ pub struct ApplyRedactionParams {
     pub crossfade_secs: f64,
 }
 
-fn default_mask_char() -> char {
-    '*'
-}
 #[cfg(feature = "image-redaction")]
 fn default_sigma() -> f32 {
     15.0
@@ -140,7 +134,7 @@ impl Action for ApplyRedactionAction {
         // Text documents
         let mut result_text = Vec::new();
         for doc in &input.text_docs {
-            let redacted = apply_text_doc(doc, &entity_map, &redaction_map, &self.params);
+            let redacted = apply_text_doc(doc, &entity_map, &redaction_map);
             result_text.push(redacted);
         }
 
@@ -171,7 +165,7 @@ impl Action for ApplyRedactionAction {
         // Tabular documents
         let mut result_tabular = Vec::new();
         for doc in &input.tabular_docs {
-            let redacted = apply_tabular_doc(doc, &input.entities, &redaction_map, &self.params);
+            let redacted = apply_tabular_doc(doc, &input.entities, &redaction_map);
             result_tabular.push(redacted);
         }
 
@@ -194,15 +188,8 @@ fn apply_text_doc(
     doc: &Document<TxtHandler>,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &Redaction>,
-    params: &ApplyRedactionParams,
 ) -> Document<TxtHandler> {
-    let lines = doc.handler().lines();
-    let mut content = lines.join("\n");
-    if doc.handler().trailing_newline() {
-        content.push('\n');
-    }
-
-    let mut pending: Vec<PendingReplacement> = Vec::new();
+    let mut redactions: Vec<TextRedaction> = Vec::new();
 
     for (entity_id, redaction) in redaction_map {
         let entity = match entity_map.get(entity_id) {
@@ -211,43 +198,28 @@ fn apply_text_doc(
         };
 
         // Check entity belongs to this document
-        let belongs = entity.source.parent_id() == Some(doc.source.as_uuid());
-        if !belongs {
+        if entity.source.parent_id() != Some(doc.source.as_uuid()) {
             continue;
         }
 
-        let (start_offset, end_offset) = match &entity.text_location {
+        let (start, end) = match &entity.text_location {
             Some(loc) => (loc.start_offset, loc.end_offset),
             None => continue,
         };
 
-        let value = match redaction.output.replacement_value() {
-            Some(v) => v.to_string(),
-            None => {
-                let span_len = end_offset.saturating_sub(start_offset);
-                params.mask_char.to_string().repeat(span_len)
-            }
+        let output = match &redaction.output {
+            RedactionOutput::Text(t) => t.clone(),
+            _ => continue,
         };
 
-        pending.push(PendingReplacement {
-            start: start_offset,
-            end: end_offset,
-            value,
-        });
+        redactions.push(TextRedaction { start, end, output });
     }
 
-    if pending.is_empty() {
+    if redactions.is_empty() {
         return doc.clone();
     }
 
-    let redacted_content = apply_replacements(&content, &mut pending);
-
-    let trailing_newline = redacted_content.ends_with('\n');
-    let new_lines: Vec<String> = redacted_content.lines().map(String::from).collect();
-    let handler = TxtHandler::new(TxtData {
-        lines: new_lines,
-        trailing_newline,
-    });
+    let handler = doc.handler().redact(&redactions).expect("text redaction failed");
     let mut result = Document::new(handler);
     result.source.set_parent_id(Some(doc.source.as_uuid()));
     result
@@ -318,7 +290,6 @@ fn apply_tabular_doc(
     doc: &Document<CsvHandler>,
     entities: &[Entity],
     redaction_map: &HashMap<Uuid, &Redaction>,
-    params: &ApplyRedactionParams,
 ) -> Document<CsvHandler> {
     let mut result = doc.clone();
 
@@ -326,9 +297,13 @@ fn apply_tabular_doc(
         if let Some(ref tab_loc) = entity.tabular_location {
             let (row_idx, col_idx) = (tab_loc.row_index, tab_loc.column_index);
             if let Some(redaction) = redaction_map.get(&entity.source.as_uuid()) {
+                let output = match &redaction.output {
+                    RedactionOutput::Text(t) => t,
+                    _ => continue,
+                };
                 if let Some(row) = result.handler_mut().rows_mut().get_mut(row_idx) {
                     if let Some(cell) = row.get_mut(col_idx) {
-                        *cell = mask_cell(cell, &redaction.output, params.mask_char);
+                        *cell = mask_cell(cell, output);
                     }
                 }
             }

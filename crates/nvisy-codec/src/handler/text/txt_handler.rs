@@ -22,6 +22,7 @@ use nvisy_ontology::entity::DocumentType;
 use crate::document::edit_stream::SpanEditStream;
 use crate::document::view_stream::SpanStream;
 use crate::handler::{Handler, Span};
+use crate::render::text::AsText;
 
 /// 0-based line index identifying a span within a plain-text document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -105,6 +106,25 @@ impl TxtHandler {
     /// Consume the handler and return the inner [`TxtData`].
     pub fn into_data(self) -> TxtData {
         self.data
+    }
+}
+
+impl AsText for TxtHandler {
+    fn content(&self) -> String {
+        let mut s = self.data.lines.join("\n");
+        if self.data.trailing_newline {
+            s.push('\n');
+        }
+        s
+    }
+
+    fn replace_content(&self, content: &str) -> Result<Self, Error> {
+        let trailing_newline = content.ends_with('\n');
+        let lines: Vec<String> = content.lines().map(String::from).collect();
+        Ok(Self::new(TxtData {
+            lines,
+            trailing_newline,
+        }))
     }
 }
 

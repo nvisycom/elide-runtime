@@ -1,22 +1,21 @@
 //! Cell-level masking and hashing utilities.
 //!
 //! These functions are used by tabular redaction actions to transform
-//! individual cell values according to a [`RedactionOutput`] variant.
+//! individual cell values according to a [`TextRedactionOutput`] variant.
 
-use nvisy_ontology::redaction::{RedactionOutput, TextRedactionOutput};
+use nvisy_ontology::redaction::TextRedactionOutput;
 
 /// Redact a single cell value according to `output`.
 ///
-/// Dispatches on the [`RedactionOutput`] variant:
+/// Dispatches on the [`TextRedactionOutput`] variant:
 /// - **Mask**: preserve the last 4 characters, replacing the rest with the
 ///   mask character from the output.
 /// - **Remove**: return an empty string.
 /// - **Hash**: return `[HASH:{hex}]` using [`hash_string`].
-/// - **Other text variants**: use [`replacement_value()`](RedactionOutput::replacement_value),
-///   falling back to repeating `default_mask` for the cell length.
-pub fn mask_cell(cell: &str, output: &RedactionOutput, default_mask: char) -> String {
+/// - **Other variants**: use the output's replacement value directly.
+pub fn mask_cell(cell: &str, output: &TextRedactionOutput) -> String {
     match output {
-        RedactionOutput::Text(TextRedactionOutput::Mask { mask_char, .. }) => {
+        TextRedactionOutput::Mask { mask_char, .. } => {
             if cell.len() > 4 {
                 format!(
                     "{}{}",
@@ -27,14 +26,18 @@ pub fn mask_cell(cell: &str, output: &RedactionOutput, default_mask: char) -> St
                 mask_char.to_string().repeat(cell.len())
             }
         }
-        RedactionOutput::Text(TextRedactionOutput::Remove) => String::new(),
-        RedactionOutput::Text(TextRedactionOutput::Hash { .. }) => {
+        TextRedactionOutput::Remove => String::new(),
+        TextRedactionOutput::Hash { .. } => {
             format!("[HASH:{:x}]", hash_string(cell))
         }
-        _ => output
-            .replacement_value()
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| default_mask.to_string().repeat(cell.len())),
+        TextRedactionOutput::Replace { replacement }
+        | TextRedactionOutput::Synthesize { replacement }
+        | TextRedactionOutput::Aggregate { replacement }
+        | TextRedactionOutput::Generalize { replacement, .. }
+        | TextRedactionOutput::DateShift { replacement, .. } => replacement.clone(),
+        TextRedactionOutput::Encrypt { ciphertext, .. } => ciphertext.clone(),
+        TextRedactionOutput::Pseudonymize { pseudonym } => pseudonym.clone(),
+        TextRedactionOutput::Tokenize { token, .. } => token.clone(),
     }
 }
 

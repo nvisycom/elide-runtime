@@ -1,11 +1,11 @@
 //! Rendering primitives for redaction overlays.
 
-/// Redaction output types recording what was done.
-pub mod output;
+mod audio;
+mod image;
+mod output;
+mod text;
 
-/// Image rendering: blur and block overlay for bounding-box regions.
-#[cfg(any(feature = "png", feature = "jpeg"))]
-pub mod image;
-
-/// Text rendering: byte-offset replacement engine and cell-level masking.
-pub mod text;
+pub use audio::{AudioHandler, AudioRedaction, AudioRedactionOutput};
+pub use image::{ImageHandler, ImageRedaction, ImageRedactionOutput};
+pub use output::RedactionOutput;
+pub use text::{TextHandler, TextRedaction, TextRedactionOutput};

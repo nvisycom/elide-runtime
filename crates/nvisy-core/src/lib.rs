@@ -8,7 +8,5 @@ pub mod fs;
 pub mod io;
 pub mod math;
 pub mod path;
-pub mod redaction;
-
 #[doc(hidden)]
 pub mod prelude;

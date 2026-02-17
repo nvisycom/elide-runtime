@@ -1,6 +1,21 @@
-//! Rich document format handlers.
+//! Rich document format handlers and loaders.
 
 #[cfg(feature = "pdf")]
-pub mod pdf;
+mod pdf_handler;
+#[cfg(feature = "pdf")]
+mod pdf_loader;
+
 #[cfg(feature = "docx")]
-pub mod docx;
+mod docx_handler;
+#[cfg(feature = "docx")]
+mod docx_loader;
+
+#[cfg(feature = "pdf")]
+pub use pdf_handler::PdfHandler;
+#[cfg(feature = "pdf")]
+pub use pdf_loader::{PdfLoader, PdfParams};
+
+#[cfg(feature = "docx")]
+pub use docx_handler::DocxHandler;
+#[cfg(feature = "docx")]
+pub use docx_loader::{DocxLoader, DocxParams};

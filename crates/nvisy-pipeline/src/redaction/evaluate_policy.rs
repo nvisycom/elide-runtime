@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use nvisy_codec::render::output::{
+use nvisy_codec::render::{
     AudioRedactionOutput, ImageRedactionOutput, RedactionOutput, TextRedactionOutput,
 };
 use crate::ontology::redaction::{

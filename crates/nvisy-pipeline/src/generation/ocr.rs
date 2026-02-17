@@ -107,9 +107,10 @@ impl<B: OcrBackend> GenerateOcrAction<B> {
         let mut all_ocr_text = Vec::new();
 
         for doc in &input.image_docs {
+            let png_bytes = doc.handler().encode_bytes()?;
             let raw = self
                 .backend
-                .detect_ocr(doc.handler().bytes(), "image/png", &config)
+                .detect_ocr(&png_bytes, "image/png", &config)
                 .await?;
             let entities = parse_ocr_entities(&raw)?;
             for entity in &entities {

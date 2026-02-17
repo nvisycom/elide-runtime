@@ -1,4 +1,4 @@
-//! JPEG handler (stub — awaiting migration to Loader/Handler pattern).
+//! XLSX handler (stub — awaiting full spreadsheet support).
 
 use nvisy_core::error::Error;
 use nvisy_core::fs::DocumentType;
@@ -8,12 +8,12 @@ use crate::document::view_stream::SpanStream;
 use crate::handler::Handler;
 
 #[derive(Debug)]
-pub struct JpegHandler;
+pub struct XlsxHandler;
 
 #[async_trait::async_trait]
-impl Handler for JpegHandler {
+impl Handler for XlsxHandler {
     fn document_type(&self) -> DocumentType {
-        DocumentType::Jpeg
+        DocumentType::Xlsx
     }
 
     type SpanId = ();

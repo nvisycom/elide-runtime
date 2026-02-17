@@ -18,14 +18,10 @@ pub use crate::redaction::emit_audit::{EmitAuditAction, EmitAuditParams};
 pub use crate::generation::synthetic::{
     GenerateSyntheticAction, GenerateSyntheticParams, GenerateSyntheticInput,
 };
-
-#[cfg(feature = "image-redaction")]
 pub use crate::generation::ocr::{
     GenerateOcrAction, GenerateOcrParams, GenerateOcrInput, GenerateOcrOutput,
     OcrBackend, OcrConfig,
 };
-
-#[cfg(feature = "audio-redaction")]
 pub use crate::generation::transcribe::{
     GenerateTranscribeAction, GenerateTranscribeParams, GenerateTranscribeInput,
     GenerateTranscribeOutput,

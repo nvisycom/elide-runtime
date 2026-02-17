@@ -4,21 +4,14 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use serde::Deserialize;
 
-use nvisy_codec::handler::{TxtHandler, CsvHandler};
+use nvisy_codec::handler::{TxtHandler, CsvHandler, PngHandler, WavHandler};
 use nvisy_codec::document::Document;
-use nvisy_codec::render::text::{TextRedaction, AsRedactableText, mask_cell};
-use nvisy_codec::render::output::RedactionOutput;
+use nvisy_codec::handler::TxtSpan;
+use nvisy_codec::render::{TextRedaction, TextRedactionOutput, TextHandler, RedactionOutput};
+use nvisy_codec::render::{ImageRedaction, ImageHandler};
 use crate::ontology::redaction::Redaction;
 use crate::ontology::entity::Entity;
 use nvisy_core::error::Error;
-
-#[cfg(feature = "image-redaction")]
-use nvisy_codec::handler::PngHandler;
-#[cfg(feature = "image-redaction")]
-use nvisy_codec::render::image::{ImageRedaction, AsRedactableImage};
-
-#[cfg(feature = "audio-redaction")]
-use nvisy_codec::handler::WavHandler;
 
 use crate::action::Action;
 
@@ -27,12 +20,10 @@ use crate::action::Action;
 #[serde(rename_all = "camelCase")]
 pub struct ApplyRedactionParams {
     /// Duration in seconds to crossfade at silence boundaries (audio redaction).
-    #[cfg(feature = "audio-redaction")]
     #[serde(default = "default_crossfade_secs")]
     pub crossfade_secs: f64,
 }
 
-#[cfg(feature = "audio-redaction")]
 fn default_crossfade_secs() -> f64 {
     0.05
 }
@@ -41,11 +32,9 @@ fn default_crossfade_secs() -> f64 {
 pub struct ApplyRedactionInput {
     /// Text documents to redact.
     pub text_docs: Vec<Document<TxtHandler>>,
-    /// Image documents to redact (feature-gated).
-    #[cfg(feature = "image-redaction")]
+    /// Image documents to redact.
     pub image_docs: Vec<Document<PngHandler>>,
-    /// Audio documents to redact (feature-gated).
-    #[cfg(feature = "audio-redaction")]
+    /// Audio documents to redact.
     pub audio_docs: Vec<Document<WavHandler>>,
     /// Tabular documents to redact.
     pub tabular_docs: Vec<Document<CsvHandler>>,
@@ -59,11 +48,9 @@ pub struct ApplyRedactionInput {
 pub struct ApplyRedactionOutput {
     /// Redacted text documents.
     pub text_docs: Vec<Document<TxtHandler>>,
-    /// Redacted image documents (feature-gated).
-    #[cfg(feature = "image-redaction")]
+    /// Redacted image documents.
     pub image_docs: Vec<Document<PngHandler>>,
-    /// Redacted audio documents (feature-gated).
-    #[cfg(feature = "audio-redaction")]
+    /// Redacted audio documents.
     pub audio_docs: Vec<Document<WavHandler>>,
     /// Redacted tabular documents.
     pub tabular_docs: Vec<Document<CsvHandler>>,
@@ -73,8 +60,8 @@ pub struct ApplyRedactionOutput {
 ///
 /// Dispatches per-document based on content type:
 /// - **Text documents**: byte-offset replacement
-/// - **Image documents**: blur/block overlay (feature-gated)
-/// - **Audio documents**: stub pass-through (feature-gated)
+/// - **Image documents**: blur/block overlay
+/// - **Audio documents**: stub pass-through
 /// - **Tabular documents**: cell-level redaction
 pub struct ApplyRedactionAction {
     #[allow(dead_code)]
@@ -110,23 +97,19 @@ impl Action for ApplyRedactionAction {
         // Text documents
         let mut result_text = Vec::new();
         for doc in &input.text_docs {
-            let redacted = apply_text_doc(doc, &entity_map, &redaction_map)?;
+            let redacted = apply_text_doc(doc, &entity_map, &redaction_map).await?;
             result_text.push(redacted);
         }
 
         // Image documents
-        #[cfg(feature = "image-redaction")]
         let mut result_image = Vec::new();
-        #[cfg(feature = "image-redaction")]
         for doc in &input.image_docs {
-            let redacted = apply_image_doc(doc, &input.entities, &redaction_map)?;
+            let redacted = apply_image_doc(doc, &input.entities, &redaction_map).await?;
             result_image.push(redacted);
         }
 
         // Audio documents
-        #[cfg(feature = "audio-redaction")]
         let mut result_audio = Vec::new();
-        #[cfg(feature = "audio-redaction")]
         for doc in &input.audio_docs {
             let redacted = apply_audio_doc(doc);
             result_audio.push(redacted);
@@ -141,9 +124,7 @@ impl Action for ApplyRedactionAction {
 
         Ok(ApplyRedactionOutput {
             text_docs: result_text,
-            #[cfg(feature = "image-redaction")]
             image_docs: result_image,
-            #[cfg(feature = "audio-redaction")]
             audio_docs: result_audio,
             tabular_docs: result_tabular,
         })
@@ -154,12 +135,13 @@ impl Action for ApplyRedactionAction {
 // Text redaction
 // ---------------------------------------------------------------------------
 
-fn apply_text_doc(
+async fn apply_text_doc(
     doc: &Document<TxtHandler>,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &Redaction>,
 ) -> Result<Document<TxtHandler>, Error> {
-    let mut redactions: Vec<TextRedaction> = Vec::new();
+    // Collect global-offset redactions for this document.
+    let mut global_redactions: Vec<(usize, usize, TextRedactionOutput)> = Vec::new();
 
     for (entity_id, redaction) in redaction_map {
         let entity = match entity_map.get(entity_id) {
@@ -182,25 +164,84 @@ fn apply_text_doc(
             _ => continue,
         };
 
-        redactions.push(TextRedaction { start, end, output });
+        global_redactions.push((start, end, output));
     }
 
-    if redactions.is_empty() {
+    if global_redactions.is_empty() {
         return Ok(doc.clone());
     }
 
-    let handler = doc.handler().redact(&redactions)?;
-    let mut result = Document::new(handler);
+    // Build cumulative byte-offset map from lines so we can convert
+    // global offsets to (TxtSpan, intra-line start, intra-line end).
+    let lines = doc.handler().lines();
+    // Each line contributes `line.len()` bytes plus 1 for the '\n' separator.
+    let mut line_starts: Vec<usize> = Vec::with_capacity(lines.len());
+    let mut offset = 0usize;
+    for line in lines {
+        line_starts.push(offset);
+        // +1 for the '\n' that separates lines in the flat representation
+        offset += line.len() + 1;
+    }
+
+    // Map each global-offset redaction to per-span redactions, splitting
+    // across line boundaries when necessary.
+    let mut redactions: Vec<TextRedaction<TxtSpan>> = Vec::new();
+    for (g_start, g_end, output) in &global_redactions {
+        let g_start = *g_start;
+        let g_end = *g_end;
+
+        for (i, &line_start) in line_starts.iter().enumerate() {
+            let line_end = line_start + lines[i].len(); // exclusive, before '\n'
+
+            // Skip lines entirely before or after this redaction range.
+            if g_end <= line_start || g_start >= line_end + 1 {
+                continue;
+            }
+
+            let intra_start = if g_start > line_start {
+                g_start - line_start
+            } else {
+                0
+            };
+            let intra_end = if g_end < line_end {
+                g_end - line_start
+            } else {
+                lines[i].len()
+            };
+
+            if intra_start >= intra_end {
+                continue;
+            }
+
+            // Only the first segment of a cross-line redaction carries the
+            // replacement value; subsequent segments are removals so that
+            // the original text is deleted without duplicating the replacement.
+            let seg_output = if line_start <= g_start {
+                output.clone()
+            } else {
+                TextRedactionOutput::Remove
+            };
+
+            redactions.push(TextRedaction {
+                span_id: TxtSpan(i),
+                start: intra_start,
+                end: intra_end,
+                output: seg_output,
+            });
+        }
+    }
+
+    let mut result = doc.clone();
+    result.handler_mut().redact_spans(&redactions).await?;
     result.source.set_parent_id(Some(doc.source.as_uuid()));
     Ok(result)
 }
 
 // ---------------------------------------------------------------------------
-// Image redaction (feature-gated)
+// Image redaction
 // ---------------------------------------------------------------------------
 
-#[cfg(feature = "image-redaction")]
-fn apply_image_doc(
+async fn apply_image_doc(
     doc: &Document<PngHandler>,
     entities: &[Entity],
     redaction_map: &HashMap<Uuid, &Redaction>,
@@ -226,17 +267,16 @@ fn apply_image_doc(
         return Ok(doc.clone());
     }
 
-    let handler = doc.handler().redact(&redactions)?;
-    let mut result = Document::new(handler);
+    let mut result = doc.clone();
+    result.handler_mut().redact_spans(&redactions).await?;
     result.source.set_parent_id(Some(doc.source.as_uuid()));
     Ok(result)
 }
 
 // ---------------------------------------------------------------------------
-// Audio redaction (feature-gated)
+// Audio redaction
 // ---------------------------------------------------------------------------
 
-#[cfg(feature = "audio-redaction")]
 fn apply_audio_doc(doc: &Document<WavHandler>) -> Document<WavHandler> {
     tracing::warn!("audio redaction not yet implemented");
     doc.clone()
@@ -263,7 +303,7 @@ fn apply_tabular_doc(
                 };
                 if let Some(row) = result.handler_mut().rows_mut().get_mut(row_idx) {
                     if let Some(cell) = row.get_mut(col_idx) {
-                        *cell = mask_cell(cell, output);
+                        *cell = output.mask_cell(cell);
                     }
                 }
             }
@@ -272,4 +312,3 @@ fn apply_tabular_doc(
 
     result
 }
-

@@ -1,92 +1,113 @@
 //! Text rendering and redaction primitives.
 //!
-//! Provides byte-offset replacement, cell-level masking, and the
-//! [`AsText`] / [`AsRedactableText`] traits that text-bearing handlers
-//! implement to support redaction in a single call.
-//!
-//! # Traits
-//!
-//! [`AsText`] is the codec extension point: text format handlers
-//! implement [`content`](AsText::content) and
-//! [`replace_content`](AsText::replace_content) to read and write their
-//! backing text.
-//!
-//! [`AsRedactableText`] adds a [`redact`](AsRedactableText::redact)
-//! convenience method that resolves [`TextRedaction`] items into
-//! byte-offset replacements. It is automatically implemented for every
-//! type that implements [`AsText`].
+//! Provides the [`TextHandler`] async trait that text-bearing handlers
+//! implement to support span-aware redaction.  The default implementation
+//! groups redactions by [`SpanId`](Handler::SpanId), reads current content
+//! via [`Handler::view_spans`], applies intra-span byte-offset replacements
+//! right-to-left, and writes the results back via [`Handler::edit_spans`].
 
 mod mask;
-mod replace;
+mod output;
 
-pub use mask::mask_cell;
+pub use output::TextRedactionOutput;
 
-use replace::{apply_replacements, PendingReplacement};
+use std::collections::HashMap;
+use std::hash::Hash;
 
+use futures::StreamExt;
+
+use crate::document::edit_stream::SpanEditStream;
+use crate::handler::{Handler, SpanEdit};
 use nvisy_core::error::Error;
-use crate::render::output::TextRedactionOutput;
 
-/// A located text redaction: pairs a byte range with a
-/// [`TextRedactionOutput`] that carries the already-resolved replacement.
-pub struct TextRedaction {
-    /// Byte offset where the redacted span starts in the content.
+/// A located text redaction: pairs a span identifier and intra-span byte
+/// range with a [`TextRedactionOutput`] that carries the replacement.
+pub struct TextRedaction<S> {
+    /// Which span this redaction targets.
+    pub span_id: S,
+    /// Byte offset where the redacted region starts within the span.
     pub start: usize,
-    /// Byte offset where the redacted span ends (exclusive) in the content.
+    /// Byte offset where the redacted region ends (exclusive) within the span.
     pub end: usize,
     /// The redaction output that carries the replacement value.
     pub output: TextRedactionOutput,
 }
 
-/// Trait for handlers that wrap text content.
+/// Trait for handlers that support text redaction.
 ///
-/// Handlers implement [`content`](Self::content) and
-/// [`replace_content`](Self::replace_content) to round-trip through
-/// plain text. See [`AsRedactableText`] for the higher-level redaction
-/// API.
-pub trait AsText: Sized {
-    /// Return the handler's full text content as a single string.
-    fn content(&self) -> String;
-
-    /// Build a new handler instance with the given text content.
-    fn replace_content(&self, content: &str) -> Result<Self, Error>;
-}
-
-/// Extension trait that adds [`TextRedactionOutput`]-driven redaction
-/// to any [`AsText`] implementor.
-///
-/// This trait is automatically implemented for every type that implements
-/// [`AsText`] — handler authors only need to implement [`AsText`].
-pub trait AsRedactableText: AsText {
-    /// Apply a batch of text redactions, returning a new handler.
+/// Extends [`Handler`] with [`redact_spans`](Self::redact_spans) which
+/// applies a batch of span-aware text redactions.  The provided default
+/// implementation groups redactions by span, reads content via
+/// [`view_spans`](Handler::view_spans), applies byte-offset replacements
+/// right-to-left per span, and writes back via
+/// [`edit_spans`](Handler::edit_spans).
+#[async_trait::async_trait]
+pub trait TextHandler: Handler
+where
+    Self::SpanId: Eq + Hash,
+    Self::SpanData: AsRef<str> + From<String>,
+{
+    /// Apply a batch of text redactions, mutating in place.
     ///
-    /// Each [`TextRedaction`] identifies a byte range and a
-    /// [`TextRedactionOutput`] whose replacement value is written into
-    /// the content. Replacements are applied right-to-left so that byte
-    /// offsets remain valid.
-    fn redact(&self, redactions: &[TextRedaction]) -> Result<Self, Error> {
+    /// Each [`TextRedaction`] identifies a span and an intra-span byte
+    /// range together with a [`TextRedactionOutput`] whose replacement
+    /// value is written into the content.  Replacements within each span
+    /// are applied right-to-left so that byte offsets remain valid.
+    async fn redact_spans(
+        &mut self,
+        redactions: &[TextRedaction<Self::SpanId>],
+    ) -> Result<(), Error> {
         if redactions.is_empty() {
-            return self.replace_content(&self.content());
+            return Ok(());
         }
 
-        let content = self.content();
-        let mut pending: Vec<PendingReplacement> = redactions
-            .iter()
-            .map(|r| {
-                let value = r.output.replacement_value()
-                    .unwrap_or_default()
-                    .to_string();
-                PendingReplacement {
-                    start: r.start,
-                    end: r.end,
-                    value,
-                }
-            })
-            .collect();
+        // Group redactions by span id.
+        let mut by_span: HashMap<&Self::SpanId, Vec<(usize, usize, String)>> = HashMap::new();
+        for r in redactions {
+            let value = r
+                .output
+                .replacement_value()
+                .unwrap_or_default()
+                .to_string();
+            by_span
+                .entry(&r.span_id)
+                .or_default()
+                .push((r.start, r.end, value));
+        }
 
-        let result = apply_replacements(&content, &mut pending);
-        self.replace_content(&result)
+        // Read current content for affected spans.
+        let all_spans: Vec<_> = self.view_spans().await.collect().await;
+
+        let mut edits: Vec<SpanEdit<Self::SpanId, Self::SpanData>> = Vec::new();
+        for span in &all_spans {
+            if let Some(replacements) = by_span.get_mut(&span.id) {
+                let content = span.data.as_ref();
+
+                // Sort right-to-left so earlier byte offsets stay valid.
+                replacements.sort_by(|a, b| b.0.cmp(&a.0));
+
+                let mut result = content.to_string();
+                for (start, end, value) in replacements.iter() {
+                    let s = (*start).min(result.len());
+                    let e = (*end).min(result.len());
+                    if s >= e {
+                        continue;
+                    }
+                    result = format!("{}{}{}", &result[..s], value, &result[e..]);
+                }
+
+                edits.push(SpanEdit {
+                    id: span.id.clone(),
+                    data: Self::SpanData::from(result),
+                });
+            }
+        }
+
+        if !edits.is_empty() {
+            self.edit_spans(SpanEditStream::new(futures::stream::iter(edits)))
+                .await?;
+        }
+
+        Ok(())
     }
 }
-
-/// Blanket implementation: every [`AsText`] type gets [`AsRedactableText`] for free.
-impl<T: AsText> AsRedactableText for T {}

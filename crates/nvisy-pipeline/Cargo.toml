@@ -17,17 +17,6 @@ repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
-
-[features]
-default = ["image-redaction", "audio-redaction"]
-# Image redaction (blur, block); enables nvisy-codec image handlers and rendering
-image-redaction = ["nvisy-codec/png", "nvisy-codec/jpeg"]
-# Audio redaction pass-through; enables nvisy-codec/wav for WavHandler
-audio-redaction = ["nvisy-codec/wav"]
-
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }

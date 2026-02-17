@@ -13,13 +13,11 @@ use nvisy_core::error::Error;
 use crate::bridge::PythonBridge;
 use crate::error::from_pyerr;
 
-#[cfg(feature = "png")]
 use nvisy_pipeline::generation::ocr::{OcrBackend, OcrConfig};
 
 /// Call Python `detect_ocr()` via GIL + `spawn_blocking`.
 ///
 /// Returns raw JSON dicts — no domain-type construction.
-#[cfg(feature = "png")]
 pub async fn detect_ocr(
     bridge: &PythonBridge,
     image_data: &[u8],
@@ -58,7 +56,6 @@ pub async fn detect_ocr(
 /// [`OcrBackend`] implementation for [`PythonBridge`].
 ///
 /// Delegates to the `detect_ocr` function above.
-#[cfg(feature = "png")]
 #[async_trait::async_trait]
 impl OcrBackend for PythonBridge {
     async fn detect_ocr(

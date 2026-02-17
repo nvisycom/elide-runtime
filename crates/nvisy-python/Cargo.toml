@@ -21,11 +21,6 @@ documentation = { workspace = true }
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[features]
-default = ["png"]
-# Image-based OCR actions (requires PngHandler via pipeline)
-png = ["nvisy-pipeline/image-redaction"]
-
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }

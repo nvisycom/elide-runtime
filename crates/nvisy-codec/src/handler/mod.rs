@@ -18,31 +18,20 @@ use crate::document::Document;
 pub mod encoding;
 pub mod span;
 
-pub mod text;
-pub mod document;
-pub mod image;
-pub mod tabular;
-pub mod audio;
+mod text;
+mod document;
+mod image;
+mod tabular;
+mod audio;
 
 pub use encoding::TextEncoding;
 pub use span::{Span, SpanEdit};
 
-pub use text::txt_handler::{TxtData, TxtHandler, TxtSpan};
-pub use text::txt_loader::{TxtLoader, TxtParams};
-pub use text::csv_handler::{CsvData, CsvHandler, CsvSpan};
-pub use text::csv_loader::{CsvLoader, CsvParams};
-pub use text::json_handler::{
-    JsonData, JsonHandler, JsonIndent, JsonPath,
-};
-pub use text::json_loader::{JsonParams, JsonLoader};
-
-#[cfg(feature = "png")]
-pub use image::png::PngHandler;
-
-#[cfg(feature = "wav")]
-pub use audio::wav::WavHandler;
-#[cfg(feature = "mp3")]
-pub use audio::mp3::Mp3Handler;
+pub use text::*;
+pub use document::*;
+pub use image::*;
+pub use tabular::*;
+pub use audio::*;
 
 /// Trait implemented by all format handlers.
 ///

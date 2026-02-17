@@ -4,14 +4,11 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use nvisy_codec::document::Document;
-use nvisy_codec::handler::TxtHandler;
+use nvisy_codec::handler::{TxtHandler, PngHandler};
 use nvisy_core::entity::EntityCategory;
 use nvisy_core::error::Error;
 
 use crate::ontology::entity::{DetectionMethod, Entity, TextLocation};
-
-#[cfg(feature = "image-redaction")]
-use nvisy_codec::handler::PngHandler;
 
 fn default_confidence() -> f64 {
     0.5
@@ -69,8 +66,7 @@ pub struct DetectNerParams {
 pub struct DetectNerInput {
     /// Text documents to scan for named entities.
     pub text_docs: Vec<Document<TxtHandler>>,
-    /// Image documents to scan for named entities (feature-gated).
-    #[cfg(feature = "image-redaction")]
+    /// Image documents to scan for named entities.
     pub image_docs: Vec<Document<PngHandler>>,
 }
 
@@ -94,7 +90,7 @@ impl<B: NerBackend> DetectNerAction<B> {
         }
     }
 
-    /// Execute NER detection on text documents and (optionally) image documents.
+    /// Execute NER detection on text documents and image documents.
     pub async fn run(&self, input: DetectNerInput) -> Result<Vec<Entity>, Error> {
         let config = self.config();
         let mut entities = Vec::new();
@@ -105,11 +101,11 @@ impl<B: NerBackend> DetectNerAction<B> {
             entities.extend(parse_ner_entities(&raw)?);
         }
 
-        #[cfg(feature = "image-redaction")]
         for doc in &input.image_docs {
+            let png_bytes = doc.handler().encode_bytes()?;
             let raw = self
                 .backend
-                .detect_image(doc.handler().bytes(), "image/png", &config)
+                .detect_image(&png_bytes, "image/png", &config)
                 .await?;
             entities.extend(parse_ner_entities(&raw)?);
         }

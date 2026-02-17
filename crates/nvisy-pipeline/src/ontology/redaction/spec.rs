@@ -7,10 +7,6 @@
 use derive_more::From;
 use serde::{Deserialize, Serialize};
 
-use nvisy_core::redaction::{
-    AudioRedactionMethod, ImageRedactionMethod, RedactionMethod, TextRedactionMethod,
-};
-
 /// Text redaction specification with method-specific configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[derive(schemars::JsonSchema)]
@@ -129,48 +125,6 @@ pub enum AudioRedactionSpec {
     Synthesize,
 }
 
-impl TextRedactionSpec {
-    /// Returns the [`TextRedactionMethod`] tag this spec corresponds to.
-    pub fn method(&self) -> TextRedactionMethod {
-        match self {
-            Self::Mask { .. } => TextRedactionMethod::Mask,
-            Self::Replace { .. } => TextRedactionMethod::Replace,
-            Self::Hash => TextRedactionMethod::Hash,
-            Self::Encrypt { .. } => TextRedactionMethod::Encrypt,
-            Self::Remove => TextRedactionMethod::Remove,
-            Self::Synthesize => TextRedactionMethod::Synthesize,
-            Self::Pseudonymize => TextRedactionMethod::Pseudonymize,
-            Self::Tokenize { .. } => TextRedactionMethod::Tokenize,
-            Self::Aggregate => TextRedactionMethod::Aggregate,
-            Self::Generalize { .. } => TextRedactionMethod::Generalize,
-            Self::DateShift { .. } => TextRedactionMethod::DateShift,
-        }
-    }
-}
-
-impl ImageRedactionSpec {
-    /// Returns the [`ImageRedactionMethod`] tag this spec corresponds to.
-    pub fn method(&self) -> ImageRedactionMethod {
-        match self {
-            Self::Blur { .. } => ImageRedactionMethod::Blur,
-            Self::Block { .. } => ImageRedactionMethod::Block,
-            Self::Pixelate { .. } => ImageRedactionMethod::Pixelate,
-            Self::Synthesize => ImageRedactionMethod::Synthesize,
-        }
-    }
-}
-
-impl AudioRedactionSpec {
-    /// Returns the [`AudioRedactionMethod`] tag this spec corresponds to.
-    pub fn method(&self) -> AudioRedactionMethod {
-        match self {
-            Self::Silence => AudioRedactionMethod::Silence,
-            Self::Remove => AudioRedactionMethod::Remove,
-            Self::Synthesize => AudioRedactionMethod::Synthesize,
-        }
-    }
-}
-
 /// Unified redaction specification submitted to the engine.
 ///
 /// Carries the method to apply and its configuration parameters.
@@ -184,15 +138,4 @@ pub enum RedactionSpec {
     Image(ImageRedactionSpec),
     /// Audio redaction specification.
     Audio(AudioRedactionSpec),
-}
-
-impl RedactionSpec {
-    /// Returns the [`RedactionMethod`] tag this spec corresponds to.
-    pub fn method(&self) -> RedactionMethod {
-        match self {
-            Self::Text(t) => RedactionMethod::Text(t.method()),
-            Self::Image(i) => RedactionMethod::Image(i.method()),
-            Self::Audio(a) => RedactionMethod::Audio(a.method()),
-        }
-    }
 }

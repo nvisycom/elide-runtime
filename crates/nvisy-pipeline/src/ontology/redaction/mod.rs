@@ -22,7 +22,7 @@ pub use trait_::Redactable;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use nvisy_codec::render::output::RedactionOutput;
+use nvisy_codec::render::RedactionOutput;
 use nvisy_core::path::ContentSource;
 
 /// A redaction decision recording how a specific entity was (or will be) redacted.

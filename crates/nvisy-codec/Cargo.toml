@@ -22,26 +22,16 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-default = ["pdf", "docx", "html", "xlsx", "image", "wav", "mp3"]
+default = ["pdf", "docx", "html", "xlsx"]
 
-# PDF parsing and text extraction via pdf-extract + lopdf; enables png for extracted images
-pdf = ["dep:pdf-extract", "dep:lopdf", "png"]
-# Microsoft Word (.docx) parsing via zip + quick-xml; enables image formats for extracted images
-docx = ["dep:zip", "dep:quick-xml", "jpeg", "png"]
+# PDF parsing and text extraction via pdf-extract + lopdf
+pdf = ["dep:pdf-extract", "dep:lopdf"]
+# Microsoft Word (.docx) parsing via zip + quick-xml
+docx = ["dep:zip", "dep:quick-xml"]
 # HTML parsing and text extraction via scraper
 html = ["dep:scraper"]
 # Excel (.xlsx) spreadsheet parsing via calamine
 xlsx = ["dep:calamine"]
-
-# Convenience alias: all image formats
-image = ["jpeg", "png"]
-# Individual image format handlers (each pulls in image + imageproc for rendering)
-jpeg = ["dep:image", "dep:imageproc"]
-png = ["dep:image", "dep:imageproc"]
-
-# Audio format handlers (no additional dependencies)
-wav = []
-mp3 = []
 
 [dependencies]
 # Internal crates
@@ -80,8 +70,8 @@ zip = { workspace = true, optional = true, features = [] }
 quick-xml = { workspace = true, optional = true, features = [] }
 scraper = { workspace = true, optional = true, features = [] }
 calamine = { workspace = true, optional = true, features = [] }
-image = { workspace = true, optional = true, features = [] }
-imageproc = { workspace = true, optional = true, features = [] }
+image = { workspace = true, features = [] }
+imageproc = { workspace = true, features = [] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

@@ -1,10 +1,19 @@
 //! Text-based format handlers.
 
-pub mod txt_handler;
-pub mod txt_loader;
-pub mod csv_handler;
-pub mod csv_loader;
-pub mod json_handler;
-pub mod json_loader;
+mod txt_handler;
+mod txt_loader;
+mod csv_handler;
+mod csv_loader;
+mod json_handler;
+mod json_loader;
 #[cfg(feature = "html")]
-pub mod html;
+mod html;
+
+pub use txt_handler::{TxtData, TxtHandler, TxtSpan};
+pub use txt_loader::{TxtLoader, TxtParams};
+pub use csv_handler::{CsvData, CsvHandler, CsvSpan};
+pub use csv_loader::{CsvLoader, CsvParams};
+pub use json_handler::{JsonData, JsonHandler, JsonIndent, JsonPath};
+pub use json_loader::{JsonLoader, JsonParams};
+#[cfg(feature = "html")]
+pub use html::HtmlHandler;

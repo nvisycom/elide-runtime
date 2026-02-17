@@ -1,19 +1,8 @@
-//! Image rendering primitives for redaction overlays.
-//!
-//! Provides gaussian blur, solid-color block overlay, and pixelation
-//! functions that operate on [`DynamicImage`] values using bounding-box
-//! regions.
-//!
-//! # Traits
-//!
-//! [`AsImage`] is the codec extension point: image format handlers
-//! implement [`decode`](AsImage::decode) and [`encode`](AsImage::encode)
-//! to round-trip through [`DynamicImage`].
-//!
-//! [`AsRedactableImage`] adds a [`redact`](AsRedactableImage::redact)
-//! convenience method that dispatches [`ImageRedactionOutput`] variants
-//! to the appropriate rendering primitive. It is automatically
-//! implemented for every type that implements [`AsImage`].
+//! Image redaction output type and rendering primitives.
+
+mod output;
+
+pub use output::ImageRedactionOutput;
 
 mod blur;
 mod block;
@@ -23,10 +12,13 @@ use blur::apply_gaussian_blur;
 use block::apply_block_overlay;
 use pixelate::apply_pixelate;
 
-use ::image::DynamicImage;
+use image::DynamicImage;
+use futures::StreamExt;
+
+use crate::document::edit_stream::SpanEditStream;
+use crate::handler::{Handler, SpanEdit};
 use nvisy_core::error::Error;
 use nvisy_core::math::{BoundingBox, BoundingBoxU32};
-use crate::render::output::ImageRedactionOutput;
 
 /// A located image redaction: pairs a bounding box with an
 /// [`ImageRedactionOutput`] that carries the method-specific parameters.
@@ -37,37 +29,34 @@ pub struct ImageRedaction {
     pub output: ImageRedactionOutput,
 }
 
-/// Trait for handlers that wrap a raster image.
+/// Trait for handlers that support image redaction.
 ///
-/// Handlers implement [`decode`](Self::decode) and [`encode`](Self::encode)
-/// to round-trip through [`DynamicImage`]. See [`AsRedactableImage`] for
-/// the higher-level redaction API.
-pub trait AsImage: Sized {
-    /// Decode the handler's raw bytes into a [`DynamicImage`].
-    fn decode(&self) -> Result<DynamicImage, Error>;
-
-    /// Encode a [`DynamicImage`] back into a new handler instance.
-    fn encode(image: &DynamicImage) -> Result<Self, Error>;
-}
-
-/// Extension trait that adds [`ImageRedactionOutput`]-driven redaction
-/// to any [`AsImage`] implementor.
-///
-/// This trait is automatically implemented for every type that implements
-/// [`AsImage`] — handler authors only need to implement [`AsImage`].
-pub trait AsRedactableImage: AsImage {
-    /// Apply a batch of image redactions, returning a new handler.
-    ///
-    /// Each [`ImageRedaction`] identifies a bounding box and an
-    /// [`ImageRedactionOutput`] that determines the rendering method
-    /// (blur, block, pixelate). The image is decoded once, all
-    /// redactions are applied in order, and then re-encoded.
-    fn redact(&self, redactions: &[ImageRedaction]) -> Result<Self, Error> {
+/// Extends [`Handler`] with [`redact_spans`](Self::redact_spans) which
+/// applies a batch of bounding-box image redactions.  The provided
+/// default implementation reads the image via [`view_spans`](Handler::view_spans),
+/// applies all redactions, and writes back via [`edit_spans`](Handler::edit_spans).
+#[async_trait::async_trait]
+pub trait ImageHandler: Handler
+where
+    Self::SpanData: Into<DynamicImage> + From<DynamicImage>,
+{
+    /// Apply a batch of image redactions, mutating in place.
+    async fn redact_spans(
+        &mut self,
+        redactions: &[ImageRedaction],
+    ) -> Result<(), Error> {
         if redactions.is_empty() {
-            return Self::encode(&self.decode()?);
+            return Ok(());
         }
 
-        let mut img = self.decode()?;
+        // Get the current image from the single span.
+        let spans: Vec<_> = self.view_spans().await.collect().await;
+        let span = match spans.into_iter().next() {
+            Some(s) => s,
+            None => return Ok(()),
+        };
+
+        let mut img: DynamicImage = span.data.into();
 
         for r in redactions {
             let region = BoundingBoxU32::from(&r.bounding_box);
@@ -88,9 +77,14 @@ pub trait AsRedactableImage: AsImage {
             }
         }
 
-        Self::encode(&img)
+        self.edit_spans(SpanEditStream::new(futures::stream::iter(
+            std::iter::once(SpanEdit {
+                id: span.id,
+                data: Self::SpanData::from(img),
+            }),
+        )))
+        .await?;
+
+        Ok(())
     }
 }
-
-/// Blanket implementation: every [`AsImage`] type gets [`AsRedactableImage`] for free.
-impl<T: AsImage> AsRedactableImage for T {}

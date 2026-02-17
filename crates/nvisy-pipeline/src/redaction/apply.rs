@@ -194,15 +194,11 @@ async fn apply_text_doc(
             let line_end = line_start + lines[i].len(); // exclusive, before '\n'
 
             // Skip lines entirely before or after this redaction range.
-            if g_end <= line_start || g_start >= line_end + 1 {
+            if g_end <= line_start || g_start > line_end {
                 continue;
             }
 
-            let intra_start = if g_start > line_start {
-                g_start - line_start
-            } else {
-                0
-            };
+            let intra_start = g_start.saturating_sub(line_start);
             let intra_end = if g_end < line_end {
                 g_end - line_start
             } else {

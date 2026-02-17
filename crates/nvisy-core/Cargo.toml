@@ -17,6 +17,10 @@ repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 # JSON Schema generation
 schemars = { workspace = true, features = [] }
@@ -49,6 +53,9 @@ hipstr = { workspace = true, features = [] }
 # Hashing
 sha2 = { workspace = true, features = [] }
 hex = { workspace = true, features = [] }
+
+# Semantic versioning
+semver = { workspace = true, features = [] }
 
 # Enum derives
 strum = { workspace = true, features = [] }

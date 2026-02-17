@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use nvisy_ontology::entity::{DetectionMethod, Entity};
+use crate::ontology::entity::{DetectionMethod, Entity};
 use nvisy_core::error::Error;
 use nvisy_pattern::patterns::validators::luhn_check;
 
@@ -78,11 +78,7 @@ impl Action for DetectChecksumAction {
                         DetectionMethod::Checksum,
                         (entity.confidence + confidence_boost).min(1.0),
                     );
-                    boosted.text_location = entity.text_location.clone();
-                    boosted.image_location = entity.image_location.clone();
-                    boosted.tabular_location = entity.tabular_location.clone();
-                    boosted.audio_location = entity.audio_location.clone();
-                    boosted.video_location = entity.video_location.clone();
+                    boosted.copy_locations_from(&entity);
                     boosted.source.set_parent_id(entity.source.parent_id());
 
                     result.push(boosted);

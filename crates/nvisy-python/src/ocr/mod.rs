@@ -1,40 +1,29 @@
 //! OCR text extraction via the Python backend.
 //!
 //! Calls `nvisy_ai.detect_ocr()` through the Python bridge to perform
-//! optical character recognition on images, returning text regions with
-//! bounding boxes.
+//! optical character recognition on images, returning raw JSON values.
+//! Entity construction is handled by the pipeline's [`OcrBackend`] /
+//! [`GenerateOcrAction`] layer.
 
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::PyDict;
+use serde_json::Value;
 
-use nvisy_ontology::entity::{
-    BoundingBox, DetectionMethod, Entity, EntityCategory, ImageLocation,
-};
 use nvisy_core::error::Error;
 use crate::bridge::PythonBridge;
 use crate::error::from_pyerr;
 
-/// Configuration for OCR detection.
-#[derive(Debug, Clone)]
-pub struct OcrConfig {
-    /// Language hint (e.g. `"eng"` for English).
-    pub language: String,
-    /// OCR engine to use (`"tesseract"`, `"google-vision"`, `"aws-textract"`).
-    pub engine: String,
-    /// Minimum confidence threshold for OCR results.
-    pub confidence_threshold: f64,
-}
+use nvisy_pipeline::generation::ocr::{OcrBackend, OcrConfig};
 
 /// Call Python `detect_ocr()` via GIL + `spawn_blocking`.
 ///
-/// Returns a list of entities with `DetectionMethod::Ocr`, each carrying
-/// a bounding box indicating where the text was found in the image.
+/// Returns raw JSON dicts — no domain-type construction.
 pub async fn detect_ocr(
     bridge: &PythonBridge,
     image_data: &[u8],
     mime_type: &str,
     config: &OcrConfig,
-) -> Result<Vec<Entity>, Error> {
+) -> Result<Vec<Value>, Error> {
     let module_name = bridge.module_name().to_string();
     let image_data = image_data.to_vec();
     let mime_type = mime_type.to_string();
@@ -55,93 +44,26 @@ pub async fn detect_ocr(
                 .call_method("detect_ocr", (), Some(&kwargs))
                 .map_err(from_pyerr)?;
 
-            parse_ocr_results(result)
+            pythonize::depythonize::<Vec<Value>>(&result).map_err(|e| {
+                Error::python(format!("Failed to deserialize OCR result: {}", e))
+            })
         })
     })
     .await
     .map_err(|e| Error::python(format!("Task join error: {}", e)))?
 }
 
-/// Parse Python list[dict] OCR response into Vec<Entity>.
+/// [`OcrBackend`] implementation for [`PythonBridge`].
 ///
-/// Expected Python response format:
-/// ```python
-/// [
-///     {
-///         "text": "John Doe",
-///         "x": 100.0,
-///         "y": 200.0,
-///         "width": 150.0,
-///         "height": 30.0,
-///         "confidence": 0.95
-///     },
-///     ...
-/// ]
-/// ```
-fn parse_ocr_results(result: Bound<'_, PyAny>) -> Result<Vec<Entity>, Error> {
-    let list: &Bound<'_, PyList> = result.downcast().map_err(|e| {
-        Error::python(format!("Expected list from Python OCR: {}", e))
-    })?;
-
-    let mut entities = Vec::new();
-
-    for item in list.iter() {
-        let dict: &Bound<'_, PyDict> = item.downcast().map_err(|e| {
-            Error::python(format!("Expected dict in OCR list: {}", e))
-        })?;
-
-        let text: String = dict
-            .get_item("text")
-            .map_err(from_pyerr)?
-            .ok_or_else(|| Error::python("Missing 'text' in OCR result"))?
-            .extract()
-            .map_err(from_pyerr)?;
-
-        let x: f64 = dict
-            .get_item("x")
-            .map_err(from_pyerr)?
-            .and_then(|v| v.extract().ok())
-            .unwrap_or(0.0);
-
-        let y: f64 = dict
-            .get_item("y")
-            .map_err(from_pyerr)?
-            .and_then(|v| v.extract().ok())
-            .unwrap_or(0.0);
-
-        let width: f64 = dict
-            .get_item("width")
-            .map_err(from_pyerr)?
-            .and_then(|v| v.extract().ok())
-            .unwrap_or(0.0);
-
-        let height: f64 = dict
-            .get_item("height")
-            .map_err(from_pyerr)?
-            .and_then(|v| v.extract().ok())
-            .unwrap_or(0.0);
-
-        let confidence: f64 = dict
-            .get_item("confidence")
-            .map_err(from_pyerr)?
-            .and_then(|v| v.extract().ok())
-            .unwrap_or(0.0);
-
-        let entity = Entity::new(
-            EntityCategory::Pii,
-            "ocr_text",
-            &text,
-            DetectionMethod::Ocr,
-            confidence,
-        )
-        .with_image_location(ImageLocation {
-            bounding_box: BoundingBox { x, y, width, height },
-            image_id: None,
-            page_number: None,
-        });
-
-        entities.push(entity);
+/// Delegates to the `detect_ocr` function above.
+#[async_trait::async_trait]
+impl OcrBackend for PythonBridge {
+    async fn detect_ocr(
+        &self,
+        image_data: &[u8],
+        mime_type: &str,
+        config: &OcrConfig,
+    ) -> Result<Vec<Value>, Error> {
+        self::detect_ocr(self, image_data, mime_type, config).await
     }
-
-    Ok(entities)
 }

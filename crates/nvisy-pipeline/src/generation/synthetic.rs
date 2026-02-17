@@ -3,8 +3,8 @@
 
 use serde::Deserialize;
 
-use nvisy_ontology::entity::Entity;
-use nvisy_ontology::redaction::Redaction;
+use crate::ontology::redaction::Redaction;
+use crate::ontology::entity::Entity;
 use nvisy_core::error::Error;
 
 use crate::action::Action;

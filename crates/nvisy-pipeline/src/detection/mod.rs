@@ -1,7 +1,7 @@
 //! Entity detection actions.
 //!
 //! Each sub-module exposes a single [`Action`](crate::action::Action)
-//! that produces [`Entity`](nvisy_ontology::entity::Entity) values from
+//! that produces [`Entity`](crate::ontology::entity::Entity) values from
 //! document content.
 
 /// Validates detected entities using checksum algorithms (e.g. Luhn).

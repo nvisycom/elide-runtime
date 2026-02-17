@@ -14,7 +14,7 @@ use minio::s3::types::{S3Api, ToStream};
 use minio::s3::{Client as MinioClient, ClientBuilder as MinioClientBuilder};
 
 use nvisy_core::error::Error;
-use nvisy_pipeline::provider::{ConnectedInstance, Provider};
+use nvisy_pipeline::provider::Provider;
 use crate::client::{GetResult, ListResult, ObjectStoreBox, ObjectStoreClient};
 
 /// S3-compatible object store client.
@@ -149,7 +149,7 @@ impl Provider for S3Provider {
         Ok(())
     }
 
-    async fn connect(&self, creds: &Self::Credentials) -> Result<ConnectedInstance<Self::Client>, Error> {
+    async fn connect(&self, creds: &Self::Credentials) -> Result<Self::Client, Error> {
         let endpoint = creds.endpoint.as_deref().unwrap_or("https://s3.amazonaws.com");
 
         let mut base_url: BaseUrl = endpoint.parse().map_err(|e| {
@@ -175,9 +175,6 @@ impl Provider for S3Provider {
 
         let store_client = S3ObjectStoreClient::new(client, creds.bucket.clone());
 
-        Ok(ConnectedInstance {
-            client: ObjectStoreBox::new(store_client),
-            disconnect: None,
-        })
+        Ok(ObjectStoreBox::new(store_client))
     }
 }

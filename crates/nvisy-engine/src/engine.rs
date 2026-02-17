@@ -10,10 +10,10 @@ use uuid::Uuid;
 
 use nvisy_core::error::Error;
 use nvisy_core::fs::ContentHandler;
-use nvisy_ontology::audit::Audit;
-use nvisy_ontology::detection::{ClassificationResult, DetectionResult};
-use nvisy_ontology::policy::{Policies, PolicyEvaluation};
-use nvisy_ontology::redaction::RedactionSummary;
+use nvisy_pipeline::ontology::audit::Audit;
+use nvisy_pipeline::ontology::redaction::RedactionSummary;
+use nvisy_pipeline::ontology::detection::{ClassificationResult, DetectionResult};
+use nvisy_pipeline::ontology::policy::{Policies, PolicyEvaluation};
 
 use crate::compiler::graph::Graph;
 use crate::connections::Connections;

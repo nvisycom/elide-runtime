@@ -94,7 +94,7 @@ pdf-extract = { version = "0.7", features = [] }
 lopdf = { version = "0.34", features = [] }
 scraper = { version = "0.22", features = [] }
 calamine = { version = "0.33", features = [] }
-zip = { version = "7", features = [] }
+zip = { version = "8", features = [] }
 quick-xml = { version = "0.37", features = [] }
 
 # Semantic versioning

@@ -10,8 +10,9 @@ use uuid::Uuid;
 
 use nvisy_core::error::Error;
 use nvisy_core::fs::ContentHandler;
-use nvisy_pipeline::ontology::{
-    Audit, ClassificationResult, DetectionResult, Policies, PolicyEvaluation, RedactionSummary,
+use nvisy_pipeline::ontology::DetectionResult;
+use nvisy_pipeline::redaction::{
+    Audit, Policies, PolicyEvaluation, RedactionSummary,
 };
 
 use crate::compiler::graph::Graph;
@@ -44,8 +45,6 @@ pub struct EngineOutput {
     pub output: ContentHandler,
     /// Full detection result (entities, sensitivity, risk).
     pub detection: DetectionResult,
-    /// Sensitivity classification.
-    pub classification: ClassificationResult,
     /// Policy evaluation breakdown (redactions, reviews, suppressions, blocks, alerts).
     pub evaluation: PolicyEvaluation,
     /// Per-source redaction summaries.

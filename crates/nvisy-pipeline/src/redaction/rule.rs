@@ -4,10 +4,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use nvisy_core::fs::DocumentType;
-use crate::ontology::redaction::RedactionSpec;
+use super::spec::RedactionSpec;
 
-use crate::ontology::detection::SensitivityLevel;
-use crate::ontology::entity::EntitySelector;
+use crate::ontology::EntitySelector;
 
 /// Conditions that must be met for a [`PolicyRule`] to apply.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,9 +20,6 @@ pub struct RuleCondition {
     /// Labels that must be present on the document.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_labels: Vec<String>,
-    /// Sensitivity levels this rule applies to. Empty means all levels.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub sensitivity_levels: Vec<SensitivityLevel>,
 }
 
 /// Classifies what a policy rule does when it matches.

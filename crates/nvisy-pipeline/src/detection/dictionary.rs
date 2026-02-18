@@ -1,16 +1,22 @@
-//! Aho-Corasick dictionary-based entity detection action.
+//! Aho-Corasick dictionary-based entity detection layer.
+//!
+//! Supports both text spans ([`TxtSpan`]) and tabular spans
+//! ([`CsvSpan`]).  Header spans in the CSV path are skipped
+//! automatically.
 
 use aho_corasick::AhoCorasick;
 use serde::Deserialize;
 
-use nvisy_codec::handler::{TxtHandler, CsvHandler};
-use nvisy_codec::document::Document;
+use nvisy_codec::handler::{CsvSpan, Span, TxtSpan};
 use nvisy_core::data::EntityCategory;
-use crate::ontology::{DetectionMethod, Entity, TabularLocation, TextLocation};
 use nvisy_core::error::{Error, ErrorKind};
+use nvisy_core::path::ContentSource;
 use nvisy_pattern::dictionaries;
 
-use crate::action::Action;
+use crate::ontology::{DetectionMethod, Entity, TabularLocation, TextLocation};
+
+use super::context::ParallelContext;
+use super::layer::{Detect, DetectionLayer};
 
 /// Definition of a single dictionary for matching.
 #[derive(Debug, Clone, Deserialize)]
@@ -30,10 +36,10 @@ pub struct DictionaryDef {
     pub case_sensitive: bool,
 }
 
-/// Typed parameters for [`DetectDictionaryAction`].
+/// Typed parameters for [`DictionaryDetection`].
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DetectDictionaryParams {
+pub struct DictionaryDetectionParams {
     /// One or more dictionaries to match against.
     pub dictionaries: Vec<DictionaryDef>,
     /// Confidence score assigned to dictionary matches.
@@ -45,20 +51,16 @@ fn default_confidence() -> f64 {
     0.85
 }
 
-/// Scans document text and tabular cells against Aho-Corasick automata
-/// built from user-provided word lists and/or built-in gazetteers.
-pub struct DetectDictionaryAction {
-    params: DetectDictionaryParams,
+/// Scans text and tabular spans against Aho-Corasick automata built
+/// from user-provided word lists and/or built-in gazetteers.
+pub struct DictionaryDetection {
+    confidence: f64,
     automata: Vec<(DictionaryDef, AhoCorasick, Vec<String>)>,
 }
 
 #[async_trait::async_trait]
-impl Action for DetectDictionaryAction {
-    type Params = DetectDictionaryParams;
-    type Input = (Vec<Document<TxtHandler>>, Vec<Document<CsvHandler>>);
-    type Output = Vec<Entity>;
-
-    const ID: &str = "detect-dictionary";
+impl DetectionLayer for DictionaryDetection {
+    type Params = DictionaryDetectionParams;
 
     async fn connect(params: Self::Params) -> Result<Self, Error> {
         if params.dictionaries.is_empty() {
@@ -68,76 +70,93 @@ impl Action for DetectDictionaryAction {
             ));
         }
         let automata = build_automata(&params.dictionaries)?;
-        Ok(Self { params, automata })
+        Ok(Self {
+            confidence: params.confidence,
+            automata,
+        })
     }
+}
 
-    async fn execute(
+// ── Text spans ──────────────────────────────────────────────────────
+
+#[async_trait::async_trait]
+impl Detect<TxtSpan, String> for DictionaryDetection {
+    type Context = ParallelContext;
+
+    async fn detect(
         &self,
-        input: Self::Input,
+        spans: Vec<Span<TxtSpan, String>>,
+        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
-        let (text_docs, tabular_docs) = input;
-        let confidence = self.params.confidence;
         let mut entities = Vec::new();
 
-        // Text content matching
-        for doc in &text_docs {
-            let lines = doc.handler().lines();
-            let mut content = lines.join("\n");
-            if doc.handler().trailing_newline() {
-                content.push('\n');
-            }
-
+        for span in &spans {
             for (def, ac, values) in &self.automata {
-                for mat in ac.find_iter(&content) {
+                for mat in ac.find_iter(&span.data) {
                     let value = &values[mat.pattern().as_usize()];
                     let entity = Entity::new(
                         def.category.clone(),
                         &def.entity_type,
                         value.as_str(),
                         DetectionMethod::Dictionary,
-                        confidence,
+                        self.confidence,
                     )
                     .with_text_location(TextLocation {
                         start_offset: mat.start(),
                         end_offset: mat.end(),
-                        context_start_offset: None,
-                        context_end_offset: None,
-                        element_id: None,
-                        page_number: None,
+                        element_id: Some(span.id.0.to_string()),
+                        ..Default::default()
                     })
-                    .with_parent(&doc.source);
+                    .with_parent(source);
                     entities.push(entity);
                 }
             }
         }
 
-        // Tabular content matching
-        for doc in &tabular_docs {
-            for (row_idx, row) in doc.handler().rows().iter().enumerate() {
-                for (col_idx, cell) in row.iter().enumerate() {
-                    if cell.is_empty() {
-                        continue;
-                    }
-                    for (def, ac, values) in &self.automata {
-                        for mat in ac.find_iter(cell) {
-                            let value = &values[mat.pattern().as_usize()];
-                            let entity = Entity::new(
-                                def.category.clone(),
-                                &def.entity_type,
-                                value.as_str(),
-                                DetectionMethod::Dictionary,
-                                confidence,
-                            )
-                            .with_tabular_location(TabularLocation {
-                                row_index: row_idx,
-                                column_index: col_idx,
-                                start_offset: Some(mat.start()),
-                                end_offset: Some(mat.end()),
-                            })
-                            .with_parent(&doc.source);
-                            entities.push(entity);
-                        }
-                    }
+        Ok(entities)
+    }
+}
+
+// ── Tabular spans ───────────────────────────────────────────────────
+
+#[async_trait::async_trait]
+impl Detect<CsvSpan, String> for DictionaryDetection {
+    type Context = ParallelContext;
+
+    async fn detect(
+        &self,
+        spans: Vec<Span<CsvSpan, String>>,
+        source: &ContentSource,
+    ) -> Result<Vec<Entity>, Error> {
+        let mut entities = Vec::new();
+
+        for span in &spans {
+            // Skip header spans — only scan data cells.
+            if span.id.header {
+                continue;
+            }
+            if span.data.is_empty() {
+                continue;
+            }
+
+            for (def, ac, values) in &self.automata {
+                for mat in ac.find_iter(&span.data) {
+                    let value = &values[mat.pattern().as_usize()];
+                    let entity = Entity::new(
+                        def.category.clone(),
+                        &def.entity_type,
+                        value.as_str(),
+                        DetectionMethod::Dictionary,
+                        self.confidence,
+                    )
+                    .with_tabular_location(TabularLocation {
+                        row_index: span.id.row,
+                        column_index: span.id.col,
+                        start_offset: Some(mat.start()),
+                        end_offset: Some(mat.end()),
+                    })
+                    .with_parent(source);
+                    entities.push(entity);
                 }
             }
         }

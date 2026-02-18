@@ -1,27 +1,29 @@
-//! Domain types for pipeline processing.
-//!
-//! Entity, detection, policy, redaction, and audit types used by pipeline actions.
+//! Domain types: entity and detection result.
 
-mod audit;
-mod detection;
 mod entity;
-mod policy;
-mod redaction;
 
-pub use audit::{Audit, AuditAction, RetentionPolicy, RetentionScope};
-pub use detection::{
-    Annotation, AnnotationKind, AnnotationLabel, AnnotationScope, ClassificationResult,
-    DetectionResult, Sensitivity, SensitivityLevel,
-};
 pub use entity::{
     AudioLocation, DetectionMethod, Entity, EntitySelector, ImageLocation, ModelInfo, ModelKind,
     TabularLocation, TextLocation, VideoLocation,
 };
-pub use policy::{
-    Policies, Policy, PolicyEvaluation, PolicyRule, RegulationKind, RuleCondition, RuleKind,
-};
-pub use redaction::{
-    AudioRedactionSpec, ImageRedactionSpec, Redaction, RedactionSpec,
-    RedactionSummary, ReviewDecision, ReviewStatus, TextRedactionSpec,
-    DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR, DEFAULT_PIXELATE_BLOCK_SIZE,
-};
+
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use nvisy_core::path::ContentSource;
+
+/// The output of a detection pass over a single content source.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DetectionResult {
+    /// Content source identity and lineage.
+    #[serde(flatten)]
+    pub source: ContentSource,
+    /// Entities detected in the content.
+    pub entities: Vec<Entity>,
+    /// Identifier of the policy that governed detection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_id: Option<Uuid>,
+    /// Processing time in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
+}

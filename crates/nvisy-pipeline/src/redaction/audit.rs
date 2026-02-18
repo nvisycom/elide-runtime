@@ -3,10 +3,6 @@
 //! An [`Audit`] entry records an immutable event in the data protection
 //! pipeline, carrying structured metadata for compliance.
 
-mod retention;
-
-pub use retention::{RetentionPolicy, RetentionScope};
-
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

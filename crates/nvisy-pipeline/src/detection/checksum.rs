@@ -6,8 +6,6 @@ use crate::ontology::{DetectionMethod, Entity};
 use nvisy_core::error::Error;
 use nvisy_pattern::patterns::validators::luhn_check;
 
-use crate::action::Action;
-
 /// Typed parameters for [`DetectChecksumAction`].
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,21 +35,14 @@ pub struct DetectChecksumAction {
     params: DetectChecksumParams,
 }
 
-#[async_trait::async_trait]
-impl Action for DetectChecksumAction {
-    type Params = DetectChecksumParams;
-    type Input = Vec<Entity>;
-    type Output = Vec<Entity>;
-
-    const ID: &str = "detect-checksum";
-
-    async fn connect(params: Self::Params) -> Result<Self, Error> {
+impl DetectChecksumAction {
+    pub async fn connect(params: DetectChecksumParams) -> Result<Self, Error> {
         Ok(Self { params })
     }
 
-    async fn execute(
+    pub async fn execute(
         &self,
-        entities: Self::Input,
+        entities: Vec<Entity>,
     ) -> Result<Vec<Entity>, Error> {
         let drop_invalid = self.params.drop_invalid;
         let confidence_boost = self.params.confidence_boost;

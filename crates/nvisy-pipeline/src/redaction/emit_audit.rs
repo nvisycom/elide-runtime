@@ -6,9 +6,8 @@ use uuid::Uuid;
 
 use nvisy_core::error::Error;
 use nvisy_core::path::ContentSource;
-use crate::ontology::{Audit, AuditAction, Redaction};
-
-use crate::action::Action;
+use super::audit::{Audit, AuditAction};
+use super::record::Redaction;
 
 /// Typed parameters for [`EmitAuditAction`].
 #[derive(Debug, Deserialize)]
@@ -30,21 +29,14 @@ pub struct EmitAuditAction {
     params: EmitAuditParams,
 }
 
-#[async_trait::async_trait]
-impl Action for EmitAuditAction {
-    type Params = EmitAuditParams;
-    type Input = Vec<Redaction>;
-    type Output = Vec<Audit>;
-
-    const ID: &str = "emit-audit";
-
-    async fn connect(params: Self::Params) -> Result<Self, Error> {
+impl EmitAuditAction {
+    pub async fn connect(params: EmitAuditParams) -> Result<Self, Error> {
         Ok(Self { params })
     }
 
-    async fn execute(
+    pub async fn execute(
         &self,
-        redactions: Self::Input,
+        redactions: Vec<Redaction>,
     ) -> Result<Vec<Audit>, Error> {
         let mut audits = Vec::new();
 

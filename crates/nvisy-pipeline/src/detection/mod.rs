@@ -1,22 +1,31 @@
-//! Entity detection actions.
+//! Entity detection layers and actions.
 //!
-//! Each sub-module exposes a single [`Action`](crate::action::Action)
-//! that produces [`Entity`](crate::ontology::entity::Entity) values from
-//! document content.
+//! Content-scanning detectors implement [`DetectionLayer`] +
+//! [`Detect`] and operate on handler spans.
 
-mod checksum;
-mod classify;
+mod annotation;
+mod context;
+mod layer;
+mod pattern;
 mod dictionary;
-mod manual;
-mod ner;
-mod regex;
 mod tabular;
+mod ner;
+mod checksum;
+mod manual;
 
+// Traits
+pub use context::{DetectionContext, ParallelContext, SequentialContext};
+pub use layer::{DetectionLayer, Detect};
+
+// Layers
+pub use pattern::{PatternDetection, PatternDetectionParams};
+pub use dictionary::{DictionaryDetection, DictionaryDetectionParams, DictionaryDef};
+pub use tabular::{TabularDetection, TabularDetectionParams, ColumnRule};
+pub use ner::{NerDetection, NerDetectionParams, NerBackend, NerConfig, parse_ner_entities};
+
+// Standalone actions
 pub use checksum::{DetectChecksumAction, DetectChecksumParams};
-pub use classify::ClassifyAction;
-pub use crate::ontology::ClassificationResult;
-pub use dictionary::{DetectDictionaryAction, DetectDictionaryParams, DictionaryDef};
 pub use manual::{DetectManualAction, DetectManualParams};
-pub use ner::{DetectNerAction, DetectNerInput, DetectNerParams, NerBackend, NerConfig, parse_ner_entities};
-pub use regex::{DetectRegexAction, DetectRegexParams};
-pub use tabular::{ColumnRule, DetectTabularAction, DetectTabularParams};
+
+// Types
+pub use annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};

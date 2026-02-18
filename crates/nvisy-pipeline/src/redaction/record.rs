@@ -1,25 +1,12 @@
-//! Redaction specifications, records, reviews, and summaries.
-//!
-//! - [`RedactionSpec`] — describes *how* to redact (method + config params).
-//! - [`Redaction`] — records a redaction decision for a specific entity.
-//! - [`ReviewDecision`] / [`ReviewStatus`] — human-in-the-loop review.
-//! - [`RedactionSummary`] — per-source redaction counts.
-mod review;
-mod spec;
-mod summary;
-
-pub use review::{ReviewDecision, ReviewStatus};
-pub use spec::{
-    AudioRedactionSpec, ImageRedactionSpec, RedactionSpec, TextRedactionSpec,
-    DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR, DEFAULT_PIXELATE_BLOCK_SIZE,
-};
-pub use summary::RedactionSummary;
+//! Redaction decision records.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use nvisy_codec::transform::RedactionOutput;
 use nvisy_core::path::ContentSource;
+
+use super::review::ReviewDecision;
 
 /// A redaction decision recording how a specific entity was (or will be) redacted.
 ///

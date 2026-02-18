@@ -1,14 +1,22 @@
-//! AI-powered named-entity recognition (NER) detection action.
+//! AI-powered named-entity recognition (NER) detection layer.
+//!
+//! Uses a [`SequentialContext`] so the orchestrator feeds one span at
+//! a time, allowing the layer to accumulate prior text/entities
+//! between spans via interior mutability.
 
 use serde::Deserialize;
 use serde_json::Value;
+use tokio::sync::Mutex;
 
-use nvisy_codec::document::Document;
-use nvisy_codec::handler::{TxtHandler, PngHandler};
+use nvisy_codec::handler::{Span, TxtSpan};
 use nvisy_core::data::EntityCategory;
 use nvisy_core::error::Error;
+use nvisy_core::path::ContentSource;
 
 use crate::ontology::{DetectionMethod, Entity, TextLocation};
+
+use super::context::SequentialContext;
+use super::layer::{Detect, DetectionLayer};
 
 fn default_confidence() -> f64 {
     0.5
@@ -18,7 +26,7 @@ fn default_confidence() -> f64 {
 ///
 /// Contains only the model-agnostic parameters that every backend needs.
 /// Provider-specific fields (API key, model name, etc.) belong in the
-/// action's [`DetectNerParams`] or the provider's credentials.
+/// action's [`NerDetectionParams`] or the provider's credentials.
 #[derive(Debug, Clone)]
 pub struct NerConfig {
     /// Entity type labels to detect (e.g., `["PERSON", "SSN"]`).
@@ -31,7 +39,7 @@ pub struct NerConfig {
 ///
 /// Implementations call an external NER service (e.g. via Python, HTTP)
 /// and return raw JSON results.  Entity construction from the raw dicts
-/// is handled by [`DetectNerAction`].
+/// is handled by [`NerDetection`].
 #[async_trait::async_trait]
 pub trait NerBackend: Send + Sync + 'static {
     /// Detect entities in text, returning raw dicts.
@@ -50,10 +58,10 @@ pub trait NerBackend: Send + Sync + 'static {
     ) -> Result<Vec<Value>, Error>;
 }
 
-/// Typed parameters for [`DetectNerAction`].
+/// Typed parameters for [`NerDetection`].
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DetectNerParams {
+pub struct NerDetectionParams {
     /// Entity types to detect (empty = all).
     #[serde(default)]
     pub entity_types: Vec<String>,
@@ -62,52 +70,90 @@ pub struct DetectNerParams {
     pub confidence_threshold: f64,
 }
 
-/// Typed input for [`DetectNerAction`].
-pub struct DetectNerInput {
-    /// Text documents to scan for named entities.
-    pub text_docs: Vec<Document<TxtHandler>>,
-    /// Image documents to scan for named entities.
-    pub image_docs: Vec<Document<PngHandler>>,
+/// Accumulated state between sequential span calls.
+struct NerState {
+    /// Text from previously processed spans (for sliding context).
+    prior_text: String,
 }
 
-/// AI NER detection — delegates to an [`NerBackend`] at runtime.
-pub struct DetectNerAction<B> {
+/// AI NER detection layer — delegates to an [`NerBackend`] at runtime.
+///
+/// Uses [`SequentialContext`]: the orchestrator feeds one span at a
+/// time so the layer can carry sliding context between spans.
+pub struct NerDetection<B> {
     backend: B,
-    params: DetectNerParams,
+    config: NerConfig,
+    state: Mutex<NerState>,
 }
 
-impl<B: NerBackend> DetectNerAction<B> {
-    /// Create a new action with the given backend and params.
-    pub fn new(backend: B, params: DetectNerParams) -> Self {
-        Self { backend, params }
-    }
-
-    /// Build the [`NerConfig`] from action parameters.
-    fn config(&self) -> NerConfig {
-        NerConfig {
-            entity_types: self.params.entity_types.clone(),
-            confidence_threshold: self.params.confidence_threshold,
+impl<B: NerBackend> NerDetection<B> {
+    /// Create a new detection layer with the given backend and params.
+    pub fn new(backend: B, params: NerDetectionParams) -> Self {
+        let config = NerConfig {
+            entity_types: params.entity_types,
+            confidence_threshold: params.confidence_threshold,
+        };
+        Self {
+            backend,
+            config,
+            state: Mutex::new(NerState {
+                prior_text: String::new(),
+            }),
         }
     }
 
-    /// Execute NER detection on text documents and image documents.
-    pub async fn run(&self, input: DetectNerInput) -> Result<Vec<Entity>, Error> {
-        let config = self.config();
+    /// Clear accumulated state between documents.
+    pub async fn reset(&self) {
+        let mut state = self.state.lock().await;
+        state.prior_text.clear();
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: NerBackend> DetectionLayer for NerDetection<B> {
+    type Params = NerDetectionParams;
+
+    async fn connect(_params: Self::Params) -> Result<Self, Error> {
+        // NerDetection requires a backend at construction time which
+        // cannot be supplied via `connect`. Use `NerDetection::new`
+        // instead.  This impl satisfies the trait bound but is not
+        // the primary construction path.
+        Err(Error::validation(
+            "use NerDetection::new(backend, params) instead of connect",
+            "detect-ner",
+        ))
+    }
+}
+
+#[async_trait::async_trait]
+impl<B: NerBackend> Detect<TxtSpan, String> for NerDetection<B> {
+    type Context = SequentialContext;
+
+    async fn detect(
+        &self,
+        spans: Vec<Span<TxtSpan, String>>,
+        source: &ContentSource,
+    ) -> Result<Vec<Entity>, Error> {
         let mut entities = Vec::new();
 
-        for doc in &input.text_docs {
-            let text = doc.handler().lines().join("\n");
-            let raw = self.backend.detect_text(&text, &config).await?;
-            entities.extend(parse_ner_entities(&raw)?);
-        }
-
-        for doc in &input.image_docs {
-            let png_bytes = doc.handler().encode_bytes()?;
+        for span in &spans {
             let raw = self
                 .backend
-                .detect_image(&png_bytes, "image/png", &config)
+                .detect_text(&span.data, &self.config)
                 .await?;
-            entities.extend(parse_ner_entities(&raw)?);
+
+            for e in parse_ner_entities(&raw)? {
+                entities.push(
+                    e.with_parent(source),
+                );
+            }
+
+            // Accumulate text for sliding context.
+            let mut state = self.state.lock().await;
+            if !state.prior_text.is_empty() {
+                state.prior_text.push('\n');
+            }
+            state.prior_text.push_str(&span.data);
         }
 
         Ok(entities)
@@ -176,10 +222,7 @@ pub fn parse_ner_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
         .with_text_location(TextLocation {
             start_offset,
             end_offset,
-            context_start_offset: None,
-            context_end_offset: None,
-            element_id: None,
-            page_number: None,
+            ..Default::default()
         });
 
         entities.push(entity);

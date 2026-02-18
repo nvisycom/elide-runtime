@@ -5,13 +5,13 @@ use serde::Deserialize;
 use nvisy_codec::transform::{
     AudioRedactionOutput, ImageRedactionOutput, RedactionOutput, TextRedactionOutput,
 };
-use crate::ontology::{
-    AudioRedactionSpec, Entity, ImageRedactionSpec, PolicyRule, Redaction, RedactionSpec,
-    TextRedactionSpec,
+use crate::ontology::Entity;
+use super::record::Redaction;
+use super::rule::PolicyRule;
+use super::spec::{
+    AudioRedactionSpec, ImageRedactionSpec, RedactionSpec, TextRedactionSpec,
 };
 use nvisy_core::error::Error;
-
-use crate::action::Action;
 
 /// Typed parameters for [`EvaluatePolicyAction`].
 #[derive(Debug, Deserialize)]
@@ -44,22 +44,15 @@ pub struct EvaluatePolicyAction {
     params: EvaluatePolicyParams,
 }
 
-#[async_trait::async_trait]
-impl Action for EvaluatePolicyAction {
-    type Params = EvaluatePolicyParams;
-    type Input = Vec<Entity>;
-    type Output = Vec<Redaction>;
-
-    const ID: &str = "evaluate-policy";
-
-    async fn connect(mut params: Self::Params) -> Result<Self, Error> {
+impl EvaluatePolicyAction {
+    pub async fn connect(mut params: EvaluatePolicyParams) -> Result<Self, Error> {
         params.rules.sort_by_key(|r| r.priority);
         Ok(Self { params })
     }
 
-    async fn execute(
+    pub async fn execute(
         &self,
-        entities: Self::Input,
+        entities: Vec<Entity>,
     ) -> Result<Vec<Redaction>, Error> {
         let default_spec = &self.params.default_spec;
         let default_threshold = self.params.default_confidence_threshold;

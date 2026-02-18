@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::ontology::redaction::Redaction;
+use super::record::Redaction;
 
 /// Full outcome of evaluating a policy against a set of entities.
 #[derive(Debug, Clone, Serialize, Deserialize)]

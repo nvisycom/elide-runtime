@@ -9,10 +9,9 @@ use nvisy_codec::document::Document;
 use nvisy_codec::handler::TxtSpan;
 use nvisy_codec::transform::{TextRedaction, TextRedactionOutput, TextHandler, RedactionOutput};
 use nvisy_codec::transform::{ImageRedaction, ImageHandler};
-use crate::ontology::{Entity, Redaction};
+use crate::ontology::Entity;
+use super::record::Redaction;
 use nvisy_core::error::Error;
-
-use crate::action::Action;
 
 /// Typed parameters for [`ApplyRedactionAction`].
 #[derive(Debug, Deserialize)]
@@ -67,22 +66,15 @@ pub struct ApplyRedactionAction {
     params: ApplyRedactionParams,
 }
 
-#[async_trait::async_trait]
-impl Action for ApplyRedactionAction {
-    type Params = ApplyRedactionParams;
-    type Input = ApplyRedactionInput;
-    type Output = ApplyRedactionOutput;
-
-    const ID: &str = "apply-redaction";
-
-    async fn connect(params: Self::Params) -> Result<Self, Error> {
+impl ApplyRedactionAction {
+    pub async fn connect(params: ApplyRedactionParams) -> Result<Self, Error> {
         Ok(Self { params })
     }
 
-    async fn execute(
+    pub async fn execute(
         &self,
-        input: Self::Input,
-    ) -> Result<Self::Output, Error> {
+        input: ApplyRedactionInput,
+    ) -> Result<ApplyRedactionOutput, Error> {
         let entity_map: HashMap<Uuid, &Entity> =
             input.entities.iter().map(|e| (e.source.as_uuid(), e)).collect();
         let redaction_map: HashMap<Uuid, &Redaction> = input.redactions

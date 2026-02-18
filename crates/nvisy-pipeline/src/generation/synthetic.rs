@@ -3,10 +3,9 @@
 
 use serde::Deserialize;
 
-use crate::ontology::{Entity, Redaction};
+use crate::ontology::Entity;
+use crate::redaction::Redaction;
 use nvisy_core::error::Error;
-
-use crate::action::Action;
 
 fn default_locale() -> String {
     "en-US".into()
@@ -33,21 +32,14 @@ pub struct GenerateSyntheticInput {
 /// with realistic replacement values at runtime.
 pub struct GenerateSyntheticAction;
 
-#[async_trait::async_trait]
-impl Action for GenerateSyntheticAction {
-    type Params = GenerateSyntheticParams;
-    type Input = GenerateSyntheticInput;
-    type Output = Vec<Redaction>;
-
-    const ID: &str = "generate-synthetic";
-
-    async fn connect(_params: Self::Params) -> Result<Self, Error> {
+impl GenerateSyntheticAction {
+    pub async fn connect(_params: GenerateSyntheticParams) -> Result<Self, Error> {
         Ok(Self)
     }
 
-    async fn execute(
+    pub async fn execute(
         &self,
-        input: Self::Input,
+        input: GenerateSyntheticInput,
     ) -> Result<Vec<Redaction>, Error> {
         // Stub: returns redactions unchanged. Real implementation will fill
         // Synthesize variants with generated replacement values.

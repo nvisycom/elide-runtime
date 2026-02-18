@@ -1,15 +1,21 @@
 //! Column-based rule matching for tabular data.
+//!
+//! Two-phase detection: scan header spans for column-name matches,
+//! then emit entities from every non-empty data cell in matched
+//! columns.
 
 use regex::Regex;
 use serde::Deserialize;
 
-use nvisy_codec::handler::CsvHandler;
-use nvisy_codec::document::Document;
+use nvisy_codec::handler::{CsvSpan, Span};
 use nvisy_core::data::EntityCategory;
-use crate::ontology::{DetectionMethod, Entity, TabularLocation};
 use nvisy_core::error::{Error, ErrorKind};
+use nvisy_core::path::ContentSource;
 
-use crate::action::Action;
+use crate::ontology::{DetectionMethod, Entity, TabularLocation};
+
+use super::context::ParallelContext;
+use super::layer::{Detect, DetectionLayer};
 
 /// A rule that matches column headers to classify entire columns.
 #[derive(Debug, Clone, Deserialize)]
@@ -23,27 +29,23 @@ pub struct ColumnRule {
     pub entity_type: String,
 }
 
-/// Typed parameters for [`DetectTabularAction`].
+/// Typed parameters for [`TabularDetection`].
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DetectTabularParams {
+pub struct TabularDetectionParams {
     /// Column-matching rules.
     pub column_rules: Vec<ColumnRule>,
 }
 
 /// Matches column headers against rules and marks every non-empty cell
 /// in matched columns as an entity.
-pub struct DetectTabularAction {
+pub struct TabularDetection {
     compiled_rules: Vec<(Regex, ColumnRule)>,
 }
 
 #[async_trait::async_trait]
-impl Action for DetectTabularAction {
-    type Params = DetectTabularParams;
-    type Input = Vec<Document<CsvHandler>>;
-    type Output = Vec<Entity>;
-
-    const ID: &str = "detect-tabular";
+impl DetectionLayer for TabularDetection {
+    type Params = TabularDetectionParams;
 
     async fn connect(params: Self::Params) -> Result<Self, Error> {
         let compiled_rules = params
@@ -64,53 +66,63 @@ impl Action for DetectTabularAction {
             .collect::<Result<Vec<_>, Error>>()?;
         Ok(Self { compiled_rules })
     }
+}
 
-    async fn execute(
+#[async_trait::async_trait]
+impl Detect<CsvSpan, String> for TabularDetection {
+    type Context = ParallelContext;
+
+    async fn detect(
         &self,
-        documents: Self::Input,
+        spans: Vec<Span<CsvSpan, String>>,
+        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
-        let mut entities = Vec::new();
+        // Phase 1: identify matched columns from header spans.
+        // Maps column index → first matching rule.
+        let mut matched_columns: Vec<(usize, &ColumnRule)> = Vec::new();
 
-        for doc in &documents {
-            let headers = match doc.handler().headers() {
-                Some(h) => h,
-                None => continue,
-            };
-
-            for (col_idx, col_name) in headers.iter().enumerate() {
-                for (regex, rule) in &self.compiled_rules {
-                    if !regex.is_match(col_name) {
-                        continue;
-                    }
-
-                    for (row_idx, row) in doc.handler().rows().iter().enumerate() {
-                        if let Some(cell) = row.get(col_idx) {
-                            if cell.is_empty() {
-                                continue;
-                            }
-
-                            let entity = Entity::new(
-                                rule.category.clone(),
-                                &rule.entity_type,
-                                cell.as_str(),
-                                DetectionMethod::Composite,
-                                0.9,
-                            )
-                            .with_tabular_location(TabularLocation {
-                                row_index: row_idx,
-                                column_index: col_idx,
-                                start_offset: Some(0),
-                                end_offset: Some(cell.len()),
-                            })
-                            .with_parent(&doc.source);
-
-                            entities.push(entity);
-                        }
-                    }
-
-                    // Only apply first matching rule per column
+        for span in &spans {
+            if !span.id.header {
+                continue;
+            }
+            for (regex, rule) in &self.compiled_rules {
+                if regex.is_match(&span.data) {
+                    matched_columns.push((span.id.col, rule));
+                    // Only apply first matching rule per column.
                     break;
                 }
+            }
+        }
+
+        if matched_columns.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Phase 2: emit entities from data cells in matched columns.
+        let mut entities = Vec::new();
+
+        for span in &spans {
+            if span.id.header || span.data.is_empty() {
+                continue;
+            }
+
+            if let Some((_, rule)) = matched_columns.iter().find(|(col, _)| *col == span.id.col) {
+                let entity = Entity::new(
+                    rule.category.clone(),
+                    &rule.entity_type,
+                    span.data.as_str(),
+                    DetectionMethod::Composite,
+                    0.9,
+                )
+                .with_tabular_location(TabularLocation {
+                    row_index: span.id.row,
+                    column_index: span.id.col,
+                    start_offset: Some(0),
+                    end_offset: Some(span.data.len()),
+                })
+                .with_parent(source);
+
+                entities.push(entity);
             }
         }
 

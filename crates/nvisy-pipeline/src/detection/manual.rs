@@ -4,10 +4,9 @@
 
 use serde::Deserialize;
 
-use crate::ontology::{Annotation, AnnotationKind, DetectionMethod, Entity};
+use crate::ontology::{DetectionMethod, Entity};
+use super::annotation::{Annotation, AnnotationKind};
 use nvisy_core::error::Error;
-
-use crate::action::Action;
 
 /// Typed parameters for [`DetectManualAction`].
 #[derive(Debug, Deserialize)]
@@ -18,21 +17,14 @@ pub struct DetectManualParams {}
 /// `DetectionMethod::Manual` and confidence 1.0.
 pub struct DetectManualAction;
 
-#[async_trait::async_trait]
-impl Action for DetectManualAction {
-    type Params = DetectManualParams;
-    type Input = Vec<Annotation>;
-    type Output = Vec<Entity>;
-
-    const ID: &str = "detect-manual";
-
-    async fn connect(_params: Self::Params) -> Result<Self, Error> {
+impl DetectManualAction {
+    pub async fn connect(_params: DetectManualParams) -> Result<Self, Error> {
         Ok(Self)
     }
 
-    async fn execute(
+    pub async fn execute(
         &self,
-        annotations: Self::Input,
+        annotations: Vec<Annotation>,
     ) -> Result<Vec<Entity>, Error> {
         let mut entities = Vec::new();
 

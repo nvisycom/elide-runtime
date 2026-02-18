@@ -1,18 +1,12 @@
 //! Redaction policies and rules.
 
-mod evaluation;
-mod regulation;
-mod rule;
-
-pub use evaluation::PolicyEvaluation;
-pub use regulation::RegulationKind;
-pub use rule::{PolicyRule, RuleCondition, RuleKind};
-
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::ontology::redaction::RedactionSpec;
+use super::rule::PolicyRule;
+use super::regulation::RegulationKind;
+use super::spec::RedactionSpec;
 
 /// A named redaction policy containing an ordered set of rules.
 #[derive(Debug, Clone, Serialize, Deserialize)]

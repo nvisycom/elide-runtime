@@ -8,8 +8,6 @@ use nvisy_codec::handler::{WavHandler, TxtHandler};
 use crate::ontology::Entity;
 use nvisy_core::error::Error;
 
-use crate::action::Action;
-
 fn default_language() -> String {
     "en".into()
 }
@@ -50,21 +48,14 @@ pub struct GenerateTranscribeOutput {
 /// Speech-to-text stub — delegates to a transcription provider at runtime.
 pub struct GenerateTranscribeAction;
 
-#[async_trait::async_trait]
-impl Action for GenerateTranscribeAction {
-    type Params = GenerateTranscribeParams;
-    type Input = GenerateTranscribeInput;
-    type Output = GenerateTranscribeOutput;
-
-    const ID: &str = "generate-transcribe";
-
-    async fn connect(_params: Self::Params) -> Result<Self, Error> {
+impl GenerateTranscribeAction {
+    pub async fn connect(_params: GenerateTranscribeParams) -> Result<Self, Error> {
         Ok(Self)
     }
 
-    async fn execute(
+    pub async fn execute(
         &self,
-        _input: Self::Input,
+        _input: GenerateTranscribeInput,
     ) -> Result<GenerateTranscribeOutput, Error> {
         // Stub: real implementation will call a speech-to-text provider.
         Ok(GenerateTranscribeOutput {

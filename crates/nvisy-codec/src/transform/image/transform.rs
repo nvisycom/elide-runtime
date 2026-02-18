@@ -1,0 +1,83 @@
+//! [`ImageTransform`] trait and implementation for [`DynamicImage`].
+//!
+//! Each method operates on a single bounding-box region and mutates the
+//! image in place (no clone).
+
+use image::imageops::FilterType;
+use image::DynamicImage;
+use imageproc::filter::gaussian_blur_f32;
+
+use nvisy_core::math::BoundingBoxU32;
+
+/// Mutating image-transform operations on individual bounding-box regions.
+pub trait ImageTransform {
+    /// Apply a gaussian blur to `region` with the given `sigma`.
+    fn apply_gaussian_blur(&mut self, region: &BoundingBoxU32, sigma: f32);
+    
+    /// Fill `region` with a solid RGBA `color`.
+    fn apply_block_overlay(&mut self, region: &BoundingBoxU32, color: [u8; 4]);
+    
+    /// Pixelate `region` with the given `block_size`.
+    fn apply_pixelate(&mut self, region: &BoundingBoxU32, block_size: u32);
+}
+
+impl ImageTransform for DynamicImage {
+    fn apply_gaussian_blur(&mut self, region: &BoundingBoxU32, sigma: f32) {
+        let (x, y, w, h) = (region.x, region.y, region.width, region.height);
+
+        let img_w = self.width();
+        let img_h = self.height();
+        if x >= img_w || y >= img_h {
+            return;
+        }
+        let w = w.min(img_w - x);
+        let h = h.min(img_h - y);
+        if w == 0 || h == 0 {
+            return;
+        }
+
+        let sub = self.crop_imm(x, y, w, h);
+        let blurred = DynamicImage::ImageRgba8(gaussian_blur_f32(&sub.to_rgba8(), sigma));
+        image::imageops::overlay(self, &blurred, x as i64, y as i64);
+    }
+
+    fn apply_block_overlay(&mut self, region: &BoundingBoxU32, color: [u8; 4]) {
+        let (x, y, w, h) = (region.x, region.y, region.width, region.height);
+
+        let img_w = self.width();
+        let img_h = self.height();
+        if x >= img_w || y >= img_h {
+            return;
+        }
+        let w = w.min(img_w - x);
+        let h = h.min(img_h - y);
+
+        let block = image::RgbaImage::from_pixel(w, h, image::Rgba(color));
+        image::imageops::overlay(self, &block, x as i64, y as i64);
+    }
+
+    fn apply_pixelate(&mut self, region: &BoundingBoxU32, block_size: u32) {
+        let block_size = block_size.max(1);
+        let (x, y, w, h) = (region.x, region.y, region.width, region.height);
+
+        let img_w = self.width();
+        let img_h = self.height();
+        if x >= img_w || y >= img_h {
+            return;
+        }
+        let w = w.min(img_w - x);
+        let h = h.min(img_h - y);
+        if w == 0 || h == 0 {
+            return;
+        }
+
+        let small_w = (w / block_size).max(1);
+        let small_h = (h / block_size).max(1);
+
+        let sub = self.crop_imm(x, y, w, h);
+        let small = sub.resize_exact(small_w, small_h, FilterType::Nearest);
+        let pixelated = small.resize_exact(w, h, FilterType::Nearest);
+
+        image::imageops::overlay(self, &pixelated, x as i64, y as i64);
+    }
+}

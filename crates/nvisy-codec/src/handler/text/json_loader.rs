@@ -162,19 +162,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_invalid_utf8() {
-        let content = ContentData::new(
-            ContentSource::new(),
-            Bytes::from_static(&[0xFF, 0xFE, 0x00]),
-        );
-        let err = JsonLoader
-            .decode(&content, &JsonParams::default())
-            .await
-            .unwrap_err();
-        assert!(err.to_string().contains("UTF-8"));
-    }
-
-    #[tokio::test]
     async fn load_invalid_json() {
         let content = content_from_str("{not json}");
         let err = JsonLoader

@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use nvisy_codec::document::Document;
-use nvisy_codec::handler::{Handler, PngHandler, TxtHandler, TxtData};
+use nvisy_codec::handler::{Handler, PngHandler, TxtHandler};
 use nvisy_core::data::EntityCategory;
 use nvisy_core::error::Error;
 use nvisy_core::math::BoundingBox;
@@ -122,10 +122,10 @@ impl<B: OcrBackend> GenerateOcrAction<B> {
         let mut text_docs = Vec::new();
         if !all_ocr_text.is_empty() {
             let text = all_ocr_text.join("\n");
-            let handler = TxtHandler::new(TxtData {
-                lines: text.lines().map(String::from).collect(),
-                trailing_newline: text.ends_with('\n'),
-            });
+            let handler = TxtHandler::new(
+                text.lines().map(String::from).collect(),
+                text.ends_with('\n'),
+            );
             text_docs.push(Document::new(handler));
         }
 

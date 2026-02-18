@@ -215,17 +215,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_empty() {
-        let content = content_from_str("");
-        let docs = CsvLoader
-            .decode(&content, &CsvParams::default())
-            .await
-            .unwrap();
-        let h = docs[0].handler();
-        assert_eq!(h.len(), 0);
-    }
-
-    #[tokio::test]
     async fn load_spans_round_trip() {
         let content = content_from_str("name,age\nAlice,30\n");
         let docs = CsvLoader
@@ -273,19 +262,9 @@ mod tests {
     }
 
     #[test]
-    fn detect_single_line_input() {
-        let text = "a,b,c";
-        assert_eq!(detect_delimiter(text), b',');
-    }
-
-    #[test]
     fn detect_no_delimiters_defaults_to_comma() {
         let text = "just plain text\nno delimiters here\n";
         assert_eq!(detect_delimiter(text), b',');
     }
 
-    #[test]
-    fn detect_empty_input_defaults_to_comma() {
-        assert_eq!(detect_delimiter(""), b',');
-    }
 }

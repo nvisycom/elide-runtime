@@ -1,16 +1,10 @@
 //! Image redaction output type and rendering primitives.
 
 mod output;
+mod transform;
 
 pub use output::ImageRedactionOutput;
-
-mod blur;
-mod block;
-mod pixelate;
-
-use blur::apply_gaussian_blur;
-use block::apply_block_overlay;
-use pixelate::apply_pixelate;
+pub use transform::ImageTransform;
 
 use image::DynamicImage;
 use futures::StreamExt;
@@ -18,7 +12,7 @@ use futures::StreamExt;
 use crate::document::SpanEditStream;
 use crate::handler::{Handler, SpanEdit};
 use nvisy_core::error::Error;
-use nvisy_core::math::{BoundingBox, BoundingBoxU32};
+use nvisy_core::math::BoundingBox;
 
 /// A located image redaction: pairs a bounding box with an
 /// [`ImageRedactionOutput`] that carries the method-specific parameters.
@@ -58,21 +52,20 @@ where
 
         let mut img: DynamicImage = span.data.into();
 
-        for r in redactions {
-            let region = BoundingBoxU32::from(&r.bounding_box);
-            let regions = std::slice::from_ref(&region);
-            match &r.output {
+        for redaction in redactions {
+            let region = redaction.bounding_box.to_u32();
+            match &redaction.output {
                 ImageRedactionOutput::Blur { sigma } => {
-                    img = apply_gaussian_blur(&img, regions, *sigma);
+                    img.apply_gaussian_blur(&region, *sigma);
                 }
                 ImageRedactionOutput::Block { color } => {
-                    img = apply_block_overlay(&img, regions, *color);
+                    img.apply_block_overlay(&region, *color);
                 }
                 ImageRedactionOutput::Pixelate { block_size } => {
-                    img = apply_pixelate(&img, regions, *block_size);
+                    img.apply_pixelate(&region, *block_size);
                 }
                 ImageRedactionOutput::Synthesize => {
-                    img = apply_block_overlay(&img, regions, [0, 0, 0, 255]);
+                    img.apply_block_overlay(&region, [0, 0, 0, 255]);
                 }
             }
         }

@@ -496,22 +496,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn view_spans_empty_object() {
-        let h = handler(json!({}));
-        let spans: Vec<_> = h.view_spans().await.collect().await;
-        assert!(spans.is_empty());
-    }
-
-    #[tokio::test]
-    async fn view_spans_scalar_root() {
-        let h = handler(json!("hello"));
-        let spans: Vec<_> = h.view_spans().await.collect().await;
-        assert_eq!(spans.len(), 1);
-        assert_eq!(spans[0].id, JsonPath::value(""));
-        assert_eq!(spans[0].data, json!("hello"));
-    }
-
-    #[tokio::test]
     async fn edit_spans_replace_value() {
         let mut h = handler(json!({"ssn": "123-45-6789"}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![

@@ -50,6 +50,13 @@ pub struct BoundingBoxU32 {
     pub height: u32,
 }
 
+impl BoundingBox {
+    /// Convert to integer pixel coordinates by rounding each field.
+    pub fn to_u32(&self) -> BoundingBoxU32 {
+        BoundingBoxU32::from(self)
+    }
+}
+
 impl From<&BoundingBox> for BoundingBoxU32 {
     fn from(bb: &BoundingBox) -> Self {
         Self {

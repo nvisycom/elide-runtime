@@ -3,7 +3,7 @@
 pub use crate::handler::{
     Handler, Loader,
     Span, SpanEdit,
-    TxtData, TxtHandler, TxtSpan,
+    TxtHandler, TxtSpan,
     TxtLoader, TxtParams,
     CsvData, CsvHandler, CsvSpan,
     CsvLoader, CsvParams,
@@ -17,7 +17,7 @@ pub use crate::handler::{HtmlData, HtmlHandler, HtmlSpan, HtmlLoader, HtmlParams
 pub use crate::document::{Document, SpanEditStream, SpanStream};
 pub use crate::transform::{
     AudioHandler, AudioRedaction, AudioRedactionOutput,
-    ImageHandler, ImageRedaction, ImageRedactionOutput,
+    ImageHandler, ImageRedaction, ImageRedactionOutput, ImageTransform,
     RedactionOutput,
     TextHandler, TextRedaction, TextRedactionOutput,
 };

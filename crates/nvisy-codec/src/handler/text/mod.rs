@@ -15,7 +15,7 @@ mod xlsx_handler;
 #[cfg(feature = "xlsx")]
 mod xlsx_loader;
 
-pub use txt_handler::{TxtData, TxtHandler, TxtSpan};
+pub use txt_handler::{TxtHandler, TxtSpan};
 pub use txt_loader::{TxtLoader, TxtParams};
 pub use csv_handler::{CsvData, CsvHandler, CsvSpan};
 pub use csv_loader::{CsvLoader, CsvParams};

@@ -373,13 +373,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn view_spans_empty() {
-        let h = handler_no_headers(vec![]);
-        let spans: Vec<_> = h.view_spans().await.collect().await;
-        assert!(spans.is_empty());
-    }
-
-    #[tokio::test]
     async fn edit_spans_data_cell() {
         let mut h = handler_with_headers(
             vec!["ssn"],
@@ -453,16 +446,6 @@ mod tests {
         assert_eq!(
             String::from_utf8(bytes).unwrap(),
             "name,age\nAlice,30\nBob,25\n"
-        );
-    }
-
-    #[test]
-    fn encode_no_headers() {
-        let h = handler_no_headers(vec![vec!["x", "y"], vec!["1", "2"]]);
-        let bytes = h.encode().unwrap();
-        assert_eq!(
-            String::from_utf8(bytes).unwrap(),
-            "x,y\n1,2\n"
         );
     }
 

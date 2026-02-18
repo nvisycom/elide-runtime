@@ -125,16 +125,13 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::{Handler, TxtData, TxtHandler, TxtSpan};
+    use crate::handler::{Handler, TxtHandler, TxtSpan};
     use futures::StreamExt;
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');
         let lines = text.lines().map(String::from).collect();
-        TxtHandler::new(TxtData {
-            lines,
-            trailing_newline,
-        })
+        TxtHandler::new(lines, trailing_newline)
     }
 
     fn replace(span: usize, start: usize, end: usize, replacement: &str) -> TextRedaction<TxtSpan> {

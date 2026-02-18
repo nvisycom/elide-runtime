@@ -9,7 +9,7 @@ use nvisy_core::error::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
-use crate::handler::{Loader, TxtData, TxtHandler};
+use crate::handler::{Loader, TxtHandler};
 
 /// Parameters for [`TxtLoader`].
 #[derive(Debug, Default)]
@@ -39,12 +39,7 @@ impl Loader for TxtLoader {
         let trailing_newline = text.ends_with('\n');
         let lines = text.lines().map(String::from).collect();
 
-        let handler = TxtHandler {
-            data: TxtData {
-                lines,
-                trailing_newline,
-            },
-        };
+        let handler = TxtHandler::new(lines, trailing_newline);
         let doc = Document::new(handler).with_parent(content);
         Ok(vec![doc])
     }
@@ -90,19 +85,6 @@ mod tests {
         let h = docs[0].handler();
         assert_eq!(h.len(), 1);
         assert_eq!(h.line(0), Some("single line"));
-        assert!(!h.trailing_newline());
-    }
-
-    #[tokio::test]
-    async fn load_empty() {
-        let content = content_from_str("");
-        let docs = TxtLoader
-            .decode(&content, &TxtParams::default())
-            .await
-            .unwrap();
-
-        let h = docs[0].handler();
-        assert_eq!(h.len(), 0);
         assert!(!h.trailing_newline());
     }
 

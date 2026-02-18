@@ -93,7 +93,17 @@ where
                     if s >= e {
                         continue;
                     }
-                    result = format!("{}{}{}", &result[..s], value, &result[e..]);
+                    if !result.is_char_boundary(s) || !result.is_char_boundary(e) {
+                        return Err(Error::validation(
+                            format!(
+                                "redaction offset falls mid-character \
+                                 (start={start}, end={end}, len={})",
+                                result.len()
+                            ),
+                            "text-handler",
+                        ));
+                    }
+                    result.replace_range(s..e, value);
                 }
 
                 edits.push(SpanEdit {
@@ -109,5 +119,125 @@ where
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::handler::{Handler, TxtData, TxtHandler, TxtSpan};
+    use futures::StreamExt;
+
+    fn handler(text: &str) -> TxtHandler {
+        let trailing_newline = text.ends_with('\n');
+        let lines = text.lines().map(String::from).collect();
+        TxtHandler::new(TxtData {
+            lines,
+            trailing_newline,
+        })
+    }
+
+    fn replace(span: usize, start: usize, end: usize, replacement: &str) -> TextRedaction<TxtSpan> {
+        TextRedaction {
+            span_id: TxtSpan(span),
+            start,
+            end,
+            output: TextRedactionOutput::Replace {
+                replacement: replacement.to_string(),
+            },
+        }
+    }
+
+    fn remove(span: usize, start: usize, end: usize) -> TextRedaction<TxtSpan> {
+        TextRedaction {
+            span_id: TxtSpan(span),
+            start,
+            end,
+            output: TextRedactionOutput::Remove,
+        }
+    }
+
+    #[tokio::test]
+    async fn single_span_single_redaction() {
+        let mut h = handler("hello world\n");
+        TextHandler::redact_spans(&mut h, &[replace(0, 0, 5, "[NAME]")])
+            .await
+            .unwrap();
+
+        let spans: Vec<_> = h.view_spans().await.collect().await;
+        assert_eq!(spans[0].data, "[NAME] world");
+    }
+
+    #[tokio::test]
+    async fn multiple_redactions_within_one_span() {
+        let mut h = handler("Alice met Bob\n");
+        TextHandler::redact_spans(&mut h, &[
+            replace(0, 0, 5, "[X]"),
+            replace(0, 10, 13, "[Y]"),
+        ])
+        .await
+        .unwrap();
+
+        let spans: Vec<_> = h.view_spans().await.collect().await;
+        assert_eq!(spans[0].data, "[X] met [Y]");
+    }
+
+    #[tokio::test]
+    async fn redaction_spanning_entire_content_replace() {
+        let mut h = handler("secret\n");
+        TextHandler::redact_spans(&mut h, &[replace(0, 0, 6, "[REDACTED]")])
+            .await
+            .unwrap();
+
+        let spans: Vec<_> = h.view_spans().await.collect().await;
+        assert_eq!(spans[0].data, "[REDACTED]");
+    }
+
+    #[tokio::test]
+    async fn redaction_spanning_entire_content_remove() {
+        let mut h = handler("secret\n");
+        TextHandler::redact_spans(&mut h, &[remove(0, 0, 6)])
+            .await
+            .unwrap();
+
+        let spans: Vec<_> = h.view_spans().await.collect().await;
+        assert_eq!(spans[0].data, "");
+    }
+
+    #[tokio::test]
+    async fn empty_redactions_is_noop() {
+        let mut h = handler("unchanged\n");
+        TextHandler::redact_spans(&mut h, &[]).await.unwrap();
+
+        let spans: Vec<_> = h.view_spans().await.collect().await;
+        assert_eq!(spans[0].data, "unchanged");
+    }
+
+    #[tokio::test]
+    async fn invalid_utf8_boundary_returns_error() {
+        // "café" = [99, 97, 102, 195, 169] — byte 4 is the start of
+        // the two-byte é, so byte 4 is a valid boundary but byte 4
+        // splitting into the middle of é would be offset 4..5 where 5
+        // is *not* a char boundary (it's the second byte of é).
+        let mut h = handler("café\n");
+        let err = TextHandler::redact_spans(&mut h, &[replace(0, 4, 5, "X")])
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("mid-character"));
+    }
+
+    #[tokio::test]
+    async fn multiple_spans_with_separate_redactions() {
+        let mut h = handler("hello\nworld\n");
+        TextHandler::redact_spans(&mut h, &[
+            replace(0, 0, 5, "[A]"),
+            replace(1, 0, 5, "[B]"),
+        ])
+        .await
+        .unwrap();
+
+        let spans: Vec<_> = h.view_spans().await.collect().await;
+        assert_eq!(spans[0].data, "[A]");
+        assert_eq!(spans[1].data, "[B]");
     }
 }

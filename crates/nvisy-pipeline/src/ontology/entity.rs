@@ -3,21 +3,16 @@
 //! An [`Entity`] represents a single occurrence of sensitive data detected
 //! within a document.
 
-mod location;
-mod model;
-mod selector;
-
-pub use location::{
-    AudioLocation, ImageLocation, TabularLocation, TextLocation, VideoLocation,
-};
-pub use model::{ModelInfo, ModelKind};
-pub use selector::EntitySelector;
-
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use nvisy_core::data::EntityCategory;
 use nvisy_core::path::ContentSource;
+
+use super::location::{
+    AudioLocation, ImageLocation, TabularLocation, TextLocation, VideoLocation,
+};
+use super::model::ModelInfo;
 
 /// Method used to detect a sensitive entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]

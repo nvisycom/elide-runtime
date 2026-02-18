@@ -22,7 +22,8 @@ pub struct AudioRedaction {
 ///
 /// Extends [`Handler`] with a single [`redact_spans`](Self::redact_spans)
 /// method that applies a batch of time-range audio redactions.
-pub trait AudioHandler: Handler + Sized {
-    /// Apply a batch of audio redactions, returning a new handler.
-    fn redact_spans(&self, redactions: &[AudioRedaction]) -> Result<Self, Error>;
+#[async_trait::async_trait]
+pub trait AudioHandler: Handler {
+    /// Apply a batch of audio redactions, mutating in place.
+    async fn redact_spans(&mut self, redactions: &[AudioRedaction]) -> Result<(), Error>;
 }

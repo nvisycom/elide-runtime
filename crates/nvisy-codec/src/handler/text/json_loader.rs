@@ -11,9 +11,9 @@ use nvisy_core::error::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
-use crate::handler::{
-    JsonData, JsonHandler, JsonIndent, Loader, TextEncoding,
-};
+use nvisy_core::data::TextEncoding;
+
+use crate::handler::{JsonData, JsonHandler, JsonIndent, Loader};
 
 /// Parameters for [`JsonLoader`].
 #[derive(Debug, Default)]

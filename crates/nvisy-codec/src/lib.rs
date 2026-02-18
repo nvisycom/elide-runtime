@@ -4,7 +4,7 @@
 
 pub mod handler;
 pub mod document;
-pub mod render;
+pub mod transform;
 
 #[doc(hidden)]
 pub mod prelude;

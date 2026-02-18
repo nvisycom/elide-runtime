@@ -1,7 +1,10 @@
 //! Unified document representation.
 
-pub mod view_stream;
-pub mod edit_stream;
+mod view_stream;
+mod edit_stream;
+
+pub use edit_stream::SpanEditStream;
+pub use view_stream::SpanStream;
 
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;

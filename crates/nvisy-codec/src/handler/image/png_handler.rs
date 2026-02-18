@@ -12,10 +12,9 @@ use image::DynamicImage;
 use nvisy_core::error::{Error, ErrorKind};
 use nvisy_core::fs::DocumentType;
 
-use crate::document::edit_stream::SpanEditStream;
-use crate::document::view_stream::SpanStream;
+use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
-use crate::render::ImageHandler;
+use crate::transform::ImageHandler;
 
 use futures::StreamExt;
 

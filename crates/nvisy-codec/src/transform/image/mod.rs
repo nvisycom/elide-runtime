@@ -15,7 +15,7 @@ use pixelate::apply_pixelate;
 use image::DynamicImage;
 use futures::StreamExt;
 
-use crate::document::edit_stream::SpanEditStream;
+use crate::document::SpanEditStream;
 use crate::handler::{Handler, SpanEdit};
 use nvisy_core::error::Error;
 use nvisy_core::math::{BoundingBox, BoundingBoxU32};

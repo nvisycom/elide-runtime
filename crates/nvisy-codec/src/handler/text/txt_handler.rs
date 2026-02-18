@@ -19,10 +19,9 @@ use futures::StreamExt;
 use nvisy_core::error::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::edit_stream::SpanEditStream;
-use crate::document::view_stream::SpanStream;
+use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
-use crate::render::TextHandler;
+use crate::transform::TextHandler;
 
 /// 0-based line index identifying a span within a plain-text document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

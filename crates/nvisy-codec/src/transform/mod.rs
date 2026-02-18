@@ -1,4 +1,4 @@
-//! Rendering primitives for redaction overlays.
+//! Redaction transform traits and output types.
 
 mod audio;
 mod image;

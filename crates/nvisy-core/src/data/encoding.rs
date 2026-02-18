@@ -1,6 +1,6 @@
 //! Character encoding for text-based loaders.
 
-use nvisy_core::error::Error;
+use crate::error::Error;
 
 /// Character encoding used to decode raw bytes before parsing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

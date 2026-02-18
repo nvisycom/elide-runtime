@@ -8,7 +8,9 @@ use nvisy_core::error::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
-use crate::handler::{CsvData, CsvHandler, Loader, TextEncoding};
+use nvisy_core::data::TextEncoding;
+
+use crate::handler::{CsvData, CsvHandler, Loader};
 
 /// Parameters for [`CsvLoader`].
 #[derive(Debug)]

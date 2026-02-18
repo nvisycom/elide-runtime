@@ -3,9 +3,9 @@
 use derive_more::From;
 use serde::{Deserialize, Serialize};
 
-use crate::render::audio::AudioRedactionOutput;
-use crate::render::image::ImageRedactionOutput;
-use crate::render::text::TextRedactionOutput;
+use crate::transform::audio::AudioRedactionOutput;
+use crate::transform::image::ImageRedactionOutput;
+use crate::transform::text::TextRedactionOutput;
 
 /// Unified redaction output that wraps modality-specific output variants.
 ///

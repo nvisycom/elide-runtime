@@ -1,7 +1,7 @@
 //! Convenience re-exports.
 
 pub use crate::handler::{
-    Handler, Loader, TextEncoding,
+    Handler, Loader,
     Span, SpanEdit,
     TxtData, TxtHandler, TxtSpan,
     TxtLoader, TxtParams,
@@ -10,6 +10,10 @@ pub use crate::handler::{
     JsonData, JsonHandler, JsonIndent,
     JsonParams, JsonLoader, JsonPath,
 };
-pub use crate::document::view_stream::SpanStream;
-pub use crate::document::edit_stream::SpanEditStream;
-pub use crate::document::Document;
+pub use crate::document::{Document, SpanEditStream, SpanStream};
+pub use crate::transform::{
+    AudioHandler, AudioRedaction, AudioRedactionOutput,
+    ImageHandler, ImageRedaction, ImageRedactionOutput,
+    RedactionOutput,
+    TextHandler, TextRedaction, TextRedactionOutput,
+};

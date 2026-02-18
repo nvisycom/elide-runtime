@@ -11,11 +11,9 @@ use nvisy_core::error::Error;
 use nvisy_core::io::ContentData;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::edit_stream::SpanEditStream;
-use crate::document::view_stream::SpanStream;
+use crate::document::{SpanEditStream, SpanStream};
 use crate::document::Document;
 
-pub mod encoding;
 pub mod span;
 
 mod text;
@@ -24,7 +22,6 @@ mod image;
 mod tabular;
 mod audio;
 
-pub use encoding::TextEncoding;
 pub use span::{Span, SpanEdit};
 
 pub use text::*;

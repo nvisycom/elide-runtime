@@ -14,7 +14,7 @@ use nvisy_core::fs::DocumentType;
 use crate::document::{SpanEditStream, SpanStream};
 use crate::document::Document;
 
-pub mod span;
+mod span;
 
 mod text;
 mod document;

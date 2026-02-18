@@ -28,7 +28,7 @@ impl Provider for AiProvider {
     type Credentials = AiCredentials;
     type Client = PythonBridge;
 
-    fn id(&self) -> &str { "ai" }
+    const ID: &str = "ai";
 
     async fn verify(_creds: &Self::Credentials) -> Result<(), Error> {
         Ok(())

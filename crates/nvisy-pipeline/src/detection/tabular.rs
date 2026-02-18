@@ -43,9 +43,7 @@ impl Action for DetectTabularAction {
     type Input = Vec<Document<CsvHandler>>;
     type Output = Vec<Entity>;
 
-    fn id(&self) -> &str {
-        "detect-tabular"
-    }
+    const ID: &str = "detect-tabular";
 
     async fn connect(params: Self::Params) -> Result<Self, Error> {
         let compiled_rules = params

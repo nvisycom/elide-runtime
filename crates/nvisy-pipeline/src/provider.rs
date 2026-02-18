@@ -19,7 +19,7 @@ pub trait Provider: Send + Sync + 'static {
     type Client: Send + 'static;
 
     /// Unique identifier (e.g. "s3", "openai").
-    fn id(&self) -> &str;
+    const ID: &str;
 
     /// Verify credentials by attempting a lightweight connection.
     async fn verify(creds: &Self::Credentials) -> Result<(), Error>;

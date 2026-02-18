@@ -13,7 +13,8 @@ mod regex;
 mod tabular;
 
 pub use checksum::{DetectChecksumAction, DetectChecksumParams};
-pub use classify::{ClassifyAction, ClassificationResult};
+pub use classify::ClassifyAction;
+pub use crate::ontology::ClassificationResult;
 pub use dictionary::{DetectDictionaryAction, DetectDictionaryParams, DictionaryDef};
 pub use manual::{DetectManualAction, DetectManualParams};
 pub use ner::{DetectNerAction, DetectNerInput, DetectNerParams, NerBackend, NerConfig, parse_ner_entities};

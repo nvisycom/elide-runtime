@@ -24,9 +24,7 @@ impl Action for DetectManualAction {
     type Input = Vec<Annotation>;
     type Output = Vec<Entity>;
 
-    fn id(&self) -> &str {
-        "detect-manual"
-    }
+    const ID: &str = "detect-manual";
 
     async fn connect(_params: Self::Params) -> Result<Self, Error> {
         Ok(Self)

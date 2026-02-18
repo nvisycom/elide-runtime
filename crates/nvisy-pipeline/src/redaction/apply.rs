@@ -73,9 +73,7 @@ impl Action for ApplyRedactionAction {
     type Input = ApplyRedactionInput;
     type Output = ApplyRedactionOutput;
 
-    fn id(&self) -> &str {
-        "apply-redaction"
-    }
+    const ID: &str = "apply-redaction";
 
     async fn connect(params: Self::Params) -> Result<Self, Error> {
         Ok(Self { params })

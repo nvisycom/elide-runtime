@@ -4,12 +4,9 @@
 //! - [`Redaction`] — records a redaction decision for a specific entity.
 //! - [`ReviewDecision`] / [`ReviewStatus`] — human-in-the-loop review.
 //! - [`RedactionSummary`] — per-source redaction counts.
-//! - [`Redactable`] trait — types that produce redaction decisions.
-
 mod review;
 mod spec;
 mod summary;
-mod trait_;
 
 pub use review::{ReviewDecision, ReviewStatus};
 pub use spec::{
@@ -17,7 +14,6 @@ pub use spec::{
     DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR, DEFAULT_PIXELATE_BLOCK_SIZE,
 };
 pub use summary::RedactionSummary;
-pub use trait_::Redactable;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -50,9 +50,7 @@ impl Action for EvaluatePolicyAction {
     type Input = Vec<Entity>;
     type Output = Vec<Redaction>;
 
-    fn id(&self) -> &str {
-        "evaluate-policy"
-    }
+    const ID: &str = "evaluate-policy";
 
     async fn connect(mut params: Self::Params) -> Result<Self, Error> {
         params.rules.sort_by_key(|r| r.priority);

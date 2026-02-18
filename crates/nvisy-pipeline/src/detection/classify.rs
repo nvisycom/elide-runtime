@@ -1,7 +1,6 @@
 //! Sensitivity classification action.
 
-pub use crate::ontology::ClassificationResult;
-use crate::ontology::{Entity, Sensitivity, SensitivityLevel};
+use crate::ontology::{ClassificationResult, Entity, Sensitivity, SensitivityLevel};
 use nvisy_core::error::Error;
 
 use crate::action::Action;
@@ -18,9 +17,7 @@ impl Action for ClassifyAction {
     type Input = Vec<Entity>;
     type Output = ClassificationResult;
 
-    fn id(&self) -> &str {
-        "classify"
-    }
+    const ID: &str = "classify";
 
     async fn connect(_params: Self::Params) -> Result<Self, Error> {
         Ok(Self)

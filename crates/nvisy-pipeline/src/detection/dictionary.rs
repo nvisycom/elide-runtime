@@ -58,9 +58,7 @@ impl Action for DetectDictionaryAction {
     type Input = (Vec<Document<TxtHandler>>, Vec<Document<CsvHandler>>);
     type Output = Vec<Entity>;
 
-    fn id(&self) -> &str {
-        "detect-dictionary"
-    }
+    const ID: &str = "detect-dictionary";
 
     async fn connect(params: Self::Params) -> Result<Self, Error> {
         if params.dictionaries.is_empty() {

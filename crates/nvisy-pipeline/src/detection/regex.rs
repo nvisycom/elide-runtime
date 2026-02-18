@@ -30,9 +30,7 @@ impl Action for DetectRegexAction {
     type Input = Vec<Document<TxtHandler>>;
     type Output = Vec<Entity>;
 
-    fn id(&self) -> &str {
-        "detect-regex"
-    }
+    const ID: &str = "detect-regex";
 
     async fn connect(params: Self::Params) -> Result<Self, Error> {
         Ok(Self { params })

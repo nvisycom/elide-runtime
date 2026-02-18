@@ -43,9 +43,7 @@ impl Action for DetectChecksumAction {
     type Input = Vec<Entity>;
     type Output = Vec<Entity>;
 
-    fn id(&self) -> &str {
-        "detect-checksum"
-    }
+    const ID: &str = "detect-checksum";
 
     async fn connect(params: Self::Params) -> Result<Self, Error> {
         Ok(Self { params })

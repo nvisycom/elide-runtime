@@ -36,9 +36,7 @@ impl Action for EmitAuditAction {
     type Input = Vec<Redaction>;
     type Output = Vec<Audit>;
 
-    fn id(&self) -> &str {
-        "emit-audit"
-    }
+    const ID: &str = "emit-audit";
 
     async fn connect(params: Self::Params) -> Result<Self, Error> {
         Ok(Self { params })

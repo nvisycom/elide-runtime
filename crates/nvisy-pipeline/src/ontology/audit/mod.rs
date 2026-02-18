@@ -13,12 +13,6 @@ use uuid::Uuid;
 
 use nvisy_core::path::ContentSource;
 
-/// Types that emit audit records.
-pub trait Auditable {
-    /// Produce an audit record for this event.
-    fn to_audit(&self) -> Audit;
-}
-
 /// Kind of auditable action recorded in an [`Audit`] entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
 #[derive(schemars::JsonSchema)]

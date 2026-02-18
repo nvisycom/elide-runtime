@@ -22,7 +22,7 @@ pub trait Action: Sized + Send + Sync + 'static {
     type Output: Send;
 
     /// Unique identifier for this action (e.g. "detect-regex").
-    fn id(&self) -> &str;
+    const ID: &str;
 
     /// Validate parameters and construct a configured action instance.
     ///

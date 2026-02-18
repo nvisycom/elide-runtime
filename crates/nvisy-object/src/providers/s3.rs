@@ -138,7 +138,7 @@ impl Provider for S3Provider {
     type Credentials = S3Credentials;
     type Client = ObjectStoreBox;
 
-    fn id(&self) -> &str { "s3" }
+    const ID: &str = "s3";
 
     async fn verify(_creds: &Self::Credentials) -> Result<(), Error> {
         Ok(())

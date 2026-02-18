@@ -56,5 +56,8 @@ pub trait StreamTarget: Send + Sync + 'static {
     ) -> Result<u64, Error>;
 }
 
-pub mod read;
-pub mod write;
+mod read;
+mod write;
+
+pub use read::{ObjectReadStream, ObjectReadParams};
+pub use write::{ObjectWriteStream, ObjectWriteParams};

@@ -56,9 +56,7 @@ impl Action for GenerateTranscribeAction {
     type Input = GenerateTranscribeInput;
     type Output = GenerateTranscribeOutput;
 
-    fn id(&self) -> &str {
-        "generate-transcribe"
-    }
+    const ID: &str = "generate-transcribe";
 
     async fn connect(_params: Self::Params) -> Result<Self, Error> {
         Ok(Self)

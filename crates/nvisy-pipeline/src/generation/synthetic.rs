@@ -39,9 +39,7 @@ impl Action for GenerateSyntheticAction {
     type Input = GenerateSyntheticInput;
     type Output = Vec<Redaction>;
 
-    fn id(&self) -> &str {
-        "generate-synthetic"
-    }
+    const ID: &str = "generate-synthetic";
 
     async fn connect(_params: Self::Params) -> Result<Self, Error> {
         Ok(Self)

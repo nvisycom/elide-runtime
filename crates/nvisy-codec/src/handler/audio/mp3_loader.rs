@@ -21,7 +21,7 @@ impl Loader for Mp3Loader {
     type Handler = Mp3Handler;
     type Params = Mp3Params;
 
-    async fn load(
+    async fn decode(
         &self,
         content: &ContentData,
         _params: &Self::Params,

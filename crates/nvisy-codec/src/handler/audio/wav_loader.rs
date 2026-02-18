@@ -21,7 +21,7 @@ impl Loader for WavLoader {
     type Handler = WavHandler;
     type Params = WavParams;
 
-    async fn load(
+    async fn decode(
         &self,
         content: &ContentData,
         _params: &Self::Params,

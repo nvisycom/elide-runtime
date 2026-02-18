@@ -125,6 +125,34 @@ impl Handler for JsonHandler {
         DocumentType::Json
     }
 
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        let mut bytes = match self.data.indent {
+            JsonIndent::Compact => serde_json::to_vec(&self.data.value)
+                .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler"))?,
+            JsonIndent::Spaces(n) => {
+                let indent = " ".repeat(n.get() as usize);
+                let mut buf = Vec::new();
+                let formatter = serde_json::ser::PrettyFormatter::with_indent(indent.as_bytes());
+                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+                serde::Serialize::serialize(&self.data.value, &mut ser)
+                    .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler"))?;
+                buf
+            }
+            JsonIndent::Tab => {
+                let mut buf = Vec::new();
+                let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
+                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+                serde::Serialize::serialize(&self.data.value, &mut ser)
+                    .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler"))?;
+                buf
+            }
+        };
+        if self.data.trailing_newline {
+            bytes.push(b'\n');
+        }
+        Ok(bytes)
+    }
+
     type SpanId = JsonPath;
     type SpanData = serde_json::Value;
 
@@ -573,5 +601,46 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(h.value(), &json!({"[REDACTED]": "***"}));
+    }
+
+    #[test]
+    fn encode_compact() {
+        let h = JsonHandler {
+            data: JsonData {
+                value: json!({"a": 1}),
+                indent: JsonIndent::Compact,
+                trailing_newline: false,
+            },
+        };
+        let bytes = h.encode().unwrap();
+        assert_eq!(String::from_utf8(bytes).unwrap(), r#"{"a":1}"#);
+    }
+
+    #[test]
+    fn encode_two_spaces_with_trailing_newline() {
+        let h = JsonHandler {
+            data: JsonData {
+                value: json!({"a": 1}),
+                indent: JsonIndent::two_spaces(),
+                trailing_newline: true,
+            },
+        };
+        let text = String::from_utf8(h.encode().unwrap()).unwrap();
+        assert!(text.contains("  \"a\""));
+        assert!(text.ends_with('\n'));
+    }
+
+    #[test]
+    fn encode_tab_indent() {
+        let h = JsonHandler {
+            data: JsonData {
+                value: json!({"a": 1}),
+                indent: JsonIndent::Tab,
+                trailing_newline: false,
+            },
+        };
+        let text = String::from_utf8(h.encode().unwrap()).unwrap();
+        assert!(text.contains("\t\"a\""));
+        assert!(!text.ends_with('\n'));
     }
 }

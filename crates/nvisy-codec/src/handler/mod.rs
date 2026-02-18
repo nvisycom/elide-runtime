@@ -15,11 +15,9 @@ use crate::document::{SpanEditStream, SpanStream};
 use crate::document::Document;
 
 mod span;
-
 mod text;
 mod document;
 mod image;
-mod tabular;
 mod audio;
 
 pub use span::{Span, SpanEdit};
@@ -27,7 +25,6 @@ pub use span::{Span, SpanEdit};
 pub use text::*;
 pub use document::*;
 pub use image::*;
-pub use tabular::*;
 pub use audio::*;
 
 /// Trait implemented by all format handlers.
@@ -44,6 +41,9 @@ pub use audio::*;
 pub trait Handler: Send + Sync + 'static {
     /// The document type this handler represents.
     fn document_type(&self) -> DocumentType;
+
+    /// Serialize the current handler content back to raw bytes.
+    fn encode(&self) -> Result<Vec<u8>, Error>;
 
     /// Strongly-typed identifier for a span within this handler.
     type SpanId: Send + Sync + Clone + 'static;
@@ -73,7 +73,7 @@ pub trait Loader: Send + Sync + 'static {
 
     /// Validate and parse the content, returning a document with
     /// the loaded handler.
-    async fn load(
+    async fn decode(
         &self,
         content: &ContentData,
         params: &Self::Params,

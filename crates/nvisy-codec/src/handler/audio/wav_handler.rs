@@ -29,6 +29,10 @@ impl Handler for WavHandler {
         DocumentType::Wav
     }
 
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        Ok(self.bytes.to_vec())
+    }
+
     type SpanId = ();
     type SpanData = ();
 

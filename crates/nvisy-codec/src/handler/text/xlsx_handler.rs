@@ -1,4 +1,4 @@
-//! PDF handler (stub — awaiting migration to Loader/Handler pattern).
+//! XLSX handler (stub — awaiting full spreadsheet support).
 
 use nvisy_core::error::Error;
 use nvisy_core::fs::DocumentType;
@@ -7,18 +7,18 @@ use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::Handler;
 
 #[derive(Debug)]
-pub struct PdfHandler;
+pub struct XlsxHandler;
 
 #[async_trait::async_trait]
-impl Handler for PdfHandler {
+impl Handler for XlsxHandler {
     fn document_type(&self) -> DocumentType {
-        DocumentType::Pdf
+        DocumentType::Xlsx
     }
 
     fn encode(&self) -> Result<Vec<u8>, Error> {
         Err(Error::validation(
-            "encode not supported for PDF",
-            "pdf-handler",
+            "encode not supported for XLSX",
+            "xlsx-handler",
         ))
     }
 

@@ -35,7 +35,7 @@ impl Loader for JsonLoader {
     type Handler = JsonHandler;
     type Params = JsonParams;
 
-    async fn load(
+    async fn decode(
         &self,
         content: &ContentData,
         params: &Self::Params,
@@ -106,7 +106,7 @@ mod tests {
     async fn load_simple_object() {
         let content = content_from_str(r#"{"name": "Alice", "age": 30}"#);
         let docs = JsonLoader
-            .load(&content, &JsonParams::default())
+            .decode(&content, &JsonParams::default())
             .await
             .unwrap();
 
@@ -121,7 +121,7 @@ mod tests {
     async fn load_detects_compact_formatting() {
         let content = content_from_str(r#"{"a":1}"#);
         let docs = JsonLoader
-            .load(&content, &JsonParams::default())
+            .decode(&content, &JsonParams::default())
             .await
             .unwrap();
         let h = docs[0].handler();
@@ -133,7 +133,7 @@ mod tests {
     async fn load_detects_two_space_indent() {
         let content = content_from_str("{\n  \"a\": 1\n}\n");
         let docs = JsonLoader
-            .load(&content, &JsonParams::default())
+            .decode(&content, &JsonParams::default())
             .await
             .unwrap();
         let h = docs[0].handler();
@@ -145,7 +145,7 @@ mod tests {
     async fn load_detects_four_space_indent() {
         let content = content_from_str("{\n    \"a\": 1\n}\n");
         let docs = JsonLoader
-            .load(&content, &JsonParams::default())
+            .decode(&content, &JsonParams::default())
             .await
             .unwrap();
         assert_eq!(docs[0].handler().indent(), JsonIndent::four_spaces());
@@ -155,7 +155,7 @@ mod tests {
     async fn load_detects_tab_indent() {
         let content = content_from_str("{\n\t\"a\": 1\n}\n");
         let docs = JsonLoader
-            .load(&content, &JsonParams::default())
+            .decode(&content, &JsonParams::default())
             .await
             .unwrap();
         assert_eq!(docs[0].handler().indent(), JsonIndent::Tab);
@@ -168,7 +168,7 @@ mod tests {
             Bytes::from_static(&[0xFF, 0xFE, 0x00]),
         );
         let err = JsonLoader
-            .load(&content, &JsonParams::default())
+            .decode(&content, &JsonParams::default())
             .await
             .unwrap_err();
         assert!(err.to_string().contains("UTF-8"));
@@ -178,7 +178,7 @@ mod tests {
     async fn load_invalid_json() {
         let content = content_from_str("{not json}");
         let err = JsonLoader
-            .load(&content, &JsonParams::default())
+            .decode(&content, &JsonParams::default())
             .await
             .unwrap_err();
         assert!(err.to_string().contains("JSON"));

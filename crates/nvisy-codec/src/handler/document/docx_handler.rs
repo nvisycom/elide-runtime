@@ -15,6 +15,13 @@ impl Handler for DocxHandler {
         DocumentType::Docx
     }
 
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        Err(Error::validation(
+            "encode not supported for DOCX",
+            "docx-handler",
+        ))
+    }
+
     type SpanId = ();
     type SpanData = ();
 

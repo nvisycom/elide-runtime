@@ -21,7 +21,7 @@ impl Loader for DocxLoader {
     type Handler = DocxHandler;
     type Params = DocxParams;
 
-    async fn load(
+    async fn decode(
         &self,
         content: &ContentData,
         _params: &Self::Params,

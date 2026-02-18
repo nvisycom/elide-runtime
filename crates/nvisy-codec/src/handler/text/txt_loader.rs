@@ -29,7 +29,7 @@ impl Loader for TxtLoader {
     type Handler = TxtHandler;
     type Params = TxtParams;
 
-    async fn load(
+    async fn decode(
         &self,
         content: &ContentData,
         params: &Self::Params,
@@ -67,7 +67,7 @@ mod tests {
     async fn load_multiline() {
         let content = content_from_str("hello\nworld\n");
         let docs = TxtLoader
-            .load(&content, &TxtParams::default())
+            .decode(&content, &TxtParams::default())
             .await
             .unwrap();
 
@@ -83,12 +83,12 @@ mod tests {
     async fn load_no_trailing_newline() {
         let content = content_from_str("single line");
         let docs = TxtLoader
-            .load(&content, &TxtParams::default())
+            .decode(&content, &TxtParams::default())
             .await
             .unwrap();
 
         let h = docs[0].handler();
-        assert_eq!(h.line_count(), 1);
+        assert_eq!(h.len(), 1);
         assert_eq!(h.line(0), Some("single line"));
         assert!(!h.trailing_newline());
     }
@@ -97,12 +97,12 @@ mod tests {
     async fn load_empty() {
         let content = content_from_str("");
         let docs = TxtLoader
-            .load(&content, &TxtParams::default())
+            .decode(&content, &TxtParams::default())
             .await
             .unwrap();
 
         let h = docs[0].handler();
-        assert_eq!(h.line_count(), 0);
+        assert_eq!(h.len(), 0);
         assert!(!h.trailing_newline());
     }
 
@@ -110,7 +110,7 @@ mod tests {
     async fn load_preserves_spans_through_round_trip() {
         let content = content_from_str("Alice\nBob\nCharlie\n");
         let docs = TxtLoader
-            .load(&content, &TxtParams::default())
+            .decode(&content, &TxtParams::default())
             .await
             .unwrap();
 
@@ -128,7 +128,7 @@ mod tests {
             Bytes::from_static(&[0xFF, 0xFE, 0x00]),
         );
         let err = TxtLoader
-            .load(&content, &TxtParams::default())
+            .decode(&content, &TxtParams::default())
             .await
             .unwrap_err();
         assert!(err.to_string().contains("UTF-8"));

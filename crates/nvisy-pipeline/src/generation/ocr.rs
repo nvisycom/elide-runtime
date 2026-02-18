@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use nvisy_codec::document::Document;
-use nvisy_codec::handler::{PngHandler, TxtHandler, TxtData};
+use nvisy_codec::handler::{Handler, PngHandler, TxtHandler, TxtData};
 use nvisy_core::data::EntityCategory;
 use nvisy_core::error::Error;
 use nvisy_core::math::BoundingBox;
@@ -107,7 +107,7 @@ impl<B: OcrBackend> GenerateOcrAction<B> {
         let mut all_ocr_text = Vec::new();
 
         for doc in &input.image_docs {
-            let png_bytes = doc.handler().encode_bytes()?;
+            let png_bytes = doc.handler().encode()?;
             let raw = self
                 .backend
                 .detect_ocr(&png_bytes, "image/png", &config)

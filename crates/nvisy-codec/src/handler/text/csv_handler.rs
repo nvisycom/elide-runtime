@@ -85,6 +85,39 @@ impl Handler for CsvHandler {
         DocumentType::Csv
     }
 
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        let mut wtr = csv::WriterBuilder::new()
+            .delimiter(self.data.delimiter)
+            .has_headers(false)
+            .from_writer(Vec::new());
+
+        if let Some(headers) = &self.data.headers {
+            wtr.write_record(headers).map_err(|e| {
+                Error::validation(format!("CSV encode error: {e}"), "csv-handler")
+            })?;
+        }
+        for row in &self.data.rows {
+            wtr.write_record(row).map_err(|e| {
+                Error::validation(format!("CSV encode error: {e}"), "csv-handler")
+            })?;
+        }
+        let mut bytes = wtr.into_inner().map_err(|e| {
+            Error::validation(format!("CSV encode error: {e}"), "csv-handler")
+        })?;
+
+        // Normalize CRLF → LF
+        bytes.retain(|&b| b != b'\r');
+
+        // Handle trailing newline
+        if !self.data.trailing_newline {
+            if bytes.last() == Some(&b'\n') {
+                bytes.pop();
+            }
+        }
+
+        Ok(bytes)
+    }
+
     type SpanId = CsvSpan;
     type SpanData = String;
 
@@ -158,8 +191,13 @@ impl CsvHandler {
     }
 
     /// Number of data rows (excluding the header).
-    pub fn row_count(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.data.rows.len()
+    }
+
+    /// Whether the document has no data rows.
+    pub fn is_empty(&self) -> bool {
+        self.data.rows.is_empty()
     }
 
     /// Detected field delimiter.
@@ -403,5 +441,61 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("out of bounds"));
+    }
+
+    #[test]
+    fn encode_with_headers() {
+        let h = handler_with_headers(
+            vec!["name", "age"],
+            vec![vec!["Alice", "30"], vec!["Bob", "25"]],
+        );
+        let bytes = h.encode().unwrap();
+        assert_eq!(
+            String::from_utf8(bytes).unwrap(),
+            "name,age\nAlice,30\nBob,25\n"
+        );
+    }
+
+    #[test]
+    fn encode_no_headers() {
+        let h = handler_no_headers(vec![vec!["x", "y"], vec!["1", "2"]]);
+        let bytes = h.encode().unwrap();
+        assert_eq!(
+            String::from_utf8(bytes).unwrap(),
+            "x,y\n1,2\n"
+        );
+    }
+
+    #[test]
+    fn encode_with_quoting() {
+        let h = handler_with_headers(
+            vec!["name", "bio"],
+            vec![vec!["Alice", "Has a, comma"]],
+        );
+        let bytes = h.encode().unwrap();
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(text.contains("\"Has a, comma\""));
+    }
+
+    #[test]
+    fn encode_without_trailing_newline() {
+        let mut h = handler_with_headers(vec!["a"], vec![vec!["1"]]);
+        h.data.trailing_newline = false;
+        let bytes = h.encode().unwrap();
+        assert_eq!(String::from_utf8(bytes).unwrap(), "a\n1");
+    }
+
+    #[test]
+    fn encode_tab_delimiter() {
+        let mut h = handler_with_headers(
+            vec!["a", "b"],
+            vec![vec!["1", "2"]],
+        );
+        h.data.delimiter = b'\t';
+        let bytes = h.encode().unwrap();
+        assert_eq!(
+            String::from_utf8(bytes).unwrap(),
+            "a\tb\n1\t2\n"
+        );
     }
 }

@@ -21,7 +21,7 @@ impl Loader for PdfLoader {
     type Handler = PdfHandler;
     type Params = PdfParams;
 
-    async fn load(
+    async fn decode(
         &self,
         content: &ContentData,
         _params: &Self::Params,

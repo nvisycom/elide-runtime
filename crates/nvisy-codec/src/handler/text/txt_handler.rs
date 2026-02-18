@@ -48,6 +48,14 @@ impl Handler for TxtHandler {
         DocumentType::Txt
     }
 
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        let mut out = self.data.lines.join("\n");
+        if self.data.trailing_newline && !self.data.lines.is_empty() {
+            out.push('\n');
+        }
+        Ok(out.into_bytes())
+    }
+
     type SpanId = TxtSpan;
     type SpanData = String;
 
@@ -98,8 +106,13 @@ impl TxtHandler {
     }
 
     /// Total number of lines.
-    pub fn line_count(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.data.lines.len()
+    }
+
+    /// Whether the document has no lines.
+    pub fn is_empty(&self) -> bool {
+        self.data.lines.is_empty()
     }
 
     /// Consume the handler and return the inner [`TxtData`].
@@ -217,5 +230,26 @@ mod tests {
         let h = handler("a\nb\nc\n");
         let stream = h.view_spans().await;
         assert_eq!(stream.size_hint(), (3, Some(3)));
+    }
+
+    #[test]
+    fn encode_with_trailing_newline() {
+        let h = handler("hello\nworld\n");
+        let bytes = h.encode().unwrap();
+        assert_eq!(bytes, b"hello\nworld\n");
+    }
+
+    #[test]
+    fn encode_without_trailing_newline() {
+        let h = handler("no newline");
+        let bytes = h.encode().unwrap();
+        assert_eq!(bytes, b"no newline");
+    }
+
+    #[test]
+    fn encode_empty() {
+        let h = handler("");
+        let bytes = h.encode().unwrap();
+        assert_eq!(bytes, b"");
     }
 }

@@ -16,7 +16,7 @@ pub use selector::EntitySelector;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use nvisy_core::entity::EntityCategory;
+use nvisy_core::data::EntityCategory;
 use nvisy_core::path::ContentSource;
 
 /// Method used to detect a sensitive entity.

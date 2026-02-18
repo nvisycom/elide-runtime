@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{TxtHandler, PngHandler};
-use nvisy_core::entity::EntityCategory;
+use nvisy_core::data::EntityCategory;
 use nvisy_core::error::Error;
 
 use crate::ontology::entity::{DetectionMethod, Entity, TextLocation};

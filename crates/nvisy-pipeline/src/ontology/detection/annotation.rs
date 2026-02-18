@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use nvisy_core::entity::EntityCategory;
+use nvisy_core::data::EntityCategory;
 
 use crate::ontology::entity::{
     AudioLocation, ImageLocation, TabularLocation, TextLocation, VideoLocation,

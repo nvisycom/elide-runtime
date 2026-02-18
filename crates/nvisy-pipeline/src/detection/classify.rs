@@ -60,7 +60,7 @@ fn compute_sensitivity_level(entities: &[Entity]) -> SensitivityLevel {
     let has_critical_types = entities.iter().any(|e| {
         matches!(
             e.category,
-            nvisy_core::entity::EntityCategory::Credentials
+            nvisy_core::data::EntityCategory::Credentials
         ) || e.entity_type == "ssn"
             || e.entity_type == "credit_card"
     });

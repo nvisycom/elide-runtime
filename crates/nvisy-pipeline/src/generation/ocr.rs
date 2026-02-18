@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{PngHandler, TxtHandler, TxtData};
-use nvisy_core::entity::EntityCategory;
+use nvisy_core::data::EntityCategory;
 use nvisy_core::error::Error;
 use nvisy_core::math::BoundingBox;
 

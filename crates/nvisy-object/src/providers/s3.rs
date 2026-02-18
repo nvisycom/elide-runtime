@@ -140,16 +140,11 @@ impl Provider for S3Provider {
 
     fn id(&self) -> &str { "s3" }
 
-    fn validate_credentials(&self, _creds: &Self::Credentials) -> Result<(), Error> {
+    async fn verify(_creds: &Self::Credentials) -> Result<(), Error> {
         Ok(())
     }
 
-    async fn verify(&self, creds: &Self::Credentials) -> Result<(), Error> {
-        self.validate_credentials(creds)?;
-        Ok(())
-    }
-
-    async fn connect(&self, creds: &Self::Credentials) -> Result<Self::Client, Error> {
+    async fn connect(creds: &Self::Credentials) -> Result<Self::Client, Error> {
         let endpoint = creds.endpoint.as_deref().unwrap_or("https://s3.amazonaws.com");
 
         let mut base_url: BaseUrl = endpoint.parse().map_err(|e| {

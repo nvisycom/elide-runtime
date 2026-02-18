@@ -9,8 +9,7 @@ use nvisy_codec::document::Document;
 use nvisy_codec::handler::TxtSpan;
 use nvisy_codec::transform::{TextRedaction, TextRedactionOutput, TextHandler, RedactionOutput};
 use nvisy_codec::transform::{ImageRedaction, ImageHandler};
-use crate::ontology::redaction::Redaction;
-use crate::ontology::entity::Entity;
+use crate::ontology::{Entity, Redaction};
 use nvisy_core::error::Error;
 
 use crate::action::Action;

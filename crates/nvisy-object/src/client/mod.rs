@@ -5,7 +5,6 @@
 //! a concrete client so it can be passed through the engine as `Box<dyn Any + Send>`.
 
 use bytes::Bytes;
-use nvisy_pipeline::provider::ConnectedInstance;
 
 /// Result returned by [`ObjectStoreClient::list`].
 pub struct ListResult {
@@ -42,19 +41,12 @@ pub struct GetResult {
 /// Type-erased wrapper around a boxed [`ObjectStoreClient`].
 ///
 /// This allows the client to be stored as `Box<dyn Any + Send>` inside the
-/// engine's `ConnectedInstance` while still being downcasted back to a usable
-/// object-store client.
+/// engine while still being downcasted back to a usable object-store client.
 pub struct ObjectStoreBox(pub Box<dyn ObjectStoreClient>);
 
 impl ObjectStoreBox {
     /// Wrap a concrete [`ObjectStoreClient`] implementation.
     pub fn new(client: impl ObjectStoreClient) -> Self {
         Self(Box::new(client))
-    }
-}
-
-impl ConnectedInstance for ObjectStoreBox {
-    fn disconnect(self) -> Option<std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>> {
-        None
     }
 }

@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::ontology::entity::{DetectionMethod, Entity};
+use crate::ontology::{DetectionMethod, Entity};
 use nvisy_core::error::Error;
 use nvisy_pattern::patterns::validators::luhn_check;
 

@@ -4,17 +4,18 @@
 //! that produces [`Entity`](crate::ontology::entity::Entity) values from
 //! document content.
 
-/// Validates detected entities using checksum algorithms (e.g. Luhn).
-pub mod checksum;
-/// Computes a sensitivity classification for each blob based on detected entities.
-pub mod classify;
-/// Aho-Corasick dictionary-based entity detection.
-pub mod dictionary;
-/// Converts user-provided manual annotations into entities.
-pub mod manual;
-/// AI-powered named-entity recognition (text + image).
-pub mod ner;
-/// Scans document text with compiled regex patterns to detect PII/PHI entities.
-pub mod regex;
-/// Column-based rule matching for tabular data.
-pub mod tabular;
+mod checksum;
+mod classify;
+mod dictionary;
+mod manual;
+mod ner;
+mod regex;
+mod tabular;
+
+pub use checksum::{DetectChecksumAction, DetectChecksumParams};
+pub use classify::{ClassifyAction, ClassificationResult};
+pub use dictionary::{DetectDictionaryAction, DetectDictionaryParams, DictionaryDef};
+pub use manual::{DetectManualAction, DetectManualParams};
+pub use ner::{DetectNerAction, DetectNerInput, DetectNerParams, NerBackend, NerConfig, parse_ner_entities};
+pub use regex::{DetectRegexAction, DetectRegexParams};
+pub use tabular::{ColumnRule, DetectTabularAction, DetectTabularParams};

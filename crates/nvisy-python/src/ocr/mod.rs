@@ -13,7 +13,7 @@ use nvisy_core::error::Error;
 use crate::bridge::PythonBridge;
 use crate::error::from_pyerr;
 
-use nvisy_pipeline::generation::ocr::{OcrBackend, OcrConfig};
+use nvisy_pipeline::generation::{OcrBackend, OcrConfig};
 
 /// Call Python `detect_ocr()` via GIL + `spawn_blocking`.
 ///

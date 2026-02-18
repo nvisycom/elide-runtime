@@ -6,8 +6,7 @@ use uuid::Uuid;
 
 use nvisy_core::error::Error;
 use nvisy_core::path::ContentSource;
-use crate::ontology::audit::{Audit, AuditAction};
-use crate::ontology::redaction::Redaction;
+use crate::ontology::{Audit, AuditAction, Redaction};
 
 use crate::action::Action;
 

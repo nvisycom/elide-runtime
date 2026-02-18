@@ -8,7 +8,7 @@ use nvisy_codec::handler::{TxtHandler, PngHandler};
 use nvisy_core::data::EntityCategory;
 use nvisy_core::error::Error;
 
-use crate::ontology::entity::{DetectionMethod, Entity, TextLocation};
+use crate::ontology::{DetectionMethod, Entity, TextLocation};
 
 fn default_confidence() -> f64 {
     0.5

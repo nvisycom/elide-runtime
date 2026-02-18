@@ -30,16 +30,11 @@ impl Provider for AiProvider {
 
     fn id(&self) -> &str { "ai" }
 
-    fn validate_credentials(&self, _creds: &Self::Credentials) -> Result<(), Error> {
-        // api_key is required by the struct, so if we got here it's present.
+    async fn verify(_creds: &Self::Credentials) -> Result<(), Error> {
         Ok(())
     }
 
-    async fn verify(&self, creds: &Self::Credentials) -> Result<(), Error> {
-        self.validate_credentials(creds)
-    }
-
-    async fn connect(&self, _creds: &Self::Credentials) -> Result<Self::Client, Error> {
+    async fn connect(_creds: &Self::Credentials) -> Result<Self::Client, Error> {
         // Don't init here — Python might not be available at connect time
         // Init happens lazily when detect_ner is called
         Ok(PythonBridge::default())

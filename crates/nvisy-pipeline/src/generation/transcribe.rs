@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{WavHandler, TxtHandler};
-use crate::ontology::entity::Entity;
+use crate::ontology::Entity;
 use nvisy_core::error::Error;
 
 use crate::action::Action;

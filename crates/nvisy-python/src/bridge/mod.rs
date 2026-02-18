@@ -2,7 +2,6 @@
 
 use pyo3::prelude::*;
 use nvisy_core::error::Error;
-use nvisy_pipeline::provider::ConnectedInstance;
 use crate::error::from_pyerr;
 
 /// Lightweight handle to a Python NER module.
@@ -45,8 +44,3 @@ impl Default for PythonBridge {
     }
 }
 
-impl ConnectedInstance for PythonBridge {
-    fn disconnect(self) -> Option<std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>> {
-        None
-    }
-}

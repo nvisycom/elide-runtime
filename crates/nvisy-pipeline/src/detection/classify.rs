@@ -1,8 +1,7 @@
 //! Sensitivity classification action.
 
-pub use crate::ontology::detection::ClassificationResult;
-use crate::ontology::detection::{Sensitivity, SensitivityLevel};
-use crate::ontology::entity::Entity;
+pub use crate::ontology::ClassificationResult;
+use crate::ontology::{Entity, Sensitivity, SensitivityLevel};
 use nvisy_core::error::Error;
 
 use crate::action::Action;

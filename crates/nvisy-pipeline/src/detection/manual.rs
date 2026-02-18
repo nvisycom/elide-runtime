@@ -4,8 +4,7 @@
 
 use serde::Deserialize;
 
-use crate::ontology::entity::{DetectionMethod, Entity};
-use crate::ontology::detection::{Annotation, AnnotationKind};
+use crate::ontology::{Annotation, AnnotationKind, DetectionMethod, Entity};
 use nvisy_core::error::Error;
 
 use crate::action::Action;

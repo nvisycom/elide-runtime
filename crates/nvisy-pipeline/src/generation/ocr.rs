@@ -10,7 +10,7 @@ use nvisy_core::data::EntityCategory;
 use nvisy_core::error::Error;
 use nvisy_core::math::BoundingBox;
 
-use crate::ontology::entity::{DetectionMethod, Entity, ImageLocation};
+use crate::ontology::{DetectionMethod, Entity, ImageLocation};
 
 fn default_language() -> String {
     "eng".into()

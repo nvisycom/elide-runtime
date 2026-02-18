@@ -5,12 +5,10 @@ use serde::Deserialize;
 use nvisy_codec::transform::{
     AudioRedactionOutput, ImageRedactionOutput, RedactionOutput, TextRedactionOutput,
 };
-use crate::ontology::redaction::{
-    AudioRedactionSpec, ImageRedactionSpec, Redaction,
-    RedactionSpec, TextRedactionSpec,
+use crate::ontology::{
+    AudioRedactionSpec, Entity, ImageRedactionSpec, PolicyRule, Redaction, RedactionSpec,
+    TextRedactionSpec,
 };
-use crate::ontology::entity::Entity;
-use crate::ontology::policy::PolicyRule;
 use nvisy_core::error::Error;
 
 use crate::action::Action;

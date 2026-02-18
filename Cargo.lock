@@ -2299,6 +2299,7 @@ dependencies = [
  "aho-corasick",
  "async-trait",
  "derive_more 1.0.0",
+ "futures",
  "jiff",
  "nvisy-codec",
  "nvisy-core",

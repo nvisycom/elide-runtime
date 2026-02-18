@@ -57,5 +57,8 @@ schemars = { workspace = true, features = [] }
 regex = { workspace = true, features = [] }
 aho-corasick = { workspace = true, features = [] }
 
+# Async streams
+futures = { workspace = true, features = [] }
+
 # Observability
 tracing = { workspace = true, features = [] }

@@ -6,7 +6,7 @@ use uuid::Uuid;
 use nvisy_core::math::{BoundingBox, TimeSpan};
 
 /// Location of an entity within text content.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TextLocation {
     /// Byte or character offset where the entity starts.
     pub start_offset: usize,

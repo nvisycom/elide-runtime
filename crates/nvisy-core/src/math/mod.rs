@@ -53,18 +53,18 @@ pub struct BoundingBoxU32 {
 impl BoundingBox {
     /// Convert to integer pixel coordinates by rounding each field.
     pub fn to_u32(&self) -> BoundingBoxU32 {
-        BoundingBoxU32::from(self)
+        BoundingBoxU32 {
+            x: self.x.round() as u32,
+            y: self.y.round() as u32,
+            width: self.width.round() as u32,
+            height: self.height.round() as u32,
+        }
     }
 }
 
 impl From<&BoundingBox> for BoundingBoxU32 {
     fn from(bb: &BoundingBox) -> Self {
-        Self {
-            x: bb.x.round() as u32,
-            y: bb.y.round() as u32,
-            width: bb.width.round() as u32,
-            height: bb.height.round() as u32,
-        }
+        bb.to_u32()
     }
 }
 

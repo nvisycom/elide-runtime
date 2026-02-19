@@ -4,6 +4,8 @@
 //! then emit entities from every non-empty data cell in matched
 //! columns.
 
+use std::collections::HashMap;
+
 use regex::Regex;
 use serde::Deserialize;
 
@@ -14,8 +16,8 @@ use nvisy_core::path::ContentSource;
 
 use crate::ontology::{DetectionMethod, Entity, TabularLocation};
 
-use super::context::ParallelContext;
-use super::layer::{Detect, DetectionLayer};
+use crate::detection::context::ParallelContext;
+use crate::detection::layer::{Detect, DetectionLayer};
 
 /// A rule that matches column headers to classify entire columns.
 #[derive(Debug, Clone, Deserialize)]
@@ -78,17 +80,19 @@ impl Detect<CsvSpan, String> for TabularDetection {
         source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
         // Phase 1: identify matched columns from header spans.
-        // Maps column index → first matching rule.
-        let mut matched_columns: Vec<(usize, &ColumnRule)> = Vec::new();
+        let mut matched_columns: HashMap<usize, &ColumnRule> = HashMap::new();
 
         for span in &spans {
             if !span.id.header {
                 continue;
             }
+            // Only apply first matching rule per column.
+            if matched_columns.contains_key(&span.id.col) {
+                continue;
+            }
             for (regex, rule) in &self.compiled_rules {
                 if regex.is_match(&span.data) {
-                    matched_columns.push((span.id.col, rule));
-                    // Only apply first matching rule per column.
+                    matched_columns.insert(span.id.col, rule);
                     break;
                 }
             }
@@ -106,7 +110,7 @@ impl Detect<CsvSpan, String> for TabularDetection {
                 continue;
             }
 
-            if let Some((_, rule)) = matched_columns.iter().find(|(col, _)| *col == span.id.col) {
+            if let Some(rule) = matched_columns.get(&span.id.col) {
                 let entity = Entity::new(
                     rule.category.clone(),
                     &rule.entity_type,

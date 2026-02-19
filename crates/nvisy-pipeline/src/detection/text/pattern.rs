@@ -14,8 +14,8 @@ use nvisy_pattern::patterns::{self, PatternDefinition};
 
 use crate::ontology::{DetectionMethod, Entity, TextLocation};
 
-use super::context::ParallelContext;
-use super::layer::{Detect, DetectionLayer};
+use crate::detection::context::ParallelContext;
+use crate::detection::layer::{Detect, DetectionLayer};
 
 /// Typed parameters for [`PatternDetection`].
 #[derive(Debug, Deserialize)]

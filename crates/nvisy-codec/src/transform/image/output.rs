@@ -13,6 +13,6 @@ pub enum ImageRedactionOutput {
     Block { color: [u8; 4] },
     /// Pixelation (mosaic) applied to the region.
     Pixelate { block_size: u32 },
-    /// Region replaced with a synthetic image.
-    Synthesize,
+    /// Region replaced with provided image data.
+    Replace { data: Vec<u8> },
 }

@@ -18,6 +18,5 @@ pub use crate::document::{Document, SpanEditStream, SpanStream};
 pub use crate::transform::{
     AudioHandler, AudioRedaction, AudioRedactionOutput,
     ImageHandler, ImageRedaction, ImageRedactionOutput, ImageTransform,
-    RedactionOutput,
     TextHandler, TextRedaction, TextRedactionOutput,
 };

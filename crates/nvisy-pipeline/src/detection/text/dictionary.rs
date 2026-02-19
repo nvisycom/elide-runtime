@@ -15,8 +15,8 @@ use nvisy_pattern::dictionaries;
 
 use crate::ontology::{DetectionMethod, Entity, TabularLocation, TextLocation};
 
-use super::context::ParallelContext;
-use super::layer::{Detect, DetectionLayer};
+use crate::detection::context::ParallelContext;
+use crate::detection::layer::{Detect, DetectionLayer};
 
 /// Definition of a single dictionary for matching.
 #[derive(Debug, Clone, Deserialize)]

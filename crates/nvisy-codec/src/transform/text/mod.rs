@@ -6,7 +6,6 @@
 //! via [`Handler::view_spans`], applies intra-span byte-offset replacements
 //! right-to-left, and writes the results back via [`Handler::edit_spans`].
 
-mod mask;
 mod output;
 
 pub use output::TextRedactionOutput;

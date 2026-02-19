@@ -19,8 +19,8 @@ pub use crate::generation::{
     GenerateTranscribeParams, OcrBackend, OcrConfig,
 };
 pub use crate::redaction::{
-    ApplyRedactionAction, ApplyRedactionInput, ApplyRedactionOutput, ApplyRedactionParams,
-    Audit, AuditAction, EmitAuditAction, EmitAuditParams,
+    ApplyRedactionAction, ApplyRedactionInput, ApplyRedactionOutput,
+    Audit, AuditAction,
     EvaluatePolicyAction, EvaluatePolicyParams, Policies, Policy,
     PolicyEvaluation, PolicyRule, Redaction, RedactionSpec, RedactionSummary,
     RegulationKind, RetentionPolicy, RetentionScope, ReviewDecision, ReviewStatus,

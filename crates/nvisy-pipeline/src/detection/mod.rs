@@ -6,26 +6,23 @@
 mod annotation;
 mod context;
 mod layer;
-mod pattern;
-mod dictionary;
+mod text;
 mod tabular;
-mod ner;
-mod checksum;
-mod manual;
+mod document;
 
 // Traits
 pub use context::{DetectionContext, ParallelContext, SequentialContext};
 pub use layer::{DetectionLayer, Detect};
 
 // Layers
-pub use pattern::{PatternDetection, PatternDetectionParams};
-pub use dictionary::{DictionaryDetection, DictionaryDetectionParams, DictionaryDef};
+pub use text::{PatternDetection, PatternDetectionParams};
+pub use text::{DictionaryDetection, DictionaryDetectionParams, DictionaryDef};
 pub use tabular::{TabularDetection, TabularDetectionParams, ColumnRule};
-pub use ner::{NerDetection, NerDetectionParams, NerBackend, NerConfig, parse_ner_entities};
+pub use text::{NerDetection, NerDetectionParams, NerBackend, NerConfig, parse_ner_entities};
 
 // Standalone actions
-pub use checksum::{DetectChecksumAction, DetectChecksumParams};
-pub use manual::{DetectManualAction, DetectManualParams};
+pub use document::{DetectChecksumAction, DetectChecksumParams};
+pub use document::{DetectManualAction, DetectManualParams};
 
 // Types
 pub use annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};

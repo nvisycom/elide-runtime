@@ -15,8 +15,8 @@ use nvisy_core::path::ContentSource;
 
 use crate::ontology::{DetectionMethod, Entity, TextLocation};
 
-use super::context::SequentialContext;
-use super::layer::{Detect, DetectionLayer};
+use crate::detection::context::SequentialContext;
+use crate::detection::layer::{Detect, DetectionLayer};
 
 fn default_confidence() -> f64 {
     0.5

@@ -3,10 +3,10 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use nvisy_codec::transform::RedactionOutput;
 use nvisy_core::path::ContentSource;
 
 use super::review::ReviewDecision;
+use super::spec::RedactionSpec;
 
 /// A redaction decision recording how a specific entity was (or will be) redacted.
 ///
@@ -19,8 +19,10 @@ pub struct Redaction {
     pub source: ContentSource,
     /// Identifier of the entity being redacted.
     pub entity_id: Uuid,
-    /// Redaction output recording the method used and its result data.
-    pub output: RedactionOutput,
+    /// Redaction specification recording the method used (provenance for audit).
+    pub spec: RedactionSpec,
+    /// Resolved replacement string (empty for Remove, unused for image/audio).
+    pub replacement: String,
     /// The original sensitive value, retained for audit purposes.
     pub original_value: String,
     /// Detection confidence that led to this redaction.
@@ -41,14 +43,16 @@ impl Redaction {
     /// Create a new pending redaction for the given entity.
     pub fn new(
         entity_id: Uuid,
-        output: impl Into<RedactionOutput>,
+        spec: RedactionSpec,
+        replacement: impl Into<String>,
         original_value: impl Into<String>,
         confidence: f64,
     ) -> Self {
         Self {
             source: ContentSource::new(),
             entity_id,
-            output: output.into(),
+            spec,
+            replacement: replacement.into(),
             original_value: original_value.into(),
             confidence,
             policy_rule_id: None,

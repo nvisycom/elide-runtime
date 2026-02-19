@@ -11,6 +11,6 @@ pub enum AudioRedactionOutput {
     Silence,
     /// Segment removed entirely.
     Remove,
-    /// Segment replaced with synthetic audio.
-    Synthesize,
+    /// Segment replaced with provided audio data.
+    Replace { data: Vec<u8> },
 }

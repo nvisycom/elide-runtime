@@ -21,11 +21,13 @@ impl Loader for WavLoader {
     type Handler = WavHandler;
     type Params = WavParams;
 
+    #[tracing::instrument(name = "wav.decode", skip_all, fields(input_bytes))]
     async fn decode(
         &self,
         content: &ContentData,
         _params: &Self::Params,
     ) -> Result<Vec<Document<WavHandler>>, Error> {
+        tracing::Span::current().record("input_bytes", content.to_bytes().len());
         let handler = WavHandler::new(content.to_bytes());
         let doc = Document::new(handler).with_parent(content);
         Ok(vec![doc])

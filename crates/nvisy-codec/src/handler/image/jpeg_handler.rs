@@ -23,5 +23,6 @@ impl_image_handler!(
     JpegHandler,
     nvisy_core::fs::DocumentType::Jpeg,
     image::ImageFormat::Jpeg,
-    "jpeg-handler"
+    "jpeg-handler",
+    "jpeg.encode"
 );

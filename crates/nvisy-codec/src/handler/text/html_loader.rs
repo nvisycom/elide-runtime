@@ -30,16 +30,18 @@ impl Loader for HtmlLoader {
     type Handler = HtmlHandler;
     type Params = HtmlParams;
 
+    #[tracing::instrument(name = "html.decode", skip_all, fields(input_bytes, text_nodes))]
     async fn decode(
         &self,
         content: &ContentData,
         params: &Self::Params,
     ) -> Result<Vec<Document<HtmlHandler>>, Error> {
         let raw = content.to_bytes();
+        tracing::Span::current().record("input_bytes", raw.len());
         let text = params.encoding.decode_bytes(&raw, "html-loader")?;
         let dom = Html::parse_document(&text);
 
-        let text_nodes = dom
+        let text_nodes: Vec<String> = dom
             .tree
             .nodes()
             .filter_map(|node| {
@@ -50,6 +52,7 @@ impl Loader for HtmlLoader {
                 }
             })
             .collect();
+        tracing::Span::current().record("text_nodes", text_nodes.len());
 
         let handler = HtmlHandler::new(HtmlData {
             text_nodes,

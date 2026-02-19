@@ -56,6 +56,7 @@ where
         &mut self,
         redactions: &[TextRedaction<Self::SpanId>],
     ) -> Result<(), Error> {
+        tracing::debug!(redaction_count = redactions.len(), "applying text redactions");
         if redactions.is_empty() {
             return Ok(());
         }
@@ -112,11 +113,13 @@ where
             }
         }
 
+        let edit_count = edits.len();
         if !edits.is_empty() {
             self.edit_spans(SpanEditStream::new(futures::stream::iter(edits)))
                 .await?;
         }
 
+        tracing::debug!(edit_count, "text redactions applied");
         Ok(())
     }
 }
@@ -126,6 +129,7 @@ mod tests {
     use super::*;
     use crate::handler::{Handler, TxtHandler, TxtSpan};
     use futures::StreamExt;
+    use nvisy_core::error::Error;
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');
@@ -154,59 +158,57 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn single_span_single_redaction() {
+    async fn single_span_single_redaction() -> Result<(), Error> {
         let mut h = handler("hello world\n");
-        TextHandler::redact_spans(&mut h, &[replace(0, 0, 5, "[NAME]")])
-            .await
-            .unwrap();
+        TextHandler::redact_spans(&mut h, &[replace(0, 0, 5, "[NAME]")]).await?;
 
         let spans: Vec<_> = h.view_spans().await.collect().await;
         assert_eq!(spans[0].data, "[NAME] world");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn multiple_redactions_within_one_span() {
+    async fn multiple_redactions_within_one_span() -> Result<(), Error> {
         let mut h = handler("Alice met Bob\n");
         TextHandler::redact_spans(&mut h, &[
             replace(0, 0, 5, "[X]"),
             replace(0, 10, 13, "[Y]"),
         ])
-        .await
-        .unwrap();
+        .await?;
 
         let spans: Vec<_> = h.view_spans().await.collect().await;
         assert_eq!(spans[0].data, "[X] met [Y]");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn redaction_spanning_entire_content_replace() {
+    async fn redaction_spanning_entire_content_replace() -> Result<(), Error> {
         let mut h = handler("secret\n");
-        TextHandler::redact_spans(&mut h, &[replace(0, 0, 6, "[REDACTED]")])
-            .await
-            .unwrap();
+        TextHandler::redact_spans(&mut h, &[replace(0, 0, 6, "[REDACTED]")]).await?;
 
         let spans: Vec<_> = h.view_spans().await.collect().await;
         assert_eq!(spans[0].data, "[REDACTED]");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn redaction_spanning_entire_content_remove() {
+    async fn redaction_spanning_entire_content_remove() -> Result<(), Error> {
         let mut h = handler("secret\n");
-        TextHandler::redact_spans(&mut h, &[remove(0, 0, 6)])
-            .await
-            .unwrap();
+        TextHandler::redact_spans(&mut h, &[remove(0, 0, 6)]).await?;
 
         let spans: Vec<_> = h.view_spans().await.collect().await;
         assert_eq!(spans[0].data, "");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn empty_redactions_is_noop() {
+    async fn empty_redactions_is_noop() -> Result<(), Error> {
         let mut h = handler("unchanged\n");
-        TextHandler::redact_spans(&mut h, &[]).await.unwrap();
+        TextHandler::redact_spans(&mut h, &[]).await?;
 
         let spans: Vec<_> = h.view_spans().await.collect().await;
         assert_eq!(spans[0].data, "unchanged");
+        Ok(())
     }
 
     #[tokio::test]
@@ -223,17 +225,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn multiple_spans_with_separate_redactions() {
+    async fn multiple_spans_with_separate_redactions() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
         TextHandler::redact_spans(&mut h, &[
             replace(0, 0, 5, "[A]"),
             replace(1, 0, 5, "[B]"),
         ])
-        .await
-        .unwrap();
+        .await?;
 
         let spans: Vec<_> = h.view_spans().await.collect().await;
         assert_eq!(spans[0].data, "[A]");
         assert_eq!(spans[1].data, "[B]");
+        Ok(())
     }
 }

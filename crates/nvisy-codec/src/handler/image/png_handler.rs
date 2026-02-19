@@ -23,5 +23,6 @@ impl_image_handler!(
     PngHandler,
     nvisy_core::fs::DocumentType::Png,
     image::ImageFormat::Png,
-    "png-handler"
+    "png-handler",
+    "png.encode"
 );

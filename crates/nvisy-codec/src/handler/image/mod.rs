@@ -28,13 +28,14 @@ pub(crate) fn decode_image(content: &ContentData, origin: &str) -> Result<Dynami
 /// Implement [`Handler`] + [`ImageHandler`] + inherent methods for an
 /// image handler struct that holds a single `DynamicImage`.
 macro_rules! impl_image_handler {
-    ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal) => {
+    ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal, $encode_name:literal) => {
         #[async_trait::async_trait]
         impl crate::handler::Handler for $handler {
             fn document_type(&self) -> nvisy_core::fs::DocumentType {
                 $doc_type
             }
 
+            #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
             fn encode(&self) -> Result<Vec<u8>, nvisy_core::error::Error> {
                 let mut buf = std::io::Cursor::new(Vec::new());
                 self.image
@@ -45,7 +46,9 @@ macro_rules! impl_image_handler {
                             $origin,
                         )
                     })?;
-                Ok(buf.into_inner())
+                let out = buf.into_inner();
+                tracing::Span::current().record("output_bytes", out.len());
+                Ok(out)
             }
 
             type SpanId = ();

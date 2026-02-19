@@ -21,13 +21,15 @@ impl Loader for XlsxLoader {
     type Handler = XlsxHandler;
     type Params = XlsxParams;
 
+    #[tracing::instrument(name = "xlsx.decode", skip_all, fields(input_bytes))]
     async fn decode(
         &self,
-        _content: &ContentData,
+        content: &ContentData,
         _params: &Self::Params,
     ) -> Result<Vec<Document<XlsxHandler>>, Error> {
+        tracing::Span::current().record("input_bytes", content.to_bytes().len());
         let handler = XlsxHandler;
-        let doc = Document::new(handler).with_parent(_content);
+        let doc = Document::new(handler).with_parent(content);
         Ok(vec![doc])
     }
 }

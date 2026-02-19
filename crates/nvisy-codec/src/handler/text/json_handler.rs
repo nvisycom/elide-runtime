@@ -125,6 +125,7 @@ impl Handler for JsonHandler {
         DocumentType::Json
     }
 
+    #[tracing::instrument(name = "json.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<Vec<u8>, Error> {
         let mut bytes = match self.data.indent {
             JsonIndent::Compact => serde_json::to_vec(&self.data.value)
@@ -150,6 +151,7 @@ impl Handler for JsonHandler {
         if self.data.trailing_newline {
             bytes.push(b'\n');
         }
+        tracing::Span::current().record("output_bytes", bytes.len());
         Ok(bytes)
     }
 
@@ -432,6 +434,7 @@ mod tests {
     use super::*;
     use crate::handler::SpanEdit;
     use futures::StreamExt;
+    use nvisy_core::error::Error;
     use serde_json::json;
 
     fn handler(value: serde_json::Value) -> JsonHandler {
@@ -496,7 +499,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn edit_spans_replace_value() {
+    async fn edit_spans_replace_value() -> Result<(), Error> {
         let mut h = handler(json!({"ssn": "123-45-6789"}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit {
@@ -504,13 +507,13 @@ mod tests {
                 data: json!(null),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.value(), &json!({"ssn": null}));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn edit_spans_rename_key() {
+    async fn edit_spans_rename_key() -> Result<(), Error> {
         let mut h = handler(json!({"John Smith": {"age": 30}}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit {
@@ -518,13 +521,13 @@ mod tests {
                 data: json!("[REDACTED]"),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn edit_spans_rename_nested_key() {
+    async fn edit_spans_rename_nested_key() -> Result<(), Error> {
         let mut h = handler(json!({"a": {"secret_field": 42}}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit {
@@ -532,9 +535,9 @@ mod tests {
                 data: json!("redacted"),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.value(), &json!({"a": {"redacted": 42}}));
+        Ok(())
     }
 
     #[tokio::test]
@@ -568,7 +571,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn edit_spans_value_before_key_rename() {
+    async fn edit_spans_value_before_key_rename() -> Result<(), Error> {
         let mut h = handler(json!({"name": "Alice"}));
         // Key rename listed first, but value edit must apply first
         // (while /name still exists) before the key is renamed.
@@ -582,13 +585,13 @@ mod tests {
                 data: json!("***"),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": "***"}));
+        Ok(())
     }
 
     #[test]
-    fn encode_compact() {
+    fn encode_compact() -> Result<(), Error> {
         let h = JsonHandler {
             data: JsonData {
                 value: json!({"a": 1}),
@@ -596,12 +599,13 @@ mod tests {
                 trailing_newline: false,
             },
         };
-        let bytes = h.encode().unwrap();
-        assert_eq!(String::from_utf8(bytes).unwrap(), r#"{"a":1}"#);
+        let bytes = h.encode()?;
+        assert_eq!(String::from_utf8(bytes).expect("valid utf-8"), r#"{"a":1}"#);
+        Ok(())
     }
 
     #[test]
-    fn encode_two_spaces_with_trailing_newline() {
+    fn encode_two_spaces_with_trailing_newline() -> Result<(), Error> {
         let h = JsonHandler {
             data: JsonData {
                 value: json!({"a": 1}),
@@ -609,13 +613,14 @@ mod tests {
                 trailing_newline: true,
             },
         };
-        let text = String::from_utf8(h.encode().unwrap()).unwrap();
+        let text = String::from_utf8(h.encode()?).expect("valid utf-8");
         assert!(text.contains("  \"a\""));
         assert!(text.ends_with('\n'));
+        Ok(())
     }
 
     #[test]
-    fn encode_tab_indent() {
+    fn encode_tab_indent() -> Result<(), Error> {
         let h = JsonHandler {
             data: JsonData {
                 value: json!({"a": 1}),
@@ -623,8 +628,9 @@ mod tests {
                 trailing_newline: false,
             },
         };
-        let text = String::from_utf8(h.encode().unwrap()).unwrap();
+        let text = String::from_utf8(h.encode()?).expect("valid utf-8");
         assert!(text.contains("\t\"a\""));
         assert!(!text.ends_with('\n'));
+        Ok(())
     }
 }

@@ -29,8 +29,11 @@ impl Handler for Mp3Handler {
         DocumentType::Mp3
     }
 
+    #[tracing::instrument(name = "mp3.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<Vec<u8>, Error> {
-        Ok(self.bytes.to_vec())
+        let bytes = self.bytes.to_vec();
+        tracing::Span::current().record("output_bytes", bytes.len());
+        Ok(bytes)
     }
 
     type SpanId = ();

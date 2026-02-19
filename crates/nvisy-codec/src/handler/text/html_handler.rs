@@ -50,6 +50,7 @@ impl Handler for HtmlHandler {
         DocumentType::Html
     }
 
+    #[tracing::instrument(name = "html.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<Vec<u8>, Error> {
         let mut result = self.data.raw.clone();
         let dom = scraper::Html::parse_document(&self.data.raw);
@@ -85,7 +86,9 @@ impl Handler for HtmlHandler {
             result.replace_range(start..end, replacement);
         }
 
-        Ok(result.into_bytes())
+        let bytes = result.into_bytes();
+        tracing::Span::current().record("output_bytes", bytes.len());
+        Ok(bytes)
     }
 
     type SpanId = HtmlSpan;
@@ -183,20 +186,22 @@ impl ExactSizeIterator for HtmlSpanIter<'_> {}
 mod tests {
     use super::*;
     use crate::handler::Handler;
+    use nvisy_core::error::Error;
 
     #[test]
-    fn encode_unchanged() {
+    fn encode_unchanged() -> Result<(), Error> {
         let raw = "<p>Hello</p>".to_string();
         let h = HtmlHandler::new(HtmlData {
             text_nodes: vec!["Hello".to_string()],
             raw: raw.clone(),
         });
-        let bytes = h.encode().unwrap();
-        assert_eq!(String::from_utf8(bytes).unwrap(), raw);
+        let bytes = h.encode()?;
+        assert_eq!(String::from_utf8(bytes).expect("valid utf-8"), raw);
+        Ok(())
     }
 
     #[test]
-    fn encode_after_edit() {
+    fn encode_after_edit() -> Result<(), Error> {
         let raw = "<p>Hello</p><p>World</p>".to_string();
         let mut h = HtmlHandler::new(HtmlData {
             text_nodes: vec!["Hello".to_string(), "World".to_string()],
@@ -204,22 +209,24 @@ mod tests {
         });
         // Edit the first text node
         h.data.text_nodes[0] = "[REDACTED]".to_string();
-        let bytes = h.encode().unwrap();
-        let result = String::from_utf8(bytes).unwrap();
+        let bytes = h.encode()?;
+        let result = String::from_utf8(bytes).expect("valid utf-8");
         assert!(result.contains("[REDACTED]"));
         assert!(result.contains("<p>"));
         assert!(result.contains("World"));
+        Ok(())
     }
 
     #[test]
-    fn encode_preserves_tags() {
+    fn encode_preserves_tags() -> Result<(), Error> {
         let raw = "<div><span>foo</span> bar</div>".to_string();
         let mut h = HtmlHandler::new(HtmlData {
             text_nodes: vec!["foo".to_string(), " bar".to_string()],
             raw,
         });
         h.data.text_nodes[0] = "baz".to_string();
-        let result = String::from_utf8(h.encode().unwrap()).unwrap();
+        let result = String::from_utf8(h.encode()?).expect("valid utf-8");
         assert_eq!(result, "<div><span>baz</span> bar</div>");
+        Ok(())
     }
 }

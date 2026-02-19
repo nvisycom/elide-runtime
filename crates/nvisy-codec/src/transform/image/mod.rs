@@ -39,6 +39,7 @@ where
         &mut self,
         redactions: &[ImageRedaction],
     ) -> Result<(), Error> {
+        tracing::debug!(redaction_count = redactions.len(), "applying image redactions");
         if redactions.is_empty() {
             return Ok(());
         }
@@ -99,6 +100,7 @@ where
         )))
         .await?;
 
+        tracing::debug!("image redactions applied");
         Ok(())
     }
 }

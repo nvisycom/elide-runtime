@@ -46,7 +46,7 @@ futures = { version = "0.3", features = [] }
 async-trait = { version = "0.1", features = [] }
 
 # Observability
-tracing = { version = "0.1", features = [] }
+tracing = { version = "0.1", features = ["attributes"] }
 
 # (De)serialization
 serde = { version = "1.0", features = ["derive"] }

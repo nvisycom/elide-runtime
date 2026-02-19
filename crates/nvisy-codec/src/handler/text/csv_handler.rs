@@ -85,6 +85,7 @@ impl Handler for CsvHandler {
         DocumentType::Csv
     }
 
+    #[tracing::instrument(name = "csv.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<Vec<u8>, Error> {
         let mut wtr = csv::WriterBuilder::new()
             .delimiter(self.data.delimiter)
@@ -115,6 +116,7 @@ impl Handler for CsvHandler {
             }
         }
 
+        tracing::Span::current().record("output_bytes", bytes.len());
         Ok(bytes)
     }
 
@@ -297,6 +299,7 @@ mod tests {
     use super::*;
     use crate::handler::SpanEdit;
     use futures::StreamExt;
+    use nvisy_core::error::Error;
 
     fn handler_with_headers(
         headers: Vec<&str>,
@@ -373,7 +376,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn edit_spans_data_cell() {
+    async fn edit_spans_data_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(
             vec!["ssn"],
             vec![vec!["123-45-6789"]],
@@ -384,13 +387,13 @@ mod tests {
                 data: "[REDACTED]".into(),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.cell(0, 0), Some("[REDACTED]"));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn edit_spans_header_cell() {
+    async fn edit_spans_header_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(
             vec!["secret_field"],
             vec![vec!["value"]],
@@ -401,9 +404,9 @@ mod tests {
                 data: "redacted".into(),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.headers(), Some(["redacted".to_string()].as_slice()));
+        Ok(())
     }
 
     #[tokio::test]
@@ -437,48 +440,52 @@ mod tests {
     }
 
     #[test]
-    fn encode_with_headers() {
+    fn encode_with_headers() -> Result<(), Error> {
         let h = handler_with_headers(
             vec!["name", "age"],
             vec![vec!["Alice", "30"], vec!["Bob", "25"]],
         );
-        let bytes = h.encode().unwrap();
+        let bytes = h.encode()?;
         assert_eq!(
-            String::from_utf8(bytes).unwrap(),
+            String::from_utf8(bytes).expect("valid utf-8"),
             "name,age\nAlice,30\nBob,25\n"
         );
+        Ok(())
     }
 
     #[test]
-    fn encode_with_quoting() {
+    fn encode_with_quoting() -> Result<(), Error> {
         let h = handler_with_headers(
             vec!["name", "bio"],
             vec![vec!["Alice", "Has a, comma"]],
         );
-        let bytes = h.encode().unwrap();
-        let text = String::from_utf8(bytes).unwrap();
+        let bytes = h.encode()?;
+        let text = String::from_utf8(bytes).expect("valid utf-8");
         assert!(text.contains("\"Has a, comma\""));
+        Ok(())
     }
 
     #[test]
-    fn encode_without_trailing_newline() {
+    fn encode_without_trailing_newline() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["a"], vec![vec!["1"]]);
         h.data.trailing_newline = false;
-        let bytes = h.encode().unwrap();
-        assert_eq!(String::from_utf8(bytes).unwrap(), "a\n1");
+        let bytes = h.encode()?;
+        assert_eq!(String::from_utf8(bytes).expect("valid utf-8"), "a\n1");
+        Ok(())
     }
 
     #[test]
-    fn encode_tab_delimiter() {
+    fn encode_tab_delimiter() -> Result<(), Error> {
         let mut h = handler_with_headers(
             vec!["a", "b"],
             vec![vec!["1", "2"]],
         );
         h.data.delimiter = b'\t';
-        let bytes = h.encode().unwrap();
+        let bytes = h.encode()?;
         assert_eq!(
-            String::from_utf8(bytes).unwrap(),
+            String::from_utf8(bytes).expect("valid utf-8"),
             "a\tb\n1\t2\n"
         );
+        Ok(())
     }
 }

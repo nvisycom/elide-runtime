@@ -15,6 +15,7 @@ impl Handler for PdfHandler {
         DocumentType::Pdf
     }
 
+    #[tracing::instrument(name = "pdf.encode", skip_all)]
     fn encode(&self) -> Result<Vec<u8>, Error> {
         Err(Error::validation(
             "encode not supported for PDF",

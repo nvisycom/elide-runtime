@@ -42,12 +42,15 @@ impl Handler for TxtHandler {
         DocumentType::Txt
     }
 
+    #[tracing::instrument(name = "txt.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<Vec<u8>, Error> {
         let mut out = self.lines.join("\n");
         if self.trailing_newline && !self.lines.is_empty() {
             out.push('\n');
         }
-        Ok(out.into_bytes())
+        let bytes = out.into_bytes();
+        tracing::Span::current().record("output_bytes", bytes.len());
+        Ok(bytes)
     }
 
     type SpanId = TxtSpan;
@@ -144,6 +147,7 @@ mod tests {
     use super::*;
     use crate::handler::SpanEdit;
     use futures::StreamExt;
+    use nvisy_core::error::Error;
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');
@@ -177,7 +181,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn edit_spans_replace_line() {
+    async fn edit_spans_replace_line() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit {
@@ -185,9 +189,9 @@ mod tests {
                 data: "[REDACTED]".into(),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
+        Ok(())
     }
 
     #[tokio::test]
@@ -206,16 +210,18 @@ mod tests {
     }
 
     #[test]
-    fn encode_with_trailing_newline() {
+    fn encode_with_trailing_newline() -> Result<(), Error> {
         let h = handler("hello\nworld\n");
-        let bytes = h.encode().unwrap();
+        let bytes = h.encode()?;
         assert_eq!(bytes, b"hello\nworld\n");
+        Ok(())
     }
 
     #[test]
-    fn encode_without_trailing_newline() {
+    fn encode_without_trailing_newline() -> Result<(), Error> {
         let h = handler("no newline");
-        let bytes = h.encode().unwrap();
+        let bytes = h.encode()?;
         assert_eq!(bytes, b"no newline");
+        Ok(())
     }
 }

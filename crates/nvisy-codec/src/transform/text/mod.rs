@@ -80,37 +80,38 @@ where
 
         let mut edits: Vec<SpanEdit<Self::SpanId, Self::SpanData>> = Vec::new();
         for span in &all_spans {
-            if let Some(replacements) = by_span.get_mut(&span.id) {
-                let content = span.data.as_ref();
+            let Some(replacements) = by_span.get_mut(&span.id) else {
+                continue;
+            };
+            let content = span.data.as_ref();
 
-                // Sort right-to-left so earlier byte offsets stay valid.
-                replacements.sort_by(|a, b| b.0.cmp(&a.0));
+            // Sort right-to-left so earlier byte offsets stay valid.
+            replacements.sort_by(|a, b| b.0.cmp(&a.0));
 
-                let mut result = content.to_string();
-                for (start, end, value) in replacements.iter() {
-                    let s = (*start).min(result.len());
-                    let e = (*end).min(result.len());
-                    if s >= e {
-                        continue;
-                    }
-                    if !result.is_char_boundary(s) || !result.is_char_boundary(e) {
-                        return Err(Error::validation(
-                            format!(
-                                "redaction offset falls mid-character \
-                                 (start={start}, end={end}, len={})",
-                                result.len()
-                            ),
-                            "text-handler",
-                        ));
-                    }
-                    result.replace_range(s..e, value);
+            let mut result = content.to_string();
+            for (start, end, value) in replacements.iter() {
+                let s = (*start).min(result.len());
+                let e = (*end).min(result.len());
+                if s >= e {
+                    continue;
                 }
-
-                edits.push(SpanEdit {
-                    id: span.id.clone(),
-                    data: Self::SpanData::from(result),
-                });
+                if !result.is_char_boundary(s) || !result.is_char_boundary(e) {
+                    return Err(Error::validation(
+                        format!(
+                            "redaction offset falls mid-character \
+                             (start={start}, end={end}, len={})",
+                            result.len()
+                        ),
+                        "text-handler",
+                    ));
+                }
+                result.replace_range(s..e, value);
             }
+
+            edits.push(SpanEdit {
+                id: span.id.clone(),
+                data: Self::SpanData::from(result),
+            });
         }
 
         let edit_count = edits.len();

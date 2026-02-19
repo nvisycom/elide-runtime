@@ -72,13 +72,14 @@ impl Handler for HtmlHandler {
         let mut patches: Vec<(usize, usize, &str)> = Vec::new();
         let mut search_start = 0;
         for (i, original) in original_nodes.iter().enumerate() {
-            if let Some(pos) = result[search_start..].find(original) {
-                let abs_pos = search_start + pos;
-                if i < self.data.text_nodes.len() && *original != self.data.text_nodes[i] {
-                    patches.push((abs_pos, abs_pos + original.len(), &self.data.text_nodes[i]));
-                }
-                search_start = abs_pos + original.len();
+            let Some(pos) = result[search_start..].find(original) else {
+                continue;
+            };
+            let abs_pos = search_start + pos;
+            if i < self.data.text_nodes.len() && *original != self.data.text_nodes[i] {
+                patches.push((abs_pos, abs_pos + original.len(), &self.data.text_nodes[i]));
             }
+            search_start = abs_pos + original.len();
         }
 
         // Apply patches right-to-left to preserve positions

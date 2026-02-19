@@ -110,10 +110,8 @@ impl Handler for CsvHandler {
         bytes.retain(|&b| b != b'\r');
 
         // Handle trailing newline
-        if !self.data.trailing_newline {
-            if bytes.last() == Some(&b'\n') {
-                bytes.pop();
-            }
+        if !self.data.trailing_newline && bytes.last() == Some(&b'\n') {
+            bytes.pop();
         }
 
         tracing::Span::current().record("output_bytes", bytes.len());

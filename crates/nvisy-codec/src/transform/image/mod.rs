@@ -66,28 +66,28 @@ where
                     img.apply_pixelate(&region, *block_size);
                 }
                 ImageRedactionOutput::Replace { data } => {
-                    match image::load_from_memory(data) {
-                        Ok(replacement) => {
-                            let resized = replacement.resize_exact(
-                                region.width,
-                                region.height,
-                                image::imageops::FilterType::Lanczos3,
-                            );
-                            image::imageops::overlay(
-                                &mut img,
-                                &resized,
-                                region.x as i64,
-                                region.y as i64,
-                            );
-                        }
+                    let replacement = match image::load_from_memory(data) {
+                        Ok(r) => r,
                         Err(e) => {
                             tracing::warn!(
                                 region = ?region,
                                 error = %e,
                                 "failed to decode replacement image data, skipping region"
                             );
+                            continue;
                         }
-                    }
+                    };
+                    let resized = replacement.resize_exact(
+                        region.width,
+                        region.height,
+                        image::imageops::FilterType::Lanczos3,
+                    );
+                    image::imageops::overlay(
+                        &mut img,
+                        &resized,
+                        region.x as i64,
+                        region.y as i64,
+                    );
                 }
             }
         }

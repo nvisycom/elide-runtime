@@ -1,38 +1,44 @@
 //! JSON-backed pattern implementation.
 
+use serde::Deserialize;
+
 use nvisy_core::data::{EntityCategory, EntityKind};
 
 use super::pattern::Pattern;
 use super::validators;
 
 /// A regex-based detection pattern loaded from a JSON definition file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct JsonPattern {
     name: String,
     category: EntityCategory,
+    #[serde(rename = "entity_type")]
     entity_kind: EntityKind,
+    #[serde(rename = "pattern")]
     pattern_str: String,
     confidence: f64,
+    #[serde(default)]
     validator: Option<String>,
 }
 
 impl JsonPattern {
-    /// Create a new JSON-backed pattern (crate-internal).
-    pub(crate) fn new(
-        name: String,
-        category: EntityCategory,
-        entity_kind: EntityKind,
-        pattern_str: String,
-        confidence: f64,
-        validator: Option<String>,
-    ) -> Self {
-        Self {
-            name,
-            category,
-            entity_kind,
-            pattern_str,
-            confidence,
-            validator,
+    /// Warn if the category fell through to `Custom` or the validator is unknown.
+    pub(crate) fn warn_on_load(&self) {
+        if let EntityCategory::Custom(ref slug) = self.category {
+            tracing::warn!(
+                pattern = %self.name,
+                category = %slug,
+                "unrecognised category falls through to Custom",
+            );
+        }
+        if let Some(ref v) = self.validator {
+            if validators::resolve(v).is_none() {
+                tracing::warn!(
+                    pattern = %self.name,
+                    validator = %v,
+                    "unknown validator name, pattern will have no post-match validation",
+                );
+            }
         }
     }
 }

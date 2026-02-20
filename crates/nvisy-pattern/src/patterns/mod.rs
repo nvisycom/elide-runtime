@@ -12,67 +12,25 @@ pub mod validators;
 pub use json_pattern::JsonPattern;
 pub use pattern::{BoxPattern, Pattern};
 
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use include_dir::{Dir, include_dir};
-use nvisy_core::data::{EntityCategory, EntityKind};
-
 use crate::registry::Registry;
 
-/// JSON representation of a pattern loaded from disk.
-#[derive(Debug, Clone, serde::Deserialize)]
-struct PatternJson {
-    name: String,
-    category: String,
-    entity_type: String,
-    pattern: String,
-    confidence: f64,
-    #[serde(default)]
-    validator: Option<String>,
-}
-
-/// Parse a single JSON blob into a [`JsonPattern`], returning `None`
-/// if the `entity_type` string does not map to a known [`EntityKind`].
+/// Deserialize a JSON blob into a [`JsonPattern`].
+///
+/// Returns `None` and warns if the JSON contains an unrecognised `entity_type`.
 fn parse_pattern(bytes: &[u8]) -> Option<JsonPattern> {
-    let p: PatternJson = serde_json::from_slice(bytes).expect("failed to parse pattern file");
-
-    let Ok(entity_kind) = EntityKind::from_str(&p.entity_type) else {
-        tracing::warn!(
-            pattern = %p.name,
-            entity_type = %p.entity_type,
-            "unknown entity_type, skipping pattern",
-        );
-        return None;
-    };
-
-    let category: EntityCategory = p.category.parse().expect("infallible with default variant");
-    if let EntityCategory::Custom(ref slug) = category {
-        tracing::warn!(
-            pattern = %p.name,
-            category = %slug,
-            "unrecognised category falls through to Custom",
-        );
-    }
-
-    if let Some(ref v) = p.validator {
-        if validators::resolve(v).is_none() {
-            tracing::warn!(
-                pattern = %p.name,
-                validator = %v,
-                "unknown validator name, pattern will have no post-match validation",
-            );
+    match serde_json::from_slice::<JsonPattern>(bytes) {
+        Ok(p) => {
+            p.warn_on_load();
+            Some(p)
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "failed to parse pattern file, skipping");
+            None
         }
     }
-
-    Some(JsonPattern::new(
-        p.name,
-        category,
-        entity_kind,
-        p.pattern,
-        p.confidence,
-        p.validator,
-    ))
 }
 
 /// A registry of named pattern definitions with O(log n) lookup.
@@ -184,6 +142,7 @@ pub fn builtin_registry() -> &'static PatternRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nvisy_core::data::{EntityCategory, EntityKind};
 
     fn registry() -> &'static PatternRegistry {
         builtin_registry()
@@ -299,18 +258,17 @@ mod tests {
 
     #[test]
     fn registry_insert_and_get() {
+        let json = r#"{
+            "name": "test",
+            "category": "pii",
+            "entity_type": "government_id",
+            "pattern": "\\d+",
+            "confidence": 0.9
+        }"#;
+        let pattern: JsonPattern = serde_json::from_str(json).unwrap();
+
         let mut reg = PatternRegistry::new();
-        reg.insert(
-            "test".into(),
-            Box::new(JsonPattern::new(
-                "test".into(),
-                EntityCategory::Pii,
-                EntityKind::GovernmentId,
-                r"\d+".into(),
-                0.9,
-                None,
-            )),
-        );
+        reg.insert("test".into(), Box::new(pattern));
 
         assert_eq!(reg.len(), 1);
         assert!(!reg.is_empty());

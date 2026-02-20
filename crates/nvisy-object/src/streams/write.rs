@@ -1,12 +1,13 @@
-//! Streaming writer that uploads content to an S3-compatible store.
+//! Streaming writer that uploads content to a cloud object store.
 
 use serde::Deserialize;
 use tokio::sync::mpsc;
 
-use nvisy_core::io::ContentData;
 use nvisy_core::error::Error;
-use super::StreamTarget;
-use crate::client::ObjectStoreBox;
+use nvisy_core::io::ContentData;
+
+use nvisy_pipeline::stream::StreamTarget;
+use crate::client::ObjectStoreClient;
 
 /// Typed parameters for [`ObjectWriteStream`].
 #[derive(Debug, Deserialize)]
@@ -18,24 +19,23 @@ pub struct ObjectWriteParams {
 }
 
 /// A [`StreamTarget`] that receives [`ContentData`] from the input channel and
-/// uploads each one to an S3-compatible object store.
+/// uploads each one to a cloud object store.
 pub struct ObjectWriteStream;
 
 #[async_trait::async_trait]
 impl StreamTarget for ObjectWriteStream {
     type Params = ObjectWriteParams;
-    type Client = ObjectStoreBox;
+    type Client = ObjectStoreClient;
 
     fn id(&self) -> &str { "write" }
 
+    #[tracing::instrument(name = "object.write", skip_all, fields(prefix = %params.prefix, count))]
     async fn write(
         &self,
         mut input: mpsc::Receiver<ContentData>,
         params: Self::Params,
         client: Self::Client,
     ) -> Result<u64, Error> {
-        let store_client = &client.0;
-
         let prefix = &params.prefix;
         let mut total = 0u64;
 
@@ -44,17 +44,18 @@ impl StreamTarget for ObjectWriteStream {
             let key = if prefix.is_empty() {
                 source_id
             } else {
-                format!("{}{}", prefix, source_id)
+                format!("{prefix}{source_id}")
             };
 
-            store_client
+            client
                 .put(&key, content.to_bytes(), content.content_type())
                 .await
-                .map_err(|e| Error::runtime(format!("Put failed for {}: {}", key, e), "object/write", true))?;
+                .map_err(Error::from)?;
 
             total += 1;
         }
 
+        tracing::Span::current().record("count", total);
         Ok(total)
     }
 }

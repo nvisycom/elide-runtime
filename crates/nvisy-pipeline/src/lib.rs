@@ -4,6 +4,8 @@
 
 /// The `Provider` trait — factory for authenticated client connections.
 pub mod provider;
+/// Streaming source and target traits for pipeline I/O.
+pub mod stream;
 /// Entity detection actions.
 pub mod detection;
 /// Content generation actions (OCR, transcription, synthetic data).

@@ -1,36 +1,18 @@
-//! Abstract object-store client trait and helper types.
+//! Unified object-store client backed by [`object_store::ObjectStore`].
 //!
-//! The [`ObjectStoreClient`] trait defines the CRUD surface that every backend
-//! (S3, GCS, local filesystem, etc.) must implement.  [`ObjectStoreBox`] wraps
-//! a concrete client so it can be passed through the engine as `Box<dyn Any + Send>`.
+//! [`ObjectStoreClient`] is a thin, cloneable wrapper around
+//! `Arc<dyn ObjectStore>` that provides convenience methods for the most
+//! common operations.
+
+use std::sync::Arc;
 
 use bytes::Bytes;
+use object_store::path::Path;
+use object_store::{ObjectStore, PutOptions, PutPayload};
 
-/// Result returned by [`ObjectStoreClient::list`].
-pub struct ListResult {
-    /// Object keys matching the requested prefix.
-    pub keys: Vec<String>,
-    /// Opaque pagination cursor; `None` when there are no more pages.
-    pub next_cursor: Option<String>,
-}
+use crate::error::ObjectStoreError;
 
-/// Abstract client for object storage operations.
-///
-/// Implementations provide list, get, put, and delete over a single bucket
-/// or container.
-#[async_trait::async_trait]
-pub trait ObjectStoreClient: Send + Sync + 'static {
-    /// List object keys under `prefix`, optionally continuing from `cursor`.
-    async fn list(&self, prefix: &str, cursor: Option<&str>) -> Result<ListResult, Box<dyn std::error::Error + Send + Sync>>;
-    /// Retrieve the object stored at `key`.
-    async fn get(&self, key: &str) -> Result<GetResult, Box<dyn std::error::Error + Send + Sync>>;
-    /// Upload `data` to `key`, optionally setting the content-type header.
-    async fn put(&self, key: &str, data: Bytes, content_type: Option<&str>) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-    /// Delete the object at `key`.
-    async fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-}
-
-/// Result returned by [`ObjectStoreClient::get`].
+/// Result of a successful [`ObjectStoreClient::get`] call.
 pub struct GetResult {
     /// Raw bytes of the retrieved object.
     pub data: Bytes,
@@ -38,15 +20,73 @@ pub struct GetResult {
     pub content_type: Option<String>,
 }
 
-/// Type-erased wrapper around a boxed [`ObjectStoreClient`].
+/// Cloneable handle to any [`ObjectStore`] backend (S3, Azure, GCS, ...).
 ///
-/// This allows the client to be stored as `Box<dyn Any + Send>` inside the
-/// engine while still being downcasted back to a usable object-store client.
-pub struct ObjectStoreBox(pub Box<dyn ObjectStoreClient>);
+/// All methods accept human-readable string keys and convert them to
+/// [`object_store::path::Path`] internally.
+#[derive(Clone, Debug)]
+pub struct ObjectStoreClient(Arc<dyn ObjectStore>);
 
-impl ObjectStoreBox {
-    /// Wrap a concrete [`ObjectStoreClient`] implementation.
-    pub fn new(client: impl ObjectStoreClient) -> Self {
-        Self(Box::new(client))
+impl ObjectStoreClient {
+    /// Wrap a concrete [`ObjectStore`] implementation.
+    pub fn new(store: impl ObjectStore) -> Self {
+        Self(Arc::new(store))
+    }
+
+    /// Wrap an already-arced store.
+    pub fn from_arc(store: Arc<dyn ObjectStore>) -> Self {
+        Self(store)
+    }
+
+    /// List object keys under `prefix`.
+    ///
+    /// Returns all matching keys in a single `Vec`. For very large listings
+    /// callers should use the underlying [`ObjectStore::list`] stream directly.
+    pub async fn list(
+        &self,
+        prefix: &str,
+    ) -> Result<Vec<object_store::ObjectMeta>, ObjectStoreError> {
+        use futures::TryStreamExt;
+        let path = Path::from(prefix);
+        Ok(self.0.list(Some(&path)).try_collect().await?)
+    }
+
+    /// Retrieve the raw bytes and content-type stored at `key`.
+    pub async fn get(&self, key: &str) -> Result<GetResult, ObjectStoreError> {
+        let path = Path::from(key);
+        let result = self.0.get(&path).await?;
+        let content_type = result
+            .attributes
+            .get(&object_store::Attribute::ContentType)
+            .map(|v| v.to_string());
+        let data = result.bytes().await?;
+        Ok(GetResult { data, content_type })
+    }
+
+    /// Upload `data` to `key`, optionally setting the content-type.
+    pub async fn put(
+        &self,
+        key: &str,
+        data: Bytes,
+        content_type: Option<&str>,
+    ) -> Result<(), ObjectStoreError> {
+        let path = Path::from(key);
+        let payload = PutPayload::from(data);
+        let mut opts = PutOptions::default();
+        if let Some(ct) = content_type {
+            opts.attributes.insert(
+                object_store::Attribute::ContentType,
+                ct.to_string().into(),
+            );
+        }
+        self.0.put_opts(&path, payload, opts).await?;
+        Ok(())
+    }
+
+    /// Delete the object at `key`.
+    pub async fn delete(&self, key: &str) -> Result<(), ObjectStoreError> {
+        let path = Path::from(key);
+        self.0.delete(&path).await?;
+        Ok(())
     }
 }

@@ -83,8 +83,8 @@ infer = { version = "0.19", features = [] }
 pyo3 = { version = "0.24", features = [] }
 pythonize = { version = "0.24", features = [] }
 
-# S3-compatible object storage
-minio = { version = "0.3", features = [] }
+# Cloud object storage (S3, Azure Blob, GCS)
+object_store = { version = "0.12", default-features = false }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }

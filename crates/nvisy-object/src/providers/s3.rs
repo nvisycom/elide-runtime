@@ -1,108 +1,15 @@
-//! S3-compatible provider implementation using the MinIO Rust SDK.
+//! S3-compatible provider using [`object_store::aws::AmazonS3Builder`].
 //!
-//! Provides [`S3ObjectStoreClient`] which implements [`ObjectStoreClient`] and
-//! [`S3Provider`] which plugs into the engine's provider system.
-//!
-//! Works with MinIO, AWS S3, and any S3-compatible service.
+//! Works with AWS S3, MinIO, and any S3-compatible service.
 
-use bytes::Bytes;
+use object_store::aws::AmazonS3Builder;
 use serde::Deserialize;
-
-use minio::s3::creds::StaticProvider;
-use minio::s3::http::BaseUrl;
-use minio::s3::types::{S3Api, ToStream};
-use minio::s3::{Client as MinioClient, ClientBuilder as MinioClientBuilder};
 
 use nvisy_core::error::Error;
 use nvisy_pipeline::provider::Provider;
-use crate::client::{GetResult, ListResult, ObjectStoreBox, ObjectStoreClient};
 
-/// S3-compatible object store client.
-///
-/// Wraps the MinIO [`MinioClient`] and scopes all operations to a single bucket.
-pub struct S3ObjectStoreClient {
-    /// Underlying MinIO client.
-    client: MinioClient,
-    /// Target S3 bucket name.
-    bucket: String,
-}
-
-impl S3ObjectStoreClient {
-    /// Create a new client bound to the given `bucket`.
-    pub fn new(client: MinioClient, bucket: String) -> Self {
-        Self { client, bucket }
-    }
-}
-
-#[async_trait::async_trait]
-impl ObjectStoreClient for S3ObjectStoreClient {
-    async fn list(&self, prefix: &str, cursor: Option<&str>) -> Result<ListResult, Box<dyn std::error::Error + Send + Sync>> {
-        use futures::StreamExt;
-
-        let mut builder = self.client
-            .list_objects(&self.bucket)
-            .recursive(true)
-            .use_api_v1(false);
-
-        if !prefix.is_empty() {
-            builder = builder.prefix(Some(prefix.to_string()));
-        }
-
-        if let Some(token) = cursor {
-            builder = builder.continuation_token(Some(token.to_string()));
-        }
-
-        let mut stream = builder.to_stream().await;
-
-        // Fetch one page
-        if let Some(result) = stream.next().await {
-            let resp = result?;
-            let keys: Vec<String> = resp.contents
-                .iter()
-                .filter(|entry| !entry.is_prefix)
-                .map(|entry| entry.name.clone())
-                .collect();
-
-            let next_cursor = resp.next_continuation_token.clone();
-
-            Ok(ListResult { keys, next_cursor })
-        } else {
-            Ok(ListResult { keys: vec![], next_cursor: None })
-        }
-    }
-
-    async fn get(&self, key: &str) -> Result<GetResult, Box<dyn std::error::Error + Send + Sync>> {
-        let resp = self.client
-            .get_object(&self.bucket, key)
-            .send()
-            .await?;
-
-        let data = resp.content.to_segmented_bytes().await?.to_bytes();
-
-        Ok(GetResult { data, content_type: None })
-    }
-
-    async fn put(&self, key: &str, data: Bytes, content_type: Option<&str>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let content = minio::s3::builders::ObjectContent::from(data);
-        let mut builder = self.client
-            .put_object_content(&self.bucket, key, content);
-
-        if let Some(ct) = content_type {
-            builder = builder.content_type(ct.to_string());
-        }
-
-        builder.send().await?;
-        Ok(())
-    }
-
-    async fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.client
-            .delete_object(&self.bucket, key)
-            .send()
-            .await?;
-        Ok(())
-    }
-}
+use crate::client::ObjectStoreClient;
+use crate::error::ObjectStoreError;
 
 /// Typed credentials for S3-compatible provider.
 #[derive(Debug, Deserialize)]
@@ -128,15 +35,17 @@ pub struct S3Credentials {
     pub session_token: Option<String>,
 }
 
-fn default_region() -> String { "us-east-1".to_string() }
+fn default_region() -> String {
+    "us-east-1".to_string()
+}
 
-/// Factory that creates [`S3ObjectStoreClient`] instances from typed credentials.
+/// Factory that creates [`ObjectStoreClient`] instances backed by S3.
 pub struct S3Provider;
 
 #[async_trait::async_trait]
 impl Provider for S3Provider {
     type Credentials = S3Credentials;
-    type Client = ObjectStoreBox;
+    type Client = ObjectStoreClient;
 
     const ID: &str = "s3";
 
@@ -145,31 +54,35 @@ impl Provider for S3Provider {
     }
 
     async fn connect(creds: &Self::Credentials) -> Result<Self::Client, Error> {
-        let endpoint = creds.endpoint.as_deref().unwrap_or("https://s3.amazonaws.com");
+        let mut builder = AmazonS3Builder::new()
+            .with_bucket_name(&creds.bucket)
+            .with_region(&creds.region);
 
-        let mut base_url: BaseUrl = endpoint.parse().map_err(|e| {
-            Error::runtime(format!("invalid endpoint URL: {e}"), "s3/connect", true)
-        })?;
-        base_url.region = creds.region.clone();
-
-        let mut builder = MinioClientBuilder::new(base_url);
-
-        // If access_key and secret_key provided, use static credentials
-        if let (Some(access_key), Some(secret_key)) = (&creds.access_key_id, &creds.secret_access_key) {
-            let provider = StaticProvider::new(
-                access_key,
-                secret_key,
-                creds.session_token.as_deref(),
-            );
-            builder = builder.provider(Some(Box::new(provider)));
+        if let Some(endpoint) = &creds.endpoint {
+            builder = builder.with_endpoint(endpoint);
+            if endpoint.starts_with("http://") {
+                builder = builder.with_allow_http(true);
+            }
         }
 
-        let client = builder.build().map_err(|e| {
-            Error::runtime(format!("failed to build MinIO client: {e}"), "s3/connect", true)
-        })?;
+        if let Some(access_key) = &creds.access_key_id {
+            builder = builder.with_access_key_id(access_key);
+        }
 
-        let store_client = S3ObjectStoreClient::new(client, creds.bucket.clone());
+        if let Some(secret_key) = &creds.secret_access_key {
+            builder = builder.with_secret_access_key(secret_key);
+        }
 
-        Ok(ObjectStoreBox::new(store_client))
+        if let Some(token) = &creds.session_token {
+            builder = builder.with_token(token);
+        }
+
+        let err = |e| -> nvisy_core::error::Error {
+            ObjectStoreError::connect("s3", e).into()
+        };
+
+        let store = builder.build().map_err(err)?;
+
+        Ok(ObjectStoreClient::new(store))
     }
 }

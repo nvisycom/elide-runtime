@@ -38,8 +38,8 @@ async-trait = { workspace = true, features = [] }
 uuid = { workspace = true, features = ["v4"] }
 bytes = { workspace = true, features = [] }
 
-# S3-compatible object storage
-minio = { workspace = true, features = [] }
+# Cloud object storage (S3, Azure Blob, GCS)
+object_store = { workspace = true, features = ["aws", "azure", "gcp"] }
 
 # Async streams
 futures = { workspace = true, features = [] }

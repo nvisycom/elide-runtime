@@ -1,6 +1,7 @@
 //! Convenience re-exports for common nvisy-pipeline types.
 
 pub use crate::provider::Provider;
+pub use crate::stream::{StreamSource, StreamTarget};
 
 pub use crate::detection::{
     Annotation, AnnotationKind, AnnotationLabel, AnnotationScope,

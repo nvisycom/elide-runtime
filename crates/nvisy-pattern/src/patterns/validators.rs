@@ -1,7 +1,18 @@
 //! Checksum and format validators for detected entity values.
 //!
 //! Each validator is referenced by name in pattern JSON files (e.g.
-//! `"validator": "luhn"`) and resolved at load time.
+//! `"validator": "luhn"`) and resolved at call time via [`resolve`].
+
+/// Resolve a validator name to its validation function.
+///
+/// Returns `None` for unrecognised names.
+pub fn resolve(name: &str) -> Option<fn(&str) -> bool> {
+    match name {
+        "ssn" => Some(validate_ssn),
+        "luhn" => Some(luhn_check),
+        _ => None,
+    }
+}
 
 /// Validate a US Social Security Number.
 pub fn validate_ssn(value: &str) -> bool {

@@ -170,13 +170,13 @@ fn build_automata(
         let values: Vec<String> = if !def.values.is_empty() {
             def.values.clone()
         } else {
-            let builtin = dictionaries::get_builtin(&def.name).ok_or_else(|| {
+            let dict = dictionaries::builtin_registry().get(&def.name).ok_or_else(|| {
                 Error::new(
                     ErrorKind::Validation,
                     format!("unknown builtin dictionary: {}", def.name),
                 )
             })?;
-            builtin.to_vec()
+            dict.entries().to_vec()
         };
 
         if values.is_empty() {

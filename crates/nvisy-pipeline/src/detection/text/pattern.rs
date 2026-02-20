@@ -10,7 +10,7 @@ use serde::Deserialize;
 use nvisy_codec::handler::{Span, TxtSpan};
 use nvisy_core::error::Error;
 use nvisy_core::path::ContentSource;
-use nvisy_pattern::patterns::{self, PatternDefinition};
+use nvisy_pattern::patterns::{self, Pattern};
 
 use crate::ontology::{DetectionMethod, Entity, TextLocation};
 
@@ -29,11 +29,11 @@ pub struct PatternDetectionParams {
 
 /// Regex-pattern detection layer.
 ///
-/// Compiles the requested (or all built-in) [`PatternDefinition`]s at
-/// construction time and matches them against text spans.
+/// Compiles the requested (or all built-in) patterns at construction time
+/// and matches them against text spans.
 pub struct PatternDetection {
     confidence_threshold: f64,
-    compiled: Vec<(&'static PatternDefinition, Regex)>,
+    compiled: Vec<(&'static dyn Pattern, Regex)>,
 }
 
 #[async_trait::async_trait]
@@ -43,8 +43,8 @@ impl DetectionLayer for PatternDetection {
     async fn connect(params: Self::Params) -> Result<Self, Error> {
         let active = resolve_patterns(&params.patterns);
         let compiled = active
-            .iter()
-            .filter_map(|p| Regex::new(&p.pattern_str).ok().map(|r| (*p, r)))
+            .into_iter()
+            .filter_map(|p| Regex::new(p.pattern_str()).ok().map(|r| (p, r)))
             .collect();
         Ok(Self {
             confidence_threshold: params.confidence_threshold,
@@ -67,22 +67,20 @@ impl Detect<TxtSpan, String> for PatternDetection {
         for span in &spans {
             for (pattern, regex) in &self.compiled {
                 for mat in regex.find_iter(&span.data) {
-                    if let Some(validate) = pattern.validate {
-                        if !validate(mat.as_str()) {
-                            continue;
-                        }
+                    if !pattern.validate(mat.as_str()) {
+                        continue;
                     }
 
-                    if pattern.confidence < self.confidence_threshold {
+                    if pattern.confidence() < self.confidence_threshold {
                         continue;
                     }
 
                     let entity = Entity::new(
-                        pattern.category.clone(),
-                        &pattern.entity_type,
+                        pattern.category().clone(),
+                        pattern.entity_kind().to_string(),
                         mat.as_str(),
                         DetectionMethod::Regex,
-                        pattern.confidence,
+                        pattern.confidence(),
                     )
                     .with_text_location(TextLocation {
                         start_offset: mat.start(),
@@ -101,12 +99,13 @@ impl Detect<TxtSpan, String> for PatternDetection {
     }
 }
 
-fn resolve_patterns(requested: &Option<Vec<String>>) -> Vec<&'static PatternDefinition> {
+fn resolve_patterns(requested: &Option<Vec<String>>) -> Vec<&'static dyn Pattern> {
+    let reg = patterns::builtin_registry();
     match requested {
         Some(names) if !names.is_empty() => names
             .iter()
-            .filter_map(|n| patterns::get_pattern(n))
+            .filter_map(|n| reg.get(n))
             .collect(),
-        _ => patterns::get_all_patterns(),
+        _ => reg.values(),
     }
 }

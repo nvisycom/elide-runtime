@@ -6,8 +6,9 @@
 use serde::{Deserialize, Serialize};
 
 /// Category of sensitive data an entity belongs to.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(strum::Display, strum::EnumString)]
+#[derive(Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum EntityCategory {
@@ -24,25 +25,6 @@ pub enum EntityCategory {
     /// Biometric data (fingerprints, iris scans, voiceprints).
     Biometric,
     /// User-defined or plugin-specific category.
-    #[strum(to_string = "{0}")]
+    #[strum(default)]
     Custom(String),
-}
-
-impl EntityCategory {
-    /// Parse a lowercase slug into an [`EntityCategory`].
-    ///
-    /// Recognises `"pii"`, `"phi"`, `"financial"`, `"credentials"`,
-    /// `"legal"`, and `"biometric"`.  Anything else becomes
-    /// [`Custom`](Self::Custom).
-    pub fn from_slug(s: &str) -> Self {
-        match s {
-            "pii" => Self::Pii,
-            "phi" => Self::Phi,
-            "financial" => Self::Financial,
-            "credentials" => Self::Credentials,
-            "legal" => Self::Legal,
-            "biometric" => Self::Biometric,
-            other => Self::Custom(other.to_string()),
-        }
-    }
 }

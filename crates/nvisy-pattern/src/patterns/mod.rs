@@ -41,6 +41,16 @@ fn resolve_validator(name: &str) -> Option<fn(&str) -> bool> {
 fn parse_pattern(bytes: &[u8]) -> PatternDefinition {
     let p: PatternJson = serde_json::from_slice(bytes).expect("failed to parse pattern file");
 
+    if let Some(ref v) = p.validator {
+        if resolve_validator(v).is_none() {
+            tracing::warn!(
+                pattern = %p.name,
+                validator = %v,
+                "unknown validator name, pattern will have no post-match validation",
+            );
+        }
+    }
+
     PatternDefinition {
         category: EntityCategory::from_slug(&p.category),
         validate: p.validator.as_deref().and_then(resolve_validator),
@@ -104,10 +114,24 @@ impl PatternRegistry {
 
         for file in PATTERN_DIR.files() {
             let path = file.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+
+            let Some("json") = path.extension().and_then(|e| e.to_str()) else {
+                tracing::warn!(
+                    path = %path.display(),
+                    "skipping non-JSON file in patterns directory",
+                );
                 continue;
-            }
-            reg.insert(parse_pattern(file.contents()));
+            };
+
+            let pattern = parse_pattern(file.contents());
+            tracing::trace!(
+                name = %pattern.name,
+                category = %pattern.category,
+                entity_type = %pattern.entity_type,
+                has_validator = pattern.validate.is_some(),
+                "pattern loaded",
+            );
+            reg.insert(pattern);
         }
 
         tracing::Span::current().record("count", reg.len());
@@ -166,10 +190,7 @@ mod tests {
 
     #[test]
     fn get_known_pattern() {
-        let ssn = get_pattern("ssn");
-        assert!(ssn.is_some());
-
-        let ssn = ssn.unwrap();
+        let ssn = get_pattern("ssn").unwrap();
         assert_eq!(ssn.name, "ssn");
         assert_eq!(ssn.category, EntityCategory::Pii);
         assert_eq!(ssn.entity_type, "government_id");
@@ -256,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn adding_new_file_auto_discovers() {
+    fn load_builtins_auto_discovers() {
         let reg = PatternRegistry::load_builtins();
         assert_eq!(reg.len(), 10);
     }

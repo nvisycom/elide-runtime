@@ -1,7 +1,7 @@
 //! Checksum and format validators for detected entity values.
 //!
-//! These functions are referenced by pattern definitions in `patterns.json`
-//! and are also used directly by the checksum detection action.
+//! Each validator is referenced by name in pattern JSON files (e.g.
+//! `"validator": "luhn"`) and resolved at load time.
 
 /// Validate a US Social Security Number.
 pub fn validate_ssn(value: &str) -> bool {

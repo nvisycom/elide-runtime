@@ -22,11 +22,11 @@ use crate::detection::layer::{Detect, DetectionLayer};
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DictionaryDef {
-    /// Dictionary name — `"builtin:first_names"` for built-in, or a custom name.
+    /// Dictionary name — e.g. `"nationalities"` for built-in, or a custom name.
     pub name: String,
     /// Entity category for matches from this dictionary.
     pub category: EntityCategory,
-    /// Entity type label for matches (e.g. `"first_name"`, `"medical_term"`).
+    /// Entity type label for matches (e.g. `"demographic"`, `"amount"`).
     pub entity_type: String,
     /// Custom values — empty when using a builtin dictionary.
     #[serde(default)]
@@ -77,8 +77,6 @@ impl DetectionLayer for DictionaryDetection {
     }
 }
 
-// ── Text spans ──────────────────────────────────────────────────────
-
 #[async_trait::async_trait]
 impl Detect<TxtSpan, String> for DictionaryDetection {
     type Context = ParallelContext;
@@ -117,8 +115,6 @@ impl Detect<TxtSpan, String> for DictionaryDetection {
     }
 }
 
-// ── Tabular spans ───────────────────────────────────────────────────
-
 #[async_trait::async_trait]
 impl Detect<CsvSpan, String> for DictionaryDetection {
     type Context = ParallelContext;
@@ -131,7 +127,6 @@ impl Detect<CsvSpan, String> for DictionaryDetection {
         let mut entities = Vec::new();
 
         for span in &spans {
-            // Skip header spans — only scan data cells.
             if span.id.header {
                 continue;
             }
@@ -172,16 +167,16 @@ fn build_automata(
     let mut result = Vec::with_capacity(defs.len());
 
     for def in defs {
-        let values: Vec<String> = if def.name.starts_with("builtin:") {
+        let values: Vec<String> = if !def.values.is_empty() {
+            def.values.clone()
+        } else {
             let builtin = dictionaries::get_builtin(&def.name).ok_or_else(|| {
                 Error::new(
                     ErrorKind::Validation,
                     format!("unknown builtin dictionary: {}", def.name),
                 )
             })?;
-            builtin.iter().map(|s| s.clone()).collect()
-        } else {
-            def.values.clone()
+            builtin.to_vec()
         };
 
         if values.is_empty() {

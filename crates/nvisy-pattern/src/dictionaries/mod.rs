@@ -75,9 +75,21 @@ impl DictionaryRegistry {
             let dict: BoxDictionary = match path.extension().and_then(|e| e.to_str()) {
                 Some("txt") => Box::new(TxtDictionary::new(path, text)),
                 Some("csv") => Box::new(CsvDictionary::new(path, text)),
-                _ => continue,
+                other => {
+                    tracing::warn!(
+                        path = %path.display(),
+                        extension = ?other,
+                        "skipping unrecognised dictionary file",
+                    );
+                    continue;
+                }
             };
 
+            tracing::trace!(
+                name = dict.name(),
+                entries = dict.entries().len(),
+                "dictionary loaded",
+            );
             reg.insert(dict);
         }
 
@@ -96,16 +108,12 @@ impl Default for DictionaryRegistry {
 static BUILTIN_REGISTRY: LazyLock<DictionaryRegistry> =
     LazyLock::new(DictionaryRegistry::load_builtins);
 
-/// Load a built-in dictionary by name.
-///
-/// Accepts both `"builtin:nationalities"` (legacy prefix) and bare
-/// `"nationalities"`.  Returns `None` if the name is not recognized.
+/// Look up a built-in dictionary by name.
 pub fn get_builtin(name: &str) -> Option<&'static [String]> {
-    let key = name.strip_prefix("builtin:").unwrap_or(name);
-    BUILTIN_REGISTRY.get(key).map(|d| d.entries())
+    BUILTIN_REGISTRY.get(name).map(|d| d.entries())
 }
 
-/// List all available built-in dictionary names (without the `builtin:` prefix).
+/// List all available built-in dictionary names.
 pub fn list_builtin() -> Vec<&'static str> {
     BUILTIN_REGISTRY.names()
 }
@@ -152,14 +160,6 @@ mod tests {
     }
 
     #[test]
-    fn legacy_prefix_is_supported() {
-        let a = get_builtin("builtin:nationalities");
-        let b = get_builtin("nationalities");
-        assert!(a.is_some());
-        assert_eq!(a.unwrap().len(), b.unwrap().len());
-    }
-
-    #[test]
     fn nationalities_contains_known_entries() {
         let entries = get_builtin("nationalities").unwrap();
         assert!(entries.iter().any(|e| e == "American"));
@@ -203,7 +203,6 @@ mod tests {
 
     #[test]
     fn unknown_builtin_returns_none() {
-        assert!(get_builtin("builtin:nonexistent").is_none());
         assert!(get_builtin("nonexistent").is_none());
     }
 
@@ -227,8 +226,7 @@ mod tests {
     }
 
     #[test]
-    fn adding_new_file_auto_discovers() {
-        // load_builtins discovers all files — registry count matches file count.
+    fn load_builtins_auto_discovers() {
         let reg = DictionaryRegistry::load_builtins();
         assert_eq!(reg.len(), 5);
     }

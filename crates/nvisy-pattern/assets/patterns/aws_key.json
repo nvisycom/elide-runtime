@@ -1,0 +1,7 @@
+{
+  "name": "aws-key",
+  "category": "credentials",
+  "entity_type": "api_key",
+  "pattern": "\\bAKIA[0-9A-Z]{16}\\b",
+  "confidence": 0.95
+}

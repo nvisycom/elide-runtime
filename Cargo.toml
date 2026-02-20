@@ -71,6 +71,7 @@ hipstr = { version = "0.6", features = [] }
 regex = { version = "1.0", features = [] }
 aho-corasick = { version = "1", features = [] }
 csv = { version = "1", features = [] }
+include_dir = { version = "0.7", features = [] }
 
 # Graph data structures
 petgraph = { version = "0.8", features = [] }

@@ -179,7 +179,7 @@ fn build_automata(
                     format!("unknown builtin dictionary: {}", def.name),
                 )
             })?;
-            builtin.to_vec()
+            builtin.iter().map(|s| s.clone()).collect()
         } else {
             def.values.clone()
         };

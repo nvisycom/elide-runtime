@@ -45,3 +45,82 @@ pub fn luhn_check(num: &str) -> bool {
     }
     sum % 10 == 0
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- validate_ssn ---
+
+    #[test]
+    fn ssn_valid() {
+        assert!(validate_ssn("123-45-6789"));
+        assert!(validate_ssn("001-01-0001"));
+        assert!(validate_ssn("899-99-9999"));
+    }
+
+    #[test]
+    fn ssn_invalid_area_zero() {
+        assert!(!validate_ssn("000-45-6789"));
+    }
+
+    #[test]
+    fn ssn_invalid_area_666() {
+        assert!(!validate_ssn("666-45-6789"));
+    }
+
+    #[test]
+    fn ssn_invalid_area_900_plus() {
+        assert!(!validate_ssn("900-45-6789"));
+        assert!(!validate_ssn("999-45-6789"));
+    }
+
+    #[test]
+    fn ssn_invalid_group_zero() {
+        assert!(!validate_ssn("123-00-6789"));
+    }
+
+    #[test]
+    fn ssn_invalid_serial_zero() {
+        assert!(!validate_ssn("123-45-0000"));
+    }
+
+    #[test]
+    fn ssn_wrong_format() {
+        assert!(!validate_ssn("12345-6789"));
+        assert!(!validate_ssn("123456789"));
+        assert!(!validate_ssn("abc-de-fghi"));
+        assert!(!validate_ssn(""));
+    }
+
+    // --- luhn_check ---
+
+    #[test]
+    fn luhn_valid_card_numbers() {
+        // Standard test numbers
+        assert!(luhn_check("4539 1488 0343 6467"));
+        assert!(luhn_check("4539148803436467"));
+        assert!(luhn_check("4539-1488-0343-6467"));
+    }
+
+    #[test]
+    fn luhn_invalid_card_numbers() {
+        assert!(!luhn_check("4539 1488 0343 6466"));
+        assert!(!luhn_check("1234567890123456"));
+    }
+
+    #[test]
+    fn luhn_empty_input() {
+        assert!(!luhn_check(""));
+    }
+
+    #[test]
+    fn luhn_non_digit_input() {
+        assert!(!luhn_check("abcdef"));
+    }
+
+    #[test]
+    fn luhn_single_zero() {
+        assert!(luhn_check("0"));
+    }
+}

@@ -27,3 +27,22 @@ pub enum EntityCategory {
     #[strum(to_string = "{0}")]
     Custom(String),
 }
+
+impl EntityCategory {
+    /// Parse a lowercase slug into an [`EntityCategory`].
+    ///
+    /// Recognises `"pii"`, `"phi"`, `"financial"`, `"credentials"`,
+    /// `"legal"`, and `"biometric"`.  Anything else becomes
+    /// [`Custom`](Self::Custom).
+    pub fn from_slug(s: &str) -> Self {
+        match s {
+            "pii" => Self::Pii,
+            "phi" => Self::Phi,
+            "financial" => Self::Financial,
+            "credentials" => Self::Credentials,
+            "legal" => Self::Legal,
+            "biometric" => Self::Biometric,
+            other => Self::Custom(other.to_string()),
+        }
+    }
+}

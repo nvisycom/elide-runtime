@@ -26,5 +26,15 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 
 # (De)serialization
+csv = { workspace = true, features = [] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
+
+# Compile-time asset embedding
+include_dir = { workspace = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+regex = { workspace = true, features = [] }

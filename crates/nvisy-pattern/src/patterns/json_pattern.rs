@@ -1,45 +1,131 @@
-//! JSON-backed pattern implementation.
+//! JSON-backed `JsonPattern` implementation.
+//!
+//! Each JSON file under `assets/patterns/` is deserialized into a
+//! `JsonPattern` via `from_bytes`.  The method returns the validated
+//! pattern together with any non-fatal `JsonPatternWarning`s so the
+//! caller can decide how to surface them.
 
 use serde::Deserialize;
 
 use nvisy_core::data::{EntityCategory, EntityKind};
 
-use super::pattern::Pattern;
-use super::validators;
+use super::pattern::{MatchSource, Pattern};
 
-/// A regex-based detection pattern loaded from a JSON definition file.
-#[derive(Debug, Clone, Deserialize)]
+/// Error returned when a JSON pattern file cannot be loaded.
+#[derive(Debug, thiserror::Error)]
+pub enum JsonPatternError {
+    /// The raw bytes are not valid JSON or do not match the expected schema.
+    #[error("JSON parse error: {0}")]
+    Parse(#[from] serde_json::Error),
+
+    /// Neither `"pattern"` nor `"dictionary"` was provided.
+    #[error("pattern '{name}': must specify either 'pattern' or 'dictionary'")]
+    MissingSource { name: String },
+
+    /// Both `"pattern"` and `"dictionary"` were provided: only one is allowed.
+    #[error("pattern '{name}': cannot specify both 'pattern' and 'dictionary'")]
+    AmbiguousSource { name: String },
+}
+
+/// Non-fatal warning emitted while loading a pattern.
+///
+/// Warnings do not prevent the pattern from being registered but may
+/// indicate misconfiguration (e.g. a typo in the validator name).
+#[derive(Debug)]
+pub enum JsonPatternWarning {
+    /// The `"category"` value was not a recognised variant and fell through
+    /// to [`EntityCategory::Custom`].
+    UnknownCategory { pattern: String, slug: String },
+
+    /// The `"validator"` name does not match any built-in validator, so
+    /// the pattern will have no post-match validation.
+    UnknownValidator { pattern: String, validator: String },
+}
+
+/// Default confidence score when `"confidence"` is omitted from JSON.
+const DEFAULT_CONFIDENCE: f64 = 1.0;
+
+/// A detection pattern deserialized from a JSON definition file.
+///
+/// Implements the [`Pattern`] trait and is the only concrete implementation
+/// shipped with this crate.  Construct via `from_bytes`.
+#[derive(Debug, Clone)]
 pub struct JsonPattern {
     name: String,
     category: EntityCategory,
-    #[serde(rename = "entity_type")]
     entity_kind: EntityKind,
-    #[serde(rename = "pattern")]
-    pattern_str: String,
+    match_source: MatchSource,
     confidence: f64,
-    #[serde(default)]
     validator: Option<String>,
 }
 
 impl JsonPattern {
-    /// Warn if the category fell through to `Custom` or the validator is unknown.
-    pub(crate) fn warn_on_load(&self) {
-        if let EntityCategory::Custom(ref slug) = self.category {
-            tracing::warn!(
-                pattern = %self.name,
-                category = %slug,
-                "unrecognised category falls through to Custom",
-            );
+    /// Deserialize and validate a pattern from raw JSON bytes.
+    ///
+    /// On success returns the pattern together with a (possibly empty)
+    /// list of [`JsonPatternWarning`]s.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JsonPatternError`] if the bytes cannot be parsed as JSON,
+    /// or if the `"pattern"` / `"dictionary"` fields are missing or
+    /// ambiguous.
+    pub(crate) fn from_bytes(
+        bytes: &[u8],
+    ) -> Result<(Self, Vec<JsonPatternWarning>), JsonPatternError> {
+        /// Intermediate serde target that mirrors the on-disk JSON shape.
+        #[derive(Deserialize)]
+        struct Raw {
+            name: String,
+            category: EntityCategory,
+            #[serde(rename = "entity_type")]
+            entity_kind: EntityKind,
+            #[serde(default)]
+            pattern: Option<String>,
+            #[serde(default)]
+            dictionary: Option<String>,
+            #[serde(default)]
+            confidence: Option<f64>,
+            #[serde(default)]
+            validator: Option<String>,
         }
-        if let Some(ref v) = self.validator {
-            if validators::resolve(v).is_none() {
-                tracing::warn!(
-                    pattern = %self.name,
-                    validator = %v,
-                    "unknown validator name, pattern will have no post-match validation",
-                );
+
+        let raw: Raw = serde_json::from_slice(bytes)?;
+
+        let match_source = match (raw.pattern, raw.dictionary) {
+            (Some(re), None) => MatchSource::Regex(re),
+            (None, Some(dict)) => MatchSource::Dictionary(dict),
+            (None, None) => return Err(JsonPatternError::MissingSource { name: raw.name }),
+            (Some(_), Some(_)) => return Err(JsonPatternError::AmbiguousSource { name: raw.name }),
+        };
+
+        let mut warnings = Vec::new();
+
+        if let EntityCategory::Custom(ref slug) = raw.category {
+            warnings.push(JsonPatternWarning::UnknownCategory {
+                pattern: raw.name.clone(),
+                slug: slug.clone(),
+            });
+        }
+        if let Some(ref v) = raw.validator {
+            if crate::validators::ValidatorResolver::builtins().resolve(v).is_none() {
+                warnings.push(JsonPatternWarning::UnknownValidator {
+                    pattern: raw.name.clone(),
+                    validator: v.clone(),
+                });
             }
         }
+
+        let p = Self {
+            name: raw.name,
+            category: raw.category,
+            entity_kind: raw.entity_kind,
+            match_source,
+            confidence: raw.confidence.unwrap_or(DEFAULT_CONFIDENCE),
+            validator: raw.validator,
+        };
+
+        Ok((p, warnings))
     }
 }
 
@@ -56,22 +142,15 @@ impl Pattern for JsonPattern {
         self.entity_kind
     }
 
-    fn pattern_str(&self) -> &str {
-        &self.pattern_str
+    fn match_source(&self) -> &MatchSource {
+        &self.match_source
     }
 
     fn confidence(&self) -> f64 {
         self.confidence
     }
 
-    fn validate(&self, value: &str) -> bool {
-        match self.validator.as_deref().and_then(validators::resolve) {
-            Some(f) => f(value),
-            None => true,
-        }
-    }
-
-    fn has_validator(&self) -> bool {
-        self.validator.is_some()
+    fn validator_name(&self) -> Option<&str> {
+        self.validator.as_deref()
     }
 }

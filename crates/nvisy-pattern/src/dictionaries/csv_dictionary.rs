@@ -1,6 +1,4 @@
-//! CSV dictionary (each row holds variants of a single entity).
-
-use std::path::Path;
+//! CSV dictionary: one row per entity, each cell is a matchable variant.
 
 use super::Dictionary;
 
@@ -17,15 +15,10 @@ pub struct CsvDictionary {
 impl CsvDictionary {
     /// Parse a CSV dictionary using the `csv` crate.
     ///
-    /// The dictionary name is derived from the file stem of `path`
-    /// (e.g. `"assets/currencies.csv"` → `"currencies"`).
-    pub fn new(path: impl AsRef<Path>, text: &str) -> Self {
-        let name = path
-            .as_ref()
-            .file_stem()
-            .expect("dictionary path has no file stem")
-            .to_string_lossy()
-            .into_owned();
+    /// `name` identifies this dictionary (e.g. `"currencies"`).
+    /// `text` is the CSV content where each non-empty cell becomes a matchable term.
+    pub fn new(name: impl Into<String>, text: &str) -> Self {
+        let name = name.into();
 
         let mut entries = Vec::new();
         let mut reader = csv::ReaderBuilder::new()
@@ -64,26 +57,20 @@ mod tests {
 
     #[test]
     fn parses_rows_with_variants() {
-        let dict = CsvDictionary::new("test.csv", "US Dollar,USD\nEuro,EUR\n");
+        let dict = CsvDictionary::new("test", "US Dollar,USD\nEuro,EUR\n");
         assert_eq!(dict.name(), "test");
         assert_eq!(dict.entries(), &["US Dollar", "USD", "Euro", "EUR"]);
     }
 
     #[test]
     fn handles_variable_columns() {
-        let dict = CsvDictionary::new("test.csv", "a,b,c\nd,e\n");
+        let dict = CsvDictionary::new("test", "a,b,c\nd,e\n");
         assert_eq!(dict.entries(), &["a", "b", "c", "d", "e"]);
     }
 
     #[test]
     fn skips_empty_fields() {
-        let dict = CsvDictionary::new("test.csv", "a,,b\n");
+        let dict = CsvDictionary::new("test", "a,,b\n");
         assert_eq!(dict.entries(), &["a", "b"]);
-    }
-
-    #[test]
-    fn derives_name_from_path() {
-        let dict = CsvDictionary::new("assets/dictionaries/currencies.csv", "a,b\n");
-        assert_eq!(dict.name(), "currencies");
     }
 }

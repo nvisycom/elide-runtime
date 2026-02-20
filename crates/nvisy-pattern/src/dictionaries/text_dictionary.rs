@@ -1,6 +1,4 @@
-//! Plain-text dictionary (one entry per line).
-
-use std::path::Path;
+//! Plain-text dictionary: one matchable entry per line.
 
 use super::Dictionary;
 
@@ -14,15 +12,10 @@ pub struct TxtDictionary {
 impl TxtDictionary {
     /// Parse a plain-text dictionary.
     ///
-    /// The dictionary name is derived from the file stem of `path`
-    /// (e.g. `"assets/nationalities.txt"` → `"nationalities"`).
-    pub fn new(path: impl AsRef<Path>, text: &str) -> Self {
-        let name = path
-            .as_ref()
-            .file_stem()
-            .expect("dictionary path has no file stem")
-            .to_string_lossy()
-            .into_owned();
+    /// `name` identifies this dictionary (e.g. `"nationalities"`).
+    /// `text` is the file content with one entry per line.
+    pub fn new(name: impl Into<String>, text: &str) -> Self {
+        let name = name.into();
 
         let entries = text
             .lines()
@@ -51,14 +44,8 @@ mod tests {
 
     #[test]
     fn parses_lines() {
-        let dict = TxtDictionary::new("test.txt", "alpha\n  beta \n\ngamma\n");
+        let dict = TxtDictionary::new("test", "alpha\n  beta \n\ngamma\n");
         assert_eq!(dict.name(), "test");
         assert_eq!(dict.entries(), &["alpha", "beta", "gamma"]);
-    }
-
-    #[test]
-    fn derives_name_from_path() {
-        let dict = TxtDictionary::new("assets/dictionaries/nationalities.txt", "a\n");
-        assert_eq!(dict.name(), "nationalities");
     }
 }

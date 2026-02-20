@@ -1,11 +1,24 @@
-//! Built-in dictionary data for entity matching.
+//! Built-in dictionaries for entity matching.
 //!
-//! Dictionaries are embedded at compile time and loaded lazily on first
-//! access.  Two formats are supported:
+//! Dictionaries are asset files under `assets/dictionaries/` containing
+//! matchable terms (nationalities, religions, currencies, etc.).  They are
+//! embedded at compile time and loaded lazily on first access.
 //!
-//! - **Plain text** (`.txt`): one entry per line — see [`TxtDictionary`].
+//! Two file formats are supported:
+//!
+//! - **Plain text** (`.txt`): one entry per line, see [`TxtDictionary`].
 //! - **CSV** (`.csv`): each row holds variants of a single entity
-//!   (e.g. `US Dollar,USD`) — see [`CsvDictionary`].
+//!   (e.g. `US Dollar,USD`), see [`CsvDictionary`].
+//!
+//! # Key types
+//!
+//! - [`Dictionary`]: trait implemented by every dictionary.
+//! - [`DictionaryRegistry`]: sorted collection with O(log n) lookup by name.
+//!
+//! [`TxtDictionary`]: crate::dictionaries::TxtDictionary
+//! [`CsvDictionary`]: crate::dictionaries::CsvDictionary
+//! [`Dictionary`]: crate::dictionaries::Dictionary
+//! [`DictionaryRegistry`]: crate::dictionaries::DictionaryRegistry
 
 mod csv_dictionary;
 mod dictionary;
@@ -21,7 +34,15 @@ use include_dir::{Dir, include_dir};
 
 use crate::registry::Registry;
 
-/// A registry of named dictionaries with O(log n) lookup.
+/// A registry of named [`Dictionary`] instances with O(log n) lookup.
+///
+/// Wraps a [`Registry<BoxDictionary>`] and provides convenience accessors
+/// that return `&dyn Dictionary` references.
+///
+/// Use [`load_builtins`] to create a registry pre-populated with
+/// the compile-time-embedded dictionary files.
+///
+/// [`load_builtins`]: Self::load_builtins
 pub struct DictionaryRegistry {
     inner: Registry<BoxDictionary>,
 }
@@ -43,7 +64,7 @@ impl DictionaryRegistry {
         }
     }
 
-    /// Insert a dictionary into the registry.
+    /// Insert a dictionary, keyed by `name`.
     pub fn insert(&mut self, name: String, dict: BoxDictionary) {
         self.inner.insert(name, dict);
     }
@@ -68,8 +89,10 @@ impl DictionaryRegistry {
         self.inner.is_empty()
     }
 
-    /// Load all `.txt` and `.csv` files from the embedded `assets/dictionaries/`
-    /// directory and return a populated registry.
+    /// Load all `.txt` and `.csv` files from the embedded
+    /// `assets/dictionaries/` directory and return a populated registry.
+    ///
+    /// Unrecognised file extensions are logged as warnings and skipped.
     #[tracing::instrument(name = "dictionaries.load_builtins", fields(count))]
     pub fn load_builtins() -> Self {
         static DICT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets/dictionaries");
@@ -82,9 +105,14 @@ impl DictionaryRegistry {
                 .contents_utf8()
                 .expect("dictionary file is not valid UTF-8");
 
+            let name = path
+                .file_stem()
+                .expect("dictionary path has no file stem")
+                .to_string_lossy();
+
             let dict: BoxDictionary = match path.extension().and_then(|e| e.to_str()) {
-                Some("txt") => Box::new(TxtDictionary::new(path, text)),
-                Some("csv") => Box::new(CsvDictionary::new(path, text)),
+                Some("txt") => Box::new(TxtDictionary::new(name.as_ref(), text)),
+                Some("csv") => Box::new(CsvDictionary::new(name.as_ref(), text)),
                 other => {
                     tracing::warn!(
                         path = %path.display(),
@@ -96,12 +124,11 @@ impl DictionaryRegistry {
             };
 
             tracing::trace!(
-                name = dict.name(),
+                %name,
                 entries = dict.entries().len(),
                 "dictionary loaded",
             );
-            let name = dict.name().to_owned();
-            reg.insert(name, dict);
+            reg.insert(name.into_owned(), dict);
         }
 
         tracing::Span::current().record("count", reg.len());
@@ -119,7 +146,7 @@ impl Default for DictionaryRegistry {
 static BUILTIN_REGISTRY: LazyLock<DictionaryRegistry> =
     LazyLock::new(DictionaryRegistry::load_builtins);
 
-/// Get a reference to the built-in [`DictionaryRegistry`].
+/// Return a reference to the lazily-initialised built-in [`DictionaryRegistry`].
 pub fn builtin_registry() -> &'static DictionaryRegistry {
     &BUILTIN_REGISTRY
 }
@@ -239,7 +266,7 @@ mod tests {
     #[test]
     fn registry_insert_and_get() {
         let mut reg = DictionaryRegistry::new();
-        let dict: BoxDictionary = Box::new(TxtDictionary::new("test.txt", "foo\nbar\n"));
+        let dict: BoxDictionary = Box::new(TxtDictionary::new("test", "foo\nbar\n"));
         reg.insert("test".into(), dict);
 
         assert_eq!(reg.len(), 1);

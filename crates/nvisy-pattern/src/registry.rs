@@ -1,10 +1,16 @@
-//! Generic named-value registry backed by a sorted map.
+//! Generic named-value registry backed by a `BTreeMap`.
+//!
+//! [`Registry<V>`] is the shared storage layer used by both
+//! [`PatternRegistry`] and [`DictionaryRegistry`].  The `BTreeMap`
+//! backend guarantees deterministic (alphabetical) iteration order.
+//!
+//! [`Registry<V>`]: crate::registry::Registry
+//! [`PatternRegistry`]: crate::patterns::PatternRegistry
+//! [`DictionaryRegistry`]: crate::dictionaries::DictionaryRegistry
 
 use std::collections::BTreeMap;
 
-/// A registry of named values with O(log n) lookup.
-///
-/// Used as the backing store for both pattern and dictionary registries.
+/// A sorted map of named values with O(log n) lookup.
 #[derive(Debug)]
 pub struct Registry<V> {
     inner: BTreeMap<String, V>,
@@ -18,7 +24,7 @@ impl<V> Registry<V> {
         }
     }
 
-    /// Insert a value under the given name.
+    /// Insert a value under the given name, replacing any previous entry.
     pub fn insert(&mut self, name: String, value: V) {
         self.inner.insert(name, value);
     }
@@ -28,12 +34,12 @@ impl<V> Registry<V> {
         self.inner.get(name)
     }
 
-    /// All values in deterministic (alphabetical) order.
+    /// All values in alphabetical order by name.
     pub fn values(&self) -> Vec<&V> {
         self.inner.values().collect()
     }
 
-    /// All names in deterministic (alphabetical) order.
+    /// All names in alphabetical order.
     pub fn names(&self) -> Vec<&str> {
         self.inner.keys().map(|s| s.as_str()).collect()
     }

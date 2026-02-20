@@ -30,6 +30,9 @@ csv = { workspace = true, features = [] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 
+# Error handling
+thiserror = { workspace = true, features = [] }
+
 # Compile-time asset embedding
 include_dir = { workspace = true, features = [] }
 

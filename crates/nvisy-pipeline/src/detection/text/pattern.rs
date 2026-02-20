@@ -10,7 +10,8 @@ use serde::Deserialize;
 use nvisy_codec::handler::{Span, TxtSpan};
 use nvisy_core::error::Error;
 use nvisy_core::path::ContentSource;
-use nvisy_pattern::patterns::{self, Pattern};
+use nvisy_pattern::patterns::{self, MatchSource, Pattern};
+use nvisy_pattern::validators::ValidatorResolver;
 
 use crate::ontology::{DetectionMethod, Entity, TextLocation};
 
@@ -29,11 +30,13 @@ pub struct PatternDetectionParams {
 
 /// Regex-pattern detection layer.
 ///
-/// Compiles the requested (or all built-in) patterns at construction time
-/// and matches them against text spans.
+/// Compiles the requested (or all built-in) regex patterns at construction
+/// time and matches them against text spans.  Dictionary-sourced patterns
+/// are skipped (handled by a separate layer).
 pub struct PatternDetection {
     confidence_threshold: f64,
     compiled: Vec<(&'static dyn Pattern, Regex)>,
+    validators: ValidatorResolver,
 }
 
 #[async_trait::async_trait]
@@ -44,11 +47,15 @@ impl DetectionLayer for PatternDetection {
         let active = resolve_patterns(&params.patterns);
         let compiled = active
             .into_iter()
-            .filter_map(|p| Regex::new(p.pattern_str()).ok().map(|r| (p, r)))
+            .filter_map(|p| match p.match_source() {
+                MatchSource::Regex(re) => Regex::new(re).ok().map(|r| (p, r)),
+                MatchSource::Dictionary(_) => None,
+            })
             .collect();
         Ok(Self {
             confidence_threshold: params.confidence_threshold,
             compiled,
+            validators: ValidatorResolver::builtins(),
         })
     }
 }
@@ -67,8 +74,13 @@ impl Detect<TxtSpan, String> for PatternDetection {
         for span in &spans {
             for (pattern, regex) in &self.compiled {
                 for mat in regex.find_iter(&span.data) {
-                    if !pattern.validate(mat.as_str()) {
-                        continue;
+                    if let Some(validate) = pattern
+                        .validator_name()
+                        .and_then(|v| self.validators.resolve(v))
+                    {
+                        if !validate(mat.as_str()) {
+                            continue;
+                        }
                     }
 
                     if pattern.confidence() < self.confidence_threshold {

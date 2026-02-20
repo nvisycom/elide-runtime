@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::ontology::{DetectionMethod, Entity};
 use nvisy_core::error::Error;
-use nvisy_pattern::patterns::validators::luhn_check;
+use nvisy_pattern::validators::{ValidatorFn, luhn_check};
 
 /// Typed parameters for [`DetectChecksumAction`].
 #[derive(Debug, Deserialize)]
@@ -84,7 +84,7 @@ impl DetectChecksumAction {
 }
 
 /// Returns the checksum validator function for a given entity type, if one exists.
-fn get_validator(entity_type: &str) -> Option<fn(&str) -> bool> {
+fn get_validator(entity_type: &str) -> Option<ValidatorFn> {
     match entity_type {
         "credit_card" => Some(luhn_check),
         _ => None,

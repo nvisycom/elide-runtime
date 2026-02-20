@@ -6,6 +6,7 @@ pub use crate::dictionaries::{
     builtin_registry as dictionary_registry,
 };
 pub use crate::patterns::{
-    BoxPattern, JsonPattern, Pattern, PatternRegistry,
+    BoxPattern, JsonPattern, MatchSource, Pattern, PatternRegistry,
     builtin_registry as pattern_registry,
 };
+pub use crate::validators::{ValidatorFn, ValidatorResolver};

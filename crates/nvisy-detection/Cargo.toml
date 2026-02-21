@@ -50,7 +50,6 @@ schemars = { workspace = true, features = [] }
 
 # Text processing
 regex = { workspace = true, features = [] }
-aho-corasick = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

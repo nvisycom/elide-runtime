@@ -12,6 +12,7 @@
 /// [`CsvDictionary`]: super::CsvDictionary
 pub trait Dictionary: Send + Sync {
     /// Unique name identifying this dictionary (e.g. `"nationalities"`).
+    #[allow(dead_code)]
     fn name(&self) -> &str;
 
     /// All matchable terms produced by this dictionary.

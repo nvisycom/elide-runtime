@@ -1,0 +1,7 @@
+{
+  "name": "private-key",
+  "category": "credentials",
+  "entity_type": "private_key",
+  "pattern": "-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----",
+  "confidence": 0.98
+}

@@ -8,6 +8,7 @@ use super::Dictionary;
 /// Every non-empty cell becomes a matchable term.
 #[derive(Debug, Clone)]
 pub struct CsvDictionary {
+    #[allow(dead_code)]
     name: String,
     entries: Vec<String>,
 }

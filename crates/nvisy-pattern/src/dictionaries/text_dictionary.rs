@@ -5,6 +5,7 @@ use super::Dictionary;
 /// A dictionary parsed from a plain-text file (one entry per line).
 #[derive(Debug, Clone)]
 pub struct TxtDictionary {
+    #[allow(dead_code)]
     name: String,
     entries: Vec<String>,
 }

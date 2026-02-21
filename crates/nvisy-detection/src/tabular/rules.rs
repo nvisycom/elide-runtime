@@ -15,9 +15,7 @@ use nvisy_core::{Error, ErrorKind};
 use nvisy_core::path::ContentSource;
 
 use crate::{DetectionMethod, Entity, TabularLocation};
-
-use crate::context::ParallelContext;
-use crate::layer::{Detect, DetectionLayer};
+use crate::{ParallelContext, Detect, DetectionLayer};
 
 /// A rule that matches column headers to classify entire columns.
 #[derive(Debug, Clone, Deserialize)]

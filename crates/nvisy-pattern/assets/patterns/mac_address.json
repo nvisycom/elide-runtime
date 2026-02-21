@@ -1,0 +1,7 @@
+{
+  "name": "mac-address",
+  "category": "pii",
+  "entity_type": "mac_address",
+  "pattern": "\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b",
+  "confidence": 0.85
+}

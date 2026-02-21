@@ -10,21 +10,6 @@
 //! |--------|--------|--------------------------------------------|
 //! | `ssn`  | `ssn`  | US Social Security Number format check     |
 //! | `luhn` | `luhn` | Luhn checksum for credit card numbers      |
-//!
-//! # Custom validators
-//!
-//! Additional validators can be registered at runtime:
-//!
-//! ```
-//! use nvisy_pattern::validators::ValidatorResolver;
-//!
-//! let mut resolver = ValidatorResolver::builtins();
-//! resolver.register("always_ok", |_| true);
-//! assert!(resolver.resolve("always_ok").unwrap()("anything"));
-//! ```
-//!
-//! [`ValidatorFn`]: crate::validators::ValidatorFn
-//! [`ValidatorResolver`]: crate::validators::ValidatorResolver
 
 mod luhn;
 mod ssn;

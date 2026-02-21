@@ -57,6 +57,7 @@ pub struct JsonPattern {
     match_source: MatchSource,
     confidence: f64,
     validator: Option<String>,
+    case_sensitive: bool,
 }
 
 impl JsonPattern {
@@ -88,6 +89,8 @@ impl JsonPattern {
             confidence: Option<f64>,
             #[serde(default)]
             validator: Option<String>,
+            #[serde(default)]
+            case_sensitive: bool,
         }
 
         let raw: Raw = serde_json::from_slice(bytes)?;
@@ -123,6 +126,7 @@ impl JsonPattern {
             match_source,
             confidence: raw.confidence.unwrap_or(DEFAULT_CONFIDENCE),
             validator: raw.validator,
+            case_sensitive: raw.case_sensitive,
         };
 
         Ok((p, warnings))
@@ -152,5 +156,9 @@ impl Pattern for JsonPattern {
 
     fn validator_name(&self) -> Option<&str> {
         self.validator.as_deref()
+    }
+
+    fn case_sensitive(&self) -> bool {
+        self.case_sensitive
     }
 }

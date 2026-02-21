@@ -2,14 +2,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-/// Generic sorted registry backing both pattern and dictionary collections.
-pub mod registry;
-/// Detection patterns loaded from JSON definition files.
-pub mod patterns;
-/// Named term dictionaries loaded from text and CSV files.
-pub mod dictionaries;
-/// Post-match validators for reducing false positives.
-pub mod validators;
+pub(crate) mod patterns;
+pub(crate) mod dictionaries;
+pub(crate) mod validators;
+mod engine;
 
-#[doc(hidden)]
+pub use engine::{
+    PatternEngine, PatternEngineBuilder, PatternEngineError, PatternMatch, DetectionSource,
+    default_engine,
+};
+
 pub mod prelude;

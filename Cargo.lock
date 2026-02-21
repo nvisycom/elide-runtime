@@ -2045,7 +2045,6 @@ dependencies = [
 name = "nvisy-detection"
 version = "0.1.0"
 dependencies = [
- "aho-corasick",
  "async-trait",
  "derive_more 1.0.0",
  "nvisy-codec",
@@ -2116,6 +2115,7 @@ dependencies = [
 name = "nvisy-pattern"
 version = "0.1.0"
 dependencies = [
+ "aho-corasick",
  "csv",
  "include_dir",
  "nvisy-core",

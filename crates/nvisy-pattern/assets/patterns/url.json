@@ -1,0 +1,7 @@
+{
+  "name": "url",
+  "category": "pii",
+  "entity_type": "url",
+  "pattern": "\\bhttps?://[^\\s/$.?#][^\\s]*\\b",
+  "confidence": 0.9
+}

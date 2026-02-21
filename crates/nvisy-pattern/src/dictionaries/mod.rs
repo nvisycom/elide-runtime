@@ -28,30 +28,27 @@ pub use csv_dictionary::CsvDictionary;
 pub use dictionary::{BoxDictionary, Dictionary};
 pub use text_dictionary::TxtDictionary;
 
+use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 use include_dir::{Dir, include_dir};
 
-use crate::registry::Registry;
-
 /// A registry of named [`Dictionary`] instances with O(log n) lookup.
-///
-/// Wraps a [`Registry<BoxDictionary>`] and provides convenience accessors
-/// that return `&dyn Dictionary` references.
 ///
 /// Use [`load_builtins`] to create a registry pre-populated with
 /// the compile-time-embedded dictionary files.
 ///
 /// [`load_builtins`]: Self::load_builtins
 pub struct DictionaryRegistry {
-    inner: Registry<BoxDictionary>,
+    inner: BTreeMap<String, BoxDictionary>,
 }
 
 impl std::fmt::Debug for DictionaryRegistry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names: Vec<&str> = self.inner.keys().map(|s| s.as_str()).collect();
         f.debug_struct("DictionaryRegistry")
             .field("len", &self.inner.len())
-            .field("names", &self.inner.names())
+            .field("names", &names)
             .finish()
     }
 }
@@ -60,7 +57,7 @@ impl DictionaryRegistry {
     /// Create an empty registry.
     pub fn new() -> Self {
         Self {
-            inner: Registry::new(),
+            inner: BTreeMap::new(),
         }
     }
 
@@ -74,19 +71,9 @@ impl DictionaryRegistry {
         self.inner.get(name).map(|b| b.as_ref())
     }
 
-    /// All dictionary names in deterministic (alphabetical) order.
-    pub fn names(&self) -> Vec<&str> {
-        self.inner.names()
-    }
-
     /// Total number of registered dictionaries.
     pub fn len(&self) -> usize {
         self.inner.len()
-    }
-
-    /// Whether the registry is empty.
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
     }
 
     /// Load all `.txt` and `.csv` files from the embedded
@@ -159,20 +146,25 @@ mod tests {
         builtin_registry()
     }
 
+    /// Helper: all dictionary names from the registry.
+    fn names(reg: &DictionaryRegistry) -> Vec<&str> {
+        reg.inner.keys().map(|s| s.as_str()).collect()
+    }
+
     #[test]
     fn list_builtin_returns_all_names() {
-        let names = registry().names();
-        assert_eq!(names.len(), 5);
-        assert!(names.contains(&"cryptocurrencies"));
-        assert!(names.contains(&"currencies"));
-        assert!(names.contains(&"languages"));
-        assert!(names.contains(&"nationalities"));
-        assert!(names.contains(&"religions"));
+        let n = names(registry());
+        assert_eq!(n.len(), 5);
+        assert!(n.contains(&"cryptocurrencies"));
+        assert!(n.contains(&"currencies"));
+        assert!(n.contains(&"languages"));
+        assert!(n.contains(&"nationalities"));
+        assert!(n.contains(&"religions"));
     }
 
     #[test]
     fn all_listed_builtins_are_loadable() {
-        for name in registry().names() {
+        for name in names(registry()) {
             assert!(
                 registry().get(name).is_some(),
                 "listed builtin {name} is not loadable"
@@ -182,7 +174,7 @@ mod tests {
 
     #[test]
     fn builtin_dictionaries_are_nonempty() {
-        for name in registry().names() {
+        for name in names(registry()) {
             let dict = registry().get(name).unwrap();
             assert!(
                 !dict.entries().is_empty(),
@@ -240,7 +232,7 @@ mod tests {
 
     #[test]
     fn entries_are_trimmed_and_nonempty() {
-        for name in registry().names() {
+        for name in names(registry()) {
             let entries = registry().get(name).unwrap().entries();
             for entry in entries {
                 assert!(!entry.is_empty(), "empty entry in {name}");
@@ -251,10 +243,10 @@ mod tests {
 
     #[test]
     fn registry_names_are_sorted() {
-        let names = registry().names();
-        let mut sorted = names.clone();
+        let n = names(registry());
+        let mut sorted = n.clone();
         sorted.sort();
-        assert_eq!(names, sorted);
+        assert_eq!(n, sorted);
     }
 
     #[test]
@@ -270,7 +262,6 @@ mod tests {
         reg.insert("test".into(), dict);
 
         assert_eq!(reg.len(), 1);
-        assert!(!reg.is_empty());
 
         let dict = reg.get("test").unwrap();
         assert_eq!(dict.name(), "test");

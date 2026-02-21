@@ -1,0 +1,7 @@
+{
+  "name": "iban",
+  "category": "financial",
+  "entity_type": "iban",
+  "pattern": "\\b[A-Z]{2}\\d{2}\\s?[A-Z0-9]{4}\\s?(?:\\d{4}\\s?){2,7}\\d{1,4}\\b",
+  "confidence": 0.85
+}

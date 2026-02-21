@@ -57,6 +57,15 @@ pub trait Pattern: Send + Sync {
     ///
     /// [`ValidatorResolver`]: crate::validators::ValidatorResolver
     fn validator_name(&self) -> Option<&str>;
+
+    /// Whether matching should be case-sensitive.
+    ///
+    /// Defaults to `false` (case-insensitive).  Dictionary-backed
+    /// patterns use this to configure the Aho-Corasick automaton;
+    /// regex patterns use inline flags instead.
+    fn case_sensitive(&self) -> bool {
+        false
+    }
 }
 
 /// Type-erased boxed [`Pattern`].

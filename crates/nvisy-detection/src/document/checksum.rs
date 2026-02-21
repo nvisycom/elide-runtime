@@ -4,7 +4,6 @@ use serde::Deserialize;
 
 use crate::{DetectionMethod, Entity};
 use nvisy_core::Error;
-use nvisy_pattern::validators::{ValidatorFn, luhn_check};
 
 /// Typed parameters for [`DetectChecksumAction`].
 #[derive(Debug, Deserialize)]
@@ -84,9 +83,33 @@ impl DetectChecksumAction {
 }
 
 /// Returns the checksum validator function for a given entity type, if one exists.
-fn get_validator(entity_type: &str) -> Option<ValidatorFn> {
+fn get_validator(entity_type: &str) -> Option<fn(&str) -> bool> {
     match entity_type {
         "credit_card" => Some(luhn_check),
         _ => None,
     }
+}
+
+/// Luhn checksum for credit/debit card numbers.
+///
+/// Strips non-digit characters, then validates per ISO/IEC 7812.
+fn luhn_check(num: &str) -> bool {
+    let digits: Vec<u32> = num.chars().filter_map(|c| c.to_digit(10)).collect();
+    if digits.is_empty() {
+        return false;
+    }
+    let mut sum = 0u32;
+    let mut alternate = false;
+    for &d in digits.iter().rev() {
+        let mut n = d;
+        if alternate {
+            n *= 2;
+            if n > 9 {
+                n -= 9;
+            }
+        }
+        sum += n;
+        alternate = !alternate;
+    }
+    sum % 10 == 0
 }

@@ -112,7 +112,7 @@ impl PythonBridge {
                 let kwargs = build_kwargs(py)?;
 
                 let coroutine = module
-                    .call_method(&method, (), Some(&kwargs))
+                    .call_method(method, (), Some(&kwargs))
                     .map_err(from_pyerr)?;
 
                 let fut = pyo3_async_runtimes::tokio::into_future(coroutine)

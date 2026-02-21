@@ -1,5 +1,13 @@
-//! Core detection traits: [`DetectionLayer`] for construction and
-//! identity, [`Detect`] for span-level execution.
+//! Detection layer traits and processing-strategy markers.
+//!
+//! [`DetectionLayer`] handles construction and identity.
+//! [`Detect`] provides span-level execution.  The associated
+//! [`DetectionContext`] tells the orchestrator whether to batch
+//! all spans or iterate one-by-one.
+
+mod context;
+
+pub use context::{DetectionContext, ParallelContext, SequentialContext};
 
 use serde::de::DeserializeOwned;
 
@@ -8,8 +16,6 @@ use nvisy_core::Error;
 use nvisy_core::path::ContentSource;
 
 use crate::Entity;
-
-use super::context::DetectionContext;
 
 /// Construction and identity for a detection layer.
 ///
@@ -38,8 +44,7 @@ where
     Id: Send + Sync + Clone + 'static,
     Data: Send + 'static,
 {
-    /// Processing strategy — [`ParallelContext`](super::ParallelContext)
-    /// or [`SequentialContext`](super::SequentialContext).
+    /// Processing strategy — [`ParallelContext`] or [`SequentialContext`].
     type Context: DetectionContext;
 
     /// Run detection over the given spans.

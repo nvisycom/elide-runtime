@@ -17,9 +17,7 @@ use nvisy_python::bridge::PythonBridge;
 use nvisy_python::ner::NerParams;
 
 use crate::{DetectionMethod, Entity, TextLocation};
-
-use crate::context::SequentialContext;
-use crate::layer::{Detect, DetectionLayer};
+use crate::{SequentialContext, Detect, DetectionLayer};
 
 fn default_confidence() -> f64 {
     0.5

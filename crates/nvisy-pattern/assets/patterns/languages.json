@@ -1,0 +1,7 @@
+{
+  "name": "languages",
+  "category": "pii",
+  "entity_type": "demographic",
+  "dictionary": "languages",
+  "confidence": 0.85
+}

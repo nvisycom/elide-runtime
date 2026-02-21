@@ -9,10 +9,10 @@ use serde_json::{Map, Value};
 use nvisy_core::data::EntityCategory;
 use nvisy_core::path::ContentSource;
 
-use crate::location::{
+use super::location::{
     AudioLocation, ImageLocation, TabularLocation, TextLocation, VideoLocation,
 };
-use crate::model::ModelInfo;
+use super::model::ModelInfo;
 
 /// Method used to detect a sensitive entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]

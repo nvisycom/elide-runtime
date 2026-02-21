@@ -23,32 +23,30 @@
 mod json_pattern;
 mod pattern;
 
-pub use json_pattern::{JsonPattern, JsonPatternError, JsonPatternWarning};
+pub use json_pattern::{JsonPattern, JsonPatternWarning};
 pub use pattern::{BoxPattern, MatchSource, Pattern};
 
+use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 use include_dir::{Dir, include_dir};
-use crate::registry::Registry;
 
 /// A registry of named [`Pattern`] definitions with O(log n) lookup.
-///
-/// Wraps a [`Registry<BoxPattern>`] and provides convenience accessors
-/// that return `&dyn Pattern` references.
 ///
 /// Use [`load_builtins`] to create a registry pre-populated with
 /// the compile-time-embedded pattern files.
 ///
 /// [`load_builtins`]: Self::load_builtins
 pub struct PatternRegistry {
-    inner: Registry<BoxPattern>,
+    inner: BTreeMap<String, BoxPattern>,
 }
 
 impl std::fmt::Debug for PatternRegistry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names: Vec<&str> = self.inner.keys().map(|s| s.as_str()).collect();
         f.debug_struct("PatternRegistry")
             .field("len", &self.inner.len())
-            .field("names", &self.inner.names())
+            .field("names", &names)
             .finish()
     }
 }
@@ -57,7 +55,7 @@ impl PatternRegistry {
     /// Create an empty registry.
     pub fn new() -> Self {
         Self {
-            inner: Registry::new(),
+            inner: BTreeMap::new(),
         }
     }
 
@@ -73,22 +71,12 @@ impl PatternRegistry {
 
     /// All patterns in deterministic (alphabetical) order.
     pub fn values(&self) -> Vec<&dyn Pattern> {
-        self.inner.values().into_iter().map(|b| b.as_ref()).collect()
-    }
-
-    /// All pattern names in deterministic (alphabetical) order.
-    pub fn names(&self) -> Vec<&str> {
-        self.inner.names()
+        self.inner.values().map(|b| b.as_ref()).collect()
     }
 
     /// Total number of registered patterns.
     pub fn len(&self) -> usize {
         self.inner.len()
-    }
-
-    /// Whether the registry is empty.
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
     }
 
     /// Load all `.json` files from the embedded `assets/patterns/`
@@ -186,7 +174,7 @@ mod tests {
 
     #[test]
     fn pattern_names_are_sorted() {
-        let names = registry().names();
+        let names: Vec<&str> = registry().values().iter().map(|p| p.name()).collect();
         let mut sorted = names.clone();
         sorted.sort();
         assert_eq!(names, sorted);
@@ -291,7 +279,7 @@ mod tests {
     #[test]
     fn load_builtins_auto_discovers() {
         let reg = PatternRegistry::load_builtins();
-        assert_eq!(reg.len(), 10);
+        assert_eq!(reg.len(), 27);
     }
 
     #[test]
@@ -309,7 +297,6 @@ mod tests {
         reg.insert("test".into(), Box::new(pattern));
 
         assert_eq!(reg.len(), 1);
-        assert!(!reg.is_empty());
         assert_eq!(reg.get("test").unwrap().name(), "test");
     }
 }

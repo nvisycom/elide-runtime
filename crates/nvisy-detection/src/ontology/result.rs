@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use nvisy_core::path::ContentSource;
 
-use crate::entity::Entity;
+use super::entity::Entity;
 
 /// The output of a detection pass over a single content source.
 #[derive(Debug, Clone, Serialize, Deserialize)]

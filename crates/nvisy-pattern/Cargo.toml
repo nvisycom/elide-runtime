@@ -36,8 +36,9 @@ thiserror = { workspace = true, features = [] }
 # Compile-time asset embedding
 include_dir = { workspace = true, features = [] }
 
+# Text processing
+regex = { workspace = true, features = [] }
+aho-corasick = { workspace = true, features = [] }
+
 # Observability
 tracing = { workspace = true, features = [] }
-
-[dev-dependencies]
-regex = { workspace = true, features = [] }

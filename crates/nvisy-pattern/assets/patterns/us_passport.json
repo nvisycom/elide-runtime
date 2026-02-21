@@ -1,0 +1,7 @@
+{
+  "name": "us-passport",
+  "category": "pii",
+  "entity_type": "passport_number",
+  "pattern": "\\b[A-Z]\\d{8}\\b",
+  "confidence": 0.5
+}

@@ -4,8 +4,7 @@
 
 use serde::Deserialize;
 
-use crate::{DetectionMethod, Entity};
-use crate::annotation::{Annotation, AnnotationKind};
+use crate::{DetectionMethod, Entity, Annotation, AnnotationKind};
 use nvisy_core::Error;
 
 /// Typed parameters for [`DetectManualAction`].

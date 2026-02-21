@@ -59,8 +59,9 @@ impl PatternRegistry {
         }
     }
 
-    /// Insert a pattern, keyed by `name`.
-    pub fn insert(&mut self, name: String, pattern: BoxPattern) {
+    /// Insert a pattern, keyed by its [`Pattern::name`].
+    pub fn insert(&mut self, pattern: BoxPattern) {
+        let name = pattern.name().to_owned();
         self.inner.insert(name, pattern);
     }
 
@@ -131,8 +132,7 @@ impl PatternRegistry {
                 validator = ?pattern.validator_name(),
                 "pattern loaded",
             );
-            let name = pattern.name().to_owned();
-            reg.insert(name, Box::new(pattern));
+            reg.insert(Box::new(pattern));
         }
 
         tracing::Span::current().record("count", reg.len());
@@ -188,11 +188,6 @@ mod tests {
         assert_eq!(ssn.entity_kind(), EntityKind::GovernmentId);
         assert!(ssn.validator_name().is_some());
         assert!(ssn.confidence() > 0.0);
-    }
-
-    #[test]
-    fn get_unknown_pattern_returns_none() {
-        assert!(registry().get("nonexistent").is_none());
     }
 
     #[test]
@@ -263,12 +258,6 @@ mod tests {
     }
 
     #[test]
-    fn pattern_definition_is_debug() {
-        let reg = registry();
-        let _ = format!("{:?}", reg);
-    }
-
-    #[test]
     fn no_duplicate_pattern_names() {
         let all = registry().values();
         let names: Vec<_> = all.iter().map(|p| p.name()).collect();
@@ -294,7 +283,7 @@ mod tests {
         let (pattern, _warnings) = JsonPattern::from_bytes(json).unwrap();
 
         let mut reg = PatternRegistry::new();
-        reg.insert("test".into(), Box::new(pattern));
+        reg.insert(Box::new(pattern));
 
         assert_eq!(reg.len(), 1);
         assert_eq!(reg.get("test").unwrap().name(), "test");

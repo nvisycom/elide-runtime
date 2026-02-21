@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use crate::{DetectionMethod, Entity};
 use nvisy_core::Error;
+use nvisy_pattern::default_engine;
 
 /// Typed parameters for [`DetectChecksumAction`].
 #[derive(Debug, Deserialize)]
@@ -45,20 +46,13 @@ impl DetectChecksumAction {
     ) -> Result<Vec<Entity>, Error> {
         let drop_invalid = self.params.drop_invalid;
         let confidence_boost = self.params.confidence_boost;
+        let engine = default_engine();
 
         let mut result = Vec::new();
 
         for entity in entities {
-            let validator = get_validator(&entity.entity_type);
-
-            if let Some(validate) = validator {
-                let is_valid = validate(&entity.value);
-
-                if !is_valid && drop_invalid {
-                    continue;
-                }
-
-                if is_valid {
+            match engine.validate_checksum(&entity.entity_type, &entity.value) {
+                Some(true) => {
                     let mut boosted = Entity::new(
                         entity.category.clone(),
                         &entity.entity_type,
@@ -68,48 +62,13 @@ impl DetectChecksumAction {
                     );
                     boosted.copy_locations_from(&entity);
                     boosted.source.set_parent_id(entity.source.parent_id());
-
                     result.push(boosted);
-                    continue;
                 }
+                Some(false) if drop_invalid => continue,
+                _ => result.push(entity),
             }
-
-            // No validator or not valid but not dropping -- pass through
-            result.push(entity);
         }
 
         Ok(result)
     }
-}
-
-/// Returns the checksum validator function for a given entity type, if one exists.
-fn get_validator(entity_type: &str) -> Option<fn(&str) -> bool> {
-    match entity_type {
-        "credit_card" => Some(luhn_check),
-        _ => None,
-    }
-}
-
-/// Luhn checksum for credit/debit card numbers.
-///
-/// Strips non-digit characters, then validates per ISO/IEC 7812.
-fn luhn_check(num: &str) -> bool {
-    let digits: Vec<u32> = num.chars().filter_map(|c| c.to_digit(10)).collect();
-    if digits.is_empty() {
-        return false;
-    }
-    let mut sum = 0u32;
-    let mut alternate = false;
-    for &d in digits.iter().rev() {
-        let mut n = d;
-        if alternate {
-            n *= 2;
-            if n > 9 {
-                n -= 9;
-            }
-        }
-        sum += n;
-        alternate = !alternate;
-    }
-    sum % 10 == 0
 }

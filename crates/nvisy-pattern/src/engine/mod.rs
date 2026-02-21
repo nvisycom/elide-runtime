@@ -69,6 +69,20 @@ impl PatternEngine {
         PatternEngineBuilder::default()
     }
 
+    /// Validate a value using the checksum associated with `entity_type`.
+    ///
+    /// Returns `Some(true)` if the value passes, `Some(false)` if it fails,
+    /// or `None` if no checksum validator is registered for that entity type.
+    pub fn validate_checksum(&self, entity_type: &str, value: &str) -> Option<bool> {
+        let validator_name = match entity_type {
+            "credit_card" => "luhn",
+            "ssn" => "ssn",
+            _ => return None,
+        };
+        let validate = self.validators.resolve(validator_name)?;
+        Some(validate(value))
+    }
+
     /// Scan `text` and return all matches above the confidence threshold.
     #[tracing::instrument(skip(self, text), fields(text_len = text.len(), matches))]
     pub fn scan_text(&self, text: &str) -> Vec<PatternMatch> {

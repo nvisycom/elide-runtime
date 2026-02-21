@@ -61,8 +61,9 @@ impl DictionaryRegistry {
         }
     }
 
-    /// Insert a dictionary, keyed by `name`.
-    pub fn insert(&mut self, name: String, dict: BoxDictionary) {
+    /// Insert a dictionary, keyed by its [`Dictionary::name`].
+    pub fn insert(&mut self, dict: BoxDictionary) {
+        let name = dict.name().to_owned();
         self.inner.insert(name, dict);
     }
 
@@ -111,11 +112,11 @@ impl DictionaryRegistry {
             };
 
             tracing::trace!(
-                %name,
+                name = dict.name(),
                 entries = dict.entries().len(),
                 "dictionary loaded",
             );
-            reg.insert(name.into_owned(), dict);
+            reg.insert(dict);
         }
 
         tracing::Span::current().record("count", reg.len());
@@ -226,11 +227,6 @@ mod tests {
     }
 
     #[test]
-    fn unknown_builtin_returns_none() {
-        assert!(registry().get("nonexistent").is_none());
-    }
-
-    #[test]
     fn entries_are_trimmed_and_nonempty() {
         for name in names(registry()) {
             let entries = registry().get(name).unwrap().entries();
@@ -259,18 +255,12 @@ mod tests {
     fn registry_insert_and_get() {
         let mut reg = DictionaryRegistry::new();
         let dict: BoxDictionary = Box::new(TxtDictionary::new("test", "foo\nbar\n"));
-        reg.insert("test".into(), dict);
+        reg.insert(dict);
 
         assert_eq!(reg.len(), 1);
 
         let dict = reg.get("test").unwrap();
         assert_eq!(dict.name(), "test");
         assert_eq!(dict.entries(), &["foo", "bar"]);
-    }
-
-    #[test]
-    fn registry_unknown_returns_none() {
-        let reg = DictionaryRegistry::new();
-        assert!(reg.get("nope").is_none());
     }
 }

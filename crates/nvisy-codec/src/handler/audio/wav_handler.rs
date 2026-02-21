@@ -2,11 +2,10 @@
 
 use bytes::Bytes;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::edit_stream::SpanEditStream;
-use crate::document::view_stream::SpanStream;
+use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::Handler;
 
 #[derive(Debug, Clone)]
@@ -28,6 +27,13 @@ impl WavHandler {
 impl Handler for WavHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Wav
+    }
+
+    #[tracing::instrument(name = "wav.encode", skip_all, fields(output_bytes))]
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        let bytes = self.bytes.to_vec();
+        tracing::Span::current().record("output_bytes", bytes.len());
+        Ok(bytes)
     }
 
     type SpanId = ();

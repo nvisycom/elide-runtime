@@ -1,6 +1,6 @@
 //! WAV loader — wraps raw audio bytes into a [`Document<WavHandler>`].
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
@@ -21,11 +21,13 @@ impl Loader for WavLoader {
     type Handler = WavHandler;
     type Params = WavParams;
 
-    async fn load(
+    #[tracing::instrument(name = "wav.decode", skip_all, fields(input_bytes))]
+    async fn decode(
         &self,
         content: &ContentData,
         _params: &Self::Params,
     ) -> Result<Vec<Document<WavHandler>>, Error> {
+        tracing::Span::current().record("input_bytes", content.to_bytes().len());
         let handler = WavHandler::new(content.to_bytes());
         let doc = Document::new(handler).with_parent(content);
         Ok(vec![doc])

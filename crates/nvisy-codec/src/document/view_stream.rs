@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 
 use futures::Stream;
 
-use crate::handler::span::Span;
+use crate::handler::Span;
 
 /// Async stream of spans returned by [`Handler::view_spans`].
 ///

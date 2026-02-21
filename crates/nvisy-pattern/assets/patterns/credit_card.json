@@ -1,0 +1,8 @@
+{
+  "name": "credit-card",
+  "category": "financial",
+  "entity_type": "payment_card",
+  "pattern": "\\b(?:\\d[ \\-]*?){13,19}\\b",
+  "confidence": 0.85,
+  "validator": "luhn"
+}

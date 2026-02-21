@@ -1,0 +1,7 @@
+{
+  "name": "us-drivers-license",
+  "category": "pii",
+  "entity_type": "drivers_license",
+  "pattern": "\\b[A-Z]\\d{3}-\\d{4}-\\d{4}\\b",
+  "confidence": 0.4
+}

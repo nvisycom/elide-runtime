@@ -2,68 +2,75 @@
 //!
 //! Calls `nvisy_ai.detect_ocr()` through the Python bridge to perform
 //! optical character recognition on images, returning raw JSON values.
-//! Entity construction is handled by the pipeline's [`OcrBackend`] /
-//! [`GenerateOcrAction`] layer.
+//! Entity construction is handled by the pipeline's `OcrBackend` /
+//! `GenerateOcrAction` layer.
 
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde_json::Value;
 
-use nvisy_core::error::Error;
-use crate::bridge::PythonBridge;
-use crate::error::from_pyerr;
+use nvisy_core::Error;
+use crate::bridge::{PythonBridge, from_pyerr};
 
-use nvisy_pipeline::generation::ocr::{OcrBackend, OcrConfig};
+/// Parameters for OCR detection, independent of any pipeline types.
+#[derive(Debug, Clone)]
+pub struct OcrParams {
+    /// Language hint (e.g. `"eng"` for English).
+    pub language: String,
+    /// OCR engine to use (`"tesseract"`, `"google-vision"`, `"aws-textract"`).
+    pub engine: String,
+    /// Minimum confidence threshold for OCR results.
+    pub confidence_threshold: f64,
+}
 
-/// Call Python `detect_ocr()` via GIL + `spawn_blocking`.
+/// Call Python `detect_ocr()` synchronously via `spawn_blocking`.
 ///
 /// Returns raw JSON dicts — no domain-type construction.
 pub async fn detect_ocr(
     bridge: &PythonBridge,
     image_data: &[u8],
     mime_type: &str,
-    config: &OcrConfig,
+    params: &OcrParams,
 ) -> Result<Vec<Value>, Error> {
-    let module_name = bridge.module_name().to_string();
     let image_data = image_data.to_vec();
     let mime_type = mime_type.to_string();
-    let config = config.clone();
+    let params = params.clone();
 
-    tokio::task::spawn_blocking(move || {
-        Python::with_gil(|py| {
-            let module = py.import(&module_name).map_err(from_pyerr)?;
-
+    bridge
+        .call_sync("detect_ocr", move |py| {
             let kwargs = PyDict::new(py);
             kwargs.set_item("image_bytes", &image_data[..]).map_err(from_pyerr)?;
             kwargs.set_item("mime_type", &mime_type).map_err(from_pyerr)?;
-            kwargs.set_item("language", &config.language).map_err(from_pyerr)?;
-            kwargs.set_item("engine", &config.engine).map_err(from_pyerr)?;
-            kwargs.set_item("confidence_threshold", config.confidence_threshold).map_err(from_pyerr)?;
-
-            let result = module
-                .call_method("detect_ocr", (), Some(&kwargs))
-                .map_err(from_pyerr)?;
-
-            pythonize::depythonize::<Vec<Value>>(&result).map_err(|e| {
-                Error::python(format!("Failed to deserialize OCR result: {}", e))
-            })
+            kwargs.set_item("language", &params.language).map_err(from_pyerr)?;
+            kwargs.set_item("engine", &params.engine).map_err(from_pyerr)?;
+            kwargs.set_item("confidence_threshold", params.confidence_threshold).map_err(from_pyerr)?;
+            Ok(kwargs)
         })
-    })
-    .await
-    .map_err(|e| Error::python(format!("Task join error: {}", e)))?
+        .await
 }
 
-/// [`OcrBackend`] implementation for [`PythonBridge`].
+/// Call Python `detect_ocr()` as a **coroutine** (async Python function).
 ///
-/// Delegates to the `detect_ocr` function above.
-#[async_trait::async_trait]
-impl OcrBackend for PythonBridge {
-    async fn detect_ocr(
-        &self,
-        image_data: &[u8],
-        mime_type: &str,
-        config: &OcrConfig,
-    ) -> Result<Vec<Value>, Error> {
-        self::detect_ocr(self, image_data, mime_type, config).await
-    }
+/// Returns raw JSON dicts — no domain-type construction.
+pub async fn detect_ocr_async(
+    bridge: &PythonBridge,
+    image_data: &[u8],
+    mime_type: &str,
+    params: &OcrParams,
+) -> Result<Vec<Value>, Error> {
+    let image_data = image_data.to_vec();
+    let mime_type = mime_type.to_string();
+    let params = params.clone();
+
+    bridge
+        .call_async("detect_ocr", move |py| {
+            let kwargs = PyDict::new(py);
+            kwargs.set_item("image_bytes", &image_data[..]).map_err(from_pyerr)?;
+            kwargs.set_item("mime_type", &mime_type).map_err(from_pyerr)?;
+            kwargs.set_item("language", &params.language).map_err(from_pyerr)?;
+            kwargs.set_item("engine", &params.engine).map_err(from_pyerr)?;
+            kwargs.set_item("confidence_threshold", params.confidence_threshold).map_err(from_pyerr)?;
+            Ok(kwargs)
+        })
+        .await
 }

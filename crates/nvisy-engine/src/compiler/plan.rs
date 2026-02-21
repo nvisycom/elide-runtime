@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use petgraph::algo::{is_cyclic_directed, toposort};
 use petgraph::graph::{DiGraph, NodeIndex};
 use crate::compiler::graph::{Graph, GraphNode};
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 /// A graph node enriched with topological ordering and adjacency information.
 #[derive(Debug, Clone)]

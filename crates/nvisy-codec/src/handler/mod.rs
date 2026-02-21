@@ -7,30 +7,24 @@
 //! Each handler defines its own span types and exposes them as async
 //! streams via [`Handler::view_spans`] and [`Handler::edit_spans`].
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::edit_stream::SpanEditStream;
-use crate::document::view_stream::SpanStream;
+use crate::document::{SpanEditStream, SpanStream};
 use crate::document::Document;
 
-pub mod encoding;
-pub mod span;
-
+mod span;
 mod text;
 mod document;
 mod image;
-mod tabular;
 mod audio;
 
-pub use encoding::TextEncoding;
 pub use span::{Span, SpanEdit};
 
 pub use text::*;
 pub use document::*;
 pub use image::*;
-pub use tabular::*;
 pub use audio::*;
 
 /// Trait implemented by all format handlers.
@@ -47,6 +41,9 @@ pub use audio::*;
 pub trait Handler: Send + Sync + 'static {
     /// The document type this handler represents.
     fn document_type(&self) -> DocumentType;
+
+    /// Serialize the current handler content back to raw bytes.
+    fn encode(&self) -> Result<Vec<u8>, Error>;
 
     /// Strongly-typed identifier for a span within this handler.
     type SpanId: Send + Sync + Clone + 'static;
@@ -76,7 +73,7 @@ pub trait Loader: Send + Sync + 'static {
 
     /// Validate and parse the content, returning a document with
     /// the loaded handler.
-    async fn load(
+    async fn decode(
         &self,
         content: &ContentData,
         params: &Self::Params,

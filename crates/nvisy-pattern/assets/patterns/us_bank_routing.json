@@ -1,0 +1,7 @@
+{
+  "name": "us-bank-routing",
+  "category": "financial",
+  "entity_type": "bank_routing",
+  "pattern": "\\b(?:0[1-9]|[12]\\d|3[0-2])\\d{7}\\b",
+  "confidence": 0.5
+}

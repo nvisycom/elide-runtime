@@ -1,0 +1,7 @@
+{
+  "name": "cryptocurrencies-dict",
+  "category": "financial",
+  "entity_type": "amount",
+  "dictionary": "cryptocurrencies",
+  "confidence": 0.85
+}

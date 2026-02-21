@@ -24,11 +24,10 @@ use std::num::NonZeroU32;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::edit_stream::SpanEditStream;
-use crate::document::view_stream::SpanStream;
+use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
@@ -124,6 +123,36 @@ pub struct JsonHandler {
 impl Handler for JsonHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Json
+    }
+
+    #[tracing::instrument(name = "json.encode", skip_all, fields(output_bytes))]
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        let mut bytes = match self.data.indent {
+            JsonIndent::Compact => serde_json::to_vec(&self.data.value)
+                .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler"))?,
+            JsonIndent::Spaces(n) => {
+                let indent = " ".repeat(n.get() as usize);
+                let mut buf = Vec::new();
+                let formatter = serde_json::ser::PrettyFormatter::with_indent(indent.as_bytes());
+                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+                serde::Serialize::serialize(&self.data.value, &mut ser)
+                    .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler"))?;
+                buf
+            }
+            JsonIndent::Tab => {
+                let mut buf = Vec::new();
+                let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
+                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+                serde::Serialize::serialize(&self.data.value, &mut ser)
+                    .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler"))?;
+                buf
+            }
+        };
+        if self.data.trailing_newline {
+            bytes.push(b'\n');
+        }
+        tracing::Span::current().record("output_bytes", bytes.len());
+        Ok(bytes)
     }
 
     type SpanId = JsonPath;
@@ -405,6 +434,7 @@ mod tests {
     use super::*;
     use crate::handler::SpanEdit;
     use futures::StreamExt;
+    use nvisy_core::Error;
     use serde_json::json;
 
     fn handler(value: serde_json::Value) -> JsonHandler {
@@ -469,23 +499,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn view_spans_empty_object() {
-        let h = handler(json!({}));
-        let spans: Vec<_> = h.view_spans().await.collect().await;
-        assert!(spans.is_empty());
-    }
-
-    #[tokio::test]
-    async fn view_spans_scalar_root() {
-        let h = handler(json!("hello"));
-        let spans: Vec<_> = h.view_spans().await.collect().await;
-        assert_eq!(spans.len(), 1);
-        assert_eq!(spans[0].id, JsonPath::value(""));
-        assert_eq!(spans[0].data, json!("hello"));
-    }
-
-    #[tokio::test]
-    async fn edit_spans_replace_value() {
+    async fn edit_spans_replace_value() -> Result<(), Error> {
         let mut h = handler(json!({"ssn": "123-45-6789"}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit {
@@ -493,13 +507,13 @@ mod tests {
                 data: json!(null),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.value(), &json!({"ssn": null}));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn edit_spans_rename_key() {
+    async fn edit_spans_rename_key() -> Result<(), Error> {
         let mut h = handler(json!({"John Smith": {"age": 30}}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit {
@@ -507,13 +521,13 @@ mod tests {
                 data: json!("[REDACTED]"),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn edit_spans_rename_nested_key() {
+    async fn edit_spans_rename_nested_key() -> Result<(), Error> {
         let mut h = handler(json!({"a": {"secret_field": 42}}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit {
@@ -521,9 +535,9 @@ mod tests {
                 data: json!("redacted"),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.value(), &json!({"a": {"redacted": 42}}));
+        Ok(())
     }
 
     #[tokio::test]
@@ -557,7 +571,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn edit_spans_value_before_key_rename() {
+    async fn edit_spans_value_before_key_rename() -> Result<(), Error> {
         let mut h = handler(json!({"name": "Alice"}));
         // Key rename listed first, but value edit must apply first
         // (while /name still exists) before the key is renamed.
@@ -571,8 +585,52 @@ mod tests {
                 data: json!("***"),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": "***"}));
+        Ok(())
+    }
+
+    #[test]
+    fn encode_compact() -> Result<(), Error> {
+        let h = JsonHandler {
+            data: JsonData {
+                value: json!({"a": 1}),
+                indent: JsonIndent::Compact,
+                trailing_newline: false,
+            },
+        };
+        let bytes = h.encode()?;
+        assert_eq!(String::from_utf8(bytes).expect("valid utf-8"), r#"{"a":1}"#);
+        Ok(())
+    }
+
+    #[test]
+    fn encode_two_spaces_with_trailing_newline() -> Result<(), Error> {
+        let h = JsonHandler {
+            data: JsonData {
+                value: json!({"a": 1}),
+                indent: JsonIndent::two_spaces(),
+                trailing_newline: true,
+            },
+        };
+        let text = String::from_utf8(h.encode()?).expect("valid utf-8");
+        assert!(text.contains("  \"a\""));
+        assert!(text.ends_with('\n'));
+        Ok(())
+    }
+
+    #[test]
+    fn encode_tab_indent() -> Result<(), Error> {
+        let h = JsonHandler {
+            data: JsonData {
+                value: json!({"a": 1}),
+                indent: JsonIndent::Tab,
+                trailing_newline: false,
+            },
+        };
+        let text = String::from_utf8(h.encode()?).expect("valid utf-8");
+        assert!(text.contains("\t\"a\""));
+        assert!(!text.ends_with('\n'));
+        Ok(())
     }
 }

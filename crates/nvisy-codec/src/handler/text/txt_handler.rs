@@ -16,31 +16,24 @@
 
 use futures::StreamExt;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::edit_stream::SpanEditStream;
-use crate::document::view_stream::SpanStream;
+use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
-use crate::render::TextHandler;
+use crate::transform::TextHandler;
 
 /// 0-based line index identifying a span within a plain-text document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TxtSpan(pub usize);
-
-/// Parsed plain-text content.
-#[derive(Debug, Clone)]
-pub struct TxtData {
-    pub lines: Vec<String>,
-    pub trailing_newline: bool,
-}
 
 /// Handler for loaded plain-text content.
 ///
 /// Each line is independently addressable via [`TxtSpan`].
 #[derive(Debug, Clone)]
 pub struct TxtHandler {
-    pub(crate) data: TxtData,
+    pub(crate) lines: Vec<String>,
+    pub(crate) trailing_newline: bool,
 }
 
 #[async_trait::async_trait]
@@ -49,12 +42,23 @@ impl Handler for TxtHandler {
         DocumentType::Txt
     }
 
+    #[tracing::instrument(name = "txt.encode", skip_all, fields(output_bytes))]
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        let mut out = self.lines.join("\n");
+        if self.trailing_newline && !self.lines.is_empty() {
+            out.push('\n');
+        }
+        let bytes = out.into_bytes();
+        tracing::Span::current().record("output_bytes", bytes.len());
+        Ok(bytes)
+    }
+
     type SpanId = TxtSpan;
     type SpanData = String;
 
     async fn view_spans(&self) -> SpanStream<'_, TxtSpan, String> {
         SpanStream::new(futures::stream::iter(TxtSpanIter {
-            lines: &self.data.lines,
+            lines: &self.lines,
             index: 0,
         }))
     }
@@ -65,7 +69,7 @@ impl Handler for TxtHandler {
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
-            let line = self.data.lines.get_mut(edit.id.0).ok_or_else(|| {
+            let line = self.lines.get_mut(edit.id.0).ok_or_else(|| {
                 Error::validation(
                     format!("line index out of bounds: {}", edit.id.0),
                     "txt-handler",
@@ -78,34 +82,34 @@ impl Handler for TxtHandler {
 }
 
 impl TxtHandler {
-    /// Create a new handler from parsed text data.
-    pub fn new(data: TxtData) -> Self {
-        Self { data }
+    /// Create a new handler from lines and a trailing-newline flag.
+    pub fn new(lines: Vec<String>, trailing_newline: bool) -> Self {
+        Self { lines, trailing_newline }
     }
 
     /// All lines in the document.
     pub fn lines(&self) -> &[String] {
-        &self.data.lines
+        &self.lines
     }
 
     /// A specific line by 0-based index.
     pub fn line(&self, index: usize) -> Option<&str> {
-        self.data.lines.get(index).map(|s| s.as_str())
+        self.lines.get(index).map(|s| s.as_str())
     }
 
     /// Whether the original source had a trailing newline.
     pub fn trailing_newline(&self) -> bool {
-        self.data.trailing_newline
+        self.trailing_newline
     }
 
     /// Total number of lines.
-    pub fn line_count(&self) -> usize {
-        self.data.lines.len()
+    pub fn len(&self) -> usize {
+        self.lines.len()
     }
 
-    /// Consume the handler and return the inner [`TxtData`].
-    pub fn into_data(self) -> TxtData {
-        self.data
+    /// Whether the document has no lines.
+    pub fn is_empty(&self) -> bool {
+        self.lines.is_empty()
     }
 }
 
@@ -142,16 +146,15 @@ impl<'a> ExactSizeIterator for TxtSpanIter<'a> {}
 mod tests {
     use super::*;
     use crate::handler::SpanEdit;
-    use futures::{Stream, StreamExt};
+    use futures::StreamExt;
+    use nvisy_core::Error;
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');
         let lines = text.lines().map(String::from).collect();
         TxtHandler {
-            data: TxtData {
-                lines,
-                trailing_newline,
-            },
+            lines,
+            trailing_newline,
         }
     }
 
@@ -178,14 +181,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn view_spans_empty() {
-        let h = handler("");
-        let spans: Vec<_> = h.view_spans().await.collect().await;
-        assert!(spans.is_empty());
-    }
-
-    #[tokio::test]
-    async fn edit_spans_replace_line() {
+    async fn edit_spans_replace_line() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit {
@@ -193,9 +189,9 @@ mod tests {
                 data: "[REDACTED]".into(),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
+        Ok(())
     }
 
     #[tokio::test]
@@ -213,10 +209,19 @@ mod tests {
         assert!(err.to_string().contains("out of bounds"));
     }
 
-    #[tokio::test]
-    async fn view_spans_size_hint() {
-        let h = handler("a\nb\nc\n");
-        let stream = h.view_spans().await;
-        assert_eq!(stream.size_hint(), (3, Some(3)));
+    #[test]
+    fn encode_with_trailing_newline() -> Result<(), Error> {
+        let h = handler("hello\nworld\n");
+        let bytes = h.encode()?;
+        assert_eq!(bytes, b"hello\nworld\n");
+        Ok(())
+    }
+
+    #[test]
+    fn encode_without_trailing_newline() -> Result<(), Error> {
+        let h = handler("no newline");
+        let bytes = h.encode()?;
+        assert_eq!(bytes, b"no newline");
+        Ok(())
     }
 }

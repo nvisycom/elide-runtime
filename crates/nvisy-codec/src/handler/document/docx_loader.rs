@@ -1,6 +1,6 @@
 //! DOCX loader (stub — awaiting real implementation).
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
@@ -21,11 +21,13 @@ impl Loader for DocxLoader {
     type Handler = DocxHandler;
     type Params = DocxParams;
 
-    async fn load(
+    #[tracing::instrument(name = "docx.decode", skip_all, fields(input_bytes))]
+    async fn decode(
         &self,
         content: &ContentData,
         _params: &Self::Params,
     ) -> Result<Vec<Document<DocxHandler>>, Error> {
+        tracing::Span::current().record("input_bytes", content.to_bytes().len());
         let handler = DocxHandler;
         let doc = Document::new(handler).with_parent(content);
         Ok(vec![doc])

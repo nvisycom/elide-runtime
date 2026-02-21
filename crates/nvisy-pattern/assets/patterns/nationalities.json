@@ -1,0 +1,7 @@
+{
+  "name": "nationalities",
+  "category": "pii",
+  "entity_type": "demographic",
+  "dictionary": "nationalities",
+  "confidence": 0.85
+}

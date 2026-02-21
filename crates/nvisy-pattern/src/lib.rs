@@ -2,10 +2,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-/// Built-in regex pattern definitions and validation helpers.
-pub mod patterns;
-/// Built-in dictionary data for name and term matching.
-pub mod dictionaries;
+pub(crate) mod patterns;
+pub(crate) mod dictionaries;
+pub(crate) mod validators;
+mod engine;
 
-#[doc(hidden)]
+pub use engine::{
+    PatternEngine, PatternEngineBuilder, PatternEngineError, PatternMatch, DetectionSource,
+    default_engine,
+};
+
 pub mod prelude;

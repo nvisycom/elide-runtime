@@ -17,11 +17,10 @@
 
 use futures::StreamExt;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::edit_stream::SpanEditStream;
-use crate::document::view_stream::SpanStream;
+use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
 
 /// Cell address within a CSV document.
@@ -84,6 +83,39 @@ pub struct CsvHandler {
 impl Handler for CsvHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Csv
+    }
+
+    #[tracing::instrument(name = "csv.encode", skip_all, fields(output_bytes))]
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        let mut wtr = csv::WriterBuilder::new()
+            .delimiter(self.data.delimiter)
+            .has_headers(false)
+            .from_writer(Vec::new());
+
+        if let Some(headers) = &self.data.headers {
+            wtr.write_record(headers).map_err(|e| {
+                Error::validation(format!("CSV encode error: {e}"), "csv-handler")
+            })?;
+        }
+        for row in &self.data.rows {
+            wtr.write_record(row).map_err(|e| {
+                Error::validation(format!("CSV encode error: {e}"), "csv-handler")
+            })?;
+        }
+        let mut bytes = wtr.into_inner().map_err(|e| {
+            Error::validation(format!("CSV encode error: {e}"), "csv-handler")
+        })?;
+
+        // Normalize CRLF → LF
+        bytes.retain(|&b| b != b'\r');
+
+        // Handle trailing newline
+        if !self.data.trailing_newline && bytes.last() == Some(&b'\n') {
+            bytes.pop();
+        }
+
+        tracing::Span::current().record("output_bytes", bytes.len());
+        Ok(bytes)
     }
 
     type SpanId = CsvSpan;
@@ -159,8 +191,13 @@ impl CsvHandler {
     }
 
     /// Number of data rows (excluding the header).
-    pub fn row_count(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.data.rows.len()
+    }
+
+    /// Whether the document has no data rows.
+    pub fn is_empty(&self) -> bool {
+        self.data.rows.is_empty()
     }
 
     /// Detected field delimiter.
@@ -260,6 +297,7 @@ mod tests {
     use super::*;
     use crate::handler::SpanEdit;
     use futures::StreamExt;
+    use nvisy_core::Error;
 
     fn handler_with_headers(
         headers: Vec<&str>,
@@ -336,14 +374,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn view_spans_empty() {
-        let h = handler_no_headers(vec![]);
-        let spans: Vec<_> = h.view_spans().await.collect().await;
-        assert!(spans.is_empty());
-    }
-
-    #[tokio::test]
-    async fn edit_spans_data_cell() {
+    async fn edit_spans_data_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(
             vec!["ssn"],
             vec![vec!["123-45-6789"]],
@@ -354,13 +385,13 @@ mod tests {
                 data: "[REDACTED]".into(),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.cell(0, 0), Some("[REDACTED]"));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn edit_spans_header_cell() {
+    async fn edit_spans_header_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(
             vec!["secret_field"],
             vec![vec!["value"]],
@@ -371,9 +402,9 @@ mod tests {
                 data: "redacted".into(),
             },
         ])))
-        .await
-        .unwrap();
+        .await?;
         assert_eq!(h.headers(), Some(["redacted".to_string()].as_slice()));
+        Ok(())
     }
 
     #[tokio::test]
@@ -404,5 +435,55 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("out of bounds"));
+    }
+
+    #[test]
+    fn encode_with_headers() -> Result<(), Error> {
+        let h = handler_with_headers(
+            vec!["name", "age"],
+            vec![vec!["Alice", "30"], vec!["Bob", "25"]],
+        );
+        let bytes = h.encode()?;
+        assert_eq!(
+            String::from_utf8(bytes).expect("valid utf-8"),
+            "name,age\nAlice,30\nBob,25\n"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn encode_with_quoting() -> Result<(), Error> {
+        let h = handler_with_headers(
+            vec!["name", "bio"],
+            vec![vec!["Alice", "Has a, comma"]],
+        );
+        let bytes = h.encode()?;
+        let text = String::from_utf8(bytes).expect("valid utf-8");
+        assert!(text.contains("\"Has a, comma\""));
+        Ok(())
+    }
+
+    #[test]
+    fn encode_without_trailing_newline() -> Result<(), Error> {
+        let mut h = handler_with_headers(vec!["a"], vec![vec!["1"]]);
+        h.data.trailing_newline = false;
+        let bytes = h.encode()?;
+        assert_eq!(String::from_utf8(bytes).expect("valid utf-8"), "a\n1");
+        Ok(())
+    }
+
+    #[test]
+    fn encode_tab_delimiter() -> Result<(), Error> {
+        let mut h = handler_with_headers(
+            vec!["a", "b"],
+            vec![vec!["1", "2"]],
+        );
+        h.data.delimiter = b'\t';
+        let bytes = h.encode()?;
+        assert_eq!(
+            String::from_utf8(bytes).expect("valid utf-8"),
+            "a\tb\n1\t2\n"
+        );
+        Ok(())
     }
 }

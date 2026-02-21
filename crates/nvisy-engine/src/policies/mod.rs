@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 use tokio::time;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 pub mod retry;
 
 use crate::policies::retry::{BackoffStrategy, RetryPolicy};

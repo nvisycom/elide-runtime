@@ -2,11 +2,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-pub mod entity;
-pub mod error;
+pub mod data;
 pub mod fs;
 pub mod io;
 pub mod math;
 pub mod path;
+
+mod error;
+pub use error::{Error, ErrorKind, Result};
+
 #[doc(hidden)]
 pub mod prelude;

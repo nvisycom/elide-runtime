@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 
 use futures::Stream;
 
-use crate::handler::span::SpanEdit;
+use crate::handler::SpanEdit;
 
 /// Async stream of edits consumed by [`Handler::edit_spans`].
 ///

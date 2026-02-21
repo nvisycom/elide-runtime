@@ -8,12 +8,12 @@ use std::future::Future;
 
 use uuid::Uuid;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::ContentHandler;
-use nvisy_pipeline::ontology::audit::Audit;
-use nvisy_pipeline::ontology::redaction::RedactionSummary;
-use nvisy_pipeline::ontology::detection::{ClassificationResult, DetectionResult};
-use nvisy_pipeline::ontology::policy::{Policies, PolicyEvaluation};
+use nvisy_detection::DetectionResult;
+use nvisy_redaction::{
+    Audit, Policies, PolicyEvaluation, RedactionSummary,
+};
 
 use crate::compiler::graph::Graph;
 use crate::connections::Connections;
@@ -45,8 +45,6 @@ pub struct EngineOutput {
     pub output: ContentHandler,
     /// Full detection result (entities, sensitivity, risk).
     pub detection: DetectionResult,
-    /// Sensitivity classification.
-    pub classification: ClassificationResult,
     /// Policy evaluation breakdown (redactions, reviews, suppressions, blocks, alerts).
     pub evaluation: PolicyEvaluation,
     /// Per-source redaction summaries.

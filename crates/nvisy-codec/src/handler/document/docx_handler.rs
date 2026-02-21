@@ -1,10 +1,9 @@
 //! DOCX handler (stub — awaiting migration to Loader/Handler pattern).
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::edit_stream::SpanEditStream;
-use crate::document::view_stream::SpanStream;
+use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::Handler;
 
 #[derive(Debug)]
@@ -14,6 +13,14 @@ pub struct DocxHandler;
 impl Handler for DocxHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Docx
+    }
+
+    #[tracing::instrument(name = "docx.encode", skip_all)]
+    fn encode(&self) -> Result<Vec<u8>, Error> {
+        Err(Error::validation(
+            "encode not supported for DOCX",
+            "docx-handler",
+        ))
     }
 
     type SpanId = ();

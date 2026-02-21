@@ -1,0 +1,7 @@
+{
+  "name": "currencies",
+  "category": "financial",
+  "entity_type": "amount",
+  "dictionary": "currencies",
+  "confidence": 0.85
+}

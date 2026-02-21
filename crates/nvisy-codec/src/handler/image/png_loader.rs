@@ -1,9 +1,7 @@
 //! PNG loader — validates and decodes raw PNG bytes into a
 //! [`Document<PngHandler>`].
 
-use image::DynamicImage;
-
-use nvisy_core::error::{Error, ErrorKind};
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
@@ -24,15 +22,16 @@ impl Loader for PngLoader {
     type Handler = PngHandler;
     type Params = PngParams;
 
-    async fn load(
+    #[tracing::instrument(name = "png.decode", skip_all, fields(input_bytes, width, height))]
+    async fn decode(
         &self,
         content: &ContentData,
         _params: &Self::Params,
     ) -> Result<Vec<Document<PngHandler>>, Error> {
-        let raw = content.to_bytes();
-        let image: DynamicImage = image::load_from_memory(&raw)
-            .map_err(|e| Error::new(ErrorKind::Runtime, format!("PNG decode failed: {e}")))?;
-
+        tracing::Span::current().record("input_bytes", content.to_bytes().len());
+        let image = super::decode_image(content, "png-loader")?;
+        tracing::Span::current().record("width", image.width());
+        tracing::Span::current().record("height", image.height());
         let handler = PngHandler::new(image);
         let doc = Document::new(handler).with_parent(content);
         Ok(vec![doc])

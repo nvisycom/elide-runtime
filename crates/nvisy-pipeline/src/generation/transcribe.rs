@@ -6,7 +6,7 @@ use serde::Deserialize;
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{WavHandler, TxtHandler};
 use crate::ontology::Entity;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 fn default_language() -> String {
     "en".into()

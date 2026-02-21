@@ -8,7 +8,7 @@ use std::future::Future;
 
 use uuid::Uuid;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::ContentHandler;
 use nvisy_pipeline::ontology::DetectionResult;
 use nvisy_pipeline::redaction::{

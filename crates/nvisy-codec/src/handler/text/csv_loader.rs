@@ -4,7 +4,7 @@
 //! The loader auto-detects the field delimiter (comma, tab, semicolon,
 //! pipe) by inspecting the first line.
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
@@ -149,7 +149,7 @@ mod tests {
     use futures::StreamExt;
     use nvisy_core::path::ContentSource;
     use nvisy_core::fs::DocumentType;
-    use nvisy_core::error::Error;
+    use nvisy_core::Error;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

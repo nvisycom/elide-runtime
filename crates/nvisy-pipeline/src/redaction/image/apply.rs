@@ -10,7 +10,7 @@ use crate::ontology::Entity;
 use crate::redaction::record::Redaction;
 use crate::redaction::spec::RedactionSpec;
 use crate::redaction::image::spec::ImageRedactionSpec;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 /// Convert a `RedactionSpec::Image` into a codec [`ImageRedactionOutput`].
 pub(crate) fn image_output_from_spec(spec: &RedactionSpec) -> Option<ImageRedactionOutput> {

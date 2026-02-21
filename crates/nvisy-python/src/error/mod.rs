@@ -1,6 +1,6 @@
 //! Conversion utilities from Python errors to [`Error`].
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use pyo3::PyErr;
 use pyo3::types::PyTracebackMethods;
 

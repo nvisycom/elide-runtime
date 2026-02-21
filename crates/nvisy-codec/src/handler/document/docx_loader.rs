@@ -1,6 +1,6 @@
 //! DOCX loader (stub — awaiting real implementation).
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;

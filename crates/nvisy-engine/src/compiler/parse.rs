@@ -4,7 +4,7 @@
 //! structural invariants (non-empty, unique IDs, valid edge references).
 
 use crate::compiler::graph::Graph;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 /// Parses and validates a [`Graph`] from a JSON value.
 ///

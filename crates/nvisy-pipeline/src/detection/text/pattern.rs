@@ -8,7 +8,7 @@ use regex::Regex;
 use serde::Deserialize;
 
 use nvisy_codec::handler::{Span, TxtSpan};
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::path::ContentSource;
 use nvisy_pattern::patterns::{self, MatchSource, Pattern};
 use nvisy_pattern::validators::ValidatorResolver;

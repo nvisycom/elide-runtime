@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use nvisy_codec::handler::{CsvSpan, Span, TxtSpan};
 use nvisy_core::data::EntityCategory;
-use nvisy_core::error::{Error, ErrorKind};
+use nvisy_core::{Error, ErrorKind};
 use nvisy_core::path::ContentSource;
 use nvisy_pattern::dictionaries;
 

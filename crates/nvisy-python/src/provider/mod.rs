@@ -5,7 +5,7 @@
 
 use serde::Deserialize;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_pipeline::provider::Provider;
 use crate::bridge::PythonBridge;
 

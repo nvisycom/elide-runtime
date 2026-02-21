@@ -7,7 +7,7 @@
 
 use std::num::NonZeroU32;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
@@ -98,7 +98,7 @@ mod tests {
     use bytes::Bytes;
     use nvisy_core::path::ContentSource;
     use nvisy_core::fs::DocumentType;
-    use nvisy_core::error::Error;
+    use nvisy_core::Error;
     use serde_json::json;
 
     fn content_from_str(s: &str) -> ContentData {

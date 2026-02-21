@@ -24,7 +24,7 @@ use std::num::NonZeroU32;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
 use crate::document::{SpanEditStream, SpanStream};
@@ -434,7 +434,7 @@ mod tests {
     use super::*;
     use crate::handler::SpanEdit;
     use futures::StreamExt;
-    use nvisy_core::error::Error;
+    use nvisy_core::Error;
     use serde_json::json;
 
     fn handler(value: serde_json::Value) -> JsonHandler {

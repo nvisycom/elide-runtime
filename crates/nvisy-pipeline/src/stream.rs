@@ -9,7 +9,7 @@
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 /// A source stream that reads content from an external system into the pipeline.

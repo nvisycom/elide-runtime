@@ -1,5 +1,9 @@
 //! Object storage provider factories.
 
-pub mod azure;
-pub mod gcs;
-pub mod s3;
+mod azure;
+mod gcs;
+mod s3;
+
+pub use azure::{AzureCredentials, AzureProvider};
+pub use gcs::{GcsCredentials, GcsProvider};
+pub use s3::{S3Credentials, S3Provider};

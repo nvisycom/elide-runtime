@@ -1,7 +1,7 @@
 //! Lightweight handle to a Python module loaded via PyO3.
 
 use pyo3::prelude::*;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use crate::error::from_pyerr;
 
 /// Lightweight handle to a Python NER module.

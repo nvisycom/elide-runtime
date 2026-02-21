@@ -10,7 +10,7 @@ use crate::ontology::Entity;
 use crate::redaction::record::Redaction;
 use crate::redaction::spec::RedactionSpec;
 use crate::redaction::text::spec::TextRedactionSpec;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 /// Convert a `RedactionSpec::Text` + replacement string into a codec
 /// [`TextRedactionOutput`].

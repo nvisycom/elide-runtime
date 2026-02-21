@@ -5,7 +5,7 @@ use std::pin::Pin;
 
 use serde::de::DeserializeOwned;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 /// Factory for creating authenticated connections to an external service.
 ///

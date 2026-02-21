@@ -13,7 +13,7 @@ pub use jpeg_handler::JpegHandler;
 pub use jpeg_loader::{JpegLoader, JpegParams};
 
 use image::DynamicImage;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 /// Decode raw bytes into a [`DynamicImage`].
@@ -36,12 +36,12 @@ macro_rules! impl_image_handler {
             }
 
             #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
-            fn encode(&self) -> Result<Vec<u8>, nvisy_core::error::Error> {
+            fn encode(&self) -> Result<Vec<u8>, nvisy_core::Error> {
                 let mut buf = std::io::Cursor::new(Vec::new());
                 self.image
                     .write_to(&mut buf, $fmt)
                     .map_err(|e| {
-                        nvisy_core::error::Error::validation(
+                        nvisy_core::Error::validation(
                             format!("encode failed: {e}"),
                             $origin,
                         )
@@ -68,7 +68,7 @@ macro_rules! impl_image_handler {
             async fn edit_spans(
                 &mut self,
                 edits: crate::document::SpanEditStream<'_, (), image::DynamicImage>,
-            ) -> Result<(), nvisy_core::error::Error> {
+            ) -> Result<(), nvisy_core::Error> {
                 use futures::StreamExt;
                 let edits: Vec<_> = edits.collect().await;
                 if let Some(edit) = edits.into_iter().next() {

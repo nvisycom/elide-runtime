@@ -9,7 +9,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 use uuid::Uuid;
 use nvisy_core::io::ContentData;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use crate::compiler::plan::ExecutionPlan;
 use crate::connections::Connections;
 use crate::executor::context::CHANNEL_BUFFER_SIZE;

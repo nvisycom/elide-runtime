@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 
 use nvisy_codec::handler::{Span, TxtSpan};
 use nvisy_core::data::EntityCategory;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::path::ContentSource;
 
 use crate::ontology::{DetectionMethod, Entity, TextLocation};

@@ -1,41 +1,17 @@
-//! Error types for object store operations.
+//! Conversion from [`object_store::Error`] to [`nvisy_core::Error`].
 
-/// Errors produced by [`ObjectStoreClient`] and provider factories.
-///
-/// [`ObjectStoreClient`]: crate::client::ObjectStoreClient
-#[derive(Debug, thiserror::Error)]
-pub enum ObjectStoreError {
-    /// Failure from the underlying [`object_store`] backend.
-    #[error(transparent)]
-    Store(#[from] object_store::Error),
+use nvisy_core::Error;
 
-    /// Provider failed to build a client from credentials.
-    #[error("provider `{provider}`: {message}")]
-    Connect {
-        provider: &'static str,
-        message: String,
-    },
-}
-
-impl ObjectStoreError {
-    /// Create a connection error for the given provider.
-    pub fn connect(provider: &'static str, err: impl std::fmt::Display) -> Self {
-        Self::Connect {
-            provider,
-            message: err.to_string(),
-        }
-    }
-}
-
-impl From<ObjectStoreError> for nvisy_core::error::Error {
-    fn from(err: ObjectStoreError) -> Self {
-        match &err {
-            ObjectStoreError::Store(_) => {
-                nvisy_core::error::Error::runtime(err.to_string(), "object-store", true)
-            }
-            ObjectStoreError::Connect { provider, .. } => {
-                nvisy_core::error::Error::connection(err.to_string(), *provider, true)
-            }
-        }
-    }
+/// Convert an [`object_store::Error`] into a [`nvisy_core::Error`].
+pub(crate) fn from_object_store(err: object_store::Error) -> Error {
+    let retryable = !matches!(
+        err,
+        object_store::Error::NotFound { .. }
+            | object_store::Error::PermissionDenied { .. }
+            | object_store::Error::Unauthenticated { .. }
+            | object_store::Error::AlreadyExists { .. }
+            | object_store::Error::Precondition { .. }
+    );
+    Error::runtime(err.to_string(), "object-store", retryable)
+        .with_source(err)
 }

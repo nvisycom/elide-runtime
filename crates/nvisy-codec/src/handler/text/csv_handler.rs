@@ -17,7 +17,7 @@
 
 use futures::StreamExt;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
 use crate::document::{SpanEditStream, SpanStream};
@@ -297,7 +297,7 @@ mod tests {
     use super::*;
     use crate::handler::SpanEdit;
     use futures::StreamExt;
-    use nvisy_core::error::Error;
+    use nvisy_core::Error;
 
     fn handler_with_headers(
         headers: Vec<&str>,

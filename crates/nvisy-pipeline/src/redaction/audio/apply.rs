@@ -7,7 +7,7 @@ use nvisy_codec::handler::WavHandler;
 use nvisy_codec::document::Document;
 use crate::ontology::Entity;
 use crate::redaction::record::Redaction;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 pub(crate) async fn apply_audio_doc(
     doc: &Document<WavHandler>,

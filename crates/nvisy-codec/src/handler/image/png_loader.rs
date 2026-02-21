@@ -1,7 +1,7 @@
 //! PNG loader — validates and decodes raw PNG bytes into a
 //! [`Document<PngHandler>`].
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;

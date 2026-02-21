@@ -1,7 +1,7 @@
 //! JPEG loader — validates and decodes raw JPEG bytes into a
 //! [`Document<JpegHandler>`].
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;

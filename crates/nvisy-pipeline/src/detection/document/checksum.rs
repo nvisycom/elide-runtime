@@ -3,7 +3,7 @@
 use serde::Deserialize;
 
 use crate::ontology::{DetectionMethod, Entity};
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_pattern::validators::{ValidatorFn, luhn_check};
 
 /// Typed parameters for [`DetectChecksumAction`].

@@ -11,7 +11,7 @@ use futures::StreamExt;
 
 use crate::document::SpanEditStream;
 use crate::handler::{Handler, SpanEdit};
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
 
 /// A located image redaction: pairs a bounding box with an

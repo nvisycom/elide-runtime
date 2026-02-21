@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde_json::Value;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use crate::bridge::PythonBridge;
 use crate::error::from_pyerr;
 

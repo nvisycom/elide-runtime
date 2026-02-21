@@ -2073,11 +2073,8 @@ dependencies = [
  "nvisy-pipeline",
  "object_store",
  "serde",
- "serde_json",
- "thiserror",
  "tokio",
  "tracing",
- "uuid",
 ]
 
 [[package]]

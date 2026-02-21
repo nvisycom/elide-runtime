@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::ontology::Entity;
 use crate::redaction::Redaction;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 fn default_locale() -> String {
     "en-US".into()

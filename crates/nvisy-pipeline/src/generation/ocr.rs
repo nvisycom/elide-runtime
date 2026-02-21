@@ -7,7 +7,7 @@ use serde_json::Value;
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{Handler, PngHandler, TxtHandler};
 use nvisy_core::data::EntityCategory;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
 
 use crate::ontology::{DetectionMethod, Entity, ImageLocation};

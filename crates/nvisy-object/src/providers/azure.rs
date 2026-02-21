@@ -3,11 +3,10 @@
 use object_store::azure::MicrosoftAzureBuilder;
 use serde::Deserialize;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_pipeline::provider::Provider;
 
 use crate::client::ObjectStoreClient;
-use crate::error::ObjectStoreError;
 
 /// Typed credentials for Azure Blob Storage.
 #[derive(Debug, Deserialize)]
@@ -38,8 +37,9 @@ impl Provider for AzureProvider {
 
     const ID: &str = "azure";
 
-    async fn verify(_creds: &Self::Credentials) -> Result<(), Error> {
-        Ok(())
+    async fn verify(creds: &Self::Credentials) -> Result<(), Error> {
+        let client = Self::connect(creds).await?;
+        client.verify_reachable().await
     }
 
     async fn connect(creds: &Self::Credentials) -> Result<Self::Client, Error> {
@@ -67,10 +67,9 @@ impl Provider for AzureProvider {
             builder = builder.with_endpoint(endpoint.clone());
         }
 
-        let err =
-            |e| -> Error { ObjectStoreError::connect("azure", e).into() };
-
-        let store = builder.build().map_err(err)?;
+        let store = builder
+            .build()
+            .map_err(|e| Error::connection(e.to_string(), "azure", true))?;
 
         Ok(ObjectStoreClient::new(store))
     }

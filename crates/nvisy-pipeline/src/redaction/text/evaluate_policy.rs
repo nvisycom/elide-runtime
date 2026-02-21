@@ -7,7 +7,7 @@ use crate::redaction::record::Redaction;
 use crate::redaction::rule::PolicyRule;
 use crate::redaction::spec::RedactionSpec;
 use crate::redaction::text::spec::TextRedactionSpec;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 /// Typed parameters for [`EvaluatePolicyAction`].
 #[derive(Debug, Deserialize)]

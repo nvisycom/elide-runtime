@@ -1,6 +1,6 @@
 //! PDF handler (stub — awaiting migration to Loader/Handler pattern).
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
 use crate::document::{SpanEditStream, SpanStream};

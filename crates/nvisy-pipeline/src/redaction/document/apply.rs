@@ -7,7 +7,7 @@ use nvisy_codec::handler::{TxtHandler, CsvHandler, PngHandler, WavHandler};
 use nvisy_codec::document::Document;
 use crate::ontology::Entity;
 use crate::redaction::record::Redaction;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 use crate::redaction::text::apply::apply_text_doc;
 use crate::redaction::image::apply::apply_image_doc;

@@ -16,7 +16,7 @@
 
 use futures::StreamExt;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
 use crate::document::{SpanEditStream, SpanStream};
@@ -187,7 +187,7 @@ impl ExactSizeIterator for HtmlSpanIter<'_> {}
 mod tests {
     use super::*;
     use crate::handler::Handler;
-    use nvisy_core::error::Error;
+    use nvisy_core::Error;
 
     #[test]
     fn encode_unchanged() -> Result<(), Error> {

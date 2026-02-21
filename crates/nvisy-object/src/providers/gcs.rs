@@ -3,11 +3,10 @@
 use object_store::gcp::GoogleCloudStorageBuilder;
 use serde::Deserialize;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_pipeline::provider::Provider;
 
 use crate::client::ObjectStoreClient;
-use crate::error::ObjectStoreError;
 
 /// Typed credentials for Google Cloud Storage.
 #[derive(Debug, Deserialize)]
@@ -33,8 +32,9 @@ impl Provider for GcsProvider {
 
     const ID: &str = "gcs";
 
-    async fn verify(_creds: &Self::Credentials) -> Result<(), Error> {
-        Ok(())
+    async fn verify(creds: &Self::Credentials) -> Result<(), Error> {
+        let client = Self::connect(creds).await?;
+        client.verify_reachable().await
     }
 
     async fn connect(creds: &Self::Credentials) -> Result<Self::Client, Error> {
@@ -49,10 +49,9 @@ impl Provider for GcsProvider {
             builder = builder.with_url(endpoint);
         }
 
-        let err =
-            |e| -> Error { ObjectStoreError::connect("gcs", e).into() };
-
-        let store = builder.build().map_err(err)?;
+        let store = builder
+            .build()
+            .map_err(|e| Error::connection(e.to_string(), "gcs", true))?;
 
         Ok(ObjectStoreClient::new(store))
     }

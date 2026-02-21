@@ -4,7 +4,7 @@
 use serde::de::DeserializeOwned;
 
 use nvisy_codec::handler::Span;
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::path::ContentSource;
 
 use crate::ontology::Entity;

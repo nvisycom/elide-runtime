@@ -5,11 +5,10 @@
 use object_store::aws::AmazonS3Builder;
 use serde::Deserialize;
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_pipeline::provider::Provider;
 
 use crate::client::ObjectStoreClient;
-use crate::error::ObjectStoreError;
 
 /// Typed credentials for S3-compatible provider.
 #[derive(Debug, Deserialize)]
@@ -49,8 +48,9 @@ impl Provider for S3Provider {
 
     const ID: &str = "s3";
 
-    async fn verify(_creds: &Self::Credentials) -> Result<(), Error> {
-        Ok(())
+    async fn verify(creds: &Self::Credentials) -> Result<(), Error> {
+        let client = Self::connect(creds).await?;
+        client.verify_reachable().await
     }
 
     async fn connect(creds: &Self::Credentials) -> Result<Self::Client, Error> {
@@ -77,11 +77,9 @@ impl Provider for S3Provider {
             builder = builder.with_token(token);
         }
 
-        let err = |e| -> nvisy_core::error::Error {
-            ObjectStoreError::connect("s3", e).into()
-        };
-
-        let store = builder.build().map_err(err)?;
+        let store = builder
+            .build()
+            .map_err(|e| Error::connection(e.to_string(), "s3", true))?;
 
         Ok(ObjectStoreClient::new(store))
     }

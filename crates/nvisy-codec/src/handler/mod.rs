@@ -7,7 +7,7 @@
 //! Each handler defines its own span types and exposes them as async
 //! streams via [`Handler::view_spans`] and [`Handler::edit_spans`].
 
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 use nvisy_core::fs::DocumentType;
 

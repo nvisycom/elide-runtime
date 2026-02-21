@@ -17,7 +17,7 @@ use futures::StreamExt;
 
 use crate::document::SpanEditStream;
 use crate::handler::{Handler, SpanEdit};
-use nvisy_core::error::Error;
+use nvisy_core::Error;
 
 /// A located text redaction: pairs a span identifier and intra-span byte
 /// range with a [`TextRedactionOutput`] that carries the replacement.
@@ -130,7 +130,7 @@ mod tests {
     use super::*;
     use crate::handler::{Handler, TxtHandler, TxtSpan};
     use futures::StreamExt;
-    use nvisy_core::error::Error;
+    use nvisy_core::Error;
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');

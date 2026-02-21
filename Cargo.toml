@@ -8,7 +8,9 @@ members = [
     "./crates/nvisy-codec",
     "./crates/nvisy-object",
     "./crates/nvisy-pattern",
-    "./crates/nvisy-pipeline",
+    "./crates/nvisy-detection",
+    "./crates/nvisy-redaction",
+    "./crates/nvisy-generation",
     "./crates/nvisy-python",
 ]
 
@@ -36,7 +38,9 @@ nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
-nvisy-pipeline = { path = "./crates/nvisy-pipeline", version = "0.1.0" }
+nvisy-detection = { path = "./crates/nvisy-detection", version = "0.1.0" }
+nvisy-redaction = { path = "./crates/nvisy-redaction", version = "0.1.0" }
+nvisy-generation = { path = "./crates/nvisy-generation", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
 
 # Async runtime
@@ -81,6 +85,7 @@ infer = { version = "0.19", features = [] }
 
 # Python interop
 pyo3 = { version = "0.24", features = [] }
+pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
 pythonize = { version = "0.24", features = [] }
 
 # Cloud object storage (S3, Azure Blob, GCS)

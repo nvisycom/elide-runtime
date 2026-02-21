@@ -2042,13 +2042,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-detection"
+version = "0.1.0"
+dependencies = [
+ "aho-corasick",
+ "async-trait",
+ "derive_more 1.0.0",
+ "nvisy-codec",
+ "nvisy-core",
+ "nvisy-pattern",
+ "nvisy-python",
+ "regex",
+ "schemars",
+ "serde",
+ "serde_json",
+ "strum",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "nvisy-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "jiff",
  "nvisy-core",
- "nvisy-pipeline",
+ "nvisy-detection",
+ "nvisy-redaction",
  "petgraph",
  "rand 0.10.0",
  "schemars",
@@ -2060,6 +2082,20 @@ dependencies = [
  "tokio-util",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "nvisy-generation"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "nvisy-codec",
+ "nvisy-core",
+ "nvisy-detection",
+ "nvisy-python",
+ "nvisy-redaction",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2091,44 +2127,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-pipeline"
+name = "nvisy-python"
 version = "0.1.0"
 dependencies = [
- "aho-corasick",
- "async-trait",
+ "hipstr",
+ "nvisy-core",
+ "pyo3",
+ "pyo3-async-runtimes",
+ "pythonize",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "nvisy-redaction"
+version = "0.1.0"
+dependencies = [
  "derive_more 1.0.0",
- "futures",
  "jiff",
  "nvisy-codec",
  "nvisy-core",
- "nvisy-object",
- "nvisy-pattern",
- "regex",
+ "nvisy-detection",
  "schemars",
  "semver",
  "serde",
  "serde_json",
  "strum",
- "tokio",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "nvisy-python"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "nvisy-core",
- "nvisy-object",
- "nvisy-pipeline",
- "pyo3",
- "pythonize",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -2485,6 +2511,19 @@ dependencies = [
  "pyo3-ffi",
  "pyo3-macros",
  "unindent",
+]
+
+[[package]]
+name = "pyo3-async-runtimes"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd0b83dc42f9d41f50d38180dad65f0c99763b65a3ff2a81bf351dd35a1df8bf"
+dependencies = [
+ "futures",
+ "once_cell",
+ "pin-project-lite",
+ "pyo3",
+ "tokio",
 ]
 
 [[package]]

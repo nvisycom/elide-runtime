@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use nvisy_core::Error;
 use nvisy_core::fs::ContentHandler;
-use nvisy_pipeline::ontology::DetectionResult;
-use nvisy_pipeline::redaction::{
+use nvisy_detection::DetectionResult;
+use nvisy_redaction::{
     Audit, Policies, PolicyEvaluation, RedactionSummary,
 };
 

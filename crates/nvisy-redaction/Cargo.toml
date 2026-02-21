@@ -1,10 +1,10 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "nvisy-engine"
-description = "DAG compiler and executor for Nvisy pipeline graphs"
-keywords = ["nvisy", "engine", "dag", "pipeline"]
-categories = ["concurrency"]
+name = "nvisy-redaction"
+description = "Redaction types, policy evaluation, and application for Nvisy"
+keywords = ["nvisy", "redaction", "policy", "privacy"]
+categories = ["text-processing"]
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -25,35 +25,29 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-detection = { workspace = true, features = [] }
-nvisy-redaction = { workspace = true, features = [] }
-
-# JSON Schema generation
-schemars = { workspace = true, features = [] }
-
-# Semantic versioning
-semver = { workspace = true, features = [] }
+nvisy-codec = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 
-# Async runtime
-tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
-tokio-util = { workspace = true, features = [] }
-
 # Primitive datatypes
 uuid = { workspace = true, features = ["v4"] }
+
+# Time
 jiff = { workspace = true, features = [] }
 
-# Graph data structures
-petgraph = { workspace = true, features = [] }
+# Semantic versioning
+semver = { workspace = true, features = [] }
 
-# Error handling
-thiserror = { workspace = true, features = [] }
-anyhow = { workspace = true, features = [] }
+# Derive macros
+derive_more = { workspace = true, features = ["from"] }
 
-# Randomness
-rand = { workspace = true, features = [] }
+# Enum utilities
+strum = { workspace = true, features = ["derive"] }
+
+# JSON Schema generation
+schemars = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

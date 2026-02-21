@@ -1,50 +1,6 @@
-//! Cloud object storage providers and streams for Nvisy.
-//!
-//! This crate wraps [`object_store`] to provide a unified
-//! [`ObjectStoreClient`] with observability and streaming adapters
-//! for the Nvisy pipeline.
-//!
-//! # Provider trait
-//!
-//! The [`Provider`](providers::Provider) trait is a factory for creating
-//! authenticated connections to any external service (S3, Azure, GCS, AI, etc.).
-//!
-//! # Providers
-//!
-//! Each cloud backend has a dedicated provider that implements
-//! [`Provider`](providers::Provider):
-//!
-//! - [`S3Provider`] — AWS S3, MinIO, and S3-compatible services
-//! - [`AzureProvider`] — Azure Blob Storage
-//! - [`GcsProvider`] — Google Cloud Storage
-//!
-//! # Client
-//!
-//! [`ObjectStoreClient`] is a thin, cloneable wrapper around
-//! `Arc<dyn ObjectStore>` that adds:
-//!
-//! - Richer return types ([`GetResult`], [`PutResult`]) preserving metadata
-//! - Conditional writes via [`put_opts`](client::ObjectStoreClient::put_opts)
-//! - `head`, `copy`, and lazy `list_stream` operations
-//! - `#[tracing::instrument]` on every public method
-//!
-//! # Streams
-//!
-//! [`ObjectReadStream`] and [`ObjectWriteStream`] implement
-//! [`StreamSource`](streams::StreamSource) and
-//! [`StreamTarget`](streams::StreamTarget) for pipeline integration.
-//!
-//! [`ObjectStoreClient`]: client::ObjectStoreClient
-//! [`GetResult`]: client::GetResult
-//! [`PutResult`]: client::PutResult
-//! [`S3Provider`]: providers::S3Provider
-//! [`AzureProvider`]: providers::AzureProvider
-//! [`GcsProvider`]: providers::GcsProvider
-//! [`ObjectReadStream`]: streams::ObjectReadStream
-//! [`ObjectWriteStream`]: streams::ObjectWriteStream
-
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![doc = include_str!("../README.md")]
 
 pub mod client;
 /// Provider trait and object storage provider factories.

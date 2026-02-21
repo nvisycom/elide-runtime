@@ -6,7 +6,7 @@
 use serde::Deserialize;
 
 use nvisy_core::Error;
-use nvisy_pipeline::provider::Provider;
+use nvisy_object::providers::Provider;
 use crate::bridge::PythonBridge;
 
 /// Typed credentials for the AI provider.

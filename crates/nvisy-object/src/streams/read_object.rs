@@ -8,7 +8,7 @@ use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
-use nvisy_pipeline::stream::StreamSource;
+use super::StreamSource;
 
 use crate::client::ObjectStoreClient;
 
@@ -122,18 +122,18 @@ mod tests {
     async fn read_max_size_filter() {
         let client = test_client();
         client
-            .put("small.bin", Bytes::from("hi"), None)
+            .put("filter/small.bin", Bytes::from("hi"), None)
             .await
             .unwrap();
         client
-            .put("big.bin", Bytes::from("this is a much bigger payload"), None)
+            .put("filter/big.bin", Bytes::from("this is a much bigger payload"), None)
             .await
             .unwrap();
 
         let (tx, mut rx) = mpsc::channel(16);
         let stream = ObjectReadStream;
         let params = ObjectReadParams {
-            prefix: String::new(),
+            prefix: "filter/".to_string(),
             max_size: Some(10),
         };
 

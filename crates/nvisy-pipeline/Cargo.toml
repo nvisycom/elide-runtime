@@ -25,6 +25,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
+nvisy-object = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 
 # (De)serialization

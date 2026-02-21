@@ -15,8 +15,6 @@ use object_store::{ObjectMeta, ObjectStore, PutMode, PutOptions, PutPayload};
 
 use nvisy_core::Error;
 
-use crate::error::from_object_store;
-
 mod get_result;
 mod put_result;
 
@@ -59,21 +57,30 @@ impl ObjectStoreClient {
         &self,
         prefix: &str,
     ) -> Result<Vec<ObjectMeta>, Error> {
-        let path = Path::from(prefix);
+        let prefix = if prefix.is_empty() {
+            None
+        } else {
+            Some(Path::from(prefix))
+        };
         self.0
-            .list(Some(&path))
+            .list(prefix.as_ref())
             .try_collect()
             .await
             .map_err(from_object_store)
     }
 
     /// Lazily stream object metadata under `prefix`.
+    #[tracing::instrument(name = "object.list_stream", skip(self), fields(prefix))]
     pub fn list_stream(
         &self,
         prefix: &str,
     ) -> BoxStream<'_, Result<ObjectMeta, Error>> {
-        let path = Path::from(prefix);
-        Box::pin(self.0.list(Some(&path)).map_err(from_object_store))
+        let prefix = if prefix.is_empty() {
+            None
+        } else {
+            Some(Path::from(prefix))
+        };
+        Box::pin(self.0.list(prefix.as_ref()).map_err(from_object_store))
     }
 
     /// Retrieve the raw bytes, content-type, and metadata stored at `key`.
@@ -95,7 +102,6 @@ impl ObjectStoreClient {
     }
 
     /// Upload `data` to `key`, optionally setting the content-type.
-    #[tracing::instrument(name = "object.put", skip(self, data), fields(key, size = data.len()))]
     pub async fn put(
         &self,
         key: &str,
@@ -155,6 +161,20 @@ impl ObjectStoreClient {
         let to = Path::from(dst);
         self.0.copy(&from, &to).await.map_err(from_object_store)
     }
+}
+
+/// Convert an [`object_store::Error`] into a [`nvisy_core::Error`].
+fn from_object_store(err: object_store::Error) -> Error {
+    let retryable = !matches!(
+        err,
+        object_store::Error::NotFound { .. }
+            | object_store::Error::PermissionDenied { .. }
+            | object_store::Error::Unauthenticated { .. }
+            | object_store::Error::AlreadyExists { .. }
+            | object_store::Error::Precondition { .. }
+    );
+    Error::runtime(err.to_string(), "object-store", retryable)
+        .with_source(err)
 }
 
 #[cfg(test)]

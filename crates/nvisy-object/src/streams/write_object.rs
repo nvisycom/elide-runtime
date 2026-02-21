@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
-use nvisy_pipeline::stream::StreamTarget;
+use super::StreamTarget;
 
 use crate::client::ObjectStoreClient;
 
@@ -53,15 +53,14 @@ impl StreamTarget for ObjectWriteStream {
                 format!("{prefix}{source_id}")
             };
 
-            if params.create_only {
-                client
-                    .put_opts(&key, content.to_bytes(), PutMode::Create, content.content_type())
-                    .await?;
+            let mode = if params.create_only {
+                PutMode::Create
             } else {
-                client
-                    .put(&key, content.to_bytes(), content.content_type())
-                    .await?;
-            }
+                PutMode::Overwrite
+            };
+            client
+                .put_opts(&key, content.to_bytes(), mode, content.content_type())
+                .await?;
 
             total += 1;
         }

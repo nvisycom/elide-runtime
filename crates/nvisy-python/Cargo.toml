@@ -24,6 +24,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
+nvisy-object = { workspace = true, features = [] }
 nvisy-pipeline = { workspace = true, features = [] }
 
 # (De)serialization

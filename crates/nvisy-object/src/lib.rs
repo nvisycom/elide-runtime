@@ -4,10 +4,15 @@
 //! [`ObjectStoreClient`] with observability and streaming adapters
 //! for the Nvisy pipeline.
 //!
+//! # Provider trait
+//!
+//! The [`Provider`](providers::Provider) trait is a factory for creating
+//! authenticated connections to any external service (S3, Azure, GCS, AI, etc.).
+//!
 //! # Providers
 //!
 //! Each cloud backend has a dedicated provider that implements
-//! [`Provider`](nvisy_pipeline::provider::Provider):
+//! [`Provider`](providers::Provider):
 //!
 //! - [`S3Provider`] — AWS S3, MinIO, and S3-compatible services
 //! - [`AzureProvider`] — Azure Blob Storage
@@ -26,8 +31,8 @@
 //! # Streams
 //!
 //! [`ObjectReadStream`] and [`ObjectWriteStream`] implement
-//! [`StreamSource`](nvisy_pipeline::stream::StreamSource) and
-//! [`StreamTarget`](nvisy_pipeline::stream::StreamTarget) for pipeline integration.
+//! [`StreamSource`](streams::StreamSource) and
+//! [`StreamTarget`](streams::StreamTarget) for pipeline integration.
 //!
 //! [`ObjectStoreClient`]: client::ObjectStoreClient
 //! [`GetResult`]: client::GetResult
@@ -41,10 +46,10 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-mod error;
-
 pub mod client;
+/// Provider trait and object storage provider factories.
 pub mod providers;
+/// Streaming traits and object store adapters.
 pub mod streams;
 
 #[doc(hidden)]

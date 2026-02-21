@@ -4,7 +4,7 @@ use object_store::azure::MicrosoftAzureBuilder;
 use serde::Deserialize;
 
 use nvisy_core::Error;
-use nvisy_pipeline::provider::Provider;
+use super::Provider;
 
 use crate::client::ObjectStoreClient;
 

@@ -51,11 +51,11 @@ impl DetectChecksumAction {
         let mut result = Vec::new();
 
         for entity in entities {
-            match engine.validate_checksum(&entity.entity_type, &entity.value) {
+            match engine.validate_checksum(entity.entity_kind, &entity.value) {
                 Some(true) => {
                     let mut boosted = Entity::new(
                         entity.category.clone(),
-                        &entity.entity_type,
+                        entity.entity_kind,
                         &entity.value,
                         DetectionMethod::Checksum,
                         (entity.confidence + confidence_boost).min(1.0),

@@ -10,7 +10,7 @@ use regex::Regex;
 use serde::Deserialize;
 
 use nvisy_codec::handler::{CsvSpan, Span};
-use nvisy_core::data::EntityCategory;
+use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::{Error, ErrorKind};
 use nvisy_core::path::ContentSource;
 
@@ -25,8 +25,9 @@ pub struct ColumnRule {
     pub column_name_pattern: String,
     /// Entity category for matches in the column.
     pub category: EntityCategory,
-    /// Entity type label for matches.
-    pub entity_type: String,
+    /// Entity kind for matches.
+    #[serde(rename = "entityType")]
+    pub entity_kind: EntityKind,
 }
 
 /// Typed parameters for [`TabularDetection`].
@@ -111,7 +112,7 @@ impl Detect<CsvSpan, String> for TabularDetection {
             if let Some(rule) = matched_columns.get(&span.id.col) {
                 let entity = Entity::new(
                     rule.category.clone(),
-                    &rule.entity_type,
+                    rule.entity_kind,
                     span.data.as_str(),
                     DetectionMethod::Composite,
                     0.9,

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use nvisy_core::data::EntityCategory;
+use nvisy_core::data::{EntityCategory, EntityKind};
 
 use super::location::{
     AudioLocation, ImageLocation, TabularLocation, TextLocation, VideoLocation,
@@ -55,9 +55,9 @@ pub struct Annotation {
     /// Entity category, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<EntityCategory>,
-    /// Entity type label, if applicable.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_type: Option<String>,
+    /// Entity kind, if applicable.
+    #[serde(rename = "entity_type", skip_serializing_if = "Option::is_none")]
+    pub entity_kind: Option<EntityKind>,
     /// The annotated text or value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,

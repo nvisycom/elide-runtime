@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use nvisy_core::data::EntityCategory;
+use nvisy_core::data::{EntityCategory, EntityKind};
 
 /// Criteria for selecting which entities a policy rule applies to.
 ///
@@ -14,9 +14,9 @@ pub struct EntitySelector {
     /// Entity categories this selector matches. Empty means all categories.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<EntityCategory>,
-    /// Specific entity type names this selector matches. Empty means all types.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub entity_types: Vec<String>,
+    /// Specific entity kinds this selector matches. Empty means all kinds.
+    #[serde(rename = "entity_types", default, skip_serializing_if = "Vec::is_empty")]
+    pub entity_kinds: Vec<EntityKind>,
     /// Minimum detection confidence required. Entities below this threshold
     /// are not matched.
     #[serde(default = "default_confidence_threshold")]
@@ -31,7 +31,7 @@ impl Default for EntitySelector {
     fn default() -> Self {
         Self {
             categories: Vec::new(),
-            entity_types: Vec::new(),
+            entity_kinds: Vec::new(),
             confidence_threshold: default_confidence_threshold(),
         }
     }
@@ -44,16 +44,14 @@ impl EntitySelector {
     }
 
     /// Returns `true` if the given entity properties match this selector.
-    pub fn matches(&self, category: &EntityCategory, entity_type: &str, confidence: f64) -> bool {
+    pub fn matches(&self, category: &EntityCategory, entity_kind: EntityKind, confidence: f64) -> bool {
         if confidence < self.confidence_threshold {
             return false;
         }
         if !self.categories.is_empty() && !self.categories.contains(category) {
             return false;
         }
-        if !self.entity_types.is_empty()
-            && !self.entity_types.iter().any(|t| t == entity_type)
-        {
+        if !self.entity_kinds.is_empty() && !self.entity_kinds.contains(&entity_kind) {
             return false;
         }
         true

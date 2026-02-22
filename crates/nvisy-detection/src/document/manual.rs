@@ -35,15 +35,15 @@ impl DetectManualAction {
                 Some(c) => c.clone(),
                 None => continue,
             };
-            let entity_type = match &ann.entity_type {
-                Some(t) => t.clone(),
+            let entity_kind = match ann.entity_kind {
+                Some(ek) => ek,
                 None => continue,
             };
             let value = ann.value.clone().unwrap_or_default();
 
             let mut entity = Entity::new(
                 category,
-                entity_type,
+                entity_kind,
                 value,
                 DetectionMethod::Manual,
                 1.0,

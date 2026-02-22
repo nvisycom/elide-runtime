@@ -6,7 +6,7 @@ use serde_json::Value;
 
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{Handler, PngHandler, TxtHandler};
-use nvisy_core::data::EntityCategory;
+use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
 
@@ -163,7 +163,7 @@ pub fn parse_ocr_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
 
         let entity = Entity::new(
             EntityCategory::Pii,
-            "ocr_text",
+            EntityKind::Handwriting,
             text,
             DetectionMethod::Ocr,
             confidence,

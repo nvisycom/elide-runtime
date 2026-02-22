@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use nvisy_core::data::EntityCategory;
+use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::path::ContentSource;
 
 use super::location::{
@@ -52,8 +52,9 @@ pub struct Entity {
     pub source: ContentSource,
     /// Broad classification of the sensitive data.
     pub category: EntityCategory,
-    /// Specific type label (e.g. `"ssn"`, `"email"`, `"credit_card"`).
-    pub entity_type: String,
+    /// Specific entity kind (e.g. `GovernmentId`, `EmailAddress`, `PaymentCard`).
+    #[serde(rename = "entity_type")]
+    pub entity_kind: EntityKind,
     /// The matched text or value.
     pub value: String,
     /// How this entity was detected.
@@ -90,7 +91,7 @@ impl Entity {
     /// Create a new entity with the given detection details.
     pub fn new(
         category: EntityCategory,
-        entity_type: impl Into<String>,
+        entity_kind: EntityKind,
         value: impl Into<String>,
         detection_method: DetectionMethod,
         confidence: f64,
@@ -98,7 +99,7 @@ impl Entity {
         Self {
             source: ContentSource::new(),
             category,
-            entity_type: entity_type.into(),
+            entity_kind,
             value: value.into(),
             detection_method,
             confidence,

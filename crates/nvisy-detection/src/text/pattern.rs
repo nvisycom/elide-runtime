@@ -69,7 +69,7 @@ impl Detect<TxtSpan, String> for PatternDetection {
 
                 let entity = Entity::new(
                     m.category,
-                    m.entity_kind.to_string(),
+                    m.entity_kind,
                     &m.value,
                     method,
                     m.confidence,
@@ -114,7 +114,7 @@ impl Detect<CsvSpan, String> for PatternDetection {
 
                 let entity = Entity::new(
                     m.category,
-                    m.entity_kind.to_string(),
+                    m.entity_kind,
                     &m.value,
                     method,
                     m.confidence,

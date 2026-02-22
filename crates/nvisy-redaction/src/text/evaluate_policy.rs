@@ -92,7 +92,7 @@ impl EvaluatePolicyAction {
 /// or `None` if no rule applies.
 fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'a PolicyRule> {
     rules.iter().find(|rule| {
-        rule.selector.matches(&entity.category, &entity.entity_type, entity.confidence)
+        rule.selector.matches(&entity.category, entity.entity_kind, entity.confidence)
     })
 }
 
@@ -101,7 +101,7 @@ fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'
 /// Supported placeholders: `{entityType}`, `{category}`, `{value}`.
 fn apply_template(template: &str, entity: &Entity) -> String {
     template
-        .replace("{entityType}", &entity.entity_type)
+        .replace("{entityType}", &entity.entity_kind.to_string())
         .replace("{category}", &entity.category.to_string())
         .replace("{value}", &entity.value)
 }
@@ -115,20 +115,20 @@ fn build_default_replacement(entity: &Entity, spec: &RedactionSpec) -> String {
             }
             TextRedactionSpec::Replace { placeholder } => {
                 if placeholder.is_empty() {
-                    format!("[{}]", entity.entity_type.to_uppercase())
+                    format!("[{}]", entity.entity_kind.to_string().to_uppercase())
                 } else {
                     apply_template(placeholder, entity)
                 }
             }
             TextRedactionSpec::Remove => String::new(),
-            TextRedactionSpec::Hash => format!("[HASH:{}]", entity.entity_type),
-            TextRedactionSpec::Encrypt { .. } => format!("[ENC:{}]", entity.entity_type),
-            TextRedactionSpec::Synthesize => format!("[SYNTH:{}]", entity.entity_type),
-            TextRedactionSpec::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_type),
-            TextRedactionSpec::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_type),
-            TextRedactionSpec::Aggregate => format!("[AGG:{}]", entity.entity_type),
-            TextRedactionSpec::Generalize { .. } => format!("[GEN:{}]", entity.entity_type),
-            TextRedactionSpec::DateShift { .. } => format!("[SHIFTED:{}]", entity.entity_type),
+            TextRedactionSpec::Hash => format!("[HASH:{}]", entity.entity_kind),
+            TextRedactionSpec::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
+            TextRedactionSpec::Synthesize => format!("[SYNTH:{}]", entity.entity_kind),
+            TextRedactionSpec::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_kind),
+            TextRedactionSpec::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
+            TextRedactionSpec::Aggregate => format!("[AGG:{}]", entity.entity_kind),
+            TextRedactionSpec::Generalize { .. } => format!("[GEN:{}]", entity.entity_kind),
+            TextRedactionSpec::DateShift { .. } => format!("[SHIFTED:{}]", entity.entity_kind),
         },
         // Image and audio specs don't produce text replacements.
         RedactionSpec::Image(_) | RedactionSpec::Audio(_) => String::new(),

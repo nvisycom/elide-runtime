@@ -4,12 +4,14 @@
 //! a time, allowing the layer to accumulate prior text/entities
 //! between spans via interior mutability.
 
+use std::str::FromStr;
+
 use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::Mutex;
 
 use nvisy_codec::handler::{Span, TxtSpan};
-use nvisy_core::data::EntityCategory;
+use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::Error;
 use nvisy_core::path::ContentSource;
 
@@ -63,9 +65,9 @@ pub trait NerBackend: Send + Sync + 'static {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NerDetectionParams {
-    /// Entity types to detect (empty = all).
-    #[serde(default)]
-    pub entity_types: Vec<String>,
+    /// Entity kinds to detect (empty = all).
+    #[serde(rename = "entityTypes", default)]
+    pub entity_kinds: Vec<EntityKind>,
     /// Minimum confidence score for returned entities.
     #[serde(default = "default_confidence")]
     pub confidence_threshold: f64,
@@ -91,7 +93,7 @@ impl<B: NerBackend> NerDetection<B> {
     /// Create a new detection layer with the given backend and params.
     pub fn new(backend: B, params: NerDetectionParams) -> Self {
         let config = NerConfig {
-            entity_types: params.entity_types,
+            entity_types: params.entity_kinds.iter().map(|ek| ek.to_string()).collect(),
             confidence_threshold: params.confidence_threshold,
         };
         Self {
@@ -186,10 +188,18 @@ pub fn parse_ner_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
             other => EntityCategory::Custom(other.to_string()),
         };
 
-        let entity_type = obj
+        let entity_type_str = obj
             .get("entity_type")
             .and_then(Value::as_str)
             .ok_or_else(|| Error::python("Missing 'entity_type'".to_string()))?;
+
+        let entity_kind = match EntityKind::from_str(entity_type_str) {
+            Ok(ek) => ek,
+            Err(_) => {
+                tracing::warn!(entity_type = entity_type_str, "unknown entity type from NER, dropping");
+                continue;
+            }
+        };
 
         let value = obj
             .get("value")
@@ -215,7 +225,7 @@ pub fn parse_ner_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
 
         let entity = Entity::new(
             category,
-            entity_type,
+            entity_kind,
             value,
             DetectionMethod::Ner,
             confidence,

@@ -69,14 +69,14 @@ impl PatternEngine {
         PatternEngineBuilder::default()
     }
 
-    /// Validate a value using the checksum associated with `entity_type`.
+    /// Validate a value using the checksum associated with the entity kind.
     ///
     /// Returns `Some(true)` if the value passes, `Some(false)` if it fails,
-    /// or `None` if no checksum validator is registered for that entity type.
-    pub fn validate_checksum(&self, entity_type: &str, value: &str) -> Option<bool> {
-        let validator_name = match entity_type {
-            "credit_card" => "luhn",
-            "ssn" => "ssn",
+    /// or `None` if no checksum validator is registered for that entity kind.
+    pub fn validate_checksum(&self, entity_kind: EntityKind, value: &str) -> Option<bool> {
+        let validator_name = match entity_kind {
+            EntityKind::PaymentCard => "luhn",
+            EntityKind::GovernmentId => "ssn",
             _ => return None,
         };
         let validate = self.validators.resolve(validator_name)?;

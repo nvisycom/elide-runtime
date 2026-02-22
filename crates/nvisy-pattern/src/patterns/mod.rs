@@ -23,7 +23,7 @@
 mod json_pattern;
 mod pattern;
 
-pub use json_pattern::{JsonPattern, JsonPatternWarning};
+pub use json_pattern::{ContextRule, JsonPattern, JsonPatternWarning};
 pub use pattern::{BoxPattern, MatchSource, Pattern};
 
 use std::collections::BTreeMap;

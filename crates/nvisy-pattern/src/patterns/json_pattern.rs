@@ -5,11 +5,36 @@
 //! pattern together with any non-fatal `JsonPatternWarning`s so the
 //! caller can decide how to surface them.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use nvisy_core::data::{EntityCategory, EntityKind};
 
 use super::pattern::{MatchSource, Pattern};
+
+/// Co-occurrence context rule for span-level confidence boosting.
+///
+/// When a pattern match is found, nearby spans are searched for any of the
+/// `keywords`.  If at least one keyword is present within `window` spans,
+/// the match confidence is increased by `boost` (clamped to `[0.0, 1.0]`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextRule {
+    /// Case-insensitive keywords to look for in nearby spans.
+    pub keywords: Vec<String>,
+    /// Number of spans before and after the match span to search.
+    #[serde(default = "default_window")]
+    pub window: usize,
+    /// Confidence adjustment when at least one keyword is found.
+    #[serde(default = "default_boost")]
+    pub boost: f64,
+}
+
+fn default_window() -> usize {
+    3
+}
+
+fn default_boost() -> f64 {
+    0.1
+}
 
 /// Error returned when a JSON pattern file cannot be loaded.
 #[derive(Debug, thiserror::Error)]
@@ -58,6 +83,7 @@ pub struct JsonPattern {
     confidence: f64,
     validator: Option<String>,
     case_sensitive: bool,
+    pub(crate) context: Option<ContextRule>,
 }
 
 impl JsonPattern {
@@ -91,6 +117,8 @@ impl JsonPattern {
             validator: Option<String>,
             #[serde(default)]
             case_sensitive: bool,
+            #[serde(default)]
+            context: Option<ContextRule>,
         }
 
         let raw: Raw = serde_json::from_slice(bytes)?;
@@ -127,6 +155,7 @@ impl JsonPattern {
             confidence: raw.confidence.unwrap_or(DEFAULT_CONFIDENCE),
             validator: raw.validator,
             case_sensitive: raw.case_sensitive,
+            context: raw.context,
         };
 
         Ok((p, warnings))
@@ -160,5 +189,9 @@ impl Pattern for JsonPattern {
 
     fn case_sensitive(&self) -> bool {
         self.case_sensitive
+    }
+
+    fn context(&self) -> Option<&ContextRule> {
+        self.context.as_ref()
     }
 }

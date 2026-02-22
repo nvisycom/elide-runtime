@@ -9,7 +9,7 @@ mod builder;
 mod types;
 
 pub use builder::PatternEngineBuilder;
-pub use types::{DetectionSource, PatternEngineError, PatternMatch};
+pub use types::{AllowList, DenyEntry, DenyList, DetectionSource, PatternEngineError, PatternMatch};
 
 use std::sync::LazyLock;
 
@@ -18,6 +18,7 @@ use regex::{Regex, RegexSet};
 
 use nvisy_core::data::{EntityCategory, EntityKind};
 
+use crate::patterns::ContextRule;
 use crate::validators::ValidatorResolver;
 
 /// Metadata stored alongside each compiled regex.
@@ -28,6 +29,7 @@ struct RegexEntry {
     confidence: f64,
     validator_name: Option<String>,
     regex: Regex,
+    context: Option<ContextRule>,
 }
 
 /// Metadata stored alongside each compiled Aho-Corasick automaton.
@@ -39,6 +41,7 @@ struct DictEntry {
     automaton: AhoCorasick,
     /// The terms used to build the automaton, indexed by pattern id.
     values: Vec<String>,
+    context: Option<ContextRule>,
 }
 
 /// Pre-compiled engine that scans text against all registered patterns.
@@ -51,6 +54,8 @@ pub struct PatternEngine {
     dict_entries: Vec<DictEntry>,
     validators: ValidatorResolver,
     confidence_threshold: f64,
+    allow_set: AllowList,
+    deny_set: DenyList,
 }
 
 impl std::fmt::Debug for PatternEngine {
@@ -84,6 +89,10 @@ impl PatternEngine {
     }
 
     /// Scan `text` and return all matches above the confidence threshold.
+    ///
+    /// Matches whose value appears in the allow list are suppressed.
+    /// Deny-list values found in the text are injected as synthetic matches
+    /// with confidence `1.0` when not already matched.
     #[tracing::instrument(skip(self, text), fields(text_len = text.len(), matches))]
     pub fn scan_text(&self, text: &str) -> Vec<PatternMatch> {
         let mut results = Vec::new();
@@ -99,6 +108,11 @@ impl PatternEngine {
 
             for mat in entry.regex.find_iter(text) {
                 let value = mat.as_str();
+
+                // Allow-list suppression.
+                if self.allow_set.contains(value) {
+                    continue;
+                }
 
                 if let Some(ref vname) = entry.validator_name {
                     if let Some(validate) = self.validators.resolve(vname) {
@@ -117,6 +131,7 @@ impl PatternEngine {
                     end: mat.end(),
                     confidence: entry.confidence,
                     source: DetectionSource::Regex,
+                    context: entry.context.clone(),
                 });
             }
         }
@@ -130,6 +145,11 @@ impl PatternEngine {
             for mat in entry.automaton.find_iter(text) {
                 let value = &entry.values[mat.pattern().as_usize()];
 
+                // Allow-list suppression.
+                if self.allow_set.contains(value.as_str()) {
+                    continue;
+                }
+
                 results.push(PatternMatch {
                     pattern_name: entry.pattern_name.clone(),
                     category: entry.category.clone(),
@@ -139,7 +159,34 @@ impl PatternEngine {
                     end: mat.end(),
                     confidence: entry.confidence,
                     source: DetectionSource::Dictionary,
+                    context: entry.context.clone(),
                 });
+            }
+        }
+
+        // Phase 3: deny-list injection.
+        for (deny_value, deny_entry) in self.deny_set.iter() {
+            // Skip if already matched by regex or dictionary.
+            if results.iter().any(|r| r.value == deny_value) {
+                continue;
+            }
+            // Scan for the exact value in the text.
+            let mut search_start = 0;
+            while let Some(pos) = text[search_start..].find(deny_value) {
+                let abs_start = search_start + pos;
+                let abs_end = abs_start + deny_value.len();
+                results.push(PatternMatch {
+                    pattern_name: String::new(),
+                    category: deny_entry.category.clone(),
+                    entity_kind: deny_entry.entity_kind,
+                    value: deny_value.to_owned(),
+                    start: abs_start,
+                    end: abs_end,
+                    confidence: 1.0,
+                    source: DetectionSource::DenyList,
+                    context: None,
+                });
+                search_start = abs_end;
             }
         }
 
@@ -233,5 +280,95 @@ mod tests {
             "expected dictionary match, got: {:?}",
             matches.iter().map(|m| (&m.pattern_name, &m.source)).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn allow_list_suppresses_match() {
+        let engine = PatternEngine::builder()
+            .patterns(&["ssn"])
+            .allow(AllowList::new().with("123-45-6789"))
+            .build()
+            .unwrap();
+        let matches = engine.scan_text("SSN: 123-45-6789");
+        assert!(
+            !matches.iter().any(|m| m.pattern_name == "ssn"),
+            "allow-listed value should be suppressed"
+        );
+    }
+
+    #[test]
+    fn deny_list_injects_match() {
+        let deny = DenyList::new()
+            .with("secret-value-42", EntityCategory::Pii, EntityKind::PersonName);
+        let engine = PatternEngine::builder()
+            .patterns(&["email"])
+            .deny(deny)
+            .build()
+            .unwrap();
+        let matches = engine.scan_text("The secret-value-42 should be detected.");
+        let deny_match = matches
+            .iter()
+            .find(|m| m.source == DetectionSource::DenyList)
+            .expect("deny list value should be injected");
+        assert_eq!(deny_match.value, "secret-value-42");
+        assert_eq!(deny_match.confidence, 1.0);
+        assert_eq!(deny_match.entity_kind, EntityKind::PersonName);
+    }
+
+    #[test]
+    fn deny_list_not_injected_when_absent() {
+        let deny = DenyList::new()
+            .with("not-in-text", EntityCategory::Pii, EntityKind::PersonName);
+        let engine = PatternEngine::builder()
+            .patterns(&["email"])
+            .deny(deny)
+            .build()
+            .unwrap();
+        let matches = engine.scan_text("Nothing special here.");
+        assert!(
+            !matches.iter().any(|m| m.source == DetectionSource::DenyList),
+            "deny list value not in text should not be injected"
+        );
+    }
+
+    #[test]
+    fn allow_list_from_iterator() {
+        let allow: AllowList = ["123-45-6789", "000-00-0000"].into_iter().collect();
+        assert_eq!(allow.len(), 2);
+        assert!(allow.contains("123-45-6789"));
+        assert!(allow.contains("000-00-0000"));
+        assert!(!allow.contains("999-99-9999"));
+    }
+
+    #[test]
+    fn deny_list_from_iterator() {
+        let deny: DenyList = [
+            ("secret", EntityCategory::Pii, EntityKind::PersonName),
+            ("other", EntityCategory::Financial, EntityKind::PaymentCard),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(deny.len(), 2);
+        assert!(deny.contains("secret"));
+        let entry = deny.get("other").unwrap();
+        assert_eq!(entry.category, EntityCategory::Financial);
+    }
+
+    #[test]
+    fn context_rule_passthrough() {
+        let engine = PatternEngine::builder()
+            .patterns(&["ssn"])
+            .build()
+            .unwrap();
+        let matches = engine.scan_text("SSN: 123-45-6789");
+        let ssn_match = matches.iter().find(|m| m.pattern_name == "ssn").unwrap();
+        assert!(
+            ssn_match.context.is_some(),
+            "SSN pattern should carry context rule through to PatternMatch"
+        );
+        let ctx = ssn_match.context.as_ref().unwrap();
+        assert!(!ctx.keywords.is_empty());
+        assert!(ctx.window > 0);
+        assert!(ctx.boost > 0.0);
     }
 }

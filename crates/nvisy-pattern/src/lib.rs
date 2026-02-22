@@ -9,7 +9,8 @@ mod engine;
 
 pub use engine::{
     PatternEngine, PatternEngineBuilder, PatternEngineError, PatternMatch, DetectionSource,
-    default_engine,
+    AllowList, DenyEntry, DenyList, default_engine,
 };
+pub use patterns::ContextRule;
 
 pub mod prelude;

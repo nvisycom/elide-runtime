@@ -6,6 +6,8 @@
 
 use nvisy_core::data::{EntityCategory, EntityKind};
 
+use super::json_pattern::ContextRule;
+
 /// How a pattern finds matches in text.
 ///
 /// Each pattern uses exactly one source: either a regular expression that
@@ -65,6 +67,11 @@ pub trait Pattern: Send + Sync {
     /// regex patterns use inline flags instead.
     fn case_sensitive(&self) -> bool {
         false
+    }
+
+    /// Optional co-occurrence context rule for span-level confidence boosting.
+    fn context(&self) -> Option<&ContextRule> {
+        None
     }
 }
 

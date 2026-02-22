@@ -4,5 +4,10 @@
   "entity_type": "payment_card",
   "pattern": "\\b(?:\\d[ \\-]*?){13,19}\\b",
   "confidence": 0.85,
-  "validator": "luhn"
+  "validator": "luhn",
+  "context": {
+    "keywords": ["card", "credit", "debit", "payment", "visa", "mastercard", "amex"],
+    "window": 3,
+    "boost": 0.1
+  }
 }

@@ -6,7 +6,7 @@ use crate::dictionaries;
 use crate::patterns::{self, MatchSource, Pattern};
 use crate::validators::ValidatorResolver;
 
-use super::types::PatternEngineError;
+use super::types::{AllowList, DenyList, PatternEngineError};
 use super::{DictEntry, PatternEngine, RegexEntry};
 
 /// Builder for [`PatternEngine`].
@@ -17,6 +17,8 @@ use super::{DictEntry, PatternEngine, RegexEntry};
 pub struct PatternEngineBuilder {
     pattern_names: Option<Vec<String>>,
     confidence_threshold: f64,
+    allow_list: AllowList,
+    deny_list: DenyList,
 }
 
 impl PatternEngineBuilder {
@@ -37,6 +39,25 @@ impl PatternEngineBuilder {
     /// [`scan_text`](PatternEngine::scan_text).  Defaults to `0.0`.
     pub fn confidence_threshold(mut self, threshold: f64) -> Self {
         self.confidence_threshold = threshold;
+        self
+    }
+
+    /// Set the allow list.
+    ///
+    /// Matches whose exact value appears in the allow list are suppressed
+    /// (dropped) during [`scan_text`](PatternEngine::scan_text).
+    pub fn allow(mut self, list: AllowList) -> Self {
+        self.allow_list = list;
+        self
+    }
+
+    /// Set the deny list.
+    ///
+    /// If a deny-list value is found in the scanned text but was not matched
+    /// by any regex or dictionary pattern, it is injected as a synthetic match
+    /// with confidence `1.0`.
+    pub fn deny(mut self, list: DenyList) -> Self {
+        self.deny_list = list;
         self
     }
 
@@ -73,6 +94,7 @@ impl PatternEngineBuilder {
                         confidence: p.confidence(),
                         validator_name: p.validator_name().map(|s| s.to_owned()),
                         regex: compiled,
+                        context: p.context().cloned(),
                     });
                 }
                 MatchSource::Dictionary(dict_name) => {
@@ -100,6 +122,7 @@ impl PatternEngineBuilder {
                         confidence: p.confidence(),
                         automaton,
                         values,
+                        context: p.context().cloned(),
                     });
                 }
             }
@@ -122,6 +145,8 @@ impl PatternEngineBuilder {
             dict_entries,
             validators,
             confidence_threshold: self.confidence_threshold,
+            allow_set: self.allow_list,
+            deny_set: self.deny_list,
         })
     }
 }

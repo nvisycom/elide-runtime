@@ -6,7 +6,7 @@ use uuid::Uuid;
 use nvisy_codec::handler::{TxtHandler, TxtSpan};
 use nvisy_codec::document::Document;
 use nvisy_codec::transform::{TextRedaction, TextRedactionOutput, TextHandler};
-use nvisy_detection::Entity;
+use nvisy_detection::{Entity, Location};
 use crate::record::Redaction;
 use crate::spec::RedactionSpec;
 use crate::text::spec::TextRedactionSpec;
@@ -46,9 +46,9 @@ pub(crate) async fn apply_text_doc(
             continue;
         }
 
-        let (start, end) = match &entity.text_location {
-            Some(loc) => (loc.start_offset, loc.end_offset),
-            None => continue,
+        let (start, end) = match &entity.location {
+            Some(Location::Text(loc)) => (loc.start_offset, loc.end_offset),
+            _ => continue,
         };
 
         let output = match text_output_from_spec(&redaction.spec, &redaction.replacement) {

@@ -13,7 +13,7 @@ use nvisy_core::math::BoundingBox;
 use nvisy_python::bridge::PythonBridge;
 use nvisy_python::ocr::OcrParams;
 
-use nvisy_detection::{DetectionMethod, Entity, ImageLocation};
+use nvisy_detection::{DetectionMethod, Entity, ImageLocation, Location};
 
 fn default_language() -> String {
     "eng".into()
@@ -168,11 +168,11 @@ pub fn parse_ocr_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
             DetectionMethod::Ocr,
             confidence,
         )
-        .with_image_location(ImageLocation {
+        .with_location(Location::Image(ImageLocation {
             bounding_box: BoundingBox { x, y, width, height },
             image_id: None,
             page_number: None,
-        });
+        }));
 
         entities.push(entity);
     }

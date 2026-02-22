@@ -1,15 +1,14 @@
 //! Annotation types for pre-identified regions and classification labels.
 
 use serde::{Deserialize, Serialize};
+use strum::Display;
 
 use nvisy_core::data::{EntityCategory, EntityKind};
 
-use super::location::{
-    AudioLocation, ImageLocation, TabularLocation, TextLocation, VideoLocation,
-};
+use super::location::Location;
 
 /// The kind of annotation applied to a content region.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AnnotationKind {
@@ -22,7 +21,7 @@ pub enum AnnotationKind {
 }
 
 /// The scope to which an annotation label applies.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AnnotationScope {
@@ -61,21 +60,9 @@ pub struct Annotation {
     /// The annotated text or value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
-    /// Text location of the annotated region.
+    /// Modality-specific location of the annotated region.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub text_location: Option<TextLocation>,
-    /// Image location of the annotated region.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub image_location: Option<ImageLocation>,
-    /// Tabular location of the annotated region.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tabular_location: Option<TabularLocation>,
-    /// Audio location of the annotated region.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub audio_location: Option<AudioLocation>,
-    /// Video location of the annotated region.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub video_location: Option<VideoLocation>,
+    pub location: Option<Location>,
     /// Classification labels attached to this annotation.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub labels: Vec<AnnotationLabel>,

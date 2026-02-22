@@ -4,10 +4,10 @@
 //! categories used by both detection and pattern matching crates.
 
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 /// Category of sensitive data an entity belongs to.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[derive(strum::Display, strum::EnumString)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString)]
 #[derive(Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]

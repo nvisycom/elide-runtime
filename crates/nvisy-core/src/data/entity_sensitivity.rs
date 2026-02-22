@@ -5,6 +5,7 @@
 //! behaviour — higher sensitivity means stricter handling.
 
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 /// How sensitive a detected entity is.
 ///
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// directly (`Critical > High > Medium > Low`).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord,
-    strum::Display, strum::EnumString,
+    Display, EnumString,
     Serialize, Deserialize, schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]

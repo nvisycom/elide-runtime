@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use nvisy_codec::handler::CsvHandler;
 use nvisy_codec::document::Document;
-use nvisy_detection::Entity;
+use nvisy_detection::{Entity, Location};
 use crate::record::Redaction;
 use crate::spec::RedactionSpec;
 use crate::text::spec::TextRedactionSpec;
@@ -24,9 +24,9 @@ pub(crate) async fn apply_tabular_doc(
             None => continue,
         };
 
-        let tab_loc = match &entity.tabular_location {
-            Some(loc) => loc,
-            None => continue,
+        let tab_loc = match &entity.location {
+            Some(Location::Tabular(loc)) => loc,
+            _ => continue,
         };
 
         if !matches!(redaction.spec, RedactionSpec::Text(_)) {

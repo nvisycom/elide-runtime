@@ -60,7 +60,7 @@ impl DetectChecksumAction {
                         DetectionMethod::Checksum,
                         (entity.confidence + confidence_boost).min(1.0),
                     );
-                    boosted.copy_locations_from(&entity);
+                    boosted.copy_location_from(&entity);
                     boosted.source.set_parent_id(entity.source.parent_id());
                     result.push(boosted);
                 }

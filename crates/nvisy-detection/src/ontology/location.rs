@@ -84,3 +84,64 @@ pub struct VideoLocation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub speaker_id: Option<String>,
 }
+
+/// A modality-specific location for a detected entity.
+///
+/// Exactly one variant is set per entity, enforcing the invariant that
+/// an entity exists in a single modality.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Location {
+    /// Entity found in text content.
+    Text(TextLocation),
+    /// Entity found in an image.
+    Image(ImageLocation),
+    /// Entity found in tabular data.
+    Tabular(TabularLocation),
+    /// Entity found in audio.
+    Audio(AudioLocation),
+    /// Entity found in video.
+    Video(VideoLocation),
+}
+
+impl Location {
+    /// If this is a text location, return a reference to it.
+    pub fn as_text(&self) -> Option<&TextLocation> {
+        match self {
+            Self::Text(loc) => Some(loc),
+            _ => None,
+        }
+    }
+
+    /// If this is an image location, return a reference to it.
+    pub fn as_image(&self) -> Option<&ImageLocation> {
+        match self {
+            Self::Image(loc) => Some(loc),
+            _ => None,
+        }
+    }
+
+    /// If this is a tabular location, return a reference to it.
+    pub fn as_tabular(&self) -> Option<&TabularLocation> {
+        match self {
+            Self::Tabular(loc) => Some(loc),
+            _ => None,
+        }
+    }
+
+    /// If this is an audio location, return a reference to it.
+    pub fn as_audio(&self) -> Option<&AudioLocation> {
+        match self {
+            Self::Audio(loc) => Some(loc),
+            _ => None,
+        }
+    }
+
+    /// If this is a video location, return a reference to it.
+    pub fn as_video(&self) -> Option<&VideoLocation> {
+        match self {
+            Self::Video(loc) => Some(loc),
+            _ => None,
+        }
+    }
+}

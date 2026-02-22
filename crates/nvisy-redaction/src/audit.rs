@@ -5,12 +5,13 @@
 
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
+use strum::Display;
 use uuid::Uuid;
 
 use nvisy_core::path::ContentSource;
 
 /// Kind of auditable action recorded in an [`Audit`] entry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
 #[derive(schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]

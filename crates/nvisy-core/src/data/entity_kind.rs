@@ -8,11 +8,12 @@
 //! and an [`EntitySensitivity`] via [`EntityKind::sensitivity`].
 
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 use super::{EntityCategory, EntitySensitivity};
 
 /// Specific kind of sensitive entity detected or targeted for redaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, strum::EnumString)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString)]
 #[derive(Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]

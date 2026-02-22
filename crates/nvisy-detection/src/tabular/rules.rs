@@ -14,7 +14,7 @@ use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::{Error, ErrorKind};
 use nvisy_core::path::ContentSource;
 
-use crate::{DetectionMethod, Entity, TabularLocation};
+use crate::{DetectionMethod, Entity, Location, TabularLocation};
 use crate::{ParallelContext, Detect, DetectionLayer};
 
 /// A rule that matches column headers to classify entire columns.
@@ -117,12 +117,12 @@ impl Detect<CsvSpan, String> for TabularDetection {
                     DetectionMethod::Composite,
                     0.9,
                 )
-                .with_tabular_location(TabularLocation {
+                .with_location(Location::Tabular(TabularLocation {
                     row_index: span.id.row,
                     column_index: span.id.col,
                     start_offset: Some(0),
                     end_offset: Some(span.data.len()),
-                })
+                }))
                 .with_parent(source);
 
                 entities.push(entity);

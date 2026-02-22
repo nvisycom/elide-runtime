@@ -18,7 +18,7 @@ use nvisy_core::path::ContentSource;
 use nvisy_python::bridge::PythonBridge;
 use nvisy_python::ner::NerParams;
 
-use crate::{DetectionMethod, Entity, TextLocation};
+use crate::{DetectionMethod, Entity, Location, TextLocation};
 use crate::{SequentialContext, Detect, DetectionLayer};
 
 fn default_confidence() -> f64 {
@@ -230,11 +230,11 @@ pub fn parse_ner_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
             DetectionMethod::Ner,
             confidence,
         )
-        .with_text_location(TextLocation {
+        .with_location(Location::Text(TextLocation {
             start_offset,
             end_offset,
             ..Default::default()
-        });
+        }));
 
         entities.push(entity);
     }

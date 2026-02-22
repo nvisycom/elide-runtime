@@ -1,6 +1,7 @@
 //! Policy rule types.
 
 use serde::{Deserialize, Serialize};
+use strum::Display;
 use uuid::Uuid;
 
 use nvisy_core::fs::DocumentType;
@@ -23,7 +24,7 @@ pub struct RuleCondition {
 }
 
 /// Classifies what a policy rule does when it matches.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum RuleKind {

@@ -6,7 +6,7 @@ use uuid::Uuid;
 use nvisy_codec::handler::PngHandler;
 use nvisy_codec::document::Document;
 use nvisy_codec::transform::{ImageRedaction, ImageRedactionOutput, ImageHandler};
-use nvisy_detection::Entity;
+use nvisy_detection::{Entity, Location};
 use crate::record::Redaction;
 use crate::spec::RedactionSpec;
 use crate::image::spec::ImageRedactionSpec;
@@ -42,9 +42,9 @@ pub(crate) async fn apply_image_doc(
             None => continue,
         };
 
-        let img_loc = match &entity.image_location {
-            Some(loc) => loc,
-            None => continue,
+        let img_loc = match &entity.location {
+            Some(Location::Image(loc)) => loc,
+            _ => continue,
         };
 
         let output = match image_output_from_spec(&redaction.spec) {

@@ -10,14 +10,14 @@ use uuid::Uuid;
 
 use nvisy_core::Error;
 use nvisy_core::fs::ContentHandler;
-use nvisy_detection::DetectionResult;
+use nvisy_detection::DetectionOutput;
 use nvisy_redaction::{
     Audit, Policies, PolicyEvaluation, RedactionSummary,
 };
 
 use crate::compiler::graph::Graph;
 use crate::connections::Connections;
-use crate::executor::runner::RunResult;
+use crate::executor::runner::RunOutput;
 
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {
@@ -44,7 +44,7 @@ pub struct EngineOutput {
     /// Handle to the managed directory containing redacted output files.
     pub output: ContentHandler,
     /// Full detection result (entities, sensitivity, risk).
-    pub detection: DetectionResult,
+    pub detection: DetectionOutput,
     /// Policy evaluation breakdown (redactions, reviews, suppressions, blocks, alerts).
     pub evaluation: PolicyEvaluation,
     /// Per-source redaction summaries.
@@ -52,7 +52,7 @@ pub struct EngineOutput {
     /// Immutable audit trail.
     pub audits: Vec<Audit>,
     /// Per-node execution results from the DAG runner.
-    pub run_result: RunResult,
+    pub run_output: RunOutput,
 }
 
 /// The top-level redaction engine contract.

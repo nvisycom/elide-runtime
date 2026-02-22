@@ -48,11 +48,7 @@ impl DetectManualAction {
                 DetectionMethod::Manual,
                 1.0,
             );
-            entity.text_location = ann.text_location.clone();
-            entity.image_location = ann.image_location.clone();
-            entity.tabular_location = ann.tabular_location.clone();
-            entity.audio_location = ann.audio_location.clone();
-            entity.video_location = ann.video_location.clone();
+            entity.location = ann.location.clone();
 
             entities.push(entity);
         }

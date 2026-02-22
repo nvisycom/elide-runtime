@@ -10,7 +10,7 @@ use jiff::Timestamp;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-use crate::executor::runner::RunResult; 
+use crate::executor::runner::RunOutput; 
 
 /// Lifecycle status of a pipeline run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -65,7 +65,7 @@ pub struct RunState {
     pub node_progress: HashMap<String, NodeProgress>,
     /// Final result after the run completes.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<RunResult>,
+    pub result: Option<RunOutput>,
 }
 
 /// Lightweight summary of a run for listing endpoints.
@@ -133,7 +133,7 @@ impl RunManager {
     }
 
     /// Complete a run with a result.
-    pub async fn complete_run(&self, id: Uuid, result: RunResult) {
+    pub async fn complete_run(&self, id: Uuid, result: RunOutput) {
         if let Some(state) = self.runs.write().await.get_mut(&id) {
             state.status = if result.success {
                 RunStatus::Success

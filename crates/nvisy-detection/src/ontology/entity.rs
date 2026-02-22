@@ -5,17 +5,17 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use strum::Display;
+use uuid::Uuid;
 
 use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::path::ContentSource;
 
-use super::location::{
-    AudioLocation, ImageLocation, TabularLocation, TextLocation, VideoLocation,
-};
+use super::location::Location;
 use super::model::ModelInfo;
 
 /// Method used to detect a sensitive entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
 #[derive(schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
@@ -61,21 +61,9 @@ pub struct Entity {
     pub detection_method: DetectionMethod,
     /// Detection confidence score in the range `[0.0, 1.0]`.
     pub confidence: f64,
-    /// Text location, if this entity was found in text content.
+    /// Modality-specific location of the entity.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub text_location: Option<TextLocation>,
-    /// Image location, if this entity was found in an image.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub image_location: Option<ImageLocation>,
-    /// Tabular location, if this entity was found in tabular data.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tabular_location: Option<TabularLocation>,
-    /// Audio location, if this entity was found in audio.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub audio_location: Option<AudioLocation>,
-    /// Video location, if this entity was found in video.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub video_location: Option<VideoLocation>,
+    pub location: Option<Location>,
     /// BCP-47 language tag of the detected content.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
@@ -103,44 +91,16 @@ impl Entity {
             value: value.into(),
             detection_method,
             confidence,
-            text_location: None,
-            image_location: None,
-            tabular_location: None,
-            audio_location: None,
-            video_location: None,
+            location: None,
             language: None,
             model: None,
             metadata: None,
         }
     }
 
-    /// Set a text location on this entity.
-    pub fn with_text_location(mut self, location: TextLocation) -> Self {
-        self.text_location = Some(location);
-        self
-    }
-
-    /// Set an image location on this entity.
-    pub fn with_image_location(mut self, location: ImageLocation) -> Self {
-        self.image_location = Some(location);
-        self
-    }
-
-    /// Set a tabular location on this entity.
-    pub fn with_tabular_location(mut self, location: TabularLocation) -> Self {
-        self.tabular_location = Some(location);
-        self
-    }
-
-    /// Set an audio location on this entity.
-    pub fn with_audio_location(mut self, location: AudioLocation) -> Self {
-        self.audio_location = Some(location);
-        self
-    }
-
-    /// Set a video location on this entity.
-    pub fn with_video_location(mut self, location: VideoLocation) -> Self {
-        self.video_location = Some(location);
+    /// Set the modality-specific location on this entity.
+    pub fn with_location(mut self, location: Location) -> Self {
+        self.location = Some(location);
         self
     }
 
@@ -150,12 +110,24 @@ impl Entity {
         self
     }
 
-    /// Copy all location fields from another entity.
-    pub fn copy_locations_from(&mut self, other: &Self) {
-        self.text_location = other.text_location.clone();
-        self.image_location = other.image_location.clone();
-        self.tabular_location = other.tabular_location.clone();
-        self.audio_location = other.audio_location.clone();
-        self.video_location = other.video_location.clone();
+    /// Copy the location from another entity.
+    pub fn copy_location_from(&mut self, other: &Self) {
+        self.location = other.location.clone();
     }
+}
+
+/// The output of a detection pass over a single content source.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DetectionOutput {
+    /// Content source identity and lineage.
+    #[serde(flatten)]
+    pub source: ContentSource,
+    /// Entities detected in the content.
+    pub entities: Vec<Entity>,
+    /// Identifier of the policy that governed detection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_id: Option<Uuid>,
+    /// Processing time in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
 }

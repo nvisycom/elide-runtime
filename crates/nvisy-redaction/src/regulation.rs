@@ -1,9 +1,10 @@
 //! Regulatory framework identifiers.
 
 use serde::{Deserialize, Serialize};
+use strum::Display;
 
 /// A compliance regulation or framework that a policy targets.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, strum::Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum RegulationKind {

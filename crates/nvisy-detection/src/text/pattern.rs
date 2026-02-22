@@ -11,7 +11,7 @@ use nvisy_core::Error;
 use nvisy_core::path::ContentSource;
 use nvisy_pattern::{PatternEngine, PatternEngineBuilder, DetectionSource};
 
-use crate::{DetectionMethod, Entity, TabularLocation, TextLocation};
+use crate::{DetectionMethod, Entity, Location, TabularLocation, TextLocation};
 use crate::{ParallelContext, Detect, DetectionLayer};
 
 /// Typed parameters for [`PatternDetection`].
@@ -74,12 +74,12 @@ impl Detect<TxtSpan, String> for PatternDetection {
                     method,
                     m.confidence,
                 )
-                .with_text_location(TextLocation {
+                .with_location(Location::Text(TextLocation {
                     start_offset: m.start,
                     end_offset: m.end,
                     element_id: Some(span.id.0.to_string()),
                     ..Default::default()
-                })
+                }))
                 .with_parent(source);
 
                 entities.push(entity);
@@ -119,12 +119,12 @@ impl Detect<CsvSpan, String> for PatternDetection {
                     method,
                     m.confidence,
                 )
-                .with_tabular_location(TabularLocation {
+                .with_location(Location::Tabular(TabularLocation {
                     row_index: span.id.row,
                     column_index: span.id.col,
                     start_offset: Some(m.start),
                     end_offset: Some(m.end),
-                })
+                }))
                 .with_parent(source);
 
                 entities.push(entity);

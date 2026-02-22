@@ -2,14 +2,30 @@
 //!
 //! [`PatternEngine`] compiles all built-in (and optionally user-selected)
 //! regex patterns and dictionary automata into a single unit that can
-//! scan text in one pass.  Use [`PatternEngineBuilder`] for configuration
+//! scan text in one call.  Use [`PatternEngineBuilder`] for configuration
 //! or [`default_engine`] for an out-of-the-box singleton.
+//!
+//! # Key types
+//!
+//! - [`PatternEngine`]: the pre-compiled scanning engine.
+//! - [`PatternEngineBuilder`]: builder for configuring patterns, thresholds,
+//!   and allow/deny lists.
+//! - [`PatternMatch`]: a single match produced by scanning.
+//! - [`DetectionSource`]: how a match was produced (regex, dictionary, deny list).
+//! - [`AllowList`] / [`DenyList`]: exact-match suppression and forced detection.
+//! - [`PatternEngineError`]: build-time errors.
 
+mod allow_list;
 mod builder;
-mod types;
+mod deny_list;
+mod error;
+mod pattern_match;
 
+pub use allow_list::AllowList;
 pub use builder::PatternEngineBuilder;
-pub use types::{AllowList, DenyEntry, DenyList, DetectionSource, PatternEngineError, PatternMatch};
+pub use deny_list::{DenyEntry, DenyList};
+pub use error::PatternEngineError;
+pub use pattern_match::{DetectionSource, PatternMatch};
 
 use std::sync::LazyLock;
 
@@ -45,6 +61,17 @@ struct DictEntry {
 }
 
 /// Pre-compiled engine that scans text against all registered patterns.
+///
+/// Scanning runs in three phases:
+///
+/// 1. **Regex** — a [`RegexSet`] pre-filter selects candidate patterns,
+///    then each matching regex extracts offsets and values.
+/// 2. **Dictionary** — Aho-Corasick automata perform literal multi-pattern
+///    matching against known-value dictionaries.
+/// 3. **Deny list** — known sensitive values not already matched are
+///    injected as synthetic matches with confidence `1.0`.
+///
+/// Allow-list filtering is applied inline during phases 1 and 2.
 ///
 /// Build via [`PatternEngine::builder`] or use [`default_engine`] for
 /// the singleton with all built-in patterns.
@@ -82,6 +109,7 @@ impl PatternEngine {
         let validator_name = match entity_kind {
             EntityKind::PaymentCard => "luhn",
             EntityKind::GovernmentId => "ssn",
+            EntityKind::Iban => "iban",
             _ => return None,
         };
         let validate = self.validators.resolve(validator_name)?;
@@ -97,7 +125,17 @@ impl PatternEngine {
     pub fn scan_text(&self, text: &str) -> Vec<PatternMatch> {
         let mut results = Vec::new();
 
-        // Phase 1: regex matches — use RegexSet as a pre-filter.
+        self.scan_regex(text, &mut results);
+        self.scan_dict(text, &mut results);
+        self.scan_deny_list(text, &mut results);
+
+        tracing::Span::current().record("matches", results.len());
+        results
+    }
+
+    /// Phase 1: regex matches — use `RegexSet` as a pre-filter, then run
+    /// each matching regex individually to extract offsets and values.
+    fn scan_regex(&self, text: &str, results: &mut Vec<PatternMatch>) {
         let set_matches = self.regex_set.matches(text);
         for idx in set_matches.iter() {
             let entry = &self.regex_entries[idx];
@@ -109,7 +147,6 @@ impl PatternEngine {
             for mat in entry.regex.find_iter(text) {
                 let value = mat.as_str();
 
-                // Allow-list suppression.
                 if self.allow_set.contains(value) {
                     continue;
                 }
@@ -135,8 +172,10 @@ impl PatternEngine {
                 });
             }
         }
+    }
 
-        // Phase 2: dictionary matches.
+    /// Phase 2: dictionary matches via Aho-Corasick automata.
+    fn scan_dict(&self, text: &str, results: &mut Vec<PatternMatch>) {
         for entry in &self.dict_entries {
             if entry.confidence < self.confidence_threshold {
                 continue;
@@ -145,7 +184,6 @@ impl PatternEngine {
             for mat in entry.automaton.find_iter(text) {
                 let value = &entry.values[mat.pattern().as_usize()];
 
-                // Allow-list suppression.
                 if self.allow_set.contains(value.as_str()) {
                     continue;
                 }
@@ -163,14 +201,15 @@ impl PatternEngine {
                 });
             }
         }
+    }
 
-        // Phase 3: deny-list injection.
+    /// Phase 3: inject deny-list values found in `text` that were not
+    /// already matched by regex or dictionary.
+    fn scan_deny_list(&self, text: &str, results: &mut Vec<PatternMatch>) {
         for (deny_value, deny_entry) in self.deny_set.iter() {
-            // Skip if already matched by regex or dictionary.
             if results.iter().any(|r| r.value == deny_value) {
                 continue;
             }
-            // Scan for the exact value in the text.
             let mut search_start = 0;
             while let Some(pos) = text[search_start..].find(deny_value) {
                 let abs_start = search_start + pos;
@@ -189,9 +228,6 @@ impl PatternEngine {
                 search_start = abs_end;
             }
         }
-
-        tracing::Span::current().record("matches", results.len());
-        results
     }
 }
 

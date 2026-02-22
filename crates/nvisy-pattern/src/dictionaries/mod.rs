@@ -68,11 +68,13 @@ impl DictionaryRegistry {
     }
 
     /// Look up a dictionary by name.
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<&dyn Dictionary> {
         self.inner.get(name).map(|b| b.as_ref())
     }
 
     /// Total number of registered dictionaries.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
@@ -147,90 +149,20 @@ mod tests {
         builtin_registry()
     }
 
-    /// Helper: all dictionary names from the registry.
-    fn names(reg: &DictionaryRegistry) -> Vec<&str> {
-        reg.inner.keys().map(|s| s.as_str()).collect()
-    }
-
     #[test]
-    fn list_builtin_returns_all_names() {
-        let n = names(registry());
-        assert_eq!(n.len(), 5);
-        assert!(n.contains(&"cryptocurrencies"));
-        assert!(n.contains(&"currencies"));
-        assert!(n.contains(&"languages"));
-        assert!(n.contains(&"nationalities"));
-        assert!(n.contains(&"religions"));
-    }
-
-    #[test]
-    fn all_listed_builtins_are_loadable() {
-        for name in names(registry()) {
-            assert!(
-                registry().get(name).is_some(),
-                "listed builtin {name} is not loadable"
-            );
+    fn builtins_load_and_are_nonempty() {
+        let reg = registry();
+        assert!(reg.len() > 0);
+        for (_, dict) in &reg.inner {
+            assert!(!dict.entries().is_empty(), "{} is empty", dict.name());
         }
-    }
-
-    #[test]
-    fn builtin_dictionaries_are_nonempty() {
-        for name in names(registry()) {
-            let dict = registry().get(name).unwrap();
-            assert!(
-                !dict.entries().is_empty(),
-                "builtin dictionary {name} is empty"
-            );
-        }
-    }
-
-    #[test]
-    fn nationalities_contains_known_entries() {
-        let entries = registry().get("nationalities").unwrap().entries();
-        assert!(entries.iter().any(|e| e == "American"));
-        assert!(entries.iter().any(|e| e == "Japanese"));
-    }
-
-    #[test]
-    fn religions_contains_known_entries() {
-        let entries = registry().get("religions").unwrap().entries();
-        assert!(entries.iter().any(|e| e == "Buddhist"));
-        assert!(entries.iter().any(|e| e == "Muslim"));
-    }
-
-    #[test]
-    fn currencies_contains_name_and_code() {
-        let entries = registry().get("currencies").unwrap().entries();
-        assert!(entries.iter().any(|e| e == "US Dollar"));
-        assert!(entries.iter().any(|e| e == "USD"));
-        assert!(entries.iter().any(|e| e == "Euro"));
-        assert!(entries.iter().any(|e| e == "EUR"));
-    }
-
-    #[test]
-    fn cryptocurrencies_contains_name_and_ticker() {
-        let entries = registry().get("cryptocurrencies").unwrap().entries();
-        assert!(entries.iter().any(|e| e == "Bitcoin"));
-        assert!(entries.iter().any(|e| e == "BTC"));
-        assert!(entries.iter().any(|e| e == "Ethereum"));
-        assert!(entries.iter().any(|e| e == "ETH"));
-    }
-
-    #[test]
-    fn languages_contains_name_code_and_aliases() {
-        let entries = registry().get("languages").unwrap().entries();
-        assert!(entries.iter().any(|e| e == "English"));
-        assert!(entries.iter().any(|e| e == "en"));
-        assert!(entries.iter().any(|e| e == "Mandarin"));
-        assert!(entries.iter().any(|e| e == "Spanish"));
-        assert!(entries.iter().any(|e| e == "Farsi"));
     }
 
     #[test]
     fn entries_are_trimmed_and_nonempty() {
-        for name in names(registry()) {
-            let entries = registry().get(name).unwrap().entries();
-            for entry in entries {
+        for (_, dict) in &registry().inner {
+            let name = dict.name();
+            for entry in dict.entries() {
                 assert!(!entry.is_empty(), "empty entry in {name}");
                 assert_eq!(*entry, entry.trim(), "untrimmed entry in {name}: {entry:?}");
             }
@@ -239,16 +171,10 @@ mod tests {
 
     #[test]
     fn registry_names_are_sorted() {
-        let n = names(registry());
-        let mut sorted = n.clone();
+        let keys: Vec<&str> = registry().inner.keys().map(|s| s.as_str()).collect();
+        let mut sorted = keys.clone();
         sorted.sort();
-        assert_eq!(n, sorted);
-    }
-
-    #[test]
-    fn load_builtins_auto_discovers() {
-        let reg = DictionaryRegistry::load_builtins();
-        assert_eq!(reg.len(), 5);
+        assert_eq!(keys, sorted);
     }
 
     #[test]

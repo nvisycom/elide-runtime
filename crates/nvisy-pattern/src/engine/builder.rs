@@ -6,7 +6,9 @@ use crate::dictionaries;
 use crate::patterns::{self, MatchSource, Pattern};
 use crate::validators::ValidatorResolver;
 
-use super::types::{AllowList, DenyList, PatternEngineError};
+use super::allow_list::AllowList;
+use super::deny_list::DenyList;
+use super::error::PatternEngineError;
 use super::{DictEntry, PatternEngine, RegexEntry};
 
 /// Builder for [`PatternEngine`].
@@ -62,6 +64,12 @@ impl PatternEngineBuilder {
     }
 
     /// Compile all selected patterns and build the engine.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PatternEngineError`] if a regex fails to compile, a
+    /// referenced dictionary is missing, or the Aho-Corasick automaton
+    /// cannot be built.
     #[tracing::instrument(name = "PatternEngine::build", skip(self))]
     pub fn build(self) -> Result<PatternEngine, PatternEngineError> {
         let pat_reg = patterns::builtin_registry();

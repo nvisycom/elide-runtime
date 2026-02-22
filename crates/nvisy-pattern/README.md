@@ -7,15 +7,17 @@ Nvisy runtime.
 
 ## Architecture
 
-Detection runs in two phases:
+Detection runs in three phases:
 
 1. **Regex phase** — a `RegexSet` pre-filter identifies which compiled regexes
    may match, then each matching regex is run to extract offsets and values.
 2. **Dictionary phase** — Aho-Corasick automata perform literal multi-pattern
    matching against known-value dictionaries.
+3. **Deny-list phase** — known sensitive values not already matched by regex or
+   dictionary are injected as synthetic matches with confidence `1.0`.
 
-Both phases feed into a unified `Vec<PatternMatch>` with allow/deny list
-filtering applied inline.
+Allow-list filtering is applied inline during phases 1 and 2. All three phases
+feed into a unified `Vec<PatternMatch>`.
 
 ### Pattern JSON schema
 
@@ -46,7 +48,7 @@ Patterns are JSON definition files embedded at compile time from
 | `pattern` | string | one of | Regular expression (mutually exclusive with `dictionary`) |
 | `dictionary` | string | one of | Named dictionary from `DictionaryRegistry` |
 | `confidence` | float | no | Base confidence score `[0.0, 1.0]`. Default: `1.0` |
-| `validator` | string | no | Post-match validator name (e.g. `"luhn"`, `"ssn"`) |
+| `validator` | string | no | Post-match validator name resolved via `ValidatorResolver` |
 | `case_sensitive` | bool | no | Case sensitivity. Default: `false` |
 | `context` | object | no | Co-occurrence context rule (see below) |
 
@@ -99,10 +101,8 @@ Both types implement `FromIterator` for easy construction from iterators.
 ## Validators
 
 Validators are post-match checks resolved by name through `ValidatorResolver`.
-Built-in validators include:
-
-- `ssn` — validates SSN format (no all-zero groups, area ≠ 666/900-999)
-- `luhn` — Luhn checksum for payment card numbers
+Patterns reference a validator by name in their JSON definition; the engine
+runs the validator on each raw match and drops values that fail.
 
 ## Documentation
 

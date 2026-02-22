@@ -6,7 +6,7 @@
 
 use nvisy_core::data::{EntityCategory, EntityKind};
 
-use super::json_pattern::ContextRule;
+use super::context_rule::ContextRule;
 
 /// How a pattern finds matches in text.
 ///

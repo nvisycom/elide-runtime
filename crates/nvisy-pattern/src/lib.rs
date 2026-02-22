@@ -8,8 +8,8 @@ pub(crate) mod validators;
 mod engine;
 
 pub use engine::{
-    PatternEngine, PatternEngineBuilder, PatternEngineError, PatternMatch, DetectionSource,
-    AllowList, DenyEntry, DenyList, default_engine,
+    AllowList, DenyEntry, DenyList, DetectionSource, PatternEngine, PatternEngineBuilder,
+    PatternEngineError, PatternMatch, default_engine,
 };
 pub use patterns::ContextRule;
 

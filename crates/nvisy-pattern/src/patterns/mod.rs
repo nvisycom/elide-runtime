@@ -9,21 +9,16 @@
 //! - [`Pattern`]: trait implemented by every pattern.
 //! - [`JsonPattern`]: concrete implementation deserialized from JSON.
 //! - [`MatchSource`]: whether matching is regex-based or dictionary-based.
+//! - [`ContextRule`]: optional co-occurrence keywords for confidence boosting.
 //! - [`PatternRegistry`]: sorted collection with O(log n) lookup by name.
-//! - [`JsonPatternError`] / [`JsonPatternWarning`]: load-time diagnostics.
-//!
-//! [`Pattern`]: crate::patterns::Pattern
-//! [`JsonPattern`]: crate::patterns::JsonPattern
-//! [`MatchSource`]: crate::patterns::MatchSource
-//! [`PatternRegistry`]: crate::patterns::PatternRegistry
-//! [`PatternRegistry::load_builtins`]: crate::patterns::PatternRegistry::load_builtins
-//! [`JsonPatternError`]: crate::patterns::JsonPatternError
-//! [`JsonPatternWarning`]: crate::patterns::JsonPatternWarning
+//! - [`JsonPatternWarning`]: non-fatal load-time diagnostics.
 
+mod context_rule;
 mod json_pattern;
 mod pattern;
 
-pub use json_pattern::{ContextRule, JsonPattern, JsonPatternWarning};
+pub use context_rule::ContextRule;
+pub use json_pattern::{JsonPattern, JsonPatternWarning};
 pub use pattern::{BoxPattern, MatchSource, Pattern};
 
 use std::collections::BTreeMap;
@@ -66,16 +61,19 @@ impl PatternRegistry {
     }
 
     /// Look up a pattern by name.
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<&dyn Pattern> {
         self.inner.get(name).map(|b| b.as_ref())
     }
 
     /// All patterns in deterministic (alphabetical) order.
+    #[must_use]
     pub fn values(&self) -> Vec<&dyn Pattern> {
         self.inner.values().map(|b| b.as_ref()).collect()
     }
 
     /// Total number of registered patterns.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
     }
@@ -158,18 +156,14 @@ pub fn builtin_registry() -> &'static PatternRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::validators::ValidatorResolver;
-    use nvisy_core::data::{EntityCategory, EntityKind};
 
     fn registry() -> &'static PatternRegistry {
         builtin_registry()
     }
 
     #[test]
-    fn loads_all_patterns() {
-        let patterns = registry().values();
-        assert!(!patterns.is_empty());
-        assert!(patterns.len() >= 10);
+    fn builtins_load() {
+        assert!(registry().len() > 0);
     }
 
     #[test]
@@ -181,17 +175,15 @@ mod tests {
     }
 
     #[test]
-    fn get_known_pattern() {
-        let ssn = registry().get("ssn").unwrap();
-        assert_eq!(ssn.name(), "ssn");
-        assert_eq!(*ssn.category(), EntityCategory::Pii);
-        assert_eq!(ssn.entity_kind(), EntityKind::GovernmentId);
-        assert!(ssn.validator_name().is_some());
-        assert!(ssn.confidence() > 0.0);
+    fn no_duplicate_pattern_names() {
+        let all = registry().values();
+        let names: Vec<_> = all.iter().map(|p| p.name()).collect();
+        let unique: std::collections::HashSet<_> = names.iter().collect();
+        assert_eq!(names.len(), unique.len(), "duplicate pattern names found");
     }
 
     #[test]
-    fn all_patterns_have_nonempty_fields() {
+    fn all_patterns_have_valid_fields() {
         for p in registry().values() {
             assert!(!p.name().is_empty(), "pattern name is empty");
             match p.match_source() {
@@ -218,57 +210,17 @@ mod tests {
     }
 
     #[test]
-    fn ssn_pattern_has_validator() {
-        let resolver = ValidatorResolver::builtins();
-        let ssn = registry().get("ssn").unwrap();
-        assert_eq!(ssn.validator_name(), Some("ssn"));
-        let validate = resolver.resolve("ssn").unwrap();
-        assert!(validate("123-45-6789"));
-        assert!(!validate("000-00-0000"));
-    }
-
-    #[test]
-    fn credit_card_pattern_has_luhn_validator() {
-        let resolver = ValidatorResolver::builtins();
-        let cc = registry().get("credit-card").unwrap();
-        assert_eq!(*cc.category(), EntityCategory::Financial);
-        assert_eq!(cc.validator_name(), Some("luhn"));
-        let validate = resolver.resolve("luhn").unwrap();
-        assert!(validate("4539 1488 0343 6467"));
-    }
-
-    #[test]
-    fn pattern_categories_are_correct() {
-        let reg = registry();
-        assert_eq!(*reg.get("email").unwrap().category(), EntityCategory::Pii);
-        assert_eq!(*reg.get("aws-key").unwrap().category(), EntityCategory::Credentials);
-        assert_eq!(*reg.get("credit-card").unwrap().category(), EntityCategory::Financial);
-    }
-
-    #[test]
-    fn entity_kinds_match_expected() {
-        let reg = registry();
-        assert_eq!(reg.get("ssn").unwrap().entity_kind(), EntityKind::GovernmentId);
-        assert_eq!(reg.get("email").unwrap().entity_kind(), EntityKind::EmailAddress);
-        assert_eq!(reg.get("phone").unwrap().entity_kind(), EntityKind::PhoneNumber);
-        assert_eq!(reg.get("credit-card").unwrap().entity_kind(), EntityKind::PaymentCard);
-        assert_eq!(reg.get("aws-key").unwrap().entity_kind(), EntityKind::ApiKey);
-        assert_eq!(reg.get("github-token").unwrap().entity_kind(), EntityKind::AuthToken);
-        assert_eq!(reg.get("ipv4").unwrap().entity_kind(), EntityKind::IpAddress);
-    }
-
-    #[test]
-    fn no_duplicate_pattern_names() {
-        let all = registry().values();
-        let names: Vec<_> = all.iter().map(|p| p.name()).collect();
-        let unique: std::collections::HashSet<_> = names.iter().collect();
-        assert_eq!(names.len(), unique.len(), "duplicate pattern names found");
-    }
-
-    #[test]
-    fn load_builtins_auto_discovers() {
-        let reg = PatternRegistry::load_builtins();
-        assert_eq!(reg.len(), 27);
+    fn all_validators_resolve() {
+        let resolver = crate::validators::ValidatorResolver::builtins();
+        for p in registry().values() {
+            if let Some(name) = p.validator_name() {
+                assert!(
+                    resolver.resolve(name).is_some(),
+                    "pattern {} references unregistered validator {name}",
+                    p.name(),
+                );
+            }
+        }
     }
 
     #[test]

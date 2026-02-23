@@ -4,7 +4,7 @@
 //! overlapping location into a single entity with the highest
 //! confidence and `DetectionMethod::Composite` when methods differ.
 
-use crate::{DetectionMethod, Entity, Location, TextLocation};
+use crate::{DetectionMethod, Entity, Location};
 
 /// Deduplicates a list of entities by merging duplicates.
 ///
@@ -60,19 +60,16 @@ fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
     match (a, b) {
         (None, None) => true,
         (Some(Location::Text(a_loc)), Some(Location::Text(b_loc))) => {
-            text_locations_overlap(a_loc, b_loc)
+            a_loc.overlaps(b_loc)
         }
         _ => false,
     }
 }
 
-fn text_locations_overlap(a: &TextLocation, b: &TextLocation) -> bool {
-    a.start_offset < b.end_offset && b.start_offset < a.end_offset
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TextLocation;
     use nvisy_core::data::{EntityCategory, EntityKind};
 
     fn text_entity(value: &str, method: DetectionMethod, confidence: f64, start: usize, end: usize) -> Entity {

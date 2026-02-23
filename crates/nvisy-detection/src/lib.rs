@@ -4,24 +4,40 @@
 
 mod ontology;
 mod layer;
+mod ner;
 mod text;
-mod tabular;
-mod document;
-pub mod image;
+mod image;
+mod action;
+mod policy;
 
 pub mod prelude;
 
-// Domain types
+// --- Domain types ---
 pub use ontology::*;
 
-// Detection service trait
+// --- Layer traits ---
 pub use layer::*;
 
-// Detection layers
-pub use text::{PatternDetection, PatternDetectionParams};
-pub use text::{NerDetection, NerDetectionParams, NerBackend, NerConfig, parse_ner_entities};
-pub use tabular::{TabularDetection, TabularDetectionParams, ColumnRule};
+// --- NER backend ---
+pub use ner::{NerBackend, NerConfig};
 
-// Standalone actions
-pub use document::{DetectManualAction, DetectManualParams, Exclusion, ManualOutput, is_excluded};
-pub use document::DeduplicateAction;
+// --- Detection layers ---
+pub use text::{PatternDetection, PatternDetectionParams};
+pub use text::{NerDetection, NerDetectionParams};
+pub use image::{ImageNerDetection, FaceBackend, FaceDetection, ObjectBackend, ObjectDetection};
+
+// --- Post-detection actions ---
+pub use action::{DetectManualAction, DetectManualParams, Exclusion, ManualOutput, is_excluded};
+pub use action::DeduplicateAction;
+
+// --- Policy & governance ---
+pub use policy::{
+    Policy, Policies, PolicyRule, RuleKind, RuleCondition,
+    RedactionSpec, TextRedactionSpec, ImageRedactionSpec, AudioRedactionSpec,
+    Redaction, PolicyEvaluation, RedactionSummary,
+    RegulationKind, RetentionPolicy, RetentionScope,
+    ReviewDecision, ReviewStatus,
+    Audit, AuditAction,
+    EvaluatePolicyAction, EvaluatePolicyParams,
+    DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR, DEFAULT_PIXELATE_BLOCK_SIZE,
+};

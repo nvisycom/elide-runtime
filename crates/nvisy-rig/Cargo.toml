@@ -1,0 +1,28 @@
+[package]
+name = "nvisy-rig"
+description = "LLM/VLM-driven detection, redaction, and OCR backends"
+keywords = ["nvisy", "rig", "llm", "vlm", "ocr"]
+categories = ["text-processing"]
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+nvisy-core      = { workspace = true }
+nvisy-detection = { workspace = true }
+nvisy-codec     = { workspace = true }
+async-trait     = { workspace = true }
+serde           = { workspace = true, features = ["derive"] }
+serde_json      = { workspace = true }

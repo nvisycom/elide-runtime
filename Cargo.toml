@@ -9,8 +9,8 @@ members = [
     "./crates/nvisy-object",
     "./crates/nvisy-pattern",
     "./crates/nvisy-detection",
-    "./crates/nvisy-redaction",
     "./crates/nvisy-generation",
+    "./crates/nvisy-rig",
     "./crates/nvisy-python",
 ]
 
@@ -39,8 +39,8 @@ nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-detection = { path = "./crates/nvisy-detection", version = "0.1.0" }
-nvisy-redaction = { path = "./crates/nvisy-redaction", version = "0.1.0" }
 nvisy-generation = { path = "./crates/nvisy-generation", version = "0.1.0" }
+nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
 
 # Async runtime

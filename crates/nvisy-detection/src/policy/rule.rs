@@ -7,7 +7,7 @@ use uuid::Uuid;
 use nvisy_core::fs::DocumentType;
 use super::spec::RedactionSpec;
 
-use nvisy_detection::EntitySelector;
+use crate::EntitySelector;
 
 /// Conditions that must be met for a [`PolicyRule`] to apply.
 #[derive(Debug, Clone, Serialize, Deserialize)]

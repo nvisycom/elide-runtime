@@ -25,7 +25,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-detection = { workspace = true, features = [] }
-nvisy-redaction = { workspace = true, features = [] }
+nvisy-codec = { workspace = true, features = [] }
 
 # JSON Schema generation
 schemars = { workspace = true, features = [] }

@@ -4,7 +4,7 @@
 use serde::Deserialize;
 
 use nvisy_detection::Entity;
-use nvisy_redaction::Redaction;
+use nvisy_detection::Redaction;
 use nvisy_core::Error;
 
 fn default_locale() -> String {

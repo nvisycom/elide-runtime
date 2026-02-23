@@ -26,6 +26,13 @@ pub struct TextLocation {
     pub page_number: Option<u32>,
 }
 
+impl TextLocation {
+    /// Returns `true` if this text location overlaps with `other`.
+    pub fn overlaps(&self, other: &TextLocation) -> bool {
+        self.start_offset < other.end_offset && other.start_offset < self.end_offset
+    }
+}
+
 /// Location of an entity within an image.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageLocation {

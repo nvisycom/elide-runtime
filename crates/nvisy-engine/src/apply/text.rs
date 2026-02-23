@@ -6,10 +6,7 @@ use uuid::Uuid;
 use nvisy_codec::handler::{TxtHandler, TxtSpan};
 use nvisy_codec::document::Document;
 use nvisy_codec::transform::{TextRedaction, TextRedactionOutput, TextHandler};
-use nvisy_detection::{Entity, Location};
-use crate::record::Redaction;
-use crate::spec::RedactionSpec;
-use crate::text::spec::TextRedactionSpec;
+use nvisy_detection::{Entity, Location, Redaction, RedactionSpec, TextRedactionSpec};
 use nvisy_core::Error;
 
 /// Convert a `RedactionSpec::Text` + replacement string into a codec
@@ -129,7 +126,7 @@ pub(crate) async fn apply_text_doc(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::image::spec::ImageRedactionSpec;
+    use nvisy_detection::ImageRedactionSpec;
 
     #[test]
     fn text_output_remove_empty_replacement() {

@@ -5,10 +5,7 @@ use uuid::Uuid;
 
 use nvisy_codec::handler::CsvHandler;
 use nvisy_codec::document::Document;
-use nvisy_detection::{Entity, Location};
-use crate::record::Redaction;
-use crate::spec::RedactionSpec;
-use crate::text::spec::TextRedactionSpec;
+use nvisy_detection::{Entity, Location, Redaction, RedactionSpec, TextRedactionSpec};
 use nvisy_core::Error;
 
 pub(crate) async fn apply_tabular_doc(
@@ -45,13 +42,6 @@ pub(crate) async fn apply_tabular_doc(
 }
 
 /// Redact a single cell value according to the spec and replacement.
-///
-/// Dispatches on the spec variant:
-/// - **Mask**: preserve the last 4 characters, replacing the rest with the
-///   mask character from the spec.
-/// - **Remove**: return an empty string.
-/// - **Hash**: return `[HASH:{hex}]` using a deterministic hash of the cell.
-/// - **Other variants**: use the resolved replacement directly.
 fn mask_cell(spec: &RedactionSpec, replacement: &str, cell: &str) -> String {
     match spec {
         RedactionSpec::Text(TextRedactionSpec::Mask { mask_char }) => {
@@ -76,7 +66,7 @@ fn mask_cell(spec: &RedactionSpec, replacement: &str, cell: &str) -> String {
     }
 }
 
-/// Compute a deterministic 64-bit hash of `s` using [`DefaultHasher`](std::collections::hash_map::DefaultHasher).
+/// Compute a deterministic 64-bit hash of `s`.
 fn hash_string(s: &str) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();

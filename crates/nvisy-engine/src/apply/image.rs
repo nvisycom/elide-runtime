@@ -6,10 +6,7 @@ use uuid::Uuid;
 use nvisy_codec::handler::PngHandler;
 use nvisy_codec::document::Document;
 use nvisy_codec::transform::{ImageRedaction, ImageRedactionOutput, ImageHandler};
-use nvisy_detection::{Entity, Location};
-use crate::record::Redaction;
-use crate::spec::RedactionSpec;
-use crate::image::spec::ImageRedactionSpec;
+use nvisy_detection::{Entity, Location, Redaction, RedactionSpec, ImageRedactionSpec};
 use nvisy_core::Error;
 
 /// Convert a `RedactionSpec::Image` into a codec [`ImageRedactionOutput`].
@@ -71,7 +68,7 @@ pub(crate) async fn apply_image_doc(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::text::spec::TextRedactionSpec;
+    use nvisy_detection::TextRedactionSpec;
 
     #[test]
     fn image_output_blur() {
@@ -123,7 +120,7 @@ mod tests {
 
     #[test]
     fn image_output_audio_spec_returns_none() {
-        let spec = RedactionSpec::Audio(crate::audio::spec::AudioRedactionSpec::Silence);
+        let spec = RedactionSpec::Audio(nvisy_detection::AudioRedactionSpec::Silence);
         assert_eq!(image_output_from_spec(&spec), None);
     }
 }

@@ -43,6 +43,12 @@ async-trait = { workspace = true, features = [] }
 # Primitive datatypes
 uuid = { workspace = true, features = ["v4"] }
 
+# Time
+jiff = { workspace = true, features = [] }
+
+# Semantic versioning
+semver = { workspace = true, features = [] }
+
 # Derive macros
 derive_more = { workspace = true, features = ["from"] }
 

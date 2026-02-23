@@ -1,18 +1,22 @@
 //! Unified redaction action -- applies text, image, tabular, and audio redactions.
 
+mod text;
+mod tabular;
+mod image;
+mod audio;
+
 use std::collections::HashMap;
 use uuid::Uuid;
 
 use nvisy_codec::handler::{TxtHandler, CsvHandler, PngHandler, WavHandler};
 use nvisy_codec::document::Document;
-use nvisy_detection::Entity;
-use crate::record::Redaction;
+use nvisy_detection::{Entity, Redaction};
 use nvisy_core::Error;
 
-use crate::text::apply::apply_text_doc;
-use crate::image::apply::apply_image_doc;
-use crate::audio::apply::apply_audio_doc;
-use crate::text::tabular::apply_tabular_doc;
+use text::apply_text_doc;
+use image::apply_image_doc;
+use audio::apply_audio_doc;
+use tabular::apply_tabular_doc;
 
 /// Typed input for [`ApplyRedactionAction`].
 pub struct ApplyRedactionInput {

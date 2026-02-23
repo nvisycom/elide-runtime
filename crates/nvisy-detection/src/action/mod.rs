@@ -1,4 +1,4 @@
-//! Document-level detection actions.
+//! Post-detection actions.
 
 pub mod dedup;
 pub mod manual;

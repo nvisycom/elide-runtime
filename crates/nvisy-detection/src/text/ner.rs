@@ -4,60 +4,19 @@
 //! a time, allowing the layer to accumulate prior text/entities
 //! between spans via interior mutability.
 
-use std::str::FromStr;
-
 use serde::Deserialize;
-use serde_json::Value;
 use tokio::sync::Mutex;
 
 use nvisy_codec::handler::{Span, TxtSpan};
-use nvisy_core::data::{EntityCategory, EntityKind};
+use nvisy_core::data::EntityKind;
 use nvisy_core::Error;
 
-use nvisy_python::bridge::PythonBridge;
-use nvisy_python::ner::NerParams;
-
-use crate::{DetectionMethod, Entity, Location, ModelInfo, TextLocation};
-use crate::{SequentialContext, DetectionService, DetectionLayer};
+use crate::ner::{NerBackend, NerConfig, parse_ner_entities};
+use crate::{Entity, Location, ModelInfo, TextLocation};
+use crate::{SequentialContext, DetectionService};
 
 fn default_confidence() -> f64 {
     0.5
-}
-
-/// Configuration passed to an [`NerBackend`] implementation.
-///
-/// Contains only the model-agnostic parameters that every backend needs.
-/// Provider-specific fields (API key, model name, etc.) belong in the
-/// action's [`NerDetectionParams`] or the provider's credentials.
-#[derive(Debug, Clone)]
-pub struct NerConfig {
-    /// Entity type labels to detect (e.g., `["PERSON", "SSN"]`).
-    pub entity_types: Vec<String>,
-    /// Minimum confidence score to include a detection (0.0 -- 1.0).
-    pub confidence_threshold: f64,
-}
-
-/// Backend trait for NER providers.
-///
-/// Implementations call an external NER service (e.g. via Python, HTTP)
-/// and return raw JSON results.  Entity construction from the raw dicts
-/// is handled by [`NerDetection`].
-#[async_trait::async_trait]
-pub trait NerBackend: Send + Sync + 'static {
-    /// Detect entities in text, returning raw dicts.
-    async fn detect_text(
-        &self,
-        text: &str,
-        config: &NerConfig,
-    ) -> Result<Vec<Value>, Error>;
-
-    /// Detect entities in an image, returning raw dicts.
-    async fn detect_image(
-        &self,
-        image_data: &[u8],
-        mime_type: &str,
-        config: &NerConfig,
-    ) -> Result<Vec<Value>, Error>;
 }
 
 /// Typed parameters for [`NerDetection`].
@@ -113,22 +72,6 @@ impl<B: NerBackend> NerDetection<B> {
     pub async fn reset(&self) {
         let mut state = self.state.lock().await;
         state.prior_text.clear();
-    }
-}
-
-#[async_trait::async_trait]
-impl<B: NerBackend> DetectionLayer for NerDetection<B> {
-    type Params = NerDetectionParams;
-
-    async fn connect(_params: Self::Params) -> Result<Self, Error> {
-        // NerDetection requires a backend at construction time which
-        // cannot be supplied via `connect`. Use `NerDetection::new`
-        // instead.  This impl satisfies the trait bound but is not
-        // the primary construction path.
-        Err(Error::validation(
-            "use NerDetection::new(backend, params) instead of connect",
-            "detect-ner",
-        ))
     }
 }
 
@@ -212,120 +155,10 @@ impl<B: NerBackend> DetectionService<TxtSpan, String> for NerDetection<B> {
     }
 }
 
-/// Parse raw JSON dicts from an NER backend into [`Entity`] values.
-///
-/// Expected dict keys: `category`, `entity_type`, `value`, `confidence`,
-/// and optionally `start_offset` / `end_offset`.
-pub fn parse_ner_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
-    let mut entities = Vec::new();
-
-    for item in raw {
-        let obj = item.as_object().ok_or_else(|| {
-            Error::python("Expected JSON object in NER results".to_string())
-        })?;
-
-        let category_str = obj
-            .get("category")
-            .and_then(Value::as_str)
-            .ok_or_else(|| Error::python("Missing 'category'".to_string()))?;
-
-        let category = match category_str {
-            "pii" => EntityCategory::Pii,
-            "phi" => EntityCategory::Phi,
-            "financial" => EntityCategory::Financial,
-            "credentials" => EntityCategory::Credentials,
-            other => EntityCategory::Custom(other.to_string()),
-        };
-
-        let entity_type_str = obj
-            .get("entity_type")
-            .and_then(Value::as_str)
-            .ok_or_else(|| Error::python("Missing 'entity_type'".to_string()))?;
-
-        let entity_kind = match EntityKind::from_str(entity_type_str) {
-            Ok(ek) => ek,
-            Err(_) => {
-                tracing::warn!(entity_type = entity_type_str, "unknown entity type from NER, dropping");
-                continue;
-            }
-        };
-
-        let value = obj
-            .get("value")
-            .and_then(Value::as_str)
-            .ok_or_else(|| Error::python("Missing 'value'".to_string()))?;
-
-        let confidence = obj
-            .get("confidence")
-            .and_then(Value::as_f64)
-            .ok_or_else(|| Error::python("Missing 'confidence'".to_string()))?;
-
-        let start_offset = obj
-            .get("start_offset")
-            .and_then(Value::as_u64)
-            .map(|v| v as usize)
-            .unwrap_or(0);
-
-        let end_offset = obj
-            .get("end_offset")
-            .and_then(Value::as_u64)
-            .map(|v| v as usize)
-            .unwrap_or(0);
-
-        let entity = Entity::new(
-            category,
-            entity_kind,
-            value,
-            DetectionMethod::Ner,
-            confidence,
-        )
-        .with_location(Location::Text(TextLocation {
-            start_offset,
-            end_offset,
-            ..Default::default()
-        }));
-
-        entities.push(entity);
-    }
-
-    Ok(entities)
-}
-
-/// [`NerBackend`] implementation for [`PythonBridge`].
-///
-/// Converts [`NerConfig`] to [`NerParams`] and delegates to `nvisy_python::ner`.
-#[async_trait::async_trait]
-impl NerBackend for PythonBridge {
-    async fn detect_text(
-        &self,
-        text: &str,
-        config: &NerConfig,
-    ) -> Result<Vec<Value>, Error> {
-        let params = NerParams {
-            entity_types: config.entity_types.clone(),
-            confidence_threshold: config.confidence_threshold,
-        };
-        nvisy_python::ner::detect_ner(self, text, &params).await
-    }
-
-    async fn detect_image(
-        &self,
-        image_data: &[u8],
-        mime_type: &str,
-        config: &NerConfig,
-    ) -> Result<Vec<Value>, Error> {
-        let params = NerParams {
-            entity_types: config.entity_types.clone(),
-            confidence_threshold: config.confidence_threshold,
-        };
-        nvisy_python::ner::detect_ner_image(self, image_data, mime_type, &params).await
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use serde_json::{json, Value};
 
     #[test]
     fn parse_ner_entities_basic() {

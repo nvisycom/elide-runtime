@@ -5,7 +5,7 @@
 
 use serde::Deserialize;
 
-use crate::{DetectionMethod, Entity, Annotation, AnnotationKind, Location, TextLocation};
+use crate::{DetectionMethod, Entity, Annotation, AnnotationKind, Location};
 use nvisy_core::Error;
 
 /// Typed parameters for [`DetectManualAction`].
@@ -103,7 +103,7 @@ pub fn is_excluded(entity: &Entity, exclusions: &[Exclusion]) -> bool {
         if let (Some(Location::Text(entity_loc)), Some(Location::Text(excl_loc))) =
             (&entity.location, &excl.location)
         {
-            if text_locations_overlap(entity_loc, excl_loc) {
+            if entity_loc.overlaps(excl_loc) {
                 return true;
             }
         }
@@ -111,14 +111,10 @@ pub fn is_excluded(entity: &Entity, exclusions: &[Exclusion]) -> bool {
     false
 }
 
-/// Two text locations overlap if their byte ranges intersect.
-fn text_locations_overlap(a: &TextLocation, b: &TextLocation) -> bool {
-    a.start_offset < b.end_offset && b.start_offset < a.end_offset
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TextLocation;
     use nvisy_core::data::{EntityCategory, EntityKind};
 
     fn make_entity(value: &str, start: usize, end: usize) -> Entity {

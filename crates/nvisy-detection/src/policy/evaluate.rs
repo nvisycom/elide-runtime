@@ -2,11 +2,10 @@
 
 use serde::Deserialize;
 
-use nvisy_detection::Entity;
-use crate::record::Redaction;
-use crate::rule::PolicyRule;
-use crate::spec::RedactionSpec;
-use crate::text::spec::TextRedactionSpec;
+use crate::Entity;
+use super::record::Redaction;
+use super::rule::PolicyRule;
+use super::spec::{RedactionSpec, TextRedactionSpec};
 use nvisy_core::Error;
 
 /// Typed parameters for [`EvaluatePolicyAction`].

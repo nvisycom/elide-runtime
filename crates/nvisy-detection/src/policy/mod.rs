@@ -1,27 +1,21 @@
-#![forbid(unsafe_code)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
-#![doc = include_str!("../README.md")]
-
-mod text;
-mod image;
-mod audio;
-mod document;
+//! Policy types, redaction specifications, and governance structures.
 
 mod audit;
 mod evaluation;
-mod policy;
+mod evaluate;
+mod types;
 mod record;
 mod regulation;
 mod retention;
 mod review;
 mod rule;
 mod spec;
+mod summary;
 
-pub use document::{ApplyRedactionAction, ApplyRedactionInput, ApplyRedactionOutput};
 pub use audit::{Audit, AuditAction};
-pub use text::{EvaluatePolicyAction, EvaluatePolicyParams};
 pub use evaluation::PolicyEvaluation;
-pub use policy::{Policies, Policy};
+pub use evaluate::{EvaluatePolicyAction, EvaluatePolicyParams};
+pub use types::{Policies, Policy};
 pub use record::Redaction;
 pub use regulation::RegulationKind;
 pub use retention::{RetentionPolicy, RetentionScope};
@@ -31,4 +25,4 @@ pub use spec::{
     AudioRedactionSpec, ImageRedactionSpec, RedactionSpec, TextRedactionSpec,
     DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR, DEFAULT_PIXELATE_BLOCK_SIZE,
 };
-pub use document::RedactionSummary;
+pub use summary::RedactionSummary;

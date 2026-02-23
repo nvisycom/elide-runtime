@@ -2048,12 +2048,14 @@ dependencies = [
  "async-trait",
  "derive_more 1.0.0",
  "image",
+ "jiff",
  "nvisy-codec",
  "nvisy-core",
  "nvisy-pattern",
  "nvisy-python",
  "regex",
  "schemars",
+ "semver",
  "serde",
  "serde_json",
  "strum",
@@ -2068,9 +2070,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "jiff",
+ "nvisy-codec",
  "nvisy-core",
  "nvisy-detection",
- "nvisy-redaction",
  "petgraph",
  "rand 0.10.0",
  "schemars",
@@ -2094,7 +2096,6 @@ dependencies = [
  "nvisy-core",
  "nvisy-detection",
  "nvisy-python",
- "nvisy-redaction",
  "serde",
  "serde_json",
  "tokio",
@@ -2143,21 +2144,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-redaction"
+name = "nvisy-rig"
 version = "0.1.0"
 dependencies = [
- "derive_more 1.0.0",
- "jiff",
+ "async-trait",
  "nvisy-codec",
  "nvisy-core",
  "nvisy-detection",
- "schemars",
- "semver",
  "serde",
  "serde_json",
- "strum",
- "tracing",
- "uuid",
 ]
 
 [[package]]

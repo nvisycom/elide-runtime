@@ -1,9 +1,9 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "nvisy-detection"
+name = "nvisy-identify"
 description = "Entity ontology types and detection layers for Nvisy"
-keywords = ["nvisy", "detection", "entity", "ontology"]
+keywords = ["nvisy", "identify", "entity", "ontology"]
 categories = ["text-processing"]
 
 version = { workspace = true }
@@ -31,6 +31,7 @@ nvisy-core = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 nvisy-python = { workspace = true, features = [] }
+nvisy-rig = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }

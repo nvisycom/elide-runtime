@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use nvisy_codec::handler::{TxtHandler, CsvHandler, PngHandler, WavHandler};
 use nvisy_codec::document::Document;
-use nvisy_detection::{Entity, Redaction};
+use nvisy_identify::{Entity, Redaction};
 use nvisy_core::Error;
 
 use text::apply_text_doc;

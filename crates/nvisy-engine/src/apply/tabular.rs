@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use nvisy_codec::handler::CsvHandler;
 use nvisy_codec::document::Document;
-use nvisy_detection::{Entity, Location, Redaction, RedactionSpec, TextRedactionSpec};
+use nvisy_identify::{Entity, Location, Redaction, RedactionSpec, TextRedactionSpec};
 use nvisy_core::Error;
 
 pub(crate) async fn apply_tabular_doc(

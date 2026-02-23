@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use nvisy_core::Error;
 use nvisy_core::fs::ContentHandler;
-use nvisy_detection::{
+use nvisy_identify::{
     Audit, DetectionOutput, Policies, PolicyEvaluation, RedactionSummary,
 };
 

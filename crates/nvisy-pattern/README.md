@@ -82,7 +82,7 @@ increased by `boost`, clamped to `[0.0, 1.0]`.
 | `case_sensitive` | bool | `false` | Whether keyword matching is case-sensitive |
 
 Co-occurrence scoring is applied at the detection layer level (in
-`nvisy-detection`), not inside `PatternEngine::scan_text`, because the engine
+`nvisy-identify`), not inside `PatternEngine::scan_text`, because the engine
 operates on one span at a time while co-occurrence needs visibility across
 adjacent spans.
 

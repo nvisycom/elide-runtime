@@ -1,10 +1,10 @@
-# nvisy-detection
+# nvisy-augment
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Entity ontology types, detection layers, and pattern/dictionary infrastructure for the Nvisy runtime.
+Content augmentation actions for the Nvisy runtime.
 
-Defines the core entity model (`Entity`, `DetectionMethod`, locations), detection traits (`DetectionLayer`, `Detect`), and concrete detection layers for text (regex patterns, Aho-Corasick dictionaries, NER), tabular data (column rules), and documents (checksum validation, manual annotations).
+Provides OCR text extraction from images, audio transcription, and synthetic data generation for replacing redacted entities with realistic placeholder values.
 
 ## Documentation
 

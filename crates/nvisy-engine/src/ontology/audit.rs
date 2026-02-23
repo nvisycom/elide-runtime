@@ -8,7 +8,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use nvisy_detection::{DetectionMethod, ModelInfo};
+use nvisy_identify::{DetectionMethod, ModelInfo};
 
 /// Types that carry explainability metadata.
 pub trait Explainable {

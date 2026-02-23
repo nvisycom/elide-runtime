@@ -13,7 +13,7 @@ use nvisy_core::math::BoundingBox;
 use nvisy_python::bridge::PythonBridge;
 use nvisy_python::ocr::OcrParams;
 
-use nvisy_detection::{DetectionMethod, Entity, ImageLocation, Location};
+use nvisy_identify::{DetectionMethod, Entity, ImageLocation, Location};
 
 fn default_language() -> String {
     "eng".into()

@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use nvisy_codec::handler::WavHandler;
 use nvisy_codec::document::Document;
-use nvisy_detection::{Entity, Redaction};
+use nvisy_identify::{Entity, Redaction};
 use nvisy_core::Error;
 
 pub(crate) async fn apply_audio_doc(

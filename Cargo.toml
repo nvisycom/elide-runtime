@@ -8,8 +8,8 @@ members = [
     "./crates/nvisy-codec",
     "./crates/nvisy-object",
     "./crates/nvisy-pattern",
-    "./crates/nvisy-detection",
-    "./crates/nvisy-generation",
+    "./crates/nvisy-identify",
+    "./crates/nvisy-augment",
     "./crates/nvisy-rig",
     "./crates/nvisy-python",
 ]
@@ -38,10 +38,13 @@ nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
-nvisy-detection = { path = "./crates/nvisy-detection", version = "0.1.0" }
-nvisy-generation = { path = "./crates/nvisy-generation", version = "0.1.0" }
+nvisy-identify = { path = "./crates/nvisy-identify", version = "0.1.0" }
+nvisy-augment = { path = "./crates/nvisy-augment", version = "0.1.0" }
 nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
+
+# LLM framework
+rig-core = { version = "0.31", features = [] }
 
 # Async runtime
 tokio = { version = "1", features = [] }

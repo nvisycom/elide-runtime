@@ -3,8 +3,8 @@
 
 use serde::Deserialize;
 
-use nvisy_detection::Entity;
-use nvisy_detection::Redaction;
+use nvisy_identify::Entity;
+use nvisy_identify::Redaction;
 use nvisy_core::Error;
 
 fn default_locale() -> String {

@@ -11,7 +11,7 @@ use nvisy_core::math::TimeSpan;
 use nvisy_core::Error;
 
 use nvisy_core::data::EntityKind;
-use nvisy_detection::{AudioLocation, DetectionMethod, Entity, Location};
+use nvisy_identify::{AudioLocation, DetectionMethod, Entity, Location};
 use nvisy_python::bridge::PythonBridge;
 use nvisy_python::transcribe::TranscribeParams;
 

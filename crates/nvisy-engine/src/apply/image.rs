@@ -6,19 +6,22 @@ use uuid::Uuid;
 use nvisy_codec::handler::PngHandler;
 use nvisy_codec::document::Document;
 use nvisy_codec::transform::{ImageRedaction, ImageRedactionOutput, ImageHandler};
-use nvisy_identify::{Entity, Location, Redaction, RedactionSpec, ImageRedactionSpec};
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::location::Location;
+use nvisy_ontology::record::Redaction;
+use nvisy_ontology::spec::{ImageRedactionInput, RedactionInput};
 use nvisy_core::Error;
 
-/// Convert a `RedactionSpec::Image` into a codec [`ImageRedactionOutput`].
-pub(crate) fn image_output_from_spec(spec: &RedactionSpec) -> Option<ImageRedactionOutput> {
+/// Convert a `RedactionInput::Image` into a codec [`ImageRedactionOutput`].
+pub(crate) fn image_output_from_spec(spec: &RedactionInput) -> Option<ImageRedactionOutput> {
     match spec {
-        RedactionSpec::Image(img) => Some(match img {
-            ImageRedactionSpec::Blur { sigma } => ImageRedactionOutput::Blur { sigma: *sigma },
-            ImageRedactionSpec::Block { color } => ImageRedactionOutput::Block { color: *color },
-            ImageRedactionSpec::Pixelate { block_size } => {
+        RedactionInput::Image(img) => Some(match img {
+            ImageRedactionInput::Blur { sigma } => ImageRedactionOutput::Blur { sigma: *sigma },
+            ImageRedactionInput::Block { color } => ImageRedactionOutput::Block { color: *color },
+            ImageRedactionInput::Pixelate { block_size } => {
                 ImageRedactionOutput::Pixelate { block_size: *block_size }
             }
-            ImageRedactionSpec::Synthesize => {
+            ImageRedactionInput::Synthesize => {
                 ImageRedactionOutput::Block { color: [0, 0, 0, 255] }
             }
         }),
@@ -68,11 +71,11 @@ pub(crate) async fn apply_image_doc(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nvisy_identify::TextRedactionSpec;
+    use nvisy_ontology::spec::TextRedactionInput;
 
     #[test]
     fn image_output_blur() {
-        let spec = RedactionSpec::Image(ImageRedactionSpec::Blur { sigma: 5.0 });
+        let spec = RedactionInput::Image(ImageRedactionInput::Blur { sigma: 5.0 });
         assert_eq!(
             image_output_from_spec(&spec),
             Some(ImageRedactionOutput::Blur { sigma: 5.0 })
@@ -81,7 +84,7 @@ mod tests {
 
     #[test]
     fn image_output_block() {
-        let spec = RedactionSpec::Image(ImageRedactionSpec::Block {
+        let spec = RedactionInput::Image(ImageRedactionInput::Block {
             color: [255, 0, 0, 255],
         });
         assert_eq!(
@@ -94,7 +97,7 @@ mod tests {
 
     #[test]
     fn image_output_pixelate() {
-        let spec = RedactionSpec::Image(ImageRedactionSpec::Pixelate { block_size: 8 });
+        let spec = RedactionInput::Image(ImageRedactionInput::Pixelate { block_size: 8 });
         assert_eq!(
             image_output_from_spec(&spec),
             Some(ImageRedactionOutput::Pixelate { block_size: 8 })
@@ -103,7 +106,7 @@ mod tests {
 
     #[test]
     fn image_output_synthesize_maps_to_black_block() {
-        let spec = RedactionSpec::Image(ImageRedactionSpec::Synthesize);
+        let spec = RedactionInput::Image(ImageRedactionInput::Synthesize);
         assert_eq!(
             image_output_from_spec(&spec),
             Some(ImageRedactionOutput::Block {
@@ -114,13 +117,13 @@ mod tests {
 
     #[test]
     fn image_output_text_spec_returns_none() {
-        let spec = RedactionSpec::Text(TextRedactionSpec::Remove);
+        let spec = RedactionInput::Text(TextRedactionInput::Remove);
         assert_eq!(image_output_from_spec(&spec), None);
     }
 
     #[test]
     fn image_output_audio_spec_returns_none() {
-        let spec = RedactionSpec::Audio(nvisy_identify::AudioRedactionSpec::Silence);
+        let spec = RedactionInput::Audio(nvisy_ontology::spec::AudioRedactionInput::Silence);
         assert_eq!(image_output_from_spec(&spec), None);
     }
 }

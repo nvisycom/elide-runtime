@@ -1,6 +1,6 @@
 //! [`PatternMatch`] and [`DetectionSource`] — output types from pattern scanning.
 
-use nvisy_core::data::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 use crate::patterns::ContextRule;
 

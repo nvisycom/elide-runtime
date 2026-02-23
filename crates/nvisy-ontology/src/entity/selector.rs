@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use nvisy_core::data::{EntityCategory, EntityKind};
+use super::{EntityCategory, EntityKind};
 
 /// Criteria for selecting which entities a policy rule applies to.
 ///

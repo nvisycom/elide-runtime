@@ -32,7 +32,7 @@ use std::sync::LazyLock;
 use aho_corasick::AhoCorasick;
 use regex::{Regex, RegexSet};
 
-use nvisy_core::data::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 use crate::patterns::ContextRule;
 use crate::validators::ValidatorResolver;

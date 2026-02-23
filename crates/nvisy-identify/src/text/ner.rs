@@ -8,7 +8,7 @@ use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use nvisy_codec::handler::{Span, TxtSpan};
-use nvisy_core::data::EntityKind;
+use nvisy_ontology::entity::EntityKind;
 use nvisy_core::Error;
 
 use crate::ner::{NerBackend, NerConfig, parse_ner_entities};

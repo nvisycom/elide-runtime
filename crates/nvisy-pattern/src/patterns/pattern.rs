@@ -6,7 +6,7 @@
 
 use serde::Deserialize;
 
-use nvisy_core::data::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 use super::context_rule::ContextRule;
 

@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use super::rule::PolicyRule;
 use super::regulation::RegulationKind;
-use super::spec::RedactionSpec;
+use nvisy_ontology::spec::RedactionInput;
 
 /// A named redaction policy containing an ordered set of rules.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,7 +29,7 @@ pub struct Policy {
     /// Ordered list of rules.
     pub rules: Vec<PolicyRule>,
     /// Fallback redaction specification when no rule matches.
-    pub default_spec: RedactionSpec,
+    pub default_spec: RedactionInput,
     /// Fallback confidence threshold when no rule matches.
     pub default_confidence_threshold: f64,
 }

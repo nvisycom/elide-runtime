@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_core::data::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 /// A deny-list entry: a known sensitive value that must always be detected.
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ pub struct DenyEntry {
 /// # Examples
 ///
 /// ```rust,ignore
-/// use nvisy_core::data::{EntityCategory, EntityKind};
+/// use nvisy_ontology::entity::{EntityCategory, EntityKind};
 ///
 /// let deny = DenyList::new()
 ///     .with("John Doe", EntityCategory::Pii, EntityKind::PersonName)

@@ -10,6 +10,7 @@ members = [
     "./crates/nvisy-pattern",
     "./crates/nvisy-identify",
     "./crates/nvisy-augment",
+    "./crates/nvisy-ontology",
     "./crates/nvisy-rig",
     "./crates/nvisy-python",
 ]
@@ -40,6 +41,7 @@ nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-identify = { path = "./crates/nvisy-identify", version = "0.1.0" }
 nvisy-augment = { path = "./crates/nvisy-augment", version = "0.1.0" }
+nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
 
@@ -92,7 +94,7 @@ pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
 pythonize = { version = "0.24", features = [] }
 
 # Cloud object storage (S3, Azure Blob, GCS)
-object_store = { version = "0.12", default-features = false }
+object_store = { version = "0.13", default-features = false }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }

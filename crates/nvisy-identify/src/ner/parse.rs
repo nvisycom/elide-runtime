@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use serde_json::Value;
 
-use nvisy_core::data::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use nvisy_core::math::BoundingBox;
 use nvisy_core::Error;
 

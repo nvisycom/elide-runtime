@@ -1,11 +1,7 @@
-mod entity;
-mod location;
-mod model;
-mod selector;
-mod annotation;
-
-pub use entity::{DetectionMethod, DetectionOutput, Entity};
-pub use location::{AudioLocation, ImageLocation, Location, TabularLocation, TextLocation, VideoLocation};
-pub use model::{ModelInfo, ModelKind};
-pub use selector::EntitySelector;
-pub use annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};
+pub use nvisy_ontology::entity::{
+    Annotation, AnnotationKind, AnnotationLabel, AnnotationScope,
+    DetectionMethod, DetectionOutput, Entity, EntitySelector, ModelInfo, ModelKind,
+};
+pub use nvisy_ontology::location::{
+    AudioLocation, ImageLocation, Location, TabularLocation, TextLocation, VideoLocation,
+};

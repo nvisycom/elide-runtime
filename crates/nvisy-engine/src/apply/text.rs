@@ -6,17 +6,20 @@ use uuid::Uuid;
 use nvisy_codec::handler::{TxtHandler, TxtSpan};
 use nvisy_codec::document::Document;
 use nvisy_codec::transform::{TextRedaction, TextRedactionOutput, TextHandler};
-use nvisy_identify::{Entity, Location, Redaction, RedactionSpec, TextRedactionSpec};
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::location::Location;
+use nvisy_ontology::record::Redaction;
+use nvisy_ontology::spec::{RedactionInput, TextRedactionInput};
 use nvisy_core::Error;
 
-/// Convert a `RedactionSpec::Text` + replacement string into a codec
+/// Convert a `RedactionInput::Text` + replacement string into a codec
 /// [`TextRedactionOutput`].
-pub(crate) fn text_output_from_spec(spec: &RedactionSpec, replacement: &str) -> Option<TextRedactionOutput> {
+pub(crate) fn text_output_from_spec(spec: &RedactionInput, replacement: &str) -> Option<TextRedactionOutput> {
     match spec {
-        RedactionSpec::Text(TextRedactionSpec::Remove) if replacement.is_empty() => {
+        RedactionInput::Text(TextRedactionInput::Remove) if replacement.is_empty() => {
             Some(TextRedactionOutput::Remove)
         }
-        RedactionSpec::Text(_) => Some(TextRedactionOutput::Replace {
+        RedactionInput::Text(_) => Some(TextRedactionOutput::Replace {
             replacement: replacement.to_string(),
         }),
         _ => None,
@@ -126,18 +129,18 @@ pub(crate) async fn apply_text_doc(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nvisy_identify::ImageRedactionSpec;
+    use nvisy_ontology::spec::ImageRedactionInput;
 
     #[test]
     fn text_output_remove_empty_replacement() {
-        let spec = RedactionSpec::Text(TextRedactionSpec::Remove);
+        let spec = RedactionInput::Text(TextRedactionInput::Remove);
         let output = text_output_from_spec(&spec, "");
         assert_eq!(output, Some(TextRedactionOutput::Remove));
     }
 
     #[test]
     fn text_output_remove_with_replacement_becomes_replace() {
-        let spec = RedactionSpec::Text(TextRedactionSpec::Remove);
+        let spec = RedactionInput::Text(TextRedactionInput::Remove);
         let output = text_output_from_spec(&spec, "XXX");
         assert_eq!(
             output,
@@ -149,7 +152,7 @@ mod tests {
 
     #[test]
     fn text_output_mask_produces_replace() {
-        let spec = RedactionSpec::Text(TextRedactionSpec::Mask { mask_char: '*' });
+        let spec = RedactionInput::Text(TextRedactionInput::Mask { mask_char: '*' });
         let output = text_output_from_spec(&spec, "****");
         assert_eq!(
             output,
@@ -161,7 +164,7 @@ mod tests {
 
     #[test]
     fn text_output_image_spec_returns_none() {
-        let spec = RedactionSpec::Image(ImageRedactionSpec::Blur { sigma: 10.0 });
+        let spec = RedactionInput::Image(ImageRedactionInput::Blur { sigma: 10.0 });
         assert_eq!(text_output_from_spec(&spec, ""), None);
     }
 }

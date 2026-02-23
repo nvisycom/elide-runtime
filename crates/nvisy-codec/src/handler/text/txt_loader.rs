@@ -15,7 +15,7 @@ use crate::handler::{Loader, TxtHandler};
 #[derive(Debug, Default)]
 pub struct TxtParams {
     /// Character encoding of the input bytes.
-    pub encoding: nvisy_core::data::TextEncoding,
+    pub encoding: nvisy_core::io::TextEncoding,
 }
 
 /// Loader that validates and parses plain-text files.

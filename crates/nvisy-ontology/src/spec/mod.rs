@@ -1,6 +1,7 @@
 //! Redaction specifications for all modalities.
 
 use derive_more::From;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Default mask character for text redaction.
@@ -29,10 +30,9 @@ fn default_block_size() -> u32 {
 }
 
 /// Text redaction specification with method-specific configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum TextRedactionSpec {
+pub enum TextRedactionInput {
     /// Replace characters with a mask character.
     Mask {
         /// Character used for masking (default `'*'`).
@@ -81,10 +81,9 @@ pub enum TextRedactionSpec {
 }
 
 /// Image redaction specification with method-specific configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum ImageRedactionSpec {
+pub enum ImageRedactionInput {
     /// Apply a gaussian blur.
     Blur {
         /// Blur sigma value.
@@ -108,10 +107,9 @@ pub enum ImageRedactionSpec {
 }
 
 /// Audio redaction specification.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum AudioRedactionSpec {
+pub enum AudioRedactionInput {
     /// Replace with silence.
     Silence,
     /// Remove the segment entirely.
@@ -123,14 +121,13 @@ pub enum AudioRedactionSpec {
 /// Unified redaction specification submitted to the engine.
 ///
 /// Carries the method to apply and its configuration parameters.
-#[derive(Debug, Clone, PartialEq, From, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, From, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum RedactionSpec {
+pub enum RedactionInput {
     /// Text/tabular redaction specification.
-    Text(TextRedactionSpec),
+    Text(TextRedactionInput),
     /// Image/video redaction specification.
-    Image(ImageRedactionSpec),
+    Image(ImageRedactionInput),
     /// Audio redaction specification.
-    Audio(AudioRedactionSpec),
+    Audio(AudioRedactionInput),
 }

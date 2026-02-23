@@ -7,14 +7,16 @@
 //! Every variant also maps to an [`EntityCategory`] via [`EntityKind::category`]
 //! and an [`EntitySensitivity`] via [`EntityKind::sensitivity`].
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
-use super::{EntityCategory, EntitySensitivity};
+use super::category::EntityCategory;
+use super::sensitivity::EntitySensitivity;
 
 /// Specific kind of sensitive entity detected or targeted for redaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString)]
-#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum EntityKind {

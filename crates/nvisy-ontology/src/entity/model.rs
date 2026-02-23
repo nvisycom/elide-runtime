@@ -1,10 +1,11 @@
 //! Detection model identity and provenance.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Provenance or licensing classification of a detection model.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelKind {
     /// Open-source model (e.g. spaCy, Hugging Face community models).
@@ -19,7 +20,7 @@ pub enum ModelKind {
 
 /// Identity and version of the model used for detection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(JsonSchema)]
 pub struct ModelInfo {
     /// Model name (e.g. `"spacy-en-core-web-lg"`, `"gpt-4"`).
     pub name: String,

@@ -4,12 +4,13 @@
 //! are not themselves sensitive data but contain or frame sensitive
 //! content.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 /// Kind of structural / layout region within a document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString)]
-#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum LayoutKind {

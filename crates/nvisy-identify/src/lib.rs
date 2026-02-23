@@ -33,7 +33,7 @@ pub use action::DeduplicateAction;
 // --- Policy & governance ---
 pub use policy::{
     Policy, Policies, PolicyRule, RuleKind, RuleCondition,
-    RedactionSpec, TextRedactionSpec, ImageRedactionSpec, AudioRedactionSpec,
+    RedactionInput, TextRedactionInput, ImageRedactionInput, AudioRedactionInput,
     Redaction, PolicyEvaluation, RedactionSummary,
     RegulationKind, RetentionPolicy, RetentionScope,
     ReviewDecision, ReviewStatus,

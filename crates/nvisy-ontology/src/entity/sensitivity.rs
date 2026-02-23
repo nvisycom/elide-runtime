@@ -4,6 +4,7 @@
 //! independent of its category or kind.  This drives default redaction
 //! behaviour — higher sensitivity means stricter handling.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
@@ -14,7 +15,7 @@ use strum::{Display, EnumString};
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord,
     Display, EnumString,
-    Serialize, Deserialize, schemars::JsonSchema,
+    Serialize, Deserialize, JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]

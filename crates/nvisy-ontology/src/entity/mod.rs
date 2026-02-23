@@ -3,20 +3,33 @@
 //! An [`Entity`] represents a single occurrence of sensitive data detected
 //! within a document.
 
+mod annotation;
+mod category;
+mod kind;
+mod model;
+mod selector;
+mod sensitivity;
+
+pub use annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};
+pub use category::EntityCategory;
+pub use kind::EntityKind;
+pub use model::{ModelInfo, ModelKind};
+pub use selector::EntitySelector;
+pub use sensitivity::EntitySensitivity;
+
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use strum::Display;
 use uuid::Uuid;
 
-use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::path::ContentSource;
 
-use super::location::Location;
-use super::model::ModelInfo;
+use crate::location::Location;
 
 /// Method used to detect a sensitive entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum DetectionMethod {

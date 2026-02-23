@@ -11,7 +11,7 @@ use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
-use nvisy_core::data::TextEncoding;
+use nvisy_core::io::TextEncoding;
 
 use crate::handler::{JsonData, JsonHandler, JsonIndent, Loader};
 

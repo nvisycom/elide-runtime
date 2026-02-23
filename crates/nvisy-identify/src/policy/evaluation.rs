@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::record::Redaction;
+use nvisy_ontology::record::Redaction;
 
 /// Full outcome of evaluating a policy against a set of entities.
 #[derive(Debug, Clone, Serialize, Deserialize)]

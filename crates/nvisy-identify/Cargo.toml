@@ -28,6 +28,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
+nvisy-ontology = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 nvisy-python = { workspace = true, features = [] }
@@ -48,7 +49,6 @@ jiff = { workspace = true, features = [] }
 semver = { workspace = true, features = [] }
 
 # Derive macros and error handling
-derive_more = { workspace = true, features = ["from"] }
 strum = { workspace = true, features = ["derive"] }
 
 # Text processing

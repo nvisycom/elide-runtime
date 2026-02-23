@@ -1,18 +1,22 @@
 //! Redaction decision records.
 
+mod review;
+
+pub use review::{ReviewDecision, ReviewStatus};
+
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use nvisy_core::path::ContentSource;
 
-use super::review::ReviewDecision;
-use super::spec::RedactionSpec;
+use crate::spec::RedactionInput;
 
 /// A redaction decision recording how a specific entity was (or will be) redacted.
 ///
 /// Each `Redaction` is linked to exactly one entity via `entity_id`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(JsonSchema)]
 pub struct Redaction {
     /// Content source identity and lineage.
     #[serde(flatten)]
@@ -20,7 +24,7 @@ pub struct Redaction {
     /// Identifier of the entity being redacted.
     pub entity_id: Uuid,
     /// Redaction specification recording the method used (provenance for audit).
-    pub spec: RedactionSpec,
+    pub spec: RedactionInput,
     /// Resolved replacement string (empty for Remove, unused for image/audio).
     pub replacement: String,
     /// The original sensitive value, retained for audit purposes.
@@ -43,7 +47,7 @@ impl Redaction {
     /// Create a new pending redaction for the given entity.
     pub fn new(
         entity_id: Uuid,
-        spec: RedactionSpec,
+        spec: RedactionInput,
         replacement: impl Into<String>,
         original_value: impl Into<String>,
         confidence: f64,

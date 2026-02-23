@@ -3,9 +3,9 @@
 use serde::Deserialize;
 
 use crate::Entity;
-use super::record::Redaction;
+use nvisy_ontology::record::Redaction;
+use nvisy_ontology::spec::{RedactionInput, TextRedactionInput};
 use super::rule::PolicyRule;
-use super::spec::{RedactionSpec, TextRedactionSpec};
 use nvisy_core::Error;
 
 /// Typed parameters for [`EvaluatePolicyAction`].
@@ -17,14 +17,14 @@ pub struct EvaluatePolicyParams {
     pub rules: Vec<PolicyRule>,
     /// Fallback redaction specification when no rule matches.
     #[serde(default = "default_spec")]
-    pub default_spec: RedactionSpec,
+    pub default_spec: RedactionInput,
     /// Fallback confidence threshold.
     #[serde(default = "default_threshold")]
     pub default_confidence_threshold: f64,
 }
 
-fn default_spec() -> RedactionSpec {
-    RedactionSpec::Text(TextRedactionSpec::Mask { mask_char: '*' })
+fn default_spec() -> RedactionInput {
+    RedactionInput::Text(TextRedactionInput::Mask { mask_char: '*' })
 }
 fn default_threshold() -> f64 {
     0.5
@@ -106,30 +106,30 @@ fn apply_template(template: &str, entity: &Entity) -> String {
 }
 
 /// Generates a default replacement string for an entity using the given redaction spec.
-fn build_default_replacement(entity: &Entity, spec: &RedactionSpec) -> String {
+fn build_default_replacement(entity: &Entity, spec: &RedactionInput) -> String {
     match spec {
-        RedactionSpec::Text(text) => match text {
-            TextRedactionSpec::Mask { mask_char } => {
+        RedactionInput::Text(text) => match text {
+            TextRedactionInput::Mask { mask_char } => {
                 mask_char.to_string().repeat(entity.value.len())
             }
-            TextRedactionSpec::Replace { placeholder } => {
+            TextRedactionInput::Replace { placeholder } => {
                 if placeholder.is_empty() {
                     format!("[{}]", entity.entity_kind.to_string().to_uppercase())
                 } else {
                     apply_template(placeholder, entity)
                 }
             }
-            TextRedactionSpec::Remove => String::new(),
-            TextRedactionSpec::Hash => format!("[HASH:{}]", entity.entity_kind),
-            TextRedactionSpec::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
-            TextRedactionSpec::Synthesize => format!("[SYNTH:{}]", entity.entity_kind),
-            TextRedactionSpec::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_kind),
-            TextRedactionSpec::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
-            TextRedactionSpec::Aggregate => format!("[AGG:{}]", entity.entity_kind),
-            TextRedactionSpec::Generalize { .. } => format!("[GEN:{}]", entity.entity_kind),
-            TextRedactionSpec::DateShift { .. } => format!("[SHIFTED:{}]", entity.entity_kind),
+            TextRedactionInput::Remove => String::new(),
+            TextRedactionInput::Hash => format!("[HASH:{}]", entity.entity_kind),
+            TextRedactionInput::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
+            TextRedactionInput::Synthesize => format!("[SYNTH:{}]", entity.entity_kind),
+            TextRedactionInput::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_kind),
+            TextRedactionInput::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
+            TextRedactionInput::Aggregate => format!("[AGG:{}]", entity.entity_kind),
+            TextRedactionInput::Generalize { .. } => format!("[GEN:{}]", entity.entity_kind),
+            TextRedactionInput::DateShift { .. } => format!("[SHIFTED:{}]", entity.entity_kind),
         },
         // Image and audio specs don't produce text replacements.
-        RedactionSpec::Image(_) | RedactionSpec::Audio(_) => String::new(),
+        RedactionInput::Image(_) | RedactionInput::Audio(_) => String::new(),
     }
 }

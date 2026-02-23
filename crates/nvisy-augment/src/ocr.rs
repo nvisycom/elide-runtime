@@ -6,14 +6,15 @@ use serde_json::Value;
 
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{Handler, PngHandler, TxtHandler};
-use nvisy_core::data::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
 
 use nvisy_python::bridge::PythonBridge;
 use nvisy_python::ocr::OcrParams;
 
-use nvisy_identify::{DetectionMethod, Entity, ImageLocation, Location};
+use nvisy_ontology::entity::{DetectionMethod, Entity};
+use nvisy_ontology::location::{ImageLocation, Location};
 
 fn default_language() -> String {
     "eng".into()

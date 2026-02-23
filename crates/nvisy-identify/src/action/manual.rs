@@ -115,7 +115,7 @@ pub fn is_excluded(entity: &Entity, exclusions: &[Exclusion]) -> bool {
 mod tests {
     use super::*;
     use crate::TextLocation;
-    use nvisy_core::data::{EntityCategory, EntityKind};
+    use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
     fn make_entity(value: &str, start: usize, end: usize) -> Entity {
         Entity::new(

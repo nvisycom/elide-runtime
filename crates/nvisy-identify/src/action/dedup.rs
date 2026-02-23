@@ -70,7 +70,7 @@ fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
 mod tests {
     use super::*;
     use crate::TextLocation;
-    use nvisy_core::data::{EntityCategory, EntityKind};
+    use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
     fn text_entity(value: &str, method: DetectionMethod, confidence: f64, start: usize, end: usize) -> Entity {
         Entity::new(

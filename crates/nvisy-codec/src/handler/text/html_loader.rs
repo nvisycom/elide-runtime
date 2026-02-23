@@ -16,7 +16,7 @@ use crate::handler::{Loader, HtmlData, HtmlHandler};
 #[derive(Debug, Default)]
 pub struct HtmlParams {
     /// Character encoding of the input bytes.
-    pub encoding: nvisy_core::data::TextEncoding,
+    pub encoding: nvisy_core::io::TextEncoding,
 }
 
 /// Loader that validates and parses HTML files.

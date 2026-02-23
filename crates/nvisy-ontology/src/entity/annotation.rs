@@ -3,9 +3,9 @@
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-use nvisy_core::data::{EntityCategory, EntityKind};
+use super::{EntityCategory, EntityKind};
 
-use super::location::Location;
+use crate::location::Location;
 
 /// The kind of annotation applied to a content region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]

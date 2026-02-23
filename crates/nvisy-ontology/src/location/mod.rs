@@ -1,5 +1,9 @@
 //! Modality-specific entity location types.
 
+mod layout_kind;
+
+pub use layout_kind::LayoutKind;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

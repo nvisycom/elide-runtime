@@ -6,11 +6,10 @@
 use serde_json::Value;
 
 use nvisy_codec::handler::{ImageData, Span};
-use nvisy_core::data::EntityCategory;
 use nvisy_core::math::BoundingBox;
 use nvisy_core::Error;
 
-use nvisy_core::data::EntityKind;
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 use crate::{DetectionMethod, Entity, ImageLocation, Location};
 use crate::{ParallelContext, DetectionService};

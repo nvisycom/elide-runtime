@@ -10,8 +10,9 @@ use uuid::Uuid;
 
 use nvisy_core::Error;
 use nvisy_core::fs::ContentHandler;
+use nvisy_ontology::entity::DetectionOutput;
 use nvisy_identify::{
-    Audit, DetectionOutput, Policies, PolicyEvaluation, RedactionSummary,
+    Audit, Policies, PolicyEvaluation, RedactionSummary,
 };
 
 use crate::compiler::graph::Graph;

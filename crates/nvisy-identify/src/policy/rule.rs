@@ -5,7 +5,7 @@ use strum::Display;
 use uuid::Uuid;
 
 use nvisy_core::fs::DocumentType;
-use super::spec::RedactionSpec;
+use nvisy_ontology::spec::RedactionInput;
 
 use crate::EntitySelector;
 
@@ -50,7 +50,7 @@ pub struct PolicyRule {
     /// Which entities this rule applies to.
     pub selector: EntitySelector,
     /// Redaction specification to apply when this rule matches (relevant when `kind` is `Redaction`).
-    pub spec: RedactionSpec,
+    pub spec: RedactionInput,
     /// Template string for the replacement value (e.g. `"[REDACTED]"`).
     pub replacement_template: String,
     /// Evaluation priority (lower numbers are evaluated first).

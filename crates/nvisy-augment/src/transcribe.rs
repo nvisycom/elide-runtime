@@ -6,12 +6,12 @@ use serde_json::Value;
 
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{Handler, WavHandler, TxtHandler};
-use nvisy_core::data::EntityCategory;
 use nvisy_core::math::TimeSpan;
 use nvisy_core::Error;
 
-use nvisy_core::data::EntityKind;
-use nvisy_identify::{AudioLocation, DetectionMethod, Entity, Location};
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{DetectionMethod, Entity};
+use nvisy_ontology::location::{AudioLocation, Location};
 use nvisy_python::bridge::PythonBridge;
 use nvisy_python::transcribe::TranscribeParams;
 

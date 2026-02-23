@@ -89,7 +89,7 @@ pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
 pythonize = { version = "0.24", features = [] }
 
 # Cloud object storage (S3, Azure Blob, GCS)
-object_store = { version = "0.12", default-features = false }
+object_store = { version = "0.13", default-features = false }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }

@@ -35,3 +35,7 @@ serde_json = { workspace = true, features = [] }
 
 # Async runtime
 async-trait = { workspace = true, features = [] }
+
+[dev-dependencies]
+bytes = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["macros", "rt"] }

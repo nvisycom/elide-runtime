@@ -5,8 +5,11 @@
 //! [`PatternEngine`].
 
 use serde::Deserialize;
+use serde_json::Value;
 
-use nvisy_codec::handler::{CsvSpan, Span, TxtSpan};
+use nvisy_codec::handler::{CsvSpan, JsonPath, Span, TxtSpan};
+#[cfg(feature = "html")]
+use nvisy_codec::handler::HtmlSpan;
 use nvisy_core::Error;
 use nvisy_core::path::ContentSource;
 use nvisy_pattern::{ContextRule, PatternEngine, PatternEngineBuilder, DetectionSource, PatternMatch};
@@ -38,9 +41,9 @@ impl DetectionLayer for PatternDetection {
 
     async fn connect(params: Self::Params) -> Result<Self, Error> {
         let mut builder = PatternEngineBuilder::default()
-            .confidence_threshold(params.confidence_threshold);
+            .with_confidence_threshold(params.confidence_threshold);
         if let Some(ref names) = params.patterns {
-            builder = builder.patterns(names);
+            builder = builder.with_patterns(names);
         }
         let engine = builder.build().map_err(|e| {
             Error::validation(e.to_string(), "pattern-detection")
@@ -158,6 +161,115 @@ impl Detect<CsvSpan, String> for PatternDetection {
     }
 }
 
+#[cfg(feature = "html")]
+#[async_trait::async_trait]
+impl Detect<HtmlSpan, String> for PatternDetection {
+    type Context = ParallelContext;
+
+    async fn detect(
+        &self,
+        spans: Vec<Span<HtmlSpan, String>>,
+        source: &ContentSource,
+    ) -> Result<Vec<Entity>, Error> {
+        let span_data: Vec<&str> = spans.iter().map(|s| s.data.as_str()).collect();
+        let mut raw_matches: Vec<(usize, PatternMatch)> = Vec::new();
+
+        for (idx, span) in spans.iter().enumerate() {
+            for m in self.engine.scan_text(&span.data) {
+                raw_matches.push((idx, m));
+            }
+        }
+
+        let mut entities = Vec::new();
+        for (span_idx, m) in &raw_matches {
+            let confidence = if let Some(ref ctx) = m.context {
+                apply_cooccurrence(&span_data, *span_idx, ctx, m.confidence)
+            } else {
+                m.confidence
+            };
+
+            let method = detection_method(m.source);
+
+            let entity = Entity::new(
+                m.category.clone(),
+                m.entity_kind,
+                &m.value,
+                method,
+                confidence,
+            )
+            .with_location(Location::Text(TextLocation {
+                start_offset: m.start,
+                end_offset: m.end,
+                element_id: Some(spans[*span_idx].id.0.to_string()),
+                ..Default::default()
+            }))
+            .with_parent(source);
+
+            entities.push(entity);
+        }
+
+        Ok(entities)
+    }
+}
+
+#[async_trait::async_trait]
+impl Detect<JsonPath, Value> for PatternDetection {
+    type Context = ParallelContext;
+
+    async fn detect(
+        &self,
+        spans: Vec<Span<JsonPath, Value>>,
+        source: &ContentSource,
+    ) -> Result<Vec<Entity>, Error> {
+        // Filter to string-valued spans and collect text for co-occurrence.
+        let string_spans: Vec<(usize, &str)> = spans
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, s)| s.data.as_str().map(|text| (idx, text)))
+            .collect();
+
+        let span_data: Vec<&str> = string_spans.iter().map(|(_, text)| *text).collect();
+        let mut raw_matches: Vec<(usize, PatternMatch)> = Vec::new();
+
+        for (co_idx, (_, text)) in string_spans.iter().enumerate() {
+            for m in self.engine.scan_text(text) {
+                raw_matches.push((co_idx, m));
+            }
+        }
+
+        let mut entities = Vec::new();
+        for (co_idx, m) in &raw_matches {
+            let confidence = if let Some(ref ctx) = m.context {
+                apply_cooccurrence(&span_data, *co_idx, ctx, m.confidence)
+            } else {
+                m.confidence
+            };
+
+            let method = detection_method(m.source);
+            let (orig_idx, _) = string_spans[*co_idx];
+
+            let entity = Entity::new(
+                m.category.clone(),
+                m.entity_kind,
+                &m.value,
+                method,
+                confidence,
+            )
+            .with_location(Location::Text(TextLocation {
+                start_offset: m.start,
+                end_offset: m.end,
+                element_id: Some(spans[orig_idx].id.pointer.clone()),
+                ..Default::default()
+            }))
+            .with_parent(source);
+
+            entities.push(entity);
+        }
+
+        Ok(entities)
+    }
+}
+
 /// Map a [`DetectionSource`] to a [`DetectionMethod`].
 fn detection_method(source: DetectionSource) -> DetectionMethod {
     match source {
@@ -179,8 +291,13 @@ fn apply_cooccurrence(
     let end = (span_idx + rule.window + 1).min(spans.len());
 
     for span in &spans[start..end] {
-        let lower = span.to_lowercase();
-        if rule.keywords.iter().any(|kw| lower.contains(&kw.to_lowercase())) {
+        let found = if rule.case_sensitive {
+            rule.keywords.iter().any(|kw| span.contains(kw.as_str()))
+        } else {
+            let lower = span.to_lowercase();
+            rule.keywords.iter().any(|kw| lower.contains(&kw.to_lowercase()))
+        };
+        if found {
             return (base + rule.boost).clamp(0.0, 1.0);
         }
     }
@@ -196,6 +313,7 @@ mod tests {
             keywords: keywords.into_iter().map(String::from).collect(),
             window,
             boost,
+            case_sensitive: false,
         }
     }
 

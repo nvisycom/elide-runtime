@@ -2,6 +2,8 @@
   "name": "us-postal-code",
   "category": "pii",
   "entity_type": "postal_code",
-  "pattern": "\\b\\d{5}(?:-\\d{4})?\\b",
+  "pattern": {
+    "regex": "\\b\\d{5}(?:-\\d{4})?\\b"
+  },
   "confidence": 0.5
 }

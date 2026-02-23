@@ -20,24 +20,33 @@ use super::model::ModelInfo;
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum DetectionMethod {
+    // A. Deterministic / pattern-based
     /// Regular expression pattern matching.
     Regex,
-    /// Checksum or Luhn-algorithm validation.
-    Checksum,
     /// Lookup in a known-value dictionary.
     Dictionary,
+
+    // B. ML / NLP
     /// Named-entity recognition via AI model.
     Ner,
     /// Contextual NLP analysis (discourse-level understanding).
     ContextualNlp,
+
+    // C. Computer vision
     /// OCR text extraction with bounding boxes.
     Ocr,
     /// Face detection in images or video frames.
     FaceDetection,
     /// Object detection in images or video frames.
     ObjectDetection,
+
+    // D. Audio
     /// Entity detection from speech transcription.
     SpeechTranscript,
+    /// Speaker-identified audio segment for redaction.
+    SpeakerRedaction,
+
+    // Meta
     /// Multiple methods combined to produce a single detection.
     Composite,
     /// User-provided annotations.

@@ -17,6 +17,10 @@ repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 
+[features]
+default = ["html"]
+html = ["nvisy-codec/html"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
@@ -51,8 +55,13 @@ schemars = { workspace = true, features = [] }
 # Text processing
 regex = { workspace = true, features = [] }
 
+# Image processing
+image = { workspace = true, features = [] }
+
 # Observability
 tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 regex = { workspace = true, features = [] }
+serde_json = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["macros", "rt"] }

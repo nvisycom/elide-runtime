@@ -1,7 +1,7 @@
 //! Document-level detection actions.
 
-pub mod checksum;
+pub mod dedup;
 pub mod manual;
 
-pub use checksum::{DetectChecksumAction, DetectChecksumParams};
-pub use manual::{DetectManualAction, DetectManualParams};
+pub use dedup::DeduplicateAction;
+pub use manual::{DetectManualAction, DetectManualParams, Exclusion, ManualOutput, is_excluded};

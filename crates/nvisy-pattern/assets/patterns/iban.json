@@ -2,9 +2,11 @@
   "name": "iban",
   "category": "financial",
   "entity_type": "iban",
-  "pattern": "\\b[A-Z]{2}\\d{2}\\s?[A-Z0-9]{4}\\s?(?:\\d{4}\\s?){2,7}\\d{1,4}\\b",
+  "pattern": {
+    "regex": "\\b[A-Z]{2}\\d{2}\\s?[A-Z0-9]{4}\\s?(?:\\d{4}\\s?){2,7}\\d{1,4}\\b",
+    "validator": "iban"
+  },
   "confidence": 0.85,
-  "validator": "iban",
   "context": {
     "keywords": ["iban", "bank", "account", "transfer", "swift"],
     "window": 3,

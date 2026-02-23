@@ -7,11 +7,11 @@ sensitive data across documents, images, audio, and video.
 
 ## Features
 
-- **Multimodal Codecs:** Read, edit, and write PDF, DOCX, images, audio, CSV, JSON, and plain text
-- **AI-Powered Detection:** Regex, dictionary, checksum, NER, and LLM-driven entity recognition
-- **Span-Aware Redaction:** Mask, replace, hash, encrypt, blur, block, pixelate, and synthesize
-- **Pipeline Engine:** DAG compiler and executor with retry and timeout policies
-- **Python Extensions:** PyO3 bridge for AI-powered NER and OCR via embedded CPython
+- **Multimodal Codecs**: read, edit, and write PDF, DOCX, images, audio, CSV, JSON, and plain text
+- **AI-Powered Detection**: regex, dictionary, checksum, NER, and LLM-driven entity recognition
+- **Span-Aware Redaction**: mask, replace, hash, encrypt, blur, block, pixelate, and synthesize
+- **Pipeline Engine**: DAG compiler and executor with retry and timeout policies
+- **Python Extensions**: PyO3 bridge for AI-powered NER and OCR via embedded CPython
 
 ## Quick Start
 

@@ -7,6 +7,7 @@ mod layer;
 mod text;
 mod tabular;
 mod document;
+pub mod image;
 
 pub mod prelude;
 
@@ -25,5 +26,5 @@ pub use text::{NerDetection, NerDetectionParams, NerBackend, NerConfig, parse_ne
 pub use tabular::{TabularDetection, TabularDetectionParams, ColumnRule};
 
 // Standalone actions
-pub use document::{DetectChecksumAction, DetectChecksumParams};
-pub use document::{DetectManualAction, DetectManualParams};
+pub use document::{DetectManualAction, DetectManualParams, Exclusion, ManualOutput, is_excluded};
+pub use document::DeduplicateAction;

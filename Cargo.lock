@@ -2047,6 +2047,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "derive_more 1.0.0",
+ "image",
  "nvisy-codec",
  "nvisy-core",
  "nvisy-pattern",
@@ -2088,6 +2089,7 @@ name = "nvisy-generation"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "bytes",
  "nvisy-codec",
  "nvisy-core",
  "nvisy-detection",
@@ -2095,6 +2097,7 @@ dependencies = [
  "nvisy-redaction",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

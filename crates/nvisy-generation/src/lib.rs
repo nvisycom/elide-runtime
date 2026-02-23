@@ -13,5 +13,5 @@ pub use ocr::{
 pub use synthetic::{GenerateSyntheticAction, GenerateSyntheticInput, GenerateSyntheticParams};
 pub use transcribe::{
     GenerateTranscribeAction, GenerateTranscribeInput, GenerateTranscribeOutput,
-    GenerateTranscribeParams,
+    GenerateTranscribeParams, TranscribeBackend, TranscribeConfig, parse_transcribe_entities,
 };

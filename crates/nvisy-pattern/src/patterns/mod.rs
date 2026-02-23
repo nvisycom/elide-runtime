@@ -127,7 +127,6 @@ impl PatternRegistry {
                 category = %pattern.category(),
                 entity_kind = %pattern.entity_kind(),
                 match_source = ?pattern.match_source(),
-                validator = ?pattern.validator_name(),
                 "pattern loaded",
             );
             reg.insert(Box::new(pattern));
@@ -156,6 +155,7 @@ pub fn builtin_registry() -> &'static PatternRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::pattern::RegexPattern;
 
     fn registry() -> &'static PatternRegistry {
         builtin_registry()
@@ -187,8 +187,8 @@ mod tests {
         for p in registry().values() {
             assert!(!p.name().is_empty(), "pattern name is empty");
             match p.match_source() {
-                MatchSource::Regex(re) => assert!(!re.is_empty(), "regex is empty for {}", p.name()),
-                MatchSource::Dictionary(d) => assert!(!d.is_empty(), "dictionary is empty for {}", p.name()),
+                MatchSource::Regex(rp) => assert!(!rp.regex.is_empty(), "regex is empty for {}", p.name()),
+                MatchSource::Dictionary(dp) => assert!(!dp.name.is_empty(), "dictionary is empty for {}", p.name()),
             }
             assert!(p.confidence() > 0.0, "confidence is 0 for {}", p.name());
             assert!(p.confidence() <= 1.0, "confidence > 1 for {}", p.name());
@@ -198,12 +198,12 @@ mod tests {
     #[test]
     fn all_regex_patterns_compile() {
         for p in registry().values() {
-            if let MatchSource::Regex(re) = p.match_source() {
+            if let MatchSource::Regex(rp) = p.match_source() {
                 assert!(
-                    regex::Regex::new(re).is_ok(),
+                    regex::Regex::new(&rp.regex).is_ok(),
                     "pattern {} failed to compile: {}",
                     p.name(),
-                    re,
+                    rp.regex,
                 );
             }
         }
@@ -213,7 +213,7 @@ mod tests {
     fn all_validators_resolve() {
         let resolver = crate::validators::ValidatorResolver::builtins();
         for p in registry().values() {
-            if let Some(name) = p.validator_name() {
+            if let MatchSource::Regex(RegexPattern { validator: Some(name), .. }) = p.match_source() {
                 assert!(
                     resolver.resolve(name).is_some(),
                     "pattern {} references unregistered validator {name}",
@@ -229,7 +229,7 @@ mod tests {
             "name": "test",
             "category": "pii",
             "entity_type": "government_id",
-            "pattern": "\\d+",
+            "pattern": { "regex": "\\d+" },
             "confidence": 0.9
         }"#;
         let (pattern, _warnings) = JsonPattern::from_bytes(json).unwrap();

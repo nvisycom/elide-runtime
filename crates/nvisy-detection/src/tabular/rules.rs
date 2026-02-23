@@ -17,6 +17,10 @@ use nvisy_core::path::ContentSource;
 use crate::{DetectionMethod, Entity, Location, TabularLocation};
 use crate::{ParallelContext, Detect, DetectionLayer};
 
+fn default_confidence() -> f64 {
+    0.9
+}
+
 /// A rule that matches column headers to classify entire columns.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,6 +32,9 @@ pub struct ColumnRule {
     /// Entity kind for matches.
     #[serde(rename = "entityType")]
     pub entity_kind: EntityKind,
+    /// Confidence score for entities matched by this rule.
+    #[serde(default = "default_confidence")]
+    pub confidence: f64,
 }
 
 /// Typed parameters for [`TabularDetection`].
@@ -115,7 +122,7 @@ impl Detect<CsvSpan, String> for TabularDetection {
                     rule.entity_kind,
                     span.data.as_str(),
                     DetectionMethod::Composite,
-                    0.9,
+                    rule.confidence,
                 )
                 .with_location(Location::Tabular(TabularLocation {
                     row_index: span.id.row,
@@ -130,5 +137,60 @@ impl Detect<CsvSpan, String> for TabularDetection {
         }
 
         Ok(entities)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_rule(pattern: &str, confidence: f64) -> ColumnRule {
+        ColumnRule {
+            column_name_pattern: pattern.into(),
+            category: EntityCategory::Pii,
+            entity_kind: EntityKind::PersonName,
+            confidence,
+        }
+    }
+
+    fn header_span(col: usize, data: &str) -> Span<CsvSpan, String> {
+        Span {
+            id: CsvSpan { row: 0, col, header: true, key: data.into() },
+            data: data.into(),
+        }
+    }
+
+    fn data_span(row: usize, col: usize, data: &str) -> Span<CsvSpan, String> {
+        Span {
+            id: CsvSpan { row, col, header: false, key: String::new() },
+            data: data.into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn per_rule_confidence_used() {
+        let params = TabularDetectionParams {
+            column_rules: vec![make_rule("(?i)name", 0.75)],
+        };
+        let det = TabularDetection::connect(params).await.unwrap();
+        let source = ContentSource::new();
+
+        let spans = vec![
+            header_span(0, "Name"),
+            data_span(1, 0, "Alice"),
+        ];
+        let entities = det.detect(spans, &source).await.unwrap();
+        assert_eq!(entities.len(), 1);
+        assert!((entities[0].confidence - 0.75).abs() < f64::EPSILON);
+    }
+
+    #[tokio::test]
+    async fn default_confidence_is_0_9() {
+        let rule: ColumnRule = serde_json::from_str(r#"{
+            "columnNamePattern": "(?i)ssn",
+            "category": "pii",
+            "entityType": "government_id"
+        }"#).unwrap();
+        assert!((rule.confidence - 0.9).abs() < f64::EPSILON);
     }
 }

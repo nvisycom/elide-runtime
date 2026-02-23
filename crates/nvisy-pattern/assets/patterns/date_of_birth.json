@@ -2,7 +2,9 @@
   "name": "date-of-birth",
   "category": "pii",
   "entity_type": "date_of_birth",
-  "pattern": "\\b(?:0[1-9]|1[0-2])[/\\-](?:0[1-9]|[12]\\d|3[01])[/\\-](?:19|20)\\d{2}\\b",
+  "pattern": {
+    "regex": "\\b(?:0[1-9]|1[0-2])[/\\-](?:0[1-9]|[12]\\d|3[01])[/\\-](?:19|20)\\d{2}\\b"
+  },
   "confidence": 0.6,
   "context": {
     "keywords": ["birth", "born", "dob", "birthday", "date of birth"],

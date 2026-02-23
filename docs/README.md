@@ -23,9 +23,9 @@ The guiding principle is: **extract everything, understand context, redact preci
 
 Three viable product directions exist for platforms in this space:
 
-1. **Compliance-first platform** — targets enterprise procurement cycles driven by regulatory mandates.
-2. **Developer-first redaction API** — prioritizes integration speed, SDK quality, and self-serve adoption.
-3. **AI-native multimodal privacy engine** — leads with model sophistication, context understanding, and semantic redaction.
+1. **Compliance-first platform**: targets enterprise procurement cycles driven by regulatory mandates.
+2. **Developer-first redaction API**: prioritizes integration speed, SDK quality, and self-serve adoption.
+3. **AI-native multimodal privacy engine**: leads with model sophistication, context understanding, and semantic redaction.
 
 The strongest long-term defensibility lies in context-aware, explainable, policy-driven multimodal redaction — a convergence of all three directions.
 

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 /// the match confidence is increased by `boost` (clamped to `[0.0, 1.0]`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextRule {
-    /// Case-insensitive keywords to look for in nearby spans.
+    /// Keywords to look for in nearby spans.
     pub keywords: Vec<String>,
     /// Number of spans before and after the match span to search.
     #[serde(default = "default_window")]
@@ -17,6 +17,11 @@ pub struct ContextRule {
     /// Confidence adjustment when at least one keyword is found.
     #[serde(default = "default_boost")]
     pub boost: f64,
+    /// Whether keyword matching is case-sensitive.
+    ///
+    /// Defaults to `false` (case-insensitive).
+    #[serde(default)]
+    pub case_sensitive: bool,
 }
 
 fn default_window() -> usize {

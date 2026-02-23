@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn confidence_threshold_filters() {
         let engine = PatternEngine::builder()
-            .confidence_threshold(0.99)
+            .with_confidence_threshold(0.99)
             .build()
             .unwrap();
         let matches = engine.scan_text("My SSN is 123-45-6789.");
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn builder_pattern_filter() {
         let engine = PatternEngine::builder()
-            .patterns(&["email"])
+            .with_patterns(&["email"])
             .build()
             .unwrap();
         assert_eq!(engine.regex_entries.len(), 1);
@@ -321,8 +321,8 @@ mod tests {
     #[test]
     fn allow_list_suppresses_match() {
         let engine = PatternEngine::builder()
-            .patterns(&["ssn"])
-            .allow(AllowList::new().with("123-45-6789"))
+            .with_patterns(&["ssn"])
+            .with_allow(AllowList::new().with("123-45-6789"))
             .build()
             .unwrap();
         let matches = engine.scan_text("SSN: 123-45-6789");
@@ -337,8 +337,8 @@ mod tests {
         let deny = DenyList::new()
             .with("secret-value-42", EntityCategory::Pii, EntityKind::PersonName);
         let engine = PatternEngine::builder()
-            .patterns(&["email"])
-            .deny(deny)
+            .with_patterns(&["email"])
+            .with_deny(deny)
             .build()
             .unwrap();
         let matches = engine.scan_text("The secret-value-42 should be detected.");
@@ -356,8 +356,8 @@ mod tests {
         let deny = DenyList::new()
             .with("not-in-text", EntityCategory::Pii, EntityKind::PersonName);
         let engine = PatternEngine::builder()
-            .patterns(&["email"])
-            .deny(deny)
+            .with_patterns(&["email"])
+            .with_deny(deny)
             .build()
             .unwrap();
         let matches = engine.scan_text("Nothing special here.");
@@ -393,7 +393,7 @@ mod tests {
     #[test]
     fn context_rule_passthrough() {
         let engine = PatternEngine::builder()
-            .patterns(&["ssn"])
+            .with_patterns(&["ssn"])
             .build()
             .unwrap();
         let matches = engine.scan_text("SSN: 123-45-6789");

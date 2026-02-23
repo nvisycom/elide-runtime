@@ -3,10 +3,9 @@
 //! Delegates to a [`FaceBackend`] to detect human faces in images,
 //! producing entities with [`ImageLocation`] bounding boxes.
 
-use image::DynamicImage;
 use serde_json::Value;
 
-use nvisy_codec::handler::Span;
+use nvisy_codec::handler::{ImageData, Span};
 use nvisy_core::data::EntityCategory;
 use nvisy_core::math::BoundingBox;
 use nvisy_core::Error;
@@ -42,21 +41,17 @@ impl<B: FaceBackend> FaceDetection<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: FaceBackend> DetectionService<(), DynamicImage> for FaceDetection<B> {
+impl<B: FaceBackend> DetectionService<(), ImageData> for FaceDetection<B> {
     type Context = ParallelContext;
 
     async fn detect(
         &self,
-        spans: Vec<Span<(), DynamicImage>>,
+        spans: Vec<Span<(), ImageData>>,
     ) -> Result<Vec<Entity>, Error> {
         let mut entities = Vec::new();
 
         for span in &spans {
-            let mut buf = std::io::Cursor::new(Vec::new());
-            span.data
-                .write_to(&mut buf, image::ImageFormat::Png)
-                .map_err(|e| Error::validation(format!("PNG encode failed: {e}"), "face-detection"))?;
-            let png_bytes = buf.into_inner();
+            let png_bytes = span.data.encode_png()?;
 
             let raw = self.backend.detect_faces(&png_bytes, "image/png").await?;
 
@@ -117,7 +112,7 @@ mod tests {
     async fn detect_face_produces_image_location() {
         let layer = FaceDetection::new(MockFaceBackend);
 
-        let img = DynamicImage::new_rgb8(200, 200);
+        let img = ImageData::new_rgb(200, 200);
         let spans = vec![Span::new((), img)];
 
         let entities = layer.detect(spans).await.unwrap();

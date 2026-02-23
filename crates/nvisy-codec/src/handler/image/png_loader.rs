@@ -1,4 +1,4 @@
-//! PNG loader — validates and decodes raw PNG bytes into a
+//! PNG loader: validates and decodes raw PNG bytes into a
 //! [`Document<PngHandler>`].
 
 use nvisy_core::Error;

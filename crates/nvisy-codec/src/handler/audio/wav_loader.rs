@@ -1,4 +1,4 @@
-//! WAV loader — wraps raw audio bytes into a [`Document<WavHandler>`].
+//! WAV loader: wraps raw audio bytes into a [`Document<WavHandler>`].
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;

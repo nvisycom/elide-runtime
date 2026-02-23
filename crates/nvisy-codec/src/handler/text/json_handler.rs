@@ -1,4 +1,4 @@
-//! JSON handler — holds parsed JSON content and provides span-based
+//! JSON handler: holds parsed JSON content and provides span-based
 //! access via [`Handler`].
 //!
 //! The handler stores the parsed [`serde_json::Value`] tree together
@@ -8,7 +8,7 @@
 //! # Span model
 //!
 //! [`Handler::view_spans`] yields one [`Span`] per node in the JSON
-//! tree.  **Every** value is emitted — leaf scalars, and object keys
+//! tree.  **Every** value is emitted: leaf scalars, and object keys
 //! (as string-valued spans).  Each span is addressed by a [`JsonPath`]:
 //! an [RFC 6901] JSON Pointer such as `/address/city` plus a flag
 //! indicating whether the span targets the key name or the value.

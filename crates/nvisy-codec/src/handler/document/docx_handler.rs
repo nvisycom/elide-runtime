@@ -1,4 +1,4 @@
-//! DOCX handler (stub — awaiting migration to Loader/Handler pattern).
+//! DOCX handler (stub: awaiting migration to Loader/Handler pattern).
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;

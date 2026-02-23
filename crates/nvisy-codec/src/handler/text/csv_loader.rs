@@ -1,4 +1,4 @@
-//! CSV loader — validates and parses raw CSV content into a
+//! CSV loader: validates and parses raw CSV content into a
 //! [`Document<CsvHandler>`].
 //!
 //! The loader auto-detects the field delimiter (comma, tab, semicolon,

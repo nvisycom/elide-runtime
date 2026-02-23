@@ -1,4 +1,4 @@
-//! JPEG loader — validates and decodes raw JPEG bytes into a
+//! JPEG loader: validates and decodes raw JPEG bytes into a
 //! [`Document<JpegHandler>`].
 
 use nvisy_core::Error;

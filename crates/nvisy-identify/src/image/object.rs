@@ -5,10 +5,9 @@
 
 use std::str::FromStr;
 
-use image::DynamicImage;
 use serde_json::Value;
 
-use nvisy_codec::handler::Span;
+use nvisy_codec::handler::{ImageData, Span};
 use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::math::BoundingBox;
 use nvisy_core::Error;
@@ -43,21 +42,17 @@ impl<B: ObjectBackend> ObjectDetection<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: ObjectBackend> DetectionService<(), DynamicImage> for ObjectDetection<B> {
+impl<B: ObjectBackend> DetectionService<(), ImageData> for ObjectDetection<B> {
     type Context = ParallelContext;
 
     async fn detect(
         &self,
-        spans: Vec<Span<(), DynamicImage>>,
+        spans: Vec<Span<(), ImageData>>,
     ) -> Result<Vec<Entity>, Error> {
         let mut entities = Vec::new();
 
         for span in &spans {
-            let mut buf = std::io::Cursor::new(Vec::new());
-            span.data
-                .write_to(&mut buf, image::ImageFormat::Png)
-                .map_err(|e| Error::validation(format!("PNG encode failed: {e}"), "object-detection"))?;
-            let png_bytes = buf.into_inner();
+            let png_bytes = span.data.encode_png()?;
 
             let raw = self.backend.detect_objects(&png_bytes, "image/png").await?;
 
@@ -143,7 +138,7 @@ mod tests {
     async fn detect_object_produces_image_location() {
         let layer = ObjectDetection::new(MockObjectBackend);
 
-        let img = DynamicImage::new_rgb8(400, 300);
+        let img = ImageData::new_rgb(400, 300);
         let spans = vec![Span::new((), img)];
 
         let entities = layer.detect(spans).await.unwrap();

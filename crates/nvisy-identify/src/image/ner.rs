@@ -3,11 +3,7 @@
 //! Encodes the image to PNG, sends it to the NER backend, and returns
 //! entities with [`ImageLocation`] bounding boxes.
 
-use std::io::Cursor;
-
-use image::DynamicImage;
-
-use nvisy_codec::handler::Span;
+use nvisy_codec::handler::{ImageData, Span};
 use nvisy_core::Error;
 
 use crate::Entity;
@@ -31,21 +27,17 @@ impl<B: NerBackend> ImageNerDetection<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: NerBackend> DetectionService<(), DynamicImage> for ImageNerDetection<B> {
+impl<B: NerBackend> DetectionService<(), ImageData> for ImageNerDetection<B> {
     type Context = ParallelContext;
 
     async fn detect(
         &self,
-        spans: Vec<Span<(), DynamicImage>>,
+        spans: Vec<Span<(), ImageData>>,
     ) -> Result<Vec<Entity>, Error> {
         let mut entities = Vec::new();
 
         for span in &spans {
-            let mut buf = Cursor::new(Vec::new());
-            span.data
-                .write_to(&mut buf, image::ImageFormat::Png)
-                .map_err(|e| Error::validation(format!("PNG encode failed: {e}"), "image-ner"))?;
-            let png_bytes = buf.into_inner();
+            let png_bytes = span.data.encode_png()?;
 
             let raw = self
                 .backend
@@ -105,7 +97,7 @@ mod tests {
         let layer = ImageNerDetection::new(MockImageNerBackend, config);
 
         // Create a tiny 1x1 image.
-        let img = DynamicImage::new_rgb8(1, 1);
+        let img = ImageData::new_rgb(1, 1);
         let spans = vec![Span::new((), img)];
 
         let entities = layer.detect(spans).await.unwrap();

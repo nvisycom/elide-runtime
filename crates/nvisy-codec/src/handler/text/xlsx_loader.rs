@@ -1,4 +1,4 @@
-//! XLSX loader (stub — awaiting full spreadsheet support).
+//! XLSX loader (stub: awaiting full spreadsheet support).
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;

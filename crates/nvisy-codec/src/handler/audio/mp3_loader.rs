@@ -1,4 +1,4 @@
-//! MP3 loader — wraps raw audio bytes into a [`Document<Mp3Handler>`].
+//! MP3 loader: wraps raw audio bytes into a [`Document<Mp3Handler>`].
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;

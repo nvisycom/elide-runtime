@@ -1,4 +1,4 @@
-//! CSV handler — holds parsed CSV content and provides span-based
+//! CSV handler: holds parsed CSV content and provides span-based
 //! access via [`Handler`].
 //!
 //! The handler stores the parsed rows (and optional headers) together

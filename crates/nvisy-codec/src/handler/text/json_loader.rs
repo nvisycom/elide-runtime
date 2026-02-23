@@ -1,4 +1,4 @@
-//! JSON loader — validates and parses raw JSON content into a
+//! JSON loader: validates and parses raw JSON content into a
 //! [`Document<JsonHandler>`].
 //!
 //! The loader detects the indentation style and trailing-newline

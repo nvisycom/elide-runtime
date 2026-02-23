@@ -1,4 +1,4 @@
-//! HTML loader — validates and parses raw HTML content into a
+//! HTML loader: validates and parses raw HTML content into a
 //! [`Document<HtmlHandler>`].
 //!
 //! The loader parses the input using [`scraper`], extracts text nodes

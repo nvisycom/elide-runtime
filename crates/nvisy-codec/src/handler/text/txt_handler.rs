@@ -1,4 +1,4 @@
-//! Plain-text handler — holds loaded text content and provides
+//! Plain-text handler: holds loaded text content and provides
 //! span-based access via [`Handler`].
 //!
 //! The handler stores the text as a vector of lines together with a

@@ -1,4 +1,4 @@
-//! Plain-text loader — validates and parses raw text content into a
+//! Plain-text loader: validates and parses raw text content into a
 //! [`Document<TxtHandler>`].
 //!
 //! The loader splits the input into lines and records whether the

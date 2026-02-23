@@ -20,9 +20,16 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-nvisy-core      = { workspace = true }
-nvisy-detection = { workspace = true }
-nvisy-codec     = { workspace = true }
-async-trait     = { workspace = true }
-serde           = { workspace = true, features = ["derive"] }
-serde_json      = { workspace = true }
+# Internal crates
+nvisy-codec = { workspace = true }
+nvisy-core = { workspace = true }
+
+# LLM framework
+rig-core = { workspace = true, features = ["derive"] }
+
+# Async runtime
+async-trait = { workspace = true }
+
+# (De)serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }

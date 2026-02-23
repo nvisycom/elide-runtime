@@ -12,10 +12,9 @@ use serde::Deserialize;
 use nvisy_codec::handler::{CsvSpan, Span};
 use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::{Error, ErrorKind};
-use nvisy_core::path::ContentSource;
 
 use crate::{DetectionMethod, Entity, Location, TabularLocation};
-use crate::{ParallelContext, Detect, DetectionLayer};
+use crate::{ParallelContext, DetectionService, DetectionLayer};
 
 fn default_confidence() -> f64 {
     0.9
@@ -77,13 +76,12 @@ impl DetectionLayer for TabularDetection {
 }
 
 #[async_trait::async_trait]
-impl Detect<CsvSpan, String> for TabularDetection {
+impl DetectionService<CsvSpan, String> for TabularDetection {
     type Context = ParallelContext;
 
     async fn detect(
         &self,
         spans: Vec<Span<CsvSpan, String>>,
-        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
         // Phase 1: identify matched columns from header spans.
         let mut matched_columns: HashMap<usize, &ColumnRule> = HashMap::new();
@@ -130,7 +128,7 @@ impl Detect<CsvSpan, String> for TabularDetection {
                     start_offset: Some(0),
                     end_offset: Some(span.data.len()),
                 }))
-                .with_parent(source);
+                .with_parent(&span.source);
 
                 entities.push(entity);
             }
@@ -154,17 +152,17 @@ mod tests {
     }
 
     fn header_span(col: usize, data: &str) -> Span<CsvSpan, String> {
-        Span {
-            id: CsvSpan { row: 0, col, header: true, key: data.into() },
-            data: data.into(),
-        }
+        Span::new(
+            CsvSpan { row: 0, col, header: true, key: data.into() },
+            data.into(),
+        )
     }
 
     fn data_span(row: usize, col: usize, data: &str) -> Span<CsvSpan, String> {
-        Span {
-            id: CsvSpan { row, col, header: false, key: String::new() },
-            data: data.into(),
-        }
+        Span::new(
+            CsvSpan { row, col, header: false, key: String::new() },
+            data.into(),
+        )
     }
 
     #[tokio::test]
@@ -173,13 +171,12 @@ mod tests {
             column_rules: vec![make_rule("(?i)name", 0.75)],
         };
         let det = TabularDetection::connect(params).await.unwrap();
-        let source = ContentSource::new();
 
         let spans = vec![
             header_span(0, "Name"),
             data_span(1, 0, "Alice"),
         ];
-        let entities = det.detect(spans, &source).await.unwrap();
+        let entities = det.detect(spans).await.unwrap();
         assert_eq!(entities.len(), 1);
         assert!((entities[0].confidence - 0.75).abs() < f64::EPSILON);
     }

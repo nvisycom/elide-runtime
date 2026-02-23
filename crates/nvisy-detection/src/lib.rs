@@ -11,13 +11,10 @@ pub mod image;
 
 pub mod prelude;
 
-// Re-export domain types from nvisy-core for convenience
-pub use nvisy_core::data::{EntityCategory, EntityKind, EntitySensitivity, LayoutKind};
-
 // Domain types
 pub use ontology::*;
 
-// Detection traits
+// Detection service trait
 pub use layer::*;
 
 // Detection layers

@@ -11,11 +11,10 @@ use nvisy_codec::handler::{CsvSpan, JsonPath, Span, TxtSpan};
 #[cfg(feature = "html")]
 use nvisy_codec::handler::HtmlSpan;
 use nvisy_core::Error;
-use nvisy_core::path::ContentSource;
 use nvisy_pattern::{ContextRule, PatternEngine, PatternEngineBuilder, DetectionSource, PatternMatch};
 
 use crate::{DetectionMethod, Entity, Location, TabularLocation, TextLocation};
-use crate::{ParallelContext, Detect, DetectionLayer};
+use crate::{ParallelContext, DetectionService, DetectionLayer};
 
 /// Typed parameters for [`PatternDetection`].
 #[derive(Debug, Deserialize)]
@@ -53,13 +52,12 @@ impl DetectionLayer for PatternDetection {
 }
 
 #[async_trait::async_trait]
-impl Detect<TxtSpan, String> for PatternDetection {
+impl DetectionService<TxtSpan, String> for PatternDetection {
     type Context = ParallelContext;
 
     async fn detect(
         &self,
         spans: Vec<Span<TxtSpan, String>>,
-        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
         // Phase 1: collect raw matches per span index.
         let span_data: Vec<&str> = spans.iter().map(|s| s.data.as_str()).collect();
@@ -95,7 +93,7 @@ impl Detect<TxtSpan, String> for PatternDetection {
                 element_id: Some(spans[*span_idx].id.0.to_string()),
                 ..Default::default()
             }))
-            .with_parent(source);
+            .with_parent(&spans[*span_idx].source);
 
             entities.push(entity);
         }
@@ -105,13 +103,12 @@ impl Detect<TxtSpan, String> for PatternDetection {
 }
 
 #[async_trait::async_trait]
-impl Detect<CsvSpan, String> for PatternDetection {
+impl DetectionService<CsvSpan, String> for PatternDetection {
     type Context = ParallelContext;
 
     async fn detect(
         &self,
         spans: Vec<Span<CsvSpan, String>>,
-        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
         // Collect all span data (including headers) for co-occurrence window.
         let span_data: Vec<&str> = spans.iter().map(|s| s.data.as_str()).collect();
@@ -152,7 +149,7 @@ impl Detect<CsvSpan, String> for PatternDetection {
                 start_offset: Some(m.start),
                 end_offset: Some(m.end),
             }))
-            .with_parent(source);
+            .with_parent(&span.source);
 
             entities.push(entity);
         }
@@ -163,13 +160,12 @@ impl Detect<CsvSpan, String> for PatternDetection {
 
 #[cfg(feature = "html")]
 #[async_trait::async_trait]
-impl Detect<HtmlSpan, String> for PatternDetection {
+impl DetectionService<HtmlSpan, String> for PatternDetection {
     type Context = ParallelContext;
 
     async fn detect(
         &self,
         spans: Vec<Span<HtmlSpan, String>>,
-        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
         let span_data: Vec<&str> = spans.iter().map(|s| s.data.as_str()).collect();
         let mut raw_matches: Vec<(usize, PatternMatch)> = Vec::new();
@@ -203,7 +199,7 @@ impl Detect<HtmlSpan, String> for PatternDetection {
                 element_id: Some(spans[*span_idx].id.0.to_string()),
                 ..Default::default()
             }))
-            .with_parent(source);
+            .with_parent(&spans[*span_idx].source);
 
             entities.push(entity);
         }
@@ -213,13 +209,12 @@ impl Detect<HtmlSpan, String> for PatternDetection {
 }
 
 #[async_trait::async_trait]
-impl Detect<JsonPath, Value> for PatternDetection {
+impl DetectionService<JsonPath, Value> for PatternDetection {
     type Context = ParallelContext;
 
     async fn detect(
         &self,
         spans: Vec<Span<JsonPath, Value>>,
-        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
         // Filter to string-valued spans and collect text for co-occurrence.
         let string_spans: Vec<(usize, &str)> = spans
@@ -261,7 +256,7 @@ impl Detect<JsonPath, Value> for PatternDetection {
                 element_id: Some(spans[orig_idx].id.pointer.clone()),
                 ..Default::default()
             }))
-            .with_parent(source);
+            .with_parent(&spans[orig_idx].source);
 
             entities.push(entity);
         }

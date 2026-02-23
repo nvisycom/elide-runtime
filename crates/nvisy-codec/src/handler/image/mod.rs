@@ -58,10 +58,7 @@ macro_rules! impl_image_handler {
                 &self,
             ) -> crate::document::SpanStream<'_, (), image::DynamicImage> {
                 crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
-                    crate::handler::Span {
-                        id: (),
-                        data: self.image.clone(),
-                    },
+                    crate::handler::Span::new((), self.image.clone()),
                 )))
             }
 

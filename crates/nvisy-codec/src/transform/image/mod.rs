@@ -93,10 +93,7 @@ where
         }
 
         self.edit_spans(SpanEditStream::new(futures::stream::iter(
-            std::iter::once(SpanEdit {
-                id: span.id,
-                data: Self::SpanData::from(img),
-            }),
+            std::iter::once(SpanEdit::new(span.id, Self::SpanData::from(img))),
         )))
         .await?;
 

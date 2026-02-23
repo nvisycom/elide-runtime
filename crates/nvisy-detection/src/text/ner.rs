@@ -13,13 +13,12 @@ use tokio::sync::Mutex;
 use nvisy_codec::handler::{Span, TxtSpan};
 use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::Error;
-use nvisy_core::path::ContentSource;
 
 use nvisy_python::bridge::PythonBridge;
 use nvisy_python::ner::NerParams;
 
 use crate::{DetectionMethod, Entity, Location, ModelInfo, TextLocation};
-use crate::{SequentialContext, Detect, DetectionLayer};
+use crate::{SequentialContext, DetectionService, DetectionLayer};
 
 fn default_confidence() -> f64 {
     0.5
@@ -134,13 +133,12 @@ impl<B: NerBackend> DetectionLayer for NerDetection<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: NerBackend> Detect<TxtSpan, String> for NerDetection<B> {
+impl<B: NerBackend> DetectionService<TxtSpan, String> for NerDetection<B> {
     type Context = SequentialContext;
 
     async fn detect(
         &self,
         spans: Vec<Span<TxtSpan, String>>,
-        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
         let mut entities = Vec::new();
 
@@ -199,7 +197,7 @@ impl<B: NerBackend> Detect<TxtSpan, String> for NerDetection<B> {
                     e.model = Some(model.clone());
                 }
 
-                entities.push(e.with_parent(source));
+                entities.push(e.with_parent(&span.source));
             }
 
             // Accumulate text for sliding context.
@@ -406,16 +404,15 @@ mod tests {
             model_info: None,
         };
         let ner = NerDetection::new(MockNerBackend, params);
-        let source = ContentSource::new();
 
         // First span: no entity, just context.
-        let span1 = vec![Span { id: TxtSpan(0), data: "some context text".into() }];
-        let result1 = ner.detect(span1, &source).await.unwrap();
+        let span1 = vec![Span::new(TxtSpan(0), "some context text".into())];
+        let result1 = ner.detect(span1).await.unwrap();
         assert!(result1.is_empty());
 
         // Second span: entity in current span. Backend sees prior + current.
-        let span2 = vec![Span { id: TxtSpan(1), data: "has ENTITY here".into() }];
-        let result2 = ner.detect(span2, &source).await.unwrap();
+        let span2 = vec![Span::new(TxtSpan(1), "has ENTITY here".into())];
+        let result2 = ner.detect(span2).await.unwrap();
         assert_eq!(result2.len(), 1);
 
         // Offsets should be adjusted to current span (relative).
@@ -433,10 +430,9 @@ mod tests {
             model_info: None,
         };
         let ner = NerDetection::new(MockNerBackend, params);
-        let source = ContentSource::new();
 
-        let spans = vec![Span { id: TxtSpan(42), data: "ENTITY".into() }];
-        let entities = ner.detect(spans, &source).await.unwrap();
+        let spans = vec![Span::new(TxtSpan(42), "ENTITY".into())];
+        let entities = ner.detect(spans).await.unwrap();
         assert_eq!(entities.len(), 1);
         let loc = entities[0].location.as_ref().unwrap().as_text().unwrap();
         assert_eq!(loc.element_id.as_deref(), Some("42"));
@@ -455,10 +451,9 @@ mod tests {
             model_info: Some(model.clone()),
         };
         let ner = NerDetection::new(MockNerBackend, params);
-        let source = ContentSource::new();
 
-        let spans = vec![Span { id: TxtSpan(0), data: "ENTITY".into() }];
-        let entities = ner.detect(spans, &source).await.unwrap();
+        let spans = vec![Span::new(TxtSpan(0), "ENTITY".into())];
+        let entities = ner.detect(spans).await.unwrap();
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].model.as_ref().unwrap().name, "test-model");
     }
@@ -499,14 +494,13 @@ mod tests {
             model_info: None,
         };
         let ner = NerDetection::new(AlwaysFirstBackend, params);
-        let source = ContentSource::new();
 
         // First span — entity at 0..6 in current span: should be included.
-        let result1 = ner.detect(vec![Span { id: TxtSpan(0), data: "ENTITY here".into() }], &source).await.unwrap();
+        let result1 = ner.detect(vec![Span::new(TxtSpan(0), "ENTITY here".into())]).await.unwrap();
         assert_eq!(result1.len(), 1);
 
         // Second span — entity at 0..6 is now in the prior context, should be filtered.
-        let result2 = ner.detect(vec![Span { id: TxtSpan(1), data: "no entity".into() }], &source).await.unwrap();
+        let result2 = ner.detect(vec![Span::new(TxtSpan(1), "no entity".into())]).await.unwrap();
         assert!(result2.is_empty());
     }
 }

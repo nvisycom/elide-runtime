@@ -6,6 +6,8 @@ mod edit_stream;
 pub use edit_stream::SpanEditStream;
 pub use view_stream::SpanStream;
 
+use futures::StreamExt;
+
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 use nvisy_core::fs::DocumentType;
@@ -62,5 +64,15 @@ impl<H: Handler> Document<H> {
     pub fn with_parent(mut self, content: &ContentData) -> Self {
         self.source.set_parent_id(Some(content.content_source.as_uuid()));
         self
+    }
+
+    /// View spans with the document's content source injected.
+    pub async fn view_spans(&self) -> SpanStream<'_, H::SpanId, H::SpanData> {
+        let source = self.source;
+        let inner = self.handler.view_spans().await;
+        SpanStream::new(inner.map(move |mut span| {
+            span.source = source;
+            span
+        }))
     }
 }

@@ -364,10 +364,10 @@ impl<'a> Iterator for JsonSpanIter<'a> {
                                 .push(IterFrame::Array(pointer, arr.iter().enumerate()));
                         }
                         leaf => {
-                            return Some(Span {
-                                id: JsonPath::value(pointer),
-                                data: leaf.clone(),
-                            });
+                            return Some(Span::new(
+                                JsonPath::value(pointer),
+                                leaf.clone(),
+                            ));
                         }
                     }
                 }
@@ -382,10 +382,10 @@ impl<'a> Iterator for JsonSpanIter<'a> {
                         value,
                         pointer: pointer.clone(),
                     });
-                    return Some(Span {
-                        id: JsonPath::key(&pointer),
-                        data: serde_json::Value::String(key),
-                    });
+                    return Some(Span::new(
+                        JsonPath::key(&pointer),
+                        serde_json::Value::String(key),
+                    ));
                 }
                 IterFrame::Object(pointer, iter) => match iter.next() {
                     Some((key, child)) => {
@@ -502,10 +502,7 @@ mod tests {
     async fn edit_spans_replace_value() -> Result<(), Error> {
         let mut h = handler(json!({"ssn": "123-45-6789"}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit {
-                id: JsonPath::value("/ssn"),
-                data: json!(null),
-            },
+            SpanEdit::new(JsonPath::value("/ssn"), json!(null)),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"ssn": null}));
@@ -516,10 +513,7 @@ mod tests {
     async fn edit_spans_rename_key() -> Result<(), Error> {
         let mut h = handler(json!({"John Smith": {"age": 30}}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit {
-                id: JsonPath::key("/John Smith"),
-                data: json!("[REDACTED]"),
-            },
+            SpanEdit::new(JsonPath::key("/John Smith"), json!("[REDACTED]")),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
@@ -530,10 +524,7 @@ mod tests {
     async fn edit_spans_rename_nested_key() -> Result<(), Error> {
         let mut h = handler(json!({"a": {"secret_field": 42}}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit {
-                id: JsonPath::key("/a/secret_field"),
-                data: json!("redacted"),
-            },
+            SpanEdit::new(JsonPath::key("/a/secret_field"), json!("redacted")),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"a": {"redacted": 42}}));
@@ -545,10 +536,7 @@ mod tests {
         let mut h = handler(json!({"a": 1}));
         let err = h
             .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit {
-                    id: JsonPath::key("/a"),
-                    data: json!(42),
-                },
+                SpanEdit::new(JsonPath::key("/a"), json!(42)),
             ])))
             .await
             .unwrap_err();
@@ -560,10 +548,7 @@ mod tests {
         let mut h = handler(json!({"a": 1}));
         let err = h
             .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit {
-                    id: JsonPath::value("/nonexistent"),
-                    data: json!(null),
-                },
+                SpanEdit::new(JsonPath::value("/nonexistent"), json!(null)),
             ])))
             .await
             .unwrap_err();
@@ -576,14 +561,8 @@ mod tests {
         // Key rename listed first, but value edit must apply first
         // (while /name still exists) before the key is renamed.
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit {
-                id: JsonPath::key("/name"),
-                data: json!("[REDACTED]"),
-            },
-            SpanEdit {
-                id: JsonPath::value("/name"),
-                data: json!("***"),
-            },
+            SpanEdit::new(JsonPath::key("/name"), json!("[REDACTED]")),
+            SpanEdit::new(JsonPath::value("/name"), json!("***")),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": "***"}));

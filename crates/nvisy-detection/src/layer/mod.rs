@@ -1,7 +1,7 @@
 //! Detection layer traits and processing-strategy markers.
 //!
 //! [`DetectionLayer`] handles construction and identity.
-//! [`Detect`] provides span-level execution.  The associated
+//! [`DetectionService`] provides span-level execution.  The associated
 //! [`DetectionContext`] tells the orchestrator whether to batch
 //! all spans or iterate one-by-one.
 
@@ -13,7 +13,6 @@ use serde::de::DeserializeOwned;
 
 use nvisy_codec::handler::Span;
 use nvisy_core::Error;
-use nvisy_core::path::ContentSource;
 
 use crate::Entity;
 
@@ -21,7 +20,7 @@ use crate::Entity;
 ///
 /// A `DetectionLayer` knows how to build itself from typed parameters
 /// and exposes a unique identifier.  Span-level execution is provided
-/// by implementing [`Detect`] for each `(SpanId, SpanData)` pair the
+/// by implementing [`DetectionService`] for each `(SpanId, SpanData)` pair the
 /// layer supports.
 #[async_trait::async_trait]
 pub trait DetectionLayer: Sized + Send + Sync + 'static {
@@ -34,12 +33,15 @@ pub trait DetectionLayer: Sized + Send + Sync + 'static {
 
 /// Span-level detection execution.
 ///
-/// A layer implements `Detect<Id, Data>` for each handler span-type
+/// A layer implements `DetectionService<Id, Data>` for each handler span-type
 /// combination it supports.  The associated [`Context`](Self::Context)
 /// tells the orchestrator whether to batch all spans or iterate
 /// one-by-one.
+///
+/// The content source is carried on each [`Span`] rather than passed
+/// as a separate parameter.
 #[async_trait::async_trait]
-pub trait Detect<Id, Data>: Send + Sync + 'static
+pub trait DetectionService<Id, Data>: Send + Sync + 'static
 where
     Id: Send + Sync + Clone + 'static,
     Data: Send + 'static,
@@ -55,6 +57,5 @@ where
     async fn detect(
         &self,
         spans: Vec<Span<Id, Data>>,
-        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error>;
 }

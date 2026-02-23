@@ -10,10 +10,11 @@ use nvisy_codec::handler::Span;
 use nvisy_core::data::EntityCategory;
 use nvisy_core::math::BoundingBox;
 use nvisy_core::Error;
-use nvisy_core::path::ContentSource;
 
-use crate::{DetectionMethod, Entity, EntityKind, ImageLocation, Location};
-use crate::{ParallelContext, Detect};
+use nvisy_core::data::EntityKind;
+
+use crate::{DetectionMethod, Entity, ImageLocation, Location};
+use crate::{ParallelContext, DetectionService};
 
 /// Backend trait for face detection providers.
 #[async_trait::async_trait]
@@ -41,13 +42,12 @@ impl<B: FaceBackend> FaceDetection<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: FaceBackend> Detect<(), DynamicImage> for FaceDetection<B> {
+impl<B: FaceBackend> DetectionService<(), DynamicImage> for FaceDetection<B> {
     type Context = ParallelContext;
 
     async fn detect(
         &self,
         spans: Vec<Span<(), DynamicImage>>,
-        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
         let mut entities = Vec::new();
 
@@ -83,7 +83,7 @@ impl<B: FaceBackend> Detect<(), DynamicImage> for FaceDetection<B> {
                     image_id: None,
                     page_number: None,
                 }))
-                .with_parent(source);
+                .with_parent(&span.source);
 
                 entities.push(entity);
             }
@@ -116,12 +116,11 @@ mod tests {
     #[tokio::test]
     async fn detect_face_produces_image_location() {
         let layer = FaceDetection::new(MockFaceBackend);
-        let source = ContentSource::new();
 
         let img = DynamicImage::new_rgb8(200, 200);
-        let spans = vec![Span { id: (), data: img }];
+        let spans = vec![Span::new((), img)];
 
-        let entities = layer.detect(spans, &source).await.unwrap();
+        let entities = layer.detect(spans).await.unwrap();
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].entity_kind, EntityKind::Face);
         assert_eq!(entities[0].detection_method, DetectionMethod::FaceDetection);

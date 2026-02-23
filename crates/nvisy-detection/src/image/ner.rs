@@ -13,10 +13,9 @@ use nvisy_codec::handler::Span;
 use nvisy_core::data::{EntityCategory, EntityKind};
 use nvisy_core::math::BoundingBox;
 use nvisy_core::Error;
-use nvisy_core::path::ContentSource;
 
 use crate::{DetectionMethod, Entity, ImageLocation, Location};
-use crate::{ParallelContext, Detect};
+use crate::{ParallelContext, DetectionService};
 use crate::text::ner::{NerBackend, NerConfig};
 
 /// NER detection layer for images.
@@ -36,13 +35,12 @@ impl<B: NerBackend> ImageNerDetection<B> {
 }
 
 #[async_trait::async_trait]
-impl<B: NerBackend> Detect<(), DynamicImage> for ImageNerDetection<B> {
+impl<B: NerBackend> DetectionService<(), DynamicImage> for ImageNerDetection<B> {
     type Context = ParallelContext;
 
     async fn detect(
         &self,
         spans: Vec<Span<(), DynamicImage>>,
-        source: &ContentSource,
     ) -> Result<Vec<Entity>, Error> {
         let mut entities = Vec::new();
 
@@ -60,7 +58,7 @@ impl<B: NerBackend> Detect<(), DynamicImage> for ImageNerDetection<B> {
 
             for item in &raw {
                 if let Some(entity) = parse_image_ner_entity(item)? {
-                    entities.push(entity.with_parent(source));
+                    entities.push(entity.with_parent(&span.source));
                 }
             }
         }
@@ -168,13 +166,12 @@ mod tests {
             confidence_threshold: 0.0,
         };
         let layer = ImageNerDetection::new(MockImageNerBackend, config);
-        let source = ContentSource::new();
 
         // Create a tiny 1x1 image.
         let img = DynamicImage::new_rgb8(1, 1);
-        let spans = vec![Span { id: (), data: img }];
+        let spans = vec![Span::new((), img)];
 
-        let entities = layer.detect(spans, &source).await.unwrap();
+        let entities = layer.detect(spans).await.unwrap();
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].value, "John Doe");
         assert_eq!(entities[0].detection_method, DetectionMethod::Ner);

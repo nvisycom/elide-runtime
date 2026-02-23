@@ -126,10 +126,7 @@ impl<'a> Iterator for TxtSpanIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let line = self.lines.get(self.index)?;
-        let span = Span {
-            id: TxtSpan(self.index),
-            data: line.clone(),
-        };
+        let span = Span::new(TxtSpan(self.index), line.clone());
         self.index += 1;
         Some(span)
     }
@@ -184,10 +181,7 @@ mod tests {
     async fn edit_spans_replace_line() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit {
-                id: TxtSpan(1),
-                data: "[REDACTED]".into(),
-            },
+            SpanEdit::new(TxtSpan(1), "[REDACTED]".into()),
         ])))
         .await?;
         assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
@@ -199,10 +193,7 @@ mod tests {
         let mut h = handler("one line");
         let err = h
             .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit {
-                    id: TxtSpan(5),
-                    data: "nope".into(),
-                },
+                SpanEdit::new(TxtSpan(5), "nope".into()),
             ])))
             .await
             .unwrap_err();

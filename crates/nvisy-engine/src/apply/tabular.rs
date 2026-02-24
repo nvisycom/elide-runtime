@@ -34,10 +34,10 @@ pub(crate) async fn apply_tabular_doc(
         }
 
         let (row_idx, col_idx) = (tab_loc.row_index, tab_loc.column_index);
-        if let Some(row) = result.handler_mut().rows_mut().get_mut(row_idx) {
-            if let Some(cell) = row.get_mut(col_idx) {
-                *cell = mask_cell(&redaction.spec, &redaction.replacement, cell);
-            }
+        if let Some(row) = result.handler_mut().rows_mut().get_mut(row_idx)
+            && let Some(cell) = row.get_mut(col_idx)
+        {
+            *cell = mask_cell(&redaction.spec, &redaction.replacement, cell);
         }
     }
 

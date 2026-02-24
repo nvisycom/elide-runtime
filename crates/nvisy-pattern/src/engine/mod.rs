@@ -151,12 +151,11 @@ impl PatternEngine {
                     continue;
                 }
 
-                if let Some(ref vname) = entry.validator_name {
-                    if let Some(validate) = self.validators.resolve(vname) {
-                        if !validate(value) {
-                            continue;
-                        }
-                    }
+                if let Some(ref vname) = entry.validator_name
+                    && let Some(validate) = self.validators.resolve(vname)
+                    && !validate(value)
+                {
+                    continue;
                 }
 
                 results.push(PatternMatch {

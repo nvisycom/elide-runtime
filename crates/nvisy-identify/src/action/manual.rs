@@ -93,19 +93,18 @@ impl DetectManualAction {
 pub fn is_excluded(entity: &Entity, exclusions: &[Exclusion]) -> bool {
     for excl in exclusions {
         // Value-based exclusion.
-        if let Some(ref excl_val) = excl.value {
-            if *excl_val == entity.value {
-                return true;
-            }
+        if let Some(ref excl_val) = excl.value
+            && *excl_val == entity.value
+        {
+            return true;
         }
 
         // Location-based exclusion (text overlap).
         if let (Some(Location::Text(entity_loc)), Some(Location::Text(excl_loc))) =
             (&entity.location, &excl.location)
+            && entity_loc.overlaps(excl_loc)
         {
-            if entity_loc.overlaps(excl_loc) {
-                return true;
-            }
+            return true;
         }
     }
     false

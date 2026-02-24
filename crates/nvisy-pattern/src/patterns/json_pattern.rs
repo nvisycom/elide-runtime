@@ -104,13 +104,13 @@ impl JsonPattern {
                 slug: slug.clone(),
             });
         }
-        if let MatchSource::Regex(RegexPattern { validator: Some(ref v), .. }) = match_source {
-            if crate::validators::ValidatorResolver::builtins().resolve(v).is_none() {
-                warnings.push(JsonPatternWarning::UnknownValidator {
-                    pattern: raw.name.clone(),
-                    validator: v.clone(),
-                });
-            }
+        if let MatchSource::Regex(RegexPattern { validator: Some(ref v), .. }) = match_source
+            && crate::validators::ValidatorResolver::builtins().resolve(v).is_none()
+        {
+            warnings.push(JsonPatternWarning::UnknownValidator {
+                pattern: raw.name.clone(),
+                validator: v.clone(),
+            });
         }
 
         let p = Self {

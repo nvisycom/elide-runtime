@@ -49,11 +49,11 @@ impl StreamSource for ObjectReadStream {
             let meta = result?;
             let key = meta.location.as_ref();
 
-            if let Some(max) = params.max_size {
-                if meta.size > max {
-                    tracing::debug!(key, size = meta.size, max_size = max, "skipping oversized object");
-                    continue;
-                }
+            if let Some(max) = params.max_size
+                && meta.size > max
+            {
+                tracing::debug!(key, size = meta.size, max_size = max, "skipping oversized object");
+                continue;
             }
 
             let source = ContentSource::new();

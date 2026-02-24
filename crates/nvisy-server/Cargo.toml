@@ -2,7 +2,7 @@
 
 [package]
 name = "nvisy-server"
-description = "HTTP server exposing the nvisy Engine pipeline via REST endpoints"
+description = "HTTP server library exposing the nvisy Engine pipeline via REST endpoints"
 keywords = ["nvisy", "server", "http", "api"]
 categories = ["web-programming::http-server"]
 readme = "README.md"
@@ -22,17 +22,10 @@ documentation = { workspace = true }
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[[bin]]
-name = "nvisy-server"
-path = "src/main.rs"
-
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-engine = { workspace = true, features = [] }
-
-# CLI
-clap = { workspace = true, features = ["derive", "env"] }
 
 # HTTP framework
 axum = { workspace = true, features = ["json", "multipart", "tokio"] }
@@ -46,18 +39,11 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
-# Async runtime
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
-
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Encoding
 base64 = { version = "0.22", features = [] }
-
-# Error handling
-thiserror = { workspace = true, features = [] }

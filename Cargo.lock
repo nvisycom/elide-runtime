@@ -2578,6 +2578,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-cli"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "clap",
+ "nvisy-core",
+ "nvisy-server",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "nvisy-codec"
 version = "0.1.0"
 dependencies = [
@@ -2750,19 +2763,15 @@ dependencies = [
  "aide",
  "axum",
  "base64",
- "clap",
  "futures",
  "nvisy-core",
  "nvisy-engine",
  "schemars",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
- "tokio",
  "tower",
  "tower-http",
  "tracing",
- "tracing-subscriber",
  "uuid",
 ]
 

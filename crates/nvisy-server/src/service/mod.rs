@@ -4,16 +4,19 @@
 //! threaded through every handler via Axum's `State` extractor. Fields are
 //! private; use the provided accessor methods.
 
+mod engine;
+
 use std::sync::Arc;
 
 use nvisy_core::fs::ContentRegistry;
-use nvisy_core::{Error, ErrorKind};
-use nvisy_engine::engine::{Engine, EngineInput, EngineOutput};
+
+pub use engine::StubEngine;
 
 /// Shared application state threaded through all handlers.
 ///
 /// The engine is stored behind [`Arc`] with a manual [`Clone`] impl because
 /// [`Engine`] uses RPITIT and is not dyn-compatible.
+#[must_use = "state does nothing unless you use it"]
 pub struct ServiceState {
     engine: Arc<StubEngine>,
     content_registry: ContentRegistry,
@@ -63,14 +66,3 @@ macro_rules! impl_di {
 impl_di!(
     content_registry: ContentRegistry,
 );
-
-/// Placeholder engine that rejects all requests.
-///
-/// Wired in at startup until a real implementation is configured.
-pub struct StubEngine;
-
-impl Engine for StubEngine {
-    async fn run(&self, _input: EngineInput) -> Result<EngineOutput, Error> {
-        Err(Error::new(ErrorKind::Runtime, "no engine configured"))
-    }
-}

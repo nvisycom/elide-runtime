@@ -9,9 +9,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use crate::middleware::recovery::RecoveryConfig;
-use crate::middleware::security::SecurityConfig;
-use crate::middleware::specification::OpenApiConfig;
+use nvisy_server::middleware::{OpenApiConfig, RecoveryConfig, SecurityConfig};
 
 /// nvisy API server.
 #[derive(Debug, Parser)]
@@ -35,9 +33,13 @@ pub struct ServerConfig {
     #[arg(long, env = "RUST_LOG", default_value = "info")]
     pub log_level: String,
 
-    /// Maximum request body size in bytes.
-    #[arg(long, env = "BODY_LIMIT_BYTES", default_value_t = 50 * 1024 * 1024)]
+    /// Maximum body size in bytes for axum extractors (Json, Form, etc.).
+    #[arg(long, env = "BODY_LIMIT_BYTES", default_value_t = 2 * 1024 * 1024)]
     pub body_limit_bytes: usize,
+
+    /// Maximum body size in bytes for file uploads.
+    #[arg(long, env = "FILE_BODY_LIMIT_BYTES", default_value_t = 50 * 1024 * 1024)]
+    pub file_body_limit_bytes: usize,
 
     /// Per-request timeout in seconds.
     #[arg(long, env = "REQUEST_TIMEOUT_SECS", default_value_t = 300)]
@@ -61,6 +63,7 @@ impl ServerConfig {
     pub fn security_config(&self) -> SecurityConfig {
         SecurityConfig {
             body_limit_bytes: self.body_limit_bytes,
+            file_body_limit_bytes: self.file_body_limit_bytes,
         }
     }
 

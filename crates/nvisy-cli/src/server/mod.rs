@@ -1,16 +1,30 @@
-//! TCP listener, graceful shutdown, and post-shutdown cleanup.
+//! Server lifecycle: router construction, TCP listener, and graceful shutdown.
 
 use std::path::Path;
 
 use tokio::net::TcpListener;
 
-use super::config::ServerConfig;
+use nvisy_server::middleware::{
+    RouterObservabilityExt, RouterOpenApiExt, RouterRecoveryExt, RouterSecurityExt,
+};
+use nvisy_server::ServiceState;
+
+use crate::config::ServerConfig;
+
+/// Builds the application router with all middleware layers applied.
+pub fn build_router(config: &ServerConfig, state: ServiceState) -> axum::Router {
+    nvisy_server::routes()
+        .with_open_api(&config.open_api_config())
+        .with_recovery(&config.recovery_config())
+        .with_observability()
+        .with_security(&config.security_config())
+        .with_state(state)
+}
 
 /// Binds a TCP listener, serves the application, and cleans up on shutdown.
 ///
-/// This function blocks until a shutdown signal (SIGINT or SIGTERM) is
-/// received. After the server stops, it removes the temporary content
-/// directory if one was created.
+/// Blocks until a shutdown signal (SIGINT or SIGTERM) is received. After the
+/// server stops, it removes the temporary content directory if one was created.
 pub async fn run(config: &ServerConfig, app: axum::Router) {
     let addr = config.socket_addr();
 

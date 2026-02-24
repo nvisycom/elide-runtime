@@ -1,21 +1,52 @@
-//! HTTP middleware stack.
+//! Middleware for [`axum::Router`] and HTTP request processing.
 //!
-//! Each submodule provides a configuration struct (where applicable) and an
-//! extension trait on [`Router`](axum::Router) (or
-//! [`ApiRouter`](aide::axum::ApiRouter) for OpenAPI). Middleware is composed
-//! by chaining `.with_*()` calls in
-//! [`server::router::build`](crate::server::router::build).
+//! This module provides middleware for security, observability, error recovery,
+//! response compression, and API documentation. Each middleware category has its
+//! own extension trait for ergonomic composition.
 //!
-//! | Module            | Trait                     | Purpose                                  |
-//! |-------------------|---------------------------|------------------------------------------|
-//! | [`specification`] | `RouterOpenApiExt`        | OpenAPI spec generation and Scalar UI    |
-//! | [`recovery`]      | `RouterRecoveryExt`       | Panic catching and request timeouts      |
-//! | [`observability`] | `RouterObservabilityExt`  | Request IDs, tracing, header redaction   |
-//! | [`security`]      | `RouterSecurityExt`       | CORS policy and body size limits         |
-//! | [`compression`]   | `RouterCompressionExt`    | gzip, brotli, and zstd compression       |
+//! # Middleware Ordering
+//!
+//! The order in which middleware is applied matters significantly. Axum applies
+//! layers in reverse order, meaning the last layer added wraps the outermost
+//! request handling. The recommended ordering from outermost to innermost is:
+//!
+//! 1. **Recovery** - Catches panics and enforces timeouts at the outermost layer,
+//!    ensuring all errors are properly handled regardless of where they occur.
+//!
+//! 2. **Observability** - Generates request IDs and adds tracing spans early,
+//!    so all subsequent middleware and handlers are properly instrumented.
+//!
+//! 3. **Security** - Applies CORS policy, body size limits, and response
+//!    compression before any request processing occurs.
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use axum::Router;
+//! use nvisy_server::middleware::{
+//!     OpenApiConfig, RouterOpenApiExt,
+//!     RecoveryConfig, RouterRecoveryExt,
+//!     RouterObservabilityExt,
+//!     SecurityConfig, RouterSecurityExt,
+//! };
+//! use nvisy_server::ServiceState;
+//!
+//! fn create_router(state: ServiceState) -> Router {
+//!     nvisy_server::routes()
+//!         .with_open_api(&OpenApiConfig::default())     // ApiRouter<S> -> Router<S>
+//!         .with_recovery(&RecoveryConfig::default())    // 1. Recovery (outermost)
+//!         .with_observability()                         // 2. Observability
+//!         .with_security(&SecurityConfig::default())    // 3. Security + compression
+//!         .with_state(state)
+//! }
+//! ```
 
-pub mod compression;
-pub mod observability;
-pub mod recovery;
-pub mod security;
-pub mod specification;
+mod observability;
+mod recovery;
+mod security;
+mod specification;
+
+pub use observability::RouterObservabilityExt;
+pub use recovery::{RecoveryConfig, RouterRecoveryExt};
+pub use security::{SecurityConfig, RouterSecurityExt};
+pub use specification::{OpenApiConfig, RouterOpenApiExt};

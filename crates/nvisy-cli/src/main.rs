@@ -7,13 +7,10 @@ use clap::Parser;
 use nvisy_core::fs::ContentRegistry;
 use tracing_subscriber::EnvFilter;
 
-mod handler;
-mod middleware;
+mod config;
 mod server;
-mod service;
 
-use server::config::ServerConfig;
-use service::ServiceState;
+use config::ServerConfig;
 
 #[tokio::main]
 async fn main() {
@@ -28,8 +25,8 @@ async fn main() {
         .init();
 
     let content_registry = ContentRegistry::new(config.content_dir());
-    let state = ServiceState::new(content_registry);
-    let app = server::router::build(&config, state);
+    let state = nvisy_server::ServiceState::new(content_registry);
+    let app = server::build_router(&config, state);
 
-    server::listen::run(&config, app).await;
+    server::run(&config, app).await;
 }

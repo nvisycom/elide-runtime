@@ -2,7 +2,14 @@
   "name": "ssn",
   "category": "pii",
   "entity_type": "government_id",
-  "pattern": "\\b(\\d{3})-(\\d{2})-(\\d{4})\\b",
+  "pattern": {
+    "regex": "\\b(\\d{3})-(\\d{2})-(\\d{4})\\b",
+    "validator": "ssn"
+  },
   "confidence": 0.9,
-  "validator": "ssn"
+  "context": {
+    "keywords": ["social security", "ssn", "tax id", "taxpayer identification"],
+    "window": 3,
+    "boost": 0.1
+  }
 }

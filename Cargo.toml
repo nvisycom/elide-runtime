@@ -8,15 +8,18 @@ members = [
     "./crates/nvisy-codec",
     "./crates/nvisy-object",
     "./crates/nvisy-pattern",
-    "./crates/nvisy-detection",
-    "./crates/nvisy-redaction",
-    "./crates/nvisy-generation",
+    "./crates/nvisy-identify",
+    "./crates/nvisy-augment",
+    "./crates/nvisy-ontology",
+    "./crates/nvisy-rig",
     "./crates/nvisy-python",
+    "./crates/nvisy-server",
+    "./crates/nvisy-cli",
 ]
 
 [workspace.package]
 version = "0.1.0"
-rust-version = "1.85"
+rust-version = "1.92"
 edition = "2024"
 license = "MIT"
 publish = false
@@ -38,10 +41,15 @@ nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
-nvisy-detection = { path = "./crates/nvisy-detection", version = "0.1.0" }
-nvisy-redaction = { path = "./crates/nvisy-redaction", version = "0.1.0" }
-nvisy-generation = { path = "./crates/nvisy-generation", version = "0.1.0" }
+nvisy-identify = { path = "./crates/nvisy-identify", version = "0.1.0" }
+nvisy-augment = { path = "./crates/nvisy-augment", version = "0.1.0" }
+nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
+nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
+nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
+
+# LLM framework
+rig-core = { version = "0.31", features = [] }
 
 # Async runtime
 tokio = { version = "1", features = [] }
@@ -60,8 +68,11 @@ schemars = { version = "1", features = ["uuid1", "bytes1"] }
 # Derive macros and error handling
 thiserror = { version = "2.0", features = [] }
 anyhow = { version = "1.0", features = [] }
-derive_more = { version = "1", features = ["display", "from"] }
+derive_more = { version = "1", features = ["display", "from", "into"] }
 strum = { version = "0.27", features = ["derive"] }
+
+# Encoding
+base64 = { version = "0.22", features = [] }
 
 # Primitive datatypes
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
@@ -89,7 +100,7 @@ pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
 pythonize = { version = "0.24", features = [] }
 
 # Cloud object storage (S3, Azure Blob, GCS)
-object_store = { version = "0.12", default-features = false }
+object_store = { version = "0.13", default-features = false }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
@@ -105,6 +116,15 @@ quick-xml = { version = "0.37", features = [] }
 
 # Semantic versioning
 semver = { version = "1", features = ["serde"] }
+
+# CLI
+clap = { version = "4", features = [] }
+
+# HTTP server
+axum = { version = "0.8", features = [] }
+aide = { version = "0.16.0-alpha.2", features = [] }
+tower = { version = "0.5", features = [] }
+tower-http = { version = "0.6", features = [] }
 
 # Testing
 tempfile = { version = "3", features = [] }

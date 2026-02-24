@@ -2,6 +2,8 @@
   "name": "generic-api-key",
   "category": "credentials",
   "entity_type": "api_key",
-  "pattern": "(?i)(?:api[_\\-]?key|api[_\\-]?secret|access[_\\-]?token|secret[_\\-]?key|bearer)\\s*[:=]\\s*[\"']?([a-zA-Z0-9_\\-]{20,})[\"']?",
+  "pattern": {
+    "regex": "(?i)(?:api[_\\-]?key|api[_\\-]?secret|access[_\\-]?token|secret[_\\-]?key|bearer)\\s*[:=]\\s*[\"']?([a-zA-Z0-9_\\-]{20,})[\"']?"
+  },
   "confidence": 0.7
 }

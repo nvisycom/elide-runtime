@@ -1,4 +1,4 @@
-//! PNG handler — holds a decoded image and provides single-span access
+//! PNG handler: holds a decoded image and provides single-span access
 //! via [`Handler`].
 //!
 //! # Span model

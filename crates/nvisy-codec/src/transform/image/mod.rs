@@ -10,7 +10,7 @@ use image::DynamicImage;
 use futures::StreamExt;
 
 use crate::document::SpanEditStream;
-use crate::handler::{Handler, SpanEdit};
+use crate::handler::{Handler, ImageData, SpanEdit};
 use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
 
@@ -32,7 +32,7 @@ pub struct ImageRedaction {
 #[async_trait::async_trait]
 pub trait ImageHandler: Handler
 where
-    Self::SpanData: Into<DynamicImage> + From<DynamicImage>,
+    Self::SpanData: Into<ImageData> + From<ImageData>,
 {
     /// Apply a batch of image redactions, mutating in place.
     async fn redact_spans(
@@ -51,7 +51,8 @@ where
             None => return Ok(()),
         };
 
-        let mut img: DynamicImage = span.data.into();
+        let image_data: ImageData = span.data.into();
+        let mut img: DynamicImage = image_data.into_inner();
 
         for redaction in redactions {
             let region = redaction.bounding_box.to_u32();
@@ -93,10 +94,7 @@ where
         }
 
         self.edit_spans(SpanEditStream::new(futures::stream::iter(
-            std::iter::once(SpanEdit {
-                id: span.id,
-                data: Self::SpanData::from(img),
-            }),
+            std::iter::once(SpanEdit::new(span.id, Self::SpanData::from(ImageData::from(img)))),
         )))
         .await?;
 

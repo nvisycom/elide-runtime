@@ -27,7 +27,7 @@ pub fn luhn_check(num: &str) -> bool {
         sum += n;
         alternate = !alternate;
     }
-    sum % 10 == 0
+    sum.is_multiple_of(10)
 }
 
 #[cfg(test)]

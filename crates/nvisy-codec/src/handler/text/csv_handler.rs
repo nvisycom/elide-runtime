@@ -1,4 +1,4 @@
-//! CSV handler — holds parsed CSV content and provides span-based
+//! CSV handler: holds parsed CSV content and provides span-based
 //! access via [`Handler`].
 //!
 //! The handler stores the parsed rows (and optional headers) together
@@ -260,10 +260,10 @@ impl<'a> Iterator for CsvSpanIter<'a> {
                     if let Some(value) = headers.get(self.col) {
                         let col = self.col;
                         self.col += 1;
-                        return Some(Span {
-                            id: CsvSpan::header_cell(col, value.clone()),
-                            data: value.clone(),
-                        });
+                        return Some(Span::new(
+                            CsvSpan::header_cell(col, value.clone()),
+                            value.clone(),
+                        ));
                     }
                     self.phase = CsvIterPhase::Data(0);
                     self.col = 0;
@@ -279,10 +279,10 @@ impl<'a> Iterator for CsvSpanIter<'a> {
                             .and_then(|h| h.get(col))
                             .cloned()
                             .unwrap_or_else(|| col.to_string());
-                        return Some(Span {
-                            id: CsvSpan::cell(row_idx, col, key),
-                            data: value.clone(),
-                        });
+                        return Some(Span::new(
+                            CsvSpan::cell(row_idx, col, key),
+                            value.clone(),
+                        ));
                     }
                     self.phase = CsvIterPhase::Data(row_idx + 1);
                     self.col = 0;
@@ -380,10 +380,7 @@ mod tests {
             vec![vec!["123-45-6789"]],
         );
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit {
-                id: CsvSpan::cell(0, 0, "ssn"),
-                data: "[REDACTED]".into(),
-            },
+            SpanEdit::new(CsvSpan::cell(0, 0, "ssn"), "[REDACTED]".into()),
         ])))
         .await?;
         assert_eq!(h.cell(0, 0), Some("[REDACTED]"));
@@ -397,10 +394,7 @@ mod tests {
             vec![vec!["value"]],
         );
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit {
-                id: CsvSpan::header_cell(0, "secret_field"),
-                data: "redacted".into(),
-            },
+            SpanEdit::new(CsvSpan::header_cell(0, "secret_field"), "redacted".into()),
         ])))
         .await?;
         assert_eq!(h.headers(), Some(["redacted".to_string()].as_slice()));
@@ -412,10 +406,7 @@ mod tests {
         let mut h = handler_no_headers(vec![vec!["a"]]);
         let err = h
             .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit {
-                    id: CsvSpan::cell(5, 0, "0"),
-                    data: "x".into(),
-                },
+                SpanEdit::new(CsvSpan::cell(5, 0, "0"), "x".into()),
             ])))
             .await
             .unwrap_err();
@@ -427,10 +418,7 @@ mod tests {
         let mut h = handler_no_headers(vec![vec!["a"]]);
         let err = h
             .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit {
-                    id: CsvSpan::cell(0, 5, "5"),
-                    data: "x".into(),
-                },
+                SpanEdit::new(CsvSpan::cell(0, 5, "5"), "x".into()),
             ])))
             .await
             .unwrap_err();

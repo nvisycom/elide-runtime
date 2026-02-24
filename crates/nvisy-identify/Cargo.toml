@@ -1,0 +1,63 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-identify"
+description = "Entity ontology types and detection layers for Nvisy"
+keywords = ["nvisy", "identify", "entity", "ontology"]
+categories = ["text-processing"]
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[features]
+default = ["html"]
+html = ["nvisy-codec/html"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Internal crates
+nvisy-core = { workspace = true, features = [] }
+nvisy-ontology = { workspace = true, features = [] }
+nvisy-codec = { workspace = true, features = [] }
+nvisy-pattern = { workspace = true, features = [] }
+nvisy-python = { workspace = true, features = [] }
+nvisy-rig = { workspace = true, features = [] }
+
+# (De)serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
+
+# Async runtime
+tokio = { workspace = true, features = ["sync"] }
+async-trait = { workspace = true, features = [] }
+
+# Primitive datatypes
+uuid = { workspace = true, features = ["v4"] }
+jiff = { workspace = true, features = [] }
+semver = { workspace = true, features = [] }
+
+# Derive macros and error handling
+strum = { workspace = true, features = ["derive"] }
+
+# Text processing
+regex = { workspace = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+regex = { workspace = true, features = [] }
+serde_json = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["macros", "rt"] }

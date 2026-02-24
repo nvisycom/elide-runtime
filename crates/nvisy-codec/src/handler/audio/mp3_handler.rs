@@ -1,4 +1,4 @@
-//! MP3 handler (stub — awaiting migration to Loader/Handler pattern).
+//! MP3 handler (stub: awaiting migration to Loader/Handler pattern).
 
 use bytes::Bytes;
 

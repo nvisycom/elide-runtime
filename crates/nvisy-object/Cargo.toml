@@ -31,15 +31,13 @@ serde = { workspace = true, features = ["derive"] }
 # Async runtime
 tokio = { workspace = true, features = ["sync"] }
 async-trait = { workspace = true, features = [] }
+futures = { workspace = true, features = [] }
 
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
 
 # Cloud object storage (S3, Azure Blob, GCS)
 object_store = { workspace = true, features = ["aws", "azure", "gcp"] }
-
-# Async streams
-futures = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

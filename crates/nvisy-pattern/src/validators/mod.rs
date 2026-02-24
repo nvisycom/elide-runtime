@@ -3,17 +3,12 @@
 //! Patterns can reference a validator by name (e.g. `"validator": "luhn"`)
 //! to reduce false positives.  At detection time the name is resolved to a
 //! [`ValidatorFn`] via [`ValidatorResolver`].
-//!
-//! # Built-in validators
-//!
-//! | Name   | Module | Description                                |
-//! |--------|--------|--------------------------------------------|
-//! | `ssn`  | `ssn`  | US Social Security Number format check     |
-//! | `luhn` | `luhn` | Luhn checksum for credit card numbers      |
 
+mod iban;
 mod luhn;
 mod ssn;
 
+pub use iban::validate_iban;
 pub use luhn::luhn_check;
 pub use ssn::validate_ssn;
 
@@ -44,6 +39,7 @@ impl ValidatorResolver {
         };
         r.register("ssn", validate_ssn);
         r.register("luhn", luhn_check);
+        r.register("iban", validate_iban);
         r
     }
 
@@ -55,6 +51,7 @@ impl ValidatorResolver {
     }
 
     /// Look up a validator by name, returning `None` if unregistered.
+    #[must_use]
     pub fn resolve(&self, name: &str) -> Option<ValidatorFn> {
         self.table.get(name).copied()
     }

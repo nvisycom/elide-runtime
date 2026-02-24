@@ -2,6 +2,8 @@
   "name": "email",
   "category": "pii",
   "entity_type": "email_address",
-  "pattern": "\\b[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}\\b",
+  "pattern": {
+    "regex": "\\b[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}\\b"
+  },
   "confidence": 0.95
 }

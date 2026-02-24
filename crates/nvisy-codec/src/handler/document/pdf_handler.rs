@@ -1,4 +1,4 @@
-//! PDF handler (stub — awaiting migration to Loader/Handler pattern).
+//! PDF handler (stub: awaiting migration to Loader/Handler pattern).
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;

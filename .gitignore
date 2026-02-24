@@ -29,11 +29,6 @@ encryption.key
 coverage/
 *.lcov
 
-# Intermediate output
-.diesel_lock
-crates/nvisy-postgres/src/migrations/
-crates/nvisy-postgres/src/schema.rs.bak
-
 # Build output
 dist/
 build/

@@ -1,4 +1,4 @@
-//! HTML handler — holds parsed HTML content and provides span-based
+//! HTML handler: holds parsed HTML content and provides span-based
 //! access via [`Handler`].
 //!
 //! The handler stores extracted text nodes so the content can be

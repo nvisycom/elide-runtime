@@ -11,15 +11,15 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::TryStreamExt;
 use object_store::path::Path;
-use object_store::{ObjectMeta, ObjectStore, PutMode, PutOptions, PutPayload};
+use object_store::{ObjectMeta, ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload};
 
 use nvisy_core::Error;
 
-mod get_result;
-mod put_result;
+mod get_output;
+mod put_output;
 
-pub use get_result::GetResult;
-pub use put_result::PutResult;
+pub use get_output::GetOutput;
+pub use put_output::PutOutput;
 
 /// Cloneable handle to any [`ObjectStore`] backend (S3, Azure, GCS, ...).
 ///
@@ -85,7 +85,7 @@ impl ObjectStoreClient {
 
     /// Retrieve the raw bytes, content-type, and metadata stored at `key`.
     #[tracing::instrument(name = "object.get", skip(self), fields(key))]
-    pub async fn get(&self, key: &str) -> Result<GetResult, Error> {
+    pub async fn get(&self, key: &str) -> Result<GetOutput, Error> {
         let path = Path::from(key);
         let result = self.0.get(&path).await.map_err(from_object_store)?;
         let meta = result.meta.clone();
@@ -94,7 +94,7 @@ impl ObjectStoreClient {
             .get(&object_store::Attribute::ContentType)
             .map(|v| v.to_string());
         let data = result.bytes().await.map_err(from_object_store)?;
-        Ok(GetResult {
+        Ok(GetOutput {
             data,
             content_type,
             meta,
@@ -107,7 +107,7 @@ impl ObjectStoreClient {
         key: &str,
         data: Bytes,
         content_type: Option<&str>,
-    ) -> Result<PutResult, Error> {
+    ) -> Result<PutOutput, Error> {
         self.put_opts(key, data, PutMode::Overwrite, content_type).await
     }
 
@@ -119,7 +119,7 @@ impl ObjectStoreClient {
         data: Bytes,
         mode: PutMode,
         content_type: Option<&str>,
-    ) -> Result<PutResult, Error> {
+    ) -> Result<PutOutput, Error> {
         let path = Path::from(key);
         let payload = PutPayload::from(data);
         let mut opts = PutOptions {

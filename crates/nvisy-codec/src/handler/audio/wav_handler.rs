@@ -1,4 +1,4 @@
-//! WAV handler (stub — awaiting migration to Loader/Handler pattern).
+//! WAV handler (stub: awaiting migration to Loader/Handler pattern).
 
 use bytes::Bytes;
 

@@ -1,4 +1,4 @@
-//! JPEG handler — holds a decoded image and provides single-span access
+//! JPEG handler: holds a decoded image and provides single-span access
 //! via [`Handler`].
 //!
 //! # Span model

@@ -1,4 +1,4 @@
-//! PDF loader (stub — awaiting real implementation).
+//! PDF loader (stub: awaiting real implementation).
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;

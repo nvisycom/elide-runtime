@@ -2,7 +2,14 @@
   "name": "credit-card",
   "category": "financial",
   "entity_type": "payment_card",
-  "pattern": "\\b(?:\\d[ \\-]*?){13,19}\\b",
+  "pattern": {
+    "regex": "\\b(?:\\d[ \\-]*?){13,19}\\b",
+    "validator": "luhn"
+  },
   "confidence": 0.85,
-  "validator": "luhn"
+  "context": {
+    "keywords": ["card", "credit", "debit", "payment", "visa", "mastercard", "amex"],
+    "window": 3,
+    "boost": 0.1
+  }
 }

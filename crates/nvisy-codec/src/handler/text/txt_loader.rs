@@ -1,4 +1,4 @@
-//! Plain-text loader — validates and parses raw text content into a
+//! Plain-text loader: validates and parses raw text content into a
 //! [`Document<TxtHandler>`].
 //!
 //! The loader splits the input into lines and records whether the
@@ -15,7 +15,7 @@ use crate::handler::{Loader, TxtHandler};
 #[derive(Debug, Default)]
 pub struct TxtParams {
     /// Character encoding of the input bytes.
-    pub encoding: nvisy_core::data::TextEncoding,
+    pub encoding: nvisy_core::io::TextEncoding,
 }
 
 /// Loader that validates and parses plain-text files.

@@ -5,10 +5,11 @@
 //! implement the [`Explainable`] trait.
 
 use semver::Version;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use nvisy_detection::{DetectionMethod, ModelInfo};
+use nvisy_ontology::entity::{DetectionMethod, ModelInfo};
 
 /// Types that carry explainability metadata.
 pub trait Explainable {
@@ -20,8 +21,7 @@ pub trait Explainable {
 ///
 /// Records why an action was taken, which model and rule were involved,
 /// and who reviewed it.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Explanation {
     /// Detection model that produced the decision.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,5 +44,5 @@ pub struct Explanation {
     pub policy_version: Option<Version>,
     /// Identifier of the reviewer who approved/rejected.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reviewer_id: Option<String>,
+    pub reviewer_id: Option<Uuid>,
 }

@@ -108,10 +108,7 @@ where
                 result.replace_range(s..e, value);
             }
 
-            edits.push(SpanEdit {
-                id: span.id.clone(),
-                data: Self::SpanData::from(result),
-            });
+            edits.push(SpanEdit::new(span.id.clone(), Self::SpanData::from(result)));
         }
 
         let edit_count = edits.len();

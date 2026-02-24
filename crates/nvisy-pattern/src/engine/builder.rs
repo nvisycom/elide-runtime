@@ -6,7 +6,9 @@ use crate::dictionaries;
 use crate::patterns::{self, MatchSource, Pattern};
 use crate::validators::ValidatorResolver;
 
-use super::types::PatternEngineError;
+use super::allow_list::AllowList;
+use super::deny_list::DenyList;
+use super::error::PatternEngineError;
 use super::{DictEntry, PatternEngine, RegexEntry};
 
 /// Builder for [`PatternEngine`].
@@ -17,6 +19,8 @@ use super::{DictEntry, PatternEngine, RegexEntry};
 pub struct PatternEngineBuilder {
     pattern_names: Option<Vec<String>>,
     confidence_threshold: f64,
+    allow_list: AllowList,
+    deny_list: DenyList,
 }
 
 impl PatternEngineBuilder {
@@ -24,7 +28,7 @@ impl PatternEngineBuilder {
     ///
     /// If not called (or called with an empty slice), all built-in
     /// patterns are included.
-    pub fn patterns(mut self, names: &[impl AsRef<str>]) -> Self {
+    pub fn with_patterns(mut self, names: &[impl AsRef<str>]) -> Self {
         if !names.is_empty() {
             self.pattern_names = Some(names.iter().map(|n| n.as_ref().to_owned()).collect());
         }
@@ -35,12 +39,37 @@ impl PatternEngineBuilder {
     ///
     /// Matches with confidence below this value are discarded during
     /// [`scan_text`](PatternEngine::scan_text).  Defaults to `0.0`.
-    pub fn confidence_threshold(mut self, threshold: f64) -> Self {
+    pub fn with_confidence_threshold(mut self, threshold: f64) -> Self {
         self.confidence_threshold = threshold;
         self
     }
 
+    /// Set the allow list.
+    ///
+    /// Matches whose exact value appears in the allow list are suppressed
+    /// (dropped) during [`scan_text`](PatternEngine::scan_text).
+    pub fn with_allow(mut self, list: AllowList) -> Self {
+        self.allow_list = list;
+        self
+    }
+
+    /// Set the deny list.
+    ///
+    /// If a deny-list value is found in the scanned text but was not matched
+    /// by any regex or dictionary pattern, it is injected as a synthetic match
+    /// with confidence `1.0`.
+    pub fn with_deny(mut self, list: DenyList) -> Self {
+        self.deny_list = list;
+        self
+    }
+
     /// Compile all selected patterns and build the engine.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PatternEngineError`] if a regex fails to compile, a
+    /// referenced dictionary is missing, or the Aho-Corasick automaton
+    /// cannot be built.
     #[tracing::instrument(name = "PatternEngine::build", skip(self))]
     pub fn build(self) -> Result<PatternEngine, PatternEngineError> {
         let pat_reg = patterns::builtin_registry();
@@ -60,26 +89,27 @@ impl PatternEngineBuilder {
 
         for p in &active {
             match p.match_source() {
-                MatchSource::Regex(re) => {
-                    let compiled = Regex::new(re).map_err(|e| PatternEngineError::RegexCompile {
+                MatchSource::Regex(rp) => {
+                    let compiled = Regex::new(&rp.regex).map_err(|e| PatternEngineError::RegexCompile {
                         name: p.name().to_owned(),
                         source: e,
                     })?;
-                    regex_strings.push(re.clone());
+                    regex_strings.push(rp.regex.clone());
                     regex_entries.push(RegexEntry {
                         pattern_name: p.name().to_owned(),
                         category: p.category().clone(),
                         entity_kind: p.entity_kind(),
                         confidence: p.confidence(),
-                        validator_name: p.validator_name().map(|s| s.to_owned()),
+                        validator_name: rp.validator.clone(),
                         regex: compiled,
+                        context: p.context().cloned(),
                     });
                 }
-                MatchSource::Dictionary(dict_name) => {
-                    let dict = dict_reg.get(dict_name).ok_or_else(|| {
+                MatchSource::Dictionary(dp) => {
+                    let dict = dict_reg.get(&dp.name).ok_or_else(|| {
                         PatternEngineError::UnknownDictionary {
                             name: p.name().to_owned(),
-                            dictionary: dict_name.clone(),
+                            dictionary: dp.name.clone(),
                         }
                     })?;
                     let values: Vec<String> = dict.entries().to_vec();
@@ -87,7 +117,7 @@ impl PatternEngineBuilder {
                         continue;
                     }
                     let automaton = aho_corasick::AhoCorasickBuilder::new()
-                        .ascii_case_insensitive(!p.case_sensitive())
+                        .ascii_case_insensitive(!dp.case_sensitive)
                         .build(&values)
                         .map_err(|e| PatternEngineError::AhoCorasickBuild {
                             name: p.name().to_owned(),
@@ -100,6 +130,7 @@ impl PatternEngineBuilder {
                         confidence: p.confidence(),
                         automaton,
                         values,
+                        context: p.context().cloned(),
                     });
                 }
             }
@@ -122,6 +153,8 @@ impl PatternEngineBuilder {
             dict_entries,
             validators,
             confidence_threshold: self.confidence_threshold,
+            allow_set: self.allow_list,
+            deny_set: self.deny_list,
         })
     }
 }

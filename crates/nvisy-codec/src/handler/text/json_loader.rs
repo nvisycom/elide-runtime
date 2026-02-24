@@ -1,4 +1,4 @@
-//! JSON loader — validates and parses raw JSON content into a
+//! JSON loader: validates and parses raw JSON content into a
 //! [`Document<JsonHandler>`].
 //!
 //! The loader detects the indentation style and trailing-newline
@@ -11,7 +11,7 @@ use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
-use nvisy_core::data::TextEncoding;
+use nvisy_core::io::TextEncoding;
 
 use crate::handler::{JsonData, JsonHandler, JsonIndent, Loader};
 

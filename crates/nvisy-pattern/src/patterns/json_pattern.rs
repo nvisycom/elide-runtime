@@ -7,9 +7,10 @@
 
 use serde::Deserialize;
 
-use nvisy_core::data::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
-use super::pattern::{MatchSource, Pattern};
+use super::context_rule::ContextRule;
+use super::pattern::{DictionaryPattern, MatchSource, Pattern, RegexPattern};
 
 /// Error returned when a JSON pattern file cannot be loaded.
 #[derive(Debug, thiserror::Error)]
@@ -17,14 +18,6 @@ pub enum JsonPatternError {
     /// The raw bytes are not valid JSON or do not match the expected schema.
     #[error("JSON parse error: {0}")]
     Parse(#[from] serde_json::Error),
-
-    /// Neither `"pattern"` nor `"dictionary"` was provided.
-    #[error("pattern '{name}': must specify either 'pattern' or 'dictionary'")]
-    MissingSource { name: String },
-
-    /// Both `"pattern"` and `"dictionary"` were provided: only one is allowed.
-    #[error("pattern '{name}': cannot specify both 'pattern' and 'dictionary'")]
-    AmbiguousSource { name: String },
 }
 
 /// Non-fatal warning emitted while loading a pattern.
@@ -56,8 +49,7 @@ pub struct JsonPattern {
     entity_kind: EntityKind,
     match_source: MatchSource,
     confidence: f64,
-    validator: Option<String>,
-    case_sensitive: bool,
+    pub(crate) context: Option<ContextRule>,
 }
 
 impl JsonPattern {
@@ -68,12 +60,20 @@ impl JsonPattern {
     ///
     /// # Errors
     ///
-    /// Returns [`JsonPatternError`] if the bytes cannot be parsed as JSON,
-    /// or if the `"pattern"` / `"dictionary"` fields are missing or
-    /// ambiguous.
+    /// Returns [`JsonPatternError`] if the bytes cannot be parsed as JSON
+    /// or do not match the expected schema (e.g. missing both `pattern`
+    /// and `dictionary`).
     pub(crate) fn from_bytes(
         bytes: &[u8],
     ) -> Result<(Self, Vec<JsonPatternWarning>), JsonPatternError> {
+        /// Serde helper: exactly one of `pattern` or `dictionary`.
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum RawSource {
+            Regex { pattern: RegexPattern },
+            Dictionary { dictionary: DictionaryPattern },
+        }
+
         /// Intermediate serde target that mirrors the on-disk JSON shape.
         #[derive(Deserialize)]
         struct Raw {
@@ -81,25 +81,19 @@ impl JsonPattern {
             category: EntityCategory,
             #[serde(rename = "entity_type")]
             entity_kind: EntityKind,
-            #[serde(default)]
-            pattern: Option<String>,
-            #[serde(default)]
-            dictionary: Option<String>,
+            #[serde(flatten)]
+            source: RawSource,
             #[serde(default)]
             confidence: Option<f64>,
             #[serde(default)]
-            validator: Option<String>,
-            #[serde(default)]
-            case_sensitive: bool,
+            context: Option<ContextRule>,
         }
 
         let raw: Raw = serde_json::from_slice(bytes)?;
 
-        let match_source = match (raw.pattern, raw.dictionary) {
-            (Some(re), None) => MatchSource::Regex(re),
-            (None, Some(dict)) => MatchSource::Dictionary(dict),
-            (None, None) => return Err(JsonPatternError::MissingSource { name: raw.name }),
-            (Some(_), Some(_)) => return Err(JsonPatternError::AmbiguousSource { name: raw.name }),
+        let match_source = match raw.source {
+            RawSource::Regex { pattern } => MatchSource::Regex(pattern),
+            RawSource::Dictionary { dictionary } => MatchSource::Dictionary(dictionary),
         };
 
         let mut warnings = Vec::new();
@@ -110,13 +104,13 @@ impl JsonPattern {
                 slug: slug.clone(),
             });
         }
-        if let Some(ref v) = raw.validator {
-            if crate::validators::ValidatorResolver::builtins().resolve(v).is_none() {
-                warnings.push(JsonPatternWarning::UnknownValidator {
-                    pattern: raw.name.clone(),
-                    validator: v.clone(),
-                });
-            }
+        if let MatchSource::Regex(RegexPattern { validator: Some(ref v), .. }) = match_source
+            && crate::validators::ValidatorResolver::builtins().resolve(v).is_none()
+        {
+            warnings.push(JsonPatternWarning::UnknownValidator {
+                pattern: raw.name.clone(),
+                validator: v.clone(),
+            });
         }
 
         let p = Self {
@@ -125,8 +119,7 @@ impl JsonPattern {
             entity_kind: raw.entity_kind,
             match_source,
             confidence: raw.confidence.unwrap_or(DEFAULT_CONFIDENCE),
-            validator: raw.validator,
-            case_sensitive: raw.case_sensitive,
+            context: raw.context,
         };
 
         Ok((p, warnings))
@@ -154,11 +147,7 @@ impl Pattern for JsonPattern {
         self.confidence
     }
 
-    fn validator_name(&self) -> Option<&str> {
-        self.validator.as_deref()
-    }
-
-    fn case_sensitive(&self) -> bool {
-        self.case_sensitive
+    fn context(&self) -> Option<&ContextRule> {
+        self.context.as_ref()
     }
 }

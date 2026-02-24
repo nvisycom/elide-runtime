@@ -18,7 +18,7 @@ use crate::compiler::graph::GraphNode;
 /// Outcome of executing a single node in the pipeline.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[derive(schemars::JsonSchema)]
-pub struct NodeResult {
+pub struct NodeOutput {
     /// ID of the node that produced this result.
     pub node_id: String,
     /// Number of data items processed by this node.
@@ -30,22 +30,22 @@ pub struct NodeResult {
 /// Aggregate outcome of executing an entire pipeline graph.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[derive(schemars::JsonSchema)]
-pub struct RunResult {
+pub struct RunOutput {
     /// Unique identifier for this execution run.
     pub run_id: Uuid,
     /// Per-node results in completion order.
-    pub node_results: Vec<NodeResult>,
+    pub node_results: Vec<NodeOutput>,
     /// `true` if all nodes completed without error.
     pub success: bool,
 }
 
 /// Executes a compiled [`ExecutionPlan`] by spawning concurrent tasks for each node.
 ///
-/// Returns a [`RunResult`] containing per-node outcomes and an overall success flag.
+/// Returns a [`RunOutput`] containing per-node outcomes and an overall success flag.
 pub async fn run_graph(
     plan: &ExecutionPlan,
     _connections: &Connections,
-) -> Result<RunResult, Error> {
+) -> Result<RunOutput, Error> {
     let run_id = Uuid::new_v4();
 
     // Create channels for each edge
@@ -72,7 +72,7 @@ pub async fn run_graph(
     }
 
     // Spawn tasks
-    let mut join_set: JoinSet<NodeResult> = JoinSet::new();
+    let mut join_set: JoinSet<NodeOutput> = JoinSet::new();
 
     for resolved in &plan.nodes {
         let node = resolved.node.clone();
@@ -103,12 +103,12 @@ pub async fn run_graph(
             }
 
             match result {
-                Ok(count) => NodeResult {
+                Ok(count) => NodeOutput {
                     node_id,
                     items_processed: count,
                     error: None,
                 },
-                Err(e) => NodeResult {
+                Err(e) => NodeOutput {
                     node_id,
                     items_processed: 0,
                     error: Some(e.to_string()),
@@ -122,7 +122,7 @@ pub async fn run_graph(
     while let Some(result) = join_set.join_next().await {
         match result {
             Ok(nr) => node_results.push(nr),
-            Err(e) => node_results.push(NodeResult {
+            Err(e) => node_results.push(NodeOutput {
                 node_id: "unknown".to_string(),
                 items_processed: 0,
                 error: Some(format!("Task panicked: {}", e)),
@@ -132,7 +132,7 @@ pub async fn run_graph(
 
     let success = node_results.iter().all(|r| r.error.is_none());
 
-    Ok(RunResult {
+    Ok(RunOutput {
         run_id,
         node_results,
         success,

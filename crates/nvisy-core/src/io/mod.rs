@@ -17,9 +17,11 @@ mod content_data;
 mod content_read;
 mod content_write;
 mod data_reference;
+mod encoding;
 
 // Re-export core types and traits
 pub use content::Content;
+pub use encoding::TextEncoding;
 pub use content_data::{ContentBytes, ContentData};
 pub use content_read::AsyncContentRead;
 pub use content_write::AsyncContentWrite;

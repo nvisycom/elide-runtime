@@ -99,7 +99,7 @@ impl PatternEngineBuilder {
                         pattern_name: p.name().to_owned(),
                         category: p.category().clone(),
                         entity_kind: p.entity_kind(),
-                        confidence: p.confidence(),
+                        confidence: rp.confidence,
                         validator_name: rp.validator.clone(),
                         regex: compiled,
                         context: p.context().cloned(),
@@ -128,11 +128,10 @@ impl PatternEngineBuilder {
                         pattern_name: p.name().to_owned(),
                         category: p.category().clone(),
                         entity_kind: p.entity_kind(),
-                        confidence: p.confidence(),
+                        confidence: dp.confidence.clone(),
                         automaton,
                         values,
                         columns,
-                        column_confidence: dp.column_confidence.clone(),
                         context: p.context().cloned(),
                     });
                 }

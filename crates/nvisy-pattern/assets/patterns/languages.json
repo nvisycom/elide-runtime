@@ -4,7 +4,6 @@
   "entity_type": "demographic",
   "dictionary": {
     "name": "languages",
-    "column_confidence": [0.85, 0.45]
-  },
-  "confidence": 0.85
+    "confidence": [0.85, 0.45]
+  }
 }

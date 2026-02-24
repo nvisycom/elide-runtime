@@ -4,9 +4,9 @@
   "entity_type": "payment_card",
   "pattern": {
     "regex": "\\b(?:\\d[ \\-]*?){13,19}\\b",
-    "validator": "luhn"
+    "validator": "luhn",
+    "confidence": 0.85
   },
-  "confidence": 0.85,
   "context": {
     "keywords": ["card", "credit", "debit", "payment", "visa", "mastercard", "amex"],
     "window": 3,

@@ -4,9 +4,9 @@
   "entity_type": "government_id",
   "pattern": {
     "regex": "\\b(\\d{3})-(\\d{2})-(\\d{4})\\b",
-    "validator": "ssn"
+    "validator": "ssn",
+    "confidence": 0.9
   },
-  "confidence": 0.9,
   "context": {
     "keywords": ["social security", "ssn", "tax id", "taxpayer identification"],
     "window": 3,

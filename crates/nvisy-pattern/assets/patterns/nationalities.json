@@ -3,7 +3,7 @@
   "category": "pii",
   "entity_type": "demographic",
   "dictionary": {
-    "name": "nationalities"
-  },
-  "confidence": 0.85
+    "name": "nationalities",
+    "confidence": 0.85
+  }
 }

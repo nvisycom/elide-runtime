@@ -3,7 +3,7 @@
   "category": "credentials",
   "entity_type": "auth_token",
   "pattern": {
-    "regex": "\\bgh[pousr]_[a-zA-Z0-9]{36}\\b"
-  },
-  "confidence": 0.95
+    "regex": "\\bgh[pousr]_[a-zA-Z0-9]{36}\\b",
+    "confidence": 0.95
+  }
 }

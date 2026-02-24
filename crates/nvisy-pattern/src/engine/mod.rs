@@ -34,7 +34,7 @@ use regex::{Regex, RegexSet};
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
-use crate::patterns::ContextRule;
+use crate::patterns::{ContextRule, DictionaryConfidence};
 use crate::validators::ValidatorResolver;
 
 /// Metadata stored alongside each compiled regex.
@@ -53,33 +53,25 @@ struct DictEntry {
     pattern_name: String,
     category: EntityCategory,
     entity_kind: EntityKind,
-    confidence: f64,
+    confidence: DictionaryConfidence,
     automaton: AhoCorasick,
     /// The terms used to build the automaton, indexed by pattern id.
     values: Vec<String>,
     /// Per-entry column index from the source dictionary (parallel to `values`).
-    /// `None` for plain-text dictionaries.
+    /// `None` for plain-text dictionaries (all entries are column 0).
     columns: Option<Vec<usize>>,
-    /// Per-column confidence overrides from the pattern definition.
-    column_confidence: Option<Vec<f64>>,
     context: Option<ContextRule>,
 }
 
 impl DictEntry {
     /// Resolve the confidence for the entry at `pattern_index`.
-    ///
-    /// If per-column confidence overrides are configured and the entry has
-    /// a known column, uses the column-specific value. Otherwise falls back
-    /// to the pattern's base confidence.
     fn resolve_confidence(&self, pattern_index: usize) -> f64 {
-        if let (Some(cols), Some(col_conf)) = (&self.columns, &self.column_confidence) {
-            if let Some(&col) = cols.get(pattern_index) {
-                if let Some(&conf) = col_conf.get(col) {
-                    return conf;
-                }
-            }
-        }
-        self.confidence
+        let col = self
+            .columns
+            .as_ref()
+            .and_then(|cols| cols.get(pattern_index).copied())
+            .unwrap_or(0);
+        self.confidence.resolve(col)
     }
 }
 

@@ -3,7 +3,7 @@
   "category": "pii",
   "entity_type": "demographic",
   "dictionary": {
-    "name": "religions"
-  },
-  "confidence": 0.85
+    "name": "religions",
+    "confidence": 0.85
+  }
 }

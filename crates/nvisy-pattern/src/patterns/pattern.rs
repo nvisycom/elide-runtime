@@ -30,7 +30,7 @@ pub struct RegexPattern {
 }
 
 /// A dictionary-based match source.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct DictionaryPattern {
     /// Named dictionary from the [`DictionaryRegistry`].
     ///
@@ -42,6 +42,13 @@ pub struct DictionaryPattern {
     /// `ascii_case_insensitive` setting.
     #[serde(default)]
     pub case_sensitive: bool,
+    /// Optional per-column confidence overrides for CSV dictionaries.
+    ///
+    /// When present, entries from column `i` use `column_confidence[i]`
+    /// instead of the pattern's base confidence. Columns beyond the
+    /// length of this array fall back to the base confidence.
+    #[serde(default)]
+    pub column_confidence: Option<Vec<f64>>,
 }
 
 /// How a pattern finds matches in text.
@@ -49,7 +56,7 @@ pub struct DictionaryPattern {
 /// Each pattern uses exactly one source: either a regular expression that
 /// is compiled and run against text spans, or a named dictionary whose
 /// entries are matched literally.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MatchSource {
     /// Match via a compiled regular expression.
     Regex(RegexPattern),

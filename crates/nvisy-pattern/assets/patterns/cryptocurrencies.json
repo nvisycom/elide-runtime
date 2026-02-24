@@ -3,7 +3,8 @@
   "category": "financial",
   "entity_type": "amount",
   "dictionary": {
-    "name": "cryptocurrencies"
+    "name": "cryptocurrencies",
+    "column_confidence": [0.85, 0.55]
   },
   "confidence": 0.85
 }

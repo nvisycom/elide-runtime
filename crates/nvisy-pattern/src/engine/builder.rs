@@ -116,6 +116,7 @@ impl PatternEngineBuilder {
                     if values.is_empty() {
                         continue;
                     }
+                    let columns = dict.columns().map(|c| c.to_vec());
                     let automaton = aho_corasick::AhoCorasickBuilder::new()
                         .ascii_case_insensitive(!dp.case_sensitive)
                         .build(&values)
@@ -130,6 +131,8 @@ impl PatternEngineBuilder {
                         confidence: p.confidence(),
                         automaton,
                         values,
+                        columns,
+                        column_confidence: dp.column_confidence.clone(),
                         context: p.context().cloned(),
                     });
                 }

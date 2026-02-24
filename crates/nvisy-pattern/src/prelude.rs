@@ -5,6 +5,5 @@
 //! ```
 
 pub use crate::{
-    AllowList, ContextRule, DenyEntry, DenyList, DetectionSource, PatternEngine,
-    PatternEngineBuilder, PatternEngineError, PatternMatch, default_engine,
+    ContextRule, DetectionSource, PatternEngine, PatternEngineBuilder, PatternMatch,
 };

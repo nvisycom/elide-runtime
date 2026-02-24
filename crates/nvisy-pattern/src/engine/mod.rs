@@ -57,7 +57,30 @@ struct DictEntry {
     automaton: AhoCorasick,
     /// The terms used to build the automaton, indexed by pattern id.
     values: Vec<String>,
+    /// Per-entry column index from the source dictionary (parallel to `values`).
+    /// `None` for plain-text dictionaries.
+    columns: Option<Vec<usize>>,
+    /// Per-column confidence overrides from the pattern definition.
+    column_confidence: Option<Vec<f64>>,
     context: Option<ContextRule>,
+}
+
+impl DictEntry {
+    /// Resolve the confidence for the entry at `pattern_index`.
+    ///
+    /// If per-column confidence overrides are configured and the entry has
+    /// a known column, uses the column-specific value. Otherwise falls back
+    /// to the pattern's base confidence.
+    fn resolve_confidence(&self, pattern_index: usize) -> f64 {
+        if let (Some(cols), Some(col_conf)) = (&self.columns, &self.column_confidence) {
+            if let Some(&col) = cols.get(pattern_index) {
+                if let Some(&conf) = col_conf.get(col) {
+                    return conf;
+                }
+            }
+        }
+        self.confidence
+    }
 }
 
 /// Pre-compiled engine that scans text against all registered patterns.
@@ -176,12 +199,17 @@ impl PatternEngine {
     /// Phase 2: dictionary matches via Aho-Corasick automata.
     fn scan_dict(&self, text: &str, results: &mut Vec<PatternMatch>) {
         for entry in &self.dict_entries {
-            if entry.confidence < self.confidence_threshold {
-                continue;
-            }
-
             for mat in entry.automaton.find_iter(text) {
-                let value = &entry.values[mat.pattern().as_usize()];
+                let pat_idx = mat.pattern().as_usize();
+                let value = &entry.values[pat_idx];
+
+                // Resolve per-entry confidence: use column override if available,
+                // otherwise fall back to the pattern's base confidence.
+                let confidence = entry.resolve_confidence(pat_idx);
+
+                if confidence < self.confidence_threshold {
+                    continue;
+                }
 
                 if self.allow_set.contains(value.as_str()) {
                     continue;
@@ -194,7 +222,7 @@ impl PatternEngine {
                     value: value.clone(),
                     start: mat.start(),
                     end: mat.end(),
-                    confidence: entry.confidence,
+                    confidence,
                     source: DetectionSource::Dictionary,
                     context: entry.context.clone(),
                 });
@@ -387,6 +415,23 @@ mod tests {
         assert!(deny.contains("secret"));
         let entry = deny.get("other").unwrap();
         assert_eq!(entry.category, EntityCategory::Financial);
+    }
+
+    #[test]
+    fn column_confidence_applies_to_csv_dictionaries() {
+        let engine = default_engine();
+        // "US Dollar" is column 0 (full name), "USD" is column 1 (code).
+        let matches = engine.scan_text("I paid in US Dollar and also in USD.");
+        let full_name = matches.iter().find(|m| m.value == "US Dollar");
+        let code = matches.iter().find(|m| m.value == "USD");
+        assert!(full_name.is_some(), "should match 'US Dollar'");
+        assert!(code.is_some(), "should match 'USD'");
+        let full_conf = full_name.unwrap().confidence;
+        let code_conf = code.unwrap().confidence;
+        assert!(
+            full_conf > code_conf,
+            "full name confidence ({full_conf}) should exceed code confidence ({code_conf})"
+        );
     }
 
     #[test]

@@ -3,14 +3,11 @@
 #![doc = include_str!("../README.md")]
 
 pub(crate) mod dictionaries;
-mod engine;
+pub mod engine;
 pub(crate) mod patterns;
 pub(crate) mod validators;
 
-pub use engine::{
-    AllowList, DenyEntry, DenyList, DetectionSource, PatternEngine, PatternEngineBuilder,
-    PatternEngineError, PatternMatch, default_engine,
-};
+pub use engine::{DetectionSource, PatternEngine, PatternEngineBuilder, PatternMatch};
 pub use patterns::ContextRule;
 
 #[doc(hidden)]

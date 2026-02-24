@@ -10,6 +10,8 @@ use super::Dictionary;
 pub struct CsvDictionary {
     name: String,
     entries: Vec<String>,
+    /// Source column index for each entry (parallel to `entries`).
+    columns: Vec<usize>,
 }
 
 impl CsvDictionary {
@@ -17,10 +19,13 @@ impl CsvDictionary {
     ///
     /// `name` identifies this dictionary (e.g. `"currencies"`).
     /// `text` is the CSV content where each non-empty cell becomes a matchable term.
+    /// The column index of each cell is preserved so that per-column confidence
+    /// scores can be applied at detection time.
     pub fn new(name: impl Into<String>, text: &str) -> Self {
         let name = name.into();
 
         let mut entries = Vec::new();
+        let mut columns = Vec::new();
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(false)
             .flexible(true)
@@ -29,15 +34,16 @@ impl CsvDictionary {
 
         for result in reader.records() {
             let record = result.expect("failed to parse CSV record");
-            for field in record.iter() {
+            for (col, field) in record.iter().enumerate() {
                 let trimmed = field.trim();
                 if !trimmed.is_empty() {
                     entries.push(trimmed.to_owned());
+                    columns.push(col);
                 }
             }
         }
 
-        Self { name, entries }
+        Self { name, entries, columns }
     }
 }
 
@@ -48,6 +54,10 @@ impl Dictionary for CsvDictionary {
 
     fn entries(&self) -> &[String] {
         &self.entries
+    }
+
+    fn columns(&self) -> Option<&[usize]> {
+        Some(&self.columns)
     }
 }
 

@@ -33,6 +33,8 @@ nvisy-codec = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 nvisy-python = { workspace = true, features = [] }
 nvisy-rig = { workspace = true, features = [] }
+nvisy-ocr = { workspace = true, features = [] }
+nvisy-asr = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
@@ -46,18 +48,15 @@ async-trait = { workspace = true, features = [] }
 # Primitive datatypes
 uuid = { workspace = true, features = ["v4"] }
 jiff = { workspace = true, features = [] }
+bytes = { workspace = true, features = [] }
 semver = { workspace = true, features = [] }
 
 # Derive macros and error handling
 strum = { workspace = true, features = ["derive"] }
 
-# Text processing
-regex = { workspace = true, features = [] }
-
 # Observability
 tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
-regex = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["macros", "rt"] }

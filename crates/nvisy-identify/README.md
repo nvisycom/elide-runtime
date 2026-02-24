@@ -2,9 +2,17 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Entity ontology types, detection layers, and pattern/dictionary infrastructure for the Nvisy runtime.
+Detection orchestration, entity ontology, and policy evaluation for the Nvisy runtime.
 
-Defines the core entity model (`Entity`, `DetectionMethod`, locations), detection traits (`DetectionLayer`, `Detect`), and concrete detection layers for text (regex patterns, Aho-Corasick dictionaries, NER), tabular data (column rules), and documents (checksum validation, manual annotations).
+Organized by **detection method** rather than content modality:
+
+- **pattern/** — Deterministic regex and dictionary matching via `PatternEngine`
+- **ner/** — Statistical NLP named-entity recognition (text and image)
+- **llm/** — LLM-based contextual entity detection via `LlmBackend`
+- **vision/** — Computer vision layers (face, object, OCR detection)
+- **audio/** — Audio detection via transcription + NER pipeline
+- **fusion/** — Post-detection entity merging, deduplication, and ensemble scoring
+- **policy/** — Policy evaluation, governance rules, and audit trails
 
 ## Documentation
 

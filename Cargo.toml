@@ -3,13 +3,14 @@
 [workspace]
 resolver = "2"
 members = [
+    "./crates/nvisy-asr",
     "./crates/nvisy-augment",
     "./crates/nvisy-cli",
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
     "./crates/nvisy-identify",
-    "./crates/nvisy-object",
+    "./crates/nvisy-ocr",
     "./crates/nvisy-ontology",
     "./crates/nvisy-pattern",
     "./crates/nvisy-python",
@@ -36,12 +37,13 @@ documentation = "https://docs.rs/nvisy-runtime"
 # See for more details: https://github.com/rust-lang/cargo/issues/11329
 
 # Internal crates
+nvisy-asr = { path = "./crates/nvisy-asr", version = "0.1.0" }
 nvisy-augment = { path = "./crates/nvisy-augment", version = "0.1.0" }
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-identify = { path = "./crates/nvisy-identify", version = "0.1.0" }
-nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
+nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
@@ -109,9 +111,6 @@ imageproc = { version = "0.26", features = [] }
 
 # Compile-time asset embedding
 include_dir = { version = "0.7", features = [] }
-
-# Cloud object storage (S3, Azure Blob, GCS)
-object_store = { version = "0.13", default-features = false }
 
 # Python interop
 pyo3 = { version = "0.24", features = [] }

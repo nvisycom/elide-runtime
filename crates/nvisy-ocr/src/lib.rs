@@ -3,7 +3,8 @@
 #![doc = include_str!("../README.md")]
 
 mod backend;
+mod bridge;
 mod parse;
 
-pub use backend::{LlmBackend, LlmConfig};
-pub use parse::parse_llm_entities;
+pub use backend::{OcrBackend, OcrConfig};
+pub use parse::parse_ocr_entities;

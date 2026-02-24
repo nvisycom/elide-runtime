@@ -4,10 +4,12 @@
 
 mod ontology;
 mod layer;
+mod pattern;
 mod ner;
-mod text;
-mod image;
-mod action;
+mod vision;
+mod llm;
+mod audio;
+mod fusion;
 mod policy;
 
 pub mod prelude;
@@ -22,13 +24,17 @@ pub use layer::*;
 pub use ner::{NerBackend, NerConfig};
 
 // --- Detection layers ---
-pub use text::{PatternDetection, PatternDetectionParams};
-pub use text::{NerDetection, NerDetectionParams};
-pub use image::{ImageNerDetection, FaceBackend, FaceDetection, ObjectBackend, ObjectDetection};
+pub use pattern::{PatternDetection, PatternDetectionParams};
+pub use ner::{NerDetection, NerDetectionParams};
+pub use ner::ImageNerDetection;
+pub use vision::{FaceBackend, FaceDetection, ObjectBackend, ObjectDetection, OcrDetection};
+pub use llm::{LlmDetection, LlmDetectionParams, user_prompt as llm_user_prompt};
+pub use audio::TranscriptNerDetection;
 
 // --- Post-detection actions ---
-pub use action::{DetectManualAction, DetectManualParams, Exclusion, ManualOutput, is_excluded};
-pub use action::DeduplicateAction;
+pub use fusion::{DetectManualAction, DetectManualParams, Exclusion, ManualOutput, is_excluded};
+pub use fusion::DeduplicateAction;
+pub use fusion::{EnsembleMerge, FusionStrategy};
 
 // --- Policy & governance ---
 pub use policy::{

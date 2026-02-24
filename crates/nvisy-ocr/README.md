@@ -1,10 +1,10 @@
-# nvisy-augment
+# nvisy-ocr
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Content augmentation actions for the Nvisy runtime.
+OCR backend trait and provider integration for the Nvisy runtime.
 
-Provides OCR text extraction from images (via `nvisy-ocr`), audio transcription (via `nvisy-asr`), and synthetic data generation for replacing redacted entities with realistic placeholder values.
+Defines the `OcrBackend` trait for optical character recognition providers, configuration types, result parsing from raw JSON into entity types, and a `PythonBridge` implementation that delegates to the `nvisy_ai` Python module.
 
 ## Documentation
 

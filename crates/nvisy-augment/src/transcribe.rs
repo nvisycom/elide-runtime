@@ -2,18 +2,14 @@
 //! locations and transcript documents from audio input.
 
 use serde::Deserialize;
-use serde_json::Value;
 
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{Handler, WavHandler, TxtHandler};
-use nvisy_core::math::TimeSpan;
 use nvisy_core::Error;
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
-use nvisy_ontology::entity::{DetectionMethod, Entity};
-use nvisy_ontology::location::{AudioLocation, Location};
-use nvisy_python::bridge::PythonBridge;
-use nvisy_python::transcribe::TranscribeParams;
+use nvisy_ontology::entity::Entity;
+
+pub use nvisy_asr::{TranscribeBackend, TranscribeConfig, parse_transcribe_entities};
 
 fn default_language() -> String {
     "en".into()
@@ -21,35 +17,6 @@ fn default_language() -> String {
 
 fn default_confidence() -> f64 {
     0.5
-}
-
-/// Configuration passed to a [`TranscribeBackend`] implementation.
-#[derive(Debug, Clone)]
-pub struct TranscribeConfig {
-    /// BCP-47 language tag for transcription.
-    pub language: String,
-    /// Whether to perform speaker diarization.
-    pub enable_speaker_diarization: bool,
-    /// Minimum confidence threshold for results.
-    pub confidence_threshold: f64,
-}
-
-/// Backend trait for transcription providers.
-///
-/// Implementations call an external speech-to-text service and return
-/// raw JSON results. Entity construction is handled by [`GenerateTranscribeAction`].
-#[async_trait::async_trait]
-pub trait TranscribeBackend: Send + Sync + 'static {
-    /// Transcribe audio bytes, returning raw dicts.
-    ///
-    /// Each dict should contain: `text`, `start_time`, `end_time`, `confidence`,
-    /// and optionally `speaker_id`.
-    async fn transcribe(
-        &self,
-        audio_data: &[u8],
-        mime_type: &str,
-        config: &TranscribeConfig,
-    ) -> Result<Vec<Value>, Error>;
 }
 
 /// Typed parameters for [`GenerateTranscribeAction`].
@@ -138,87 +105,11 @@ impl<B: TranscribeBackend> GenerateTranscribeAction<B> {
     }
 }
 
-/// Parse raw JSON dicts from a transcription backend into [`Entity`] values.
-///
-/// Expected dict keys: `text`, `start_time`, `end_time`, `confidence`,
-/// and optionally `speaker_id`.
-pub fn parse_transcribe_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
-    let mut entities = Vec::new();
-
-    for item in raw {
-        let obj = item.as_object().ok_or_else(|| {
-            Error::python("Expected JSON object in transcription results".to_string())
-        })?;
-
-        let text = obj
-            .get("text")
-            .and_then(Value::as_str)
-            .ok_or_else(|| Error::python("Missing 'text' in transcription result".to_string()))?;
-
-        let start_time = obj
-            .get("start_time")
-            .and_then(Value::as_f64)
-            .ok_or_else(|| Error::python("Missing 'start_time'".to_string()))?;
-
-        let end_time = obj
-            .get("end_time")
-            .and_then(Value::as_f64)
-            .ok_or_else(|| Error::python("Missing 'end_time'".to_string()))?;
-
-        let confidence = obj
-            .get("confidence")
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0);
-
-        let speaker_id = obj
-            .get("speaker_id")
-            .and_then(Value::as_str)
-            .map(String::from);
-
-        let entity = Entity::new(
-            EntityCategory::Pii,
-            EntityKind::PersonName,
-            text,
-            DetectionMethod::SpeechTranscript,
-            confidence,
-        )
-        .with_location(Location::Audio(AudioLocation {
-            time_span: TimeSpan {
-                start_secs: start_time,
-                end_secs: end_time,
-            },
-            speaker_id,
-            audio_id: None,
-        }));
-
-        entities.push(entity);
-    }
-
-    Ok(entities)
-}
-
-/// [`TranscribeBackend`] implementation for [`PythonBridge`].
-#[async_trait::async_trait]
-impl TranscribeBackend for PythonBridge {
-    async fn transcribe(
-        &self,
-        audio_data: &[u8],
-        mime_type: &str,
-        config: &TranscribeConfig,
-    ) -> Result<Vec<Value>, Error> {
-        let params = TranscribeParams {
-            language: config.language.clone(),
-            enable_speaker_diarization: config.enable_speaker_diarization,
-            confidence_threshold: config.confidence_threshold,
-        };
-        nvisy_python::transcribe::transcribe(self, audio_data, mime_type, &params).await
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use nvisy_ontology::entity::DetectionMethod;
+    use serde_json::{json, Value};
 
     #[test]
     fn parse_transcribe_entities_basic() {

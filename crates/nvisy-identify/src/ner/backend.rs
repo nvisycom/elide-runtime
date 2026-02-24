@@ -8,7 +8,7 @@ use nvisy_core::Error;
 ///
 /// Contains only the model-agnostic parameters that every backend needs.
 /// Provider-specific fields (API key, model name, etc.) belong in the
-/// action's [`NerDetectionParams`](super::super::text::ner::NerDetectionParams)
+/// action's [`NerDetectionParams`](super::text::NerDetectionParams)
 /// or the provider's credentials.
 #[derive(Debug, Clone)]
 pub struct NerConfig {

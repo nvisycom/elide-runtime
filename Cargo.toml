@@ -71,6 +71,9 @@ anyhow = { version = "1.0", features = [] }
 derive_more = { version = "1", features = ["display", "from", "into"] }
 strum = { version = "0.27", features = ["derive"] }
 
+# Encoding
+base64 = { version = "0.22", features = [] }
+
 # Primitive datatypes
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 bytes = { version = "1", features = ["serde"] }

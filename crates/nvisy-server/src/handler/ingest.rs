@@ -1,4 +1,7 @@
 //! Content upload and download handlers.
+//!
+//! - `POST /api/v1/ingest` — upload content as multipart form data.
+//! - `GET /api/v1/ingest/{id}` — download previously uploaded content (stub).
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
@@ -72,7 +75,7 @@ async fn upload(
         content_data.mime = Some(mime);
     }
     let content = Content::new(content_data);
-    let handler = state.content_registry.register(content).await?;
+    let handler = state.content_registry().register(content).await?;
     let id = handler.content_source().as_uuid();
 
     tracing::info!(

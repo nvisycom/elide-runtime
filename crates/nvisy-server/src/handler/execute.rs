@@ -1,16 +1,17 @@
-//! Execute and OpenAPI handlers.
+//! Pipeline execution handler.
+//!
+//! `POST /api/v1/execute` — accepts base64-encoded content with policies and
+//! an execution graph, runs the full detection/evaluation/redaction pipeline,
+//! and returns the combined result.
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
-use aide::openapi::OpenApi;
-use aide::scalar::Scalar;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use axum::{Extension, Json};
+use axum::Json;
 use nvisy_core::io::{Content, ContentData};
 use nvisy_core::{Error, ErrorKind};
-use nvisy_engine::engine::{Engine, EngineInput};
-use nvisy_identify::Policies;
+use nvisy_engine::engine::{Engine, EngineInput, Policies};
 
 use super::request::ExecuteRequest;
 use super::response::{ExecuteResponse, ServerError};
@@ -37,7 +38,7 @@ async fn execute(
         content_data.mime = Some(m);
     }
     let content = Content::new(content_data);
-    let source = state.content_registry.register(content).await?;
+    let source = state.content_registry().register(content).await?;
 
     tracing::debug!(content_source = %source.content_source(), "content registered");
 
@@ -49,7 +50,7 @@ async fn execute(
         actor: req.actor,
     };
 
-    let output = state.engine.run(input).await?;
+    let output = state.engine().run(input).await?;
     let run_id = output.run_id;
     let response = ExecuteResponse::from(output);
 
@@ -66,11 +67,6 @@ fn execute_docs(op: TransformOperation) -> TransformOperation {
             "Accepts base64-encoded content with policies and an execution graph, \
              runs detection, evaluation, and redaction, and returns the full result.",
         )
-}
-
-/// `GET /api/v1/openapi.json`: serve the generated OpenAPI spec.
-async fn openapi_json(Extension(api): Extension<OpenApi>) -> Json<OpenApi> {
-    Json(api)
 }
 
 /// Derive a MIME type from a filename extension.
@@ -97,8 +93,5 @@ fn mime_from_filename(filename: &str) -> Option<String> {
 
 /// Execute routes.
 pub fn routes() -> ApiRouter<ServiceState> {
-    ApiRouter::new()
-        .api_route("/api/v1/execute", post_with(execute, execute_docs))
-        .route("/api/v1/openapi.json", axum::routing::get(openapi_json))
-        .route("/docs", Scalar::new("/api/v1/openapi.json").axum_route())
+    ApiRouter::new().api_route("/api/v1/execute", post_with(execute, execute_docs))
 }

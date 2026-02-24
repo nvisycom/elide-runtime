@@ -1,4 +1,7 @@
-//! Redaction handlers.
+//! Redaction handler.
+//!
+//! `POST /api/v1/redaction` — runs the redaction pipeline on previously
+//! uploaded content identified by `content_id` (stub).
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
@@ -6,7 +9,7 @@ use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::Json;
 use nvisy_core::{Error, ErrorKind};
-use nvisy_identify::Policies;
+use nvisy_engine::engine::Policies;
 
 use super::request::RedactionRequest;
 use super::response::{RedactionResponse, ServerError};

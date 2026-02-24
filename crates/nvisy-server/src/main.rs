@@ -1,83 +1,35 @@
-use std::sync::Arc;
+//! nvisy API server entry point.
+//!
+//! Parses CLI arguments, initialises tracing, constructs application state,
+//! and starts the HTTP server with graceful shutdown support.
 
+use clap::Parser;
 use nvisy_core::fs::ContentRegistry;
-use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
 mod handler;
 mod middleware;
+mod server;
 mod service;
 
-use service::{ServiceState, StubEngine, build_router};
+use server::config::ServerConfig;
+use service::ServiceState;
 
 #[tokio::main]
 async fn main() {
+    let config = ServerConfig::parse();
+
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new(&config.log_level)),
         )
         .json()
         .init();
 
-    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
-    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".into());
-    let addr = format!("{host}:{port}");
+    let content_registry = ContentRegistry::new(config.content_dir());
+    let state = ServiceState::new(content_registry);
+    let app = server::router::build(&config, state);
 
-    let content_dir = std::env::temp_dir().join("nvisy-server-content");
-    let content_registry = ContentRegistry::new(&content_dir);
-
-    let state = ServiceState {
-        engine: Arc::new(StubEngine),
-        content_registry,
-    };
-
-    let app = build_router(state);
-
-    let listener = TcpListener::bind(&addr).await.unwrap_or_else(|e| {
-        panic!("failed to bind to {addr}: {e}");
-    });
-
-    tracing::info!("listening on {addr}");
-
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap_or_else(|e| {
-            panic!("server error: {e}");
-        });
-
-    // Clean up temporary content directory after graceful shutdown.
-    if content_dir.exists() {
-        if let Err(e) = std::fs::remove_dir_all(&content_dir) {
-            tracing::warn!(path = %content_dir.display(), "failed to clean up content directory: {e}");
-        } else {
-            tracing::info!(path = %content_dir.display(), "content directory cleaned up");
-        }
-    }
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        () = ctrl_c => {},
-        () = terminate => {},
-    }
-
-    tracing::info!("shutdown signal received");
+    server::listen::run(&config, app).await;
 }

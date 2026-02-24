@@ -30,14 +30,16 @@ path = "src/main.rs"
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-engine = { workspace = true, features = [] }
-nvisy-identify = { workspace = true, features = [] }
-nvisy-ontology = { workspace = true, features = [] }
+
+# CLI
+clap = { workspace = true, features = ["derive", "env"] }
 
 # HTTP framework
 axum = { workspace = true, features = ["json", "multipart", "tokio"] }
 aide = { workspace = true, features = ["axum", "axum-json", "scalar", "macros"] }
-tower = { workspace = true, features = ["util"] }
-tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "limit", "compression-gzip", "compression-br", "compression-zstd", "util"] }
+tower = { workspace = true, features = ["util", "timeout"] }
+tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "limit", "compression-gzip", "compression-br", "compression-zstd", "sensitive-headers", "catch-panic", "util"] }
+futures = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }

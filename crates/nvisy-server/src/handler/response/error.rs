@@ -1,5 +1,17 @@
-//! Unified error handling: maps [`ErrorKind`] to HTTP status codes and
-//! produces a JSON error body compatible with the OpenAPI spec.
+//! Unified error handling.
+//!
+//! Maps [`ErrorKind`] to HTTP status codes and produces a JSON error body
+//! compatible with the OpenAPI specification. Every handler returns
+//! `Result<Json<T>, ServerError>` so that errors are serialised uniformly.
+//!
+//! | [`ErrorKind`]                                  | HTTP Status            |
+//! |------------------------------------------------|------------------------|
+//! | `Validation`, `InvalidInput`, `Serialization`  | 400 Bad Request        |
+//! | `Policy`                                       | 403 Forbidden          |
+//! | `Connection`                                   | 502 Bad Gateway        |
+//! | `Timeout`                                      | 504 Gateway Timeout    |
+//! | `Cancellation`                                 | 499 Client Closed      |
+//! | `Runtime`, `Python`, `InternalError`, `Other`  | 500 Internal Server    |
 
 use aide::OperationOutput;
 use axum::http::StatusCode;

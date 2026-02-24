@@ -112,6 +112,9 @@ quick-xml = { version = "0.37", features = [] }
 # Semantic versioning
 semver = { version = "1", features = ["serde"] }
 
+# CLI
+clap = { version = "4", features = [] }
+
 # HTTP server
 axum = { version = "0.8", features = [] }
 aide = { version = "0.16.0-alpha.2", features = [] }

@@ -37,7 +37,7 @@ nvisy-ontology = { workspace = true, features = [] }
 axum = { workspace = true, features = ["json", "multipart", "tokio"] }
 aide = { workspace = true, features = ["axum", "axum-json", "scalar", "macros"] }
 tower = { workspace = true, features = ["util"] }
-tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "util"] }
+tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "limit", "compression-gzip", "compression-br", "compression-zstd", "util"] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }

@@ -1,3 +1,5 @@
+//! Redact response types.
+
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;

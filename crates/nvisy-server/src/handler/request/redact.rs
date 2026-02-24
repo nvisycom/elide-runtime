@@ -1,3 +1,5 @@
+//! Redact request types.
+
 use std::collections::HashMap;
 
 use nvisy_engine::compiler::graph::Graph;

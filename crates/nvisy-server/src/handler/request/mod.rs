@@ -1,5 +1,7 @@
+//! Typed request bodies for API endpoints.
+
 mod execute;
-mod redaction;
+mod redact;
 
 pub use execute::ExecuteRequest;
-pub use redaction::RedactionRequest;
+pub use redact::RedactionRequest;

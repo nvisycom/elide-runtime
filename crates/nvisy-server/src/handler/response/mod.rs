@@ -1,11 +1,13 @@
-mod analytics;
-mod content;
+//! Typed response bodies and error types for API endpoints.
+
+mod check;
 pub mod error;
 mod execute;
-mod redaction;
+mod ingest;
+mod redact;
 
-pub use analytics::AnalyticsSummary;
-pub use content::{DownloadResponse, UploadResponse};
+pub use check::Analytics;
 pub use error::ServerError;
 pub use execute::ExecuteResponse;
-pub use redaction::RedactionResponse;
+pub use ingest::{DownloadResponse, UploadResponse};
+pub use redact::RedactionResponse;

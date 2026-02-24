@@ -1,3 +1,5 @@
+//! Application state, dependency injection, and router construction.
+
 use std::sync::Arc;
 
 use aide::openapi::{Info, OpenApi};
@@ -54,8 +56,15 @@ impl Engine for StubEngine {
 
 /// Build the application router with OpenAPI documentation.
 pub fn build_router(state: ServiceState) -> axum::Router {
-    let (set_request_id, propagate_request_id, trace, cors, timeout) =
-        middleware::middleware_stack();
+    let (
+        set_request_id,
+        propagate_request_id,
+        trace,
+        cors,
+        timeout,
+        body_limit,
+        compression,
+    ) = middleware::middleware_stack();
 
     let app = handler::routes().with_state(state);
 
@@ -71,9 +80,11 @@ pub fn build_router(state: ServiceState) -> axum::Router {
 
     app.finish_api(&mut api)
         .layer(Extension(api))
+        .layer(compression)
         .layer(trace)
         .layer(cors)
         .layer(timeout)
+        .layer(body_limit)
         .layer(set_request_id)
         .layer(propagate_request_id)
 }

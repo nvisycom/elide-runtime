@@ -23,11 +23,12 @@ async fn main() {
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".into());
     let addr = format!("{host}:{port}");
 
+    let content_dir = std::env::temp_dir().join("nvisy-server-content");
+    let content_registry = ContentRegistry::new(&content_dir);
+
     let state = ServiceState {
         engine: Arc::new(StubEngine),
-        content_registry: ContentRegistry::new(
-            std::env::temp_dir().join("nvisy-server-content"),
-        ),
+        content_registry,
     };
 
     let app = build_router(state);
@@ -44,6 +45,15 @@ async fn main() {
         .unwrap_or_else(|e| {
             panic!("server error: {e}");
         });
+
+    // Clean up temporary content directory after graceful shutdown.
+    if content_dir.exists() {
+        if let Err(e) = std::fs::remove_dir_all(&content_dir) {
+            tracing::warn!(path = %content_dir.display(), "failed to clean up content directory: {e}");
+        } else {
+            tracing::info!(path = %content_dir.display(), "content directory cleaned up");
+        }
+    }
 }
 
 async fn shutdown_signal() {

@@ -1,9 +1,11 @@
+//! Check response types (health, analytics).
+
 use schemars::JsonSchema;
 use serde::Serialize;
 
 /// Response body for `GET /api/v1/analytics`.
 #[derive(Debug, Serialize, JsonSchema)]
-pub struct AnalyticsSummary {
+pub struct Analytics {
     /// Total number of pipeline runs.
     pub total_runs: u64,
     /// Total number of entities detected across all runs.

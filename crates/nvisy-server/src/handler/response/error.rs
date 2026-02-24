@@ -1,3 +1,6 @@
+//! Unified error handling: maps [`ErrorKind`] to HTTP status codes and
+//! produces a JSON error body compatible with the OpenAPI spec.
+
 use aide::OperationOutput;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -43,7 +46,7 @@ fn status_for(kind: ErrorKind) -> StatusCode {
         ErrorKind::Policy => StatusCode::FORBIDDEN,
         ErrorKind::Connection => StatusCode::BAD_GATEWAY,
         ErrorKind::Timeout => StatusCode::GATEWAY_TIMEOUT,
-        // 499 — non-standard "Client Closed Request"
+        // 499: non-standard "Client Closed Request"
         ErrorKind::Cancellation => StatusCode::from_u16(499).unwrap_or(StatusCode::BAD_REQUEST),
         ErrorKind::Runtime | ErrorKind::Python | ErrorKind::InternalError | ErrorKind::Other => {
             StatusCode::INTERNAL_SERVER_ERROR

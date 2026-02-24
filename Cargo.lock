@@ -2667,6 +2667,7 @@ dependencies = [
 name = "nvisy-cli"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
  "clap",
  "nvisy-core",

@@ -1,37 +1,48 @@
-//! CLI configuration parsed from command-line arguments and environment
-//! variables via [`clap`].
+//! CLI configuration management.
 //!
-//! All fields have sensible defaults and can be overridden by environment
-//! variables (`HOST`, `PORT`, `RUST_LOG`, etc.) or CLI flags.
+//! This module defines the complete CLI configuration hierarchy:
+//!
+//! ```text
+//! Cli
+//! ├── server: ServerConfig         # Host, port, content directory
+//! ├── body_limit_bytes: usize      # Extractor body limit (default: 2 MiB)
+//! ├── file_body_limit_bytes: usize # Upload body limit (default: 50 MiB)
+//! └── request_timeout_secs: u64    # Per-request timeout (default: 300s)
+//! ```
+//!
+//! All configuration can be provided via CLI arguments or environment variables.
+//! Use `--help` to see all available options.
+//!
+//! # Example
+//!
+//! ```bash
+//! # Configure via CLI flags
+//! nvisy-server --host 127.0.0.1 --port 3000 --request-timeout-secs 60
+//!
+//! # Or via environment variables
+//! HOST=127.0.0.1 PORT=3000 REQUEST_TIMEOUT_SECS=60 nvisy-server
+//! ```
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
+mod server;
 
 use clap::Parser;
+use tracing_subscriber::EnvFilter;
 
 use nvisy_server::middleware::{OpenApiConfig, RecoveryConfig, SecurityConfig};
 
-/// nvisy API server.
+pub use server::ServerConfig;
+
+/// Complete CLI configuration.
+///
+/// Combines all configuration groups for the nvisy server:
+/// - [`ServerConfig`]: Network binding and content directory
+/// - Middleware settings: Body limits, timeouts, OpenAPI
 #[derive(Debug, Parser)]
-#[command(name = "nvisy-server", version, about)]
-pub struct ServerConfig {
-    /// Address to bind the HTTP listener to.
-    #[arg(long, env = "HOST", default_value_t = IpAddr::V4(Ipv4Addr::UNSPECIFIED))]
-    pub host: IpAddr,
-
-    /// Port to bind the HTTP listener to.
-    #[arg(long, env = "PORT", default_value_t = 8080)]
-    pub port: u16,
-
-    /// Directory for temporary content storage.
-    ///
-    /// Defaults to `$TMPDIR/nvisy-server-content` if not set.
-    #[arg(long, env = "CONTENT_DIR")]
-    pub content_dir: Option<PathBuf>,
-
-    /// Tracing filter directive (e.g. `info`, `nvisy_server=debug`).
-    #[arg(long, env = "RUST_LOG", default_value = "info")]
-    pub log_level: String,
+#[command(name = "nvisy-server", version, about = "nvisy API server")]
+pub struct Cli {
+    /// Server network and lifecycle configuration.
+    #[command(flatten)]
+    pub server: ServerConfig,
 
     /// Maximum body size in bytes for axum extractors (Json, Form, etc.).
     #[arg(long, env = "BODY_LIMIT_BYTES", default_value_t = 2 * 1024 * 1024)]
@@ -46,19 +57,7 @@ pub struct ServerConfig {
     pub request_timeout_secs: u64,
 }
 
-impl ServerConfig {
-    /// Returns the socket address to bind the listener to.
-    pub fn socket_addr(&self) -> SocketAddr {
-        SocketAddr::new(self.host, self.port)
-    }
-
-    /// Returns the content directory, falling back to a temp directory.
-    pub fn content_dir(&self) -> PathBuf {
-        self.content_dir
-            .clone()
-            .unwrap_or_else(|| std::env::temp_dir().join("nvisy-server-content"))
-    }
-
+impl Cli {
     /// Builds a [`SecurityConfig`] from the parsed CLI values.
     pub fn security_config(&self) -> SecurityConfig {
         SecurityConfig {
@@ -77,5 +76,18 @@ impl ServerConfig {
     /// Returns the default [`OpenApiConfig`].
     pub fn open_api_config(&self) -> OpenApiConfig {
         OpenApiConfig::default()
+    }
+
+    /// Initializes tracing with environment-based filtering.
+    ///
+    /// Uses `RUST_LOG` if set, otherwise defaults to `info`.
+    pub fn init_tracing() {
+        let filter =
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+        tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .json()
+            .init();
     }
 }

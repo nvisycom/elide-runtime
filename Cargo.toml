@@ -3,18 +3,18 @@
 [workspace]
 resolver = "2"
 members = [
+    "./crates/nvisy-augment",
+    "./crates/nvisy-cli",
+    "./crates/nvisy-codec",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
-    "./crates/nvisy-codec",
-    "./crates/nvisy-object",
-    "./crates/nvisy-pattern",
     "./crates/nvisy-identify",
-    "./crates/nvisy-augment",
+    "./crates/nvisy-object",
     "./crates/nvisy-ontology",
-    "./crates/nvisy-rig",
+    "./crates/nvisy-pattern",
     "./crates/nvisy-python",
+    "./crates/nvisy-rig",
     "./crates/nvisy-server",
-    "./crates/nvisy-cli",
 ]
 
 [workspace.package]
@@ -36,57 +36,58 @@ documentation = "https://docs.rs/nvisy-runtime"
 # See for more details: https://github.com/rust-lang/cargo/issues/11329
 
 # Internal crates
+nvisy-augment = { path = "./crates/nvisy-augment", version = "0.1.0" }
+nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
-nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
-nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
-nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-identify = { path = "./crates/nvisy-identify", version = "0.1.0" }
-nvisy-augment = { path = "./crates/nvisy-augment", version = "0.1.0" }
+nvisy-object = { path = "./crates/nvisy-object", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
-nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
+nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
+nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
 # LLM framework
 rig-core = { version = "0.31", features = [] }
 
 # Async runtime
-tokio = { version = "1", features = [] }
+tokio = { version = "1.0", features = [] }
 tokio-util = { version = "0.7", features = [] }
 futures = { version = "0.3", features = [] }
 async-trait = { version = "0.1", features = [] }
 
 # Observability
 tracing = { version = "0.1", features = ["attributes"] }
+tracing-subscriber = { version = "0.3", features = [] }
 
 # (De)serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = [] }
-schemars = { version = "1", features = ["uuid1", "bytes1"] }
+schemars = { version = "1.0", features = ["uuid1", "bytes1"] }
+csv = { version = "1.0", features = [] }
 
 # Derive macros and error handling
 thiserror = { version = "2.0", features = [] }
 anyhow = { version = "1.0", features = [] }
-derive_more = { version = "2", features = ["display", "from", "into"] }
+derive_more = { version = "2.0", features = ["display", "from", "into"] }
 strum = { version = "0.28", features = ["derive"] }
 
-# Encoding
-base64 = { version = "0.22", features = [] }
-
 # Primitive datatypes
-uuid = { version = "1", features = ["serde", "v4", "v7"] }
-bytes = { version = "1", features = ["serde"] }
+uuid = { version = "1.0", features = ["serde", "v4", "v7"] }
+bytes = { version = "1.0", features = ["serde"] }
+hipstr = { version = "0.6", features = [] }
 jiff = { version = "0.2", features = ["serde"] }
+semver = { version = "1.0", features = ["serde"] }
+
+# Encoding and hashing
+base64 = { version = "0.22", features = [] }
 sha2 = { version = "0.10", features = [] }
 hex = { version = "0.4", features = [] }
 
-# Text processing
-hipstr = { version = "0.6", features = [] }
+# Pattern matching
 regex = { version = "1.0", features = [] }
-aho-corasick = { version = "1", features = [] }
-csv = { version = "1", features = [] }
-include_dir = { version = "0.7", features = [] }
+aho-corasick = { version = "1.0", features = [] }
 
 # Graph data structures
 petgraph = { version = "0.8", features = [] }
@@ -94,31 +95,31 @@ petgraph = { version = "0.8", features = [] }
 # File type detection
 infer = { version = "0.19", features = [] }
 
-# Python interop
-pyo3 = { version = "0.24", features = [] }
-pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
-pythonize = { version = "0.24", features = [] }
-
-# Cloud object storage (S3, Azure Blob, GCS)
-object_store = { version = "0.13", default-features = false }
-
-# Image processing
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
-imageproc = { version = "0.26", features = [] }
-
 # Document parsing
 pdf-extract = { version = "0.7", features = [] }
 lopdf = { version = "0.39", features = [] }
 scraper = { version = "0.22", features = [] }
 calamine = { version = "0.33", features = [] }
-zip = { version = "8", features = [] }
+zip = { version = "8.0", features = [] }
 quick-xml = { version = "0.37", features = [] }
 
-# Semantic versioning
-semver = { version = "1", features = ["serde"] }
+# Image processing
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
+imageproc = { version = "0.26", features = [] }
+
+# Compile-time asset embedding
+include_dir = { version = "0.7", features = [] }
+
+# Cloud object storage (S3, Azure Blob, GCS)
+object_store = { version = "0.13", default-features = false }
+
+# Python interop
+pyo3 = { version = "0.24", features = [] }
+pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
+pythonize = { version = "0.24", features = [] }
 
 # CLI
-clap = { version = "4", features = [] }
+clap = { version = "4.0", features = [] }
 
 # HTTP server
 axum = { version = "0.8", features = [] }
@@ -127,7 +128,7 @@ tower = { version = "0.5", features = [] }
 tower-http = { version = "0.6", features = [] }
 
 # Testing
-tempfile = { version = "3", features = [] }
+tempfile = { version = "3.0", features = [] }
 
 # Randomness
 rand = { version = "0.10", features = [] }

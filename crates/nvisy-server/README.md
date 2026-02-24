@@ -4,16 +4,15 @@ HTTP server exposing the nvisy `Engine` pipeline via REST endpoints with auto-ge
 
 ## Endpoints
 
-| Method | Path                   | Description                        |
-|--------|------------------------|------------------------------------|
-| GET    | `/health`              | Liveness probe                     |
-| POST   | `/api/v1/execute`      | Run the full redaction pipeline    |
-| POST   | `/api/v1/content`      | Upload content for processing      |
-| GET    | `/api/v1/content/:id`  | Download previously uploaded content |
-| POST   | `/api/v1/redaction`    | Run redaction on uploaded content  |
-| GET    | `/api/v1/analytics`    | Aggregate pipeline analytics       |
-| GET    | `/api/v1/openapi.json` | OpenAPI 3.x specification          |
-| GET    | `/docs`                | Scalar interactive API reference   |
+| Method | Path                   | Description                          |
+|--------|------------------------|--------------------------------------|
+| POST   | `/api/v1/execute`      | Run the full redaction pipeline      |
+| POST   | `/api/v1/content`      | Upload content (multipart form data) |
+| GET    | `/api/v1/content/{id}` | Download previously uploaded content |
+| POST   | `/api/v1/redaction`    | Run redaction on uploaded content    |
+| GET    | `/api/v1/analytics`    | Aggregate pipeline analytics         |
+| GET    | `/api/v1/openapi.json` | OpenAPI 3.x specification            |
+| GET    | `/docs`                | Scalar interactive API reference     |
 
 ## Configuration
 

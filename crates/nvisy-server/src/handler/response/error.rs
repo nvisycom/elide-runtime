@@ -63,6 +63,14 @@ impl From<Error> for ServerError {
 impl IntoResponse for ServerError {
     fn into_response(self) -> Response {
         let status = status_for(self.0.kind);
+        tracing::warn!(
+            kind = %self.0.kind,
+            status = status.as_u16(),
+            component = self.0.source_component.as_deref(),
+            retryable = self.0.retryable,
+            "{}",
+            self.0.message,
+        );
         let body: ApiError = self.0.into();
         (status, axum::Json(body)).into_response()
     }

@@ -27,6 +27,20 @@ impl Clone for ServiceState {
     }
 }
 
+macro_rules! impl_di {
+    ($($f:ident: $t:ty),+ $(,)?) => {$(
+        impl axum::extract::FromRef<ServiceState> for $t {
+            fn from_ref(state: &ServiceState) -> Self {
+                state.$f.clone()
+            }
+        }
+    )+};
+}
+
+impl_di!(
+    content_registry: ContentRegistry,
+);
+
 /// Placeholder engine that rejects all requests.
 ///
 /// Wired in at startup until a real implementation is configured.

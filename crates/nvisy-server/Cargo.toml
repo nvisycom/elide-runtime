@@ -34,7 +34,7 @@ nvisy-identify = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
 # HTTP framework
-axum = { workspace = true, features = ["json", "tokio"] }
+axum = { workspace = true, features = ["json", "multipart", "tokio"] }
 aide = { workspace = true, features = ["axum", "axum-json", "scalar", "macros"] }
 tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "util"] }

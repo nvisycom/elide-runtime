@@ -108,7 +108,7 @@ imageproc = { version = "0.26", features = [] }
 
 # Document parsing
 pdf-extract = { version = "0.7", features = [] }
-lopdf = { version = "0.34", features = [] }
+lopdf = { version = "0.39", features = [] }
 scraper = { version = "0.22", features = [] }
 calamine = { version = "0.33", features = [] }
 zip = { version = "8", features = [] }

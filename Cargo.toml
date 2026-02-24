@@ -13,11 +13,12 @@ members = [
     "./crates/nvisy-ontology",
     "./crates/nvisy-rig",
     "./crates/nvisy-python",
+    "./crates/nvisy-server",
 ]
 
 [workspace.package]
 version = "0.1.0"
-rust-version = "1.85"
+rust-version = "1.92"
 edition = "2024"
 license = "MIT"
 publish = false
@@ -110,6 +111,12 @@ quick-xml = { version = "0.37", features = [] }
 
 # Semantic versioning
 semver = { version = "1", features = ["serde"] }
+
+# HTTP server
+axum = { version = "0.8", features = [] }
+aide = { version = "0.16.0-alpha.2", features = [] }
+tower = { version = "0.5", features = [] }
+tower-http = { version = "0.6", features = [] }
 
 # Testing
 tempfile = { version = "3", features = [] }

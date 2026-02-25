@@ -1,8 +1,14 @@
-//! Redaction specifications for all modalities.
+//! Redaction input types: configuration-carrying specifications submitted
+//! to the redaction engine, and the [`RedactorInput`] context struct
+//! passed to LLM agents.
 
 use derive_more::From;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::entity::{EntityCategory, EntityKind};
+
+// ── defaults ────────────────────────────────────────────────────────────
 
 /// Default mask character for text redaction.
 pub const DEFAULT_MASK_CHAR: char = '*';
@@ -28,6 +34,8 @@ fn default_block_color() -> [u8; 4] {
 fn default_block_size() -> u32 {
     DEFAULT_PIXELATE_BLOCK_SIZE
 }
+
+// ── text / tabular ──────────────────────────────────────────────────────
 
 /// Text redaction specification with method-specific configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -80,6 +88,8 @@ pub enum TextRedactionInput {
     },
 }
 
+// ── image / video ───────────────────────────────────────────────────────
+
 /// Image redaction specification with method-specific configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
@@ -106,6 +116,8 @@ pub enum ImageRedactionInput {
     Synthesize,
 }
 
+// ── audio ───────────────────────────────────────────────────────────────
+
 /// Audio redaction specification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
@@ -117,6 +129,8 @@ pub enum AudioRedactionInput {
     /// Replace with synthetic audio.
     Synthesize,
 }
+
+// ── unified ─────────────────────────────────────────────────────────────
 
 /// Unified redaction specification submitted to the engine.
 ///
@@ -130,4 +144,27 @@ pub enum RedactionInput {
     Image(ImageRedactionInput),
     /// Audio redaction specification.
     Audio(AudioRedactionInput),
+}
+
+// ── agent input ─────────────────────────────────────────────────────────
+
+/// Entity passed to a redactor agent for decision-making.
+///
+/// Contains the detected entity's classification, matched value, confidence,
+/// and byte offsets in the source text. The redactor uses this context to
+/// choose an appropriate [`RedactionMethod`](super::RedactionMethod).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RedactorInput {
+    /// Specific entity type (e.g. `EmailAddress`, `GovernmentId`).
+    pub entity_type: EntityKind,
+    /// Broad classification (e.g. `Pii`, `Financial`).
+    pub category: EntityCategory,
+    /// The matched text value.
+    pub value: String,
+    /// Detection confidence (0.0 -- 1.0).
+    pub confidence: f64,
+    /// Start byte offset in the input text.
+    pub start_offset: usize,
+    /// End byte offset in the input text.
+    pub end_offset: usize,
 }

@@ -8,7 +8,7 @@ use nvisy_codec::document::Document;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::location::Location;
 use nvisy_ontology::record::Redaction;
-use nvisy_ontology::spec::{RedactionInput, TextRedactionInput};
+use nvisy_ontology::specification::{RedactionInput, TextRedactionInput};
 use nvisy_core::Error;
 
 pub(crate) async fn apply_tabular_doc(

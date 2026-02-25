@@ -12,6 +12,9 @@ pub mod prelude;
 pub use backend::{DetectionConfig, DetectionRequest, DetectionResponse};
 pub use bridge::{EntityParser, RigBackend, RigBackendConfig};
 
-// Tool-provider traits for consumers to implement.
-pub use agent::ocr::OcrProvider;
-pub use agent::cv::{CvDetection, CvProvider};
+pub use agent::{
+    CvAgent, CvDetection, CvProvider, NerAgent,
+    OcrAgent, OcrOutput, OcrProvider,
+    RawCvEntities, RawCvEntity, RawEntities, RawEntity,
+    RawOcrEntity, RawRedaction, RedactorAgent, RedactorOutput,
+};

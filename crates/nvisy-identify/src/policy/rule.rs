@@ -5,7 +5,7 @@ use strum::Display;
 use uuid::Uuid;
 
 use nvisy_core::fs::DocumentType;
-use nvisy_ontology::spec::RedactionInput;
+use nvisy_ontology::specification::RedactionInput;
 
 use crate::EntitySelector;
 

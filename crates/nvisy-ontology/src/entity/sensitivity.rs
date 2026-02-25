@@ -14,8 +14,7 @@ use strum::{Display, EnumString};
 /// directly (`Critical > High > Medium > Low`).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord,
-    Display, EnumString,
-    Serialize, Deserialize, JsonSchema,
+    Display, EnumString, Serialize, Deserialize, JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]

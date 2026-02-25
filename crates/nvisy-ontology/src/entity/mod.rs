@@ -20,7 +20,7 @@ pub use sensitivity::EntitySensitivity;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use strum::Display;
+use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use nvisy_core::path::ContentSource;
@@ -28,8 +28,7 @@ use nvisy_core::path::ContentSource;
 use crate::location::Location;
 
 /// Method used to detect a sensitive entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
-#[derive(JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum DetectionMethod {

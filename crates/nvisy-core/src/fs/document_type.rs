@@ -1,11 +1,12 @@
 //! Document format classification.
 
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 /// Document format that content can be classified as.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum DocumentType {
     /// Plain text (`.txt`, `.log`, etc.).
     Txt,

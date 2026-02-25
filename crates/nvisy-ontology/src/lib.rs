@@ -5,4 +5,4 @@
 pub mod entity;
 pub mod location;
 pub mod record;
-pub mod spec;
+pub mod specification;

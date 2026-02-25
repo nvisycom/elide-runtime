@@ -13,7 +13,6 @@ COPY crates/nvisy-codec/Cargo.toml crates/nvisy-codec/Cargo.toml
 COPY crates/nvisy-core/Cargo.toml crates/nvisy-core/Cargo.toml
 COPY crates/nvisy-engine/Cargo.toml crates/nvisy-engine/Cargo.toml
 COPY crates/nvisy-identify/Cargo.toml crates/nvisy-identify/Cargo.toml
-COPY crates/nvisy-ocr/Cargo.toml crates/nvisy-ocr/Cargo.toml
 COPY crates/nvisy-ontology/Cargo.toml crates/nvisy-ontology/Cargo.toml
 COPY crates/nvisy-pattern/Cargo.toml crates/nvisy-pattern/Cargo.toml
 COPY crates/nvisy-python/Cargo.toml crates/nvisy-python/Cargo.toml
@@ -21,14 +20,14 @@ COPY crates/nvisy-rig/Cargo.toml crates/nvisy-rig/Cargo.toml
 COPY crates/nvisy-server/Cargo.toml crates/nvisy-server/Cargo.toml
 
 # Create empty src files to satisfy cargo's manifest checks
-RUN for crate in nvisy-asr nvisy-augment nvisy-codec nvisy-core nvisy-engine nvisy-identify nvisy-ocr nvisy-ontology nvisy-pattern nvisy-python nvisy-rig; do \
+RUN for crate in nvisy-asr nvisy-augment nvisy-codec nvisy-core nvisy-engine nvisy-identify nvisy-ontology nvisy-pattern nvisy-python nvisy-rig; do \
       mkdir -p crates/$crate/src && echo "" > crates/$crate/src/lib.rs; \
     done && \
     mkdir -p crates/nvisy-cli/src && echo "fn main() {}" > crates/nvisy-cli/src/main.rs && \
     mkdir -p crates/nvisy-server/src && echo "fn main() {}" > crates/nvisy-server/src/main.rs
 
 # Create stub READMEs for crates that use doc = include_str!("../README.md")
-RUN for crate in nvisy-asr nvisy-augment nvisy-cli nvisy-codec nvisy-core nvisy-engine nvisy-identify nvisy-ocr nvisy-ontology nvisy-pattern nvisy-python nvisy-rig nvisy-server; do \
+RUN for crate in nvisy-asr nvisy-augment nvisy-cli nvisy-codec nvisy-core nvisy-engine nvisy-identify nvisy-ontology nvisy-pattern nvisy-python nvisy-rig nvisy-server; do \
       touch crates/$crate/README.md; \
     done
 

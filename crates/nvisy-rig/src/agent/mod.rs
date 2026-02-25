@@ -7,7 +7,6 @@ mod base;
 mod detect;
 mod extract;
 mod recognize;
-mod redact;
 
 pub(crate) use base::BaseAgent;
 pub use base::{BaseAgentConfig, ContextWindow};
@@ -15,4 +14,3 @@ pub use base::{BaseAgentConfig, ContextWindow};
 pub use recognize::{NerAgent, RawEntities, RawEntity};
 pub use extract::{OcrAgent, OcrOutput, OcrProvider, OcrTextRegion, RawOcrEntity};
 pub use detect::{CvAgent, CvDetection, CvProvider, RawCvEntities, RawCvEntity};
-pub use redact::{RawRedaction, RedactorAgent, RedactorOutput};

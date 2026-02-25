@@ -28,7 +28,6 @@ nvisy-ontology = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
 nvisy-python = { workspace = true, features = [] }
 nvisy-rig = { workspace = true, features = [] }
-nvisy-ocr = { workspace = true, features = [] }
 nvisy-asr = { workspace = true, features = [] }
 
 # (De)serialization

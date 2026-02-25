@@ -4,6 +4,7 @@
 
 pub mod backend;
 pub mod bridge;
+pub mod paddle;
 pub(crate) mod agent;
 
 #[doc(hidden)]
@@ -17,5 +18,5 @@ pub use agent::{
     CvAgent, CvDetection, CvProvider, NerAgent,
     OcrAgent, OcrOutput, OcrProvider, OcrTextRegion,
     RawCvEntities, RawCvEntity, RawEntities, RawEntity,
-    RawOcrEntity, RawRedaction, RedactorAgent, RedactorOutput,
+    RawOcrEntity,
 };

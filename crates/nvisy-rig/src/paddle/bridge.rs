@@ -6,7 +6,7 @@ use nvisy_core::Error;
 use nvisy_python::bridge::PythonBridge;
 use nvisy_python::ocr::OcrParams;
 
-use crate::backend::{OcrBackend, OcrConfig};
+use super::backend::{OcrBackend, OcrConfig};
 
 /// Converts [`OcrConfig`] to [`OcrParams`] and delegates to `nvisy_python::ocr`.
 #[async_trait::async_trait]

@@ -23,6 +23,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
+nvisy-python = { workspace = true, features = [] }
 
 # LLM framework
 rig-core = { workspace = true, features = ["derive"] }

@@ -107,6 +107,18 @@ impl<M: CompletionModel> BaseAgent<M> {
         self.agent.prompt(prompt).await.map_err(from_prompt)
     }
 
+    /// Summarize text via LLM to fit within the context window's input budget.
+    ///
+    /// Delegates to [`ContextWindow::compact`]. Returns the text unchanged if
+    /// no context window is configured or the text already fits.
+    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "compact"))]
+    pub async fn prompt_compact(&self, text: &str) -> Result<String, Error> {
+        match &self.context_window {
+            Some(cw) => cw.compact(text, self).await,
+            None => Ok(text.to_owned()),
+        }
+    }
+
     /// Splits text via [`ContextWindow`], runs `prompt_structured` per chunk,
     /// and flattens results.
     #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "chunked"))]

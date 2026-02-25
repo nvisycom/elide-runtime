@@ -1,5 +1,11 @@
 //! Context window management for LLM token limits.
 
+use rig::completion::CompletionModel;
+
+use nvisy_core::Error;
+
+use super::agent::BaseAgent;
+
 /// Manages token budget estimation, splitting, and truncation.
 #[derive(Debug, Clone)]
 pub struct ContextWindow {
@@ -77,6 +83,31 @@ impl ContextWindow {
         }
 
         chunks
+    }
+
+    /// Summarize text via LLM to fit within the input token budget.
+    ///
+    /// If the text already fits, returns it unchanged. Otherwise sends a
+    /// summarization prompt to the given agent and returns the condensed
+    /// version.
+    pub(crate) async fn compact<M: CompletionModel>(
+        &self,
+        text: &str,
+        agent: &BaseAgent<M>,
+    ) -> Result<String, Error> {
+        if self.fits(text) {
+            return Ok(text.to_owned());
+        }
+
+        let budget = self.input_budget();
+        let prompt = format!(
+            "Summarize the following text to fit within {budget} tokens. \
+             Preserve all key entities, names, numbers, dates, and facts. \
+             Remove redundancy and filler. Return ONLY the condensed text, \
+             no preamble.\n\n{text}"
+        );
+
+        agent.prompt_text(&prompt).await
     }
 
     /// Truncate text to fit, keeping the end (most recent context).
@@ -224,5 +255,16 @@ mod tests {
         // Should not panic, should be valid UTF-8, and should be the tail
         assert!(!truncated.is_empty());
         assert!(text.ends_with(truncated));
+    }
+
+    #[test]
+    fn compact_returns_unchanged_when_fits() {
+        // compact requires async + a real model, so we only test the
+        // early-return path via `fits` logic.  The "already fits" branch
+        // returns `Ok(text.to_owned())` synchronously — verify the
+        // prerequisite here.
+        let cw = ContextWindow::new(100, 20);
+        let short = "a".repeat(300); // ~75 tokens, budget is 80
+        assert!(cw.fits(&short));
     }
 }

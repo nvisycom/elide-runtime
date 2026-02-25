@@ -2659,7 +2659,6 @@ dependencies = [
  "nvisy-asr",
  "nvisy-codec",
  "nvisy-core",
- "nvisy-ocr",
  "nvisy-ontology",
  "nvisy-python",
  "nvisy-rig",
@@ -2766,7 +2765,6 @@ dependencies = [
  "nvisy-asr",
  "nvisy-codec",
  "nvisy-core",
- "nvisy-ocr",
  "nvisy-ontology",
  "nvisy-pattern",
  "nvisy-python",
@@ -2780,17 +2778,6 @@ dependencies = [
  "tower",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "nvisy-ocr"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "nvisy-core",
- "nvisy-ontology",
- "nvisy-python",
- "serde_json",
 ]
 
 [[package]]
@@ -2844,6 +2831,7 @@ dependencies = [
  "base64",
  "nvisy-core",
  "nvisy-ontology",
+ "nvisy-python",
  "rig-core",
  "schemars",
  "serde",

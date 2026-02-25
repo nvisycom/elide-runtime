@@ -10,5 +10,6 @@ pub use crate::agent::{
     CvAgent, CvDetection, CvProvider, NerAgent,
     OcrAgent, OcrOutput, OcrProvider, OcrTextRegion,
     RawCvEntities, RawCvEntity, RawEntities, RawEntity,
-    RawOcrEntity, RawRedaction, RedactorAgent, RedactorOutput,
+    RawOcrEntity,
 };
+pub use crate::paddle::{OcrBackend, OcrConfig, parse_ocr_entities};

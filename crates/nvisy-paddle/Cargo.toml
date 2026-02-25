@@ -1,9 +1,9 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "nvisy-augment"
-description = "Content augmentation actions (OCR, transcription, synthetic data) for Nvisy"
-keywords = ["nvisy", "augment", "ocr", "transcription"]
+name = "nvisy-paddle"
+description = "PaddleOCR backend trait and provider integration for Nvisy"
+keywords = ["nvisy", "ocr", "paddle", "text-extraction"]
 categories = ["text-processing"]
 
 version = { workspace = true }
@@ -25,19 +25,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
-nvisy-codec = { workspace = true, features = [] }
 nvisy-python = { workspace = true, features = [] }
-nvisy-rig = { workspace = true, features = [] }
-nvisy-paddle = { workspace = true, features = [] }
-nvisy-asr = { workspace = true, features = [] }
 
 # (De)serialization
-serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 
 # Async runtime
 async-trait = { workspace = true, features = [] }
-
-[dev-dependencies]
-bytes = { workspace = true, features = [] }
-tokio = { workspace = true, features = ["macros", "rt"] }

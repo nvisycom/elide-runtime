@@ -4,7 +4,6 @@
 
 pub mod backend;
 pub mod bridge;
-pub mod paddle;
 pub(crate) mod agent;
 
 #[doc(hidden)]

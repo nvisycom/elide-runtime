@@ -33,6 +33,7 @@ nvisy-codec = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 nvisy-python = { workspace = true, features = [] }
 nvisy-rig = { workspace = true, features = [] }
+nvisy-paddle = { workspace = true, features = [] }
 nvisy-asr = { workspace = true, features = [] }
 
 # (De)serialization

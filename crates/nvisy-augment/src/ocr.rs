@@ -9,7 +9,7 @@ use nvisy_core::Error;
 
 use nvisy_ontology::entity::Entity;
 
-pub use nvisy_rig::paddle::{OcrBackend, OcrConfig, parse_ocr_entities};
+pub use nvisy_paddle::{OcrBackend, OcrConfig, parse_ocr_entities};
 
 fn default_language() -> String {
     "eng".into()

@@ -12,4 +12,3 @@ pub use crate::agent::{
     RawCvEntities, RawCvEntity, RawEntities, RawEntity,
     RawOcrEntity,
 };
-pub use crate::paddle::{OcrBackend, OcrConfig, parse_ocr_entities};

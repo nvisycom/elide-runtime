@@ -5,7 +5,7 @@
 
 use nvisy_codec::handler::{ImageData, Span};
 use nvisy_core::Error;
-use nvisy_rig::paddle::{OcrBackend, OcrConfig, parse_ocr_entities};
+use nvisy_paddle::{OcrBackend, OcrConfig, parse_ocr_entities};
 
 use crate::Entity;
 use crate::{ParallelContext, DetectionService};

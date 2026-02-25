@@ -4,6 +4,7 @@
 use rig::agent::AgentBuilder;
 use rig::client::CompletionClient;
 use rig::completion::CompletionModel;
+use rig::providers::gemini;
 use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
@@ -68,7 +69,10 @@ impl BaseAgentBuilder {
                 Agents::Anthropic(build_rig_agent(c.completion_model(&model_name), &config, preamble_ref, tools))
             }
             ProviderClient::Gemini(c) => {
-                Agents::Gemini(build_rig_agent(c.completion_model(&model_name), &config, preamble_ref, tools))
+                // rig-core 0.31: Gemini's Capabilities impl doesn't propagate H,
+                // so CompletionClient is unavailable for non-default H.
+                let model = gemini::completion::CompletionModel::new(c, &model_name);
+                Agents::Gemini(build_rig_agent(model, &config, preamble_ref, tools))
             }
             ProviderClient::Ollama(c) => {
                 Agents::Ollama(build_rig_agent(c.completion_model(&model_name), &config, preamble_ref, tools))

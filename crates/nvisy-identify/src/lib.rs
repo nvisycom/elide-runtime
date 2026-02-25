@@ -28,7 +28,7 @@ pub use pattern::{PatternDetection, PatternDetectionParams};
 pub use ner::{NerDetection, NerDetectionParams};
 pub use ner::ImageNerDetection;
 pub use vision::{FaceBackend, FaceDetection, ObjectBackend, ObjectDetection, OcrDetection};
-pub use llm::{LlmDetection, LlmDetectionParams, user_prompt as llm_user_prompt};
+pub use llm::{LlmBackend, LlmDetection, LlmDetectionParams, user_prompt as llm_user_prompt};
 pub use audio::TranscriptNerDetection;
 
 // --- Post-detection actions ---

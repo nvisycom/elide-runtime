@@ -7,11 +7,13 @@
 use rig::agent::Agent;
 use rig::providers::{anthropic, gemini, ollama, openai};
 
+use super::provider::HttpClient;
+
 pub(crate) enum Agents {
-    OpenAi(Agent<openai::completion::CompletionModel>),
-    Anthropic(Agent<anthropic::completion::CompletionModel>),
-    Gemini(Agent<gemini::completion::CompletionModel>),
-    Ollama(Agent<ollama::CompletionModel>),
+    OpenAi(Agent<openai::completion::CompletionModel<HttpClient>>),
+    Anthropic(Agent<anthropic::completion::CompletionModel<HttpClient>>),
+    Gemini(Agent<gemini::completion::CompletionModel<HttpClient>>),
+    Ollama(Agent<ollama::CompletionModel<HttpClient>>),
 }
 
 /// Dispatch a call to the concrete agent inside each variant.

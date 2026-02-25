@@ -6,7 +6,6 @@
 
 use serde::Deserialize;
 use tokio::sync::Mutex;
-use tower::Service;
 
 use nvisy_codec::handler::{Span, TxtSpan};
 use nvisy_ontology::entity::EntityKind;
@@ -20,6 +19,13 @@ use super::prompt;
 
 fn default_confidence() -> f64 {
     0.5
+}
+
+/// Async backend trait replacing the former `tower::Service` bound.
+#[async_trait::async_trait]
+pub trait LlmBackend: Send + Sync + 'static {
+    /// Run a detection request and return the response.
+    async fn detect(&self, req: DetectionRequest) -> Result<DetectionResponse, Error>;
 }
 
 /// Typed parameters for [`LlmDetection`].
@@ -46,21 +52,18 @@ struct LlmState {
     prior_text: String,
 }
 
-/// LLM contextual detection layer — delegates to a Tower [`Service`].
+/// LLM contextual detection layer — delegates to an [`LlmBackend`].
 ///
 /// Uses [`SequentialContext`]: the orchestrator feeds one span at a
 /// time so the layer can carry sliding context between spans.
 pub struct LlmDetection<B> {
-    backend: Mutex<B>,
+    backend: B,
     config: DetectionConfig,
     model_info: Option<ModelInfo>,
     state: Mutex<LlmState>,
 }
 
-impl<B> LlmDetection<B>
-where
-    B: Service<DetectionRequest, Response = DetectionResponse, Error = Error> + Send + 'static,
-{
+impl<B: LlmBackend> LlmDetection<B> {
     /// Create a new detection layer with the given backend and params.
     pub fn new(backend: B, params: LlmDetectionParams) -> Self {
         let system_prompt = params.system_prompt.unwrap_or_else(|| {
@@ -72,7 +75,7 @@ where
             system_prompt: Some(system_prompt),
         };
         Self {
-            backend: Mutex::new(backend),
+            backend,
             config,
             model_info: params.model_info,
             state: Mutex::new(LlmState {
@@ -89,11 +92,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B> DetectionService<TxtSpan, String> for LlmDetection<B>
-where
-    B: Service<DetectionRequest, Response = DetectionResponse, Error = Error> + Send + 'static,
-    B::Future: Send,
-{
+impl<B: LlmBackend> DetectionService<TxtSpan, String> for LlmDetection<B> {
     type Context = SequentialContext;
 
     async fn detect(
@@ -116,14 +115,11 @@ where
                 }
             };
 
-            let response = {
-                let mut backend = self.backend.lock().await;
-                let req = DetectionRequest {
-                    text: full_text,
-                    config: self.config.clone(),
-                };
-                backend.call(req).await?
+            let req = DetectionRequest {
+                text: full_text,
+                config: self.config.clone(),
             };
+            let response = self.backend.detect(req).await?;
 
             // Filter entities to the current span and adjust offsets.
             let span_len = span.data.len();
@@ -173,38 +169,28 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{json, Value};
-    use std::task::{Context, Poll};
+    use serde_json::json;
 
     struct MockLlmBackend;
 
-    impl Service<DetectionRequest> for MockLlmBackend {
-        type Response = DetectionResponse;
-        type Error = Error;
-        type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<DetectionResponse, Error>> + Send>>;
-
-        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn call(&mut self, req: DetectionRequest) -> Self::Future {
+    #[async_trait::async_trait]
+    impl LlmBackend for MockLlmBackend {
+        async fn detect(&self, req: DetectionRequest) -> Result<DetectionResponse, Error> {
             let text = req.text;
-            Box::pin(async move {
-                let mut results = Vec::new();
-                if let Some(pos) = text.find("SECRET") {
-                    results.push(json!({
-                        "category": "credentials",
-                        "entity_type": "api_key",
-                        "value": "SECRET",
-                        "confidence": 0.92,
-                        "start_offset": pos,
-                        "end_offset": pos + 6
-                    }));
-                }
-                Ok(DetectionResponse {
-                    entities: results,
-                    usage: None,
-                })
+            let mut results = Vec::new();
+            if let Some(pos) = text.find("SECRET") {
+                results.push(json!({
+                    "category": "credentials",
+                    "entity_type": "api_key",
+                    "value": "SECRET",
+                    "confidence": 0.92,
+                    "start_offset": pos,
+                    "end_offset": pos + 6
+                }));
+            }
+            Ok(DetectionResponse {
+                entities: results,
+                usage: None,
             })
         }
     }

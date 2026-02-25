@@ -2,9 +2,9 @@
 
 pub use crate::backend::{
     DetectionConfig, DetectionRequest, DetectionResponse,
-    RetryPolicy, UsageStats, UsageTracker,
+    UsageStats, UsageTracker,
 };
-pub use crate::bridge::{EntityParser, RigBackend, RigBackendConfig, ServiceBackend};
+pub use crate::bridge::EntityParser;
 pub use crate::error::Error;
 pub use crate::agent::{
     AuthenticatedProvider, BaseAgentConfig, ContextWindow, Provider,

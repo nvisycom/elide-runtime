@@ -4,13 +4,13 @@
 //! into individual agent submodules.
 
 pub(crate) mod base;
-mod detect;
-mod extract;
-mod recognize;
+mod cv;
+mod ocr;
+mod ner;
 
 pub(crate) use base::BaseAgent;
 pub use base::{AuthenticatedProvider, BaseAgentConfig, ContextWindow, Provider, UnauthenticatedProvider};
 
-pub use recognize::{NerAgent, RawEntities, RawEntity};
-pub use extract::{OcrAgent, OcrOutput, OcrProvider, OcrTextRegion, RawOcrEntity};
-pub use detect::{CvAgent, CvDetection, CvProvider, RawCvEntities, RawCvEntity};
+pub use ner::{NerAgent, RawEntities, RawEntity};
+pub use ocr::{OcrAgent, OcrOutput, OcrProvider, OcrTextRegion, RawOcrEntity};
+pub use cv::{CvAgent, CvDetection, CvProvider, RawCvEntities, RawCvEntity};

@@ -1,10 +1,8 @@
-//! LLM backend types, error mapping, and Tower retry policy.
+//! LLM backend types and usage tracking.
 
 mod metrics;
-mod retry;
 
 pub use metrics::{UsageStats, UsageTracker};
-pub use retry::RetryPolicy;
 
 /// Fallback hint used in prompts when no specific entity types are requested.
 pub(crate) const ALL_TYPES_HINT: &str = "all entity types";
@@ -24,14 +22,14 @@ pub struct DetectionConfig {
     pub system_prompt: Option<String>,
 }
 
-/// Request type for the Tower-based detection service.
+/// Request type for the detection service.
 #[derive(Debug, Clone)]
 pub struct DetectionRequest {
     pub text: String,
     pub config: DetectionConfig,
 }
 
-/// Response type for the Tower-based detection service.
+/// Response type for the detection service.
 #[derive(Debug, Clone)]
 pub struct DetectionResponse {
     pub entities: Vec<Value>,

@@ -44,7 +44,6 @@ schemars = { workspace = true, features = [] }
 # Async runtime
 tokio = { workspace = true, features = ["sync"] }
 async-trait = { workspace = true, features = [] }
-tower = { workspace = true, features = ["util"] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = ["v4"] }

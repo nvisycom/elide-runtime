@@ -3,5 +3,5 @@
 pub mod detection;
 pub mod prompt;
 
-pub use detection::{LlmDetection, LlmDetectionParams};
+pub use detection::{LlmBackend, LlmDetection, LlmDetectionParams};
 pub use prompt::user_prompt;

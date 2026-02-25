@@ -25,12 +25,15 @@ nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
 # LLM framework
-rig-core = { workspace = true, features = ["derive"] }
+rig-core = { workspace = true, features = ["derive", "reqwest-middleware"] }
 
 # Async runtime
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["time"] }
-tower = { workspace = true, features = ["retry", "timeout", "util"] }
+
+# HTTP middleware (retry)
+reqwest-middleware = { workspace = true }
+reqwest-retry = { workspace = true }
 
 # Encoding
 base64 = { workspace = true, features = [] }

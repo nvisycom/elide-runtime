@@ -11,7 +11,7 @@ pub(crate) mod agent;
 pub mod prelude;
 
 pub use backend::{DetectionConfig, DetectionRequest, DetectionResponse};
-pub use bridge::{EntityParser, RigBackend, RigBackendConfig, ServiceBackend};
+pub use bridge::EntityParser;
 pub use error::Error;
 
 pub use agent::{

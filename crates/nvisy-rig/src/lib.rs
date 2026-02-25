@@ -2,8 +2,12 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-mod backend;
-mod parse;
+pub mod backend;
+pub mod bridge;
+pub mod agent;
 
+pub mod prelude;
+
+// Flat re-exports for ergonomics.
 pub use backend::{LlmBackend, LlmConfig};
-pub use parse::parse_llm_entities;
+pub use bridge::{EntityParser, RigBackend, RigBackendConfig};

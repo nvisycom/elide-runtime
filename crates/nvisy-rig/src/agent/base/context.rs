@@ -1,8 +1,6 @@
 //! Context window management for LLM token limits.
 
-use rig::completion::CompletionModel;
-
-use nvisy_core::Error;
+use crate::error::Error;
 
 use super::agent::BaseAgent;
 
@@ -27,7 +25,7 @@ impl ContextWindow {
     /// Estimate the number of tokens in a string (~4 chars per token).
     pub fn estimate_tokens(text: &str) -> usize {
         // Rough heuristic: ~4 characters per token for English text.
-        (text.len() + 3) / 4
+        text.len().div_ceil(4)
     }
 
     /// Available input token budget (max minus reserved output).
@@ -90,10 +88,10 @@ impl ContextWindow {
     /// If the text already fits, returns it unchanged. Otherwise sends a
     /// summarization prompt to the given agent and returns the condensed
     /// version.
-    pub(crate) async fn compact<M: CompletionModel>(
+    pub(crate) async fn compact(
         &self,
         text: &str,
-        agent: &BaseAgent<M>,
+        agent: &BaseAgent,
     ) -> Result<String, Error> {
         if self.fits(text) {
             return Ok(text.to_owned());

@@ -1,8 +1,9 @@
 //! Tower retry policy with exponential backoff.
 
-use std::time::Duration;
+use std::{pin::Pin, time::Duration};
 
 use nvisy_core::Error;
+use tower::retry::Policy;
 
 /// Tower retry policy with exponential backoff for retryable errors.
 ///
@@ -49,17 +50,13 @@ impl RetryPolicy {
     }
 }
 
-impl<Req, Res> tower::retry::Policy<Req, Res, Error> for RetryPolicy
+impl<Req, Res> Policy<Req, Res, Error> for RetryPolicy
 where
     Req: Clone,
 {
-    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>;
+    type Future = Pin<Box<dyn std::future::Future<Output = ()> + Send>>;
 
-    fn retry(
-        &mut self,
-        _req: &mut Req,
-        result: &mut Result<Res, Error>,
-    ) -> Option<Self::Future> {
+    fn retry(&mut self, _req: &mut Req, result: &mut Result<Res, Error>) -> Option<Self::Future> {
         match result {
             Ok(_) => None,
             Err(err) => {
@@ -98,7 +95,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::{DetectionRequest, DetectionResponse, DetectionConfig};
+    use crate::backend::{DetectionConfig, DetectionRequest, DetectionResponse};
     use tower::retry::Policy;
 
     #[tokio::test]

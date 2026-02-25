@@ -3,13 +3,13 @@
 //! All public types are re-exported here — consumer code should not reach
 //! into individual agent submodules.
 
-mod base;
+pub(crate) mod base;
 mod detect;
 mod extract;
 mod recognize;
 
 pub(crate) use base::BaseAgent;
-pub use base::{BaseAgentConfig, ContextWindow};
+pub use base::{AuthenticatedProvider, BaseAgentConfig, ContextWindow, Provider, UnauthenticatedProvider};
 
 pub use recognize::{NerAgent, RawEntities, RawEntity};
 pub use extract::{OcrAgent, OcrOutput, OcrProvider, OcrTextRegion, RawOcrEntity};

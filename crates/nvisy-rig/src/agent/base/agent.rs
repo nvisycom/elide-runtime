@@ -1,39 +1,36 @@
-//! [`BaseAgent`]: internal foundation agent wrapping rig-core's `Agent<M>`.
+//! [`BaseAgent`]: internal foundation agent wrapping rig-core agents.
 
-use rig::agent::Agent;
-use rig::completion::{Completion, CompletionModel, Prompt};
+use rig::completion::{Completion, Prompt};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
 
-use nvisy_core::Error;
-
 use crate::backend::UsageTracker;
-use crate::error::Error as RigError;
 use crate::bridge::ResponseParser;
+use crate::error::Error;
 
+use super::dispatch::{Agents, dispatch};
 use super::{BaseAgentBuilder, BaseAgentConfig};
 use super::context::ContextWindow;
 
-/// Internal foundation agent wrapping rig-core's [`Agent<M>`].
+/// Internal foundation agent wrapping a provider-specific rig-core agent.
 ///
-/// All prompt methods route through the built `Agent<M>`, which already
-/// carries the preamble, temperature, max_tokens, and tools configured
-/// via [`BaseAgentBuilder`].
+/// All prompt methods dispatch to the concrete agent variant held inside
+/// [`Agents`]. Specialized agents (e.g. `NerAgent`) compose this type.
 ///
 /// Not exported: specialized agents (e.g. `NerAgent`) compose this.
-pub(crate) struct BaseAgent<M: CompletionModel> {
+pub(crate) struct BaseAgent {
     pub(super) id: Uuid,
-    pub(super) agent: Agent<M>,
+    pub(super) inner: Agents,
     pub(super) context_window: Option<ContextWindow>,
     pub(super) tracker: UsageTracker,
 }
 
-impl<M: CompletionModel> BaseAgent<M> {
+impl BaseAgent {
     /// Create a new builder.
-    pub fn builder(model: M, config: BaseAgentConfig) -> BaseAgentBuilder<M> {
-        BaseAgentBuilder::new(model, config)
+    pub fn builder(provider: &crate::agent::Provider, model_name: &str, config: BaseAgentConfig) -> BaseAgentBuilder {
+        BaseAgentBuilder::new(provider, model_name, config)
     }
 
     /// Unique identifier for this agent instance (UUIDv7).
@@ -58,18 +55,22 @@ impl<M: CompletionModel> BaseAgent<M> {
     {
         let schema = schemars::schema_for!(T);
 
-        let builder = self
-            .agent
-            .completion(prompt, vec![])
-            .await
-            .map_err(|e| Error::from(RigError::from(e)))?
-            .output_schema(schema);
+        let (text, usage) = dispatch!(&self.inner, |agent| {
+            let builder = agent
+                .completion(prompt, vec![])
+                .await
+                .map_err(Error::from)?
+                .output_schema(schema);
 
-        let response = builder.send().await.map_err(|e| Error::from(RigError::from(e)))?;
-        let parsed = ResponseParser::extract_text(&response)?;
-        self.tracker.record(&response.usage, 0);
+            let response = builder.send().await.map_err(Error::from)?;
+            let parsed = ResponseParser::extract_text(&response)?;
+            Ok::<_, Error>((parsed.into_string(), response.usage))
+        })?;
 
-        match serde_json::from_str::<T>(parsed.as_str()) {
+        self.tracker.record(&usage, 0);
+
+        let parser = ResponseParser::from_text(&text);
+        match serde_json::from_str::<T>(&text) {
             Ok(value) => {
                 tracing::debug!("structured output succeeded");
                 Ok(value)
@@ -79,7 +80,7 @@ impl<M: CompletionModel> BaseAgent<M> {
                     error = %structured_err,
                     "structured JSON parse failed, falling back to text-based parsing"
                 );
-                parsed.parse_json()
+                parser.parse_json()
             }
         }
     }
@@ -87,16 +88,19 @@ impl<M: CompletionModel> BaseAgent<M> {
     /// Text completion through the agent, records usage.
     #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "text"))]
     pub async fn prompt_text(&self, prompt: &str) -> Result<String, Error> {
-        let builder = self
-            .agent
-            .completion(prompt, vec![])
-            .await
-            .map_err(|e| Error::from(RigError::from(e)))?;
+        let (text, usage) = dispatch!(&self.inner, |agent| {
+            let builder = agent
+                .completion(prompt, vec![])
+                .await
+                .map_err(Error::from)?;
 
-        let response = builder.send().await.map_err(|e| Error::from(RigError::from(e)))?;
-        let parsed = ResponseParser::extract_text(&response)?;
-        self.tracker.record(&response.usage, 0);
-        Ok(parsed.as_str().to_owned())
+            let response = builder.send().await.map_err(Error::from)?;
+            let parsed = ResponseParser::extract_text(&response)?;
+            Ok::<_, Error>((parsed.into_string(), response.usage))
+        })?;
+
+        self.tracker.record(&usage, 0);
+        Ok(text)
     }
 
     /// Plain text completion through the agent (no usage tracking).
@@ -105,7 +109,9 @@ impl<M: CompletionModel> BaseAgent<M> {
     /// returns only the final text, not the raw response.
     #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "prompt"))]
     pub async fn prompt(&self, prompt: &str) -> Result<String, Error> {
-        self.agent.prompt(prompt).await.map_err(|e| Error::from(RigError::from(e)))
+        dispatch!(&self.inner, |agent| {
+            agent.prompt(prompt).await.map_err(Error::from)
+        })
     }
 
     /// Summarize text via LLM to fit within the context window's input budget.
@@ -147,5 +153,4 @@ impl<M: CompletionModel> BaseAgent<M> {
 
         Ok(all_results)
     }
-
 }

@@ -1,17 +1,20 @@
 //! Internal foundation agent and builder.
 //!
-//! [`BaseAgent`] wraps rig-core's `Agent<M>` with usage tracking and
-//! structured-output fallback. [`BaseAgentBuilder`] handles rig-core's
-//! typestate for optional tools.
+//! [`BaseAgent`] wraps a provider-specific rig-core agent with usage tracking
+//! and structured-output fallback. [`BaseAgentBuilder`] takes a `&Provider` +
+//! model name and dispatches to the correct concrete agent type internally.
 
 mod agent;
 mod builder;
 pub(crate) mod context;
+pub(crate) mod dispatch;
+pub(crate) mod provider;
 
 pub(crate) use agent::BaseAgent;
 pub(crate) use builder::BaseAgentBuilder;
 
 pub use context::ContextWindow;
+pub use provider::{AuthenticatedProvider, Provider, UnauthenticatedProvider};
 
 /// Configuration for a [`BaseAgent`].
 #[derive(Debug, Clone)]

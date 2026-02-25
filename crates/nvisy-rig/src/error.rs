@@ -1,6 +1,6 @@
 //! Error types for the rig crate.
 
-use rig::completion::{CompletionError, PromptError};
+use rig::completion::{CompletionError, PromptError, StructuredOutputError};
 
 /// Errors produced by rig-core LLM interactions.
 #[derive(Debug, thiserror::Error)]
@@ -36,6 +36,22 @@ pub enum Error {
     /// The prompt was cancelled.
     #[error("Prompt cancelled: {0}")]
     Cancelled(String),
+
+    /// A validation or parse failure.
+    #[error("{0}")]
+    Validation(String),
+
+    /// Wraps `nvisy_core::Error` from provider implementations.
+    #[error(transparent)]
+    Core(#[from] nvisy_core::Error),
+
+    /// Structured output failed (prompt error or deserialization).
+    #[error("Structured output error: {0}")]
+    StructuredOutput(String),
+
+    /// Failed to construct a provider client.
+    #[error("Client error: {0}")]
+    Client(String),
 }
 
 impl Error {
@@ -74,8 +90,30 @@ impl From<PromptError> for Error {
     }
 }
 
+impl From<StructuredOutputError> for Error {
+    fn from(err: StructuredOutputError) -> Self {
+        match err {
+            StructuredOutputError::PromptError(e) => Self::from(e),
+            StructuredOutputError::DeserializationError(e) => {
+                Self::StructuredOutput(e.to_string())
+            }
+            StructuredOutputError::EmptyResponse => {
+                Self::StructuredOutput("model returned no content".to_string())
+            }
+        }
+    }
+}
+
 impl From<Error> for nvisy_core::Error {
     fn from(err: Error) -> Self {
+        // Handle the owned `Core` variant first to avoid borrowing issues.
+        if matches!(&err, Error::Core(_)) {
+            return match err {
+                Error::Core(inner) => inner,
+                _ => unreachable!(),
+            };
+        }
+
         match &err {
             Error::Http(_) => {
                 nvisy_core::Error::connection(err.to_string(), "rig", true)
@@ -88,15 +126,19 @@ impl From<Error> for nvisy_core::Error {
                 let retryable = is_retryable_provider_error(msg);
                 nvisy_core::Error::connection(err.to_string(), "rig", retryable)
             }
-            Error::Response(_) => {
+            Error::Response(_) | Error::StructuredOutput(_) => {
                 nvisy_core::Error::runtime(err.to_string(), "rig", false)
             }
-            Error::Request(_) => {
+            Error::Request(_) | Error::Validation(_) => {
                 nvisy_core::Error::validation(err.to_string(), "rig")
             }
             Error::Tool(_) | Error::MaxTurns(_) | Error::Cancelled(_) => {
                 nvisy_core::Error::runtime(err.to_string(), "rig", false)
             }
+            Error::Client(_) => {
+                nvisy_core::Error::connection(err.to_string(), "rig", false)
+            }
+            Error::Core(_) => unreachable!(),
         }
     }
 }

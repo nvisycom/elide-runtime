@@ -14,15 +14,13 @@ pub use output::{RawCvEntities, RawCvEntity};
 use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use rig::completion::CompletionModel;
 use serde::Serialize;
 use uuid::Uuid;
 
-use nvisy_core::Error;
-
 use crate::backend::{DetectionConfig, UsageTracker};
+use crate::error::Error;
 
-use super::{BaseAgent, BaseAgentConfig};
+use super::{BaseAgent, BaseAgentConfig, Provider};
 use prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use tool::CvRigTool;
 
@@ -63,18 +61,23 @@ pub trait CvProvider: Send + Sync {
 ///    by the [`CvProvider`]) and then classify each detection into an
 ///    entity category and type.
 /// 4. Structured output is parsed into a `Vec<RawCvEntity>`.
-pub struct CvAgent<M: CompletionModel> {
-    base: BaseAgent<M>,
+pub struct CvAgent {
+    base: BaseAgent,
 }
 
-impl<M: CompletionModel> CvAgent<M> {
-    /// Create a new CV agent with the given model, config, and CV provider.
-    pub fn new(model: M, config: BaseAgentConfig, cv: impl CvProvider + 'static) -> Self {
-        let base = BaseAgent::builder(model, config)
+impl CvAgent {
+    /// Create a new CV agent with the given provider, model name, config, and CV provider.
+    pub fn new(
+        provider: &Provider,
+        model: &str,
+        config: BaseAgentConfig,
+        cv: impl CvProvider + 'static,
+    ) -> Result<Self, Error> {
+        let base = BaseAgent::builder(provider, model, config)
             .preamble(CV_SYSTEM_PROMPT)
             .tool(CvRigTool::new(cv))
-            .build();
-        Self { base }
+            .build()?;
+        Ok(Self { base })
     }
 
     /// Unique identifier for this agent instance (UUIDv7).

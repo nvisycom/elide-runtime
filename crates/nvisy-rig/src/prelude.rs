@@ -5,8 +5,10 @@ pub use crate::backend::{
     RetryPolicy, UsageStats, UsageTracker,
 };
 pub use crate::bridge::{EntityParser, RigBackend, RigBackendConfig, ServiceBackend};
+pub use crate::error::Error;
 pub use crate::agent::{
-    BaseAgentConfig, ContextWindow,
+    AuthenticatedProvider, BaseAgentConfig, ContextWindow, Provider,
+    UnauthenticatedProvider,
     CvAgent, CvDetection, CvProvider, NerAgent,
     OcrAgent, OcrOutput, OcrProvider, OcrTextRegion,
     RawCvEntities, RawCvEntity, RawEntities, RawEntity,

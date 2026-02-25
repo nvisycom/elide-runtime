@@ -9,14 +9,12 @@ mod prompt;
 
 pub use output::{RawEntities, RawEntity};
 
-use rig::completion::CompletionModel;
 use uuid::Uuid;
 
-use nvisy_core::Error;
-
 use crate::backend::{DetectionConfig, UsageTracker};
+use crate::error::Error;
 
-use super::{BaseAgent, BaseAgentConfig};
+use super::{BaseAgent, BaseAgentConfig, Provider};
 use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 
 /// Agent for textual PII/entity detection using LLM-based NER.
@@ -28,17 +26,17 @@ use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 /// 2. The agent builds a user prompt via [`NerPromptBuilder`] that
 ///    specifies entity types and confidence thresholds.
 /// 3. Structured output is parsed into `Vec<RawEntity>`.
-pub struct NerAgent<M: CompletionModel> {
-    base: BaseAgent<M>,
+pub struct NerAgent {
+    base: BaseAgent,
 }
 
-impl<M: CompletionModel> NerAgent<M> {
-    /// Create a new NER agent with the given model and config.
-    pub fn new(model: M, config: BaseAgentConfig) -> Self {
-        let base = BaseAgent::builder(model, config)
+impl NerAgent {
+    /// Create a new NER agent with the given provider, model name, and config.
+    pub fn new(provider: &Provider, model: &str, config: BaseAgentConfig) -> Result<Self, Error> {
+        let base = BaseAgent::builder(provider, model, config)
             .preamble(NER_SYSTEM_PROMPT)
-            .build();
-        Self { base }
+            .build()?;
+        Ok(Self { base })
     }
 
     /// Unique identifier for this agent instance (UUIDv7).

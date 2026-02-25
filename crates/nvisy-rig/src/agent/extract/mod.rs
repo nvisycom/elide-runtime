@@ -14,15 +14,13 @@ pub use output::{OcrOutput, RawOcrEntity};
 use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use rig::completion::CompletionModel;
 use serde::Serialize;
 use uuid::Uuid;
 
-use nvisy_core::Error;
-
 use crate::backend::{DetectionConfig, UsageTracker};
+use crate::error::Error;
 
-use super::{BaseAgent, BaseAgentConfig};
+use super::{BaseAgent, BaseAgentConfig, Provider};
 use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use tool::OcrRigTool;
 
@@ -66,18 +64,23 @@ pub trait OcrProvider: Send + Sync {
 /// 3. The VLM is instructed to call the `ocr_extract_text` tool (backed by
 ///    the [`OcrProvider`]) and then analyse the result for PII/PHI entities.
 /// 4. Structured output is parsed into [`OcrOutput`].
-pub struct OcrAgent<M: CompletionModel> {
-    base: BaseAgent<M>,
+pub struct OcrAgent {
+    base: BaseAgent,
 }
 
-impl<M: CompletionModel> OcrAgent<M> {
-    /// Create a new OCR agent with the given model, config, and OCR provider.
-    pub fn new(model: M, config: BaseAgentConfig, ocr: impl OcrProvider + 'static) -> Self {
-        let base = BaseAgent::builder(model, config)
+impl OcrAgent {
+    /// Create a new OCR agent with the given provider, model name, config, and OCR provider.
+    pub fn new(
+        provider: &Provider,
+        model: &str,
+        config: BaseAgentConfig,
+        ocr: impl OcrProvider + 'static,
+    ) -> Result<Self, Error> {
+        let base = BaseAgent::builder(provider, model, config)
             .preamble(OCR_SYSTEM_PROMPT)
             .tool(OcrRigTool::new(ocr))
-            .build();
-        Self { base }
+            .build()?;
+        Ok(Self { base })
     }
 
     /// Unique identifier for this agent instance (UUIDv7).

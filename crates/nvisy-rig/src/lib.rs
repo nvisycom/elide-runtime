@@ -12,9 +12,11 @@ pub mod prelude;
 
 pub use backend::{DetectionConfig, DetectionRequest, DetectionResponse};
 pub use bridge::{EntityParser, RigBackend, RigBackendConfig, ServiceBackend};
+pub use error::Error;
 
 pub use agent::{
-    BaseAgentConfig, ContextWindow,
+    AuthenticatedProvider, BaseAgentConfig, ContextWindow, Provider,
+    UnauthenticatedProvider,
     CvAgent, CvDetection, CvProvider, NerAgent,
     OcrAgent, OcrOutput, OcrProvider, OcrTextRegion,
     RawCvEntities, RawCvEntity, RawEntities, RawEntity,

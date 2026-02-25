@@ -2,27 +2,33 @@
 //! typestate for optional tools.
 
 use rig::agent::AgentBuilder;
+use rig::client::CompletionClient;
 use rig::completion::CompletionModel;
 use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
 use crate::backend::UsageTracker;
+use crate::error::Error;
 
+use super::dispatch::Agents;
+use super::provider::{Provider, ProviderClient};
 use super::{BaseAgent, BaseAgentConfig};
 
-/// Builder for [`BaseAgent`] that handles rig-core's typestate for tools.
-pub(crate) struct BaseAgentBuilder<M: CompletionModel> {
-    model: M,
+/// Builder for [`BaseAgent`] that takes a `&Provider` + model name.
+pub(crate) struct BaseAgentBuilder {
+    provider: Provider,
+    model_name: String,
     config: BaseAgentConfig,
     preamble: Option<String>,
     tools: Vec<Box<dyn ToolDyn>>,
 }
 
-impl<M: CompletionModel> BaseAgentBuilder<M> {
-    /// Create a new builder with the given model and config.
-    pub fn new(model: M, config: BaseAgentConfig) -> Self {
+impl BaseAgentBuilder {
+    /// Create a new builder with the given provider, model name, and config.
+    pub fn new(provider: &Provider, model_name: &str, config: BaseAgentConfig) -> Self {
         Self {
-            model,
+            provider: provider.clone(),
+            model_name: model_name.to_owned(),
             config,
             preamble: None,
             tools: Vec::new(),
@@ -42,35 +48,72 @@ impl<M: CompletionModel> BaseAgentBuilder<M> {
     }
 
     /// Build the [`BaseAgent`].
-    pub fn build(self) -> BaseAgent<M> {
-        let agent = if self.tools.is_empty() {
-            let mut builder = AgentBuilder::new(self.model)
-                .temperature(self.config.temperature)
-                .max_tokens(self.config.max_tokens);
+    pub fn build(self) -> Result<BaseAgent, Error> {
+        let Self {
+            provider,
+            model_name,
+            config,
+            preamble,
+            tools,
+        } = self;
 
-            if let Some(ref preamble) = self.preamble {
-                builder = builder.preamble(preamble);
+        let preamble_ref = preamble.as_deref();
+        let client = ProviderClient::from_provider(&provider)?;
+
+        let inner = match client {
+            ProviderClient::OpenAi(c) => {
+                Agents::OpenAi(build_rig_agent(c.completion_model(&model_name), &config, preamble_ref, tools))
             }
-
-            builder.build()
-        } else {
-            let mut builder = AgentBuilder::new(self.model)
-                .temperature(self.config.temperature)
-                .max_tokens(self.config.max_tokens)
-                .tools(self.tools);
-
-            if let Some(ref preamble) = self.preamble {
-                builder = builder.preamble(preamble);
+            ProviderClient::Anthropic(c) => {
+                Agents::Anthropic(build_rig_agent(c.completion_model(&model_name), &config, preamble_ref, tools))
             }
-
-            builder.build()
+            ProviderClient::Gemini(c) => {
+                Agents::Gemini(build_rig_agent(c.completion_model(&model_name), &config, preamble_ref, tools))
+            }
+            ProviderClient::Ollama(c) => {
+                Agents::Ollama(build_rig_agent(c.completion_model(&model_name), &config, preamble_ref, tools))
+            }
         };
 
-        BaseAgent {
+        Ok(BaseAgent {
             id: Uuid::now_v7(),
-            agent,
-            context_window: self.config.context_window,
+            inner,
+            context_window: config.context_window,
             tracker: UsageTracker::new(),
+        })
+    }
+}
+
+/// Build a concrete rig-core `Agent<M>`.
+///
+/// Generic over `M` but only called inside [`BaseAgentBuilder::build`] —
+/// the generic never escapes the module boundary.
+fn build_rig_agent<M: CompletionModel>(
+    model: M,
+    config: &BaseAgentConfig,
+    preamble: Option<&str>,
+    tools: Vec<Box<dyn ToolDyn>>,
+) -> rig::agent::Agent<M> {
+    if tools.is_empty() {
+        let mut builder = AgentBuilder::new(model)
+            .temperature(config.temperature)
+            .max_tokens(config.max_tokens);
+
+        if let Some(preamble) = preamble {
+            builder = builder.preamble(preamble);
         }
+
+        builder.build()
+    } else {
+        let mut builder = AgentBuilder::new(model)
+            .temperature(config.temperature)
+            .max_tokens(config.max_tokens)
+            .tools(tools);
+
+        if let Some(preamble) = preamble {
+            builder = builder.preamble(preamble);
+        }
+
+        builder.build()
     }
 }

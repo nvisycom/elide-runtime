@@ -8,9 +8,10 @@ use serde_json::Value;
 
 use rig::completion::{AssistantContent, CompletionResponse};
 
-use nvisy_core::Error;
 use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityKind};
 use nvisy_ontology::location::{Location, TextLocation};
+
+use crate::error::Error;
 
 /// Extracted text from an LLM completion response.
 ///
@@ -32,10 +33,8 @@ impl<'a> ResponseParser<'a> {
             .collect();
 
         if texts.is_empty() {
-            return Err(Error::runtime(
-                "LLM response contained no text content",
-                "rig",
-                false,
+            return Err(Error::Response(
+                "LLM response contained no text content".to_string(),
             ));
         }
 
@@ -52,6 +51,11 @@ impl<'a> ResponseParser<'a> {
     /// The raw text content.
     pub fn as_str(&self) -> &str {
         &self.text
+    }
+
+    /// Consume the parser and return the owned text.
+    pub fn into_string(self) -> String {
+        self.text.into_owned()
     }
 
     /// Parse the text as JSON into `T`.
@@ -73,11 +77,10 @@ impl<'a> ResponseParser<'a> {
         let json_str = extract_fenced_json(trimmed).unwrap_or(trimmed);
 
         serde_json::from_str::<T>(json_str).map_err(|e| {
-            Error::runtime(
-                format!("Failed to parse LLM response as JSON: {e}: {}", truncate(trimmed, 200)),
-                "rig",
-                false,
-            )
+            Error::Response(format!(
+                "Failed to parse LLM response as JSON: {e}: {}",
+                truncate(trimmed, 200),
+            ))
         })
     }
 }
@@ -97,13 +100,13 @@ impl EntityParser {
 
         for item in raw {
             let obj = item.as_object().ok_or_else(|| {
-                Error::validation("Expected JSON object in LLM results".to_string(), "llm-parse")
+                Error::Validation("Expected JSON object in LLM results".to_string())
             })?;
 
             let category_str = obj
                 .get("category")
                 .and_then(Value::as_str)
-                .ok_or_else(|| Error::validation("Missing 'category'".to_string(), "llm-parse"))?;
+                .ok_or_else(|| Error::Validation("Missing 'category'".to_string()))?;
 
             let category = match category_str {
                 "pii" => EntityCategory::Pii,
@@ -117,7 +120,7 @@ impl EntityParser {
                 .get("entity_type")
                 .and_then(Value::as_str)
                 .ok_or_else(|| {
-                    Error::validation("Missing 'entity_type'".to_string(), "llm-parse")
+                    Error::Validation("Missing 'entity_type'".to_string())
                 })?;
 
             let entity_kind = match EntityKind::from_str(entity_type_str) {
@@ -134,13 +137,13 @@ impl EntityParser {
             let value = obj
                 .get("value")
                 .and_then(Value::as_str)
-                .ok_or_else(|| Error::validation("Missing 'value'".to_string(), "llm-parse"))?;
+                .ok_or_else(|| Error::Validation("Missing 'value'".to_string()))?;
 
             let confidence = obj
                 .get("confidence")
                 .and_then(Value::as_f64)
                 .ok_or_else(|| {
-                    Error::validation("Missing 'confidence'".to_string(), "llm-parse")
+                    Error::Validation("Missing 'confidence'".to_string())
                 })?;
 
             let start_offset = obj

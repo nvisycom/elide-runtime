@@ -17,7 +17,7 @@ use nvisy_ontology::entity::EntityKind;
 pub struct DetectionConfig {
     /// Entity kinds to detect (empty = all).
     pub entity_kinds: Vec<EntityKind>,
-    /// Minimum confidence score to include a detection (0.0 -- 1.0).
+    /// Minimum confidence score to include a detection (0.0..=1.0).
     pub confidence_threshold: f64,
     /// System prompt override (if empty, the backend uses its default).
     pub system_prompt: Option<String>,

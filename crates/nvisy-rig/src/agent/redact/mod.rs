@@ -13,14 +13,15 @@ mod prompt;
 pub use output::{RawRedaction, RedactorOutput};
 
 use rig::completion::CompletionModel;
+use uuid::Uuid;
 
 use nvisy_core::Error;
 use nvisy_ontology::specification::RedactorInput;
 
 use crate::backend::UsageTracker;
 
-use super::base::{BaseAgent, BaseAgentConfig};
-use prompt::{RedactorPromptBuilder, REDACTOR_SYSTEM_PROMPT};
+use super::{BaseAgent, BaseAgentConfig};
+use prompt::{REDACTOR_SYSTEM_PROMPT, RedactorPromptBuilder};
 
 /// Agent for context-aware redaction recommendations.
 ///
@@ -47,6 +48,11 @@ impl<M: CompletionModel> RedactorAgent<M> {
         Self { base }
     }
 
+    /// Unique identifier for this agent instance (UUIDv7).
+    pub fn id(&self) -> Uuid {
+        self.base.id()
+    }
+
     /// Access the usage tracker for this agent's LLM calls.
     pub fn tracker(&self) -> &UsageTracker {
         self.base.tracker()
@@ -64,10 +70,7 @@ impl<M: CompletionModel> RedactorAgent<M> {
     ) -> Result<Vec<RawRedaction>, Error> {
         let prompt = RedactorPromptBuilder::build(text, entities)?;
 
-        tracing::debug!(
-            prompt_len = prompt.len(),
-            "built redactor prompt"
-        );
+        tracing::debug!(prompt_len = prompt.len(), "built redactor prompt");
 
         let result: RedactorOutput = self.base.prompt_structured(&prompt).await?;
 

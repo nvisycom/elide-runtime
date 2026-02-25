@@ -16,13 +16,14 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use rig::completion::CompletionModel;
 use serde::Serialize;
+use uuid::Uuid;
 
 use nvisy_core::Error;
 
 use crate::backend::{DetectionConfig, UsageTracker};
 
-use super::base::{BaseAgent, BaseAgentConfig};
-use prompt::{OcrPromptBuilder, OCR_SYSTEM_PROMPT};
+use super::{BaseAgent, BaseAgentConfig};
+use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use tool::OcrRigTool;
 
 /// A single text region extracted by an OCR provider.
@@ -33,7 +34,7 @@ use tool::OcrRigTool;
 pub struct OcrTextRegion {
     /// The extracted text content.
     pub text: String,
-    /// Confidence of the OCR extraction (0.0 -- 1.0).
+    /// Confidence of the OCR extraction (0.0..=1.0).
     pub confidence: f64,
     /// Optional bounding box `[x, y, width, height]` in pixels.
     pub bbox: Option<[f64; 4]>,
@@ -79,6 +80,11 @@ impl<M: CompletionModel> OcrAgent<M> {
         Self { base }
     }
 
+    /// Unique identifier for this agent instance (UUIDv7).
+    pub fn id(&self) -> Uuid {
+        self.base.id()
+    }
+
     /// Access the usage tracker for this agent's LLM calls.
     pub fn tracker(&self) -> &UsageTracker {
         self.base.tracker()
@@ -103,10 +109,7 @@ impl<M: CompletionModel> OcrAgent<M> {
 
         let prompt = OcrPromptBuilder::new(config).build(&image_b64);
 
-        let output: OcrOutput = self
-            .base
-            .prompt_structured(&prompt)
-            .await?;
+        let output: OcrOutput = self.base.prompt_structured(&prompt).await?;
 
         tracing::info!(
             text_len = output.extracted_text.len(),

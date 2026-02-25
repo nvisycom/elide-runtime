@@ -16,13 +16,14 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use rig::completion::CompletionModel;
 use serde::Serialize;
+use uuid::Uuid;
 
 use nvisy_core::Error;
 
 use crate::backend::{DetectionConfig, UsageTracker};
 
-use super::base::{BaseAgent, BaseAgentConfig};
-use prompt::{CvPromptBuilder, CV_SYSTEM_PROMPT};
+use super::{BaseAgent, BaseAgentConfig};
+use prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use tool::CvRigTool;
 
 /// A single computer-vision detection result returned by a [`CvProvider`].
@@ -76,6 +77,11 @@ impl<M: CompletionModel> CvAgent<M> {
         Self { base }
     }
 
+    /// Unique identifier for this agent instance (UUIDv7).
+    pub fn id(&self) -> Uuid {
+        self.base.id()
+    }
+
     /// Access the usage tracker for this agent's LLM calls.
     pub fn tracker(&self) -> &UsageTracker {
         self.base.tracker()
@@ -100,10 +106,7 @@ impl<M: CompletionModel> CvAgent<M> {
 
         let prompt = CvPromptBuilder::new(config).build(&image_b64);
 
-        let result: RawCvEntities = self
-            .base
-            .prompt_structured(&prompt)
-            .await?;
+        let result: RawCvEntities = self.base.prompt_structured(&prompt).await?;
 
         tracing::info!(
             entity_count = result.entities.len(),

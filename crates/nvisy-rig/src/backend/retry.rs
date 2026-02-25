@@ -4,9 +4,11 @@ use std::time::Duration;
 
 use nvisy_core::Error;
 
-use super::{DetectionRequest, DetectionResponse};
-
 /// Tower retry policy with exponential backoff for retryable errors.
+///
+/// Generic over any request/response types: the request must be `Clone`
+/// (so Tower can re-issue it) and the error type is [`nvisy_core::Error`]
+/// whose `is_retryable()` flag drives the retry decision.
 #[derive(Debug, Clone)]
 pub struct RetryPolicy {
     /// Maximum number of retries (default: 3).
@@ -47,13 +49,16 @@ impl RetryPolicy {
     }
 }
 
-impl tower::retry::Policy<DetectionRequest, DetectionResponse, Error> for RetryPolicy {
+impl<Req, Res> tower::retry::Policy<Req, Res, Error> for RetryPolicy
+where
+    Req: Clone,
+{
     type Future = std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>;
 
     fn retry(
         &mut self,
-        _req: &mut DetectionRequest,
-        result: &mut Result<DetectionResponse, Error>,
+        _req: &mut Req,
+        result: &mut Result<Res, Error>,
     ) -> Option<Self::Future> {
         match result {
             Ok(_) => None,
@@ -85,7 +90,7 @@ impl tower::retry::Policy<DetectionRequest, DetectionResponse, Error> for RetryP
         }
     }
 
-    fn clone_request(&mut self, req: &DetectionRequest) -> Option<DetectionRequest> {
+    fn clone_request(&mut self, req: &Req) -> Option<Req> {
         Some(req.clone())
     }
 }
@@ -93,6 +98,7 @@ impl tower::retry::Policy<DetectionRequest, DetectionResponse, Error> for RetryP
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::{DetectionRequest, DetectionResponse, DetectionConfig};
     use tower::retry::Policy;
 
     #[tokio::test]
@@ -100,7 +106,7 @@ mod tests {
         let mut policy = RetryPolicy::new();
         let mut req = DetectionRequest {
             text: "test".into(),
-            config: crate::backend::DetectionConfig {
+            config: DetectionConfig {
                 entity_kinds: vec![],
                 confidence_threshold: 0.5,
                 system_prompt: None,
@@ -118,7 +124,7 @@ mod tests {
         let mut policy = RetryPolicy::new();
         let mut req = DetectionRequest {
             text: "test".into(),
-            config: crate::backend::DetectionConfig {
+            config: DetectionConfig {
                 entity_kinds: vec![],
                 confidence_threshold: 0.5,
                 system_prompt: None,
@@ -136,7 +142,7 @@ mod tests {
         let mut policy = RetryPolicy::new();
         let mut req = DetectionRequest {
             text: "test".into(),
-            config: crate::backend::DetectionConfig {
+            config: DetectionConfig {
                 entity_kinds: vec![],
                 confidence_threshold: 0.5,
                 system_prompt: None,

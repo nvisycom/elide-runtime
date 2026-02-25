@@ -10,13 +10,14 @@ mod prompt;
 pub use output::{RawEntities, RawEntity};
 
 use rig::completion::CompletionModel;
+use uuid::Uuid;
 
 use nvisy_core::Error;
 
 use crate::backend::{DetectionConfig, UsageTracker};
 
-use super::base::{BaseAgent, BaseAgentConfig};
-use prompt::{NerPromptBuilder, NER_SYSTEM_PROMPT};
+use super::{BaseAgent, BaseAgentConfig};
+use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 
 /// Agent for textual PII/entity detection using LLM-based NER.
 ///
@@ -38,6 +39,11 @@ impl<M: CompletionModel> NerAgent<M> {
             .preamble(NER_SYSTEM_PROMPT)
             .build();
         Self { base }
+    }
+
+    /// Unique identifier for this agent instance (UUIDv7).
+    pub fn id(&self) -> Uuid {
+        self.base.id()
     }
 
     /// Access the usage tracker for this agent's LLM calls.
@@ -63,10 +69,7 @@ impl<M: CompletionModel> NerAgent<M> {
             "built ner prompt"
         );
 
-        let result: RawEntities = self
-            .base
-            .prompt_structured(&prompt)
-            .await?;
+        let result: RawEntities = self.base.prompt_structured(&prompt).await?;
 
         tracing::info!(
             entity_count = result.entities.len(),

@@ -43,6 +43,9 @@ schemars = { workspace = true, features = [] }
 # Error handling
 thiserror = { workspace = true, features = [] }
 
+# Identifiers
+uuid = { workspace = true, features = ["v7"] }
+
 # Observability
 tracing = { workspace = true, features = [] }
 

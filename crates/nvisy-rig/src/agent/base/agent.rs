@@ -1,10 +1,11 @@
-//! [`BaseAgent`] — internal foundation agent wrapping rig-core's `Agent<M>`.
+//! [`BaseAgent`]: internal foundation agent wrapping rig-core's `Agent<M>`.
 
 use rig::agent::Agent;
 use rig::completion::{Completion, CompletionModel, Prompt, TypedPrompt};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use uuid::Uuid;
 
 use nvisy_core::Error;
 
@@ -17,11 +18,12 @@ use super::context::ContextWindow;
 /// Internal foundation agent wrapping rig-core's [`Agent<M>`].
 ///
 /// All prompt methods route through the built `Agent<M>`, which already
-/// carries the preamble, temperature, max-tokens, and tools configured
+/// carries the preamble, temperature, max_tokens, and tools configured
 /// via [`BaseAgentBuilder`].
 ///
-/// Not exported — specialized agents (e.g. `NerAgent`) compose this.
+/// Not exported: specialized agents (e.g. `NerAgent`) compose this.
 pub(crate) struct BaseAgent<M: CompletionModel> {
+    pub(super) id: Uuid,
     pub(super) agent: Agent<M>,
     pub(super) context_window: Option<ContextWindow>,
     pub(super) tracker: UsageTracker,
@@ -33,6 +35,11 @@ impl<M: CompletionModel> BaseAgent<M> {
         BaseAgentBuilder::new(model, config)
     }
 
+    /// Unique identifier for this agent instance (UUIDv7).
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
     /// Access the usage tracker.
     pub fn tracker(&self) -> &UsageTracker {
         &self.tracker
@@ -40,7 +47,7 @@ impl<M: CompletionModel> BaseAgent<M> {
 
     /// Structured output prompt: tries `prompt_typed`, falls back to text +
     /// `parse_json`.
-    #[tracing::instrument(skip_all, fields(mode = "structured"))]
+    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "structured"))]
     pub async fn prompt_structured<T>(&self, prompt: &str) -> Result<T, Error>
     where
         T: DeserializeOwned + Default + JsonSchema + Serialize + Send + Sync,
@@ -63,7 +70,7 @@ impl<M: CompletionModel> BaseAgent<M> {
     }
 
     /// Text completion through the agent, records usage.
-    #[tracing::instrument(skip_all, fields(mode = "text"))]
+    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "text"))]
     pub async fn prompt_text(&self, prompt: &str) -> Result<String, Error> {
         let builder = self
             .agent
@@ -81,14 +88,14 @@ impl<M: CompletionModel> BaseAgent<M> {
     ///
     /// Uses `Prompt::prompt` which handles tool calls automatically but
     /// returns only the final text, not the raw response.
-    #[tracing::instrument(skip_all, fields(mode = "prompt"))]
+    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "prompt"))]
     pub async fn prompt(&self, prompt: &str) -> Result<String, Error> {
         self.agent.prompt(prompt).await.map_err(from_prompt)
     }
 
     /// Splits text via [`ContextWindow`], runs `prompt_structured` per chunk,
     /// and flattens results.
-    #[tracing::instrument(skip_all, fields(mode = "chunked"))]
+    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "chunked"))]
     pub async fn prompt_chunked<T, F>(
         &self,
         text: &str,

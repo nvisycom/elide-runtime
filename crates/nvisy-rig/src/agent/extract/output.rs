@@ -23,7 +23,7 @@ pub struct RawOcrEntity {
     pub entity_type: EntityKind,
     /// The matched text value.
     pub value: String,
-    /// Detection confidence (0.0 -- 1.0).
+    /// Detection confidence (0.0..=1.0).
     pub confidence: f64,
     /// Optional bounding box `[x, y, width, height]` in pixels.
     pub bbox: Option<[f64; 4]>,

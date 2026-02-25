@@ -1,9 +1,10 @@
-//! [`BaseAgentBuilder`] — builder for [`BaseAgent`] handling rig-core's
+//! [`BaseAgentBuilder`]: builder for [`BaseAgent`] handling rig-core's
 //! typestate for optional tools.
 
 use rig::agent::AgentBuilder;
 use rig::completion::CompletionModel;
 use rig::tool::{Tool, ToolDyn};
+use uuid::Uuid;
 
 use crate::backend::UsageTracker;
 
@@ -66,6 +67,7 @@ impl<M: CompletionModel> BaseAgentBuilder<M> {
         };
 
         BaseAgent {
+            id: Uuid::now_v7(),
             agent,
             context_window: self.config.context_window,
             tracker: UsageTracker::new(),

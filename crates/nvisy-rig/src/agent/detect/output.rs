@@ -14,7 +14,7 @@ pub struct RawCvEntity {
     pub entity_type: EntityKind,
     /// Label from the CV model (e.g. "face", "license_plate").
     pub label: String,
-    /// Detection confidence (0.0 -- 1.0).
+    /// Detection confidence (0.0..=1.0).
     pub confidence: f64,
     /// Bounding box `[x, y, width, height]` in pixels.
     pub bbox: [f64; 4],

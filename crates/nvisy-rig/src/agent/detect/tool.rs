@@ -24,7 +24,13 @@ pub(super) struct CvToolArgs {
 pub(super) struct CvToolError(String);
 
 /// Rig `Tool` wrapper around a [`CvProvider`] implementation.
-pub(super) struct CvRigTool<T: CvProvider>(pub Arc<T>);
+pub(super) struct CvRigTool<T: CvProvider>(Arc<T>);
+
+impl<T: CvProvider> CvRigTool<T> {
+    pub fn new(provider: T) -> Self {
+        Self(Arc::new(provider))
+    }
+}
 
 impl<T: CvProvider> Tool for CvRigTool<T> {
     const NAME: &'static str = "cv_detect_objects";

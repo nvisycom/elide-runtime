@@ -4,7 +4,7 @@ mod error;
 mod metrics;
 mod retry;
 
-pub use error::from_completion;
+pub use error::{from_completion, from_prompt};
 pub use metrics::{UsageStats, UsageTracker};
 pub use retry::RetryPolicy;
 

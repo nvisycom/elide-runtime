@@ -14,7 +14,7 @@ pub use bridge::{EntityParser, RigBackend, RigBackendConfig};
 
 pub use agent::{
     CvAgent, CvDetection, CvProvider, NerAgent,
-    OcrAgent, OcrOutput, OcrProvider,
+    OcrAgent, OcrOutput, OcrProvider, OcrTextRegion,
     RawCvEntities, RawCvEntity, RawEntities, RawEntity,
     RawOcrEntity, RawRedaction, RedactorAgent, RedactorOutput,
 };

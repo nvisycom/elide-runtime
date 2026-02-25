@@ -1,8 +1,31 @@
 //! Error mapping from rig-core errors to nvisy-core errors.
 
-use rig::completion::CompletionError;
+use rig::completion::{CompletionError, PromptError};
 
 use nvisy_core::Error;
+
+/// Convert a rig-core [`PromptError`] into a [`nvisy_core::Error`].
+pub fn from_prompt(err: PromptError) -> Error {
+    match err {
+        PromptError::CompletionError(e) => from_completion(e),
+        PromptError::ToolError(e) => {
+            Error::runtime(format!("Tool error: {e}"), "rig", false)
+        }
+        PromptError::ToolServerError(e) => {
+            Error::runtime(format!("Tool server error: {e}"), "rig", true)
+        }
+        PromptError::MaxTurnsError { max_turns, .. } => {
+            Error::runtime(
+                format!("Agent exceeded max turn limit ({max_turns})"),
+                "rig",
+                false,
+            )
+        }
+        PromptError::PromptCancelled { reason, .. } => {
+            Error::runtime(format!("Prompt cancelled: {reason}"), "rig", false)
+        }
+    }
+}
 
 /// Convert a rig-core [`CompletionError`] into a [`nvisy_core::Error`].
 pub fn from_completion(err: CompletionError) -> Error {

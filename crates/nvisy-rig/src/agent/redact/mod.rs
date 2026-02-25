@@ -69,7 +69,7 @@ impl<M: CompletionModel> RedactorAgent<M> {
             "built redactor prompt"
         );
 
-        let result: RedactorOutput = self.base.prompt_structured(&prompt, None).await?;
+        let result: RedactorOutput = self.base.prompt_structured(&prompt).await?;
 
         tracing::info!(
             redaction_count = result.redactions.len(),

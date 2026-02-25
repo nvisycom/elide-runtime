@@ -24,7 +24,13 @@ pub(super) struct OcrToolArgs {
 pub(super) struct OcrToolError(String);
 
 /// Rig `Tool` wrapper around an [`OcrProvider`] implementation.
-pub(super) struct OcrRigTool<T: OcrProvider>(pub Arc<T>);
+pub(super) struct OcrRigTool<T: OcrProvider>(Arc<T>);
+
+impl<T: OcrProvider> OcrRigTool<T> {
+    pub fn new(provider: T) -> Self {
+        Self(Arc::new(provider))
+    }
+}
 
 impl<T: OcrProvider> Tool for OcrRigTool<T> {
     const NAME: &'static str = "ocr_extract_text";
@@ -36,7 +42,9 @@ impl<T: OcrProvider> Tool for OcrRigTool<T> {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Extract text from an image using OCR. \
+            description: "Extract text regions from an image using OCR. \
+                          Returns a JSON array of regions, each with text, \
+                          confidence, and optional bounding box. \
                           Pass the image as a base64-encoded string."
                 .to_string(),
             parameters: json!({
@@ -56,9 +64,11 @@ impl<T: OcrProvider> Tool for OcrRigTool<T> {
         let bytes = STANDARD
             .decode(&args.image_base64)
             .map_err(|e| OcrToolError(format!("invalid base64: {e}")))?;
-        self.0
+        let regions = self
+            .0
             .extract_text(&bytes)
             .await
-            .map_err(|e| OcrToolError(e.to_string()))
+            .map_err(|e| OcrToolError(e.to_string()))?;
+        serde_json::to_string(&regions).map_err(|e| OcrToolError(e.to_string()))
     }
 }

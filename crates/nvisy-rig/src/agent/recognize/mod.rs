@@ -65,7 +65,7 @@ impl<M: CompletionModel> NerAgent<M> {
 
         let result: RawEntities = self
             .base
-            .prompt_structured(&prompt, config.system_prompt.as_deref())
+            .prompt_structured(&prompt)
             .await?;
 
         tracing::info!(

@@ -11,12 +11,11 @@ mod tool;
 
 pub use output::{OcrOutput, RawOcrEntity};
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use rig::completion::CompletionModel;
+use serde::Serialize;
 
 use nvisy_core::Error;
 
@@ -26,15 +25,34 @@ use super::base::{BaseAgent, BaseAgentConfig};
 use prompt::{OcrPromptBuilder, OCR_SYSTEM_PROMPT};
 use tool::OcrRigTool;
 
+/// A single text region extracted by an OCR provider.
+///
+/// Each region represents a contiguous block of text found in the image,
+/// together with an optional bounding box and confidence score.
+#[derive(Debug, Clone, Serialize)]
+pub struct OcrTextRegion {
+    /// The extracted text content.
+    pub text: String,
+    /// Confidence of the OCR extraction (0.0 -- 1.0).
+    pub confidence: f64,
+    /// Optional bounding box `[x, y, width, height]` in pixels.
+    pub bbox: Option<[f64; 4]>,
+}
+
 /// Trait for OCR capabilities that can be provided to VLM agents.
 ///
 /// Consumers implement this trait to supply text extraction from images.
 /// The trait is intentionally free of rig-core types so it can be
 /// implemented in any crate without pulling in the LLM framework.
+///
+/// Implementations return a list of [`OcrTextRegion`]s, each carrying the
+/// extracted text, a confidence score, and an optional pixel-space bounding
+/// box. Returning multiple regions allows the downstream VLM to reason
+/// about spatial layout (e.g. headers vs body text, table cells).
 #[async_trait]
 pub trait OcrProvider: Send + Sync {
-    /// Extract text from raw image bytes (PNG, JPEG, etc.).
-    async fn extract_text(&self, image_data: &[u8]) -> Result<String, Error>;
+    /// Extract text regions from raw image bytes (PNG, JPEG, etc.).
+    async fn extract_text(&self, image_data: &[u8]) -> Result<Vec<OcrTextRegion>, Error>;
 }
 
 /// VLM agent that extracts text from images and detects entities in it.
@@ -56,7 +74,7 @@ impl<M: CompletionModel> OcrAgent<M> {
     pub fn new(model: M, config: BaseAgentConfig, ocr: impl OcrProvider + 'static) -> Self {
         let base = BaseAgent::builder(model, config)
             .preamble(OCR_SYSTEM_PROMPT)
-            .tool(OcrRigTool(Arc::new(ocr)))
+            .tool(OcrRigTool::new(ocr))
             .build();
         Self { base }
     }
@@ -87,7 +105,7 @@ impl<M: CompletionModel> OcrAgent<M> {
 
         let output: OcrOutput = self
             .base
-            .prompt_structured(&prompt, config.system_prompt.as_deref())
+            .prompt_structured(&prompt)
             .await?;
 
         tracing::info!(

@@ -4,16 +4,14 @@
 //! into individual agent submodules.
 
 mod base;
-mod context;
 mod detect;
 mod extract;
 mod recognize;
-mod redactor;
+mod redact;
 
 pub(crate) use base::{BaseAgent, BaseAgentBuilder, BaseAgentConfig};
-pub(crate) use context::ContextWindow;
 
 pub use recognize::{NerAgent, RawEntities, RawEntity};
-pub use extract::{OcrAgent, OcrOutput, OcrProvider, RawOcrEntity};
+pub use extract::{OcrAgent, OcrOutput, OcrProvider, OcrTextRegion, RawOcrEntity};
 pub use detect::{CvAgent, CvDetection, CvProvider, RawCvEntities, RawCvEntity};
-pub use redactor::{RawRedaction, RedactorAgent, RedactorOutput};
+pub use redact::{RawRedaction, RedactorAgent, RedactorOutput};

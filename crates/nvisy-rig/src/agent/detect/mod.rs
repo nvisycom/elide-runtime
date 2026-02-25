@@ -11,8 +11,6 @@ mod tool;
 
 pub use output::{RawCvEntities, RawCvEntity};
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
@@ -73,7 +71,7 @@ impl<M: CompletionModel> CvAgent<M> {
     pub fn new(model: M, config: BaseAgentConfig, cv: impl CvProvider + 'static) -> Self {
         let base = BaseAgent::builder(model, config)
             .preamble(CV_SYSTEM_PROMPT)
-            .tool(CvRigTool(Arc::new(cv)))
+            .tool(CvRigTool::new(cv))
             .build();
         Self { base }
     }
@@ -104,7 +102,7 @@ impl<M: CompletionModel> CvAgent<M> {
 
         let result: RawCvEntities = self
             .base
-            .prompt_structured(&prompt, config.system_prompt.as_deref())
+            .prompt_structured(&prompt)
             .await?;
 
         tracing::info!(

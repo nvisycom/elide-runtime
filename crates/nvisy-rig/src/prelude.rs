@@ -7,7 +7,7 @@ pub use crate::backend::{
 pub use crate::bridge::{EntityParser, RigBackend, RigBackendConfig};
 pub use crate::agent::{
     CvAgent, CvDetection, CvProvider, NerAgent,
-    OcrAgent, OcrOutput, OcrProvider,
+    OcrAgent, OcrOutput, OcrProvider, OcrTextRegion,
     RawCvEntities, RawCvEntity, RawEntities, RawEntity,
     RawOcrEntity, RawRedaction, RedactorAgent, RedactorOutput,
 };

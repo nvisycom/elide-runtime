@@ -4,13 +4,10 @@ use std::fmt::Display;
 
 use nvisy_ontology::entity::EntityKind;
 
-use crate::backend::DetectionConfig;
+use crate::backend::{DetectionConfig, ALL_TYPES_HINT};
 
 /// Instruction prefix for the user prompt.
 const DETECT_PREFIX: &str = "Detect entities of types";
-
-/// Fallback when no specific entity types are requested.
-const ALL_TYPES_HINT: &str = "all entity types";
 
 /// Suffix describing the expected response format.
 const RESPONSE_FORMAT: &str = "\

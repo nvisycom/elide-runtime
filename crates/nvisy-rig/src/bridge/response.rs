@@ -54,13 +54,6 @@ impl<'a> ResponseParser<'a> {
         &self.text
     }
 
-    /// Parse the text as a JSON array.
-    ///
-    /// Convenience wrapper around [`parse_json`](Self::parse_json).
-    pub fn parse_json_array<T: DeserializeOwned>(&self) -> Result<Vec<T>, Error> {
-        self.parse_json::<Vec<T>>()
-    }
-
     /// Parse the text as JSON into `T`.
     ///
     /// Strips markdown fences if present, then deserializes.

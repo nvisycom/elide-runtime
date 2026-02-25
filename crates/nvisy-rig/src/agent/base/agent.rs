@@ -1,7 +1,7 @@
 //! [`BaseAgent`]: internal foundation agent wrapping rig-core's `Agent<M>`.
 
 use rig::agent::Agent;
-use rig::completion::{Completion, CompletionModel, Prompt, TypedPrompt};
+use rig::completion::{Completion, CompletionModel, Prompt};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -45,16 +45,30 @@ impl<M: CompletionModel> BaseAgent<M> {
         &self.tracker
     }
 
-    /// Structured output prompt: tries `prompt_typed`, falls back to text +
-    /// `parse_json`.
+    /// Structured output prompt with usage tracking.
+    ///
+    /// Uses `agent.completion()` with an `output_schema` so the provider
+    /// constrains its response to valid JSON matching `T`. Falls back to
+    /// text-based parsing on deserialization failure.
     #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "structured"))]
     pub async fn prompt_structured<T>(&self, prompt: &str) -> Result<T, Error>
     where
         T: DeserializeOwned + Default + JsonSchema + Serialize + Send + Sync,
     {
-        let structured_result: Result<T, _> = self.agent.prompt_typed::<T>(prompt).await;
+        let schema = schemars::schema_for!(T);
 
-        match structured_result {
+        let builder = self
+            .agent
+            .completion(prompt, vec![])
+            .await
+            .map_err(from_completion)?
+            .output_schema(schema);
+
+        let response = builder.send().await.map_err(from_completion)?;
+        let parsed = ResponseParser::extract_text(&response)?;
+        self.tracker.record(&response.usage, 0);
+
+        match serde_json::from_str::<T>(parsed.as_str()) {
             Ok(value) => {
                 tracing::debug!("structured output succeeded");
                 Ok(value)
@@ -62,9 +76,9 @@ impl<M: CompletionModel> BaseAgent<M> {
             Err(structured_err) => {
                 tracing::warn!(
                     error = %structured_err,
-                    "structured output failed, falling back to text-based parsing"
+                    "structured JSON parse failed, falling back to text-based parsing"
                 );
-                self.prompt_text_and_parse(prompt).await
+                parsed.parse_json()
             }
         }
     }
@@ -121,12 +135,4 @@ impl<M: CompletionModel> BaseAgent<M> {
         Ok(all_results)
     }
 
-    /// Text-based fallback: complete → extract text → parse JSON.
-    async fn prompt_text_and_parse<T>(&self, prompt: &str) -> Result<T, Error>
-    where
-        T: DeserializeOwned + Default,
-    {
-        let text = self.prompt_text(prompt).await?;
-        ResponseParser::from_text(text.as_str()).parse_json()
-    }
 }

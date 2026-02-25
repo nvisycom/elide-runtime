@@ -36,7 +36,8 @@ impl ContextWindow {
 
     /// Split text into chunks that each fit within the input budget.
     ///
-    /// Splitting respects sentence boundaries (`. ` and `\n`) where possible.
+    /// Splitting respects sentence boundaries (`. ` and `\n`) where possible
+    /// and is safe for multi-byte UTF-8 input.
     pub fn split_to_fit<'a>(&self, text: &'a str) -> Vec<&'a str> {
         if self.fits(text) {
             return vec![text];
@@ -55,8 +56,8 @@ impl ContextWindow {
                 break;
             }
 
-            // Take up to char_budget characters, then find a sentence boundary.
-            let take = remaining.len().min(char_budget);
+            // Take up to char_budget bytes, snapped to a char boundary.
+            let take = snap_to_boundary(remaining, remaining.len().min(char_budget));
             let candidate = &remaining[..take];
 
             // Try to split at the last sentence boundary within the candidate.
@@ -65,7 +66,7 @@ impl ContextWindow {
             let (chunk, rest) = remaining.split_at(split_pos);
             if chunk.is_empty() {
                 // No boundary found within budget; force-split at char_budget.
-                let forced = remaining.len().min(char_budget);
+                let forced = snap_to_boundary(remaining, remaining.len().min(char_budget));
                 let (chunk, rest) = remaining.split_at(forced);
                 chunks.push(chunk);
                 remaining = rest;
@@ -79,6 +80,8 @@ impl ContextWindow {
     }
 
     /// Truncate text to fit, keeping the end (most recent context).
+    ///
+    /// Safe for multi-byte UTF-8 input.
     pub fn truncate_to_fit<'a>(&self, text: &'a str) -> &'a str {
         if self.fits(text) {
             return text;
@@ -91,15 +94,26 @@ impl ContextWindow {
             return text;
         }
 
-        let start = text.len() - char_budget;
+        let start = snap_to_boundary(text, text.len() - char_budget);
         // Try to start at a boundary to avoid splitting mid-sentence.
         let adjusted = text[start..]
             .find(['\n', '.'])
             .map(|pos| start + pos + 1)
             .unwrap_or(start);
 
-        &text[adjusted.min(text.len())..]
+        let adjusted = snap_to_boundary(text, adjusted.min(text.len()));
+        &text[adjusted..]
     }
+}
+
+/// Snap a byte position to the nearest valid UTF-8 char boundary,
+/// walking backward if necessary.
+fn snap_to_boundary(text: &str, pos: usize) -> usize {
+    let mut p = pos.min(text.len());
+    while p > 0 && !text.is_char_boundary(p) {
+        p -= 1;
+    }
+    p
 }
 
 /// Find the last sentence boundary (`. ` or `\n`) in the text.
@@ -154,5 +168,61 @@ mod tests {
         // Should keep the tail end
         assert!(truncated.len() <= 32 + 10); // some slack for boundary adjustment
         assert!(text.ends_with(truncated) || truncated.contains("sentence"));
+    }
+
+    #[test]
+    fn snap_to_boundary_ascii() {
+        let text = "hello";
+        assert_eq!(super::snap_to_boundary(text, 3), 3);
+        assert_eq!(super::snap_to_boundary(text, 10), 5); // clamps to len
+    }
+
+    #[test]
+    fn snap_to_boundary_multibyte() {
+        // '🔥' is 4 bytes
+        let text = "a🔥b";
+        // byte 0: 'a', bytes 1-4: '🔥', byte 5: 'b'
+        assert_eq!(super::snap_to_boundary(text, 1), 1); // valid
+        assert_eq!(super::snap_to_boundary(text, 2), 1); // mid-emoji → snap back
+        assert_eq!(super::snap_to_boundary(text, 3), 1); // mid-emoji → snap back
+        assert_eq!(super::snap_to_boundary(text, 4), 1); // mid-emoji → snap back
+        assert_eq!(super::snap_to_boundary(text, 5), 5); // valid (after emoji)
+    }
+
+    #[test]
+    fn split_to_fit_emoji() {
+        // Budget: 2 tokens = ~8 bytes. Each emoji is 4 bytes.
+        let cw = ContextWindow::new(4, 2);
+        let text = "🔥🔥🔥🔥"; // 16 bytes total
+        let chunks = cw.split_to_fit(text);
+        // Should not panic and every chunk must be valid UTF-8
+        assert!(chunks.len() >= 2);
+        for chunk in &chunks {
+            assert!(!chunk.is_empty());
+        }
+    }
+
+    #[test]
+    fn split_to_fit_cjk() {
+        // CJK chars are 3 bytes each
+        let cw = ContextWindow::new(4, 2);
+        // Budget: 2 tokens = ~8 bytes → fits 2 CJK chars (6 bytes)
+        let text = "你好世界测试文字"; // 8 chars × 3 bytes = 24 bytes
+        let chunks = cw.split_to_fit(text);
+        assert!(chunks.len() >= 2);
+        for chunk in &chunks {
+            assert!(!chunk.is_empty());
+        }
+    }
+
+    #[test]
+    fn truncate_to_fit_emoji() {
+        let cw = ContextWindow::new(4, 2);
+        // Budget: 2 tokens = ~8 bytes
+        let text = "🔥🔥🔥🔥"; // 16 bytes
+        let truncated = cw.truncate_to_fit(text);
+        // Should not panic, should be valid UTF-8, and should be the tail
+        assert!(!truncated.is_empty());
+        assert!(text.ends_with(truncated));
     }
 }

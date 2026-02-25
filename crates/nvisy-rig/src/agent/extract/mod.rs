@@ -30,7 +30,7 @@ use tool::OcrRigTool;
 ///
 /// Each region represents a contiguous block of text found in the image,
 /// together with an optional bounding box and confidence score.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct OcrTextRegion {
     /// The extracted text content.
     pub text: String,

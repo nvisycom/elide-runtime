@@ -11,7 +11,7 @@ pub(crate) mod context;
 pub(crate) use agent::BaseAgent;
 pub(crate) use builder::BaseAgentBuilder;
 
-use context::ContextWindow;
+pub use context::ContextWindow;
 
 /// Configuration for a [`BaseAgent`].
 #[derive(Debug, Clone)]

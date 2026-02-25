@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 /// Top-level output from the OCR agent.
-#[derive(Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct OcrOutput {
     /// Full text extracted from the image.
     pub extracted_text: String,
@@ -15,7 +15,7 @@ pub struct OcrOutput {
 }
 
 /// A single entity detected in OCR-extracted text.
-#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct RawOcrEntity {
     /// Broad classification.
     pub category: EntityCategory,

@@ -5,7 +5,7 @@ use rig::completion::{CompletionError, PromptError};
 use nvisy_core::Error;
 
 /// Convert a rig-core [`PromptError`] into a [`nvisy_core::Error`].
-pub fn from_prompt(err: PromptError) -> Error {
+pub(crate) fn from_prompt(err: PromptError) -> Error {
     match err {
         PromptError::CompletionError(e) => from_completion(e),
         PromptError::ToolError(e) => {
@@ -28,7 +28,7 @@ pub fn from_prompt(err: PromptError) -> Error {
 }
 
 /// Convert a rig-core [`CompletionError`] into a [`nvisy_core::Error`].
-pub fn from_completion(err: CompletionError) -> Error {
+pub(crate) fn from_completion(err: CompletionError) -> Error {
     match err {
         CompletionError::HttpError(e) => {
             Error::connection(format!("HTTP error: {e}"), "rig", true)

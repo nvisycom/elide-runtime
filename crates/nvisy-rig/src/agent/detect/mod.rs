@@ -31,7 +31,7 @@ use tool::CvRigTool;
 /// This is the raw output from the CV backend before the VLM classifies
 /// detections into entity categories. It carries a human-readable label,
 /// a confidence score, and a pixel-space bounding box.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CvDetection {
     /// Label for the detected object (e.g. `"face"`, `"license_plate"`).
     pub label: String,

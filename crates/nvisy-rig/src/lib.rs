@@ -10,9 +10,10 @@ pub(crate) mod agent;
 pub mod prelude;
 
 pub use backend::{DetectionConfig, DetectionRequest, DetectionResponse};
-pub use bridge::{EntityParser, RigBackend, RigBackendConfig};
+pub use bridge::{EntityParser, RigBackend, RigBackendConfig, ServiceBackend};
 
 pub use agent::{
+    BaseAgentConfig, ContextWindow,
     CvAgent, CvDetection, CvProvider, NerAgent,
     OcrAgent, OcrOutput, OcrProvider, OcrTextRegion,
     RawCvEntities, RawCvEntity, RawEntities, RawEntity,

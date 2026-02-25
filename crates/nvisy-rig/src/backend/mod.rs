@@ -4,9 +4,12 @@ mod error;
 mod metrics;
 mod retry;
 
-pub use error::{from_completion, from_prompt};
+pub(crate) use error::{from_completion, from_prompt};
 pub use metrics::{UsageStats, UsageTracker};
 pub use retry::RetryPolicy;
+
+/// Fallback hint used in prompts when no specific entity types are requested.
+pub(crate) const ALL_TYPES_HINT: &str = "all entity types";
 
 use serde_json::Value;
 

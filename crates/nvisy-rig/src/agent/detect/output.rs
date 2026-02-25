@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 /// A single entity detected by computer vision.
-#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct RawCvEntity {
     /// Broad classification.
     pub category: EntityCategory,
@@ -21,7 +21,7 @@ pub struct RawCvEntity {
 }
 
 /// Wrapper for structured output parsing.
-#[derive(Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct RawCvEntities {
     /// Detected entities.
     pub entities: Vec<RawCvEntity>,

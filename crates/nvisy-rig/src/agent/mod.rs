@@ -9,7 +9,8 @@ mod extract;
 mod recognize;
 mod redact;
 
-pub(crate) use base::{BaseAgent, BaseAgentBuilder, BaseAgentConfig};
+pub(crate) use base::BaseAgent;
+pub use base::{BaseAgentConfig, ContextWindow};
 
 pub use recognize::{NerAgent, RawEntities, RawEntity};
 pub use extract::{OcrAgent, OcrOutput, OcrProvider, OcrTextRegion, RawOcrEntity};

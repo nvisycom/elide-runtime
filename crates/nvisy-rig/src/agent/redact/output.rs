@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use nvisy_ontology::specification::TextRedactionMethod;
 
 /// A single redaction recommendation from the LLM.
-#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct RawRedaction {
     /// The original entity text that should be redacted.
     pub entity_value: String,
@@ -19,7 +19,7 @@ pub struct RawRedaction {
 }
 
 /// Top-level structured output wrapper from the redactor agent.
-#[derive(Debug, Default, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct RedactorOutput {
     /// Recommended redactions for each entity.
     pub redactions: Vec<RawRedaction>,

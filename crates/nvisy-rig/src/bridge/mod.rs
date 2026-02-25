@@ -13,10 +13,8 @@ use rig::completion::CompletionModel;
 
 use nvisy_core::Error;
 
-use crate::backend::{
-    from_completion, DetectionRequest, DetectionResponse,
-    RetryPolicy, UsageTracker,
-};
+use crate::backend::{DetectionRequest, DetectionResponse, RetryPolicy, UsageTracker};
+use crate::error::Error as RigError;
 
 /// Configuration for [`ServiceBackend`] (and its [`RigBackend`] specialisation).
 #[derive(Debug, Clone)]
@@ -145,7 +143,7 @@ where
                 builder = builder.preamble(preamble.clone());
             }
 
-            let response = builder.send().await.map_err(from_completion)?;
+            let response = builder.send().await.map_err(|e| Error::from(RigError::from(e)))?;
             let parsed = ResponseParser::extract_text(&response)?;
             let entities = parsed.parse_json()?;
 

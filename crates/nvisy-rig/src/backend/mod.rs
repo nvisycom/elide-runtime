@@ -1,10 +1,8 @@
 //! LLM backend types, error mapping, and Tower retry policy.
 
-mod error;
 mod metrics;
 mod retry;
 
-pub(crate) use error::{from_completion, from_prompt};
 pub use metrics::{UsageStats, UsageTracker};
 pub use retry::RetryPolicy;
 

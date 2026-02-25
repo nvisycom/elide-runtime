@@ -9,7 +9,8 @@ use uuid::Uuid;
 
 use nvisy_core::Error;
 
-use crate::backend::{from_completion, from_prompt, UsageTracker};
+use crate::backend::UsageTracker;
+use crate::error::Error as RigError;
 use crate::bridge::ResponseParser;
 
 use super::{BaseAgentBuilder, BaseAgentConfig};
@@ -61,10 +62,10 @@ impl<M: CompletionModel> BaseAgent<M> {
             .agent
             .completion(prompt, vec![])
             .await
-            .map_err(from_completion)?
+            .map_err(|e| Error::from(RigError::from(e)))?
             .output_schema(schema);
 
-        let response = builder.send().await.map_err(from_completion)?;
+        let response = builder.send().await.map_err(|e| Error::from(RigError::from(e)))?;
         let parsed = ResponseParser::extract_text(&response)?;
         self.tracker.record(&response.usage, 0);
 
@@ -90,9 +91,9 @@ impl<M: CompletionModel> BaseAgent<M> {
             .agent
             .completion(prompt, vec![])
             .await
-            .map_err(from_completion)?;
+            .map_err(|e| Error::from(RigError::from(e)))?;
 
-        let response = builder.send().await.map_err(from_completion)?;
+        let response = builder.send().await.map_err(|e| Error::from(RigError::from(e)))?;
         let parsed = ResponseParser::extract_text(&response)?;
         self.tracker.record(&response.usage, 0);
         Ok(parsed.as_str().to_owned())
@@ -104,7 +105,7 @@ impl<M: CompletionModel> BaseAgent<M> {
     /// returns only the final text, not the raw response.
     #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "prompt"))]
     pub async fn prompt(&self, prompt: &str) -> Result<String, Error> {
-        self.agent.prompt(prompt).await.map_err(from_prompt)
+        self.agent.prompt(prompt).await.map_err(|e| Error::from(RigError::from(e)))
     }
 
     /// Summarize text via LLM to fit within the context window's input budget.

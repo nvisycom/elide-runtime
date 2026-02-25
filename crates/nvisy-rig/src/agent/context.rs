@@ -1,6 +1,7 @@
 //! Context window management for LLM token limits.
 
 /// Manages token budget estimation, splitting, and truncation.
+#[derive(Debug, Clone)]
 pub struct ContextWindow {
     /// Maximum tokens the model supports.
     max_tokens: usize,

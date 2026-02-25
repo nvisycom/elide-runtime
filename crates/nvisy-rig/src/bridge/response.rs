@@ -1,7 +1,9 @@
 //! Response parsing for LLM completions.
 
+use std::borrow::Cow;
 use std::str::FromStr;
 
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use rig::completion::{AssistantContent, CompletionResponse};
@@ -10,12 +12,16 @@ use nvisy_core::Error;
 use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityKind};
 use nvisy_ontology::location::{Location, TextLocation};
 
-/// Extracts text and parses JSON from LLM completion responses.
-pub struct ResponseParser;
+/// Extracted text from an LLM completion response.
+///
+/// Wraps the raw text content and provides parsing accessors.
+pub struct ResponseParser<'a> {
+    text: Cow<'a, str>,
+}
 
-impl ResponseParser {
-    /// Extract the first text content from a completion response.
-    pub fn extract_text<T>(response: &CompletionResponse<T>) -> Result<String, Error> {
+impl<'a> ResponseParser<'a> {
+    /// Extract text content from a completion response.
+    pub fn extract_text<T>(response: &CompletionResponse<T>) -> Result<Self, Error> {
         let texts: Vec<&str> = response
             .choice
             .iter()
@@ -33,58 +39,53 @@ impl ResponseParser {
             ));
         }
 
-        Ok(texts.join("\n"))
+        Ok(Self {
+            text: Cow::Owned(texts.join("\n")),
+        })
     }
 
-    /// Parse a JSON entity array from LLM text output.
+    /// Wrap an already-extracted string.
+    pub fn from_text(text: impl Into<Cow<'a, str>>) -> Self {
+        Self { text: text.into() }
+    }
+
+    /// The raw text content.
+    pub fn as_str(&self) -> &str {
+        &self.text
+    }
+
+    /// Parse the text as a JSON array.
     ///
-    /// Handles multiple formats:
-    /// - Raw JSON array: `[{...}, ...]`
-    /// - Markdown-fenced: `` ```json\n[...]\n``` ``
-    /// - Single object: `{...}` (wrapped in array)
-    /// - Empty / "no entities" / "none": returns empty vec
-    pub fn parse_entities(text: &str) -> Result<Vec<Value>, Error> {
-        let trimmed = text.trim();
+    /// Convenience wrapper around [`parse_json`](Self::parse_json).
+    pub fn parse_json_array<T: DeserializeOwned>(&self) -> Result<Vec<T>, Error> {
+        self.parse_json::<Vec<T>>()
+    }
+
+    /// Parse the text as JSON into `T`.
+    ///
+    /// Strips markdown fences if present, then deserializes.
+    /// Empty / "no entities" / "none" responses return `T::default()`.
+    pub fn parse_json<T: DeserializeOwned + Default>(&self) -> Result<T, Error> {
+        let trimmed = self.text.trim();
 
         // Handle empty or "no entities" responses.
         if trimmed.is_empty()
             || trimmed.eq_ignore_ascii_case("none")
             || trimmed.eq_ignore_ascii_case("no entities")
-            || trimmed == "[]"
         {
-            return Ok(Vec::new());
+            return Ok(T::default());
         }
 
         // Try to extract JSON from markdown fences.
         let json_str = extract_fenced_json(trimmed).unwrap_or(trimmed);
 
-        // Try parsing as array.
-        if let Ok(Value::Array(arr)) = serde_json::from_str(json_str) {
-            return Ok(arr);
-        }
-
-        // Try parsing as single object.
-        if let Ok(obj @ Value::Object(_)) = serde_json::from_str(json_str) {
-            return Ok(vec![obj]);
-        }
-
-        // Try to find embedded JSON array in the text.
-        if let Some(start) = trimmed.find('[') {
-            if let Some(end) = trimmed.rfind(']') {
-                if start < end {
-                    let substr = &trimmed[start..=end];
-                    if let Ok(Value::Array(arr)) = serde_json::from_str(substr) {
-                        return Ok(arr);
-                    }
-                }
-            }
-        }
-
-        Err(Error::runtime(
-            format!("Failed to parse LLM response as JSON entities: {}", truncate(trimmed, 200)),
-            "rig",
-            false,
-        ))
+        serde_json::from_str::<T>(json_str).map_err(|e| {
+            Error::runtime(
+                format!("Failed to parse LLM response as JSON: {e}: {}", truncate(trimmed, 200)),
+                "rig",
+                false,
+            )
+        })
     }
 }
 
@@ -226,39 +227,40 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn parse_entities_raw_array() {
+    fn parse_json_raw_array() {
         let text = r#"[{"category":"pii","entity_type":"email_address","value":"a@b.com","confidence":0.9,"start_offset":0,"end_offset":7}]"#;
-        let result = ResponseParser::parse_entities(text).unwrap();
+        let parser = ResponseParser::from_text(text);
+        let result = parser.parse_json::<Vec<Value>>().unwrap();
         assert_eq!(result.len(), 1);
     }
 
     #[test]
-    fn parse_entities_fenced() {
+    fn parse_json_fenced() {
         let text = "```json\n[{\"category\":\"pii\",\"entity_type\":\"email_address\",\"value\":\"a@b.com\",\"confidence\":0.9}]\n```";
-        let result = ResponseParser::parse_entities(text).unwrap();
+        let parser = ResponseParser::from_text(text);
+        let result = parser.parse_json::<Vec<Value>>().unwrap();
         assert_eq!(result.len(), 1);
     }
 
     #[test]
-    fn parse_entities_single_object() {
+    fn parse_json_single_object() {
         let text = r#"{"category":"pii","entity_type":"email_address","value":"a@b.com","confidence":0.9}"#;
-        let result = ResponseParser::parse_entities(text).unwrap();
-        assert_eq!(result.len(), 1);
+        let parser = ResponseParser::from_text(text);
+        let result = parser.parse_json::<Value>().unwrap();
+        assert!(result.is_object());
     }
 
     #[test]
-    fn parse_entities_empty() {
-        assert!(ResponseParser::parse_entities("").unwrap().is_empty());
-        assert!(ResponseParser::parse_entities("none").unwrap().is_empty());
-        assert!(ResponseParser::parse_entities("[]").unwrap().is_empty());
-        assert!(ResponseParser::parse_entities("No entities").unwrap().is_empty());
+    fn parse_json_empty() {
+        assert_eq!(ResponseParser::from_text("").parse_json::<Vec<Value>>().unwrap(), Vec::<Value>::new());
+        assert_eq!(ResponseParser::from_text("none").parse_json::<Vec<Value>>().unwrap(), Vec::<Value>::new());
+        assert_eq!(ResponseParser::from_text("No entities").parse_json::<Vec<Value>>().unwrap(), Vec::<Value>::new());
     }
 
     #[test]
-    fn parse_entities_embedded_array() {
-        let text = "Here are the entities:\n[{\"key\":\"val\"}]\nDone.";
-        let result = ResponseParser::parse_entities(text).unwrap();
-        assert_eq!(result.len(), 1);
+    fn as_str_returns_text() {
+        let parser = ResponseParser::from_text("hello world");
+        assert_eq!(parser.as_str(), "hello world");
     }
 
     #[test]

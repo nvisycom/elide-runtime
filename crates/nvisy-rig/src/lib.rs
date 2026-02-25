@@ -4,10 +4,14 @@
 
 pub mod backend;
 pub mod bridge;
-pub mod agent;
+pub(crate) mod agent;
 
+#[doc(hidden)]
 pub mod prelude;
 
-// Flat re-exports for ergonomics.
-pub use backend::{LlmBackend, LlmConfig};
+pub use backend::{DetectionConfig, DetectionRequest, DetectionResponse};
 pub use bridge::{EntityParser, RigBackend, RigBackendConfig};
+
+// Tool-provider traits for consumers to implement.
+pub use agent::ocr::OcrProvider;
+pub use agent::cv::{CvDetection, CvProvider};

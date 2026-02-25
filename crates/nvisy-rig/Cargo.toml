@@ -21,7 +21,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
-nvisy-codec = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
@@ -30,10 +29,16 @@ rig-core = { workspace = true, features = ["derive"] }
 
 # Async runtime
 async-trait = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["time"] }
+tower = { workspace = true, features = ["retry", "timeout", "util"] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

@@ -2777,6 +2777,7 @@ dependencies = [
  "serde_json",
  "strum",
  "tokio",
+ "tower",
  "tracing",
  "uuid",
 ]
@@ -2840,12 +2841,14 @@ name = "nvisy-rig"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "nvisy-codec",
  "nvisy-core",
  "nvisy-ontology",
  "rig-core",
+ "schemars",
  "serde",
  "serde_json",
+ "tokio",
+ "tower",
  "tracing",
 ]
 

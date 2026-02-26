@@ -2761,14 +2761,12 @@ name = "nvisy-identify"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "bytes",
  "jiff",
  "nvisy-asr",
  "nvisy-codec",
  "nvisy-core",
  "nvisy-ontology",
  "nvisy-pattern",
- "nvisy-python",
  "nvisy-rig",
  "schemars",
  "semver",

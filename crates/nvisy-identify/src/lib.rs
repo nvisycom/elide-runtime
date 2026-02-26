@@ -3,10 +3,7 @@
 #![doc = include_str!("../README.md")]
 
 mod layer;
-mod pattern;
-mod ner;
-mod llm;
-mod audio;
+mod method;
 mod fusion;
 mod policy;
 
@@ -24,15 +21,8 @@ pub use nvisy_ontology::location::{
 // --- Layer traits ---
 pub use layer::*;
 
-// --- NER backend ---
-pub use ner::{NerBackend, NerConfig};
-
-// --- Detection layers ---
-pub use pattern::{PatternDetection, PatternDetectionParams};
-pub use ner::{NerDetection, NerDetectionParams};
-pub use ner::ImageNerDetection;
-pub use llm::{LlmBackend, LlmDetection, LlmDetectionParams, user_prompt as llm_user_prompt};
-pub use audio::TranscriptNerDetection;
+// --- Detection methods ---
+pub use method::{NerMethod, NerMethodParams, CvMethod, PatternDetection, PatternDetectionParams};
 
 // --- Post-detection actions ---
 pub use fusion::{DetectManualAction, DetectManualParams, Exclusion, ManualOutput, is_excluded};

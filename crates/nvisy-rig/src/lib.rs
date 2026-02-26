@@ -20,6 +20,6 @@ pub use error::Error;
 
 pub use agent::{
     CvAgent, CvDetection, CvEntities, CvEntity, CvProvider,
-    NerAgent, NerEntities, NerEntity,
+    KnownNerEntity, NerAgent, NerContext, NerEntities, NerEntity, ResolvedOffsets,
     OcrAgent, OcrEntity, OcrOutput, OcrProvider, OcrTextRegion,
 };

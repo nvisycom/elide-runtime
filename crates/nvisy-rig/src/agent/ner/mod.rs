@@ -2,12 +2,14 @@
 //!
 //! [`NerAgent`] wraps a [`BaseAgent`](crate::backend::BaseAgent) with
 //! NER-specific prompts. It is a pure LLM agent (no tools) that analyses
-//! text and returns structured entity detections with byte offsets.
+//! text and returns structured entity detections.
 
+mod context;
 mod output;
 mod prompt;
 
-pub use output::{NerEntities, NerEntity};
+pub use context::NerContext;
+pub use output::{KnownNerEntity, NerEntities, NerEntity, ResolvedOffsets};
 
 use uuid::Uuid;
 
@@ -20,10 +22,10 @@ use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 ///
 /// # Workflow
 ///
-/// 1. Caller passes text and a [`DetectionConfig`] to
+/// 1. Caller passes a [`NerContext`] and a [`DetectionConfig`] to
 ///    [`detect`](Self::detect).
 /// 2. The agent builds a user prompt via [`NerPromptBuilder`] that
-///    specifies entity types and confidence thresholds.
+///    specifies entity types, confidence thresholds, and known entities.
 /// 3. Structured output is parsed into `Vec<NerEntity>`.
 pub struct NerAgent {
     base: BaseAgent,
@@ -31,10 +33,9 @@ pub struct NerAgent {
 
 impl NerAgent {
     /// Create a new NER agent.
-    pub fn new(provider: &Provider, config: BaseAgentConfig) -> Result<Self, Error> {
-        let base = BaseAgent::builder(provider, config)
-            .preamble(NER_SYSTEM_PROMPT)
-            .build()?;
+    pub fn new(provider: &Provider, mut config: BaseAgentConfig) -> Result<Self, Error> {
+        config.preamble.get_or_insert_with(|| NER_SYSTEM_PROMPT.into());
+        let base = BaseAgent::builder(provider, config).build()?;
         Ok(Self { base })
     }
 
@@ -49,20 +50,25 @@ impl NerAgent {
     }
 
     /// Detect entities in text using structured output with text-based fallback.
+    ///
+    /// When [`NerContext::known_entities`] is non-empty the LLM is
+    /// instructed to reuse their `entity_id` values for coreferent
+    /// mentions, enabling cross-chunk coreference resolution.
     #[tracing::instrument(
         skip_all,
-        fields(text_len = text.len(), agent = "ner"),
+        fields(text_len = ctx.text.len(), agent = "ner"),
     )]
     pub async fn detect(
         &self,
-        text: &str,
+        ctx: &NerContext<'_>,
         config: &DetectionConfig,
     ) -> Result<Vec<NerEntity>, Error> {
-        let prompt = NerPromptBuilder::new(config).build(text);
+        let prompt = NerPromptBuilder::new(config, &ctx.known_entities).build(ctx.text);
 
         tracing::debug!(
             prompt_len = prompt.len(),
             entity_kinds = config.entity_kinds.len(),
+            known = ctx.known_entities.len(),
             "built ner prompt"
         );
 

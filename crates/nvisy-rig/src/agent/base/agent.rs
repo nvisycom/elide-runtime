@@ -15,7 +15,7 @@ use crate::error::Error;
 
 use super::BaseAgentBuilder;
 
-/// Sampling, retry, and context-window settings shared by all agents.
+/// Sampling, retry, context-window, and preamble settings shared by all agents.
 #[derive(Debug, Clone)]
 pub struct BaseAgentConfig {
     /// Sampling temperature (default: 0.1).
@@ -26,6 +26,8 @@ pub struct BaseAgentConfig {
     pub max_retries: u32,
     /// Context window for chunking large inputs.
     pub context_window: Option<ContextWindow>,
+    /// System prompt (preamble) for the agent.
+    pub preamble: Option<String>,
 }
 
 impl Default for BaseAgentConfig {
@@ -35,6 +37,7 @@ impl Default for BaseAgentConfig {
             max_tokens: 4096,
             max_retries: 3,
             context_window: None,
+            preamble: None,
         }
     }
 }

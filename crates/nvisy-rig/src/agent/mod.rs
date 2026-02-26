@@ -13,5 +13,5 @@ pub use base::BaseAgentConfig;
 pub(crate) use base::BaseAgent;
 
 pub use cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
-pub use ner::{NerAgent, NerEntities, NerEntity};
+pub use ner::{KnownNerEntity, NerAgent, NerContext, NerEntities, NerEntity, ResolvedOffsets};
 pub use ocr::{OcrAgent, OcrEntity, OcrOutput, OcrProvider, OcrTextRegion};

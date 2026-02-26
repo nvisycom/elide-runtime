@@ -68,11 +68,11 @@ impl CvAgent {
     /// Create a new CV agent.
     pub fn new(
         provider: &Provider,
-        config: BaseAgentConfig,
+        mut config: BaseAgentConfig,
         cv: impl CvProvider + 'static,
     ) -> Result<Self, Error> {
+        config.preamble.get_or_insert_with(|| CV_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config)
-            .preamble(CV_SYSTEM_PROMPT)
             .tool(CvRigTool::new(cv))
             .build()?;
         Ok(Self { base })

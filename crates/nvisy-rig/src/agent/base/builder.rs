@@ -15,12 +15,11 @@ use crate::error::Error;
 /// Builder for [`BaseAgent`].
 ///
 /// Created via [`BaseAgent::builder`]. Collects a provider reference, config,
-/// optional preamble (system prompt), and optional tools, then constructs the
-/// concrete rig-core agent on [`build`](Self::build).
+/// and optional tools, then constructs the concrete rig-core agent on
+/// [`build`](Self::build).
 pub(crate) struct BaseAgentBuilder {
     provider: Provider,
     config: BaseAgentConfig,
-    preamble: Option<String>,
     tools: Vec<Box<dyn ToolDyn>>,
 }
 
@@ -29,15 +28,8 @@ impl BaseAgentBuilder {
         Self {
             provider: provider.clone(),
             config,
-            preamble: None,
             tools: Vec::new(),
         }
-    }
-
-    /// Set the system prompt (preamble).
-    pub fn preamble(mut self, preamble: impl Into<String>) -> Self {
-        self.preamble = Some(preamble.into());
-        self
     }
 
     /// Register a tool the agent can call during prompts.
@@ -51,12 +43,11 @@ impl BaseAgentBuilder {
         let Self {
             provider,
             config,
-            preamble,
             tools,
         } = self;
 
         let http_client = build_http_client(config.max_retries);
-        let preamble = preamble.as_deref();
+        let preamble = config.preamble.as_deref();
 
         let inner = match &provider {
             Provider::OpenAi(p) => {

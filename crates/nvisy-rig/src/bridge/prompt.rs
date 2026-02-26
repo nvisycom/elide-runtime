@@ -16,7 +16,7 @@ const DETECT_PREFIX: &str = "Detect entities of types";
 /// Suffix describing the expected response format.
 const RESPONSE_FORMAT: &str = "\
 Return a JSON array of objects with keys: \
-category, entity_type, value, confidence, start_offset, end_offset.";
+entity_id, category, entity_type, value, confidence, context.";
 
 /// Builds user prompts for entity detection requests.
 pub struct PromptBuilder<'a> {

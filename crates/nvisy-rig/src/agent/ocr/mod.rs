@@ -71,11 +71,11 @@ impl OcrAgent {
     /// Create a new OCR agent.
     pub fn new(
         provider: &Provider,
-        config: BaseAgentConfig,
+        mut config: BaseAgentConfig,
         ocr: impl OcrProvider + 'static,
     ) -> Result<Self, Error> {
+        config.preamble.get_or_insert_with(|| OCR_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config)
-            .preamble(OCR_SYSTEM_PROMPT)
             .tool(OcrRigTool::new(ocr))
             .build()?;
         Ok(Self { base })

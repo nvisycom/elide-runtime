@@ -9,6 +9,6 @@ pub use crate::backend::{
 pub use crate::error::Error;
 pub use crate::agent::{
     CvAgent, CvDetection, CvEntities, CvEntity, CvProvider,
-    NerAgent, NerEntities, NerEntity,
+    KnownNerEntity, NerAgent, NerContext, NerEntities, NerEntity, ResolvedOffsets,
     OcrAgent, OcrEntity, OcrOutput, OcrProvider, OcrTextRegion,
 };

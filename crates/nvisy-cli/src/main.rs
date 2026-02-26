@@ -11,7 +11,7 @@ use axum::Router;
 use clap::Parser;
 use nvisy_core::fs::ContentRegistry;
 use nvisy_server::middleware::*;
-use nvisy_server::ServiceState;
+use nvisy_server::service::ServiceState;
 
 use crate::config::Cli;
 
@@ -46,7 +46,7 @@ async fn run() -> anyhow::Result<()> {
 
 /// Creates the router with all middleware layers applied.
 fn create_router(cli: &Cli, state: ServiceState) -> Router {
-    nvisy_server::routes()
+    nvisy_server::handler::routes()
         .with_open_api(&cli.open_api_config())
         .with_recovery(&cli.recovery_config())
         .with_observability()

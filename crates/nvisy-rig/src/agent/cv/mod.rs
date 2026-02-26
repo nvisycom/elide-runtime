@@ -66,14 +66,13 @@ pub struct CvAgent {
 }
 
 impl CvAgent {
-    /// Create a new CV agent with the given provider, model name, config, and CV provider.
+    /// Create a new CV agent.
     pub fn new(
         provider: &Provider,
-        model: &str,
         config: BaseAgentConfig,
         cv: impl CvProvider + 'static,
     ) -> Result<Self, Error> {
-        let base = BaseAgent::builder(provider, model, config)
+        let base = BaseAgent::builder(provider, config)
             .preamble(CV_SYSTEM_PROMPT)
             .tool(CvRigTool::new(cv))
             .build()?;

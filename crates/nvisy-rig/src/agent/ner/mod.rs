@@ -31,9 +31,9 @@ pub struct NerAgent {
 }
 
 impl NerAgent {
-    /// Create a new NER agent with the given provider, model name, and config.
-    pub fn new(provider: &Provider, model: &str, config: BaseAgentConfig) -> Result<Self, Error> {
-        let base = BaseAgent::builder(provider, model, config)
+    /// Create a new NER agent.
+    pub fn new(provider: &Provider, config: BaseAgentConfig) -> Result<Self, Error> {
+        let base = BaseAgent::builder(provider, config)
             .preamble(NER_SYSTEM_PROMPT)
             .build()?;
         Ok(Self { base })

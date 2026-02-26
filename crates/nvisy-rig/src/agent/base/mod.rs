@@ -14,7 +14,7 @@ pub(crate) use agent::BaseAgent;
 pub(crate) use builder::BaseAgentBuilder;
 
 pub use context::ContextWindow;
-pub use provider::{AuthenticatedProvider, Provider, RetryConfig, UnauthenticatedProvider};
+pub use provider::{AuthenticatedProvider, Provider, UnauthenticatedProvider};
 
 /// Configuration for a [`BaseAgent`].
 #[derive(Debug, Clone)]
@@ -23,6 +23,8 @@ pub struct BaseAgentConfig {
     pub temperature: f64,
     /// Maximum output tokens (default: 4096).
     pub max_tokens: u64,
+    /// Maximum retries for transient HTTP errors (default: 3).
+    pub max_retries: u32,
     /// Optional context window for chunking large inputs.
     pub context_window: Option<ContextWindow>,
 }
@@ -32,6 +34,7 @@ impl Default for BaseAgentConfig {
         Self {
             temperature: 0.1,
             max_tokens: 4096,
+            max_retries: 3,
             context_window: None,
         }
     }

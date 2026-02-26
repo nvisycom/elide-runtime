@@ -29,8 +29,8 @@ pub(crate) struct BaseAgent {
 
 impl BaseAgent {
     /// Create a new builder.
-    pub fn builder(provider: &crate::agent::Provider, model_name: &str, config: BaseAgentConfig) -> BaseAgentBuilder {
-        BaseAgentBuilder::new(provider, model_name, config)
+    pub fn builder(provider: &crate::agent::Provider, config: BaseAgentConfig) -> BaseAgentBuilder {
+        BaseAgentBuilder::new(provider, config)
     }
 
     /// Unique identifier for this agent instance (UUIDv7).

@@ -69,14 +69,13 @@ pub struct OcrAgent {
 }
 
 impl OcrAgent {
-    /// Create a new OCR agent with the given provider, model name, config, and OCR provider.
+    /// Create a new OCR agent.
     pub fn new(
         provider: &Provider,
-        model: &str,
         config: BaseAgentConfig,
         ocr: impl OcrProvider + 'static,
     ) -> Result<Self, Error> {
-        let base = BaseAgent::builder(provider, model, config)
+        let base = BaseAgent::builder(provider, config)
             .preamble(OCR_SYSTEM_PROMPT)
             .tool(OcrRigTool::new(ocr))
             .build()?;

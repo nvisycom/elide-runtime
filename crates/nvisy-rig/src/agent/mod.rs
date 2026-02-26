@@ -9,7 +9,7 @@ mod ocr;
 mod ner;
 
 pub(crate) use base::BaseAgent;
-pub use base::{AuthenticatedProvider, BaseAgentConfig, ContextWindow, Provider, RetryConfig, UnauthenticatedProvider};
+pub use base::{AuthenticatedProvider, BaseAgentConfig, ContextWindow, Provider, UnauthenticatedProvider};
 
 pub use ner::{NerAgent, NerEntities, NerEntity};
 pub use ocr::{OcrAgent, OcrEntity, OcrOutput, OcrProvider, OcrTextRegion};

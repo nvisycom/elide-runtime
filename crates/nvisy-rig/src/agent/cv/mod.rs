@@ -1,6 +1,6 @@
 //! Computer vision agent for face, license plate, and signature detection.
 //!
-//! [`CvAgent`] wraps a [`BaseAgent`](super::BaseAgent) with a
+//! [`CvAgent`] wraps a [`BaseAgent`](crate::backend::BaseAgent) with a
 //! [`CvProvider`]-backed tool. It encodes an image as base64, prompts the
 //! VLM to call the CV tool, and returns classified entities with bounding
 //! boxes.
@@ -17,10 +17,8 @@ use base64::engine::general_purpose::STANDARD;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::backend::{DetectionConfig, UsageTracker};
+use crate::backend::{BaseAgent, BaseAgentConfig, DetectionConfig, Provider, UsageTracker};
 use crate::error::Error;
-
-use super::{BaseAgent, BaseAgentConfig, Provider};
 use prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use tool::CvRigTool;
 

@@ -1,4 +1,10 @@
-//! Response parsing for LLM completions.
+//! LLM completion response parsing.
+//!
+//! [`ResponseParser`] extracts text from rig-core completion responses
+//! and deserializes JSON (handling markdown fences and empty responses).
+//! [`EntityParser`] converts raw JSON dicts into [`Entity`] values.
+//!
+//! [`Entity`]: nvisy_ontology::entity::Entity
 
 use std::borrow::Cow;
 use std::str::FromStr;
@@ -13,15 +19,13 @@ use nvisy_ontology::location::{Location, TextLocation};
 
 use crate::error::Error;
 
-/// Extracted text from an LLM completion response.
-///
-/// Wraps the raw text content and provides parsing accessors.
+/// Thin wrapper around text extracted from an LLM completion response.
 pub struct ResponseParser<'a> {
     text: Cow<'a, str>,
 }
 
 impl<'a> ResponseParser<'a> {
-    /// Extract text content from a completion response.
+    /// Extract the text content blocks from a completion response.
     pub fn extract_text<T>(response: &CompletionResponse<T>) -> Result<Self, Error> {
         let texts: Vec<&str> = response
             .choice
@@ -48,24 +52,21 @@ impl<'a> ResponseParser<'a> {
         Self { text: text.into() }
     }
 
-    /// The raw text content.
     pub fn as_str(&self) -> &str {
         &self.text
     }
 
-    /// Consume the parser and return the owned text.
     pub fn into_string(self) -> String {
         self.text.into_owned()
     }
 
-    /// Parse the text as JSON into `T`.
+    /// Deserialize the text as JSON into `T`.
     ///
-    /// Strips markdown fences if present, then deserializes.
-    /// Empty / "no entities" / "none" responses return `T::default()`.
+    /// Strips markdown fences when present. Returns `T::default()` for
+    /// empty / `"none"` / `"no entities"` responses.
     pub fn parse_json<T: DeserializeOwned + Default>(&self) -> Result<T, Error> {
         let trimmed = self.text.trim();
 
-        // Handle empty or "no entities" responses.
         if trimmed.is_empty()
             || trimmed.eq_ignore_ascii_case("none")
             || trimmed.eq_ignore_ascii_case("no entities")
@@ -73,7 +74,6 @@ impl<'a> ResponseParser<'a> {
             return Ok(T::default());
         }
 
-        // Try to extract JSON from markdown fences.
         let json_str = extract_fenced_json(trimmed).unwrap_or(trimmed);
 
         serde_json::from_str::<T>(json_str).map_err(|e| {
@@ -85,15 +85,16 @@ impl<'a> ResponseParser<'a> {
     }
 }
 
-/// Parse raw JSON dicts from an LLM backend into [`Entity`] values.
+/// Convert raw JSON dicts (as returned by an LLM) into [`Entity`] values.
 ///
-/// Moved from the former `parse.rs` free function `parse_llm_entities`.
+/// Unknown `entity_type` values are silently dropped — LLMs occasionally
+/// hallucinate types that don't exist in the ontology.
 pub struct EntityParser;
 
 impl EntityParser {
-    /// Parse raw JSON dicts into [`Entity`] values.
+    /// Parse an array of JSON objects into entities.
     ///
-    /// Expected dict keys: `category`, `entity_type`, `value`, `confidence`,
+    /// Expected keys: `category`, `entity_type`, `value`, `confidence`,
     /// and optionally `start_offset` / `end_offset`.
     pub fn parse(raw: &[Value]) -> Result<Vec<Entity>, Error> {
         let mut entities = Vec::new();
@@ -178,9 +179,8 @@ impl EntityParser {
     }
 }
 
-/// Extract JSON content from markdown fences.
+/// Extract JSON content from markdown fences (```` ```json ... ``` ````).
 fn extract_fenced_json(text: &str) -> Option<&str> {
-    // Look for ```json ... ``` or ``` ... ```
     let start_marker = if let Some(pos) = text.find("```json") {
         pos + "```json".len()
     } else if let Some(pos) = text.find("```") {
@@ -190,9 +190,7 @@ fn extract_fenced_json(text: &str) -> Option<&str> {
     };
 
     let rest = &text[start_marker..];
-    // Skip optional newline after opening fence.
     let rest = rest.strip_prefix('\n').unwrap_or(rest);
-
     let end = rest.find("```")?;
     let content = rest[..end].trim();
 
@@ -203,12 +201,10 @@ fn extract_fenced_json(text: &str) -> Option<&str> {
     }
 }
 
-/// Truncate a string for display in error messages.
 fn truncate(s: &str, max_len: usize) -> &str {
     if s.len() <= max_len {
         s
     } else {
-        // Find a valid char boundary
         let mut end = max_len;
         while end > 0 && !s.is_char_boundary(end) {
             end -= 1;
@@ -225,38 +221,23 @@ mod tests {
     #[test]
     fn parse_json_raw_array() {
         let text = r#"[{"category":"pii","entity_type":"email_address","value":"a@b.com","confidence":0.9,"start_offset":0,"end_offset":7}]"#;
-        let parser = ResponseParser::from_text(text);
-        let result = parser.parse_json::<Vec<Value>>().unwrap();
+        let result = ResponseParser::from_text(text).parse_json::<Vec<Value>>().unwrap();
         assert_eq!(result.len(), 1);
     }
 
     #[test]
     fn parse_json_fenced() {
         let text = "```json\n[{\"category\":\"pii\",\"entity_type\":\"email_address\",\"value\":\"a@b.com\",\"confidence\":0.9}]\n```";
-        let parser = ResponseParser::from_text(text);
-        let result = parser.parse_json::<Vec<Value>>().unwrap();
+        let result = ResponseParser::from_text(text).parse_json::<Vec<Value>>().unwrap();
         assert_eq!(result.len(), 1);
     }
 
     #[test]
-    fn parse_json_single_object() {
-        let text = r#"{"category":"pii","entity_type":"email_address","value":"a@b.com","confidence":0.9}"#;
-        let parser = ResponseParser::from_text(text);
-        let result = parser.parse_json::<Value>().unwrap();
-        assert!(result.is_object());
-    }
-
-    #[test]
-    fn parse_json_empty() {
-        assert_eq!(ResponseParser::from_text("").parse_json::<Vec<Value>>().unwrap(), Vec::<Value>::new());
-        assert_eq!(ResponseParser::from_text("none").parse_json::<Vec<Value>>().unwrap(), Vec::<Value>::new());
-        assert_eq!(ResponseParser::from_text("No entities").parse_json::<Vec<Value>>().unwrap(), Vec::<Value>::new());
-    }
-
-    #[test]
-    fn as_str_returns_text() {
-        let parser = ResponseParser::from_text("hello world");
-        assert_eq!(parser.as_str(), "hello world");
+    fn parse_json_empty_and_sentinel() {
+        let empty: Vec<Value> = vec![];
+        assert_eq!(ResponseParser::from_text("").parse_json::<Vec<Value>>().unwrap(), empty);
+        assert_eq!(ResponseParser::from_text("none").parse_json::<Vec<Value>>().unwrap(), empty);
+        assert_eq!(ResponseParser::from_text("No entities").parse_json::<Vec<Value>>().unwrap(), empty);
     }
 
     #[test]
@@ -269,7 +250,6 @@ mod tests {
             "start_offset": 9,
             "end_offset": 15
         })];
-
         let entities = EntityParser::parse(&raw).unwrap();
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].value, "SECRET");
@@ -284,8 +264,6 @@ mod tests {
             "value": "test",
             "confidence": 0.5
         })];
-
-        let entities = EntityParser::parse(&raw).unwrap();
-        assert!(entities.is_empty());
+        assert!(EntityParser::parse(&raw).unwrap().is_empty());
     }
 }

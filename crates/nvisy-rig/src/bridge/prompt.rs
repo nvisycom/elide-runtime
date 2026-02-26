@@ -1,4 +1,8 @@
-//! Prompt construction for LLM entity detection.
+//! User-prompt construction for LLM entity detection.
+//!
+//! [`PromptBuilder`] formats the entity-kind list, confidence threshold,
+//! and input text into a single prompt string that agent-specific prompt
+//! builders can delegate to.
 
 use std::fmt::Display;
 

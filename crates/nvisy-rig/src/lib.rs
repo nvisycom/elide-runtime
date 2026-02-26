@@ -5,18 +5,20 @@
 pub mod backend;
 pub mod bridge;
 pub mod error;
-pub(crate) mod agent;
+mod agent;
 
 #[doc(hidden)]
 pub mod prelude;
 
-pub use backend::{DetectionConfig, DetectionRequest, DetectionResponse};
+pub use backend::{
+    AuthenticatedProvider, BaseAgentConfig, ContextWindow,
+    DetectionConfig, DetectionRequest, DetectionResponse,
+    Provider, UnauthenticatedProvider, UsageStats, UsageTracker,
+};
 pub use bridge::EntityParser;
 pub use error::Error;
 
 pub use agent::{
-    AuthenticatedProvider, BaseAgentConfig, ContextWindow, Provider,
-    UnauthenticatedProvider,
     CvAgent, CvDetection, CvEntities, CvEntity, CvProvider,
     NerAgent, NerEntities, NerEntity,
     OcrAgent, OcrEntity, OcrOutput, OcrProvider, OcrTextRegion,

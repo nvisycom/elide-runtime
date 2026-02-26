@@ -1,8 +1,12 @@
-//! Error types for the rig crate.
+//! Unified error type covering LLM provider, serialization, and tool failures.
 
 use rig::completion::{CompletionError, PromptError, StructuredOutputError};
 
-/// Errors produced by rig-core LLM interactions.
+/// Error type for all LLM interactions.
+///
+/// Variants map 1:1 to rig-core error categories plus crate-specific
+/// additions (`Validation`, `Client`, `Core`). Use [`is_retryable`](Self::is_retryable)
+/// to decide whether a failed request should be retried.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// An HTTP / network error from the LLM provider.

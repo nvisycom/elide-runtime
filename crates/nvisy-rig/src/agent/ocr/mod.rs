@@ -1,6 +1,6 @@
 //! OCR agent for vision-based text extraction and entity detection.
 //!
-//! [`OcrAgent`] wraps a [`BaseAgent`](super::BaseAgent) with an
+//! [`OcrAgent`] wraps a [`BaseAgent`](crate::backend::BaseAgent) with an
 //! [`OcrProvider`]-backed tool. It encodes an image as base64, prompts the
 //! VLM to call the OCR tool, and returns extracted text together with any
 //! entities found in it.
@@ -17,10 +17,8 @@ use base64::engine::general_purpose::STANDARD;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::backend::{DetectionConfig, UsageTracker};
+use crate::backend::{BaseAgent, BaseAgentConfig, DetectionConfig, Provider, UsageTracker};
 use crate::error::Error;
-
-use super::{BaseAgent, BaseAgentConfig, Provider};
 use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use tool::OcrRigTool;
 

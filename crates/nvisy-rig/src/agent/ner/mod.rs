@@ -1,8 +1,8 @@
 //! Named Entity Recognition (NER) agent for textual PII/entity detection.
 //!
-//! [`NerAgent`] wraps a [`BaseAgent`](super::BaseAgent) with NER-specific
-//! prompts. It is a pure LLM agent (no tools) that analyses text and
-//! returns structured entity detections with byte offsets.
+//! [`NerAgent`] wraps a [`BaseAgent`](crate::backend::BaseAgent) with
+//! NER-specific prompts. It is a pure LLM agent (no tools) that analyses
+//! text and returns structured entity detections with byte offsets.
 
 mod output;
 mod prompt;
@@ -11,10 +11,8 @@ pub use output::{NerEntities, NerEntity};
 
 use uuid::Uuid;
 
-use crate::backend::{DetectionConfig, UsageTracker};
+use crate::backend::{BaseAgent, BaseAgentConfig, DetectionConfig, Provider, UsageTracker};
 use crate::error::Error;
-
-use super::{BaseAgent, BaseAgentConfig, Provider};
 use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 
 /// Agent for textual PII/entity detection using LLM-based NER.

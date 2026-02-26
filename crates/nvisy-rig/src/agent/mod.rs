@@ -1,16 +1,13 @@
-//! Agent system: base agent, specialized agents, and tool-provider traits.
+//! Specialized detection agents: NER (text), CV (vision), and OCR (image-to-text).
 //!
-//! All public types are re-exported here — consumer code should not reach
-//! into individual agent submodules.
+//! Each agent composes a [`BaseAgent`](crate::backend::BaseAgent) with
+//! domain-specific prompts and optional tools. Public types are re-exported
+//! from [`crate`] — consumer code should not reach into submodules.
 
-pub(crate) mod base;
 mod cv;
-mod ocr;
 mod ner;
+mod ocr;
 
-pub(crate) use base::BaseAgent;
-pub use base::{AuthenticatedProvider, BaseAgentConfig, ContextWindow, Provider, UnauthenticatedProvider};
-
+pub use cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
 pub use ner::{NerAgent, NerEntities, NerEntity};
 pub use ocr::{OcrAgent, OcrEntity, OcrOutput, OcrProvider, OcrTextRegion};
-pub use cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};

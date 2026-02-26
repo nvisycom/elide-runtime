@@ -1,7 +1,8 @@
 //! LLM provider connection parameters.
 //!
-//! [`Provider`] is a plain data enum carrying API keys and optional base
-//! URLs. Client construction is deferred until an agent or backend is built.
+//! [`Provider`] is a plain enum carrying API keys, model names, and optional
+//! base URLs. The actual rig-core client is constructed lazily when a
+//! [`BaseAgent`](super::BaseAgent) is built.
 
 use reqwest_middleware::ClientBuilder;
 use reqwest_middleware::ClientWithMiddleware;

@@ -4,16 +4,15 @@
 //! supported provider, enabling dispatch without exposing `CompletionModel`
 //! generics to the public API.
 
+use reqwest_middleware::ClientWithMiddleware;
 use rig::agent::Agent;
 use rig::providers::{anthropic, gemini, ollama, openai};
 
-use super::provider::HttpClient;
-
 pub(crate) enum Agents {
-    OpenAi(Agent<openai::completion::CompletionModel<HttpClient>>),
-    Anthropic(Agent<anthropic::completion::CompletionModel<HttpClient>>),
-    Gemini(Agent<gemini::completion::CompletionModel<HttpClient>>),
-    Ollama(Agent<ollama::CompletionModel<HttpClient>>),
+    OpenAi(Agent<openai::completion::CompletionModel<ClientWithMiddleware>>),
+    Anthropic(Agent<anthropic::completion::CompletionModel<ClientWithMiddleware>>),
+    Gemini(Agent<gemini::completion::CompletionModel<ClientWithMiddleware>>),
+    Ollama(Agent<ollama::CompletionModel<ClientWithMiddleware>>),
 }
 
 /// Dispatch a call to the concrete agent inside each variant.

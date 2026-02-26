@@ -11,12 +11,12 @@ pub struct OcrOutput {
     /// Full text extracted from the image.
     pub extracted_text: String,
     /// Entities detected in the extracted text.
-    pub entities: Vec<RawOcrEntity>,
+    pub entities: Vec<OcrEntity>,
 }
 
 /// A single entity detected in OCR-extracted text.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
-pub struct RawOcrEntity {
+pub struct OcrEntity {
     /// Broad classification.
     pub category: EntityCategory,
     /// Specific entity type.

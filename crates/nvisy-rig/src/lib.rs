@@ -16,9 +16,8 @@ pub use error::Error;
 
 pub use agent::{
     AuthenticatedProvider, BaseAgentConfig, ContextWindow, Provider,
-    UnauthenticatedProvider,
-    CvAgent, CvDetection, CvProvider, NerAgent,
-    OcrAgent, OcrOutput, OcrProvider, OcrTextRegion,
-    RawCvEntities, RawCvEntity, RawEntities, RawEntity,
-    RawOcrEntity,
+    RetryConfig, UnauthenticatedProvider,
+    CvAgent, CvDetection, CvEntities, CvEntity, CvProvider,
+    NerAgent, NerEntities, NerEntity,
+    OcrAgent, OcrEntity, OcrOutput, OcrProvider, OcrTextRegion,
 };

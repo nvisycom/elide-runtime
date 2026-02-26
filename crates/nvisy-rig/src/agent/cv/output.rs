@@ -7,7 +7,7 @@ use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 /// A single entity detected by computer vision.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
-pub struct RawCvEntity {
+pub struct CvEntity {
     /// Broad classification.
     pub category: EntityCategory,
     /// Specific entity type.
@@ -22,7 +22,7 @@ pub struct RawCvEntity {
 
 /// Wrapper for structured output parsing.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize, JsonSchema)]
-pub struct RawCvEntities {
+pub struct CvEntities {
     /// Detected entities.
-    pub entities: Vec<RawCvEntity>,
+    pub entities: Vec<CvEntity>,
 }

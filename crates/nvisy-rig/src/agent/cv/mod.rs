@@ -9,7 +9,7 @@ mod output;
 mod prompt;
 mod tool;
 
-pub use output::{RawCvEntities, RawCvEntity};
+pub use output::{CvEntities, CvEntity};
 
 use async_trait::async_trait;
 use base64::Engine;
@@ -60,7 +60,7 @@ pub trait CvProvider: Send + Sync {
 /// 3. The VLM is instructed to call the `cv_detect_objects` tool (backed
 ///    by the [`CvProvider`]) and then classify each detection into an
 ///    entity category and type.
-/// 4. Structured output is parsed into a `Vec<RawCvEntity>`.
+/// 4. Structured output is parsed into a `Vec<CvEntity>`.
 pub struct CvAgent {
     base: BaseAgent,
 }
@@ -99,7 +99,7 @@ impl CvAgent {
         &self,
         image_data: &[u8],
         config: &DetectionConfig,
-    ) -> Result<Vec<RawCvEntity>, Error> {
+    ) -> Result<Vec<CvEntity>, Error> {
         let image_b64 = STANDARD.encode(image_data);
         tracing::debug!(
             b64_len = image_b64.len(),
@@ -109,7 +109,7 @@ impl CvAgent {
 
         let prompt = CvPromptBuilder::new(config).build(&image_b64);
 
-        let result: RawCvEntities = self.base.prompt_structured(&prompt).await?;
+        let result: CvEntities = self.base.prompt_structured(&prompt).await?;
 
         tracing::info!(
             entity_count = result.entities.len(),

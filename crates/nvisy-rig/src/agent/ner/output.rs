@@ -5,16 +5,16 @@ use serde::{Deserialize, Serialize};
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
-/// A list of raw entities returned by structured output.
+/// A list of NER entities returned by structured output.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize, JsonSchema)]
-pub struct RawEntities {
+pub struct NerEntities {
     /// Detected entities.
-    pub entities: Vec<RawEntity>,
+    pub entities: Vec<NerEntity>,
 }
 
-/// A single raw entity from structured LLM output.
+/// A single NER entity from structured LLM output.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
-pub struct RawEntity {
+pub struct NerEntity {
     /// Broad classification.
     pub category: EntityCategory,
     /// Specific entity type.

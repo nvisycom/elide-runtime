@@ -7,7 +7,7 @@
 mod output;
 mod prompt;
 
-pub use output::{RawEntities, RawEntity};
+pub use output::{NerEntities, NerEntity};
 
 use uuid::Uuid;
 
@@ -25,7 +25,7 @@ use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 ///    [`detect`](Self::detect).
 /// 2. The agent builds a user prompt via [`NerPromptBuilder`] that
 ///    specifies entity types and confidence thresholds.
-/// 3. Structured output is parsed into `Vec<RawEntity>`.
+/// 3. Structured output is parsed into `Vec<NerEntity>`.
 pub struct NerAgent {
     base: BaseAgent,
 }
@@ -58,7 +58,7 @@ impl NerAgent {
         &self,
         text: &str,
         config: &DetectionConfig,
-    ) -> Result<Vec<RawEntity>, Error> {
+    ) -> Result<Vec<NerEntity>, Error> {
         let prompt = NerPromptBuilder::new(config).build(text);
 
         tracing::debug!(
@@ -67,7 +67,7 @@ impl NerAgent {
             "built ner prompt"
         );
 
-        let result: RawEntities = self.base.prompt_structured(&prompt).await?;
+        let result: NerEntities = self.base.prompt_structured(&prompt).await?;
 
         tracing::info!(
             entity_count = result.entities.len(),

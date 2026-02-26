@@ -12,7 +12,7 @@ use crate::backend::UsageTracker;
 use crate::error::Error;
 
 use super::dispatch::Agents;
-use super::provider::{Provider, ProviderClient};
+use super::provider::{Provider, ProviderClient, RetryConfig};
 use super::{BaseAgent, BaseAgentConfig};
 
 /// Builder for [`BaseAgent`] that takes a `&Provider` + model name.
@@ -20,6 +20,7 @@ pub(crate) struct BaseAgentBuilder {
     provider: Provider,
     model_name: String,
     config: BaseAgentConfig,
+    retry: RetryConfig,
     preamble: Option<String>,
     tools: Vec<Box<dyn ToolDyn>>,
 }
@@ -31,9 +32,16 @@ impl BaseAgentBuilder {
             provider: provider.clone(),
             model_name: model_name.to_owned(),
             config,
+            retry: RetryConfig::default(),
             preamble: None,
             tools: Vec::new(),
         }
+    }
+
+    /// Set retry configuration for transient HTTP errors.
+    pub fn retry(mut self, retry: RetryConfig) -> Self {
+        self.retry = retry;
+        self
     }
 
     /// Set the system prompt (preamble).
@@ -54,12 +62,13 @@ impl BaseAgentBuilder {
             provider,
             model_name,
             config,
+            retry,
             preamble,
             tools,
         } = self;
 
         let preamble_ref = preamble.as_deref();
-        let client = ProviderClient::from_provider(&provider)?;
+        let client = ProviderClient::from_provider(&provider, &retry)?;
 
         let inner = match client {
             ProviderClient::OpenAi(c) => {

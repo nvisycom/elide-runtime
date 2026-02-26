@@ -116,14 +116,25 @@ impl BaseAgent {
 
     /// Summarize text via LLM to fit within the context window's input budget.
     ///
-    /// Delegates to [`ContextWindow::compact`]. Returns the text unchanged if
-    /// no context window is configured or the text already fits.
+    /// Returns the text unchanged if no context window is configured or the
+    /// text already fits. Otherwise sends a summarization prompt and returns
+    /// the condensed version.
     #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "compact"))]
     pub async fn prompt_compact(&self, text: &str) -> Result<String, Error> {
-        match &self.context_window {
-            Some(cw) => cw.compact(text, self).await,
-            None => Ok(text.to_owned()),
-        }
+        let cw = match &self.context_window {
+            Some(cw) if !cw.fits(text) => cw,
+            _ => return Ok(text.to_owned()),
+        };
+
+        let budget = cw.input_budget();
+        let prompt = format!(
+            "Summarize the following text to fit within {budget} tokens. \
+             Preserve all key entities, names, numbers, dates, and facts. \
+             Remove redundancy and filler. Return ONLY the condensed text, \
+             no preamble.\n\n{text}"
+        );
+
+        self.prompt_text(&prompt).await
     }
 
     /// Splits text via [`ContextWindow`], runs `prompt_structured` per chunk,

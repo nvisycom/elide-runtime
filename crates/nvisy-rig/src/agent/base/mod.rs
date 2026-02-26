@@ -14,7 +14,7 @@ pub(crate) use agent::BaseAgent;
 pub(crate) use builder::BaseAgentBuilder;
 
 pub use context::ContextWindow;
-pub use provider::{AuthenticatedProvider, Provider, UnauthenticatedProvider};
+pub use provider::{AuthenticatedProvider, Provider, RetryConfig, UnauthenticatedProvider};
 
 /// Configuration for a [`BaseAgent`].
 #[derive(Debug, Clone)]

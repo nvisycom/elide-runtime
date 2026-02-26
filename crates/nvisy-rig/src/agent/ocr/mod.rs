@@ -9,7 +9,7 @@ mod output;
 mod prompt;
 mod tool;
 
-pub use output::{OcrOutput, RawOcrEntity};
+pub use output::{OcrOutput, OcrEntity};
 
 use async_trait::async_trait;
 use base64::Engine;

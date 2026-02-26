@@ -5,6 +5,3 @@
 pub mod handler;
 pub mod middleware;
 pub mod service;
-
-pub use handler::routes;
-pub use service::ServiceState;

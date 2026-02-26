@@ -4,9 +4,9 @@
   "entity_type": "iban",
   "pattern": {
     "regex": "\\b[A-Z]{2}\\d{2}\\s?[A-Z0-9]{4}\\s?(?:\\d{4}\\s?){2,7}\\d{1,4}\\b",
-    "validator": "iban"
+    "validator": "iban",
+    "confidence": 0.85
   },
-  "confidence": 0.85,
   "context": {
     "keywords": ["iban", "bank", "account", "transfer", "swift"],
     "window": 3,

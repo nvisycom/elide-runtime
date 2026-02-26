@@ -16,6 +16,15 @@ pub trait Dictionary: Send + Sync {
 
     /// All matchable terms produced by this dictionary.
     fn entries(&self) -> &[String];
+
+    /// Column index for each entry, parallel to [`entries`](Self::entries).
+    ///
+    /// Returns `Some` for CSV dictionaries where each cell tracks its
+    /// source column. Returns `None` for plain-text dictionaries (all
+    /// entries are logically in column 0).
+    fn columns(&self) -> Option<&[usize]> {
+        None
+    }
 }
 
 /// Type-erased boxed [`Dictionary`].

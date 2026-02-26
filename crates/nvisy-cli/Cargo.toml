@@ -34,6 +34,9 @@ nvisy-server = { workspace = true, features = [] }
 # CLI
 clap = { workspace = true, features = ["derive", "env"] }
 
+# Error handling
+anyhow = { workspace = true, features = [] }
+
 # HTTP framework
 axum = { workspace = true, features = ["tokio"] }
 
@@ -42,4 +45,4 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 
 # Observability
 tracing = { workspace = true, features = [] }
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }

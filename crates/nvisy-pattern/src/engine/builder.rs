@@ -99,7 +99,7 @@ impl PatternEngineBuilder {
                         pattern_name: p.name().to_owned(),
                         category: p.category().clone(),
                         entity_kind: p.entity_kind(),
-                        confidence: p.confidence(),
+                        confidence: rp.confidence,
                         validator_name: rp.validator.clone(),
                         regex: compiled,
                         context: p.context().cloned(),
@@ -116,6 +116,7 @@ impl PatternEngineBuilder {
                     if values.is_empty() {
                         continue;
                     }
+                    let columns = dict.columns().map(|c| c.to_vec());
                     let automaton = aho_corasick::AhoCorasickBuilder::new()
                         .ascii_case_insensitive(!dp.case_sensitive)
                         .build(&values)
@@ -127,9 +128,10 @@ impl PatternEngineBuilder {
                         pattern_name: p.name().to_owned(),
                         category: p.category().clone(),
                         entity_kind: p.entity_kind(),
-                        confidence: p.confidence(),
+                        confidence: dp.confidence.clone(),
                         automaton,
                         values,
+                        columns,
                         context: p.context().cloned(),
                     });
                 }

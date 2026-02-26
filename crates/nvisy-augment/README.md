@@ -4,7 +4,7 @@
 
 Content augmentation actions for the Nvisy runtime.
 
-Provides OCR text extraction from images, audio transcription, and synthetic data generation for replacing redacted entities with realistic placeholder values.
+Provides OCR text extraction from images (via `nvisy-rig`), audio transcription (via `nvisy-asr`), and synthetic data generation for replacing redacted entities with realistic placeholder values.
 
 ## Documentation
 

@@ -3,7 +3,7 @@
   "category": "financial",
   "entity_type": "amount",
   "dictionary": {
-    "name": "currencies"
-  },
-  "confidence": 0.85
+    "name": "currencies",
+    "confidence": [0.85, 0.55]
+  }
 }

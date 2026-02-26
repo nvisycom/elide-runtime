@@ -19,7 +19,7 @@ mod pattern;
 
 pub use context_rule::ContextRule;
 pub use json_pattern::{JsonPattern, JsonPatternWarning};
-pub use pattern::{BoxPattern, MatchSource, Pattern};
+pub use pattern::{BoxPattern, DictionaryConfidence, MatchSource, Pattern};
 
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
@@ -187,11 +187,18 @@ mod tests {
         for p in registry().values() {
             assert!(!p.name().is_empty(), "pattern name is empty");
             match p.match_source() {
-                MatchSource::Regex(rp) => assert!(!rp.regex.is_empty(), "regex is empty for {}", p.name()),
-                MatchSource::Dictionary(dp) => assert!(!dp.name.is_empty(), "dictionary is empty for {}", p.name()),
+                MatchSource::Regex(rp) => {
+                    assert!(!rp.regex.is_empty(), "regex is empty for {}", p.name());
+                    assert!(rp.confidence > 0.0, "confidence is 0 for {}", p.name());
+                    assert!(rp.confidence <= 1.0, "confidence > 1 for {}", p.name());
+                }
+                MatchSource::Dictionary(dp) => {
+                    assert!(!dp.name.is_empty(), "dictionary is empty for {}", p.name());
+                    let c = dp.confidence.resolve(0);
+                    assert!(c > 0.0, "confidence is 0 for {}", p.name());
+                    assert!(c <= 1.0, "confidence > 1 for {}", p.name());
+                }
             }
-            assert!(p.confidence() > 0.0, "confidence is 0 for {}", p.name());
-            assert!(p.confidence() <= 1.0, "confidence > 1 for {}", p.name());
         }
     }
 
@@ -229,8 +236,7 @@ mod tests {
             "name": "test",
             "category": "pii",
             "entity_type": "government_id",
-            "pattern": { "regex": "\\d+" },
-            "confidence": 0.9
+            "pattern": { "regex": "\\d+", "confidence": 0.9 }
         }"#;
         let (pattern, _warnings) = JsonPattern::from_bytes(json).unwrap();
 

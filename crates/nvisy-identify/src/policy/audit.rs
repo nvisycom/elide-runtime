@@ -5,14 +5,13 @@
 
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
-use strum::Display;
+use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use nvisy_core::path::ContentSource;
 
 /// Kind of auditable action recorded in an [`Audit`] entry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AuditAction {
@@ -28,8 +27,7 @@ pub enum AuditAction {
 ///
 /// Audit entries are emitted by pipeline actions and form a tamper-evident
 /// log of all detection, redaction, and policy decisions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Audit {
     /// Content source identity and lineage.
     #[serde(flatten)]

@@ -9,7 +9,7 @@ use nvisy_codec::transform::{ImageRedaction, ImageRedactionOutput, ImageHandler}
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::location::Location;
 use nvisy_ontology::record::Redaction;
-use nvisy_ontology::spec::{ImageRedactionInput, RedactionInput};
+use nvisy_ontology::specification::{ImageRedactionInput, RedactionInput};
 use nvisy_core::Error;
 
 /// Convert a `RedactionInput::Image` into a codec [`ImageRedactionOutput`].
@@ -71,7 +71,7 @@ pub(crate) async fn apply_image_doc(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nvisy_ontology::spec::TextRedactionInput;
+    use nvisy_ontology::specification::TextRedactionInput;
 
     #[test]
     fn image_output_blur() {
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn image_output_audio_spec_returns_none() {
-        let spec = RedactionInput::Audio(nvisy_ontology::spec::AudioRedactionInput::Silence);
+        let spec = RedactionInput::Audio(nvisy_ontology::specification::AudioRedactionInput::Silence);
         assert_eq!(image_output_from_spec(&spec), None);
     }
 }

@@ -9,7 +9,7 @@ use nvisy_codec::transform::{TextRedaction, TextRedactionOutput, TextHandler};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::location::Location;
 use nvisy_ontology::record::Redaction;
-use nvisy_ontology::spec::{RedactionInput, TextRedactionInput};
+use nvisy_ontology::specification::{RedactionInput, TextRedactionInput};
 use nvisy_core::Error;
 
 /// Convert a `RedactionInput::Text` + replacement string into a codec
@@ -129,7 +129,7 @@ pub(crate) async fn apply_text_doc(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nvisy_ontology::spec::ImageRedactionInput;
+    use nvisy_ontology::specification::ImageRedactionInput;
 
     #[test]
     fn text_output_remove_empty_replacement() {

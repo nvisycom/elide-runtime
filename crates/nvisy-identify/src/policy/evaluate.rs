@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::Entity;
 use nvisy_ontology::record::Redaction;
-use nvisy_ontology::spec::{RedactionInput, TextRedactionInput};
+use nvisy_ontology::specification::{RedactionInput, TextRedactionInput};
 use super::rule::PolicyRule;
 use nvisy_core::Error;
 

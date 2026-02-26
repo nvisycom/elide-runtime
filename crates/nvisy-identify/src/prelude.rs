@@ -7,5 +7,7 @@ pub use crate::{
     Annotation, AnnotationKind, AnnotationLabel, AnnotationScope,
     DetectionContext, ParallelContext, SequentialContext,
     DetectionLayer, DetectionService,
-    NerBackend, NerConfig,
+    NerMethod, NerMethodParams,
+    CvMethod,
+    PatternDetection, PatternDetectionParams,
 };

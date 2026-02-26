@@ -35,9 +35,6 @@ pub enum JsonPatternWarning {
     UnknownValidator { pattern: String, validator: String },
 }
 
-/// Default confidence score when `"confidence"` is omitted from JSON.
-const DEFAULT_CONFIDENCE: f64 = 1.0;
-
 /// A detection pattern deserialized from a JSON definition file.
 ///
 /// Implements the [`Pattern`] trait and is the only concrete implementation
@@ -48,7 +45,6 @@ pub struct JsonPattern {
     category: EntityCategory,
     entity_kind: EntityKind,
     match_source: MatchSource,
-    confidence: f64,
     pub(crate) context: Option<ContextRule>,
 }
 
@@ -84,8 +80,6 @@ impl JsonPattern {
             #[serde(flatten)]
             source: RawSource,
             #[serde(default)]
-            confidence: Option<f64>,
-            #[serde(default)]
             context: Option<ContextRule>,
         }
 
@@ -118,7 +112,6 @@ impl JsonPattern {
             category: raw.category,
             entity_kind: raw.entity_kind,
             match_source,
-            confidence: raw.confidence.unwrap_or(DEFAULT_CONFIDENCE),
             context: raw.context,
         };
 
@@ -141,10 +134,6 @@ impl Pattern for JsonPattern {
 
     fn match_source(&self) -> &MatchSource {
         &self.match_source
-    }
-
-    fn confidence(&self) -> f64 {
-        self.confidence
     }
 
     fn context(&self) -> Option<&ContextRule> {

@@ -21,15 +21,37 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
-nvisy-codec = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
+nvisy-ontology = { workspace = true, features = [] }
 
 # LLM framework
-rig-core = { workspace = true, features = ["derive"] }
+rig-core = { workspace = true, features = ["derive", "reqwest-middleware"] }
 
 # Async runtime
 async-trait = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["time"] }
+
+# HTTP middleware (retry, tracing)
+reqwest-middleware = { workspace = true }
+reqwest-retry = { workspace = true }
+reqwest-tracing = { workspace = true }
+
+# Encoding
+base64 = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
+
+# Error handling
+thiserror = { workspace = true, features = [] }
+
+# Identifiers
+uuid = { workspace = true, features = ["v7"] }
+
+# Observability
+tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

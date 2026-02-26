@@ -21,7 +21,7 @@ pub use summary::RedactionSummary;
 // Re-export data types from nvisy-ontology
 pub use nvisy_ontology::record::Redaction;
 pub use nvisy_ontology::record::{ReviewDecision, ReviewStatus};
-pub use nvisy_ontology::spec::{
+pub use nvisy_ontology::specification::{
     AudioRedactionInput, ImageRedactionInput, RedactionInput, TextRedactionInput,
     DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR, DEFAULT_PIXELATE_BLOCK_SIZE,
 };

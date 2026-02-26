@@ -1,32 +1,55 @@
-//! nvisy API server entry point.
-//!
-//! Parses CLI arguments, initialises tracing, constructs application state,
-//! and starts the HTTP server with graceful shutdown support.
-
-use clap::Parser;
-use nvisy_core::fs::ContentRegistry;
-use tracing_subscriber::EnvFilter;
+#![forbid(unsafe_code)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![doc = include_str!("../README.md")]
 
 mod config;
 mod server;
 
-use config::ServerConfig;
+use std::process;
+
+use axum::Router;
+use clap::Parser;
+use nvisy_core::fs::ContentRegistry;
+use nvisy_server::middleware::*;
+use nvisy_server::service::ServiceState;
+
+use crate::config::Cli;
 
 #[tokio::main]
 async fn main() {
-    let config = ServerConfig::parse();
+    let Err(error) = run().await else {
+        process::exit(0);
+    };
 
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new(&config.log_level)),
-        )
-        .json()
-        .init();
+    if tracing::enabled!(tracing::Level::ERROR) {
+        tracing::error!(error = %error, "application terminated with error");
+    } else {
+        eprintln!("Error: {error:#}");
+    }
 
-    let content_registry = ContentRegistry::new(config.content_dir());
-    let state = nvisy_server::ServiceState::new(content_registry);
-    let app = server::build_router(&config, state);
+    process::exit(1);
+}
 
-    server::run(&config, app).await;
+/// Main application entry point.
+async fn run() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+    Cli::init_tracing();
+
+    // Initialize application state
+    let content_registry = ContentRegistry::new(cli.server.content_dir());
+    let state = ServiceState::new(content_registry);
+
+    // Build and run
+    let router = create_router(&cli, state);
+    server::run(&cli.server, router).await
+}
+
+/// Creates the router with all middleware layers applied.
+fn create_router(cli: &Cli, state: ServiceState) -> Router {
+    nvisy_server::handler::routes()
+        .with_open_api(&cli.open_api_config())
+        .with_recovery(&cli.recovery_config())
+        .with_observability()
+        .with_security(&cli.security_config())
+        .with_state(state)
 }

@@ -3,11 +3,12 @@
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 /// What class of data a retention policy applies to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum RetentionScope {
     /// Original ingested content before redaction.
     OriginalContent,
@@ -18,8 +19,7 @@ pub enum RetentionScope {
 }
 
 /// A retention policy governing how long data is kept.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct RetentionPolicy {
     /// What class of data this policy applies to.
     pub scope: RetentionScope,

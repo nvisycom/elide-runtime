@@ -3,7 +3,7 @@
   "category": "pii",
   "entity_type": "email_address",
   "pattern": {
-    "regex": "\\b[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}\\b"
-  },
-  "confidence": 0.95
+    "regex": "\\b[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}\\b",
+    "confidence": 0.95
+  }
 }

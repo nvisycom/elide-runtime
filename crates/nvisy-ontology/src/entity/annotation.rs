@@ -1,14 +1,14 @@
 //! Annotation types for pre-identified regions and classification labels.
 
 use serde::{Deserialize, Serialize};
-use strum::Display;
+use strum::{Display, EnumString};
 
 use super::{EntityCategory, EntityKind};
 
 use crate::location::Location;
 
 /// The kind of annotation applied to a content region.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AnnotationKind {
@@ -21,7 +21,7 @@ pub enum AnnotationKind {
 }
 
 /// The scope to which an annotation label applies.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AnnotationScope {

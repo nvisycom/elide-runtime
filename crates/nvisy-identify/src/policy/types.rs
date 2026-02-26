@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use super::rule::PolicyRule;
 use super::regulation::RegulationKind;
-use nvisy_ontology::spec::RedactionInput;
+use nvisy_ontology::specification::RedactionInput;
 
 /// A named redaction policy containing an ordered set of rules.
 #[derive(Debug, Clone, Serialize, Deserialize)]

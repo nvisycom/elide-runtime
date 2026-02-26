@@ -3,7 +3,7 @@
   "category": "credentials",
   "entity_type": "api_key",
   "pattern": {
-    "regex": "\\bsk_(live|test)_[a-zA-Z0-9]{24,}\\b"
-  },
-  "confidence": 0.95
+    "regex": "\\bsk_(live|test)_[a-zA-Z0-9]{24,}\\b",
+    "confidence": 0.95
+  }
 }

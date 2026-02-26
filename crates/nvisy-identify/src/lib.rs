@@ -2,33 +2,32 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-mod ontology;
 mod layer;
-mod ner;
-mod text;
-mod image;
-mod action;
+mod method;
+mod fusion;
 mod policy;
 
 pub mod prelude;
 
-// --- Domain types ---
-pub use ontology::*;
+// --- Domain types (re-exported from nvisy-ontology) ---
+pub use nvisy_ontology::entity::{
+    Annotation, AnnotationKind, AnnotationLabel, AnnotationScope,
+    DetectionMethod, DetectionOutput, Entity, EntitySelector, ModelInfo, ModelKind,
+};
+pub use nvisy_ontology::location::{
+    AudioLocation, ImageLocation, Location, TabularLocation, TextLocation, VideoLocation,
+};
 
 // --- Layer traits ---
 pub use layer::*;
 
-// --- NER backend ---
-pub use ner::{NerBackend, NerConfig};
-
-// --- Detection layers ---
-pub use text::{PatternDetection, PatternDetectionParams};
-pub use text::{NerDetection, NerDetectionParams};
-pub use image::{ImageNerDetection, FaceBackend, FaceDetection, ObjectBackend, ObjectDetection};
+// --- Detection methods ---
+pub use method::{NerMethod, NerMethodParams, CvMethod, PatternDetection, PatternDetectionParams};
 
 // --- Post-detection actions ---
-pub use action::{DetectManualAction, DetectManualParams, Exclusion, ManualOutput, is_excluded};
-pub use action::DeduplicateAction;
+pub use fusion::{DetectManualAction, DetectManualParams, Exclusion, ManualOutput, is_excluded};
+pub use fusion::DeduplicateAction;
+pub use fusion::{EnsembleMerge, FusionStrategy};
 
 // --- Policy & governance ---
 pub use policy::{

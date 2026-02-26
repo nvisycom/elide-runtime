@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use nvisy_core::path::ContentSource;
 
-use crate::spec::RedactionInput;
+use crate::specification::RedactionInput;
 
 /// A redaction decision recording how a specific entity was (or will be) redacted.
 ///

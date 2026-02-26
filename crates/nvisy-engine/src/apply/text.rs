@@ -129,7 +129,7 @@ pub(crate) async fn apply_text_doc(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nvisy_ontology::spec::ImageRedactionInput;
+    use nvisy_ontology::specification::ImageRedactionInput;
 
     #[test]
     fn text_output_remove_empty_replacement() {

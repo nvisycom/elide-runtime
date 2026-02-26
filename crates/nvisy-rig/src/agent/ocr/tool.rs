@@ -6,13 +6,13 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
+use schemars::JsonSchema;
 use serde::Deserialize;
-use serde_json::json;
 
 use super::OcrProvider;
 
 /// Arguments for the OCR tool call.
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub(super) struct OcrToolArgs {
     /// Base64-encoded image data.
     pub image_base64: String,
@@ -47,16 +47,8 @@ impl<T: OcrProvider> Tool for OcrRigTool<T> {
                           confidence, and optional bounding box. \
                           Pass the image as a base64-encoded string."
                 .to_string(),
-            parameters: json!({
-                "type": "object",
-                "properties": {
-                    "image_base64": {
-                        "type": "string",
-                        "description": "Base64-encoded image data"
-                    }
-                },
-                "required": ["image_base64"]
-            }),
+            parameters: serde_json::to_value(schemars::schema_for!(OcrToolArgs))
+                .unwrap_or_default(),
         }
     }
 

@@ -4,13 +4,16 @@
 //! a time, allowing the layer to accumulate prior text for contextual
 //! understanding across spans.
 
+use std::str::FromStr;
+
 use serde::Deserialize;
+use serde_json::Value;
 use tokio::sync::Mutex;
 
 use nvisy_codec::handler::{Span, TxtSpan};
-use nvisy_ontology::entity::EntityKind;
+use nvisy_ontology::entity::{DetectionMethod, EntityCategory, EntityKind};
 use nvisy_core::Error;
-use nvisy_rig::{DetectionConfig, DetectionRequest, DetectionResponse, EntityParser};
+use nvisy_rig::{DetectionConfig, DetectionRequest, DetectionResponse};
 
 use crate::{Entity, Location, ModelInfo, TextLocation};
 use crate::{SequentialContext, DetectionService};
@@ -123,7 +126,7 @@ impl<B: LlmBackend> DetectionService<TxtSpan, String> for LlmDetection<B> {
 
             // Filter entities to the current span and adjust offsets.
             let span_len = span.data.len();
-            for mut e in EntityParser::parse(&response.entities)? {
+            for mut e in parse_entities(&response.entities)? {
                 if let Some(Location::Text(ref loc)) = e.location {
                     if loc.end_offset <= context_len {
                         continue;
@@ -164,6 +167,87 @@ impl<B: LlmBackend> DetectionService<TxtSpan, String> for LlmDetection<B> {
 
         Ok(entities)
     }
+}
+
+/// Parse raw JSON dicts (from an LLM detection response) into [`Entity`] values.
+///
+/// Unknown `entity_type` values are silently dropped.
+fn parse_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
+    let mut entities = Vec::new();
+
+    for item in raw {
+        let obj = item
+            .as_object()
+            .ok_or_else(|| Error::validation("Expected JSON object in LLM results", "llm"))?;
+
+        let category_str = obj
+            .get("category")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::validation("Missing 'category'", "llm"))?;
+
+        let category = match category_str {
+            "pii" => EntityCategory::Pii,
+            "phi" => EntityCategory::Phi,
+            "financial" => EntityCategory::Financial,
+            "credentials" => EntityCategory::Credentials,
+            other => EntityCategory::Custom(other.to_string()),
+        };
+
+        let entity_type_str = obj
+            .get("entity_type")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::validation("Missing 'entity_type'", "llm"))?;
+
+        let entity_kind = match EntityKind::from_str(entity_type_str) {
+            Ok(ek) => ek,
+            Err(_) => {
+                tracing::warn!(
+                    entity_type = entity_type_str,
+                    "unknown entity type from LLM, dropping"
+                );
+                continue;
+            }
+        };
+
+        let value = obj
+            .get("value")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::validation("Missing 'value'", "llm"))?;
+
+        let confidence = obj
+            .get("confidence")
+            .and_then(Value::as_f64)
+            .ok_or_else(|| Error::validation("Missing 'confidence'", "llm"))?;
+
+        let start_offset = obj
+            .get("start_offset")
+            .and_then(Value::as_u64)
+            .map(|v| v as usize)
+            .unwrap_or(0);
+
+        let end_offset = obj
+            .get("end_offset")
+            .and_then(Value::as_u64)
+            .map(|v| v as usize)
+            .unwrap_or(0);
+
+        let entity = Entity::new(
+            category,
+            entity_kind,
+            value,
+            DetectionMethod::ContextualNlp,
+            confidence,
+        )
+        .with_location(Location::Text(TextLocation {
+            start_offset,
+            end_offset,
+            ..Default::default()
+        }));
+
+        entities.push(entity);
+    }
+
+    Ok(entities)
 }
 
 #[cfg(test)]

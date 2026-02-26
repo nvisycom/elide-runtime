@@ -10,12 +10,12 @@ mod agent;
 #[doc(hidden)]
 pub mod prelude;
 
+pub use agent::BaseAgentConfig;
 pub use backend::{
-    AuthenticatedProvider, BaseAgentConfig, ContextWindow,
+    AuthenticatedProvider, ContextWindow,
     DetectionConfig, DetectionRequest, DetectionResponse,
     Provider, UnauthenticatedProvider, UsageStats, UsageTracker,
 };
-pub use bridge::EntityParser;
 pub use error::Error;
 
 pub use agent::{

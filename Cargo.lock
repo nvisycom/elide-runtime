@@ -2767,7 +2767,6 @@ dependencies = [
  "nvisy-codec",
  "nvisy-core",
  "nvisy-ontology",
- "nvisy-paddle",
  "nvisy-pattern",
  "nvisy-python",
  "nvisy-rig",
@@ -2845,6 +2844,7 @@ dependencies = [
  "nvisy-ontology",
  "reqwest-middleware",
  "reqwest-retry",
+ "reqwest-tracing",
  "rig-core",
  "schemars",
  "serde",
@@ -3715,6 +3715,22 @@ dependencies = [
  "tokio",
  "tracing",
  "wasmtimer",
+]
+
+[[package]]
+name = "reqwest-tracing"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5c1a1510677d43dce9e9c0c07fc5db8772c0e5a43e4f9cef75a11affa05a578"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "getrandom 0.2.17",
+ "http",
+ "matchit",
+ "reqwest",
+ "reqwest-middleware",
+ "tracing",
 ]
 
 [[package]]

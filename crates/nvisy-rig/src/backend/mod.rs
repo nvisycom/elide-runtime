@@ -1,15 +1,13 @@
-//! LLM backend: agent infrastructure, provider connections, and usage tracking.
+//! LLM backend: provider connections, context windowing, and usage tracking.
 
-mod agent;
-pub(crate) mod context;
+mod context;
 mod metrics;
-pub(crate) mod provider;
+mod provider;
 
-pub(crate) use agent::BaseAgent;
-pub use agent::BaseAgentConfig;
 pub use context::ContextWindow;
 pub use metrics::{UsageStats, UsageTracker};
 pub use provider::{AuthenticatedProvider, Provider, UnauthenticatedProvider};
+pub(crate) use provider::build_http_client;
 
 use serde_json::Value;
 

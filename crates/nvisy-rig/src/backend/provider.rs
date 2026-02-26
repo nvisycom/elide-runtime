@@ -4,9 +4,12 @@
 //! base URLs. The actual rig-core client is constructed lazily when a
 //! [`BaseAgent`](super::BaseAgent) is built.
 
+use std::time::Duration;
+
 use reqwest_middleware::ClientBuilder;
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
+use reqwest_tracing::TracingMiddleware;
 
 /// Provider that requires an API key (OpenAI, Anthropic, Gemini).
 #[derive(Clone)]
@@ -98,11 +101,18 @@ impl Provider {
     }
 }
 
-/// Build a `ClientWithMiddleware` with retry middleware.
+/// Build a `ClientWithMiddleware` with timeout, retry, and tracing middleware.
 pub(crate) fn build_http_client(max_retries: u32) -> ClientWithMiddleware {
     let retry_policy = ExponentialBackoff::builder()
         .build_with_max_retries(max_retries);
-    ClientBuilder::new(reqwest_middleware::reqwest::Client::new())
+
+    let client = reqwest_middleware::reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .build()
+        .expect("failed to build reqwest client");
+
+    ClientBuilder::new(client)
+        .with(TracingMiddleware::default())
         .with(RetryTransientMiddleware::new_with_policy(retry_policy))
         .build()
 }

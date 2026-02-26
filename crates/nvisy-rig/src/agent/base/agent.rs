@@ -1,10 +1,5 @@
 //! Foundation agent that wraps provider-specific rig-core agents.
 
-#[path = "builder.rs"]
-mod builder;
-
-pub(crate) use builder::BaseAgentBuilder;
-
 use reqwest_middleware::ClientWithMiddleware;
 use rig::agent::Agent;
 use rig::completion::{Completion, Prompt};
@@ -14,11 +9,11 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
 
-use super::context::ContextWindow;
-use super::provider::Provider;
-use super::UsageTracker;
+use crate::backend::{ContextWindow, Provider, UsageTracker};
 use crate::bridge::ResponseParser;
 use crate::error::Error;
+
+use super::BaseAgentBuilder;
 
 /// Sampling, retry, and context-window settings shared by all agents.
 #[derive(Debug, Clone)]
@@ -44,7 +39,7 @@ impl Default for BaseAgentConfig {
     }
 }
 
-enum Agents {
+pub(crate) enum Agents {
     OpenAi(Agent<openai::completion::CompletionModel<ClientWithMiddleware>>),
     Anthropic(Agent<anthropic::completion::CompletionModel<ClientWithMiddleware>>),
     Gemini(Agent<gemini::completion::CompletionModel<ClientWithMiddleware>>),
@@ -71,13 +66,15 @@ macro_rules! dispatch {
 /// [`NerAgent`]: crate::NerAgent
 /// [`CvAgent`]: crate::CvAgent
 /// [`OcrAgent`]: crate::OcrAgent
+#[allow(dead_code)]
 pub(crate) struct BaseAgent {
-    id: Uuid,
-    inner: Agents,
-    context_window: Option<ContextWindow>,
-    tracker: UsageTracker,
+    pub(super) id: Uuid,
+    pub(super) inner: Agents,
+    pub(super) context_window: Option<ContextWindow>,
+    pub(super) tracker: UsageTracker,
 }
 
+#[allow(dead_code)]
 impl BaseAgent {
     pub fn builder(provider: &Provider, config: BaseAgentConfig) -> BaseAgentBuilder {
         BaseAgentBuilder::new(provider, config)

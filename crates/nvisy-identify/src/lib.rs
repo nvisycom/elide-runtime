@@ -2,11 +2,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-mod ontology;
 mod layer;
 mod pattern;
 mod ner;
-mod vision;
 mod llm;
 mod audio;
 mod fusion;
@@ -14,8 +12,14 @@ mod policy;
 
 pub mod prelude;
 
-// --- Domain types ---
-pub use ontology::*;
+// --- Domain types (re-exported from nvisy-ontology) ---
+pub use nvisy_ontology::entity::{
+    Annotation, AnnotationKind, AnnotationLabel, AnnotationScope,
+    DetectionMethod, DetectionOutput, Entity, EntitySelector, ModelInfo, ModelKind,
+};
+pub use nvisy_ontology::location::{
+    AudioLocation, ImageLocation, Location, TabularLocation, TextLocation, VideoLocation,
+};
 
 // --- Layer traits ---
 pub use layer::*;
@@ -27,7 +31,6 @@ pub use ner::{NerBackend, NerConfig};
 pub use pattern::{PatternDetection, PatternDetectionParams};
 pub use ner::{NerDetection, NerDetectionParams};
 pub use ner::ImageNerDetection;
-pub use vision::{FaceBackend, FaceDetection, ObjectBackend, ObjectDetection, OcrDetection};
 pub use llm::{LlmBackend, LlmDetection, LlmDetectionParams, user_prompt as llm_user_prompt};
 pub use audio::TranscriptNerDetection;
 

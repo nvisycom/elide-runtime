@@ -17,7 +17,8 @@ use base64::engine::general_purpose::STANDARD;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::backend::{BaseAgent, BaseAgentConfig, DetectionConfig, Provider, UsageTracker};
+use crate::backend::{DetectionConfig, Provider, UsageTracker};
+use super::{BaseAgent, BaseAgentConfig};
 use crate::error::Error;
 use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use tool::OcrRigTool;

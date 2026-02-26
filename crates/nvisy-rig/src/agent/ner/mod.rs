@@ -11,7 +11,8 @@ pub use output::{NerEntities, NerEntity};
 
 use uuid::Uuid;
 
-use crate::backend::{BaseAgent, BaseAgentConfig, DetectionConfig, Provider, UsageTracker};
+use crate::backend::{DetectionConfig, Provider, UsageTracker};
+use super::{BaseAgent, BaseAgentConfig};
 use crate::error::Error;
 use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 

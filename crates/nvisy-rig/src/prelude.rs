@@ -1,11 +1,11 @@
 //! Convenience re-exports.
 
+pub use crate::agent::BaseAgentConfig;
 pub use crate::backend::{
-    AuthenticatedProvider, BaseAgentConfig, ContextWindow,
+    AuthenticatedProvider, ContextWindow,
     DetectionConfig, DetectionRequest, DetectionResponse,
     Provider, UnauthenticatedProvider, UsageStats, UsageTracker,
 };
-pub use crate::bridge::EntityParser;
 pub use crate::error::Error;
 pub use crate::agent::{
     CvAgent, CvDetection, CvEntities, CvEntity, CvProvider,

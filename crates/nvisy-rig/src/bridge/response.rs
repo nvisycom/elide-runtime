@@ -2,20 +2,12 @@
 //!
 //! [`ResponseParser`] extracts text from rig-core completion responses
 //! and deserializes JSON (handling markdown fences and empty responses).
-//! [`EntityParser`] converts raw JSON dicts into [`Entity`] values.
-//!
-//! [`Entity`]: nvisy_ontology::entity::Entity
 
 use std::borrow::Cow;
-use std::str::FromStr;
 
 use serde::de::DeserializeOwned;
-use serde_json::Value;
 
 use rig::completion::{AssistantContent, CompletionResponse};
-
-use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityKind};
-use nvisy_ontology::location::{Location, TextLocation};
 
 use crate::error::Error;
 
@@ -85,100 +77,6 @@ impl<'a> ResponseParser<'a> {
     }
 }
 
-/// Convert raw JSON dicts (as returned by an LLM) into [`Entity`] values.
-///
-/// Unknown `entity_type` values are silently dropped — LLMs occasionally
-/// hallucinate types that don't exist in the ontology.
-pub struct EntityParser;
-
-impl EntityParser {
-    /// Parse an array of JSON objects into entities.
-    ///
-    /// Expected keys: `category`, `entity_type`, `value`, `confidence`,
-    /// and optionally `start_offset` / `end_offset`.
-    pub fn parse(raw: &[Value]) -> Result<Vec<Entity>, Error> {
-        let mut entities = Vec::new();
-
-        for item in raw {
-            let obj = item.as_object().ok_or_else(|| {
-                Error::Validation("Expected JSON object in LLM results".to_string())
-            })?;
-
-            let category_str = obj
-                .get("category")
-                .and_then(Value::as_str)
-                .ok_or_else(|| Error::Validation("Missing 'category'".to_string()))?;
-
-            let category = match category_str {
-                "pii" => EntityCategory::Pii,
-                "phi" => EntityCategory::Phi,
-                "financial" => EntityCategory::Financial,
-                "credentials" => EntityCategory::Credentials,
-                other => EntityCategory::Custom(other.to_string()),
-            };
-
-            let entity_type_str = obj
-                .get("entity_type")
-                .and_then(Value::as_str)
-                .ok_or_else(|| {
-                    Error::Validation("Missing 'entity_type'".to_string())
-                })?;
-
-            let entity_kind = match EntityKind::from_str(entity_type_str) {
-                Ok(ek) => ek,
-                Err(_) => {
-                    tracing::warn!(
-                        entity_type = entity_type_str,
-                        "unknown entity type from LLM, dropping"
-                    );
-                    continue;
-                }
-            };
-
-            let value = obj
-                .get("value")
-                .and_then(Value::as_str)
-                .ok_or_else(|| Error::Validation("Missing 'value'".to_string()))?;
-
-            let confidence = obj
-                .get("confidence")
-                .and_then(Value::as_f64)
-                .ok_or_else(|| {
-                    Error::Validation("Missing 'confidence'".to_string())
-                })?;
-
-            let start_offset = obj
-                .get("start_offset")
-                .and_then(Value::as_u64)
-                .map(|v| v as usize)
-                .unwrap_or(0);
-
-            let end_offset = obj
-                .get("end_offset")
-                .and_then(Value::as_u64)
-                .map(|v| v as usize)
-                .unwrap_or(0);
-
-            let entity = Entity::new(
-                category,
-                entity_kind,
-                value,
-                DetectionMethod::ContextualNlp,
-                confidence,
-            )
-            .with_location(Location::Text(TextLocation {
-                start_offset,
-                end_offset,
-                ..Default::default()
-            }));
-
-            entities.push(entity);
-        }
-
-        Ok(entities)
-    }
-}
-
 /// Extract JSON content from markdown fences (```` ```json ... ``` ````).
 fn extract_fenced_json(text: &str) -> Option<&str> {
     let start_marker = if let Some(pos) = text.find("```json") {
@@ -216,7 +114,7 @@ fn truncate(s: &str, max_len: usize) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use serde_json::Value;
 
     #[test]
     fn parse_json_raw_array() {
@@ -240,30 +138,4 @@ mod tests {
         assert_eq!(ResponseParser::from_text("No entities").parse_json::<Vec<Value>>().unwrap(), empty);
     }
 
-    #[test]
-    fn entity_parser_basic() {
-        let raw = vec![json!({
-            "category": "credentials",
-            "entity_type": "api_key",
-            "value": "SECRET",
-            "confidence": 0.92,
-            "start_offset": 9,
-            "end_offset": 15
-        })];
-        let entities = EntityParser::parse(&raw).unwrap();
-        assert_eq!(entities.len(), 1);
-        assert_eq!(entities[0].value, "SECRET");
-        assert_eq!(entities[0].confidence, 0.92);
-    }
-
-    #[test]
-    fn entity_parser_unknown_type_skipped() {
-        let raw = vec![json!({
-            "category": "pii",
-            "entity_type": "unknown_thing_xyz",
-            "value": "test",
-            "confidence": 0.5
-        })];
-        assert!(EntityParser::parse(&raw).unwrap().is_empty());
-    }
 }

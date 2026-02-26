@@ -8,8 +8,7 @@ use rig::providers::{anthropic, gemini, ollama, openai};
 use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
-use super::super::provider::{Provider, build_http_client};
-use super::super::UsageTracker;
+use crate::backend::{Provider, UsageTracker, build_http_client};
 use super::{Agents, BaseAgent, BaseAgentConfig};
 use crate::error::Error;
 

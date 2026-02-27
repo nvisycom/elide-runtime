@@ -1,7 +1,6 @@
 //! Execute response types.
 
-use nvisy_engine::engine::{EngineOutput, RedactionSummary};
-use nvisy_engine::executor::runner::RunOutput;
+use nvisy_engine::engine::{EngineOutput, RedactionSummary, RunOutput};
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;

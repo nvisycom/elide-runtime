@@ -5,14 +5,10 @@
 mod apply;
 
 pub mod compiler;
-pub mod connections;
 pub mod engine;
-pub mod executor;
-pub mod ontology;
-pub mod policies;
-pub mod runs;
 
 pub use apply::{ApplyRedactionAction, ApplyRedactionInput, ApplyRedactionOutput};
+pub use engine::DefaultEngine;
 
 #[doc(hidden)]
 pub mod prelude;

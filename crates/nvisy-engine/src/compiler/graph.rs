@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::policies::retry::RetryPolicy;
+use super::retry::RetryPolicy;
 
 /// A node in the pipeline graph, tagged by its role.
 ///

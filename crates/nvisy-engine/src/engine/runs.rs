@@ -10,7 +10,7 @@ use jiff::Timestamp;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-use crate::executor::runner::RunOutput; 
+use super::executor::RunOutput;
 
 /// Lifecycle status of a pipeline run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

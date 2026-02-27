@@ -13,9 +13,10 @@
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
+use axum::http::HeaderValue;
 use serde::{Deserialize, Serialize};
 use tower_http::compression::CompressionLayer;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 
 /// Default request body limit for axum extractors (2 MiB).
@@ -36,6 +37,10 @@ pub struct SecurityConfig {
 
     /// Maximum body size in bytes for the raw request body (file uploads).
     pub file_body_limit_bytes: usize,
+
+    /// Allowed CORS origins. An empty list permits all origins (permissive).
+    #[serde(default)]
+    pub cors_allowed_origins: Vec<String>,
 }
 
 impl Default for SecurityConfig {
@@ -43,6 +48,7 @@ impl Default for SecurityConfig {
         Self {
             body_limit_bytes: DEFAULT_BODY_LIMIT,
             file_body_limit_bytes: DEFAULT_FILE_BODY_LIMIT,
+            cors_allowed_origins: Vec::new(),
         }
     }
 }
@@ -60,9 +66,20 @@ where
     S: Clone + Send + Sync + 'static,
 {
     fn with_security(self, config: &SecurityConfig) -> Self {
+        let cors = if config.cors_allowed_origins.is_empty() {
+            CorsLayer::permissive()
+        } else {
+            let origins: Vec<HeaderValue> = config
+                .cors_allowed_origins
+                .iter()
+                .filter_map(|o| o.parse().ok())
+                .collect();
+            CorsLayer::new().allow_origin(AllowOrigin::list(origins))
+        };
+
         self.layer(DefaultBodyLimit::max(config.body_limit_bytes))
             .layer(RequestBodyLimitLayer::new(config.file_body_limit_bytes))
             .layer(CompressionLayer::new())
-            .layer(CorsLayer::permissive())
+            .layer(cors)
     }
 }

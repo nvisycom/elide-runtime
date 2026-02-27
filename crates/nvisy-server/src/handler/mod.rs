@@ -5,7 +5,7 @@
 //! The top-level [`routes()`] function merges all fragments into a single
 //! router.
 //!
-//! Request and response types live in the private [`request`] and [`response`]
+//! Request and response types live in the [`request`] and [`response`]
 //! submodules. [`Error`], [`ErrorKind`], and [`Result`] are re-exported for
 //! use by middleware and extractors.
 

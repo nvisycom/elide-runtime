@@ -6,3 +6,7 @@ pub mod extract;
 pub mod handler;
 pub mod middleware;
 pub mod service;
+
+pub use handler::error::{Error, ErrorKind, Result};
+pub use handler::routes;
+pub use service::ServiceState;

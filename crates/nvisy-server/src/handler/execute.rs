@@ -79,18 +79,37 @@ fn execute_docs(op: TransformOperation) -> TransformOperation {
 fn mime_from_filename(filename: &str) -> Option<String> {
     let ext = filename.rsplit('.').next()?;
     let mime = match ext.to_ascii_lowercase().as_str() {
+        // Text
         "txt" => "text/plain",
         "csv" => "text/csv",
         "json" => "application/json",
         "xml" => "application/xml",
         "html" | "htm" => "text/html",
+        // Documents
         "pdf" => "application/pdf",
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "tiff" | "tif" => "image/tiff",
         "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        // Images
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "tiff" | "tif" => "image/tiff",
+        "bmp" => "image/bmp",
+        // Audio
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "ogg" => "audio/ogg",
+        "flac" => "audio/flac",
+        "aac" => "audio/aac",
+        // Video
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "avi" => "video/x-msvideo",
+        "mov" => "video/quicktime",
+        // Archives
         "zip" => "application/zip",
         _ => return None,
     };

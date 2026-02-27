@@ -1,12 +1,13 @@
 //! Policy evaluation outcome.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use nvisy_ontology::record::Redaction;
 
 /// Full outcome of evaluating a policy against a set of entities.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PolicyEvaluation {
     /// Identifier of the policy that was evaluated.
     pub policy_id: Uuid,

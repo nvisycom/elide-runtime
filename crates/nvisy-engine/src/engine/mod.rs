@@ -25,9 +25,9 @@ use uuid::Uuid;
 
 use nvisy_core::Error;
 use nvisy_core::fs::ContentHandler;
-use nvisy_ontology::entity::DetectionOutput;
 // Re-exported so downstream crates (e.g. nvisy-server) don't need a direct
-// dependency on nvisy-identify.
+// dependency on nvisy-ontology or nvisy-identify.
+pub use nvisy_ontology::entity::DetectionOutput;
 pub use nvisy_identify::{
     Audit, Policies, PolicyEvaluation, RedactionSummary,
 };

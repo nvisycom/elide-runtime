@@ -24,7 +24,7 @@
 //! 3. Downstream detection via magic bytes / filename heuristics.
 
 use aide::axum::ApiRouter;
-use aide::axum::routing::{delete_with, get_with};
+use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::State;
 use nvisy_core::io::{Content, ContentData};
@@ -61,6 +61,16 @@ async fn upload(
     );
 
     Ok(Json(UploadResponse { id }))
+}
+
+fn upload_docs(op: TransformOperation) -> TransformOperation {
+    op.id("uploadContent")
+        .tag("ingest")
+        .summary("Upload content as multipart form data")
+        .description(
+            "Accepts a multipart/form-data body with a required `file` field \
+             and an optional `content_type` text field to override MIME detection.",
+        )
 }
 
 /// `GET /api/v1/ingest/{id}`: download previously uploaded content.
@@ -127,7 +137,7 @@ fn delete_all_docs(op: TransformOperation) -> TransformOperation {
 /// Ingest routes.
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
-        .route("/api/v1/ingest", axum::routing::post(upload))
+        .api_route("/api/v1/ingest", post_with(upload, upload_docs))
         .api_route(
             "/api/v1/ingest",
             delete_with(delete_all, delete_all_docs),

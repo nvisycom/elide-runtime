@@ -91,6 +91,10 @@ where
     }
 }
 
+/// Converts a Tower service error into an appropriate HTTP error response.
+///
+/// Distinguishes timeouts ([`Elapsed`](tower::timeout::error::Elapsed))
+/// from other middleware errors and logs accordingly.
 fn handle_error(err: tower::BoxError) -> ResponseFut {
     use tower::timeout::error::Elapsed;
 
@@ -116,6 +120,12 @@ fn handle_error(err: tower::BoxError) -> ResponseFut {
     ready(error.into_response()).boxed()
 }
 
+/// Converts a panic payload into a `500 Internal Server Error` response.
+///
+/// Returns `Response` directly (not a future) because
+/// [`ResponseForPanic`](tower_http::catch_panic::ResponseForPanic) requires
+/// a synchronous return, unlike [`handle_error`] which returns a
+/// [`BoxFuture`](futures::future::BoxFuture).
 fn catch_panic(err: Panic) -> Response {
     let message = err
         .downcast_ref::<String>()
@@ -129,6 +139,7 @@ fn catch_panic(err: Panic) -> Response {
         "service panic",
     );
 
-    let error = Error::new(ErrorKind::InternalServerError).with_message("service panic");
-    error.into_response()
+    Error::new(ErrorKind::InternalServerError)
+        .with_message("service panic")
+        .into_response()
 }

@@ -4,13 +4,14 @@ mod layout_kind;
 
 pub use layout_kind::LayoutKind;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use nvisy_core::math::{BoundingBox, TimeSpan};
 
 /// Location of an entity within text content.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct TextLocation {
     /// Byte or character offset where the entity starts.
     pub start_offset: usize,
@@ -38,7 +39,7 @@ impl TextLocation {
 }
 
 /// Location of an entity within an image.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ImageLocation {
     /// Bounding box of the entity in the image.
     pub bounding_box: BoundingBox,
@@ -51,7 +52,7 @@ pub struct ImageLocation {
 }
 
 /// Location of an entity within tabular data.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TabularLocation {
     /// Row index (0-based).
     pub row_index: usize,
@@ -66,7 +67,7 @@ pub struct TabularLocation {
 }
 
 /// Location of an entity within an audio stream.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct AudioLocation {
     /// Time interval of the entity.
     pub time_span: TimeSpan,
@@ -79,7 +80,7 @@ pub struct AudioLocation {
 }
 
 /// Location of an entity within a video stream.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct VideoLocation {
     /// Bounding box of the entity in the frame.
     pub bounding_box: BoundingBox,
@@ -100,7 +101,7 @@ pub struct VideoLocation {
 ///
 /// Exactly one variant is set per entity, enforcing the invariant that
 /// an entity exists in a single modality.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Location {
     /// Entity found in text content.

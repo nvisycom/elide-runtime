@@ -18,6 +18,9 @@ use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tower_http::trace::{self, TraceLayer};
 use tracing::Level;
 
+/// Header name used for request correlation.
+const REQUEST_ID_HEADER: &str = "x-request-id";
+
 /// Extension trait for [`Router`] to add observability middleware.
 ///
 /// Layers the full observability stack in the correct order:
@@ -38,7 +41,7 @@ where
 {
     fn with_observability(self) -> Self {
         self.layer(PropagateRequestIdLayer::new(
-            header::HeaderName::from_static("x-request-id"),
+            header::HeaderName::from_static(REQUEST_ID_HEADER),
         ))
         .layer(SetSensitiveRequestHeadersLayer::new([
             header::AUTHORIZATION,
@@ -46,7 +49,7 @@ where
         ]))
         .layer(trace_layer())
         .layer(SetRequestIdLayer::new(
-            header::HeaderName::from_static("x-request-id"),
+            header::HeaderName::from_static(REQUEST_ID_HEADER),
             MakeRequestUuid,
         ))
     }

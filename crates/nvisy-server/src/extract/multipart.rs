@@ -36,7 +36,10 @@ impl<S: Send + Sync> FromRequest<S> for Upload {
             .await
             .map_err(|e| ErrorKind::BadRequest.with_message(format!("multipart error: {e}")))?
         {
-            let field_name = field.name().unwrap_or_default().to_string();
+            let Some(field_name) = field.name().map(str::to_owned) else {
+                tracing::warn!("ignoring multipart field with no name");
+                continue;
+            };
             match field_name.as_str() {
                 "file" => {
                     filename = field.file_name().map(String::from);

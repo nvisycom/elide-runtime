@@ -26,7 +26,7 @@ use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 use tower_http::catch_panic::CatchPanicLayer;
 
-use crate::handler::ServerError;
+use crate::handler::error::{Error, ErrorKind};
 
 /// Tracing target for error recovery.
 const TRACING_TARGET_ERROR: &str = "nvisy_server::recovery::error";
@@ -101,8 +101,8 @@ fn handle_error(err: tower::BoxError) -> ResponseFut {
             "request timeout exceeded",
         );
 
-        let error = nvisy_core::Error::new(nvisy_core::ErrorKind::Timeout, "request timeout");
-        return ready(ServerError::from(error).into_response()).boxed();
+        let error = Error::new(ErrorKind::InternalServerError).with_message("request timeout");
+        return ready(error.into_response()).boxed();
     }
 
     tracing::error!(
@@ -111,11 +111,9 @@ fn handle_error(err: tower::BoxError) -> ResponseFut {
         "unhandled middleware error",
     );
 
-    let error = nvisy_core::Error::new(
-        nvisy_core::ErrorKind::InternalError,
-        format!("internal error: {err}"),
-    );
-    ready(ServerError::from(error).into_response()).boxed()
+    let error =
+        Error::new(ErrorKind::InternalServerError).with_message(format!("internal error: {err}"));
+    ready(error.into_response()).boxed()
 }
 
 fn catch_panic(err: Panic) -> Response {
@@ -131,6 +129,6 @@ fn catch_panic(err: Panic) -> Response {
         "service panic",
     );
 
-    let error = nvisy_core::Error::new(nvisy_core::ErrorKind::InternalError, "service panic");
-    ServerError::from(error).into_response()
+    let error = Error::new(ErrorKind::InternalServerError).with_message("service panic");
+    error.into_response()
 }

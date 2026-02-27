@@ -4,8 +4,8 @@
 //! [`DefaultBodyLimit`] and tower-http [`RequestBodyLimitLayer`]), and
 //! response compression. The two body limits serve different purposes:
 //!
-//! - [`DefaultBodyLimit`] — governs axum extractors (`Json`, `Form`, etc.).
-//! - [`RequestBodyLimitLayer`] — hard cap enforced by tower-http on the raw
+//! - [`DefaultBodyLimit`]: governs axum extractors (`Json`, `Form`, etc.).
+//! - [`RequestBodyLimitLayer`]: hard cap enforced by tower-http on the raw
 //!   request body, including multipart file uploads.
 //!
 //! [`DefaultBodyLimit`]: axum::extract::DefaultBodyLimit
@@ -27,7 +27,7 @@ const DEFAULT_FILE_BODY_LIMIT: usize = 50 * 1024 * 1024;
 /// Configuration for security middleware.
 ///
 /// Controls CORS policy and request body size limits. The two limit
-/// fields target different layers of the stack — see the module-level
+/// fields target different layers of the stack: see the module-level
 /// documentation for details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityConfig {

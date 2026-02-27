@@ -11,10 +11,10 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use axum::Json;
-use nvisy_core::{Error, ErrorKind};
 
-use super::response::{Analytics, Health, ServerError};
+use super::error::{ErrorKind, Result};
+use super::response::{Analytics, Health};
+use crate::extract::Json;
 use crate::service::ServiceState;
 
 /// `GET /health`: liveness probe.
@@ -33,11 +33,8 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(skip_all)]
 async fn analytics(
     State(_state): State<ServiceState>,
-) -> Result<Json<Analytics>, ServerError> {
-    Err(ServerError::from(Error::new(
-        ErrorKind::Runtime,
-        "analytics endpoint not yet implemented",
-    )))
+) -> Result<Json<Analytics>> {
+    Err(ErrorKind::NotImplemented.with_message("analytics endpoint not yet implemented"))
 }
 
 fn analytics_docs(op: TransformOperation) -> TransformOperation {

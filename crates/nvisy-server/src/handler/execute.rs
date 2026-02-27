@@ -14,14 +14,14 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use axum::Json;
 use base64::Engine as _;
 use nvisy_core::io::{Content, ContentData};
-use nvisy_core::{Error, ErrorKind};
 use nvisy_engine::engine::{Engine as _, EngineInput, Policies};
 
+use super::error::{ErrorKind, Result};
 use super::request::ExecuteRequest;
-use super::response::{ExecuteResponse, ServerError};
+use super::response::ExecuteResponse;
+use crate::extract::Json;
 use crate::service::ServiceState;
 
 /// `POST /api/v1/execute`: run the full pipeline.
@@ -29,13 +29,13 @@ use crate::service::ServiceState;
 async fn execute(
     State(state): State<ServiceState>,
     Json(req): Json<ExecuteRequest>,
-) -> Result<Json<ExecuteResponse>, ServerError> {
+) -> Result<Json<ExecuteResponse>> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(&req.content)
-        .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("invalid base64: {e}")))?;
+        .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid base64: {e}")))?;
 
     let policies: Policies = serde_json::from_value(req.policies)
-        .map_err(|e| Error::new(ErrorKind::Validation, format!("invalid policies: {e}")))?;
+        .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid policies: {e}")))?;
 
     let mut content_data = ContentData::from(bytes);
     if let Some(ref filename) = req.filename

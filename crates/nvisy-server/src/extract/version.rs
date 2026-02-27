@@ -9,8 +9,9 @@ use std::str::FromStr;
 
 use aide::OperationInput;
 use axum::extract::FromRequestParts;
-use axum::http::StatusCode;
 use axum::http::request::Parts;
+
+use crate::handler::error::{Error, ErrorKind};
 
 /// API version extracted from the `Accept-Version` header.
 ///
@@ -92,22 +93,18 @@ impl FromStr for Version {
 }
 
 impl<S: Send + Sync> FromRequestParts<S> for Version {
-    type Rejection = (StatusCode, String);
+    type Rejection = Error<'static>;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         match parts.headers.get(Self::HEADER) {
             Some(value) => {
                 let s = value.to_str().map_err(|_| {
-                    (
-                        StatusCode::BAD_REQUEST,
-                        format!("invalid `{}` header value", Self::HEADER),
-                    )
+                    ErrorKind::BadRequest
+                        .with_message(format!("invalid `{}` header value", Self::HEADER))
                 })?;
                 s.parse::<Version>().map_err(|e| {
-                    (
-                        StatusCode::BAD_REQUEST,
-                        format!("invalid `{}` header: {e}", Self::HEADER),
-                    )
+                    ErrorKind::BadRequest
+                        .with_message(format!("invalid `{}` header: {e}", Self::HEADER))
                 })
             }
             None => Ok(Self::LATEST),
@@ -211,7 +208,7 @@ mod tests {
             .0;
         let result = Version::from_request_parts(&mut parts, &()).await;
         assert!(result.is_err());
-        let (status, _) = result.unwrap_err();
-        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::BadRequest);
     }
 }

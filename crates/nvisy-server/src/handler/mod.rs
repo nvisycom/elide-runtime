@@ -6,7 +6,10 @@
 //! router.
 //!
 //! Request and response types live in the private [`request`] and [`response`]
-//! submodules. Only [`ServerError`] is re-exported for use by middleware.
+//! submodules. [`Error`], [`ErrorKind`], and [`Result`] are re-exported for
+//! use by middleware and extractors.
+
+pub mod error;
 
 mod check;
 mod execute;
@@ -16,7 +19,7 @@ mod redact;
 mod request;
 mod response;
 
-pub use response::ServerError;
+pub use error::{Error, ErrorKind, Result};
 
 use aide::axum::ApiRouter;
 

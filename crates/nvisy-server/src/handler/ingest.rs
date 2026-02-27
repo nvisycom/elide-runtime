@@ -1,4 +1,4 @@
-//! Content ingestion handlers — upload, download, and deletion.
+//! Content ingestion handlers: upload, download, and deletion.
 //!
 //! # Endpoints
 //!
@@ -26,13 +26,13 @@
 use aide::axum::ApiRouter;
 use aide::axum::routing::{delete_with, get_with};
 use aide::transform::TransformOperation;
-use axum::extract::{Multipart, Path, State};
-use axum::Json;
+use axum::extract::State;
 use nvisy_core::io::{Content, ContentData};
-use nvisy_core::{Error, ErrorKind};
 use uuid::Uuid;
 
-use super::response::{DeleteAllResponse, DeleteResponse, DownloadResponse, ServerError, UploadResponse};
+use super::error::{ErrorKind, Result};
+use super::response::{DeleteAllResponse, DeleteResponse, DownloadResponse, UploadResponse};
+use crate::extract::{Json, Path, Upload};
 use crate::service::ServiceState;
 
 /// `POST /api/v1/ingest`: upload content as multipart form data.
@@ -42,56 +42,11 @@ use crate::service::ServiceState;
 #[tracing::instrument(skip_all)]
 async fn upload(
     State(state): State<ServiceState>,
-    mut multipart: Multipart,
-) -> Result<Json<UploadResponse>, ServerError> {
-    let mut file_bytes: Option<Vec<u8>> = None;
-    let mut filename: Option<String> = None;
-    let mut content_type: Option<String> = None;
-
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("multipart error: {e}")))?
-    {
-        let field_name = field.name().unwrap_or_default().to_string();
-        match field_name.as_str() {
-            "file" => {
-                filename = field.file_name().map(String::from);
-                content_type = field.content_type().map(String::from);
-                file_bytes = Some(
-                    field
-                        .bytes()
-                        .await
-                        .map_err(|e| {
-                            Error::new(
-                                ErrorKind::InvalidInput,
-                                format!("failed to read file field: {e}"),
-                            )
-                        })?
-                        .to_vec(),
-                );
-            }
-            "content_type" => {
-                let value = field.text().await.map_err(|e| {
-                    Error::new(
-                        ErrorKind::InvalidInput,
-                        format!("failed to read content_type field: {e}"),
-                    )
-                })?;
-                content_type = Some(value);
-            }
-            _ => {
-                tracing::debug!(field = field_name, "ignoring unknown multipart field");
-            }
-        }
-    }
-
-    let bytes = file_bytes
-        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "missing required 'file' field"))?;
-
-    let size = bytes.len();
-    let mut content_data = ContentData::from(bytes);
-    if let Some(mime) = content_type {
+    upload: Upload,
+) -> Result<Json<UploadResponse>> {
+    let size = upload.bytes.len();
+    let mut content_data = ContentData::from(upload.bytes);
+    if let Some(mime) = upload.content_type {
         content_data.mime = Some(mime);
     }
     let content = Content::new(content_data);
@@ -101,7 +56,7 @@ async fn upload(
     tracing::info!(
         %id,
         size,
-        filename = filename.as_deref().unwrap_or("<none>"),
+        filename = upload.filename.as_deref().unwrap_or("<none>"),
         "content uploaded",
     );
 
@@ -111,16 +66,14 @@ async fn upload(
 /// `GET /api/v1/ingest/{id}`: download previously uploaded content.
 ///
 /// Returns the content as base64-encoded bytes along with its identifier.
-/// Currently unimplemented — returns a 500 error.
+/// Currently unimplemented: returns a 501 error.
 #[tracing::instrument(skip_all, fields(%id))]
 async fn download(
     State(_state): State<ServiceState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<DownloadResponse>, ServerError> {
-    Err(ServerError::from(Error::new(
-        ErrorKind::Runtime,
-        format!("content download not yet implemented (id: {id})"),
-    )))
+) -> Result<Json<DownloadResponse>> {
+    Err(ErrorKind::NotImplemented
+        .with_message(format!("content download not yet implemented (id: {id})")))
 }
 
 fn download_docs(op: TransformOperation) -> TransformOperation {
@@ -138,7 +91,7 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
 async fn delete(
     State(state): State<ServiceState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<DeleteResponse>, ServerError> {
+) -> Result<Json<DeleteResponse>> {
     state.content_registry().delete(id).await?;
     tracing::info!(%id, "content deleted");
     Ok(Json(DeleteResponse { id }))
@@ -158,7 +111,7 @@ fn delete_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(skip_all)]
 async fn delete_all(
     State(state): State<ServiceState>,
-) -> Result<Json<DeleteAllResponse>, ServerError> {
+) -> Result<Json<DeleteAllResponse>> {
     let deleted = state.content_registry().delete_all().await?;
     tracing::info!(deleted, "all content deleted");
     Ok(Json(DeleteAllResponse { deleted }))

@@ -249,7 +249,7 @@ async fn execute_action(
     action: &str,
     _params: &serde_json::Value,
     senders: &[mpsc::Sender<ContentData>],
-    receivers: &mut Vec<mpsc::Receiver<ContentData>>,
+    receivers: &mut [mpsc::Receiver<ContentData>],
 ) -> Result<u64, Error> {
     tracing::debug!(action, "action node: processing");
 
@@ -278,7 +278,7 @@ async fn execute_target(
     stream: &str,
     _params: &serde_json::Value,
     retry: Option<&RetryPolicy>,
-    receivers: &mut Vec<mpsc::Receiver<ContentData>>,
+    receivers: &mut [mpsc::Receiver<ContentData>],
     connections: &Connections,
 ) -> Result<u64, Error> {
     let _conn = resolve_connection(provider, connections)?;

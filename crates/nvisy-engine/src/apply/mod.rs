@@ -1,4 +1,13 @@
-//! Unified redaction action -- applies text, image, tabular, and audio redactions.
+//! Unified redaction action — applies text, image, audio, and tabular redactions.
+//!
+//! [`ApplyRedactionAction`] dispatches per-document based on content type:
+//!
+//! | Modality | Handler        | Strategy                            |
+//! |----------|----------------|-------------------------------------|
+//! | Text     | [`TxtHandler`] | Byte-offset span replacement        |
+//! | Image    | [`PngHandler`] | Bounding-box blur/block/pixelate    |
+//! | Audio    | [`WavHandler`] | Time-range silence/remove           |
+//! | Tabular  | [`CsvHandler`] | Cell-level mask/remove/hash         |
 
 mod text;
 mod tabular;

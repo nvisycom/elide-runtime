@@ -8,6 +8,7 @@
 //! |------------------------------------------------|------------------------|
 //! | `Validation`, `InvalidInput`, `Serialization`  | 400 Bad Request        |
 //! | `Policy`                                       | 403 Forbidden          |
+//! | `NotFound`                                     | 404 Not Found          |
 //! | `Connection`                                   | 502 Bad Gateway        |
 //! | `Timeout`                                      | 504 Gateway Timeout    |
 //! | `Cancellation`                                 | 499 Client Closed      |
@@ -56,6 +57,7 @@ fn status_for(kind: ErrorKind) -> StatusCode {
             StatusCode::BAD_REQUEST
         }
         ErrorKind::Policy => StatusCode::FORBIDDEN,
+        ErrorKind::NotFound => StatusCode::NOT_FOUND,
         ErrorKind::Connection => StatusCode::BAD_GATEWAY,
         ErrorKind::Timeout => StatusCode::GATEWAY_TIMEOUT,
         // 499: non-standard "Client Closed Request"

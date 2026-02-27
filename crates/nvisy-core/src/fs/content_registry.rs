@@ -64,8 +64,16 @@ impl ContentRegistry {
     }
 
     /// Remove a single content directory by UUID.
+    ///
+    /// Returns [`ErrorKind::NotFound`] if no directory exists for the given id.
     pub async fn delete(&self, id: Uuid) -> Result<()> {
         let dir = self.base_dir.join(id.to_string());
+        if !dir.exists() {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                format!("Content not found (id: {id})"),
+            ));
+        }
         tokio::fs::remove_dir_all(&dir).await.map_err(|err| {
             Error::new(
                 ErrorKind::InternalError,
@@ -175,6 +183,18 @@ mod tests {
 
         registry.delete(id).await.unwrap();
         assert!(!handler.dir().exists());
+    }
+
+    #[tokio::test]
+    async fn test_delete_not_found() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let registry = ContentRegistry::new(temp.path().join("content"));
+        // Ensure the base dir exists so the error is about the specific UUID.
+        tokio::fs::create_dir_all(registry.base_dir()).await.unwrap();
+
+        let id = uuid::Uuid::new_v4();
+        let err = registry.delete(id).await.unwrap_err();
+        assert_eq!(err.kind, ErrorKind::NotFound);
     }
 
     #[tokio::test]

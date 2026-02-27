@@ -28,6 +28,8 @@ pub enum ErrorKind {
     Python,
     /// An internal infrastructure error (filesystem, I/O).
     InternalError,
+    /// The requested resource was not found.
+    NotFound,
     /// The input was invalid or out of bounds.
     InvalidInput,
     /// A serialization or encoding error.

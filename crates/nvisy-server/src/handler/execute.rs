@@ -15,9 +15,10 @@ use aide::axum::routing::post_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::Json;
+use base64::Engine as _;
 use nvisy_core::io::{Content, ContentData};
 use nvisy_core::{Error, ErrorKind};
-use nvisy_engine::engine::{Engine, EngineInput, Policies};
+use nvisy_engine::engine::{Engine as _, EngineInput, Policies};
 
 use super::request::ExecuteRequest;
 use super::response::{ExecuteResponse, ServerError};
@@ -29,7 +30,6 @@ async fn execute(
     State(state): State<ServiceState>,
     Json(req): Json<ExecuteRequest>,
 ) -> Result<Json<ExecuteResponse>, ServerError> {
-    use base64::Engine as _;
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(&req.content)
         .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("invalid base64: {e}")))?;

@@ -13,17 +13,9 @@ use aide::transform::TransformOperation;
 use axum::extract::State;
 use axum::Json;
 use nvisy_core::{Error, ErrorKind};
-use schemars::JsonSchema;
-use serde::Serialize;
 
-use super::response::{Analytics, ServerError};
+use super::response::{Analytics, Health, ServerError};
 use crate::service::ServiceState;
-
-/// Response body for `GET /health`.
-#[derive(Debug, Serialize, JsonSchema)]
-pub struct Health {
-    pub status: &'static str,
-}
 
 /// `GET /health`: liveness probe.
 async fn health() -> Json<Health> {

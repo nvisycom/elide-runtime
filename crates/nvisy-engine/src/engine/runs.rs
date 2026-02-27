@@ -7,14 +7,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use jiff::Timestamp;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use super::executor::RunOutput;
 
 /// Lifecycle status of a pipeline run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RunStatus {
     /// The run has been created but not yet started.
@@ -32,8 +33,7 @@ pub enum RunStatus {
 }
 
 /// Execution progress of a single node within a run.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct NodeProgress {
     /// ID of the node this progress belongs to.
     pub node_id: String,
@@ -47,8 +47,7 @@ pub struct NodeProgress {
 }
 
 /// Complete mutable state of a pipeline run.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RunState {
     /// Unique run identifier.
     pub id: Uuid,
@@ -69,8 +68,7 @@ pub struct RunState {
 }
 
 /// Lightweight summary of a run for listing endpoints.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RunSummary {
     /// Unique run identifier.
     pub id: Uuid,

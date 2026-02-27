@@ -3,11 +3,11 @@
 //! Bounding boxes and time spans used across entity locations,
 //! rendering, and redaction operations.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A time interval within an audio or video stream.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TimeSpan {
     /// Start time in seconds from the beginning of the stream.
     pub start_secs: f64,
@@ -20,8 +20,7 @@ pub struct TimeSpan {
 /// Coordinates are `f64` to support both pixel and normalized (0.0–1.0)
 /// values from detection models. Use [`BoundingBoxU32`] (or [`Into`])
 /// when integer pixel coordinates are needed for rendering.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BoundingBox {
     /// Horizontal offset of the top-left corner (pixels or normalized).
     pub x: f64,

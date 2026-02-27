@@ -14,6 +14,8 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 use uuid::Uuid;
@@ -29,8 +31,7 @@ use super::policies::{with_retry, with_timeout};
 const CHANNEL_BUFFER_SIZE: usize = 256;
 
 /// Outcome of executing a single node in the pipeline.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct NodeOutput {
     /// ID of the node that produced this result.
     pub node_id: String,
@@ -41,8 +42,7 @@ pub struct NodeOutput {
 }
 
 /// Aggregate outcome of executing an entire pipeline graph.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RunOutput {
     /// Unique identifier for this execution run.
     pub run_id: Uuid,

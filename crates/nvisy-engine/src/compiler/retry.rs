@@ -3,13 +3,13 @@
 //! [`RetryPolicy`] configures how many times a failed node should be retried,
 //! the base delay between attempts, and the [`BackoffStrategy`] to use.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Retry policy attached to a pipeline node.
 ///
 /// Defaults to 3 retries with a 1 000 ms fixed delay.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RetryPolicy {
     /// Maximum number of retry attempts after the initial failure.
     #[serde(default = "default_max_retries")]
@@ -38,8 +38,7 @@ impl Default for RetryPolicy {
 }
 
 /// Strategy for computing the delay between retry attempts.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum BackoffStrategy {
     /// Constant delay equal to `delay_ms` on every attempt.

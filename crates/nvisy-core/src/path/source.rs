@@ -6,6 +6,7 @@
 use std::fmt;
 
 use jiff::Zoned;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -16,7 +17,7 @@ use uuid::Uuid;
 /// This allows for efficient tracking and correlation of content throughout
 /// the processing pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ContentSource {
     /// `UUIDv7` identifier
     id: Uuid,

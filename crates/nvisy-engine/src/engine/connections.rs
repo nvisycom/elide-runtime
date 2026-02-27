@@ -5,11 +5,11 @@
 //! [`Connections`] is a type alias mapping connection IDs to their definitions.
 
 use std::collections::HashMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A validated connection to an external service such as S3 or a database.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Connection {
     /// Provider type identifier (e.g. `"s3"`, `"postgres"`).
     #[serde(rename = "type")]

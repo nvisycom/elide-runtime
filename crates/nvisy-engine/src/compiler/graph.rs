@@ -3,6 +3,7 @@
 //! A pipeline is represented as a set of [`GraphNode`]s connected by
 //! [`GraphEdge`]s, collected into a [`Graph`].
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::retry::RetryPolicy;
@@ -11,8 +12,7 @@ use super::retry::RetryPolicy;
 ///
 /// Nodes are serialized with a `"type"` discriminator so JSON definitions
 /// can specify `"source"`, `"action"`, or `"target"`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum GraphNode {
     /// A data source that reads from an external provider via a named stream.
@@ -108,8 +108,7 @@ impl GraphNode {
 }
 
 /// A directed edge connecting two nodes by their IDs.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GraphEdge {
     /// ID of the upstream (source) node.
     pub from: String,
@@ -120,8 +119,7 @@ pub struct GraphEdge {
 /// A complete pipeline graph definition containing nodes and edges.
 ///
 /// The graph must be a valid DAG (directed acyclic graph) with unique node IDs.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Graph {
     /// All nodes in the pipeline.
     pub nodes: Vec<GraphNode>,

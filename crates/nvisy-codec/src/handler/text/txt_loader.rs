@@ -6,7 +6,7 @@
 //! reconstructed after edits.
 
 use nvisy_core::Error;
-use nvisy_core::io::ContentData;
+use nvisy_core::io::{ContentData, TextEncoding};
 
 use crate::document::Document;
 use crate::handler::{Loader, TxtHandler};
@@ -15,7 +15,7 @@ use crate::handler::{Loader, TxtHandler};
 #[derive(Debug, Default)]
 pub struct TxtParams {
     /// Character encoding of the input bytes.
-    pub encoding: nvisy_core::io::TextEncoding,
+    pub encoding: TextEncoding,
 }
 
 /// Loader that validates and parses plain-text files.
@@ -34,7 +34,7 @@ impl Loader for TxtLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Vec<Document<TxtHandler>>, Error> {
+    ) -> Result<Document<TxtHandler>, Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
         let text = params.encoding.decode_bytes(&raw, "txt-loader")?;
@@ -44,7 +44,7 @@ impl Loader for TxtLoader {
 
         let handler = TxtHandler::new(lines, trailing_newline);
         let doc = Document::new(handler).with_parent(content);
-        Ok(vec![doc])
+        Ok(doc)
     }
 }
 
@@ -65,41 +65,37 @@ mod tests {
     #[tokio::test]
     async fn load_multiline() -> Result<(), Error> {
         let content = content_from_str("hello\nworld\n");
-        let docs = TxtLoader
+        let doc = TxtLoader
             .decode(&content, &TxtParams::default())
             .await?;
 
-        assert_eq!(docs.len(), 1);
-        assert_eq!(docs[0].document_type(), DocumentType::Txt);
-
-        let h = docs[0].handler();
-        assert_eq!(h.lines(), &["hello", "world"]);
-        assert!(h.trailing_newline());
+        assert_eq!(doc.document_type(), DocumentType::Txt);
+        assert_eq!(doc.lines(), &["hello", "world"]);
+        assert!(doc.trailing_newline());
         Ok(())
     }
 
     #[tokio::test]
     async fn load_no_trailing_newline() -> Result<(), Error> {
         let content = content_from_str("single line");
-        let docs = TxtLoader
+        let doc = TxtLoader
             .decode(&content, &TxtParams::default())
             .await?;
 
-        let h = docs[0].handler();
-        assert_eq!(h.len(), 1);
-        assert_eq!(h.line(0), Some("single line"));
-        assert!(!h.trailing_newline());
+        assert_eq!(doc.len(), 1);
+        assert_eq!(doc.line(0), Some("single line"));
+        assert!(!doc.trailing_newline());
         Ok(())
     }
 
     #[tokio::test]
     async fn load_preserves_spans_through_round_trip() -> Result<(), Error> {
         let content = content_from_str("Alice\nBob\nCharlie\n");
-        let docs = TxtLoader
+        let doc = TxtLoader
             .decode(&content, &TxtParams::default())
             .await?;
 
-        let spans: Vec<_> = docs[0].handler().view_spans().await.collect().await;
+        let spans: Vec<_> = doc.view_spans().await.collect().await;
         assert_eq!(spans.len(), 3);
         assert_eq!(spans[0].data, "Alice");
         assert_eq!(spans[1].data, "Bob");

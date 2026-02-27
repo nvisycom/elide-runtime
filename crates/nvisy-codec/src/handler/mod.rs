@@ -11,19 +11,19 @@ use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::{SpanEditStream, SpanStream};
+use crate::stream::{SpanEditStream, SpanStream};
 use crate::document::Document;
 
 mod span;
 mod text;
-mod document;
+mod rich;
 mod image;
 mod audio;
 
 pub use span::{Span, SpanEdit};
 
 pub use text::*;
-pub use document::*;
+pub use rich::*;
 pub use image::*;
 pub use audio::*;
 
@@ -77,5 +77,5 @@ pub trait Loader: Send + Sync + 'static {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Vec<Document<Self::Handler>>, Error>;
+    ) -> Result<Document<Self::Handler>, Error>;
 }

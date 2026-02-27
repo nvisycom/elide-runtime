@@ -31,15 +31,15 @@ macro_rules! impl_image_handler {
 
             async fn view_spans(
                 &self,
-            ) -> crate::document::SpanStream<'_, (), crate::handler::ImageData> {
-                crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
+            ) -> crate::stream::SpanStream<'_, (), crate::handler::ImageData> {
+                crate::stream::SpanStream::new(futures::stream::iter(std::iter::once(
                     crate::handler::Span::new((), crate::handler::ImageData::from(self.image.clone())),
                 )))
             }
 
             async fn edit_spans(
                 &mut self,
-                edits: crate::document::SpanEditStream<'_, (), crate::handler::ImageData>,
+                edits: crate::stream::SpanEditStream<'_, (), crate::handler::ImageData>,
             ) -> Result<(), nvisy_core::Error> {
                 use futures::StreamExt;
                 let edits: Vec<_> = edits.collect().await;

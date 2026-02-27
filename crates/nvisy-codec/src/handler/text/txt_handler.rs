@@ -19,7 +19,7 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::{SpanEditStream, SpanStream};
+use crate::stream::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
 use crate::transform::TextHandler;
 

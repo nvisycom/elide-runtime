@@ -40,7 +40,7 @@ impl Loader for JsonLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Vec<Document<JsonHandler>>, Error> {
+    ) -> Result<Document<JsonHandler>, Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
         let text = params.encoding.decode_bytes(&raw, "json-loader")?;
@@ -58,7 +58,7 @@ impl Loader for JsonLoader {
             },
         };
         let doc = Document::new(handler).with_parent(content);
-        Ok(vec![doc])
+        Ok(doc)
     }
 }
 
@@ -108,59 +108,54 @@ mod tests {
     #[tokio::test]
     async fn load_simple_object() -> Result<(), Error> {
         let content = content_from_str(r#"{"name": "Alice", "age": 30}"#);
-        let docs = JsonLoader
+        let doc = JsonLoader
             .decode(&content, &JsonParams::default())
             .await?;
 
-        assert_eq!(docs.len(), 1);
-        assert_eq!(docs[0].document_type(), DocumentType::Json);
-
-        let handler = docs[0].handler();
-        assert_eq!(handler.value(), &json!({"name": "Alice", "age": 30}));
+        assert_eq!(doc.document_type(), DocumentType::Json);
+        assert_eq!(doc.value(), &json!({"name": "Alice", "age": 30}));
         Ok(())
     }
 
     #[tokio::test]
     async fn load_detects_compact_formatting() -> Result<(), Error> {
         let content = content_from_str(r#"{"a":1}"#);
-        let docs = JsonLoader
+        let doc = JsonLoader
             .decode(&content, &JsonParams::default())
             .await?;
-        let h = docs[0].handler();
-        assert_eq!(h.indent(), JsonIndent::Compact);
-        assert!(!h.trailing_newline());
+        assert_eq!(doc.indent(), JsonIndent::Compact);
+        assert!(!doc.trailing_newline());
         Ok(())
     }
 
     #[tokio::test]
     async fn load_detects_two_space_indent() -> Result<(), Error> {
         let content = content_from_str("{\n  \"a\": 1\n}\n");
-        let docs = JsonLoader
+        let doc = JsonLoader
             .decode(&content, &JsonParams::default())
             .await?;
-        let h = docs[0].handler();
-        assert_eq!(h.indent(), JsonIndent::two_spaces());
-        assert!(h.trailing_newline());
+        assert_eq!(doc.indent(), JsonIndent::two_spaces());
+        assert!(doc.trailing_newline());
         Ok(())
     }
 
     #[tokio::test]
     async fn load_detects_four_space_indent() -> Result<(), Error> {
         let content = content_from_str("{\n    \"a\": 1\n}\n");
-        let docs = JsonLoader
+        let doc = JsonLoader
             .decode(&content, &JsonParams::default())
             .await?;
-        assert_eq!(docs[0].handler().indent(), JsonIndent::four_spaces());
+        assert_eq!(doc.indent(), JsonIndent::four_spaces());
         Ok(())
     }
 
     #[tokio::test]
     async fn load_detects_tab_indent() -> Result<(), Error> {
         let content = content_from_str("{\n\t\"a\": 1\n}\n");
-        let docs = JsonLoader
+        let doc = JsonLoader
             .decode(&content, &JsonParams::default())
             .await?;
-        assert_eq!(docs[0].handler().indent(), JsonIndent::Tab);
+        assert_eq!(doc.indent(), JsonIndent::Tab);
         Ok(())
     }
 

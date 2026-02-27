@@ -26,10 +26,10 @@ impl Loader for PdfLoader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Vec<Document<PdfHandler>>, Error> {
+    ) -> Result<Document<PdfHandler>, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
         let handler = PdfHandler;
         let doc = Document::new(handler).with_parent(content);
-        Ok(vec![doc])
+        Ok(doc)
     }
 }

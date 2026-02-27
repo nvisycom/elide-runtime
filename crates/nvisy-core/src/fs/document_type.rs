@@ -31,3 +31,29 @@ pub enum DocumentType {
     /// MP3 audio.
     Mp3,
 }
+
+impl DocumentType {
+    /// Map a MIME type string to a [`DocumentType`].
+    ///
+    /// Returns `None` for unrecognised MIME types.
+    pub fn from_mime(mime: &str) -> Option<Self> {
+        match mime {
+            "text/plain" => Some(Self::Txt),
+            "text/csv" => Some(Self::Csv),
+            "application/json" => Some(Self::Json),
+            "text/html" => Some(Self::Html),
+            "image/png" => Some(Self::Png),
+            "image/jpeg" => Some(Self::Jpeg),
+            "audio/x-wav" | "audio/wav" => Some(Self::Wav),
+            "audio/mpeg" => Some(Self::Mp3),
+            "application/pdf" => Some(Self::Pdf),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => {
+                Some(Self::Docx)
+            }
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => {
+                Some(Self::Xlsx)
+            }
+            _ => None,
+        }
+    }
+}

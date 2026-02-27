@@ -1,10 +1,12 @@
 //! Audio format handlers and loaders.
 
+mod audio_handler;
 mod wav_handler;
 mod wav_loader;
 mod mp3_handler;
 mod mp3_loader;
 
+pub use audio_handler::AnyAudio;
 pub use wav_handler::WavHandler;
 pub use wav_loader::{WavLoader, WavParams};
 pub use mp3_handler::Mp3Handler;

@@ -27,13 +27,13 @@ impl Loader for PngLoader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Vec<Document<PngHandler>>, Error> {
+    ) -> Result<Document<PngHandler>, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
         let image = super::decode_image(content, "png-loader")?;
         tracing::Span::current().record("width", image.width());
         tracing::Span::current().record("height", image.height());
         let handler = PngHandler::new(image);
         let doc = Document::new(handler).with_parent(content);
-        Ok(vec![doc])
+        Ok(doc)
     }
 }

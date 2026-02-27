@@ -26,10 +26,10 @@ impl Loader for DocxLoader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Vec<Document<DocxHandler>>, Error> {
+    ) -> Result<Document<DocxHandler>, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
         let handler = DocxHandler;
         let doc = Document::new(handler).with_parent(content);
-        Ok(vec![doc])
+        Ok(doc)
     }
 }

@@ -26,10 +26,10 @@ impl Loader for WavLoader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Vec<Document<WavHandler>>, Error> {
+    ) -> Result<Document<WavHandler>, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
         let handler = WavHandler::new(content.to_bytes());
         let doc = Document::new(handler).with_parent(content);
-        Ok(vec![doc])
+        Ok(doc)
     }
 }

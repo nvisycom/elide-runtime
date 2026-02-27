@@ -13,13 +13,19 @@
 //!
 //! [`Handler::edit_spans`] replaces the content of text nodes at the
 //! given indices.
+//!
+//! # Encoding
+//!
+//! [`Handler::encode`] reconstructs the HTML by re-parsing the
+//! original source into a DOM, applying edits via direct node
+//! mutation, and serializing back with [`scraper::Html::html`].
 
 use futures::StreamExt;
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::{SpanEditStream, SpanStream};
+use crate::stream::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
 use crate::transform::TextHandler;
 
@@ -52,42 +58,30 @@ impl Handler for HtmlHandler {
 
     #[tracing::instrument(name = "html.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<Vec<u8>, Error> {
-        let mut result = self.data.raw.clone();
-        let dom = scraper::Html::parse_document(&self.data.raw);
+        // Re-parse the original source into a mutable DOM.
+        let mut dom = scraper::Html::parse_document(&self.data.raw);
 
-        // Collect original text nodes in document order
-        let original_nodes: Vec<&str> = dom
+        // Collect text-node IDs in document order.
+        let text_node_ids: Vec<_> = dom
             .tree
             .nodes()
-            .filter_map(|node| {
-                if let scraper::node::Node::Text(t) = node.value() {
-                    Some(t.text.as_ref())
-                } else {
-                    None
-                }
-            })
+            .filter(|node| node.value().is_text())
+            .map(|node| node.id())
             .collect();
 
-        // Build patches for changed nodes, then apply right-to-left
-        let mut patches: Vec<(usize, usize, &str)> = Vec::new();
-        let mut search_start = 0;
-        for (i, original) in original_nodes.iter().enumerate() {
-            let Some(pos) = result[search_start..].find(original) else {
-                continue;
-            };
-            let abs_pos = search_start + pos;
-            if i < self.data.text_nodes.len() && *original != self.data.text_nodes[i] {
-                patches.push((abs_pos, abs_pos + original.len(), &self.data.text_nodes[i]));
+        // Mutate changed text nodes directly in the DOM.
+        for (i, &node_id) in text_node_ids.iter().enumerate() {
+            let current: &str = &self.data.text_nodes[i];
+            if let Some(mut node_mut) = dom.tree.get_mut(node_id)
+                && let scraper::node::Node::Text(t) = node_mut.value()
+                && t.text.as_ref() != current
+            {
+                t.text = current.into();
             }
-            search_start = abs_pos + original.len();
         }
 
-        // Apply patches right-to-left to preserve positions
-        for (start, end, replacement) in patches.into_iter().rev() {
-            result.replace_range(start..end, replacement);
-        }
-
-        let bytes = result.into_bytes();
+        // Serialize the mutated DOM back to HTML.
+        let bytes = dom.html().into_bytes();
         tracing::Span::current().record("output_bytes", bytes.len());
         Ok(bytes)
     }
@@ -186,48 +180,98 @@ impl ExactSizeIterator for HtmlSpanIter<'_> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::Handler;
+    use crate::handler::{Handler, SpanEdit};
     use nvisy_core::Error;
 
-    #[test]
-    fn encode_unchanged() -> Result<(), Error> {
-        let raw = "<p>Hello</p>".to_string();
-        let h = HtmlHandler::new(HtmlData {
-            text_nodes: vec!["Hello".to_string()],
-            raw: raw.clone(),
-        });
-        let bytes = h.encode()?;
-        assert_eq!(String::from_utf8(bytes).expect("valid utf-8"), raw);
-        Ok(())
+    fn handler_from_html(raw: &str) -> HtmlHandler {
+        let dom = scraper::Html::parse_document(raw);
+        let text_nodes: Vec<String> = dom
+            .tree
+            .nodes()
+            .filter_map(|node| {
+                if let scraper::node::Node::Text(t) = node.value() {
+                    Some(t.text.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        HtmlHandler::new(HtmlData {
+            text_nodes,
+            raw: raw.to_string(),
+        })
     }
 
     #[test]
-    fn encode_after_edit() -> Result<(), Error> {
-        let raw = "<p>Hello</p><p>World</p>".to_string();
-        let mut h = HtmlHandler::new(HtmlData {
-            text_nodes: vec!["Hello".to_string(), "World".to_string()],
-            raw,
-        });
-        // Edit the first text node
-        h.data.text_nodes[0] = "[REDACTED]".to_string();
+    fn encode_unchanged() -> Result<(), Error> {
+        let raw = "<html><head></head><body><p>Hello</p></body></html>";
+        let h = handler_from_html(raw);
         let bytes = h.encode()?;
-        let result = String::from_utf8(bytes).expect("valid utf-8");
+        assert_eq!(String::from_utf8(bytes).unwrap(), raw);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn encode_after_edit_spans() -> Result<(), Error> {
+        let raw = "<html><head></head><body><p>Hello</p><p>World</p></body></html>";
+        let mut h = handler_from_html(raw);
+        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+            SpanEdit::new(HtmlSpan(0), "[REDACTED]".to_string()),
+        ])))
+        .await?;
+        let result = String::from_utf8(h.encode()?).unwrap();
         assert!(result.contains("[REDACTED]"));
-        assert!(result.contains("<p>"));
         assert!(result.contains("World"));
+        assert!(result.contains("<p>"));
         Ok(())
     }
 
     #[test]
     fn encode_preserves_tags() -> Result<(), Error> {
-        let raw = "<div><span>foo</span> bar</div>".to_string();
-        let mut h = HtmlHandler::new(HtmlData {
-            text_nodes: vec!["foo".to_string(), " bar".to_string()],
-            raw,
-        });
+        let h = handler_from_html("<html><head></head><body><div><span>foo</span> bar</div></body></html>");
+        let mut h = h;
         h.data.text_nodes[0] = "baz".to_string();
-        let result = String::from_utf8(h.encode()?).expect("valid utf-8");
-        assert_eq!(result, "<div><span>baz</span> bar</div>");
+        let result = String::from_utf8(h.encode()?).unwrap();
+        assert!(result.contains("<span>baz</span>"));
+        assert!(result.contains(" bar"));
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn encode_duplicate_text_nodes() -> Result<(), Error> {
+        let raw = "<html><head></head><body><p>hello</p><p>hello</p></body></html>";
+        let mut h = handler_from_html(raw);
+        // Edit only the first "hello" — the second should remain unchanged.
+        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+            SpanEdit::new(HtmlSpan(0), "FIRST".to_string()),
+        ])))
+        .await?;
+        let result = String::from_utf8(h.encode()?).unwrap();
+        assert!(result.contains("<p>FIRST</p>"));
+        assert!(result.contains("<p>hello</p>"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn view_spans_returns_text() {
+        let h = handler_from_html("<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>");
+        let spans: Vec<_> = h.view_spans().await.collect().await;
+        assert_eq!(spans.len(), 2);
+        assert_eq!(spans[0].data, "Alpha");
+        assert_eq!(spans[0].id, HtmlSpan(0));
+        assert_eq!(spans[1].data, "Beta");
+        assert_eq!(spans[1].id, HtmlSpan(1));
+    }
+
+    #[tokio::test]
+    async fn edit_spans_out_of_bounds() {
+        let mut h = handler_from_html("<html><head></head><body><p>only</p></body></html>");
+        let err = h
+            .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+                SpanEdit::new(HtmlSpan(99), "nope".to_string()),
+            ])))
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("out of bounds"));
     }
 }

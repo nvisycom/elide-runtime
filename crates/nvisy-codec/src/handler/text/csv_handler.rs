@@ -20,8 +20,9 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::{SpanEditStream, SpanStream};
+use crate::stream::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
+use crate::transform::TextHandler;
 
 /// Cell address within a CSV document.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -215,6 +216,8 @@ impl CsvHandler {
         self.data
     }
 }
+
+impl TextHandler for CsvHandler {}
 
 /// Iterator over cells of a CSV document.
 ///

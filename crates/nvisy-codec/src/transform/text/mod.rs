@@ -15,7 +15,7 @@ use std::hash::Hash;
 
 use futures::StreamExt;
 
-use crate::document::SpanEditStream;
+use crate::stream::SpanEditStream;
 use crate::handler::{Handler, SpanEdit};
 use nvisy_core::Error;
 

@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::{SpanEditStream, SpanStream};
+use crate::stream::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();

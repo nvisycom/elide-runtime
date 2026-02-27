@@ -80,3 +80,53 @@ impl<Id, Data> SpanEdit<Id, Data> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn span_new_sets_default_source() {
+        let span = Span::new(42u32, "hello");
+        assert_eq!(span.id, 42);
+        assert_eq!(span.data, "hello");
+    }
+
+    #[test]
+    fn span_with_source() {
+        let source = ContentSource::new();
+        let span = Span::new(0u32, "data").with_source(source);
+        assert_eq!(span.source, source);
+    }
+
+    #[test]
+    fn span_map_transforms_data() {
+        let span = Span::new(1u32, "hello");
+        let mapped = span.map(|d| d.len());
+        assert_eq!(mapped.id, 1);
+        assert_eq!(mapped.data, 5);
+    }
+
+    #[test]
+    fn span_to_edit() {
+        let span = Span::new(7u32, "world".to_string());
+        let edit = span.to_edit();
+        assert_eq!(edit.id, 7);
+        assert_eq!(edit.data, "world");
+    }
+
+    #[test]
+    fn span_edit_new_sets_default_source() {
+        let edit = SpanEdit::new(3u32, "replacement");
+        assert_eq!(edit.id, 3);
+        assert_eq!(edit.data, "replacement");
+    }
+
+    #[test]
+    fn span_edit_map_transforms_data() {
+        let edit = SpanEdit::new(0u32, "hello");
+        let mapped = edit.map(|d| d.to_uppercase());
+        assert_eq!(mapped.id, 0);
+        assert_eq!(mapped.data, "HELLO");
+    }
+}

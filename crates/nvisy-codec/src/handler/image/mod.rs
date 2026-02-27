@@ -1,5 +1,6 @@
 //! Image format handlers and loaders.
 
+mod image_handler;
 mod image_data;
 mod image_handler_macro;
 
@@ -9,6 +10,7 @@ mod jpeg_loader;
 mod png_handler;
 mod png_loader;
 
+pub use image_handler::AnyImage;
 pub use image_data::ImageData;
 pub(crate) use image_handler_macro::impl_image_handler;
 

@@ -15,5 +15,5 @@ mod redact;
 pub use check::Analytics;
 pub use error::ServerError;
 pub use execute::ExecuteResponse;
-pub use ingest::{DownloadResponse, UploadResponse};
+pub use ingest::{DeleteAllResponse, DeleteResponse, DownloadResponse, UploadResponse};
 pub use redact::RedactionResponse;

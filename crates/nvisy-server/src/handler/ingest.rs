@@ -1,10 +1,30 @@
-//! Content upload and download handlers.
+//! Content ingestion handlers — upload, download, and deletion.
 //!
-//! - `POST /api/v1/ingest` — upload content as multipart form data.
-//! - `GET /api/v1/ingest/{id}` — download previously uploaded content (stub).
+//! # Endpoints
+//!
+//! | Method   | Path                     | Description                         |
+//! |----------|--------------------------|-------------------------------------|
+//! | `POST`   | `/api/v1/ingest`         | Upload content (multipart)          |
+//! | `GET`    | `/api/v1/ingest/{id}`    | Download previously uploaded content|
+//! | `DELETE` | `/api/v1/ingest/{id}`    | Delete a single content item        |
+//! | `DELETE` | `/api/v1/ingest`         | Delete all content items            |
+//!
+//! # Upload format
+//!
+//! The upload endpoint accepts `multipart/form-data` with the following fields:
+//!
+//! | Field          | Kind   | Required | Description                              |
+//! |----------------|--------|----------|------------------------------------------|
+//! | `file`         | file   | yes      | Binary content to ingest                 |
+//! | `content_type` | text   | no       | MIME type override (e.g. `text/csv`)     |
+//!
+//! The MIME type is resolved in the following order:
+//! 1. Explicit `content_type` text field (if present).
+//! 2. `Content-Type` header of the `file` part.
+//! 3. Downstream detection via magic bytes / filename heuristics.
 
 use aide::axum::ApiRouter;
-use aide::axum::routing::get_with;
+use aide::axum::routing::{delete_with, get_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Multipart, Path, State};
 use axum::Json;
@@ -12,7 +32,7 @@ use nvisy_core::io::{Content, ContentData};
 use nvisy_core::{Error, ErrorKind};
 use uuid::Uuid;
 
-use super::response::{DownloadResponse, ServerError, UploadResponse};
+use super::response::{DeleteAllResponse, DeleteResponse, DownloadResponse, ServerError, UploadResponse};
 use crate::service::ServiceState;
 
 /// `POST /api/v1/ingest`: upload content as multipart form data.
@@ -89,6 +109,9 @@ async fn upload(
 }
 
 /// `GET /api/v1/ingest/{id}`: download previously uploaded content.
+///
+/// Returns the content as base64-encoded bytes along with its identifier.
+/// Currently unimplemented — returns a 500 error.
 #[tracing::instrument(skip_all, fields(%id))]
 async fn download(
     State(_state): State<ServiceState>,
@@ -107,9 +130,57 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
         .description("Retrieves content by its UUID, returning base64-encoded bytes.")
 }
 
+/// `DELETE /api/v1/ingest/{id}`: delete a single uploaded content item.
+///
+/// Removes the content directory identified by the given UUID from the
+/// registry. Returns the deleted identifier on success.
+#[tracing::instrument(skip_all, fields(%id))]
+async fn delete(
+    State(state): State<ServiceState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<DeleteResponse>, ServerError> {
+    state.content_registry().delete(id).await?;
+    tracing::info!(%id, "content deleted");
+    Ok(Json(DeleteResponse { id }))
+}
+
+fn delete_docs(op: TransformOperation) -> TransformOperation {
+    op.id("deleteContent")
+        .tag("ingest")
+        .summary("Delete uploaded content")
+        .description("Removes a single content item identified by its UUID.")
+}
+
+/// `DELETE /api/v1/ingest`: delete all uploaded content.
+///
+/// Removes every content directory under the registry's base path.
+/// Returns the number of items deleted.
+#[tracing::instrument(skip_all)]
+async fn delete_all(
+    State(state): State<ServiceState>,
+) -> Result<Json<DeleteAllResponse>, ServerError> {
+    let deleted = state.content_registry().delete_all().await?;
+    tracing::info!(deleted, "all content deleted");
+    Ok(Json(DeleteAllResponse { deleted }))
+}
+
+fn delete_all_docs(op: TransformOperation) -> TransformOperation {
+    op.id("deleteAllContent")
+        .tag("ingest")
+        .summary("Delete all uploaded content")
+        .description("Removes every content item currently stored in the registry.")
+}
+
 /// Ingest routes.
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .route("/api/v1/ingest", axum::routing::post(upload))
-        .api_route("/api/v1/ingest/{id}", get_with(download, download_docs))
+        .api_route(
+            "/api/v1/ingest",
+            delete_with(delete_all, delete_all_docs),
+        )
+        .api_route(
+            "/api/v1/ingest/{id}",
+            get_with(download, download_docs).delete_with(delete, delete_docs),
+        )
 }

@@ -1,7 +1,14 @@
 //! Redaction handler.
 //!
-//! `POST /api/v1/redaction` — runs the redaction pipeline on previously
-//! uploaded content identified by `content_id` (stub).
+//! # Endpoints
+//!
+//! | Method | Path                 | Description                               |
+//! |--------|----------------------|-------------------------------------------|
+//! | `POST` | `/api/v1/redaction`  | Run redaction on previously uploaded content|
+//!
+//! Expects a JSON body with a `content_id` referencing previously ingested
+//! content, along with policies and an execution graph. Currently
+//! unimplemented — returns a 500 error.
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;

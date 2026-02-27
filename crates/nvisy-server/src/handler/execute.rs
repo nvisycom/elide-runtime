@@ -1,8 +1,14 @@
 //! Pipeline execution handler.
 //!
-//! `POST /api/v1/execute` — accepts base64-encoded content with policies and
-//! an execution graph, runs the full detection/evaluation/redaction pipeline,
-//! and returns the combined result.
+//! # Endpoints
+//!
+//! | Method | Path               | Description                          |
+//! |--------|--------------------|--------------------------------------|
+//! | `POST` | `/api/v1/execute`  | Run the full redaction pipeline      |
+//!
+//! Accepts a JSON body with base64-encoded content, policy definitions, and
+//! an execution graph describing the pipeline DAG. Runs the complete
+//! detection → evaluation → redaction pipeline and returns the combined result.
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;

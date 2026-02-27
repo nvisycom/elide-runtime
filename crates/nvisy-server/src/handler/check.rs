@@ -1,7 +1,11 @@
 //! Health and analytics handlers.
 //!
-//! - `GET /health` — liveness probe returning `{"status": "ok"}`.
-//! - `GET /api/v1/analytics` — aggregate pipeline metrics (stub).
+//! # Endpoints
+//!
+//! | Method | Path                  | Description                          |
+//! |--------|-----------------------|--------------------------------------|
+//! | `GET`  | `/health`             | Liveness probe (`{"status": "ok"}`)  |
+//! | `GET`  | `/api/v1/analytics`   | Aggregate pipeline metrics (stub)    |
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;

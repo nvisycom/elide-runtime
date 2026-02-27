@@ -2,23 +2,21 @@
 //!
 //! Each submodule corresponds to an API resource and exposes a `routes()`
 //! function that returns its [`ApiRouter`](aide::axum::ApiRouter) fragment.
-//! Request and response types live in the [`request`] and [`response`]
-//! submodules respectively.
+//! The top-level [`routes()`] function merges all fragments into a single
+//! router.
 //!
-//! | Module     | Endpoints                                           |
-//! |------------|-----------------------------------------------------|
-//! | [`check`]  | `GET /health`, `GET /api/v1/analytics`               |
-//! | [`execute`]| `POST /api/v1/execute`                               |
-//! | [`ingest`] | `POST /api/v1/ingest`, `GET /api/v1/ingest/{id}`    |
-//! | [`redact`] | `POST /api/v1/redaction`                             |
+//! Request and response types live in the private [`request`] and [`response`]
+//! submodules. Only [`ServerError`] is re-exported for use by middleware.
 
 mod check;
 mod execute;
 mod ingest;
 mod redact;
 
-pub mod request;
-pub mod response;
+mod request;
+mod response;
+
+pub use response::ServerError;
 
 use aide::axum::ApiRouter;
 

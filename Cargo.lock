@@ -2640,35 +2640,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-asr"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "nvisy-core",
- "nvisy-ontology",
- "nvisy-python",
- "serde_json",
-]
-
-[[package]]
-name = "nvisy-augment"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "nvisy-asr",
- "nvisy-codec",
- "nvisy-core",
- "nvisy-ontology",
- "nvisy-paddle",
- "nvisy-python",
- "nvisy-rig",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "nvisy-cli"
 version = "0.1.0"
 dependencies = [
@@ -2762,7 +2733,6 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "jiff",
- "nvisy-asr",
  "nvisy-codec",
  "nvisy-core",
  "nvisy-ontology",

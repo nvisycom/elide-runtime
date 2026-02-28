@@ -32,7 +32,6 @@ nvisy-ontology = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 nvisy-rig = { workspace = true, features = [] }
-nvisy-asr = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }

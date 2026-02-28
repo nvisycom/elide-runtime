@@ -39,7 +39,7 @@ impl ContentRegistry {
         let dir = self.base_dir.join(content_source.to_string());
 
         tokio::fs::create_dir_all(&dir).await.map_err(|err| {
-            Error::new(ErrorKind::InternalError, format!(
+            Error::new(ErrorKind::Internal, format!(
                 "Failed to create temporary content directory (path: {})", dir.display()
             )).with_source(err)
         })?;
@@ -48,7 +48,7 @@ impl ContentRegistry {
         tokio::fs::write(&data_path, content.as_bytes())
             .await
             .map_err(|err| {
-                Error::new(ErrorKind::InternalError, format!(
+                Error::new(ErrorKind::Internal, format!(
                     "Failed to write content data (path: {})", data_path.display()
                 )).with_source(err)
             })?;
@@ -76,7 +76,7 @@ impl ContentRegistry {
         }
         tokio::fs::remove_dir_all(&dir).await.map_err(|err| {
             Error::new(
-                ErrorKind::InternalError,
+                ErrorKind::Internal,
                 format!("Failed to delete content directory (path: {})", dir.display()),
             )
             .with_source(err)
@@ -90,7 +90,7 @@ impl ContentRegistry {
     pub async fn delete_all(&self) -> Result<usize> {
         let mut entries = tokio::fs::read_dir(&self.base_dir).await.map_err(|err| {
             Error::new(
-                ErrorKind::InternalError,
+                ErrorKind::Internal,
                 format!(
                     "Failed to read content directory (path: {})",
                     self.base_dir.display()
@@ -102,7 +102,7 @@ impl ContentRegistry {
         let mut count = 0usize;
         while let Some(entry) = entries.next_entry().await.map_err(|err| {
             Error::new(
-                ErrorKind::InternalError,
+                ErrorKind::Internal,
                 format!(
                     "Failed to read content directory entry (path: {})",
                     self.base_dir.display()
@@ -112,7 +112,7 @@ impl ContentRegistry {
         })? {
             tokio::fs::remove_dir_all(entry.path()).await.map_err(|err| {
                 Error::new(
-                    ErrorKind::InternalError,
+                    ErrorKind::Internal,
                     format!(
                         "Failed to delete content directory (path: {})",
                         entry.path().display()

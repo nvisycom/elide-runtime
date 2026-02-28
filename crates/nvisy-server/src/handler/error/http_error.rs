@@ -226,7 +226,6 @@ impl From<nvisy_core::Error> for Error<'static> {
     fn from(err: nvisy_core::Error) -> Self {
         let kind = match err.kind {
             nvisy_core::ErrorKind::Validation
-            | nvisy_core::ErrorKind::InvalidInput
             | nvisy_core::ErrorKind::Serialization => ErrorKind::BadRequest,
             nvisy_core::ErrorKind::Policy => ErrorKind::Forbidden,
             nvisy_core::ErrorKind::NotFound => ErrorKind::NotFound,
@@ -234,9 +233,7 @@ impl From<nvisy_core::Error> for Error<'static> {
             | nvisy_core::ErrorKind::Timeout
             | nvisy_core::ErrorKind::Cancellation
             | nvisy_core::ErrorKind::Runtime
-            | nvisy_core::ErrorKind::Python
-            | nvisy_core::ErrorKind::InternalError
-            | nvisy_core::ErrorKind::Other => ErrorKind::InternalServerError,
+            | nvisy_core::ErrorKind::Internal => ErrorKind::InternalServerError,
         };
 
         let mut error = Self::new(kind).with_message(err.message);

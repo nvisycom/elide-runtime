@@ -44,10 +44,6 @@ impl<'a> ResponseParser<'a> {
         Self { text: text.into() }
     }
 
-    pub fn as_str(&self) -> &str {
-        &self.text
-    }
-
     pub fn into_string(self) -> String {
         self.text.into_owned()
     }
@@ -137,5 +133,4 @@ mod tests {
         assert_eq!(ResponseParser::from_text("none").parse_json::<Vec<Value>>().unwrap(), empty);
         assert_eq!(ResponseParser::from_text("No entities").parse_json::<Vec<Value>>().unwrap(), empty);
     }
-
 }

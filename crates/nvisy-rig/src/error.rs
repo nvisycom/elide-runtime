@@ -1,6 +1,7 @@
 //! Unified error type covering LLM provider, serialization, and tool failures.
 
 use rig::completion::{CompletionError, PromptError, StructuredOutputError};
+use rig::transcription::TranscriptionError;
 
 /// Error type for all LLM interactions.
 ///
@@ -56,6 +57,14 @@ pub enum Error {
     /// Failed to construct a provider client.
     #[error("Client error: {0}")]
     Client(String),
+
+    /// A transcription (STT) error from the model provider.
+    #[error("Transcription error: {0}")]
+    Transcription(String),
+
+    /// A generation (TTS/image) error from the model provider.
+    #[error("Generation error: {0}")]
+    Generation(String),
 }
 
 impl Error {
@@ -108,6 +117,47 @@ impl From<StructuredOutputError> for Error {
     }
 }
 
+impl From<TranscriptionError> for Error {
+    fn from(err: TranscriptionError) -> Self {
+        match err {
+            TranscriptionError::HttpError(e) => Self::Http(e.to_string()),
+            TranscriptionError::JsonError(e) => Self::Json(e),
+            TranscriptionError::ProviderError(msg) => Self::Provider(msg),
+            TranscriptionError::ResponseError(msg) => Self::Response(msg),
+            TranscriptionError::RequestError(e) => Self::Transcription(e.to_string()),
+            _ => Self::Transcription(err.to_string()),
+        }
+    }
+}
+
+#[cfg(feature = "audio")]
+impl From<rig::audio_generation::AudioGenerationError> for Error {
+    fn from(err: rig::audio_generation::AudioGenerationError) -> Self {
+        use rig::audio_generation::AudioGenerationError;
+        match err {
+            AudioGenerationError::HttpError(e) => Self::Http(e.to_string()),
+            AudioGenerationError::JsonError(e) => Self::Json(e),
+            AudioGenerationError::ProviderError(msg) => Self::Provider(msg),
+            AudioGenerationError::ResponseError(msg) => Self::Response(msg),
+            AudioGenerationError::RequestError(e) => Self::Generation(e.to_string()),
+        }
+    }
+}
+
+#[cfg(feature = "image")]
+impl From<rig::image_generation::ImageGenerationError> for Error {
+    fn from(err: rig::image_generation::ImageGenerationError) -> Self {
+        use rig::image_generation::ImageGenerationError;
+        match err {
+            ImageGenerationError::HttpError(e) => Self::Http(e.to_string()),
+            ImageGenerationError::JsonError(e) => Self::Json(e),
+            ImageGenerationError::ProviderError(msg) => Self::Provider(msg),
+            ImageGenerationError::ResponseError(msg) => Self::Response(msg),
+            ImageGenerationError::RequestError(e) => Self::Generation(e.to_string()),
+        }
+    }
+}
+
 impl From<Error> for nvisy_core::Error {
     fn from(err: Error) -> Self {
         // Handle the owned `Core` variant first to avoid borrowing issues.
@@ -141,6 +191,9 @@ impl From<Error> for nvisy_core::Error {
             }
             Error::Client(_) => {
                 nvisy_core::Error::connection(err.to_string(), "rig", false)
+            }
+            Error::Transcription(_) | Error::Generation(_) => {
+                nvisy_core::Error::runtime(err.to_string(), "rig", false)
             }
             Error::Core(_) => unreachable!(),
         }

@@ -24,18 +24,12 @@ pub enum ErrorKind {
     Policy,
     /// An internal runtime error occurred.
     Runtime,
-    /// An error originating from the embedded Python bridge.
-    Python,
     /// An internal infrastructure error (filesystem, I/O).
-    InternalError,
-    /// The requested resource was not found.
-    NotFound,
-    /// The input was invalid or out of bounds.
-    InvalidInput,
+    Internal,
     /// A serialization or encoding error.
     Serialization,
-    /// An error that does not fit any other category.
-    Other,
+    /// The requested resource was not found.
+    NotFound,
 }
 
 /// Unified error type for the nvisy platform.
@@ -130,11 +124,6 @@ impl Error {
             .with_retryable(retryable)
     }
 
-    /// Shorthand for a Python bridge error.
-    pub fn python(message: impl Into<String>) -> Self {
-        Self::new(ErrorKind::Python, message)
-    }
-
     /// Whether this error is retryable.
     pub fn is_retryable(&self) -> bool {
         self.retryable
@@ -143,7 +132,7 @@ impl Error {
 
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
-        Self::new(ErrorKind::InternalError, err.to_string())
+        Self::new(ErrorKind::Internal, err.to_string())
             .with_source(err)
     }
 }
@@ -152,7 +141,7 @@ impl From<anyhow::Error> for Error {
     fn from(err: anyhow::Error) -> Self {
         // anyhow::Error doesn't implement std::error::Error, so we capture the
         // full chain as text instead of storing it as a boxed source.
-        Self::new(ErrorKind::Other, format!("{err:#}"))
+        Self::new(ErrorKind::Runtime, format!("{err:#}"))
     }
 }
 

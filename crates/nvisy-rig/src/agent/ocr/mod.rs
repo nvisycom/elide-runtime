@@ -17,7 +17,8 @@ use base64::engine::general_purpose::STANDARD;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::backend::{DetectionConfig, Provider, UsageTracker};
+use crate::backend::UsageTracker;
+use super::{AgentProvider, DetectionConfig};
 use super::{BaseAgent, BaseAgentConfig};
 use crate::error::Error;
 use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
@@ -70,7 +71,7 @@ pub struct OcrAgent {
 impl OcrAgent {
     /// Create a new OCR agent.
     pub fn new(
-        provider: &Provider,
+        provider: &AgentProvider,
         mut config: BaseAgentConfig,
         ocr: impl OcrProvider + 'static,
     ) -> Result<Self, Error> {

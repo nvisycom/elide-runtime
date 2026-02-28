@@ -16,23 +16,23 @@ pub fn parse_transcribe_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
 
     for item in raw {
         let obj = item.as_object().ok_or_else(|| {
-            Error::python("Expected JSON object in transcription results".to_string())
+            Error::runtime("Expected JSON object in transcription results", "python", false)
         })?;
 
         let text = obj
             .get("text")
             .and_then(Value::as_str)
-            .ok_or_else(|| Error::python("Missing 'text' in transcription result".to_string()))?;
+            .ok_or_else(|| Error::runtime("Missing 'text' in transcription result", "python", false))?;
 
         let start_time = obj
             .get("start_time")
             .and_then(Value::as_f64)
-            .ok_or_else(|| Error::python("Missing 'start_time'".to_string()))?;
+            .ok_or_else(|| Error::runtime("Missing 'start_time'", "python", false))?;
 
         let end_time = obj
             .get("end_time")
             .and_then(Value::as_f64)
-            .ok_or_else(|| Error::python("Missing 'end_time'".to_string()))?;
+            .ok_or_else(|| Error::runtime("Missing 'end_time'", "python", false))?;
 
         let confidence = obj
             .get("confidence")

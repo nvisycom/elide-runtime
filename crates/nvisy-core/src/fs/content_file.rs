@@ -211,7 +211,7 @@ impl ContentFile {
             }
 
             if total_read + bytes_read > max_size {
-                return Err(Error::new(ErrorKind::InvalidInput, format!(
+                return Err(Error::new(ErrorKind::Validation, format!(
                     "File size exceeds maximum limit of {max_size} bytes"
                 )));
             }

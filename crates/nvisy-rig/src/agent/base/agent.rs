@@ -9,11 +9,9 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::backend::{ContextWindow, Provider, UsageTracker};
-use crate::bridge::ResponseParser;
+use crate::backend::UsageTracker;
+use super::{AgentProvider, BaseAgentBuilder, ContextWindow, ResponseParser};
 use crate::error::Error;
-
-use super::BaseAgentBuilder;
 
 /// Sampling, retry, context-window, and preamble settings shared by all agents.
 #[derive(Debug, Clone)]
@@ -79,7 +77,7 @@ pub(crate) struct BaseAgent {
 
 #[allow(dead_code)]
 impl BaseAgent {
-    pub fn builder(provider: &Provider, config: BaseAgentConfig) -> BaseAgentBuilder {
+    pub fn builder(provider: &AgentProvider, config: BaseAgentConfig) -> BaseAgentBuilder {
         BaseAgentBuilder::new(provider, config)
     }
 

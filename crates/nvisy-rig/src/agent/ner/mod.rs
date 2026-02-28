@@ -13,7 +13,8 @@ pub use output::{KnownNerEntity, NerEntities, NerEntity, ResolvedOffsets};
 
 use uuid::Uuid;
 
-use crate::backend::{DetectionConfig, Provider, UsageTracker};
+use crate::backend::UsageTracker;
+use super::{AgentProvider, DetectionConfig};
 use super::{BaseAgent, BaseAgentConfig};
 use crate::error::Error;
 use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
@@ -33,7 +34,7 @@ pub struct NerAgent {
 
 impl NerAgent {
     /// Create a new NER agent.
-    pub fn new(provider: &Provider, mut config: BaseAgentConfig) -> Result<Self, Error> {
+    pub fn new(provider: &AgentProvider, mut config: BaseAgentConfig) -> Result<Self, Error> {
         config.preamble.get_or_insert_with(|| NER_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config).build()?;
         Ok(Self { base })

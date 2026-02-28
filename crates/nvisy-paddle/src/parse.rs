@@ -15,13 +15,13 @@ pub fn parse_ocr_entities(raw: &[Value]) -> Result<Vec<Entity>, Error> {
 
     for item in raw {
         let obj = item.as_object().ok_or_else(|| {
-            Error::python("Expected JSON object in OCR results".to_string())
+            Error::runtime("Expected JSON object in OCR results", "python", false)
         })?;
 
         let text = obj
             .get("text")
             .and_then(Value::as_str)
-            .ok_or_else(|| Error::python("Missing 'text' in OCR result".to_string()))?;
+            .ok_or_else(|| Error::runtime("Missing 'text' in OCR result", "python", false))?;
 
         let x = obj.get("x").and_then(Value::as_f64).unwrap_or(0.0);
         let y = obj.get("y").and_then(Value::as_f64).unwrap_or(0.0);

@@ -357,7 +357,7 @@ impl ContentData {
         if actual_hash.as_ref() == expected {
             Ok(())
         } else {
-            Err(Error::new(ErrorKind::InvalidInput, format!(
+            Err(Error::new(ErrorKind::Validation, format!(
                 "Hash mismatch: expected {}, got {}",
                 hex::encode(expected),
                 hex::encode(actual_hash)
@@ -374,14 +374,14 @@ impl ContentData {
     pub fn slice(&self, start: usize, end: usize) -> Result<Bytes> {
         let bytes = self.data.as_bytes();
         if end > bytes.len() {
-            return Err(Error::new(ErrorKind::InvalidInput, format!(
+            return Err(Error::new(ErrorKind::Validation, format!(
                 "Slice end {} exceeds content length {}",
                 end,
                 bytes.len()
             )));
         }
         if start > end {
-            return Err(Error::new(ErrorKind::InvalidInput,
+            return Err(Error::new(ErrorKind::Validation,
                 format!("Slice start {start} is greater than end {end}")));
         }
         Ok(Bytes::copy_from_slice(&bytes[start..end]))

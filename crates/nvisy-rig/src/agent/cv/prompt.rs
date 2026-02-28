@@ -3,7 +3,7 @@
 //! [`CvPromptBuilder`] constructs the user prompt that instructs the VLM
 //! to call the CV tool and classify detections into entity categories.
 
-use crate::backend::DetectionConfig;
+use crate::agent::DetectionConfig;
 
 /// Fallback when no specific entity types are requested.
 const ALL_TYPES_HINT: &str = "all detectable object types";

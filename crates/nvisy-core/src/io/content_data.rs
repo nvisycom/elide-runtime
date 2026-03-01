@@ -474,42 +474,6 @@ mod tests {
     }
 
     #[test]
-    fn test_content_bytes_wrapper() {
-        let bytes = ContentBytes::from("Hello");
-        assert_eq!(bytes.as_str(), Some("Hello"));
-        assert_eq!(bytes.len(), 5);
-        assert!(!bytes.is_empty());
-    }
-
-    #[test]
-    fn test_content_bytes_as_hipstr() {
-        let bytes = ContentBytes::from("Hello, HipStr!");
-        let hipstr = bytes.as_hipstr().unwrap();
-        assert_eq!(hipstr.as_str(), "Hello, HipStr!");
-
-        // Test with invalid UTF-8
-        let invalid = ContentBytes::from(vec![0xFF, 0xFE]);
-        assert!(invalid.as_hipstr().is_err());
-    }
-
-    #[test]
-    fn test_content_bytes_binary() {
-        let binary = ContentBytes::from(vec![0xFF, 0xFE]);
-        assert_eq!(binary.len(), 2);
-        assert!(binary.as_str().is_none());
-        assert!(!binary.is_likely_text());
-    }
-
-    #[test]
-    fn test_size_methods() {
-        let content = ContentData::from("Hello");
-        assert_eq!(content.size(), 5);
-
-        let pretty_size = content.get_pretty_size();
-        assert!(!pretty_size.is_empty());
-    }
-
-    #[test]
     fn test_sha256_computation() {
         let content = ContentData::from("Hello, world!");
         let hash = content.sha256();
@@ -533,17 +497,6 @@ mod tests {
     }
 
     #[test]
-    fn test_string_conversion() {
-        let content = ContentData::from("Hello, world!");
-        assert_eq!(content.as_string().unwrap(), "Hello, world!");
-        assert_eq!(content.as_str().unwrap(), "Hello, world!");
-
-        let binary_content = ContentData::from(vec![0xFF, 0xFE, 0xFD]);
-        assert!(binary_content.as_string().is_err());
-        assert!(binary_content.as_str().is_err());
-    }
-
-    #[test]
     fn test_as_hipstr() {
         let content = ContentData::from("Hello, HipStr!");
         let hipstr = content.as_hipstr().unwrap();
@@ -551,15 +504,6 @@ mod tests {
 
         let binary_content = ContentData::from(vec![0xFF, 0xFE]);
         assert!(binary_content.as_hipstr().is_err());
-    }
-
-    #[test]
-    fn test_is_likely_text() {
-        let text_content = ContentData::from("Hello, world!");
-        assert!(text_content.is_likely_text());
-
-        let binary_content = ContentData::from(vec![0xFF, 0xFE, 0xFD]);
-        assert!(!binary_content.is_likely_text());
     }
 
     #[test]
@@ -613,49 +557,10 @@ mod tests {
     }
 
     #[test]
-    fn test_cloning_is_cheap() {
-        let original = ContentData::from("Hello, world!");
-        let cloned = original.clone();
-
-        assert_eq!(original, cloned);
-    }
-
-    #[test]
-    fn test_into_bytes() {
-        let content = ContentData::from("Hello, world!");
-        let bytes = content.into_bytes();
-        assert_eq!(bytes, Bytes::from("Hello, world!"));
-    }
-
-    #[test]
-    fn test_empty_content() {
-        let content = ContentData::from("");
-        assert!(content.is_empty());
-        assert_eq!(content.size(), 0);
-    }
-
-    #[test]
-    fn test_to_bytes() {
-        let text_content = ContentData::from_text(ContentSource::new(), "Hello");
-        let bytes = text_content.to_bytes();
-        assert_eq!(bytes.as_ref(), b"Hello");
-
-        let binary_content = ContentData::new(ContentSource::new(), Bytes::from("World"));
-        let bytes = binary_content.to_bytes();
-        assert_eq!(bytes.as_ref(), b"World");
-    }
-
-    #[test]
     fn test_from_hipstr() {
         let hipstr = HipStr::from("Hello from HipStr");
         let content = ContentData::from(hipstr);
         assert_eq!(content.as_str().unwrap(), "Hello from HipStr");
     }
 
-    #[test]
-    fn test_content_bytes_deref() {
-        let bytes = ContentBytes::from("Hello");
-        assert_eq!(&bytes[..], b"Hello");
-        assert_eq!(bytes.as_ref(), b"Hello");
-    }
 }

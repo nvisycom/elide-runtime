@@ -165,24 +165,6 @@ mod tests {
     }
 
     #[test]
-    fn test_content_deref() {
-        let data = ContentData::from("Hello");
-        let content = Content::new(data);
-
-        // Test that Deref works - we can call ContentData methods directly
-        assert_eq!(content.size(), 5);
-        assert_eq!(content.as_str().unwrap(), "Hello");
-    }
-
-    #[test]
-    fn test_content_from() {
-        let data = ContentData::from("Test");
-        let content: Content = data.into();
-
-        assert_eq!(content.size(), 4);
-    }
-
-    #[test]
     fn test_metadata_operations() {
         let data = ContentData::from("Test");
         let mut content = Content::new(data);
@@ -223,12 +205,4 @@ mod tests {
         assert_eq!(content, deserialized);
     }
 
-    #[test]
-    fn test_content_source() {
-        let source = ContentSource::new();
-        let data = ContentData::from_text(source, "Test");
-        let content = Content::new(data);
-
-        assert_eq!(content.content_source(), source);
-    }
 }

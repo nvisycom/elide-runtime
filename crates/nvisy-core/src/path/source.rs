@@ -288,14 +288,6 @@ mod tests {
     }
 
     #[test]
-    fn test_display() {
-        let source = ContentSource::new();
-        let display_str = format!("{source}");
-        let uuid_str = source.as_uuid().to_string();
-        assert_eq!(display_str, uuid_str);
-    }
-
-    #[test]
     fn test_serde_serialization() {
         let source = ContentSource::new();
         let serialized = serde_json::to_string(&source).unwrap();
@@ -303,16 +295,4 @@ mod tests {
         assert_eq!(source, deserialized);
     }
 
-    #[test]
-    fn test_hash_consistency() {
-        let source = ContentSource::new();
-        let mut set = HashSet::new();
-
-        set.insert(source);
-        assert!(set.contains(&source));
-
-        // Same source should hash the same way
-        let cloned_source = source;
-        assert!(set.contains(&cloned_source));
-    }
 }

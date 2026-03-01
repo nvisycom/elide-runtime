@@ -60,7 +60,7 @@ impl OcrRegion {
             self.confidence,
         )
         .with_location(Location::Image(ImageLocation {
-            bounding_box: self.bbox.clone(),
+            bounding_box: self.bbox,
             image_id: None,
             page_number: None,
         }))

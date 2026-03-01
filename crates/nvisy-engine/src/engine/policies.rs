@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::time;
 use nvisy_core::Error;
 
-use crate::compiler::retry::{BackoffStrategy, RetryPolicy};
+use crate::compiler::{BackoffStrategy, RetryPolicy};
 
 /// Computes the sleep duration before a retry attempt based on the policy's
 /// [`BackoffStrategy`] and the zero-based attempt number.

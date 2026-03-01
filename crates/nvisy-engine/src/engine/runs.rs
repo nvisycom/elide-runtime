@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-use super::executor::RunOutput;
+use super::executor::{NodeOutput, RunOutput};
 
 /// Lifecycle status of a pipeline run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -36,7 +36,7 @@ pub enum RunStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct NodeProgress {
     /// ID of the node this progress belongs to.
-    pub node_id: String,
+    pub node_id: Uuid,
     /// Current status of this node.
     pub status: RunStatus,
     /// Number of data items processed so far.
@@ -44,6 +44,21 @@ pub struct NodeProgress {
     /// Error message if the node failed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+impl From<&NodeOutput> for NodeProgress {
+    fn from(nr: &NodeOutput) -> Self {
+        Self {
+            node_id: nr.node_id,
+            status: if nr.error.is_none() {
+                RunStatus::Success
+            } else {
+                RunStatus::Failure
+            },
+            items_processed: nr.items_processed,
+            error: nr.error.clone(),
+        }
+    }
 }
 
 /// Complete mutable state of a pipeline run.
@@ -61,7 +76,7 @@ pub struct RunState {
     #[schemars(with = "Option<String>")]
     pub completed_at: Option<Timestamp>,
     /// Per-node progress keyed by node ID.
-    pub node_progress: HashMap<String, NodeProgress>,
+    pub node_progress: HashMap<Uuid, NodeProgress>,
     /// Final result after the run completes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<RunOutput>,
@@ -144,17 +159,8 @@ impl RunManager {
 
             for nr in &result.node_results {
                 state.node_progress.insert(
-                    nr.node_id.clone(),
-                    NodeProgress {
-                        node_id: nr.node_id.clone(),
-                        status: if nr.error.is_none() {
-                            RunStatus::Success
-                        } else {
-                            RunStatus::Failure
-                        },
-                        items_processed: nr.items_processed,
-                        error: nr.error.clone(),
-                    },
+                    nr.node_id,
+                    NodeProgress::from(nr),
                 );
             }
 

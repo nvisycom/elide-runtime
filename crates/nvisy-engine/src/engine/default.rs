@@ -7,7 +7,8 @@
 //! 3. **Redact** — apply redaction instructions to produce output content.
 //!
 //! After the content-level pipeline completes, the execution graph is run via
-//! [`run_graph`] so that any Source/Action/Target DAG nodes are also executed.
+//! [`Engine::run_graph`] so that any Source/Action/Target DAG nodes are also
+//! executed.
 
 use jiff::Timestamp;
 use uuid::Uuid;
@@ -19,8 +20,10 @@ use nvisy_identify::{
 };
 
 use super::{Engine, EngineInput, EngineOutput};
-use super::executor::run_graph;
-use crate::compiler::build_plan;
+use super::connections::Connections;
+use super::executor::{self, RunOutput};
+use crate::compiler::Compiler;
+use crate::compiler::plan::ExecutionPlan;
 
 /// Default [`Engine`] implementation.
 ///
@@ -35,7 +38,7 @@ impl Engine for DefaultEngine {
         let mut audits: Vec<Audit> = Vec::new();
         let content_source = input.source.content_source();
 
-        // ── Phase 1: Detection ──────────────────────────────────────
+        // Phase 1: Detection
         //
         // Detection is handled externally (via DetectionService / NER / Pattern /
         // CV layers) before the engine is called. The engine receives entities as
@@ -48,7 +51,7 @@ impl Engine for DefaultEngine {
             duration_ms: None,
         };
 
-        // ── Phase 2: Policy Evaluation ──────────────────────────────
+        // Phase 2: Policy Evaluation
         //
         // Evaluate each policy against the detected entities to produce
         // redaction instructions, review holds, alerts, blocks, etc.
@@ -106,7 +109,7 @@ impl Engine for DefaultEngine {
             }
         };
 
-        // ── Phase 3: Redaction ──────────────────────────────────────
+        // Phase 3: Redaction
         //
         // The ApplyRedactionAction is called directly by callers that have
         // parsed documents into the typed codec representation. At this level
@@ -120,12 +123,12 @@ impl Engine for DefaultEngine {
             redactions_skipped: skipped,
         }];
 
-        // ── Phase 4: DAG Execution ──────────────────────────────────
+        // Phase 4: DAG Execution
         //
         // Compile the graph into a topologically-sorted execution plan and
         // run Source/Action/Target nodes concurrently.
-        let plan = build_plan(&input.graph)?;
-        let run_output = run_graph(&plan, &input.connections).await?;
+        let plan = Compiler::new().compile(&input.graph)?;
+        let run_output = self.run_graph(&plan, &input.connections).await?;
 
         // Emit a detection audit entry for the overall run.
         audits.push(Audit {
@@ -149,5 +152,13 @@ impl Engine for DefaultEngine {
             audits,
             run_output,
         })
+    }
+
+    async fn run_graph(
+        &self,
+        plan: &ExecutionPlan,
+        connections: &Connections,
+    ) -> Result<RunOutput, Error> {
+        executor::run_graph(plan, connections).await
     }
 }

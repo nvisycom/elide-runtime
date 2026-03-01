@@ -22,8 +22,8 @@ use uuid::Uuid;
 use nvisy_core::io::ContentData;
 use nvisy_core::{Error, ErrorKind};
 use crate::compiler::plan::ExecutionPlan;
-use crate::compiler::graph::GraphNode;
-use crate::compiler::retry::RetryPolicy;
+use crate::compiler::graph::{ActionKind, GraphNode, GraphNodeKind, TimeoutBehavior};
+use crate::compiler::RetryPolicy;
 use super::connections::{Connection, Connections};
 use super::policies::{with_retry, with_timeout};
 
@@ -34,7 +34,7 @@ const CHANNEL_BUFFER_SIZE: usize = 256;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct NodeOutput {
     /// ID of the node that produced this result.
-    pub node_id: String,
+    pub node_id: Uuid,
     /// Number of data items processed by this node.
     pub items_processed: u64,
     /// Error message if the node failed, or `None` on success.
@@ -55,7 +55,7 @@ pub struct RunOutput {
 /// Executes a compiled [`ExecutionPlan`] by spawning concurrent tasks for each node.
 ///
 /// Returns a [`RunOutput`] containing per-node outcomes and an overall success flag.
-pub async fn run_graph(
+pub(crate) async fn run_graph(
     plan: &ExecutionPlan,
     connections: &Connections,
 ) -> Result<RunOutput, Error> {
@@ -63,26 +63,26 @@ pub async fn run_graph(
     let connections = Arc::new(connections.clone());
 
     // Create channels for each edge
-    let mut senders: HashMap<String, Vec<mpsc::Sender<ContentData>>> = HashMap::new();
-    let mut receivers: HashMap<String, Vec<mpsc::Receiver<ContentData>>> = HashMap::new();
+    let mut senders: HashMap<Uuid, Vec<mpsc::Sender<ContentData>>> = HashMap::new();
+    let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<ContentData>>> = HashMap::new();
 
     for node in &plan.nodes {
-        let node_id = node.node.id();
+        let node_id = node.node.id;
         for downstream_id in &node.downstream_ids {
             let (tx, rx) = mpsc::channel(CHANNEL_BUFFER_SIZE);
-            senders.entry(node_id.to_string()).or_default().push(tx);
-            receivers.entry(downstream_id.clone()).or_default().push(rx);
+            senders.entry(node_id).or_default().push(tx);
+            receivers.entry(*downstream_id).or_default().push(rx);
         }
     }
 
     // Create completion signals per node
-    let mut signal_senders: HashMap<String, watch::Sender<bool>> = HashMap::new();
-    let mut signal_receivers: HashMap<String, watch::Receiver<bool>> = HashMap::new();
+    let mut signal_senders: HashMap<Uuid, watch::Sender<bool>> = HashMap::new();
+    let mut signal_receivers: HashMap<Uuid, watch::Receiver<bool>> = HashMap::new();
 
     for node in &plan.nodes {
         let (tx, rx) = watch::channel(false);
-        signal_senders.insert(node.node.id().to_string(), tx);
-        signal_receivers.insert(node.node.id().to_string(), rx);
+        signal_senders.insert(node.node.id, tx);
+        signal_receivers.insert(node.node.id, rx);
     }
 
     // Spawn tasks
@@ -90,7 +90,7 @@ pub async fn run_graph(
 
     for resolved in &plan.nodes {
         let node = resolved.node.clone();
-        let node_id = node.id().to_string();
+        let node_id = node.id;
         let upstream_ids = resolved.upstream_ids.clone();
 
         // Collect upstream watch receivers
@@ -138,7 +138,7 @@ pub async fn run_graph(
         match result {
             Ok(nr) => node_results.push(nr),
             Err(e) => node_results.push(NodeOutput {
-                node_id: "unknown".to_string(),
+                node_id: Uuid::nil(),
                 items_processed: 0,
                 error: Some(format!("Task panicked: {}", e)),
             }),
@@ -155,11 +155,13 @@ pub async fn run_graph(
 }
 
 /// Execute a single node, dispatching to the correct handler based on the
-/// [`GraphNode`] variant.
+/// [`GraphNodeKind`] variant.
 ///
-/// A per-node timeout is applied when configured. Retry policies are applied
-/// within the individual source/target handlers where the retryable I/O
-/// actually occurs (channel consumption is not retryable).
+/// A per-node timeout is applied when configured. The [`TimeoutBehavior`]
+/// determines whether a timeout is treated as an error (`Fail`) or silently
+/// yields zero items (`Skip`). Retry policies are applied within the
+/// individual source/target handlers where the retryable I/O actually
+/// occurs (channel consumption is not retryable).
 async fn execute_node(
     node: &GraphNode,
     senders: Vec<mpsc::Sender<ContentData>>,
@@ -167,22 +169,34 @@ async fn execute_node(
     connections: &Connections,
 ) -> Result<u64, Error> {
     let run = async {
-        match node {
-            GraphNode::Source { provider, stream, params, retry, .. } => {
-                execute_source(provider, stream, params, retry.as_ref(), &senders, connections).await
+        match &node.kind {
+            GraphNodeKind::Source(src) => {
+                execute_source(
+                    &src.provider, &src.stream,
+                    node.retry(), &senders, connections,
+                ).await
             }
-            GraphNode::Action { action, params, .. } => {
-                execute_action(action, params, &senders, &mut receivers).await
+            GraphNodeKind::Action(act) => {
+                execute_action(&act.action, &senders, &mut receivers).await
             }
-            GraphNode::Target { provider, stream, params, retry, .. } => {
-                execute_target(provider, stream, params, retry.as_ref(), &mut receivers, connections).await
+            GraphNodeKind::Target(tgt) => {
+                execute_target(
+                    &tgt.provider, &tgt.stream,
+                    node.retry(), &mut receivers, connections,
+                ).await
             }
         }
     };
 
     // Apply per-node timeout when configured.
-    match node.timeout_ms() {
-        Some(ms) => with_timeout(ms, run).await,
+    match node.timeout() {
+        Some(policy) => {
+            let result = with_timeout(policy.duration_ms, run).await;
+            match (&result, &policy.on_timeout) {
+                (Err(e), TimeoutBehavior::Skip) if e.kind == ErrorKind::Timeout => Ok(0),
+                _ => result,
+            }
+        }
         None => run.await,
     }
 }
@@ -210,7 +224,6 @@ fn resolve_connection<'a>(
 async fn execute_source(
     provider: &str,
     stream: &str,
-    _params: &serde_json::Value,
     retry: Option<&RetryPolicy>,
     senders: &[mpsc::Sender<ContentData>],
     connections: &Connections,
@@ -242,16 +255,15 @@ async fn execute_source(
 /// and forward the result downstream.
 ///
 /// Concrete action dispatch (detect, classify, redact) is orchestrated by
-/// [`DefaultEngine::run`] which drives detection → evaluation → redaction
+/// [`DefaultEngine::run`] which drives detection -> evaluation -> redaction
 /// as sequential phases. The channel-level passthrough here handles any
 /// action nodes that appear in the DAG but whose logic is managed externally.
 async fn execute_action(
-    action: &str,
-    _params: &serde_json::Value,
+    action: &ActionKind,
     senders: &[mpsc::Sender<ContentData>],
     receivers: &mut [mpsc::Receiver<ContentData>],
 ) -> Result<u64, Error> {
-    tracing::debug!(action, "action node: processing");
+    tracing::debug!(?action, "action node: processing");
 
     // Forward items from all upstream receivers to all downstream senders.
     let mut count = 0u64;
@@ -276,7 +288,6 @@ async fn execute_action(
 async fn execute_target(
     provider: &str,
     stream: &str,
-    _params: &serde_json::Value,
     retry: Option<&RetryPolicy>,
     receivers: &mut [mpsc::Receiver<ContentData>],
     connections: &Connections,

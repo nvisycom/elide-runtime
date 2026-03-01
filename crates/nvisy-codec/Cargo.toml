@@ -64,11 +64,13 @@ infer = { workspace = true, features = [] }
 image = { workspace = true, features = [] }
 imageproc = { workspace = true, features = [] }
 
-# Document parsing (feature-gated)
-calamine = { workspace = true, optional = true, features = [] }
+# PDF processing (feature-gated)
 lopdf = { workspace = true, optional = true, features = [] }
 pdf-extract = { workspace = true, optional = true, features = [] }
 pdfium-render = { workspace = true, optional = true }
+
+# Document parsing (feature-gated)
+calamine = { workspace = true, optional = true, features = [] }
 quick-xml = { workspace = true, optional = true, features = [] }
 scraper = { workspace = true, optional = true, features = [] }
 zip = { workspace = true, optional = true, features = [] }

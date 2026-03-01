@@ -4,7 +4,8 @@ use serde::Serialize;
 
 use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon};
-use nvisy_ontology::location::TextLevel;
+use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityKind};
+use nvisy_ontology::location::{ImageLocation, Location, TextLevel};
 
 /// Configuration passed to an [`OcrBackend`] implementation.
 #[derive(Debug, Clone)]
@@ -30,6 +31,40 @@ pub struct OcrRegion {
     pub polygon: Option<Polygon>,
     /// Hierarchical level of this text region.
     pub level: Option<TextLevel>,
+}
+
+impl OcrRegion {
+    /// Convert this region into an [`Entity`], consuming `self`.
+    pub fn into_entity(self) -> Entity {
+        Entity::new(
+            EntityCategory::Pii,
+            EntityKind::Handwriting,
+            &self.text,
+            DetectionMethod::Ocr,
+            self.confidence,
+        )
+        .with_location(Location::Image(ImageLocation {
+            bounding_box: self.bbox,
+            image_id: None,
+            page_number: None,
+        }))
+    }
+
+    /// Create an [`Entity`] from this region by reference.
+    pub fn as_entity(&self) -> Entity {
+        Entity::new(
+            EntityCategory::Pii,
+            EntityKind::Handwriting,
+            &self.text,
+            DetectionMethod::Ocr,
+            self.confidence,
+        )
+        .with_location(Location::Image(ImageLocation {
+            bounding_box: self.bbox.clone(),
+            image_id: None,
+            page_number: None,
+        }))
+    }
 }
 
 /// Backend trait for OCR providers.

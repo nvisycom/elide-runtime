@@ -9,7 +9,7 @@ members = [
     "./crates/nvisy-engine",
     "./crates/nvisy-identify",
     "./crates/nvisy-ontology",
-    "./crates/nvisy-paddle",
+    "./crates/nvisy-ocr",
     "./crates/nvisy-pattern",
     "./crates/nvisy-python",
     "./crates/nvisy-rig",
@@ -40,7 +40,7 @@ nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-identify = { path = "./crates/nvisy-identify", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
-nvisy-paddle = { path = "./crates/nvisy-paddle", version = "0.1.0" }
+nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
 nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
@@ -98,13 +98,19 @@ petgraph = { version = "0.8", features = [] }
 # File type detection
 infer = { version = "0.19", features = [] }
 
-# Document parsing
+# PDF processing (parsing, text extraction, page-to-image rendering)
 pdf-extract = { version = "0.7", features = [] }
 lopdf = { version = "0.39", features = [] }
+pdfium-render = { version = "0.8", features = [] }
+
+# Document parsing
 scraper = { version = "0.22", features = [] }
 calamine = { version = "0.33", features = [] }
 zip = { version = "8.0", features = [] }
 quick-xml = { version = "0.37", features = [] }
+
+# OCR engine (Rust-native PaddleOCR via ONNX Runtime)
+oar-ocr = { version = "0.6", features = [] }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }

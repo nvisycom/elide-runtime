@@ -24,8 +24,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["pdf", "docx", "html", "xlsx"]
 
-# PDF parsing and text extraction via pdf-extract + lopdf
-pdf = ["dep:pdf-extract", "dep:lopdf"]
+# PDF parsing, text extraction, and page-to-image rendering
+pdf = ["dep:pdf-extract", "dep:lopdf", "dep:pdfium-render"]
 # Microsoft Word (.docx) parsing via zip + quick-xml
 docx = ["dep:zip", "dep:quick-xml"]
 # HTML parsing and text extraction via scraper
@@ -68,6 +68,7 @@ imageproc = { workspace = true, features = [] }
 calamine = { workspace = true, optional = true, features = [] }
 lopdf = { workspace = true, optional = true, features = [] }
 pdf-extract = { workspace = true, optional = true, features = [] }
+pdfium-render = { workspace = true, optional = true }
 quick-xml = { workspace = true, optional = true, features = [] }
 scraper = { workspace = true, optional = true, features = [] }
 zip = { workspace = true, optional = true, features = [] }

@@ -4,6 +4,8 @@
 mod pdf_handler;
 #[cfg(feature = "pdf")]
 mod pdf_loader;
+#[cfg(feature = "pdf")]
+mod pdf_render;
 
 #[cfg(feature = "docx")]
 mod docx_handler;
@@ -14,6 +16,8 @@ mod docx_loader;
 pub use pdf_handler::PdfHandler;
 #[cfg(feature = "pdf")]
 pub use pdf_loader::{PdfLoader, PdfParams};
+#[cfg(feature = "pdf")]
+pub use pdf_render::PdfRenderer;
 
 #[cfg(feature = "docx")]
 pub use docx_handler::DocxHandler;

@@ -4,7 +4,11 @@
 
 mod backend;
 mod bridge;
+mod local;
 mod parse;
 
-pub use backend::{OcrBackend, OcrConfig};
+pub mod prelude;
+
+pub use backend::{OcrBackend, OcrConfig, OcrRegion};
+pub use local::LocalOcrBackend;
 pub use parse::parse_ocr_entities;

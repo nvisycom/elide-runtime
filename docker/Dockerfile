@@ -12,21 +12,21 @@ COPY crates/nvisy-core/Cargo.toml crates/nvisy-core/Cargo.toml
 COPY crates/nvisy-engine/Cargo.toml crates/nvisy-engine/Cargo.toml
 COPY crates/nvisy-identify/Cargo.toml crates/nvisy-identify/Cargo.toml
 COPY crates/nvisy-ontology/Cargo.toml crates/nvisy-ontology/Cargo.toml
-COPY crates/nvisy-paddle/Cargo.toml crates/nvisy-paddle/Cargo.toml
+COPY crates/nvisy-ocr/Cargo.toml crates/nvisy-ocr/Cargo.toml
 COPY crates/nvisy-pattern/Cargo.toml crates/nvisy-pattern/Cargo.toml
 COPY crates/nvisy-python/Cargo.toml crates/nvisy-python/Cargo.toml
 COPY crates/nvisy-rig/Cargo.toml crates/nvisy-rig/Cargo.toml
 COPY crates/nvisy-server/Cargo.toml crates/nvisy-server/Cargo.toml
 
 # Create empty src files to satisfy cargo's manifest checks
-RUN for crate in nvisy-codec nvisy-core nvisy-engine nvisy-identify nvisy-ontology nvisy-paddle nvisy-pattern nvisy-python nvisy-rig; do \
+RUN for crate in nvisy-codec nvisy-core nvisy-engine nvisy-identify nvisy-ontology nvisy-ocr nvisy-pattern nvisy-python nvisy-rig; do \
       mkdir -p crates/$crate/src && echo "" > crates/$crate/src/lib.rs; \
     done && \
     mkdir -p crates/nvisy-cli/src && echo "fn main() {}" > crates/nvisy-cli/src/main.rs && \
     mkdir -p crates/nvisy-server/src && echo "fn main() {}" > crates/nvisy-server/src/main.rs
 
 # Create stub READMEs for crates that use doc = include_str!("../README.md")
-RUN for crate in nvisy-cli nvisy-codec nvisy-core nvisy-engine nvisy-identify nvisy-ontology nvisy-paddle nvisy-pattern nvisy-python nvisy-rig nvisy-server; do \
+RUN for crate in nvisy-cli nvisy-codec nvisy-core nvisy-engine nvisy-identify nvisy-ontology nvisy-ocr nvisy-pattern nvisy-python nvisy-rig nvisy-server; do \
       touch crates/$crate/README.md; \
     done
 
@@ -45,6 +45,18 @@ FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y \
     python3 python3-pip python3-venv ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# PDFium shared library for PDF-to-image rendering.
+# Download pre-built binary from pdfium-binaries since libpdfium-dev
+# is not packaged in Debian bookworm.
+RUN apt-get update && apt-get install -y curl && \
+    curl -L -o /tmp/pdfium.tgz \
+      https://github.com/nickel-org/pdfium-binaries/releases/latest/download/pdfium-linux-x64.tgz && \
+    mkdir -p /opt/pdfium && tar -xzf /tmp/pdfium.tgz -C /opt/pdfium && \
+    cp /opt/pdfium/lib/libpdfium.so /usr/local/lib/ && \
+    ldconfig && \
+    rm -rf /tmp/pdfium.tgz /opt/pdfium && \
+    apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
 COPY packages/ /opt/nvisy/packages/

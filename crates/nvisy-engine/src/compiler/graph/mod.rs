@@ -6,16 +6,12 @@
 //! a `kind` discriminator that determines the node's role.
 
 mod action;
-mod retry;
 mod source;
 mod target;
-mod timeout;
 
 pub use action::{ActionKind, ActionNode};
-pub use retry::{BackoffStrategy, RetryPolicy};
 pub use source::SourceNode;
 pub use target::TargetNode;
-pub use timeout::{TimeoutBehavior, TimeoutPolicy};
 
 use std::collections::HashSet;
 
@@ -23,8 +19,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use validator::Validate;
+
 use nvisy_core::Error;
 
+use super::policy::{RetryPolicy, TimeoutPolicy};
 
 /// A node in the pipeline graph.
 ///
@@ -111,6 +110,25 @@ impl Graph {
                     format!("Duplicate node ID: {}", node.id),
                     "compiler",
                 ));
+            }
+        }
+
+        for node in &self.nodes {
+            if let Some(retry) = &node.retry {
+                retry.validate().map_err(|e| {
+                    Error::validation(
+                        format!("Node {}: {}", node.id, e),
+                        "compiler",
+                    )
+                })?;
+            }
+            if let Some(timeout) = &node.timeout {
+                timeout.validate().map_err(|e| {
+                    Error::validation(
+                        format!("Node {}: {}", node.id, e),
+                        "compiler",
+                    )
+                })?;
             }
         }
 

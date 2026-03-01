@@ -6,12 +6,14 @@
 
 pub mod graph;
 pub mod plan;
+pub mod policy;
 
 pub use graph::{
-    ActionKind, ActionNode, BackoffStrategy, Graph, GraphEdge, GraphNode, GraphNodeKind,
-    RetryPolicy, SourceNode, TargetNode, TimeoutBehavior, TimeoutPolicy,
+    ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind,
+    SourceNode, TargetNode,
 };
 pub use plan::{CompiledGraph, ExecutionPlan, ResolvedNode};
+pub use policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 
 use std::collections::HashMap;
 

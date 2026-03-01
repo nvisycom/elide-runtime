@@ -138,5 +138,8 @@ tower-http = { version = "0.6", features = [] }
 # Testing
 tempfile = { version = "3.0", features = [] }
 
+# Validation
+validator = { version = "0.20", features = ["derive"] }
+
 # Randomness
 rand = { version = "0.10", features = [] }

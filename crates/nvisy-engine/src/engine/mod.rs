@@ -7,17 +7,20 @@
 //! [`DefaultEngine`] is the standard implementation that orchestrates the
 //! detect -> evaluate -> redact pipeline and drives the DAG execution graph.
 
-pub mod connections;
+mod connections;
 mod default;
-pub mod executor;
-pub mod ontology;
-pub mod policies;
-pub mod runs;
+mod executor;
+mod ontology;
+mod runs;
+
+pub mod policy;
 
 pub use connections::{Connection, Connections};
 pub use default::DefaultEngine;
 pub use executor::{NodeOutput, RunOutput};
-pub use runs::{RunManager, RunState, RunStatus, RunSummary};
+pub use ontology::{Explainable, Explanation};
+pub use policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
+pub use runs::{NodeProgress, RunManager, RunState, RunStatus, RunSummary};
 
 use std::future::Future;
 
@@ -33,7 +36,6 @@ pub use nvisy_identify::{
 };
 
 use crate::compiler::graph::Graph;
-use crate::compiler::plan::ExecutionPlan;
 
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {
@@ -81,11 +83,4 @@ pub trait Engine: Send + Sync {
         &self,
         input: EngineInput,
     ) -> impl Future<Output = Result<EngineOutput, Error>> + Send;
-
-    /// Execute a compiled [`ExecutionPlan`] against the given connections.
-    fn run_graph(
-        &self,
-        plan: &ExecutionPlan,
-        connections: &Connections,
-    ) -> impl Future<Output = Result<RunOutput, Error>> + Send;
 }

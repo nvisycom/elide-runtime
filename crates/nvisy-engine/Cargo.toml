@@ -49,6 +49,9 @@ petgraph = { workspace = true, features = [] }
 thiserror = { workspace = true, features = [] }
 anyhow = { workspace = true, features = [] }
 
+# Validation
+validator = { workspace = true, features = [] }
+
 # Randomness
 rand = { workspace = true, features = [] }
 

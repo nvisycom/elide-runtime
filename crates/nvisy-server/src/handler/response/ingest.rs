@@ -19,3 +19,17 @@ pub struct DownloadResponse {
     /// Base64-encoded content bytes.
     pub content: String,
 }
+
+/// Response body for `DELETE /api/v1/ingest/{id}`.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct DeleteResponse {
+    /// Identifier of the deleted content.
+    pub id: Uuid,
+}
+
+/// Response body for `DELETE /api/v1/ingest`.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct DeleteAllResponse {
+    /// Number of content items deleted.
+    pub deleted: usize,
+}

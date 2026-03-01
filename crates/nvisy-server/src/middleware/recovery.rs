@@ -26,7 +26,7 @@ use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 use tower_http::catch_panic::CatchPanicLayer;
 
-use crate::handler::response::ServerError;
+use crate::handler::error::{Error, ErrorKind};
 
 /// Tracing target for error recovery.
 const TRACING_TARGET_ERROR: &str = "nvisy_server::recovery::error";
@@ -91,6 +91,10 @@ where
     }
 }
 
+/// Converts a Tower service error into an appropriate HTTP error response.
+///
+/// Distinguishes timeouts ([`Elapsed`](tower::timeout::error::Elapsed))
+/// from other middleware errors and logs accordingly.
 fn handle_error(err: tower::BoxError) -> ResponseFut {
     use tower::timeout::error::Elapsed;
 
@@ -101,8 +105,8 @@ fn handle_error(err: tower::BoxError) -> ResponseFut {
             "request timeout exceeded",
         );
 
-        let error = nvisy_core::Error::new(nvisy_core::ErrorKind::Timeout, "request timeout");
-        return ready(ServerError::from(error).into_response()).boxed();
+        let error = Error::new(ErrorKind::InternalServerError).with_message("request timeout");
+        return ready(error.into_response()).boxed();
     }
 
     tracing::error!(
@@ -111,13 +115,17 @@ fn handle_error(err: tower::BoxError) -> ResponseFut {
         "unhandled middleware error",
     );
 
-    let error = nvisy_core::Error::new(
-        nvisy_core::ErrorKind::InternalError,
-        format!("internal error: {err}"),
-    );
-    ready(ServerError::from(error).into_response()).boxed()
+    let error =
+        Error::new(ErrorKind::InternalServerError).with_message(format!("internal error: {err}"));
+    ready(error.into_response()).boxed()
 }
 
+/// Converts a panic payload into a `500 Internal Server Error` response.
+///
+/// Returns `Response` directly (not a future) because
+/// [`ResponseForPanic`](tower_http::catch_panic::ResponseForPanic) requires
+/// a synchronous return, unlike [`handle_error`] which returns a
+/// [`BoxFuture`](futures::future::BoxFuture).
 fn catch_panic(err: Panic) -> Response {
     let message = err
         .downcast_ref::<String>()
@@ -131,6 +139,7 @@ fn catch_panic(err: Panic) -> Response {
         "service panic",
     );
 
-    let error = nvisy_core::Error::new(nvisy_core::ErrorKind::InternalError, "service panic");
-    ServerError::from(error).into_response()
+    Error::new(ErrorKind::InternalServerError)
+        .with_message("service panic")
+        .into_response()
 }

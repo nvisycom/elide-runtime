@@ -35,7 +35,7 @@ impl Loader for HtmlLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Vec<Document<HtmlHandler>>, Error> {
+    ) -> Result<Document<HtmlHandler>, Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
         let text = params.encoding.decode_bytes(&raw, "html-loader")?;
@@ -59,6 +59,6 @@ impl Loader for HtmlLoader {
             raw: text,
         });
         let doc = Document::new(handler).with_parent(content);
-        Ok(vec![doc])
+        Ok(doc)
     }
 }

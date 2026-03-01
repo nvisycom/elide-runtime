@@ -10,7 +10,7 @@ The quality of the ingestion layer is a critical success factor. Redaction platf
 
 The platform must support ingestion across multiple modalities. Formats are organized into tiers reflecting implementation priority and expected coverage at each stage of the product lifecycle.
 
-### Tier 1 — Core (launch requirement)
+### Tier 1: Core (launch requirement)
 
 These formats represent the most common inputs in regulated enterprise environments and must be supported at general availability:
 
@@ -19,7 +19,7 @@ These formats represent the most common inputs in regulated enterprise environme
 - **Plain text and markup**: TXT, HTML, and Markdown.
 - **Structured data**: CSV and JSON.
 
-### Tier 2 — Extended (near-term)
+### Tier 2: Extended (near-term)
 
 These formats are frequently encountered in enterprise workflows and should be supported shortly after launch:
 
@@ -28,7 +28,7 @@ These formats are frequently encountered in enterprise workflows and should be s
 - **Video**: Standard container formats (MP4, MOV, AVI) with frame-level extraction.
 - **Email**: EML and MSG formats, including inline content and attachments (recursively ingested).
 
-### Tier 3 — Specialized (roadmap)
+### Tier 3: Specialized (roadmap)
 
 These formats address long-tail use cases in specific verticals or operational contexts:
 

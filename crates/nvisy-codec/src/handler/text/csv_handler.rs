@@ -20,8 +20,10 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::document::{SpanEditStream, SpanStream};
+use crate::stream::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
+use crate::handler::text::TextData;
+use crate::transform::TextHandler;
 
 /// Cell address within a CSV document.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -86,7 +88,7 @@ impl Handler for CsvHandler {
     }
 
     #[tracing::instrument(name = "csv.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<Vec<u8>, Error> {
+    fn encode(&self) -> Result<bytes::Bytes, Error> {
         let mut wtr = csv::WriterBuilder::new()
             .delimiter(self.data.delimiter)
             .has_headers(false)
@@ -115,19 +117,19 @@ impl Handler for CsvHandler {
         }
 
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(bytes)
+        Ok(bytes.into())
     }
 
     type SpanId = CsvSpan;
-    type SpanData = String;
+    type SpanData = TextData;
 
-    async fn view_spans(&self) -> SpanStream<'_, CsvSpan, String> {
+    async fn view_spans(&self) -> SpanStream<'_, CsvSpan, TextData> {
         SpanStream::new(futures::stream::iter(CsvSpanIter::new(&self.data)))
     }
 
     async fn edit_spans(
         &mut self,
-        edits: SpanEditStream<'_, CsvSpan, String>,
+        edits: SpanEditStream<'_, CsvSpan, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
@@ -141,7 +143,7 @@ impl Handler for CsvHandler {
                         "csv-handler",
                     )
                 })?;
-                *cell = edit.data;
+                *cell = edit.data.into_inner();
             } else {
                 let row = self.data.rows.get_mut(edit.id.row).ok_or_else(|| {
                     Error::validation(
@@ -158,7 +160,7 @@ impl Handler for CsvHandler {
                         "csv-handler",
                     )
                 })?;
-                *cell = edit.data;
+                *cell = edit.data.into_inner();
             }
         }
         Ok(())
@@ -216,6 +218,8 @@ impl CsvHandler {
     }
 }
 
+impl TextHandler for CsvHandler {}
+
 /// Iterator over cells of a CSV document.
 ///
 /// Yields header cells first (if present), then data cells in
@@ -250,7 +254,7 @@ impl<'a> CsvSpanIter<'a> {
 }
 
 impl<'a> Iterator for CsvSpanIter<'a> {
-    type Item = Span<CsvSpan, String>;
+    type Item = Span<CsvSpan, TextData>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -262,7 +266,7 @@ impl<'a> Iterator for CsvSpanIter<'a> {
                         self.col += 1;
                         return Some(Span::new(
                             CsvSpan::header_cell(col, value.clone()),
-                            value.clone(),
+                            TextData::from(value.clone()),
                         ));
                     }
                     self.phase = CsvIterPhase::Data(0);
@@ -281,7 +285,7 @@ impl<'a> Iterator for CsvSpanIter<'a> {
                             .unwrap_or_else(|| col.to_string());
                         return Some(Span::new(
                             CsvSpan::cell(row_idx, col, key),
-                            value.clone(),
+                            TextData::from(value.clone()),
                         ));
                     }
                     self.phase = CsvIterPhase::Data(row_idx + 1);
@@ -433,7 +437,7 @@ mod tests {
         );
         let bytes = h.encode()?;
         assert_eq!(
-            String::from_utf8(bytes).expect("valid utf-8"),
+            std::str::from_utf8(&bytes).expect("valid utf-8"),
             "name,age\nAlice,30\nBob,25\n"
         );
         Ok(())
@@ -446,7 +450,7 @@ mod tests {
             vec![vec!["Alice", "Has a, comma"]],
         );
         let bytes = h.encode()?;
-        let text = String::from_utf8(bytes).expect("valid utf-8");
+        let text = std::str::from_utf8(&bytes).expect("valid utf-8");
         assert!(text.contains("\"Has a, comma\""));
         Ok(())
     }
@@ -456,7 +460,7 @@ mod tests {
         let mut h = handler_with_headers(vec!["a"], vec![vec!["1"]]);
         h.data.trailing_newline = false;
         let bytes = h.encode()?;
-        assert_eq!(String::from_utf8(bytes).expect("valid utf-8"), "a\n1");
+        assert_eq!(std::str::from_utf8(&bytes).expect("valid utf-8"), "a\n1");
         Ok(())
     }
 
@@ -469,7 +473,7 @@ mod tests {
         h.data.delimiter = b'\t';
         let bytes = h.encode()?;
         assert_eq!(
-            String::from_utf8(bytes).expect("valid utf-8"),
+            std::str::from_utf8(&bytes).expect("valid utf-8"),
             "a\tb\n1\t2\n"
         );
         Ok(())

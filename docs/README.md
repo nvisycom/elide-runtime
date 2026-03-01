@@ -43,11 +43,11 @@ The platform is designed to serve regulated industries where sensitive data hand
 
 | Term | Definition |
 | --- | --- |
-| **PII** | Personally identifiable information — any data that can identify a specific individual |
-| **PHI** | Protected health information — health data covered under HIPAA |
-| **NER** | Named entity recognition — ML technique for identifying entities (names, locations, organizations) in text |
-| **OCR** | Optical character recognition — extraction of text from images and scanned documents |
-| **RBAC** | Role-based access control — permissions model based on user roles |
-| **SSO** | Single sign-on — authentication mechanism allowing one set of credentials across multiple systems |
-| **SCIM** | System for Cross-domain Identity Management — protocol for automating user provisioning |
-| **KMS** | Key management service — system for managing cryptographic keys |
+| **PII** | Personally identifiable information: any data that can identify a specific individual |
+| **PHI** | Protected health information: health data covered under HIPAA |
+| **NER** | Named entity recognition: ML technique for identifying entities (names, locations, organizations) in text |
+| **OCR** | Optical character recognition: extraction of text from images and scanned documents |
+| **RBAC** | Role-based access control: permissions model based on user roles |
+| **SSO** | Single sign-on: authentication mechanism allowing one set of credentials across multiple systems |
+| **SCIM** | System for Cross-domain Identity Management: protocol for automating user provisioning |
+| **KMS** | Key management service: system for managing cryptographic keys |

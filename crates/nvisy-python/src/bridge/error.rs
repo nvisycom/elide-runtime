@@ -14,6 +14,6 @@ pub fn from_pyerr(err: PyErr) -> Error {
             Some(tb) => format!("{}\n{}", err, tb),
             None => err.to_string(),
         };
-        Error::python(msg)
+        Error::runtime(msg, "python", false)
     })
 }

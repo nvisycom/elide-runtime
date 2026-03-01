@@ -5,6 +5,7 @@
 mod layer;
 mod method;
 mod fusion;
+mod ocr_bridge;
 mod policy;
 
 pub mod prelude;
@@ -28,6 +29,9 @@ pub use method::{NerMethod, NerMethodParams, CvMethod, PatternDetection, Pattern
 pub use fusion::{DetectManualAction, DetectManualParams, Exclusion, ManualOutput, is_excluded};
 pub use fusion::DeduplicateAction;
 pub use fusion::{EnsembleMerge, FusionStrategy};
+
+// --- OCR bridge ---
+pub use ocr_bridge::OcrBackendProvider;
 
 // --- Policy & governance ---
 pub use policy::{

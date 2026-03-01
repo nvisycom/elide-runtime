@@ -3,15 +3,13 @@
 [workspace]
 resolver = "2"
 members = [
-    "./crates/nvisy-asr",
-    "./crates/nvisy-augment",
     "./crates/nvisy-cli",
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
     "./crates/nvisy-identify",
     "./crates/nvisy-ontology",
-    "./crates/nvisy-paddle",
+    "./crates/nvisy-ocr",
     "./crates/nvisy-pattern",
     "./crates/nvisy-python",
     "./crates/nvisy-rig",
@@ -37,14 +35,12 @@ documentation = "https://docs.rs/nvisy-runtime"
 # See for more details: https://github.com/rust-lang/cargo/issues/11329
 
 # Internal crates
-nvisy-asr = { path = "./crates/nvisy-asr", version = "0.1.0" }
-nvisy-augment = { path = "./crates/nvisy-augment", version = "0.1.0" }
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-identify = { path = "./crates/nvisy-identify", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
-nvisy-paddle = { path = "./crates/nvisy-paddle", version = "0.1.0" }
+nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
 nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
@@ -77,7 +73,7 @@ csv = { version = "1.0", features = [] }
 # Derive macros and error handling
 thiserror = { version = "2.0", features = [] }
 anyhow = { version = "1.0", features = [] }
-derive_more = { version = "2.0", features = ["display", "from", "into"] }
+derive_more = { version = "2.0", features = ["as_ref", "display", "from", "into"] }
 strum = { version = "0.28", features = ["derive"] }
 
 # Primitive datatypes
@@ -96,19 +92,27 @@ hex = { version = "0.4", features = [] }
 regex = { version = "1.0", features = [] }
 aho-corasick = { version = "1.0", features = [] }
 
+# Parallelism
+rayon = { version = "1.10", features = [] }
+
 # Graph data structures
 petgraph = { version = "0.8", features = [] }
 
 # File type detection
 infer = { version = "0.19", features = [] }
 
-# Document parsing
-pdf-extract = { version = "0.7", features = [] }
+# PDF processing (parsing, text extraction, page-to-image rendering)
 lopdf = { version = "0.39", features = [] }
+pdfium-render = { version = "0.8", features = [] }
+
+# Document parsing
 scraper = { version = "0.22", features = [] }
 calamine = { version = "0.33", features = [] }
 zip = { version = "8.0", features = [] }
 quick-xml = { version = "0.37", features = [] }
+
+# OCR engine (Rust-native PaddleOCR via ONNX Runtime)
+oar-ocr = { version = "0.6", features = [] }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
@@ -133,6 +137,9 @@ tower-http = { version = "0.6", features = [] }
 
 # Testing
 tempfile = { version = "3.0", features = [] }
+
+# Validation
+validator = { version = "0.20", features = ["derive"] }
 
 # Randomness
 rand = { version = "0.10", features = [] }

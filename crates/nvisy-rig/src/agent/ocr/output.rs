@@ -3,6 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use nvisy_core::math::BoundingBox;
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 /// Top-level output from the OCR agent.
@@ -25,6 +26,6 @@ pub struct OcrEntity {
     pub value: String,
     /// Detection confidence (0.0..=1.0).
     pub confidence: f64,
-    /// Optional bounding box `[x, y, width, height]` in pixels.
-    pub bbox: Option<[f64; 4]>,
+    /// Axis-aligned bounding box in pixels.
+    pub bbox: Option<BoundingBox>,
 }

@@ -53,7 +53,7 @@ pub(crate) async fn apply_image_doc(
         };
 
         redactions.push(ImageRedaction {
-            bounding_box: img_loc.bounding_box.clone(),
+            bounding_box: img_loc.bounding_box,
             output,
         });
     }

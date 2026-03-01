@@ -26,10 +26,10 @@ impl Loader for XlsxLoader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Vec<Document<XlsxHandler>>, Error> {
+    ) -> Result<Document<XlsxHandler>, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
         let handler = XlsxHandler;
         let doc = Document::new(handler).with_parent(content);
-        Ok(vec![doc])
+        Ok(doc)
     }
 }

@@ -1,0 +1,26 @@
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE and Editors
+.vs/
+.vscode/
+.idea/
+.zed/
+
+# VCS & CI
+.git
+.github
+
+# Rust
+target/
+
+# Node
+node_modules/
+**/node_modules
+**/dist
+
+# Documentation
+docs/
+*.md
+!crates/*/README.md

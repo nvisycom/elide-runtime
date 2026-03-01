@@ -1,25 +1,21 @@
 //! Health and analytics handlers.
 //!
-//! - `GET /health` — liveness probe returning `{"status": "ok"}`.
-//! - `GET /api/v1/analytics` — aggregate pipeline metrics (stub).
+//! # Endpoints
+//!
+//! | Method | Path                  | Description                          |
+//! |--------|-----------------------|--------------------------------------|
+//! | `GET`  | `/health`             | Liveness probe (`{"status": "ok"}`)  |
+//! | `GET`  | `/api/v1/analytics`   | Aggregate pipeline metrics (stub)    |
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use axum::Json;
-use nvisy_core::{Error, ErrorKind};
-use schemars::JsonSchema;
-use serde::Serialize;
 
-use super::response::{Analytics, ServerError};
+use super::error::{ErrorKind, Result};
+use super::response::{Analytics, Health};
+use crate::extract::Json;
 use crate::service::ServiceState;
-
-/// Response body for `GET /health`.
-#[derive(Debug, Serialize, JsonSchema)]
-pub struct Health {
-    pub status: &'static str,
-}
 
 /// `GET /health`: liveness probe.
 async fn health() -> Json<Health> {
@@ -37,11 +33,8 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(skip_all)]
 async fn analytics(
     State(_state): State<ServiceState>,
-) -> Result<Json<Analytics>, ServerError> {
-    Err(ServerError::from(Error::new(
-        ErrorKind::Runtime,
-        "analytics endpoint not yet implemented",
-    )))
+) -> Result<Json<Analytics>> {
+    Err(ErrorKind::NotImplemented.with_message("analytics endpoint not yet implemented"))
 }
 
 fn analytics_docs(op: TransformOperation) -> TransformOperation {

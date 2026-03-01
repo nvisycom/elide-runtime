@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use nvisy_engine::compiler::graph::Graph;
-use nvisy_engine::connections::Connection;
+use nvisy_engine::compiler::Graph;
+use nvisy_engine::engine::Connection;
 use schemars::JsonSchema;
 use serde::Deserialize;
 

@@ -4,52 +4,34 @@
 //! threaded through every handler via Axum's `State` extractor. Fields are
 //! private; use the provided accessor methods.
 
-mod engine;
-
-use std::sync::Arc;
-
 use nvisy_core::fs::ContentRegistry;
-
-pub use engine::StubEngine;
+use nvisy_engine::engine::DefaultEngine;
 
 /// Shared application state threaded through all handlers.
-///
-/// The engine is stored behind [`Arc`] with a manual [`Clone`] impl because
-/// [`Engine`] uses RPITIT and is not dyn-compatible.
 #[must_use = "state does nothing unless you use it"]
+#[derive(Clone)]
 pub struct ServiceState {
-    engine: Arc<StubEngine>,
+    default_engine: DefaultEngine,
     content_registry: ContentRegistry,
 }
 
 impl ServiceState {
     /// Creates a new service state with the given content registry.
-    ///
-    /// Wires in the [`StubEngine`] until a real implementation is configured.
     pub fn new(content_registry: ContentRegistry) -> Self {
         Self {
-            engine: Arc::new(StubEngine),
+            default_engine: DefaultEngine,
             content_registry,
         }
     }
 
     /// Returns a reference to the pipeline engine.
-    pub fn engine(&self) -> &StubEngine {
-        &self.engine
+    pub fn engine(&self) -> &DefaultEngine {
+        &self.default_engine
     }
 
     /// Returns a reference to the content registry.
     pub fn content_registry(&self) -> &ContentRegistry {
         &self.content_registry
-    }
-}
-
-impl Clone for ServiceState {
-    fn clone(&self) -> Self {
-        Self {
-            engine: Arc::clone(&self.engine),
-            content_registry: self.content_registry.clone(),
-        }
     }
 }
 
@@ -64,5 +46,6 @@ macro_rules! impl_di {
 }
 
 impl_di!(
+    default_engine: DefaultEngine,
     content_registry: ContentRegistry,
 );

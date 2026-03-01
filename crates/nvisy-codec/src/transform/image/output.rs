@@ -1,10 +1,10 @@
 //! Image redaction output type.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Image redaction output — records the method used and its parameters.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum ImageRedactionOutput {
     /// Gaussian blur applied to the region.

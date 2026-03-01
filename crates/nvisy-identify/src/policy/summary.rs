@@ -1,12 +1,12 @@
 //! Per-source redaction summary.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use nvisy_core::path::ContentSource;
 
 /// Summary of redactions applied to a single content source.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RedactionSummary {
     /// The content source these counts apply to.
     #[serde(flatten)]

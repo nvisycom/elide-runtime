@@ -1,11 +1,11 @@
 //! Text redaction output type.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Text redaction output — the codec only needs to know the replacement string
 /// or that the span should be removed entirely.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[derive(schemars::JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum TextRedactionOutput {
     /// Substituted with a replacement string.

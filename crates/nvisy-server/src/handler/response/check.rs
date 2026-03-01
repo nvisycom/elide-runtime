@@ -3,6 +3,13 @@
 use schemars::JsonSchema;
 use serde::Serialize;
 
+/// Response body for `GET /health`.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct Health {
+    /// Server status string (always `"ok"` when reachable).
+    pub status: &'static str,
+}
+
 /// Response body for `GET /api/v1/analytics`.
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct Analytics {

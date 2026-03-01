@@ -1,141 +1,96 @@
-//! Data reference definitions
-//!
-//! This module provides the `DataReference` struct for referencing and
-//! tracking content within the Nvisy system.
+//! Lightweight source reference for locating data within a document.
 
 use serde::{Deserialize, Serialize};
 
-use crate::io::Content;
 use crate::path::ContentSource;
 
-/// Reference to data with source tracking and content information
+/// A lightweight pointer to a specific location within a content source.
 ///
-/// A `DataReference` provides a lightweight way to reference data content
-/// while maintaining information about its source location and optional
-/// mapping within that source.
+/// `DataReference` does **not** hold the actual data — it only records
+/// *where* the data lives (a [`ContentSource`]) and an optional
+/// sub-location within that source (the `mapping_id`).
 ///
 /// # Examples
 ///
 /// ```rust
-/// use nvisy_core::io::{DataReference, Content, ContentData};
+/// use nvisy_core::io::DataReference;
+/// use nvisy_core::path::ContentSource;
 ///
-/// let content = Content::new(ContentData::from("Hello, world!"));
-/// let data_ref = DataReference::new(content)
+/// let source = ContentSource::new();
+/// let data_ref = DataReference::new(source)
 ///     .with_mapping_id("line-42");
 ///
-/// assert!(data_ref.mapping_id().is_some());
-/// assert_eq!(data_ref.mapping_id().unwrap(), "line-42");
+/// assert_eq!(data_ref.mapping_id(), Some("line-42"));
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[derive(Serialize, Deserialize)]
 pub struct DataReference {
-    /// Unique identifier for the source containing this data
-    /// Using `UUIDv7` for time-ordered, globally unique identification
+    /// Source document this reference points into.
     source: ContentSource,
 
-    /// Optional identifier that defines the position/location of the data within the source
-    /// Examples: line numbers, byte offsets, element IDs, `XPath` expressions
+    /// Optional sub-location within the source.
+    ///
+    /// Examples: line numbers, byte offsets, element IDs, XPath expressions.
+    #[serde(skip_serializing_if = "Option::is_none")]
     mapping_id: Option<String>,
-
-    /// The actual content data
-    content: Content,
 }
 
 impl DataReference {
-    /// Create a new data reference with auto-generated source ID (`UUIDv7`)
-    pub fn new(content: Content) -> Self {
-        Self {
-            source: ContentSource::new(),
-            mapping_id: None,
-            content,
-        }
-    }
-
-    /// Create a new data reference with specific source
-    pub fn with_source(source: ContentSource, content: Content) -> Self {
+    /// Create a new reference to the given source.
+    pub fn new(source: ContentSource) -> Self {
         Self {
             source,
             mapping_id: None,
-            content,
         }
     }
 
-    /// Set the mapping ID for this data reference
+    /// Set the mapping ID (builder pattern).
     #[must_use]
-    pub fn with_mapping_id<S: Into<String>>(mut self, mapping_id: S) -> Self {
+    pub fn with_mapping_id(mut self, mapping_id: impl Into<String>) -> Self {
         self.mapping_id = Some(mapping_id.into());
         self
     }
 
-    /// Get the content source
+    /// The content source this reference points to.
     pub fn source(&self) -> ContentSource {
         self.source
     }
 
-    /// Get the mapping ID, if any
+    /// The sub-location within the source, if any.
     pub fn mapping_id(&self) -> Option<&str> {
         self.mapping_id.as_deref()
-    }
-
-    /// Get a reference to the content
-    pub fn content(&self) -> &Content {
-        &self.content
-    }
-
-    /// Check if the content is text-based
-    pub fn is_likely_text(&self) -> bool {
-        self.content.is_likely_text()
-    }
-
-    /// Get the size of the content in bytes
-    pub fn size(&self) -> usize {
-        self.content.size()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::io::ContentData;
 
     #[test]
-    fn test_data_reference_creation() {
-        let content = Content::new(ContentData::from("Hello, world!"));
-        let data_ref = DataReference::new(content);
+    fn creation() {
+        let source = ContentSource::new();
+        let data_ref = DataReference::new(source);
 
-        assert!(data_ref.is_likely_text());
+        assert_eq!(data_ref.source(), source);
         assert!(data_ref.mapping_id().is_none());
-        assert_eq!(data_ref.size(), 13);
-        // Verify UUIDv7 is used
-        assert_eq!(data_ref.source().as_uuid().get_version_num(), 7);
     }
 
     #[test]
-    fn test_data_reference_with_mapping() {
-        let content = Content::new(ContentData::from("Test content"));
-        let data_ref = DataReference::new(content).with_mapping_id("line-42");
+    fn with_mapping_id() {
+        let source = ContentSource::new();
+        let data_ref = DataReference::new(source).with_mapping_id("line-42");
 
         assert_eq!(data_ref.mapping_id(), Some("line-42"));
     }
 
     #[test]
-    fn test_data_reference_with_source() {
+    fn serialization_roundtrip() {
         let source = ContentSource::new();
-        let content = Content::new(ContentData::from("Test content"));
-        let data_ref = DataReference::with_source(source, content);
-
-        assert_eq!(data_ref.source(), source);
-    }
-
-    #[test]
-    fn test_serialization() {
-        let content = Content::new(ContentData::from("Test content"));
-        let data_ref = DataReference::new(content).with_mapping_id("test-mapping");
+        let data_ref = DataReference::new(source).with_mapping_id("test-mapping");
 
         let json = serde_json::to_string(&data_ref).unwrap();
         let deserialized: DataReference = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(data_ref.source(), deserialized.source());
-        assert_eq!(data_ref.mapping_id(), deserialized.mapping_id());
+        assert_eq!(data_ref, deserialized);
     }
 }

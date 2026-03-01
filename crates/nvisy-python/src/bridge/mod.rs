@@ -76,15 +76,15 @@ impl PythonBridge {
                     .map_err(from_pyerr)?;
 
                 pythonize::depythonize::<Vec<Value>>(&result).map_err(|e| {
-                    Error::python(format!(
+                    Error::runtime(format!(
                         "Failed to deserialize {} result: {}",
                         method, e
-                    ))
+                    ), "python", false)
                 })
             })
         })
         .await
-        .map_err(|e| Error::python(format!("Task join error: {}", e)))?
+        .map_err(|e| Error::runtime(format!("Task join error: {}", e), "python", false))?
     }
 
     /// Call an **asynchronous** (coroutine) Python method on the bridge
@@ -127,10 +127,10 @@ impl PythonBridge {
 
         Python::with_gil(|py| {
             pythonize::depythonize::<Vec<Value>>(py_result.bind(py)).map_err(|e| {
-                Error::python(format!(
+                Error::runtime(format!(
                     "Failed to deserialize {} result: {}",
                     method, e
-                ))
+                ), "python", false)
             })
         })
     }

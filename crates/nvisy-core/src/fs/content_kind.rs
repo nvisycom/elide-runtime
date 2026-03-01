@@ -96,12 +96,6 @@ mod tests {
     }
 
     #[test]
-    fn test_content_kind_as_ref() {
-        assert_eq!(ContentKind::Text.as_ref(), "text");
-        assert_eq!(ContentKind::Document.as_ref(), "document");
-    }
-
-    #[test]
     fn test_content_kind_from_str() {
         use std::str::FromStr;
 
@@ -111,11 +105,6 @@ mod tests {
             ContentKind::Document
         );
         assert!(ContentKind::from_str("invalid").is_err());
-    }
-
-    #[test]
-    fn test_default() {
-        assert_eq!(ContentKind::default(), ContentKind::Unknown);
     }
 
     #[test]

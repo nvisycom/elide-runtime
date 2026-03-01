@@ -55,6 +55,10 @@ pub struct Cli {
     /// Per-request timeout in seconds.
     #[arg(long, env = "REQUEST_TIMEOUT_SECS", default_value_t = 300)]
     pub request_timeout_secs: u64,
+
+    /// Allowed CORS origins (repeat for multiple). Empty means permissive.
+    #[arg(long, env = "CORS_ALLOWED_ORIGINS", value_delimiter = ',')]
+    pub cors_allowed_origins: Vec<String>,
 }
 
 impl Cli {
@@ -63,6 +67,7 @@ impl Cli {
         SecurityConfig {
             body_limit_bytes: self.body_limit_bytes,
             file_body_limit_bytes: self.file_body_limit_bytes,
+            cors_allowed_origins: self.cors_allowed_origins.clone(),
         }
     }
 

@@ -1,5 +1,6 @@
 //! Text-based format handlers.
 
+mod text_data;
 mod txt_handler;
 mod txt_loader;
 mod csv_handler;
@@ -15,6 +16,7 @@ mod xlsx_handler;
 #[cfg(feature = "xlsx")]
 mod xlsx_loader;
 
+pub use text_data::TextData;
 pub use txt_handler::{TxtHandler, TxtSpan};
 pub use txt_loader::{TxtLoader, TxtParams};
 pub use csv_handler::{CsvData, CsvHandler, CsvSpan};

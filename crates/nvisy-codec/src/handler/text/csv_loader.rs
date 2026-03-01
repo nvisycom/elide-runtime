@@ -51,7 +51,7 @@ impl Loader for CsvLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Vec<Document<CsvHandler>>, Error> {
+    ) -> Result<Document<CsvHandler>, Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
         let text = params.encoding.decode_bytes(&raw, "csv-loader")?;
@@ -94,7 +94,7 @@ impl Loader for CsvLoader {
             },
         };
         let doc = Document::new(handler).with_parent(content);
-        Ok(vec![doc])
+        Ok(doc)
     }
 }
 
@@ -158,19 +158,16 @@ mod tests {
     #[tokio::test]
     async fn load_with_headers() -> Result<(), Error> {
         let content = content_from_str("name,age\nAlice,30\nBob,25\n");
-        let docs = CsvLoader
+        let doc = CsvLoader
             .decode(&content, &CsvParams::default())
             .await?;
 
-        assert_eq!(docs.len(), 1);
-        assert_eq!(docs[0].document_type(), DocumentType::Csv);
-
-        let h = docs[0].handler();
-        assert_eq!(h.headers(), Some(["name", "age"].map(String::from).as_slice()));
-        assert_eq!(h.len(), 2);
-        assert_eq!(h.cell(0, 0), Some("Alice"));
-        assert_eq!(h.cell(1, 1), Some("25"));
-        assert!(h.trailing_newline());
+        assert_eq!(doc.document_type(), DocumentType::Csv);
+        assert_eq!(doc.headers(), Some(["name", "age"].map(String::from).as_slice()));
+        assert_eq!(doc.len(), 2);
+        assert_eq!(doc.cell(0, 0), Some("Alice"));
+        assert_eq!(doc.cell(1, 1), Some("25"));
+        assert!(doc.trailing_newline());
         Ok(())
     }
 
@@ -181,55 +178,52 @@ mod tests {
             ..CsvParams::default()
         };
         let content = content_from_str("x,y\n1,2\n");
-        let docs = CsvLoader.decode(&content, &params).await?;
+        let doc = CsvLoader.decode(&content, &params).await?;
 
-        let h = docs[0].handler();
-        assert!(h.headers().is_none());
-        assert_eq!(h.len(), 2);
-        assert_eq!(h.cell(0, 0), Some("x"));
+        assert!(doc.headers().is_none());
+        assert_eq!(doc.len(), 2);
+        assert_eq!(doc.cell(0, 0), Some("x"));
         Ok(())
     }
 
     #[tokio::test]
     async fn load_tab_delimited() -> Result<(), Error> {
         let content = content_from_str("a\tb\n1\t2\n");
-        let docs = CsvLoader
+        let doc = CsvLoader
             .decode(&content, &CsvParams::default())
             .await?;
-        let h = docs[0].handler();
-        assert_eq!(h.delimiter(), b'\t');
-        assert_eq!(h.headers(), Some(["a", "b"].map(String::from).as_slice()));
+        assert_eq!(doc.delimiter(), b'\t');
+        assert_eq!(doc.headers(), Some(["a", "b"].map(String::from).as_slice()));
         Ok(())
     }
 
     #[tokio::test]
     async fn load_semicolon_delimited() -> Result<(), Error> {
         let content = content_from_str("a;b\n1;2\n");
-        let docs = CsvLoader
+        let doc = CsvLoader
             .decode(&content, &CsvParams::default())
             .await?;
-        assert_eq!(docs[0].handler().delimiter(), b';');
+        assert_eq!(doc.delimiter(), b';');
         Ok(())
     }
 
     #[tokio::test]
     async fn load_quoted_fields() -> Result<(), Error> {
         let content = content_from_str("name,bio\n\"Alice\",\"Has a, comma\"\n");
-        let docs = CsvLoader
+        let doc = CsvLoader
             .decode(&content, &CsvParams::default())
             .await?;
-        let h = docs[0].handler();
-        assert_eq!(h.cell(0, 1), Some("Has a, comma"));
+        assert_eq!(doc.cell(0, 1), Some("Has a, comma"));
         Ok(())
     }
 
     #[tokio::test]
     async fn load_spans_round_trip() -> Result<(), Error> {
         let content = content_from_str("name,age\nAlice,30\n");
-        let docs = CsvLoader
+        let doc = CsvLoader
             .decode(&content, &CsvParams::default())
             .await?;
-        let spans: Vec<_> = docs[0].handler().view_spans().await.collect().await;
+        let spans: Vec<_> = doc.view_spans().await.collect().await;
 
         // 2 header + 2 data
         assert_eq!(spans.len(), 4);

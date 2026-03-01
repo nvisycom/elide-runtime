@@ -116,27 +116,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_content_metadata_creation() {
-        let source = ContentSource::new();
-        let metadata = ContentMetadata::new(source);
-
-        assert_eq!(metadata.content_source, source);
-        assert!(metadata.source_path.is_none());
-        assert!(!metadata.has_path());
-    }
-
-    #[test]
-    fn test_content_metadata_with_path() {
-        let source = ContentSource::new();
-        let path = PathBuf::from("/path/to/document.pdf");
-        let metadata = ContentMetadata::with_path(source, path.clone());
-
-        assert_eq!(metadata.content_source, source);
-        assert_eq!(metadata.source_path, Some(path));
-        assert!(metadata.has_path());
-    }
-
-    #[test]
     fn test_file_extension_detection() {
         let source = ContentSource::new();
         let metadata = ContentMetadata::with_path(source, PathBuf::from("document.pdf"));

@@ -2,16 +2,20 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Open-source multimodal redaction runtime. Detect, redact, and audit PII and
-sensitive data across documents, images, audio, and video.
+Multimodal redaction runtime for sensitive data.
+
+Detect and remove sensitive information across documents, images, audio, and
+video. Combines deterministic patterns, NER, computer vision, and LLM-driven
+classification into auditable, policy-driven pipelines built for regulated
+industries such as healthcare, legal, government, and financial services.
 
 ## Features
 
-- **Multimodal Codecs**: read, edit, and write PDF, DOCX, images, audio, CSV, JSON, and plain text
-- **AI-Powered Detection**: regex, dictionary, checksum, NER, and LLM-driven entity recognition
-- **Span-Aware Redaction**: mask, replace, hash, encrypt, blur, block, pixelate, and synthesize
-- **Pipeline Engine**: DAG compiler and executor with retry and timeout policies
-- **Python Extensions**: PyO3 bridge for AI-powered NER and OCR via embedded CPython
+- **Multimodal codecs**: read, edit, and write PDF, DOCX, images, audio, CSV, JSON, and plain text through a unified span-based content model
+- **Layered detection**: regex, dictionary, and checksum patterns run first at low cost; NER, OCR, object detection, and LLM classification handle what deterministic methods cannot
+- **Context-aware redaction**: mask, replace, hash, encrypt, blur, block, pixelate, and synthesize with policy-driven rules scoped to entity type, document class, and confidence threshold
+- **Pipeline engine**: DAG compiler and executor with retry, timeout, and chunked context-window policies
+- **Python extensions**: PyO3 bridge for speech-to-text, NER, and OCR via embedded Python
 
 ## Quick Start
 

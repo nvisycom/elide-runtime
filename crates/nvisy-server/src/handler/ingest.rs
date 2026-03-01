@@ -1,18 +1,38 @@
-//! Content upload and download handlers.
+//! Content ingestion handlers: upload, download, and deletion.
 //!
-//! - `POST /api/v1/ingest` — upload content as multipart form data.
-//! - `GET /api/v1/ingest/{id}` — download previously uploaded content (stub).
+//! # Endpoints
+//!
+//! | Method   | Path                     | Description                         |
+//! |----------|--------------------------|-------------------------------------|
+//! | `POST`   | `/api/v1/ingest`         | Upload content (multipart)          |
+//! | `GET`    | `/api/v1/ingest/{id}`    | Download previously uploaded content|
+//! | `DELETE` | `/api/v1/ingest/{id}`    | Delete a single content item        |
+//! | `DELETE` | `/api/v1/ingest`         | Delete all content items            |
+//!
+//! # Upload format
+//!
+//! The upload endpoint accepts `multipart/form-data` with the following fields:
+//!
+//! | Field          | Kind   | Required | Description                              |
+//! |----------------|--------|----------|------------------------------------------|
+//! | `file`         | file   | yes      | Binary content to ingest                 |
+//! | `content_type` | text   | no       | MIME type override (e.g. `text/csv`)     |
+//!
+//! The MIME type is resolved in the following order:
+//! 1. Explicit `content_type` text field (if present).
+//! 2. `Content-Type` header of the `file` part.
+//! 3. Downstream detection via magic bytes / filename heuristics.
 
 use aide::axum::ApiRouter;
-use aide::axum::routing::get_with;
+use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
-use axum::extract::{Multipart, Path, State};
-use axum::Json;
+use axum::extract::State;
 use nvisy_core::io::{Content, ContentData};
-use nvisy_core::{Error, ErrorKind};
 use uuid::Uuid;
 
-use super::response::{DownloadResponse, ServerError, UploadResponse};
+use super::error::{ErrorKind, Result};
+use super::response::{DeleteAllResponse, DeleteResponse, DownloadResponse, UploadResponse};
+use crate::extract::{Json, Path, Upload};
 use crate::service::ServiceState;
 
 /// `POST /api/v1/ingest`: upload content as multipart form data.
@@ -22,56 +42,11 @@ use crate::service::ServiceState;
 #[tracing::instrument(skip_all)]
 async fn upload(
     State(state): State<ServiceState>,
-    mut multipart: Multipart,
-) -> Result<Json<UploadResponse>, ServerError> {
-    let mut file_bytes: Option<Vec<u8>> = None;
-    let mut filename: Option<String> = None;
-    let mut content_type: Option<String> = None;
-
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("multipart error: {e}")))?
-    {
-        let field_name = field.name().unwrap_or_default().to_string();
-        match field_name.as_str() {
-            "file" => {
-                filename = field.file_name().map(String::from);
-                content_type = field.content_type().map(String::from);
-                file_bytes = Some(
-                    field
-                        .bytes()
-                        .await
-                        .map_err(|e| {
-                            Error::new(
-                                ErrorKind::InvalidInput,
-                                format!("failed to read file field: {e}"),
-                            )
-                        })?
-                        .to_vec(),
-                );
-            }
-            "content_type" => {
-                let value = field.text().await.map_err(|e| {
-                    Error::new(
-                        ErrorKind::InvalidInput,
-                        format!("failed to read content_type field: {e}"),
-                    )
-                })?;
-                content_type = Some(value);
-            }
-            _ => {
-                tracing::debug!(field = field_name, "ignoring unknown multipart field");
-            }
-        }
-    }
-
-    let bytes = file_bytes
-        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "missing required 'file' field"))?;
-
-    let size = bytes.len();
-    let mut content_data = ContentData::from(bytes);
-    if let Some(mime) = content_type {
+    upload: Upload,
+) -> Result<Json<UploadResponse>> {
+    let size = upload.bytes.len();
+    let mut content_data = ContentData::from(upload.bytes);
+    if let Some(mime) = upload.content_type {
         content_data.mime = Some(mime);
     }
     let content = Content::new(content_data);
@@ -81,23 +56,34 @@ async fn upload(
     tracing::info!(
         %id,
         size,
-        filename = filename.as_deref().unwrap_or("<none>"),
+        filename = upload.filename.as_deref().unwrap_or("<none>"),
         "content uploaded",
     );
 
     Ok(Json(UploadResponse { id }))
 }
 
+fn upload_docs(op: TransformOperation) -> TransformOperation {
+    op.id("uploadContent")
+        .tag("ingest")
+        .summary("Upload content as multipart form data")
+        .description(
+            "Accepts a multipart/form-data body with a required `file` field \
+             and an optional `content_type` text field to override MIME detection.",
+        )
+}
+
 /// `GET /api/v1/ingest/{id}`: download previously uploaded content.
+///
+/// Returns the content as base64-encoded bytes along with its identifier.
+/// Currently unimplemented: returns a 501 error.
 #[tracing::instrument(skip_all, fields(%id))]
 async fn download(
     State(_state): State<ServiceState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<DownloadResponse>, ServerError> {
-    Err(ServerError::from(Error::new(
-        ErrorKind::Runtime,
-        format!("content download not yet implemented (id: {id})"),
-    )))
+) -> Result<Json<DownloadResponse>> {
+    Err(ErrorKind::NotImplemented
+        .with_message(format!("content download not yet implemented (id: {id})")))
 }
 
 fn download_docs(op: TransformOperation) -> TransformOperation {
@@ -107,9 +93,57 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
         .description("Retrieves content by its UUID, returning base64-encoded bytes.")
 }
 
+/// `DELETE /api/v1/ingest/{id}`: delete a single uploaded content item.
+///
+/// Removes the content directory identified by the given UUID from the
+/// registry. Returns the deleted identifier on success.
+#[tracing::instrument(skip_all, fields(%id))]
+async fn delete(
+    State(state): State<ServiceState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<DeleteResponse>> {
+    state.content_registry().delete(id).await?;
+    tracing::info!(%id, "content deleted");
+    Ok(Json(DeleteResponse { id }))
+}
+
+fn delete_docs(op: TransformOperation) -> TransformOperation {
+    op.id("deleteContent")
+        .tag("ingest")
+        .summary("Delete uploaded content")
+        .description("Removes a single content item identified by its UUID.")
+}
+
+/// `DELETE /api/v1/ingest`: delete all uploaded content.
+///
+/// Removes every content directory under the registry's base path.
+/// Returns the number of items deleted.
+#[tracing::instrument(skip_all)]
+async fn delete_all(
+    State(state): State<ServiceState>,
+) -> Result<Json<DeleteAllResponse>> {
+    let deleted = state.content_registry().delete_all().await?;
+    tracing::info!(deleted, "all content deleted");
+    Ok(Json(DeleteAllResponse { deleted }))
+}
+
+fn delete_all_docs(op: TransformOperation) -> TransformOperation {
+    op.id("deleteAllContent")
+        .tag("ingest")
+        .summary("Delete all uploaded content")
+        .description("Removes every content item currently stored in the registry.")
+}
+
 /// Ingest routes.
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
-        .route("/api/v1/ingest", axum::routing::post(upload))
-        .api_route("/api/v1/ingest/{id}", get_with(download, download_docs))
+        .api_route("/api/v1/ingest", post_with(upload, upload_docs))
+        .api_route(
+            "/api/v1/ingest",
+            delete_with(delete_all, delete_all_docs),
+        )
+        .api_route(
+            "/api/v1/ingest/{id}",
+            get_with(download, download_docs).delete_with(delete, delete_docs),
+        )
 }

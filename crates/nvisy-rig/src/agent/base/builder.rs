@@ -1,15 +1,14 @@
 //! Builder for [`BaseAgent`](super::BaseAgent).
 
-use reqwest_middleware::ClientWithMiddleware;
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
 use rig::completion::CompletionModel;
-use rig::providers::{anthropic, gemini, ollama, openai};
+use rig::providers::gemini;
 use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
-use crate::backend::{Provider, UsageTracker, build_http_client};
-use super::{Agents, BaseAgent, BaseAgentConfig};
+use crate::backend::{UsageTracker, build_http_client};
+use super::{AgentProvider, Agents, BaseAgent, BaseAgentConfig};
 use crate::error::Error;
 
 /// Builder for [`BaseAgent`].
@@ -18,13 +17,13 @@ use crate::error::Error;
 /// and optional tools, then constructs the concrete rig-core agent on
 /// [`build`](Self::build).
 pub(crate) struct BaseAgentBuilder {
-    provider: Provider,
+    provider: AgentProvider,
     config: BaseAgentConfig,
     tools: Vec<Box<dyn ToolDyn>>,
 }
 
 impl BaseAgentBuilder {
-    pub fn new(provider: &Provider, config: BaseAgentConfig) -> Self {
+    pub fn new(provider: &AgentProvider, config: BaseAgentConfig) -> Self {
         Self {
             provider: provider.clone(),
             config,
@@ -50,49 +49,25 @@ impl BaseAgentBuilder {
         let preamble = config.preamble.as_deref();
 
         let inner = match &provider {
-            Provider::OpenAi(p) => {
-                let mut b = openai::Client::<ClientWithMiddleware>::builder()
-                    .api_key(&p.api_key)
-                    .http_client(http_client);
-                if let Some(url) = &p.base_url {
-                    b = b.base_url(url);
-                }
-                let client = b.build().map_err(|e| Error::Client(e.to_string()))?;
+            AgentProvider::OpenAi(p) => {
+                let client = p.openai_client(http_client)?;
                 let model = client.completions_api().completion_model(&p.model);
                 Agents::OpenAi(build_rig_agent(model, &config, preamble, tools))
             }
-            Provider::Anthropic(p) => {
-                let mut b = anthropic::Client::<ClientWithMiddleware>::builder()
-                    .api_key(&p.api_key)
-                    .http_client(http_client);
-                if let Some(url) = &p.base_url {
-                    b = b.base_url(url);
-                }
-                let client = b.build().map_err(|e| Error::Client(e.to_string()))?;
+            AgentProvider::Anthropic(p) => {
+                let client = p.anthropic_client(http_client)?;
                 let model = client.completion_model(&p.model);
                 Agents::Anthropic(build_rig_agent(model, &config, preamble, tools))
             }
-            Provider::Gemini(p) => {
-                let mut b = gemini::Client::<ClientWithMiddleware>::builder()
-                    .api_key(&p.api_key)
-                    .http_client(http_client);
-                if let Some(url) = &p.base_url {
-                    b = b.base_url(url);
-                }
-                let client = b.build().map_err(|e| Error::Client(e.to_string()))?;
+            AgentProvider::Gemini(p) => {
+                let client = p.gemini_client(http_client)?;
                 // rig-core 0.31: Gemini's Capabilities doesn't propagate H,
                 // so CompletionClient is unavailable for non-default H.
                 let model = gemini::completion::CompletionModel::new(client, &p.model);
                 Agents::Gemini(build_rig_agent(model, &config, preamble, tools))
             }
-            Provider::Ollama(p) => {
-                let mut b = ollama::Client::<ClientWithMiddleware>::builder()
-                    .api_key(rig::client::Nothing)
-                    .http_client(http_client);
-                if let Some(url) = &p.base_url {
-                    b = b.base_url(url);
-                }
-                let client = b.build().map_err(|e| Error::Client(e.to_string()))?;
+            AgentProvider::Ollama(p) => {
+                let client = p.ollama_client(http_client)?;
                 let model = client.completion_model(&p.model);
                 Agents::Ollama(build_rig_agent(model, &config, preamble, tools))
             }

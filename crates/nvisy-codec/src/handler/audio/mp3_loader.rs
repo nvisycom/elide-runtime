@@ -26,10 +26,10 @@ impl Loader for Mp3Loader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Vec<Document<Mp3Handler>>, Error> {
+    ) -> Result<Document<Mp3Handler>, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
         let handler = Mp3Handler::new(content.to_bytes());
         let doc = Document::new(handler).with_parent(content);
-        Ok(vec![doc])
+        Ok(doc)
     }
 }

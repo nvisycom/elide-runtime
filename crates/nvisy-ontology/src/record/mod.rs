@@ -15,8 +15,7 @@ use crate::specification::RedactionInput;
 /// A redaction decision recording how a specific entity was (or will be) redacted.
 ///
 /// Each `Redaction` is linked to exactly one entity via `entity_id`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Redaction {
     /// Content source identity and lineage.
     #[serde(flatten)]

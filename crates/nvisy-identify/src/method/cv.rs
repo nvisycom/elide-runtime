@@ -5,7 +5,7 @@
 
 use nvisy_codec::handler::{ImageData, Span};
 use nvisy_core::Error;
-use nvisy_rig::{CvAgent, CvEntity, DetectionConfig};
+use nvisy_rig::agent::{CvAgent, CvEntity, DetectionConfig};
 
 use crate::{DetectionMethod, Entity, ImageLocation, Location};
 use crate::{ParallelContext, DetectionService};

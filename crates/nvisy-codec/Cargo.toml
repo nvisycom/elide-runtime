@@ -24,8 +24,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["pdf", "docx", "html", "xlsx"]
 
-# PDF parsing and text extraction via pdf-extract + lopdf
-pdf = ["dep:pdf-extract", "dep:lopdf"]
+# PDF parsing, text extraction, and page-to-image rendering
+pdf = ["dep:lopdf", "dep:pdfium-render", "dep:rayon"]
 # Microsoft Word (.docx) parsing via zip + quick-xml
 docx = ["dep:zip", "dep:quick-xml"]
 # HTML parsing and text extraction via scraper
@@ -52,7 +52,10 @@ bytes = { workspace = true, features = [] }
 uuid = { workspace = true, features = ["v4"] }
 
 # Derive macros
-derive_more = { workspace = true, features = ["from"] }
+derive_more = { workspace = true, features = ["as_ref", "display", "from"] }
+
+# Immutable string
+hipstr = { workspace = true, features = [] }
 
 # JSON Schema generation
 schemars = { workspace = true, features = [] }
@@ -64,10 +67,13 @@ infer = { workspace = true, features = [] }
 image = { workspace = true, features = [] }
 imageproc = { workspace = true, features = [] }
 
+# PDF processing (feature-gated)
+lopdf = { workspace = true, optional = true, features = [] }
+pdfium-render = { workspace = true, optional = true, features = [] }
+rayon = { workspace = true, optional = true, features = [] }
+
 # Document parsing (feature-gated)
 calamine = { workspace = true, optional = true, features = [] }
-lopdf = { workspace = true, optional = true, features = [] }
-pdf-extract = { workspace = true, optional = true, features = [] }
 quick-xml = { workspace = true, optional = true, features = [] }
 scraper = { workspace = true, optional = true, features = [] }
 zip = { workspace = true, optional = true, features = [] }

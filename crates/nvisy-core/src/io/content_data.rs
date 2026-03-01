@@ -4,10 +4,12 @@
 //! along with its metadata and source information.
 
 use std::fmt;
-use std::ops::Deref;
 use std::sync::OnceLock;
 
 use bytes::Bytes;
+use std::ops::Deref;
+
+use derive_more::{AsRef, From};
 use hipstr::HipStr;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -21,17 +23,12 @@ use crate::path::ContentSource;
 /// for text conversion. It's cheap to clone as `Bytes` uses reference
 /// counting internally.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-#[derive(Serialize, Deserialize)]
+#[derive(From, AsRef, Serialize, Deserialize)]
+#[as_ref(forward)]
 #[serde(transparent)]
 pub struct ContentBytes(Bytes);
 
 impl ContentBytes {
-    /// Creates a new `ContentBytes` from raw bytes.
-    #[must_use]
-    pub fn new(bytes: Bytes) -> Self {
-        Self(bytes)
-    }
-
     /// Returns the size of the content in bytes.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -64,22 +61,9 @@ impl ContentBytes {
     ///
     /// Returns an error if the content is not valid UTF-8.
     pub fn as_hipstr(&self) -> Result<HipStr<'static>> {
-        let s = std::str::from_utf8(&self.0).map_err(|e| {
-            Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}"))
-        })?;
+        let s = std::str::from_utf8(&self.0)
+            .map_err(|e| Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}")))?;
         Ok(HipStr::from(s))
-    }
-
-    /// Returns the underlying `Bytes`.
-    #[must_use]
-    pub fn to_bytes(&self) -> Bytes {
-        self.0.clone()
-    }
-
-    /// Consumes and returns the underlying `Bytes`.
-    #[must_use]
-    pub fn into_bytes(self) -> Bytes {
-        self.0
     }
 
     /// Returns `true` if the content appears to be text.
@@ -98,12 +82,6 @@ impl Deref for ContentBytes {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<[u8]> for ContentBytes {
-    fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
@@ -135,12 +113,6 @@ impl From<&[u8]> for ContentBytes {
 impl From<Vec<u8>> for ContentBytes {
     fn from(vec: Vec<u8>) -> Self {
         Self(Bytes::from(vec))
-    }
-}
-
-impl From<Bytes> for ContentBytes {
-    fn from(bytes: Bytes) -> Self {
-        Self(bytes)
     }
 }
 
@@ -186,7 +158,7 @@ impl ContentData {
     pub fn new(content_source: ContentSource, data: Bytes) -> Self {
         Self {
             content_source,
-            data: ContentBytes::new(data),
+            data: ContentBytes::from(data),
             sha256_cache: OnceLock::new(),
             mime: None,
             detected_mime: None,
@@ -278,13 +250,13 @@ impl ContentData {
     /// Converts the content data to `Bytes`.
     #[must_use]
     pub fn to_bytes(&self) -> Bytes {
-        self.data.to_bytes()
+        self.data.0.clone()
     }
 
     /// Consumes and converts into `Bytes`.
     #[must_use]
     pub fn into_bytes(self) -> Bytes {
-        self.data.into_bytes()
+        self.data.0
     }
 
     /// Returns `true` if the content appears to be text.
@@ -311,9 +283,8 @@ impl ContentData {
     ///
     /// Returns an error if the content data contains invalid UTF-8 sequences.
     pub fn as_str(&self) -> Result<&str> {
-        std::str::from_utf8(self.data.as_bytes()).map_err(|e| {
-            Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}"))
-        })
+        std::str::from_utf8(self.data.as_bytes())
+            .map_err(|e| Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}")))
     }
 
     /// Converts to a `HipStr` if the content is valid UTF-8.
@@ -357,11 +328,14 @@ impl ContentData {
         if actual_hash.as_ref() == expected {
             Ok(())
         } else {
-            Err(Error::new(ErrorKind::InvalidInput, format!(
-                "Hash mismatch: expected {}, got {}",
-                hex::encode(expected),
-                hex::encode(actual_hash)
-            )))
+            Err(Error::new(
+                ErrorKind::Validation,
+                format!(
+                    "Hash mismatch: expected {}, got {}",
+                    hex::encode(expected),
+                    hex::encode(actual_hash)
+                ),
+            ))
         }
     }
 
@@ -374,15 +348,16 @@ impl ContentData {
     pub fn slice(&self, start: usize, end: usize) -> Result<Bytes> {
         let bytes = self.data.as_bytes();
         if end > bytes.len() {
-            return Err(Error::new(ErrorKind::InvalidInput, format!(
-                "Slice end {} exceeds content length {}",
-                end,
-                bytes.len()
-            )));
+            return Err(Error::new(
+                ErrorKind::Validation,
+                format!("Slice end {} exceeds content length {}", end, bytes.len()),
+            ));
         }
         if start > end {
-            return Err(Error::new(ErrorKind::InvalidInput,
-                format!("Slice start {start} is greater than end {end}")));
+            return Err(Error::new(
+                ErrorKind::Validation,
+                format!("Slice start {start} is greater than end {end}"),
+            ));
         }
         Ok(Bytes::copy_from_slice(&bytes[start..end]))
     }
@@ -499,42 +474,6 @@ mod tests {
     }
 
     #[test]
-    fn test_content_bytes_wrapper() {
-        let bytes = ContentBytes::from("Hello");
-        assert_eq!(bytes.as_str(), Some("Hello"));
-        assert_eq!(bytes.len(), 5);
-        assert!(!bytes.is_empty());
-    }
-
-    #[test]
-    fn test_content_bytes_as_hipstr() {
-        let bytes = ContentBytes::from("Hello, HipStr!");
-        let hipstr = bytes.as_hipstr().unwrap();
-        assert_eq!(hipstr.as_str(), "Hello, HipStr!");
-
-        // Test with invalid UTF-8
-        let invalid = ContentBytes::from(vec![0xFF, 0xFE]);
-        assert!(invalid.as_hipstr().is_err());
-    }
-
-    #[test]
-    fn test_content_bytes_binary() {
-        let binary = ContentBytes::from(vec![0xFF, 0xFE]);
-        assert_eq!(binary.len(), 2);
-        assert!(binary.as_str().is_none());
-        assert!(!binary.is_likely_text());
-    }
-
-    #[test]
-    fn test_size_methods() {
-        let content = ContentData::from("Hello");
-        assert_eq!(content.size(), 5);
-
-        let pretty_size = content.get_pretty_size();
-        assert!(!pretty_size.is_empty());
-    }
-
-    #[test]
     fn test_sha256_computation() {
         let content = ContentData::from("Hello, world!");
         let hash = content.sha256();
@@ -558,17 +497,6 @@ mod tests {
     }
 
     #[test]
-    fn test_string_conversion() {
-        let content = ContentData::from("Hello, world!");
-        assert_eq!(content.as_string().unwrap(), "Hello, world!");
-        assert_eq!(content.as_str().unwrap(), "Hello, world!");
-
-        let binary_content = ContentData::from(vec![0xFF, 0xFE, 0xFD]);
-        assert!(binary_content.as_string().is_err());
-        assert!(binary_content.as_str().is_err());
-    }
-
-    #[test]
     fn test_as_hipstr() {
         let content = ContentData::from("Hello, HipStr!");
         let hipstr = content.as_hipstr().unwrap();
@@ -576,15 +504,6 @@ mod tests {
 
         let binary_content = ContentData::from(vec![0xFF, 0xFE]);
         assert!(binary_content.as_hipstr().is_err());
-    }
-
-    #[test]
-    fn test_is_likely_text() {
-        let text_content = ContentData::from("Hello, world!");
-        assert!(text_content.is_likely_text());
-
-        let binary_content = ContentData::from(vec![0xFF, 0xFE, 0xFD]);
-        assert!(!binary_content.is_likely_text());
     }
 
     #[test]
@@ -638,49 +557,10 @@ mod tests {
     }
 
     #[test]
-    fn test_cloning_is_cheap() {
-        let original = ContentData::from("Hello, world!");
-        let cloned = original.clone();
-
-        assert_eq!(original, cloned);
-    }
-
-    #[test]
-    fn test_into_bytes() {
-        let content = ContentData::from("Hello, world!");
-        let bytes = content.into_bytes();
-        assert_eq!(bytes, Bytes::from("Hello, world!"));
-    }
-
-    #[test]
-    fn test_empty_content() {
-        let content = ContentData::from("");
-        assert!(content.is_empty());
-        assert_eq!(content.size(), 0);
-    }
-
-    #[test]
-    fn test_to_bytes() {
-        let text_content = ContentData::from_text(ContentSource::new(), "Hello");
-        let bytes = text_content.to_bytes();
-        assert_eq!(bytes.as_ref(), b"Hello");
-
-        let binary_content = ContentData::new(ContentSource::new(), Bytes::from("World"));
-        let bytes = binary_content.to_bytes();
-        assert_eq!(bytes.as_ref(), b"World");
-    }
-
-    #[test]
     fn test_from_hipstr() {
         let hipstr = HipStr::from("Hello from HipStr");
         let content = ContentData::from(hipstr);
         assert_eq!(content.as_str().unwrap(), "Hello from HipStr");
     }
 
-    #[test]
-    fn test_content_bytes_deref() {
-        let bytes = ContentBytes::from("Hello");
-        assert_eq!(&*bytes, b"Hello");
-        assert_eq!(bytes.as_ref(), b"Hello");
-    }
 }

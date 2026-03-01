@@ -9,7 +9,7 @@ pub use transform::ImageTransform;
 use image::DynamicImage;
 use futures::StreamExt;
 
-use crate::document::SpanEditStream;
+use crate::stream::SpanEditStream;
 use crate::handler::{Handler, ImageData, SpanEdit};
 use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;

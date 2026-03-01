@@ -3,7 +3,7 @@
 //! [`OcrPromptBuilder`] constructs the user prompt that instructs the VLM
 //! to call the OCR tool and then detect entities in the extracted text.
 
-use crate::backend::{DetectionConfig, ALL_TYPES_HINT};
+use crate::agent::{DetectionConfig, ALL_TYPES_HINT};
 
 /// Builds user prompts for OCR-based entity extraction.
 ///

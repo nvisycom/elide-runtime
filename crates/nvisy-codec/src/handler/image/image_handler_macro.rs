@@ -11,7 +11,7 @@ macro_rules! impl_image_handler {
             }
 
             #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
-            fn encode(&self) -> Result<Vec<u8>, nvisy_core::Error> {
+            fn encode(&self) -> Result<bytes::Bytes, nvisy_core::Error> {
                 let mut buf = std::io::Cursor::new(Vec::new());
                 self.image
                     .write_to(&mut buf, $fmt)
@@ -23,7 +23,7 @@ macro_rules! impl_image_handler {
                     })?;
                 let out = buf.into_inner();
                 tracing::Span::current().record("output_bytes", out.len());
-                Ok(out)
+                Ok(out.into())
             }
 
             type SpanId = ();
@@ -31,15 +31,15 @@ macro_rules! impl_image_handler {
 
             async fn view_spans(
                 &self,
-            ) -> crate::document::SpanStream<'_, (), crate::handler::ImageData> {
-                crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
+            ) -> crate::stream::SpanStream<'_, (), crate::handler::ImageData> {
+                crate::stream::SpanStream::new(futures::stream::iter(std::iter::once(
                     crate::handler::Span::new((), crate::handler::ImageData::from(self.image.clone())),
                 )))
             }
 
             async fn edit_spans(
                 &mut self,
-                edits: crate::document::SpanEditStream<'_, (), crate::handler::ImageData>,
+                edits: crate::stream::SpanEditStream<'_, (), crate::handler::ImageData>,
             ) -> Result<(), nvisy_core::Error> {
                 use futures::StreamExt;
                 let edits: Vec<_> = edits.collect().await;

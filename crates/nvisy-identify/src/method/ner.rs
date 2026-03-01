@@ -11,8 +11,8 @@ use nvisy_codec::handler::{Span, TxtSpan};
 use nvisy_ontology::entity::EntityKind;
 use nvisy_core::Error;
 use nvisy_ontology::entity::EntityCategory;
-use nvisy_rig::{
-    BaseAgentConfig, DetectionConfig, KnownNerEntity, NerAgent, NerContext, Provider,
+use nvisy_rig::agent::{
+    AgentProvider, BaseAgentConfig, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
 };
 
 use crate::{DetectionMethod, Entity, Location, TextLocation};
@@ -34,7 +34,7 @@ pub struct NerMethodParams {
     pub confidence_threshold: f64,
     /// Provider configuration for the NER agent.
     #[serde(skip)]
-    pub provider: Option<Provider>,
+    pub provider: Option<AgentProvider>,
     /// Optional agent config overrides.
     #[serde(skip)]
     pub agent_config: Option<BaseAgentConfig>,

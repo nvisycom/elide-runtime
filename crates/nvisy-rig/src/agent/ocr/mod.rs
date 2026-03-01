@@ -17,7 +17,11 @@ use base64::engine::general_purpose::STANDARD;
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::backend::{DetectionConfig, Provider, UsageTracker};
+use nvisy_core::math::{BoundingBox, Polygon};
+use nvisy_ontology::location::TextLevel;
+
+use crate::backend::UsageTracker;
+use super::{AgentProvider, DetectionConfig};
 use super::{BaseAgent, BaseAgentConfig};
 use crate::error::Error;
 use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
@@ -33,8 +37,12 @@ pub struct OcrTextRegion {
     pub text: String,
     /// Confidence of the OCR extraction (0.0..=1.0).
     pub confidence: f64,
-    /// Optional bounding box `[x, y, width, height]` in pixels.
-    pub bbox: Option<[f64; 4]>,
+    /// Axis-aligned bounding box (always present from traditional OCR).
+    pub bbox: Option<BoundingBox>,
+    /// Polygon vertices for rotated text regions.
+    pub polygon: Option<Polygon>,
+    /// Hierarchical level of this text region.
+    pub level: Option<TextLevel>,
 }
 
 /// Trait for OCR capabilities that can be provided to VLM agents.
@@ -70,7 +78,7 @@ pub struct OcrAgent {
 impl OcrAgent {
     /// Create a new OCR agent.
     pub fn new(
-        provider: &Provider,
+        provider: &AgentProvider,
         mut config: BaseAgentConfig,
         ocr: impl OcrProvider + 'static,
     ) -> Result<Self, Error> {

@@ -13,12 +13,12 @@ pub struct ImageData(DynamicImage);
 
 impl ImageData {
     /// Encode to PNG bytes.
-    pub fn encode_png(&self) -> Result<Vec<u8>, Error> {
+    pub fn encode_png(&self) -> Result<bytes::Bytes, Error> {
         let mut buf = std::io::Cursor::new(Vec::new());
         self.0
             .write_to(&mut buf, image::ImageFormat::Png)
             .map_err(|e| Error::validation(format!("PNG encode failed: {e}"), "image-data"))?;
-        Ok(buf.into_inner())
+        Ok(buf.into_inner().into())
     }
 
     /// Create a blank RGB image (for tests).

@@ -1,18 +1,25 @@
 //! Redaction handler.
 //!
-//! `POST /api/v1/redaction` — runs the redaction pipeline on previously
-//! uploaded content identified by `content_id` (stub).
+//! # Endpoints
+//!
+//! | Method | Path                 | Description                               |
+//! |--------|----------------------|-------------------------------------------|
+//! | `POST` | `/api/v1/redaction`  | Run redaction on previously uploaded content|
+//!
+//! Expects a JSON body with a `content_id` referencing previously ingested
+//! content, along with policies and an execution graph. Currently
+//! unimplemented: returns a 501 error.
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use axum::Json;
-use nvisy_core::{Error, ErrorKind};
 use nvisy_engine::engine::Policies;
 
+use super::error::{ErrorKind, Result};
 use super::request::RedactionRequest;
-use super::response::{RedactionResponse, ServerError};
+use super::response::RedactionResponse;
+use crate::extract::Json;
 use crate::service::ServiceState;
 
 /// `POST /api/v1/redaction`: run the redaction pipeline on uploaded content.
@@ -20,20 +27,17 @@ use crate::service::ServiceState;
 async fn redact(
     State(_state): State<ServiceState>,
     Json(req): Json<RedactionRequest>,
-) -> Result<Json<RedactionResponse>, ServerError> {
+) -> Result<Json<RedactionResponse>> {
     let _policies: Policies = serde_json::from_value(req.policies)
-        .map_err(|e| Error::new(ErrorKind::Validation, format!("invalid policies: {e}")))?;
+        .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid policies: {e}")))?;
 
     let _graph = req.graph;
     let _connections = req.connections;
 
-    Err(ServerError::from(Error::new(
-        ErrorKind::Runtime,
-        format!(
-            "redaction endpoint not yet implemented (content_id: {}, actor: {})",
-            req.content_id,
-            req.actor.as_deref().unwrap_or("<none>"),
-        ),
+    Err(ErrorKind::NotImplemented.with_message(format!(
+        "redaction endpoint not yet implemented (content_id: {}, actor: {})",
+        req.content_id,
+        req.actor.as_deref().unwrap_or("<none>"),
     )))
 }
 

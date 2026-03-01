@@ -21,16 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Crates
 
-- **nvisy-asr:** ASR/speech-to-text backend trait and provider integration
-- **nvisy-augment:** Content augmentation actions (OCR, transcription, synthetic data)
 - **nvisy-cli:** CLI entry point for the nvisy API server
 - **nvisy-codec:** File-format codecs — read, edit, and write documents
 - **nvisy-core:** Domain types, traits, and errors
 - **nvisy-engine:** DAG compiler and executor for pipeline graphs
 - **nvisy-identify:** Entity ontology types and detection layers
-- **nvisy-ocr:** OCR backend trait and provider integration
 - **nvisy-ontology:** Domain data types, entity taxonomy, and spatial primitives
 - **nvisy-pattern:** Built-in regex patterns and dictionaries for PII/PHI detection
+- **nvisy-ocr:** OCR backend trait and provider integration (oar-ocr local, Python bridge)
 - **nvisy-python:** PyO3 bridge for AI NER/OCR detection via embedded Python
 - **nvisy-rig:** LLM/VLM-driven detection, redaction, and OCR backends
 - **nvisy-server:** HTTP server exposing the Engine pipeline via REST endpoints

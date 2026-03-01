@@ -11,23 +11,33 @@ define log
 printf "[%s] [MAKE] [$(MAKECMDGOALS)] $(1)\n" "$$(date '+%Y-%m-%d %H:%M:%S')"
 endef
 
+.PHONY: install-tools
+install-tools: ## Installs CLI tools required for development.
+	@$(call log,Checking cargo-watch...)
+	@if ! command -v cargo-watch >/dev/null 2>&1; then \
+		$(call log,Installing cargo-watch...); \
+		cargo install cargo-watch --locked; \
+		$(call log,cargo-watch installed.); \
+	else \
+		$(call log,cargo-watch already installed.); \
+	fi
+
+.PHONY: generate-env
+generate-env: ## Copies .env.example to .env.
+	@$(call log,Copying .env.example to .env...)
+	@cp ./.env.example ./.env
+	@$(call log,.env file created successfully.)
+
+.PHONY: install
+install: install-tools generate-env ## Installs all dependencies and makes scripts executable.
+	@chmod +x scripts/*.sh
+	@$(call log,Installing PDFium...)
+	@./scripts/install-pdfium.sh
+	@$(call log,Setup complete.)
+
 .PHONY: dev
 dev: ## Starts cargo-watch for the server binary.
 	@cargo watch -x 'run -p nvisy-server'
-
-.PHONY: build
-build: ## Builds all crates in release mode.
-	@$(call log,Building workspace...)
-	@cargo build --workspace --release
-	@$(call log,Build complete.)
-
-.PHONY: check
-check: ## Runs cargo check on all crates.
-	@cargo check --workspace
-
-.PHONY: test
-test: ## Runs all tests.
-	@cargo test --workspace
 
 .PHONY: lint
 lint: ## Runs clippy and format check.
@@ -37,19 +47,12 @@ lint: ## Runs clippy and format check.
 	@cargo clippy --workspace -- -D warnings
 	@$(call log,Lint passed.)
 
-.PHONY: fmt
-fmt: ## Formats all Rust code.
-	@cargo fmt --all
-
 .PHONY: ci
-ci: lint check test build ## Runs all CI checks locally.
+ci: lint ## Runs all CI checks locally.
+	@cargo check --workspace
+	@cargo test --workspace
+	@cargo build --workspace --release
 	@$(call log,All CI checks passed!)
-
-.PHONY: clean
-clean: ## Removes build artifacts.
-	@$(call log,Cleaning build artifacts...)
-	@cargo clean
-	@$(call log,Clean complete.)
 
 .PHONY: docker
 docker: ## Builds the Docker image.
@@ -60,4 +63,4 @@ docker: ## Builds the Docker image.
 .PHONY: help
 help: ## Shows this help message.
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'

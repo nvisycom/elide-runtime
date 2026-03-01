@@ -1,20 +1,27 @@
 //! Pipeline execution handler.
 //!
-//! `POST /api/v1/execute` — accepts base64-encoded content with policies and
-//! an execution graph, runs the full detection/evaluation/redaction pipeline,
-//! and returns the combined result.
+//! # Endpoints
+//!
+//! | Method | Path               | Description                          |
+//! |--------|--------------------|--------------------------------------|
+//! | `POST` | `/api/v1/execute`  | Run the full redaction pipeline      |
+//!
+//! Accepts a JSON body with base64-encoded content, policy definitions, and
+//! an execution graph describing the pipeline DAG. Runs the complete
+//! detection → evaluation → redaction pipeline and returns the combined result.
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use axum::Json;
+use base64::Engine as _;
 use nvisy_core::io::{Content, ContentData};
-use nvisy_core::{Error, ErrorKind};
-use nvisy_engine::engine::{Engine, EngineInput, Policies};
+use nvisy_engine::engine::{Engine as _, EngineInput, Policies};
 
+use super::error::{ErrorKind, Result};
 use super::request::ExecuteRequest;
-use super::response::{ExecuteResponse, ServerError};
+use super::response::ExecuteResponse;
+use crate::extract::Json;
 use crate::service::ServiceState;
 
 /// `POST /api/v1/execute`: run the full pipeline.
@@ -22,14 +29,13 @@ use crate::service::ServiceState;
 async fn execute(
     State(state): State<ServiceState>,
     Json(req): Json<ExecuteRequest>,
-) -> Result<Json<ExecuteResponse>, ServerError> {
-    use base64::Engine as _;
+) -> Result<Json<ExecuteResponse>> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(&req.content)
-        .map_err(|e| Error::new(ErrorKind::InvalidInput, format!("invalid base64: {e}")))?;
+        .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid base64: {e}")))?;
 
     let policies: Policies = serde_json::from_value(req.policies)
-        .map_err(|e| Error::new(ErrorKind::Validation, format!("invalid policies: {e}")))?;
+        .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid policies: {e}")))?;
 
     let mut content_data = ContentData::from(bytes);
     if let Some(ref filename) = req.filename
@@ -73,18 +79,37 @@ fn execute_docs(op: TransformOperation) -> TransformOperation {
 fn mime_from_filename(filename: &str) -> Option<String> {
     let ext = filename.rsplit('.').next()?;
     let mime = match ext.to_ascii_lowercase().as_str() {
+        // Text
         "txt" => "text/plain",
         "csv" => "text/csv",
         "json" => "application/json",
         "xml" => "application/xml",
         "html" | "htm" => "text/html",
+        // Documents
         "pdf" => "application/pdf",
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "tiff" | "tif" => "image/tiff",
         "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        // Images
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "tiff" | "tif" => "image/tiff",
+        "bmp" => "image/bmp",
+        // Audio
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "ogg" => "audio/ogg",
+        "flac" => "audio/flac",
+        "aac" => "audio/aac",
+        // Video
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "avi" => "video/x-msvideo",
+        "mov" => "video/quicktime",
+        // Archives
         "zip" => "application/zip",
         _ => return None,
     };

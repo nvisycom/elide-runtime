@@ -1,70 +1,83 @@
-FROM rust:1.85-bookworm AS builder
+# syntax=docker/dockerfile:1
+#
+# Multi-stage build for the nvisy-server binary.
+#
+#   docker build -f docker/Dockerfile -t nvisy-server .
+#
+# Build context must be the repository root.
 
-RUN apt-get update && apt-get install -y python3-dev python3-pip && rm -rf /var/lib/apt/lists/*
+# Stage 1: Build
+FROM rust:1.92-bookworm AS build
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy manifests first to cache dependency builds
+# Forward-compatible PyO3 ABI for any Python ≥ 3.7.
+ENV PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+
+# Dependency cache layer
+# Copy only manifests + lock so dependency builds are cached until a
+# Cargo.toml or Cargo.lock changes. Stub source files satisfy cargo.
 COPY Cargo.toml Cargo.lock ./
 COPY crates/nvisy-cli/Cargo.toml crates/nvisy-cli/Cargo.toml
 COPY crates/nvisy-codec/Cargo.toml crates/nvisy-codec/Cargo.toml
 COPY crates/nvisy-core/Cargo.toml crates/nvisy-core/Cargo.toml
 COPY crates/nvisy-engine/Cargo.toml crates/nvisy-engine/Cargo.toml
 COPY crates/nvisy-identify/Cargo.toml crates/nvisy-identify/Cargo.toml
-COPY crates/nvisy-ontology/Cargo.toml crates/nvisy-ontology/Cargo.toml
 COPY crates/nvisy-ocr/Cargo.toml crates/nvisy-ocr/Cargo.toml
+COPY crates/nvisy-ontology/Cargo.toml crates/nvisy-ontology/Cargo.toml
 COPY crates/nvisy-pattern/Cargo.toml crates/nvisy-pattern/Cargo.toml
 COPY crates/nvisy-python/Cargo.toml crates/nvisy-python/Cargo.toml
 COPY crates/nvisy-rig/Cargo.toml crates/nvisy-rig/Cargo.toml
 COPY crates/nvisy-server/Cargo.toml crates/nvisy-server/Cargo.toml
 
-# Create empty src files to satisfy cargo's manifest checks
-RUN for crate in nvisy-codec nvisy-core nvisy-engine nvisy-identify nvisy-ontology nvisy-ocr nvisy-pattern nvisy-python nvisy-rig; do \
-      mkdir -p crates/$crate/src && echo "" > crates/$crate/src/lib.rs; \
-    done && \
-    mkdir -p crates/nvisy-cli/src && echo "fn main() {}" > crates/nvisy-cli/src/main.rs && \
-    mkdir -p crates/nvisy-server/src && echo "fn main() {}" > crates/nvisy-server/src/main.rs
+# Stub lib.rs / main.rs + empty READMEs (every crate uses
+# `include_str!("../README.md")`).
+RUN set -e; \
+    for c in nvisy-codec nvisy-core nvisy-engine nvisy-identify \
+             nvisy-ocr nvisy-ontology nvisy-pattern nvisy-python \
+             nvisy-rig nvisy-server; do \
+        mkdir -p "crates/$c/src"; \
+        echo "" > "crates/$c/src/lib.rs"; \
+        touch "crates/$c/README.md"; \
+    done; \
+    mkdir -p crates/nvisy-cli/src; \
+    echo "fn main() {}" > crates/nvisy-cli/src/main.rs; \
+    touch crates/nvisy-cli/README.md
 
-# Create stub READMEs for crates that use doc = include_str!("../README.md")
-RUN for crate in nvisy-cli nvisy-codec nvisy-core nvisy-engine nvisy-identify nvisy-ontology nvisy-ocr nvisy-pattern nvisy-python nvisy-rig nvisy-server; do \
-      touch crates/$crate/README.md; \
-    done
-
-ENV PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
-
-# Cache dependency build
 RUN cargo build --release 2>/dev/null || true
 
-# Copy full source and build
+# Full build
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --bin nvisy-server
 
-# Runtime stage
-FROM debian:bookworm-slim AS runtime
+# Stage 2: Runtime
+FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y \
-    python3 python3-pip python3-venv ca-certificates \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        python3 \
+        python3-pip \
+        python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# PDFium shared library for PDF-to-image rendering.
-# Download pre-built binary from pdfium-binaries since libpdfium-dev
-# is not packaged in Debian bookworm.
-RUN apt-get update && apt-get install -y curl && \
-    curl -L -o /tmp/pdfium.tgz \
-      https://github.com/nickel-org/pdfium-binaries/releases/latest/download/pdfium-linux-x64.tgz && \
-    mkdir -p /opt/pdfium && tar -xzf /tmp/pdfium.tgz -C /opt/pdfium && \
-    cp /opt/pdfium/lib/libpdfium.so /usr/local/lib/ && \
-    ldconfig && \
-    rm -rf /tmp/pdfium.tgz /opt/pdfium && \
-    apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+# PDFium (PDF-to-image rendering)
+COPY scripts/install-pdfium.sh /tmp/install-pdfium.sh
+RUN /tmp/install-pdfium.sh && rm /tmp/install-pdfium.sh
 
-# Install Python packages
+# Python packages
 COPY packages/ /opt/nvisy/packages/
-RUN python3 -m pip install --break-system-packages \
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
     /opt/nvisy/packages/nvisy-ai \
     /opt/nvisy/packages/nvisy-exif
 
-COPY --from=builder /app/target/release/nvisy-server /usr/local/bin/nvisy-server
+# Binary
+COPY --from=build /app/target/release/nvisy-server /usr/local/bin/
 
 EXPOSE 8080
-CMD ["nvisy-server"]
+ENTRYPOINT ["nvisy-server"]

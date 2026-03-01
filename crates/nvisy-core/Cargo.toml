@@ -35,33 +35,26 @@ tokio = { workspace = true, features = ["sync", "fs", "io-util", "rt"] }
 # Primitive datatypes
 uuid = { workspace = true, features = ["serde", "v4", "v7"] }
 bytes = { workspace = true, features = ["serde"] }
+jiff = { workspace = true, features = [] }
+semver = { workspace = true, features = [] }
+hipstr = { workspace = true, features = [] }
 
 # File type detection
 infer = { workspace = true, features = [] }
 
-# Error handling
+# Derive macros and error handling
 thiserror = { workspace = true, features = [] }
 anyhow = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["display", "deref", "as_ref", "from", "into"] }
-
-# Time
-jiff = { workspace = true, features = [] }
-
-# Interned strings
-hipstr = { workspace = true, features = [] }
+strum = { workspace = true, features = [] }
 
 # Hashing
 sha2 = { workspace = true, features = [] }
 hex = { workspace = true, features = [] }
-
-# Semantic versioning
-semver = { workspace = true, features = [] }
-
-# Enum derives
-strum = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 tempfile = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

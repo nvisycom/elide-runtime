@@ -9,8 +9,7 @@ use serde::{Deserialize, Serialize};
 /// Wraps a [`u16`] to prevent accidental misuse of raw integers as DPI
 /// values. Common presets are available as associated constants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[derive(From, Into, Display)]
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(From, Into, Display, Serialize, Deserialize, JsonSchema)]
 #[display("{_0} dpi")]
 pub struct Dpi(u16);
 

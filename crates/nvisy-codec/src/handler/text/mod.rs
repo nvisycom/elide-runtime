@@ -1,5 +1,11 @@
 //! Text-based format handlers.
 
+use std::hash::Hash;
+
+use nvisy_core::Error;
+
+use super::{Handler, SpanEditStream, SpanStream};
+
 mod text_data;
 mod txt_handler;
 mod txt_loader;
@@ -31,3 +37,23 @@ pub use html_loader::{HtmlLoader, HtmlParams};
 pub use xlsx_handler::XlsxHandler;
 #[cfg(feature = "xlsx")]
 pub use xlsx_loader::{XlsxLoader, XlsxParams};
+
+/// Capability trait for handlers that expose text content.
+///
+/// Handlers implementing this trait can yield text spans and accept
+/// text edits. Each handler defines its own text span addressing
+/// scheme via [`TextId`](Self::TextId).
+#[async_trait::async_trait]
+pub trait TextHandler: Handler {
+    /// Strongly-typed identifier for a text span within this handler.
+    type TextId: Send + Sync + Clone + Eq + Hash + 'static;
+
+    /// Return text content as an async stream of spans.
+    async fn text_spans(&self) -> SpanStream<'_, Self::TextId, TextData>;
+
+    /// Apply text edits from an async stream back to the source structure.
+    async fn edit_text(
+        &mut self,
+        edits: SpanEditStream<'_, Self::TextId, TextData>,
+    ) -> Result<(), Error>;
+}

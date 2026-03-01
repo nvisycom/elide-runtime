@@ -8,8 +8,6 @@
 //! and one or more capability traits: [`TextHandler`], [`ImageHandler`],
 //! [`AudioHandler`].
 
-use std::hash::Hash;
-
 use bytes::Bytes;
 
 use nvisy_core::Error;
@@ -71,62 +69,4 @@ pub trait Loader: Send + Sync + 'static {
         content: &ContentData,
         params: &Self::Params,
     ) -> Result<Document<Self::Handler>, Error>;
-}
-
-/// Capability trait for handlers that expose text content.
-///
-/// Handlers implementing this trait can yield text spans and accept
-/// text edits. Each handler defines its own text span addressing
-/// scheme via [`TextId`](Self::TextId).
-#[async_trait::async_trait]
-pub trait TextHandler: Handler {
-    /// Strongly-typed identifier for a text span within this handler.
-    type TextId: Send + Sync + Clone + Eq + Hash + 'static;
-
-    /// Return text content as an async stream of spans.
-    async fn text_spans(&self) -> SpanStream<'_, Self::TextId, text::TextData>;
-
-    /// Apply text edits from an async stream back to the source structure.
-    async fn edit_text(
-        &mut self,
-        edits: SpanEditStream<'_, Self::TextId, text::TextData>,
-    ) -> Result<(), Error>;
-}
-
-/// Capability trait for handlers that expose image content.
-///
-/// Handlers implementing this trait can yield image spans and accept
-/// image edits.
-#[async_trait::async_trait]
-pub trait ImageHandler: Handler {
-    /// Strongly-typed identifier for an image span within this handler.
-    type ImageId: Send + Sync + Clone + 'static;
-
-    /// Return image content as an async stream of spans.
-    async fn image_spans(&self) -> SpanStream<'_, Self::ImageId, image::ImageData>;
-
-    /// Apply image edits from an async stream back to the source structure.
-    async fn edit_images(
-        &mut self,
-        edits: SpanEditStream<'_, Self::ImageId, image::ImageData>,
-    ) -> Result<(), Error>;
-}
-
-/// Capability trait for handlers that expose audio content.
-///
-/// Handlers implementing this trait can yield audio spans and accept
-/// audio edits.
-#[async_trait::async_trait]
-pub trait AudioHandler: Handler {
-    /// Strongly-typed identifier for an audio span within this handler.
-    type AudioId: Send + Sync + Clone + 'static;
-
-    /// Return audio content as an async stream of spans.
-    async fn audio_spans(&self) -> SpanStream<'_, Self::AudioId, audio::AudioData>;
-
-    /// Apply audio edits from an async stream back to the source structure.
-    async fn edit_audio(
-        &mut self,
-        edits: SpanEditStream<'_, Self::AudioId, audio::AudioData>,
-    ) -> Result<(), Error>;
 }

@@ -57,7 +57,7 @@ pub enum TextRedactionMethod {
     DateShift,
 }
 
-/// Image/video redaction method.
+/// Image redaction method.
 ///
 /// | Variant | Effect |
 /// |---|---|
@@ -107,7 +107,7 @@ pub enum AudioRedactionMethod {
 pub enum RedactionMethod {
     /// Text/tabular redaction method.
     Text(TextRedactionMethod),
-    /// Image/video redaction method.
+    /// Image redaction method.
     Image(ImageRedactionMethod),
     /// Audio redaction method.
     Audio(AudioRedactionMethod),

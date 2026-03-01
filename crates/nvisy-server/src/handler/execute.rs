@@ -104,11 +104,6 @@ fn mime_from_filename(filename: &str) -> Option<String> {
         "ogg" => "audio/ogg",
         "flac" => "audio/flac",
         "aac" => "audio/aac",
-        // Video
-        "mp4" => "video/mp4",
-        "webm" => "video/webm",
-        "avi" => "video/x-msvideo",
-        "mov" => "video/quicktime",
         // Archives
         "zip" => "application/zip",
         _ => return None,

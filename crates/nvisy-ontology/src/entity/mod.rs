@@ -47,9 +47,9 @@ pub enum DetectionMethod {
     // C. Computer vision
     /// OCR text extraction with bounding boxes.
     Ocr,
-    /// Face detection in images or video frames.
+    /// Face detection in images.
     FaceDetection,
-    /// Object detection in images or video frames.
+    /// Object detection in images.
     ObjectDetection,
 
     // D. Audio

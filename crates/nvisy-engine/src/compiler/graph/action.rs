@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 pub enum ActionKind {
     /// Run detection methods on the content.
     Detect,
-    /// Transcribe audio/video content to text.
+    /// Transcribe audio content to text.
     Transcribe,
     /// Translate content between languages.
     Translate,

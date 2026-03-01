@@ -81,24 +81,6 @@ pub struct AudioLocation {
     pub audio_id: Option<Uuid>,
 }
 
-/// Location of an entity within a video stream.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct VideoLocation {
-    /// Bounding box of the entity in the frame.
-    pub bounding_box: BoundingBox,
-    /// 0-based frame number where the entity was detected.
-    pub frame_number: u64,
-    /// Time interval of the entity in the video.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub time_span: Option<TimeSpan>,
-    /// Tracking identifier for an entity across multiple frames.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub track_id: Option<String>,
-    /// Speaker identifier from diarization (for audio track).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub speaker_id: Option<String>,
-}
-
 /// A modality-specific location for a detected entity.
 ///
 /// Exactly one variant is set per entity, enforcing the invariant that
@@ -114,8 +96,6 @@ pub enum Location {
     Tabular(TabularLocation),
     /// Entity found in audio.
     Audio(AudioLocation),
-    /// Entity found in video.
-    Video(VideoLocation),
 }
 
 impl Location {
@@ -147,14 +127,6 @@ impl Location {
     pub fn as_audio(&self) -> Option<&AudioLocation> {
         match self {
             Self::Audio(loc) => Some(loc),
-            _ => None,
-        }
-    }
-
-    /// If this is a video location, return a reference to it.
-    pub fn as_video(&self) -> Option<&VideoLocation> {
-        match self {
-            Self::Video(loc) => Some(loc),
             _ => None,
         }
     }

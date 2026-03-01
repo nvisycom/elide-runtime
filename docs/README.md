@@ -2,7 +2,7 @@
 
 ## Abstract
 
-As organizations contend with an ever-growing volume of unstructured and multimodal data, the challenge of identifying and redacting sensitive information has become a critical concern. Regulatory frameworks such as GDPR, HIPAA, CCPA, and PCI-DSS impose strict obligations on how personally identifiable information (PII), protected health information (PHI), and other sensitive content must be handled across documents, images, audio, and video.
+As organizations contend with an ever-growing volume of unstructured and multimodal data, the challenge of identifying and redacting sensitive information has become a critical concern. Regulatory frameworks such as GDPR, HIPAA, CCPA, and PCI-DSS impose strict obligations on how personally identifiable information (PII), protected health information (PHI), and other sensitive content must be handled across documents, images, and audio.
 
 This document series presents the architectural and functional requirements for a multimodal redaction platform capable of extracting content from heterogeneous sources, detecting sensitive data through deterministic and learned methods, applying context-aware redaction, and producing auditable evidence of compliance.
 

@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// A time interval within an audio or video stream.
+/// A time interval within an audio stream.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TimeSpan {
     /// Start time in seconds from the beginning of the stream.

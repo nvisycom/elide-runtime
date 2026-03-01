@@ -42,7 +42,7 @@ infer = { workspace = true, features = [] }
 # Error handling
 thiserror = { workspace = true, features = [] }
 anyhow = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["display", "deref", "as_ref"] }
+derive_more = { workspace = true, features = ["display", "deref", "as_ref", "from", "into"] }
 
 # Time
 jiff = { workspace = true, features = [] }

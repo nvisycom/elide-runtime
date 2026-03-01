@@ -3020,6 +3020,7 @@ dependencies = [
  "pdf-extract",
  "pdfium-render",
  "quick-xml 0.37.5",
+ "rayon",
  "schemars",
  "scraper",
  "serde",

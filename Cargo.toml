@@ -92,6 +92,9 @@ hex = { version = "0.4", features = [] }
 regex = { version = "1.0", features = [] }
 aho-corasick = { version = "1.0", features = [] }
 
+# Parallelism
+rayon = { version = "1.10", features = [] }
+
 # Graph data structures
 petgraph = { version = "0.8", features = [] }
 

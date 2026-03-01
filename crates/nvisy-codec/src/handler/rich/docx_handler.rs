@@ -16,7 +16,7 @@ impl Handler for DocxHandler {
     }
 
     #[tracing::instrument(name = "docx.encode", skip_all)]
-    fn encode(&self) -> Result<Vec<u8>, Error> {
+    fn encode(&self) -> Result<bytes::Bytes, Error> {
         Err(Error::validation(
             "encode not supported for DOCX",
             "docx-handler",

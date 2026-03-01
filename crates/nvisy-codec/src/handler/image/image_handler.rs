@@ -52,7 +52,7 @@ impl Handler for AnyImage {
         }
     }
 
-    fn encode(&self) -> Result<Vec<u8>, Error> {
+    fn encode(&self) -> Result<bytes::Bytes, Error> {
         match self {
             Self::Png(h) => h.encode(),
             Self::Jpeg(h) => h.encode(),

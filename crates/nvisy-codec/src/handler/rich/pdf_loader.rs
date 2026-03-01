@@ -1,9 +1,8 @@
 //! PDF loader: parses raw PDF content into a [`Document<PdfHandler>`].
 //!
-//! Text is extracted per page via [`pdf_extract`].  The raw bytes are
+//! Text is extracted per page via [`lopdf`].  The raw bytes are
 //! preserved for encoding and rendering.
 
-use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
@@ -32,25 +31,14 @@ impl Loader for PdfLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Document<PdfHandler>, Error> {
+    ) -> Result<Document<PdfHandler>, nvisy_core::Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
 
-        let pages: Vec<String> = match &params.password {
-            Some(pw) => pdf_extract::extract_text_from_mem_by_pages_encrypted(&raw, pw),
-            None => pdf_extract::extract_text_from_mem_by_pages(&raw),
-        }
-        .map_err(|e| {
-            Error::runtime(
-                format!("failed to extract text from PDF: {e}"),
-                "pdf-loader",
-                false,
-            )
-        })?;
+        let handler = PdfHandler::from_raw(raw, params.password.as_deref())?;
 
-        tracing::Span::current().record("pages", pages.len());
+        tracing::Span::current().record("pages", handler.page_count());
 
-        let handler = PdfHandler::new(pages, raw.to_vec());
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }

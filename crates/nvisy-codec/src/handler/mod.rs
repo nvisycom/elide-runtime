@@ -7,6 +7,8 @@
 //! Each handler defines its own span types and exposes them as async
 //! streams via [`Handler::view_spans`] and [`Handler::edit_spans`].
 
+use bytes::Bytes;
+
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 use nvisy_core::fs::DocumentType;
@@ -43,7 +45,7 @@ pub trait Handler: Send + Sync + 'static {
     fn document_type(&self) -> DocumentType;
 
     /// Serialize the current handler content back to raw bytes.
-    fn encode(&self) -> Result<Vec<u8>, Error>;
+    fn encode(&self) -> Result<Bytes, Error>;
 
     /// Strongly-typed identifier for a span within this handler.
     type SpanId: Send + Sync + Clone + 'static;

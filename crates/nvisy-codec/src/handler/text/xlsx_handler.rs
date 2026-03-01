@@ -16,7 +16,7 @@ impl Handler for XlsxHandler {
     }
 
     #[tracing::instrument(name = "xlsx.encode", skip_all)]
-    fn encode(&self) -> Result<Vec<u8>, Error> {
+    fn encode(&self) -> Result<bytes::Bytes, Error> {
         Err(Error::validation(
             "encode not supported for XLSX",
             "xlsx-handler",

@@ -21,6 +21,7 @@ use nvisy_core::fs::DocumentType;
 
 use crate::stream::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
+use crate::handler::text::TextData;
 use crate::transform::TextHandler;
 
 /// 0-based line index identifying a span within a plain-text document.
@@ -43,20 +44,20 @@ impl Handler for TxtHandler {
     }
 
     #[tracing::instrument(name = "txt.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<Vec<u8>, Error> {
+    fn encode(&self) -> Result<bytes::Bytes, Error> {
         let mut out = self.lines.join("\n");
         if self.trailing_newline && !self.lines.is_empty() {
             out.push('\n');
         }
         let bytes = out.into_bytes();
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(bytes)
+        Ok(bytes.into())
     }
 
     type SpanId = TxtSpan;
-    type SpanData = String;
+    type SpanData = TextData;
 
-    async fn view_spans(&self) -> SpanStream<'_, TxtSpan, String> {
+    async fn view_spans(&self) -> SpanStream<'_, TxtSpan, TextData> {
         SpanStream::new(futures::stream::iter(TxtSpanIter {
             lines: &self.lines,
             index: 0,
@@ -65,7 +66,7 @@ impl Handler for TxtHandler {
 
     async fn edit_spans(
         &mut self,
-        edits: SpanEditStream<'_, TxtSpan, String>,
+        edits: SpanEditStream<'_, TxtSpan, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
@@ -75,7 +76,7 @@ impl Handler for TxtHandler {
                     "txt-handler",
                 )
             })?;
-            *line = edit.data;
+            *line = edit.data.into_inner();
         }
         Ok(())
     }
@@ -122,11 +123,11 @@ struct TxtSpanIter<'a> {
 }
 
 impl<'a> Iterator for TxtSpanIter<'a> {
-    type Item = Span<TxtSpan, String>;
+    type Item = Span<TxtSpan, TextData>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let line = self.lines.get(self.index)?;
-        let span = Span::new(TxtSpan(self.index), line.clone());
+        let span = Span::new(TxtSpan(self.index), TextData::from(line.clone()));
         self.index += 1;
         Some(span)
     }
@@ -204,7 +205,7 @@ mod tests {
     fn encode_with_trailing_newline() -> Result<(), Error> {
         let h = handler("hello\nworld\n");
         let bytes = h.encode()?;
-        assert_eq!(bytes, b"hello\nworld\n");
+        assert_eq!(&bytes[..], b"hello\nworld\n");
         Ok(())
     }
 
@@ -212,7 +213,7 @@ mod tests {
     fn encode_without_trailing_newline() -> Result<(), Error> {
         let h = handler("no newline");
         let bytes = h.encode()?;
-        assert_eq!(bytes, b"no newline");
+        assert_eq!(&bytes[..], b"no newline");
         Ok(())
     }
 }

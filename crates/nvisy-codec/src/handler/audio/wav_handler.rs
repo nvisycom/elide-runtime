@@ -39,10 +39,9 @@ impl Handler for WavHandler {
     }
 
     #[tracing::instrument(name = "wav.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<Vec<u8>, Error> {
-        let bytes = self.bytes.to_vec();
-        tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(bytes)
+    fn encode(&self) -> Result<Bytes, Error> {
+        tracing::Span::current().record("output_bytes", self.bytes.len());
+        Ok(self.bytes.clone())
     }
 
     type SpanId = ();
@@ -103,7 +102,7 @@ mod tests {
     fn encode_returns_current_bytes() -> Result<(), Error> {
         let h = WavHandler::new(Bytes::from_static(b"audio-data"));
         let encoded = h.encode()?;
-        assert_eq!(encoded, b"audio-data");
+        assert_eq!(&encoded[..], b"audio-data");
         Ok(())
     }
 }

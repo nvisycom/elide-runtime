@@ -53,7 +53,7 @@ impl Handler for AnyAudio {
         }
     }
 
-    fn encode(&self) -> Result<Vec<u8>, Error> {
+    fn encode(&self) -> Result<bytes::Bytes, Error> {
         match self {
             Self::Wav(h) => h.encode(),
             Self::Mp3(h) => h.encode(),
@@ -111,7 +111,7 @@ mod tests {
     async fn mp3_variant_delegates() {
         let h = AnyAudio::Mp3(Mp3Handler::new(Bytes::from_static(b"mp3-data")));
         assert_eq!(h.document_type(), DocumentType::Mp3);
-        assert_eq!(h.encode().unwrap(), b"mp3-data");
+        assert_eq!(&h.encode().unwrap()[..], b"mp3-data");
     }
 
     #[test]

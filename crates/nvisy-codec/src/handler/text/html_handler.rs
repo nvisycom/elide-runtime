@@ -27,6 +27,7 @@ use nvisy_core::fs::DocumentType;
 
 use crate::stream::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, Span};
+use crate::handler::text::TextData;
 use crate::transform::TextHandler;
 
 /// 0-based index of a text node within the HTML document.
@@ -57,7 +58,7 @@ impl Handler for HtmlHandler {
     }
 
     #[tracing::instrument(name = "html.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<Vec<u8>, Error> {
+    fn encode(&self) -> Result<bytes::Bytes, Error> {
         // Re-parse the original source into a mutable DOM.
         let mut dom = scraper::Html::parse_document(&self.data.raw);
 
@@ -83,13 +84,13 @@ impl Handler for HtmlHandler {
         // Serialize the mutated DOM back to HTML.
         let bytes = dom.html().into_bytes();
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(bytes)
+        Ok(bytes.into())
     }
 
     type SpanId = HtmlSpan;
-    type SpanData = String;
+    type SpanData = TextData;
 
-    async fn view_spans(&self) -> SpanStream<'_, HtmlSpan, String> {
+    async fn view_spans(&self) -> SpanStream<'_, HtmlSpan, TextData> {
         SpanStream::new(futures::stream::iter(HtmlSpanIter {
             nodes: &self.data.text_nodes,
             index: 0,
@@ -98,7 +99,7 @@ impl Handler for HtmlHandler {
 
     async fn edit_spans(
         &mut self,
-        edits: SpanEditStream<'_, HtmlSpan, String>,
+        edits: SpanEditStream<'_, HtmlSpan, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
@@ -108,7 +109,7 @@ impl Handler for HtmlHandler {
                     "html-handler",
                 )
             })?;
-            *node = edit.data;
+            *node = edit.data.into_inner();
         }
         Ok(())
     }
@@ -160,11 +161,11 @@ struct HtmlSpanIter<'a> {
 }
 
 impl<'a> Iterator for HtmlSpanIter<'a> {
-    type Item = Span<HtmlSpan, String>;
+    type Item = Span<HtmlSpan, TextData>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let text = self.nodes.get(self.index)?;
-        let span = Span::new(HtmlSpan(self.index), text.clone());
+        let span = Span::new(HtmlSpan(self.index), TextData::from(text.clone()));
         self.index += 1;
         Some(span)
     }
@@ -207,7 +208,7 @@ mod tests {
         let raw = "<html><head></head><body><p>Hello</p></body></html>";
         let h = handler_from_html(raw);
         let bytes = h.encode()?;
-        assert_eq!(String::from_utf8(bytes).unwrap(), raw);
+        assert_eq!(std::str::from_utf8(&bytes).unwrap(), raw);
         Ok(())
     }
 
@@ -216,10 +217,10 @@ mod tests {
         let raw = "<html><head></head><body><p>Hello</p><p>World</p></body></html>";
         let mut h = handler_from_html(raw);
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(HtmlSpan(0), "[REDACTED]".to_string()),
+            SpanEdit::new(HtmlSpan(0), "[REDACTED]".into()),
         ])))
         .await?;
-        let result = String::from_utf8(h.encode()?).unwrap();
+        let result = std::str::from_utf8(&h.encode()?).unwrap().to_owned();
         assert!(result.contains("[REDACTED]"));
         assert!(result.contains("World"));
         assert!(result.contains("<p>"));
@@ -231,7 +232,7 @@ mod tests {
         let h = handler_from_html("<html><head></head><body><div><span>foo</span> bar</div></body></html>");
         let mut h = h;
         h.data.text_nodes[0] = "baz".to_string();
-        let result = String::from_utf8(h.encode()?).unwrap();
+        let result = std::str::from_utf8(&h.encode()?).unwrap().to_owned();
         assert!(result.contains("<span>baz</span>"));
         assert!(result.contains(" bar"));
         Ok(())
@@ -243,10 +244,10 @@ mod tests {
         let mut h = handler_from_html(raw);
         // Edit only the first "hello" — the second should remain unchanged.
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(HtmlSpan(0), "FIRST".to_string()),
+            SpanEdit::new(HtmlSpan(0), "FIRST".into()),
         ])))
         .await?;
-        let result = String::from_utf8(h.encode()?).unwrap();
+        let result = std::str::from_utf8(&h.encode()?).unwrap().to_owned();
         assert!(result.contains("<p>FIRST</p>"));
         assert!(result.contains("<p>hello</p>"));
         Ok(())
@@ -268,7 +269,7 @@ mod tests {
         let mut h = handler_from_html("<html><head></head><body><p>only</p></body></html>");
         let err = h
             .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit::new(HtmlSpan(99), "nope".to_string()),
+                SpanEdit::new(HtmlSpan(99), "nope".into()),
             ])))
             .await
             .unwrap_err();

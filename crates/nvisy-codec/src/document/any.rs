@@ -60,7 +60,7 @@ impl AnyDocument {
     }
 
     /// Encode the inner document back to raw bytes.
-    pub fn encode(&self) -> Result<Vec<u8>, Error> {
+    pub fn encode(&self) -> Result<bytes::Bytes, Error> {
         match self {
             Self::Txt(d) => d.encode(),
             Self::Csv(d) => d.encode(),
@@ -194,7 +194,7 @@ mod tests {
         let handler = TxtHandler::new(vec!["hello".into()], true);
         let doc = AnyDocument::Txt(Document::new(handler));
         let bytes = doc.encode().unwrap();
-        assert_eq!(bytes, b"hello\n");
+        assert_eq!(&bytes[..], b"hello\n");
     }
 
     #[test]

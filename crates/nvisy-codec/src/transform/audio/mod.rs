@@ -4,7 +4,7 @@ mod output;
 
 pub use output::AudioRedactionOutput;
 
-use crate::handler::Handler;
+use crate::handler::AudioHandler;
 use nvisy_core::Error;
 
 /// A located audio redaction: pairs a time range with an
@@ -18,12 +18,14 @@ pub struct AudioRedaction {
     pub output: AudioRedactionOutput,
 }
 
-/// Trait for handlers that support audio redaction.
+/// Extension trait for handlers that support audio redaction.
 ///
-/// Extends [`Handler`] with a single [`redact_spans`](Self::redact_spans)
-/// method that applies a batch of time-range audio redactions.
+/// Extends [`AudioHandler`] with a single
+/// [`redact_audio`](Self::redact_audio) method that applies a batch of
+/// time-range audio redactions.  No blanket implementation is provided;
+/// each audio handler implements its own logic.
 #[async_trait::async_trait]
-pub trait AudioHandler: Handler {
+pub trait AudioRedact: AudioHandler {
     /// Apply a batch of audio redactions, mutating in place.
-    async fn redact_spans(&mut self, redactions: &[AudioRedaction]) -> Result<(), Error>;
+    async fn redact_audio(&mut self, redactions: &[AudioRedaction]) -> Result<(), Error>;
 }

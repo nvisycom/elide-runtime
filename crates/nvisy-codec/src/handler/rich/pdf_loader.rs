@@ -143,7 +143,7 @@ mod tests {
             .await
             .unwrap();
 
-        let spans: Vec<_> = doc.view_spans().await.collect().await;
+        let spans: Vec<_> = doc.text_spans().await.collect().await;
         assert_eq!(spans.len(), doc.page_count());
     }
 }

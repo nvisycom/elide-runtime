@@ -4,8 +4,11 @@
 //! [`Document`] containing the corresponding [`Handler`]. The handler
 //! holds the loaded data and provides methods to read and manipulate it.
 //!
-//! Each handler defines its own span types and exposes them as async
-//! streams via [`Handler::view_spans`] and [`Handler::edit_spans`].
+//! Each handler implements the base [`Handler`] trait (identity + encode)
+//! and one or more capability traits: [`TextHandler`], [`ImageHandler`],
+//! [`AudioHandler`].
+
+use std::hash::Hash;
 
 use bytes::Bytes;
 
@@ -13,53 +16,41 @@ use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 use nvisy_core::fs::DocumentType;
 
-use crate::stream::{SpanEditStream, SpanStream};
 use crate::document::Document;
 
-mod span;
+mod view_span;
+mod edit_span;
+mod view_stream;
+mod edit_stream;
 mod text;
 mod rich;
 mod image;
 mod audio;
 
-pub use span::{Span, SpanEdit};
+pub use view_span::Span;
+pub use edit_span::SpanEdit;
+pub use view_stream::SpanStream;
+pub use edit_stream::SpanEditStream;
 
 pub use text::*;
 pub use rich::*;
 pub use image::*;
 pub use audio::*;
 
-/// Trait implemented by all format handlers.
+/// Base trait implemented by all format handlers.
 ///
 /// A handler holds loaded, validated content and provides methods to
-/// read and manipulate it. Handlers are produced by their corresponding
-/// [`Loader`].
+/// identify and serialize it. Handlers are produced by their
+/// corresponding [`Loader`].
 ///
-/// Each handler defines its own span addressing scheme ([`SpanId`](Self::SpanId))
-/// and data type ([`SpanData`](Self::SpanData)). Pipeline actions
-/// constrain `SpanData` to express what they need (e.g. `AsRef<str>`
-/// for text scanning).
-#[async_trait::async_trait]
+/// Capability-specific span access is provided by the opt-in traits
+/// [`TextHandler`], [`ImageHandler`], and [`AudioHandler`].
 pub trait Handler: Send + Sync + 'static {
     /// The document type this handler represents.
     fn document_type(&self) -> DocumentType;
 
     /// Serialize the current handler content back to raw bytes.
     fn encode(&self) -> Result<Bytes, Error>;
-
-    /// Strongly-typed identifier for a span within this handler.
-    type SpanId: Send + Sync + Clone + 'static;
-    /// The data type carried by each span.
-    type SpanData: Send + 'static;
-
-    /// Return the loaded content as an async stream of spans.
-    async fn view_spans(&self) -> SpanStream<'_, Self::SpanId, Self::SpanData>;
-
-    /// Apply edits from an async stream back to the source structure.
-    async fn edit_spans(
-        &mut self,
-        edits: SpanEditStream<'_, Self::SpanId, Self::SpanData>,
-    ) -> Result<(), Error>;
 }
 
 /// Trait implemented by format loaders.
@@ -80,4 +71,62 @@ pub trait Loader: Send + Sync + 'static {
         content: &ContentData,
         params: &Self::Params,
     ) -> Result<Document<Self::Handler>, Error>;
+}
+
+/// Capability trait for handlers that expose text content.
+///
+/// Handlers implementing this trait can yield text spans and accept
+/// text edits. Each handler defines its own text span addressing
+/// scheme via [`TextId`](Self::TextId).
+#[async_trait::async_trait]
+pub trait TextHandler: Handler {
+    /// Strongly-typed identifier for a text span within this handler.
+    type TextId: Send + Sync + Clone + Eq + Hash + 'static;
+
+    /// Return text content as an async stream of spans.
+    async fn text_spans(&self) -> SpanStream<'_, Self::TextId, text::TextData>;
+
+    /// Apply text edits from an async stream back to the source structure.
+    async fn edit_text(
+        &mut self,
+        edits: SpanEditStream<'_, Self::TextId, text::TextData>,
+    ) -> Result<(), Error>;
+}
+
+/// Capability trait for handlers that expose image content.
+///
+/// Handlers implementing this trait can yield image spans and accept
+/// image edits.
+#[async_trait::async_trait]
+pub trait ImageHandler: Handler {
+    /// Strongly-typed identifier for an image span within this handler.
+    type ImageId: Send + Sync + Clone + 'static;
+
+    /// Return image content as an async stream of spans.
+    async fn image_spans(&self) -> SpanStream<'_, Self::ImageId, image::ImageData>;
+
+    /// Apply image edits from an async stream back to the source structure.
+    async fn edit_images(
+        &mut self,
+        edits: SpanEditStream<'_, Self::ImageId, image::ImageData>,
+    ) -> Result<(), Error>;
+}
+
+/// Capability trait for handlers that expose audio content.
+///
+/// Handlers implementing this trait can yield audio spans and accept
+/// audio edits.
+#[async_trait::async_trait]
+pub trait AudioHandler: Handler {
+    /// Strongly-typed identifier for an audio span within this handler.
+    type AudioId: Send + Sync + Clone + 'static;
+
+    /// Return audio content as an async stream of spans.
+    async fn audio_spans(&self) -> SpanStream<'_, Self::AudioId, audio::AudioData>;
+
+    /// Apply audio edits from an async stream back to the source structure.
+    async fn edit_audio(
+        &mut self,
+        edits: SpanEditStream<'_, Self::AudioId, audio::AudioData>,
+    ) -> Result<(), Error>;
 }

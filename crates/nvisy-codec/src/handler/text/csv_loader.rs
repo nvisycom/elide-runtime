@@ -144,7 +144,6 @@ fn detect_delimiter(text: &str) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::Handler;
     use bytes::Bytes;
     use futures::StreamExt;
     use nvisy_core::path::ContentSource;
@@ -223,7 +222,7 @@ mod tests {
         let doc = CsvLoader
             .decode(&content, &CsvParams::default())
             .await?;
-        let spans: Vec<_> = doc.view_spans().await.collect().await;
+        let spans: Vec<_> = doc.text_spans().await.collect().await;
 
         // 2 header + 2 data
         assert_eq!(spans.len(), 4);

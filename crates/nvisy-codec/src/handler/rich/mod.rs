@@ -13,7 +13,7 @@ mod docx_handler;
 mod docx_loader;
 
 #[cfg(feature = "pdf")]
-pub use pdf_handler::{PdfHandler, PdfSpan};
+pub use pdf_handler::{PdfHandler, PdfTextSpan, PdfImageSpan};
 #[cfg(feature = "pdf")]
 pub use pdf_loader::{PdfLoader, PdfParams};
 

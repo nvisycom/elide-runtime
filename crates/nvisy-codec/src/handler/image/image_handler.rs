@@ -5,16 +5,14 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::handler::Handler;
-use crate::stream::{SpanEditStream, SpanStream};
-use crate::transform::ImageHandler;
+use crate::handler::{Handler, ImageHandler, SpanEditStream, SpanStream};
 
 use super::{ImageData, JpegHandler, PngHandler};
 
 /// A type-erased image handler that can hold any supported image format.
 ///
-/// Since all image handlers share `SpanId = ()` and `SpanData = ImageData`,
-/// this enum can implement [`Handler`] directly.
+/// Since all image handlers share `ImageId = ()`, this enum can
+/// implement [`Handler`] + [`ImageHandler`] directly.
 #[derive(Debug, Clone, derive_more::From)]
 pub enum AnyImage {
     Png(PngHandler),
@@ -43,7 +41,6 @@ impl AnyImage {
     }
 }
 
-#[async_trait::async_trait]
 impl Handler for AnyImage {
     fn document_type(&self) -> DocumentType {
         match self {
@@ -58,35 +55,36 @@ impl Handler for AnyImage {
             Self::Jpeg(h) => h.encode(),
         }
     }
+}
 
-    type SpanId = ();
-    type SpanData = ImageData;
+#[async_trait::async_trait]
+impl ImageHandler for AnyImage {
+    type ImageId = ();
 
-    async fn view_spans(&self) -> SpanStream<'_, (), ImageData> {
+    async fn image_spans(&self) -> SpanStream<'_, (), ImageData> {
         match self {
-            Self::Png(h) => h.view_spans().await,
-            Self::Jpeg(h) => h.view_spans().await,
+            Self::Png(h) => h.image_spans().await,
+            Self::Jpeg(h) => h.image_spans().await,
         }
     }
 
-    async fn edit_spans(
+    async fn edit_images(
         &mut self,
         edits: SpanEditStream<'_, (), ImageData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         let stream = SpanEditStream::new(futures::stream::iter(edits));
         match self {
-            Self::Png(h) => h.edit_spans(stream).await,
-            Self::Jpeg(h) => h.edit_spans(stream).await,
+            Self::Png(h) => h.edit_images(stream).await,
+            Self::Jpeg(h) => h.edit_images(stream).await,
         }
     }
 }
 
-impl ImageHandler for AnyImage {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::handler::ImageHandler;
 
     fn make_png() -> PngHandler {
         let img = image::DynamicImage::new_rgb8(1, 1);
@@ -113,7 +111,7 @@ mod tests {
     #[tokio::test]
     async fn view_spans_returns_image() {
         let h = AnyImage::Png(make_png());
-        let spans: Vec<_> = h.view_spans().await.collect().await;
+        let spans: Vec<_> = h.image_spans().await.collect().await;
         assert_eq!(spans.len(), 1);
     }
 

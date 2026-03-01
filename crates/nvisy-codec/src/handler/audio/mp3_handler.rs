@@ -1,10 +1,10 @@
 //! MP3 handler: holds raw MP3 audio bytes and provides span-based
-//! access via [`Handler`].
+//! access via [`Handler`] + [`AudioHandler`].
 //!
 //! # Span model
 //!
-//! [`Handler::view_spans`] yields a single [`Span`] carrying the
-//! entire audio payload as [`Bytes`].  [`Handler::edit_spans`]
+//! [`AudioHandler::audio_spans`] yields a single [`Span`] carrying the
+//! entire audio payload as [`AudioData`].  [`AudioHandler::edit_audio`]
 //! replaces the payload from the first incoming edit.
 
 use bytes::Bytes;
@@ -13,9 +13,9 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::stream::{SpanEditStream, SpanStream};
-use crate::handler::{Handler, Span};
-use crate::transform::{AudioHandler, AudioRedaction};
+use crate::handler::{Handler, Span, SpanEditStream, SpanStream, AudioHandler};
+use crate::transform::{AudioRedact, AudioRedaction};
+use super::AudioData;
 
 #[derive(Debug, Clone)]
 pub struct Mp3Handler {
@@ -32,7 +32,6 @@ impl Mp3Handler {
     }
 }
 
-#[async_trait::async_trait]
 impl Handler for Mp3Handler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Mp3
@@ -43,31 +42,33 @@ impl Handler for Mp3Handler {
         tracing::Span::current().record("output_bytes", self.bytes.len());
         Ok(self.bytes.clone())
     }
+}
 
-    type SpanId = ();
-    type SpanData = Bytes;
+#[async_trait::async_trait]
+impl AudioHandler for Mp3Handler {
+    type AudioId = ();
 
-    async fn view_spans(&self) -> SpanStream<'_, (), Bytes> {
+    async fn audio_spans(&self) -> SpanStream<'_, (), AudioData> {
         SpanStream::new(futures::stream::iter(std::iter::once(
-            Span::new((), self.bytes.clone()),
+            Span::new((), AudioData::new(self.bytes.clone())),
         )))
     }
 
-    async fn edit_spans(
+    async fn edit_audio(
         &mut self,
-        edits: SpanEditStream<'_, (), Bytes>,
+        edits: SpanEditStream<'_, (), AudioData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         if let Some(edit) = edits.into_iter().next() {
-            self.bytes = edit.data;
+            self.bytes = edit.data.into_inner();
         }
         Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl AudioHandler for Mp3Handler {
-    async fn redact_spans(&mut self, _redactions: &[AudioRedaction]) -> Result<(), Error> {
+impl AudioRedact for Mp3Handler {
+    async fn redact_audio(&mut self, _redactions: &[AudioRedaction]) -> Result<(), Error> {
         tracing::warn!("MP3 audio redaction is not yet implemented");
         Ok(())
     }
@@ -76,22 +77,21 @@ impl AudioHandler for Mp3Handler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::SpanEdit;
+    use crate::handler::{SpanEdit, AudioHandler};
 
     #[tokio::test]
     async fn view_spans_returns_single_span() {
         let h = Mp3Handler::new(Bytes::from_static(b"ID3-mp3-data"));
-        let spans: Vec<_> = h.view_spans().await.collect().await;
+        let spans: Vec<_> = h.audio_spans().await.collect().await;
         assert_eq!(spans.len(), 1);
-        assert_eq!(spans[0].data.as_ref(), b"ID3-mp3-data");
+        assert_eq!(spans[0].data.as_bytes().as_ref(), b"ID3-mp3-data");
     }
 
     #[tokio::test]
     async fn edit_spans_replaces_bytes() -> Result<(), Error> {
         let mut h = Mp3Handler::new(Bytes::from_static(b"original"));
-        let replacement = Bytes::from_static(b"replaced");
-        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new((), replacement.clone()),
+        h.edit_audio(SpanEditStream::new(futures::stream::iter(vec![
+            SpanEdit::new((), AudioData::new(Bytes::from_static(b"replaced"))),
         ])))
         .await?;
         assert_eq!(h.bytes().as_ref(), b"replaced");

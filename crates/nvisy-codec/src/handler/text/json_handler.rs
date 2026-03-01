@@ -1,5 +1,5 @@
 //! JSON handler: holds parsed JSON content and provides span-based
-//! access via [`Handler`].
+//! access via [`Handler`] + [`TextHandler`].
 //!
 //! The handler stores the parsed [`serde_json::Value`] tree together
 //! with formatting metadata captured during loading, so the original
@@ -7,15 +7,15 @@
 //!
 //! # Span model
 //!
-//! [`Handler::view_spans`] yields one [`Span`] per node in the JSON
-//! tree.  **Every** value is emitted: leaf scalars, and object keys
-//! (as string-valued spans).  Each span is addressed by a [`JsonPath`]:
-//! an [RFC 6901] JSON Pointer such as `/address/city` plus a flag
-//! indicating whether the span targets the key name or the value.
+//! The [`TextHandler`] implementation yields string-typed JSON leaves
+//! and object keys as text spans addressable by [`JsonPath`].  This
+//! enables the text redaction pipeline to find and replace PII within
+//! JSON string values and keys.
 //!
-//! [`Handler::edit_spans`] accepts [`SpanEdit`]s.  For value spans the
-//! value at the pointer is replaced; for key spans the object key is
-//! renamed.
+//! For full JSON value access (including non-string leaves), use the
+//! inherent [`view_spans`](JsonHandler::view_spans) and
+//! [`edit_spans`](JsonHandler::edit_spans) methods that operate on
+//! `serde_json::Value` directly.
 //!
 //! [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
 
@@ -27,8 +27,8 @@ use serde::{Deserialize, Serialize};
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::stream::{SpanEditStream, SpanStream};
-use crate::handler::{Handler, Span};
+use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
+use crate::handler::text::TextData;
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 
@@ -113,13 +113,15 @@ impl Default for JsonData {
 ///
 /// Provides direct access to the parsed [`serde_json::Value`] tree
 /// for reading and mutation, plus [`Handler`] implementation for
-/// pipeline-driven span-based editing.
+/// identity and encoding.
+///
+/// Implements [`TextHandler`] to expose string-typed leaves and
+/// object keys as text spans for the redaction pipeline.
 #[derive(Debug)]
 pub struct JsonHandler {
     pub(crate) data: JsonData,
 }
 
-#[async_trait::async_trait]
 impl Handler for JsonHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Json
@@ -154,15 +156,74 @@ impl Handler for JsonHandler {
         tracing::Span::current().record("output_bytes", bytes.len());
         Ok(bytes.into())
     }
+}
 
-    type SpanId = JsonPath;
-    type SpanData = serde_json::Value;
+#[async_trait::async_trait]
+impl TextHandler for JsonHandler {
+    type TextId = JsonPath;
 
-    async fn view_spans(&self) -> SpanStream<'_, JsonPath, serde_json::Value> {
+    async fn text_spans(&self) -> SpanStream<'_, JsonPath, TextData> {
+        // Yield every leaf value and every object key as TextData.
+        // String values yield their string content; non-string leaves
+        // yield their JSON serialization; keys yield the key name.
+        SpanStream::new(futures::stream::iter(
+            JsonSpanIter::new(&self.data.value)
+                .map(|span| {
+                    let text = match &span.data {
+                        serde_json::Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    Span::new(span.id, TextData::from(text)).with_source(span.source)
+                })
+        ))
+    }
+
+    async fn edit_text(
+        &mut self,
+        edits: SpanEditStream<'_, JsonPath, TextData>,
+    ) -> Result<(), Error> {
+        let edits: Vec<_> = edits.collect().await;
+        // Apply value edits first so that pointers remain valid when
+        // key renames change the path structure.
+        for edit in edits.iter().filter(|e| !e.id.key_of) {
+            let target =
+                self.data.value.pointer_mut(&edit.id.pointer).ok_or_else(|| {
+                    Error::validation(
+                        format!("JSON pointer not found: {}", edit.id.pointer),
+                        "json-handler",
+                    )
+                })?;
+            // If the original value was a string, replace with the new
+            // text directly.  Otherwise, try parsing as JSON and fall
+            // back to storing as string.
+            if target.is_string() {
+                *target = serde_json::Value::String(edit.data.clone().into_inner());
+            } else {
+                let text = edit.data.clone().into_inner();
+                *target = serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text));
+            }
+        }
+        for edit in edits.iter().filter(|e| e.id.key_of) {
+            rename_key(
+                &mut self.data.value,
+                &edit.id.pointer,
+                &serde_json::Value::String(edit.data.as_str().to_owned()),
+            )?;
+        }
+        Ok(())
+    }
+}
+
+impl JsonHandler {
+    /// View the JSON tree as an async stream of spans with full
+    /// `serde_json::Value` data.
+    pub async fn view_spans(&self) -> SpanStream<'_, JsonPath, serde_json::Value> {
         SpanStream::new(futures::stream::iter(JsonSpanIter::new(&self.data.value)))
     }
 
-    async fn edit_spans(
+    /// Apply edits from an async stream to the JSON tree using full
+    /// `serde_json::Value` data.
+    pub async fn edit_spans(
         &mut self,
         edits: SpanEditStream<'_, JsonPath, serde_json::Value>,
     ) -> Result<(), Error> {
@@ -184,9 +245,7 @@ impl Handler for JsonHandler {
         }
         Ok(())
     }
-}
 
-impl JsonHandler {
     /// Reference to the root JSON value.
     pub fn value(&self) -> &serde_json::Value {
         &self.data.value
@@ -432,7 +491,7 @@ fn escape_json_pointer(key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::SpanEdit;
+    use crate::handler::{SpanEdit, TextHandler};
     use futures::StreamExt;
     use nvisy_core::Error;
     use serde_json::json;
@@ -447,12 +506,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn text_spans_flat_object() {
+        let h = handler(json!({"name": "Alice", "age": 30}));
+        let spans: Vec<_> = h.text_spans().await.collect().await;
+
+        // BTreeMap (alphabetical): age before name.
+        // Each key emits a key span followed by a value span.
+        assert_eq!(spans.len(), 4);
+        assert_eq!(spans[0].id, JsonPath::key("/age"));
+        assert_eq!(spans[0].data, "age");
+        assert_eq!(spans[1].id, JsonPath::value("/age"));
+        assert_eq!(spans[1].data, "30"); // non-string leaf serialized
+        assert_eq!(spans[2].id, JsonPath::key("/name"));
+        assert_eq!(spans[2].data, "name");
+        assert_eq!(spans[3].id, JsonPath::value("/name"));
+        assert_eq!(spans[3].data, "Alice"); // string leaf
+    }
+
+    #[tokio::test]
     async fn view_spans_flat_object() {
         let h = handler(json!({"name": "Alice", "age": 30}));
         let spans: Vec<_> = h.view_spans().await.collect().await;
 
-        // BTreeMap (alphabetical): age before name.
-        // Each key emits a key span followed by a value span.
         assert_eq!(spans.len(), 4);
         assert_eq!(spans[0].id, JsonPath::key("/age"));
         assert_eq!(spans[0].data, json!("age"));
@@ -469,7 +544,6 @@ mod tests {
         let h = handler(json!({"a": {"b": [1, "two", null]}}));
         let spans: Vec<_> = h.view_spans().await.collect().await;
 
-        // key "a", key "b", values 0/1/2
         assert_eq!(spans.len(), 5);
         assert_eq!(spans[0].id, JsonPath::key("/a"));
         assert_eq!(spans[1].id, JsonPath::key("/a/b"));
@@ -486,7 +560,6 @@ mod tests {
         let h = handler(json!({"a/b": "x", "c~d": "y"}));
         let spans: Vec<_> = h.view_spans().await.collect().await;
 
-        // key span, value span, key span, value span
         assert_eq!(spans.len(), 4);
         assert_eq!(spans[0].id, JsonPath::key("/a~1b"));
         assert_eq!(spans[0].data, json!("a/b"));
@@ -496,6 +569,17 @@ mod tests {
         assert_eq!(spans[2].data, json!("c~d"));
         assert_eq!(spans[3].id, JsonPath::value("/c~0d"));
         assert_eq!(spans[3].data, json!("y"));
+    }
+
+    #[tokio::test]
+    async fn edit_text_replace_string_value() -> Result<(), Error> {
+        let mut h = handler(json!({"ssn": "123-45-6789"}));
+        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
+            SpanEdit::new(JsonPath::value("/ssn"), "[REDACTED]".into()),
+        ])))
+        .await?;
+        assert_eq!(h.value(), &json!({"ssn": "[REDACTED]"}));
+        Ok(())
     }
 
     #[tokio::test]
@@ -514,6 +598,17 @@ mod tests {
         let mut h = handler(json!({"John Smith": {"age": 30}}));
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit::new(JsonPath::key("/John Smith"), json!("[REDACTED]")),
+        ])))
+        .await?;
+        assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn edit_text_rename_key() -> Result<(), Error> {
+        let mut h = handler(json!({"John Smith": {"age": 30}}));
+        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
+            SpanEdit::new(JsonPath::key("/John Smith"), "[REDACTED]".into()),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
@@ -558,8 +653,6 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_value_before_key_rename() -> Result<(), Error> {
         let mut h = handler(json!({"name": "Alice"}));
-        // Key rename listed first, but value edit must apply first
-        // (while /name still exists) before the key is renamed.
         h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit::new(JsonPath::key("/name"), json!("[REDACTED]")),
             SpanEdit::new(JsonPath::value("/name"), json!("***")),

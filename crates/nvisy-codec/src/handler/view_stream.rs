@@ -1,20 +1,16 @@
-//! Async span stream for [`Handler::view_spans`].
-//!
-//! [`Handler::view_spans`]: crate::handler::Handler::view_spans
+//! Async span stream for viewing handler content.
 
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures::Stream;
 
-use crate::handler::Span;
+use super::Span;
 
-/// Async stream of spans returned by [`Handler::view_spans`].
+/// Async stream of spans returned by capability trait view methods.
 ///
 /// Wraps a `Pin<Box<dyn Stream>>` so that handler implementations
 /// can return any iterator/stream without exposing a concrete type.
-///
-/// [`Handler::view_spans`]: crate::handler::Handler::view_spans
 pub struct SpanStream<'a, Id, Data> {
     inner: Pin<Box<dyn Stream<Item = Span<Id, Data>> + Send + 'a>>,
 }

@@ -1,17 +1,17 @@
 //! HTML handler: holds parsed HTML content and provides span-based
-//! access via [`Handler`].
+//! access via [`Handler`] + [`TextHandler`].
 //!
 //! The handler stores extracted text nodes so the content can be
 //! inspected and edited without holding the full DOM.
 //!
 //! # Span model
 //!
-//! [`Handler::view_spans`] yields one [`Span`] per text node in
+//! [`TextHandler::text_spans`] yields one [`Span`] per text node in
 //! document order.  Each span is addressed by a [`HtmlSpan`]
 //! (0-based text-node index) and carries the text content as a
 //! `String`.
 //!
-//! [`Handler::edit_spans`] replaces the content of text nodes at the
+//! [`TextHandler::edit_text`] replaces the content of text nodes at the
 //! given indices.
 //!
 //! # Encoding
@@ -25,10 +25,8 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::stream::{SpanEditStream, SpanStream};
-use crate::handler::{Handler, Span};
+use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
-use crate::transform::TextHandler;
 
 /// 0-based index of a text node within the HTML document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -51,7 +49,6 @@ pub struct HtmlHandler {
     pub(crate) data: HtmlData,
 }
 
-#[async_trait::async_trait]
 impl Handler for HtmlHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Html
@@ -86,18 +83,20 @@ impl Handler for HtmlHandler {
         tracing::Span::current().record("output_bytes", bytes.len());
         Ok(bytes.into())
     }
+}
 
-    type SpanId = HtmlSpan;
-    type SpanData = TextData;
+#[async_trait::async_trait]
+impl TextHandler for HtmlHandler {
+    type TextId = HtmlSpan;
 
-    async fn view_spans(&self) -> SpanStream<'_, HtmlSpan, TextData> {
+    async fn text_spans(&self) -> SpanStream<'_, HtmlSpan, TextData> {
         SpanStream::new(futures::stream::iter(HtmlSpanIter {
             nodes: &self.data.text_nodes,
             index: 0,
         }))
     }
 
-    async fn edit_spans(
+    async fn edit_text(
         &mut self,
         edits: SpanEditStream<'_, HtmlSpan, TextData>,
     ) -> Result<(), Error> {
@@ -152,8 +151,6 @@ impl HtmlHandler {
     }
 }
 
-impl TextHandler for HtmlHandler {}
-
 /// Iterator over text nodes of an HTML document.
 struct HtmlSpanIter<'a> {
     nodes: &'a [String],
@@ -181,7 +178,7 @@ impl ExactSizeIterator for HtmlSpanIter<'_> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::{Handler, SpanEdit};
+    use crate::handler::{Handler, SpanEdit, TextHandler};
     use nvisy_core::Error;
 
     fn handler_from_html(raw: &str) -> HtmlHandler {
@@ -216,7 +213,7 @@ mod tests {
     async fn encode_after_edit_spans() -> Result<(), Error> {
         let raw = "<html><head></head><body><p>Hello</p><p>World</p></body></html>";
         let mut h = handler_from_html(raw);
-        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit::new(HtmlSpan(0), "[REDACTED]".into()),
         ])))
         .await?;
@@ -243,7 +240,7 @@ mod tests {
         let raw = "<html><head></head><body><p>hello</p><p>hello</p></body></html>";
         let mut h = handler_from_html(raw);
         // Edit only the first "hello" — the second should remain unchanged.
-        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit::new(HtmlSpan(0), "FIRST".into()),
         ])))
         .await?;
@@ -256,7 +253,7 @@ mod tests {
     #[tokio::test]
     async fn view_spans_returns_text() {
         let h = handler_from_html("<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>");
-        let spans: Vec<_> = h.view_spans().await.collect().await;
+        let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans.len(), 2);
         assert_eq!(spans[0].data, "Alpha");
         assert_eq!(spans[0].id, HtmlSpan(0));
@@ -268,7 +265,7 @@ mod tests {
     async fn edit_spans_out_of_bounds() {
         let mut h = handler_from_html("<html><head></head><body><p>only</p></body></html>");
         let err = h
-            .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
                 SpanEdit::new(HtmlSpan(99), "nope".into()),
             ])))
             .await

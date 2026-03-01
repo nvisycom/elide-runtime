@@ -51,7 +51,6 @@ impl Loader for TxtLoader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::Handler;
     use bytes::Bytes;
     use futures::StreamExt;
     use nvisy_core::path::ContentSource;
@@ -95,7 +94,7 @@ mod tests {
             .decode(&content, &TxtParams::default())
             .await?;
 
-        let spans: Vec<_> = doc.view_spans().await.collect().await;
+        let spans: Vec<_> = doc.text_spans().await.collect().await;
         assert_eq!(spans.len(), 3);
         assert_eq!(spans[0].data, "Alice");
         assert_eq!(spans[1].data, "Bob");

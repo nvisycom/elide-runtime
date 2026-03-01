@@ -1,20 +1,16 @@
-//! Async span edit stream for [`Handler::edit_spans`].
-//!
-//! [`Handler::edit_spans`]: crate::handler::Handler::edit_spans
+//! Async span edit stream for editing handler content.
 
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures::Stream;
 
-use crate::handler::SpanEdit;
+use super::SpanEdit;
 
-/// Async stream of edits consumed by [`Handler::edit_spans`].
+/// Async stream of edits consumed by capability trait edit methods.
 ///
 /// Wraps a `Pin<Box<dyn Stream>>` so that callers can pass any
 /// iterator/stream of edits without exposing a concrete type.
-///
-/// [`Handler::edit_spans`]: crate::handler::Handler::edit_spans
 pub struct SpanEditStream<'a, Id, Data> {
     inner: Pin<Box<dyn Stream<Item = SpanEdit<Id, Data>> + Send + 'a>>,
 }

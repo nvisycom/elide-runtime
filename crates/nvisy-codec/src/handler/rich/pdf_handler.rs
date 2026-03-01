@@ -1,20 +1,27 @@
 //! PDF handler: holds per-page extracted text and raw PDF bytes,
-//! providing span-based access via [`Handler`].
+//! providing span-based access via [`Handler`] + [`TextHandler`] +
+//! [`ImageHandler`].
 //!
-//! # Span model
+//! # Text span model
 //!
-//! [`Handler::view_spans`] yields one [`Span`] per page.  Each span
-//! is addressed by a [`PdfSpan`] (0-based page index) and carries the
-//! extracted text for that page as a `String`.
+//! [`TextHandler::text_spans`] yields one [`Span`] per page.  Each span
+//! is addressed by a [`PdfTextSpan`] (0-based page index) and carries the
+//! extracted text for that page as `TextData`.
 //!
-//! [`Handler::edit_spans`] replaces the text at the given page indices
+//! [`TextHandler::edit_text`] replaces the text at the given page indices
 //! and applies the changes to the underlying PDF content streams via
 //! [`lopdf::Document::replace_text`].
+//!
+//! # Image span model
+//!
+//! [`ImageHandler::image_spans`] yields one [`Span`] per rendered page
+//! image.  Each span is addressed by a [`PdfImageSpan`] containing
+//! the page index and image index.
 //!
 //! # Encoding
 //!
 //! [`Handler::encode`] returns the raw PDF bytes.  Edits applied via
-//! [`edit_spans`](Handler::edit_spans) are already baked into the raw
+//! [`edit_text`](TextHandler::edit_text) are already baked into the raw
 //! bytes, so `encode` is a simple clone.
 
 use bytes::Bytes;
@@ -24,16 +31,23 @@ use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::math::Dpi;
 
+use crate::handler::{Handler, ImageHandler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
-use crate::handler::{Handler, Span};
-use crate::stream::{SpanEditStream, SpanStream};
-use crate::transform::TextHandler;
 use super::pdf_render::PdfRenderer;
 
-/// 0-based page index identifying a span within a PDF document.
+/// 0-based page index for text spans within a PDF document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PdfSpan(pub u32);
+pub struct PdfTextSpan(pub u32);
+
+/// Identifier for an embedded image within a PDF document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PdfImageSpan {
+    /// 0-based page index.
+    pub page: u32,
+    /// 0-based image index within the page.
+    pub index: u32,
+}
 
 /// PDF document handler.
 ///
@@ -125,7 +139,6 @@ impl PdfHandler {
     }
 }
 
-#[async_trait::async_trait]
 impl Handler for PdfHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Pdf
@@ -136,20 +149,22 @@ impl Handler for PdfHandler {
         tracing::Span::current().record("output_bytes", self.raw.len());
         Ok(self.raw.clone())
     }
+}
 
-    type SpanId = PdfSpan;
-    type SpanData = TextData;
+#[async_trait::async_trait]
+impl TextHandler for PdfHandler {
+    type TextId = PdfTextSpan;
 
-    async fn view_spans(&self) -> SpanStream<'_, PdfSpan, TextData> {
-        SpanStream::new(futures::stream::iter(PdfSpanIter {
+    async fn text_spans(&self) -> SpanStream<'_, PdfTextSpan, TextData> {
+        SpanStream::new(futures::stream::iter(PdfTextSpanIter {
             pages: &self.pages,
             index: 0,
         }))
     }
 
-    async fn edit_spans(
+    async fn edit_text(
         &mut self,
-        edits: SpanEditStream<'_, PdfSpan, TextData>,
+        edits: SpanEditStream<'_, PdfTextSpan, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         if edits.is_empty() {
@@ -210,20 +225,52 @@ impl Handler for PdfHandler {
     }
 }
 
-impl TextHandler for PdfHandler {}
+#[async_trait::async_trait]
+impl ImageHandler for PdfHandler {
+    type ImageId = PdfImageSpan;
 
-/// Iterator over pages of a PDF document.
-struct PdfSpanIter<'a> {
+    async fn image_spans(&self) -> SpanStream<'_, PdfImageSpan, ImageData> {
+        // Render pages to images on demand.
+        let images = match PdfRenderer::parallel_render(&self.raw, Dpi::OCR) {
+            Ok(imgs) => imgs,
+            Err(e) => {
+                tracing::warn!(error = %e, "failed to render PDF pages for image_spans");
+                return SpanStream::new(futures::stream::empty());
+            }
+        };
+        SpanStream::new(futures::stream::iter(
+            images.into_iter().enumerate().map(|(i, img)| {
+                Span::new(
+                    PdfImageSpan { page: i as u32, index: 0 },
+                    img,
+                )
+            })
+        ))
+    }
+
+    async fn edit_images(
+        &mut self,
+        _edits: SpanEditStream<'_, PdfImageSpan, ImageData>,
+    ) -> Result<(), Error> {
+        // Image editing for PDF is not yet supported — rendered images
+        // are read-only snapshots.
+        tracing::warn!("PDF image editing is not yet supported");
+        Ok(())
+    }
+}
+
+/// Iterator over pages of a PDF document (text spans).
+struct PdfTextSpanIter<'a> {
     pages: &'a [String],
     index: usize,
 }
 
-impl<'a> Iterator for PdfSpanIter<'a> {
-    type Item = Span<PdfSpan, TextData>;
+impl<'a> Iterator for PdfTextSpanIter<'a> {
+    type Item = Span<PdfTextSpan, TextData>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let text = self.pages.get(self.index)?;
-        let span = Span::new(PdfSpan(self.index as u32), TextData::from(text.clone()));
+        let span = Span::new(PdfTextSpan(self.index as u32), TextData::from(text.clone()));
         self.index += 1;
         Some(span)
     }
@@ -234,12 +281,12 @@ impl<'a> Iterator for PdfSpanIter<'a> {
     }
 }
 
-impl ExactSizeIterator for PdfSpanIter<'_> {}
+impl ExactSizeIterator for PdfTextSpanIter<'_> {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::SpanEdit;
+    use crate::handler::{SpanEdit, TextHandler};
     use futures::StreamExt;
     use nvisy_core::Error;
 
@@ -253,21 +300,21 @@ mod tests {
     #[tokio::test]
     async fn view_spans_yields_one_per_page() {
         let h = handler(&["page one", "page two", "page three"]);
-        let spans: Vec<_> = h.view_spans().await.collect().await;
+        let spans: Vec<_> = h.text_spans().await.collect().await;
 
         assert_eq!(spans.len(), 3);
-        assert_eq!(spans[0].id, PdfSpan(0));
+        assert_eq!(spans[0].id, PdfTextSpan(0));
         assert_eq!(spans[0].data, "page one");
-        assert_eq!(spans[1].id, PdfSpan(1));
+        assert_eq!(spans[1].id, PdfTextSpan(1));
         assert_eq!(spans[1].data, "page two");
-        assert_eq!(spans[2].id, PdfSpan(2));
+        assert_eq!(spans[2].id, PdfTextSpan(2));
         assert_eq!(spans[2].data, "page three");
     }
 
     #[tokio::test]
     async fn view_spans_empty_document() {
         let h = handler(&[]);
-        let spans: Vec<_> = h.view_spans().await.collect().await;
+        let spans: Vec<_> = h.text_spans().await.collect().await;
         assert!(spans.is_empty());
     }
 
@@ -297,8 +344,8 @@ mod tests {
         // test the out-of-bounds validation path.
         let mut h = handler(&["hello"]);
         let err = h
-            .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit::new(PdfSpan(5), "nope".into()),
+            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
+                SpanEdit::new(PdfTextSpan(5), "nope".into()),
             ])))
             .await
             .unwrap_err();

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::WavHandler;
-use nvisy_codec::transform::{AudioHandler, AudioRedaction, AudioRedactionOutput};
+use nvisy_codec::transform::{AudioRedact, AudioRedaction, AudioRedactionOutput};
 use nvisy_core::Error;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::location::Location;
@@ -65,7 +65,7 @@ pub(crate) async fn apply_audio_doc(
     }
 
     let mut result = doc.clone();
-    result.handler_mut().redact_spans(&redactions).await?;
+    result.handler_mut().redact_audio(&redactions).await?;
     result.source.set_parent_id(Some(doc.source.as_uuid()));
     Ok(result)
 }

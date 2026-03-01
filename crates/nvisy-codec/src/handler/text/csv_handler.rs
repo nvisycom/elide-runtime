@@ -1,5 +1,5 @@
 //! CSV handler: holds parsed CSV content and provides span-based
-//! access via [`Handler`].
+//! access via [`Handler`] + [`TextHandler`].
 //!
 //! The handler stores the parsed rows (and optional headers) together
 //! with the detected delimiter so the file can be reconstructed after
@@ -7,12 +7,12 @@
 //!
 //! # Span model
 //!
-//! [`Handler::view_spans`] yields one [`Span`] per cell.  If headers
+//! [`TextHandler::text_spans`] yields one [`Span`] per cell.  If headers
 //! are present, header cells are emitted first (with
 //! [`CsvSpan::header`] set to `true`), followed by data cells in
 //! row-major order.
 //!
-//! [`Handler::edit_spans`] replaces cell content at the given
+//! [`TextHandler::edit_text`] replaces cell content at the given
 //! (row, col) position.  Header cells can also be edited.
 
 use futures::StreamExt;
@@ -20,10 +20,8 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 
-use crate::stream::{SpanEditStream, SpanStream};
-use crate::handler::{Handler, Span};
+use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
-use crate::transform::TextHandler;
 
 /// Cell address within a CSV document.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -81,7 +79,6 @@ pub struct CsvHandler {
     pub(crate) data: CsvData,
 }
 
-#[async_trait::async_trait]
 impl Handler for CsvHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Csv
@@ -119,15 +116,17 @@ impl Handler for CsvHandler {
         tracing::Span::current().record("output_bytes", bytes.len());
         Ok(bytes.into())
     }
+}
 
-    type SpanId = CsvSpan;
-    type SpanData = TextData;
+#[async_trait::async_trait]
+impl TextHandler for CsvHandler {
+    type TextId = CsvSpan;
 
-    async fn view_spans(&self) -> SpanStream<'_, CsvSpan, TextData> {
+    async fn text_spans(&self) -> SpanStream<'_, CsvSpan, TextData> {
         SpanStream::new(futures::stream::iter(CsvSpanIter::new(&self.data)))
     }
 
-    async fn edit_spans(
+    async fn edit_text(
         &mut self,
         edits: SpanEditStream<'_, CsvSpan, TextData>,
     ) -> Result<(), Error> {
@@ -218,8 +217,6 @@ impl CsvHandler {
     }
 }
 
-impl TextHandler for CsvHandler {}
-
 /// Iterator over cells of a CSV document.
 ///
 /// Yields header cells first (if present), then data cells in
@@ -299,7 +296,7 @@ impl<'a> Iterator for CsvSpanIter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::SpanEdit;
+    use crate::handler::{SpanEdit, TextHandler};
     use futures::StreamExt;
     use nvisy_core::Error;
 
@@ -340,7 +337,7 @@ mod tests {
             vec!["name", "age"],
             vec![vec!["Alice", "30"], vec!["Bob", "25"]],
         );
-        let spans: Vec<_> = h.view_spans().await.collect().await;
+        let spans: Vec<_> = h.text_spans().await.collect().await;
 
         // 2 header cells + 4 data cells
         assert_eq!(spans.len(), 6);
@@ -369,7 +366,7 @@ mod tests {
     #[tokio::test]
     async fn view_spans_no_headers() {
         let h = handler_no_headers(vec![vec!["x", "y"], vec!["1", "2"]]);
-        let spans: Vec<_> = h.view_spans().await.collect().await;
+        let spans: Vec<_> = h.text_spans().await.collect().await;
 
         assert_eq!(spans.len(), 4);
         assert_eq!(spans[0].id, CsvSpan::cell(0, 0, "0"));
@@ -383,7 +380,7 @@ mod tests {
             vec!["ssn"],
             vec![vec!["123-45-6789"]],
         );
-        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit::new(CsvSpan::cell(0, 0, "ssn"), "[REDACTED]".into()),
         ])))
         .await?;
@@ -397,7 +394,7 @@ mod tests {
             vec!["secret_field"],
             vec![vec!["value"]],
         );
-        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit::new(CsvSpan::header_cell(0, "secret_field"), "redacted".into()),
         ])))
         .await?;
@@ -409,7 +406,7 @@ mod tests {
     async fn edit_spans_row_out_of_bounds() {
         let mut h = handler_no_headers(vec![vec!["a"]]);
         let err = h
-            .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
                 SpanEdit::new(CsvSpan::cell(5, 0, "0"), "x".into()),
             ])))
             .await
@@ -421,7 +418,7 @@ mod tests {
     async fn edit_spans_col_out_of_bounds() {
         let mut h = handler_no_headers(vec![vec!["a"]]);
         let err = h
-            .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
                 SpanEdit::new(CsvSpan::cell(0, 5, "5"), "x".into()),
             ])))
             .await

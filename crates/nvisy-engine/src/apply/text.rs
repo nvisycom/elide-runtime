@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use nvisy_codec::handler::{TxtHandler, TxtSpan};
 use nvisy_codec::document::Document;
-use nvisy_codec::transform::{TextRedaction, TextRedactionOutput, TextHandler};
+use nvisy_codec::transform::{TextRedaction, TextRedactionOutput, TextRedact};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::location::Location;
 use nvisy_ontology::record::Redaction;
@@ -121,7 +121,7 @@ pub(crate) async fn apply_text_doc(
     }
 
     let mut result = doc.clone();
-    result.handler_mut().redact_spans(&redactions).await?;
+    result.handler_mut().redact_text(&redactions).await?;
     result.source.set_parent_id(Some(doc.source.as_uuid()));
     Ok(result)
 }

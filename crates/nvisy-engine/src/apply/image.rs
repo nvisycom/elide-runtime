@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use nvisy_codec::handler::PngHandler;
 use nvisy_codec::document::Document;
-use nvisy_codec::transform::{ImageRedaction, ImageRedactionOutput, ImageHandler};
+use nvisy_codec::transform::{ImageRedaction, ImageRedactionOutput, ImageRedact};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::location::Location;
 use nvisy_ontology::record::Redaction;
@@ -63,7 +63,7 @@ pub(crate) async fn apply_image_doc(
     }
 
     let mut result = doc.clone();
-    result.handler_mut().redact_spans(&redactions).await?;
+    result.handler_mut().redact_images(&redactions).await?;
     result.source.set_parent_id(Some(doc.source.as_uuid()));
     Ok(result)
 }

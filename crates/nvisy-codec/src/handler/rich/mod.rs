@@ -13,11 +13,9 @@ mod docx_handler;
 mod docx_loader;
 
 #[cfg(feature = "pdf")]
-pub use pdf_handler::PdfHandler;
+pub use pdf_handler::{PdfHandler, PdfSpan};
 #[cfg(feature = "pdf")]
 pub use pdf_loader::{PdfLoader, PdfParams};
-#[cfg(feature = "pdf")]
-pub use pdf_render::PdfRenderer;
 
 #[cfg(feature = "docx")]
 pub use docx_handler::DocxHandler;

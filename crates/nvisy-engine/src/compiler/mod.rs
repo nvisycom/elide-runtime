@@ -4,15 +4,15 @@
 //! [`ExecutionPlan`]. It carries optional default retry and timeout policies
 //! that are applied to nodes which don't specify their own.
 
-pub mod graph;
-pub mod plan;
-pub mod policy;
+mod graph;
+mod plan;
+mod policy;
 
 pub use graph::{
     ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind,
     SourceNode, TargetNode,
 };
-pub use plan::{CompiledGraph, ExecutionPlan, ResolvedNode};
+pub(crate) use plan::{CompiledGraph, ExecutionPlan, ResolvedNode};
 pub use policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 
 use std::collections::HashMap;
@@ -28,7 +28,7 @@ use nvisy_core::Error;
 /// Nodes that don't carry their own retry or timeout policy will inherit
 /// the compiler-level defaults (if set) at compile time.
 #[derive(Debug, Clone, Default)]
-pub struct Compiler {
+pub(crate) struct Compiler {
     /// Default retry policy applied to nodes without one.
     pub retry: Option<RetryPolicy>,
     /// Default timeout policy applied to nodes without one.

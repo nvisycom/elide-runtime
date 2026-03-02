@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_engine::compiler::Graph;
+use nvisy_engine::Graph;
 use nvisy_engine::engine::Connection;
 use schemars::JsonSchema;
 use serde::Deserialize;

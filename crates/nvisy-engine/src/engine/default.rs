@@ -28,7 +28,7 @@ use super::{Engine, EngineInput, EngineOutput};
 use super::connections::Connections;
 use super::executor::{NodeOutput, RunOutput, execute_node};
 use crate::compiler::Compiler;
-use crate::compiler::plan::ExecutionPlan;
+use crate::compiler::ExecutionPlan;
 
 /// Default buffer size for bounded inter-node MPSC channels.
 const CHANNEL_BUFFER_SIZE: usize = 256;

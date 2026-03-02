@@ -11,15 +11,13 @@ mod connections;
 mod default;
 mod executor;
 mod ontology;
+mod policy;
 mod runs;
-
-pub mod policy;
 
 pub use connections::{Connection, Connections};
 pub use default::DefaultEngine;
 pub use executor::{NodeOutput, RunOutput};
 pub use ontology::{Explainable, Explanation};
-pub use policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
 pub use runs::{NodeProgress, RunManager, RunState, RunStatus, RunSummary};
 
 use std::future::Future;
@@ -30,12 +28,10 @@ use nvisy_core::Error;
 use nvisy_core::fs::ContentHandler;
 // Re-exported so downstream crates (e.g. nvisy-server) don't need a direct
 // dependency on nvisy-ontology or nvisy-identify.
+pub use nvisy_identify::{Audit, Policies, PolicyEvaluation, RedactionSummary};
 pub use nvisy_ontology::entity::DetectionOutput;
-pub use nvisy_identify::{
-    Audit, Policies, PolicyEvaluation, RedactionSummary,
-};
 
-use crate::compiler::graph::Graph;
+use crate::compiler::Graph;
 
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {
@@ -79,8 +75,5 @@ pub struct EngineOutput {
 /// output, audit records, and a full breakdown of every pipeline phase.
 pub trait Engine: Send + Sync {
     /// Execute a full redaction pipeline.
-    fn run(
-        &self,
-        input: EngineInput,
-    ) -> impl Future<Output = Result<EngineOutput, Error>> + Send;
+    fn run(&self, input: EngineInput) -> impl Future<Output = Result<EngineOutput, Error>> + Send;
 }

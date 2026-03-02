@@ -3,12 +3,17 @@
 #![doc = include_str!("../README.md")]
 
 mod apply;
+mod compiler;
 
-pub mod compiler;
 pub mod engine;
 
-pub use apply::{ApplyRedactionAction, ApplyRedactionInput, ApplyRedactionOutput};
 pub use engine::DefaultEngine;
 
-#[doc(hidden)]
-pub mod prelude;
+// Re-export graph data model for pipeline definitions.
+pub use compiler::{
+    ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind,
+    SourceNode, TargetNode,
+};
+
+// Re-export retry and timeout policies for pipeline nodes.
+pub use compiler::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};

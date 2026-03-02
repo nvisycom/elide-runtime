@@ -4,17 +4,15 @@
 //! patterns, embeddings — that tells detection *what to look for*.  It is
 //! separate from policy (which controls *what to do* when something is found).
 
-mod audio;
-mod embedding;
+pub mod analytic;
+pub mod biometric;
+pub mod document;
 mod entry;
-mod image;
-mod text;
+pub mod geospatial;
+pub mod reference;
+pub mod temporal;
 
-pub use audio::AudioData;
-pub use embedding::EmbeddingData;
 pub use entry::{ContextEntry, ContextEntryData};
-pub use image::ImageData;
-pub use text::TextData;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

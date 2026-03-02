@@ -148,4 +148,7 @@ pub struct DetectionOutput {
     /// Processing time in milliseconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u64>,
+    /// Non-fatal errors or warnings encountered during detection.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
 }

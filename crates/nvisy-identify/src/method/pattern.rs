@@ -148,6 +148,8 @@ impl DetectionService<CsvSpan, String> for PatternDetection {
                 column_index: span.id.col,
                 start_offset: Some(m.start),
                 end_offset: Some(m.end),
+                column_name: None,
+                sheet_name: None,
             }))
             .with_parent(&span.source);
 

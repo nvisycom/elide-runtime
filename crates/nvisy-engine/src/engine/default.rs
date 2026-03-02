@@ -168,6 +168,7 @@ impl Engine for DefaultEngine {
             entities: Vec::new(),
             policy_id: input.policies.policies.first().map(|p| p.id),
             duration_ms: None,
+            errors: Vec::new(),
         };
 
         // Phase 2: Policy Evaluation

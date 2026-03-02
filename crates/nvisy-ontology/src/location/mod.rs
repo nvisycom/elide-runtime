@@ -30,6 +30,9 @@ pub struct TextLocation {
     /// 1-based page number where the entity was found.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_number: Option<u32>,
+    /// 1-based line number where the entity was found.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_number: Option<u32>,
 }
 
 impl TextLocation {
@@ -67,6 +70,12 @@ pub struct TabularLocation {
     /// Byte offset within the cell where the entity ends, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_offset: Option<usize>,
+    /// Column name or header label.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub column_name: Option<String>,
+    /// Sheet or table name (for multi-sheet documents).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sheet_name: Option<String>,
 }
 
 /// Location of an entity within an audio stream.

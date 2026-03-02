@@ -1,51 +1,36 @@
 //! Context entry types for reference data.
 
+use jiff::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{AudioData, EmbeddingData, ImageData, TextData};
+use super::analytic::AnalyticVariant;
+use super::biometric::BiometricVariant;
+use super::document::DocumentVariant;
+use super::geospatial::GeospatialVariant;
+use super::reference::ReferenceVariant;
+use super::temporal::TemporalVariant;
 
-/// Semantically typed reference-data payload for a [`ContextEntry`].
+/// Top-level domain classification for context reference data.
 ///
-/// Each variant combines a semantic purpose (what the data *means*) with a
-/// modality-specific payload (what the data *looks like*).
+/// Each domain contains a nested enum of specific variants,
+/// keeping modality and semantic purpose cleanly separated.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "domain", content = "data", rename_all = "snake_case")]
 pub enum ContextEntryData {
-    // Text
-    /// Names, identifiers, or phrases to match.
-    TextValue(TextData),
-    /// Regex or glob patterns.
-    Pattern(TextData),
-    /// Date or date-range to match.
-    DateValue(TextData),
-    /// Keyword tag for routing.
-    Tag(TextData),
-    /// API keys, tokens, or known secret patterns.
-    Credential(TextData),
-
-    // Image
-    /// Reference face image for matching.
-    FaceImage(ImageData),
-    /// Reference object or scene image for matching.
-    ObjectImage(ImageData),
-    /// Brand or logo reference image.
-    Logo(ImageData),
-    /// Reference document template (ID card, passport, form, etc.).
-    Document(ImageData),
-    /// Handwritten signature reference.
-    Signature(ImageData),
-
-    // Audio
-    /// Reference voice sample for speaker identification.
-    VoiceSample(AudioData),
-    /// Spoken keyword or phrase for audio spotting.
-    SpokenKeyword(AudioData),
-
-    // Embedding
-    /// Pre-computed embedding vector.
-    Embedding(EmbeddingData),
+    /// Identity verification via biological traits.
+    Biometric(BiometricVariant),
+    /// Geographic regions and addresses.
+    Geospatial(GeospatialVariant),
+    /// Computed representations for similarity search and pattern matching.
+    Analytic(AnalyticVariant),
+    /// Raw data for direct comparison against input.
+    Reference(ReferenceVariant),
+    /// Date and time-based matching.
+    Temporal(TemporalVariant),
+    /// Document templates and handwritten signatures.
+    Document(DocumentVariant),
 }
 
 /// A single reference-data entry within a [`Context`](super::Context).
@@ -57,17 +42,26 @@ pub struct ContextEntry {
     /// Human-readable label.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    /// When this entry was created.
+    #[schemars(with = "String")]
+    pub created_at: Timestamp,
+    /// When this entry should stop being used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub expires_at: Option<Timestamp>,
     /// Semantically typed payload.
     #[serde(flatten)]
     pub data: ContextEntryData,
 }
 
 impl ContextEntry {
-    /// Create a new context entry with a generated UUID.
+    /// Create a new context entry with a generated UUID and current timestamp.
     pub fn new(data: ContextEntryData) -> Self {
         Self {
             id: Uuid::new_v4(),
             label: None,
+            created_at: Timestamp::now(),
+            expires_at: None,
             data,
         }
     }
@@ -75,6 +69,12 @@ impl ContextEntry {
     /// Set a human-readable label on this entry.
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+
+    /// Set an expiration timestamp on this entry.
+    pub fn with_expires_at(mut self, expires_at: Timestamp) -> Self {
+        self.expires_at = Some(expires_at);
         self
     }
 }

@@ -24,6 +24,9 @@ pub struct InferenceAction {
     /// Number of items processed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub items_count: Option<u64>,
+    /// Error message if the operation failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 impl InferenceAction {
@@ -35,6 +38,7 @@ impl InferenceAction {
             input_tokens: None,
             output_tokens: None,
             items_count: None,
+            error: None,
         }
     }
 
@@ -53,6 +57,12 @@ impl InferenceAction {
     /// Set the number of items processed.
     pub fn with_items_count(mut self, count: u64) -> Self {
         self.items_count = Some(count);
+        self
+    }
+
+    /// Set an error message for a failed operation.
+    pub fn with_error(mut self, error: impl Into<String>) -> Self {
+        self.error = Some(error.into());
         self
     }
 }

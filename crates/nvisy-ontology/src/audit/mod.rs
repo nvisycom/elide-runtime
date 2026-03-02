@@ -11,7 +11,7 @@ mod kind;
 mod lifecycle;
 mod processing;
 
-pub use entry::FileAuditEntry;
+pub use entry::{AuditEntryStatus, FileAuditEntry};
 pub use inference::InferenceAction;
 pub use kind::FileAuditEntryKind;
 pub use lifecycle::LifecycleAction;

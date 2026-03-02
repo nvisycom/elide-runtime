@@ -8,8 +8,6 @@
 //! and one or more capability traits: [`TextHandler`], [`ImageHandler`],
 //! [`AudioHandler`].
 
-use bytes::Bytes;
-
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 use nvisy_core::fs::DocumentType;
@@ -47,8 +45,8 @@ pub trait Handler: Send + Sync + 'static {
     /// The document type this handler represents.
     fn document_type(&self) -> DocumentType;
 
-    /// Serialize the current handler content back to raw bytes.
-    fn encode(&self) -> Result<Bytes, Error>;
+    /// Serialize the current handler content back to [`ContentData`].
+    fn encode(&self) -> Result<ContentData, Error>;
 }
 
 /// Trait implemented by format loaders.

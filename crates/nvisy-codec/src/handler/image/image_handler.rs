@@ -4,6 +4,7 @@ use futures::StreamExt;
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
 
 use crate::handler::{Handler, ImageHandler, SpanEditStream, SpanStream};
 
@@ -49,7 +50,7 @@ impl Handler for AnyImage {
         }
     }
 
-    fn encode(&self) -> Result<bytes::Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         match self {
             Self::Png(h) => h.encode(),
             Self::Jpeg(h) => h.encode(),

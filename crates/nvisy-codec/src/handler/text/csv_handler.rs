@@ -19,6 +19,8 @@ use futures::StreamExt;
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
 use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
@@ -85,7 +87,7 @@ impl Handler for CsvHandler {
     }
 
     #[tracing::instrument(name = "csv.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<bytes::Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         let mut wtr = csv::WriterBuilder::new()
             .delimiter(self.data.delimiter)
             .has_headers(false)
@@ -114,7 +116,7 @@ impl Handler for CsvHandler {
         }
 
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(bytes.into())
+        Ok(ContentData::new(ContentSource::new(), bytes.into()))
     }
 }
 
@@ -432,9 +434,9 @@ mod tests {
             vec!["name", "age"],
             vec![vec!["Alice", "30"], vec!["Bob", "25"]],
         );
-        let bytes = h.encode()?;
+        let content = h.encode()?;
         assert_eq!(
-            std::str::from_utf8(&bytes).expect("valid utf-8"),
+            content.as_str().expect("valid utf-8"),
             "name,age\nAlice,30\nBob,25\n"
         );
         Ok(())
@@ -446,8 +448,8 @@ mod tests {
             vec!["name", "bio"],
             vec![vec!["Alice", "Has a, comma"]],
         );
-        let bytes = h.encode()?;
-        let text = std::str::from_utf8(&bytes).expect("valid utf-8");
+        let content = h.encode()?;
+        let text = content.as_str().expect("valid utf-8");
         assert!(text.contains("\"Has a, comma\""));
         Ok(())
     }
@@ -456,8 +458,8 @@ mod tests {
     fn encode_without_trailing_newline() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["a"], vec![vec!["1"]]);
         h.data.trailing_newline = false;
-        let bytes = h.encode()?;
-        assert_eq!(std::str::from_utf8(&bytes).expect("valid utf-8"), "a\n1");
+        let content = h.encode()?;
+        assert_eq!(content.as_str().expect("valid utf-8"), "a\n1");
         Ok(())
     }
 
@@ -468,9 +470,9 @@ mod tests {
             vec![vec!["1", "2"]],
         );
         h.data.delimiter = b'\t';
-        let bytes = h.encode()?;
+        let content = h.encode()?;
         assert_eq!(
-            std::str::from_utf8(&bytes).expect("valid utf-8"),
+            content.as_str().expect("valid utf-8"),
             "a\tb\n1\t2\n"
         );
         Ok(())

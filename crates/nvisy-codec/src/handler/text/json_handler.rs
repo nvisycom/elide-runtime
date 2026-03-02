@@ -26,6 +26,8 @@ use serde::{Deserialize, Serialize};
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
 use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
@@ -128,7 +130,7 @@ impl Handler for JsonHandler {
     }
 
     #[tracing::instrument(name = "json.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<bytes::Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         let mut bytes = match self.data.indent {
             JsonIndent::Compact => serde_json::to_vec(&self.data.value)
                 .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler"))?,
@@ -154,7 +156,7 @@ impl Handler for JsonHandler {
             bytes.push(b'\n');
         }
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(bytes.into())
+        Ok(ContentData::new(ContentSource::new(), bytes.into()))
     }
 }
 
@@ -671,8 +673,8 @@ mod tests {
                 trailing_newline: false,
             },
         };
-        let bytes = h.encode()?;
-        assert_eq!(std::str::from_utf8(&bytes).expect("valid utf-8"), r#"{"a":1}"#);
+        let content = h.encode()?;
+        assert_eq!(content.as_str().expect("valid utf-8"), r#"{"a":1}"#);
         Ok(())
     }
 
@@ -685,7 +687,7 @@ mod tests {
                 trailing_newline: true,
             },
         };
-        let text = std::str::from_utf8(&h.encode()?).expect("valid utf-8").to_owned();
+        let text = h.encode()?.as_str().expect("valid utf-8").to_owned();
         assert!(text.contains("  \"a\""));
         assert!(text.ends_with('\n'));
         Ok(())
@@ -700,7 +702,7 @@ mod tests {
                 trailing_newline: false,
             },
         };
-        let text = std::str::from_utf8(&h.encode()?).expect("valid utf-8").to_owned();
+        let text = h.encode()?.as_str().expect("valid utf-8").to_owned();
         assert!(text.contains("\t\"a\""));
         assert!(!text.ends_with('\n'));
         Ok(())

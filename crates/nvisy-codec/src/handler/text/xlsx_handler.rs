@@ -2,6 +2,7 @@
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
 
 use crate::handler::{Handler, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
@@ -15,7 +16,7 @@ impl Handler for XlsxHandler {
     }
 
     #[tracing::instrument(name = "xlsx.encode", skip_all)]
-    fn encode(&self) -> Result<bytes::Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         Err(Error::validation(
             "encode not supported for XLSX",
             "xlsx-handler",

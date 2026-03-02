@@ -12,6 +12,8 @@ use futures::StreamExt;
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
 use crate::handler::{Handler, Span, SpanEditStream, SpanStream, AudioHandler};
 use crate::transform::{AudioRedact, AudioRedaction};
@@ -38,9 +40,9 @@ impl Handler for Mp3Handler {
     }
 
     #[tracing::instrument(name = "mp3.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         tracing::Span::current().record("output_bytes", self.bytes.len());
-        Ok(self.bytes.clone())
+        Ok(ContentData::new(ContentSource::new(), self.bytes.clone()))
     }
 }
 
@@ -102,7 +104,7 @@ mod tests {
     fn encode_returns_current_bytes() -> Result<(), Error> {
         let h = Mp3Handler::new(Bytes::from_static(b"audio-data"));
         let encoded = h.encode()?;
-        assert_eq!(&encoded[..], b"audio-data");
+        assert_eq!(encoded.as_bytes(), b"audio-data");
         Ok(())
     }
 }

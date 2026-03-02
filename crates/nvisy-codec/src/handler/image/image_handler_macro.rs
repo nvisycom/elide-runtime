@@ -10,7 +10,7 @@ macro_rules! impl_image_handler {
             }
 
             #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
-            fn encode(&self) -> Result<bytes::Bytes, nvisy_core::Error> {
+            fn encode(&self) -> Result<nvisy_core::io::ContentData, nvisy_core::Error> {
                 let mut buf = std::io::Cursor::new(Vec::new());
                 self.image
                     .write_to(&mut buf, $fmt)
@@ -22,7 +22,10 @@ macro_rules! impl_image_handler {
                     })?;
                 let out = buf.into_inner();
                 tracing::Span::current().record("output_bytes", out.len());
-                Ok(out.into())
+                Ok(nvisy_core::io::ContentData::new(
+                    nvisy_core::path::ContentSource::new(),
+                    out.into(),
+                ))
             }
         }
 

@@ -4,6 +4,7 @@ use futures::StreamExt;
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
 
 use crate::handler::{Handler, AudioHandler, SpanEditStream, SpanStream};
 use crate::transform::{AudioRedact, AudioRedaction};
@@ -50,7 +51,7 @@ impl Handler for AnyAudio {
         }
     }
 
-    fn encode(&self) -> Result<bytes::Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         match self {
             Self::Wav(h) => h.encode(),
             Self::Mp3(h) => h.encode(),
@@ -111,7 +112,7 @@ mod tests {
     async fn mp3_variant_delegates() {
         let h = AnyAudio::Mp3(Mp3Handler::new(bytes::Bytes::from_static(b"mp3-data")));
         assert_eq!(h.document_type(), DocumentType::Mp3);
-        assert_eq!(&h.encode().unwrap()[..], b"mp3-data");
+        assert_eq!(h.encode().unwrap().as_bytes(), b"mp3-data");
     }
 
     #[test]

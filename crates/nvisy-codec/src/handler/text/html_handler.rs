@@ -24,6 +24,8 @@ use futures::StreamExt;
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
 use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
@@ -55,7 +57,7 @@ impl Handler for HtmlHandler {
     }
 
     #[tracing::instrument(name = "html.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<bytes::Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         // Re-parse the original source into a mutable DOM.
         let mut dom = scraper::Html::parse_document(&self.data.raw);
 
@@ -81,7 +83,7 @@ impl Handler for HtmlHandler {
         // Serialize the mutated DOM back to HTML.
         let bytes = dom.html().into_bytes();
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(bytes.into())
+        Ok(ContentData::new(ContentSource::new(), bytes.into()))
     }
 }
 
@@ -204,8 +206,8 @@ mod tests {
     fn encode_unchanged() -> Result<(), Error> {
         let raw = "<html><head></head><body><p>Hello</p></body></html>";
         let h = handler_from_html(raw);
-        let bytes = h.encode()?;
-        assert_eq!(std::str::from_utf8(&bytes).unwrap(), raw);
+        let content = h.encode()?;
+        assert_eq!(content.as_str().unwrap(), raw);
         Ok(())
     }
 
@@ -217,7 +219,7 @@ mod tests {
             SpanEdit::new(HtmlSpan(0), "[REDACTED]".into()),
         ])))
         .await?;
-        let result = std::str::from_utf8(&h.encode()?).unwrap().to_owned();
+        let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("[REDACTED]"));
         assert!(result.contains("World"));
         assert!(result.contains("<p>"));
@@ -229,7 +231,7 @@ mod tests {
         let h = handler_from_html("<html><head></head><body><div><span>foo</span> bar</div></body></html>");
         let mut h = h;
         h.data.text_nodes[0] = "baz".to_string();
-        let result = std::str::from_utf8(&h.encode()?).unwrap().to_owned();
+        let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("<span>baz</span>"));
         assert!(result.contains(" bar"));
         Ok(())
@@ -244,7 +246,7 @@ mod tests {
             SpanEdit::new(HtmlSpan(0), "FIRST".into()),
         ])))
         .await?;
-        let result = std::str::from_utf8(&h.encode()?).unwrap().to_owned();
+        let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("<p>FIRST</p>"));
         assert!(result.contains("<p>hello</p>"));
         Ok(())

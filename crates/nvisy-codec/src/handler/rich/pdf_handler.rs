@@ -29,7 +29,9 @@ use futures::StreamExt;
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
 use nvisy_core::math::Dpi;
+use nvisy_core::path::ContentSource;
 
 use crate::handler::{Handler, ImageHandler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::image::ImageData;
@@ -145,9 +147,9 @@ impl Handler for PdfHandler {
     }
 
     #[tracing::instrument(name = "pdf.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         tracing::Span::current().record("output_bytes", self.raw.len());
-        Ok(self.raw.clone())
+        Ok(ContentData::new(ContentSource::new(), self.raw.clone()))
     }
 }
 
@@ -334,7 +336,7 @@ mod tests {
     fn encode_returns_raw_bytes() -> Result<(), Error> {
         let raw = b"fake-pdf-bytes";
         let h = PdfHandler::new(vec!["text".into()], raw.to_vec());
-        assert_eq!(&h.encode()?[..], raw);
+        assert_eq!(h.encode()?.as_bytes(), raw);
         Ok(())
     }
 

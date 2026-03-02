@@ -18,6 +18,8 @@ use futures::StreamExt;
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
 use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
@@ -41,14 +43,14 @@ impl Handler for TxtHandler {
     }
 
     #[tracing::instrument(name = "txt.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<bytes::Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         let mut out = self.lines.join("\n");
         if self.trailing_newline && !self.lines.is_empty() {
             out.push('\n');
         }
         let bytes = out.into_bytes();
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(bytes.into())
+        Ok(ContentData::new(ContentSource::new(), bytes.into()))
     }
 }
 
@@ -201,16 +203,16 @@ mod tests {
     #[test]
     fn encode_with_trailing_newline() -> Result<(), Error> {
         let h = handler("hello\nworld\n");
-        let bytes = h.encode()?;
-        assert_eq!(&bytes[..], b"hello\nworld\n");
+        let content = h.encode()?;
+        assert_eq!(content.as_bytes(), b"hello\nworld\n");
         Ok(())
     }
 
     #[test]
     fn encode_without_trailing_newline() -> Result<(), Error> {
         let h = handler("no newline");
-        let bytes = h.encode()?;
-        assert_eq!(&bytes[..], b"no newline");
+        let content = h.encode()?;
+        assert_eq!(content.as_bytes(), b"no newline");
         Ok(())
     }
 }

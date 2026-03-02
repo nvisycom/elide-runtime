@@ -14,6 +14,7 @@ use nvisy_core::path::ContentSource;
 
 /// Mapping entry for a text-modality redaction.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct TextMapEntry {
     /// Start byte offset in the original content.
     pub start_offset: usize,
@@ -27,6 +28,7 @@ pub struct TextMapEntry {
 
 /// Mapping entry for an image-modality redaction.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ImageMapEntry {
     /// Region that was redacted.
     pub bounding_box: BoundingBox,
@@ -42,6 +44,7 @@ pub struct ImageMapEntry {
 
 /// Mapping entry for an audio-modality redaction.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct AudioMapEntry {
     /// Time segment that was redacted.
     pub time_span: TimeSpan,
@@ -67,6 +70,7 @@ pub enum RedactionMapEntry {
 /// A single item in a [`RedactionMap`], linking an entity and its redaction
 /// to a modality-specific mapping.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RedactionMapItem {
     /// Identifier of the entity that was redacted.
     pub entity_id: Uuid,
@@ -80,6 +84,7 @@ pub struct RedactionMapItem {
 
 /// A standalone artifact mapping original values to redacted replacements.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RedactionMap {
     /// Content source this map belongs to.
     #[serde(flatten)]

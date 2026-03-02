@@ -12,6 +12,7 @@ use nvisy_core::math::{BoundingBox, TimeSpan};
 
 /// Location of an entity within text content.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct TextLocation {
     /// Byte or character offset where the entity starts.
     pub start_offset: usize,
@@ -40,6 +41,7 @@ impl TextLocation {
 
 /// Location of an entity within an image.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ImageLocation {
     /// Bounding box of the entity in the image.
     pub bounding_box: BoundingBox,
@@ -53,6 +55,7 @@ pub struct ImageLocation {
 
 /// Location of an entity within tabular data.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct TabularLocation {
     /// Row index (0-based).
     pub row_index: usize,
@@ -68,6 +71,7 @@ pub struct TabularLocation {
 
 /// Location of an entity within an audio stream.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct AudioLocation {
     /// Time interval of the entity.
     pub time_span: TimeSpan,

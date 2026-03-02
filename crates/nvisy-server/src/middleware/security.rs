@@ -31,6 +31,7 @@ const DEFAULT_FILE_BODY_LIMIT: usize = 50 * 1024 * 1024;
 /// fields target different layers of the stack: see the module-level
 /// documentation for details.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SecurityConfig {
     /// Maximum body size in bytes for axum extractors (`Json`, `Form`, etc.).
     pub body_limit_bytes: usize,

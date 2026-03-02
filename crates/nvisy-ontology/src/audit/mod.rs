@@ -6,8 +6,16 @@
 //! which tracks policy and redaction events.
 
 mod entry;
+mod inference;
+mod kind;
+mod lifecycle;
+mod processing;
 
-pub use entry::{FileAuditEntry, FileAuditEntryKind};
+pub use entry::FileAuditEntry;
+pub use inference::InferenceAction;
+pub use kind::FileAuditEntryKind;
+pub use lifecycle::LifecycleAction;
+pub use processing::ProcessingAction;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,6 +24,7 @@ use nvisy_core::path::ContentSource;
 
 /// An append-only processing log for a single file.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct FileAudit {
     /// Content source this audit belongs to.
     #[serde(flatten)]

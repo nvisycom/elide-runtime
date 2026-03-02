@@ -148,6 +148,7 @@ pub enum RedactionInput {
 /// and byte offsets in the source text. The redactor uses this context to
 /// choose an appropriate [`RedactionMethod`](super::RedactionMethod).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RedactorInput {
     /// Specific entity type (e.g. `EmailAddress`, `GovernmentId`).
     pub entity_type: EntityKind,

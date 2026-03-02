@@ -20,6 +20,7 @@ use crate::specification::RedactionInput;
 ///
 /// Each `Redaction` is linked to exactly one entity via `entity_id`.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Redaction {
     /// Content source identity and lineage.
     #[serde(flatten)]

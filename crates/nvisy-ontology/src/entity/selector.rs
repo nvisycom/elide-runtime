@@ -10,6 +10,7 @@ use super::{EntityCategory, EntityKind};
 /// matches every category, an empty `entity_types` list matches every type,
 /// and so on. When multiple fields are set, they are combined with AND logic.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EntitySelector {
     /// Entity categories this selector matches. Empty means all categories.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

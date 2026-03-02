@@ -4,9 +4,17 @@
 //! patterns, embeddings — that tells detection *what to look for*.  It is
 //! separate from policy (which controls *what to do* when something is found).
 
+mod audio;
+mod embedding;
 mod entry;
+mod image;
+mod text;
 
-pub use entry::{ContextEntry, ContextEntryData, ContextKind};
+pub use audio::AudioData;
+pub use embedding::EmbeddingData;
+pub use entry::{ContextEntry, ContextEntryData};
+pub use image::ImageData;
+pub use text::TextData;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,6 +23,7 @@ use nvisy_core::path::ContentSource;
 
 /// A persistent, reusable collection of reference data for detection.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Context {
     /// Content source identity and lineage.
     #[serde(flatten)]

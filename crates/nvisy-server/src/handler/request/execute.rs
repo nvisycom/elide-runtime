@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 /// Request body for `POST /api/v1/execute`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecuteRequest {
     /// Base64-encoded content bytes.
     pub content: String,

@@ -35,6 +35,7 @@ pub enum AnnotationScope {
 
 /// A classification label attached to a document or region.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AnnotationLabel {
     /// Label name (e.g. `"contains-phi"`, `"gdpr-request"`).
     pub name: String,
@@ -48,6 +49,7 @@ pub struct AnnotationLabel {
 
 /// A user-provided or upstream annotation on a content region.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Annotation {
     /// What kind of annotation this is.
     pub kind: AnnotationKind,

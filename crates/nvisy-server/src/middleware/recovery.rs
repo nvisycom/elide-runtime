@@ -42,6 +42,7 @@ type Panic = Box<dyn Any + Send + 'static>;
 /// Controls how the recovery middleware handles various error conditions
 /// including timeouts and panic recovery.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RecoveryConfig {
     /// Maximum duration in seconds to wait for a request to complete
     /// before timing out. Requests exceeding this duration receive a

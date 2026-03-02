@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 /// Request body for `POST /api/v1/redaction`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RedactionRequest {
     /// Identifier of previously uploaded content.
     pub content_id: Uuid,

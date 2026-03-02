@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 
 /// OpenAPI configuration for aide integration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OpenApiConfig {
     /// API title shown in the OpenAPI spec.
     pub title: String,

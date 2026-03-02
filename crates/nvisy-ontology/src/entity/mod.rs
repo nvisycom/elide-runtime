@@ -66,6 +66,7 @@ pub enum DetectionMethod {
 
 /// A detected sensitive data occurrence within a document.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Entity {
     /// Content source identity and lineage.
     #[serde(flatten)]
@@ -134,6 +135,7 @@ impl Entity {
 
 /// The output of a detection pass over a single content source.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DetectionOutput {
     /// Content source identity and lineage.
     #[serde(flatten)]

@@ -31,8 +31,9 @@ pub struct TxtSpan(pub usize);
 /// Handler for loaded plain-text content.
 ///
 /// Each line is independently addressable via [`TxtSpan`].
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TxtHandler {
+    pub(crate) source: ContentSource,
     pub(crate) lines: Vec<String>,
     pub(crate) trailing_newline: bool,
 }
@@ -50,7 +51,8 @@ impl Handler for TxtHandler {
         }
         let bytes = out.into_bytes();
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(ContentData::new(ContentSource::new(), bytes.into()))
+        let source = ContentSource::new().with_parent(&self.source);
+        Ok(ContentData::new(source, bytes.into()))
     }
 }
 
@@ -86,7 +88,13 @@ impl TextHandler for TxtHandler {
 impl TxtHandler {
     /// Create a new handler from lines and a trailing-newline flag.
     pub fn new(lines: Vec<String>, trailing_newline: bool) -> Self {
-        Self { lines, trailing_newline }
+        Self { source: ContentSource::new(), lines, trailing_newline }
+    }
+
+    /// Set the content source for lineage tracking.
+    pub fn with_source(mut self, source: ContentSource) -> Self {
+        self.source = source;
+        self
     }
 
     /// All lines in the document.
@@ -149,10 +157,7 @@ mod tests {
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');
         let lines = text.lines().map(String::from).collect();
-        TxtHandler {
-            lines,
-            trailing_newline,
-        }
+        TxtHandler::new(lines, trailing_newline)
     }
 
     #[tokio::test]

@@ -32,7 +32,8 @@ impl Loader for JpegLoader {
         let image = super::decode_image(content, "jpeg-loader")?;
         tracing::Span::current().record("width", image.width());
         tracing::Span::current().record("height", image.height());
-        let handler = JpegHandler::new(image);
+        let handler = JpegHandler::new(image)
+            .with_source(content.content_source);
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }

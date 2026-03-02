@@ -12,12 +12,10 @@ use nvisy_ontology::specification::{RedactionInput, TextRedactionInput};
 use nvisy_core::Error;
 
 pub(crate) async fn apply_tabular_doc(
-    doc: &Document<CsvHandler>,
+    mut doc: Document<CsvHandler>,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &Redaction>,
 ) -> Result<Document<CsvHandler>, Error> {
-    let mut result = doc.clone();
-
     for (&entity_id, redaction) in redaction_map {
         let entity = match entity_map.get(&entity_id) {
             Some(e) => e,
@@ -34,14 +32,14 @@ pub(crate) async fn apply_tabular_doc(
         }
 
         let (row_idx, col_idx) = (tab_loc.row_index, tab_loc.column_index);
-        if let Some(row) = result.handler_mut().rows_mut().get_mut(row_idx)
+        if let Some(row) = doc.handler_mut().rows_mut().get_mut(row_idx)
             && let Some(cell) = row.get_mut(col_idx)
         {
             *cell = mask_cell(&redaction.spec, &redaction.replacement, cell);
         }
     }
 
-    Ok(result)
+    Ok(doc)
 }
 
 /// Redact a single cell value according to the spec and replacement.

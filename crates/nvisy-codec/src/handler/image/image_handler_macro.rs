@@ -22,8 +22,10 @@ macro_rules! impl_image_handler {
                     })?;
                 let out = buf.into_inner();
                 tracing::Span::current().record("output_bytes", out.len());
+                let source = nvisy_core::path::ContentSource::new()
+                    .with_parent(&self.source);
                 Ok(nvisy_core::io::ContentData::new(
-                    nvisy_core::path::ContentSource::new(),
+                    source,
                     out.into(),
                 ))
             }
@@ -57,7 +59,13 @@ macro_rules! impl_image_handler {
         impl $handler {
             /// Create a handler from an already-decoded image.
             pub fn new(image: image::DynamicImage) -> Self {
-                Self { image }
+                Self { source: nvisy_core::path::ContentSource::new(), image }
+            }
+
+            /// Set the content source for lineage tracking.
+            pub fn with_source(mut self, source: nvisy_core::path::ContentSource) -> Self {
+                self.source = source;
+                self
             }
 
             /// Reference to the decoded image.

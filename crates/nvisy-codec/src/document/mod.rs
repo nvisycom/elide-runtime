@@ -27,15 +27,6 @@ pub struct Document<H: Handler> {
     handler: H,
 }
 
-impl<H: Handler + Clone> Clone for Document<H> {
-    fn clone(&self) -> Self {
-        Self {
-            source: self.source,
-            handler: self.handler.clone(),
-        }
-    }
-}
-
 impl<H: Handler> Deref for Document<H> {
     type Target = H;
 

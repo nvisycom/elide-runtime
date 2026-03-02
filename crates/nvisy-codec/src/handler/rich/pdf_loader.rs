@@ -35,7 +35,8 @@ impl Loader for PdfLoader {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
 
-        let handler = PdfHandler::from_raw(raw, params.password.as_deref())?;
+        let handler = PdfHandler::from_raw(raw, params.password.as_deref())?
+            .with_source(content.content_source);
 
         tracing::Span::current().record("pages", handler.page_count());
 

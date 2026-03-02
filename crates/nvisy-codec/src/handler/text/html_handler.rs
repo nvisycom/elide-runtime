@@ -46,8 +46,9 @@ pub struct HtmlData {
 /// Handler for loaded HTML content.
 ///
 /// Each text node is independently addressable via [`HtmlSpan`].
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct HtmlHandler {
+    pub(crate) source: ContentSource,
     pub(crate) data: HtmlData,
 }
 
@@ -83,7 +84,8 @@ impl Handler for HtmlHandler {
         // Serialize the mutated DOM back to HTML.
         let bytes = dom.html().into_bytes();
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(ContentData::new(ContentSource::new(), bytes.into()))
+        let source = ContentSource::new().with_parent(&self.source);
+        Ok(ContentData::new(source, bytes.into()))
     }
 }
 
@@ -119,7 +121,13 @@ impl TextHandler for HtmlHandler {
 impl HtmlHandler {
     /// Create a new handler from parsed HTML data.
     pub fn new(data: HtmlData) -> Self {
-        Self { data }
+        Self { source: ContentSource::new(), data }
+    }
+
+    /// Set the content source for lineage tracking.
+    pub fn with_source(mut self, source: ContentSource) -> Self {
+        self.source = source;
+        self
     }
 
     /// All extracted text nodes.

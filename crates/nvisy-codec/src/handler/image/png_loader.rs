@@ -32,7 +32,8 @@ impl Loader for PngLoader {
         let image = super::decode_image(content, "png-loader")?;
         tracing::Span::current().record("width", image.width());
         tracing::Span::current().record("height", image.height());
-        let handler = PngHandler::new(image);
+        let handler = PngHandler::new(image)
+            .with_source(content.content_source);
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }

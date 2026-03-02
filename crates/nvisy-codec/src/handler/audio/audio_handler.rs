@@ -15,7 +15,7 @@ use super::{AudioData, Mp3Handler, WavHandler};
 ///
 /// Since all audio handlers share `AudioId = ()`, this enum can
 /// implement [`Handler`] + [`AudioHandler`] directly.
-#[derive(Debug, Clone, derive_more::From)]
+#[derive(Debug, derive_more::From)]
 pub enum AnyAudio {
     Wav(WavHandler),
     Mp3(Mp3Handler),

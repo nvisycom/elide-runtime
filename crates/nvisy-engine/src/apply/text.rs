@@ -27,7 +27,7 @@ pub(crate) fn text_output_from_spec(spec: &RedactionInput, replacement: &str) ->
 }
 
 pub(crate) async fn apply_text_doc(
-    doc: &Document<TxtHandler>,
+    mut doc: Document<TxtHandler>,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &Redaction>,
 ) -> Result<Document<TxtHandler>, Error> {
@@ -60,7 +60,7 @@ pub(crate) async fn apply_text_doc(
     }
 
     if global_redactions.is_empty() {
-        return Ok(doc.clone());
+        return Ok(doc);
     }
 
     // Build cumulative byte-offset map from lines so we can convert
@@ -120,10 +120,8 @@ pub(crate) async fn apply_text_doc(
         }
     }
 
-    let mut result = doc.clone();
-    result.handler_mut().redact_text(&redactions).await?;
-    result.source.set_parent_id(Some(doc.source.as_uuid()));
-    Ok(result)
+    doc.handler_mut().redact_text(&redactions).await?;
+    Ok(doc)
 }
 
 #[cfg(test)]

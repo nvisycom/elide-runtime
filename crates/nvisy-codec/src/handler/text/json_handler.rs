@@ -121,6 +121,7 @@ impl Default for JsonData {
 /// object keys as text spans for the redaction pipeline.
 #[derive(Debug)]
 pub struct JsonHandler {
+    pub(crate) source: ContentSource,
     pub(crate) data: JsonData,
 }
 
@@ -156,7 +157,8 @@ impl Handler for JsonHandler {
             bytes.push(b'\n');
         }
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(ContentData::new(ContentSource::new(), bytes.into()))
+        let source = ContentSource::new().with_parent(&self.source);
+        Ok(ContentData::new(source, bytes.into()))
     }
 }
 
@@ -217,6 +219,12 @@ impl TextHandler for JsonHandler {
 }
 
 impl JsonHandler {
+    /// Set the content source for lineage tracking.
+    pub fn with_source(mut self, source: ContentSource) -> Self {
+        self.source = source;
+        self
+    }
+
     /// View the JSON tree as an async stream of spans with full
     /// `serde_json::Value` data.
     pub async fn view_spans(&self) -> SpanStream<'_, JsonPath, serde_json::Value> {
@@ -496,10 +504,12 @@ mod tests {
     use crate::handler::{SpanEdit, TextHandler};
     use futures::StreamExt;
     use nvisy_core::Error;
+    use nvisy_core::path::ContentSource;
     use serde_json::json;
 
     fn handler(value: serde_json::Value) -> JsonHandler {
         JsonHandler {
+            source: ContentSource::new(),
             data: JsonData {
                 value,
                 ..JsonData::default()
@@ -667,6 +677,7 @@ mod tests {
     #[test]
     fn encode_compact() -> Result<(), Error> {
         let h = JsonHandler {
+            source: ContentSource::new(),
             data: JsonData {
                 value: json!({"a": 1}),
                 indent: JsonIndent::Compact,
@@ -681,6 +692,7 @@ mod tests {
     #[test]
     fn encode_two_spaces_with_trailing_newline() -> Result<(), Error> {
         let h = JsonHandler {
+            source: ContentSource::new(),
             data: JsonData {
                 value: json!({"a": 1}),
                 indent: JsonIndent::two_spaces(),
@@ -696,6 +708,7 @@ mod tests {
     #[test]
     fn encode_tab_indent() -> Result<(), Error> {
         let h = JsonHandler {
+            source: ContentSource::new(),
             data: JsonData {
                 value: json!({"a": 1}),
                 indent: JsonIndent::Tab,

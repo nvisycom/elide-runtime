@@ -56,8 +56,10 @@ pub struct PdfImageSpan {
 /// Stores per-page extracted text alongside the raw PDF bytes.
 /// Rendering is dispatched to a dedicated single-thread pool via
 /// [`PdfRenderer`].
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PdfHandler {
+    /// Content source for lineage tracking.
+    source: ContentSource,
     /// Per-page extracted text (0-indexed).
     pages: Vec<String>,
     /// Raw PDF bytes for encode and rendering.
@@ -67,7 +69,13 @@ pub struct PdfHandler {
 impl PdfHandler {
     /// Create a new handler from per-page text and raw PDF bytes.
     pub fn new(pages: Vec<String>, raw: impl Into<Bytes>) -> Self {
-        Self { pages, raw: raw.into() }
+        Self { source: ContentSource::new(), pages, raw: raw.into() }
+    }
+
+    /// Set the content source for lineage tracking.
+    pub fn with_source(mut self, source: ContentSource) -> Self {
+        self.source = source;
+        self
     }
 
     /// Parse raw PDF bytes, extract per-page text, and return a new handler.
@@ -100,7 +108,7 @@ impl PdfHandler {
             let text: String = chunks.into_iter().filter_map(|r| r.ok()).collect();
             pages.push(text);
         }
-        Ok(Self { pages, raw })
+        Ok(Self { source: ContentSource::new(), pages, raw })
     }
 
     /// All per-page text extractions.
@@ -149,7 +157,8 @@ impl Handler for PdfHandler {
     #[tracing::instrument(name = "pdf.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
         tracing::Span::current().record("output_bytes", self.raw.len());
-        Ok(ContentData::new(ContentSource::new(), self.raw.clone()))
+        let source = ContentSource::new().with_parent(&self.source);
+        Ok(ContentData::new(source, self.raw.clone()))
     }
 }
 

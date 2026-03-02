@@ -76,8 +76,9 @@ pub struct CsvData {
 }
 
 /// Handler for loaded CSV content.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct CsvHandler {
+    pub(crate) source: ContentSource,
     pub(crate) data: CsvData,
 }
 
@@ -116,7 +117,8 @@ impl Handler for CsvHandler {
         }
 
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(ContentData::new(ContentSource::new(), bytes.into()))
+        let source = ContentSource::new().with_parent(&self.source);
+        Ok(ContentData::new(source, bytes.into()))
     }
 }
 
@@ -169,6 +171,12 @@ impl TextHandler for CsvHandler {
 }
 
 impl CsvHandler {
+    /// Set the content source for lineage tracking.
+    pub fn with_source(mut self, source: ContentSource) -> Self {
+        self.source = source;
+        self
+    }
+
     /// Column headers, if present.
     pub fn headers(&self) -> Option<&[String]> {
         self.data.headers.as_deref()
@@ -301,12 +309,14 @@ mod tests {
     use crate::handler::{SpanEdit, TextHandler};
     use futures::StreamExt;
     use nvisy_core::Error;
+    use nvisy_core::path::ContentSource;
 
     fn handler_with_headers(
         headers: Vec<&str>,
         rows: Vec<Vec<&str>>,
     ) -> CsvHandler {
         CsvHandler {
+            source: ContentSource::new(),
             data: CsvData {
                 headers: Some(headers.into_iter().map(String::from).collect()),
                 rows: rows
@@ -321,6 +331,7 @@ mod tests {
 
     fn handler_no_headers(rows: Vec<Vec<&str>>) -> CsvHandler {
         CsvHandler {
+            source: ContentSource::new(),
             data: CsvData {
                 headers: None,
                 rows: rows

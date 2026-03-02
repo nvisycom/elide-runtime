@@ -14,7 +14,7 @@ use super::{ImageData, JpegHandler, PngHandler};
 ///
 /// Since all image handlers share `ImageId = ()`, this enum can
 /// implement [`Handler`] + [`ImageHandler`] directly.
-#[derive(Debug, Clone, derive_more::From)]
+#[derive(Debug, derive_more::From)]
 pub enum AnyImage {
     Png(PngHandler),
     Jpeg(JpegHandler),

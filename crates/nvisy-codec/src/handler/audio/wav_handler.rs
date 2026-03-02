@@ -19,14 +19,21 @@ use crate::handler::{Handler, Span, SpanEditStream, SpanStream, AudioHandler};
 use crate::transform::{AudioRedact, AudioRedaction};
 use super::AudioData;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct WavHandler {
+    pub(crate) source: ContentSource,
     pub(crate) bytes: Bytes,
 }
 
 impl WavHandler {
     pub fn new(bytes: Bytes) -> Self {
-        Self { bytes }
+        Self { source: ContentSource::new(), bytes }
+    }
+
+    /// Set the content source for lineage tracking.
+    pub fn with_source(mut self, source: ContentSource) -> Self {
+        self.source = source;
+        self
     }
 
     pub fn bytes(&self) -> &Bytes {
@@ -42,7 +49,8 @@ impl Handler for WavHandler {
     #[tracing::instrument(name = "wav.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
         tracing::Span::current().record("output_bytes", self.bytes.len());
-        Ok(ContentData::new(ContentSource::new(), self.bytes.clone()))
+        let source = ContentSource::new().with_parent(&self.source);
+        Ok(ContentData::new(source, self.bytes.clone()))
     }
 }
 

@@ -31,7 +31,7 @@ pub(crate) fn audio_output_from_spec(spec: &RedactionInput) -> Option<AudioRedac
 }
 
 pub(crate) async fn apply_audio_doc(
-    doc: &Document<WavHandler>,
+    mut doc: Document<WavHandler>,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &Redaction>,
 ) -> Result<Document<WavHandler>, Error> {
@@ -61,13 +61,11 @@ pub(crate) async fn apply_audio_doc(
     }
 
     if redactions.is_empty() {
-        return Ok(doc.clone());
+        return Ok(doc);
     }
 
-    let mut result = doc.clone();
-    result.handler_mut().redact_audio(&redactions).await?;
-    result.source.set_parent_id(Some(doc.source.as_uuid()));
-    Ok(result)
+    doc.handler_mut().redact_audio(&redactions).await?;
+    Ok(doc)
 }
 
 #[cfg(test)]

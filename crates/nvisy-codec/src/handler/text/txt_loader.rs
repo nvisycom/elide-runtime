@@ -42,7 +42,8 @@ impl Loader for TxtLoader {
         let lines: Vec<String> = text.lines().map(String::from).collect();
         tracing::Span::current().record("lines", lines.len());
 
-        let handler = TxtHandler::new(lines, trailing_newline);
+        let handler = TxtHandler::new(lines, trailing_newline)
+            .with_source(content.content_source);
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }

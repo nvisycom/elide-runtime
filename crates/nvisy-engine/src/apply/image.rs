@@ -30,7 +30,7 @@ pub(crate) fn image_output_from_spec(spec: &RedactionInput) -> Option<ImageRedac
 }
 
 pub(crate) async fn apply_image_doc(
-    doc: &Document<PngHandler>,
+    mut doc: Document<PngHandler>,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &Redaction>,
 ) -> Result<Document<PngHandler>, Error> {
@@ -59,13 +59,11 @@ pub(crate) async fn apply_image_doc(
     }
 
     if redactions.is_empty() {
-        return Ok(doc.clone());
+        return Ok(doc);
     }
 
-    let mut result = doc.clone();
-    result.handler_mut().redact_images(&redactions).await?;
-    result.source.set_parent_id(Some(doc.source.as_uuid()));
-    Ok(result)
+    doc.handler_mut().redact_images(&redactions).await?;
+    Ok(doc)
 }
 
 #[cfg(test)]

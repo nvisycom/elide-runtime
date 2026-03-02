@@ -84,25 +84,25 @@ impl ApplyRedactionAction {
 
         // Text documents
         let mut result_text = Vec::with_capacity(input.text_docs.len());
-        for doc in &input.text_docs {
+        for doc in input.text_docs {
             result_text.push(apply_text_doc(doc, &entity_map, &redaction_map).await?);
         }
 
         // Image documents
         let mut result_image = Vec::with_capacity(input.image_docs.len());
-        for doc in &input.image_docs {
+        for doc in input.image_docs {
             result_image.push(apply_image_doc(doc, &entity_map, &redaction_map).await?);
         }
 
         // Audio documents
         let mut result_audio = Vec::with_capacity(input.audio_docs.len());
-        for doc in &input.audio_docs {
+        for doc in input.audio_docs {
             result_audio.push(apply_audio_doc(doc, &entity_map, &redaction_map).await?);
         }
 
         // Tabular documents
         let mut result_tabular = Vec::with_capacity(input.tabular_docs.len());
-        for doc in &input.tabular_docs {
+        for doc in input.tabular_docs {
             result_tabular.push(apply_tabular_doc(doc, &entity_map, &redaction_map).await?);
         }
 

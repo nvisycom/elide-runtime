@@ -6,10 +6,9 @@
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
-
-use crate::document::Document;
 use nvisy_core::io::TextEncoding;
 
+use crate::document::Document;
 use crate::handler::{CsvData, CsvHandler, Loader};
 
 /// Parameters for [`CsvLoader`].
@@ -86,6 +85,7 @@ impl Loader for CsvLoader {
 
         tracing::Span::current().record("rows", rows.len());
         let handler = CsvHandler {
+            source: content.content_source,
             data: CsvData {
                 headers,
                 rows,

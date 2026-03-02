@@ -82,6 +82,13 @@ impl<H: Handler> Document<H> {
         }
     }
 
+    /// Encode the handler content and set this document's source as the parent.
+    pub fn encode(&self) -> Result<ContentData, Error> {
+        let mut content = self.handler.encode()?;
+        content.content_source.set_parent_id(Some(self.source.as_uuid()));
+        Ok(content)
+    }
+
     /// Set this document's parent to the given content source.
     pub fn with_parent(mut self, content: &ContentData) -> Self {
         self.source.set_parent_id(Some(content.content_source.as_uuid()));
@@ -185,6 +192,18 @@ mod tests {
         let handler = TxtHandler::new(vec![], false);
         let doc = Document::new(handler);
         assert_eq!(doc.document_type(), DocumentType::Txt);
+    }
+
+    #[test]
+    fn encode_sets_parent_id() {
+        let handler = TxtHandler::new(vec!["hello".into()], false);
+        let doc = Document::new(handler);
+        let source = doc.source;
+        let content = doc.encode().unwrap();
+        assert_eq!(
+            content.content_source.parent_id(),
+            Some(source.as_uuid()),
+        );
     }
 
     #[test]

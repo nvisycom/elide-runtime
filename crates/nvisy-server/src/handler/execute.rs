@@ -54,6 +54,7 @@ async fn execute(
         graph: req.graph,
         connections: req.connections,
         actor: req.actor,
+        contexts: req.contexts,
     };
 
     let output = state.engine().run(input).await?;

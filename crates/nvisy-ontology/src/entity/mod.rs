@@ -19,7 +19,6 @@ pub use sensitivity::EntitySensitivity;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
 use strum::{Display, EnumString};
 use uuid::Uuid;
 
@@ -91,9 +90,6 @@ pub struct Entity {
     /// Detection model that produced this entity.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelInfo>,
-    /// Additional unstructured metadata.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<Map<String, Value>>,
 }
 
 impl Entity {
@@ -115,7 +111,6 @@ impl Entity {
             location: None,
             language: None,
             model: None,
-            metadata: None,
         }
     }
 

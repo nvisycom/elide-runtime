@@ -29,7 +29,10 @@ use nvisy_core::fs::ContentHandler;
 // Re-exported so downstream crates (e.g. nvisy-server) don't need a direct
 // dependency on nvisy-ontology or nvisy-identify.
 pub use nvisy_identify::{Audit, Policies, PolicyEvaluation, RedactionSummary};
+pub use nvisy_ontology::audit::FileAudit;
+pub use nvisy_ontology::context::Context;
 pub use nvisy_ontology::entity::DetectionOutput;
+pub use nvisy_ontology::record::{RedactionMap, RedactionMapItem};
 
 use crate::compiler::Graph;
 
@@ -45,6 +48,8 @@ pub struct EngineInput {
     pub connections: Connections,
     /// Human or service account identity.
     pub actor: Option<String>,
+    /// Reference-data contexts for detection.
+    pub contexts: Vec<Context>,
 }
 
 /// Full result of a pipeline run.
@@ -65,6 +70,10 @@ pub struct EngineOutput {
     pub summaries: Vec<RedactionSummary>,
     /// Immutable audit trail.
     pub audits: Vec<Audit>,
+    /// Per-file processing logs.
+    pub file_audits: Vec<FileAudit>,
+    /// Redaction mapping artifacts.
+    pub redaction_maps: Vec<RedactionMap>,
     /// Per-node execution results from the DAG runner.
     pub run_output: RunOutput,
 }

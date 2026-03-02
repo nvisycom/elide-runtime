@@ -1,9 +1,7 @@
 //! Modality-specific entity location types.
 
-mod layout_kind;
 mod text_level;
 
-pub use layout_kind::LayoutKind;
 pub use text_level::TextLevel;
 
 use schemars::JsonSchema;

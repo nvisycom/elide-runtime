@@ -23,6 +23,8 @@ use nvisy_identify::{
     Audit, AuditAction, EvaluatePolicyAction, EvaluatePolicyParams, PolicyEvaluation,
     RedactionSummary,
 };
+use nvisy_ontology::audit::FileAudit;
+use nvisy_ontology::record::RedactionMap;
 
 use super::{Engine, EngineInput, EngineOutput};
 use super::connections::Connections;
@@ -148,6 +150,13 @@ impl Engine for DefaultEngine {
         let mut audits: Vec<Audit> = Vec::new();
         let content_source = input.source.content_source();
 
+        // Contexts are accepted for future use by detection actions.
+        let _contexts = &input.contexts;
+
+        // Initialize per-file processing log and redaction map.
+        let file_audit = FileAudit::new(content_source);
+        let redaction_map = RedactionMap::new(content_source, run_id);
+
         // Phase 1: Detection
         //
         // Detection is handled externally (via DetectionService / NER / Pattern /
@@ -260,6 +269,8 @@ impl Engine for DefaultEngine {
             evaluation,
             summaries,
             audits,
+            file_audits: vec![file_audit],
+            redaction_maps: vec![redaction_map],
             run_output,
         })
     }

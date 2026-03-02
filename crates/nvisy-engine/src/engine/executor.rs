@@ -153,7 +153,18 @@ async fn execute_action(
     senders: &[mpsc::Sender<ContentData>],
     receivers: &mut [mpsc::Receiver<ContentData>],
 ) -> Result<u64, Error> {
-    tracing::debug!(?action, "action node: processing");
+    match action {
+        ActionKind::Ocr => tracing::trace!("action node: ocr (passthrough)"),
+        ActionKind::Transcribe => tracing::trace!("action node: transcribe (passthrough)"),
+        ActionKind::Detect => tracing::trace!("action node: detect (passthrough)"),
+        ActionKind::Evaluate => tracing::trace!("action node: evaluate (passthrough)"),
+        ActionKind::Redact => tracing::trace!("action node: redact (passthrough)"),
+        ActionKind::Translate => tracing::trace!("action node: translate (passthrough)"),
+        ActionKind::Classify => tracing::trace!("action node: classify (passthrough)"),
+        ActionKind::Summarize => tracing::trace!("action node: summarize (passthrough)"),
+        ActionKind::Audit => tracing::trace!("action node: audit (passthrough)"),
+        ActionKind::Publish => tracing::trace!("action node: publish (passthrough)"),
+    }
 
     // Forward items from all upstream receivers to all downstream senders.
     let mut count = 0u64;

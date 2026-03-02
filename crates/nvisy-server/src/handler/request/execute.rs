@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use nvisy_engine::Graph;
-use nvisy_engine::engine::Connection;
+use nvisy_engine::engine::{Connection, Context};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -25,4 +25,7 @@ pub struct ExecuteRequest {
     /// Human or service account identity.
     #[serde(default)]
     pub actor: Option<String>,
+    /// Reference-data contexts for detection.
+    #[serde(default)]
+    pub contexts: Vec<Context>,
 }

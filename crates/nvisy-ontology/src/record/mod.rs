@@ -1,7 +1,11 @@
 //! Redaction decision records.
 
+mod redaction_map;
 mod review;
 
+pub use redaction_map::{
+    AudioMapEntry, ImageMapEntry, RedactionMap, RedactionMapEntry, RedactionMapItem, TextMapEntry,
+};
 pub use review::{ReviewDecision, ReviewStatus};
 
 use schemars::JsonSchema;

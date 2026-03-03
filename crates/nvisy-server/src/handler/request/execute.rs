@@ -2,13 +2,14 @@
 
 use std::collections::HashMap;
 
-use nvisy_engine::compiler::Graph;
-use nvisy_engine::engine::Connection;
+use nvisy_engine::Graph;
+use nvisy_engine::pipeline::{Connection, Context};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 /// Request body for `POST /api/v1/execute`.
 #[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecuteRequest {
     /// Base64-encoded content bytes.
     pub content: String,
@@ -25,4 +26,7 @@ pub struct ExecuteRequest {
     /// Human or service account identity.
     #[serde(default)]
     pub actor: Option<String>,
+    /// Reference-data contexts for detection.
+    #[serde(default)]
+    pub contexts: Vec<Context>,
 }

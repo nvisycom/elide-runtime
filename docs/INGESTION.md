@@ -25,7 +25,6 @@ These formats are frequently encountered in enterprise workflows and should be s
 
 - **Office documents**: DOCX, XLSX, PPTX.
 - **Audio**: WAV, MP3, and other common audio formats.
-- **Video**: Standard container formats (MP4, MOV, AVI) with frame-level extraction.
 - **Email**: EML and MSG formats, including inline content and attachments (recursively ingested).
 
 ### Tier 3: Specialized (roadmap)
@@ -43,9 +42,7 @@ Each modality requires specialized extraction techniques:
 
 - **Optical character recognition (OCR)**: Layout-aware OCR that preserves spatial relationships between text regions, table cells, headers, and form fields.
 - **Speech-to-text**: Transcription with speaker diarization, enabling attribution of spoken content to individual speakers.
-- **Video frame extraction**: Decomposition of video streams into individual frames for visual analysis, with temporal alignment to audio tracks.
 - **Entity identification in images**: Detection and localization of entities within images — faces, persons, objects, text regions, documents, and other identifiable elements — producing bounding boxes or segmentation masks that downstream detection and redaction stages can operate on.
-- **Entity tracking in video**: Persistent tracking of identified entities across video frames. When a face, person, or object is detected in one frame, the platform must maintain identity continuity across subsequent frames to enable consistent redaction without requiring independent detection on every frame.
 - **Document structure parsing**: Identification of semantic document elements — headings, paragraphs, tables, lists, and form fields — beyond raw text extraction.
 - **Metadata extraction**: Capture of authorship, timestamps, geolocation, and other embedded metadata that may itself constitute sensitive information.
 

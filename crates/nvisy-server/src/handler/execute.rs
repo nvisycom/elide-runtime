@@ -16,7 +16,7 @@ use aide::transform::TransformOperation;
 use axum::extract::State;
 use base64::Engine as _;
 use nvisy_core::io::{Content, ContentData};
-use nvisy_engine::engine::{Engine as _, EngineInput, Policies};
+use nvisy_engine::pipeline::{Engine as _, EngineInput, Policies};
 
 use super::error::{ErrorKind, Result};
 use super::request::ExecuteRequest;
@@ -54,6 +54,9 @@ async fn execute(
         graph: req.graph,
         connections: req.connections,
         actor: req.actor,
+        contexts: req.contexts,
+        default_retry: None,
+        default_timeout: None,
     };
 
     let output = state.engine().run(input).await?;
@@ -104,11 +107,6 @@ fn mime_from_filename(filename: &str) -> Option<String> {
         "ogg" => "audio/ogg",
         "flac" => "audio/flac",
         "aac" => "audio/aac",
-        // Video
-        "mp4" => "video/mp4",
-        "webm" => "video/webm",
-        "avi" => "video/x-msvideo",
-        "mov" => "video/quicktime",
         // Archives
         "zip" => "application/zip",
         _ => return None,

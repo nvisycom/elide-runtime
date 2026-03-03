@@ -4,62 +4,49 @@
 //! [`Document`] containing the corresponding [`Handler`]. The handler
 //! holds the loaded data and provides methods to read and manipulate it.
 //!
-//! Each handler defines its own span types and exposes them as async
-//! streams via [`Handler::view_spans`] and [`Handler::edit_spans`].
-
-use bytes::Bytes;
+//! Each handler implements the base [`Handler`] trait (identity + encode)
+//! and one or more capability traits: [`TextHandler`], [`ImageHandler`],
+//! [`AudioHandler`].
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 use nvisy_core::fs::DocumentType;
 
-use crate::stream::{SpanEditStream, SpanStream};
 use crate::document::Document;
 
-mod span;
+mod view_span;
+mod edit_span;
+mod view_stream;
+mod edit_stream;
 mod text;
 mod rich;
 mod image;
 mod audio;
 
-pub use span::{Span, SpanEdit};
+pub use view_span::Span;
+pub use edit_span::SpanEdit;
+pub use view_stream::SpanStream;
+pub use edit_stream::SpanEditStream;
 
 pub use text::*;
 pub use rich::*;
 pub use image::*;
 pub use audio::*;
 
-/// Trait implemented by all format handlers.
+/// Base trait implemented by all format handlers.
 ///
 /// A handler holds loaded, validated content and provides methods to
-/// read and manipulate it. Handlers are produced by their corresponding
-/// [`Loader`].
+/// identify and serialize it. Handlers are produced by their
+/// corresponding [`Loader`].
 ///
-/// Each handler defines its own span addressing scheme ([`SpanId`](Self::SpanId))
-/// and data type ([`SpanData`](Self::SpanData)). Pipeline actions
-/// constrain `SpanData` to express what they need (e.g. `AsRef<str>`
-/// for text scanning).
-#[async_trait::async_trait]
+/// Capability-specific span access is provided by the opt-in traits
+/// [`TextHandler`], [`ImageHandler`], and [`AudioHandler`].
 pub trait Handler: Send + Sync + 'static {
     /// The document type this handler represents.
     fn document_type(&self) -> DocumentType;
 
-    /// Serialize the current handler content back to raw bytes.
-    fn encode(&self) -> Result<Bytes, Error>;
-
-    /// Strongly-typed identifier for a span within this handler.
-    type SpanId: Send + Sync + Clone + 'static;
-    /// The data type carried by each span.
-    type SpanData: Send + 'static;
-
-    /// Return the loaded content as an async stream of spans.
-    async fn view_spans(&self) -> SpanStream<'_, Self::SpanId, Self::SpanData>;
-
-    /// Apply edits from an async stream back to the source structure.
-    async fn edit_spans(
-        &mut self,
-        edits: SpanEditStream<'_, Self::SpanId, Self::SpanData>,
-    ) -> Result<(), Error>;
+    /// Serialize the current handler content back to [`ContentData`].
+    fn encode(&self) -> Result<ContentData, Error>;
 }
 
 /// Trait implemented by format loaders.

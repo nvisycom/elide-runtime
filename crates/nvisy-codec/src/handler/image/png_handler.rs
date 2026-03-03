@@ -14,8 +14,9 @@ use super::impl_image_handler;
 /// Stores the decoded [`DynamicImage`](image::DynamicImage) directly.
 /// The raw PNG bytes can be produced on demand via
 /// [`Handler::encode`](crate::handler::Handler::encode).
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PngHandler {
+    source: nvisy_core::path::ContentSource,
     image: image::DynamicImage,
 }
 

@@ -2,37 +2,39 @@
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
 
-use crate::stream::{SpanEditStream, SpanStream};
-use crate::handler::Handler;
+use crate::handler::{Handler, SpanEditStream, SpanStream, TextHandler};
+use crate::handler::text::TextData;
 
 #[derive(Debug)]
 pub struct XlsxHandler;
 
-#[async_trait::async_trait]
 impl Handler for XlsxHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Xlsx
     }
 
     #[tracing::instrument(name = "xlsx.encode", skip_all)]
-    fn encode(&self) -> Result<bytes::Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         Err(Error::validation(
             "encode not supported for XLSX",
             "xlsx-handler",
         ))
     }
+}
 
-    type SpanId = ();
-    type SpanData = ();
+#[async_trait::async_trait]
+impl TextHandler for XlsxHandler {
+    type TextId = ();
 
-    async fn view_spans(&self) -> SpanStream<'_, (), ()> {
+    async fn text_spans(&self) -> SpanStream<'_, (), TextData> {
         SpanStream::new(futures::stream::empty())
     }
 
-    async fn edit_spans(
+    async fn edit_text(
         &mut self,
-        _edits: SpanEditStream<'_, (), ()>,
+        _edits: SpanEditStream<'_, (), TextData>,
     ) -> Result<(), Error> {
         Ok(())
     }

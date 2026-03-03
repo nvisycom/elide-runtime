@@ -28,7 +28,8 @@ impl Loader for Mp3Loader {
         _params: &Self::Params,
     ) -> Result<Document<Mp3Handler>, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
-        let handler = Mp3Handler::new(content.to_bytes());
+        let handler = Mp3Handler::new(content.to_bytes())
+            .with_source(content.content_source);
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }

@@ -21,11 +21,13 @@ pub enum ModelKind {
 
 /// Identity and version of the model used for detection.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ModelInfo {
     /// Model name (e.g. `"spacy-en-core-web-lg"`, `"gpt-4"`).
     pub name: String,
     /// Provenance / licensing classification.
     pub kind: ModelKind,
     /// Model version string.
-    pub version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }

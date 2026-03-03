@@ -16,7 +16,7 @@ pub use nvisy_ontology::entity::{
     DetectionMethod, DetectionOutput, Entity, EntitySelector, ModelInfo, ModelKind,
 };
 pub use nvisy_ontology::location::{
-    AudioLocation, ImageLocation, Location, TabularLocation, TextLocation, VideoLocation,
+    AudioLocation, ImageLocation, Location, TabularLocation, TextLocation,
 };
 
 // --- Layer traits ---

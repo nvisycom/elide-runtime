@@ -18,7 +18,7 @@ Redaction rules must support conditional logic:
 
 - **Role-based rules**: Redact all references to minors while preserving references to adults.
 - **Document-type conditions**: Apply medical redaction policies only when the document type is classified as a health record.
-- **Temporal conditions**: Redact specific time segments in audio or video content.
+- **Temporal conditions**: Redact specific time segments in audio content.
 
 ### 2.3 Relationship-Aware Redaction
 

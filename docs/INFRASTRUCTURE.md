@@ -27,7 +27,7 @@ The platform must be API-first, supporting both batch and streaming processing m
 The platform must handle workloads that span orders of magnitude in volume and latency sensitivity:
 
 - Large document sets (thousands to millions of PDFs)
-- Long-form video and audio files
+- Long-form audio files
 - Real-time stream redaction with sub-second latency targets
 - Concurrent processing across multiple tenants or projects
 

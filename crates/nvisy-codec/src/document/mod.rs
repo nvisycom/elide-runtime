@@ -1,15 +1,5 @@
 //! Unified document representation.
 
-mod any;
-mod loader;
-
-pub use any::AnyDocument;
-pub use loader::UniversalLoader;
-
-// Re-export stream types for convenience (canonical home is `crate::stream`).
-#[doc(inline)]
-pub use crate::stream::{SpanEditStream, SpanStream};
-
 use std::ops::{Deref, DerefMut};
 
 use futures::StreamExt;
@@ -19,7 +9,10 @@ use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 use nvisy_core::fs::DocumentType;
 
-use crate::handler::Handler;
+use crate::handler::{
+    Handler, TextHandler, ImageHandler, AudioHandler, TextData, ImageData, AudioData,
+    SpanStream, SpanEditStream,
+};
 
 /// A unified representation of any content that can be handled by the pipeline.
 ///
@@ -32,15 +25,6 @@ pub struct Document<H: Handler> {
 
     /// Format handler (holds the loaded data).
     handler: H,
-}
-
-impl<H: Handler + Clone> Clone for Document<H> {
-    fn clone(&self) -> Self {
-        Self {
-            source: self.source,
-            handler: self.handler.clone(),
-        }
-    }
 }
 
 impl<H: Handler> Deref for Document<H> {
@@ -89,28 +73,79 @@ impl<H: Handler> Document<H> {
         }
     }
 
+    /// Encode the handler content and set this document's source as the parent.
+    pub fn encode(&self) -> Result<ContentData, Error> {
+        let mut content = self.handler.encode()?;
+        content.content_source.set_parent_id(Some(self.source.as_uuid()));
+        Ok(content)
+    }
+
     /// Set this document's parent to the given content source.
     pub fn with_parent(mut self, content: &ContentData) -> Self {
         self.source.set_parent_id(Some(content.content_source.as_uuid()));
         self
     }
+}
 
-    /// View spans with the document's content source injected.
-    pub async fn view_spans(&self) -> SpanStream<'_, H::SpanId, H::SpanData> {
+// Conditional impls for capability traits.
+
+impl<H: TextHandler> Document<H> {
+    /// View text spans with the document's content source injected.
+    pub async fn text_spans(&self) -> SpanStream<'_, H::TextId, TextData> {
         let source = self.source;
-        let inner = self.handler.view_spans().await;
+        let inner = self.handler.text_spans().await;
         SpanStream::new(inner.map(move |mut span| {
             span.source = source;
             span
         }))
     }
 
-    /// Apply edits from an async stream back to the handler.
-    pub async fn edit_spans(
+    /// Apply text edits from an async stream back to the handler.
+    pub async fn edit_text(
         &mut self,
-        edits: SpanEditStream<'_, H::SpanId, H::SpanData>,
+        edits: SpanEditStream<'_, H::TextId, TextData>,
     ) -> Result<(), Error> {
-        self.handler.edit_spans(edits).await
+        self.handler.edit_text(edits).await
+    }
+}
+
+impl<H: ImageHandler> Document<H> {
+    /// View image spans with the document's content source injected.
+    pub async fn image_spans(&self) -> SpanStream<'_, H::ImageId, ImageData> {
+        let source = self.source;
+        let inner = self.handler.image_spans().await;
+        SpanStream::new(inner.map(move |mut span| {
+            span.source = source;
+            span
+        }))
+    }
+
+    /// Apply image edits from an async stream back to the handler.
+    pub async fn edit_images(
+        &mut self,
+        edits: SpanEditStream<'_, H::ImageId, ImageData>,
+    ) -> Result<(), Error> {
+        self.handler.edit_images(edits).await
+    }
+}
+
+impl<H: AudioHandler> Document<H> {
+    /// View audio spans with the document's content source injected.
+    pub async fn audio_spans(&self) -> SpanStream<'_, H::AudioId, AudioData> {
+        let source = self.source;
+        let inner = self.handler.audio_spans().await;
+        SpanStream::new(inner.map(move |mut span| {
+            span.source = source;
+            span
+        }))
+    }
+
+    /// Apply audio edits from an async stream back to the handler.
+    pub async fn edit_audio(
+        &mut self,
+        edits: SpanEditStream<'_, H::AudioId, AudioData>,
+    ) -> Result<(), Error> {
+        self.handler.edit_audio(edits).await
     }
 }
 
@@ -121,21 +156,21 @@ mod tests {
     use futures::StreamExt;
 
     #[tokio::test]
-    async fn view_spans_injects_source() {
+    async fn text_spans_injects_source() {
         let handler = TxtHandler::new(vec!["line".into()], false);
         let doc = Document::new(handler);
         let source = doc.source;
-        let spans: Vec<_> = doc.view_spans().await.collect().await;
+        let spans: Vec<_> = doc.text_spans().await.collect().await;
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].source, source);
         assert_eq!(spans[0].data, "line");
     }
 
     #[tokio::test]
-    async fn edit_spans_delegates_to_handler() -> Result<(), Error> {
+    async fn edit_text_delegates_to_handler() -> Result<(), Error> {
         let handler = TxtHandler::new(vec!["original".into()], false);
         let mut doc = Document::new(handler);
-        doc.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+        doc.edit_text(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit::new(TxtSpan(0), "edited".into()),
         ])))
         .await?;
@@ -148,6 +183,18 @@ mod tests {
         let handler = TxtHandler::new(vec![], false);
         let doc = Document::new(handler);
         assert_eq!(doc.document_type(), DocumentType::Txt);
+    }
+
+    #[test]
+    fn encode_sets_parent_id() {
+        let handler = TxtHandler::new(vec!["hello".into()], false);
+        let doc = Document::new(handler);
+        let source = doc.source;
+        let content = doc.encode().unwrap();
+        assert_eq!(
+            content.content_source.parent_id(),
+            Some(source.as_uuid()),
+        );
     }
 
     #[test]

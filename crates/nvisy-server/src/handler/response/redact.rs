@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 /// Response body for `POST /api/v1/redaction`.
 #[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RedactionResponse {
     /// Unique run identifier.
     pub run_id: Uuid,

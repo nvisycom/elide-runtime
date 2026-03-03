@@ -22,6 +22,7 @@ pub enum ReviewStatus {
 
 /// A review decision recorded against a redaction.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ReviewDecision {
     /// Outcome of the review.
     pub status: ReviewStatus,

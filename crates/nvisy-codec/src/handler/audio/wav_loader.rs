@@ -28,7 +28,8 @@ impl Loader for WavLoader {
         _params: &Self::Params,
     ) -> Result<Document<WavHandler>, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
-        let handler = WavHandler::new(content.to_bytes());
+        let handler = WavHandler::new(content.to_bytes())
+            .with_source(content.content_source);
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }

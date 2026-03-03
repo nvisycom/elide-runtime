@@ -17,9 +17,11 @@ pub use model::{ModelInfo, ModelKind};
 pub use selector::EntitySelector;
 pub use sensitivity::EntitySensitivity;
 
+use std::time::Duration;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_with::{DurationMicroSeconds, serde_as};
 use strum::{Display, EnumString};
 use uuid::Uuid;
 
@@ -47,9 +49,9 @@ pub enum DetectionMethod {
     // C. Computer vision
     /// OCR text extraction with bounding boxes.
     Ocr,
-    /// Face detection in images or video frames.
+    /// Face detection in images.
     FaceDetection,
-    /// Object detection in images or video frames.
+    /// Object detection in images.
     ObjectDetection,
 
     // D. Audio
@@ -67,6 +69,7 @@ pub enum DetectionMethod {
 
 /// A detected sensitive data occurrence within a document.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Entity {
     /// Content source identity and lineage.
     #[serde(flatten)]
@@ -91,9 +94,6 @@ pub struct Entity {
     /// Detection model that produced this entity.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelInfo>,
-    /// Additional unstructured metadata.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<Map<String, Value>>,
 }
 
 impl Entity {
@@ -115,7 +115,6 @@ impl Entity {
             location: None,
             language: None,
             model: None,
-            metadata: None,
         }
     }
 
@@ -138,7 +137,9 @@ impl Entity {
 }
 
 /// The output of a detection pass over a single content source.
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DetectionOutput {
     /// Content source identity and lineage.
     #[serde(flatten)]
@@ -148,7 +149,12 @@ pub struct DetectionOutput {
     /// Identifier of the policy that governed detection.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_id: Option<Uuid>,
-    /// Processing time in milliseconds.
+    /// Processing time.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration_ms: Option<u64>,
+    #[serde_as(as = "Option<DurationMicroSeconds>")]
+    #[schemars(with = "Option<u64>")]
+    pub duration: Option<Duration>,
+    /// Non-fatal errors or warnings encountered during detection.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<String>,
 }

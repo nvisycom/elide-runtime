@@ -9,8 +9,7 @@ pub use transform::ImageTransform;
 use image::DynamicImage;
 use futures::StreamExt;
 
-use crate::stream::SpanEditStream;
-use crate::handler::{Handler, ImageData, SpanEdit};
+use crate::handler::{ImageHandler, ImageData, SpanEdit, SpanEditStream};
 use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
 
@@ -23,19 +22,29 @@ pub struct ImageRedaction {
     pub output: ImageRedactionOutput,
 }
 
-/// Trait for handlers that support image redaction.
+/// Extension trait for handlers that support image redaction.
 ///
-/// Extends [`Handler`] with [`redact_spans`](Self::redact_spans) which
-/// applies a batch of bounding-box image redactions.  The provided
-/// default implementation reads the image via [`view_spans`](Handler::view_spans),
-/// applies all redactions, and writes back via [`edit_spans`](Handler::edit_spans).
+/// Extends [`ImageHandler`] with [`redact_images`](Self::redact_images)
+/// which applies a batch of bounding-box image redactions.  The blanket
+/// implementation reads the image via [`image_spans`](ImageHandler::image_spans),
+/// applies all redactions, and writes back via
+/// [`edit_images`](ImageHandler::edit_images).
 #[async_trait::async_trait]
-pub trait ImageHandler: Handler
-where
-    Self::SpanData: Into<ImageData> + From<ImageData>,
-{
+pub trait ImageRedact: ImageHandler {
     /// Apply a batch of image redactions, mutating in place.
-    async fn redact_spans(
+    async fn redact_images(
+        &mut self,
+        redactions: &[ImageRedaction],
+    ) -> Result<(), Error>;
+}
+
+#[async_trait::async_trait]
+impl<H: ImageHandler> ImageRedact for H
+where
+    H::ImageId: Default,
+    ImageData: From<ImageData>,
+{
+    async fn redact_images(
         &mut self,
         redactions: &[ImageRedaction],
     ) -> Result<(), Error> {
@@ -45,13 +54,13 @@ where
         }
 
         // Get the current image from the single span.
-        let spans: Vec<_> = self.view_spans().await.collect().await;
+        let spans: Vec<_> = self.image_spans().await.collect().await;
         let span = match spans.into_iter().next() {
             Some(s) => s,
             None => return Ok(()),
         };
 
-        let image_data: ImageData = span.data.into();
+        let image_data: ImageData = span.data;
         let mut img: DynamicImage = image_data.into_inner();
 
         for redaction in redactions {
@@ -93,8 +102,8 @@ where
             }
         }
 
-        self.edit_spans(SpanEditStream::new(futures::stream::iter(
-            std::iter::once(SpanEdit::new(span.id, Self::SpanData::from(ImageData::from(img)))),
+        self.edit_images(SpanEditStream::new(futures::stream::iter(
+            std::iter::once(SpanEdit::new(span.id, ImageData::from(img))),
         )))
         .await?;
 

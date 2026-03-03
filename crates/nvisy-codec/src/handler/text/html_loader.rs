@@ -57,7 +57,7 @@ impl Loader for HtmlLoader {
         let handler = HtmlHandler::new(HtmlData {
             text_nodes,
             raw: text,
-        });
+        }).with_source(content.content_source);
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }

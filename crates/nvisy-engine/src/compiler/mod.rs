@@ -4,15 +4,15 @@
 //! [`ExecutionPlan`]. It carries optional default retry and timeout policies
 //! that are applied to nodes which don't specify their own.
 
-pub mod graph;
-pub mod plan;
-pub mod policy;
+mod graph;
+mod plan;
+mod policy;
 
 pub use graph::{
     ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind,
     SourceNode, TargetNode,
 };
-pub use plan::{CompiledGraph, ExecutionPlan, ResolvedNode};
+pub(crate) use plan::{ExecutionPlan, ResolvedNode};
 pub use policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 
 use std::collections::HashMap;
@@ -28,7 +28,7 @@ use nvisy_core::Error;
 /// Nodes that don't carry their own retry or timeout policy will inherit
 /// the compiler-level defaults (if set) at compile time.
 #[derive(Debug, Clone, Default)]
-pub struct Compiler {
+pub(crate) struct Compiler {
     /// Default retry policy applied to nodes without one.
     pub retry: Option<RetryPolicy>,
     /// Default timeout policy applied to nodes without one.
@@ -98,38 +98,29 @@ impl Compiler {
             Error::validation("Graph contains a cycle", "compiler")
         })?;
 
-        let topo_order: Vec<Uuid> = topo.iter().map(|idx| pg[*idx].id).collect();
-
-        // Build resolved nodes with adjacency info
+        // Build resolved nodes with adjacency info in topological order.
         let mut resolved = Vec::new();
 
-        for (order, node_id) in topo_order.iter().enumerate() {
-            let idx = index_map[node_id];
-
+        for idx in &topo {
             let upstream_ids: Vec<Uuid> = pg
-                .neighbors_directed(idx, petgraph::Direction::Incoming)
+                .neighbors_directed(*idx, petgraph::Direction::Incoming)
                 .map(|n| pg[n].id)
                 .collect();
 
             let downstream_ids: Vec<Uuid> = pg
-                .neighbors_directed(idx, petgraph::Direction::Outgoing)
+                .neighbors_directed(*idx, petgraph::Direction::Outgoing)
                 .map(|n| pg[n].id)
                 .collect();
 
             resolved.push(ResolvedNode {
-                node: pg[idx].clone(),
-                topo_order: order,
+                node: pg[*idx].clone(),
                 upstream_ids,
                 downstream_ids,
             });
         }
 
-        let compiled = CompiledGraph { graph: pg, index_map };
-
         Ok(ExecutionPlan {
             nodes: resolved,
-            topo_order,
-            compiled,
         })
     }
 }

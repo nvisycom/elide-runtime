@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::{EntityCategory, EntityKind};
 
-// ── defaults ────────────────────────────────────────────────────────────
 
 /// Default mask character for text redaction.
 pub const DEFAULT_MASK_CHAR: char = '*';
@@ -35,7 +34,6 @@ fn default_block_size() -> u32 {
     DEFAULT_PIXELATE_BLOCK_SIZE
 }
 
-// ── text / tabular ──────────────────────────────────────────────────────
 
 /// Text redaction specification with method-specific configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -88,7 +86,6 @@ pub enum TextRedactionInput {
     },
 }
 
-// ── image / video ───────────────────────────────────────────────────────
 
 /// Image redaction specification with method-specific configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -116,7 +113,6 @@ pub enum ImageRedactionInput {
     Synthesize,
 }
 
-// ── audio ───────────────────────────────────────────────────────────────
 
 /// Audio redaction specification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -130,7 +126,6 @@ pub enum AudioRedactionInput {
     Synthesize,
 }
 
-// ── unified ─────────────────────────────────────────────────────────────
 
 /// Unified redaction specification submitted to the engine.
 ///
@@ -140,13 +135,12 @@ pub enum AudioRedactionInput {
 pub enum RedactionInput {
     /// Text/tabular redaction specification.
     Text(TextRedactionInput),
-    /// Image/video redaction specification.
+    /// Image redaction specification.
     Image(ImageRedactionInput),
     /// Audio redaction specification.
     Audio(AudioRedactionInput),
 }
 
-// ── agent input ─────────────────────────────────────────────────────────
 
 /// Entity passed to a redactor agent for decision-making.
 ///
@@ -154,6 +148,7 @@ pub enum RedactionInput {
 /// and byte offsets in the source text. The redactor uses this context to
 /// choose an appropriate [`RedactionMethod`](super::RedactionMethod).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RedactorInput {
     /// Specific entity type (e.g. `EmailAddress`, `GovernmentId`).
     pub entity_type: EntityKind,

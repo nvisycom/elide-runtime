@@ -51,6 +51,7 @@ impl Loader for JsonLoader {
         })?;
 
         let handler = JsonHandler {
+            source: content.content_source,
             data: JsonData {
                 value,
                 indent,

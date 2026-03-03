@@ -1,6 +1,6 @@
 pub use crate::{
     Entity, DetectionMethod,
-    Location, TextLocation, ImageLocation, TabularLocation, AudioLocation, VideoLocation,
+    Location, TextLocation, ImageLocation, TabularLocation, AudioLocation,
     ModelInfo, ModelKind,
     DetectionOutput,
     EntitySelector,

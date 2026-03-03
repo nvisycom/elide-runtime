@@ -14,7 +14,7 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_engine::engine::Policies;
+use nvisy_engine::pipeline::Policies;
 
 use super::error::{ErrorKind, Result};
 use super::request::RedactionRequest;
@@ -33,6 +33,7 @@ async fn redact(
 
     let _graph = req.graph;
     let _connections = req.connections;
+    let _contexts = req.contexts;
 
     Err(ErrorKind::NotImplemented.with_message(format!(
         "redaction endpoint not yet implemented (content_id: {}, actor: {})",

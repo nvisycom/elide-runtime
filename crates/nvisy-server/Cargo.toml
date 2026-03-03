@@ -39,6 +39,7 @@ tower-http = { workspace = true, features = ["trace", "cors", "timeout", "reques
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
+serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
 # Primitive datatypes

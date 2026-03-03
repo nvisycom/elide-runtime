@@ -31,6 +31,7 @@ nvisy-codec = { workspace = true, features = [] }
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
+serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
 # Async runtime
@@ -48,6 +49,10 @@ petgraph = { workspace = true, features = [] }
 # Error handling
 thiserror = { workspace = true, features = [] }
 anyhow = { workspace = true, features = [] }
+
+# Derive macros
+derive_builder = { workspace = true, features = [] }
+strum = { workspace = true, features = [] }
 
 # Validation
 validator = { workspace = true, features = [] }

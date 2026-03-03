@@ -4,8 +4,8 @@
 
 Multimodal redaction runtime for sensitive data.
 
-Detect and remove sensitive information across documents, images, audio, and
-video. Combines deterministic patterns, NER, computer vision, and LLM-driven
+Detect and remove sensitive information across documents, images, and audio.
+Combines deterministic patterns, NER, computer vision, and LLM-driven
 classification into auditable, policy-driven pipelines built for regulated
 industries such as healthcare, legal, government, and financial services.
 

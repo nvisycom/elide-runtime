@@ -1,9 +1,7 @@
 //! Modality-specific entity location types.
 
-mod layout_kind;
 mod text_level;
 
-pub use layout_kind::LayoutKind;
 pub use text_level::TextLevel;
 
 use schemars::JsonSchema;
@@ -14,6 +12,7 @@ use nvisy_core::math::{BoundingBox, TimeSpan};
 
 /// Location of an entity within text content.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct TextLocation {
     /// Byte or character offset where the entity starts.
     pub start_offset: usize,
@@ -31,6 +30,9 @@ pub struct TextLocation {
     /// 1-based page number where the entity was found.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_number: Option<u32>,
+    /// 1-based line number where the entity was found.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_number: Option<u32>,
 }
 
 impl TextLocation {
@@ -42,6 +44,7 @@ impl TextLocation {
 
 /// Location of an entity within an image.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ImageLocation {
     /// Bounding box of the entity in the image.
     pub bounding_box: BoundingBox,
@@ -55,6 +58,7 @@ pub struct ImageLocation {
 
 /// Location of an entity within tabular data.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct TabularLocation {
     /// Row index (0-based).
     pub row_index: usize,
@@ -66,10 +70,17 @@ pub struct TabularLocation {
     /// Byte offset within the cell where the entity ends, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_offset: Option<usize>,
+    /// Column name or header label.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub column_name: Option<String>,
+    /// Sheet or table name (for multi-sheet documents).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sheet_name: Option<String>,
 }
 
 /// Location of an entity within an audio stream.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct AudioLocation {
     /// Time interval of the entity.
     pub time_span: TimeSpan,
@@ -79,24 +90,6 @@ pub struct AudioLocation {
     /// Links this entity to a specific audio document.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_id: Option<Uuid>,
-}
-
-/// Location of an entity within a video stream.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct VideoLocation {
-    /// Bounding box of the entity in the frame.
-    pub bounding_box: BoundingBox,
-    /// 0-based frame number where the entity was detected.
-    pub frame_number: u64,
-    /// Time interval of the entity in the video.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub time_span: Option<TimeSpan>,
-    /// Tracking identifier for an entity across multiple frames.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub track_id: Option<String>,
-    /// Speaker identifier from diarization (for audio track).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub speaker_id: Option<String>,
 }
 
 /// A modality-specific location for a detected entity.
@@ -114,8 +107,6 @@ pub enum Location {
     Tabular(TabularLocation),
     /// Entity found in audio.
     Audio(AudioLocation),
-    /// Entity found in video.
-    Video(VideoLocation),
 }
 
 impl Location {
@@ -147,14 +138,6 @@ impl Location {
     pub fn as_audio(&self) -> Option<&AudioLocation> {
         match self {
             Self::Audio(loc) => Some(loc),
-            _ => None,
-        }
-    }
-
-    /// If this is a video location, return a reference to it.
-    pub fn as_video(&self) -> Option<&VideoLocation> {
-        match self {
-            Self::Video(loc) => Some(loc),
             _ => None,
         }
     }

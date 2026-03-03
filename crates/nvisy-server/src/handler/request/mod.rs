@@ -5,7 +5,9 @@
 //! generation via aide.
 
 mod execute;
+mod path;
 mod redact;
 
 pub use execute::ExecuteRequest;
+pub use path::ContentPath;
 pub use redact::RedactionRequest;

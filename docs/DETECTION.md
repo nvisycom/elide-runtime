@@ -30,7 +30,7 @@ Learned models address the detection of sensitive content that cannot be capture
 
 Visual content requires detection methods that operate on pixel-level and spatial features:
 
-- **Face detection and recognition**: Identification of human faces in images and video frames for subsequent obfuscation.
+- **Face detection and recognition**: Identification of human faces in images for subsequent obfuscation.
 - **Document and identifier detection**: Recognition of identity documents, license plates, and other visual identifiers.
 - **Handwritten text detection**: Extraction and analysis of handwritten content in scanned documents and images.
 - **Screen capture analysis**: Detection of sensitive text rendered in screenshots, application windows, and other digital captures.

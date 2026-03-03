@@ -6,10 +6,9 @@
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
-
-use crate::document::Document;
 use nvisy_core::io::TextEncoding;
 
+use crate::document::Document;
 use crate::handler::{CsvData, CsvHandler, Loader};
 
 /// Parameters for [`CsvLoader`].
@@ -86,6 +85,7 @@ impl Loader for CsvLoader {
 
         tracing::Span::current().record("rows", rows.len());
         let handler = CsvHandler {
+            source: content.content_source,
             data: CsvData {
                 headers,
                 rows,
@@ -144,7 +144,6 @@ fn detect_delimiter(text: &str) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::Handler;
     use bytes::Bytes;
     use futures::StreamExt;
     use nvisy_core::path::ContentSource;
@@ -223,7 +222,7 @@ mod tests {
         let doc = CsvLoader
             .decode(&content, &CsvParams::default())
             .await?;
-        let spans: Vec<_> = doc.view_spans().await.collect().await;
+        let spans: Vec<_> = doc.text_spans().await.collect().await;
 
         // 2 header + 2 data
         assert_eq!(spans.len(), 4);

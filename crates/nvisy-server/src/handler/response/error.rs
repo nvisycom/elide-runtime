@@ -18,6 +18,7 @@ use serde::Serialize;
 /// field is a stable, machine-readable identifier; `status` is the
 /// HTTP status code; `message` is a human-readable description.
 #[derive(Debug, Clone, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ErrorResponse<'a> {
     /// Machine-readable error name (e.g. `"NOT_FOUND"`, `"BAD_REQUEST"`).
     pub name: Cow<'a, str>,

@@ -1,5 +1,5 @@
 //! Plain-text handler: holds loaded text content and provides
-//! span-based access via [`Handler`].
+//! span-based access via [`Handler`] + [`TextHandler`].
 //!
 //! The handler stores the text as a vector of lines together with a
 //! trailing-newline flag so the original file can be reconstructed
@@ -7,22 +7,22 @@
 //!
 //! # Span model
 //!
-//! [`Handler::view_spans`] yields one [`Span`] per line.  Each span
+//! [`TextHandler::text_spans`] yields one [`Span`] per line.  Each span
 //! is addressed by a [`TxtSpan`] (0-based line index) and carries the
 //! line content as a `String`.
 //!
-//! [`Handler::edit_spans`] replaces the content of lines at the given
+//! [`TextHandler::edit_text`] replaces the content of lines at the given
 //! indices.
 
 use futures::StreamExt;
 
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
-use crate::stream::{SpanEditStream, SpanStream};
-use crate::handler::{Handler, Span};
+use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
-use crate::transform::TextHandler;
 
 /// 0-based line index identifying a span within a plain-text document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -31,40 +31,43 @@ pub struct TxtSpan(pub usize);
 /// Handler for loaded plain-text content.
 ///
 /// Each line is independently addressable via [`TxtSpan`].
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TxtHandler {
+    pub(crate) source: ContentSource,
     pub(crate) lines: Vec<String>,
     pub(crate) trailing_newline: bool,
 }
 
-#[async_trait::async_trait]
 impl Handler for TxtHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Txt
     }
 
     #[tracing::instrument(name = "txt.encode", skip_all, fields(output_bytes))]
-    fn encode(&self) -> Result<bytes::Bytes, Error> {
+    fn encode(&self) -> Result<ContentData, Error> {
         let mut out = self.lines.join("\n");
         if self.trailing_newline && !self.lines.is_empty() {
             out.push('\n');
         }
         let bytes = out.into_bytes();
         tracing::Span::current().record("output_bytes", bytes.len());
-        Ok(bytes.into())
+        let source = ContentSource::new().with_parent(&self.source);
+        Ok(ContentData::new(source, bytes.into()))
     }
+}
 
-    type SpanId = TxtSpan;
-    type SpanData = TextData;
+#[async_trait::async_trait]
+impl TextHandler for TxtHandler {
+    type TextId = TxtSpan;
 
-    async fn view_spans(&self) -> SpanStream<'_, TxtSpan, TextData> {
+    async fn text_spans(&self) -> SpanStream<'_, TxtSpan, TextData> {
         SpanStream::new(futures::stream::iter(TxtSpanIter {
             lines: &self.lines,
             index: 0,
         }))
     }
 
-    async fn edit_spans(
+    async fn edit_text(
         &mut self,
         edits: SpanEditStream<'_, TxtSpan, TextData>,
     ) -> Result<(), Error> {
@@ -85,7 +88,13 @@ impl Handler for TxtHandler {
 impl TxtHandler {
     /// Create a new handler from lines and a trailing-newline flag.
     pub fn new(lines: Vec<String>, trailing_newline: bool) -> Self {
-        Self { lines, trailing_newline }
+        Self { source: ContentSource::new(), lines, trailing_newline }
+    }
+
+    /// Set the content source for lineage tracking.
+    pub fn with_source(mut self, source: ContentSource) -> Self {
+        self.source = source;
+        self
     }
 
     /// All lines in the document.
@@ -114,8 +123,6 @@ impl TxtHandler {
     }
 }
 
-impl TextHandler for TxtHandler {}
-
 /// Iterator over lines of a plain-text document.
 struct TxtSpanIter<'a> {
     lines: &'a [String],
@@ -143,23 +150,20 @@ impl<'a> ExactSizeIterator for TxtSpanIter<'a> {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::SpanEdit;
+    use crate::handler::{SpanEdit, TextHandler};
     use futures::StreamExt;
     use nvisy_core::Error;
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');
         let lines = text.lines().map(String::from).collect();
-        TxtHandler {
-            lines,
-            trailing_newline,
-        }
+        TxtHandler::new(lines, trailing_newline)
     }
 
     #[tokio::test]
     async fn view_spans_multiline() {
         let h = handler("hello\nworld\n");
-        let spans: Vec<_> = h.view_spans().await.collect().await;
+        let spans: Vec<_> = h.text_spans().await.collect().await;
 
         assert_eq!(spans.len(), 2);
         assert_eq!(spans[0].id, TxtSpan(0));
@@ -171,7 +175,7 @@ mod tests {
     #[tokio::test]
     async fn view_spans_single_line_no_newline() {
         let h = handler("no newline");
-        let spans: Vec<_> = h.view_spans().await.collect().await;
+        let spans: Vec<_> = h.text_spans().await.collect().await;
 
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].data, "no newline");
@@ -181,7 +185,7 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_replace_line() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
-        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit::new(TxtSpan(1), "[REDACTED]".into()),
         ])))
         .await?;
@@ -193,7 +197,7 @@ mod tests {
     async fn edit_spans_out_of_bounds() {
         let mut h = handler("one line");
         let err = h
-            .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
+            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
                 SpanEdit::new(TxtSpan(5), "nope".into()),
             ])))
             .await
@@ -204,16 +208,16 @@ mod tests {
     #[test]
     fn encode_with_trailing_newline() -> Result<(), Error> {
         let h = handler("hello\nworld\n");
-        let bytes = h.encode()?;
-        assert_eq!(&bytes[..], b"hello\nworld\n");
+        let content = h.encode()?;
+        assert_eq!(content.as_bytes(), b"hello\nworld\n");
         Ok(())
     }
 
     #[test]
     fn encode_without_trailing_newline() -> Result<(), Error> {
         let h = handler("no newline");
-        let bytes = h.encode()?;
-        assert_eq!(&bytes[..], b"no newline");
+        let content = h.encode()?;
+        assert_eq!(content.as_bytes(), b"no newline");
         Ok(())
     }
 }

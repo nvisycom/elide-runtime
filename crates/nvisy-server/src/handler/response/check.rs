@@ -5,6 +5,7 @@ use serde::Serialize;
 
 /// Response body for `GET /health`.
 #[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Health {
     /// Server status string (always `"ok"` when reachable).
     pub status: &'static str,
@@ -12,6 +13,7 @@ pub struct Health {
 
 /// Response body for `GET /api/v1/analytics`.
 #[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Analytics {
     /// Total number of pipeline runs.
     pub total_runs: u64,

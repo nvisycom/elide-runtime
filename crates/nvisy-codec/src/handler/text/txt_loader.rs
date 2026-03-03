@@ -42,7 +42,8 @@ impl Loader for TxtLoader {
         let lines: Vec<String> = text.lines().map(String::from).collect();
         tracing::Span::current().record("lines", lines.len());
 
-        let handler = TxtHandler::new(lines, trailing_newline);
+        let handler = TxtHandler::new(lines, trailing_newline)
+            .with_source(content.content_source);
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }
@@ -51,7 +52,6 @@ impl Loader for TxtLoader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::Handler;
     use bytes::Bytes;
     use futures::StreamExt;
     use nvisy_core::path::ContentSource;
@@ -95,7 +95,7 @@ mod tests {
             .decode(&content, &TxtParams::default())
             .await?;
 
-        let spans: Vec<_> = doc.view_spans().await.collect().await;
+        let spans: Vec<_> = doc.text_spans().await.collect().await;
         assert_eq!(spans.len(), 3);
         assert_eq!(spans[0].data, "Alice");
         assert_eq!(spans[1].data, "Bob");

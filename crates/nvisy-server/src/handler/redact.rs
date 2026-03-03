@@ -33,6 +33,7 @@ async fn redact(
 
     let _graph = req.graph;
     let _connections = req.connections;
+    let _contexts = req.contexts;
 
     Err(ErrorKind::NotImplemented.with_message(format!(
         "redaction endpoint not yet implemented (content_id: {}, actor: {})",

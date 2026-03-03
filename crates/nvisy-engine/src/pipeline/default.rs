@@ -2,9 +2,9 @@
 //!
 //! [`DefaultEngine`] executes the three-phase pipeline:
 //!
-//! 1. **Detect** — run configured detection methods on the input content.
-//! 2. **Evaluate** — map detected entities to redaction instructions via policies.
-//! 3. **Redact** — apply redaction instructions to produce output content.
+//! 1. **Detect**: run configured detection methods on the input content.
+//! 2. **Evaluate**: map detected entities to redaction instructions via policies.
+//! 3. **Redact**: apply redaction instructions to produce output content.
 //!
 //! After the content-level pipeline completes, the execution graph is run
 //! so that any Source/Action/Target DAG nodes are also executed.
@@ -37,7 +37,7 @@ const CHANNEL_BUFFER_SIZE: usize = 256;
 
 /// Default [`Engine`] implementation.
 ///
-/// Stateless — all configuration comes from the [`EngineInput`] provided at
+/// Stateless: all configuration comes from the [`EngineInput`] provided at
 /// call time. Suitable for embedding in long-lived application state.
 #[derive(Debug, Clone, Copy)]
 pub struct DefaultEngine;
@@ -231,9 +231,26 @@ impl Engine for DefaultEngine {
 
         // Phase 3: Redaction
         //
-        // The ApplyRedactionAction is called directly by callers that have
-        // parsed documents into the typed codec representation. At this level
-        // we track the summary counts.
+        // The Redaction operation wraps per-modality logic (text, image, audio,
+        // tabular). It requires typed `Document<T>` representations which are
+        // not yet available at this level: the engine works with `ContentHandler`.
+        // Once codec parsing is wired in, the call below will pass real documents
+        // instead of empty vecs.
+        let redaction_op = crate::operation::processing::Redaction;
+        let redaction_input = crate::operation::processing::RedactionInput {
+            text_docs: Vec::new(),
+            image_docs: Vec::new(),
+            audio_docs: Vec::new(),
+            tabular_docs: Vec::new(),
+            entities: detection.entities.clone(),
+            redactions: all_redactions.clone(),
+        };
+        let _redaction_output = crate::operation::Operation::call(
+            &redaction_op,
+            redaction_input,
+            (),
+        ).await?;
+
         let applied = all_redactions.iter().filter(|r| r.applied).count();
         let skipped = all_redactions.len() - applied;
 
@@ -247,7 +264,14 @@ impl Engine for DefaultEngine {
         //
         // Compile the graph into a topologically-sorted execution plan and
         // run Source/Action/Target nodes concurrently.
-        let plan = Compiler::new().compile(&input.graph)?;
+        let mut compiler = Compiler::new();
+        if let Some(retry) = input.default_retry {
+            compiler = compiler.with_retry(retry);
+        }
+        if let Some(timeout) = input.default_timeout {
+            compiler = compiler.with_timeout(timeout);
+        }
+        let plan = compiler.compile(&input.graph)?;
         let run_output = Self::run_graph(&plan, &input.connections).await?;
 
         // Emit a detection audit entry for the overall run.

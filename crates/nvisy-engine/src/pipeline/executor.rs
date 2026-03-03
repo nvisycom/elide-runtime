@@ -80,7 +80,7 @@ pub(crate) async fn execute_node(
         Some(policy) => {
             let compiled = CompiledTimeoutPolicy::from(policy);
             let result = compiled.with_timeout(run).await;
-            match (&result, &policy.on_timeout) {
+            match (&result, &compiled.on_timeout) {
                 (Err(e), TimeoutBehavior::Skip) if e.kind == ErrorKind::Timeout => Ok(0),
                 _ => result,
             }

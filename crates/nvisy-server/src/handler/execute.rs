@@ -55,6 +55,8 @@ async fn execute(
         connections: req.connections,
         actor: req.actor,
         contexts: req.contexts,
+        default_retry: None,
+        default_timeout: None,
     };
 
     let output = state.engine().run(input).await?;

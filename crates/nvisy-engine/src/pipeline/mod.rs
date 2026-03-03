@@ -26,15 +26,15 @@ use uuid::Uuid;
 
 use nvisy_core::Error;
 use nvisy_core::fs::ContentHandler;
-// Re-exported so downstream crates (e.g. nvisy-server) don't need a direct
-// dependency on nvisy-ontology or nvisy-identify.
 pub use nvisy_identify::{Audit, Policies, PolicyEvaluation, RedactionSummary};
-pub use crate::provenance::FileAudit;
 pub use nvisy_ontology::context::Context;
 pub use nvisy_ontology::entity::DetectionOutput;
-pub use nvisy_ontology::record::{RedactionMap, RedactionMapItem};
+pub use nvisy_ontology::record::RedactionMap;
+
+use crate::provenance::FileAudit;
 
 use crate::compiler::Graph;
+pub use crate::compiler::{RetryPolicy, TimeoutPolicy};
 
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {
@@ -50,6 +50,10 @@ pub struct EngineInput {
     pub actor: Option<String>,
     /// Reference-data contexts for detection.
     pub contexts: Vec<Context>,
+    /// Default retry policy for graph nodes without one.
+    pub default_retry: Option<RetryPolicy>,
+    /// Default timeout policy for graph nodes without one.
+    pub default_timeout: Option<TimeoutPolicy>,
 }
 
 /// Full result of a pipeline run.

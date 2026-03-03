@@ -1,9 +1,10 @@
 //! Execute response types.
 
 use nvisy_engine::pipeline::{
-    Audit, DetectionOutput, EngineOutput, FileAudit, PolicyEvaluation, RedactionMap,
-    RedactionSummary, RunOutput,
+    Audit, DetectionOutput, EngineOutput, PolicyEvaluation, RedactionMap, RedactionSummary,
+    RunOutput,
 };
+use nvisy_engine::provenance::FileAudit;
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;

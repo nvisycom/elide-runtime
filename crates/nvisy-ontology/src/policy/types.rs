@@ -4,9 +4,9 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::rule::PolicyRule;
 use super::regulation::RegulationKind;
-use nvisy_ontology::specification::RedactionInput;
+use super::rule::PolicyRule;
+use crate::specification::RedactionInput;
 
 /// A named redaction policy containing an ordered set of rules.
 #[derive(Debug, Clone, Serialize, Deserialize)]

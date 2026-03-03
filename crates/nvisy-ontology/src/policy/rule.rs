@@ -5,9 +5,8 @@ use strum::Display;
 use uuid::Uuid;
 
 use nvisy_core::fs::DocumentType;
-use nvisy_ontology::specification::RedactionInput;
-
-use crate::EntitySelector;
+use crate::entity::EntitySelector;
+use crate::specification::RedactionInput;
 
 /// Conditions that must be met for a [`PolicyRule`] to apply.
 #[derive(Debug, Clone, Serialize, Deserialize)]

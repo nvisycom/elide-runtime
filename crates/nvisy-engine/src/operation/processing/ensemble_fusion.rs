@@ -3,7 +3,10 @@
 
 use std::collections::HashMap;
 
-use crate::{DetectionMethod, Entity, Location};
+use nvisy_ontology::entity::{DetectionMethod, Entity};
+use nvisy_ontology::location::Location;
+
+use crate::operation::{Operation, ParallelContext};
 
 /// Strategy for combining confidence scores from multiple detectors.
 #[derive(Debug, Clone)]
@@ -20,11 +23,11 @@ pub enum FusionStrategy {
 
 /// Ensemble merge — groups entities by `(kind, value, overlapping location)`
 /// then fuses confidence using the configured [`FusionStrategy`].
-pub struct EnsembleMerge {
+pub struct Ensemble {
     strategy: FusionStrategy,
 }
 
-impl EnsembleMerge {
+impl Ensemble {
     /// Create a new ensemble merge with the given strategy.
     pub fn new(strategy: FusionStrategy) -> Self {
         Self { strategy }
@@ -100,6 +103,20 @@ impl EnsembleMerge {
     }
 }
 
+impl Operation for Ensemble {
+    type Input = Vec<Entity>;
+    type Output = Vec<Entity>;
+    type Context = ParallelContext;
+
+    async fn call(
+        &self,
+        input: Self::Input,
+        _ctx: Self::Context,
+    ) -> Result<Self::Output, nvisy_core::Error> {
+        Ok(self.merge(input))
+    }
+}
+
 /// Check whether two optional locations overlap.
 fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
     match (a, b) {
@@ -112,8 +129,8 @@ fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TextLocation;
     use nvisy_ontology::entity::{EntityCategory, EntityKind};
+    use nvisy_ontology::location::TextLocation;
 
     fn text_entity(
         value: &str,
@@ -138,7 +155,7 @@ mod tests {
 
     #[test]
     fn max_confidence_strategy() {
-        let merge = EnsembleMerge::new(FusionStrategy::MaxConfidence);
+        let merge = Ensemble::new(FusionStrategy::MaxConfidence);
         let entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.7, 0, 4),
             text_entity("John", DetectionMethod::Ner, 0.85, 0, 4),
@@ -151,7 +168,7 @@ mod tests {
 
     #[test]
     fn noisy_or_strategy() {
-        let merge = EnsembleMerge::new(FusionStrategy::NoisyOr);
+        let merge = Ensemble::new(FusionStrategy::NoisyOr);
         let entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.7, 0, 4),
             text_entity("John", DetectionMethod::Ner, 0.8, 0, 4),
@@ -168,7 +185,7 @@ mod tests {
         weights.insert(DetectionMethod::Regex, 1.0);
         weights.insert(DetectionMethod::Ner, 2.0);
 
-        let merge = EnsembleMerge::new(FusionStrategy::WeightedAverage { weights });
+        let merge = Ensemble::new(FusionStrategy::WeightedAverage { weights });
         let entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.6, 0, 4),
             text_entity("John", DetectionMethod::Ner, 0.9, 0, 4),
@@ -181,7 +198,7 @@ mod tests {
 
     #[test]
     fn non_overlapping_not_merged() {
-        let merge = EnsembleMerge::new(FusionStrategy::NoisyOr);
+        let merge = Ensemble::new(FusionStrategy::NoisyOr);
         let entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.7, 0, 4),
             text_entity("John", DetectionMethod::Ner, 0.8, 10, 14),
@@ -192,7 +209,7 @@ mod tests {
 
     #[test]
     fn single_entity_unchanged() {
-        let merge = EnsembleMerge::new(FusionStrategy::NoisyOr);
+        let merge = Ensemble::new(FusionStrategy::NoisyOr);
         let entities = vec![text_entity("John", DetectionMethod::Regex, 0.7, 0, 4)];
         let result = merge.merge(entities);
         assert_eq!(result.len(), 1);
@@ -202,7 +219,7 @@ mod tests {
 
     #[test]
     fn empty_input() {
-        let merge = EnsembleMerge::new(FusionStrategy::MaxConfidence);
+        let merge = Ensemble::new(FusionStrategy::MaxConfidence);
         let result = merge.merge(Vec::new());
         assert!(result.is_empty());
     }

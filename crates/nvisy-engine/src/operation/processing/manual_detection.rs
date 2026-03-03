@@ -5,13 +5,18 @@
 
 use serde::Deserialize;
 
-use crate::{DetectionMethod, Entity, Annotation, AnnotationKind, Location};
 use nvisy_core::Error;
+use nvisy_ontology::entity::{
+    Annotation, AnnotationKind, DetectionMethod, Entity,
+};
+use nvisy_ontology::location::Location;
 
-/// Typed parameters for [`DetectManualAction`].
+use crate::operation::{Operation, ParallelContext};
+
+/// Typed parameters for [`ManualDetection`].
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DetectManualParams {}
+pub struct ManualDetectionParams {}
 
 /// An exclusion zone that detection should skip.
 #[derive(Debug, Clone)]
@@ -22,7 +27,7 @@ pub struct Exclusion {
     pub value: Option<String>,
 }
 
-/// Output of [`DetectManualAction::execute`].
+/// Output of [`ManualDetection::execute`].
 #[derive(Debug)]
 pub struct ManualOutput {
     /// Entities derived from inclusion annotations.
@@ -34,10 +39,10 @@ pub struct ManualOutput {
 /// Converts each inclusion [`Annotation`] into a full [`Entity`] with
 /// `DetectionMethod::Manual` and confidence 1.0.  Collects exclusion
 /// annotations for downstream filtering.
-pub struct DetectManualAction;
+pub struct ManualDetection;
 
-impl DetectManualAction {
-    pub async fn connect(_params: DetectManualParams) -> Result<Self, Error> {
+impl ManualDetection {
+    pub async fn connect(_params: ManualDetectionParams) -> Result<Self, Error> {
         Ok(Self)
     }
 
@@ -85,6 +90,20 @@ impl DetectManualAction {
     }
 }
 
+impl Operation for ManualDetection {
+    type Input = Vec<Annotation>;
+    type Output = ManualOutput;
+    type Context = ParallelContext;
+
+    async fn call(
+        &self,
+        input: Self::Input,
+        _ctx: Self::Context,
+    ) -> Result<Self::Output, Error> {
+        self.execute(input).await
+    }
+}
+
 /// Check whether an entity falls within any exclusion zone.
 ///
 /// An entity is excluded if:
@@ -113,8 +132,8 @@ pub fn is_excluded(entity: &Entity, exclusions: &[Exclusion]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TextLocation;
     use nvisy_ontology::entity::{EntityCategory, EntityKind};
+    use nvisy_ontology::location::TextLocation;
 
     fn make_entity(value: &str, start: usize, end: usize) -> Entity {
         Entity::new(
@@ -179,7 +198,7 @@ mod tests {
 
     #[tokio::test]
     async fn execute_collects_exclusions() {
-        let action = DetectManualAction;
+        let action = ManualDetection;
         let annotations = vec![
             Annotation {
                 kind: AnnotationKind::Inclusion,

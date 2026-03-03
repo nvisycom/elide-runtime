@@ -10,8 +10,8 @@ mod translation;
 
 pub use classification::Classification;
 pub use computer_vision::ComputerVision;
-pub use ner::Ner;
-pub use ocr::Ocr;
+pub use ner::{Ner, NerMethodParams};
+pub use ocr::{Ocr, OcrBackendProvider};
 pub use summarization::Summarization;
 pub use transcription::Transcription;
 pub use translation::Translation;

@@ -26,7 +26,7 @@ use uuid::Uuid;
 
 use nvisy_core::Error;
 use nvisy_core::fs::ContentHandler;
-pub use nvisy_identify::{Audit, Policies, PolicyEvaluation, RedactionSummary};
+pub use nvisy_ontology::policy::{Policies, PolicyEvaluation, RedactionSummary};
 pub use nvisy_ontology::context::Context;
 pub use nvisy_ontology::entity::DetectionOutput;
 pub use nvisy_ontology::record::RedactionMap;
@@ -72,8 +72,6 @@ pub struct EngineOutput {
     pub evaluation: PolicyEvaluation,
     /// Per-source redaction summaries.
     pub summaries: Vec<RedactionSummary>,
-    /// Immutable audit trail.
-    pub audits: Vec<Audit>,
     /// Per-file processing logs.
     pub file_audits: Vec<FileAudit>,
     /// Redaction mapping artifacts.

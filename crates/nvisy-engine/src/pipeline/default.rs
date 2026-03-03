@@ -12,18 +12,19 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use jiff::Timestamp;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 use uuid::Uuid;
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
-use nvisy_identify::{
-    Audit, AuditAction, EvaluatePolicyAction, EvaluatePolicyParams, PolicyEvaluation,
-    RedactionSummary,
+use nvisy_ontology::policy::{PolicyEvaluation, RedactionSummary};
+use crate::operation::processing::{EvaluatePolicy, EvaluatePolicyParams};
+use crate::provenance::{
+    AuditEntryStatus, FileAudit, FileAuditEntryBuilder,
+    ProcessingActionBuilder, ProcessingKind,
+    FileAuditEntryKind,
 };
-use crate::provenance::FileAudit;
 use nvisy_ontology::record::RedactionMap;
 
 use super::{Engine, EngineInput, EngineOutput};
@@ -147,14 +148,14 @@ impl DefaultEngine {
 impl Engine for DefaultEngine {
     async fn run(&self, input: EngineInput) -> Result<EngineOutput, Error> {
         let run_id = Uuid::new_v4();
-        let mut audits: Vec<Audit> = Vec::new();
         let content_source = input.source.content_source();
 
         // Contexts are accepted for future use by detection actions.
         let _contexts = &input.contexts;
 
         // Initialize per-file processing log and redaction map.
-        let file_audit = FileAudit::new(content_source);
+        let mut file_audit = FileAudit::new(content_source);
+        file_audit.run_id = Some(run_id);
         let redaction_map = RedactionMap::new(content_source, run_id);
 
         // Phase 1: Detection
@@ -163,7 +164,7 @@ impl Engine for DefaultEngine {
         // CV layers) before the engine is called. The engine receives entities as
         // part of a higher-level orchestration layer. For now, we create an empty
         // detection output and let the execution graph handle detection actions.
-        let detection = nvisy_identify::DetectionOutput {
+        let detection = nvisy_ontology::entity::DetectionOutput {
             source: content_source,
             entities: Vec::new(),
             policy_id: input.policies.policies.first().map(|p| p.id),
@@ -185,23 +186,24 @@ impl Engine for DefaultEngine {
                 default_confidence_threshold: policy.default_confidence_threshold,
             };
 
-            let action = EvaluatePolicyAction::connect(params).await?;
+            let action = EvaluatePolicy::connect(params).await?;
             let redactions = action.execute(detection.entities.clone()).await?;
 
-            // Emit audit entries for each redaction decision.
-            for r in &redactions {
-                audits.push(Audit {
-                    source: content_source,
-                    action: AuditAction::Redaction,
-                    timestamp: Timestamp::now(),
-                    entity_id: Some(r.entity_id),
-                    redaction_id: Some(r.source.as_uuid()),
-                    policy_id: Some(policy.id),
-                    source_id: Some(content_source.as_uuid()),
-                    run_id: Some(run_id),
-                    actor: input.actor.clone(),
-                });
-            }
+            // Record a policy evaluation audit entry.
+            let eval_entry = FileAuditEntryBuilder::default()
+                .with_status(AuditEntryStatus::Success)
+                .with_policy_id(policy.id)
+                .with_kind(FileAuditEntryKind::Processing(
+                    ProcessingKind::PolicyEvaluation(
+                        ProcessingActionBuilder::default()
+                            .with_matched_count(redactions.len() as u64)
+                            .build()
+                            .unwrap_or_default(),
+                    ),
+                ))
+                .finish()
+                .expect("valid audit entry");
+            file_audit.push(eval_entry);
 
             evaluations.push(PolicyEvaluation {
                 policy_id: policy.id,
@@ -248,11 +250,27 @@ impl Engine for DefaultEngine {
         let _redaction_output = crate::operation::Operation::call(
             &redaction_op,
             redaction_input,
-            (),
+            crate::operation::ParallelContext::default(),
         ).await?;
 
         let applied = all_redactions.iter().filter(|r| r.applied).count();
         let skipped = all_redactions.len() - applied;
+
+        // Record a redaction audit entry.
+        let redaction_entry = FileAuditEntryBuilder::default()
+            .with_status(AuditEntryStatus::Success)
+            .with_kind(FileAuditEntryKind::Processing(
+                ProcessingKind::Redaction(
+                    ProcessingActionBuilder::default()
+                        .with_items_count(all_redactions.len() as u64)
+                        .with_matched_count(applied as u64)
+                        .build()
+                        .unwrap_or_default(),
+                ),
+            ))
+            .finish()
+            .expect("valid audit entry");
+        file_audit.push(redaction_entry);
 
         let summaries = vec![RedactionSummary {
             source: content_source,
@@ -274,26 +292,12 @@ impl Engine for DefaultEngine {
         let plan = compiler.compile(&input.graph)?;
         let run_output = Self::run_graph(&plan, &input.connections).await?;
 
-        // Emit a detection audit entry for the overall run.
-        audits.push(Audit {
-            source: content_source,
-            action: AuditAction::Detection,
-            timestamp: Timestamp::now(),
-            entity_id: None,
-            redaction_id: None,
-            policy_id: input.policies.policies.first().map(|p| p.id),
-            source_id: Some(content_source.as_uuid()),
-            run_id: Some(run_id),
-            actor: input.actor.clone(),
-        });
-
         Ok(EngineOutput {
             run_id,
             output: input.source,
             detection,
             evaluation,
             summaries,
-            audits,
             file_audits: vec![file_audit],
             redaction_maps: vec![redaction_map],
             run_output,

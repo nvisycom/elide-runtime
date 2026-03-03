@@ -4,9 +4,12 @@
 //! overlapping location into a single entity with the highest
 //! confidence and `DetectionMethod::Composite` when methods differ.
 
-use crate::{DetectionMethod, Entity, Location};
+use nvisy_ontology::entity::{DetectionMethod, Entity};
+use nvisy_ontology::location::Location;
 
-/// Deduplicates a list of entities by merging duplicates.
+use crate::operation::{Operation, ParallelContext};
+
+/// Deduplications a list of entities by merging duplicates.
 ///
 /// Two entities are considered duplicates when they have the same
 /// `entity_kind` and `value` and their locations overlap.
@@ -15,10 +18,10 @@ use crate::{DetectionMethod, Entity, Location};
 /// - The highest confidence score is kept.
 /// - If the detection methods differ, the merged entity uses
 ///   `DetectionMethod::Composite`.
-pub struct DeduplicateAction;
+pub struct Deduplication;
 
-impl DeduplicateAction {
-    /// Deduplicate and merge overlapping entities.
+impl Deduplication {
+    /// Deduplication and merge overlapping entities.
     pub fn execute(entities: Vec<Entity>) -> Vec<Entity> {
         if entities.len() <= 1 {
             return entities;
@@ -52,6 +55,20 @@ impl DeduplicateAction {
     }
 }
 
+impl Operation for Deduplication {
+    type Input = Vec<Entity>;
+    type Output = Vec<Entity>;
+    type Context = ParallelContext;
+
+    async fn call(
+        &self,
+        input: Self::Input,
+        _ctx: Self::Context,
+    ) -> Result<Self::Output, nvisy_core::Error> {
+        Ok(Self::execute(input))
+    }
+}
+
 /// Check whether two optional locations overlap.
 ///
 /// Currently supports overlap detection for text locations.
@@ -69,8 +86,8 @@ fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TextLocation;
     use nvisy_ontology::entity::{EntityCategory, EntityKind};
+    use nvisy_ontology::location::TextLocation;
 
     fn text_entity(value: &str, method: DetectionMethod, confidence: f64, start: usize, end: usize) -> Entity {
         Entity::new(
@@ -93,7 +110,7 @@ mod tests {
             text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
             text_entity("John", DetectionMethod::Regex, 0.9, 0, 4),
         ];
-        let result = DeduplicateAction::execute(entities);
+        let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
         assert_eq!(result[0].detection_method, DetectionMethod::Regex);
@@ -105,7 +122,7 @@ mod tests {
             text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
             text_entity("John", DetectionMethod::Ner, 0.85, 0, 4),
         ];
-        let result = DeduplicateAction::execute(entities);
+        let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].detection_method, DetectionMethod::Composite);
         assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
@@ -117,7 +134,7 @@ mod tests {
             text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
             text_entity("John", DetectionMethod::Regex, 0.9, 10, 14),
         ];
-        let result = DeduplicateAction::execute(entities);
+        let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 2);
     }
 
@@ -127,13 +144,13 @@ mod tests {
             text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
             text_entity("Jane", DetectionMethod::Regex, 0.9, 0, 4),
         ];
-        let result = DeduplicateAction::execute(entities);
+        let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 2);
     }
 
     #[test]
     fn empty_input() {
-        let result = DeduplicateAction::execute(Vec::new());
+        let result = Deduplication::execute(Vec::new());
         assert!(result.is_empty());
     }
 
@@ -142,7 +159,7 @@ mod tests {
         let entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
         ];
-        let result = DeduplicateAction::execute(entities);
+        let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
     }
 
@@ -153,7 +170,7 @@ mod tests {
             text_entity("John Doe", DetectionMethod::Regex, 0.7, 0, 6),
             text_entity("John Doe", DetectionMethod::Ner, 0.9, 3, 9),
         ];
-        let result = DeduplicateAction::execute(entities);
+        let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].detection_method, DetectionMethod::Composite);
     }

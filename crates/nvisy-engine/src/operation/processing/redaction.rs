@@ -27,7 +27,7 @@ use nvisy_ontology::specification::{
     AudioRedactionInput, ImageRedactionInput, RedactionInput as RedactionSpec, TextRedactionInput,
 };
 
-use crate::operation::Operation;
+use crate::operation::{Operation, ParallelContext};
 
 /// Typed input for the [`Redaction`] operation.
 pub struct RedactionInput {
@@ -63,7 +63,7 @@ pub struct Redaction;
 impl Operation for Redaction {
     type Input = RedactionInput;
     type Output = RedactionOutput;
-    type Context = ();
+    type Context = ParallelContext;
 
     async fn call(
         &self,

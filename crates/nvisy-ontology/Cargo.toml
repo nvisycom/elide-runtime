@@ -25,13 +25,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# JSON Schema generation
-schemars = { workspace = true, features = [] }
-
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 serde_with = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
 
 # Derive macros and error handling
 derive_more = { workspace = true, features = ["from"] }
@@ -40,3 +38,4 @@ strum = { workspace = true, features = [] }
 # Primitive datatypes
 uuid = { workspace = true, features = ["serde", "v4", "v7"] }
 jiff = { workspace = true, features = [] }
+semver = { workspace = true, features = [] }

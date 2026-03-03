@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use nvisy_ontology::record::Redaction;
+use crate::record::Redaction;
 
 /// Full outcome of evaluating a policy against a set of entities.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

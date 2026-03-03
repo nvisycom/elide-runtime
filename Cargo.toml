@@ -7,7 +7,6 @@ members = [
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
-    "./crates/nvisy-identify",
     "./crates/nvisy-ontology",
     "./crates/nvisy-ocr",
     "./crates/nvisy-pattern",
@@ -38,7 +37,6 @@ documentation = "https://docs.rs/nvisy-runtime"
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
-nvisy-identify = { path = "./crates/nvisy-identify", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
@@ -74,7 +72,7 @@ csv = { version = "1.0", features = [] }
 # Derive macros and error handling
 thiserror = { version = "2.0", features = [] }
 anyhow = { version = "1.0", features = [] }
-derive_more = { version = "2.0", features = ["as_ref", "display", "from", "into"] }
+derive_more = { version = "2.0", features = ["as_ref", "deref", "deref_mut", "display", "from", "into"] }
 derive_builder = { version = "0.20", features = [] }
 strum = { version = "0.28", features = ["derive"] }
 

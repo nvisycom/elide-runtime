@@ -1,13 +1,16 @@
 //! Processing-strategy markers for operations.
 //!
-//! An operation advertises its processing model via an
-//! [`OperationContext`] associated type. The orchestrator inspects
-//! the concrete context at the type level to decide whether to batch
-//! all inputs upfront or iterate one-by-one.
+//! An operation encodes its processing model via the [`OperationContext`]
+//! bound on [`Operation::Input`] and [`Operation::Output`]. The
+//! orchestrator inspects the concrete wrapper at the type level to decide
+//! whether to batch all inputs upfront or iterate one-by-one.
 //!
-//! The trait is **sealed** — only [`ParallelContext`] and
+//! The trait is **sealed**: only [`ParallelContext`] and
 //! [`SequentialContext`] may implement it. This guarantees the
 //! orchestrator only needs to handle two calling conventions.
+//!
+//! [`Operation::Input`]: crate::operation::Operation::Input
+//! [`Operation::Output`]: crate::operation::Operation::Output
 
 mod parallel;
 mod sequential;

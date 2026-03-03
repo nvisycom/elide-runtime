@@ -1,4 +1,4 @@
-//! Policy evaluation action that maps detected entities to redaction instructions.
+//! Policy evaluation: maps detected entities to redaction instructions.
 
 use serde::Deserialize;
 
@@ -90,16 +90,15 @@ impl EvaluatePolicy {
 }
 
 impl Operation for EvaluatePolicy {
-    type Input = Vec<Entity>;
-    type Output = Vec<Redaction>;
-    type Context = ParallelContext;
+    type Input = ParallelContext<Vec<Entity>>;
+    type Output = ParallelContext<Vec<Redaction>>;
 
     async fn call(
         &self,
         input: Self::Input,
-        _ctx: Self::Context,
     ) -> Result<Self::Output, Error> {
-        self.execute(input).await
+        let result = self.execute(input.into_inner()).await?;
+        Ok(ParallelContext::new(result))
     }
 }
 

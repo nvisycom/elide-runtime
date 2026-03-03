@@ -3,11 +3,11 @@
 mod compression;
 mod conversion;
 mod encryption;
-mod ingest;
+mod ingestion;
 mod publish;
 
 pub use compression::Compression;
 pub use conversion::Conversion;
 pub use encryption::Encryption;
-pub use ingest::Ingest;
+pub use ingestion::Ingestion;
 pub use publish::Publish;

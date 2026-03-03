@@ -10,8 +10,11 @@ use super::OperationContext;
 
 /// All inputs are collected upfront and processed independently.
 ///
-/// The orchestrator gathers every input, then passes them to
-/// [`Operation::call`](crate::operation::Operation::call) in a single call.
+/// Used as the wrapper for [`Operation::Input`] and [`Operation::Output`]
+/// when an operation processes all data in a single batch.
+///
+/// [`Operation::Input`]: crate::operation::Operation::Input
+/// [`Operation::Output`]: crate::operation::Operation::Output
 #[derive(Debug, Clone, Deref, DerefMut, From)]
 pub struct ParallelContext<T = ()> {
     /// The data carried by this context.

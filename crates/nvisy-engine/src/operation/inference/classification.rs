@@ -8,11 +8,10 @@ use nvisy_core::Error;
 pub struct Classification;
 
 impl Operation for Classification {
-    type Input = ();
-    type Output = ();
-    type Context = ParallelContext;
+    type Input = ParallelContext;
+    type Output = ParallelContext;
 
-    async fn call(&self, _input: Self::Input, _ctx: Self::Context) -> Result<Self::Output, Error> {
+    async fn call(&self, _input: Self::Input) -> Result<Self::Output, Error> {
         todo!("Classification operation not yet implemented")
     }
 }

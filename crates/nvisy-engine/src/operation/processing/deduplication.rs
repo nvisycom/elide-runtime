@@ -56,16 +56,14 @@ impl Deduplication {
 }
 
 impl Operation for Deduplication {
-    type Input = Vec<Entity>;
-    type Output = Vec<Entity>;
-    type Context = ParallelContext;
+    type Input = ParallelContext<Vec<Entity>>;
+    type Output = ParallelContext<Vec<Entity>>;
 
     async fn call(
         &self,
         input: Self::Input,
-        _ctx: Self::Context,
     ) -> Result<Self::Output, nvisy_core::Error> {
-        Ok(Self::execute(input))
+        Ok(ParallelContext::new(Self::execute(input.into_inner())))
     }
 }
 

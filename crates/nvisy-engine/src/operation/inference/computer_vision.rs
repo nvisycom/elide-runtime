@@ -13,7 +13,7 @@ use nvisy_rig::agent::{CvAgent, CvEntity, DetectionConfig};
 use crate::operation::Operation;
 use crate::operation::ParallelContext;
 
-/// Computer-vision detection operation — thin adapter around [`CvAgent`].
+/// Computer-vision detection operation: thin adapter around [`CvAgent`].
 pub struct ComputerVision {
     agent: CvAgent,
     config: DetectionConfig,
@@ -27,15 +27,14 @@ impl ComputerVision {
 }
 
 impl Operation for ComputerVision {
-    type Input = Vec<Span<(), ImageData>>;
-    type Output = Vec<Entity>;
-    type Context = ParallelContext;
+    type Input = ParallelContext<Vec<Span<(), ImageData>>>;
+    type Output = ParallelContext<Vec<Entity>>;
 
     async fn call(
         &self,
         input: Self::Input,
-        _ctx: Self::Context,
     ) -> Result<Self::Output, Error> {
+        let input = input.into_inner();
         let mut entities = Vec::new();
 
         for span in &input {
@@ -53,7 +52,7 @@ impl Operation for ComputerVision {
             }
         }
 
-        Ok(entities)
+        Ok(ParallelContext::new(entities))
     }
 }
 

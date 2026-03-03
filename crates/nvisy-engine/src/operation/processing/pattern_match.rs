@@ -60,22 +60,22 @@ impl PatternMatch {
 }
 
 impl Operation for PatternMatch {
-    type Input = PatternInput;
-    type Output = Vec<Entity>;
-    type Context = ParallelContext;
+    type Input = ParallelContext<PatternInput>;
+    type Output = ParallelContext<Vec<Entity>>;
 
     async fn call(
         &self,
         input: Self::Input,
-        _ctx: Self::Context,
     ) -> Result<Self::Output, Error> {
-        match input {
+        let input = input.into_inner();
+        let entities = match input {
             PatternInput::Text(spans) => self.detect_text(spans),
             PatternInput::Csv(spans) => self.detect_csv(spans),
             #[cfg(feature = "html")]
             PatternInput::Html(spans) => self.detect_html(spans),
             PatternInput::Json(spans) => self.detect_json(spans),
-        }
+        }?;
+        Ok(ParallelContext::new(entities))
     }
 }
 

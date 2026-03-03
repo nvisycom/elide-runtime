@@ -48,7 +48,7 @@ struct NerState {
     known_entities: Vec<KnownNerEntity>,
 }
 
-/// NER detection operation — thin adapter around [`NerAgent`].
+/// NER detection operation: thin adapter around [`NerAgent`].
 ///
 /// Uses [`SequentialContext`]: the orchestrator feeds one span at a
 /// time so the adapter can carry known-entity context between spans.
@@ -95,15 +95,14 @@ impl Ner {
 }
 
 impl Operation for Ner {
-    type Input = Vec<Span<TxtSpan, String>>;
-    type Output = Vec<Entity>;
-    type Context = SequentialContext;
+    type Input = SequentialContext<Vec<Span<TxtSpan, String>>>;
+    type Output = SequentialContext<Vec<Entity>>;
 
     async fn call(
         &self,
         input: Self::Input,
-        _ctx: Self::Context,
     ) -> Result<Self::Output, Error> {
+        let input = input.into_inner();
         let mut entities = Vec::new();
 
         for span in &input {
@@ -171,6 +170,6 @@ impl Operation for Ner {
             state.known_entities = merge_ctx.known_entities;
         }
 
-        Ok(entities)
+        Ok(SequentialContext::new(entities))
     }
 }

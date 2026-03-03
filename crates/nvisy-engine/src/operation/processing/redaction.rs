@@ -61,15 +61,14 @@ pub struct RedactionOutput {
 pub struct Redaction;
 
 impl Operation for Redaction {
-    type Input = RedactionInput;
-    type Output = RedactionOutput;
-    type Context = ParallelContext;
+    type Input = ParallelContext<RedactionInput>;
+    type Output = ParallelContext<RedactionOutput>;
 
     async fn call(
         &self,
         input: Self::Input,
-        _ctx: Self::Context,
     ) -> Result<Self::Output, Error> {
+        let input = input.into_inner();
         let entity_map: HashMap<Uuid, &Entity> =
             input.entities.iter().map(|e| (e.source.as_uuid(), e)).collect();
         let redaction_map: HashMap<Uuid, &RedactionRecord> = input
@@ -99,12 +98,12 @@ impl Operation for Redaction {
             result_tabular.push(apply_tabular_doc(doc, &entity_map, &redaction_map).await?);
         }
 
-        Ok(RedactionOutput {
+        Ok(ParallelContext::new(RedactionOutput {
             text_docs: result_text,
             image_docs: result_image,
             audio_docs: result_audio,
             tabular_docs: result_tabular,
-        })
+        }))
     }
 }
 

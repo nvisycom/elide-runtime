@@ -23,24 +23,20 @@ use nvisy_core::Error;
 /// A single unit of work in the redaction pipeline.
 ///
 /// Operations are stateless and composable. The engine calls [`Operation::call`]
-/// with an input value and a context, and the operation produces a typed output
-/// or an error.
+/// with an input value and the operation produces a typed output or an error.
 ///
-/// The `Context` associated type must implement [`OperationContext`], ensuring
-/// every operation declares whether it uses [`ParallelContext`] or
-/// [`SequentialContext`] processing.
+/// Both `Input` and `Output` must implement [`OperationContext`], encoding the
+/// processing strategy (e.g. [`ParallelContext<Vec<Entity>>`] or
+/// [`SequentialContext<Vec<Span>>`]) directly in the type.
 pub trait Operation {
-    /// Data consumed by this operation.
-    type Input;
-    /// Data produced by this operation.
-    type Output;
-    /// Processing strategy context — must be [`ParallelContext`] or [`SequentialContext`].
-    type Context: OperationContext;
+    /// Data consumed by this operation: wraps the payload in a context marker.
+    type Input: OperationContext;
+    /// Data produced by this operation: wraps the payload in a context marker.
+    type Output: OperationContext;
 
     /// Execute the operation.
     fn call(
         &self,
         input: Self::Input,
-        ctx: Self::Context,
     ) -> impl Future<Output = Result<Self::Output, Error>> + Send;
 }

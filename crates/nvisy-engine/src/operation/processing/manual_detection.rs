@@ -1,4 +1,4 @@
-//! Manual annotation detection action.
+//! Manual annotation detection.
 //!
 //! Converts user-provided inclusion [`Annotation`]s into full [`Entity`] objects
 //! and collects exclusion annotations for downstream filtering.
@@ -91,16 +91,15 @@ impl ManualDetection {
 }
 
 impl Operation for ManualDetection {
-    type Input = Vec<Annotation>;
-    type Output = ManualOutput;
-    type Context = ParallelContext;
+    type Input = ParallelContext<Vec<Annotation>>;
+    type Output = ParallelContext<ManualOutput>;
 
     async fn call(
         &self,
         input: Self::Input,
-        _ctx: Self::Context,
     ) -> Result<Self::Output, Error> {
-        self.execute(input).await
+        let result = self.execute(input.into_inner()).await?;
+        Ok(ParallelContext::new(result))
     }
 }
 

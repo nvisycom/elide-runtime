@@ -1,4 +1,4 @@
-//! Ensemble entity fusion — merges entities from multiple detectors
+//! Ensemble entity fusion: merges entities from multiple detectors
 //! using configurable confidence-combination strategies.
 
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ pub enum FusionStrategy {
     NoisyOr,
 }
 
-/// Ensemble merge — groups entities by `(kind, value, overlapping location)`
+/// Ensemble merge: groups entities by `(kind, value, overlapping location)`
 /// then fuses confidence using the configured [`FusionStrategy`].
 pub struct Ensemble {
     strategy: FusionStrategy,
@@ -104,16 +104,14 @@ impl Ensemble {
 }
 
 impl Operation for Ensemble {
-    type Input = Vec<Entity>;
-    type Output = Vec<Entity>;
-    type Context = ParallelContext;
+    type Input = ParallelContext<Vec<Entity>>;
+    type Output = ParallelContext<Vec<Entity>>;
 
     async fn call(
         &self,
         input: Self::Input,
-        _ctx: Self::Context,
     ) -> Result<Self::Output, nvisy_core::Error> {
-        Ok(self.merge(input))
+        Ok(ParallelContext::new(self.merge(input.into_inner())))
     }
 }
 

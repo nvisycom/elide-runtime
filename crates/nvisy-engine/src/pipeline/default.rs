@@ -19,6 +19,7 @@ use uuid::Uuid;
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 use nvisy_ontology::policy::{PolicyEvaluation, RedactionSummary};
+use crate::operation::Operation;
 use crate::operation::processing::{EvaluatePolicy, EvaluatePolicyParams};
 use crate::provenance::{
     AuditEntryStatus, FileAudit, FileAuditEntryBuilder,
@@ -247,10 +248,8 @@ impl Engine for DefaultEngine {
             entities: detection.entities.clone(),
             redactions: all_redactions.clone(),
         };
-        let _redaction_output = crate::operation::Operation::call(
-            &redaction_op,
-            redaction_input,
-            crate::operation::ParallelContext::default(),
+        let _redaction_output = redaction_op.call(
+            crate::operation::ParallelContext::new(redaction_input),
         ).await?;
 
         let applied = all_redactions.iter().filter(|r| r.applied).count();

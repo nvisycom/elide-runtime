@@ -47,11 +47,10 @@ impl OcrProvider for OcrBackendProvider {
 pub struct Ocr;
 
 impl crate::operation::Operation for Ocr {
-    type Input = ();
-    type Output = ();
-    type Context = crate::operation::ParallelContext;
+    type Input = crate::operation::ParallelContext;
+    type Output = crate::operation::ParallelContext;
 
-    async fn call(&self, _input: Self::Input, _ctx: Self::Context) -> Result<Self::Output, nvisy_core::Error> {
+    async fn call(&self, _input: Self::Input) -> Result<Self::Output, nvisy_core::Error> {
         todo!("OCR operation not yet implemented")
     }
 }

@@ -11,7 +11,7 @@ mod generate;
 mod ner;
 mod ocr;
 
-pub use base::{AgentProvider, BaseAgentConfig, ContextWindow, DetectionConfig, DetectionRequest, DetectionResponse};
+pub use base::{AgentProvider, AgentConfig, ContextWindow, DetectionConfig, DetectionRequest, DetectionResponse};
 pub(crate) use base::{BaseAgent, ALL_TYPES_HINT};
 
 pub use cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};

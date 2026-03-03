@@ -7,7 +7,7 @@ mod detection;
 mod provider;
 mod response;
 
-pub use agent::BaseAgentConfig;
+pub use agent::AgentConfig;
 pub(crate) use agent::{Agents, BaseAgent};
 pub(crate) use builder::BaseAgentBuilder;
 pub use context::ContextWindow;

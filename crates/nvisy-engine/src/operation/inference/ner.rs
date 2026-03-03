@@ -14,7 +14,7 @@ use nvisy_ontology::entity::{
 };
 use nvisy_ontology::location::{Location, TextLocation};
 use nvisy_rig::agent::{
-    AgentProvider, BaseAgentConfig, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
+    AgentProvider, AgentConfig, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
 };
 
 use crate::operation::Operation;
@@ -39,7 +39,7 @@ pub struct NerMethodParams {
     pub provider: Option<AgentProvider>,
     /// Optional agent config overrides.
     #[serde(skip)]
-    pub agent_config: Option<BaseAgentConfig>,
+    pub agent_config: Option<AgentConfig>,
 }
 
 /// Accumulated state between sequential span calls.

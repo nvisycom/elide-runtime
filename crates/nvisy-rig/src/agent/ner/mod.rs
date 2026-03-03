@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::backend::UsageTracker;
 use super::{AgentProvider, DetectionConfig};
-use super::{BaseAgent, BaseAgentConfig};
+use super::{BaseAgent, AgentConfig};
 use crate::error::Error;
 use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 
@@ -34,7 +34,7 @@ pub struct NerAgent {
 
 impl NerAgent {
     /// Create a new NER agent.
-    pub fn new(provider: &AgentProvider, mut config: BaseAgentConfig) -> Result<Self, Error> {
+    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self, Error> {
         config.preamble.get_or_insert_with(|| NER_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config).build()?;
         Ok(Self { base })

@@ -17,7 +17,7 @@ use crate::error::Error;
 
 /// Sampling, retry, context-window, and preamble settings shared by all agents.
 #[derive(Debug, Clone)]
-pub struct BaseAgentConfig {
+pub struct AgentConfig {
     /// Sampling temperature (default: 0.1).
     pub temperature: f64,
     /// Maximum output tokens (default: 4096).
@@ -30,7 +30,7 @@ pub struct BaseAgentConfig {
     pub preamble: Option<String>,
 }
 
-impl Default for BaseAgentConfig {
+impl Default for AgentConfig {
     fn default() -> Self {
         Self {
             temperature: 0.1,
@@ -77,7 +77,7 @@ pub(crate) struct BaseAgent {
 }
 
 impl BaseAgent {
-    pub fn builder(provider: &AgentProvider, config: BaseAgentConfig) -> BaseAgentBuilder {
+    pub fn builder(provider: &AgentProvider, config: AgentConfig) -> BaseAgentBuilder {
         BaseAgentBuilder::new(provider, config)
     }
 

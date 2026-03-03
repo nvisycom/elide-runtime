@@ -8,7 +8,7 @@ use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
 use crate::backend::{UsageTracker, build_http_client};
-use super::{AgentProvider, Agents, BaseAgent, BaseAgentConfig};
+use super::{AgentProvider, Agents, BaseAgent, AgentConfig};
 use crate::error::Error;
 
 /// Builder for [`BaseAgent`].
@@ -18,12 +18,12 @@ use crate::error::Error;
 /// [`build`](Self::build).
 pub(crate) struct BaseAgentBuilder {
     provider: AgentProvider,
-    config: BaseAgentConfig,
+    config: AgentConfig,
     tools: Vec<Box<dyn ToolDyn>>,
 }
 
 impl BaseAgentBuilder {
-    pub fn new(provider: &AgentProvider, config: BaseAgentConfig) -> Self {
+    pub fn new(provider: &AgentProvider, config: AgentConfig) -> Self {
         Self {
             provider: provider.clone(),
             config,
@@ -45,7 +45,8 @@ impl BaseAgentBuilder {
             tools,
         } = self;
 
-        let http_client = build_http_client(config.max_retries);
+        let http_config = crate::backend::HttpClientConfig::with_max_retries(config.max_retries);
+        let http_client = build_http_client(&http_config);
         let preamble = config.preamble.as_deref();
 
         let inner = match &provider {
@@ -88,7 +89,7 @@ impl BaseAgentBuilder {
 /// the generic never escapes the module boundary.
 fn build_rig_agent<M: CompletionModel>(
     model: M,
-    config: &BaseAgentConfig,
+    config: &AgentConfig,
     preamble: Option<&str>,
     tools: Vec<Box<dyn ToolDyn>>,
 ) -> Agent<M> {

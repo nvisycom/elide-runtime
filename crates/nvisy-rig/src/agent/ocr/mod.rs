@@ -22,7 +22,7 @@ use nvisy_ontology::location::TextLevel;
 
 use crate::backend::UsageTracker;
 use super::{AgentProvider, DetectionConfig};
-use super::{BaseAgent, BaseAgentConfig};
+use super::{BaseAgent, AgentConfig};
 use crate::error::Error;
 use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use tool::OcrRigTool;
@@ -79,7 +79,7 @@ impl OcrAgent {
     /// Create a new OCR agent.
     pub fn new(
         provider: &AgentProvider,
-        mut config: BaseAgentConfig,
+        mut config: AgentConfig,
         ocr: impl OcrProvider + 'static,
     ) -> Result<Self, Error> {
         config.preamble.get_or_insert_with(|| OCR_SYSTEM_PROMPT.into());

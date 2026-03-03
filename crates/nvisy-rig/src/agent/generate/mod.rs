@@ -15,7 +15,7 @@ use uuid::Uuid;
 use crate::backend::UsageTracker;
 use crate::error::Error;
 
-use super::{AgentProvider, BaseAgent, BaseAgentConfig};
+use super::{AgentProvider, BaseAgent, AgentConfig};
 use prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
 
 /// A request to generate a replacement value for a single entity.
@@ -45,7 +45,7 @@ pub struct GenAgent {
 
 impl GenAgent {
     /// Create a new generation agent.
-    pub fn new(provider: &AgentProvider, mut config: BaseAgentConfig) -> Result<Self, Error> {
+    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self, Error> {
         config
             .preamble
             .get_or_insert_with(|| GEN_SYSTEM_PROMPT.into());

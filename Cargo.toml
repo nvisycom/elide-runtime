@@ -81,7 +81,7 @@ strum = { version = "0.28", features = ["derive"] }
 # Primitive datatypes
 uuid = { version = "1.0", features = ["serde", "v4", "v7"] }
 bytes = { version = "1.0", features = ["serde"] }
-hipstr = { version = "0.6", features = [] }
+hipstr = { version = "0.8", features = [] }
 jiff = { version = "0.2", features = ["serde"] }
 semver = { version = "1.0", features = ["serde"] }
 

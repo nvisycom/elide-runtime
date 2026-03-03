@@ -16,7 +16,7 @@ use aide::transform::TransformOperation;
 use axum::extract::State;
 use base64::Engine as _;
 use nvisy_core::io::{Content, ContentData};
-use nvisy_engine::engine::{Engine as _, EngineInput, Policies};
+use nvisy_engine::pipeline::{Engine as _, EngineInput, Policies};
 
 use super::error::{ErrorKind, Result};
 use super::request::ExecuteRequest;

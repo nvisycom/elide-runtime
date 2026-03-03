@@ -2,12 +2,13 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-mod apply;
 mod compiler;
+mod operation;
 
-pub mod engine;
+pub mod pipeline;
+pub mod provenance;
 
-pub use engine::DefaultEngine;
+pub use pipeline::DefaultEngine;
 
 // Re-export graph data model for pipeline definitions.
 pub use compiler::{

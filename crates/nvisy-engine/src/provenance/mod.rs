@@ -11,11 +11,11 @@ mod kind;
 mod lifecycle;
 mod processing;
 
-pub use entry::{AuditEntryStatus, FileAuditEntry};
-pub use inference::InferenceAction;
+pub use entry::{AuditEntryStatus, FileAuditEntry, FileAuditEntryBuilder, FileAuditEntryBuilderError};
+pub use inference::{InferenceAction, InferenceActionBuilder};
 pub use kind::{FileAuditEntryKind, InferenceKind, LifecycleKind, ProcessingKind};
-pub use lifecycle::LifecycleAction;
-pub use processing::ProcessingAction;
+pub use lifecycle::{LifecycleAction, LifecycleActionBuilder};
+pub use processing::{ProcessingAction, ProcessingActionBuilder};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

@@ -23,7 +23,7 @@ use nvisy_identify::{
     Audit, AuditAction, EvaluatePolicyAction, EvaluatePolicyParams, PolicyEvaluation,
     RedactionSummary,
 };
-use nvisy_ontology::audit::FileAudit;
+use crate::provenance::FileAudit;
 use nvisy_ontology::record::RedactionMap;
 
 use super::{Engine, EngineInput, EngineOutput};

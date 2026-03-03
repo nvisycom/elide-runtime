@@ -33,14 +33,10 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 serde_with = { workspace = true, features = [] }
 
+# Derive macros and error handling
+derive_more = { workspace = true, features = ["from"] }
+strum = { workspace = true, features = [] }
+
 # Primitive datatypes
 uuid = { workspace = true, features = ["serde", "v4", "v7"] }
-
-# Error handling
-derive_more = { workspace = true, features = ["from"] }
-
-# Time
 jiff = { workspace = true, features = [] }
-
-# Enum derives
-strum = { workspace = true, features = [] }

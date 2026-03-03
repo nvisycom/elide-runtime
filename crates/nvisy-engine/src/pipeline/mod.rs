@@ -29,7 +29,7 @@ use nvisy_core::fs::ContentHandler;
 // Re-exported so downstream crates (e.g. nvisy-server) don't need a direct
 // dependency on nvisy-ontology or nvisy-identify.
 pub use nvisy_identify::{Audit, Policies, PolicyEvaluation, RedactionSummary};
-pub use nvisy_ontology::audit::FileAudit;
+pub use crate::provenance::FileAudit;
 pub use nvisy_ontology::context::Context;
 pub use nvisy_ontology::entity::DetectionOutput;
 pub use nvisy_ontology::record::{RedactionMap, RedactionMapItem};

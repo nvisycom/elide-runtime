@@ -3078,6 +3078,7 @@ name = "nvisy-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "derive_builder",
  "jiff",
  "nvisy-codec",
  "nvisy-core",
@@ -3089,6 +3090,8 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "serde_with",
+ "strum",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",

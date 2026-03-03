@@ -1,6 +1,6 @@
 //! Execute response types.
 
-use nvisy_engine::engine::{
+use nvisy_engine::pipeline::{
     Audit, DetectionOutput, EngineOutput, FileAudit, PolicyEvaluation, RedactionMap,
     RedactionSummary, RunOutput,
 };

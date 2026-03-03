@@ -5,7 +5,7 @@
 //! private; use the provided accessor methods.
 
 use nvisy_core::fs::ContentRegistry;
-use nvisy_engine::engine::DefaultEngine;
+use nvisy_engine::pipeline::DefaultEngine;
 
 /// Shared application state threaded through all handlers.
 #[must_use = "state does nothing unless you use it"]

@@ -1,12 +1,9 @@
-//! LLM provider connection parameters.
-//!
-//! Provider structs carry API keys, model names, and optional base URLs.
-//! The actual rig-core client is constructed lazily when a service is built.
+//! LLM providers that require an API key.
 
 use std::fmt;
 
 use reqwest_middleware::ClientWithMiddleware;
-use rig::providers::{anthropic, gemini, ollama, openai};
+use rig::providers::{anthropic, gemini, openai};
 
 use crate::error::Error;
 
@@ -64,29 +61,6 @@ impl AuthenticatedProvider {
     ) -> Result<anthropic::Client<ClientWithMiddleware>, Error> {
         let mut b = anthropic::Client::<ClientWithMiddleware>::builder()
             .api_key(&self.api_key)
-            .http_client(http);
-        if let Some(url) = &self.base_url {
-            b = b.base_url(url);
-        }
-        b.build().map_err(|e| Error::Client(e.to_string()))
-    }
-}
-
-/// Provider that does not require an API key (Ollama).
-#[derive(Debug, Clone)]
-pub struct UnauthenticatedProvider {
-    pub model: String,
-    pub base_url: Option<String>,
-}
-
-impl UnauthenticatedProvider {
-    /// Build an Ollama rig-core client.
-    pub(crate) fn ollama_client(
-        &self,
-        http: ClientWithMiddleware,
-    ) -> Result<ollama::Client<ClientWithMiddleware>, Error> {
-        let mut b = ollama::Client::<ClientWithMiddleware>::builder()
-            .api_key(rig::client::Nothing)
             .http_client(http);
         if let Some(url) = &self.base_url {
             b = b.base_url(url);

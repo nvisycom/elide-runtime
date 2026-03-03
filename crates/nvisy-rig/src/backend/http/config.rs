@@ -1,10 +1,5 @@
-//! Shared HTTP client with timeout, retry, and tracing middleware.
+//! HTTP client configuration.
 
-use std::time::Duration;
-
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
-use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
-use reqwest_tracing::TracingMiddleware;
 use serde::{Deserialize, Serialize};
 
 /// Default request timeout.
@@ -20,16 +15,16 @@ const DEFAULT_POOL_IDLE_TIMEOUT_SECS: u64 = 90;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpClientConfig {
-    /// Maximum number of retries for transient failures.
+    /// Maximum number of retries for transient failures (default: 3).
     #[serde(default = "default_max_retries")]
     pub max_retries: u32,
-    /// Per-request timeout in seconds.
+    /// Per-request timeout in seconds (default: 120s).
     #[serde(default = "default_timeout_secs")]
     pub timeout_secs: u64,
-    /// TCP connection timeout in seconds.
+    /// TCP connection timeout in seconds (default: 10s).
     #[serde(default = "default_connect_timeout_secs")]
     pub connect_timeout_secs: u64,
-    /// Keep-alive pool idle timeout in seconds.
+    /// Keep-alive pool idle timeout in seconds (default: 90s).
     #[serde(default = "default_pool_idle_timeout_secs")]
     pub pool_idle_timeout_secs: u64,
 }
@@ -58,22 +53,4 @@ impl HttpClientConfig {
             ..Default::default()
         }
     }
-}
-
-/// Build a [`ClientWithMiddleware`] from the given configuration.
-pub(crate) fn build_http_client(config: &HttpClientConfig) -> ClientWithMiddleware {
-    let retry_policy = ExponentialBackoff::builder()
-        .build_with_max_retries(config.max_retries);
-
-    let client = reqwest_middleware::reqwest::Client::builder()
-        .timeout(Duration::from_secs(config.timeout_secs))
-        .connect_timeout(Duration::from_secs(config.connect_timeout_secs))
-        .pool_idle_timeout(Duration::from_secs(config.pool_idle_timeout_secs))
-        .build()
-        .expect("failed to build reqwest client");
-
-    ClientBuilder::new(client)
-        .with(TracingMiddleware::default())
-        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
-        .build()
 }

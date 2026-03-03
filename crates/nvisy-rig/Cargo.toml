@@ -21,6 +21,12 @@ default = []
 audio = ["rig-core/audio"]
 ## Enable image synthesis via rig-core's image generation API.
 image = ["rig-core/image"]
+## Enable AWS Textract OCR provider.
+aws = ["nvisy-ocr/aws"]
+## Enable Google Cloud Vision OCR provider.
+google = ["nvisy-ocr/google"]
+## Enable Azure Document Intelligence OCR provider.
+azure = ["nvisy-ocr/azure"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -29,6 +35,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
+nvisy-ocr = { workspace = true, optional = true }
 nvisy-ontology = { workspace = true, features = [] }
 
 # LLM framework
@@ -38,10 +45,10 @@ rig-core = { workspace = true, features = ["derive", "reqwest-middleware"] }
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["time"] }
 
-# HTTP middleware (retry, tracing)
-reqwest-middleware = { workspace = true }
-reqwest-retry = { workspace = true }
-reqwest-tracing = { workspace = true }
+# HTTP middleware (retry & tracing)
+reqwest-middleware = { workspace = true, features = [] }
+reqwest-retry = { workspace = true, features = [] }
+reqwest-tracing = { workspace = true, features = [] }
 
 # Encoding
 base64 = { workspace = true, features = [] }

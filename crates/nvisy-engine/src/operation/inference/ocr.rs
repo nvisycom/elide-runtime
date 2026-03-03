@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use nvisy_ocr::{OcrBackend, OcrConfig};
+use nvisy_ocr::{ImageFormat, ImageInput, OcrBackend, OcrConfig};
 use nvisy_rig::agent::{OcrProvider, OcrTextRegion};
 use nvisy_rig::error::Error;
 
@@ -25,9 +25,10 @@ impl OcrBackendProvider {
 #[async_trait]
 impl OcrProvider for OcrBackendProvider {
     async fn extract_text(&self, image_data: &[u8]) -> Result<Vec<OcrTextRegion>, Error> {
+        let image = ImageInput::new(image_data.to_vec(), ImageFormat::Png);
         let regions = self
             .backend
-            .detect_ocr(image_data, "image/png", &self.config)
+            .run(&image, &self.config)
             .await?;
 
         Ok(regions

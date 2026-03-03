@@ -48,7 +48,7 @@ nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 rig-core = { version = "0.31", features = [] }
 
 # HTTP middleware
-reqwest-middleware = { version = "0.5", features = [] }
+reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
 reqwest-retry = { version = "0.9", features = [] }
 reqwest-tracing = { version = "0.7", features = [] }
 
@@ -86,6 +86,7 @@ semver = { version = "1.0", features = ["serde"] }
 # Encoding and hashing
 base64 = { version = "0.22", features = [] }
 sha2 = { version = "0.10", features = [] }
+hmac = { version = "0.12", features = [] }
 hex = { version = "0.4", features = [] }
 
 # Pattern matching
@@ -111,8 +112,8 @@ calamine = { version = "0.33", features = [] }
 zip = { version = "8.0", features = [] }
 quick-xml = { version = "0.38", features = [] }
 
-# OCR engine (Rust-native PaddleOCR via ONNX Runtime)
-oar-ocr = { version = "0.6", features = [] }
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }

@@ -3,10 +3,19 @@
 #![doc = include_str!("../README.md")]
 
 mod backend;
-mod bridge;
-mod local;
+pub mod provider;
+
+#[cfg(any(feature = "aws", feature = "azure", feature = "google"))]
+pub mod cloud;
 
 pub mod prelude;
 
-pub use backend::{OcrBackend, OcrConfig, OcrRegion};
-pub use local::LocalOcrBackend;
+pub use backend::{ImageFormat, ImageInput, OcrBackend, OcrConfig, OcrRegion};
+pub use provider::{DoctrBackend, PaddleXBackend, SuryaBackend};
+
+#[cfg(feature = "aws")]
+pub use cloud::AwsTextractBackend;
+#[cfg(feature = "azure")]
+pub use cloud::AzureDocaiBackend;
+#[cfg(feature = "google")]
+pub use cloud::GoogleVisionBackend;

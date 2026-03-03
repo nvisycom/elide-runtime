@@ -9,11 +9,9 @@
 //! | Processing    | [`processing`]| Redaction, pattern match, …       |
 //! | Lifecycle     | [`lifecycle`] | Ingest, publish, encryption, …    |
 
-#[allow(dead_code)]
-pub(crate) mod inference;
-#[allow(dead_code)]
-pub(crate) mod lifecycle;
-pub(crate) mod processing;
+pub mod inference;
+pub mod lifecycle;
+pub mod processing;
 
 use std::future::Future;
 

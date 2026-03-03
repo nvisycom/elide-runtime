@@ -46,7 +46,6 @@ pub struct RedactionInput {
 }
 
 /// Typed output from the [`Redaction`] operation.
-#[allow(dead_code)]
 pub struct RedactionOutput {
     /// Redacted text documents.
     pub text_docs: Vec<Document<TxtHandler>>,

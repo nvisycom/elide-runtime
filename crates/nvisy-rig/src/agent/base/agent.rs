@@ -1,8 +1,10 @@
 //! Foundation agent that wraps provider-specific rig-core agents.
 
+use std::borrow::Cow;
+
 use reqwest_middleware::ClientWithMiddleware;
 use rig::agent::Agent;
-use rig::completion::{Completion, Prompt};
+use rig::completion::Completion;
 use rig::providers::{anthropic, gemini, ollama, openai};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -67,7 +69,6 @@ macro_rules! dispatch {
 /// [`NerAgent`]: crate::NerAgent
 /// [`CvAgent`]: crate::CvAgent
 /// [`OcrAgent`]: crate::OcrAgent
-#[allow(dead_code)]
 pub(crate) struct BaseAgent {
     pub(super) id: Uuid,
     pub(super) inner: Agents,
@@ -75,7 +76,6 @@ pub(crate) struct BaseAgent {
     pub(super) tracker: UsageTracker,
 }
 
-#[allow(dead_code)]
 impl BaseAgent {
     pub fn builder(provider: &AgentProvider, config: BaseAgentConfig) -> BaseAgentBuilder {
         BaseAgentBuilder::new(provider, config)
@@ -89,7 +89,64 @@ impl BaseAgent {
         &self.tracker
     }
 
+    /// If a context window is configured and `prompt` exceeds the input
+    /// budget, summarize it to fit. Otherwise return the prompt unchanged.
+    async fn maybe_compact<'a>(&self, prompt: &'a str) -> Result<Cow<'a, str>, Error> {
+        let budget = match &self.context_window {
+            Some(cw) => cw.input_budget(),
+            None => return Ok(Cow::Borrowed(prompt)),
+        };
+
+        // Rough token estimate: 1 token ≈ 4 characters.
+        if prompt.len() / 4 <= budget {
+            return Ok(Cow::Borrowed(prompt));
+        }
+
+        tracing::info!(
+            prompt_len = prompt.len(),
+            budget,
+            "prompt exceeds input budget, compacting"
+        );
+
+        let compact_prompt = format!(
+            "Summarize the following text so it fits within {budget} tokens. \
+             Preserve all key facts and details.\n\n{prompt}"
+        );
+        self.prompt_text_raw(&compact_prompt).await.map(Cow::Owned)
+    }
+
+    /// Plain-text completion without compaction (used internally by
+    /// [`maybe_compact`] to avoid recursion).
+    async fn prompt_text_raw(&self, prompt: &str) -> Result<String, Error> {
+        let (text, usage) = dispatch!(&self.inner, |agent| {
+            let builder = agent
+                .completion(prompt, vec![])
+                .await
+                .map_err(Error::from)?;
+
+            let response = builder.send().await.map_err(Error::from)?;
+            let parsed = ResponseParser::extract_text(&response)?;
+            Ok::<_, Error>((parsed.into_string(), response.usage))
+        })?;
+
+        self.tracker.record(&usage, 0);
+        Ok(text)
+    }
+
+    /// Plain-text completion with usage tracking.
+    ///
+    /// Automatically compacts the prompt if a context window is configured
+    /// and the prompt exceeds the input budget.
+    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "text"))]
+    pub async fn prompt_text(&self, prompt: &str) -> Result<String, Error> {
+        let prompt = self.maybe_compact(prompt).await?;
+        self.prompt_text_raw(&prompt).await
+    }
+
     /// Structured-output prompt with usage tracking and JSON fallback.
+    ///
+    /// Automatically compacts the prompt if a context window is configured
+    /// and the prompt exceeds the input budget.
     ///
     /// Sends a completion request with an `output_schema` so the provider
     /// constrains its response to valid JSON matching `T`. On deserialization
@@ -99,11 +156,12 @@ impl BaseAgent {
     where
         T: DeserializeOwned + Default + JsonSchema + Serialize + Send + Sync,
     {
+        let prompt = self.maybe_compact(prompt).await?;
         let schema = schemars::schema_for!(T);
 
         let (text, usage) = dispatch!(&self.inner, |agent| {
             let builder = agent
-                .completion(prompt, vec![])
+                .completion(&*prompt, vec![])
                 .await
                 .map_err(Error::from)?
                 .output_schema(schema);
@@ -129,81 +187,5 @@ impl BaseAgent {
                 parser.parse_json()
             }
         }
-    }
-
-    /// Text completion with usage tracking.
-    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "text"))]
-    pub async fn prompt_text(&self, prompt: &str) -> Result<String, Error> {
-        let (text, usage) = dispatch!(&self.inner, |agent| {
-            let builder = agent
-                .completion(prompt, vec![])
-                .await
-                .map_err(Error::from)?;
-
-            let response = builder.send().await.map_err(Error::from)?;
-            let parsed = ResponseParser::extract_text(&response)?;
-            Ok::<_, Error>((parsed.into_string(), response.usage))
-        })?;
-
-        self.tracker.record(&usage, 0);
-        Ok(text)
-    }
-
-    /// Plain text completion (no usage tracking).
-    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "prompt"))]
-    pub async fn prompt(&self, prompt: &str) -> Result<String, Error> {
-        dispatch!(&self.inner, |agent| {
-            agent.prompt(prompt).await.map_err(Error::from)
-        })
-    }
-
-    /// Summarize text to fit within the context window's input budget.
-    ///
-    /// Returns the text unchanged when no context window is configured or
-    /// the text already fits.
-    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "compact"))]
-    pub async fn prompt_compact(&self, text: &str) -> Result<String, Error> {
-        let cw = match &self.context_window {
-            Some(cw) if !cw.fits(text) => cw,
-            _ => return Ok(text.to_owned()),
-        };
-
-        let budget = cw.input_budget();
-        let prompt = format!(
-            "Summarize the following text to fit within {budget} tokens. \
-             Preserve all key entities, names, numbers, dates, and facts. \
-             Remove redundancy and filler. Return ONLY the condensed text, \
-             no preamble.\n\n{text}"
-        );
-
-        self.prompt_text(&prompt).await
-    }
-
-    /// Split text via [`ContextWindow`], run `prompt_structured` per chunk,
-    /// and flatten results.
-    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "chunked"))]
-    pub async fn prompt_chunked<T, F>(
-        &self,
-        text: &str,
-        build_prompt: F,
-    ) -> Result<Vec<T>, Error>
-    where
-        T: DeserializeOwned + Default + JsonSchema + Serialize + Send + Sync,
-        F: Fn(&str) -> String,
-        Vec<T>: Default,
-    {
-        let chunks = match &self.context_window {
-            Some(cw) => cw.split_to_fit(text),
-            None => vec![text],
-        };
-
-        let mut all_results = Vec::new();
-        for chunk in chunks {
-            let prompt = build_prompt(chunk);
-            let chunk_results: Vec<T> = self.prompt_structured(&prompt).await?;
-            all_results.extend(chunk_results);
-        }
-
-        Ok(all_results)
     }
 }

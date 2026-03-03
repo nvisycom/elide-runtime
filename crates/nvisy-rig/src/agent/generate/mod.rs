@@ -88,4 +88,26 @@ impl GenAgent {
 
         Ok(result.entities)
     }
+
+    /// Generate a single synthetic replacement value.
+    ///
+    /// Uses plain-text completion instead of structured output, which is
+    /// lighter-weight for a single value.
+    #[tracing::instrument(
+        skip_all,
+        fields(entity_type = %request.entity_type, agent = "gen"),
+    )]
+    pub async fn generate_one(
+        &self,
+        request: &GenRequest,
+    ) -> Result<GeneratedEntity, Error> {
+        let prompt = GenPromptBuilder::build_one(request);
+        let synthetic_value = self.base.prompt_text(&prompt).await?;
+
+        Ok(GeneratedEntity {
+            entity_type: request.entity_type,
+            original_value: request.original_value.clone(),
+            synthetic_value: synthetic_value.trim().to_owned(),
+        })
+    }
 }

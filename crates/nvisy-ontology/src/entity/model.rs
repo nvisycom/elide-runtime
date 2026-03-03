@@ -28,5 +28,6 @@ pub struct ModelInfo {
     /// Provenance / licensing classification.
     pub kind: ModelKind,
     /// Model version string.
-    pub version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }

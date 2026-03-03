@@ -67,6 +67,7 @@ tracing-subscriber = { version = "0.3", features = [] }
 # (De)serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = [] }
+serde_with = { version = "3.0", features = [] }
 schemars = { version = "1.0", features = ["uuid1", "bytes1"] }
 csv = { version = "1.0", features = [] }
 

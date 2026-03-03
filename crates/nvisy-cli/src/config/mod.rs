@@ -74,7 +74,7 @@ impl Cli {
     /// Builds a [`RecoveryConfig`] from the parsed CLI values.
     pub fn recovery_config(&self) -> RecoveryConfig {
         RecoveryConfig {
-            request_timeout: self.request_timeout_secs,
+            request_timeout: std::time::Duration::from_secs(self.request_timeout_secs),
         }
     }
 

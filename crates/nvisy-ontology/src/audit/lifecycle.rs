@@ -3,7 +3,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Data for I/O lifecycle operations (ingest, publish).
+/// Data specific to I/O lifecycle operations (ingest, publish, etc.).
+///
+/// Duration and error are tracked on [`FileAuditEntry`](super::FileAuditEntry).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleAction {

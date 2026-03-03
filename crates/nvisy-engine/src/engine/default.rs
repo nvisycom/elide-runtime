@@ -167,7 +167,7 @@ impl Engine for DefaultEngine {
             source: content_source,
             entities: Vec::new(),
             policy_id: input.policies.policies.first().map(|p| p.id),
-            duration_ms: None,
+            duration: None,
             errors: Vec::new(),
         };
 

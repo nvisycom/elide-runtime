@@ -1,8 +1,11 @@
 //! Top-level audit entry.
 
+use std::time::Duration;
+
 use jiff::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_with::{DurationMicroSeconds, serde_as};
 use strum::{Display, EnumString};
 use uuid::Uuid;
 
@@ -22,6 +25,7 @@ pub enum AuditEntryStatus {
 }
 
 /// A single processing-log entry within a [`FileAudit`](super::FileAudit).
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FileAuditEntry {
@@ -30,6 +34,14 @@ pub struct FileAuditEntry {
     pub timestamp: Timestamp,
     /// Outcome of the operation.
     pub status: AuditEntryStatus,
+    /// Wall-clock duration of the operation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde_as(as = "Option<DurationMicroSeconds>")]
+    #[schemars(with = "Option<u64>")]
+    pub duration: Option<Duration>,
+    /// Error message if the operation failed or partially failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
     /// Correlation identifier for tracing across services.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub correlation_id: Option<Uuid>,
@@ -44,6 +56,8 @@ impl FileAuditEntry {
         Self {
             timestamp: Timestamp::now(),
             status: AuditEntryStatus::Success,
+            duration: None,
+            error: None,
             correlation_id: None,
             kind,
         }
@@ -52,6 +66,19 @@ impl FileAuditEntry {
     /// Set the outcome status.
     pub fn with_status(mut self, status: AuditEntryStatus) -> Self {
         self.status = status;
+        self
+    }
+
+    /// Set the wall-clock duration.
+    pub fn with_duration(mut self, duration: Duration) -> Self {
+        self.duration = Some(duration);
+        self
+    }
+
+    /// Set an error message and mark the entry as failed.
+    pub fn with_error(mut self, error: impl Into<String>) -> Self {
+        self.error = Some(error.into());
+        self.status = AuditEntryStatus::Failed;
         self
     }
 

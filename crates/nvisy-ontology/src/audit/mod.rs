@@ -13,7 +13,7 @@ mod processing;
 
 pub use entry::{AuditEntryStatus, FileAuditEntry};
 pub use inference::InferenceAction;
-pub use kind::FileAuditEntryKind;
+pub use kind::{FileAuditEntryKind, InferenceKind, LifecycleKind, ProcessingKind};
 pub use lifecycle::LifecycleAction;
 pub use processing::ProcessingAction;
 

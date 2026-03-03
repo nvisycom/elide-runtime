@@ -22,6 +22,7 @@ use axum::error_handling::HandleErrorLayer;
 use axum::response::{IntoResponse, Response};
 use futures::future::{BoxFuture, FutureExt};
 use serde::{Deserialize, Serialize};
+use serde_with::{DurationSeconds, serde_as};
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 use tower_http::catch_panic::CatchPanicLayer;
@@ -41,27 +42,22 @@ type Panic = Box<dyn Any + Send + 'static>;
 ///
 /// Controls how the recovery middleware handles various error conditions
 /// including timeouts and panic recovery.
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecoveryConfig {
-    /// Maximum duration in seconds to wait for a request to complete
-    /// before timing out. Requests exceeding this duration receive a
-    /// 500 response with a timeout message.
-    pub request_timeout: u64,
+    /// Maximum duration to wait for a request to complete before timing
+    /// out. Requests exceeding this duration receive a 500 response with
+    /// a timeout message. Serialized as whole seconds.
+    #[serde_as(as = "DurationSeconds")]
+    pub request_timeout: Duration,
 }
 
 impl Default for RecoveryConfig {
     fn default() -> Self {
         Self {
-            request_timeout: 300,
+            request_timeout: Duration::from_secs(300),
         }
-    }
-}
-
-impl RecoveryConfig {
-    /// Returns the request timeout as a [`Duration`].
-    pub fn request_timeout(&self) -> Duration {
-        Duration::from_secs(self.request_timeout)
     }
 }
 
@@ -86,7 +82,7 @@ where
         let middlewares = ServiceBuilder::new()
             .layer(HandleErrorLayer::new(handle_error))
             .layer(CatchPanicLayer::custom(catch_panic))
-            .layer(TimeoutLayer::new(config.request_timeout()));
+            .layer(TimeoutLayer::new(config.request_timeout));
 
         self.layer(middlewares)
     }

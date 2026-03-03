@@ -1,16 +1,15 @@
 //! Data for deterministic processing operations.
 
-use std::time::Duration;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Data for deterministic processing operations (pattern matching, redaction, etc.).
+/// Data specific to deterministic processing operations
+/// (pattern matching, redaction, etc.).
+///
+/// Duration and error are tracked on [`FileAuditEntry`](super::FileAuditEntry).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessingAction {
-    /// Wall-clock duration in milliseconds.
-    pub duration_ms: u64,
     /// Number of items processed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub items_count: Option<u64>,
@@ -20,18 +19,12 @@ pub struct ProcessingAction {
 }
 
 impl ProcessingAction {
-    /// Create a new processing action with the given duration.
-    pub fn new(duration: Duration) -> Self {
+    /// Create a new processing action.
+    pub fn new() -> Self {
         Self {
-            duration_ms: duration.as_millis() as u64,
             items_count: None,
             matched_count: None,
         }
-    }
-
-    /// Wall-clock duration.
-    pub fn duration(&self) -> Duration {
-        Duration::from_millis(self.duration_ms)
     }
 
     /// Set the number of items processed.
@@ -44,5 +37,11 @@ impl ProcessingAction {
     pub fn with_matched_count(mut self, count: u64) -> Self {
         self.matched_count = Some(count);
         self
+    }
+}
+
+impl Default for ProcessingAction {
+    fn default() -> Self {
+        Self::new()
     }
 }

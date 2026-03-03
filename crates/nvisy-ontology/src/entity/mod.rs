@@ -17,8 +17,11 @@ pub use model::{ModelInfo, ModelKind};
 pub use selector::EntitySelector;
 pub use sensitivity::EntitySensitivity;
 
+use std::time::Duration;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_with::{DurationMicroSeconds, serde_as};
 use strum::{Display, EnumString};
 use uuid::Uuid;
 
@@ -134,6 +137,7 @@ impl Entity {
 }
 
 /// The output of a detection pass over a single content source.
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DetectionOutput {
@@ -145,9 +149,11 @@ pub struct DetectionOutput {
     /// Identifier of the policy that governed detection.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_id: Option<Uuid>,
-    /// Processing time in milliseconds.
+    /// Processing time.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration_ms: Option<u64>,
+    #[serde_as(as = "Option<DurationMicroSeconds>")]
+    #[schemars(with = "Option<u64>")]
+    pub duration: Option<Duration>,
     /// Non-fatal errors or warnings encountered during detection.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<String>,

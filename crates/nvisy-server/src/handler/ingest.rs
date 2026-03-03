@@ -28,9 +28,9 @@ use aide::axum::routing::{delete_with, get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::State;
 use nvisy_core::io::{Content, ContentData};
-use uuid::Uuid;
 
 use super::error::{ErrorKind, Result};
+use super::request::ContentPath;
 use super::response::{DeleteAllResponse, DeleteResponse, DownloadResponse, UploadResponse};
 use crate::extract::{Json, Path, Upload};
 use crate::service::ServiceState;
@@ -80,7 +80,7 @@ fn upload_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(skip_all, fields(%id))]
 async fn download(
     State(_state): State<ServiceState>,
-    Path(id): Path<Uuid>,
+    Path(ContentPath { id }): Path<ContentPath>,
 ) -> Result<Json<DownloadResponse>> {
     Err(ErrorKind::NotImplemented
         .with_message(format!("content download not yet implemented (id: {id})")))
@@ -100,7 +100,7 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(skip_all, fields(%id))]
 async fn delete(
     State(state): State<ServiceState>,
-    Path(id): Path<Uuid>,
+    Path(ContentPath { id }): Path<ContentPath>,
 ) -> Result<Json<DeleteResponse>> {
     state.content_registry().delete(id).await?;
     tracing::info!(%id, "content deleted");

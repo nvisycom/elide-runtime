@@ -66,6 +66,11 @@ impl RunParams {
 ///
 /// Implementations send image bytes to an OCR service and return
 /// typed [`ImageRegion`] results with word-level bounding boxes.
+///
+/// Confidence values **must** be normalised to 0.0..=1.0 before
+/// populating [`ImageRegion::confidence`]. Backends whose upstream
+/// API uses a different scale (e.g. AWS Textract returns 0–100) are
+/// responsible for converting.
 #[async_trait::async_trait]
 pub trait Backend: Send + Sync + 'static {
     /// Run OCR on a single image.
@@ -90,4 +95,28 @@ pub trait Backend: Send + Sync + 'static {
         }
         Ok(results)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "confidence_threshold must be in 0.0..=1.0")]
+    fn run_params_rejects_above_one() {
+        RunParams::new(1.01);
+    }
+
+    #[test]
+    #[should_panic(expected = "confidence_threshold must be in 0.0..=1.0")]
+    fn run_params_rejects_negative() {
+        RunParams::new(-0.1);
+    }
+
+    #[test]
+    #[should_panic(expected = "confidence_threshold must be in 0.0..=1.0")]
+    fn run_params_rejects_nan() {
+        RunParams::new(f64::NAN);
+    }
+
 }

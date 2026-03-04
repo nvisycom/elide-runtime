@@ -294,39 +294,31 @@ mod tests {
     }
 
     #[test]
-    fn filters_below_threshold() {
+    fn concatenates_symbols_into_word() {
         let json = serde_json::json!({
             "responses": [{
                 "fullTextAnnotation": {
                     "pages": [{
                         "blocks": [{
                             "paragraphs": [{
-                                "words": [
-                                    {
-                                        "symbols": [{ "text": "low" }],
-                                        "confidence": 0.2,
-                                        "boundingBox": {
-                                            "vertices": [
-                                                { "x": 0, "y": 0 },
-                                                { "x": 10, "y": 0 },
-                                                { "x": 10, "y": 10 },
-                                                { "x": 0, "y": 10 }
-                                            ]
-                                        }
-                                    },
-                                    {
-                                        "symbols": [{ "text": "high" }],
-                                        "confidence": 0.95,
-                                        "boundingBox": {
-                                            "vertices": [
-                                                { "x": 20, "y": 0 },
-                                                { "x": 40, "y": 0 },
-                                                { "x": 40, "y": 10 },
-                                                { "x": 20, "y": 10 }
-                                            ]
-                                        }
+                                "words": [{
+                                    "symbols": [
+                                        { "text": "H" },
+                                        { "text": "e" },
+                                        { "text": "l" },
+                                        { "text": "l" },
+                                        { "text": "o" }
+                                    ],
+                                    "confidence": 0.99,
+                                    "boundingBox": {
+                                        "vertices": [
+                                            { "x": 0, "y": 0 },
+                                            { "x": 50, "y": 0 },
+                                            { "x": 50, "y": 20 },
+                                            { "x": 0, "y": 20 }
+                                        ]
                                     }
-                                ]
+                                }]
                             }]
                         }]
                     }]
@@ -335,22 +327,16 @@ mod tests {
         });
 
         let resp: AnnotateResponse = serde_json::from_value(json).unwrap();
-        let threshold = 0.5;
-
-        let words: Vec<_> = resp.responses[0]
+        let word = &resp.responses[0]
             .full_text_annotation
             .as_ref()
             .unwrap()
             .pages[0]
             .blocks[0]
             .paragraphs[0]
-            .words
-            .iter()
-            .filter(|w| w.confidence >= threshold)
-            .collect();
+            .words[0];
 
-        assert_eq!(words.len(), 1);
-        let text: String = words[0].symbols.iter().map(|s| s.text.as_str()).collect();
-        assert_eq!(text, "high");
+        let text: String = word.symbols.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!(text, "Hello");
     }
 }

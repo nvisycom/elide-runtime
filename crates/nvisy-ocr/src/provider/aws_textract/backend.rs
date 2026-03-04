@@ -347,43 +347,6 @@ mod tests {
     }
 
     #[test]
-    fn filters_below_threshold() {
-        let json = serde_json::json!({
-            "Blocks": [
-                {
-                    "BlockType": "WORD",
-                    "Text": "low",
-                    "Confidence": 20.0,
-                    "Geometry": {
-                        "BoundingBox": { "Width": 0.1, "Height": 0.1, "Left": 0.0, "Top": 0.0 }
-                    }
-                },
-                {
-                    "BlockType": "WORD",
-                    "Text": "high",
-                    "Confidence": 95.0,
-                    "Geometry": {
-                        "BoundingBox": { "Width": 0.1, "Height": 0.1, "Left": 0.5, "Top": 0.0 }
-                    }
-                }
-            ]
-        });
-
-        let resp: TextractResponse = serde_json::from_value(json).unwrap();
-        let threshold = 0.5;
-
-        let words: Vec<_> = resp
-            .blocks
-            .iter()
-            .filter(|b| b.block_type == "WORD")
-            .filter(|b| b.confidence.unwrap_or(0.0) / 100.0 >= threshold)
-            .collect();
-
-        assert_eq!(words.len(), 1);
-        assert_eq!(words[0].text.as_deref(), Some("high"));
-    }
-
-    #[test]
     fn format_datetime_known_epoch() {
         // 2024-01-15T11:30:45Z = 1705318245 seconds since epoch
         let result = format_datetime(1705318245);

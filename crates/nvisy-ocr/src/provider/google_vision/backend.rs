@@ -1,30 +1,51 @@
 //! [`Backend`] implementation for Google Cloud Vision API.
+//!
+//! [`Backend`]: crate::Backend
 
-use reqwest_middleware::ClientWithMiddleware;
+use std::fmt;
+
 use serde::Deserialize;
 
 use nvisy_core::Error;
-use nvisy_core::math::{BoundingBox, Polygon, Vertex};
+use nvisy_rig::backend::{HttpConfig, build_http_client};
+use nvisy_core::math::{Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
+use reqwest_middleware::ClientWithMiddleware;
 
-use crate::backend::http::HttpClient;
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, check_response};
 
-/// Remote OCR backend using Google Cloud Vision API.
+use super::GoogleVisionParams;
+
+/// [`Backend`] implementation for Google Cloud Vision API.
 ///
 /// Sends images as base64-encoded JSON to the `images:annotate` endpoint
 /// and parses word-level results from the `fullTextAnnotation` response.
+///
+/// [`Backend`]: crate::Backend
 pub struct GoogleVisionBackend {
-    client: HttpClient,
+    client: ClientWithMiddleware,
     api_key: String,
 }
 
+impl fmt::Debug for GoogleVisionBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GoogleVisionBackend")
+            .field("api_key", &"***")
+            .finish()
+    }
+}
+
 impl GoogleVisionBackend {
-    /// Create a new backend with the given HTTP client and API key.
-    pub fn new(client: ClientWithMiddleware, api_key: impl Into<String>) -> Self {
+    /// Create a new backend with default HTTP configuration.
+    pub fn new(params: GoogleVisionParams) -> Self {
+        Self::with_client(build_http_client(&HttpConfig::default()), params)
+    }
+
+    /// Create a new backend with a pre-configured HTTP client.
+    pub fn with_client(client: ClientWithMiddleware, params: GoogleVisionParams) -> Self {
         Self {
-            client: HttpClient::new(client),
-            api_key: api_key.into(),
+            client,
+            api_key: params.api_key,
         }
     }
 }
@@ -112,25 +133,17 @@ impl Backend for GoogleVisionBackend {
             .json(&body)
             .send()
             .await
-            .map_err(|e| {
-                Error::runtime(
-                    format!("Google Vision request failed: {e}"),
-                    "google_vision_ocr",
-                    false,
-                )
-            })?;
+            .map_err(|e| Error::connection(e.to_string(), "google_vision_ocr", true))?;
 
-        let resp = self
-            .client
-            .check_status(resp, "Google Vision", "google_vision_ocr")
-            .await?;
-        let parsed: AnnotateResponse = self
-            .client
-            .parse_json(resp, "Google Vision", "google_vision_ocr")
-            .await?;
+        let resp = check_response(resp, "Google Vision").await?;
+
+        let parsed: AnnotateResponse = resp
+            .json()
+            .await
+            .map_err(|e| Error::runtime(format!("Google Vision JSON parse error: {e}"), "google_vision_ocr", false))?;
 
         let threshold = params.confidence_threshold;
-        let mut regions = Vec::new();
+        let mut output = ImageOutput::new(image.source.derive());
 
         for result in &parsed.responses {
             let annotation = match &result.full_text_annotation {
@@ -167,14 +180,9 @@ impl Backend for GoogleVisionBackend {
                             let bbox = polygon
                                 .as_ref()
                                 .map(|p| p.bounding_box())
-                                .unwrap_or(BoundingBox {
-                                    x: 0.0,
-                                    y: 0.0,
-                                    width: 0.0,
-                                    height: 0.0,
-                                });
+                                .unwrap_or_default();
 
-                            regions.push(ImageRegion {
+                            output.insert(ImageRegion {
                                 text,
                                 confidence: Some(word.confidence),
                                 bbox,
@@ -187,10 +195,7 @@ impl Backend for GoogleVisionBackend {
             }
         }
 
-        Ok(ImageOutput {
-            source: image.source.derive(),
-            regions,
-        })
+        Ok(output)
     }
 }
 
@@ -289,39 +294,31 @@ mod tests {
     }
 
     #[test]
-    fn filters_below_threshold() {
+    fn concatenates_symbols_into_word() {
         let json = serde_json::json!({
             "responses": [{
                 "fullTextAnnotation": {
                     "pages": [{
                         "blocks": [{
                             "paragraphs": [{
-                                "words": [
-                                    {
-                                        "symbols": [{ "text": "low" }],
-                                        "confidence": 0.2,
-                                        "boundingBox": {
-                                            "vertices": [
-                                                { "x": 0, "y": 0 },
-                                                { "x": 10, "y": 0 },
-                                                { "x": 10, "y": 10 },
-                                                { "x": 0, "y": 10 }
-                                            ]
-                                        }
-                                    },
-                                    {
-                                        "symbols": [{ "text": "high" }],
-                                        "confidence": 0.95,
-                                        "boundingBox": {
-                                            "vertices": [
-                                                { "x": 20, "y": 0 },
-                                                { "x": 40, "y": 0 },
-                                                { "x": 40, "y": 10 },
-                                                { "x": 20, "y": 10 }
-                                            ]
-                                        }
+                                "words": [{
+                                    "symbols": [
+                                        { "text": "H" },
+                                        { "text": "e" },
+                                        { "text": "l" },
+                                        { "text": "l" },
+                                        { "text": "o" }
+                                    ],
+                                    "confidence": 0.99,
+                                    "boundingBox": {
+                                        "vertices": [
+                                            { "x": 0, "y": 0 },
+                                            { "x": 50, "y": 0 },
+                                            { "x": 50, "y": 20 },
+                                            { "x": 0, "y": 20 }
+                                        ]
                                     }
-                                ]
+                                }]
                             }]
                         }]
                     }]
@@ -330,22 +327,16 @@ mod tests {
         });
 
         let resp: AnnotateResponse = serde_json::from_value(json).unwrap();
-        let threshold = 0.5;
-
-        let words: Vec<_> = resp.responses[0]
+        let word = &resp.responses[0]
             .full_text_annotation
             .as_ref()
             .unwrap()
             .pages[0]
             .blocks[0]
             .paragraphs[0]
-            .words
-            .iter()
-            .filter(|w| w.confidence >= threshold)
-            .collect();
+            .words[0];
 
-        assert_eq!(words.len(), 1);
-        let text: String = words[0].symbols.iter().map(|s| s.text.as_str()).collect();
-        assert_eq!(text, "high");
+        let text: String = word.symbols.iter().map(|s| s.text.as_str()).collect();
+        assert_eq!(text, "Hello");
     }
 }

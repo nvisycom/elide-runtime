@@ -45,7 +45,7 @@ impl ImageGenService {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Client`] if client construction fails.
+    /// Returns [`Error::Request`] if client construction fails.
     pub fn new(provider: &ImageGenProvider, config: ImageGenConfig) -> Result<Self, Error> {
         let inner =
             ImageGenModels::from_provider(provider, &config.model, config.max_retries)?;

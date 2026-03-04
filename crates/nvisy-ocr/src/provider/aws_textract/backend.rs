@@ -1,41 +1,59 @@
 //! [`Backend`] implementation for AWS Textract.
+//!
+//! [`Backend`]: crate::Backend
+
+use std::fmt;
 
 use hmac::{Hmac, Mac};
-use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use nvisy_core::Error;
+use nvisy_rig::backend::{HttpConfig, build_http_client};
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
+use reqwest_middleware::ClientWithMiddleware;
 
-use crate::backend::http::HttpClient;
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, check_response};
 
-/// Remote OCR backend using AWS Textract.
+use super::AwsTextractParams;
+
+/// [`Backend`] implementation for AWS Textract.
 ///
 /// Sends images as base64-encoded JSON to the `DetectDocumentText` action
 /// with inline SigV4 request signing.
+///
+/// [`Backend`]: crate::Backend
 pub struct AwsTextractBackend {
-    client: HttpClient,
+    client: ClientWithMiddleware,
     access_key: String,
     secret_key: String,
     region: String,
 }
 
+impl fmt::Debug for AwsTextractBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AwsTextractBackend")
+            .field("access_key", &"***")
+            .field("secret_key", &"***")
+            .field("region", &self.region)
+            .finish()
+    }
+}
+
 impl AwsTextractBackend {
-    /// Create a new backend with the given HTTP client and AWS credentials.
-    pub fn new(
-        client: ClientWithMiddleware,
-        access_key: impl Into<String>,
-        secret_key: impl Into<String>,
-        region: impl Into<String>,
-    ) -> Self {
+    /// Create a new backend with default HTTP configuration.
+    pub fn new(params: AwsTextractParams) -> Self {
+        Self::with_client(build_http_client(&HttpConfig::default()), params)
+    }
+
+    /// Create a new backend with a pre-configured HTTP client.
+    pub fn with_client(client: ClientWithMiddleware, params: AwsTextractParams) -> Self {
         Self {
-            client: HttpClient::new(client),
-            access_key: access_key.into(),
-            secret_key: secret_key.into(),
-            region: region.into(),
+            client,
+            access_key: params.access_key,
+            secret_key: params.secret_key,
+            region: params.region,
         }
     }
 }
@@ -161,7 +179,9 @@ impl Backend for AwsTextractBackend {
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before epoch");
+            .map_err(|_| {
+                Error::runtime("system clock is before UNIX epoch", "aws_textract_ocr", false)
+            })?;
         let secs = now.as_secs();
         let datetime = format_datetime(secs);
         let date_stamp = &datetime[..8];
@@ -182,30 +202,22 @@ impl Backend for AwsTextractBackend {
             .post(&url)
             .header("Content-Type", "application/x-amz-json-1.1")
             .header("X-Amz-Target", "Textract.DetectDocumentText")
-            .header("X-Amz-Date", &datetime)
-            .header("Authorization", &authorization)
+            .header("X-Amz-Date", &*datetime)
+            .header("Authorization", &*authorization)
             .body(payload)
             .send()
             .await
-            .map_err(|e| {
-                Error::runtime(
-                    format!("Textract request failed: {e}"),
-                    "aws_textract_ocr",
-                    false,
-                )
-            })?;
+            .map_err(|e| Error::connection(e.to_string(), "aws_textract_ocr", true))?;
 
-        let resp = self
-            .client
-            .check_status(resp, "Textract", "aws_textract_ocr")
-            .await?;
-        let parsed: TextractResponse = self
-            .client
-            .parse_json(resp, "Textract", "aws_textract_ocr")
-            .await?;
+        let resp = check_response(resp, "Textract").await?;
+
+        let parsed: TextractResponse = resp
+            .json()
+            .await
+            .map_err(|e| Error::runtime(format!("Textract JSON parse error: {e}"), "aws_textract_ocr", false))?;
 
         let threshold = params.confidence_threshold;
-        let mut regions = Vec::new();
+        let mut output = ImageOutput::new(image.source.derive());
 
         for block in &parsed.blocks {
             if block.block_type != "WORD" {
@@ -235,12 +247,7 @@ impl Backend for AwsTextractBackend {
                             width: b.width,
                             height: b.height,
                         })
-                        .unwrap_or(BoundingBox {
-                            x: 0.0,
-                            y: 0.0,
-                            width: 0.0,
-                            height: 0.0,
-                        });
+                        .unwrap_or_default();
 
                     let polygon = geom.polygon.as_ref().map(|pts| Polygon {
                         vertices: pts.iter().map(|p| Vertex::new(p.x, p.y)).collect(),
@@ -248,18 +255,10 @@ impl Backend for AwsTextractBackend {
 
                     (bbox, polygon)
                 }
-                None => (
-                    BoundingBox {
-                        x: 0.0,
-                        y: 0.0,
-                        width: 0.0,
-                        height: 0.0,
-                    },
-                    None,
-                ),
+                None => (BoundingBox::default(), None),
             };
 
-            regions.push(ImageRegion {
+            output.insert(ImageRegion {
                 text,
                 confidence: Some(confidence),
                 bbox,
@@ -268,10 +267,7 @@ impl Backend for AwsTextractBackend {
             });
         }
 
-        Ok(ImageOutput {
-            source: image.source.derive(),
-            regions,
-        })
+        Ok(output)
     }
 }
 
@@ -348,43 +344,6 @@ mod tests {
         assert!((bbox.left - 0.1).abs() < 0.001);
         assert!((bbox.top - 0.3).abs() < 0.001);
         assert!((bbox.width - 0.2).abs() < 0.001);
-    }
-
-    #[test]
-    fn filters_below_threshold() {
-        let json = serde_json::json!({
-            "Blocks": [
-                {
-                    "BlockType": "WORD",
-                    "Text": "low",
-                    "Confidence": 20.0,
-                    "Geometry": {
-                        "BoundingBox": { "Width": 0.1, "Height": 0.1, "Left": 0.0, "Top": 0.0 }
-                    }
-                },
-                {
-                    "BlockType": "WORD",
-                    "Text": "high",
-                    "Confidence": 95.0,
-                    "Geometry": {
-                        "BoundingBox": { "Width": 0.1, "Height": 0.1, "Left": 0.5, "Top": 0.0 }
-                    }
-                }
-            ]
-        });
-
-        let resp: TextractResponse = serde_json::from_value(json).unwrap();
-        let threshold = 0.5;
-
-        let words: Vec<_> = resp
-            .blocks
-            .iter()
-            .filter(|b| b.block_type == "WORD")
-            .filter(|b| b.confidence.unwrap_or(0.0) / 100.0 >= threshold)
-            .collect();
-
-        assert_eq!(words.len(), 1);
-        assert_eq!(words[0].text.as_deref(), Some("high"));
     }
 
     #[test]

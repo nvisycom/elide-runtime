@@ -5,9 +5,8 @@ use rig::transcription::TranscriptionError;
 
 /// Error type for all LLM interactions.
 ///
-/// Variants map 1:1 to rig-core error categories plus crate-specific
-/// additions (`Validation`, `Client`, `Core`). Use [`is_retryable`](Self::is_retryable)
-/// to decide whether a failed request should be retried.
+/// Use [`is_retryable`](Self::is_retryable) to decide whether a failed
+/// request should be retried.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// An HTTP / network error from the LLM provider.
@@ -26,45 +25,17 @@ pub enum Error {
     #[error("Response error: {0}")]
     Response(String),
 
-    /// The request could not be constructed.
+    /// A request construction or validation error.
     #[error("Request error: {0}")]
     Request(String),
 
-    /// A tool call failed during an agent prompt.
-    #[error("Tool error: {0}")]
-    Tool(String),
-
-    /// The agent exceeded its maximum turn limit.
-    #[error("Agent exceeded max turn limit ({0})")]
-    MaxTurns(usize),
-
-    /// The prompt was cancelled.
-    #[error("Prompt cancelled: {0}")]
-    Cancelled(String),
-
-    /// A validation or parse failure.
+    /// A runtime error (tool failure, agent limits, generation errors, etc.).
     #[error("{0}")]
-    Validation(String),
+    Runtime(String),
 
     /// Wraps `nvisy_core::Error` from provider implementations.
     #[error(transparent)]
     Core(#[from] nvisy_core::Error),
-
-    /// Structured output failed (prompt error or deserialization).
-    #[error("Structured output error: {0}")]
-    StructuredOutput(String),
-
-    /// Failed to construct a provider client.
-    #[error("Client error: {0}")]
-    Client(String),
-
-    /// A transcription (STT) error from the model provider.
-    #[error("Transcription error: {0}")]
-    Transcription(String),
-
-    /// A generation (TTS/image) error from the model provider.
-    #[error("Generation error: {0}")]
-    Generation(String),
 }
 
 impl Error {
@@ -95,10 +66,14 @@ impl From<PromptError> for Error {
     fn from(err: PromptError) -> Self {
         match err {
             PromptError::CompletionError(e) => Self::from(e),
-            PromptError::ToolError(e) => Self::Tool(e.to_string()),
-            PromptError::ToolServerError(e) => Self::Tool(format!("server: {e}")),
-            PromptError::MaxTurnsError { max_turns, .. } => Self::MaxTurns(max_turns),
-            PromptError::PromptCancelled { reason, .. } => Self::Cancelled(reason),
+            PromptError::ToolError(e) => Self::Runtime(format!("tool: {e}")),
+            PromptError::ToolServerError(e) => Self::Runtime(format!("tool server: {e}")),
+            PromptError::MaxTurnsError { max_turns, .. } => {
+                Self::Runtime(format!("agent exceeded max turn limit ({max_turns})"))
+            }
+            PromptError::PromptCancelled { reason, .. } => {
+                Self::Runtime(format!("prompt cancelled: {reason}"))
+            }
         }
     }
 }
@@ -108,10 +83,10 @@ impl From<StructuredOutputError> for Error {
         match err {
             StructuredOutputError::PromptError(e) => Self::from(e),
             StructuredOutputError::DeserializationError(e) => {
-                Self::StructuredOutput(e.to_string())
+                Self::Response(format!("structured output: {e}"))
             }
             StructuredOutputError::EmptyResponse => {
-                Self::StructuredOutput("model returned no content".to_string())
+                Self::Response("model returned no content".to_string())
             }
         }
     }
@@ -124,8 +99,8 @@ impl From<TranscriptionError> for Error {
             TranscriptionError::JsonError(e) => Self::Json(e),
             TranscriptionError::ProviderError(msg) => Self::Provider(msg),
             TranscriptionError::ResponseError(msg) => Self::Response(msg),
-            TranscriptionError::RequestError(e) => Self::Transcription(e.to_string()),
-            _ => Self::Transcription(err.to_string()),
+            TranscriptionError::RequestError(e) => Self::Request(e.to_string()),
+            _ => Self::Runtime(err.to_string()),
         }
     }
 }
@@ -139,7 +114,7 @@ impl From<rig::audio_generation::AudioGenerationError> for Error {
             AudioGenerationError::JsonError(e) => Self::Json(e),
             AudioGenerationError::ProviderError(msg) => Self::Provider(msg),
             AudioGenerationError::ResponseError(msg) => Self::Response(msg),
-            AudioGenerationError::RequestError(e) => Self::Generation(e.to_string()),
+            AudioGenerationError::RequestError(e) => Self::Request(e.to_string()),
         }
     }
 }
@@ -153,14 +128,13 @@ impl From<rig::image_generation::ImageGenerationError> for Error {
             ImageGenerationError::JsonError(e) => Self::Json(e),
             ImageGenerationError::ProviderError(msg) => Self::Provider(msg),
             ImageGenerationError::ResponseError(msg) => Self::Response(msg),
-            ImageGenerationError::RequestError(e) => Self::Generation(e.to_string()),
+            ImageGenerationError::RequestError(e) => Self::Request(e.to_string()),
         }
     }
 }
 
 impl From<Error> for nvisy_core::Error {
     fn from(err: Error) -> Self {
-        // Handle the owned `Core` variant first to avoid borrowing issues.
         if matches!(&err, Error::Core(_)) {
             return match err {
                 Error::Core(inner) => inner,
@@ -180,19 +154,13 @@ impl From<Error> for nvisy_core::Error {
                 let retryable = is_retryable_provider_error(msg);
                 nvisy_core::Error::connection(err.to_string(), "rig", retryable)
             }
-            Error::Response(_) | Error::StructuredOutput(_) => {
+            Error::Response(_) => {
                 nvisy_core::Error::runtime(err.to_string(), "rig", false)
             }
-            Error::Request(_) | Error::Validation(_) => {
+            Error::Request(_) => {
                 nvisy_core::Error::validation(err.to_string(), "rig")
             }
-            Error::Tool(_) | Error::MaxTurns(_) | Error::Cancelled(_) => {
-                nvisy_core::Error::runtime(err.to_string(), "rig", false)
-            }
-            Error::Client(_) => {
-                nvisy_core::Error::connection(err.to_string(), "rig", false)
-            }
-            Error::Transcription(_) | Error::Generation(_) => {
+            Error::Runtime(_) => {
                 nvisy_core::Error::runtime(err.to_string(), "rig", false)
             }
             Error::Core(_) => unreachable!(),

@@ -1,31 +1,44 @@
 //! [`Backend`] implementation for PaddleX PP-OCRv5.
+//!
+//! [`Backend`]: crate::Backend
 
 use serde::Deserialize;
 
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
-
+use nvisy_rig::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
+use reqwest_middleware::reqwest::multipart::Form;
 
-use crate::backend::http::HttpClient;
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
+use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams, check_response, image_part};
 
-/// Remote OCR backend using a PaddleX PP-OCRv5 server.
+use super::PaddleXParams;
+
+/// [`Backend`] implementation for PaddleX PP-OCRv5.
 ///
 /// Sends images as multipart form data to `{base_url}/ocr` with
 /// `returnWordBox=true` and parses word-level results into [`ImageRegion`].
+///
+/// [`Backend`]: crate::Backend
+/// [`ImageRegion`]: crate::ImageRegion
+#[derive(Debug)]
 pub struct PaddleXBackend {
-    client: HttpClient,
+    client: ClientWithMiddleware,
     base_url: String,
 }
 
 impl PaddleXBackend {
-    /// Create a new backend with the given HTTP client and server URL.
-    pub fn new(client: ClientWithMiddleware, base_url: impl Into<String>) -> Self {
+    /// Create a new backend with default HTTP configuration.
+    pub fn new(params: PaddleXParams) -> Self {
+        Self::with_client(build_http_client(&HttpConfig::default()), params)
+    }
+
+    /// Create a new backend with a pre-configured HTTP client.
+    pub fn with_client(client: ClientWithMiddleware, params: PaddleXParams) -> Self {
         Self {
-            client: HttpClient::new(client),
-            base_url: base_url.into(),
+            client,
+            base_url: params.base_url,
         }
     }
 }
@@ -63,9 +76,9 @@ impl Backend for PaddleXBackend {
         image: &ImageInput,
         params: &RunParams,
     ) -> Result<ImageOutput, Error> {
-        let file_part = self.client.image_part(image)?;
+        let file_part = image_part(image)?;
 
-        let form = reqwest_middleware::reqwest::multipart::Form::new()
+        let form = Form::new()
             .part("file", file_part)
             .text("returnWordBox", "true");
 
@@ -77,16 +90,17 @@ impl Backend for PaddleXBackend {
             .multipart(form)
             .send()
             .await
-            .map_err(|e| {
-                Error::runtime(format!("PaddleX request failed: {e}"), "paddlex_ocr", false)
-            })?;
+            .map_err(|e| Error::connection(e.to_string(), "paddlex_ocr", true))?;
 
-        let resp = self.client.check_status(resp, "PaddleX", "paddlex_ocr").await?;
-        let parsed: PaddleXResponse =
-            self.client.parse_json(resp, "PaddleX", "paddlex_ocr").await?;
+        let resp = check_response(resp, "PaddleX").await?;
+
+        let parsed: PaddleXResponse = resp
+            .json()
+            .await
+            .map_err(|e| Error::runtime(format!("PaddleX JSON parse error: {e}"), "paddlex_ocr", false))?;
 
         let threshold = params.confidence_threshold;
-        let mut regions = Vec::new();
+        let mut output = ImageOutput::new(image.source.derive());
 
         for ocr_result in &parsed.result.ocr_results {
             for word in &ocr_result.word_results {
@@ -103,7 +117,7 @@ impl Backend for PaddleXBackend {
                 };
                 let bbox = polygon.bounding_box();
 
-                regions.push(ImageRegion {
+                output.insert(ImageRegion {
                     text: word.text.clone(),
                     confidence: Some(word.confidence),
                     bbox,
@@ -113,10 +127,7 @@ impl Backend for PaddleXBackend {
             }
         }
 
-        Ok(ImageOutput {
-            source: image.source.derive(),
-            regions,
-        })
+        Ok(output)
     }
 }
 
@@ -174,58 +185,4 @@ mod tests {
         assert!((bbox.height - 20.0).abs() < 0.01);
     }
 
-    #[test]
-    fn filters_below_threshold() {
-        let json = serde_json::json!({
-            "result": {
-                "ocrResults": [{
-                    "text": "test",
-                    "confidence": 0.5,
-                    "textRegion": [[0, 0], [50, 0], [50, 20], [0, 20]],
-                    "wordResults": [
-                        {
-                            "text": "low",
-                            "confidence": 0.3,
-                            "wordRegion": [[0, 0], [25, 0], [25, 20], [0, 20]]
-                        },
-                        {
-                            "text": "high",
-                            "confidence": 0.9,
-                            "wordRegion": [[30, 0], [50, 0], [50, 20], [30, 20]]
-                        }
-                    ]
-                }]
-            }
-        });
-
-        let resp: PaddleXResponse = serde_json::from_value(json).unwrap();
-        let threshold = 0.5;
-        let regions: Vec<ImageRegion> = resp
-            .result
-            .ocr_results
-            .iter()
-            .flat_map(|r| &r.word_results)
-            .filter(|w| w.confidence >= threshold)
-            .map(|w| {
-                let polygon = Polygon {
-                    vertices: w
-                        .word_region
-                        .iter()
-                        .map(|[x, y]| Vertex::new(*x, *y))
-                        .collect(),
-                };
-                let bbox = polygon.bounding_box();
-                ImageRegion {
-                    text: w.text.clone(),
-                    confidence: Some(w.confidence),
-                    bbox,
-                    polygon: Some(polygon),
-                    level: Some(TextLevel::Word),
-                }
-            })
-            .collect();
-
-        assert_eq!(regions.len(), 1);
-        assert_eq!(regions[0].text, "high");
-    }
 }

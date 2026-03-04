@@ -45,7 +45,7 @@ impl AudioGenService {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Client`] if client construction fails.
+    /// Returns [`Error::Request`] if client construction fails.
     pub fn new(provider: &AudioGenProvider, config: AudioGenConfig) -> Result<Self, Error> {
         let inner =
             AudioGenModels::from_provider(provider, &config.model, config.max_retries)?;

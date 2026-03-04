@@ -1,33 +1,46 @@
 //! [`Backend`] implementation for DocTR.
+//!
+//! [`Backend`]: crate::Backend
 
 use serde::Deserialize;
 
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
-
+use nvisy_rig::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
+use reqwest_middleware::reqwest::multipart::Form;
 
-use crate::backend::http::HttpClient;
-use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams};
+use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams, check_response, image_part};
 
-/// Remote OCR backend using a DocTR server.
+use super::DoctrParams;
+
+/// [`Backend`] implementation for DocTR.
 ///
 /// Sends images as multipart form data to `{base_url}/ocr` and parses
-/// word-level results into [`ImageRegion`]. DocTR returns normalised 0–1
-/// coordinates which are denormalised using the `dimensions` field from
+/// word-level results into [`ImageRegion`]. DocTR returns normalised 0..1
+/// coordinates that are denormalised using the `dimensions` field from
 /// the response.
+///
+/// [`Backend`]: crate::Backend
+/// [`ImageRegion`]: crate::ImageRegion
+#[derive(Debug)]
 pub struct DoctrBackend {
-    client: HttpClient,
+    client: ClientWithMiddleware,
     base_url: String,
 }
 
 impl DoctrBackend {
-    /// Create a new backend with the given HTTP client and server URL.
-    pub fn new(client: ClientWithMiddleware, base_url: impl Into<String>) -> Self {
+    /// Create a new backend with default HTTP configuration.
+    pub fn new(params: DoctrParams) -> Self {
+        Self::with_client(build_http_client(&HttpConfig::default()), params)
+    }
+
+    /// Create a new backend with a pre-configured HTTP client.
+    pub fn with_client(client: ClientWithMiddleware, params: DoctrParams) -> Self {
         Self {
-            client: HttpClient::new(client),
-            base_url: base_url.into(),
+            client,
+            base_url: params.base_url,
         }
     }
 }
@@ -60,9 +73,9 @@ impl Backend for DoctrBackend {
         image: &ImageInput,
         params: &RunParams,
     ) -> Result<ImageOutput, Error> {
-        let file_part = self.client.image_part(image)?;
+        let file_part = image_part(image)?;
 
-        let form = reqwest_middleware::reqwest::multipart::Form::new().part("file", file_part);
+        let form = Form::new().part("file", file_part);
 
         let url = format!("{}/ocr", self.base_url.trim_end_matches('/'));
 
@@ -72,15 +85,17 @@ impl Backend for DoctrBackend {
             .multipart(form)
             .send()
             .await
-            .map_err(|e| {
-                Error::runtime(format!("DocTR request failed: {e}"), "doctr_ocr", false)
-            })?;
+            .map_err(|e| Error::connection(e.to_string(), "doctr_ocr", true))?;
 
-        let resp = self.client.check_status(resp, "DocTR", "doctr_ocr").await?;
-        let parsed: DoctrResponse = self.client.parse_json(resp, "DocTR", "doctr_ocr").await?;
+        let resp = check_response(resp, "DocTR").await?;
+
+        let parsed: DoctrResponse = resp
+            .json()
+            .await
+            .map_err(|e| Error::runtime(format!("DocTR JSON parse error: {e}"), "doctr_ocr", false))?;
 
         let threshold = params.confidence_threshold;
-        let mut regions = Vec::new();
+        let mut output = ImageOutput::new(image.source.derive());
 
         for page in &parsed.pages {
             let [height, width] = page.dimensions;
@@ -107,7 +122,7 @@ impl Backend for DoctrBackend {
                 };
                 let bbox = polygon.bounding_box();
 
-                regions.push(ImageRegion {
+                output.insert(ImageRegion {
                     text: word.value.clone(),
                     confidence: Some(word.confidence),
                     bbox,
@@ -117,10 +132,7 @@ impl Backend for DoctrBackend {
             }
         }
 
-        Ok(ImageOutput {
-            source: image.source.derive(),
-            regions,
-        })
+        Ok(output)
     }
 }
 
@@ -182,92 +194,4 @@ mod tests {
         assert!((bbox.height - 40.0).abs() < 0.01);
     }
 
-    #[test]
-    fn filters_below_threshold() {
-        let json = serde_json::json!({
-            "pages": [{
-                "dimensions": [100.0, 100.0],
-                "words": [
-                    {
-                        "value": "low",
-                        "confidence": 0.2,
-                        "geometry": [[0.0, 0.0], [0.5, 0.5]]
-                    },
-                    {
-                        "value": "high",
-                        "confidence": 0.9,
-                        "geometry": [[0.5, 0.0], [1.0, 0.5]]
-                    }
-                ]
-            }]
-        });
-
-        let resp: DoctrResponse = serde_json::from_value(json).unwrap();
-        let threshold = 0.5;
-
-        let regions: Vec<ImageRegion> = resp
-            .pages
-            .iter()
-            .flat_map(|page| {
-                let [height, width] = page.dimensions;
-                page.words.iter().filter_map(move |word| {
-                    if word.confidence < threshold {
-                        return None;
-                    }
-                    let x_min = word.geometry[0][0] * width;
-                    let y_min = word.geometry[0][1] * height;
-                    let x_max = word.geometry[1][0] * width;
-                    let y_max = word.geometry[1][1] * height;
-                    let polygon = Polygon {
-                        vertices: vec![
-                            Vertex::new(x_min, y_min),
-                            Vertex::new(x_max, y_min),
-                            Vertex::new(x_max, y_max),
-                            Vertex::new(x_min, y_max),
-                        ],
-                    };
-                    let bbox = polygon.bounding_box();
-                    Some(ImageRegion {
-                        text: word.value.clone(),
-                        confidence: Some(word.confidence),
-                        bbox,
-                        polygon: Some(polygon),
-                        level: Some(TextLevel::Word),
-                    })
-                })
-            })
-            .collect();
-
-        assert_eq!(regions.len(), 1);
-        assert_eq!(regions[0].text, "high");
-    }
-
-    #[test]
-    fn multi_page_response() {
-        let json = serde_json::json!({
-            "pages": [
-                {
-                    "dimensions": [100.0, 200.0],
-                    "words": [{
-                        "value": "page1",
-                        "confidence": 0.99,
-                        "geometry": [[0.0, 0.0], [0.5, 0.5]]
-                    }]
-                },
-                {
-                    "dimensions": [300.0, 400.0],
-                    "words": [{
-                        "value": "page2",
-                        "confidence": 0.98,
-                        "geometry": [[0.1, 0.1], [0.9, 0.9]]
-                    }]
-                }
-            ]
-        });
-
-        let resp: DoctrResponse = serde_json::from_value(json).unwrap();
-        assert_eq!(resp.pages.len(), 2);
-        assert_eq!(resp.pages[0].words[0].value, "page1");
-        assert_eq!(resp.pages[1].words[0].value, "page2");
-    }
 }

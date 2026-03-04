@@ -1,15 +1,15 @@
 //! OCR output types.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use nvisy_core::math::{BoundingBox, Polygon};
 use nvisy_core::path::ContentSource;
 use nvisy_ontology::location::TextLevel;
 
 /// A single text region detected by an OCR backend.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageRegion {
-    /// The extracted text content.
+    /// Extracted text content.
     pub text: String,
     /// Confidence score (0.0..=1.0), if the backend provides one.
     pub confidence: Option<f64>,
@@ -17,7 +17,7 @@ pub struct ImageRegion {
     pub bbox: BoundingBox,
     /// Polygon vertices for rotated or skewed text regions.
     pub polygon: Option<Polygon>,
-    /// Hierarchical level of this text region (word, line, block, …).
+    /// Hierarchical level of this text region: word, line, block, etc.
     pub level: Option<TextLevel>,
 }
 
@@ -32,7 +32,7 @@ impl ImageRegion {
         self.text.len()
     }
 
-    /// Area of the bounding box (width × height).
+    /// Area of the bounding box: width × height.
     pub fn area(&self) -> f64 {
         self.bbox.width * self.bbox.height
     }
@@ -45,17 +45,34 @@ impl ImageRegion {
 
 /// Output from an OCR run on a single image.
 ///
-/// Groups the detected [`ImageRegion`]s together with a [`ContentSource`]
+/// Groups detected [`ImageRegion`]s together with a [`ContentSource`]
 /// derived from the input image for provenance tracking.
-#[derive(Debug, Clone)]
+///
+/// [`ContentSource`]: nvisy_core::path::ContentSource
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageOutput {
-    /// Provenance of this output, derived from the input's [`ContentSource`].
+    /// Provenance: derived from the input's [`ContentSource`].
+    ///
+    /// [`ContentSource`]: nvisy_core::path::ContentSource
     pub source: ContentSource,
     /// Text regions detected in the image.
     pub regions: Vec<ImageRegion>,
 }
 
 impl ImageOutput {
+    /// Create an empty output with the given source.
+    pub fn new(source: ContentSource) -> Self {
+        Self {
+            source,
+            regions: Vec::new(),
+        }
+    }
+
+    /// Insert a region into this output.
+    pub fn insert(&mut self, region: ImageRegion) {
+        self.regions.push(region);
+    }
+
     /// Number of detected regions.
     pub fn len(&self) -> usize {
         self.regions.len()
@@ -66,21 +83,19 @@ impl ImageOutput {
         self.regions.is_empty()
     }
 
-    /// Concatenate all region texts separated by a single space.
-    pub fn full_text(&self) -> String {
-        let mut buf = String::new();
-        for (i, region) in self.regions.iter().enumerate() {
-            if i > 0 {
-                buf.push(' ');
-            }
-            buf.push_str(&region.text);
-        }
-        buf
-    }
-
     /// Iterator over the detected regions.
     pub fn iter(&self) -> std::slice::Iter<'_, ImageRegion> {
         self.regions.iter()
+    }
+
+    /// Mutable iterator over the detected regions.
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, ImageRegion> {
+        self.regions.iter_mut()
+    }
+
+    /// Retain only regions that satisfy the predicate.
+    pub fn retain(&mut self, f: impl FnMut(&ImageRegion) -> bool) {
+        self.regions.retain(f);
     }
 
     /// Filter regions that meet the given confidence threshold.
@@ -98,6 +113,15 @@ impl<'a> IntoIterator for &'a ImageOutput {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut ImageOutput {
+    type Item = &'a mut ImageRegion;
+    type IntoIter = std::slice::IterMut<'a, ImageRegion>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
 

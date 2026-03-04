@@ -3,14 +3,26 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use bytes::Bytes;
+use strum::{Display, EnumString, IntoStaticStr};
 
 use nvisy_core::path::ContentSource;
 
-/// Image format passed to a [`Backend`](super::Backend).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Image format passed to a [`Backend`].
+///
+/// [`Backend`]: super::Backend
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr)]
+#[non_exhaustive]
 pub enum ImageFormat {
+    #[strum(serialize = "png")]
     Png,
+    #[strum(serialize = "jpeg")]
     Jpeg,
+    #[strum(serialize = "tiff")]
+    Tiff,
+    #[strum(serialize = "webp")]
+    WebP,
+    #[strum(serialize = "bmp")]
+    Bmp,
 }
 
 impl ImageFormat {
@@ -19,14 +31,31 @@ impl ImageFormat {
         match self {
             Self::Png => "image/png",
             Self::Jpeg => "image/jpeg",
+            Self::Tiff => "image/tiff",
+            Self::WebP => "image/webp",
+            Self::Bmp => "image/bmp",
+        }
+    }
+
+    /// File extension for this format (without leading dot).
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Png => "png",
+            Self::Jpeg => "jpeg",
+            Self::Tiff => "tiff",
+            Self::WebP => "webp",
+            Self::Bmp => "bmp",
         }
     }
 }
 
-/// Image payload passed to [`Backend::run`](super::Backend::run).
+/// Image payload passed to [`Backend::run`].
 ///
 /// Wraps raw image bytes together with format metadata and a
 /// [`ContentSource`] for provenance tracking.
+///
+/// [`Backend::run`]: super::Backend::run
+/// [`ContentSource`]: nvisy_core::path::ContentSource
 #[derive(Debug, Clone)]
 pub struct ImageInput {
     /// Provenance identifier for this image.

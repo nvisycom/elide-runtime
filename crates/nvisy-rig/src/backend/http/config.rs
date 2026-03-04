@@ -14,7 +14,7 @@ const DEFAULT_POOL_IDLE_TIMEOUT_SECS: u64 = 90;
 /// Configuration for the shared HTTP client.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HttpClientConfig {
+pub struct HttpConfig {
     /// Maximum number of retries for transient failures (default: 3).
     #[serde(default = "default_max_retries")]
     pub max_retries: u32,
@@ -34,7 +34,7 @@ fn default_timeout_secs() -> u64 { DEFAULT_TIMEOUT_SECS }
 fn default_connect_timeout_secs() -> u64 { DEFAULT_CONNECT_TIMEOUT_SECS }
 fn default_pool_idle_timeout_secs() -> u64 { DEFAULT_POOL_IDLE_TIMEOUT_SECS }
 
-impl Default for HttpClientConfig {
+impl Default for HttpConfig {
     fn default() -> Self {
         Self {
             max_retries: DEFAULT_MAX_RETRIES,
@@ -45,7 +45,7 @@ impl Default for HttpClientConfig {
     }
 }
 
-impl HttpClientConfig {
+impl HttpConfig {
     /// Create a config with the given max retries and default timeouts.
     pub fn with_max_retries(max_retries: u32) -> Self {
         Self {

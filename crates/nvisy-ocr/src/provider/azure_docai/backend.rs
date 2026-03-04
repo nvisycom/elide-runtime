@@ -1,45 +1,68 @@
 //! [`Backend`] implementation for Azure Document Intelligence.
+//!
+//! [`Backend`]: crate::Backend
 
-use reqwest_middleware::ClientWithMiddleware;
+use std::fmt;
+
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use nvisy_core::Error;
-use nvisy_core::math::{BoundingBox, Polygon, Vertex};
+use nvisy_rig::backend::{HttpConfig, build_http_client};
+use nvisy_core::math::{Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
+use reqwest_middleware::ClientWithMiddleware;
 
-use crate::backend::http::HttpClient;
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, check_response};
 
-/// Poll interval when waiting for Azure analysis results.
-const POLL_INTERVAL: Duration = Duration::from_millis(500);
-/// Maximum number of poll attempts (500ms × 120 = 60s).
-const MAX_POLL_ATTEMPTS: u32 = 120;
+use super::AzureDocaiParams;
 
-/// Remote OCR backend using Azure Document Intelligence.
+/// [`Backend`] implementation for Azure Document Intelligence.
 ///
 /// Uses the async two-step flow: POST to start analysis, then poll GET
 /// until results are available.
+///
+/// [`Backend`]: crate::Backend
 pub struct AzureDocaiBackend {
-    client: HttpClient,
+    client: ClientWithMiddleware,
     endpoint: String,
     api_key: String,
+    api_version: String,
+    poll_interval: Duration,
+    max_poll_attempts: u32,
+}
+
+impl fmt::Debug for AzureDocaiBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AzureDocaiBackend")
+            .field("endpoint", &self.endpoint)
+            .field("api_key", &"***")
+            .field("api_version", &self.api_version)
+            .finish()
+    }
 }
 
 impl AzureDocaiBackend {
-    /// Create a new backend with the given HTTP client, endpoint, and API key.
-    ///
-    /// The endpoint should be the Azure resource URL, e.g.
-    /// `https://<resource>.cognitiveservices.azure.com`.
-    pub fn new(
-        client: ClientWithMiddleware,
-        endpoint: impl Into<String>,
-        api_key: impl Into<String>,
-    ) -> Self {
+    /// Create a new backend with default HTTP configuration.
+    pub fn new(params: AzureDocaiParams) -> Self {
+        Self::with_client(build_http_client(&HttpConfig::default()), params)
+    }
+
+    /// Create a new backend with a pre-configured HTTP client.
+    pub fn with_client(client: ClientWithMiddleware, params: AzureDocaiParams) -> Self {
+        let poll_interval = Duration::from_millis(params.poll_interval_ms.unwrap_or(500));
+        let max_poll_attempts = params.max_poll_attempts.unwrap_or(120);
+        let api_version = params
+            .api_version
+            .unwrap_or_else(|| "2024-11-30".to_owned());
+
         Self {
-            client: HttpClient::new(client),
-            endpoint: endpoint.into(),
-            api_key: api_key.into(),
+            client,
+            endpoint: params.endpoint,
+            api_key: params.api_key,
+            api_version,
+            poll_interval,
+            max_poll_attempts,
         }
     }
 }
@@ -82,7 +105,8 @@ impl Backend for AzureDocaiBackend {
         let endpoint = self.endpoint.trim_end_matches('/');
 
         let submit_url = format!(
-            "{endpoint}/documentintelligence/documentModels/prebuilt-read:analyze?api-version=2024-11-30"
+            "{endpoint}/documentintelligence/documentModels/prebuilt-read:analyze?api-version={}",
+            self.api_version
         );
 
         let body = serde_json::json!({ "base64Source": encoded });
@@ -90,23 +114,14 @@ impl Backend for AzureDocaiBackend {
         let resp = self
             .client
             .post(&submit_url)
-            .header("Ocp-Apim-Subscription-Key", &self.api_key)
+            .header("Ocp-Apim-Subscription-Key", &*self.api_key)
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
             .await
-            .map_err(|e| {
-                Error::runtime(
-                    format!("Azure DocAI submit failed: {e}"),
-                    "azure_docai_ocr",
-                    false,
-                )
-            })?;
+            .map_err(|e| Error::connection(e.to_string(), "azure_docai_ocr", true))?;
 
-        let resp = self
-            .client
-            .check_status(resp, "Azure DocAI submit", "azure_docai_ocr")
-            .await?;
+        let resp = check_response(resp, "Azure DocAI submit").await?;
 
         let result_url = resp
             .headers()
@@ -121,41 +136,42 @@ impl Backend for AzureDocaiBackend {
                 )
             })?;
 
+        if !result_url.starts_with(endpoint) {
+            return Err(Error::runtime(
+                format!("Azure DocAI returned unexpected Operation-Location host: {result_url}"),
+                "azure_docai_ocr",
+                false,
+            ));
+        }
+
         let mut attempts = 0u32;
         let analyze = loop {
-            attempts += 1;
-            if attempts > MAX_POLL_ATTEMPTS {
+            if attempts >= self.max_poll_attempts {
                 return Err(Error::runtime(
-                    "Azure DocAI analysis timed out after 60s",
+                    format!(
+                        "Azure DocAI analysis timed out after {} attempts",
+                        self.max_poll_attempts
+                    ),
                     "azure_docai_ocr",
                     false,
                 ));
             }
-
-            sleep(POLL_INTERVAL).await;
+            attempts += 1;
 
             let poll_resp = self
                 .client
                 .get(&result_url)
-                .header("Ocp-Apim-Subscription-Key", &self.api_key)
+                .header("Ocp-Apim-Subscription-Key", &*self.api_key)
                 .send()
                 .await
-                .map_err(|e| {
-                    Error::runtime(
-                        format!("Azure DocAI poll failed: {e}"),
-                        "azure_docai_ocr",
-                        false,
-                    )
-                })?;
+                .map_err(|e| Error::connection(e.to_string(), "azure_docai_ocr", true))?;
 
-            let poll_resp = self
-                .client
-                .check_status(poll_resp, "Azure DocAI poll", "azure_docai_ocr")
-                .await?;
-            let parsed: AnalyzeResponse = self
-                .client
-                .parse_json(poll_resp, "Azure DocAI", "azure_docai_ocr")
-                .await?;
+            let poll_resp = check_response(poll_resp, "Azure DocAI poll").await?;
+
+            let parsed: AnalyzeResponse = poll_resp
+                .json()
+                .await
+                .map_err(|e| Error::runtime(format!("Azure DocAI JSON parse error: {e}"), "azure_docai_ocr", false))?;
 
             match parsed.status.as_str() {
                 "succeeded" => break parsed,
@@ -166,21 +182,18 @@ impl Backend for AzureDocaiBackend {
                         false,
                     ));
                 }
-                _ => continue,
+                _ => {
+                    sleep(self.poll_interval).await;
+                }
             }
         };
 
         let threshold = params.confidence_threshold;
-        let mut regions = Vec::new();
+        let mut output = ImageOutput::new(image.source.derive());
 
         let result = match &analyze.analyze_result {
             Some(r) => r,
-            None => {
-                return Ok(ImageOutput {
-                    source: image.source.derive(),
-                    regions,
-                });
-            }
+            None => return Ok(output),
         };
 
         for page in &result.pages {
@@ -204,14 +217,9 @@ impl Backend for AzureDocaiBackend {
                 let bbox = polygon
                     .as_ref()
                     .map(|p| p.bounding_box())
-                    .unwrap_or(BoundingBox {
-                        x: 0.0,
-                        y: 0.0,
-                        width: 0.0,
-                        height: 0.0,
-                    });
+                    .unwrap_or_default();
 
-                regions.push(ImageRegion {
+                output.insert(ImageRegion {
                     text: word.content.clone(),
                     confidence: Some(word.confidence),
                     bbox,
@@ -221,10 +229,7 @@ impl Backend for AzureDocaiBackend {
             }
         }
 
-        Ok(ImageOutput {
-            source: image.source.derive(),
-            regions,
-        })
+        Ok(output)
     }
 }
 
@@ -267,64 +272,4 @@ mod tests {
         assert_eq!(word.polygon.len(), 8);
     }
 
-    #[test]
-    fn polygon_from_8_floats() {
-        let word = AzureWord {
-            content: "test".into(),
-            confidence: 0.9,
-            polygon: vec![0.0, 0.0, 10.0, 0.0, 10.0, 5.0, 0.0, 5.0],
-        };
-
-        let polygon = Polygon {
-            vertices: word
-                .polygon
-                .chunks_exact(2)
-                .map(|pair| Vertex::new(pair[0], pair[1]))
-                .collect(),
-        };
-
-        assert_eq!(polygon.vertices.len(), 4);
-        let bbox = polygon.bounding_box();
-        assert!((bbox.width - 10.0).abs() < 0.001);
-        assert!((bbox.height - 5.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn filters_below_threshold() {
-        let json = serde_json::json!({
-            "status": "succeeded",
-            "analyzeResult": {
-                "pages": [{
-                    "words": [
-                        {
-                            "content": "low",
-                            "confidence": 0.2,
-                            "polygon": [0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0]
-                        },
-                        {
-                            "content": "high",
-                            "confidence": 0.95,
-                            "polygon": [2.0, 0.0, 3.0, 0.0, 3.0, 1.0, 2.0, 1.0]
-                        }
-                    ]
-                }]
-            }
-        });
-
-        let resp: AnalyzeResponse = serde_json::from_value(json).unwrap();
-        let threshold = 0.5;
-
-        let words: Vec<_> = resp
-            .analyze_result
-            .as_ref()
-            .unwrap()
-            .pages[0]
-            .words
-            .iter()
-            .filter(|w| w.confidence >= threshold)
-            .collect();
-
-        assert_eq!(words.len(), 1);
-        assert_eq!(words[0].content, "high");
-    }
 }

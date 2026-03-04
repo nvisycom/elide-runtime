@@ -1,6 +1,5 @@
 //! OCR backend trait and shared types.
 
-pub(crate) mod http;
 mod input;
 mod output;
 
@@ -8,9 +7,39 @@ pub use input::{ImageFormat, ImageInput};
 pub use output::{ImageOutput, ImageRegion};
 
 use nvisy_core::Error;
+use reqwest_middleware::reqwest::multipart::Part;
+use reqwest_middleware::reqwest::Response;
+
+/// Build a multipart [`Part`] from an [`ImageInput`].
+pub(crate) fn image_part(image: &ImageInput) -> Result<Part, Error> {
+    let filename = format!("image.{}", image.format.extension());
+    Part::bytes(image.data.to_vec())
+        .file_name(filename)
+        .mime_str(image.mime_type())
+        .map_err(|e| Error::runtime(format!("invalid mime type: {e}"), "ocr", false))
+}
+
+/// Check an HTTP response status code, returning an error for non-success.
+pub(crate) async fn check_response(
+    resp: Response,
+    provider: &str,
+) -> Result<Response, Error> {
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(resp);
+    }
+
+    let body = resp.text().await.unwrap_or_default();
+    Err(Error::connection(
+        format!("{provider} returned {status}: {body}"),
+        format!("{provider}_ocr"),
+        status.is_server_error(),
+    ))
+}
 
 /// Parameters passed to a [`Backend`] implementation.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct RunParams {
     /// Minimum confidence threshold for OCR results (0.0..=1.0).
     pub confidence_threshold: f64,
@@ -18,7 +47,15 @@ pub struct RunParams {
 
 impl RunParams {
     /// Create params with the given confidence threshold.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `confidence_threshold` is not in `0.0..=1.0`.
     pub fn new(confidence_threshold: f64) -> Self {
+        assert!(
+            (0.0..=1.0).contains(&confidence_threshold),
+            "confidence_threshold must be in 0.0..=1.0, got {confidence_threshold}"
+        );
         Self {
             confidence_threshold,
         }
@@ -29,6 +66,11 @@ impl RunParams {
 ///
 /// Implementations send image bytes to an OCR service and return
 /// typed [`ImageRegion`] results with word-level bounding boxes.
+///
+/// Confidence values **must** be normalised to 0.0..=1.0 before
+/// populating [`ImageRegion::confidence`]. Backends whose upstream
+/// API uses a different scale (e.g. AWS Textract returns 0–100) are
+/// responsible for converting.
 #[async_trait::async_trait]
 pub trait Backend: Send + Sync + 'static {
     /// Run OCR on a single image.
@@ -53,4 +95,28 @@ pub trait Backend: Send + Sync + 'static {
         }
         Ok(results)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "confidence_threshold must be in 0.0..=1.0")]
+    fn run_params_rejects_above_one() {
+        RunParams::new(1.01);
+    }
+
+    #[test]
+    #[should_panic(expected = "confidence_threshold must be in 0.0..=1.0")]
+    fn run_params_rejects_negative() {
+        RunParams::new(-0.1);
+    }
+
+    #[test]
+    #[should_panic(expected = "confidence_threshold must be in 0.0..=1.0")]
+    fn run_params_rejects_nan() {
+        RunParams::new(f64::NAN);
+    }
+
 }

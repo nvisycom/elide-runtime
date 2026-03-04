@@ -4,7 +4,7 @@
 //!
 //! - `HOST` — Server host address (default: `0.0.0.0`)
 //! - `PORT` — Server port (default: `8080`)
-//! - `CONTENT_DIR` — Temporary content storage directory
+//! - `DATA_DIR` — Data storage directory (content, contexts)
 //! - `SHUTDOWN_TIMEOUT` — Graceful shutdown timeout in seconds (default: `30`)
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -16,7 +16,7 @@ use clap::Args;
 /// HTTP server network and lifecycle configuration.
 ///
 /// Controls how the server binds to network interfaces, where
-/// temporary content is stored, and graceful shutdown behavior.
+/// data is stored, and graceful shutdown behavior.
 #[derive(Debug, Clone, Args)]
 pub struct ServerConfig {
     /// Host address to bind the server to.
@@ -29,11 +29,11 @@ pub struct ServerConfig {
     #[arg(short = 'p', long, env = "PORT", default_value_t = 8080)]
     pub port: u16,
 
-    /// Directory for temporary content storage.
+    /// Directory for data storage (content, contexts).
     ///
-    /// Defaults to `$TMPDIR/nvisy-server-content` if not set.
-    #[arg(long, env = "CONTENT_DIR")]
-    pub content_dir: Option<PathBuf>,
+    /// Defaults to `$TMPDIR/nvisy-server-data` if not set.
+    #[arg(long, env = "DATA_DIR")]
+    pub data_dir: Option<PathBuf>,
 
     /// Maximum time in seconds to wait for graceful shutdown.
     ///
@@ -49,11 +49,11 @@ impl ServerConfig {
         SocketAddr::new(self.host, self.port)
     }
 
-    /// Returns the content directory, falling back to a temp directory.
-    pub fn content_dir(&self) -> PathBuf {
-        self.content_dir
+    /// Returns the data directory, falling back to a temp directory.
+    pub fn data_dir(&self) -> PathBuf {
+        self.data_dir
             .clone()
-            .unwrap_or_else(|| std::env::temp_dir().join("nvisy-server-content"))
+            .unwrap_or_else(|| std::env::temp_dir().join("nvisy-server-data"))
     }
 
     /// Returns the graceful shutdown timeout as a [`Duration`].

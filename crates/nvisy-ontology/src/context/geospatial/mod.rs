@@ -1,7 +1,7 @@
 //! Geospatial reference data for location-based matching.
 
 mod address;
-pub(crate) mod coordinates;
+mod coordinates;
 mod region;
 
 pub use address::AddressData;

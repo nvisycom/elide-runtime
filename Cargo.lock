@@ -2844,7 +2844,7 @@ dependencies = [
  "anyhow",
  "axum",
  "clap",
- "nvisy-core",
+ "nvisy-registry",
  "nvisy-server",
  "tokio",
  "tracing",
@@ -2887,7 +2887,6 @@ dependencies = [
  "anyhow",
  "bytes",
  "derive_more",
- "fjall",
  "hex",
  "hipstr",
  "infer",
@@ -2919,6 +2918,7 @@ dependencies = [
  "nvisy-ocr",
  "nvisy-ontology",
  "nvisy-pattern",
+ "nvisy-registry",
  "nvisy-rig",
  "petgraph",
  "rand 0.10.0",
@@ -3002,6 +3002,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-registry"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "fjall",
+ "jiff",
+ "nvisy-core",
+ "nvisy-ontology",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "nvisy-rig"
 version = "0.1.0"
 dependencies = [
@@ -3032,6 +3049,8 @@ dependencies = [
  "futures",
  "nvisy-core",
  "nvisy-engine",
+ "nvisy-ontology",
+ "nvisy-registry",
  "schemars 1.2.1",
  "serde",
  "serde_json",

@@ -1,5 +1,6 @@
 //! Context response types.
 
+use nvisy_ontology::context::Context;
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
@@ -18,8 +19,8 @@ pub struct ContextUploadResponse {
 pub struct ContextDownloadResponse {
     /// Identifier of the context.
     pub id: Uuid,
-    /// Base64-encoded context bytes.
-    pub content: String,
+    /// The stored context.
+    pub context: Context,
 }
 
 /// Response body for `DELETE /api/v1/contexts/{id}`.

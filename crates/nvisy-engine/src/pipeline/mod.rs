@@ -25,7 +25,7 @@ use std::future::Future;
 use uuid::Uuid;
 
 use nvisy_core::Error;
-use nvisy_core::fs::ContentHandler;
+use nvisy_registry::ContentHandle;
 pub use nvisy_ontology::policy::{Policies, PolicyEvaluation, RedactionSummary};
 pub use nvisy_ontology::context::Context;
 pub use nvisy_ontology::entity::DetectionOutput;
@@ -39,7 +39,7 @@ pub use crate::compiler::{RetryPolicy, TimeoutPolicy};
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {
     /// Handle to the managed directory containing the files to process.
-    pub source: ContentHandler,
+    pub source: ContentHandle,
     /// Policies to apply (at least one).
     pub policies: Policies,
     /// Execution graph defining the pipeline DAG.
@@ -65,7 +65,7 @@ pub struct EngineOutput {
     /// Unique run identifier.
     pub run_id: Uuid,
     /// Handle to the managed directory containing redacted output files.
-    pub output: ContentHandler,
+    pub output: ContentHandle,
     /// Full detection result (entities, sensitivity, risk).
     pub detection: DetectionOutput,
     /// Policy evaluation breakdown (redactions, reviews, suppressions, blocks, alerts).

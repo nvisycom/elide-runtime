@@ -236,7 +236,7 @@ impl Engine for DefaultEngine {
         //
         // The Redaction operation wraps per-modality logic (text, image, audio,
         // tabular). It requires typed `Document<T>` representations which are
-        // not yet available at this level: the engine works with `ContentHandler`.
+        // not yet available at this level: the engine works with `ContentHandle`.
         // Once codec parsing is wired in, the call below will pass real documents
         // instead of empty vecs.
         let redaction_op = crate::operation::processing::Redaction;

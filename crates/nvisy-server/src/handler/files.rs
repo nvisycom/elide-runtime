@@ -17,6 +17,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use base64::Engine as _;
 use nvisy_core::io::{Content, ContentData};
+use nvisy_registry::ActorId;
 
 use super::error::{ErrorKind, Result};
 use super::request::{ContentPath, FileUpload};
@@ -26,6 +27,11 @@ use super::response::{
 };
 use crate::extract::{Json, Path};
 use crate::service::ServiceState;
+
+/// Resolves the actor from the request, falling back to a nil UUID.
+fn resolve_actor(actor_id: Option<uuid::Uuid>) -> ActorId {
+    actor_id.map(ActorId::from).unwrap_or_else(|| ActorId::from(uuid::Uuid::nil()))
+}
 
 /// `POST /api/v1/files`: upload a file as base64-encoded JSON.
 #[tracing::instrument(skip_all, fields(filename = req.filename.as_deref()))]
@@ -37,14 +43,15 @@ async fn upload(
         .decode(&req.content)
         .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid base64: {e}")))?;
 
+    let actor = resolve_actor(req.actor_id);
     let size = bytes.len();
     let mut content_data = ContentData::from(bytes);
     if let Some(mime) = req.content_type {
         content_data.mime = Some(mime);
     }
     let content = Content::new(content_data);
-    let handler = state.content_registry().register(content).await?;
-    let id = handler.content_source().as_uuid();
+    let handle = state.registry().register_content(actor, content).await?;
+    let id = handle.content_source().as_uuid();
 
     tracing::info!(
         %id,
@@ -72,8 +79,9 @@ async fn download(
     State(state): State<ServiceState>,
     Path(ContentPath { id }): Path<ContentPath>,
 ) -> Result<Json<FileDownloadResponse>> {
-    let handler = state.content_registry().read(id).await?;
-    let content_data = handler.content_data().await?;
+    let actor = resolve_actor(None);
+    let handle = state.registry().read_content(actor, id).await?;
+    let content_data = handle.content_data().await?;
     let content = base64::engine::general_purpose::STANDARD.encode(content_data.as_bytes());
     Ok(Json(FileDownloadResponse { id, content }))
 }
@@ -90,7 +98,8 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
 async fn list(
     State(state): State<ServiceState>,
 ) -> Result<Json<FileListResponse>> {
-    let files = state.content_registry().list().await?;
+    let actor = resolve_actor(None);
+    let files = state.registry().list_content(actor).await?;
     Ok(Json(FileListResponse { files }))
 }
 
@@ -107,7 +116,8 @@ async fn delete(
     State(state): State<ServiceState>,
     Path(ContentPath { id }): Path<ContentPath>,
 ) -> Result<Json<FileDeleteResponse>> {
-    state.content_registry().unregister(id).await?;
+    let actor = resolve_actor(None);
+    state.registry().unregister_content(actor, id).await?;
     tracing::info!(%id, "file deleted");
     Ok(Json(FileDeleteResponse { id }))
 }
@@ -124,7 +134,8 @@ fn delete_docs(op: TransformOperation) -> TransformOperation {
 async fn delete_all(
     State(state): State<ServiceState>,
 ) -> Result<Json<FileDeleteAllResponse>> {
-    let deleted = state.content_registry().unregister_all().await?;
+    let actor = resolve_actor(None);
+    let deleted = state.registry().unregister_all_content(actor).await?;
     tracing::info!(deleted, "all files deleted");
     Ok(Json(FileDeleteAllResponse { deleted }))
 }

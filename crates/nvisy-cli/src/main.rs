@@ -9,7 +9,7 @@ use std::process;
 
 use axum::Router;
 use clap::Parser;
-use nvisy_core::fs::ContentRegistry;
+use nvisy_registry::Registry;
 use nvisy_server::middleware::*;
 use nvisy_server::service::ServiceState;
 
@@ -36,8 +36,8 @@ async fn run() -> anyhow::Result<()> {
     Cli::init_tracing();
 
     // Initialize application state
-    let content_registry = ContentRegistry::open(cli.server.content_dir())?;
-    let state = ServiceState::new(content_registry);
+    let registry = Registry::open(cli.server.data_dir())?;
+    let state = ServiceState::new(registry);
 
     // Build and run
     let router = create_router(&cli, state);

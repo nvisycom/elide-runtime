@@ -24,17 +24,17 @@ pub async fn run(config: &ServerConfig, app: axum::Router) -> anyhow::Result<()>
         .with_graceful_shutdown(shutdown)
         .await?;
 
-    cleanup_content_dir(&config.content_dir());
+    cleanup_data_dir(&config.data_dir());
     Ok(())
 }
 
-/// Removes the temporary content directory after graceful shutdown.
-fn cleanup_content_dir(path: &Path) {
+/// Removes the temporary data directory after graceful shutdown.
+fn cleanup_data_dir(path: &Path) {
     if !path.exists() {
         return;
     }
     match std::fs::remove_dir_all(path) {
-        Ok(()) => tracing::info!(path = %path.display(), "content directory cleaned up"),
-        Err(e) => tracing::warn!(path = %path.display(), "failed to clean up content directory: {e}"),
+        Ok(()) => tracing::info!(path = %path.display(), "data directory cleaned up"),
+        Err(e) => tracing::warn!(path = %path.display(), "failed to clean up data directory: {e}"),
     }
 }

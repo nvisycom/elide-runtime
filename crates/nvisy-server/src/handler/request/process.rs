@@ -27,4 +27,7 @@ pub struct ProcessRequest {
     /// Reference-data contexts for detection.
     #[serde(default)]
     pub contexts: Vec<Context>,
+    /// Actor identity for registry lookups.
+    #[serde(default)]
+    pub actor_id: Option<Uuid>,
 }

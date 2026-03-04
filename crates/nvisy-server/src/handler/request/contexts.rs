@@ -1,18 +1,17 @@
 //! Context request types.
 
+use nvisy_ontology::context::Context;
 use schemars::JsonSchema;
 use serde::Deserialize;
+use uuid::Uuid;
 
-/// JSON request body for base64-encoded context upload.
+/// JSON request body for typed context upload.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextUpload {
-    /// Base64-encoded context bytes.
-    pub content: String,
-    /// Optional original filename.
+    /// Optional actor identity. Defaults to a nil UUID when absent.
     #[serde(default)]
-    pub filename: Option<String>,
-    /// Optional MIME type override (e.g. `text/csv`).
-    #[serde(default)]
-    pub content_type: Option<String>,
+    pub actor_id: Option<Uuid>,
+    /// The context to store.
+    pub context: Context,
 }

@@ -10,6 +10,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::error::{Error, ErrorKind, Result};
+
 /// Unique identifier for content sources in the system
 ///
 /// Uses `UUIDv7` for time-ordered, globally unique identification of data sources.
@@ -86,19 +88,7 @@ impl ContentSource {
         self.id
     }
 
-    /// Get the UUID as a string
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use nvisy_core::path::ContentSource;
-    ///
-    /// let source = ContentSource::new();
-    /// let id_str = source.to_string();
-    /// assert_eq!(id_str.len(), 36); // Standard UUID string length
-    /// ```
-    ///
-    /// Parse a content source from a string
+    /// Parse a content source from a UUID string.
     ///
     /// # Errors
     ///
@@ -114,8 +104,10 @@ impl ContentSource {
     /// let parsed = ContentSource::parse(&id_str).unwrap();
     /// assert_eq!(source, parsed);
     /// ```
-    pub fn parse(s: &str) -> Result<Self, uuid::Error> {
-        let id = Uuid::parse_str(s)?;
+    pub fn parse(s: &str) -> Result<Self> {
+        let id = Uuid::parse_str(s).map_err(|err| {
+            Error::new(ErrorKind::Validation, format!("Invalid content source UUID: {err}"))
+        })?;
         Ok(Self { id, parent_id: None })
     }
 
@@ -243,6 +235,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+    use crate::error::ErrorKind;
 
     #[test]
     fn test_new_content_source() {
@@ -272,8 +265,8 @@ mod tests {
 
     #[test]
     fn test_invalid_string_parsing() {
-        let result = ContentSource::parse("invalid-uuid");
-        assert!(result.is_err());
+        let err = ContentSource::parse("invalid-uuid").unwrap_err();
+        assert_eq!(err.kind, ErrorKind::Validation);
     }
 
     #[test]

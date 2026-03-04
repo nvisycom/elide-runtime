@@ -58,3 +58,49 @@ impl DocumentType {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_mime_text_types() {
+        assert_eq!(DocumentType::from_mime("text/plain"), Some(DocumentType::Txt));
+        assert_eq!(DocumentType::from_mime("text/csv"), Some(DocumentType::Csv));
+        assert_eq!(DocumentType::from_mime("text/html"), Some(DocumentType::Html));
+    }
+
+    #[test]
+    fn test_from_mime_application_types() {
+        assert_eq!(DocumentType::from_mime("application/json"), Some(DocumentType::Json));
+        assert_eq!(DocumentType::from_mime("application/pdf"), Some(DocumentType::Pdf));
+        assert_eq!(
+            DocumentType::from_mime(
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            ),
+            Some(DocumentType::Docx)
+        );
+        assert_eq!(
+            DocumentType::from_mime(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            Some(DocumentType::Xlsx)
+        );
+    }
+
+    #[test]
+    fn test_from_mime_media_types() {
+        assert_eq!(DocumentType::from_mime("image/png"), Some(DocumentType::Png));
+        assert_eq!(DocumentType::from_mime("image/jpeg"), Some(DocumentType::Jpeg));
+        assert_eq!(DocumentType::from_mime("audio/wav"), Some(DocumentType::Wav));
+        assert_eq!(DocumentType::from_mime("audio/x-wav"), Some(DocumentType::Wav));
+        assert_eq!(DocumentType::from_mime("audio/mpeg"), Some(DocumentType::Mp3));
+    }
+
+    #[test]
+    fn test_from_mime_unknown() {
+        assert_eq!(DocumentType::from_mime("application/octet-stream"), None);
+        assert_eq!(DocumentType::from_mime("video/mp4"), None);
+        assert_eq!(DocumentType::from_mime(""), None);
+    }
+}

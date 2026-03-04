@@ -101,6 +101,32 @@ impl ContentMetadata {
     pub fn has_path(&self) -> bool {
         self.source_path.is_some()
     }
+
+    /// Get the extra metadata map, if any.
+    #[must_use]
+    pub fn extra(&self) -> Option<&serde_json::Map<String, serde_json::Value>> {
+        self.metadata.as_ref()
+    }
+
+    /// Get a single value from the extra metadata map.
+    #[must_use]
+    pub fn get_extra(&self, key: &str) -> Option<&serde_json::Value> {
+        self.metadata.as_ref().and_then(|m| m.get(key))
+    }
+
+    /// Insert a key-value pair into the extra metadata map,
+    /// creating the map if it doesn't exist yet.
+    pub fn set_extra(&mut self, key: impl Into<String>, value: serde_json::Value) {
+        self.metadata
+            .get_or_insert_with(serde_json::Map::new)
+            .insert(key.into(), value);
+    }
+
+    /// Remove a key from the extra metadata map.
+    /// Returns the removed value if the key existed.
+    pub fn remove_extra(&mut self, key: &str) -> Option<serde_json::Value> {
+        self.metadata.as_mut().and_then(|m| m.remove(key))
+    }
 }
 
 impl Default for ContentMetadata {
@@ -157,5 +183,35 @@ mod tests {
         let deserialized: ContentMetadata = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(metadata, deserialized);
+    }
+
+    #[test]
+    fn test_extra_metadata() {
+        let mut metadata = ContentMetadata::new();
+        assert!(metadata.extra().is_none());
+        assert!(metadata.get_extra("key").is_none());
+
+        metadata.set_extra("lang", serde_json::Value::String("en".into()));
+        assert_eq!(
+            metadata.get_extra("lang"),
+            Some(&serde_json::Value::String("en".into()))
+        );
+        assert!(metadata.extra().is_some());
+
+        let removed = metadata.remove_extra("lang");
+        assert_eq!(removed, Some(serde_json::Value::String("en".into())));
+        assert_eq!(metadata.get_extra("lang"), None);
+    }
+
+    #[test]
+    fn test_extra_metadata_serialization() {
+        let mut metadata = ContentMetadata::with_path("doc.pdf");
+        metadata.set_extra("pages", serde_json::json!(42));
+
+        let json = serde_json::to_string(&metadata).unwrap();
+        let deserialized: ContentMetadata = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.get_extra("pages"), Some(&serde_json::json!(42)));
+        assert_eq!(deserialized.filename(), Some("doc.pdf"));
     }
 }

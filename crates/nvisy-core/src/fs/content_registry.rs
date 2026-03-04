@@ -413,4 +413,27 @@ mod tests {
         let ids = registry.list().await.unwrap();
         assert!(ids.is_empty());
     }
+
+    #[tokio::test]
+    async fn test_data_persists_across_reopen() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let path = temp.path().join("content");
+
+        let content = Content::new(ContentData::from("persistent"));
+        let id = content.content_source().as_uuid();
+
+        {
+            let registry = ContentRegistry::open(&path).unwrap();
+            registry.register(content).await.unwrap();
+            // registry dropped here
+        }
+
+        let registry = ContentRegistry::open(&path).unwrap();
+        let handler = registry.read(id).await.unwrap();
+        let data = handler.content_data().await.unwrap();
+        assert_eq!(data.as_str().unwrap(), "persistent");
+
+        let ids = registry.list().await.unwrap();
+        assert_eq!(ids, vec![id]);
+    }
 }

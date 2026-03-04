@@ -64,13 +64,17 @@ impl ContentBytes {
 
     /// Returns `true` if the content appears to be text.
     ///
-    /// Uses a simple heuristic: checks if all bytes are ASCII printable
-    /// or whitespace characters.
+    /// Checks that the content is valid UTF-8 and contains no control
+    /// characters other than common whitespace (tab, newline, carriage
+    /// return). This covers ASCII text as well as multi-byte scripts
+    /// (e.g. CJK, Cyrillic, emoji).
     #[must_use]
     pub fn is_likely_text(&self) -> bool {
-        self.0
-            .iter()
-            .all(|&b| b.is_ascii_graphic() || b.is_ascii_whitespace())
+        let Ok(s) = std::str::from_utf8(&self.0) else {
+            return false;
+        };
+        s.chars()
+            .all(|c| !c.is_control() || matches!(c, '\t' | '\n' | '\r'))
     }
 }
 
@@ -109,5 +113,84 @@ impl From<&[u8]> for ContentBytes {
 impl From<Vec<u8>> for ContentBytes {
     fn from(vec: Vec<u8>) -> Self {
         Self(Bytes::from(vec))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_len_and_is_empty() {
+        let empty = ContentBytes::default();
+        assert_eq!(empty.len(), 0);
+        assert!(empty.is_empty());
+
+        let nonempty = ContentBytes::from("hello");
+        assert_eq!(nonempty.len(), 5);
+        assert!(!nonempty.is_empty());
+    }
+
+    #[test]
+    fn test_as_bytes() {
+        let cb = ContentBytes::from("abc");
+        assert_eq!(cb.as_bytes(), b"abc");
+    }
+
+    #[test]
+    fn test_as_str() {
+        let text = ContentBytes::from("valid utf-8");
+        assert_eq!(text.as_str(), Some("valid utf-8"));
+
+        let binary = ContentBytes::from(vec![0xFF, 0xFE]);
+        assert_eq!(binary.as_str(), None);
+    }
+
+    #[test]
+    fn test_as_hipstr() {
+        let text = ContentBytes::from("hipstr");
+        assert_eq!(text.as_hipstr().unwrap().as_str(), "hipstr");
+
+        let binary = ContentBytes::from(vec![0xFF]);
+        assert!(binary.as_hipstr().is_err());
+    }
+
+    #[test]
+    fn test_into_inner() {
+        let cb = ContentBytes::from("inner");
+        let bytes = cb.into_inner();
+        assert_eq!(bytes, Bytes::from("inner"));
+    }
+
+    #[test]
+    fn test_is_likely_text() {
+        assert!(ContentBytes::from("ascii text").is_likely_text());
+        assert!(ContentBytes::from("").is_likely_text());
+        assert!(ContentBytes::from("café").is_likely_text());
+
+        assert!(!ContentBytes::from(vec![0x00]).is_likely_text());
+        assert!(!ContentBytes::from(vec![0x89, 0x50, 0x4E, 0x47]).is_likely_text()); // PNG header
+    }
+
+    #[test]
+    fn test_deref_to_slice() {
+        let cb = ContentBytes::from("deref");
+        let slice: &[u8] = &cb;
+        assert_eq!(slice, b"deref");
+    }
+
+    #[test]
+    fn test_from_conversions() {
+        let from_str = ContentBytes::from("test");
+        let from_string = ContentBytes::from("test".to_string());
+        let from_bytes = ContentBytes::from(b"test".as_slice());
+        let from_vec = ContentBytes::from(b"test".to_vec());
+        let from_hipstr = ContentBytes::from(HipStr::from("test"));
+
+        assert_eq!(from_str.as_bytes(), b"test");
+        assert_eq!(from_string.as_bytes(), b"test");
+        assert_eq!(from_bytes.as_bytes(), b"test");
+        assert_eq!(from_vec.as_bytes(), b"test");
+        assert_eq!(from_hipstr.as_bytes(), b"test");
     }
 }

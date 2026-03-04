@@ -10,15 +10,18 @@
 //! | `DELETE` | `/api/v1/files`         | Delete all files                    |
 
 use aide::axum::ApiRouter;
-use aide::axum::routing::{delete_with, get_with, post_with};
+use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::State;
+use axum::http::StatusCode;
 use base64::Engine as _;
 use nvisy_core::io::{Content, ContentData};
 
 use super::error::{ErrorKind, Result};
 use super::request::{ContentPath, FileUpload};
-use super::response::{DeleteAllResponse, DeleteResponse, DownloadResponse, UploadResponse};
+use super::response::{
+    FileDeleteAllResponse, FileDeleteResponse, FileDownloadResponse, FileUploadResponse,
+};
 use crate::extract::{Json, Path};
 use crate::service::ServiceState;
 
@@ -27,7 +30,7 @@ use crate::service::ServiceState;
 async fn upload(
     State(state): State<ServiceState>,
     Json(req): Json<FileUpload>,
-) -> Result<Json<UploadResponse>> {
+) -> Result<(StatusCode, Json<FileUploadResponse>)> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(&req.content)
         .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid base64: {e}")))?;
@@ -48,7 +51,7 @@ async fn upload(
         "file uploaded",
     );
 
-    Ok(Json(UploadResponse { id }))
+    Ok((StatusCode::CREATED, Json(FileUploadResponse { id })))
 }
 
 fn upload_docs(op: TransformOperation) -> TransformOperation {
@@ -66,7 +69,7 @@ fn upload_docs(op: TransformOperation) -> TransformOperation {
 async fn download(
     State(_state): State<ServiceState>,
     Path(ContentPath { id }): Path<ContentPath>,
-) -> Result<Json<DownloadResponse>> {
+) -> Result<Json<FileDownloadResponse>> {
     Err(ErrorKind::NotImplemented
         .with_message(format!("file download not yet implemented (id: {id})")))
 }
@@ -83,10 +86,10 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
 async fn delete(
     State(state): State<ServiceState>,
     Path(ContentPath { id }): Path<ContentPath>,
-) -> Result<Json<DeleteResponse>> {
+) -> Result<Json<FileDeleteResponse>> {
     state.content_registry().delete(id).await?;
     tracing::info!(%id, "file deleted");
-    Ok(Json(DeleteResponse { id }))
+    Ok(Json(FileDeleteResponse { id }))
 }
 
 fn delete_docs(op: TransformOperation) -> TransformOperation {
@@ -100,10 +103,10 @@ fn delete_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(skip_all)]
 async fn delete_all(
     State(state): State<ServiceState>,
-) -> Result<Json<DeleteAllResponse>> {
+) -> Result<Json<FileDeleteAllResponse>> {
     let deleted = state.content_registry().delete_all().await?;
     tracing::info!(deleted, "all files deleted");
-    Ok(Json(DeleteAllResponse { deleted }))
+    Ok(Json(FileDeleteAllResponse { deleted }))
 }
 
 fn delete_all_docs(op: TransformOperation) -> TransformOperation {
@@ -116,10 +119,9 @@ fn delete_all_docs(op: TransformOperation) -> TransformOperation {
 /// File routes.
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
-        .api_route("/api/v1/files", post_with(upload, upload_docs))
         .api_route(
             "/api/v1/files",
-            delete_with(delete_all, delete_all_docs),
+            post_with(upload, upload_docs).delete_with(delete_all, delete_all_docs),
         )
         .api_route(
             "/api/v1/files/{id}",

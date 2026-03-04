@@ -7,7 +7,7 @@ use uuid::Uuid;
 /// Response body for `POST /api/v1/files`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct UploadResponse {
+pub struct FileUploadResponse {
     /// Identifier assigned to the uploaded file.
     pub id: Uuid,
 }
@@ -15,7 +15,7 @@ pub struct UploadResponse {
 /// Response body for `GET /api/v1/files/{id}`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct DownloadResponse {
+pub struct FileDownloadResponse {
     /// Identifier of the file.
     pub id: Uuid,
     /// Base64-encoded file bytes.
@@ -25,7 +25,7 @@ pub struct DownloadResponse {
 /// Response body for `DELETE /api/v1/files/{id}`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct DeleteResponse {
+pub struct FileDeleteResponse {
     /// Identifier of the deleted file.
     pub id: Uuid,
 }
@@ -33,7 +33,7 @@ pub struct DeleteResponse {
 /// Response body for `DELETE /api/v1/files`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct DeleteAllResponse {
+pub struct FileDeleteAllResponse {
     /// Number of files deleted.
     pub deleted: usize,
 }

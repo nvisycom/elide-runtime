@@ -11,7 +11,7 @@
 //! | `DELETE` | `/api/v1/contexts`         | Delete all contexts                   |
 
 use aide::axum::ApiRouter;
-use aide::axum::routing::{delete_with, get_with, post_with};
+use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::State;
 
@@ -112,11 +112,11 @@ fn delete_all_docs(op: TransformOperation) -> TransformOperation {
 /// Context routes.
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
-        .api_route("/api/v1/contexts", post_with(upload, upload_docs))
-        .api_route("/api/v1/contexts", get_with(list, list_docs))
         .api_route(
             "/api/v1/contexts",
-            delete_with(delete_all, delete_all_docs),
+            post_with(upload, upload_docs)
+                .get_with(list, list_docs)
+                .delete_with(delete_all, delete_all_docs),
         )
         .api_route(
             "/api/v1/contexts/{id}",

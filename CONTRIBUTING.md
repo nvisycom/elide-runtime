@@ -4,16 +4,16 @@ Thank you for your interest in contributing to Nvisy Runtime.
 
 ## Requirements
 
-- Node.js 22+
-- npm 10+
+- Rust 1.85+ (stable)
+- Python 3.12+
+- Cargo and pip
 
 ## Setup
 
 ```bash
 git clone https://github.com/nvisycom/runtime.git
 cd runtime
-npm install
-npm run build
+cargo build
 ```
 
 ## Development
@@ -21,15 +21,15 @@ npm run build
 Run all CI checks locally before submitting a pull request:
 
 ```bash
-npm run check       # biome lint + format check
-npm run typecheck   # tsc --noEmit across all packages
-npm test            # vitest
+cargo fmt --check     # formatting
+cargo clippy          # lints
+cargo test            # tests
 ```
 
-To auto-fix lint and formatting issues:
+To auto-fix formatting:
 
 ```bash
-npm run check:fix
+cargo fmt
 ```
 
 ## Pull Request Process
@@ -37,13 +37,13 @@ npm run check:fix
 1. Fork the repository
 2. Create a feature branch
 3. Make changes with tests
-4. Run `npm run check && npm run typecheck && npm test` to verify all checks pass
+4. Run `cargo fmt --check && cargo clippy && cargo test` to verify all checks pass
 5. Submit a pull request
 
 ## Project Structure
 
-The monorepo uses npm workspaces. All packages live under `packages/`. See
-[packages/readme.md](packages/README.md) for a description of each package.
+The monorepo uses Cargo workspaces. All crates live under `crates/`. See
+the [CHANGELOG](CHANGELOG.md) for a description of each crate.
 
 ## Security
 

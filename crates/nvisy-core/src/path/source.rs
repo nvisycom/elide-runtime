@@ -132,9 +132,7 @@ impl ContentSource {
     /// Create a new content source derived from this one (new ID, self as parent).
     #[must_use]
     pub fn derive(&self) -> Self {
-        let mut child = Self::new();
-        child.parent_id = Some(self.id);
-        child
+        Self::new().with_parent(self)
     }
 
     /// Get the timestamp component from the `UUIDv7`

@@ -137,13 +137,5 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl From<anyhow::Error> for Error {
-    fn from(err: anyhow::Error) -> Self {
-        // anyhow::Error doesn't implement std::error::Error, so we capture the
-        // full chain as text instead of storing it as a boxed source.
-        Self::new(ErrorKind::Runtime, format!("{err:#}"))
-    }
-}
-
 /// Convenience type alias for results using the Nvisy error type.
 pub type Result<T> = std::result::Result<T, Error>;

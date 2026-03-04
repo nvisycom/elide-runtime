@@ -6,7 +6,7 @@ use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_core::path::ContentSource;
 use nvisy_ontology::context::Context;
 
-use crate::actor::ActorId;
+use crate::id::ActorId;
 
 /// Lightweight handle to a context entry stored in the registry.
 ///

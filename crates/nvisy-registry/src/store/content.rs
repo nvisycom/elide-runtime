@@ -8,7 +8,7 @@ use nvisy_core::fs::ContentMetadata;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
-use crate::actor::ActorId;
+use crate::id::ActorId;
 
 /// Lightweight handle to a content entry stored in the registry.
 ///

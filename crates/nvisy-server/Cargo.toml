@@ -34,7 +34,7 @@ futures = { workspace = true, features = [] }
 
 # HTTP framework
 axum = { workspace = true, features = ["json", "multipart", "tokio"] }
-aide = { workspace = true, features = ["axum", "axum-json", "scalar", "macros"] }
+aide = { workspace = true, features = ["axum", "axum-json", "axum-query", "scalar", "macros"] }
 tower = { workspace = true, features = ["util", "timeout"] }
 tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "limit", "compression-gzip", "compression-br", "compression-zstd", "sensitive-headers", "catch-panic", "util"] }
 

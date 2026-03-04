@@ -9,15 +9,16 @@
 //!
 //! - [`Registry`]: Shared, clonable handle to the fjall database
 //! - [`ActorId`]: UUID-based actor identity newtype
+//! - [`ContentId`]: UUID-based content identifier
+//! - [`ContextId`]: UUID-based context identifier
 //! - [`ContentHandle`]: Lightweight async handle to stored content
 //! - [`ContextHandle`]: Lightweight async handle to a stored context
 
-mod actor;
-mod content_handle;
-mod context_handle;
-mod registry;
+mod id;
+mod store;
 
-pub use actor::ActorId;
-pub use content_handle::ContentHandle;
-pub use context_handle::ContextHandle;
-pub use registry::Registry;
+#[doc(hidden)]
+pub mod prelude;
+
+pub use id::{ActorId, ContentId, ContextId};
+pub use store::{ContentHandle, ContextHandle, Registry};

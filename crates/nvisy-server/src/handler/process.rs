@@ -8,9 +8,9 @@
 //! | `POST` | `/api/v1/process/analyze`  | Run OCR + LLM analysis on uploaded content     |
 //! | `POST` | `/api/v1/process/redact`   | Run the full redaction pipeline                |
 //!
-//! All endpoints expect a JSON body with a `content_id` referencing previously
+//! All endpoints expect a JSON body with `content_ids` referencing previously
 //! uploaded content, along with policies, an execution graph, and optional
-//! connections and contexts.
+//! connections.
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
@@ -28,7 +28,7 @@ use crate::service::ServiceState;
 ///
 /// Extracts text and structural information from the content without
 /// further classification or redaction.
-#[tracing::instrument(skip_all, fields(content_id = %req.content_id, actor = req.actor.as_deref()))]
+#[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn scan(
     State(_state): State<ServiceState>,
     Json(req): Json<ProcessRequest>,
@@ -37,9 +37,9 @@ async fn scan(
         .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid policies: {e}")))?;
 
     Err(ErrorKind::NotImplemented.with_message(format!(
-        "scan endpoint not yet implemented (content_id: {}, actor: {})",
-        req.content_id,
-        req.actor.as_deref().unwrap_or("<none>"),
+        "scan endpoint not yet implemented (actor: {}, content_ids: {})",
+        req.actor_id,
+        req.content_ids.len(),
     )))
 }
 
@@ -48,7 +48,7 @@ fn scan_docs(op: TransformOperation) -> TransformOperation {
         .tag("process")
         .summary("Run OCR on uploaded content")
         .description(
-            "Runs OCR on previously uploaded content identified by content_id. \
+            "Runs OCR on previously uploaded content identified by content_ids. \
              Extracts text and structural information without classification or redaction.",
         )
 }
@@ -57,7 +57,7 @@ fn scan_docs(op: TransformOperation) -> TransformOperation {
 ///
 /// Extracts text via OCR and classifies entities using an LLM, without
 /// applying any redactions.
-#[tracing::instrument(skip_all, fields(content_id = %req.content_id, actor = req.actor.as_deref()))]
+#[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn analyze(
     State(_state): State<ServiceState>,
     Json(req): Json<ProcessRequest>,
@@ -66,9 +66,9 @@ async fn analyze(
         .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid policies: {e}")))?;
 
     Err(ErrorKind::NotImplemented.with_message(format!(
-        "analyze endpoint not yet implemented (content_id: {}, actor: {})",
-        req.content_id,
-        req.actor.as_deref().unwrap_or("<none>"),
+        "analyze endpoint not yet implemented (actor: {}, content_ids: {})",
+        req.actor_id,
+        req.content_ids.len(),
     )))
 }
 
@@ -86,7 +86,7 @@ fn analyze_docs(op: TransformOperation) -> TransformOperation {
 ///
 /// Performs OCR, entity classification, policy evaluation, and redaction
 /// on previously uploaded content.
-#[tracing::instrument(skip_all, fields(content_id = %req.content_id, actor = req.actor.as_deref()))]
+#[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn redact(
     State(_state): State<ServiceState>,
     Json(req): Json<ProcessRequest>,
@@ -95,9 +95,9 @@ async fn redact(
         .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid policies: {e}")))?;
 
     Err(ErrorKind::NotImplemented.with_message(format!(
-        "redact endpoint not yet implemented (content_id: {}, actor: {})",
-        req.content_id,
-        req.actor.as_deref().unwrap_or("<none>"),
+        "redact endpoint not yet implemented (actor: {}, content_ids: {})",
+        req.actor_id,
+        req.content_ids.len(),
     )))
 }
 
@@ -106,8 +106,8 @@ fn redact_docs(op: TransformOperation) -> TransformOperation {
         .tag("process")
         .summary("Run the full redaction pipeline on uploaded content")
         .description(
-            "Runs the complete pipeline (OCR → entity classification → policy \
-             evaluation → redaction) on previously uploaded content.",
+            "Runs the complete pipeline (OCR \u{2192} entity classification \u{2192} policy \
+             evaluation \u{2192} redaction) on previously uploaded content.",
         )
 }
 

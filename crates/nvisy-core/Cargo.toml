@@ -39,7 +39,6 @@ infer = { workspace = true, features = [] }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
-anyhow = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["display", "deref", "as_ref", "from", "into"] }
 strum = { workspace = true, features = [] }
 

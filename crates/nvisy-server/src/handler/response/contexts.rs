@@ -1,16 +1,16 @@
 //! Context response types.
 
 use nvisy_ontology::context::Context;
+use nvisy_registry::ContextId;
 use schemars::JsonSchema;
 use serde::Serialize;
-use uuid::Uuid;
 
 /// Response body for `POST /api/v1/contexts`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextUploadResponse {
     /// Identifier assigned to the uploaded context.
-    pub id: Uuid,
+    pub id: ContextId,
 }
 
 /// Response body for `GET /api/v1/contexts/{id}`.
@@ -18,7 +18,7 @@ pub struct ContextUploadResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ContextDownloadResponse {
     /// Identifier of the context.
-    pub id: Uuid,
+    pub id: ContextId,
     /// The stored context.
     pub context: Context,
 }
@@ -28,7 +28,7 @@ pub struct ContextDownloadResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ContextDeleteResponse {
     /// Identifier of the deleted context.
-    pub id: Uuid,
+    pub id: ContextId,
 }
 
 /// Response body for `GET /api/v1/contexts`.
@@ -36,7 +36,7 @@ pub struct ContextDeleteResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ContextListResponse {
     /// List of context identifiers.
-    pub contexts: Vec<Uuid>,
+    pub contexts: Vec<ContextId>,
 }
 
 /// Response body for `DELETE /api/v1/contexts`.

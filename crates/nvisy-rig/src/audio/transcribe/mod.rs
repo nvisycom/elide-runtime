@@ -59,7 +59,7 @@ impl TranscribeService {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Client`] if client construction fails.
+    /// Returns [`Error::Request`] if client construction fails.
     pub fn new(provider: &TranscribeProvider, config: TranscribeConfig) -> Result<Self, Error> {
         let inner =
             TranscribeModels::from_provider(provider, &config.model, config.max_retries)?;

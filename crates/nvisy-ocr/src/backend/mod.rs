@@ -1,6 +1,5 @@
 //! OCR backend trait and shared types.
 
-pub(crate) mod http;
 mod input;
 mod output;
 
@@ -8,6 +7,15 @@ pub use input::{ImageFormat, ImageInput};
 pub use output::{ImageOutput, ImageRegion};
 
 use nvisy_core::Error;
+use reqwest_middleware::reqwest::multipart::Part;
+
+/// Build a multipart [`Part`] from an [`ImageInput`].
+pub(crate) fn image_part(image: &ImageInput) -> Result<Part, Error> {
+    Part::bytes(image.data.to_vec())
+        .file_name("image")
+        .mime_str(image.mime_type())
+        .map_err(|e| Error::runtime(format!("invalid mime type: {e}"), "ocr", false))
+}
 
 /// Parameters passed to a [`Backend`] implementation.
 #[derive(Debug, Clone, Default)]

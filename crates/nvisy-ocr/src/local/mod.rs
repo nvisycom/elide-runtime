@@ -2,6 +2,6 @@ mod doctr;
 mod paddlex;
 mod surya;
 
-pub use doctr::DoctrBackend;
-pub use paddlex::PaddleXBackend;
-pub use surya::SuryaBackend;
+pub use doctr::{DoctrBackend, DoctrParams};
+pub use paddlex::{PaddleXBackend, PaddleXParams};
+pub use surya::{SuryaBackend, SuryaParams};

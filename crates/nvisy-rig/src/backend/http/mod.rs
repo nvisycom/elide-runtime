@@ -3,5 +3,5 @@
 mod client;
 mod config;
 
-pub use config::HttpClientConfig;
-pub(crate) use client::build_http_client;
+pub use client::build_http_client;
+pub use config::HttpConfig;

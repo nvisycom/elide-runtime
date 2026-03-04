@@ -3,13 +3,16 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use bytes::Bytes;
+use strum::{Display, EnumString, IntoStaticStr};
 
 use nvisy_core::path::ContentSource;
 
 /// Image format passed to a [`Backend`](super::Backend).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr)]
 pub enum ImageFormat {
+    #[strum(serialize = "png")]
     Png,
+    #[strum(serialize = "jpeg")]
     Jpeg,
 }
 

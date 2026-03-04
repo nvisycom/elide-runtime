@@ -34,22 +34,21 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
-
-# HTTP middleware (retry & tracing)
-reqwest-middleware = { workspace = true, features = [] }
-reqwest-retry = { workspace = true, features = [] }
-reqwest-tracing = { workspace = true, features = [] }
+nvisy-rig = { workspace = true, features = [] }
 
 # Encoding
 base64 = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 
 # Derive macros
-derive_more = { workspace = true }
+strum = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
+
+# HTTP middleware
+reqwest-middleware = { workspace = true, features = [] }
 
 # Async runtime & observability
 async-trait = { workspace = true, features = [] }

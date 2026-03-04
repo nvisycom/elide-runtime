@@ -1,30 +1,52 @@
 //! [`Backend`] implementation for Google Cloud Vision API.
 
-use reqwest_middleware::ClientWithMiddleware;
+use std::fmt;
+
 use serde::Deserialize;
 
 use nvisy_core::Error;
+use nvisy_rig::backend::{HttpConfig, build_http_client};
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
+use reqwest_middleware::ClientWithMiddleware;
 
-use crate::backend::http::HttpClient;
 use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
 
-/// Remote OCR backend using Google Cloud Vision API.
+/// Constructor parameters for [`GoogleVisionBackend`].
+#[derive(Clone)]
+pub struct GoogleVisionParams {
+    /// Google Cloud API key.
+    pub api_key: String,
+}
+
+impl fmt::Debug for GoogleVisionParams {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GoogleVisionParams")
+            .field("api_key", &"***")
+            .finish()
+    }
+}
+
+/// [`Backend`] implementation for Google Cloud Vision API.
 ///
 /// Sends images as base64-encoded JSON to the `images:annotate` endpoint
 /// and parses word-level results from the `fullTextAnnotation` response.
 pub struct GoogleVisionBackend {
-    client: HttpClient,
+    client: ClientWithMiddleware,
     api_key: String,
 }
 
 impl GoogleVisionBackend {
-    /// Create a new backend with the given HTTP client and API key.
-    pub fn new(client: ClientWithMiddleware, api_key: impl Into<String>) -> Self {
+    /// Create a new backend with default HTTP configuration.
+    pub fn new(params: GoogleVisionParams) -> Self {
+        Self::with_client(build_http_client(&HttpConfig::default()), params)
+    }
+
+    /// Create a new backend with a pre-configured HTTP client.
+    pub fn with_client(client: ClientWithMiddleware, params: GoogleVisionParams) -> Self {
         Self {
-            client: HttpClient::new(client),
-            api_key: api_key.into(),
+            client,
+            api_key: params.api_key,
         }
     }
 }
@@ -112,25 +134,25 @@ impl Backend for GoogleVisionBackend {
             .json(&body)
             .send()
             .await
-            .map_err(|e| {
-                Error::runtime(
-                    format!("Google Vision request failed: {e}"),
-                    "google_vision_ocr",
-                    false,
-                )
-            })?;
+            .map_err(|e| Error::connection(e.to_string(), "google_vision_ocr", true))?;
 
-        let resp = self
-            .client
-            .check_status(resp, "Google Vision", "google_vision_ocr")
-            .await?;
-        let parsed: AnnotateResponse = self
-            .client
-            .parse_json(resp, "Google Vision", "google_vision_ocr")
-            .await?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(Error::connection(
+                format!("Google Vision returned {status}: {body}"),
+                "google_vision_ocr",
+                status.is_server_error(),
+            ));
+        }
+
+        let parsed: AnnotateResponse = resp
+            .json()
+            .await
+            .map_err(|e| Error::runtime(format!("Google Vision JSON parse error: {e}"), "google_vision_ocr", false))?;
 
         let threshold = params.confidence_threshold;
-        let mut regions = Vec::new();
+        let mut output = ImageOutput::new(image.source.derive());
 
         for result in &parsed.responses {
             let annotation = match &result.full_text_annotation {
@@ -174,7 +196,7 @@ impl Backend for GoogleVisionBackend {
                                     height: 0.0,
                                 });
 
-                            regions.push(ImageRegion {
+                            output.insert(ImageRegion {
                                 text,
                                 confidence: Some(word.confidence),
                                 bbox,
@@ -187,10 +209,7 @@ impl Backend for GoogleVisionBackend {
             }
         }
 
-        Ok(ImageOutput {
-            source: image.source.derive(),
-            regions,
-        })
+        Ok(output)
     }
 }
 

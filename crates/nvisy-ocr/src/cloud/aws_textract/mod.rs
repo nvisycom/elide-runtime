@@ -1,41 +1,64 @@
 //! [`Backend`] implementation for AWS Textract.
 
+use std::fmt;
+
 use hmac::{Hmac, Mac};
-use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use nvisy_core::Error;
+use nvisy_rig::backend::{HttpConfig, build_http_client};
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
+use reqwest_middleware::ClientWithMiddleware;
 
-use crate::backend::http::HttpClient;
 use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
 
-/// Remote OCR backend using AWS Textract.
+/// Constructor parameters for [`AwsTextractBackend`].
+#[derive(Clone)]
+pub struct AwsTextractParams {
+    /// AWS access key ID.
+    pub access_key: String,
+    /// AWS secret access key.
+    pub secret_key: String,
+    /// AWS region (e.g. `us-east-1`).
+    pub region: String,
+}
+
+impl fmt::Debug for AwsTextractParams {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AwsTextractParams")
+            .field("access_key", &"***")
+            .field("secret_key", &"***")
+            .field("region", &self.region)
+            .finish()
+    }
+}
+
+/// [`Backend`] implementation for AWS Textract.
 ///
 /// Sends images as base64-encoded JSON to the `DetectDocumentText` action
 /// with inline SigV4 request signing.
 pub struct AwsTextractBackend {
-    client: HttpClient,
+    client: ClientWithMiddleware,
     access_key: String,
     secret_key: String,
     region: String,
 }
 
 impl AwsTextractBackend {
-    /// Create a new backend with the given HTTP client and AWS credentials.
-    pub fn new(
-        client: ClientWithMiddleware,
-        access_key: impl Into<String>,
-        secret_key: impl Into<String>,
-        region: impl Into<String>,
-    ) -> Self {
+    /// Create a new backend with default HTTP configuration.
+    pub fn new(params: AwsTextractParams) -> Self {
+        Self::with_client(build_http_client(&HttpConfig::default()), params)
+    }
+
+    /// Create a new backend with a pre-configured HTTP client.
+    pub fn with_client(client: ClientWithMiddleware, params: AwsTextractParams) -> Self {
         Self {
-            client: HttpClient::new(client),
-            access_key: access_key.into(),
-            secret_key: secret_key.into(),
-            region: region.into(),
+            client,
+            access_key: params.access_key,
+            secret_key: params.secret_key,
+            region: params.region,
         }
     }
 }
@@ -182,30 +205,30 @@ impl Backend for AwsTextractBackend {
             .post(&url)
             .header("Content-Type", "application/x-amz-json-1.1")
             .header("X-Amz-Target", "Textract.DetectDocumentText")
-            .header("X-Amz-Date", &datetime)
-            .header("Authorization", &authorization)
+            .header("X-Amz-Date", &*datetime)
+            .header("Authorization", &*authorization)
             .body(payload)
             .send()
             .await
-            .map_err(|e| {
-                Error::runtime(
-                    format!("Textract request failed: {e}"),
-                    "aws_textract_ocr",
-                    false,
-                )
-            })?;
+            .map_err(|e| Error::connection(e.to_string(), "aws_textract_ocr", true))?;
 
-        let resp = self
-            .client
-            .check_status(resp, "Textract", "aws_textract_ocr")
-            .await?;
-        let parsed: TextractResponse = self
-            .client
-            .parse_json(resp, "Textract", "aws_textract_ocr")
-            .await?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(Error::connection(
+                format!("Textract returned {status}: {body}"),
+                "aws_textract_ocr",
+                status.is_server_error(),
+            ));
+        }
+
+        let parsed: TextractResponse = resp
+            .json()
+            .await
+            .map_err(|e| Error::runtime(format!("Textract JSON parse error: {e}"), "aws_textract_ocr", false))?;
 
         let threshold = params.confidence_threshold;
-        let mut regions = Vec::new();
+        let mut output = ImageOutput::new(image.source.derive());
 
         for block in &parsed.blocks {
             if block.block_type != "WORD" {
@@ -259,7 +282,7 @@ impl Backend for AwsTextractBackend {
                 ),
             };
 
-            regions.push(ImageRegion {
+            output.insert(ImageRegion {
                 text,
                 confidence: Some(confidence),
                 bbox,
@@ -268,10 +291,7 @@ impl Backend for AwsTextractBackend {
             });
         }
 
-        Ok(ImageOutput {
-            source: image.source.derive(),
-            regions,
-        })
+        Ok(output)
     }
 }
 

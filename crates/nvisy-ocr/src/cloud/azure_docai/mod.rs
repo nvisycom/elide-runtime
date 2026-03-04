@@ -1,45 +1,63 @@
 //! [`Backend`] implementation for Azure Document Intelligence.
 
-use reqwest_middleware::ClientWithMiddleware;
+use std::fmt;
+
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use nvisy_core::Error;
+use nvisy_rig::backend::{HttpConfig, build_http_client};
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
+use reqwest_middleware::ClientWithMiddleware;
 
-use crate::backend::http::HttpClient;
 use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
 
 /// Poll interval when waiting for Azure analysis results.
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
-/// Maximum number of poll attempts (500ms × 120 = 60s).
+/// Maximum number of poll attempts (500ms x 120 = 60s).
 const MAX_POLL_ATTEMPTS: u32 = 120;
 
-/// Remote OCR backend using Azure Document Intelligence.
+/// Constructor parameters for [`AzureDocaiBackend`].
+#[derive(Clone)]
+pub struct AzureDocaiParams {
+    /// Azure resource endpoint URL.
+    pub endpoint: String,
+    /// Azure subscription API key.
+    pub api_key: String,
+}
+
+impl fmt::Debug for AzureDocaiParams {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AzureDocaiParams")
+            .field("endpoint", &self.endpoint)
+            .field("api_key", &"***")
+            .finish()
+    }
+}
+
+/// [`Backend`] implementation for Azure Document Intelligence.
 ///
 /// Uses the async two-step flow: POST to start analysis, then poll GET
 /// until results are available.
 pub struct AzureDocaiBackend {
-    client: HttpClient,
+    client: ClientWithMiddleware,
     endpoint: String,
     api_key: String,
 }
 
 impl AzureDocaiBackend {
-    /// Create a new backend with the given HTTP client, endpoint, and API key.
-    ///
-    /// The endpoint should be the Azure resource URL, e.g.
-    /// `https://<resource>.cognitiveservices.azure.com`.
-    pub fn new(
-        client: ClientWithMiddleware,
-        endpoint: impl Into<String>,
-        api_key: impl Into<String>,
-    ) -> Self {
+    /// Create a new backend with default HTTP configuration.
+    pub fn new(params: AzureDocaiParams) -> Self {
+        Self::with_client(build_http_client(&HttpConfig::default()), params)
+    }
+
+    /// Create a new backend with a pre-configured HTTP client.
+    pub fn with_client(client: ClientWithMiddleware, params: AzureDocaiParams) -> Self {
         Self {
-            client: HttpClient::new(client),
-            endpoint: endpoint.into(),
-            api_key: api_key.into(),
+            client,
+            endpoint: params.endpoint,
+            api_key: params.api_key,
         }
     }
 }
@@ -90,23 +108,22 @@ impl Backend for AzureDocaiBackend {
         let resp = self
             .client
             .post(&submit_url)
-            .header("Ocp-Apim-Subscription-Key", &self.api_key)
+            .header("Ocp-Apim-Subscription-Key", &*self.api_key)
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
             .await
-            .map_err(|e| {
-                Error::runtime(
-                    format!("Azure DocAI submit failed: {e}"),
-                    "azure_docai_ocr",
-                    false,
-                )
-            })?;
+            .map_err(|e| Error::connection(e.to_string(), "azure_docai_ocr", true))?;
 
-        let resp = self
-            .client
-            .check_status(resp, "Azure DocAI submit", "azure_docai_ocr")
-            .await?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(Error::connection(
+                format!("Azure DocAI submit returned {status}: {body}"),
+                "azure_docai_ocr",
+                status.is_server_error(),
+            ));
+        }
 
         let result_url = resp
             .headers()
@@ -137,25 +154,25 @@ impl Backend for AzureDocaiBackend {
             let poll_resp = self
                 .client
                 .get(&result_url)
-                .header("Ocp-Apim-Subscription-Key", &self.api_key)
+                .header("Ocp-Apim-Subscription-Key", &*self.api_key)
                 .send()
                 .await
-                .map_err(|e| {
-                    Error::runtime(
-                        format!("Azure DocAI poll failed: {e}"),
-                        "azure_docai_ocr",
-                        false,
-                    )
-                })?;
+                .map_err(|e| Error::connection(e.to_string(), "azure_docai_ocr", true))?;
 
-            let poll_resp = self
-                .client
-                .check_status(poll_resp, "Azure DocAI poll", "azure_docai_ocr")
-                .await?;
-            let parsed: AnalyzeResponse = self
-                .client
-                .parse_json(poll_resp, "Azure DocAI", "azure_docai_ocr")
-                .await?;
+            let poll_status = poll_resp.status();
+            if !poll_status.is_success() {
+                let body = poll_resp.text().await.unwrap_or_default();
+                return Err(Error::connection(
+                    format!("Azure DocAI poll returned {poll_status}: {body}"),
+                    "azure_docai_ocr",
+                    poll_status.is_server_error(),
+                ));
+            }
+
+            let parsed: AnalyzeResponse = poll_resp
+                .json()
+                .await
+                .map_err(|e| Error::runtime(format!("Azure DocAI JSON parse error: {e}"), "azure_docai_ocr", false))?;
 
             match parsed.status.as_str() {
                 "succeeded" => break parsed,
@@ -171,16 +188,11 @@ impl Backend for AzureDocaiBackend {
         };
 
         let threshold = params.confidence_threshold;
-        let mut regions = Vec::new();
+        let mut output = ImageOutput::new(image.source.derive());
 
         let result = match &analyze.analyze_result {
             Some(r) => r,
-            None => {
-                return Ok(ImageOutput {
-                    source: image.source.derive(),
-                    regions,
-                });
-            }
+            None => return Ok(output),
         };
 
         for page in &result.pages {
@@ -211,7 +223,7 @@ impl Backend for AzureDocaiBackend {
                         height: 0.0,
                     });
 
-                regions.push(ImageRegion {
+                output.insert(ImageRegion {
                     text: word.content.clone(),
                     confidence: Some(word.confidence),
                     bbox,
@@ -221,10 +233,7 @@ impl Backend for AzureDocaiBackend {
             }
         }
 
-        Ok(ImageOutput {
-            source: image.source.derive(),
-            regions,
-        })
+        Ok(output)
     }
 }
 

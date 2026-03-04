@@ -2,16 +2,35 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-OCR backend trait and provider integration for the Nvisy runtime.
+OCR backend trait, type-erased engine, and provider implementations for the Nvisy runtime.
 
-Defines the [`OcrBackend`] trait for text extraction from images and provides
-two implementations:
+Defines the [`Backend`] trait for text extraction from images and ships six
+provider implementations across local and cloud services:
 
-- **local:** Rust-native PaddleOCR via ONNX Runtime (oar-ocr)
-- **bridge:** Python-based OCR engines via the PyO3 bridge
+**Local** (always available):
+- [`DoctrBackend`]: DocTR server (multipart upload, normalised coordinates)
+- [`PaddleXBackend`]: PaddleX PP-OCRv5 server (multipart upload, word-level boxes)
+- [`SuryaBackend`]: Surya OCR server (multipart upload, pixel coordinates)
 
-Each backend returns typed [`OcrRegion`] results with bounding boxes, optional
-polygon vertices for rotated text, and hierarchical text-level annotations.
+**Cloud** (feature-gated):
+- [`AwsTextractBackend`]: AWS Textract with inline SigV4 signing (`aws` feature)
+- [`GoogleVisionBackend`]: Google Cloud Vision API (`google` feature)
+- [`AzureDocaiBackend`]: Azure Document Intelligence with async polling (`azure` feature)
+
+Every backend returns [`ImageOutput`] containing a list of [`ImageRegion`]s,
+each with extracted text, optional confidence score, bounding box, polygon
+vertices for rotated text, and hierarchical text-level annotations.
+
+The [`Engine`] wrapper provides a type-erased entry point with built-in
+`tracing` instrumentation for request-level observability.
+
+## Feature flags
+
+| Flag | Enables |
+|----------|----------------------------------------------|
+| `aws` | AWS Textract provider |
+| `google` | Google Cloud Vision provider |
+| `azure` | Azure Document Intelligence provider |
 
 ## Documentation
 

@@ -3,15 +3,18 @@
 use std::time::Duration;
 
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
-use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
+use reqwest_retry::policies::ExponentialBackoff;
+use reqwest_retry::RetryTransientMiddleware;
 use reqwest_tracing::TracingMiddleware;
-use tracing::debug;
 
-use super::HttpClientConfig;
+use super::HttpConfig;
 
 /// Build a [`ClientWithMiddleware`] from the given configuration.
-pub(crate) fn build_http_client(config: &HttpClientConfig) -> ClientWithMiddleware {
-    debug!(
+///
+/// The returned client has exponential-backoff retry and OpenTelemetry
+/// tracing middleware pre-installed.
+pub fn build_http_client(config: &HttpConfig) -> ClientWithMiddleware {
+    tracing::debug!(
         max_retries = config.max_retries,
         timeout_secs = config.timeout_secs,
         connect_timeout_secs = config.connect_timeout_secs,

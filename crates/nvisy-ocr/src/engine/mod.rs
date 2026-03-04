@@ -1,6 +1,8 @@
 //! Type-erased OCR engine.
 
-use tracing::{debug, instrument};
+use std::sync::Arc;
+
+use tracing::instrument;
 
 use nvisy_core::Error;
 
@@ -8,32 +10,33 @@ use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
 /// Type-erased OCR engine wrapping any [`Backend`] implementation.
 ///
-/// `Engine` owns a boxed [`Backend`] and forwards OCR requests to it,
-/// providing a concrete, object-safe entry point without requiring
-/// generics or `Arc<dyn Backend>` at every call site.
+/// Owns an `Arc<dyn Backend>` and forwards OCR requests to it, providing
+/// a concrete, object-safe entry point without generics at every call
+/// site. The engine is `Clone` — cloning shares the backend.
 ///
 /// # Examples
 ///
 /// ```ignore
 /// use nvisy_ocr::{Engine, ImageInput, ImageFormat, RunParams};
-/// use nvisy_ocr::provider::DoctrBackend;
+/// use nvisy_ocr::provider::{DoctrBackend, DoctrParams};
 ///
-/// let backend = DoctrBackend::new(client, "http://localhost:8000");
+/// let backend = DoctrBackend::new(DoctrParams { base_url: "http://localhost:8000".into() });
 /// let engine = Engine::new(backend);
 ///
 /// let image = ImageInput::new(png_bytes, ImageFormat::Png);
 /// let output = engine.run(&image, &RunParams::default()).await?;
 /// println!("{} regions detected", output.len());
 /// ```
+#[derive(Clone)]
 pub struct Engine {
-    backend: Box<dyn Backend>,
+    backend: Arc<dyn Backend>,
 }
 
 impl Engine {
     /// Create a new engine from any [`Backend`] implementation.
     pub fn new(backend: impl Backend) -> Self {
         Self {
-            backend: Box::new(backend),
+            backend: Arc::new(backend),
         }
     }
 
@@ -49,7 +52,7 @@ impl Engine {
         params: &RunParams,
     ) -> Result<ImageOutput, Error> {
         let output = self.backend.run(image, params).await?;
-        debug!(regions = output.len(), "ocr complete");
+        tracing::debug!(regions = output.len(), "ocr complete");
         Ok(output)
     }
 
@@ -62,7 +65,7 @@ impl Engine {
     ) -> Result<Vec<ImageOutput>, Error> {
         let outputs = self.backend.run_batch(images, params).await?;
         let total_regions: usize = outputs.iter().map(|o| o.len()).sum();
-        debug!(total_regions, "batch ocr complete");
+        tracing::debug!(total_regions, "batch ocr complete");
         Ok(outputs)
     }
 }

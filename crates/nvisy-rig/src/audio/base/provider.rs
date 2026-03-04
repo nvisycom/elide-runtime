@@ -1,9 +1,10 @@
 //! Provider-erased dispatch enums and constructors for audio models.
 
-use reqwest_middleware::ClientWithMiddleware;
 use rig::providers::{gemini, openai};
 
-use crate::backend::{AuthenticatedProvider, HttpClientConfig, build_http_client};
+use reqwest_middleware::ClientWithMiddleware;
+
+use crate::backend::{AuthenticatedProvider, HttpConfig, build_http_client};
 use crate::error::Error;
 
 /// Supported providers for speech-to-text transcription.
@@ -57,7 +58,7 @@ impl TranscribeModels {
         model: &str,
         max_retries: u32,
     ) -> Result<Self, Error> {
-        let http = build_http_client(&HttpClientConfig::with_max_retries(max_retries));
+        let http = build_http_client(&HttpConfig::with_max_retries(max_retries));
 
         match provider {
             TranscribeProvider::OpenAi(p) => {
@@ -121,7 +122,7 @@ impl AudioGenModels {
         model: &str,
         max_retries: u32,
     ) -> Result<Self, Error> {
-        let http = build_http_client(&HttpClientConfig::with_max_retries(max_retries));
+        let http = build_http_client(&HttpConfig::with_max_retries(max_retries));
 
         match provider {
             AudioGenProvider::OpenAi(p) => {

@@ -3,30 +3,42 @@
 use serde::Deserialize;
 
 use nvisy_core::Error;
+use nvisy_rig::backend::{HttpConfig, build_http_client};
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
-
 use reqwest_middleware::ClientWithMiddleware;
+use reqwest_middleware::reqwest::multipart::Form;
 
-use crate::backend::http::HttpClient;
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, image_part};
 
-/// Remote OCR backend using a Surya OCR server (FastAPI wrapper).
+/// Constructor parameters for [`SuryaBackend`].
+#[derive(Debug, Clone)]
+pub struct SuryaParams {
+    /// Base URL of the Surya server.
+    pub base_url: String,
+}
+
+/// [`Backend`] implementation for Surya OCR.
 ///
 /// Sends images as multipart form data to `{base_url}/ocr` and parses
 /// word-level results into [`ImageRegion`]. Surya returns both a 4-point
-/// polygon and an axis-aligned bbox in pixel coordinates.
+/// polygon and an axis-aligned bounding box in pixel coordinates.
 pub struct SuryaBackend {
-    client: HttpClient,
+    client: ClientWithMiddleware,
     base_url: String,
 }
 
 impl SuryaBackend {
-    /// Create a new backend with the given HTTP client and server URL.
-    pub fn new(client: ClientWithMiddleware, base_url: impl Into<String>) -> Self {
+    /// Create a new backend with default HTTP configuration.
+    pub fn new(params: SuryaParams) -> Self {
+        Self::with_client(build_http_client(&HttpConfig::default()), params)
+    }
+
+    /// Create a new backend with a pre-configured HTTP client.
+    pub fn with_client(client: ClientWithMiddleware, params: SuryaParams) -> Self {
         Self {
-            client: HttpClient::new(client),
-            base_url: base_url.into(),
+            client,
+            base_url: params.base_url,
         }
     }
 }
@@ -64,9 +76,9 @@ impl Backend for SuryaBackend {
         image: &ImageInput,
         params: &RunParams,
     ) -> Result<ImageOutput, Error> {
-        let file_part = self.client.image_part(image)?;
+        let file_part = image_part(image)?;
 
-        let form = reqwest_middleware::reqwest::multipart::Form::new().part("file", file_part);
+        let form = Form::new().part("file", file_part);
 
         let url = format!("{}/ocr", self.base_url.trim_end_matches('/'));
 
@@ -76,15 +88,25 @@ impl Backend for SuryaBackend {
             .multipart(form)
             .send()
             .await
-            .map_err(|e| {
-                Error::runtime(format!("Surya request failed: {e}"), "surya_ocr", false)
-            })?;
+            .map_err(|e| Error::connection(e.to_string(), "surya_ocr", true))?;
 
-        let resp = self.client.check_status(resp, "Surya", "surya_ocr").await?;
-        let parsed: SuryaResponse = self.client.parse_json(resp, "Surya", "surya_ocr").await?;
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(Error::connection(
+                format!("Surya returned {status}: {body}"),
+                "surya_ocr",
+                status.is_server_error(),
+            ));
+        }
+
+        let parsed: SuryaResponse = resp
+            .json()
+            .await
+            .map_err(|e| Error::runtime(format!("Surya JSON parse error: {e}"), "surya_ocr", false))?;
 
         let threshold = params.confidence_threshold;
-        let mut regions = Vec::new();
+        let mut output = ImageOutput::new(image.source.derive());
 
         for page in &parsed.pages {
             for line in &page.text_lines {
@@ -110,7 +132,7 @@ impl Backend for SuryaBackend {
                             .collect(),
                     };
 
-                    regions.push(ImageRegion {
+                    output.insert(ImageRegion {
                         text: word.text.clone(),
                         confidence: Some(word.confidence),
                         bbox,
@@ -121,10 +143,7 @@ impl Backend for SuryaBackend {
             }
         }
 
-        Ok(ImageOutput {
-            source: image.source.derive(),
-            regions,
-        })
+        Ok(output)
     }
 }
 

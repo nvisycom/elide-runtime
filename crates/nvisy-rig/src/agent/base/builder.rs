@@ -7,7 +7,7 @@ use rig::providers::gemini;
 use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
-use crate::backend::{UsageTracker, build_http_client};
+use crate::backend::{HttpConfig, UsageTracker, build_http_client};
 use super::{AgentProvider, Agents, BaseAgent, AgentConfig};
 use crate::error::Error;
 
@@ -45,7 +45,7 @@ impl BaseAgentBuilder {
             tools,
         } = self;
 
-        let http_config = crate::backend::HttpClientConfig::with_max_retries(config.max_retries);
+        let http_config = HttpConfig::with_max_retries(config.max_retries);
         let http_client = build_http_client(&http_config);
         let preamble = config.preamble.as_deref();
 

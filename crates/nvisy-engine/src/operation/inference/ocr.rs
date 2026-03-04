@@ -1,24 +1,24 @@
-//! Adapter bridging [`OcrBackend`] (traditional OCR) → [`OcrProvider`] (VLM agent).
+//! Adapter bridging [`Backend`](nvisy_ocr::Backend) (traditional OCR) → [`OcrProvider`] (VLM agent).
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use nvisy_ocr::{ImageFormat, ImageInput, OcrBackend, OcrConfig};
+use nvisy_ocr::{Backend, ImageFormat, ImageInput, RunParams};
 use nvisy_rig::agent::{OcrProvider, OcrTextRegion};
 use nvisy_rig::error::Error;
 
-/// Adapts an [`OcrBackend`] (traditional OCR) into an [`OcrProvider`]
+/// Adapts an OCR [`Backend`](nvisy_ocr::Backend) into an [`OcrProvider`]
 /// for use with the VLM [`OcrAgent`](nvisy_rig::agent::OcrAgent).
 pub struct OcrBackendProvider {
-    backend: Arc<dyn OcrBackend>,
-    config: OcrConfig,
+    backend: Arc<dyn Backend>,
+    params: RunParams,
 }
 
 impl OcrBackendProvider {
-    /// Create a new provider wrapping the given backend and config.
-    pub fn new(backend: Arc<dyn OcrBackend>, config: OcrConfig) -> Self {
-        Self { backend, config }
+    /// Create a new provider wrapping the given backend and params.
+    pub fn new(backend: Arc<dyn Backend>, params: RunParams) -> Self {
+        Self { backend, params }
     }
 }
 
@@ -26,16 +26,16 @@ impl OcrBackendProvider {
 impl OcrProvider for OcrBackendProvider {
     async fn extract_text(&self, image_data: &[u8]) -> Result<Vec<OcrTextRegion>, Error> {
         let image = ImageInput::new(image_data.to_vec(), ImageFormat::Png);
-        let regions = self
+        let output = self
             .backend
-            .run(&image, &self.config)
+            .run(&image, &self.params)
             .await?;
 
-        Ok(regions
+        Ok(output
             .into_iter()
             .map(|r| OcrTextRegion {
                 text: r.text,
-                confidence: r.confidence,
+                confidence: r.confidence.unwrap_or(0.0),
                 bbox: Some(r.bbox),
                 polygon: r.polygon,
                 level: r.level,

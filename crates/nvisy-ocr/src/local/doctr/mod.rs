@@ -1,22 +1,24 @@
-//! [`OcrBackend`] implementation for DocTR.
+//! [`Backend`] implementation for DocTR.
 
-use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
 
-use crate::backend::{ImageInput, OcrBackend, OcrConfig, OcrRegion};
+use reqwest_middleware::ClientWithMiddleware;
+
+use crate::backend::http::HttpClient;
+use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams};
 
 /// Remote OCR backend using a DocTR server.
 ///
 /// Sends images as multipart form data to `{base_url}/ocr` and parses
-/// word-level results into [`OcrRegion`]. DocTR returns normalised 0–1
+/// word-level results into [`ImageRegion`]. DocTR returns normalised 0–1
 /// coordinates which are denormalised using the `dimensions` field from
 /// the response.
 pub struct DoctrBackend {
-    client: ClientWithMiddleware,
+    client: HttpClient,
     base_url: String,
 }
 
@@ -24,7 +26,7 @@ impl DoctrBackend {
     /// Create a new backend with the given HTTP client and server URL.
     pub fn new(client: ClientWithMiddleware, base_url: impl Into<String>) -> Self {
         Self {
-            client,
+            client: HttpClient::new(client),
             base_url: base_url.into(),
         }
     }
@@ -52,16 +54,13 @@ struct DoctrWord {
 }
 
 #[async_trait::async_trait]
-impl OcrBackend for DoctrBackend {
+impl Backend for DoctrBackend {
     async fn run(
         &self,
         image: &ImageInput,
-        config: &OcrConfig,
-    ) -> Result<Vec<OcrRegion>, Error> {
-        let file_part = reqwest_middleware::reqwest::multipart::Part::bytes(image.data.to_vec())
-            .file_name("image")
-            .mime_str(image.mime_type())
-            .map_err(|e| Error::runtime(format!("invalid mime type: {e}"), "doctr_ocr", false))?;
+        params: &RunParams,
+    ) -> Result<ImageOutput, Error> {
+        let file_part = self.client.image_part(image)?;
 
         let form = reqwest_middleware::reqwest::multipart::Form::new().part("file", file_part);
 
@@ -77,25 +76,10 @@ impl OcrBackend for DoctrBackend {
                 Error::runtime(format!("DocTR request failed: {e}"), "doctr_ocr", false)
             })?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(Error::runtime(
-                format!("DocTR returned {status}: {body}"),
-                "doctr_ocr",
-                false,
-            ));
-        }
+        let resp = self.client.check_status(resp, "DocTR", "doctr_ocr").await?;
+        let parsed: DoctrResponse = self.client.parse_json(resp, "DocTR", "doctr_ocr").await?;
 
-        let parsed: DoctrResponse = resp.json().await.map_err(|e| {
-            Error::runtime(
-                format!("failed to parse DocTR response: {e}"),
-                "doctr_ocr",
-                false,
-            )
-        })?;
-
-        let threshold = config.confidence_threshold;
+        let threshold = params.confidence_threshold;
         let mut regions = Vec::new();
 
         for page in &parsed.pages {
@@ -123,9 +107,9 @@ impl OcrBackend for DoctrBackend {
                 };
                 let bbox = polygon.bounding_box();
 
-                regions.push(OcrRegion {
+                regions.push(ImageRegion {
                     text: word.value.clone(),
-                    confidence: word.confidence,
+                    confidence: Some(word.confidence),
                     bbox,
                     polygon: Some(polygon),
                     level: Some(TextLevel::Word),
@@ -133,7 +117,10 @@ impl OcrBackend for DoctrBackend {
             }
         }
 
-        Ok(regions)
+        Ok(ImageOutput {
+            source: image.source.derive(),
+            regions,
+        })
     }
 }
 
@@ -218,7 +205,7 @@ mod tests {
         let resp: DoctrResponse = serde_json::from_value(json).unwrap();
         let threshold = 0.5;
 
-        let regions: Vec<OcrRegion> = resp
+        let regions: Vec<ImageRegion> = resp
             .pages
             .iter()
             .flat_map(|page| {
@@ -240,9 +227,9 @@ mod tests {
                         ],
                     };
                     let bbox = polygon.bounding_box();
-                    Some(OcrRegion {
+                    Some(ImageRegion {
                         text: word.value.clone(),
-                        confidence: word.confidence,
+                        confidence: Some(word.confidence),
                         bbox,
                         polygon: Some(polygon),
                         level: Some(TextLevel::Word),

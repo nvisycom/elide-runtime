@@ -2822,14 +2822,18 @@ dependencies = [
  "async-trait",
  "base64",
  "bytes",
+ "derive_more",
  "hmac",
  "nvisy-core",
  "nvisy-ontology",
  "reqwest-middleware",
+ "reqwest-retry",
+ "reqwest-tracing",
  "serde",
  "serde_json",
  "sha2",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

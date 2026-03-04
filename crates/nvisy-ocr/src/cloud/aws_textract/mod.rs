@@ -1,4 +1,4 @@
-//! [`OcrBackend`] implementation for AWS Textract.
+//! [`Backend`] implementation for AWS Textract.
 
 use hmac::{Hmac, Mac};
 use reqwest_middleware::ClientWithMiddleware;
@@ -9,14 +9,15 @@ use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
 
-use crate::backend::{ImageInput, OcrBackend, OcrConfig, OcrRegion};
+use crate::backend::http::HttpClient;
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
 
 /// Remote OCR backend using AWS Textract.
 ///
 /// Sends images as base64-encoded JSON to the `DetectDocumentText` action
 /// with inline SigV4 request signing.
 pub struct AwsTextractBackend {
-    client: ClientWithMiddleware,
+    client: HttpClient,
     access_key: String,
     secret_key: String,
     region: String,
@@ -31,7 +32,7 @@ impl AwsTextractBackend {
         region: impl Into<String>,
     ) -> Self {
         Self {
-            client,
+            client: HttpClient::new(client),
             access_key: access_key.into(),
             secret_key: secret_key.into(),
             region: region.into(),
@@ -134,12 +135,12 @@ struct TextractPoint {
 }
 
 #[async_trait::async_trait]
-impl OcrBackend for AwsTextractBackend {
+impl Backend for AwsTextractBackend {
     async fn run(
         &self,
         image: &ImageInput,
-        config: &OcrConfig,
-    ) -> Result<Vec<OcrRegion>, Error> {
+        params: &RunParams,
+    ) -> Result<ImageOutput, Error> {
         let encoded = image.to_base64();
 
         let body = serde_json::json!({
@@ -194,25 +195,16 @@ impl OcrBackend for AwsTextractBackend {
                 )
             })?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(Error::runtime(
-                format!("Textract returned {status}: {body}"),
-                "aws_textract_ocr",
-                false,
-            ));
-        }
+        let resp = self
+            .client
+            .check_status(resp, "Textract", "aws_textract_ocr")
+            .await?;
+        let parsed: TextractResponse = self
+            .client
+            .parse_json(resp, "Textract", "aws_textract_ocr")
+            .await?;
 
-        let parsed: TextractResponse = resp.json().await.map_err(|e| {
-            Error::runtime(
-                format!("failed to parse Textract response: {e}"),
-                "aws_textract_ocr",
-                false,
-            )
-        })?;
-
-        let threshold = config.confidence_threshold;
+        let threshold = params.confidence_threshold;
         let mut regions = Vec::new();
 
         for block in &parsed.blocks {
@@ -267,16 +259,19 @@ impl OcrBackend for AwsTextractBackend {
                 ),
             };
 
-            regions.push(OcrRegion {
+            regions.push(ImageRegion {
                 text,
-                confidence,
+                confidence: Some(confidence),
                 bbox,
                 polygon,
                 level: Some(TextLevel::Word),
             });
         }
 
-        Ok(regions)
+        Ok(ImageOutput {
+            source: image.source.derive(),
+            regions,
+        })
     }
 }
 

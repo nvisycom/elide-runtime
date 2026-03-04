@@ -1,4 +1,4 @@
-//! [`OcrBackend`] implementation for Azure Document Intelligence.
+//! [`Backend`] implementation for Azure Document Intelligence.
 
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
@@ -8,7 +8,8 @@ use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
 
-use crate::backend::{ImageInput, OcrBackend, OcrConfig, OcrRegion};
+use crate::backend::http::HttpClient;
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
 
 /// Poll interval when waiting for Azure analysis results.
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
@@ -20,7 +21,7 @@ const MAX_POLL_ATTEMPTS: u32 = 120;
 /// Uses the async two-step flow: POST to start analysis, then poll GET
 /// until results are available.
 pub struct AzureDocaiBackend {
-    client: ClientWithMiddleware,
+    client: HttpClient,
     endpoint: String,
     api_key: String,
 }
@@ -36,7 +37,7 @@ impl AzureDocaiBackend {
         api_key: impl Into<String>,
     ) -> Self {
         Self {
-            client,
+            client: HttpClient::new(client),
             endpoint: endpoint.into(),
             api_key: api_key.into(),
         }
@@ -71,12 +72,12 @@ struct AzureWord {
 }
 
 #[async_trait::async_trait]
-impl OcrBackend for AzureDocaiBackend {
+impl Backend for AzureDocaiBackend {
     async fn run(
         &self,
         image: &ImageInput,
-        config: &OcrConfig,
-    ) -> Result<Vec<OcrRegion>, Error> {
+        params: &RunParams,
+    ) -> Result<ImageOutput, Error> {
         let encoded = image.to_base64();
         let endpoint = self.endpoint.trim_end_matches('/');
 
@@ -102,15 +103,10 @@ impl OcrBackend for AzureDocaiBackend {
                 )
             })?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(Error::runtime(
-                format!("Azure DocAI submit returned {status}: {body}"),
-                "azure_docai_ocr",
-                false,
-            ));
-        }
+        let resp = self
+            .client
+            .check_status(resp, "Azure DocAI submit", "azure_docai_ocr")
+            .await?;
 
         let result_url = resp
             .headers()
@@ -152,23 +148,14 @@ impl OcrBackend for AzureDocaiBackend {
                     )
                 })?;
 
-            if !poll_resp.status().is_success() {
-                let status = poll_resp.status();
-                let body = poll_resp.text().await.unwrap_or_default();
-                return Err(Error::runtime(
-                    format!("Azure DocAI poll returned {status}: {body}"),
-                    "azure_docai_ocr",
-                    false,
-                ));
-            }
-
-            let parsed: AnalyzeResponse = poll_resp.json().await.map_err(|e| {
-                Error::runtime(
-                    format!("failed to parse Azure DocAI response: {e}"),
-                    "azure_docai_ocr",
-                    false,
-                )
-            })?;
+            let poll_resp = self
+                .client
+                .check_status(poll_resp, "Azure DocAI poll", "azure_docai_ocr")
+                .await?;
+            let parsed: AnalyzeResponse = self
+                .client
+                .parse_json(poll_resp, "Azure DocAI", "azure_docai_ocr")
+                .await?;
 
             match parsed.status.as_str() {
                 "succeeded" => break parsed,
@@ -183,12 +170,17 @@ impl OcrBackend for AzureDocaiBackend {
             }
         };
 
-        let threshold = config.confidence_threshold;
+        let threshold = params.confidence_threshold;
         let mut regions = Vec::new();
 
         let result = match &analyze.analyze_result {
             Some(r) => r,
-            None => return Ok(regions),
+            None => {
+                return Ok(ImageOutput {
+                    source: image.source.derive(),
+                    regions,
+                });
+            }
         };
 
         for page in &result.pages {
@@ -219,9 +211,9 @@ impl OcrBackend for AzureDocaiBackend {
                         height: 0.0,
                     });
 
-                regions.push(OcrRegion {
+                regions.push(ImageRegion {
                     text: word.content.clone(),
-                    confidence: word.confidence,
+                    confidence: Some(word.confidence),
                     bbox,
                     polygon,
                     level: Some(TextLevel::Word),
@@ -229,7 +221,10 @@ impl OcrBackend for AzureDocaiBackend {
             }
         }
 
-        Ok(regions)
+        Ok(ImageOutput {
+            source: image.source.derive(),
+            regions,
+        })
     }
 }
 

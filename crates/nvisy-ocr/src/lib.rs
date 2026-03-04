@@ -3,19 +3,29 @@
 #![doc = include_str!("../README.md")]
 
 mod backend;
-pub mod provider;
+mod engine;
+mod local;
 
 #[cfg(any(feature = "aws", feature = "azure", feature = "google"))]
-pub mod cloud;
+mod cloud;
 
+#[doc(hidden)]
 pub mod prelude;
 
-pub use backend::{ImageFormat, ImageInput, OcrBackend, OcrConfig, OcrRegion};
-pub use provider::{DoctrBackend, PaddleXBackend, SuryaBackend};
+pub use backend::{Backend, ImageFormat, ImageInput, ImageOutput, ImageRegion, RunParams};
+pub use engine::Engine;
 
-#[cfg(feature = "aws")]
-pub use cloud::AwsTextractBackend;
-#[cfg(feature = "azure")]
-pub use cloud::AzureDocaiBackend;
-#[cfg(feature = "google")]
-pub use cloud::GoogleVisionBackend;
+/// Re-exports all OCR backend implementations.
+pub mod provider {
+    pub use crate::local::{DoctrBackend, PaddleXBackend, SuryaBackend};
+
+    #[cfg(feature = "aws")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "aws")))]
+    pub use crate::cloud::AwsTextractBackend;
+    #[cfg(feature = "azure")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "azure")))]
+    pub use crate::cloud::AzureDocaiBackend;
+    #[cfg(feature = "google")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "google")))]
+    pub use crate::cloud::GoogleVisionBackend;
+}

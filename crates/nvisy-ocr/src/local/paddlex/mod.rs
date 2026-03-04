@@ -1,20 +1,22 @@
-//! [`OcrBackend`] implementation for PaddleX PP-OCRv5.
+//! [`Backend`] implementation for PaddleX PP-OCRv5.
 
-use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
 
-use crate::backend::{ImageInput, OcrBackend, OcrConfig, OcrRegion};
+use reqwest_middleware::ClientWithMiddleware;
+
+use crate::backend::http::HttpClient;
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
 
 /// Remote OCR backend using a PaddleX PP-OCRv5 server.
 ///
 /// Sends images as multipart form data to `{base_url}/ocr` with
-/// `returnWordBox=true` and parses word-level results into [`OcrRegion`].
+/// `returnWordBox=true` and parses word-level results into [`ImageRegion`].
 pub struct PaddleXBackend {
-    client: ClientWithMiddleware,
+    client: HttpClient,
     base_url: String,
 }
 
@@ -22,7 +24,7 @@ impl PaddleXBackend {
     /// Create a new backend with the given HTTP client and server URL.
     pub fn new(client: ClientWithMiddleware, base_url: impl Into<String>) -> Self {
         Self {
-            client,
+            client: HttpClient::new(client),
             base_url: base_url.into(),
         }
     }
@@ -55,16 +57,13 @@ struct PaddleXWordResult {
 }
 
 #[async_trait::async_trait]
-impl OcrBackend for PaddleXBackend {
+impl Backend for PaddleXBackend {
     async fn run(
         &self,
         image: &ImageInput,
-        config: &OcrConfig,
-    ) -> Result<Vec<OcrRegion>, Error> {
-        let file_part = reqwest_middleware::reqwest::multipart::Part::bytes(image.data.to_vec())
-            .file_name("image")
-            .mime_str(image.mime_type())
-            .map_err(|e| Error::runtime(format!("invalid mime type: {e}"), "paddlex_ocr", false))?;
+        params: &RunParams,
+    ) -> Result<ImageOutput, Error> {
+        let file_part = self.client.image_part(image)?;
 
         let form = reqwest_middleware::reqwest::multipart::Form::new()
             .part("file", file_part)
@@ -82,25 +81,11 @@ impl OcrBackend for PaddleXBackend {
                 Error::runtime(format!("PaddleX request failed: {e}"), "paddlex_ocr", false)
             })?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(Error::runtime(
-                format!("PaddleX returned {status}: {body}"),
-                "paddlex_ocr",
-                false,
-            ));
-        }
+        let resp = self.client.check_status(resp, "PaddleX", "paddlex_ocr").await?;
+        let parsed: PaddleXResponse =
+            self.client.parse_json(resp, "PaddleX", "paddlex_ocr").await?;
 
-        let parsed: PaddleXResponse = resp.json().await.map_err(|e| {
-            Error::runtime(
-                format!("failed to parse PaddleX response: {e}"),
-                "paddlex_ocr",
-                false,
-            )
-        })?;
-
-        let threshold = config.confidence_threshold;
+        let threshold = params.confidence_threshold;
         let mut regions = Vec::new();
 
         for ocr_result in &parsed.result.ocr_results {
@@ -118,9 +103,9 @@ impl OcrBackend for PaddleXBackend {
                 };
                 let bbox = polygon.bounding_box();
 
-                regions.push(OcrRegion {
+                regions.push(ImageRegion {
                     text: word.text.clone(),
-                    confidence: word.confidence,
+                    confidence: Some(word.confidence),
                     bbox,
                     polygon: Some(polygon),
                     level: Some(TextLevel::Word),
@@ -128,7 +113,10 @@ impl OcrBackend for PaddleXBackend {
             }
         }
 
-        Ok(regions)
+        Ok(ImageOutput {
+            source: image.source.derive(),
+            regions,
+        })
     }
 }
 
@@ -212,7 +200,7 @@ mod tests {
 
         let resp: PaddleXResponse = serde_json::from_value(json).unwrap();
         let threshold = 0.5;
-        let regions: Vec<OcrRegion> = resp
+        let regions: Vec<ImageRegion> = resp
             .result
             .ocr_results
             .iter()
@@ -227,9 +215,9 @@ mod tests {
                         .collect(),
                 };
                 let bbox = polygon.bounding_box();
-                OcrRegion {
+                ImageRegion {
                     text: w.text.clone(),
-                    confidence: w.confidence,
+                    confidence: Some(w.confidence),
                     bbox,
                     polygon: Some(polygon),
                     level: Some(TextLevel::Word),

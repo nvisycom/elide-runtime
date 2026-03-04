@@ -1,4 +1,4 @@
-//! [`OcrBackend`] implementation for Google Cloud Vision API.
+//! [`Backend`] implementation for Google Cloud Vision API.
 
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
@@ -7,14 +7,15 @@ use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
 
-use crate::backend::{ImageInput, OcrBackend, OcrConfig, OcrRegion};
+use crate::backend::http::HttpClient;
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
 
 /// Remote OCR backend using Google Cloud Vision API.
 ///
 /// Sends images as base64-encoded JSON to the `images:annotate` endpoint
 /// and parses word-level results from the `fullTextAnnotation` response.
 pub struct GoogleVisionBackend {
-    client: ClientWithMiddleware,
+    client: HttpClient,
     api_key: String,
 }
 
@@ -22,7 +23,7 @@ impl GoogleVisionBackend {
     /// Create a new backend with the given HTTP client and API key.
     pub fn new(client: ClientWithMiddleware, api_key: impl Into<String>) -> Self {
         Self {
-            client,
+            client: HttpClient::new(client),
             api_key: api_key.into(),
         }
     }
@@ -85,12 +86,12 @@ struct GvVertex {
 }
 
 #[async_trait::async_trait]
-impl OcrBackend for GoogleVisionBackend {
+impl Backend for GoogleVisionBackend {
     async fn run(
         &self,
         image: &ImageInput,
-        config: &OcrConfig,
-    ) -> Result<Vec<OcrRegion>, Error> {
+        params: &RunParams,
+    ) -> Result<ImageOutput, Error> {
         let encoded = image.to_base64();
 
         let body = serde_json::json!({
@@ -119,25 +120,16 @@ impl OcrBackend for GoogleVisionBackend {
                 )
             })?;
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(Error::runtime(
-                format!("Google Vision returned {status}: {body}"),
-                "google_vision_ocr",
-                false,
-            ));
-        }
+        let resp = self
+            .client
+            .check_status(resp, "Google Vision", "google_vision_ocr")
+            .await?;
+        let parsed: AnnotateResponse = self
+            .client
+            .parse_json(resp, "Google Vision", "google_vision_ocr")
+            .await?;
 
-        let parsed: AnnotateResponse = resp.json().await.map_err(|e| {
-            Error::runtime(
-                format!("failed to parse Google Vision response: {e}"),
-                "google_vision_ocr",
-                false,
-            )
-        })?;
-
-        let threshold = config.confidence_threshold;
+        let threshold = params.confidence_threshold;
         let mut regions = Vec::new();
 
         for result in &parsed.responses {
@@ -182,9 +174,9 @@ impl OcrBackend for GoogleVisionBackend {
                                     height: 0.0,
                                 });
 
-                            regions.push(OcrRegion {
+                            regions.push(ImageRegion {
                                 text,
-                                confidence: word.confidence,
+                                confidence: Some(word.confidence),
                                 bbox,
                                 polygon,
                                 level: Some(TextLevel::Word),
@@ -195,7 +187,10 @@ impl OcrBackend for GoogleVisionBackend {
             }
         }
 
-        Ok(regions)
+        Ok(ImageOutput {
+            source: image.source.derive(),
+            regions,
+        })
     }
 }
 

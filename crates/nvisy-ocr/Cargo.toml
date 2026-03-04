@@ -35,20 +35,26 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
-# HTTP middleware
-reqwest-middleware = { workspace = true }
+# HTTP middleware (retry & tracing)
+reqwest-middleware = { workspace = true, features = [] }
+reqwest-retry = { workspace = true, features = [] }
+reqwest-tracing = { workspace = true, features = [] }
 
 # Encoding
 base64 = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 
+# Derive macros
+derive_more = { workspace = true }
+
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime & observability
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt"] }
+tracing = { workspace = true }
 
 # Signing (cloud features)
 sha2 = { workspace = true, optional = true }

@@ -11,18 +11,11 @@ use nvisy_core::path::ContentSource;
 ///
 /// [`Backend`]: super::Backend
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr)]
-#[non_exhaustive]
 pub enum ImageFormat {
     #[strum(serialize = "png")]
     Png,
     #[strum(serialize = "jpeg")]
     Jpeg,
-    #[strum(serialize = "tiff")]
-    Tiff,
-    #[strum(serialize = "webp")]
-    WebP,
-    #[strum(serialize = "bmp")]
-    Bmp,
 }
 
 impl ImageFormat {
@@ -31,9 +24,6 @@ impl ImageFormat {
         match self {
             Self::Png => "image/png",
             Self::Jpeg => "image/jpeg",
-            Self::Tiff => "image/tiff",
-            Self::WebP => "image/webp",
-            Self::Bmp => "image/bmp",
         }
     }
 
@@ -42,9 +32,6 @@ impl ImageFormat {
         match self {
             Self::Png => "png",
             Self::Jpeg => "jpeg",
-            Self::Tiff => "tiff",
-            Self::WebP => "webp",
-            Self::Bmp => "bmp",
         }
     }
 }

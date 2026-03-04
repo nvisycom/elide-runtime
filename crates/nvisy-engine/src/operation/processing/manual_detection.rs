@@ -7,9 +7,8 @@ use serde::Deserialize;
 
 use nvisy_core::Error;
 use nvisy_ontology::entity::{
-    Annotation, AnnotationKind, DetectionMethod, Entity,
+    Annotation, AnnotationKind, DetectionMethod, Entity, Location,
 };
-use nvisy_ontology::location::Location;
 
 use crate::operation::{Operation, ParallelContext};
 
@@ -131,8 +130,7 @@ pub fn is_excluded(entity: &Entity, exclusions: &[Exclusion]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nvisy_ontology::entity::{EntityCategory, EntityKind};
-    use nvisy_ontology::location::TextLocation;
+    use nvisy_ontology::entity::{EntityCategory, EntityKind, TextLocation};
 
     fn make_entity(value: &str, start: usize, end: usize) -> Entity {
         Entity::new(
@@ -142,11 +140,11 @@ mod tests {
             DetectionMethod::Manual,
             1.0,
         )
-        .with_location(Location::Text(TextLocation {
+        .with_location(TextLocation {
             start_offset: start,
             end_offset: end,
             ..Default::default()
-        }))
+        }.into())
     }
 
     fn make_exclusion_by_value(value: &str) -> Exclusion {
@@ -158,11 +156,11 @@ mod tests {
 
     fn make_exclusion_by_location(start: usize, end: usize) -> Exclusion {
         Exclusion {
-            location: Some(Location::Text(TextLocation {
+            location: Some(TextLocation {
                 start_offset: start,
                 end_offset: end,
                 ..Default::default()
-            })),
+            }.into()),
             value: None,
         }
     }

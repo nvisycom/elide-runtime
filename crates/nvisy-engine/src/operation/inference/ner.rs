@@ -10,9 +10,8 @@ use tokio::sync::Mutex;
 use nvisy_codec::handler::{Span, TxtSpan};
 use nvisy_core::Error;
 use nvisy_ontology::entity::{
-    DetectionMethod, Entity, EntityCategory, EntityKind,
+    DetectionMethod, Entity, EntityCategory, EntityKind, TextLocation,
 };
-use nvisy_ontology::location::{Location, TextLocation};
 use nvisy_rig::agent::{
     AgentProvider, AgentConfig, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
 };
@@ -144,17 +143,17 @@ impl Operation for Ner {
 
                 // Resolve offsets within the current span text.
                 if let Some(offsets) = ner_entity.resolve_offsets(&ctx) {
-                    entity = entity.with_location(Location::Text(TextLocation {
+                    entity = entity.with_location(TextLocation {
                         start_offset: offsets.start,
                         end_offset: offsets.end,
                         element_id: Some(span.id.0.to_string()),
                         ..Default::default()
-                    }));
+                    }.into());
                 } else {
-                    entity = entity.with_location(Location::Text(TextLocation {
+                    entity = entity.with_location(TextLocation {
                         element_id: Some(span.id.0.to_string()),
                         ..Default::default()
-                    }));
+                    }.into());
                 }
 
                 entities.push(entity.with_parent(&span.source));

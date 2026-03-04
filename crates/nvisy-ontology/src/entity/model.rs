@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 /// Provenance or licensing classification of a detection model.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum ModelKind {
@@ -30,4 +30,21 @@ pub struct ModelInfo {
     /// Model version string.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+}
+
+impl ModelInfo {
+    /// Create a new model info with the given name and kind.
+    pub fn new(name: impl Into<String>, kind: ModelKind) -> Self {
+        Self {
+            name: name.into(),
+            kind,
+            version: None,
+        }
+    }
+
+    /// Set the model version.
+    pub fn with_version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
+        self
+    }
 }

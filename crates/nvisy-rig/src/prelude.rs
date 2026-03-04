@@ -5,8 +5,8 @@ pub use crate::agent::AgentConfig;
 pub use crate::agent::ContextWindow;
 pub use crate::agent::{
     CvAgent, CvDetection, CvEntities, CvEntity, CvProvider, KnownNerEntity, NerAgent, NerContext,
-    NerEntities, NerEntity, OcrAgent, OcrEntity, OcrOutput, OcrProvider, OcrTextRegion,
-    ResolvedOffsets,
+    NerEntities, NerEntity, OcrAgent, ProposedEntity, ResolvedOffsets, VerificationOutput,
+    VerificationStatus, VerifiedEntity,
 };
 pub use crate::agent::{DetectionConfig, DetectionRequest, DetectionResponse};
 pub use crate::audio::TranscribeProvider;

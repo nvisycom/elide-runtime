@@ -11,7 +11,7 @@ mod translation;
 pub use classification::Classification;
 pub use computer_vision::ComputerVision;
 pub use ner::{Ner, NerMethodParams};
-pub use ocr::{Ocr, OcrBackendProvider};
+pub use ocr::Verification;
 pub use summarization::Summarization;
 pub use transcription::Transcription;
 pub use translation::Translation;

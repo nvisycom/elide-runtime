@@ -165,13 +165,8 @@ impl Engine for DefaultEngine {
         // CV layers) before the engine is called. The engine receives entities as
         // part of a higher-level orchestration layer. For now, we create an empty
         // detection output and let the execution graph handle detection actions.
-        let detection = nvisy_ontology::entity::DetectionOutput {
-            source: content_source,
-            entities: Vec::new(),
-            policy_id: input.policies.policies.first().map(|p| p.id),
-            duration: None,
-            errors: Vec::new(),
-        };
+        let mut detection = nvisy_ontology::entity::DetectionOutput::new(content_source, Vec::new());
+        detection.policy_id = input.policies.policies.first().map(|p| p.id);
 
         // Phase 2: Policy Evaluation
         //

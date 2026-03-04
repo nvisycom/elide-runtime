@@ -17,4 +17,4 @@ pub(crate) use base::{BaseAgent, ALL_TYPES_HINT};
 pub use cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
 pub use generate::{GenAgent, GenOutput, GenRequest, GeneratedEntity};
 pub use ner::{KnownNerEntity, NerAgent, NerContext, NerEntities, NerEntity, ResolvedOffsets};
-pub use ocr::{OcrAgent, OcrEntity, OcrOutput, OcrProvider, OcrTextRegion};
+pub use ocr::{OcrAgent, ProposedEntity, VerificationOutput, VerificationStatus, VerifiedEntity};

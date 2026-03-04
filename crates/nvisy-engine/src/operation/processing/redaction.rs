@@ -20,8 +20,7 @@ use nvisy_codec::transform::{
     ImageRedactionOutput, TextRedact, TextRedaction, TextRedactionOutput,
 };
 use nvisy_core::Error;
-use nvisy_ontology::entity::Entity;
-use nvisy_ontology::location::Location;
+use nvisy_ontology::entity::{Entity, Location};
 use nvisy_ontology::record::Redaction as RedactionRecord;
 use nvisy_ontology::specification::{
     AudioRedactionInput, ImageRedactionInput, RedactionInput as RedactionSpec, TextRedactionInput,

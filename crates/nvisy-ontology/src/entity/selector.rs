@@ -1,5 +1,6 @@
 //! Entity selection criteria for policy rules.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{EntityCategory, EntityKind};
@@ -9,7 +10,7 @@ use super::{EntityCategory, EntityKind};
 /// All fields use "empty means all" semantics: an empty `categories` list
 /// matches every category, an empty `entity_types` list matches every type,
 /// and so on. When multiple fields are set, they are combined with AND logic.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitySelector {
     /// Entity categories this selector matches. Empty means all categories.

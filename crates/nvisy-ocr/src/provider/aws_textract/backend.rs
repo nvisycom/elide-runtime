@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use nvisy_core::Error;
 use nvisy_rig::backend::{HttpConfig, build_http_client};
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use nvisy_ontology::location::TextLevel;
+use crate::backend::TextLevel;
 use reqwest_middleware::ClientWithMiddleware;
 
 use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, check_response};

@@ -10,8 +10,7 @@ use nvisy_codec::handler::{CsvSpan, JsonPath, Span, TxtSpan};
 #[cfg(feature = "html")]
 use nvisy_codec::handler::HtmlSpan;
 use nvisy_core::Error;
-use nvisy_ontology::entity::{DetectionMethod, Entity};
-use nvisy_ontology::location::{Location, TabularLocation, TextLocation};
+use nvisy_ontology::entity::{DetectionMethod, Entity, TabularLocation, TextLocation};
 use nvisy_pattern::{ContextRule, DetectionSource, PatternEngine, PatternEngineBuilder, PatternMatch as PatternMatchResult};
 
 use crate::operation::Operation;
@@ -109,12 +108,12 @@ impl PatternMatch {
                 method,
                 confidence,
             )
-            .with_location(Location::Text(TextLocation {
+            .with_location(TextLocation {
                 start_offset: m.start,
                 end_offset: m.end,
                 element_id: Some(spans[*span_idx].id.0.to_string()),
                 ..Default::default()
-            }))
+            }.into())
             .with_parent(&spans[*span_idx].source);
 
             entities.push(entity);
@@ -157,14 +156,14 @@ impl PatternMatch {
                 method,
                 confidence,
             )
-            .with_location(Location::Tabular(TabularLocation {
+            .with_location(TabularLocation {
                 row_index: span.id.row,
                 column_index: span.id.col,
                 start_offset: Some(m.start),
                 end_offset: Some(m.end),
                 column_name: None,
                 sheet_name: None,
-            }))
+            }.into())
             .with_parent(&span.source);
 
             entities.push(entity);
@@ -201,12 +200,12 @@ impl PatternMatch {
                 method,
                 confidence,
             )
-            .with_location(Location::Text(TextLocation {
+            .with_location(TextLocation {
                 start_offset: m.start,
                 end_offset: m.end,
                 element_id: Some(spans[*span_idx].id.0.to_string()),
                 ..Default::default()
-            }))
+            }.into())
             .with_parent(&spans[*span_idx].source);
 
             entities.push(entity);
@@ -250,12 +249,12 @@ impl PatternMatch {
                 method,
                 confidence,
             )
-            .with_location(Location::Text(TextLocation {
+            .with_location(TextLocation {
                 start_offset: m.start,
                 end_offset: m.end,
                 element_id: Some(spans[orig_idx].id.pointer.clone()),
                 ..Default::default()
-            }))
+            }.into())
             .with_parent(&spans[orig_idx].source);
 
             entities.push(entity);

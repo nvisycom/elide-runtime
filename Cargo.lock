@@ -2944,7 +2944,6 @@ dependencies = [
  "bytes",
  "hmac",
  "nvisy-core",
- "nvisy-ontology",
  "nvisy-rig",
  "reqwest-middleware",
  "serde",

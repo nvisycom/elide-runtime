@@ -4,8 +4,7 @@
 //! overlapping location into a single entity with the highest
 //! confidence and `DetectionMethod::Composite` when methods differ.
 
-use nvisy_ontology::entity::{DetectionMethod, Entity};
-use nvisy_ontology::location::Location;
+use nvisy_ontology::entity::{DetectionMethod, Entity, Location};
 
 use crate::operation::{Operation, ParallelContext};
 
@@ -84,8 +83,7 @@ fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nvisy_ontology::entity::{EntityCategory, EntityKind};
-    use nvisy_ontology::location::TextLocation;
+    use nvisy_ontology::entity::{EntityCategory, EntityKind, TextLocation};
 
     fn text_entity(value: &str, method: DetectionMethod, confidence: f64, start: usize, end: usize) -> Entity {
         Entity::new(
@@ -95,11 +93,11 @@ mod tests {
             method,
             confidence,
         )
-        .with_location(Location::Text(TextLocation {
+        .with_location(TextLocation {
             start_offset: start,
             end_offset: end,
             ..Default::default()
-        }))
+        }.into())
     }
 
     #[test]

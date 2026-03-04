@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use nvisy_ontology::location::TextLevel;
+use crate::backend::TextLevel;
 use nvisy_rig::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_middleware::reqwest::multipart::Form;

@@ -6,8 +6,7 @@
 use nvisy_codec::handler::{ImageData, Span};
 use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
-use nvisy_ontology::entity::{DetectionMethod, Entity};
-use nvisy_ontology::location::{ImageLocation, Location};
+use nvisy_ontology::entity::{DetectionMethod, Entity, ImageLocation};
 use nvisy_rig::agent::{CvAgent, CvEntity, DetectionConfig};
 
 use crate::operation::Operation;
@@ -65,7 +64,7 @@ fn map_cv_entity(cv: &CvEntity) -> Entity {
         DetectionMethod::ObjectDetection,
         cv.confidence,
     )
-    .with_location(Location::Image(ImageLocation {
+    .with_location(ImageLocation {
         bounding_box: BoundingBox {
             x: cv.bbox[0],
             y: cv.bbox[1],
@@ -74,5 +73,5 @@ fn map_cv_entity(cv: &CvEntity) -> Entity {
         },
         image_id: None,
         page_number: None,
-    }))
+    }.into())
 }

@@ -4,7 +4,7 @@ mod input;
 mod output;
 
 pub use input::{ImageFormat, ImageInput};
-pub use output::{ImageOutput, ImageRegion};
+pub use output::{ImageOutput, ImageRegion, TextLevel};
 
 use nvisy_core::Error;
 use reqwest_middleware::reqwest::multipart::Part;

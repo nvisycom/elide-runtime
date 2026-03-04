@@ -6,6 +6,7 @@
 mod annotation;
 mod category;
 mod kind;
+mod location;
 mod model;
 mod selector;
 mod sensitivity;
@@ -13,6 +14,7 @@ mod sensitivity;
 pub use annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};
 pub use category::EntityCategory;
 pub use kind::EntityKind;
+pub use location::{AudioLocation, ImageLocation, Location, TabularLocation, TextLocation};
 pub use model::{ModelInfo, ModelKind};
 pub use selector::EntitySelector;
 pub use sensitivity::EntitySensitivity;
@@ -26,8 +28,6 @@ use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use nvisy_core::path::ContentSource;
-
-use crate::location::Location;
 
 /// Method used to detect a sensitive entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize, JsonSchema)]
@@ -130,9 +130,22 @@ impl Entity {
         self
     }
 
+    /// Set the BCP-47 language tag.
+    pub fn with_language(mut self, language: impl Into<String>) -> Self {
+        self.language = Some(language.into());
+        self
+    }
+
+    /// Set the detection model.
+    pub fn with_model(mut self, model: ModelInfo) -> Self {
+        self.model = Some(model);
+        self
+    }
+
     /// Copy the location from another entity.
-    pub fn copy_location_from(&mut self, other: &Self) {
+    pub fn copy_location_from(mut self, other: &Self) -> Self {
         self.location = other.location.clone();
+        self
     }
 }
 
@@ -157,4 +170,29 @@ pub struct DetectionOutput {
     /// Non-fatal errors or warnings encountered during detection.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<String>,
+}
+
+impl DetectionOutput {
+    /// Create a new detection output for the given source.
+    pub fn new(source: ContentSource, entities: Vec<Entity>) -> Self {
+        Self {
+            source,
+            entities,
+            policy_id: None,
+            duration: None,
+            errors: Vec::new(),
+        }
+    }
+
+    /// Set the policy identifier.
+    pub fn with_policy_id(mut self, policy_id: Uuid) -> Self {
+        self.policy_id = Some(policy_id);
+        self
+    }
+
+    /// Set the processing duration.
+    pub fn with_duration(mut self, duration: Duration) -> Self {
+        self.duration = Some(duration);
+        self
+    }
 }

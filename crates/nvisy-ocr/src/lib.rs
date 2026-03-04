@@ -9,5 +9,5 @@ pub mod provider;
 #[doc(hidden)]
 pub mod prelude;
 
-pub use backend::{Backend, ImageFormat, ImageInput, ImageOutput, ImageRegion, RunParams};
+pub use backend::{Backend, ImageFormat, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel};
 pub use engine::{Engine, EngineParams};

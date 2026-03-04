@@ -3,9 +3,8 @@
 pub use crate::context::{Context, ContextEntry, ContextEntryData};
 pub use crate::entity::{
     Annotation, AnnotationKind, DetectionMethod, DetectionOutput, Entity, EntityCategory,
-    EntityKind, EntitySensitivity,
+    EntityKind, EntitySensitivity, Location,
 };
-pub use crate::location::Location;
 pub use crate::policy::{Policies, Policy, PolicyRule};
 pub use crate::record::Redaction;
 pub use crate::specification::RedactionMethod;

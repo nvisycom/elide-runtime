@@ -1,5 +1,7 @@
 //! Provider configuration for LLM agents.
 
+use serde::{Deserialize, Serialize};
+
 use crate::backend::{AuthenticatedProvider, UnauthenticatedProvider};
 
 /// Supported LLM providers for agent-based tasks (NER, CV, OCR, text generation).
@@ -12,7 +14,7 @@ use crate::backend::{AuthenticatedProvider, UnauthenticatedProvider};
 /// let provider = AgentProvider::openai("sk-...", "gpt-4o");
 /// let agent = NerAgent::new(&provider, config);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AgentProvider {
     /// OpenAI (GPT-4o, GPT-4, etc.)
     OpenAi(AuthenticatedProvider),

@@ -4,11 +4,12 @@ use std::fmt;
 
 use reqwest_middleware::ClientWithMiddleware;
 use rig::providers::{anthropic, gemini, openai};
+use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
 /// Provider that requires an API key (OpenAI, Anthropic, Gemini).
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AuthenticatedProvider {
     pub api_key: String,
     pub model: String,

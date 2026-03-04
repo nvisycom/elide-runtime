@@ -2,11 +2,12 @@
 
 use reqwest_middleware::ClientWithMiddleware;
 use rig::providers::ollama;
+use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
 /// Provider that does not require an API key (Ollama).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnauthenticatedProvider {
     pub model: String,
     pub base_url: Option<String>,

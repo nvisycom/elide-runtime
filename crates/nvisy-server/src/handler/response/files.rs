@@ -30,6 +30,14 @@ pub struct FileDeleteResponse {
     pub id: Uuid,
 }
 
+/// Response body for `GET /api/v1/files`.
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FileListResponse {
+    /// List of file identifiers.
+    pub files: Vec<Uuid>,
+}
+
 /// Response body for `DELETE /api/v1/files`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

@@ -142,5 +142,8 @@ tempfile = { version = "3.26", features = [] }
 # Validation
 validator = { version = "0.20", features = ["derive"] }
 
+# Embedded key-value store
+fjall = { version = "3.0", features = [] }
+
 # Randomness
 rand = { version = "0.10", features = [] }

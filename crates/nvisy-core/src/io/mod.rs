@@ -1,28 +1,20 @@
 //! I/O module for content handling and processing
 //!
-//! This module provides the core I/O abstractions for handling content data,
-//! including content data structures and async read/write traits.
+//! This module provides the core I/O abstractions for handling content data.
 //!
 //! # Core Types
 //!
 //! - [`ContentData`]: Container for content data with metadata, hashing, and size utilities
-//!
-//! # Traits
-//!
-//! - [`AsyncContentRead`]: Async trait for reading content from various sources
-//! - [`AsyncContentWrite`]: Async trait for writing content to various destinations
+//! - [`ContentBytes`]: Wrapper around `Bytes` for content storage
 
 mod content;
+mod content_bytes;
 mod content_data;
-mod content_read;
-mod content_write;
 mod data_reference;
 mod encoding;
 
-// Re-export core types and traits
 pub use content::Content;
-pub use encoding::TextEncoding;
-pub use content_data::{ContentBytes, ContentData};
-pub use content_read::AsyncContentRead;
-pub use content_write::AsyncContentWrite;
+pub use content_bytes::ContentBytes;
+pub use content_data::ContentData;
 pub use data_reference::DataReference;
+pub use encoding::TextEncoding;

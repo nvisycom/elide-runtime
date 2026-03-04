@@ -23,7 +23,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Async runtime
-tokio = { workspace = true, features = ["sync", "fs", "io-util", "rt"] }
+tokio = { workspace = true, features = ["sync", "rt"] }
+
+# Embedded key-value store
+fjall = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }

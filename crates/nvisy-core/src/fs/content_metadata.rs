@@ -7,16 +7,12 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::path::ContentSource;
-
 /// Metadata associated with content files
 ///
-/// This struct stores metadata about content including its source identifier
-/// and file path.
+/// This struct stores metadata about content including its file path
+/// and arbitrary key-value pairs.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ContentMetadata {
-    /// Unique identifier for the content source
-    pub content_source: ContentSource,
     /// Optional path to the source file
     pub source_path: Option<PathBuf>,
     /// Arbitrary key-value metadata associated with this content.
@@ -25,40 +21,36 @@ pub struct ContentMetadata {
 }
 
 impl ContentMetadata {
-    /// Create new content metadata with just a source
+    /// Create new empty content metadata.
     ///
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::{fs::ContentMetadata, path::ContentSource};
+    /// use nvisy_core::fs::ContentMetadata;
     ///
-    /// let source = ContentSource::new();
-    /// let metadata = ContentMetadata::new(source);
+    /// let metadata = ContentMetadata::new();
     /// ```
     #[must_use]
-    pub fn new(content_source: ContentSource) -> Self {
+    pub fn new() -> Self {
         Self {
-            content_source,
             source_path: None,
             metadata: None,
         }
     }
 
-    /// Create content metadata with a file path
+    /// Create content metadata with a file path.
     ///
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::{fs::ContentMetadata, path::ContentSource};
+    /// use nvisy_core::fs::ContentMetadata;
     /// use std::path::PathBuf;
     ///
-    /// let source = ContentSource::new();
-    /// let metadata = ContentMetadata::with_path(source, PathBuf::from("document.pdf"));
+    /// let metadata = ContentMetadata::with_path(PathBuf::from("document.pdf"));
     /// assert_eq!(metadata.file_extension(), Some("pdf"));
     /// ```
-    pub fn with_path(content_source: ContentSource, path: impl Into<PathBuf>) -> Self {
+    pub fn with_path(path: impl Into<PathBuf>) -> Self {
         Self {
-            content_source,
             source_path: Some(path.into()),
             metadata: None,
         }
@@ -111,38 +103,40 @@ impl ContentMetadata {
     }
 }
 
+impl Default for ContentMetadata {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_file_extension_detection() {
-        let source = ContentSource::new();
-        let metadata = ContentMetadata::with_path(source, PathBuf::from("document.pdf"));
+        let metadata = ContentMetadata::with_path(PathBuf::from("document.pdf"));
 
         assert_eq!(metadata.file_extension(), Some("pdf"));
     }
 
     #[test]
     fn test_metadata_filename() {
-        let source = ContentSource::new();
-        let metadata = ContentMetadata::with_path(source, PathBuf::from("/path/to/file.txt"));
+        let metadata = ContentMetadata::with_path(PathBuf::from("/path/to/file.txt"));
 
         assert_eq!(metadata.filename(), Some("file.txt"));
     }
 
     #[test]
     fn test_metadata_parent_directory() {
-        let source = ContentSource::new();
-        let metadata = ContentMetadata::with_path(source, PathBuf::from("/path/to/file.txt"));
+        let metadata = ContentMetadata::with_path(PathBuf::from("/path/to/file.txt"));
 
         assert_eq!(metadata.parent_directory(), Some(Path::new("/path/to")));
     }
 
     #[test]
     fn test_path_operations() {
-        let source = ContentSource::new();
-        let mut metadata = ContentMetadata::new(source);
+        let mut metadata = ContentMetadata::new();
 
         assert!(!metadata.has_path());
 
@@ -157,8 +151,7 @@ mod tests {
 
     #[test]
     fn test_serde_serialization() {
-        let source = ContentSource::new();
-        let metadata = ContentMetadata::with_path(source, PathBuf::from("test.json"));
+        let metadata = ContentMetadata::with_path(PathBuf::from("test.json"));
 
         let serialized = serde_json::to_string(&metadata).unwrap();
         let deserialized: ContentMetadata = serde_json::from_str(&serialized).unwrap();

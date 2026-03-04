@@ -36,7 +36,7 @@ async fn run() -> anyhow::Result<()> {
     Cli::init_tracing();
 
     // Initialize application state
-    let content_registry = ContentRegistry::new(cli.server.content_dir());
+    let content_registry = ContentRegistry::open(cli.server.content_dir())?;
     let state = ServiceState::new(content_registry);
 
     // Build and run

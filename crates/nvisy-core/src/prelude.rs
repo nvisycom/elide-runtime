@@ -4,6 +4,6 @@
 //! types without individual `use` statements.
 
 pub use crate::{Error, ErrorKind, Result};
-pub use crate::fs::{ContentFile, ContentHandler, ContentKind, ContentMetadata, ContentRegistry};
-pub use crate::io::{AsyncContentRead, AsyncContentWrite, Content, ContentBytes, ContentData, DataReference};
+pub use crate::fs::{ContentHandler, ContentKind, ContentMetadata, ContentRegistry};
+pub use crate::io::{Content, ContentBytes, ContentData, DataReference};
 pub use crate::path::ContentSource;

@@ -17,5 +17,8 @@ pub use contexts::{
     ContextListResponse, ContextUploadResponse,
 };
 pub use error::ErrorResponse;
-pub use files::{FileDeleteAllResponse, FileDeleteResponse, FileDownloadResponse, FileUploadResponse};
+pub use files::{
+    FileDeleteAllResponse, FileDeleteResponse, FileDownloadResponse, FileListResponse,
+    FileUploadResponse,
+};
 pub use process::ProcessResponse;

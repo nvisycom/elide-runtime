@@ -1,82 +1,102 @@
+use bytes::Bytes;
+use fjall::Keyspace;
+
 use std::fmt;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
-use tokio::runtime::Handle;
-
+use crate::error::{Error, ErrorKind, Result};
+use crate::fs::ContentMetadata;
+use crate::io::ContentData;
 use crate::path::ContentSource;
 
-/// Inner state cleaned up when the last `ContentHandler` reference is dropped.
-struct ContentHandlerInner {
-    content_source: ContentSource,
-    dir: PathBuf,
-    runtime_handle: Handle,
-}
-
-impl fmt::Debug for ContentHandlerInner {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ContentHandlerInner")
-            .field("content_source", &self.content_source)
-            .field("dir", &self.dir)
-            .finish()
-    }
-}
-
-impl Drop for ContentHandlerInner {
-    fn drop(&mut self) {
-        let dir = self.dir.clone();
-        let source = self.content_source;
-
-        self.runtime_handle.spawn(async move {
-            if let Err(err) = tokio::fs::remove_dir_all(&dir).await {
-                tracing::warn!(
-                    target: "nvisy_core::fs",
-                    content_source = %source,
-                    path = %dir.display(),
-                    error = %err,
-                    "Failed to clean up temporary content directory"
-                );
-            } else {
-                tracing::trace!(
-                    target: "nvisy_core::fs",
-                    content_source = %source,
-                    path = %dir.display(),
-                    "Cleaned up temporary content directory"
-                );
-            }
-        });
-    }
-}
-
-/// Handle to content stored in a managed temporary directory.
+/// Lightweight handle to a content entry stored in the registry.
 ///
-/// Cloning is cheap — clones share the same underlying directory via `Arc`.
-/// When the last clone is dropped, the temporary directory is deleted.
-#[derive(Debug, Clone)]
+/// Holds references to the fjall keyspaces so it can read content data
+/// and metadata on demand. Cloning is cheap because fjall handles are
+/// internally `Arc`-wrapped.
+#[derive(Clone)]
 pub struct ContentHandler {
-    inner: Arc<ContentHandlerInner>,
+    content_source: ContentSource,
+    content: Keyspace,
+    metadata: Keyspace,
+}
+
+impl fmt::Debug for ContentHandler {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ContentHandler")
+            .field("content_source", &self.content_source)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ContentHandler {
-    /// Creates a new content handler.
-    pub(crate) fn new(source: ContentSource, dir: PathBuf, handle: Handle) -> Self {
+    pub(crate) fn new(
+        content_source: ContentSource,
+        content: Keyspace,
+        metadata: Keyspace,
+    ) -> Self {
         Self {
-            inner: Arc::new(ContentHandlerInner {
-                content_source: source,
-                dir,
-                runtime_handle: handle,
-            }),
+            content_source,
+            content,
+            metadata,
         }
     }
 
     /// Returns the content source identifier.
     pub fn content_source(&self) -> ContentSource {
-        self.inner.content_source
+        self.content_source
     }
 
-    /// Returns the path to the temporary directory.
-    pub fn dir(&self) -> &Path {
-        &self.inner.dir
+    /// Reads the content bytes from the store.
+    pub async fn content_data(&self) -> Result<ContentData> {
+        let key = self.content_source.as_uuid().as_bytes().to_vec();
+        let source = self.content_source;
+        let content_ks = self.content.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let value = content_ks.get(&key).map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to read content data").with_source(err)
+            })?;
+
+            let guard = value.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::NotFound,
+                    format!("Content data not found (id: {})", source.as_uuid()),
+                )
+            })?;
+
+            Ok(ContentData::new(source, Bytes::copy_from_slice(&guard)))
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
+        })?
+    }
+
+    /// Reads the content metadata from the store.
+    pub async fn metadata(&self) -> Result<ContentMetadata> {
+        let key = self.content_source.as_uuid().as_bytes().to_vec();
+        let metadata_ks = self.metadata.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let value = metadata_ks.get(&key).map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to read content metadata").with_source(err)
+            })?;
+
+            match value {
+                Some(guard) => serde_json::from_slice(&guard).map_err(|err| {
+                    Error::new(
+                        ErrorKind::Serialization,
+                        "Failed to deserialize content metadata",
+                    )
+                    .with_source(err)
+                }),
+                None => Ok(ContentMetadata::default()),
+            }
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
+        })?
     }
 }
 
@@ -88,42 +108,64 @@ mod tests {
     #[tokio::test]
     async fn test_handler_has_valid_source() {
         let temp = tempfile::TempDir::new().unwrap();
-        let registry = ContentRegistry::new(temp.path().join("content"));
+        let registry = ContentRegistry::open(temp.path().join("content")).unwrap();
         let content = Content::new(ContentData::from("test data"));
         let handler = registry.register(content).await.unwrap();
 
         assert!(!handler.content_source().as_uuid().is_nil());
-        assert!(handler.dir().exists());
     }
 
     #[tokio::test]
-    async fn test_clone_shares_same_directory() {
+    async fn test_content_data_reads_correctly() {
         let temp = tempfile::TempDir::new().unwrap();
-        let registry = ContentRegistry::new(temp.path().join("content"));
+        let registry = ContentRegistry::open(temp.path().join("content")).unwrap();
+        let content = Content::new(ContentData::from("hello bytes"));
+        let handler = registry.register(content).await.unwrap();
+
+        let data = handler.content_data().await.unwrap();
+        assert_eq!(data.as_str().unwrap(), "hello bytes");
+        assert_eq!(data.content_source, handler.content_source());
+    }
+
+    #[tokio::test]
+    async fn test_metadata_default_when_no_metadata() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let registry = ContentRegistry::open(temp.path().join("content")).unwrap();
+        let content = Content::new(ContentData::from("no metadata"));
+        let handler = registry.register(content).await.unwrap();
+
+        let metadata = handler.metadata().await.unwrap();
+        assert!(!metadata.has_path());
+    }
+
+    #[tokio::test]
+    async fn test_metadata_with_path() {
+        use crate::fs::ContentMetadata;
+
+        let temp = tempfile::TempDir::new().unwrap();
+        let registry = ContentRegistry::open(temp.path().join("content")).unwrap();
+
+        let data = ContentData::from("with metadata");
+        let meta = ContentMetadata::with_path("document.pdf");
+        let content = Content::with_metadata(data, meta);
+        let handler = registry.register(content).await.unwrap();
+
+        let metadata = handler.metadata().await.unwrap();
+        assert!(metadata.has_path());
+        assert_eq!(metadata.filename(), Some("document.pdf"));
+    }
+
+    #[tokio::test]
+    async fn test_clone_shares_source() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let registry = ContentRegistry::open(temp.path().join("content")).unwrap();
         let content = Content::new(ContentData::from("shared"));
         let handler1 = registry.register(content).await.unwrap();
         let handler2 = handler1.clone();
 
-        assert_eq!(handler1.dir(), handler2.dir());
-    }
-
-    #[tokio::test]
-    async fn test_directory_cleaned_on_last_drop() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let registry = ContentRegistry::new(temp.path().join("content"));
-        let content = Content::new(ContentData::from("cleanup test"));
-        let handler = registry.register(content).await.unwrap();
-        let dir = handler.dir().to_path_buf();
-        let handler2 = handler.clone();
-
-        assert!(dir.exists());
-
-        drop(handler);
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        assert!(dir.exists());
-
-        drop(handler2);
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        assert!(!dir.exists());
+        assert_eq!(
+            handler1.content_source().as_uuid(),
+            handler2.content_source().as_uuid()
+        );
     }
 }

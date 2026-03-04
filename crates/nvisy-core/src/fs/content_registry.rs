@@ -1,129 +1,276 @@
 use std::path::{Path, PathBuf};
 
+use fjall::{Database, Keyspace, KeyspaceCreateOptions, KvSeparationOptions};
 use uuid::Uuid;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::fs::ContentHandler;
 use crate::io::Content;
+use crate::path::ContentSource;
 
-/// Registry that accepts content, creates temporary directories, and returns
-/// handlers that manage the directory lifecycle.
+/// Content store backed by fjall, an embedded LSM key-value database.
 ///
-/// Each call to [`register`](ContentRegistry::register) creates a subdirectory
-/// under the base path, named by the content's [`ContentSource`](crate::path::ContentSource)
-/// UUID. The directory is automatically cleaned up when the last
-/// [`ContentHandler`] referencing it is dropped.
-#[derive(Debug, Clone)]
+/// Stores content data and metadata in two keyspaces:
+/// - `content`: raw bytes with blob separation for large values
+/// - `metadata`: JSON-serialized [`ContentMetadata`](crate::fs::ContentMetadata)
+///
+/// All handles are internally `Arc`-wrapped, making `ContentRegistry` cheap
+/// to clone and safe to share across threads.
+#[derive(Clone)]
 pub struct ContentRegistry {
     base_dir: PathBuf,
+    db: Database,
+    content: Keyspace,
+    metadata: Keyspace,
+}
+
+impl std::fmt::Debug for ContentRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ContentRegistry")
+            .field("base_dir", &self.base_dir)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ContentRegistry {
-    /// Creates a new content registry with the specified base directory.
+    /// Opens (or creates) the fjall database at `path`.
     ///
-    /// The directory does not need to exist yet — it is created lazily
-    /// when content is first registered.
-    pub fn new(base_dir: impl Into<PathBuf>) -> Self {
-        Self {
-            base_dir: base_dir.into(),
-        }
-    }
-
-    /// Registers content and creates a managed temporary directory for it.
+    /// Two keyspaces are created:
+    /// - `"content"` with blob separation for efficient large-value storage
+    /// - `"metadata"` with default configuration
     ///
-    /// Creates a subdirectory named by the content's `ContentSource` UUID,
-    /// writes the content data as `content.bin`, and returns a handler that
-    /// deletes the directory when the last reference is dropped.
-    pub async fn register(&self, content: Content) -> Result<ContentHandler> {
-        let content_source = content.content_source();
-        let dir = self.base_dir.join(content_source.to_string());
+    /// # Errors
+    ///
+    /// Returns an error if the database or keyspaces cannot be opened.
+    pub fn open(path: impl Into<PathBuf>) -> Result<Self> {
+        let base_dir = path.into();
 
-        tokio::fs::create_dir_all(&dir).await.map_err(|err| {
-            Error::new(ErrorKind::Internal, format!(
-                "Failed to create temporary content directory (path: {})", dir.display()
-            )).with_source(err)
+        let db = Database::builder(&base_dir).open().map_err(|err| {
+            Error::new(
+                ErrorKind::Internal,
+                format!(
+                    "Failed to open content database (path: {})",
+                    base_dir.display()
+                ),
+            )
+            .with_source(err)
         })?;
 
-        let data_path = dir.join("content.bin");
-        tokio::fs::write(&data_path, content.as_bytes())
-            .await
+        let content = db
+            .keyspace("content", || {
+                KeyspaceCreateOptions::default()
+                    .with_kv_separation(Some(KvSeparationOptions::default()))
+            })
             .map_err(|err| {
-                Error::new(ErrorKind::Internal, format!(
-                    "Failed to write content data (path: {})", data_path.display()
-                )).with_source(err)
+                Error::new(ErrorKind::Internal, "Failed to open content keyspace")
+                    .with_source(err)
             })?;
 
-        let runtime_handle = tokio::runtime::Handle::current();
+        let metadata = db
+            .keyspace("metadata", KeyspaceCreateOptions::default)
+            .map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to open metadata keyspace")
+                    .with_source(err)
+            })?;
 
-        Ok(ContentHandler::new(content_source, dir, runtime_handle))
+        Ok(Self {
+            base_dir,
+            db,
+            content,
+            metadata,
+        })
     }
 
-    /// Returns the base directory path.
-    pub fn base_dir(&self) -> &Path {
-        &self.base_dir
-    }
-
-    /// Remove a single content directory by UUID.
+    /// Registers content, writing its bytes and metadata to the store.
     ///
-    /// Returns [`ErrorKind::NotFound`] if no directory exists for the given id.
-    pub async fn delete(&self, id: Uuid) -> Result<()> {
-        let dir = self.base_dir.join(id.to_string());
-        if !dir.exists() {
+    /// Returns a [`ContentHandler`] for subsequent reads.
+    pub async fn register(&self, content: Content) -> Result<ContentHandler> {
+        let content_source = content.content_source();
+        let key = content_source.as_uuid().as_bytes().to_vec();
+        let data = content.as_bytes().to_vec();
+
+        let (_, content_metadata) = content.into_parts();
+        let meta_bytes = serde_json::to_vec(&content_metadata.unwrap_or_default()).map_err(
+            |err| {
+                Error::new(ErrorKind::Serialization, "Failed to serialize content metadata")
+                    .with_source(err)
+            },
+        )?;
+
+        let content_ks = self.content.clone();
+        let metadata_ks = self.metadata.clone();
+        let db = self.db.clone();
+
+        tokio::task::spawn_blocking(move || {
+            content_ks.insert(&key, &data).map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to write content data").with_source(err)
+            })?;
+            metadata_ks.insert(&key, &meta_bytes).map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to write content metadata")
+                    .with_source(err)
+            })?;
+            db.persist(fjall::PersistMode::SyncAll).map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to persist database").with_source(err)
+            })?;
+            Ok::<(), Error>(())
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
+        })??;
+
+        Ok(ContentHandler::new(
+            content_source,
+            self.content.clone(),
+            self.metadata.clone(),
+        ))
+    }
+
+    /// Looks up previously registered content by UUID.
+    ///
+    /// Returns [`ErrorKind::NotFound`] if no entry exists for the given id.
+    pub async fn read(&self, id: Uuid) -> Result<ContentHandler> {
+        let key = id.as_bytes().to_vec();
+        let content_ks = self.content.clone();
+
+        let exists = tokio::task::spawn_blocking(move || {
+            content_ks.contains_key(&key).map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to check content key").with_source(err)
+            })
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
+        })??;
+
+        if !exists {
             return Err(Error::new(
                 ErrorKind::NotFound,
                 format!("Content not found (id: {id})"),
             ));
         }
-        tokio::fs::remove_dir_all(&dir).await.map_err(|err| {
-            Error::new(
-                ErrorKind::Internal,
-                format!("Failed to delete content directory (path: {})", dir.display()),
-            )
-            .with_source(err)
-        })?;
-        Ok(())
+
+        let source = ContentSource::from(id);
+        Ok(ContentHandler::new(
+            source,
+            self.content.clone(),
+            self.metadata.clone(),
+        ))
     }
 
-    /// Remove all content directories under the base dir.
+    /// Removes a single content entry by UUID.
+    ///
+    /// Returns [`ErrorKind::NotFound`] if no entry exists for the given id.
+    pub async fn unregister(&self, id: Uuid) -> Result<()> {
+        let key = id.as_bytes().to_vec();
+        let content_ks = self.content.clone();
+        let metadata_ks = self.metadata.clone();
+        let db = self.db.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let exists = content_ks.contains_key(&key).map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to check content key").with_source(err)
+            })?;
+
+            if !exists {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    format!("Content not found (id: {id})"),
+                ));
+            }
+
+            content_ks.remove(&key).map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to remove content data").with_source(err)
+            })?;
+            metadata_ks.remove(&key).map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to remove content metadata")
+                    .with_source(err)
+            })?;
+            db.persist(fjall::PersistMode::SyncAll).map_err(|err| {
+                Error::new(ErrorKind::Internal, "Failed to persist database").with_source(err)
+            })?;
+            Ok(())
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
+        })?
+    }
+
+    /// Removes all content entries.
     ///
     /// Returns the number of entries removed.
-    pub async fn delete_all(&self) -> Result<usize> {
-        let mut entries = tokio::fs::read_dir(&self.base_dir).await.map_err(|err| {
-            Error::new(
-                ErrorKind::Internal,
-                format!(
-                    "Failed to read content directory (path: {})",
-                    self.base_dir.display()
-                ),
-            )
-            .with_source(err)
-        })?;
+    pub async fn unregister_all(&self) -> Result<usize> {
+        let content_ks = self.content.clone();
+        let metadata_ks = self.metadata.clone();
+        let db = self.db.clone();
 
-        let mut count = 0usize;
-        while let Some(entry) = entries.next_entry().await.map_err(|err| {
-            Error::new(
-                ErrorKind::Internal,
-                format!(
-                    "Failed to read content directory entry (path: {})",
-                    self.base_dir.display()
-                ),
-            )
-            .with_source(err)
-        })? {
-            tokio::fs::remove_dir_all(entry.path()).await.map_err(|err| {
-                Error::new(
-                    ErrorKind::Internal,
-                    format!(
-                        "Failed to delete content directory (path: {})",
-                        entry.path().display()
-                    ),
-                )
-                .with_source(err)
-            })?;
-            count += 1;
-        }
+        tokio::task::spawn_blocking(move || {
+            let keys: Vec<Vec<u8>> = content_ks
+                .iter()
+                .map(|guard| {
+                    let key = guard.key().map_err(|err| {
+                        Error::new(ErrorKind::Internal, "Failed to iterate content keyspace")
+                            .with_source(err)
+                    })?;
+                    Ok(key.to_vec())
+                })
+                .collect::<Result<Vec<_>>>()?;
 
-        Ok(count)
+            let count = keys.len();
+
+            for key in &keys {
+                content_ks.remove(key).map_err(|err| {
+                    Error::new(ErrorKind::Internal, "Failed to remove content data")
+                        .with_source(err)
+                })?;
+                metadata_ks.remove(key).map_err(|err| {
+                    Error::new(ErrorKind::Internal, "Failed to remove content metadata")
+                        .with_source(err)
+                })?;
+            }
+
+            if count > 0 {
+                db.persist(fjall::PersistMode::SyncAll).map_err(|err| {
+                    Error::new(ErrorKind::Internal, "Failed to persist database").with_source(err)
+                })?;
+            }
+
+            Ok(count)
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
+        })?
+    }
+
+    /// Lists all content UUIDs stored in the registry (sorted).
+    pub async fn list(&self) -> Result<Vec<Uuid>> {
+        let content_ks = self.content.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let mut ids = Vec::new();
+            for guard in content_ks.iter() {
+                let key = guard.key().map_err(|err| {
+                    Error::new(ErrorKind::Internal, "Failed to iterate content keyspace")
+                        .with_source(err)
+                })?;
+                if let Ok(bytes) = <[u8; 16]>::try_from(&*key) {
+                    ids.push(Uuid::from_bytes(bytes));
+                }
+            }
+            ids.sort();
+            Ok(ids)
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
+        })?
+    }
+
+    /// Returns the base directory path (the database location).
+    pub fn base_dir(&self) -> &Path {
+        &self.base_dir
     }
 }
 
@@ -133,29 +280,34 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_register_creates_directory() {
+    fn open_temp_registry() -> (tempfile::TempDir, ContentRegistry) {
         let temp = tempfile::TempDir::new().unwrap();
-        let registry = ContentRegistry::new(temp.path().join("content"));
+        let registry = ContentRegistry::open(temp.path().join("content")).unwrap();
+        (temp, registry)
+    }
+
+    #[tokio::test]
+    async fn test_register_and_read() {
+        let (_temp, registry) = open_temp_registry();
         let content = Content::new(ContentData::from("Hello, world!"));
         let handler = registry.register(content).await.unwrap();
 
-        assert!(handler.dir().exists());
-        assert!(handler.dir().join("content.bin").exists());
+        let data = handler.content_data().await.unwrap();
+        assert_eq!(data.as_str().unwrap(), "Hello, world!");
+        assert_eq!(data.content_source, handler.content_source());
     }
 
     #[tokio::test]
     async fn test_base_dir() {
         let temp = tempfile::TempDir::new().unwrap();
         let base = temp.path().join("content");
-        let registry = ContentRegistry::new(&base);
+        let registry = ContentRegistry::open(&base).unwrap();
         assert_eq!(registry.base_dir(), base);
     }
 
     #[tokio::test]
     async fn test_register_multiple() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let registry = ContentRegistry::new(temp.path().join("content"));
+        let (_temp, registry) = open_temp_registry();
 
         let h1 = registry
             .register(Content::new(ContentData::from("first")))
@@ -166,57 +318,99 @@ mod tests {
             .await
             .unwrap();
 
-        assert_ne!(h1.dir(), h2.dir());
-        assert!(h1.dir().exists());
-        assert!(h2.dir().exists());
+        assert_ne!(
+            h1.content_source().as_uuid(),
+            h2.content_source().as_uuid()
+        );
     }
 
     #[tokio::test]
-    async fn test_delete() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let registry = ContentRegistry::new(temp.path().join("content"));
+    async fn test_unregister() {
+        let (_temp, registry) = open_temp_registry();
         let content = Content::new(ContentData::from("delete me"));
         let id = content.content_source().as_uuid();
-        let handler = registry.register(content).await.unwrap();
+        let _handler = registry.register(content).await.unwrap();
 
-        assert!(handler.dir().exists());
+        registry.unregister(id).await.unwrap();
 
-        registry.delete(id).await.unwrap();
-        assert!(!handler.dir().exists());
-    }
-
-    #[tokio::test]
-    async fn test_delete_not_found() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let registry = ContentRegistry::new(temp.path().join("content"));
-        // Ensure the base dir exists so the error is about the specific UUID.
-        tokio::fs::create_dir_all(registry.base_dir()).await.unwrap();
-
-        let id = uuid::Uuid::new_v4();
-        let err = registry.delete(id).await.unwrap_err();
+        let err = registry.read(id).await.unwrap_err();
         assert_eq!(err.kind, ErrorKind::NotFound);
     }
 
     #[tokio::test]
-    async fn test_delete_all() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let registry = ContentRegistry::new(temp.path().join("content"));
+    async fn test_unregister_not_found() {
+        let (_temp, registry) = open_temp_registry();
 
-        let h1 = registry
+        let id = Uuid::new_v4();
+        let err = registry.unregister(id).await.unwrap_err();
+        assert_eq!(err.kind, ErrorKind::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_read_via_registry() {
+        let (_temp, registry) = open_temp_registry();
+        let content = Content::new(ContentData::from("read me"));
+        let id = content.content_source().as_uuid();
+        registry.register(content).await.unwrap();
+
+        let read_handler = registry.read(id).await.unwrap();
+        let data = read_handler.content_data().await.unwrap();
+        assert_eq!(data.as_str().unwrap(), "read me");
+    }
+
+    #[tokio::test]
+    async fn test_read_not_found() {
+        let (_temp, registry) = open_temp_registry();
+
+        let id = Uuid::new_v4();
+        let err = registry.read(id).await.unwrap_err();
+        assert_eq!(err.kind, ErrorKind::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_list_empty() {
+        let (_temp, registry) = open_temp_registry();
+
+        let ids = registry.list().await.unwrap();
+        assert!(ids.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list() {
+        let (_temp, registry) = open_temp_registry();
+
+        let c1 = Content::new(ContentData::from("first"));
+        let c2 = Content::new(ContentData::from("second"));
+        let id1 = c1.content_source().as_uuid();
+        let id2 = c2.content_source().as_uuid();
+
+        registry.register(c1).await.unwrap();
+        registry.register(c2).await.unwrap();
+
+        let mut ids = registry.list().await.unwrap();
+        ids.sort();
+        let mut expected = vec![id1, id2];
+        expected.sort();
+        assert_eq!(ids, expected);
+    }
+
+    #[tokio::test]
+    async fn test_unregister_all() {
+        let (_temp, registry) = open_temp_registry();
+
+        registry
             .register(Content::new(ContentData::from("first")))
             .await
             .unwrap();
-        let h2 = registry
+        registry
             .register(Content::new(ContentData::from("second")))
             .await
             .unwrap();
 
-        assert!(h1.dir().exists());
-        assert!(h2.dir().exists());
-
-        let deleted = registry.delete_all().await.unwrap();
+        let deleted = registry.unregister_all().await.unwrap();
         assert_eq!(deleted, 2);
-        assert!(!h1.dir().exists());
-        assert!(!h2.dir().exists());
+
+        let ids = registry.list().await.unwrap();
+        assert!(ids.is_empty());
     }
 }

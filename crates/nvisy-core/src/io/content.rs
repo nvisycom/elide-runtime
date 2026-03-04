@@ -22,7 +22,6 @@ use crate::path::ContentSource;
 /// ```rust
 /// use nvisy_core::io::{Content, ContentData};
 /// use nvisy_core::fs::ContentMetadata;
-/// use nvisy_core::path::ContentSource;
 ///
 /// // Create content from data
 /// let data = ContentData::from("Hello, world!");
@@ -32,9 +31,8 @@ use crate::path::ContentSource;
 /// assert!(content.is_likely_text());
 ///
 /// // Create content with metadata
-/// let source = ContentSource::new();
-/// let data = ContentData::from_text(source, "Sample text");
-/// let metadata = ContentMetadata::with_path(source, "document.txt");
+/// let data = ContentData::from("Sample text");
+/// let metadata = ContentMetadata::with_path("document.txt");
 /// let content = Content::with_metadata(data, metadata);
 ///
 /// assert_eq!(content.metadata().and_then(|m| m.filename()), Some("document.txt"));
@@ -156,7 +154,7 @@ mod tests {
     fn test_content_with_metadata() {
         let source = ContentSource::new();
         let data = ContentData::from_text(source, "Test content");
-        let metadata = ContentMetadata::with_path(source, "test.txt");
+        let metadata = ContentMetadata::with_path("test.txt");
         let content = Content::with_metadata(data, metadata);
 
         assert!(content.metadata().is_some());
@@ -171,8 +169,7 @@ mod tests {
 
         assert!(content.metadata().is_none());
 
-        let source = content.content_source();
-        let metadata = ContentMetadata::with_path(source, "file.pdf");
+        let metadata = ContentMetadata::with_path("file.pdf");
         content.set_metadata(metadata);
 
         assert!(content.metadata().is_some());
@@ -186,7 +183,7 @@ mod tests {
     fn test_into_parts() {
         let source = ContentSource::new();
         let data = ContentData::from_text(source, "Test");
-        let metadata = ContentMetadata::with_path(source, "test.txt");
+        let metadata = ContentMetadata::with_path("test.txt");
         let content = Content::with_metadata(data.clone(), metadata.clone());
 
         let (recovered_data, recovered_metadata) = content.into_parts();

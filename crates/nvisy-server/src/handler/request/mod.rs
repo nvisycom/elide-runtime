@@ -4,10 +4,12 @@
 //! [`JsonSchema`](schemars::JsonSchema) for automatic OpenAPI schema
 //! generation via aide.
 
-mod execute;
+mod contexts;
+mod files;
 mod path;
-mod redact;
+mod process;
 
-pub use execute::ExecuteRequest;
+pub use contexts::ContextUpload;
+pub use files::FileUpload;
 pub use path::ContentPath;
-pub use redact::RedactionRequest;
+pub use process::ProcessRequest;

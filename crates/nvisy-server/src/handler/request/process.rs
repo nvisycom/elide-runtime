@@ -1,4 +1,4 @@
-//! Execute request types.
+//! Process request types.
 
 use std::collections::HashMap;
 
@@ -6,16 +6,14 @@ use nvisy_engine::Graph;
 use nvisy_engine::pipeline::{Connection, Context};
 use schemars::JsonSchema;
 use serde::Deserialize;
+use uuid::Uuid;
 
-/// Request body for `POST /api/v1/execute`.
+/// Request body for `POST /api/v1/process/*` endpoints.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ExecuteRequest {
-    /// Base64-encoded content bytes.
-    pub content: String,
-    /// Optional original filename.
-    #[serde(default)]
-    pub filename: Option<String>,
+pub struct ProcessRequest {
+    /// Identifier of previously uploaded content.
+    pub content_id: Uuid,
     /// Policies as opaque JSON (validated in the handler).
     pub policies: serde_json::Value,
     /// Execution graph defining the pipeline DAG.

@@ -12,9 +12,9 @@
 pub mod error;
 
 mod check;
-mod execute;
-mod ingest;
-mod redact;
+mod contexts;
+mod files;
+mod process;
 
 mod request;
 mod response;
@@ -29,7 +29,7 @@ use crate::service::ServiceState;
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .merge(check::routes())
-        .merge(execute::routes())
-        .merge(ingest::routes())
-        .merge(redact::routes())
+        .merge(contexts::routes())
+        .merge(files::routes())
+        .merge(process::routes())
 }

@@ -1,18 +1,18 @@
-//! Redact response types.
+//! Process response types.
 
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
 
-/// Response body for `POST /api/v1/redaction`.
+/// Response body for `POST /api/v1/process/*` endpoints.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct RedactionResponse {
+pub struct ProcessResponse {
     /// Unique run identifier.
     pub run_id: Uuid,
-    /// Identifier of the redacted output content.
+    /// Identifier of the processed output content.
     pub output_id: Uuid,
-    /// Per-source redaction summaries as opaque JSON.
+    /// Per-source result summaries as opaque JSON.
     pub summaries: serde_json::Value,
     /// Audit trail entries as opaque JSON.
     pub audits: serde_json::Value,

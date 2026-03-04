@@ -22,9 +22,9 @@ use serde::Serialize;
 pub struct ErrorResponse<'a> {
     /// Machine-readable error name (e.g. `"NOT_FOUND"`, `"BAD_REQUEST"`).
     pub name: Cow<'a, str>,
-    /// HTTP status code (serialized as integer).
-    #[serde(serialize_with = "serialize_status")]
-    #[schemars(with = "u16")]
+    /// HTTP status code (conveyed via the response status line, not the body).
+    #[serde(skip)]
+    #[schemars(skip)]
     pub status: StatusCode,
     /// Human-readable error message.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -173,6 +173,3 @@ impl IntoResponse for ErrorResponse<'_> {
     }
 }
 
-fn serialize_status<S: serde::Serializer>(status: &StatusCode, s: S) -> Result<S::Ok, S::Error> {
-    s.serialize_u16(status.as_u16())
-}

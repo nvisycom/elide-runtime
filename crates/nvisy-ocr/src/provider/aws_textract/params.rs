@@ -1,9 +1,11 @@
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// Constructor parameters for [`AwsTextractBackend`].
 ///
 /// [`AwsTextractBackend`]: super::AwsTextractBackend
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AwsTextractParams {
     /// AWS access key ID.
     pub access_key: String,

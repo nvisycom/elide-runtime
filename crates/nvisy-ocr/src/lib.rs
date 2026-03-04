@@ -10,4 +10,4 @@ pub mod provider;
 pub mod prelude;
 
 pub use backend::{Backend, ImageFormat, ImageInput, ImageOutput, ImageRegion, RunParams};
-pub use engine::Engine;
+pub use engine::{Engine, EngineParams};

@@ -1,5 +1,9 @@
 //! Type-erased OCR engine.
 
+mod params;
+
+pub use params::EngineParams;
+
 use std::fmt;
 use std::sync::Arc;
 

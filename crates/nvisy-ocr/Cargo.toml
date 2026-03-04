@@ -20,11 +20,11 @@ documentation = { workspace = true }
 [features]
 default = []
 ## Enable AWS Textract OCR provider.
-aws = ["sha2", "hmac"]
+aws-textract = ["sha2", "hmac"]
 ## Enable Google Cloud Vision OCR provider.
-google = []
+google-vision = []
 ## Enable Azure Document Intelligence OCR provider.
-azure = ["tokio/time"]
+azure-docai = ["tokio/time"]
 
 [package.metadata.docs.rs]
 all-features = true

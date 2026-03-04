@@ -47,9 +47,13 @@ impl ImageRegion {
 ///
 /// Groups detected [`ImageRegion`]s together with a [`ContentSource`]
 /// derived from the input image for provenance tracking.
+///
+/// [`ContentSource`]: nvisy_core::path::ContentSource
 #[derive(Debug, Clone)]
 pub struct ImageOutput {
     /// Provenance: derived from the input's [`ContentSource`].
+    ///
+    /// [`ContentSource`]: nvisy_core::path::ContentSource
     pub source: ContentSource,
     /// Text regions detected in the image.
     pub regions: Vec<ImageRegion>,

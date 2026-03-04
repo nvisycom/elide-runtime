@@ -53,8 +53,8 @@ reqwest-middleware = { workspace = true, features = [] }
 # Async runtime & observability
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt"] }
-tracing = { workspace = true }
+tracing = { workspace = true, features = [] }
 
 # Signing (cloud features)
-sha2 = { workspace = true, optional = true }
-hmac = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true, features = [] }
+hmac = { workspace = true, optional = true, features = [] }

@@ -1,6 +1,6 @@
 //! [`Backend`] implementation for Google Cloud Vision API.
-
-use std::fmt;
+//!
+//! [`Backend`]: crate::Backend
 
 use serde::Deserialize;
 
@@ -12,25 +12,14 @@ use reqwest_middleware::ClientWithMiddleware;
 
 use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
 
-/// Constructor parameters for [`GoogleVisionBackend`].
-#[derive(Clone)]
-pub struct GoogleVisionParams {
-    /// Google Cloud API key.
-    pub api_key: String,
-}
-
-impl fmt::Debug for GoogleVisionParams {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("GoogleVisionParams")
-            .field("api_key", &"***")
-            .finish()
-    }
-}
+use super::GoogleVisionParams;
 
 /// [`Backend`] implementation for Google Cloud Vision API.
 ///
 /// Sends images as base64-encoded JSON to the `images:annotate` endpoint
 /// and parses word-level results from the `fullTextAnnotation` response.
+///
+/// [`Backend`]: crate::Backend
 pub struct GoogleVisionBackend {
     client: ClientWithMiddleware,
     api_key: String,

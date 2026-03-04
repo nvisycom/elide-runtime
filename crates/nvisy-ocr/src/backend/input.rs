@@ -7,7 +7,9 @@ use strum::{Display, EnumString, IntoStaticStr};
 
 use nvisy_core::path::ContentSource;
 
-/// Image format passed to a [`Backend`](super::Backend).
+/// Image format passed to a [`Backend`].
+///
+/// [`Backend`]: super::Backend
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, IntoStaticStr)]
 pub enum ImageFormat {
     #[strum(serialize = "png")]
@@ -26,10 +28,13 @@ impl ImageFormat {
     }
 }
 
-/// Image payload passed to [`Backend::run`](super::Backend::run).
+/// Image payload passed to [`Backend::run`].
 ///
 /// Wraps raw image bytes together with format metadata and a
 /// [`ContentSource`] for provenance tracking.
+///
+/// [`Backend::run`]: super::Backend::run
+/// [`ContentSource`]: nvisy_core::path::ContentSource
 #[derive(Debug, Clone)]
 pub struct ImageInput {
     /// Provenance identifier for this image.

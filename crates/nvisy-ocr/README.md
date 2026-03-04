@@ -4,24 +4,24 @@
 
 OCR backend trait, type-erased engine, and provider implementations for the Nvisy runtime.
 
-Defines the [`Backend`] trait for text extraction from images and ships six
+Defines the `Backend` trait for text extraction from images and ships six
 provider implementations across local and cloud services:
 
 **Local** (always available):
-- [`DoctrBackend`]: DocTR server (multipart upload, normalised coordinates)
-- [`PaddleXBackend`]: PaddleX PP-OCRv5 server (multipart upload, word-level boxes)
-- [`SuryaBackend`]: Surya OCR server (multipart upload, pixel coordinates)
+- `DoctrBackend`: DocTR server (multipart upload, normalised coordinates)
+- `PaddleXBackend`: PaddleX PP-OCRv5 server (multipart upload, word-level boxes)
+- `SuryaBackend`: Surya OCR server (multipart upload, pixel coordinates)
 
 **Cloud** (feature-gated):
-- [`AwsTextractBackend`]: AWS Textract with inline SigV4 signing (`aws` feature)
-- [`GoogleVisionBackend`]: Google Cloud Vision API (`google` feature)
-- [`AzureDocaiBackend`]: Azure Document Intelligence with async polling (`azure` feature)
+- `AwsTextractBackend`: AWS Textract with inline SigV4 signing (`aws` feature)
+- `GoogleVisionBackend`: Google Cloud Vision API (`google` feature)
+- `AzureDocaiBackend`: Azure Document Intelligence with async polling (`azure` feature)
 
-Every backend returns [`ImageOutput`] containing a list of [`ImageRegion`]s,
+Every backend returns `ImageOutput` containing a list of `ImageRegion`s,
 each with extracted text, optional confidence score, bounding box, polygon
 vertices for rotated text, and hierarchical text-level annotations.
 
-The [`Engine`] wrapper provides a type-erased entry point with built-in
+The `Engine` wrapper provides a type-erased entry point with built-in
 `tracing` instrumentation for request-level observability.
 
 ## Feature flags

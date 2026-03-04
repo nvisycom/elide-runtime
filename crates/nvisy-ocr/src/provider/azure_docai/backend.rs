@@ -1,6 +1,6 @@
 //! [`Backend`] implementation for Azure Document Intelligence.
-
-use std::fmt;
+//!
+//! [`Backend`]: crate::Backend
 
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
@@ -13,33 +13,19 @@ use reqwest_middleware::ClientWithMiddleware;
 
 use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
 
+use super::AzureDocaiParams;
+
 /// Poll interval when waiting for Azure analysis results.
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 /// Maximum number of poll attempts (500ms x 120 = 60s).
 const MAX_POLL_ATTEMPTS: u32 = 120;
 
-/// Constructor parameters for [`AzureDocaiBackend`].
-#[derive(Clone)]
-pub struct AzureDocaiParams {
-    /// Azure resource endpoint URL.
-    pub endpoint: String,
-    /// Azure subscription API key.
-    pub api_key: String,
-}
-
-impl fmt::Debug for AzureDocaiParams {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AzureDocaiParams")
-            .field("endpoint", &self.endpoint)
-            .field("api_key", &"***")
-            .finish()
-    }
-}
-
 /// [`Backend`] implementation for Azure Document Intelligence.
 ///
 /// Uses the async two-step flow: POST to start analysis, then poll GET
 /// until results are available.
+///
+/// [`Backend`]: crate::Backend
 pub struct AzureDocaiBackend {
     client: ClientWithMiddleware,
     endpoint: String,

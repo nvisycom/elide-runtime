@@ -1,27 +1,27 @@
 //! [`Backend`] implementation for PaddleX PP-OCRv5.
+//!
+//! [`Backend`]: crate::Backend
 
 use serde::Deserialize;
 
 use nvisy_core::Error;
-use nvisy_rig::backend::{HttpConfig, build_http_client};
 use nvisy_core::math::{Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
+use nvisy_rig::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_middleware::reqwest::multipart::Form;
 
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, image_part};
+use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams, image_part};
 
-/// Constructor parameters for [`PaddleXBackend`].
-#[derive(Debug, Clone)]
-pub struct PaddleXParams {
-    /// Base URL of the PaddleX server.
-    pub base_url: String,
-}
+use super::PaddleXParams;
 
 /// [`Backend`] implementation for PaddleX PP-OCRv5.
 ///
 /// Sends images as multipart form data to `{base_url}/ocr` with
 /// `returnWordBox=true` and parses word-level results into [`ImageRegion`].
+///
+/// [`Backend`]: crate::Backend
+/// [`ImageRegion`]: crate::ImageRegion
 pub struct PaddleXBackend {
     client: ClientWithMiddleware,
     base_url: String,

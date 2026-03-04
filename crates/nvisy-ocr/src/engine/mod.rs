@@ -64,8 +64,8 @@ impl Engine {
         params: &RunParams,
     ) -> Result<Vec<ImageOutput>, Error> {
         let outputs = self.backend.run_batch(images, params).await?;
-        let total_regions: usize = outputs.iter().map(|o| o.len()).sum();
-        tracing::debug!(total_regions, "batch ocr complete");
+        let regions: usize = outputs.iter().map(|o| o.len()).sum();
+        tracing::debug!(regions, "batch ocr complete");
         Ok(outputs)
     }
 }

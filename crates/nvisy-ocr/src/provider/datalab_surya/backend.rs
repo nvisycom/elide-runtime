@@ -1,28 +1,28 @@
 //! [`Backend`] implementation for Surya OCR.
+//!
+//! [`Backend`]: crate::Backend
 
 use serde::Deserialize;
 
 use nvisy_core::Error;
-use nvisy_rig::backend::{HttpConfig, build_http_client};
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
+use nvisy_rig::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_middleware::reqwest::multipart::Form;
 
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, image_part};
+use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams, image_part};
 
-/// Constructor parameters for [`SuryaBackend`].
-#[derive(Debug, Clone)]
-pub struct SuryaParams {
-    /// Base URL of the Surya server.
-    pub base_url: String,
-}
+use super::SuryaParams;
 
 /// [`Backend`] implementation for Surya OCR.
 ///
 /// Sends images as multipart form data to `{base_url}/ocr` and parses
 /// word-level results into [`ImageRegion`]. Surya returns both a 4-point
 /// polygon and an axis-aligned bounding box in pixel coordinates.
+///
+/// [`Backend`]: crate::Backend
+/// [`ImageRegion`]: crate::ImageRegion
 pub struct SuryaBackend {
     client: ClientWithMiddleware,
     base_url: String,

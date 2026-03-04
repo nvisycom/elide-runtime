@@ -1,22 +1,19 @@
 //! [`Backend`] implementation for DocTR.
+//!
+//! [`Backend`]: crate::Backend
 
 use serde::Deserialize;
 
 use nvisy_core::Error;
-use nvisy_rig::backend::{HttpConfig, build_http_client};
 use nvisy_core::math::{Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
+use nvisy_rig::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_middleware::reqwest::multipart::Form;
 
 use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams, image_part};
 
-/// Constructor parameters for [`DoctrBackend`].
-#[derive(Debug, Clone)]
-pub struct DoctrParams {
-    /// Base URL of the DocTR server.
-    pub base_url: String,
-}
+use super::DoctrParams;
 
 /// [`Backend`] implementation for DocTR.
 ///
@@ -24,6 +21,9 @@ pub struct DoctrParams {
 /// word-level results into [`ImageRegion`]. DocTR returns normalised 0..1
 /// coordinates that are denormalised using the `dimensions` field from
 /// the response.
+///
+/// [`Backend`]: crate::Backend
+/// [`ImageRegion`]: crate::ImageRegion
 pub struct DoctrBackend {
     client: ClientWithMiddleware,
     base_url: String,

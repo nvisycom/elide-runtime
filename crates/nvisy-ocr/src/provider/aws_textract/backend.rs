@@ -1,6 +1,6 @@
 //! [`Backend`] implementation for AWS Textract.
-
-use std::fmt;
+//!
+//! [`Backend`]: crate::Backend
 
 use hmac::{Hmac, Mac};
 use serde::Deserialize;
@@ -14,31 +14,14 @@ use reqwest_middleware::ClientWithMiddleware;
 
 use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
 
-/// Constructor parameters for [`AwsTextractBackend`].
-#[derive(Clone)]
-pub struct AwsTextractParams {
-    /// AWS access key ID.
-    pub access_key: String,
-    /// AWS secret access key.
-    pub secret_key: String,
-    /// AWS region (e.g. `us-east-1`).
-    pub region: String,
-}
-
-impl fmt::Debug for AwsTextractParams {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AwsTextractParams")
-            .field("access_key", &"***")
-            .field("secret_key", &"***")
-            .field("region", &self.region)
-            .finish()
-    }
-}
+use super::AwsTextractParams;
 
 /// [`Backend`] implementation for AWS Textract.
 ///
 /// Sends images as base64-encoded JSON to the `DetectDocumentText` action
 /// with inline SigV4 request signing.
+///
+/// [`Backend`]: crate::Backend
 pub struct AwsTextractBackend {
     client: ClientWithMiddleware,
     access_key: String,

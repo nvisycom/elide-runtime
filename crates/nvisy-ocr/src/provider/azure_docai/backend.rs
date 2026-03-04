@@ -2,23 +2,20 @@
 //!
 //! [`Backend`]: crate::Backend
 
+use std::fmt;
+
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use nvisy_core::Error;
 use nvisy_rig::backend::{HttpConfig, build_http_client};
-use nvisy_core::math::{BoundingBox, Polygon, Vertex};
+use nvisy_core::math::{Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
 use reqwest_middleware::ClientWithMiddleware;
 
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, check_response};
 
 use super::AzureDocaiParams;
-
-/// Poll interval when waiting for Azure analysis results.
-const POLL_INTERVAL: Duration = Duration::from_millis(500);
-/// Maximum number of poll attempts (500ms x 120 = 60s).
-const MAX_POLL_ATTEMPTS: u32 = 120;
 
 /// [`Backend`] implementation for Azure Document Intelligence.
 ///
@@ -30,6 +27,19 @@ pub struct AzureDocaiBackend {
     client: ClientWithMiddleware,
     endpoint: String,
     api_key: String,
+    api_version: String,
+    poll_interval: Duration,
+    max_poll_attempts: u32,
+}
+
+impl fmt::Debug for AzureDocaiBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AzureDocaiBackend")
+            .field("endpoint", &self.endpoint)
+            .field("api_key", &"***")
+            .field("api_version", &self.api_version)
+            .finish()
+    }
 }
 
 impl AzureDocaiBackend {
@@ -40,10 +50,19 @@ impl AzureDocaiBackend {
 
     /// Create a new backend with a pre-configured HTTP client.
     pub fn with_client(client: ClientWithMiddleware, params: AzureDocaiParams) -> Self {
+        let poll_interval = Duration::from_millis(params.poll_interval_ms.unwrap_or(500));
+        let max_poll_attempts = params.max_poll_attempts.unwrap_or(120);
+        let api_version = params
+            .api_version
+            .unwrap_or_else(|| "2024-11-30".to_owned());
+
         Self {
             client,
             endpoint: params.endpoint,
             api_key: params.api_key,
+            api_version,
+            poll_interval,
+            max_poll_attempts,
         }
     }
 }
@@ -86,7 +105,8 @@ impl Backend for AzureDocaiBackend {
         let endpoint = self.endpoint.trim_end_matches('/');
 
         let submit_url = format!(
-            "{endpoint}/documentintelligence/documentModels/prebuilt-read:analyze?api-version=2024-11-30"
+            "{endpoint}/documentintelligence/documentModels/prebuilt-read:analyze?api-version={}",
+            self.api_version
         );
 
         let body = serde_json::json!({ "base64Source": encoded });
@@ -101,15 +121,7 @@ impl Backend for AzureDocaiBackend {
             .await
             .map_err(|e| Error::connection(e.to_string(), "azure_docai_ocr", true))?;
 
-        let status = resp.status();
-        if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            return Err(Error::connection(
-                format!("Azure DocAI submit returned {status}: {body}"),
-                "azure_docai_ocr",
-                status.is_server_error(),
-            ));
-        }
+        let resp = check_response(resp, "Azure DocAI submit").await?;
 
         let result_url = resp
             .headers()
@@ -124,18 +136,27 @@ impl Backend for AzureDocaiBackend {
                 )
             })?;
 
+        if !result_url.starts_with(endpoint) {
+            return Err(Error::runtime(
+                format!("Azure DocAI returned unexpected Operation-Location host: {result_url}"),
+                "azure_docai_ocr",
+                false,
+            ));
+        }
+
         let mut attempts = 0u32;
         let analyze = loop {
-            attempts += 1;
-            if attempts > MAX_POLL_ATTEMPTS {
+            if attempts >= self.max_poll_attempts {
                 return Err(Error::runtime(
-                    "Azure DocAI analysis timed out after 60s",
+                    format!(
+                        "Azure DocAI analysis timed out after {} attempts",
+                        self.max_poll_attempts
+                    ),
                     "azure_docai_ocr",
                     false,
                 ));
             }
-
-            sleep(POLL_INTERVAL).await;
+            attempts += 1;
 
             let poll_resp = self
                 .client
@@ -145,15 +166,7 @@ impl Backend for AzureDocaiBackend {
                 .await
                 .map_err(|e| Error::connection(e.to_string(), "azure_docai_ocr", true))?;
 
-            let poll_status = poll_resp.status();
-            if !poll_status.is_success() {
-                let body = poll_resp.text().await.unwrap_or_default();
-                return Err(Error::connection(
-                    format!("Azure DocAI poll returned {poll_status}: {body}"),
-                    "azure_docai_ocr",
-                    poll_status.is_server_error(),
-                ));
-            }
+            let poll_resp = check_response(poll_resp, "Azure DocAI poll").await?;
 
             let parsed: AnalyzeResponse = poll_resp
                 .json()
@@ -169,7 +182,9 @@ impl Backend for AzureDocaiBackend {
                         false,
                     ));
                 }
-                _ => continue,
+                _ => {
+                    sleep(self.poll_interval).await;
+                }
             }
         };
 
@@ -202,12 +217,7 @@ impl Backend for AzureDocaiBackend {
                 let bbox = polygon
                     .as_ref()
                     .map(|p| p.bounding_box())
-                    .unwrap_or(BoundingBox {
-                        x: 0.0,
-                        y: 0.0,
-                        width: 0.0,
-                        height: 0.0,
-                    });
+                    .unwrap_or_default();
 
                 output.insert(ImageRegion {
                     text: word.content.clone(),

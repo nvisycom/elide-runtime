@@ -8,17 +8,38 @@ pub use output::{ImageOutput, ImageRegion};
 
 use nvisy_core::Error;
 use reqwest_middleware::reqwest::multipart::Part;
+use reqwest_middleware::reqwest::Response;
 
 /// Build a multipart [`Part`] from an [`ImageInput`].
 pub(crate) fn image_part(image: &ImageInput) -> Result<Part, Error> {
+    let filename = format!("image.{}", image.format.extension());
     Part::bytes(image.data.to_vec())
-        .file_name("image")
+        .file_name(filename)
         .mime_str(image.mime_type())
         .map_err(|e| Error::runtime(format!("invalid mime type: {e}"), "ocr", false))
 }
 
+/// Check an HTTP response status code, returning an error for non-success.
+pub(crate) async fn check_response(
+    resp: Response,
+    provider: &str,
+) -> Result<Response, Error> {
+    let status = resp.status();
+    if status.is_success() {
+        return Ok(resp);
+    }
+
+    let body = resp.text().await.unwrap_or_default();
+    Err(Error::connection(
+        format!("{provider} returned {status}: {body}"),
+        format!("{provider}_ocr"),
+        status.is_server_error(),
+    ))
+}
+
 /// Parameters passed to a [`Backend`] implementation.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct RunParams {
     /// Minimum confidence threshold for OCR results (0.0..=1.0).
     pub confidence_threshold: f64,
@@ -26,7 +47,15 @@ pub struct RunParams {
 
 impl RunParams {
     /// Create params with the given confidence threshold.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `confidence_threshold` is not in `0.0..=1.0`.
     pub fn new(confidence_threshold: f64) -> Self {
+        assert!(
+            (0.0..=1.0).contains(&confidence_threshold),
+            "confidence_threshold must be in 0.0..=1.0, got {confidence_threshold}"
+        );
         Self {
             confidence_threshold,
         }

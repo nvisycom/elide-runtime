@@ -2,6 +2,8 @@
 //!
 //! [`Backend`]: crate::Backend
 
+use std::fmt;
+
 use hmac::{Hmac, Mac};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -12,7 +14,7 @@ use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
 use reqwest_middleware::ClientWithMiddleware;
 
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, check_response};
 
 use super::AwsTextractParams;
 
@@ -27,6 +29,16 @@ pub struct AwsTextractBackend {
     access_key: String,
     secret_key: String,
     region: String,
+}
+
+impl fmt::Debug for AwsTextractBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AwsTextractBackend")
+            .field("access_key", &"***")
+            .field("secret_key", &"***")
+            .field("region", &self.region)
+            .finish()
+    }
 }
 
 impl AwsTextractBackend {
@@ -167,7 +179,9 @@ impl Backend for AwsTextractBackend {
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before epoch");
+            .map_err(|_| {
+                Error::runtime("system clock is before UNIX epoch", "aws_textract_ocr", false)
+            })?;
         let secs = now.as_secs();
         let datetime = format_datetime(secs);
         let date_stamp = &datetime[..8];
@@ -195,15 +209,7 @@ impl Backend for AwsTextractBackend {
             .await
             .map_err(|e| Error::connection(e.to_string(), "aws_textract_ocr", true))?;
 
-        let status = resp.status();
-        if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            return Err(Error::connection(
-                format!("Textract returned {status}: {body}"),
-                "aws_textract_ocr",
-                status.is_server_error(),
-            ));
-        }
+        let resp = check_response(resp, "Textract").await?;
 
         let parsed: TextractResponse = resp
             .json()
@@ -241,12 +247,7 @@ impl Backend for AwsTextractBackend {
                             width: b.width,
                             height: b.height,
                         })
-                        .unwrap_or(BoundingBox {
-                            x: 0.0,
-                            y: 0.0,
-                            width: 0.0,
-                            height: 0.0,
-                        });
+                        .unwrap_or_default();
 
                     let polygon = geom.polygon.as_ref().map(|pts| Polygon {
                         vertices: pts.iter().map(|p| Vertex::new(p.x, p.y)).collect(),
@@ -254,15 +255,7 @@ impl Backend for AwsTextractBackend {
 
                     (bbox, polygon)
                 }
-                None => (
-                    BoundingBox {
-                        x: 0.0,
-                        y: 0.0,
-                        width: 0.0,
-                        height: 0.0,
-                    },
-                    None,
-                ),
+                None => (BoundingBox::default(), None),
             };
 
             output.insert(ImageRegion {

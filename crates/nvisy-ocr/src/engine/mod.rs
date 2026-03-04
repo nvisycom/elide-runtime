@@ -1,5 +1,6 @@
 //! Type-erased OCR engine.
 
+use std::fmt;
 use std::sync::Arc;
 
 use tracing::instrument;
@@ -30,6 +31,12 @@ use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 #[derive(Clone)]
 pub struct Engine {
     backend: Arc<dyn Backend>,
+}
+
+impl fmt::Debug for Engine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Engine").finish_non_exhaustive()
+    }
 }
 
 impl Engine {

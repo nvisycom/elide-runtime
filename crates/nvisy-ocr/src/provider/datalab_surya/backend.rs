@@ -11,7 +11,7 @@ use nvisy_rig::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_middleware::reqwest::multipart::Form;
 
-use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams, image_part};
+use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams, check_response, image_part};
 
 use super::SuryaParams;
 
@@ -23,6 +23,7 @@ use super::SuryaParams;
 ///
 /// [`Backend`]: crate::Backend
 /// [`ImageRegion`]: crate::ImageRegion
+#[derive(Debug)]
 pub struct SuryaBackend {
     client: ClientWithMiddleware,
     base_url: String,
@@ -90,15 +91,7 @@ impl Backend for SuryaBackend {
             .await
             .map_err(|e| Error::connection(e.to_string(), "surya_ocr", true))?;
 
-        let status = resp.status();
-        if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            return Err(Error::connection(
-                format!("Surya returned {status}: {body}"),
-                "surya_ocr",
-                status.is_server_error(),
-            ));
-        }
+        let resp = check_response(resp, "Surya").await?;
 
         let parsed: SuryaResponse = resp
             .json()

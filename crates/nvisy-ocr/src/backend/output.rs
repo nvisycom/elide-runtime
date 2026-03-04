@@ -1,13 +1,13 @@
 //! OCR output types.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use nvisy_core::math::{BoundingBox, Polygon};
 use nvisy_core::path::ContentSource;
 use nvisy_ontology::location::TextLevel;
 
 /// A single text region detected by an OCR backend.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageRegion {
     /// Extracted text content.
     pub text: String,
@@ -49,7 +49,7 @@ impl ImageRegion {
 /// derived from the input image for provenance tracking.
 ///
 /// [`ContentSource`]: nvisy_core::path::ContentSource
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageOutput {
     /// Provenance: derived from the input's [`ContentSource`].
     ///
@@ -88,6 +88,16 @@ impl ImageOutput {
         self.regions.iter()
     }
 
+    /// Mutable iterator over the detected regions.
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, ImageRegion> {
+        self.regions.iter_mut()
+    }
+
+    /// Retain only regions that satisfy the predicate.
+    pub fn retain(&mut self, f: impl FnMut(&ImageRegion) -> bool) {
+        self.regions.retain(f);
+    }
+
     /// Filter regions that meet the given confidence threshold.
     pub fn above_threshold(&self, threshold: f64) -> Vec<&ImageRegion> {
         self.regions
@@ -103,6 +113,15 @@ impl<'a> IntoIterator for &'a ImageOutput {
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut ImageOutput {
+    type Item = &'a mut ImageRegion;
+    type IntoIter = std::slice::IterMut<'a, ImageRegion>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
 

@@ -2,15 +2,17 @@
 //!
 //! [`Backend`]: crate::Backend
 
+use std::fmt;
+
 use serde::Deserialize;
 
 use nvisy_core::Error;
 use nvisy_rig::backend::{HttpConfig, build_http_client};
-use nvisy_core::math::{BoundingBox, Polygon, Vertex};
+use nvisy_core::math::{Polygon, Vertex};
 use nvisy_ontology::location::TextLevel;
 use reqwest_middleware::ClientWithMiddleware;
 
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, check_response};
 
 use super::GoogleVisionParams;
 
@@ -23,6 +25,14 @@ use super::GoogleVisionParams;
 pub struct GoogleVisionBackend {
     client: ClientWithMiddleware,
     api_key: String,
+}
+
+impl fmt::Debug for GoogleVisionBackend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GoogleVisionBackend")
+            .field("api_key", &"***")
+            .finish()
+    }
 }
 
 impl GoogleVisionBackend {
@@ -125,15 +135,7 @@ impl Backend for GoogleVisionBackend {
             .await
             .map_err(|e| Error::connection(e.to_string(), "google_vision_ocr", true))?;
 
-        let status = resp.status();
-        if !status.is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            return Err(Error::connection(
-                format!("Google Vision returned {status}: {body}"),
-                "google_vision_ocr",
-                status.is_server_error(),
-            ));
-        }
+        let resp = check_response(resp, "Google Vision").await?;
 
         let parsed: AnnotateResponse = resp
             .json()
@@ -178,12 +180,7 @@ impl Backend for GoogleVisionBackend {
                             let bbox = polygon
                                 .as_ref()
                                 .map(|p| p.bounding_box())
-                                .unwrap_or(BoundingBox {
-                                    x: 0.0,
-                                    y: 0.0,
-                                    width: 0.0,
-                                    height: 0.0,
-                                });
+                                .unwrap_or_default();
 
                             output.insert(ImageRegion {
                                 text,

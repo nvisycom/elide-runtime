@@ -55,7 +55,13 @@ impl Polygon {
     }
 
     /// Compute the axis-aligned bounding box that encloses this polygon.
+    ///
+    /// Returns [`BoundingBox::default()`] if the polygon has no vertices.
     pub fn bounding_box(&self) -> BoundingBox {
+        if self.vertices.is_empty() {
+            return BoundingBox::default();
+        }
+
         let (mut min_x, mut min_y) = (f64::INFINITY, f64::INFINITY);
         let (mut max_x, mut max_y) = (f64::NEG_INFINITY, f64::NEG_INFINITY);
 

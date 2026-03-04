@@ -9,11 +9,12 @@
 //! | Processing    | [`processing`]| Redaction, pattern match, …       |
 //! | Lifecycle     | [`lifecycle`] | Ingest, publish, encryption, …    |
 
-#[allow(dead_code)]
-pub(crate) mod inference;
-#[allow(dead_code)]
-pub(crate) mod lifecycle;
-pub(crate) mod processing;
+mod context;
+pub mod inference;
+pub mod lifecycle;
+pub mod processing;
+
+pub use context::{OperationContext, ParallelContext, SequentialContext};
 
 use std::future::Future;
 
@@ -22,20 +23,20 @@ use nvisy_core::Error;
 /// A single unit of work in the redaction pipeline.
 ///
 /// Operations are stateless and composable. The engine calls [`Operation::call`]
-/// with an input value and a context, and the operation produces a typed output
-/// or an error.
+/// with an input value and the operation produces a typed output or an error.
+///
+/// Both `Input` and `Output` must implement [`OperationContext`], encoding the
+/// processing strategy (e.g. [`ParallelContext<Vec<Entity>>`] or
+/// [`SequentialContext<Vec<Span>>`]) directly in the type.
 pub trait Operation {
-    /// Data consumed by this operation.
-    type Input;
-    /// Data produced by this operation.
-    type Output;
-    /// Ambient state available during execution (connections, config, etc.).
-    type Context;
+    /// Data consumed by this operation: wraps the payload in a context marker.
+    type Input: OperationContext;
+    /// Data produced by this operation: wraps the payload in a context marker.
+    type Output: OperationContext;
 
     /// Execute the operation.
     fn call(
         &self,
         input: Self::Input,
-        ctx: Self::Context,
     ) -> impl Future<Output = Result<Self::Output, Error>> + Send;
 }

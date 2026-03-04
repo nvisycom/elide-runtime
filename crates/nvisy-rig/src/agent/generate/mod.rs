@@ -15,7 +15,7 @@ use uuid::Uuid;
 use crate::backend::UsageTracker;
 use crate::error::Error;
 
-use super::{AgentProvider, BaseAgent, BaseAgentConfig};
+use super::{AgentProvider, BaseAgent, AgentConfig};
 use prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
 
 /// A request to generate a replacement value for a single entity.
@@ -45,7 +45,7 @@ pub struct GenAgent {
 
 impl GenAgent {
     /// Create a new generation agent.
-    pub fn new(provider: &AgentProvider, mut config: BaseAgentConfig) -> Result<Self, Error> {
+    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self, Error> {
         config
             .preamble
             .get_or_insert_with(|| GEN_SYSTEM_PROMPT.into());
@@ -87,5 +87,27 @@ impl GenAgent {
         );
 
         Ok(result.entities)
+    }
+
+    /// Generate a single synthetic replacement value.
+    ///
+    /// Uses plain-text completion instead of structured output, which is
+    /// lighter-weight for a single value.
+    #[tracing::instrument(
+        skip_all,
+        fields(entity_type = %request.entity_type, agent = "gen"),
+    )]
+    pub async fn generate_one(
+        &self,
+        request: &GenRequest,
+    ) -> Result<GeneratedEntity, Error> {
+        let prompt = GenPromptBuilder::build_one(request);
+        let synthetic_value = self.base.prompt_text(&prompt).await?;
+
+        Ok(GeneratedEntity {
+            entity_type: request.entity_type,
+            original_value: request.original_value.clone(),
+            synthetic_value: synthetic_value.trim().to_owned(),
+        })
     }
 }

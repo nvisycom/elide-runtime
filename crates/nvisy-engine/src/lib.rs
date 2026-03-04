@@ -3,8 +3,7 @@
 #![doc = include_str!("../README.md")]
 
 mod compiler;
-mod operation;
-
+pub mod operation;
 pub mod pipeline;
 pub mod provenance;
 
@@ -12,8 +11,7 @@ pub use pipeline::DefaultEngine;
 
 // Re-export graph data model for pipeline definitions.
 pub use compiler::{
-    ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind,
-    SourceNode, TargetNode,
+    ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind, SourceNode, TargetNode,
 };
 
 // Re-export retry and timeout policies for pipeline nodes.

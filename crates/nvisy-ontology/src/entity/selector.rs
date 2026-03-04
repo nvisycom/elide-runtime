@@ -14,7 +14,7 @@ use super::{EntityCategory, EntityKind};
 pub struct EntitySelector {
     /// Entity categories this selector matches. Empty means all categories.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub categories: Vec<EntityCategory>,
+    pub entity_categories: Vec<EntityCategory>,
     /// Specific entity kinds this selector matches. Empty means all kinds.
     #[serde(rename = "entity_types", default, skip_serializing_if = "Vec::is_empty")]
     pub entity_kinds: Vec<EntityKind>,
@@ -31,7 +31,7 @@ fn default_confidence_threshold() -> f64 {
 impl Default for EntitySelector {
     fn default() -> Self {
         Self {
-            categories: Vec::new(),
+            entity_categories: Vec::new(),
             entity_kinds: Vec::new(),
             confidence_threshold: default_confidence_threshold(),
         }
@@ -49,7 +49,7 @@ impl EntitySelector {
         if confidence < self.confidence_threshold {
             return false;
         }
-        if !self.categories.is_empty() && !self.categories.contains(category) {
+        if !self.entity_categories.is_empty() && !self.entity_categories.contains(category) {
             return false;
         }
         if !self.entity_kinds.is_empty() && !self.entity_kinds.contains(&entity_kind) {

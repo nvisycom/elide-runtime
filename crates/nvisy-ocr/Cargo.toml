@@ -17,6 +17,15 @@ repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 
+[features]
+default = []
+## Enable AWS Textract OCR provider.
+aws = ["sha2", "hmac"]
+## Enable Google Cloud Vision OCR provider.
+google = []
+## Enable Azure Document Intelligence OCR provider.
+azure = ["tokio/time"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
@@ -25,18 +34,28 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
-nvisy-python = { workspace = true, features = [] }
 
-# OCR engine (Rust-native PaddleOCR via ONNX Runtime)
-oar-ocr = { workspace = true }
+# HTTP middleware (retry & tracing)
+reqwest-middleware = { workspace = true, features = [] }
+reqwest-retry = { workspace = true, features = [] }
+reqwest-tracing = { workspace = true, features = [] }
 
-# Image decoding
-image = { workspace = true }
+# Encoding
+base64 = { workspace = true, features = [] }
+bytes = { workspace = true, features = [] }
+
+# Derive macros
+derive_more = { workspace = true }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime & observability
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt"] }
+tracing = { workspace = true }
+
+# Signing (cloud features)
+sha2 = { workspace = true, optional = true }
+hmac = { workspace = true, optional = true }

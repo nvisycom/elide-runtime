@@ -4,7 +4,7 @@ use reqwest_middleware::ClientWithMiddleware;
 use rig::image_generation::ImageGenerationModel as _;
 use rig::providers::openai;
 
-use crate::backend::{AuthenticatedProvider, build_http_client};
+use crate::backend::{AuthenticatedProvider, HttpClientConfig, build_http_client};
 use crate::error::Error;
 
 /// Supported providers for image generation.
@@ -46,7 +46,7 @@ impl ImageGenModels {
         model: &str,
         max_retries: u32,
     ) -> Result<Self, Error> {
-        let http = build_http_client(max_retries);
+        let http = build_http_client(&HttpClientConfig::with_max_retries(max_retries));
 
         match provider {
             ImageGenProvider::OpenAi(p) => {

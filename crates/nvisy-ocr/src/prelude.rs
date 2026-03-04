@@ -1,4 +1,5 @@
 //! Convenience re-exports.
 
-pub use crate::backend::{OcrBackend, OcrConfig, OcrRegion};
-pub use crate::local::LocalOcrBackend;
+pub use crate::backend::{Backend, ImageFormat, ImageInput, ImageOutput, ImageRegion, RunParams};
+pub use crate::engine::Engine;
+pub use crate::provider::*;

@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use crate::backend::UsageTracker;
 use super::{AgentProvider, DetectionConfig};
-use super::{BaseAgent, BaseAgentConfig};
+use super::{BaseAgent, AgentConfig};
 use crate::error::Error;
 use prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use tool::CvRigTool;
@@ -69,7 +69,7 @@ impl CvAgent {
     /// Create a new CV agent.
     pub fn new(
         provider: &AgentProvider,
-        mut config: BaseAgentConfig,
+        mut config: AgentConfig,
         cv: impl CvProvider + 'static,
     ) -> Result<Self, Error> {
         config.preamble.get_or_insert_with(|| CV_SYSTEM_PROMPT.into());

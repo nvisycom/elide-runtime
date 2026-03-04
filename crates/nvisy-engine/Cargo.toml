@@ -21,12 +21,18 @@ documentation = { workspace = true }
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[features]
+default = ["html"]
+html = ["nvisy-codec/html"]
+
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
-nvisy-identify = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
+nvisy-rig = { workspace = true, features = [] }
+nvisy-pattern = { workspace = true, features = [] }
+nvisy-ocr = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = ["derive"] }
@@ -35,6 +41,7 @@ serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
 # Async runtime
+async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 tokio-util = { workspace = true, features = [] }
 
@@ -46,12 +53,11 @@ semver = { workspace = true, features = [] }
 # Graph data structures
 petgraph = { workspace = true, features = [] }
 
-# Error handling
+# Derive macros and error handling
 thiserror = { workspace = true, features = [] }
 anyhow = { workspace = true, features = [] }
-
-# Derive macros
 derive_builder = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into"] }
 strum = { workspace = true, features = [] }
 
 # Validation

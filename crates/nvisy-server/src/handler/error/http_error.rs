@@ -363,7 +363,7 @@ impl ErrorKind {
 
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.response().name.as_ref())
+        write!(f, "{}", &*self.response().name)
     }
 }
 

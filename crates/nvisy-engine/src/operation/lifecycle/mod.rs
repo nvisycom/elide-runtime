@@ -3,16 +3,11 @@
 mod compression;
 mod conversion;
 mod encryption;
-mod ingest;
+mod ingestion;
 mod publish;
 
-#[allow(unused_imports)]
 pub use compression::Compression;
-#[allow(unused_imports)]
 pub use conversion::Conversion;
-#[allow(unused_imports)]
 pub use encryption::Encryption;
-#[allow(unused_imports)]
-pub use ingest::Ingest;
-#[allow(unused_imports)]
+pub use ingestion::Ingestion;
 pub use publish::Publish;

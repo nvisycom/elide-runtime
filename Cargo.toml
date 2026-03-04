@@ -7,7 +7,6 @@ members = [
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
-    "./crates/nvisy-identify",
     "./crates/nvisy-ontology",
     "./crates/nvisy-ocr",
     "./crates/nvisy-pattern",
@@ -38,7 +37,6 @@ documentation = "https://docs.rs/nvisy-runtime"
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
-nvisy-identify = { path = "./crates/nvisy-identify", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
@@ -50,7 +48,7 @@ nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 rig-core = { version = "0.31", features = [] }
 
 # HTTP middleware
-reqwest-middleware = { version = "0.5", features = [] }
+reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
 reqwest-retry = { version = "0.9", features = [] }
 reqwest-tracing = { version = "0.7", features = [] }
 
@@ -74,7 +72,7 @@ csv = { version = "1.0", features = [] }
 # Derive macros and error handling
 thiserror = { version = "2.0", features = [] }
 anyhow = { version = "1.0", features = [] }
-derive_more = { version = "2.0", features = ["as_ref", "display", "from", "into"] }
+derive_more = { version = "2.0", features = ["as_ref", "deref", "deref_mut", "display", "from", "into"] }
 derive_builder = { version = "0.20", features = [] }
 strum = { version = "0.28", features = ["derive"] }
 
@@ -88,6 +86,7 @@ semver = { version = "1.0", features = ["serde"] }
 # Encoding and hashing
 base64 = { version = "0.22", features = [] }
 sha2 = { version = "0.10", features = [] }
+hmac = { version = "0.12", features = [] }
 hex = { version = "0.4", features = [] }
 
 # Pattern matching
@@ -113,8 +112,8 @@ calamine = { version = "0.33", features = [] }
 zip = { version = "8.0", features = [] }
 quick-xml = { version = "0.38", features = [] }
 
-# OCR engine (Rust-native PaddleOCR via ONNX Runtime)
-oar-ocr = { version = "0.6", features = [] }
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }

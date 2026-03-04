@@ -1,83 +1,56 @@
-//! OCR backend trait and configuration.
+//! OCR backend trait and shared types.
 
-use serde::Serialize;
+pub(crate) mod http;
+mod input;
+mod output;
+
+pub use input::{ImageFormat, ImageInput};
+pub use output::{ImageOutput, ImageRegion};
 
 use nvisy_core::Error;
-use nvisy_core::math::{BoundingBox, Polygon};
-use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityKind};
-use nvisy_ontology::location::{ImageLocation, Location, TextLevel};
 
-/// Configuration passed to an [`OcrBackend`] implementation.
-#[derive(Debug, Clone)]
-pub struct OcrConfig {
-    /// Language hint (e.g. `"eng"` for English).
-    pub language: String,
-    /// OCR engine to use (`"tesseract"`, `"google-vision"`, `"aws-textract"`).
-    pub engine: String,
-    /// Minimum confidence threshold for OCR results.
+/// Parameters passed to a [`Backend`] implementation.
+#[derive(Debug, Clone, Default)]
+pub struct RunParams {
+    /// Minimum confidence threshold for OCR results (0.0..=1.0).
     pub confidence_threshold: f64,
 }
 
-/// A single text region returned by an OCR backend.
-#[derive(Debug, Clone, Serialize)]
-pub struct OcrRegion {
-    /// The extracted text content.
-    pub text: String,
-    /// Confidence of the OCR extraction (0.0..=1.0).
-    pub confidence: f64,
-    /// Axis-aligned bounding box.
-    pub bbox: BoundingBox,
-    /// Polygon vertices for rotated text regions.
-    pub polygon: Option<Polygon>,
-    /// Hierarchical level of this text region.
-    pub level: Option<TextLevel>,
-}
-
-impl OcrRegion {
-    /// Convert this region into an [`Entity`], consuming `self`.
-    pub fn into_entity(self) -> Entity {
-        Entity::new(
-            EntityCategory::Pii,
-            EntityKind::Handwriting,
-            &self.text,
-            DetectionMethod::Ocr,
-            self.confidence,
-        )
-        .with_location(Location::Image(ImageLocation {
-            bounding_box: self.bbox,
-            image_id: None,
-            page_number: None,
-        }))
-    }
-
-    /// Create an [`Entity`] from this region by reference.
-    pub fn as_entity(&self) -> Entity {
-        Entity::new(
-            EntityCategory::Pii,
-            EntityKind::Handwriting,
-            &self.text,
-            DetectionMethod::Ocr,
-            self.confidence,
-        )
-        .with_location(Location::Image(ImageLocation {
-            bounding_box: self.bbox,
-            image_id: None,
-            page_number: None,
-        }))
+impl RunParams {
+    /// Create params with the given confidence threshold.
+    pub fn new(confidence_threshold: f64) -> Self {
+        Self {
+            confidence_threshold,
+        }
     }
 }
 
 /// Backend trait for OCR providers.
 ///
-/// Implementations call an OCR engine (local or remote) and return
-/// typed [`OcrRegion`] results.
+/// Implementations send image bytes to an OCR service and return
+/// typed [`ImageRegion`] results with word-level bounding boxes.
 #[async_trait::async_trait]
-pub trait OcrBackend: Send + Sync + 'static {
-    /// Run OCR on image bytes, returning detected text regions.
-    async fn detect_ocr(
+pub trait Backend: Send + Sync + 'static {
+    /// Run OCR on a single image.
+    async fn run(
         &self,
-        image_data: &[u8],
-        mime_type: &str,
-        config: &OcrConfig,
-    ) -> Result<Vec<OcrRegion>, Error>;
+        image: &ImageInput,
+        params: &RunParams,
+    ) -> Result<ImageOutput, Error>;
+
+    /// Run OCR on multiple images, returning results in the same order.
+    ///
+    /// The default implementation calls [`run`](Self::run) sequentially.
+    /// Backends that support batch APIs can override for better throughput.
+    async fn run_batch(
+        &self,
+        images: &[ImageInput],
+        params: &RunParams,
+    ) -> Result<Vec<ImageOutput>, Error> {
+        let mut results = Vec::with_capacity(images.len());
+        for image in images {
+            results.push(self.run(image, params).await?);
+        }
+        Ok(results)
+    }
 }

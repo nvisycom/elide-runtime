@@ -2,7 +2,7 @@
 
 use super::GenRequest;
 
-/// Builds user prompts for text generation from a batch of requests.
+/// Builds user prompts for text generation.
 pub(crate) struct GenPromptBuilder;
 
 impl GenPromptBuilder {
@@ -20,16 +20,32 @@ impl GenPromptBuilder {
                 req.entity_type,
                 req.original_value,
             ));
-            if let Some(ref ctx) = req.context {
-                prompt.push_str(&format!(", context=\"{ctx}\""));
-            }
-            if let Some(ref locale) = req.locale {
-                prompt.push_str(&format!(", locale=\"{locale}\""));
-            }
+            Self::append_optional_fields(&mut prompt, req);
             prompt.push('\n');
         }
 
         prompt
+    }
+
+    /// Build the user prompt for a single replacement (plain-text response).
+    pub fn build_one(request: &GenRequest) -> String {
+        let mut prompt = format!(
+            "Generate a single realistic synthetic replacement for: \
+             entity_type={}, original_value=\"{}\"",
+            request.entity_type, request.original_value,
+        );
+        Self::append_optional_fields(&mut prompt, request);
+        prompt.push_str("\n\nRespond with ONLY the replacement value, nothing else.");
+        prompt
+    }
+
+    fn append_optional_fields(prompt: &mut String, req: &GenRequest) {
+        if let Some(ref ctx) = req.context {
+            prompt.push_str(&format!(", context=\"{ctx}\""));
+        }
+        if let Some(ref locale) = req.locale {
+            prompt.push_str(&format!(", locale=\"{locale}\""));
+        }
     }
 }
 

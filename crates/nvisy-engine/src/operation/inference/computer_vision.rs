@@ -1,17 +1,78 @@
-//! Computer vision operation.
+//! Computer-vision detection adapter wrapping [`CvAgent`] from `nvisy-rig`.
+//!
+//! Detects entities in image spans by delegating to the CvAgent's
+//! object-detection + LLM-classification pipeline.
+
+use nvisy_codec::handler::{ImageData, Span};
+use nvisy_core::Error;
+use nvisy_core::math::BoundingBox;
+use nvisy_ontology::entity::{DetectionMethod, Entity};
+use nvisy_ontology::location::{ImageLocation, Location};
+use nvisy_rig::agent::{CvAgent, CvEntity, DetectionConfig};
 
 use crate::operation::Operation;
-use nvisy_core::Error;
+use crate::operation::ParallelContext;
 
-/// Detects visual entities (faces, license plates, etc.) in image content.
-pub struct ComputerVision;
+/// Computer-vision detection operation: thin adapter around [`CvAgent`].
+pub struct ComputerVision {
+    agent: CvAgent,
+    config: DetectionConfig,
+}
+
+impl ComputerVision {
+    /// Create a new CV operation from a pre-built agent and detection config.
+    pub fn from_agent(agent: CvAgent, config: DetectionConfig) -> Self {
+        Self { agent, config }
+    }
+}
 
 impl Operation for ComputerVision {
-    type Input = ();
-    type Output = ();
-    type Context = ();
+    type Input = ParallelContext<Vec<Span<(), ImageData>>>;
+    type Output = ParallelContext<Vec<Entity>>;
 
-    async fn call(&self, _input: Self::Input, _ctx: Self::Context) -> Result<Self::Output, Error> {
-        todo!("ComputerVision operation not yet implemented")
+    async fn call(
+        &self,
+        input: Self::Input,
+    ) -> Result<Self::Output, Error> {
+        let input = input.into_inner();
+        let mut entities = Vec::new();
+
+        for span in &input {
+            let png_bytes = span.data.encode_png()?;
+
+            let cv_entities = self
+                .agent
+                .detect(&png_bytes, &self.config)
+                .await
+                .map_err(|e| Error::runtime(e.to_string(), "cv-agent", e.is_retryable()))?;
+
+            for cv_entity in &cv_entities {
+                let entity = map_cv_entity(cv_entity);
+                entities.push(entity.with_parent(&span.source));
+            }
+        }
+
+        Ok(ParallelContext::new(entities))
     }
+}
+
+/// Convert a [`CvEntity`] to an [`Entity`] with [`ImageLocation`].
+fn map_cv_entity(cv: &CvEntity) -> Entity {
+    Entity::new(
+        cv.category.clone(),
+        cv.entity_type,
+        &cv.label,
+        DetectionMethod::ObjectDetection,
+        cv.confidence,
+    )
+    .with_location(Location::Image(ImageLocation {
+        bounding_box: BoundingBox {
+            x: cv.bbox[0],
+            y: cv.bbox[1],
+            width: cv.bbox[2],
+            height: cv.bbox[3],
+        },
+        image_id: None,
+        page_number: None,
+    }))
 }

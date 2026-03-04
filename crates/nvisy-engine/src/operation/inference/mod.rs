@@ -8,17 +8,10 @@ mod summarization;
 mod transcription;
 mod translation;
 
-#[allow(unused_imports)]
 pub use classification::Classification;
-#[allow(unused_imports)]
 pub use computer_vision::ComputerVision;
-#[allow(unused_imports)]
-pub use ner::Ner;
-#[allow(unused_imports)]
-pub use ocr::Ocr;
-#[allow(unused_imports)]
+pub use ner::{Ner, NerMethodParams};
+pub use ocr::{Ocr, OcrBackendProvider};
 pub use summarization::Summarization;
-#[allow(unused_imports)]
 pub use transcription::Transcription;
-#[allow(unused_imports)]
 pub use translation::Translation;

@@ -1,7 +1,7 @@
 //! Execute response types.
 
 use nvisy_engine::pipeline::{
-    Audit, DetectionOutput, EngineOutput, PolicyEvaluation, RedactionMap, RedactionSummary,
+    DetectionOutput, EngineOutput, PolicyEvaluation, RedactionMap, RedactionSummary,
     RunOutput,
 };
 use nvisy_engine::provenance::FileAudit;
@@ -21,8 +21,6 @@ pub struct ExecuteResponse {
     pub evaluation: PolicyEvaluation,
     /// Per-source redaction summaries.
     pub summaries: Vec<RedactionSummary>,
-    /// Immutable audit trail.
-    pub audits: Vec<Audit>,
     /// Per-file processing logs.
     pub file_audits: Vec<FileAudit>,
     /// Redaction mapping artifacts.
@@ -38,7 +36,6 @@ impl From<EngineOutput> for ExecuteResponse {
             detection: out.detection,
             evaluation: out.evaluation,
             summaries: out.summaries,
-            audits: out.audits,
             file_audits: out.file_audits,
             redaction_maps: out.redaction_maps,
             run_output: out.run_output,

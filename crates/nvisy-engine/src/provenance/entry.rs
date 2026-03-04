@@ -57,6 +57,10 @@ pub struct FileAuditEntry {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub correlation_id: Option<Uuid>,
+    /// Identifier of the policy that was evaluated, if applicable.
+    #[builder(default, setter(into = false))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_id: Option<Uuid>,
     /// What kind of operation was performed, with associated data.
     #[serde(flatten)]
     pub kind: FileAuditEntryKind,

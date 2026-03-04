@@ -1,0 +1,231 @@
+//! [`Backend`] implementation for PaddleX PP-OCRv5.
+
+use serde::Deserialize;
+
+use nvisy_core::Error;
+use nvisy_core::math::{Polygon, Vertex};
+use nvisy_ontology::location::TextLevel;
+
+use reqwest_middleware::ClientWithMiddleware;
+
+use crate::backend::http::HttpClient;
+use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams};
+
+/// Remote OCR backend using a PaddleX PP-OCRv5 server.
+///
+/// Sends images as multipart form data to `{base_url}/ocr` with
+/// `returnWordBox=true` and parses word-level results into [`ImageRegion`].
+pub struct PaddleXBackend {
+    client: HttpClient,
+    base_url: String,
+}
+
+impl PaddleXBackend {
+    /// Create a new backend with the given HTTP client and server URL.
+    pub fn new(client: ClientWithMiddleware, base_url: impl Into<String>) -> Self {
+        Self {
+            client: HttpClient::new(client),
+            base_url: base_url.into(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PaddleXResponse {
+    result: PaddleXResult,
+}
+
+#[derive(Debug, Deserialize)]
+struct PaddleXResult {
+    #[serde(rename = "ocrResults")]
+    ocr_results: Vec<PaddleXOcrResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PaddleXOcrResult {
+    #[serde(rename = "wordResults", default)]
+    word_results: Vec<PaddleXWordResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PaddleXWordResult {
+    text: String,
+    #[serde(default)]
+    confidence: f64,
+    #[serde(rename = "wordRegion")]
+    word_region: [[f64; 2]; 4],
+}
+
+#[async_trait::async_trait]
+impl Backend for PaddleXBackend {
+    async fn run(
+        &self,
+        image: &ImageInput,
+        params: &RunParams,
+    ) -> Result<ImageOutput, Error> {
+        let file_part = self.client.image_part(image)?;
+
+        let form = reqwest_middleware::reqwest::multipart::Form::new()
+            .part("file", file_part)
+            .text("returnWordBox", "true");
+
+        let url = format!("{}/ocr", self.base_url.trim_end_matches('/'));
+
+        let resp = self
+            .client
+            .post(&url)
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| {
+                Error::runtime(format!("PaddleX request failed: {e}"), "paddlex_ocr", false)
+            })?;
+
+        let resp = self.client.check_status(resp, "PaddleX", "paddlex_ocr").await?;
+        let parsed: PaddleXResponse =
+            self.client.parse_json(resp, "PaddleX", "paddlex_ocr").await?;
+
+        let threshold = params.confidence_threshold;
+        let mut regions = Vec::new();
+
+        for ocr_result in &parsed.result.ocr_results {
+            for word in &ocr_result.word_results {
+                if word.confidence < threshold {
+                    continue;
+                }
+
+                let polygon = Polygon {
+                    vertices: word
+                        .word_region
+                        .iter()
+                        .map(|[x, y]| Vertex::new(*x, *y))
+                        .collect(),
+                };
+                let bbox = polygon.bounding_box();
+
+                regions.push(ImageRegion {
+                    text: word.text.clone(),
+                    confidence: Some(word.confidence),
+                    bbox,
+                    polygon: Some(polygon),
+                    level: Some(TextLevel::Word),
+                });
+            }
+        }
+
+        Ok(ImageOutput {
+            source: image.source.derive(),
+            regions,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_response() {
+        let json = serde_json::json!({
+            "result": {
+                "ocrResults": [{
+                    "text": "hello world",
+                    "confidence": 0.95,
+                    "textRegion": [[10, 20], [110, 20], [110, 40], [10, 40]],
+                    "wordResults": [
+                        {
+                            "text": "hello",
+                            "confidence": 0.96,
+                            "wordRegion": [[10, 20], [60, 20], [60, 40], [10, 40]]
+                        },
+                        {
+                            "text": "world",
+                            "confidence": 0.94,
+                            "wordRegion": [[65, 20], [110, 20], [110, 40], [65, 40]]
+                        }
+                    ]
+                }]
+            }
+        });
+
+        let resp: PaddleXResponse = serde_json::from_value(json).unwrap();
+        assert_eq!(resp.result.ocr_results.len(), 1);
+        assert_eq!(resp.result.ocr_results[0].word_results.len(), 2);
+
+        let word = &resp.result.ocr_results[0].word_results[0];
+        assert_eq!(word.text, "hello");
+        assert!((word.confidence - 0.96).abs() < 0.001);
+
+        let polygon = Polygon {
+            vertices: word
+                .word_region
+                .iter()
+                .map(|[x, y]| Vertex::new(*x, *y))
+                .collect(),
+        };
+        assert_eq!(polygon.vertices.len(), 4);
+        assert!((polygon.vertices[0].x - 10.0).abs() < 0.01);
+        assert!((polygon.vertices[0].y - 20.0).abs() < 0.01);
+
+        let bbox = polygon.bounding_box();
+        assert!((bbox.x - 10.0).abs() < 0.01);
+        assert!((bbox.y - 20.0).abs() < 0.01);
+        assert!((bbox.width - 50.0).abs() < 0.01);
+        assert!((bbox.height - 20.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn filters_below_threshold() {
+        let json = serde_json::json!({
+            "result": {
+                "ocrResults": [{
+                    "text": "test",
+                    "confidence": 0.5,
+                    "textRegion": [[0, 0], [50, 0], [50, 20], [0, 20]],
+                    "wordResults": [
+                        {
+                            "text": "low",
+                            "confidence": 0.3,
+                            "wordRegion": [[0, 0], [25, 0], [25, 20], [0, 20]]
+                        },
+                        {
+                            "text": "high",
+                            "confidence": 0.9,
+                            "wordRegion": [[30, 0], [50, 0], [50, 20], [30, 20]]
+                        }
+                    ]
+                }]
+            }
+        });
+
+        let resp: PaddleXResponse = serde_json::from_value(json).unwrap();
+        let threshold = 0.5;
+        let regions: Vec<ImageRegion> = resp
+            .result
+            .ocr_results
+            .iter()
+            .flat_map(|r| &r.word_results)
+            .filter(|w| w.confidence >= threshold)
+            .map(|w| {
+                let polygon = Polygon {
+                    vertices: w
+                        .word_region
+                        .iter()
+                        .map(|[x, y]| Vertex::new(*x, *y))
+                        .collect(),
+                };
+                let bbox = polygon.bounding_box();
+                ImageRegion {
+                    text: w.text.clone(),
+                    confidence: Some(w.confidence),
+                    bbox,
+                    polygon: Some(polygon),
+                    level: Some(TextLevel::Word),
+                }
+            })
+            .collect();
+
+        assert_eq!(regions.len(), 1);
+        assert_eq!(regions[0].text, "high");
+    }
+}

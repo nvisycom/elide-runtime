@@ -25,15 +25,14 @@ pub struct Version {
 }
 
 impl Version {
+    /// Header name used to transmit the desired API version.
+    const HEADER: &str = "Accept-Version";
     /// The latest (and currently only) API version.
     pub const LATEST: Self = Self {
         major: NonZeroU32::new(1).unwrap(),
         minor: 0,
         patch: 0,
     };
-
-    /// Header name used to transmit the desired API version.
-    const HEADER: &str = "Accept-Version";
 }
 
 impl fmt::Display for Version {
@@ -87,7 +86,10 @@ impl FromStr for Version {
                     patch,
                 })
             }
-            _ => Err(format!("expected 1-3 version components, got {}", parts.len())),
+            _ => Err(format!(
+                "expected 1-3 version components, got {}",
+                parts.len()
+            )),
         }
     }
 }

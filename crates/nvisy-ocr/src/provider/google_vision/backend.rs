@@ -4,17 +4,16 @@
 
 use std::fmt;
 
+use nvisy_core::Error;
+use nvisy_core::math::{Polygon, Vertex};
+use nvisy_rig::backend::{HttpConfig, build_http_client};
+use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 
-use nvisy_core::Error;
-use nvisy_rig::backend::{HttpConfig, build_http_client};
-use nvisy_core::math::{Polygon, Vertex};
-use nvisy_ontology::location::TextLevel;
-use reqwest_middleware::ClientWithMiddleware;
-
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, check_response};
-
 use super::GoogleVisionParams;
+use crate::backend::{
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
+};
 
 /// [`Backend`] implementation for Google Cloud Vision API.
 ///
@@ -108,11 +107,7 @@ struct GvVertex {
 
 #[async_trait::async_trait]
 impl Backend for GoogleVisionBackend {
-    async fn run(
-        &self,
-        image: &ImageInput,
-        params: &RunParams,
-    ) -> Result<ImageOutput, Error> {
+    async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
         let encoded = image.to_base64();
 
         let body = serde_json::json!({
@@ -137,10 +132,13 @@ impl Backend for GoogleVisionBackend {
 
         let resp = check_response(resp, "Google Vision").await?;
 
-        let parsed: AnnotateResponse = resp
-            .json()
-            .await
-            .map_err(|e| Error::runtime(format!("Google Vision JSON parse error: {e}"), "google_vision_ocr", false))?;
+        let parsed: AnnotateResponse = resp.json().await.map_err(|e| {
+            Error::runtime(
+                format!("Google Vision JSON parse error: {e}"),
+                "google_vision_ocr",
+                false,
+            )
+        })?;
 
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());
@@ -162,19 +160,17 @@ impl Backend for GoogleVisionBackend {
                             let text: String =
                                 word.symbols.iter().map(|s| s.text.as_str()).collect();
 
-                            let polygon = word.bounding_box.as_ref().map(|bp| {
-                                Polygon {
-                                    vertices: bp
-                                        .vertices
-                                        .iter()
-                                        .map(|v| {
-                                            Vertex::new(
-                                                f64::from(v.x.unwrap_or(0)),
-                                                f64::from(v.y.unwrap_or(0)),
-                                            )
-                                        })
-                                        .collect(),
-                                }
+                            let polygon = word.bounding_box.as_ref().map(|bp| Polygon {
+                                vertices: bp
+                                    .vertices
+                                    .iter()
+                                    .map(|v| {
+                                        Vertex::new(
+                                            f64::from(v.x.unwrap_or(0)),
+                                            f64::from(v.y.unwrap_or(0)),
+                                        )
+                                    })
+                                    .collect(),
                             });
 
                             let bbox = polygon

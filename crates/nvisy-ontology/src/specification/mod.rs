@@ -19,8 +19,9 @@ mod input;
 mod method;
 
 pub use input::{
-    AudioRedactionInput, ImageRedactionInput, RedactionInput, RedactorInput, TextRedactionInput,
-    DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR, DEFAULT_PIXELATE_BLOCK_SIZE,
+    AudioRedactionInput, DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR,
+    DEFAULT_PIXELATE_BLOCK_SIZE, ImageRedactionInput, RedactionInput, RedactorInput,
+    TextRedactionInput,
 };
 pub use method::{
     AudioRedactionMethod, ImageRedactionMethod, RedactionMethod, TextRedactionMethod,

@@ -22,9 +22,9 @@ use serde::Serialize;
 pub struct ErrorResponse<'a> {
     /// Machine-readable error name (e.g. `"NOT_FOUND"`, `"BAD_REQUEST"`).
     pub name: Cow<'a, str>,
-    /// HTTP status code (serialized as integer).
-    #[serde(serialize_with = "serialize_status")]
-    #[schemars(with = "u16")]
+    /// HTTP status code (conveyed via the response status line, not the body).
+    #[serde(skip)]
+    #[schemars(skip)]
     pub status: StatusCode,
     /// Human-readable error message.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -41,15 +41,6 @@ pub struct ErrorResponse<'a> {
 }
 
 impl ErrorResponse<'static> {
-    pub const MISSING_PATH_PARAM: Self = Self {
-        name: Cow::Borrowed("missing_path_param"),
-        status: StatusCode::BAD_REQUEST,
-        message: None,
-        resource: None,
-        context: None,
-        suggestion: None,
-    };
-
     pub const BAD_REQUEST: Self = Self {
         name: Cow::Borrowed("bad_request"),
         status: StatusCode::BAD_REQUEST,
@@ -58,52 +49,6 @@ impl ErrorResponse<'static> {
         context: None,
         suggestion: None,
     };
-
-    pub const MISSING_AUTH_TOKEN: Self = Self {
-        name: Cow::Borrowed("missing_auth_token"),
-        status: StatusCode::UNAUTHORIZED,
-        message: None,
-        resource: None,
-        context: None,
-        suggestion: None,
-    };
-
-    pub const MALFORMED_AUTH_TOKEN: Self = Self {
-        name: Cow::Borrowed("malformed_auth_token"),
-        status: StatusCode::UNAUTHORIZED,
-        message: None,
-        resource: None,
-        context: None,
-        suggestion: None,
-    };
-
-    pub const UNAUTHORIZED: Self = Self {
-        name: Cow::Borrowed("unauthorized"),
-        status: StatusCode::UNAUTHORIZED,
-        message: None,
-        resource: None,
-        context: None,
-        suggestion: None,
-    };
-
-    pub const FORBIDDEN: Self = Self {
-        name: Cow::Borrowed("forbidden"),
-        status: StatusCode::FORBIDDEN,
-        message: None,
-        resource: None,
-        context: None,
-        suggestion: None,
-    };
-
-    pub const NOT_FOUND: Self = Self {
-        name: Cow::Borrowed("not_found"),
-        status: StatusCode::NOT_FOUND,
-        message: None,
-        resource: None,
-        context: None,
-        suggestion: None,
-    };
-
     pub const CONFLICT: Self = Self {
         name: Cow::Borrowed("conflict"),
         status: StatusCode::CONFLICT,
@@ -112,16 +57,14 @@ impl ErrorResponse<'static> {
         context: None,
         suggestion: None,
     };
-
-    pub const TOO_MANY_REQUESTS: Self = Self {
-        name: Cow::Borrowed("too_many_requests"),
-        status: StatusCode::TOO_MANY_REQUESTS,
+    pub const FORBIDDEN: Self = Self {
+        name: Cow::Borrowed("forbidden"),
+        status: StatusCode::FORBIDDEN,
         message: None,
         resource: None,
         context: None,
         suggestion: None,
     };
-
     pub const INTERNAL_SERVER_ERROR: Self = Self {
         name: Cow::Borrowed("internal_server_error"),
         status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -130,10 +73,57 @@ impl ErrorResponse<'static> {
         context: None,
         suggestion: None,
     };
-
+    pub const MALFORMED_AUTH_TOKEN: Self = Self {
+        name: Cow::Borrowed("malformed_auth_token"),
+        status: StatusCode::UNAUTHORIZED,
+        message: None,
+        resource: None,
+        context: None,
+        suggestion: None,
+    };
+    pub const MISSING_AUTH_TOKEN: Self = Self {
+        name: Cow::Borrowed("missing_auth_token"),
+        status: StatusCode::UNAUTHORIZED,
+        message: None,
+        resource: None,
+        context: None,
+        suggestion: None,
+    };
+    pub const MISSING_PATH_PARAM: Self = Self {
+        name: Cow::Borrowed("missing_path_param"),
+        status: StatusCode::BAD_REQUEST,
+        message: None,
+        resource: None,
+        context: None,
+        suggestion: None,
+    };
+    pub const NOT_FOUND: Self = Self {
+        name: Cow::Borrowed("not_found"),
+        status: StatusCode::NOT_FOUND,
+        message: None,
+        resource: None,
+        context: None,
+        suggestion: None,
+    };
     pub const NOT_IMPLEMENTED: Self = Self {
         name: Cow::Borrowed("not_implemented"),
         status: StatusCode::NOT_IMPLEMENTED,
+        message: None,
+        resource: None,
+        context: None,
+        suggestion: None,
+    };
+    pub const TOO_MANY_REQUESTS: Self = Self {
+        name: Cow::Borrowed("too_many_requests"),
+        status: StatusCode::TOO_MANY_REQUESTS,
+        message: None,
+        resource: None,
+        context: None,
+        suggestion: None,
+    };
+    pub const UNAUTHORIZED: Self = Self {
+        name: Cow::Borrowed("unauthorized"),
+        status: StatusCode::UNAUTHORIZED,
         message: None,
         resource: None,
         context: None,
@@ -171,8 +161,4 @@ impl IntoResponse for ErrorResponse<'_> {
     fn into_response(self) -> Response {
         (self.status, axum::Json(self)).into_response()
     }
-}
-
-fn serialize_status<S: serde::Serializer>(status: &StatusCode, s: S) -> Result<S::Ok, S::Error> {
-    s.serialize_u16(status.as_u16())
 }

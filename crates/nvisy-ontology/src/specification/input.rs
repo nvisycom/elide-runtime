@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::{EntityCategory, EntityKind};
 
-
 /// Default mask character for text redaction.
 pub const DEFAULT_MASK_CHAR: char = '*';
 
@@ -33,7 +32,6 @@ fn default_block_color() -> [u8; 4] {
 fn default_block_size() -> u32 {
     DEFAULT_PIXELATE_BLOCK_SIZE
 }
-
 
 /// Text redaction specification with method-specific configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -60,8 +58,8 @@ pub enum TextRedactionInput {
     },
     /// Remove the value entirely.
     Remove,
-    /// Replace with a synthetically generated value.
-    Synthesize,
+    /// Replace with a realistically generated value.
+    Generate,
     /// Replace with a consistent pseudonym.
     Pseudonymize,
     /// Replace with a vault-backed reversible token.
@@ -86,7 +84,6 @@ pub enum TextRedactionInput {
     },
 }
 
-
 /// Image redaction specification with method-specific configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
@@ -109,10 +106,7 @@ pub enum ImageRedactionInput {
         #[serde(default = "default_block_size")]
         block_size: u32,
     },
-    /// Replace with a synthetic region.
-    Synthesize,
 }
-
 
 /// Audio redaction specification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -122,10 +116,7 @@ pub enum AudioRedactionInput {
     Silence,
     /// Remove the segment entirely.
     Remove,
-    /// Replace with synthetic audio.
-    Synthesize,
 }
-
 
 /// Unified redaction specification submitted to the engine.
 ///
@@ -140,7 +131,6 @@ pub enum RedactionInput {
     /// Audio redaction specification.
     Audio(AudioRedactionInput),
 }
-
 
 /// Entity passed to a redactor agent for decision-making.
 ///

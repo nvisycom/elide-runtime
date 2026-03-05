@@ -6,7 +6,19 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 /// Status of a human review on a redaction decision.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    EnumString,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum ReviewStatus {

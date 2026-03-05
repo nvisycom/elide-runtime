@@ -14,14 +14,12 @@ use serde::{Deserialize, Serialize};
 pub struct Dpi(u16);
 
 impl Dpi {
-    /// Screen resolution (72 DPI): matches PDF point units.
-    pub const SCREEN: Self = Self(72);
-
-    /// Standard print resolution: 150 DPI.
-    pub const PRINT: Self = Self(150);
-
     /// High-quality OCR resolution: 300 DPI.
     pub const OCR: Self = Self(300);
+    /// Standard print resolution: 150 DPI.
+    pub const PRINT: Self = Self(150);
+    /// Screen resolution (72 DPI): matches PDF point units.
+    pub const SCREEN: Self = Self(72);
 
     /// Create a DPI value from a raw `u16`.
     pub const fn new(value: u16) -> Self {

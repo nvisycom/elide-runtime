@@ -4,12 +4,11 @@
 //! and confidence level were involved. Types that carry this metadata
 //! implement the [`Explainable`] trait.
 
-use semver::Version;
+use nvisy_ontology::entity::{DetectionMethod, ModelInfo};
 use schemars::JsonSchema;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use nvisy_ontology::entity::{DetectionMethod, ModelInfo};
 
 /// Types that carry explainability metadata.
 pub trait Explainable {

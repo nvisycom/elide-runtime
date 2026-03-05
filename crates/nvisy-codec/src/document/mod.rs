@@ -3,15 +3,14 @@
 use std::ops::{Deref, DerefMut};
 
 use futures::StreamExt;
-
 use nvisy_core::Error;
+use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
-use nvisy_core::fs::DocumentType;
 
 use crate::handler::{
-    Handler, TextHandler, ImageHandler, AudioHandler, TextData, ImageData, AudioData,
-    SpanStream, SpanEditStream,
+    AudioData, AudioHandler, Handler, ImageData, ImageHandler, SpanEditStream, SpanStream,
+    TextData, TextHandler,
 };
 
 /// A unified representation of any content that can be handled by the pipeline.
@@ -76,13 +75,16 @@ impl<H: Handler> Document<H> {
     /// Encode the handler content and set this document's source as the parent.
     pub fn encode(&self) -> Result<ContentData, Error> {
         let mut content = self.handler.encode()?;
-        content.content_source.set_parent_id(Some(self.source.as_uuid()));
+        content
+            .content_source
+            .set_parent_id(Some(self.source.as_uuid()));
         Ok(content)
     }
 
     /// Set this document's parent to the given content source.
     pub fn with_parent(mut self, content: &ContentData) -> Self {
-        self.source.set_parent_id(Some(content.content_source.as_uuid()));
+        self.source
+            .set_parent_id(Some(content.content_source.as_uuid()));
         self
     }
 }
@@ -151,9 +153,10 @@ impl<H: AudioHandler> Document<H> {
 
 #[cfg(test)]
 mod tests {
+    use futures::StreamExt;
+
     use super::*;
     use crate::handler::{SpanEdit, TxtHandler, TxtSpan};
-    use futures::StreamExt;
 
     #[tokio::test]
     async fn text_spans_injects_source() {
@@ -191,20 +194,14 @@ mod tests {
         let doc = Document::new(handler);
         let source = doc.source;
         let content = doc.encode().unwrap();
-        assert_eq!(
-            content.content_source.parent_id(),
-            Some(source.as_uuid()),
-        );
+        assert_eq!(content.content_source.parent_id(), Some(source.as_uuid()),);
     }
 
     #[test]
     fn with_parent_sets_lineage() {
         let handler = TxtHandler::new(vec![], false);
         let doc = Document::new(handler);
-        let content = ContentData::new(
-            ContentSource::new(),
-            bytes::Bytes::from_static(b"parent"),
-        );
+        let content = ContentData::new(ContentSource::new(), bytes::Bytes::from_static(b"parent"));
         let doc = doc.with_parent(&content);
         assert_eq!(
             doc.source.parent_id(),

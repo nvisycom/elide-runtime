@@ -1,9 +1,11 @@
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// Constructor parameters for [`AzureDocaiBackend`].
 ///
 /// [`AzureDocaiBackend`]: super::AzureDocaiBackend
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AzureDocaiParams {
     /// Azure resource endpoint URL.
     pub endpoint: String,

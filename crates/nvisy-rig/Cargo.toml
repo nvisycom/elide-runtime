@@ -18,11 +18,6 @@ documentation = { workspace = true }
 [features]
 default = []
 
-## Enable text-to-speech audio synthesis via rig-core's audio generation API.
-audio = ["rig-core/audio"]
-## Enable image synthesis via rig-core's image generation API.
-image = ["rig-core/image"]
-
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
@@ -33,7 +28,7 @@ nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
 # LLM framework
-rig-core = { workspace = true, features = ["derive", "reqwest-middleware"] }
+rig-core = { workspace = true, features = ["derive", "reqwest-middleware", "audio"] }
 
 # Async runtime
 async-trait = { workspace = true, features = [] }

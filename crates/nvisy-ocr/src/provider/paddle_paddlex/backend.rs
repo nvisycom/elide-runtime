@@ -2,18 +2,17 @@
 //!
 //! [`Backend`]: crate::Backend
 
-use serde::Deserialize;
-
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
-use nvisy_ontology::location::TextLevel;
 use nvisy_rig::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_middleware::reqwest::multipart::Form;
-
-use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams, check_response, image_part};
+use serde::Deserialize;
 
 use super::PaddleXParams;
+use crate::backend::{
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response, image_part,
+};
 
 /// [`Backend`] implementation for PaddleX PP-OCRv5.
 ///
@@ -71,11 +70,7 @@ struct PaddleXWordResult {
 
 #[async_trait::async_trait]
 impl Backend for PaddleXBackend {
-    async fn run(
-        &self,
-        image: &ImageInput,
-        params: &RunParams,
-    ) -> Result<ImageOutput, Error> {
+    async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
         let file_part = image_part(image)?;
 
         let form = Form::new()
@@ -94,10 +89,13 @@ impl Backend for PaddleXBackend {
 
         let resp = check_response(resp, "PaddleX").await?;
 
-        let parsed: PaddleXResponse = resp
-            .json()
-            .await
-            .map_err(|e| Error::runtime(format!("PaddleX JSON parse error: {e}"), "paddlex_ocr", false))?;
+        let parsed: PaddleXResponse = resp.json().await.map_err(|e| {
+            Error::runtime(
+                format!("PaddleX JSON parse error: {e}"),
+                "paddlex_ocr",
+                false,
+            )
+        })?;
 
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());
@@ -184,5 +182,4 @@ mod tests {
         assert!((bbox.width - 50.0).abs() < 0.01);
         assert!((bbox.height - 20.0).abs() < 0.01);
     }
-
 }

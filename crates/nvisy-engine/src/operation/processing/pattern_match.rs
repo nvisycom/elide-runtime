@@ -3,19 +3,19 @@
 //! Operates on text, CSV, HTML, and JSON spans, running both compiled
 //! regex patterns and dictionary automata via [`PatternEngine`].
 
+#[cfg(feature = "html")]
+use nvisy_codec::handler::HtmlSpan;
+use nvisy_codec::handler::{CsvSpan, JsonPath, Span, TxtSpan};
+use nvisy_core::Error;
+use nvisy_ontology::entity::{DetectionMethod, Entity, TabularLocation, TextLocation};
+use nvisy_pattern::{
+    ContextRule, DetectionSource, PatternEngine, PatternEngineBuilder,
+    PatternMatch as PatternMatchResult,
+};
 use serde::Deserialize;
 use serde_json::Value;
 
-use nvisy_codec::handler::{CsvSpan, JsonPath, Span, TxtSpan};
-#[cfg(feature = "html")]
-use nvisy_codec::handler::HtmlSpan;
-use nvisy_core::Error;
-use nvisy_ontology::entity::{DetectionMethod, Entity};
-use nvisy_ontology::location::{Location, TabularLocation, TextLocation};
-use nvisy_pattern::{ContextRule, DetectionSource, PatternEngine, PatternEngineBuilder, PatternMatch as PatternMatchResult};
-
-use crate::operation::Operation;
-use crate::operation::ParallelContext;
+use crate::operation::{Operation, ParallelContext};
 
 /// Typed parameters for [`PatternMatch`].
 #[derive(Debug, Deserialize)]
@@ -47,14 +47,14 @@ pub struct PatternMatch {
 impl PatternMatch {
     /// Connect and build a pattern match operation from typed parameters.
     pub async fn connect(params: PatternDetectionParams) -> Result<Self, Error> {
-        let mut builder = PatternEngineBuilder::default()
-            .with_confidence_threshold(params.confidence_threshold);
+        let mut builder =
+            PatternEngineBuilder::default().with_confidence_threshold(params.confidence_threshold);
         if let Some(ref names) = params.patterns {
             builder = builder.with_patterns(names);
         }
-        let engine = builder.build().map_err(|e| {
-            Error::validation(e.to_string(), "pattern-detection")
-        })?;
+        let engine = builder
+            .build()
+            .map_err(|e| Error::validation(e.to_string(), "pattern-detection"))?;
         Ok(Self { engine })
     }
 }
@@ -63,10 +63,7 @@ impl Operation for PatternMatch {
     type Input = ParallelContext<PatternInput>;
     type Output = ParallelContext<Vec<Entity>>;
 
-    async fn call(
-        &self,
-        input: Self::Input,
-    ) -> Result<Self::Output, Error> {
+    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
         let input = input.into_inner();
         let entities = match input {
             PatternInput::Text(spans) => self.detect_text(spans),
@@ -109,12 +106,15 @@ impl PatternMatch {
                 method,
                 confidence,
             )
-            .with_location(Location::Text(TextLocation {
-                start_offset: m.start,
-                end_offset: m.end,
-                element_id: Some(spans[*span_idx].id.0.to_string()),
-                ..Default::default()
-            }))
+            .with_location(
+                TextLocation {
+                    start_offset: m.start,
+                    end_offset: m.end,
+                    element_id: Some(spans[*span_idx].id.0.to_string()),
+                    ..Default::default()
+                }
+                .into(),
+            )
             .with_parent(&spans[*span_idx].source);
 
             entities.push(entity);
@@ -157,14 +157,17 @@ impl PatternMatch {
                 method,
                 confidence,
             )
-            .with_location(Location::Tabular(TabularLocation {
-                row_index: span.id.row,
-                column_index: span.id.col,
-                start_offset: Some(m.start),
-                end_offset: Some(m.end),
-                column_name: None,
-                sheet_name: None,
-            }))
+            .with_location(
+                TabularLocation {
+                    row_index: span.id.row,
+                    column_index: span.id.col,
+                    start_offset: Some(m.start),
+                    end_offset: Some(m.end),
+                    column_name: None,
+                    sheet_name: None,
+                }
+                .into(),
+            )
             .with_parent(&span.source);
 
             entities.push(entity);
@@ -201,12 +204,15 @@ impl PatternMatch {
                 method,
                 confidence,
             )
-            .with_location(Location::Text(TextLocation {
-                start_offset: m.start,
-                end_offset: m.end,
-                element_id: Some(spans[*span_idx].id.0.to_string()),
-                ..Default::default()
-            }))
+            .with_location(
+                TextLocation {
+                    start_offset: m.start,
+                    end_offset: m.end,
+                    element_id: Some(spans[*span_idx].id.0.to_string()),
+                    ..Default::default()
+                }
+                .into(),
+            )
             .with_parent(&spans[*span_idx].source);
 
             entities.push(entity);
@@ -250,12 +256,15 @@ impl PatternMatch {
                 method,
                 confidence,
             )
-            .with_location(Location::Text(TextLocation {
-                start_offset: m.start,
-                end_offset: m.end,
-                element_id: Some(spans[orig_idx].id.pointer.clone()),
-                ..Default::default()
-            }))
+            .with_location(
+                TextLocation {
+                    start_offset: m.start,
+                    end_offset: m.end,
+                    element_id: Some(spans[orig_idx].id.pointer.clone()),
+                    ..Default::default()
+                }
+                .into(),
+            )
             .with_parent(&spans[orig_idx].source);
 
             entities.push(entity);
@@ -276,12 +285,7 @@ fn detection_method(source: DetectionSource) -> DetectionMethod {
 
 /// Apply co-occurrence scoring: boost confidence when context keywords
 /// appear in nearby spans within the sliding window.
-fn apply_cooccurrence(
-    spans: &[&str],
-    span_idx: usize,
-    rule: &ContextRule,
-    base: f64,
-) -> f64 {
+fn apply_cooccurrence(spans: &[&str], span_idx: usize, rule: &ContextRule, base: f64) -> f64 {
     let start = span_idx.saturating_sub(rule.window);
     let end = (span_idx + rule.window + 1).min(spans.len());
 
@@ -290,7 +294,9 @@ fn apply_cooccurrence(
             rule.keywords.iter().any(|kw| span.contains(kw.as_str()))
         } else {
             let lower = span.to_lowercase();
-            rule.keywords.iter().any(|kw| lower.contains(&kw.to_lowercase()))
+            rule.keywords
+                .iter()
+                .any(|kw| lower.contains(&kw.to_lowercase()))
         };
         if found {
             return (base + rule.boost).clamp(0.0, 1.0);
@@ -348,11 +354,11 @@ mod tests {
     fn cooccurrence_window_boundary_excludes_far_keywords() {
         // Window of 1: only spans at indices 1 and 3 are in range for span 2.
         let spans = vec![
-            "Social Security info",  // index 0 — outside window=1
-            "header row",            // index 1
-            "123-45-6789",           // index 2 — match span
-            "footer row",            // index 3
-            "SSN listed here",       // index 4 — outside window=1
+            "Social Security info", // index 0 — outside window=1
+            "header row",           // index 1
+            "123-45-6789",          // index 2 — match span
+            "footer row",           // index 3
+            "SSN listed here",      // index 4 — outside window=1
         ];
         let rule = make_context_rule(vec!["social security", "ssn"], 1, 0.1);
         let result = apply_cooccurrence(&spans, 2, &rule, 0.9);

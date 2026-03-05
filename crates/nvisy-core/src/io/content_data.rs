@@ -4,134 +4,27 @@
 //! along with its metadata and source information.
 
 use std::fmt;
-use std::sync::OnceLock;
 
 use bytes::Bytes;
-use std::ops::Deref;
-
-use derive_more::{AsRef, From};
 use hipstr::HipStr;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use super::content_bytes::ContentBytes;
 use crate::error::{Error, ErrorKind, Result};
 use crate::path::ContentSource;
-
-/// A wrapper around `Bytes` for content storage.
-///
-/// This struct wraps `bytes::Bytes` and provides additional methods
-/// for text conversion. It's cheap to clone as `Bytes` uses reference
-/// counting internally.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-#[derive(From, AsRef, Serialize, Deserialize)]
-#[as_ref(forward)]
-#[serde(transparent)]
-pub struct ContentBytes(Bytes);
-
-impl ContentBytes {
-    /// Returns the size of the content in bytes.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Returns `true` if the content is empty.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Returns the content as a byte slice.
-    #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.0
-    }
-
-    /// Tries to return the content as a string slice.
-    ///
-    /// Returns `None` if the content is not valid UTF-8.
-    #[must_use]
-    pub fn as_str(&self) -> Option<&str> {
-        std::str::from_utf8(&self.0).ok()
-    }
-
-    /// Converts to a `HipStr` if the content is valid UTF-8.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the content is not valid UTF-8.
-    pub fn as_hipstr(&self) -> Result<HipStr<'static>> {
-        let s = std::str::from_utf8(&self.0)
-            .map_err(|e| Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}")))?;
-        Ok(HipStr::from(s))
-    }
-
-    /// Returns `true` if the content appears to be text.
-    ///
-    /// Uses a simple heuristic: checks if all bytes are ASCII printable
-    /// or whitespace characters.
-    #[must_use]
-    pub fn is_likely_text(&self) -> bool {
-        self.0
-            .iter()
-            .all(|&b| b.is_ascii_graphic() || b.is_ascii_whitespace())
-    }
-}
-
-impl Deref for ContentBytes {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<&str> for ContentBytes {
-    fn from(s: &str) -> Self {
-        Self(Bytes::copy_from_slice(s.as_bytes()))
-    }
-}
-
-impl From<String> for ContentBytes {
-    fn from(s: String) -> Self {
-        Self(Bytes::from(s))
-    }
-}
-
-impl From<HipStr<'static>> for ContentBytes {
-    fn from(s: HipStr<'static>) -> Self {
-        Self(Bytes::copy_from_slice(s.as_bytes()))
-    }
-}
-
-impl From<&[u8]> for ContentBytes {
-    fn from(bytes: &[u8]) -> Self {
-        Self(Bytes::copy_from_slice(bytes))
-    }
-}
-
-impl From<Vec<u8>> for ContentBytes {
-    fn from(vec: Vec<u8>) -> Self {
-        Self(Bytes::from(vec))
-    }
-}
 
 /// Content data with metadata and computed hashes.
 ///
 /// This struct wraps [`ContentBytes`] and stores content data along with
-/// metadata about its source and optional computed SHA256 hash.
+/// metadata about its source.
 /// It's designed to be cheap to clone using reference-counted types.
-/// The SHA256 hash is lazily computed using `OnceLock` for lock-free
-/// access after initialization.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentData {
     /// Unique identifier for the content source.
     pub content_source: ContentSource,
     /// The actual content data.
     data: ContentBytes,
-    /// Lazily computed SHA256 hash of the content.
-    #[serde(skip)]
-    sha256_cache: OnceLock<Bytes>,
     /// Caller-supplied MIME type (e.g. from HTTP Content-Type header).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime: Option<String>,
@@ -159,7 +52,7 @@ impl ContentData {
         Self {
             content_source,
             data: ContentBytes::from(data),
-            sha256_cache: OnceLock::new(),
+
             mime: None,
             detected_mime: None,
         }
@@ -181,7 +74,7 @@ impl ContentData {
         Self {
             content_source,
             data: ContentBytes::from(text.into()),
-            sha256_cache: OnceLock::new(),
+
             mime: None,
             detected_mime: None,
         }
@@ -192,7 +85,7 @@ impl ContentData {
         Self {
             content_source,
             data,
-            sha256_cache: OnceLock::new(),
+
             mime: None,
             detected_mime: None,
         }
@@ -250,13 +143,13 @@ impl ContentData {
     /// Converts the content data to `Bytes`.
     #[must_use]
     pub fn to_bytes(&self) -> Bytes {
-        self.data.0.clone()
+        Bytes::copy_from_slice(self.data.as_bytes())
     }
 
     /// Consumes and converts into `Bytes`.
     #[must_use]
     pub fn into_bytes(self) -> Bytes {
-        self.data.0
+        self.data.into_inner()
     }
 
     /// Returns `true` if the content appears to be text.
@@ -296,18 +189,12 @@ impl ContentData {
         self.data.as_hipstr()
     }
 
-    /// Computes SHA256 hash of the content.
-    fn compute_sha256_internal(&self) -> Bytes {
+    /// Computes and returns the SHA256 hash of the content.
+    #[must_use]
+    pub fn sha256(&self) -> Bytes {
         let mut hasher = Sha256::new();
         hasher.update(self.data.as_bytes());
         Bytes::from(hasher.finalize().to_vec())
-    }
-
-    /// Returns the SHA256 hash, computing it if not already done.
-    #[must_use]
-    pub fn sha256(&self) -> &Bytes {
-        self.sha256_cache
-            .get_or_init(|| self.compute_sha256_internal())
     }
 
     /// Returns the SHA256 hash as a hex string.
@@ -368,35 +255,6 @@ impl ContentData {
         self.data.is_empty()
     }
 }
-
-impl Clone for ContentData {
-    fn clone(&self) -> Self {
-        let new_lock = OnceLock::new();
-        // Copy the computed hash if available
-        if let Some(hash) = self.sha256_cache.get() {
-            let _ = new_lock.set(hash.clone());
-        }
-
-        Self {
-            content_source: self.content_source,
-            data: self.data.clone(),
-            sha256_cache: new_lock,
-            mime: self.mime.clone(),
-            detected_mime: self.detected_mime.clone(),
-        }
-    }
-}
-
-impl PartialEq for ContentData {
-    fn eq(&self, other: &Self) -> bool {
-        self.content_source == other.content_source
-            && self.data == other.data
-            && self.mime == other.mime
-            && self.detected_mime == other.detected_mime
-    }
-}
-
-impl Eq for ContentData {}
 
 impl From<&str> for ContentData {
     fn from(s: &str) -> Self {
@@ -462,7 +320,6 @@ mod tests {
 
         assert_eq!(content.content_source, source);
         assert_eq!(content.size(), 13);
-        assert!(content.sha256_cache.get().is_none());
     }
 
     #[test]
@@ -478,7 +335,6 @@ mod tests {
         let content = ContentData::from("Hello, world!");
         let hash = content.sha256();
 
-        assert!(content.sha256_cache.get().is_some());
         assert_eq!(hash.len(), 32);
 
         let hash2 = content.sha256();
@@ -547,12 +403,8 @@ mod tests {
     #[test]
     fn test_cloning_preserves_hash() {
         let original = ContentData::from("Hello, world!");
-        let _ = original.sha256();
-
         let cloned = original.clone();
 
-        assert!(original.sha256_cache.get().is_some());
-        assert!(cloned.sha256_cache.get().is_some());
         assert_eq!(original.sha256(), cloned.sha256());
     }
 
@@ -562,5 +414,4 @@ mod tests {
         let content = ContentData::from(hipstr);
         assert_eq!(content.as_str().unwrap(), "Hello from HipStr");
     }
-
 }

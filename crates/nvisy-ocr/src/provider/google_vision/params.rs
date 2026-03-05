@@ -1,9 +1,11 @@
 use std::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// Constructor parameters for [`GoogleVisionBackend`].
 ///
 /// [`GoogleVisionBackend`]: super::GoogleVisionBackend
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GoogleVisionParams {
     /// Google Cloud API key.
     pub api_key: String,

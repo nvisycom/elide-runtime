@@ -3,8 +3,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{DetectionMethod, Entity};
-use nvisy_ontology::location::Location;
+use nvisy_ontology::entity::{DetectionMethod, Entity, Location};
 
 use crate::operation::{Operation, ParallelContext};
 
@@ -107,10 +106,7 @@ impl Operation for Ensemble {
     type Input = ParallelContext<Vec<Entity>>;
     type Output = ParallelContext<Vec<Entity>>;
 
-    async fn call(
-        &self,
-        input: Self::Input,
-    ) -> Result<Self::Output, nvisy_core::Error> {
+    async fn call(&self, input: Self::Input) -> Result<Self::Output, nvisy_core::Error> {
         Ok(ParallelContext::new(self.merge(input.into_inner())))
     }
 }
@@ -126,9 +122,9 @@ fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use nvisy_ontology::entity::{EntityCategory, EntityKind, TextLocation};
+
     use super::*;
-    use nvisy_ontology::entity::{EntityCategory, EntityKind};
-    use nvisy_ontology::location::TextLocation;
 
     fn text_entity(
         value: &str,
@@ -144,11 +140,14 @@ mod tests {
             method,
             confidence,
         )
-        .with_location(Location::Text(TextLocation {
-            start_offset: start,
-            end_offset: end,
-            ..Default::default()
-        }))
+        .with_location(
+            TextLocation {
+                start_offset: start,
+                end_offset: end,
+                ..Default::default()
+            }
+            .into(),
+        )
     }
 
     #[test]

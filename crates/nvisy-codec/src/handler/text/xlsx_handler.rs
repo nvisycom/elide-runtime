@@ -4,8 +4,8 @@ use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
-use crate::handler::{Handler, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
+use crate::handler::{Handler, SpanEditStream, SpanStream, TextHandler};
 
 #[derive(Debug)]
 pub struct XlsxHandler;
@@ -32,10 +32,7 @@ impl TextHandler for XlsxHandler {
         SpanStream::new(futures::stream::empty())
     }
 
-    async fn edit_text(
-        &mut self,
-        _edits: SpanEditStream<'_, (), TextData>,
-    ) -> Result<(), Error> {
+    async fn edit_text(&mut self, _edits: SpanEditStream<'_, (), TextData>) -> Result<(), Error> {
         Ok(())
     }
 }

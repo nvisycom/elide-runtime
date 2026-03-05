@@ -1,8 +1,8 @@
 //! Content format conversion operation.
 
-use crate::operation::Operation;
-use crate::operation::ParallelContext;
 use nvisy_core::Error;
+
+use crate::operation::{Operation, ParallelContext};
 
 /// Converts content between formats.
 pub struct Conversion;

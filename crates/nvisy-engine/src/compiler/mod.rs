@@ -8,20 +8,17 @@ mod graph;
 mod plan;
 mod policy;
 
-pub use graph::{
-    ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind,
-    SourceNode, TargetNode,
-};
-pub(crate) use plan::{ExecutionPlan, ResolvedNode};
-pub use policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
-
 use std::collections::HashMap;
 
+pub use graph::{
+    ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind, SourceNode, TargetNode,
+};
+use nvisy_core::Error;
 use petgraph::algo::{is_cyclic_directed, toposort};
 use petgraph::graph::{DiGraph, NodeIndex};
+pub(crate) use plan::{ExecutionPlan, ResolvedNode};
+pub use policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 use uuid::Uuid;
-
-use nvisy_core::Error;
 
 /// Pipeline compiler with optional default policies.
 ///
@@ -94,9 +91,8 @@ impl Compiler {
         }
 
         // Topological sort
-        let topo = toposort(&pg, None).map_err(|_| {
-            Error::validation("Graph contains a cycle", "compiler")
-        })?;
+        let topo = toposort(&pg, None)
+            .map_err(|_| Error::validation("Graph contains a cycle", "compiler"))?;
 
         // Build resolved nodes with adjacency info in topological order.
         let mut resolved = Vec::new();
@@ -119,8 +115,6 @@ impl Compiler {
             });
         }
 
-        Ok(ExecutionPlan {
-            nodes: resolved,
-        })
+        Ok(ExecutionPlan { nodes: resolved })
     }
 }

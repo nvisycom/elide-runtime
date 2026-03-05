@@ -4,8 +4,7 @@
 //! overlapping location into a single entity with the highest
 //! confidence and `DetectionMethod::Composite` when methods differ.
 
-use nvisy_ontology::entity::{DetectionMethod, Entity};
-use nvisy_ontology::location::Location;
+use nvisy_ontology::entity::{DetectionMethod, Entity, Location};
 
 use crate::operation::{Operation, ParallelContext};
 
@@ -59,10 +58,7 @@ impl Operation for Deduplication {
     type Input = ParallelContext<Vec<Entity>>;
     type Output = ParallelContext<Vec<Entity>>;
 
-    async fn call(
-        &self,
-        input: Self::Input,
-    ) -> Result<Self::Output, nvisy_core::Error> {
+    async fn call(&self, input: Self::Input) -> Result<Self::Output, nvisy_core::Error> {
         Ok(ParallelContext::new(Self::execute(input.into_inner())))
     }
 }
@@ -74,20 +70,24 @@ impl Operation for Deduplication {
 fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
     match (a, b) {
         (None, None) => true,
-        (Some(Location::Text(a_loc)), Some(Location::Text(b_loc))) => {
-            a_loc.overlaps(b_loc)
-        }
+        (Some(Location::Text(a_loc)), Some(Location::Text(b_loc))) => a_loc.overlaps(b_loc),
         _ => false,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use nvisy_ontology::entity::{EntityCategory, EntityKind};
-    use nvisy_ontology::location::TextLocation;
+    use nvisy_ontology::entity::{EntityCategory, EntityKind, TextLocation};
 
-    fn text_entity(value: &str, method: DetectionMethod, confidence: f64, start: usize, end: usize) -> Entity {
+    use super::*;
+
+    fn text_entity(
+        value: &str,
+        method: DetectionMethod,
+        confidence: f64,
+        start: usize,
+        end: usize,
+    ) -> Entity {
         Entity::new(
             EntityCategory::Pii,
             EntityKind::PersonName,
@@ -95,11 +95,14 @@ mod tests {
             method,
             confidence,
         )
-        .with_location(Location::Text(TextLocation {
-            start_offset: start,
-            end_offset: end,
-            ..Default::default()
-        }))
+        .with_location(
+            TextLocation {
+                start_offset: start,
+                end_offset: end,
+                ..Default::default()
+            }
+            .into(),
+        )
     }
 
     #[test]
@@ -154,9 +157,7 @@ mod tests {
 
     #[test]
     fn single_entity_unchanged() {
-        let entities = vec![
-            text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
-        ];
+        let entities = vec![text_entity("John", DetectionMethod::Regex, 0.8, 0, 4)];
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
     }

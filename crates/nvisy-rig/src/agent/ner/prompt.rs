@@ -1,8 +1,7 @@
 //! NER-specific prompt construction.
 
-use crate::agent::{DetectionConfig, ALL_TYPES_HINT};
-
 use super::KnownNerEntity;
+use crate::agent::{ALL_TYPES_HINT, DetectionConfig};
 
 /// Instruction prefix for the user prompt.
 const DETECT_PREFIX: &str = "Detect entities of types";
@@ -53,7 +52,12 @@ impl<'a> NerPromptBuilder<'a> {
                     Some(t) => t.to_string(),
                     None => "unknown".to_string(),
                 };
-                let values = e.values.iter().map(|v| format!("\"{v}\"")).collect::<Vec<_>>().join(", ");
+                let values = e
+                    .values
+                    .iter()
+                    .map(|v| format!("\"{v}\""))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 prompt.push_str(&format!(
                     "- entity_id={}, type={}, values=[{}]",
                     e.entity_id, type_str, values,
@@ -92,8 +96,9 @@ If no entities are found, return {\"entities\": []}.";
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use nvisy_ontology::entity::EntityKind;
+
+    use super::*;
 
     #[test]
     fn builds_prompt_with_entity_kinds() {

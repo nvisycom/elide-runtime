@@ -38,7 +38,10 @@ impl UsageTracker {
 
     /// Snapshot the current counters without resetting them.
     pub fn snapshot(&self) -> UsageStats {
-        self.inner.lock().expect("usage tracker lock poisoned").clone()
+        self.inner
+            .lock()
+            .expect("usage tracker lock poisoned")
+            .clone()
     }
 
     /// Reset all counters to zero.

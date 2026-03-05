@@ -1,8 +1,8 @@
 //! Content encryption operation.
 
-use crate::operation::Operation;
-use crate::operation::ParallelContext;
 use nvisy_core::Error;
+
+use crate::operation::{Operation, ParallelContext};
 
 /// Encrypts content at rest or in transit.
 pub struct Encryption;

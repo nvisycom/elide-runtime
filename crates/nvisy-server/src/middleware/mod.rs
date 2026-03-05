@@ -48,5 +48,5 @@ mod specification;
 
 pub use observability::RouterObservabilityExt;
 pub use recovery::{RecoveryConfig, RouterRecoveryExt};
-pub use security::{SecurityConfig, RouterSecurityExt};
+pub use security::{RouterSecurityExt, SecurityConfig};
 pub use specification::{OpenApiConfig, RouterOpenApiExt};

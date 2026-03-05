@@ -6,12 +6,10 @@
 use nvisy_codec::handler::{ImageData, Span};
 use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
-use nvisy_ontology::entity::{DetectionMethod, Entity};
-use nvisy_ontology::location::{ImageLocation, Location};
+use nvisy_ontology::entity::{DetectionMethod, Entity, ImageLocation};
 use nvisy_rig::agent::{CvAgent, CvEntity, DetectionConfig};
 
-use crate::operation::Operation;
-use crate::operation::ParallelContext;
+use crate::operation::{Operation, ParallelContext};
 
 /// Computer-vision detection operation: thin adapter around [`CvAgent`].
 pub struct ComputerVision {
@@ -30,10 +28,7 @@ impl Operation for ComputerVision {
     type Input = ParallelContext<Vec<Span<(), ImageData>>>;
     type Output = ParallelContext<Vec<Entity>>;
 
-    async fn call(
-        &self,
-        input: Self::Input,
-    ) -> Result<Self::Output, Error> {
+    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
         let input = input.into_inner();
         let mut entities = Vec::new();
 
@@ -65,14 +60,17 @@ fn map_cv_entity(cv: &CvEntity) -> Entity {
         DetectionMethod::ObjectDetection,
         cv.confidence,
     )
-    .with_location(Location::Image(ImageLocation {
-        bounding_box: BoundingBox {
-            x: cv.bbox[0],
-            y: cv.bbox[1],
-            width: cv.bbox[2],
-            height: cv.bbox[3],
-        },
-        image_id: None,
-        page_number: None,
-    }))
+    .with_location(
+        ImageLocation {
+            bounding_box: BoundingBox {
+                x: cv.bbox[0],
+                y: cv.bbox[1],
+                width: cv.bbox[2],
+                height: cv.bbox[3],
+            },
+            image_id: None,
+            page_number: None,
+        }
+        .into(),
+    )
 }

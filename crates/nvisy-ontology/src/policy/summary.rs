@@ -1,9 +1,8 @@
 //! Per-source redaction summary.
 
+use nvisy_core::path::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use nvisy_core::path::ContentSource;
 
 /// Summary of redactions applied to a single content source.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

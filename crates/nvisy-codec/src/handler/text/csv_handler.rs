@@ -16,14 +16,13 @@
 //! (row, col) position.  Header cells can also be edited.
 
 use futures::StreamExt;
-
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
-use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
+use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 
 /// Cell address within a CSV document.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -95,18 +94,16 @@ impl Handler for CsvHandler {
             .from_writer(Vec::new());
 
         if let Some(headers) = &self.data.headers {
-            wtr.write_record(headers).map_err(|e| {
-                Error::validation(format!("CSV encode error: {e}"), "csv-handler")
-            })?;
+            wtr.write_record(headers)
+                .map_err(|e| Error::validation(format!("CSV encode error: {e}"), "csv-handler"))?;
         }
         for row in &self.data.rows {
-            wtr.write_record(row).map_err(|e| {
-                Error::validation(format!("CSV encode error: {e}"), "csv-handler")
-            })?;
+            wtr.write_record(row)
+                .map_err(|e| Error::validation(format!("CSV encode error: {e}"), "csv-handler"))?;
         }
-        let mut bytes = wtr.into_inner().map_err(|e| {
-            Error::validation(format!("CSV encode error: {e}"), "csv-handler")
-        })?;
+        let mut bytes = wtr
+            .into_inner()
+            .map_err(|e| Error::validation(format!("CSV encode error: {e}"), "csv-handler"))?;
 
         // Normalize CRLF → LF
         bytes.retain(|&b| b != b'\r');
@@ -137,9 +134,11 @@ impl TextHandler for CsvHandler {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
             if edit.id.header {
-                let headers = self.data.headers.as_mut().ok_or_else(|| {
-                    Error::validation("no headers to edit", "csv-handler")
-                })?;
+                let headers = self
+                    .data
+                    .headers
+                    .as_mut()
+                    .ok_or_else(|| Error::validation("no headers to edit", "csv-handler"))?;
                 let cell = headers.get_mut(edit.id.col).ok_or_else(|| {
                     Error::validation(
                         format!("header column {} out of bounds", edit.id.col),
@@ -149,10 +148,7 @@ impl TextHandler for CsvHandler {
                 *cell = edit.data.into_inner();
             } else {
                 let row = self.data.rows.get_mut(edit.id.row).ok_or_else(|| {
-                    Error::validation(
-                        format!("row {} out of bounds", edit.id.row),
-                        "csv-handler",
-                    )
+                    Error::validation(format!("row {} out of bounds", edit.id.row), "csv-handler")
                 })?;
                 let cell = row.get_mut(edit.id.col).ok_or_else(|| {
                     Error::validation(
@@ -305,16 +301,14 @@ impl<'a> Iterator for CsvSpanIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::handler::{SpanEdit, TextHandler};
     use futures::StreamExt;
     use nvisy_core::Error;
     use nvisy_core::path::ContentSource;
 
-    fn handler_with_headers(
-        headers: Vec<&str>,
-        rows: Vec<Vec<&str>>,
-    ) -> CsvHandler {
+    use super::*;
+    use crate::handler::{SpanEdit, TextHandler};
+
+    fn handler_with_headers(headers: Vec<&str>, rows: Vec<Vec<&str>>) -> CsvHandler {
         CsvHandler {
             source: ContentSource::new(),
             data: CsvData {
@@ -389,10 +383,7 @@ mod tests {
 
     #[tokio::test]
     async fn edit_spans_data_cell() -> Result<(), Error> {
-        let mut h = handler_with_headers(
-            vec!["ssn"],
-            vec![vec!["123-45-6789"]],
-        );
+        let mut h = handler_with_headers(vec!["ssn"], vec![vec!["123-45-6789"]]);
         h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit::new(CsvSpan::cell(0, 0, "ssn"), "[REDACTED]".into()),
         ])))
@@ -403,10 +394,7 @@ mod tests {
 
     #[tokio::test]
     async fn edit_spans_header_cell() -> Result<(), Error> {
-        let mut h = handler_with_headers(
-            vec!["secret_field"],
-            vec![vec!["value"]],
-        );
+        let mut h = handler_with_headers(vec!["secret_field"], vec![vec!["value"]]);
         h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
             SpanEdit::new(CsvSpan::header_cell(0, "secret_field"), "redacted".into()),
         ])))
@@ -455,10 +443,7 @@ mod tests {
 
     #[test]
     fn encode_with_quoting() -> Result<(), Error> {
-        let h = handler_with_headers(
-            vec!["name", "bio"],
-            vec![vec!["Alice", "Has a, comma"]],
-        );
+        let h = handler_with_headers(vec!["name", "bio"], vec![vec!["Alice", "Has a, comma"]]);
         let content = h.encode()?;
         let text = content.as_str().expect("valid utf-8");
         assert!(text.contains("\"Has a, comma\""));
@@ -476,16 +461,10 @@ mod tests {
 
     #[test]
     fn encode_tab_delimiter() -> Result<(), Error> {
-        let mut h = handler_with_headers(
-            vec!["a", "b"],
-            vec![vec!["1", "2"]],
-        );
+        let mut h = handler_with_headers(vec!["a", "b"], vec![vec!["1", "2"]]);
         h.data.delimiter = b'\t';
         let content = h.encode()?;
-        assert_eq!(
-            content.as_str().expect("valid utf-8"),
-            "a\tb\n1\t2\n"
-        );
+        assert_eq!(content.as_str().expect("valid utf-8"), "a\tb\n1\t2\n");
         Ok(())
     }
 }

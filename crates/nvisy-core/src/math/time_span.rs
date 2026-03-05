@@ -15,7 +15,10 @@ pub struct TimeSpan {
 impl TimeSpan {
     /// Create a new time span.
     pub fn new(start_secs: f64, end_secs: f64) -> Self {
-        Self { start_secs, end_secs }
+        Self {
+            start_secs,
+            end_secs,
+        }
     }
 
     /// Duration of the span in seconds.

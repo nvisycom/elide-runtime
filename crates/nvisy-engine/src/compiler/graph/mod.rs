@@ -9,19 +9,16 @@ mod action;
 mod source;
 mod target;
 
-pub use action::{ActionKind, ActionNode};
-pub use source::SourceNode;
-pub use target::TargetNode;
-
 use std::collections::HashSet;
 
+pub use action::{ActionKind, ActionNode};
+use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+pub use source::SourceNode;
+pub use target::TargetNode;
 use uuid::Uuid;
-
 use validator::Validate;
-
-use nvisy_core::Error;
 
 use super::policy::{RetryPolicy, TimeoutPolicy};
 
@@ -100,7 +97,10 @@ impl Graph {
     /// - All edge endpoints must reference existing node IDs.
     pub fn validate(&self) -> Result<(), Error> {
         if self.nodes.is_empty() {
-            return Err(Error::validation("Graph must have at least one node", "compiler"));
+            return Err(Error::validation(
+                "Graph must have at least one node",
+                "compiler",
+            ));
         }
 
         let mut seen = HashSet::new();
@@ -116,18 +116,12 @@ impl Graph {
         for node in &self.nodes {
             if let Some(retry) = &node.retry {
                 retry.validate().map_err(|e| {
-                    Error::validation(
-                        format!("Node {}: {}", node.id, e),
-                        "compiler",
-                    )
+                    Error::validation(format!("Node {}: {}", node.id, e), "compiler")
                 })?;
             }
             if let Some(timeout) = &node.timeout {
                 timeout.validate().map_err(|e| {
-                    Error::validation(
-                        format!("Node {}: {}", node.id, e),
-                        "compiler",
-                    )
+                    Error::validation(format!("Node {}: {}", node.id, e), "compiler")
                 })?;
             }
         }

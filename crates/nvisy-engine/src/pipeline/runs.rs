@@ -6,12 +6,14 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+
 use jiff::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
+
 use super::executor::{NodeOutput, RunOutput};
 
 /// Lifecycle status of a pipeline run.
@@ -158,10 +160,9 @@ impl RunManager {
             state.completed_at = Some(Timestamp::now());
 
             for nr in &result.node_results {
-                state.node_progress.insert(
-                    nr.node_id,
-                    NodeProgress::from(nr),
-                );
+                state
+                    .node_progress
+                    .insert(nr.node_id, NodeProgress::from(nr));
             }
 
             state.result = Some(result);

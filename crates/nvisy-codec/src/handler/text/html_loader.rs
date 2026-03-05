@@ -4,13 +4,12 @@
 //! The loader parses the input using [`scraper`], extracts text nodes
 //! in document order, and produces a handler backed by those nodes.
 
-use scraper::Html;
-
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
+use scraper::Html;
 
 use crate::document::Document;
-use crate::handler::{Loader, HtmlData, HtmlHandler};
+use crate::handler::{HtmlData, HtmlHandler, Loader};
 
 /// Parameters for [`HtmlLoader`].
 #[derive(Debug, Default)]
@@ -57,7 +56,8 @@ impl Loader for HtmlLoader {
         let handler = HtmlHandler::new(HtmlData {
             text_nodes,
             raw: text,
-        }).with_source(content.content_source);
+        })
+        .with_source(content.content_source);
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }

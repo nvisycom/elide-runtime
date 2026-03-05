@@ -5,8 +5,7 @@
 
 use derive_more::{Deref, DerefMut, From};
 
-use super::private;
-use super::OperationContext;
+use super::{OperationContext, private};
 
 /// Inputs are processed one at a time; the operation carries state
 /// between calls.

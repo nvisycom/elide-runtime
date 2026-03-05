@@ -1,9 +1,8 @@
 //! Structured output types for NER entity detection.
 
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 use super::NerContext;
 

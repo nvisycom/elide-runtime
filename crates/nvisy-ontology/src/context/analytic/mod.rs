@@ -5,7 +5,6 @@ mod pattern;
 
 pub use embedding::EmbeddingData;
 pub use pattern::PatternData;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

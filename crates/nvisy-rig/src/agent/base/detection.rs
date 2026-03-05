@@ -4,9 +4,8 @@
 //! are agent-specific: every consumer that needs a [`DetectionConfig`] is
 //! an agent or an agent prompt builder.
 
-use serde_json::Value;
-
 use nvisy_ontology::entity::EntityKind;
+use serde_json::Value;
 
 /// Fallback hint used in prompts when no specific entity types are requested.
 pub(crate) const ALL_TYPES_HINT: &str = "all entity types";

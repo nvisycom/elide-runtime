@@ -1,15 +1,16 @@
 //! Policy rule types.
 
+use nvisy_core::fs::DocumentType;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 use uuid::Uuid;
 
-use nvisy_core::fs::DocumentType;
 use crate::entity::EntitySelector;
 use crate::specification::RedactionInput;
 
 /// Conditions that must be met for a [`PolicyRule`] to apply.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RuleCondition {
     /// Document formats this rule applies to. Empty means all formats.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -23,7 +24,18 @@ pub struct RuleCondition {
 }
 
 /// Classifies what a policy rule does when it matches.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum RuleKind {
@@ -40,7 +52,7 @@ pub enum RuleKind {
 }
 
 /// A single rule within a redaction policy.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PolicyRule {
     /// Unique identifier for this rule.
     pub id: Uuid,

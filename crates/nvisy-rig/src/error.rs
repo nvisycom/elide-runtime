@@ -1,5 +1,6 @@
 //! Unified error type covering LLM provider, serialization, and tool failures.
 
+use rig::audio_generation::AudioGenerationError;
 use rig::completion::{CompletionError, PromptError, StructuredOutputError};
 use rig::transcription::TranscriptionError;
 
@@ -105,9 +106,8 @@ impl From<TranscriptionError> for Error {
     }
 }
 
-#[cfg(feature = "audio")]
-impl From<rig::audio_generation::AudioGenerationError> for Error {
-    fn from(err: rig::audio_generation::AudioGenerationError) -> Self {
+impl From<AudioGenerationError> for Error {
+    fn from(err: AudioGenerationError) -> Self {
         use rig::audio_generation::AudioGenerationError;
         match err {
             AudioGenerationError::HttpError(e) => Self::Http(e.to_string()),
@@ -115,20 +115,6 @@ impl From<rig::audio_generation::AudioGenerationError> for Error {
             AudioGenerationError::ProviderError(msg) => Self::Provider(msg),
             AudioGenerationError::ResponseError(msg) => Self::Response(msg),
             AudioGenerationError::RequestError(e) => Self::Request(e.to_string()),
-        }
-    }
-}
-
-#[cfg(feature = "image")]
-impl From<rig::image_generation::ImageGenerationError> for Error {
-    fn from(err: rig::image_generation::ImageGenerationError) -> Self {
-        use rig::image_generation::ImageGenerationError;
-        match err {
-            ImageGenerationError::HttpError(e) => Self::Http(e.to_string()),
-            ImageGenerationError::JsonError(e) => Self::Json(e),
-            ImageGenerationError::ProviderError(msg) => Self::Provider(msg),
-            ImageGenerationError::ResponseError(msg) => Self::Response(msg),
-            ImageGenerationError::RequestError(e) => Self::Request(e.to_string()),
         }
     }
 }
@@ -143,9 +129,7 @@ impl From<Error> for nvisy_core::Error {
         }
 
         match &err {
-            Error::Http(_) => {
-                nvisy_core::Error::connection(err.to_string(), "rig", true)
-            }
+            Error::Http(_) => nvisy_core::Error::connection(err.to_string(), "rig", true),
             Error::Json(_) => {
                 nvisy_core::Error::new(nvisy_core::ErrorKind::Serialization, err.to_string())
                     .with_component("rig")
@@ -154,15 +138,9 @@ impl From<Error> for nvisy_core::Error {
                 let retryable = is_retryable_provider_error(msg);
                 nvisy_core::Error::connection(err.to_string(), "rig", retryable)
             }
-            Error::Response(_) => {
-                nvisy_core::Error::runtime(err.to_string(), "rig", false)
-            }
-            Error::Request(_) => {
-                nvisy_core::Error::validation(err.to_string(), "rig")
-            }
-            Error::Runtime(_) => {
-                nvisy_core::Error::runtime(err.to_string(), "rig", false)
-            }
+            Error::Response(_) => nvisy_core::Error::runtime(err.to_string(), "rig", false),
+            Error::Request(_) => nvisy_core::Error::validation(err.to_string(), "rig"),
+            Error::Runtime(_) => nvisy_core::Error::runtime(err.to_string(), "rig", false),
             Error::Core(_) => unreachable!(),
         }
     }

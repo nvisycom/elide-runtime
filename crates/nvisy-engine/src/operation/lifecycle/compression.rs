@@ -1,8 +1,8 @@
 //! Content compression operation.
 
-use crate::operation::Operation;
-use crate::operation::ParallelContext;
 use nvisy_core::Error;
+
+use crate::operation::{Operation, ParallelContext};
 
 /// Compresses content for storage or transfer.
 pub struct Compression;

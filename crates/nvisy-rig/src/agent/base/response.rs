@@ -5,9 +5,8 @@
 
 use std::borrow::Cow;
 
-use serde::de::DeserializeOwned;
-
 use rig::completion::{AssistantContent, CompletionResponse};
+use serde::de::DeserializeOwned;
 
 use crate::error::Error;
 
@@ -109,28 +108,48 @@ fn truncate(s: &str, max_len: usize) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::Value;
+
+    use super::*;
 
     #[test]
     fn parse_json_raw_array() {
         let text = r#"[{"category":"pii","entity_type":"email_address","value":"a@b.com","confidence":0.9,"start_offset":0,"end_offset":7}]"#;
-        let result = ResponseParser::from_text(text).parse_json::<Vec<Value>>().unwrap();
+        let result = ResponseParser::from_text(text)
+            .parse_json::<Vec<Value>>()
+            .unwrap();
         assert_eq!(result.len(), 1);
     }
 
     #[test]
     fn parse_json_fenced() {
         let text = "```json\n[{\"category\":\"pii\",\"entity_type\":\"email_address\",\"value\":\"a@b.com\",\"confidence\":0.9}]\n```";
-        let result = ResponseParser::from_text(text).parse_json::<Vec<Value>>().unwrap();
+        let result = ResponseParser::from_text(text)
+            .parse_json::<Vec<Value>>()
+            .unwrap();
         assert_eq!(result.len(), 1);
     }
 
     #[test]
     fn parse_json_empty_and_sentinel() {
         let empty: Vec<Value> = vec![];
-        assert_eq!(ResponseParser::from_text("").parse_json::<Vec<Value>>().unwrap(), empty);
-        assert_eq!(ResponseParser::from_text("none").parse_json::<Vec<Value>>().unwrap(), empty);
-        assert_eq!(ResponseParser::from_text("No entities").parse_json::<Vec<Value>>().unwrap(), empty);
+        assert_eq!(
+            ResponseParser::from_text("")
+                .parse_json::<Vec<Value>>()
+                .unwrap(),
+            empty
+        );
+        assert_eq!(
+            ResponseParser::from_text("none")
+                .parse_json::<Vec<Value>>()
+                .unwrap(),
+            empty
+        );
+        assert_eq!(
+            ResponseParser::from_text("No entities")
+                .parse_json::<Vec<Value>>()
+                .unwrap(),
+            empty
+        );
     }
 }

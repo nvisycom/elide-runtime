@@ -21,18 +21,16 @@ mod deny_list;
 mod error;
 mod pattern_match;
 
+use std::sync::LazyLock;
+
+use aho_corasick::AhoCorasick;
 pub use allow_list::AllowList;
 pub use builder::PatternEngineBuilder;
 pub use deny_list::{DenyEntry, DenyList};
 pub use error::PatternEngineError;
-pub use pattern_match::{DetectionSource, PatternMatch};
-
-use std::sync::LazyLock;
-
-use aho_corasick::AhoCorasick;
-use regex::{Regex, RegexSet};
-
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
+pub use pattern_match::{DetectionSource, PatternMatch};
+use regex::{Regex, RegexSet};
 
 use crate::patterns::{ContextRule, DictionaryConfidence};
 use crate::validators::ValidatorResolver;
@@ -331,9 +329,14 @@ mod tests {
         let engine = default_engine();
         let matches = engine.scan_text("She is American and speaks English.");
         assert!(
-            matches.iter().any(|m| m.source == DetectionSource::Dictionary),
+            matches
+                .iter()
+                .any(|m| m.source == DetectionSource::Dictionary),
             "expected dictionary match, got: {:?}",
-            matches.iter().map(|m| (&m.pattern_name, &m.source)).collect::<Vec<_>>()
+            matches
+                .iter()
+                .map(|m| (&m.pattern_name, &m.source))
+                .collect::<Vec<_>>()
         );
     }
 
@@ -353,8 +356,11 @@ mod tests {
 
     #[test]
     fn deny_list_injects_match() {
-        let deny = DenyList::new()
-            .with("secret-value-42", EntityCategory::Pii, EntityKind::PersonName);
+        let deny = DenyList::new().with(
+            "secret-value-42",
+            EntityCategory::Pii,
+            EntityKind::PersonName,
+        );
         let engine = PatternEngine::builder()
             .with_patterns(&["email"])
             .with_deny(deny)
@@ -372,8 +378,7 @@ mod tests {
 
     #[test]
     fn deny_list_not_injected_when_absent() {
-        let deny = DenyList::new()
-            .with("not-in-text", EntityCategory::Pii, EntityKind::PersonName);
+        let deny = DenyList::new().with("not-in-text", EntityCategory::Pii, EntityKind::PersonName);
         let engine = PatternEngine::builder()
             .with_patterns(&["email"])
             .with_deny(deny)
@@ -381,7 +386,9 @@ mod tests {
             .unwrap();
         let matches = engine.scan_text("Nothing special here.");
         assert!(
-            !matches.iter().any(|m| m.source == DetectionSource::DenyList),
+            !matches
+                .iter()
+                .any(|m| m.source == DetectionSource::DenyList),
             "deny list value not in text should not be injected"
         );
     }

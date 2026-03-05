@@ -165,10 +165,9 @@ impl EntityKind {
             | Self::Url => EntityCategory::Pii,
 
             // Network & device
-            Self::IpAddress
-            | Self::MacAddress
-            | Self::DeviceId
-            | Self::Username => EntityCategory::Pii,
+            Self::IpAddress | Self::MacAddress | Self::DeviceId | Self::Username => {
+                EntityCategory::Pii
+            }
 
             // Financial
             Self::PaymentCard
@@ -182,15 +181,12 @@ impl EntityKind {
             | Self::CryptoAddress => EntityCategory::Financial,
 
             // Health
-            Self::MedicalId
-            | Self::InsuranceId
-            | Self::PrescriptionId => EntityCategory::Phi,
+            Self::MedicalId | Self::InsuranceId | Self::PrescriptionId => EntityCategory::Phi,
 
             // Credentials
-            Self::Password
-            | Self::ApiKey
-            | Self::AuthToken
-            | Self::PrivateKey => EntityCategory::Credentials,
+            Self::Password | Self::ApiKey | Self::AuthToken | Self::PrivateKey => {
+                EntityCategory::Credentials
+            }
 
             // Biometric
             Self::Fingerprint
@@ -209,10 +205,7 @@ impl EntityKind {
             Self::OrganizationName => EntityCategory::Pii,
 
             // Visual / image
-            Self::Handwriting
-            | Self::Signature
-            | Self::Logo
-            | Self::Barcode => EntityCategory::Pii,
+            Self::Handwriting | Self::Signature | Self::Logo | Self::Barcode => EntityCategory::Pii,
         }
     }
 
@@ -269,19 +262,18 @@ impl EntityKind {
             | Self::Handwriting => EntitySensitivity::Medium,
 
             // Low: quasi-public
-            Self::Url
-            | Self::Amount
-            | Self::OrganizationName
-            | Self::Logo
-            | Self::Barcode => EntitySensitivity::Low,
+            Self::Url | Self::Amount | Self::OrganizationName | Self::Logo | Self::Barcode => {
+                EntitySensitivity::Low
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
+    use super::*;
 
     #[test]
     fn display_snake_case() {
@@ -318,7 +310,10 @@ mod tests {
 
     #[test]
     fn category_financial() {
-        assert_eq!(EntityKind::PaymentCard.category(), EntityCategory::Financial);
+        assert_eq!(
+            EntityKind::PaymentCard.category(),
+            EntityCategory::Financial
+        );
         assert_eq!(EntityKind::Iban.category(), EntityCategory::Financial);
     }
 
@@ -332,45 +327,84 @@ mod tests {
     fn category_credentials() {
         assert_eq!(EntityKind::Password.category(), EntityCategory::Credentials);
         assert_eq!(EntityKind::ApiKey.category(), EntityCategory::Credentials);
-        assert_eq!(EntityKind::AuthToken.category(), EntityCategory::Credentials);
-        assert_eq!(EntityKind::PrivateKey.category(), EntityCategory::Credentials);
+        assert_eq!(
+            EntityKind::AuthToken.category(),
+            EntityCategory::Credentials
+        );
+        assert_eq!(
+            EntityKind::PrivateKey.category(),
+            EntityCategory::Credentials
+        );
     }
 
     #[test]
     fn category_biometric() {
-        assert_eq!(EntityKind::Fingerprint.category(), EntityCategory::Biometric);
+        assert_eq!(
+            EntityKind::Fingerprint.category(),
+            EntityCategory::Biometric
+        );
         assert_eq!(EntityKind::Voiceprint.category(), EntityCategory::Biometric);
         assert_eq!(EntityKind::RetinaScan.category(), EntityCategory::Biometric);
-        assert_eq!(EntityKind::FacialGeometry.category(), EntityCategory::Biometric);
+        assert_eq!(
+            EntityKind::FacialGeometry.category(),
+            EntityCategory::Biometric
+        );
         assert_eq!(EntityKind::Face.category(), EntityCategory::Biometric);
     }
 
     #[test]
     fn sensitivity_critical() {
-        assert_eq!(EntityKind::GovernmentId.sensitivity(), EntitySensitivity::Critical);
-        assert_eq!(EntityKind::PaymentCard.sensitivity(), EntitySensitivity::Critical);
-        assert_eq!(EntityKind::Fingerprint.sensitivity(), EntitySensitivity::Critical);
-        assert_eq!(EntityKind::Password.sensitivity(), EntitySensitivity::Critical);
+        assert_eq!(
+            EntityKind::GovernmentId.sensitivity(),
+            EntitySensitivity::Critical
+        );
+        assert_eq!(
+            EntityKind::PaymentCard.sensitivity(),
+            EntitySensitivity::Critical
+        );
+        assert_eq!(
+            EntityKind::Fingerprint.sensitivity(),
+            EntitySensitivity::Critical
+        );
+        assert_eq!(
+            EntityKind::Password.sensitivity(),
+            EntitySensitivity::Critical
+        );
     }
 
     #[test]
     fn sensitivity_high() {
-        assert_eq!(EntityKind::PersonName.sensitivity(), EntitySensitivity::High);
-        assert_eq!(EntityKind::EmailAddress.sensitivity(), EntitySensitivity::High);
+        assert_eq!(
+            EntityKind::PersonName.sensitivity(),
+            EntitySensitivity::High
+        );
+        assert_eq!(
+            EntityKind::EmailAddress.sensitivity(),
+            EntitySensitivity::High
+        );
         assert_eq!(EntityKind::MedicalId.sensitivity(), EntitySensitivity::High);
     }
 
     #[test]
     fn sensitivity_medium() {
         assert_eq!(EntityKind::Age.sensitivity(), EntitySensitivity::Medium);
-        assert_eq!(EntityKind::IpAddress.sensitivity(), EntitySensitivity::Medium);
-        assert_eq!(EntityKind::PostalCode.sensitivity(), EntitySensitivity::Medium);
+        assert_eq!(
+            EntityKind::IpAddress.sensitivity(),
+            EntitySensitivity::Medium
+        );
+        assert_eq!(
+            EntityKind::PostalCode.sensitivity(),
+            EntitySensitivity::Medium
+        );
     }
 
     #[test]
     fn sensitivity_low() {
         assert_eq!(EntityKind::Url.sensitivity(), EntitySensitivity::Low);
-        assert_eq!(EntityKind::OrganizationName.sensitivity(), EntitySensitivity::Low);
+        assert_eq!(
+            EntityKind::OrganizationName.sensitivity(),
+            EntitySensitivity::Low
+        );
     }
 
     #[test]

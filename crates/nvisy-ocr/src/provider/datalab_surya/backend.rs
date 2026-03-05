@@ -2,18 +2,17 @@
 //!
 //! [`Backend`]: crate::Backend
 
-use serde::Deserialize;
-
 use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use nvisy_ontology::location::TextLevel;
 use nvisy_rig::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_middleware::reqwest::multipart::Form;
-
-use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams, check_response, image_part};
+use serde::Deserialize;
 
 use super::SuryaParams;
+use crate::backend::{
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response, image_part,
+};
 
 /// [`Backend`] implementation for Surya OCR.
 ///
@@ -72,11 +71,7 @@ struct SuryaWord {
 
 #[async_trait::async_trait]
 impl Backend for SuryaBackend {
-    async fn run(
-        &self,
-        image: &ImageInput,
-        params: &RunParams,
-    ) -> Result<ImageOutput, Error> {
+    async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
         let file_part = image_part(image)?;
 
         let form = Form::new().part("file", file_part);
@@ -93,10 +88,9 @@ impl Backend for SuryaBackend {
 
         let resp = check_response(resp, "Surya").await?;
 
-        let parsed: SuryaResponse = resp
-            .json()
-            .await
-            .map_err(|e| Error::runtime(format!("Surya JSON parse error: {e}"), "surya_ocr", false))?;
+        let parsed: SuryaResponse = resp.json().await.map_err(|e| {
+            Error::runtime(format!("Surya JSON parse error: {e}"), "surya_ocr", false)
+        })?;
 
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());
@@ -199,5 +193,4 @@ mod tests {
         assert!((polygon.vertices[0].x - 10.0).abs() < 0.01);
         assert!((polygon.vertices[0].y - 20.0).abs() < 0.01);
     }
-
 }

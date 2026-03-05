@@ -1,8 +1,8 @@
 //! Audio transcription operation.
 
-use crate::operation::Operation;
-use crate::operation::ParallelContext;
 use nvisy_core::Error;
+
+use crate::operation::{Operation, ParallelContext};
 
 /// Transcribes audio content into text.
 pub struct Transcription;

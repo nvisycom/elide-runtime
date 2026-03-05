@@ -5,11 +5,11 @@
 //! Entity construction is handled by the pipeline's `OcrBackend` /
 //! `GenerateOcrAction` layer.
 
+use nvisy_core::Error;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde_json::Value;
 
-use nvisy_core::Error;
 use crate::bridge::{PythonBridge, from_pyerr};
 
 /// Parameters for OCR detection, independent of any pipeline types.
@@ -39,11 +39,21 @@ pub async fn detect_ocr(
     bridge
         .call_sync("detect_ocr", move |py| {
             let kwargs = PyDict::new(py);
-            kwargs.set_item("image_bytes", &image_data[..]).map_err(from_pyerr)?;
-            kwargs.set_item("mime_type", &mime_type).map_err(from_pyerr)?;
-            kwargs.set_item("language", &params.language).map_err(from_pyerr)?;
-            kwargs.set_item("engine", &params.engine).map_err(from_pyerr)?;
-            kwargs.set_item("confidence_threshold", params.confidence_threshold).map_err(from_pyerr)?;
+            kwargs
+                .set_item("image_bytes", &image_data[..])
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("mime_type", &mime_type)
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("language", &params.language)
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("engine", &params.engine)
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("confidence_threshold", params.confidence_threshold)
+                .map_err(from_pyerr)?;
             Ok(kwargs)
         })
         .await
@@ -65,11 +75,21 @@ pub async fn detect_ocr_async(
     bridge
         .call_async("detect_ocr", move |py| {
             let kwargs = PyDict::new(py);
-            kwargs.set_item("image_bytes", &image_data[..]).map_err(from_pyerr)?;
-            kwargs.set_item("mime_type", &mime_type).map_err(from_pyerr)?;
-            kwargs.set_item("language", &params.language).map_err(from_pyerr)?;
-            kwargs.set_item("engine", &params.engine).map_err(from_pyerr)?;
-            kwargs.set_item("confidence_threshold", params.confidence_threshold).map_err(from_pyerr)?;
+            kwargs
+                .set_item("image_bytes", &image_data[..])
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("mime_type", &mime_type)
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("language", &params.language)
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("engine", &params.engine)
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("confidence_threshold", params.confidence_threshold)
+                .map_err(from_pyerr)?;
             Ok(kwargs)
         })
         .await

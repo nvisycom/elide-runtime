@@ -3,16 +3,14 @@
 mod redaction_map;
 mod review;
 
+use nvisy_core::path::ContentSource;
 pub use redaction_map::{
     AudioMapEntry, ImageMapEntry, RedactionMap, RedactionMapEntry, RedactionMapItem, TextMapEntry,
 };
 pub use review::{ReviewDecision, ReviewStatus};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use nvisy_core::path::ContentSource;
 
 use crate::specification::RedactionInput;
 

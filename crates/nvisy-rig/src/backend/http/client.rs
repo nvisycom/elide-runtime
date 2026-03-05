@@ -3,8 +3,8 @@
 use std::time::Duration;
 
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
-use reqwest_retry::policies::ExponentialBackoff;
 use reqwest_retry::RetryTransientMiddleware;
+use reqwest_retry::policies::ExponentialBackoff;
 use reqwest_tracing::TracingMiddleware;
 
 use super::HttpConfig;
@@ -22,8 +22,7 @@ pub fn build_http_client(config: &HttpConfig) -> ClientWithMiddleware {
         "building HTTP client"
     );
 
-    let retry_policy = ExponentialBackoff::builder()
-        .build_with_max_retries(config.max_retries);
+    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(config.max_retries);
 
     let client = reqwest_middleware::reqwest::Client::builder()
         .timeout(Duration::from_secs(config.timeout_secs))

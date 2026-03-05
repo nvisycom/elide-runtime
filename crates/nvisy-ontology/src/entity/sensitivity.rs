@@ -13,8 +13,19 @@ use strum::{Display, EnumString};
 /// Ordered from least to most sensitive.  Consumers can compare variants
 /// directly (`Critical > High > Medium > Low`).
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord,
-    Display, EnumString, Serialize, Deserialize, JsonSchema,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Display,
+    EnumString,
+    Serialize,
+    Deserialize,
+    JsonSchema
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
@@ -32,8 +43,9 @@ pub enum EntitySensitivity {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
+    use super::*;
 
     #[test]
     fn ordering() {

@@ -1,5 +1,6 @@
 //! Entity selection criteria for policy rules.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{EntityCategory, EntityKind};
@@ -9,14 +10,18 @@ use super::{EntityCategory, EntityKind};
 /// All fields use "empty means all" semantics: an empty `categories` list
 /// matches every category, an empty `entity_types` list matches every type,
 /// and so on. When multiple fields are set, they are combined with AND logic.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitySelector {
     /// Entity categories this selector matches. Empty means all categories.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub entity_categories: Vec<EntityCategory>,
     /// Specific entity kinds this selector matches. Empty means all kinds.
-    #[serde(rename = "entity_types", default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        rename = "entity_types",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub entity_kinds: Vec<EntityKind>,
     /// Minimum detection confidence required. Entities below this threshold
     /// are not matched.
@@ -45,7 +50,12 @@ impl EntitySelector {
     }
 
     /// Returns `true` if the given entity properties match this selector.
-    pub fn matches(&self, category: &EntityCategory, entity_kind: EntityKind, confidence: f64) -> bool {
+    pub fn matches(
+        &self,
+        category: &EntityCategory,
+        entity_kind: EntityKind,
+        confidence: f64,
+    ) -> bool {
         if confidence < self.confidence_threshold {
             return false;
         }

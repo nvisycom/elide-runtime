@@ -1,10 +1,9 @@
 //! Image reference data for object matching.
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 use nvisy_core::math::BoundingBox;
 use nvisy_core::path::ContentSource;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 /// Reference image for object/scene matching.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

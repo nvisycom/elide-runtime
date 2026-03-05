@@ -21,14 +21,13 @@
 //! mutation, and serializing back with [`scraper::Html::html`].
 
 use futures::StreamExt;
-
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
-use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
+use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 
 /// 0-based index of a text node within the HTML document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -121,7 +120,10 @@ impl TextHandler for HtmlHandler {
 impl HtmlHandler {
     /// Create a new handler from parsed HTML data.
     pub fn new(data: HtmlData) -> Self {
-        Self { source: ContentSource::new(), data }
+        Self {
+            source: ContentSource::new(),
+            data,
+        }
     }
 
     /// Set the content source for lineage tracking.
@@ -187,9 +189,10 @@ impl ExactSizeIterator for HtmlSpanIter<'_> {}
 
 #[cfg(test)]
 mod tests {
+    use nvisy_core::Error;
+
     use super::*;
     use crate::handler::{Handler, SpanEdit, TextHandler};
-    use nvisy_core::Error;
 
     fn handler_from_html(raw: &str) -> HtmlHandler {
         let dom = scraper::Html::parse_document(raw);
@@ -236,7 +239,9 @@ mod tests {
 
     #[test]
     fn encode_preserves_tags() -> Result<(), Error> {
-        let h = handler_from_html("<html><head></head><body><div><span>foo</span> bar</div></body></html>");
+        let h = handler_from_html(
+            "<html><head></head><body><div><span>foo</span> bar</div></body></html>",
+        );
         let mut h = h;
         h.data.text_nodes[0] = "baz".to_string();
         let result = h.encode()?.as_str().unwrap().to_owned();

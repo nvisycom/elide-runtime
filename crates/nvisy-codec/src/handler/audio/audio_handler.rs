@@ -1,15 +1,13 @@
 //! [`AnyAudio`]: type-erased wrapper over all audio handler types.
 
 use futures::StreamExt;
-
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
-use crate::handler::{Handler, AudioHandler, SpanEditStream, SpanStream};
-use crate::transform::{AudioRedact, AudioRedaction};
-
 use super::{AudioData, Mp3Handler, WavHandler};
+use crate::handler::{AudioHandler, Handler, SpanEditStream, SpanStream};
+use crate::transform::{AudioRedact, AudioRedaction};
 
 /// A type-erased audio handler that can hold any supported audio format.
 ///
@@ -24,22 +22,38 @@ pub enum AnyAudio {
 impl AnyAudio {
     /// Try to get the inner [`WavHandler`] by reference.
     pub fn as_wav(&self) -> Option<&WavHandler> {
-        if let Self::Wav(h) = self { Some(h) } else { None }
+        if let Self::Wav(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`WavHandler`].
     pub fn into_wav(self) -> Option<WavHandler> {
-        if let Self::Wav(h) = self { Some(h) } else { None }
+        if let Self::Wav(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Try to get the inner [`Mp3Handler`] by reference.
     pub fn as_mp3(&self) -> Option<&Mp3Handler> {
-        if let Self::Mp3(h) = self { Some(h) } else { None }
+        if let Self::Mp3(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`Mp3Handler`].
     pub fn into_mp3(self) -> Option<Mp3Handler> {
-        if let Self::Mp3(h) = self { Some(h) } else { None }
+        if let Self::Mp3(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 }
 
@@ -70,10 +84,7 @@ impl AudioHandler for AnyAudio {
         }
     }
 
-    async fn edit_audio(
-        &mut self,
-        edits: SpanEditStream<'_, (), AudioData>,
-    ) -> Result<(), Error> {
+    async fn edit_audio(&mut self, edits: SpanEditStream<'_, (), AudioData>) -> Result<(), Error> {
         // Collect and re-dispatch since we need to forward the stream.
         let edits: Vec<_> = edits.collect().await;
         let stream = SpanEditStream::new(futures::stream::iter(edits));

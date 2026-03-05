@@ -68,9 +68,8 @@ impl<S: Send + Sync> FromRequest<S> for Upload {
             }
         }
 
-        let bytes = file_bytes.ok_or_else(|| {
-            ErrorKind::BadRequest.with_message("missing required 'file' field")
-        })?;
+        let bytes = file_bytes
+            .ok_or_else(|| ErrorKind::BadRequest.with_message("missing required 'file' field"))?;
 
         Ok(Self {
             bytes,

@@ -8,10 +8,9 @@
 use std::cell::RefCell;
 use std::sync::LazyLock;
 
-use pdfium_render::prelude::*;
-
 use nvisy_core::Error;
 use nvisy_core::math::Dpi;
+use pdfium_render::prelude::*;
 
 use crate::handler::image::ImageData;
 
@@ -78,13 +77,7 @@ impl PdfRenderer {
         let document = self
             .pdfium
             .load_pdf_from_byte_slice(pdf_bytes, None)
-            .map_err(|e| {
-                Error::runtime(
-                    format!("failed to load PDF: {e}"),
-                    "pdf_render",
-                    false,
-                )
-            })?;
+            .map_err(|e| Error::runtime(format!("failed to load PDF: {e}"), "pdf_render", false))?;
 
         let config = PdfRenderConfig::new().scale_page_by_factor(dpi.scale_factor());
 

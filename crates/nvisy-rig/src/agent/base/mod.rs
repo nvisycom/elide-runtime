@@ -11,8 +11,7 @@ pub use agent::AgentConfig;
 pub(crate) use agent::{Agents, BaseAgent};
 pub(crate) use builder::BaseAgentBuilder;
 pub use context::ContextWindow;
-pub use provider::AgentProvider;
-
-pub use detection::{DetectionConfig, DetectionRequest, DetectionResponse};
 pub(crate) use detection::ALL_TYPES_HINT;
+pub use detection::{DetectionConfig, DetectionRequest, DetectionResponse};
+pub use provider::AgentProvider;
 pub(crate) use response::ResponseParser;

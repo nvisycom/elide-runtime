@@ -1,9 +1,8 @@
 //! Structured output types for text generation.
 
+use nvisy_ontology::entity::EntityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use nvisy_ontology::entity::EntityKind;
 
 /// A single generated entity — the original value replaced with a synthetic one.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]

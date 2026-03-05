@@ -1,8 +1,8 @@
 //! Summarization operation.
 
-use crate::operation::Operation;
-use crate::operation::ParallelContext;
 use nvisy_core::Error;
+
+use crate::operation::{Operation, ParallelContext};
 
 /// Produces a summary of text content.
 pub struct Summarization;

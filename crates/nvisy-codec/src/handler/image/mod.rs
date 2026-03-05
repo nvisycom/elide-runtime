@@ -4,8 +4,8 @@ use nvisy_core::Error;
 
 use super::{Handler, SpanEditStream, SpanStream};
 
-mod image_handler;
 mod image_data;
+mod image_handler;
 mod image_handler_macro;
 
 mod jpeg_handler;
@@ -14,15 +14,13 @@ mod jpeg_loader;
 mod png_handler;
 mod png_loader;
 
-pub use image_handler::AnyImage;
 pub use image_data::ImageData;
+pub use image_handler::AnyImage;
 pub(crate) use image_handler_macro::impl_image_handler;
-
-pub use png_handler::PngHandler;
-pub use png_loader::{PngLoader, PngParams};
-
 pub use jpeg_handler::JpegHandler;
 pub use jpeg_loader::{JpegLoader, JpegParams};
+pub use png_handler::PngHandler;
+pub use png_loader::{PngLoader, PngParams};
 
 /// Capability trait for handlers that expose image content.
 ///

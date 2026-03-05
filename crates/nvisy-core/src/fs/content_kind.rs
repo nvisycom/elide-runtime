@@ -12,7 +12,21 @@ use strum::{AsRefStr, Display, EnumIter, EnumString};
 /// This enum represents high-level content categories without knowledge
 /// of specific file extensions or MIME types. The engine's format registry
 /// handles the mapping from extensions/MIME types to content kinds.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, AsRefStr, Display, EnumString, EnumIter, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    AsRefStr,
+    Display,
+    EnumString,
+    EnumIter,
+    Serialize,
+    Deserialize
+)]
 #[strum(serialize_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ContentKind {

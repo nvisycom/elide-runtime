@@ -18,6 +18,6 @@ pub use types::{Policies, Policy};
 pub use crate::record::Redaction;
 pub use crate::record::{ReviewDecision, ReviewStatus};
 pub use crate::specification::{
-    AudioRedactionInput, ImageRedactionInput, RedactionInput, TextRedactionInput,
-    DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR, DEFAULT_PIXELATE_BLOCK_SIZE,
+    AudioRedactionInput, DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR,
+    DEFAULT_PIXELATE_BLOCK_SIZE, ImageRedactionInput, RedactionInput, TextRedactionInput,
 };

@@ -26,17 +26,16 @@
 
 use bytes::Bytes;
 use futures::StreamExt;
-
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::math::Dpi;
 use nvisy_core::path::ContentSource;
 
-use crate::handler::{Handler, ImageHandler, Span, SpanEditStream, SpanStream, TextHandler};
+use super::pdf_render::PdfRenderer;
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
-use super::pdf_render::PdfRenderer;
+use crate::handler::{Handler, ImageHandler, Span, SpanEditStream, SpanStream, TextHandler};
 
 /// 0-based page index for text spans within a PDF document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -69,7 +68,11 @@ pub struct PdfHandler {
 impl PdfHandler {
     /// Create a new handler from per-page text and raw PDF bytes.
     pub fn new(pages: Vec<String>, raw: impl Into<Bytes>) -> Self {
-        Self { source: ContentSource::new(), pages, raw: raw.into() }
+        Self {
+            source: ContentSource::new(),
+            pages,
+            raw: raw.into(),
+        }
     }
 
     /// Set the content source for lineage tracking.
@@ -108,7 +111,11 @@ impl PdfHandler {
             let text: String = chunks.into_iter().filter_map(|r| r.ok()).collect();
             pages.push(text);
         }
-        Ok(Self { source: ContentSource::new(), pages, raw })
+        Ok(Self {
+            source: ContentSource::new(),
+            pages,
+            raw,
+        })
     }
 
     /// All per-page text extractions.
@@ -209,12 +216,7 @@ impl TextHandler for PdfHandler {
             // Apply replacement to the PDF content stream.
             // lopdf uses 1-based page numbers.
             if !old_text.is_empty() && old_text.as_str() != edit.data.as_str() {
-                let _ = doc.replace_text(
-                    (idx as u32) + 1,
-                    old_text,
-                    edit.data.as_str(),
-                    None,
-                );
+                let _ = doc.replace_text((idx as u32) + 1, old_text, edit.data.as_str(), None);
             }
 
             // Update the in-memory text.
@@ -249,14 +251,17 @@ impl ImageHandler for PdfHandler {
                 return SpanStream::new(futures::stream::empty());
             }
         };
-        SpanStream::new(futures::stream::iter(
-            images.into_iter().enumerate().map(|(i, img)| {
+        SpanStream::new(futures::stream::iter(images.into_iter().enumerate().map(
+            |(i, img)| {
                 Span::new(
-                    PdfImageSpan { page: i as u32, index: 0 },
+                    PdfImageSpan {
+                        page: i as u32,
+                        index: 0,
+                    },
                     img,
                 )
-            })
-        ))
+            },
+        )))
     }
 
     async fn edit_images(
@@ -296,16 +301,14 @@ impl ExactSizeIterator for PdfTextSpanIter<'_> {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::handler::{SpanEdit, TextHandler};
     use futures::StreamExt;
     use nvisy_core::Error;
 
+    use super::*;
+    use crate::handler::{SpanEdit, TextHandler};
+
     fn handler(pages: &[&str]) -> PdfHandler {
-        PdfHandler::new(
-            pages.iter().map(|s| s.to_string()).collect(),
-            Vec::new(),
-        )
+        PdfHandler::new(pages.iter().map(|s| s.to_string()).collect(), Vec::new())
     }
 
     #[tokio::test]

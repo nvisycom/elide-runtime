@@ -31,9 +31,7 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
 
 /// `GET /api/v1/analytics`: retrieve aggregate pipeline analytics.
 #[tracing::instrument(skip_all)]
-async fn analytics(
-    State(_state): State<ServiceState>,
-) -> Result<Json<Analytics>> {
+async fn analytics(State(_state): State<ServiceState>) -> Result<Json<Analytics>> {
     Err(ErrorKind::NotImplemented.with_message("analytics endpoint not yet implemented"))
 }
 

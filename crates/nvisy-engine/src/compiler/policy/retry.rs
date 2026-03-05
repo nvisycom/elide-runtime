@@ -23,8 +23,12 @@ pub struct RetryPolicy {
     pub backoff: BackoffStrategy,
 }
 
-fn default_max_retries() -> u32 { 3 }
-fn default_delay_ms() -> u64 { 1000 }
+fn default_max_retries() -> u32 {
+    3
+}
+fn default_delay_ms() -> u64 {
+    1000
+}
 
 /// Strategy for computing the delay between retry attempts.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]

@@ -1,20 +1,17 @@
-//! HTTP error handling with builder pattern for dynamic error responses.
-//!
-//! This module provides comprehensive HTTP error handling with a builder pattern
-//! that allows for dynamic error messages and resource-specific context.
+//! HTTP error type with builder pattern for dynamic error responses.
 
 use std::borrow::Cow;
 use std::fmt;
 
-use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
+use super::http_kind::ErrorKind;
 use crate::handler::response::ErrorResponse;
 
 /// The error type for HTTP handlers in the server.
 ///
-/// This error type provides a comprehensive way to handle HTTP errors with proper
-/// status codes, messages, and optional context information.
+/// Carries an [`ErrorKind`], optional message, resource, context, and
+/// suggestion. Converts into an axum [`Response`] via [`IntoResponse`].
 #[derive(Clone)]
 #[must_use = "errors do nothing unless serialized"]
 pub struct Error<'a> {
@@ -41,9 +38,6 @@ impl Error<'static> {
 
 impl<'a> Error<'a> {
     /// Attaches context information to the error.
-    ///
-    /// Context provides additional information about what went wrong,
-    /// which will be included in the error response for debugging.
     #[inline]
     pub fn with_context(self, context: impl Into<Cow<'a, str>>) -> Self {
         Self {
@@ -136,26 +130,21 @@ impl Default for Error<'static> {
 
 impl fmt::Debug for Error<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let response = self.kind.response();
-
         let mut debug_struct = f.debug_struct("Error");
         debug_struct
             .field("kind", &self.kind)
-            .field("name", &response.name)
-            .field("status", &response.status)
-            .field("message", &response.message)
-            .field("resource", &response.resource);
-
-        if let Some(ref context) = self.context {
-            debug_struct.field("context", context);
-        }
+            .field("status", &self.kind.status_code());
 
         if let Some(ref message) = self.message {
-            debug_struct.field("custom_message", message);
+            debug_struct.field("message", message);
         }
 
         if let Some(ref resource) = self.resource {
-            debug_struct.field("custom_resource", resource);
+            debug_struct.field("resource", resource);
+        }
+
+        if let Some(ref context) = self.context {
+            debug_struct.field("context", context);
         }
 
         if let Some(ref suggestion) = self.suggestion {
@@ -168,21 +157,22 @@ impl fmt::Debug for Error<'_> {
 
 impl fmt::Display for Error<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let response = self.kind.response();
+        let name = self.kind.response().name;
+        let status = self.kind.status_code();
         let message = self.message.as_deref().unwrap_or("Unknown error");
 
-        write!(f, "{} ({}): {}", response.name, response.status, message)?;
+        write!(f, "{name} ({status}): {message}")?;
 
         if let Some(ref context) = self.context {
-            write!(f, " - {}", context)?;
+            write!(f, " - {context}")?;
         }
 
         if let Some(ref resource) = self.resource {
-            write!(f, " [resource: {}]", resource)?;
+            write!(f, " [resource: {resource}]")?;
         }
 
         if let Some(ref suggestion) = self.suggestion {
-            write!(f, " | suggestion: {}", suggestion)?;
+            write!(f, " | suggestion: {suggestion}")?;
         }
 
         Ok(())
@@ -222,28 +212,6 @@ impl From<ErrorKind> for Error<'static> {
     }
 }
 
-impl From<nvisy_core::Error> for Error<'static> {
-    fn from(err: nvisy_core::Error) -> Self {
-        let kind = match err.kind {
-            nvisy_core::ErrorKind::Validation
-            | nvisy_core::ErrorKind::Serialization => ErrorKind::BadRequest,
-            nvisy_core::ErrorKind::Policy => ErrorKind::Forbidden,
-            nvisy_core::ErrorKind::NotFound => ErrorKind::NotFound,
-            nvisy_core::ErrorKind::Connection
-            | nvisy_core::ErrorKind::Timeout
-            | nvisy_core::ErrorKind::Cancellation
-            | nvisy_core::ErrorKind::Runtime
-            | nvisy_core::ErrorKind::Internal => ErrorKind::InternalServerError,
-        };
-
-        let mut error = Self::new(kind).with_message(err.message);
-        if let Some(component) = err.source_component {
-            error = error.with_context(component);
-        }
-        error
-    }
-}
-
 impl<'a> aide::OperationOutput for Error<'a> {
     type Inner = ErrorResponse<'static>;
 
@@ -264,115 +232,8 @@ impl<'a> aide::OperationOutput for Error<'a> {
 
 /// A specialized [`Result`] type for HTTP operations.
 ///
-/// This is the standard result type used throughout the nvisy server
-/// for operations that can fail with an HTTP error.
-///
 /// [`Result`]: std::result::Result
 pub type Result<T, E = Error<'static>> = std::result::Result<T, E>;
-
-/// Comprehensive enumeration of all possible HTTP error kinds.
-///
-/// Each variant corresponds to a specific HTTP status code and error scenario.
-/// The variants are organized by HTTP status code family.
-#[must_use = "error kinds do nothing unless used to create errors"]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ErrorKind {
-    // 4xx Client Errors
-    /// 400 Bad Request - Missing required path parameter
-    MissingPathParam,
-    /// 400 Bad Request - Invalid request data
-    BadRequest,
-    /// 401 Unauthorized - Missing authentication token
-    MissingAuthToken,
-    /// 401 Unauthorized - Malformed authentication token
-    MalformedAuthToken,
-    /// 401 Unauthorized - Invalid credentials
-    Unauthorized,
-    /// 403 Forbidden - Access denied
-    Forbidden,
-    /// 404 Not Found - Resource not found
-    NotFound,
-    /// 409 Conflict - Conflicting resource state
-    Conflict,
-    /// 429 Too Many Requests - Rate limit exceeded
-    TooManyRequests,
-
-    // 5xx Server Errors
-    /// 500 Internal Server Error - Unexpected server error
-    #[default]
-    InternalServerError,
-    /// 501 Not Implemented - Feature not yet implemented
-    NotImplemented,
-}
-
-impl ErrorKind {
-    /// Converts this error kind into a full [`Error`].
-    #[inline]
-    pub fn into_error(self) -> Error<'static> {
-        Error::new(self)
-    }
-
-    /// Creates an [`Error`] with the specified context.
-    #[inline]
-    pub fn with_context<'a>(self, context: impl Into<Cow<'a, str>>) -> Error<'a> {
-        Error::new(self).with_context(context)
-    }
-
-    /// Creates an [`Error`] with the specified message.
-    #[inline]
-    pub fn with_message<'a>(self, message: impl Into<Cow<'a, str>>) -> Error<'a> {
-        Error::new(self).with_message(message)
-    }
-
-    /// Creates an [`Error`] with the specified resource.
-    #[inline]
-    pub fn with_resource<'a>(self, resource: impl Into<Cow<'a, str>>) -> Error<'a> {
-        Error::new(self).with_resource(resource)
-    }
-
-    /// Creates an [`Error`] with the specified suggestion.
-    #[inline]
-    pub fn with_suggestion<'a>(self, suggestion: impl Into<Cow<'a, str>>) -> Error<'a> {
-        Error::new(self).with_suggestion(suggestion)
-    }
-
-    /// Returns the HTTP status code for this error kind.
-    #[inline]
-    pub fn status_code(self) -> StatusCode {
-        self.response().status
-    }
-
-    /// Returns the base [`ErrorResponse`] for this error kind.
-    #[inline]
-    pub fn response(self) -> ErrorResponse<'static> {
-        match self {
-            Self::MissingPathParam => ErrorResponse::MISSING_PATH_PARAM,
-            Self::BadRequest => ErrorResponse::BAD_REQUEST,
-            Self::MissingAuthToken => ErrorResponse::MISSING_AUTH_TOKEN,
-            Self::MalformedAuthToken => ErrorResponse::MALFORMED_AUTH_TOKEN,
-            Self::Unauthorized => ErrorResponse::UNAUTHORIZED,
-            Self::Forbidden => ErrorResponse::FORBIDDEN,
-            Self::NotFound => ErrorResponse::NOT_FOUND,
-            Self::Conflict => ErrorResponse::CONFLICT,
-            Self::TooManyRequests => ErrorResponse::TOO_MANY_REQUESTS,
-            Self::InternalServerError => ErrorResponse::INTERNAL_SERVER_ERROR,
-            Self::NotImplemented => ErrorResponse::NOT_IMPLEMENTED,
-        }
-    }
-}
-
-impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", &*self.response().name)
-    }
-}
-
-impl IntoResponse for ErrorKind {
-    #[inline]
-    fn into_response(self) -> Response {
-        self.response().into_response()
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -438,7 +299,7 @@ mod tests {
             .with_resource("document")
             .with_context("ID: 123");
 
-        let display = format!("{}", error);
+        let display = format!("{error}");
         assert!(display.contains("not_found"));
         assert!(display.contains("404"));
         assert!(display.contains("Resource not found"));
@@ -453,7 +314,7 @@ mod tests {
             .with_resource("document")
             .with_context("User lacks permissions");
 
-        let debug = format!("{:?}", error);
+        let debug = format!("{error:?}");
         assert!(debug.contains("Forbidden"));
         assert!(debug.contains("Access denied"));
         assert!(debug.contains("document"));
@@ -478,57 +339,5 @@ mod tests {
         assert_eq!(static_error.resource(), Some("test_resource"));
         assert_eq!(static_error.context(), Some("Test context"));
         assert_eq!(static_error.suggestion(), Some("Test suggestion"));
-    }
-
-    #[test]
-    fn all_error_kinds_have_responses() {
-        let kinds = vec![
-            ErrorKind::BadRequest,
-            ErrorKind::Conflict,
-            ErrorKind::Forbidden,
-            ErrorKind::InternalServerError,
-            ErrorKind::MalformedAuthToken,
-            ErrorKind::MissingAuthToken,
-            ErrorKind::MissingPathParam,
-            ErrorKind::NotFound,
-            ErrorKind::NotImplemented,
-            ErrorKind::Unauthorized,
-        ];
-
-        for kind in kinds {
-            let response = kind.response();
-            assert!(!response.name.is_empty());
-            assert!(response.status.as_u16() >= 400);
-            let _ = kind.into_response();
-        }
-    }
-
-    #[test]
-    fn from_nvisy_core_validation() {
-        let core_err = nvisy_core::Error::new(
-            nvisy_core::ErrorKind::Validation,
-            "field is required",
-        );
-        let err = Error::from(core_err);
-        assert_eq!(err.kind(), ErrorKind::BadRequest);
-        assert_eq!(err.message(), Some("field is required"));
-    }
-
-    #[test]
-    fn from_nvisy_core_not_found() {
-        let core_err = nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "missing")
-            .with_component("registry");
-        let err = Error::from(core_err);
-        assert_eq!(err.kind(), ErrorKind::NotFound);
-        assert_eq!(err.message(), Some("missing"));
-        assert_eq!(err.context(), Some("registry"));
-    }
-
-    #[test]
-    fn from_nvisy_core_internal() {
-        let core_err =
-            nvisy_core::Error::new(nvisy_core::ErrorKind::Runtime, "unexpected");
-        let err = Error::from(core_err);
-        assert_eq!(err.kind(), ErrorKind::InternalServerError);
     }
 }

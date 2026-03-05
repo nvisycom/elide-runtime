@@ -33,11 +33,11 @@ impl<T: CvProvider> CvRigTool<T> {
 }
 
 impl<T: CvProvider> Tool for CvRigTool<T> {
-    const NAME: &'static str = "cv_detect_objects";
-
-    type Error = CvToolError;
     type Args = CvToolArgs;
+    type Error = CvToolError;
     type Output = String;
+
+    const NAME: &'static str = "cv_detect_objects";
 
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
@@ -45,8 +45,7 @@ impl<T: CvProvider> Tool for CvRigTool<T> {
             description: "Detect objects (faces, license plates, signatures) in an image \
                           using computer vision. Pass the image as a base64-encoded string."
                 .to_string(),
-            parameters: serde_json::to_value(schemars::schema_for!(CvToolArgs))
-                .unwrap_or_default(),
+            parameters: serde_json::to_value(schemars::schema_for!(CvToolArgs)).unwrap_or_default(),
         }
     }
 

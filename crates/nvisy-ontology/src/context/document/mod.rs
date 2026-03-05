@@ -3,11 +3,10 @@
 mod signature;
 mod template;
 
-pub use signature::SignatureData;
-pub use template::TemplateData;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+pub use signature::SignatureData;
+pub use template::TemplateData;
 
 /// Document-related reference variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

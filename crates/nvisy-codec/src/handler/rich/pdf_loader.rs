@@ -47,11 +47,12 @@ impl Loader for PdfLoader {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
     use futures::StreamExt;
-    use nvisy_core::path::ContentSource;
     use nvisy_core::fs::DocumentType;
+    use nvisy_core::path::ContentSource;
+
+    use super::*;
 
     fn content_from_bytes(bytes: &[u8]) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(bytes.to_vec()))
@@ -59,8 +60,7 @@ mod tests {
 
     /// Build a minimal valid PDF with one blank page using lopdf.
     fn minimal_pdf() -> Vec<u8> {
-        use lopdf::{Document, Object, Dictionary, Stream};
-        use lopdf::dictionary;
+        use lopdf::{Dictionary, Document, Object, Stream, dictionary};
 
         let mut doc = Document::with_version("1.5");
 

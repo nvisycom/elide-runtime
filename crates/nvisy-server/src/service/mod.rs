@@ -1,26 +1,26 @@
 //! Application state and dependency injection.
 //!
-//! [`ServiceState`] holds shared dependencies (engine, content registry) and is
+//! [`ServiceState`] holds shared dependencies (engine, registry) and is
 //! threaded through every handler via Axum's `State` extractor. Fields are
 //! private; use the provided accessor methods.
 
-use nvisy_core::fs::ContentRegistry;
 use nvisy_engine::pipeline::DefaultEngine;
+use nvisy_registry::Registry;
 
 /// Shared application state threaded through all handlers.
 #[must_use = "state does nothing unless you use it"]
 #[derive(Clone)]
 pub struct ServiceState {
     default_engine: DefaultEngine,
-    content_registry: ContentRegistry,
+    registry: Registry,
 }
 
 impl ServiceState {
-    /// Creates a new service state with the given content registry.
-    pub fn new(content_registry: ContentRegistry) -> Self {
+    /// Creates a new service state with the given registry.
+    pub fn new(registry: Registry) -> Self {
         Self {
-            default_engine: DefaultEngine,
-            content_registry,
+            default_engine: DefaultEngine::new(),
+            registry,
         }
     }
 
@@ -29,9 +29,9 @@ impl ServiceState {
         &self.default_engine
     }
 
-    /// Returns a reference to the content registry.
-    pub fn content_registry(&self) -> &ContentRegistry {
-        &self.content_registry
+    /// Returns a reference to the registry.
+    pub fn registry(&self) -> &Registry {
+        &self.registry
     }
 }
 
@@ -47,5 +47,5 @@ macro_rules! impl_di {
 
 impl_di!(
     default_engine: DefaultEngine,
-    content_registry: ContentRegistry,
+    registry: Registry,
 );

@@ -3,20 +3,19 @@
 //! Each method operates on a single bounding-box region and mutates the
 //! image in place (no clone).
 
-use image::imageops::FilterType;
 use image::DynamicImage;
+use image::imageops::FilterType;
 use imageproc::filter::gaussian_blur_f32;
-
 use nvisy_core::math::BoundingBoxU32;
 
 /// Mutating image-transform operations on individual bounding-box regions.
 pub trait ImageTransform {
     /// Apply a gaussian blur to `region` with the given `sigma`.
     fn apply_gaussian_blur(&mut self, region: &BoundingBoxU32, sigma: f32);
-    
+
     /// Fill `region` with a solid RGBA `color`.
     fn apply_block_overlay(&mut self, region: &BoundingBoxU32, color: [u8; 4]);
-    
+
     /// Pixelate `region` with the given `block_size`.
     fn apply_pixelate(&mut self, region: &BoundingBoxU32, block_size: u32);
 }

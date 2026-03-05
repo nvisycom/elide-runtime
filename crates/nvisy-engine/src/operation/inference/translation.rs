@@ -1,8 +1,8 @@
 //! Translation operation.
 
-use crate::operation::Operation;
-use crate::operation::ParallelContext;
 use nvisy_core::Error;
+
+use crate::operation::{Operation, ParallelContext};
 
 /// Translates text content between languages.
 pub struct Translation;

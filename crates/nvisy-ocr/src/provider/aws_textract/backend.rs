@@ -5,18 +5,17 @@
 use std::fmt;
 
 use hmac::{Hmac, Mac};
+use nvisy_core::Error;
+use nvisy_core::math::{BoundingBox, Polygon, Vertex};
+use nvisy_rig::backend::{HttpConfig, build_http_client};
+use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-use nvisy_core::Error;
-use nvisy_rig::backend::{HttpConfig, build_http_client};
-use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use nvisy_ontology::location::TextLevel;
-use reqwest_middleware::ClientWithMiddleware;
-
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, check_response};
-
 use super::AwsTextractParams;
+use crate::backend::{
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
+};
 
 /// [`Backend`] implementation for AWS Textract.
 ///
@@ -61,8 +60,7 @@ impl AwsTextractBackend {
 type HmacSha256 = Hmac<Sha256>;
 
 fn hmac_sha256(key: &[u8], data: &[u8]) -> Vec<u8> {
-    let mut mac =
-        HmacSha256::new_from_slice(key).expect("HMAC can take key of any size");
+    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC can take key of any size");
     mac.update(data);
     mac.finalize().into_bytes().to_vec()
 }
@@ -101,7 +99,10 @@ fn sign_request(p: &SigV4Params<'_>) -> String {
         sha256_hex(canonical_request.as_bytes())
     );
 
-    let k_date = hmac_sha256(format!("AWS4{}", p.secret_key).as_bytes(), p.date_stamp.as_bytes());
+    let k_date = hmac_sha256(
+        format!("AWS4{}", p.secret_key).as_bytes(),
+        p.date_stamp.as_bytes(),
+    );
     let k_region = hmac_sha256(&k_date, p.region.as_bytes());
     let k_service = hmac_sha256(&k_region, p.service.as_bytes());
     let k_signing = hmac_sha256(&k_service, b"aws4_request");
@@ -154,11 +155,7 @@ struct TextractPoint {
 
 #[async_trait::async_trait]
 impl Backend for AwsTextractBackend {
-    async fn run(
-        &self,
-        image: &ImageInput,
-        params: &RunParams,
-    ) -> Result<ImageOutput, Error> {
+    async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
         let encoded = image.to_base64();
 
         let body = serde_json::json!({
@@ -180,7 +177,11 @@ impl Backend for AwsTextractBackend {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|_| {
-                Error::runtime("system clock is before UNIX epoch", "aws_textract_ocr", false)
+                Error::runtime(
+                    "system clock is before UNIX epoch",
+                    "aws_textract_ocr",
+                    false,
+                )
             })?;
         let secs = now.as_secs();
         let datetime = format_datetime(secs);
@@ -211,10 +212,13 @@ impl Backend for AwsTextractBackend {
 
         let resp = check_response(resp, "Textract").await?;
 
-        let parsed: TextractResponse = resp
-            .json()
-            .await
-            .map_err(|e| Error::runtime(format!("Textract JSON parse error: {e}"), "aws_textract_ocr", false))?;
+        let parsed: TextractResponse = resp.json().await.map_err(|e| {
+            Error::runtime(
+                format!("Textract JSON parse error: {e}"),
+                "aws_textract_ocr",
+                false,
+            )
+        })?;
 
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());

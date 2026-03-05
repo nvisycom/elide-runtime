@@ -7,12 +7,12 @@ use rig::agent::Agent;
 use rig::completion::Completion;
 use rig::providers::{anthropic, gemini, ollama, openai};
 use schemars::JsonSchema;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
-use crate::backend::UsageTracker;
 use super::{AgentProvider, BaseAgentBuilder, ContextWindow, ResponseParser};
+use crate::backend::UsageTracker;
 use crate::error::Error;
 
 /// Sampling, retry, context-window, and preamble settings shared by all agents.

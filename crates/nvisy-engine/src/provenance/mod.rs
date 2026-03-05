@@ -9,25 +9,25 @@ mod kind;
 mod lifecycle;
 mod processing;
 
-pub use entry::{AuditEntryStatus, FileAuditEntry, FileAuditEntryBuilder, FileAuditEntryBuilderError};
+use derive_builder::Builder;
+pub use entry::{
+    AuditEntryStatus, FileAuditEntry, FileAuditEntryBuilder, FileAuditEntryBuilderError,
+};
 pub use inference::{InferenceAction, InferenceActionBuilder};
 pub use kind::{FileAuditEntryKind, InferenceKind, LifecycleKind, ProcessingKind};
 pub use lifecycle::{LifecycleAction, LifecycleActionBuilder};
+use nvisy_core::path::ContentSource;
 pub use processing::{ProcessingAction, ProcessingActionBuilder};
-
-use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use nvisy_core::path::ContentSource;
 
 /// An append-only processing log for a single file.
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "FileAuditBuilder",
     pattern = "owned",
-    setter(into, strip_option, prefix = "with"),
+    setter(into, strip_option, prefix = "with")
 )]
 #[serde(rename_all = "camelCase")]
 pub struct FileAudit {

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[builder(
     name = "LifecycleActionBuilder",
     pattern = "owned",
-    setter(into, strip_option, prefix = "with"),
+    setter(into, strip_option, prefix = "with")
 )]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleAction {

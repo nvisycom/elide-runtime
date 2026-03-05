@@ -4,21 +4,16 @@
 //! a time, allowing the adapter to accumulate known entities between
 //! spans for coreference resolution.
 
+use nvisy_codec::handler::{Span, TxtSpan};
+use nvisy_core::Error;
+use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityKind, TextLocation};
+use nvisy_rig::agent::{
+    AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
+};
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
-use nvisy_codec::handler::{Span, TxtSpan};
-use nvisy_core::Error;
-use nvisy_ontology::entity::{
-    DetectionMethod, Entity, EntityCategory, EntityKind,
-};
-use nvisy_ontology::location::{Location, TextLocation};
-use nvisy_rig::agent::{
-    AgentProvider, AgentConfig, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
-};
-
-use crate::operation::Operation;
-use crate::operation::SequentialContext;
+use crate::operation::{Operation, SequentialContext};
 
 fn default_confidence() -> f64 {
     0.5
@@ -72,13 +67,12 @@ impl Ner {
 
     /// Connect and build an NER operation from typed parameters.
     pub async fn connect(params: NerMethodParams) -> Result<Self, Error> {
-        let provider = params.provider.ok_or_else(|| {
-            Error::validation("Ner requires a provider", "ner-method")
-        })?;
+        let provider = params
+            .provider
+            .ok_or_else(|| Error::validation("Ner requires a provider", "ner-method"))?;
         let agent_config = params.agent_config.unwrap_or_default();
-        let agent = NerAgent::new(&provider, agent_config).map_err(|e| {
-            Error::validation(e.to_string(), "ner-method")
-        })?;
+        let agent = NerAgent::new(&provider, agent_config)
+            .map_err(|e| Error::validation(e.to_string(), "ner-method"))?;
         let config = DetectionConfig {
             entity_kinds: params.entity_kinds,
             confidence_threshold: params.confidence_threshold,
@@ -98,10 +92,7 @@ impl Operation for Ner {
     type Input = SequentialContext<Vec<Span<TxtSpan, String>>>;
     type Output = SequentialContext<Vec<Entity>>;
 
-    async fn call(
-        &self,
-        input: Self::Input,
-    ) -> Result<Self::Output, Error> {
+    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
         let input = input.into_inner();
         let mut entities = Vec::new();
 
@@ -144,17 +135,23 @@ impl Operation for Ner {
 
                 // Resolve offsets within the current span text.
                 if let Some(offsets) = ner_entity.resolve_offsets(&ctx) {
-                    entity = entity.with_location(Location::Text(TextLocation {
-                        start_offset: offsets.start,
-                        end_offset: offsets.end,
-                        element_id: Some(span.id.0.to_string()),
-                        ..Default::default()
-                    }));
+                    entity = entity.with_location(
+                        TextLocation {
+                            start_offset: offsets.start,
+                            end_offset: offsets.end,
+                            element_id: Some(span.id.0.to_string()),
+                            ..Default::default()
+                        }
+                        .into(),
+                    );
                 } else {
-                    entity = entity.with_location(Location::Text(TextLocation {
-                        element_id: Some(span.id.0.to_string()),
-                        ..Default::default()
-                    }));
+                    entity = entity.with_location(
+                        TextLocation {
+                            element_id: Some(span.id.0.to_string()),
+                            ..Default::default()
+                        }
+                        .into(),
+                    );
                 }
 
                 entities.push(entity.with_parent(&span.source));
@@ -162,10 +159,8 @@ impl Operation for Ner {
 
             // Accumulate known entities for coreference across spans.
             let mut state = self.state.lock().await;
-            let mut merge_ctx = NerContext::with_known(
-                &span.data,
-                std::mem::take(&mut state.known_entities),
-            );
+            let mut merge_ctx =
+                NerContext::with_known(&span.data, std::mem::take(&mut state.known_entities));
             merge_ctx.merge(ner_entities);
             state.known_entities = merge_ctx.known_entities;
         }

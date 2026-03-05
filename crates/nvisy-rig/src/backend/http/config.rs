@@ -29,10 +29,18 @@ pub struct HttpConfig {
     pub pool_idle_timeout_secs: u64,
 }
 
-fn default_max_retries() -> u32 { DEFAULT_MAX_RETRIES }
-fn default_timeout_secs() -> u64 { DEFAULT_TIMEOUT_SECS }
-fn default_connect_timeout_secs() -> u64 { DEFAULT_CONNECT_TIMEOUT_SECS }
-fn default_pool_idle_timeout_secs() -> u64 { DEFAULT_POOL_IDLE_TIMEOUT_SECS }
+fn default_max_retries() -> u32 {
+    DEFAULT_MAX_RETRIES
+}
+fn default_timeout_secs() -> u64 {
+    DEFAULT_TIMEOUT_SECS
+}
+fn default_connect_timeout_secs() -> u64 {
+    DEFAULT_CONNECT_TIMEOUT_SECS
+}
+fn default_pool_idle_timeout_secs() -> u64 {
+    DEFAULT_POOL_IDLE_TIMEOUT_SECS
+}
 
 impl Default for HttpConfig {
     fn default() -> Self {

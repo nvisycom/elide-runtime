@@ -2,9 +2,8 @@
 
 use std::time::Duration;
 
-use tokio::time;
-
 use nvisy_core::Error;
+use tokio::time;
 
 use crate::compiler::{BackoffStrategy, RetryPolicy};
 

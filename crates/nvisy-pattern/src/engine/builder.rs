@@ -2,14 +2,13 @@
 
 use regex::{Regex, RegexSet};
 
-use crate::dictionaries;
-use crate::patterns::{self, MatchSource, Pattern};
-use crate::validators::ValidatorResolver;
-
 use super::allow_list::AllowList;
 use super::deny_list::DenyList;
 use super::error::PatternEngineError;
 use super::{DictEntry, PatternEngine, RegexEntry};
+use crate::dictionaries;
+use crate::patterns::{self, MatchSource, Pattern};
+use crate::validators::ValidatorResolver;
 
 /// Builder for [`PatternEngine`].
 ///
@@ -76,10 +75,7 @@ impl PatternEngineBuilder {
         let dict_reg = dictionaries::builtin_registry();
 
         let active: Vec<&dyn Pattern> = match &self.pattern_names {
-            Some(names) => names
-                .iter()
-                .filter_map(|n| pat_reg.get(n))
-                .collect(),
+            Some(names) => names.iter().filter_map(|n| pat_reg.get(n)).collect(),
             None => pat_reg.values(),
         };
 
@@ -90,10 +86,11 @@ impl PatternEngineBuilder {
         for p in &active {
             match p.match_source() {
                 MatchSource::Regex(rp) => {
-                    let compiled = Regex::new(&rp.regex).map_err(|e| PatternEngineError::RegexCompile {
-                        name: p.name().to_owned(),
-                        source: e,
-                    })?;
+                    let compiled =
+                        Regex::new(&rp.regex).map_err(|e| PatternEngineError::RegexCompile {
+                            name: p.name().to_owned(),
+                            source: e,
+                        })?;
                     regex_strings.push(rp.regex.clone());
                     regex_entries.push(RegexEntry {
                         pattern_name: p.name().to_owned(),
@@ -138,8 +135,7 @@ impl PatternEngineBuilder {
             }
         }
 
-        let regex_set =
-            RegexSet::new(&regex_strings).map_err(PatternEngineError::RegexSetBuild)?;
+        let regex_set = RegexSet::new(&regex_strings).map_err(PatternEngineError::RegexSetBuild)?;
 
         let validators = ValidatorResolver::builtins();
 

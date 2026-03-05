@@ -1,10 +1,35 @@
 //! OCR output types.
 
-use serde::{Deserialize, Serialize};
-
 use nvisy_core::math::{BoundingBox, Polygon};
 use nvisy_core::path::ContentSource;
-use nvisy_ontology::location::TextLevel;
+use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
+
+/// Hierarchical level of a text region within a document page.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    EnumString,
+    Serialize,
+    Deserialize
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+pub enum TextLevel {
+    /// Full page.
+    Page,
+    /// Block-level region (paragraph, table, figure).
+    Block,
+    /// Single line of text.
+    Line,
+    /// Individual word.
+    Word,
+}
 
 /// A single text region detected by an OCR backend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,8 +133,8 @@ impl ImageOutput {
 }
 
 impl<'a> IntoIterator for &'a ImageOutput {
-    type Item = &'a ImageRegion;
     type IntoIter = std::slice::Iter<'a, ImageRegion>;
+    type Item = &'a ImageRegion;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -117,8 +142,8 @@ impl<'a> IntoIterator for &'a ImageOutput {
 }
 
 impl<'a> IntoIterator for &'a mut ImageOutput {
-    type Item = &'a mut ImageRegion;
     type IntoIter = std::slice::IterMut<'a, ImageRegion>;
+    type Item = &'a mut ImageRegion;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter_mut()
@@ -126,8 +151,8 @@ impl<'a> IntoIterator for &'a mut ImageOutput {
 }
 
 impl IntoIterator for ImageOutput {
-    type Item = ImageRegion;
     type IntoIter = std::vec::IntoIter<ImageRegion>;
+    type Item = ImageRegion;
 
     fn into_iter(self) -> Self::IntoIter {
         self.regions.into_iter()

@@ -12,22 +12,13 @@ macro_rules! impl_image_handler {
             #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
             fn encode(&self) -> Result<nvisy_core::io::ContentData, nvisy_core::Error> {
                 let mut buf = std::io::Cursor::new(Vec::new());
-                self.image
-                    .write_to(&mut buf, $fmt)
-                    .map_err(|e| {
-                        nvisy_core::Error::validation(
-                            format!("encode failed: {e}"),
-                            $origin,
-                        )
-                    })?;
+                self.image.write_to(&mut buf, $fmt).map_err(|e| {
+                    nvisy_core::Error::validation(format!("encode failed: {e}"), $origin)
+                })?;
                 let out = buf.into_inner();
                 tracing::Span::current().record("output_bytes", out.len());
-                let source = nvisy_core::path::ContentSource::new()
-                    .with_parent(&self.source);
-                Ok(nvisy_core::io::ContentData::new(
-                    source,
-                    out.into(),
-                ))
+                let source = nvisy_core::path::ContentSource::new().with_parent(&self.source);
+                Ok(nvisy_core::io::ContentData::new(source, out.into()))
             }
         }
 
@@ -39,7 +30,10 @@ macro_rules! impl_image_handler {
                 &self,
             ) -> crate::handler::SpanStream<'_, (), crate::handler::ImageData> {
                 crate::handler::SpanStream::new(futures::stream::iter(std::iter::once(
-                    crate::handler::Span::new((), crate::handler::ImageData::from(self.image.clone())),
+                    crate::handler::Span::new(
+                        (),
+                        crate::handler::ImageData::from(self.image.clone()),
+                    ),
                 )))
             }
 
@@ -59,7 +53,10 @@ macro_rules! impl_image_handler {
         impl $handler {
             /// Create a handler from an already-decoded image.
             pub fn new(image: image::DynamicImage) -> Self {
-                Self { source: nvisy_core::path::ContentSource::new(), image }
+                Self {
+                    source: nvisy_core::path::ContentSource::new(),
+                    image,
+                }
             }
 
             /// Set the content source for lineage tracking.

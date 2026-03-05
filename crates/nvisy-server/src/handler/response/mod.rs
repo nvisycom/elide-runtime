@@ -6,13 +6,19 @@
 //! body returned by every error path.
 
 mod check;
-pub mod error;
-mod execute;
-mod ingest;
-mod redact;
+mod contexts;
+mod error;
+mod files;
+mod process;
 
 pub use check::{Analytics, Health};
+pub use contexts::{
+    ContextDeleteAllResponse, ContextDeleteResponse, ContextDownloadResponse, ContextListResponse,
+    ContextUploadResponse,
+};
 pub use error::ErrorResponse;
-pub use execute::ExecuteResponse;
-pub use ingest::{DeleteAllResponse, DeleteResponse, DownloadResponse, UploadResponse};
-pub use redact::RedactionResponse;
+pub use files::{
+    FileDeleteAllResponse, FileDeleteResponse, FileDownloadResponse, FileListResponse,
+    FileUploadResponse,
+};
+pub use process::ProcessResponse;

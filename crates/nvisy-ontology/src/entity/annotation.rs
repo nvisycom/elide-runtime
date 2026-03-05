@@ -1,14 +1,25 @@
 //! Annotation types for pre-identified regions and classification labels.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
-use super::{EntityCategory, EntityKind};
-
-use crate::location::Location;
+use super::{EntityCategory, EntityKind, Location};
 
 /// The kind of annotation applied to a content region.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    EnumString,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AnnotationKind {
@@ -21,7 +32,19 @@ pub enum AnnotationKind {
 }
 
 /// The scope to which an annotation label applies.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    EnumString,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AnnotationScope {
@@ -34,7 +57,7 @@ pub enum AnnotationScope {
 }
 
 /// A classification label attached to a document or region.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnnotationLabel {
     /// Label name (e.g. `"contains-phi"`, `"gdpr-request"`).
@@ -47,8 +70,31 @@ pub struct AnnotationLabel {
     pub confidence: Option<f64>,
 }
 
+impl AnnotationLabel {
+    /// Create a new label with the given name.
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            scope: None,
+            confidence: None,
+        }
+    }
+
+    /// Set the scope.
+    pub fn with_scope(mut self, scope: AnnotationScope) -> Self {
+        self.scope = Some(scope);
+        self
+    }
+
+    /// Set the confidence.
+    pub fn with_confidence(mut self, confidence: f64) -> Self {
+        self.confidence = Some(confidence);
+        self
+    }
+}
+
 /// A user-provided or upstream annotation on a content region.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Annotation {
     /// What kind of annotation this is.

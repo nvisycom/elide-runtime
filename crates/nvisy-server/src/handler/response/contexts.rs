@@ -1,48 +1,32 @@
 //! Context response types.
 
-use nvisy_ontology::context::Context;
-use nvisy_registry::ContextId;
+use nvisy_ontology::context::Context as OntologyContext;
 use schemars::JsonSchema;
 use serde::Serialize;
+use uuid::Uuid;
 
 /// Response body for `POST /api/v1/contexts`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ContextUploadResponse {
+pub struct ContextId {
     /// Identifier assigned to the uploaded context.
-    pub id: ContextId,
+    pub id: Uuid,
 }
 
 /// Response body for `GET /api/v1/contexts/{id}`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ContextDownloadResponse {
+pub struct Context {
     /// Identifier of the context.
-    pub id: ContextId,
+    pub id: Uuid,
     /// The stored context.
-    pub context: Context,
-}
-
-/// Response body for `DELETE /api/v1/contexts/{id}`.
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ContextDeleteResponse {
-    /// Identifier of the deleted context.
-    pub id: ContextId,
+    pub context: OntologyContext,
 }
 
 /// Response body for `GET /api/v1/contexts`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ContextListResponse {
+pub struct ContextList {
     /// List of context identifiers.
-    pub contexts: Vec<ContextId>,
-}
-
-/// Response body for `DELETE /api/v1/contexts`.
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ContextDeleteAllResponse {
-    /// Number of contexts deleted.
-    pub deleted: usize,
+    pub contexts: Vec<Uuid>,
 }

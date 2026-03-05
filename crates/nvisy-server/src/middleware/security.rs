@@ -19,11 +19,7 @@ use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::limit::RequestBodyLimitLayer;
 
-/// Default request body limit for axum extractors (2 MiB).
-const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;
-
-/// Default request body limit for file uploads (50 MiB).
-const DEFAULT_FILE_BODY_LIMIT: usize = 50 * 1024 * 1024;
+use super::constants::{DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE};
 
 /// Configuration for security middleware.
 ///
@@ -47,8 +43,8 @@ pub struct SecurityConfig {
 impl Default for SecurityConfig {
     fn default() -> Self {
         Self {
-            body_limit_bytes: DEFAULT_BODY_LIMIT,
-            file_body_limit_bytes: DEFAULT_FILE_BODY_LIMIT,
+            body_limit_bytes: DEFAULT_MAX_BODY_SIZE,
+            file_body_limit_bytes: DEFAULT_MAX_FILE_BODY_SIZE,
             cors_allowed_origins: Vec::new(),
         }
     }

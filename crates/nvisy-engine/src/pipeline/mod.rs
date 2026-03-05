@@ -22,7 +22,6 @@ pub use nvisy_ontology::context::Context;
 pub use nvisy_ontology::entity::DetectionOutput;
 pub use nvisy_ontology::policy::{Policies, PolicyEvaluation, RedactionSummary};
 pub use nvisy_ontology::record::RedactionMap;
-use nvisy_registry::ContentId;
 pub use ontology::{Explainable, Explanation};
 pub use runs::{NodeProgress, RunManager, RunState, RunStatus, RunSummary};
 use uuid::Uuid;
@@ -31,14 +30,12 @@ use crate::compiler::Graph;
 pub use crate::compiler::{RetryPolicy, TimeoutPolicy};
 use crate::provenance::FileAudit;
 
-use nvisy_registry::ActorId;
-
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {
     /// Human or service account identity.
-    pub actor: ActorId,
+    pub actor: Uuid,
     /// Identifiers of previously uploaded content to process.
-    pub content_ids: Vec<ContentId>,
+    pub content_ids: Vec<Uuid>,
     /// Policies to apply (at least one).
     pub policies: Policies,
     /// Execution graph defining the pipeline DAG.

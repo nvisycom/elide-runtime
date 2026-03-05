@@ -8,6 +8,7 @@ mod provider;
 
 pub(crate) use provider::SttModels;
 pub use provider::SttProvider;
+#[cfg(feature = "openai")]
 use rig::transcription::TranscriptionModel;
 use uuid::Uuid;
 
@@ -111,8 +112,14 @@ impl SttService {
             }};
         }
 
-        let text = match &self.inner {
+        let text: String = match &self.inner {
+            #[cfg(feature = "openai")]
             SttModels::OpenAi(model) => build_and_send!(model),
+            SttModels::Local => {
+                return Err(Error::Runtime(
+                    "local speech-to-text provider is not yet implemented".to_owned(),
+                ));
+            }
         };
 
         tracing::info!(text_len = text.len(), "transcription complete");

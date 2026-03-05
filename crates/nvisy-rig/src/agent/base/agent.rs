@@ -5,7 +5,13 @@ use std::borrow::Cow;
 use reqwest_middleware::ClientWithMiddleware;
 use rig::agent::Agent;
 use rig::completion::Completion;
-use rig::providers::{anthropic, gemini, ollama, openai};
+#[cfg(feature = "anthropic")]
+use rig::providers::anthropic;
+#[cfg(feature = "gemini")]
+use rig::providers::gemini;
+use rig::providers::ollama;
+#[cfg(feature = "openai")]
+use rig::providers::openai;
 use schemars::JsonSchema;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -43,8 +49,11 @@ impl Default for AgentConfig {
 }
 
 pub(crate) enum Agents {
+    #[cfg(feature = "openai")]
     OpenAi(Agent<openai::completion::CompletionModel<ClientWithMiddleware>>),
+    #[cfg(feature = "anthropic")]
     Anthropic(Agent<anthropic::completion::CompletionModel<ClientWithMiddleware>>),
+    #[cfg(feature = "gemini")]
     Gemini(Agent<gemini::completion::CompletionModel<ClientWithMiddleware>>),
     Ollama(Agent<ollama::CompletionModel<ClientWithMiddleware>>),
 }
@@ -52,8 +61,11 @@ pub(crate) enum Agents {
 macro_rules! dispatch {
     ($inner:expr, |$agent:ident| $body:expr) => {
         match $inner {
+            #[cfg(feature = "openai")]
             Agents::OpenAi($agent) => $body,
+            #[cfg(feature = "anthropic")]
             Agents::Anthropic($agent) => $body,
+            #[cfg(feature = "gemini")]
             Agents::Gemini($agent) => $body,
             Agents::Ollama($agent) => $body,
         }

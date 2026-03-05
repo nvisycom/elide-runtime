@@ -4,6 +4,7 @@ mod provider;
 
 pub(crate) use provider::TtsModels;
 pub use provider::TtsProvider;
+#[cfg(feature = "openai")]
 use rig::audio_generation::AudioGenerationModel as _;
 use uuid::Uuid;
 
@@ -69,7 +70,8 @@ impl TtsService {
         fields(service_id = %self.id, text_len = text.len()),
     )]
     pub async fn generate(&self, text: &str) -> Result<Vec<u8>, Error> {
-        let audio = match &self.inner {
+        let audio: Vec<u8> = match &self.inner {
+            #[cfg(feature = "openai")]
             TtsModels::OpenAi(model) => {
                 let response = model
                     .audio_generation_request()
@@ -79,6 +81,11 @@ impl TtsService {
                     .send()
                     .await?;
                 response.audio
+            }
+            TtsModels::Local => {
+                return Err(Error::Runtime(
+                    "local text-to-speech provider is not yet implemented".to_owned(),
+                ));
             }
         };
 

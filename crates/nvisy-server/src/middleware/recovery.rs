@@ -27,6 +27,7 @@ use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 use tower_http::catch_panic::CatchPanicLayer;
 
+use super::constants::DEFAULT_REQUEST_TIMEOUT_SECS;
 use crate::handler::error::{Error, ErrorKind};
 
 /// Tracing target for error recovery.
@@ -56,7 +57,7 @@ pub struct RecoveryConfig {
 impl Default for RecoveryConfig {
     fn default() -> Self {
         Self {
-            request_timeout: Duration::from_secs(300),
+            request_timeout: Duration::from_secs(DEFAULT_REQUEST_TIMEOUT_SECS),
         }
     }
 }

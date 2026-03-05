@@ -41,11 +41,15 @@
 //! }
 //! ```
 
+mod constants;
 mod observability;
 mod recovery;
 mod security;
 mod specification;
 
+pub use constants::{
+    DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE, DEFAULT_REQUEST_TIMEOUT_SECS,
+};
 pub use observability::RouterObservabilityExt;
 pub use recovery::{RecoveryConfig, RouterRecoveryExt};
 pub use security::{RouterSecurityExt, SecurityConfig};

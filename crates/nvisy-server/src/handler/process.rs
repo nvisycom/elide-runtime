@@ -15,16 +15,16 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_engine::pipeline::{Engine, EngineInput};
+use nvisy_engine::pipeline::{DefaultEngine, Engine, EngineInput};
 
 use super::error::Result;
-use super::request::ProcessRequest;
-use super::response::ProcessResponse;
+use super::request::NewProcess;
+use super::response::ProcessResult;
 use crate::extract::Json;
 use crate::service::ServiceState;
 
-/// Build an [`EngineInput`] from a [`ProcessRequest`].
-fn engine_input(req: ProcessRequest) -> EngineInput {
+/// Build an [`EngineInput`] from a [`NewProcess`].
+fn engine_input(req: NewProcess) -> EngineInput {
     EngineInput {
         actor: req.actor_id,
         content_ids: req.content_ids,
@@ -40,13 +40,13 @@ fn engine_input(req: ProcessRequest) -> EngineInput {
 /// further classification or redaction.
 #[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn scan(
-    State(state): State<ServiceState>,
-    Json(req): Json<ProcessRequest>,
-) -> Result<Json<ProcessResponse>> {
+    State(engine): State<DefaultEngine>,
+    Json(req): Json<NewProcess>,
+) -> Result<Json<ProcessResult>> {
     let input = engine_input(req);
-    let output = state.engine().run(input).await?;
+    let output = engine.run(input).await?;
 
-    Ok(Json(ProcessResponse {
+    Ok(Json(ProcessResult {
         run_id: output.run_id,
         summaries: serde_json::to_value(&output.summaries).unwrap_or_default(),
         audits: serde_json::to_value(&output.file_audits).unwrap_or_default(),
@@ -69,13 +69,13 @@ fn scan_docs(op: TransformOperation) -> TransformOperation {
 /// applying any redactions.
 #[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn analyze(
-    State(state): State<ServiceState>,
-    Json(req): Json<ProcessRequest>,
-) -> Result<Json<ProcessResponse>> {
+    State(engine): State<DefaultEngine>,
+    Json(req): Json<NewProcess>,
+) -> Result<Json<ProcessResult>> {
     let input = engine_input(req);
-    let output = state.engine().run(input).await?;
+    let output = engine.run(input).await?;
 
-    Ok(Json(ProcessResponse {
+    Ok(Json(ProcessResult {
         run_id: output.run_id,
         summaries: serde_json::to_value(&output.summaries).unwrap_or_default(),
         audits: serde_json::to_value(&output.file_audits).unwrap_or_default(),
@@ -98,13 +98,13 @@ fn analyze_docs(op: TransformOperation) -> TransformOperation {
 /// on previously uploaded content.
 #[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn redact(
-    State(state): State<ServiceState>,
-    Json(req): Json<ProcessRequest>,
-) -> Result<Json<ProcessResponse>> {
+    State(engine): State<DefaultEngine>,
+    Json(req): Json<NewProcess>,
+) -> Result<Json<ProcessResult>> {
     let input = engine_input(req);
-    let output = state.engine().run(input).await?;
+    let output = engine.run(input).await?;
 
-    Ok(Json(ProcessResponse {
+    Ok(Json(ProcessResult {
         run_id: output.run_id,
         summaries: serde_json::to_value(&output.summaries).unwrap_or_default(),
         audits: serde_json::to_value(&output.file_audits).unwrap_or_default(),

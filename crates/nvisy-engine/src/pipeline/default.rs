@@ -10,6 +10,7 @@
 //! so that any Source/Action/Target DAG nodes are also executed.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
@@ -25,16 +26,21 @@ use crate::compiler::{Compiler, ExecutionPlan, RetryPolicy, TimeoutPolicy};
 /// Default buffer size for bounded inter-node MPSC channels.
 const CHANNEL_BUFFER_SIZE: usize = 256;
 
+/// Inner state shared behind an [`Arc`].
+#[derive(Debug, Clone, Default)]
+struct DefaultEngineInner {
+    /// Default retry policy for graph nodes without one.
+    retry: Option<RetryPolicy>,
+    /// Default timeout policy for graph nodes without one.
+    timeout: Option<TimeoutPolicy>,
+}
+
 /// Default [`Engine`] implementation.
 ///
-/// Carries optional default retry and timeout policies that are applied
-/// to graph nodes which don't specify their own.
+/// Wraps policies in an `Arc` so cloning is cheap.
 #[derive(Debug, Clone, Default)]
 pub struct DefaultEngine {
-    /// Default retry policy for graph nodes without one.
-    pub retry: Option<RetryPolicy>,
-    /// Default timeout policy for graph nodes without one.
-    pub timeout: Option<TimeoutPolicy>,
+    inner: Arc<DefaultEngineInner>,
 }
 
 impl DefaultEngine {
@@ -45,13 +51,13 @@ impl DefaultEngine {
 
     /// Set the default retry policy.
     pub fn with_retry(mut self, policy: RetryPolicy) -> Self {
-        self.retry = Some(policy);
+        Arc::make_mut(&mut self.inner).retry = Some(policy);
         self
     }
 
     /// Set the default timeout policy.
     pub fn with_timeout(mut self, policy: TimeoutPolicy) -> Self {
-        self.timeout = Some(policy);
+        Arc::make_mut(&mut self.inner).timeout = Some(policy);
         self
     }
 
@@ -187,10 +193,10 @@ impl Engine for DefaultEngine {
         // Compile the graph into a topologically-sorted execution plan and
         // run Source/Action/Target nodes concurrently.
         let mut compiler = Compiler::new();
-        if let Some(ref retry) = self.retry {
+        if let Some(ref retry) = self.inner.retry {
             compiler = compiler.with_retry(retry.clone());
         }
-        if let Some(ref timeout) = self.timeout {
+        if let Some(ref timeout) = self.inner.timeout {
             compiler = compiler.with_timeout(timeout.clone());
         }
         let plan = compiler.compile(&input.graph)?;

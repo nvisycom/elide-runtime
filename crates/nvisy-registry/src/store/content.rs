@@ -6,8 +6,7 @@ use nvisy_core::fs::ContentMetadata;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 use nvisy_core::{Error, ErrorKind, Result};
-
-use crate::id::ActorId;
+use uuid::Uuid;
 
 /// Lightweight handle to a content entry stored in the registry.
 ///
@@ -16,7 +15,7 @@ use crate::id::ActorId;
 /// internally `Arc`-wrapped.
 #[derive(Clone)]
 pub struct ContentHandle {
-    actor: ActorId,
+    actor: Uuid,
     content_source: ContentSource,
     content: Keyspace,
     content_meta: Keyspace,
@@ -33,7 +32,7 @@ impl fmt::Debug for ContentHandle {
 
 impl ContentHandle {
     pub(crate) fn new(
-        actor: ActorId,
+        actor: Uuid,
         content_source: ContentSource,
         content: Keyspace,
         content_meta: Keyspace,
@@ -52,7 +51,7 @@ impl ContentHandle {
     }
 
     /// Returns the actor that owns this content.
-    pub fn actor(&self) -> ActorId {
+    pub fn actor(&self) -> Uuid {
         self.actor
     }
 
@@ -107,7 +106,7 @@ impl ContentHandle {
 
     fn composite_key(&self) -> [u8; 32] {
         let mut key = [0u8; 32];
-        key[..16].copy_from_slice(self.actor.as_uuid().as_bytes());
+        key[..16].copy_from_slice(self.actor.as_bytes());
         key[16..].copy_from_slice(self.content_source.as_uuid().as_bytes());
         key
     }

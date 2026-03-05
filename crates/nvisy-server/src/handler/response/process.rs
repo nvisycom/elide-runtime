@@ -7,7 +7,7 @@ use uuid::Uuid;
 /// Response body for `POST /api/v1/process/*` endpoints.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ProcessResponse {
+pub struct ProcessResult {
     /// Unique run identifier.
     pub run_id: Uuid,
     /// Per-source result summaries as opaque JSON.

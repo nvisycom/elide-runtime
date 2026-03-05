@@ -12,13 +12,7 @@ mod files;
 mod process;
 
 pub use check::{Analytics, Health};
-pub use contexts::{
-    ContextDeleteAllResponse, ContextDeleteResponse, ContextDownloadResponse, ContextListResponse,
-    ContextUploadResponse,
-};
+pub use contexts::{Context, ContextId, ContextList};
 pub use error::ErrorResponse;
-pub use files::{
-    FileDeleteAllResponse, FileDeleteResponse, FileDownloadResponse, FileListResponse,
-    FileUploadResponse,
-};
-pub use process::ProcessResponse;
+pub use files::{File, FileId, FileList};
+pub use process::ProcessResult;

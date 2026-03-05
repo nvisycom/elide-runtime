@@ -18,6 +18,13 @@ documentation = { workspace = true }
 [features]
 default = []
 
+## Enable OpenAI provider (GPT, Whisper, TTS).
+openai = []
+## Enable Anthropic provider (Claude).
+anthropic = []
+## Enable Google Gemini provider.
+gemini = []
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

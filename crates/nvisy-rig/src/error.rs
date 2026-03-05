@@ -1,5 +1,6 @@
 //! Unified error type covering LLM provider, serialization, and tool failures.
 
+use rig::audio_generation::AudioGenerationError;
 use rig::completion::{CompletionError, PromptError, StructuredOutputError};
 use rig::transcription::TranscriptionError;
 
@@ -101,6 +102,19 @@ impl From<TranscriptionError> for Error {
             TranscriptionError::ResponseError(msg) => Self::Response(msg),
             TranscriptionError::RequestError(e) => Self::Request(e.to_string()),
             _ => Self::Runtime(err.to_string()),
+        }
+    }
+}
+
+impl From<AudioGenerationError> for Error {
+    fn from(err: AudioGenerationError) -> Self {
+        use rig::audio_generation::AudioGenerationError;
+        match err {
+            AudioGenerationError::HttpError(e) => Self::Http(e.to_string()),
+            AudioGenerationError::JsonError(e) => Self::Json(e),
+            AudioGenerationError::ProviderError(msg) => Self::Provider(msg),
+            AudioGenerationError::ResponseError(msg) => Self::Response(msg),
+            AudioGenerationError::RequestError(e) => Self::Request(e.to_string()),
         }
     }
 }

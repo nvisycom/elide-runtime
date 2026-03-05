@@ -1,7 +1,6 @@
-//! Provider-erased dispatch enums and constructors for audio models.
+//! Provider dispatch for speech-to-text models.
 
-use rig::providers::{gemini, openai};
-
+use rig::providers::openai;
 use reqwest_middleware::ClientWithMiddleware;
 
 use crate::backend::{AuthenticatedProvider, HttpConfig, build_http_client};
@@ -9,16 +8,14 @@ use crate::error::Error;
 
 /// Supported providers for speech-to-text transcription.
 ///
-/// Only OpenAI (Whisper) and Gemini support transcription.
+/// Only OpenAI (Whisper) supports transcription.
 #[derive(Debug, Clone)]
-pub enum TranscribeProvider {
+pub enum SttProvider {
     /// OpenAI (Whisper)
     OpenAi(AuthenticatedProvider),
-    /// Google Gemini
-    Gemini(AuthenticatedProvider),
 }
 
-impl TranscribeProvider {
+impl SttProvider {
     /// Create an OpenAI transcription provider.
     pub fn openai(api_key: &str, model: &str) -> Self {
         Self::OpenAi(AuthenticatedProvider {
@@ -28,52 +25,34 @@ impl TranscribeProvider {
         })
     }
 
-    /// Create a Gemini transcription provider.
-    pub fn gemini(api_key: &str, model: &str) -> Self {
-        Self::Gemini(AuthenticatedProvider {
-            api_key: api_key.to_owned(),
-            model: model.to_owned(),
-            base_url: None,
-        })
-    }
-
     /// The model name for this provider.
     pub fn model(&self) -> &str {
         match self {
-            Self::OpenAi(p) | Self::Gemini(p) => &p.model,
+            Self::OpenAi(p) => &p.model,
         }
     }
 }
 
 /// Provider-erased dispatch enum for transcription models.
-pub(crate) enum TranscribeModels {
+pub(crate) enum SttModels {
     OpenAi(openai::transcription::TranscriptionModel<ClientWithMiddleware>),
-    Gemini(gemini::transcription::TranscriptionModel<ClientWithMiddleware>),
 }
 
-impl TranscribeModels {
+impl SttModels {
     /// Build the appropriate transcription model for the given provider.
     pub fn from_provider(
-        provider: &TranscribeProvider,
+        provider: &SttProvider,
         model: &str,
         max_retries: u32,
     ) -> Result<Self, Error> {
         let http = build_http_client(&HttpConfig::with_max_retries(max_retries));
 
         match provider {
-            TranscribeProvider::OpenAi(p) => {
+            SttProvider::OpenAi(p) => {
                 let client = p.openai_client(http)?;
                 let model =
                     openai::transcription::TranscriptionModel::new(client, model);
                 Ok(Self::OpenAi(model))
-            }
-            TranscribeProvider::Gemini(p) => {
-                let client = p.gemini_client(http)?;
-                // rig-core 0.31: Gemini's Capabilities doesn't propagate H,
-                // so TranscriptionClient is unavailable for non-default H.
-                let model =
-                    gemini::transcription::TranscriptionModel::new(client, model);
-                Ok(Self::Gemini(model))
             }
         }
     }

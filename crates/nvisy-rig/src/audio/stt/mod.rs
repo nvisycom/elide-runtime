@@ -1,19 +1,22 @@
 //! Speech-to-text transcription service wrapping rig-core's `TranscriptionModel`.
 //!
 //! Not an LLM agent — directly calls the provider's transcription API (OpenAI
-//! Whisper, Gemini). Follows the same provider-dispatch enum pattern as
+//! Whisper). Follows the same provider-dispatch enum pattern as
 //! [`BaseAgent`](crate::agent::BaseAgent).
+
+mod provider;
+
+pub use provider::SttProvider;
+pub(crate) use provider::SttModels;
 
 use rig::transcription::TranscriptionModel;
 use uuid::Uuid;
 
 use crate::error::Error;
 
-use super::base::{TranscribeModels, TranscribeProvider};
-
-/// Configuration for the transcription service.
+/// Configuration for the speech-to-text service.
 #[derive(Debug, Clone)]
-pub struct TranscribeConfig {
+pub struct SttConfig {
     /// Model name (e.g. `"whisper-1"`).
     pub model: String,
     /// BCP-47 language code (e.g. `"en"`, `"de"`).
@@ -26,7 +29,7 @@ pub struct TranscribeConfig {
     pub max_retries: u32,
 }
 
-impl Default for TranscribeConfig {
+impl Default for SttConfig {
     fn default() -> Self {
         Self {
             model: "whisper-1".to_owned(),
@@ -38,31 +41,33 @@ impl Default for TranscribeConfig {
     }
 }
 
-/// Transcription result.
+/// Speech-to-text result.
 #[derive(Debug, Clone)]
-pub struct TranscribeOutput {
+pub struct SttOutput {
     /// The transcribed text.
     pub text: String,
 }
 
 /// Speech-to-text service wrapping rig-core transcription providers.
 ///
-/// Supports OpenAI (Whisper) and Gemini.
-pub struct TranscribeService {
+/// Supports OpenAI (Whisper).
+// TODO: Add diarization support once rig-core exposes verbose_json response
+// format and timestamp_granularities options.
+pub struct SttService {
     id: Uuid,
-    inner: TranscribeModels,
-    config: TranscribeConfig,
+    inner: SttModels,
+    config: SttConfig,
 }
 
-impl TranscribeService {
-    /// Create a new transcription service for the given provider.
+impl SttService {
+    /// Create a new speech-to-text service for the given provider.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Request`] if client construction fails.
-    pub fn new(provider: &TranscribeProvider, config: TranscribeConfig) -> Result<Self, Error> {
+    pub fn new(provider: &SttProvider, config: SttConfig) -> Result<Self, Error> {
         let inner =
-            TranscribeModels::from_provider(provider, &config.model, config.max_retries)?;
+            SttModels::from_provider(provider, &config.model, config.max_retries)?;
 
         Ok(Self {
             id: Uuid::now_v7(),
@@ -90,7 +95,7 @@ impl TranscribeService {
         &self,
         audio_data: &[u8],
         filename: &str,
-    ) -> Result<TranscribeOutput, Error> {
+    ) -> Result<SttOutput, Error> {
         macro_rules! build_and_send {
             ($model:expr) => {{
                 let mut builder = $model
@@ -113,12 +118,11 @@ impl TranscribeService {
         }
 
         let text = match &self.inner {
-            TranscribeModels::OpenAi(model) => build_and_send!(model),
-            TranscribeModels::Gemini(model) => build_and_send!(model),
+            SttModels::OpenAi(model) => build_and_send!(model),
         };
 
         tracing::info!(text_len = text.len(), "transcription complete");
 
-        Ok(TranscribeOutput { text })
+        Ok(SttOutput { text })
     }
 }

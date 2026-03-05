@@ -9,7 +9,7 @@ pub use crate::agent::{
     VerificationStatus, VerifiedEntity,
 };
 pub use crate::agent::{DetectionConfig, DetectionRequest, DetectionResponse};
-pub use crate::audio::TranscribeProvider;
+pub use crate::audio::SttProvider;
 pub use crate::backend::{
     AuthenticatedProvider, UnauthenticatedProvider, UsageStats, UsageTracker,
 };

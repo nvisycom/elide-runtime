@@ -22,7 +22,7 @@ pub use nvisy_ontology::context::Context;
 pub use nvisy_ontology::entity::DetectionOutput;
 pub use nvisy_ontology::policy::{Policies, PolicyEvaluation, RedactionSummary};
 pub use nvisy_ontology::record::RedactionMap;
-use nvisy_registry::ContentId;
+use nvisy_registry::{ActorId, ContentId};
 pub use ontology::{Explainable, Explanation};
 pub use runs::{NodeProgress, RunManager, RunState, RunStatus, RunSummary};
 use uuid::Uuid;
@@ -30,8 +30,6 @@ use uuid::Uuid;
 use crate::compiler::Graph;
 pub use crate::compiler::{RetryPolicy, TimeoutPolicy};
 use crate::provenance::FileAudit;
-
-use nvisy_registry::ActorId;
 
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {

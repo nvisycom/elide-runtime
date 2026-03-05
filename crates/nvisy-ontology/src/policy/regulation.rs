@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use strum::Display;
 
 /// A compliance regulation or framework that a policy targets.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Display, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum RegulationKind {

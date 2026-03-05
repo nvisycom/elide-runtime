@@ -10,8 +10,6 @@ use uuid::Uuid;
 pub struct ProcessResponse {
     /// Unique run identifier.
     pub run_id: Uuid,
-    /// Identifier of the processed output content.
-    pub output_id: Uuid,
     /// Per-source result summaries as opaque JSON.
     pub summaries: serde_json::Value,
     /// Audit trail entries as opaque JSON.

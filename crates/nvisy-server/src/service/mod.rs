@@ -19,7 +19,7 @@ impl ServiceState {
     /// Creates a new service state with the given registry.
     pub fn new(registry: Registry) -> Self {
         Self {
-            default_engine: DefaultEngine,
+            default_engine: DefaultEngine::new(),
             registry,
         }
     }

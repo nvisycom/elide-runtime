@@ -9,20 +9,30 @@
 //! | `POST` | `/api/v1/process/redact`   | Run the full redaction pipeline                |
 //!
 //! All endpoints expect a JSON body with `content_ids` referencing previously
-//! uploaded content, along with policies, an execution graph, and optional
-//! connections.
+//! uploaded content, along with policies and an execution graph.
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_engine::pipeline::Policies;
+use nvisy_engine::pipeline::{Engine, EngineInput};
 
-use super::error::{ErrorKind, Result};
+use super::error::Result;
 use super::request::ProcessRequest;
 use super::response::ProcessResponse;
 use crate::extract::Json;
 use crate::service::ServiceState;
+
+/// Build an [`EngineInput`] from a [`ProcessRequest`].
+fn engine_input(req: ProcessRequest) -> EngineInput {
+    EngineInput {
+        actor: req.actor_id,
+        content_ids: req.content_ids,
+        policies: req.policies,
+        graph: req.graph,
+        contexts: Vec::new(),
+    }
+}
 
 /// `POST /api/v1/process/scan`: run OCR on uploaded content.
 ///
@@ -30,17 +40,17 @@ use crate::service::ServiceState;
 /// further classification or redaction.
 #[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn scan(
-    State(_state): State<ServiceState>,
+    State(state): State<ServiceState>,
     Json(req): Json<ProcessRequest>,
 ) -> Result<Json<ProcessResponse>> {
-    let _policies: Policies = serde_json::from_value(req.policies)
-        .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid policies: {e}")))?;
+    let input = engine_input(req);
+    let output = state.engine().run(input).await?;
 
-    Err(ErrorKind::NotImplemented.with_message(format!(
-        "scan endpoint not yet implemented (actor: {}, content_ids: {})",
-        req.actor_id,
-        req.content_ids.len(),
-    )))
+    Ok(Json(ProcessResponse {
+        run_id: output.run_id,
+        summaries: serde_json::to_value(&output.summaries).unwrap_or_default(),
+        audits: serde_json::to_value(&output.file_audits).unwrap_or_default(),
+    }))
 }
 
 fn scan_docs(op: TransformOperation) -> TransformOperation {
@@ -59,17 +69,17 @@ fn scan_docs(op: TransformOperation) -> TransformOperation {
 /// applying any redactions.
 #[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn analyze(
-    State(_state): State<ServiceState>,
+    State(state): State<ServiceState>,
     Json(req): Json<ProcessRequest>,
 ) -> Result<Json<ProcessResponse>> {
-    let _policies: Policies = serde_json::from_value(req.policies)
-        .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid policies: {e}")))?;
+    let input = engine_input(req);
+    let output = state.engine().run(input).await?;
 
-    Err(ErrorKind::NotImplemented.with_message(format!(
-        "analyze endpoint not yet implemented (actor: {}, content_ids: {})",
-        req.actor_id,
-        req.content_ids.len(),
-    )))
+    Ok(Json(ProcessResponse {
+        run_id: output.run_id,
+        summaries: serde_json::to_value(&output.summaries).unwrap_or_default(),
+        audits: serde_json::to_value(&output.file_audits).unwrap_or_default(),
+    }))
 }
 
 fn analyze_docs(op: TransformOperation) -> TransformOperation {
@@ -88,17 +98,17 @@ fn analyze_docs(op: TransformOperation) -> TransformOperation {
 /// on previously uploaded content.
 #[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn redact(
-    State(_state): State<ServiceState>,
+    State(state): State<ServiceState>,
     Json(req): Json<ProcessRequest>,
 ) -> Result<Json<ProcessResponse>> {
-    let _policies: Policies = serde_json::from_value(req.policies)
-        .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid policies: {e}")))?;
+    let input = engine_input(req);
+    let output = state.engine().run(input).await?;
 
-    Err(ErrorKind::NotImplemented.with_message(format!(
-        "redact endpoint not yet implemented (actor: {}, content_ids: {})",
-        req.actor_id,
-        req.content_ids.len(),
-    )))
+    Ok(Json(ProcessResponse {
+        run_id: output.run_id,
+        summaries: serde_json::to_value(&output.summaries).unwrap_or_default(),
+        audits: serde_json::to_value(&output.file_audits).unwrap_or_default(),
+    }))
 }
 
 fn redact_docs(op: TransformOperation) -> TransformOperation {

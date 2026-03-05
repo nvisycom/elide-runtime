@@ -4,9 +4,9 @@
 //!
 //! | Variant  | Behaviour                                              |
 //! |----------|--------------------------------------------------------|
-//! | `Source` | Reads data from an external connection and sends it downstream. |
+//! | `Source` | Reads data from an external provider and sends it downstream. |
 //! | `Action` | Receives upstream data, applies a transformation, and forwards results. |
-//! | `Target` | Receives upstream data and writes it to an external connection. |
+//! | `Target` | Receives upstream data and writes it to an external provider. |
 
 use nvisy_core::io::ContentData;
 use nvisy_core::{Error, ErrorKind};
@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use super::connections::{Connection, Connections};
 use super::policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
 use crate::compiler::{ActionKind, GraphNode, GraphNodeKind, RetryPolicy, TimeoutBehavior};
 
@@ -53,32 +52,17 @@ pub(crate) async fn execute_node(
     node: &GraphNode,
     senders: Vec<mpsc::Sender<ContentData>>,
     mut receivers: Vec<mpsc::Receiver<ContentData>>,
-    connections: &Connections,
 ) -> Result<u64, Error> {
     let run = async {
         match &node.kind {
             GraphNodeKind::Source(src) => {
-                execute_source(
-                    &src.provider,
-                    &src.stream,
-                    node.retry(),
-                    &senders,
-                    connections,
-                )
-                .await
+                execute_source(&src.provider, &src.stream, node.retry(), &senders).await
             }
             GraphNodeKind::Action(act) => {
                 execute_action(&act.action, &senders, &mut receivers).await
             }
             GraphNodeKind::Target(tgt) => {
-                execute_target(
-                    &tgt.provider,
-                    &tgt.stream,
-                    node.retry(),
-                    &mut receivers,
-                    connections,
-                )
-                .await
+                execute_target(&tgt.provider, &tgt.stream, node.retry(), &mut receivers).await
             }
         }
     };
@@ -97,35 +81,17 @@ pub(crate) async fn execute_node(
     }
 }
 
-/// Resolve a connection by provider name, returning an error if not found.
-fn resolve_connection<'a>(
-    provider: &str,
-    connections: &'a Connections,
-) -> Result<&'a Connection, Error> {
-    connections.get(provider).ok_or_else(|| {
-        Error::new(
-            ErrorKind::Validation,
-            format!("No connection configured for provider '{provider}'"),
-        )
-        .with_component("executor")
-    })
-}
-
 /// Execute a `Source` node: read data from an external provider and send
 /// items downstream.
 ///
-/// Resolves the named connection and applies the retry policy to the
-/// provider read operation. Actual provider integration (S3, database, etc.)
-/// is not yet implemented — source nodes currently produce no data.
+/// Actual provider integration (S3, database, etc.) is not yet implemented —
+/// source nodes currently produce no data.
 async fn execute_source(
     provider: &str,
     stream: &str,
     retry: Option<&RetryPolicy>,
     senders: &[mpsc::Sender<ContentData>],
-    connections: &Connections,
 ) -> Result<u64, Error> {
-    let _conn = resolve_connection(provider, connections)?;
-
     let read_from_provider = || async {
         tracing::debug!(provider, stream, "source node: reading from provider");
 
@@ -193,18 +159,14 @@ async fn execute_action(
 /// Execute a `Target` node: consume upstream data and write to an external
 /// provider.
 ///
-/// Resolves the named connection and applies the retry policy to the
-/// provider write operation. Actual provider integration is not yet
-/// implemented — target nodes currently consume and count items.
+/// Actual provider integration is not yet implemented — target nodes
+/// currently consume and count items.
 async fn execute_target(
     provider: &str,
     stream: &str,
     retry: Option<&RetryPolicy>,
     receivers: &mut [mpsc::Receiver<ContentData>],
-    connections: &Connections,
 ) -> Result<u64, Error> {
-    let _conn = resolve_connection(provider, connections)?;
-
     tracing::debug!(provider, stream, "target node: writing to provider");
 
     // Consume all upstream items.

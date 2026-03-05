@@ -10,46 +10,55 @@
 //! so that any Source/Action/Target DAG nodes are also executed.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
-use nvisy_ontology::policy::{PolicyEvaluation, RedactionSummary};
-use nvisy_ontology::record::RedactionMap;
+use nvisy_ontology::policy::PolicyEvaluation;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 use uuid::Uuid;
 
-use super::connections::Connections;
 use super::executor::{NodeOutput, RunOutput, execute_node};
 use super::{Engine, EngineInput, EngineOutput};
-use crate::compiler::{Compiler, ExecutionPlan};
-use crate::operation::Operation;
-use crate::operation::processing::{EvaluatePolicy, EvaluatePolicyParams};
-use crate::provenance::{
-    AuditEntryStatus, FileAudit, FileAuditEntryBuilder, FileAuditEntryKind,
-    ProcessingActionBuilder, ProcessingKind,
-};
+use crate::compiler::{Compiler, ExecutionPlan, RetryPolicy, TimeoutPolicy};
 
 /// Default buffer size for bounded inter-node MPSC channels.
 const CHANNEL_BUFFER_SIZE: usize = 256;
 
 /// Default [`Engine`] implementation.
 ///
-/// Stateless: all configuration comes from the [`EngineInput`] provided at
-/// call time. Suitable for embedding in long-lived application state.
-#[derive(Debug, Clone, Copy)]
-pub struct DefaultEngine;
+/// Carries optional default retry and timeout policies that are applied
+/// to graph nodes which don't specify their own.
+#[derive(Debug, Clone, Default)]
+pub struct DefaultEngine {
+    /// Default retry policy for graph nodes without one.
+    pub retry: Option<RetryPolicy>,
+    /// Default timeout policy for graph nodes without one.
+    pub timeout: Option<TimeoutPolicy>,
+}
 
 impl DefaultEngine {
+    /// Create a new engine with no default policies.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the default retry policy.
+    pub fn with_retry(mut self, policy: RetryPolicy) -> Self {
+        self.retry = Some(policy);
+        self
+    }
+
+    /// Set the default timeout policy.
+    pub fn with_timeout(mut self, policy: TimeoutPolicy) -> Self {
+        self.timeout = Some(policy);
+        self
+    }
+
     /// Execute a compiled [`ExecutionPlan`] by spawning concurrent tasks for
     /// each node.
-    async fn run_graph(
-        plan: &ExecutionPlan,
-        connections: &Connections,
-    ) -> Result<RunOutput, Error> {
+    async fn run_graph(plan: &ExecutionPlan) -> Result<RunOutput, Error> {
         let run_id = Uuid::new_v4();
-        let connections = Arc::new(connections.clone());
 
         // Create channels for each edge
         let mut senders: HashMap<Uuid, Vec<mpsc::Sender<ContentData>>> = HashMap::new();
@@ -90,7 +99,6 @@ impl DefaultEngine {
             let completion_tx = signal_senders.remove(&node_id);
             let node_senders = senders.remove(&node_id).unwrap_or_default();
             let node_receivers = receivers.remove(&node_id).unwrap_or_default();
-            let conns = Arc::clone(&connections);
 
             join_set.spawn(async move {
                 // Wait for upstream nodes to complete
@@ -98,7 +106,7 @@ impl DefaultEngine {
                     let _ = rx.wait_for(|&done| done).await;
                 }
 
-                let result = execute_node(&node, node_senders, node_receivers, &conns).await;
+                let result = execute_node(&node, node_senders, node_receivers).await;
 
                 // Signal completion
                 if let Some(tx) = completion_tx {
@@ -146,15 +154,9 @@ impl DefaultEngine {
 impl Engine for DefaultEngine {
     async fn run(&self, input: EngineInput) -> Result<EngineOutput, Error> {
         let run_id = Uuid::new_v4();
-        let content_source = input.source.content_source();
 
         // Contexts are accepted for future use by detection actions.
         let _contexts = &input.contexts;
-
-        // Initialize per-file processing log and redaction map.
-        let mut file_audit = FileAudit::new(content_source);
-        file_audit.run_id = Some(run_id);
-        let redaction_map = RedactionMap::new(content_source, run_id);
 
         // Phase 1: Detection
         //
@@ -162,134 +164,45 @@ impl Engine for DefaultEngine {
         // CV layers) before the engine is called. The engine receives entities as
         // part of a higher-level orchestration layer. For now, we create an empty
         // detection output and let the execution graph handle detection actions.
-        let mut detection =
-            nvisy_ontology::entity::DetectionOutput::new(content_source, Vec::new());
-        detection.policy_id = input.policies.policies.first().map(|p| p.id);
+        let detection = nvisy_ontology::entity::DetectionOutput::new(
+            nvisy_core::path::ContentSource::new(),
+            Vec::new(),
+        );
 
         // Phase 2: Policy Evaluation
         //
-        // Evaluate each policy against the detected entities to produce
-        // redaction instructions, review holds, alerts, blocks, etc.
-        let mut all_redactions = Vec::new();
-        let mut evaluations = Vec::new();
-
-        for policy in &input.policies.policies {
-            let params = EvaluatePolicyParams {
-                rules: policy.rules.clone(),
-                default_spec: policy.default_spec.clone(),
-                default_confidence_threshold: policy.default_confidence_threshold,
-            };
-
-            let action = EvaluatePolicy::connect(params).await?;
-            let redactions = action.execute(detection.entities.clone()).await?;
-
-            // Record a policy evaluation audit entry.
-            let eval_entry = FileAuditEntryBuilder::default()
-                .with_status(AuditEntryStatus::Success)
-                .with_policy_id(policy.id)
-                .with_kind(FileAuditEntryKind::Processing(
-                    ProcessingKind::PolicyEvaluation(
-                        ProcessingActionBuilder::default()
-                            .with_matched_count(redactions.len() as u64)
-                            .build()
-                            .unwrap_or_default(),
-                    ),
-                ))
-                .finish()
-                .expect("valid audit entry");
-            file_audit.push(eval_entry);
-
-            evaluations.push(PolicyEvaluation {
-                policy_id: policy.id,
-                redactions: redactions.clone(),
-                pending_review: Vec::new(),
-                suppressed: Vec::new(),
-                blocked: Vec::new(),
-                alerted: Vec::new(),
-            });
-
-            all_redactions.extend(redactions);
-        }
-
-        // Use the first policy evaluation as the primary; merge if multiple.
-        let evaluation = if let Some(first) = evaluations.into_iter().next() {
-            first
-        } else {
-            PolicyEvaluation {
-                policy_id: Uuid::nil(),
-                redactions: Vec::new(),
-                pending_review: Vec::new(),
-                suppressed: Vec::new(),
-                blocked: Vec::new(),
-                alerted: Vec::new(),
-            }
+        // Policy evaluation is handled by the execution graph. For now we
+        // produce an empty evaluation.
+        let evaluation = PolicyEvaluation {
+            policy_id: Uuid::nil(),
+            redactions: Vec::new(),
+            pending_review: Vec::new(),
+            suppressed: Vec::new(),
+            blocked: Vec::new(),
+            alerted: Vec::new(),
         };
 
-        // Phase 3: Redaction
-        //
-        // The Redaction operation wraps per-modality logic (text, image, audio,
-        // tabular). It requires typed `Document<T>` representations which are
-        // not yet available at this level: the engine works with `ContentHandle`.
-        // Once codec parsing is wired in, the call below will pass real documents
-        // instead of empty vecs.
-        let redaction_op = crate::operation::processing::Redaction;
-        let redaction_input = crate::operation::processing::RedactionInput {
-            text_docs: Vec::new(),
-            image_docs: Vec::new(),
-            audio_docs: Vec::new(),
-            tabular_docs: Vec::new(),
-            entities: detection.entities.clone(),
-            redactions: all_redactions.clone(),
-        };
-        let _redaction_output = redaction_op
-            .call(crate::operation::ParallelContext::new(redaction_input))
-            .await?;
-
-        let applied = all_redactions.iter().filter(|r| r.applied).count();
-        let skipped = all_redactions.len() - applied;
-
-        // Record a redaction audit entry.
-        let redaction_entry = FileAuditEntryBuilder::default()
-            .with_status(AuditEntryStatus::Success)
-            .with_kind(FileAuditEntryKind::Processing(ProcessingKind::Redaction(
-                ProcessingActionBuilder::default()
-                    .with_items_count(all_redactions.len() as u64)
-                    .with_matched_count(applied as u64)
-                    .build()
-                    .unwrap_or_default(),
-            )))
-            .finish()
-            .expect("valid audit entry");
-        file_audit.push(redaction_entry);
-
-        let summaries = vec![RedactionSummary {
-            source: content_source,
-            redactions_applied: applied,
-            redactions_skipped: skipped,
-        }];
-
-        // Phase 4: DAG Execution
+        // Phase 3: DAG Execution
         //
         // Compile the graph into a topologically-sorted execution plan and
         // run Source/Action/Target nodes concurrently.
         let mut compiler = Compiler::new();
-        if let Some(retry) = input.default_retry {
-            compiler = compiler.with_retry(retry);
+        if let Some(ref retry) = self.retry {
+            compiler = compiler.with_retry(retry.clone());
         }
-        if let Some(timeout) = input.default_timeout {
-            compiler = compiler.with_timeout(timeout);
+        if let Some(ref timeout) = self.timeout {
+            compiler = compiler.with_timeout(timeout.clone());
         }
         let plan = compiler.compile(&input.graph)?;
-        let run_output = Self::run_graph(&plan, &input.connections).await?;
+        let run_output = Self::run_graph(&plan).await?;
 
         Ok(EngineOutput {
             run_id,
-            output: input.source,
             detection,
             evaluation,
-            summaries,
-            file_audits: vec![file_audit],
-            redaction_maps: vec![redaction_map],
+            summaries: Vec::new(),
+            file_audits: Vec::new(),
+            redaction_maps: Vec::new(),
             run_output,
         })
     }

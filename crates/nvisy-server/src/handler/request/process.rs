@@ -1,9 +1,7 @@
 //! Process request types.
 
-use std::collections::HashMap;
-
 use nvisy_engine::Graph;
-use nvisy_engine::pipeline::Connection;
+use nvisy_engine::pipeline::Policies;
 use nvisy_registry::{ActorId, ContentId};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -16,11 +14,8 @@ pub struct ProcessRequest {
     pub actor_id: ActorId,
     /// Identifiers of previously uploaded content.
     pub content_ids: Vec<ContentId>,
-    /// Policies as opaque JSON (validated in the handler).
-    pub policies: serde_json::Value,
+    /// Policies to apply during processing.
+    pub policies: Policies,
     /// Execution graph defining the pipeline DAG.
     pub graph: Graph,
-    /// External service connections keyed by ID.
-    #[serde(default)]
-    pub connections: HashMap<String, Connection>,
 }

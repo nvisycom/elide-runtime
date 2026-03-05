@@ -1,9 +1,13 @@
 //! Application state and dependency injection.
 //!
 //! [`ServiceState`] holds shared dependencies (engine, registry) and is
-//! threaded through every handler via Axum's `State` extractor. Fields are
-//! private; use the provided accessor methods.
+//! threaded through every handler via Axum's `State` extractor. Individual
+//! handlers extract only the dependency they need (e.g. `State<Registry>`)
+//! rather than the full state.
 
+mod config;
+
+pub use config::ServiceConfig;
 use nvisy_engine::pipeline::DefaultEngine;
 use nvisy_registry::Registry;
 
@@ -11,27 +15,28 @@ use nvisy_registry::Registry;
 #[must_use = "state does nothing unless you use it"]
 #[derive(Clone)]
 pub struct ServiceState {
-    default_engine: DefaultEngine,
+    engine: DefaultEngine,
     registry: Registry,
 }
 
 impl ServiceState {
-    /// Creates a new service state with the given registry.
-    pub fn new(registry: Registry) -> Self {
-        Self {
-            default_engine: DefaultEngine::new(),
-            registry,
+    /// Creates a new service state from a [`ServiceConfig`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the registry database cannot be opened.
+    pub fn new(config: &ServiceConfig) -> nvisy_core::Result<Self> {
+        let registry = Registry::open(config.data_dir())?;
+
+        let mut engine = DefaultEngine::new();
+        if let Some(retry) = config.retry_policy() {
+            engine = engine.with_retry(retry);
         }
-    }
+        if let Some(timeout) = config.timeout_policy() {
+            engine = engine.with_timeout(timeout);
+        }
 
-    /// Returns a reference to the pipeline engine.
-    pub fn engine(&self) -> &DefaultEngine {
-        &self.default_engine
-    }
-
-    /// Returns a reference to the registry.
-    pub fn registry(&self) -> &Registry {
-        &self.registry
+        Ok(Self { engine, registry })
     }
 }
 
@@ -46,6 +51,6 @@ macro_rules! impl_di {
 }
 
 impl_di!(
-    default_engine: DefaultEngine,
+    engine: DefaultEngine,
     registry: Registry,
 );

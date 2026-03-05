@@ -15,7 +15,7 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_engine::pipeline::{Engine, EngineInput};
+use nvisy_engine::pipeline::{DefaultEngine, Engine, EngineInput};
 
 use super::error::Result;
 use super::request::ProcessRequest;
@@ -40,11 +40,11 @@ fn engine_input(req: ProcessRequest) -> EngineInput {
 /// further classification or redaction.
 #[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn scan(
-    State(state): State<ServiceState>,
+    State(engine): State<DefaultEngine>,
     Json(req): Json<ProcessRequest>,
 ) -> Result<Json<ProcessResponse>> {
     let input = engine_input(req);
-    let output = state.engine().run(input).await?;
+    let output = engine.run(input).await?;
 
     Ok(Json(ProcessResponse {
         run_id: output.run_id,
@@ -69,11 +69,11 @@ fn scan_docs(op: TransformOperation) -> TransformOperation {
 /// applying any redactions.
 #[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn analyze(
-    State(state): State<ServiceState>,
+    State(engine): State<DefaultEngine>,
     Json(req): Json<ProcessRequest>,
 ) -> Result<Json<ProcessResponse>> {
     let input = engine_input(req);
-    let output = state.engine().run(input).await?;
+    let output = engine.run(input).await?;
 
     Ok(Json(ProcessResponse {
         run_id: output.run_id,
@@ -98,11 +98,11 @@ fn analyze_docs(op: TransformOperation) -> TransformOperation {
 /// on previously uploaded content.
 #[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
 async fn redact(
-    State(state): State<ServiceState>,
+    State(engine): State<DefaultEngine>,
     Json(req): Json<ProcessRequest>,
 ) -> Result<Json<ProcessResponse>> {
     let input = engine_input(req);
-    let output = state.engine().run(input).await?;
+    let output = engine.run(input).await?;
 
     Ok(Json(ProcessResponse {
         run_id: output.run_id,

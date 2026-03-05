@@ -50,6 +50,9 @@ uuid = { workspace = true, features = [] }
 # Observability
 tracing = { workspace = true, features = [] }
 
+# CLI
+clap = { workspace = true, features = ["derive", "env"] }
+
 # Encoding
 base64 = { workspace = true, features = [] }
 

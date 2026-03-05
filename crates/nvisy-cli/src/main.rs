@@ -9,7 +9,6 @@ use std::process;
 
 use axum::Router;
 use clap::Parser;
-use nvisy_registry::Registry;
 use nvisy_server::middleware::*;
 use nvisy_server::service::ServiceState;
 
@@ -36,20 +35,19 @@ async fn run() -> anyhow::Result<()> {
     Cli::init_tracing();
 
     // Initialize application state
-    let registry = Registry::open(cli.server.data_dir())?;
-    let state = ServiceState::new(registry);
+    let state = ServiceState::new(&cli.service)?;
 
     // Build and run
     let router = create_router(&cli, state);
-    server::run(&cli.server, router).await
+    server::run(&cli, router).await
 }
 
 /// Creates the router with all middleware layers applied.
 fn create_router(cli: &Cli, state: ServiceState) -> Router {
     nvisy_server::handler::routes()
-        .with_open_api(&cli.open_api_config())
-        .with_recovery(&cli.recovery_config())
+        .with_open_api(&cli.middleware.open_api_config())
+        .with_recovery(&cli.middleware.recovery_config())
         .with_observability()
-        .with_security(&cli.security_config())
+        .with_security(&cli.middleware.security_config())
         .with_state(state)
 }

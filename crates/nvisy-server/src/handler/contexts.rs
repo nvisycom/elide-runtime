@@ -15,7 +15,7 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_registry::ContextId;
+use nvisy_registry::{ContextId, Registry};
 
 use super::error::Result;
 use super::request::{ActorQuery, ContextPath, ContextUpload};
@@ -29,13 +29,10 @@ use crate::service::ServiceState;
 /// `POST /api/v1/contexts`: upload a typed context.
 #[tracing::instrument(skip_all)]
 async fn upload(
-    State(state): State<ServiceState>,
+    State(registry): State<Registry>,
     Json(req): Json<ContextUpload>,
 ) -> Result<(StatusCode, Json<ContextUploadResponse>)> {
-    let handle = state
-        .registry()
-        .register_context(req.actor_id, req.context)
-        .await?;
+    let handle = registry.register_context(req.actor_id, req.context).await?;
     let id = ContextId::from(handle.source().as_uuid());
 
     tracing::info!(%id, "context uploaded");
@@ -56,10 +53,10 @@ fn upload_docs(op: TransformOperation) -> TransformOperation {
 /// `GET /api/v1/contexts`: list all context identifiers.
 #[tracing::instrument(skip_all)]
 async fn list(
-    State(state): State<ServiceState>,
+    State(registry): State<Registry>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<Json<ContextListResponse>> {
-    let contexts = state.registry().list_contexts(actor_id).await?;
+    let contexts = registry.list_contexts(actor_id).await?;
     Ok(Json(ContextListResponse { contexts }))
 }
 
@@ -73,11 +70,11 @@ fn list_docs(op: TransformOperation) -> TransformOperation {
 /// `GET /api/v1/contexts/{id}`: download a previously uploaded context.
 #[tracing::instrument(skip_all, fields(%id))]
 async fn download(
-    State(state): State<ServiceState>,
+    State(registry): State<Registry>,
     Path(ContextPath { id }): Path<ContextPath>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<Json<ContextDownloadResponse>> {
-    let handle = state.registry().read_context(actor_id, id).await?;
+    let handle = registry.read_context(actor_id, id).await?;
     let context = handle.context().await?;
     Ok(Json(ContextDownloadResponse { id, context }))
 }
@@ -92,11 +89,11 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
 /// `DELETE /api/v1/contexts/{id}`: delete a single context.
 #[tracing::instrument(skip_all, fields(%id))]
 async fn delete(
-    State(state): State<ServiceState>,
+    State(registry): State<Registry>,
     Path(ContextPath { id }): Path<ContextPath>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<Json<ContextDeleteResponse>> {
-    state.registry().unregister_context(actor_id, id).await?;
+    registry.unregister_context(actor_id, id).await?;
     tracing::info!(%id, "context deleted");
     Ok(Json(ContextDeleteResponse { id }))
 }
@@ -111,10 +108,10 @@ fn delete_docs(op: TransformOperation) -> TransformOperation {
 /// `DELETE /api/v1/contexts`: delete all contexts.
 #[tracing::instrument(skip_all)]
 async fn delete_all(
-    State(state): State<ServiceState>,
+    State(registry): State<Registry>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<Json<ContextDeleteAllResponse>> {
-    let deleted = state.registry().unregister_all_contexts(actor_id).await?;
+    let deleted = registry.unregister_all_contexts(actor_id).await?;
     tracing::info!(deleted, "all contexts deleted");
     Ok(Json(ContextDeleteAllResponse { deleted }))
 }

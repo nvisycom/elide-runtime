@@ -3044,6 +3044,7 @@ dependencies = [
  "aide",
  "axum",
  "base64",
+ "clap",
  "futures",
  "nvisy-core",
  "nvisy-engine",

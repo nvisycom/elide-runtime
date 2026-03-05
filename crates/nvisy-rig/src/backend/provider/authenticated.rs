@@ -2,10 +2,17 @@
 
 use std::fmt;
 
+#[cfg(any(feature = "openai", feature = "anthropic", feature = "gemini"))]
 use reqwest_middleware::ClientWithMiddleware;
-use rig::providers::{anthropic, gemini, openai};
+#[cfg(feature = "anthropic")]
+use rig::providers::anthropic;
+#[cfg(feature = "gemini")]
+use rig::providers::gemini;
+#[cfg(feature = "openai")]
+use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
+#[cfg(any(feature = "openai", feature = "anthropic", feature = "gemini"))]
 use crate::error::Error;
 
 /// Provider that requires an API key (OpenAI, Anthropic, Gemini).
@@ -28,6 +35,8 @@ impl fmt::Debug for AuthenticatedProvider {
 
 impl AuthenticatedProvider {
     /// Build an OpenAI rig-core client.
+    #[cfg(feature = "openai")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "openai")))]
     pub(crate) fn openai_client(
         &self,
         http: ClientWithMiddleware,
@@ -42,6 +51,8 @@ impl AuthenticatedProvider {
     }
 
     /// Build a Gemini rig-core client.
+    #[cfg(feature = "gemini")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "gemini")))]
     pub(crate) fn gemini_client(
         &self,
         http: ClientWithMiddleware,
@@ -56,6 +67,8 @@ impl AuthenticatedProvider {
     }
 
     /// Build an Anthropic rig-core client.
+    #[cfg(feature = "anthropic")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "anthropic")))]
     pub(crate) fn anthropic_client(
         &self,
         http: ClientWithMiddleware,

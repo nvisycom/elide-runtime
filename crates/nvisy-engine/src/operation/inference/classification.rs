@@ -1,8 +1,8 @@
 //! Content classification operation.
 
-use crate::operation::Operation;
-use crate::operation::ParallelContext;
 use nvisy_core::Error;
+
+use crate::operation::{Operation, ParallelContext};
 
 /// Classifies content by sensitivity, topic, or type.
 pub struct Classification;

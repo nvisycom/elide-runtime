@@ -3,15 +3,14 @@
 mod output;
 mod transform;
 
+use futures::StreamExt;
+use image::DynamicImage;
+use nvisy_core::Error;
+use nvisy_core::math::BoundingBox;
 pub use output::ImageRedactionOutput;
 pub use transform::ImageTransform;
 
-use image::DynamicImage;
-use futures::StreamExt;
-
-use crate::handler::{ImageHandler, ImageData, SpanEdit, SpanEditStream};
-use nvisy_core::Error;
-use nvisy_core::math::BoundingBox;
+use crate::handler::{ImageData, ImageHandler, SpanEdit, SpanEditStream};
 
 /// A located image redaction: pairs a bounding box with an
 /// [`ImageRedactionOutput`] that carries the method-specific parameters.
@@ -32,10 +31,7 @@ pub struct ImageRedaction {
 #[async_trait::async_trait]
 pub trait ImageRedact: ImageHandler {
     /// Apply a batch of image redactions, mutating in place.
-    async fn redact_images(
-        &mut self,
-        redactions: &[ImageRedaction],
-    ) -> Result<(), Error>;
+    async fn redact_images(&mut self, redactions: &[ImageRedaction]) -> Result<(), Error>;
 }
 
 #[async_trait::async_trait]
@@ -44,11 +40,11 @@ where
     H::ImageId: Default,
     ImageData: From<ImageData>,
 {
-    async fn redact_images(
-        &mut self,
-        redactions: &[ImageRedaction],
-    ) -> Result<(), Error> {
-        tracing::debug!(redaction_count = redactions.len(), "applying image redactions");
+    async fn redact_images(&mut self, redactions: &[ImageRedaction]) -> Result<(), Error> {
+        tracing::debug!(
+            redaction_count = redactions.len(),
+            "applying image redactions"
+        );
         if redactions.is_empty() {
             return Ok(());
         }
@@ -92,19 +88,14 @@ where
                         region.height,
                         image::imageops::FilterType::Lanczos3,
                     );
-                    image::imageops::overlay(
-                        &mut img,
-                        &resized,
-                        region.x as i64,
-                        region.y as i64,
-                    );
+                    image::imageops::overlay(&mut img, &resized, region.x as i64, region.y as i64);
                 }
             }
         }
 
-        self.edit_images(SpanEditStream::new(futures::stream::iter(
-            std::iter::once(SpanEdit::new(span.id, ImageData::from(img))),
-        )))
+        self.edit_images(SpanEditStream::new(futures::stream::iter(std::iter::once(
+            SpanEdit::new(span.id, ImageData::from(img)),
+        ))))
         .await?;
 
         tracing::debug!("image redactions applied");

@@ -1,9 +1,8 @@
 //! Geospatial region data for location-based detection.
 
+use nvisy_core::math::Polygon;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use nvisy_core::math::Polygon;
 
 use super::coordinates::GeoCoordinate;
 

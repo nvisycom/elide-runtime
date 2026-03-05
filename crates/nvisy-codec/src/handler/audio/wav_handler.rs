@@ -9,15 +9,14 @@
 
 use bytes::Bytes;
 use futures::StreamExt;
-
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
-use crate::handler::{Handler, Span, SpanEditStream, SpanStream, AudioHandler};
-use crate::transform::{AudioRedact, AudioRedaction};
 use super::AudioData;
+use crate::handler::{AudioHandler, Handler, Span, SpanEditStream, SpanStream};
+use crate::transform::{AudioRedact, AudioRedaction};
 
 #[derive(Debug)]
 pub struct WavHandler {
@@ -27,7 +26,10 @@ pub struct WavHandler {
 
 impl WavHandler {
     pub fn new(bytes: Bytes) -> Self {
-        Self { source: ContentSource::new(), bytes }
+        Self {
+            source: ContentSource::new(),
+            bytes,
+        }
     }
 
     /// Set the content source for lineage tracking.
@@ -59,15 +61,13 @@ impl AudioHandler for WavHandler {
     type AudioId = ();
 
     async fn audio_spans(&self) -> SpanStream<'_, (), AudioData> {
-        SpanStream::new(futures::stream::iter(std::iter::once(
-            Span::new((), AudioData::new(self.bytes.clone())),
-        )))
+        SpanStream::new(futures::stream::iter(std::iter::once(Span::new(
+            (),
+            AudioData::new(self.bytes.clone()),
+        ))))
     }
 
-    async fn edit_audio(
-        &mut self,
-        edits: SpanEditStream<'_, (), AudioData>,
-    ) -> Result<(), Error> {
+    async fn edit_audio(&mut self, edits: SpanEditStream<'_, (), AudioData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         if let Some(edit) = edits.into_iter().next() {
             self.bytes = edit.data.into_inner();
@@ -87,7 +87,7 @@ impl AudioRedact for WavHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::{SpanEdit, AudioHandler};
+    use crate::handler::{AudioHandler, SpanEdit};
 
     #[tokio::test]
     async fn view_spans_returns_single_span() {

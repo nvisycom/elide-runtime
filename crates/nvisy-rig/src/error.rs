@@ -129,9 +129,7 @@ impl From<Error> for nvisy_core::Error {
         }
 
         match &err {
-            Error::Http(_) => {
-                nvisy_core::Error::connection(err.to_string(), "rig", true)
-            }
+            Error::Http(_) => nvisy_core::Error::connection(err.to_string(), "rig", true),
             Error::Json(_) => {
                 nvisy_core::Error::new(nvisy_core::ErrorKind::Serialization, err.to_string())
                     .with_component("rig")
@@ -140,15 +138,9 @@ impl From<Error> for nvisy_core::Error {
                 let retryable = is_retryable_provider_error(msg);
                 nvisy_core::Error::connection(err.to_string(), "rig", retryable)
             }
-            Error::Response(_) => {
-                nvisy_core::Error::runtime(err.to_string(), "rig", false)
-            }
-            Error::Request(_) => {
-                nvisy_core::Error::validation(err.to_string(), "rig")
-            }
-            Error::Runtime(_) => {
-                nvisy_core::Error::runtime(err.to_string(), "rig", false)
-            }
+            Error::Response(_) => nvisy_core::Error::runtime(err.to_string(), "rig", false),
+            Error::Request(_) => nvisy_core::Error::validation(err.to_string(), "rig"),
+            Error::Runtime(_) => nvisy_core::Error::runtime(err.to_string(), "rig", false),
             Error::Core(_) => unreachable!(),
         }
     }

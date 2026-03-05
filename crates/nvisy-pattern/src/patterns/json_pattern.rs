@@ -5,9 +5,8 @@
 //! pattern together with any non-fatal `JsonPatternWarning`s so the
 //! caller can decide how to surface them.
 
-use serde::Deserialize;
-
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use serde::Deserialize;
 
 use super::context_rule::ContextRule;
 use super::pattern::{DictionaryPattern, MatchSource, Pattern, RegexPattern};
@@ -98,8 +97,13 @@ impl JsonPattern {
                 slug: slug.clone(),
             });
         }
-        if let MatchSource::Regex(RegexPattern { validator: Some(ref v), .. }) = match_source
-            && crate::validators::ValidatorResolver::builtins().resolve(v).is_none()
+        if let MatchSource::Regex(RegexPattern {
+            validator: Some(ref v),
+            ..
+        }) = match_source
+            && crate::validators::ValidatorResolver::builtins()
+                .resolve(v)
+                .is_none()
         {
             warnings.push(JsonPatternWarning::UnknownValidator {
                 pattern: raw.name.clone(),

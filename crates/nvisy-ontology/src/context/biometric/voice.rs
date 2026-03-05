@@ -1,10 +1,9 @@
 //! Voice biometric reference data.
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 use nvisy_core::math::TimeSpan;
 use nvisy_core::path::ContentSource;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 /// Reference voice data for speaker identification.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

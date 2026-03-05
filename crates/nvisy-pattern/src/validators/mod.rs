@@ -8,11 +8,11 @@ mod iban;
 mod luhn;
 mod ssn;
 
+use std::collections::HashMap;
+
 pub use iban::validate_iban;
 pub use luhn::luhn_check;
 pub use ssn::validate_ssn;
-
-use std::collections::HashMap;
 
 /// Signature for a validation function: takes the matched text and returns
 /// `true` if the value is valid.

@@ -4,7 +4,7 @@ use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
-use crate::handler::{Loader, DocxHandler};
+use crate::handler::{DocxHandler, Loader};
 
 /// Parameters for [`DocxLoader`].
 #[derive(Debug, Default)]

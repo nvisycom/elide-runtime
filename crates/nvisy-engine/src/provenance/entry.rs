@@ -13,7 +13,19 @@ use uuid::Uuid;
 use super::FileAuditEntryKind;
 
 /// Outcome status of an audit entry operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    EnumString,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AuditEntryStatus {
@@ -32,7 +44,7 @@ pub enum AuditEntryStatus {
     name = "FileAuditEntryBuilder",
     pattern = "owned",
     setter(into, strip_option, prefix = "with"),
-    build_fn(validate = "Self::validate"),
+    build_fn(validate = "Self::validate")
 )]
 #[serde(rename_all = "camelCase")]
 pub struct FileAuditEntry {

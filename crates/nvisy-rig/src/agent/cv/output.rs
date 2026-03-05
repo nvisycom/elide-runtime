@@ -1,9 +1,8 @@
 //! Structured output types for CV detection.
 
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
 
 /// A single entity detected by computer vision.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]

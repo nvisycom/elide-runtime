@@ -69,7 +69,10 @@ impl ContentSource {
     /// ```
     #[must_use]
     pub fn from_uuid(id: Uuid) -> Self {
-        Self { id, parent_id: None }
+        Self {
+            id,
+            parent_id: None,
+        }
     }
 
     /// Get the underlying UUID
@@ -106,9 +109,15 @@ impl ContentSource {
     /// ```
     pub fn parse(s: &str) -> Result<Self> {
         let id = Uuid::parse_str(s).map_err(|err| {
-            Error::new(ErrorKind::Validation, format!("Invalid content source UUID: {err}"))
+            Error::new(
+                ErrorKind::Validation,
+                format!("Invalid content source UUID: {err}"),
+            )
         })?;
-        Ok(Self { id, parent_id: None })
+        Ok(Self {
+            id,
+            parent_id: None,
+        })
     }
 
     /// Get the parent source identifier, if any.
@@ -285,5 +294,4 @@ mod tests {
         let deserialized: ContentSource = serde_json::from_str(&serialized).unwrap();
         assert_eq!(source, deserialized);
     }
-
 }

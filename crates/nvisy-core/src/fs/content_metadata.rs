@@ -211,7 +211,10 @@ mod tests {
         let json = serde_json::to_string(&metadata).unwrap();
         let deserialized: ContentMetadata = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(deserialized.get_extra("pages"), Some(&serde_json::json!(42)));
+        assert_eq!(
+            deserialized.get_extra("pages"),
+            Some(&serde_json::json!(42))
+        );
         assert_eq!(deserialized.filename(), Some("doc.pdf"));
     }
 }

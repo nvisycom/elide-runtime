@@ -7,13 +7,11 @@
 mod error;
 
 pub use error::from_pyerr;
-
+use hipstr::HipStr;
+use nvisy_core::Error;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde_json::Value;
-use hipstr::HipStr;
-
-use nvisy_core::Error;
 
 /// Lightweight handle to a Python NER module.
 ///
@@ -37,8 +35,7 @@ impl PythonBridge {
     /// Initialize Python and verify the module can be imported.
     pub fn init(&self) -> Result<(), Error> {
         Python::with_gil(|py| {
-            py.import(&*self.module_name)
-                .map_err(from_pyerr)?;
+            py.import(&*self.module_name).map_err(from_pyerr)?;
             Ok(())
         })
     }
@@ -55,11 +52,7 @@ impl PythonBridge {
     /// keyword arguments.  The method is invoked as
     /// `module.<method>(**, kwargs)` and the return value is deserialized
     /// into `Vec<Value>`.
-    pub async fn call_sync<F>(
-        &self,
-        method: &str,
-        build_kwargs: F,
-    ) -> Result<Vec<Value>, Error>
+    pub async fn call_sync<F>(&self, method: &str, build_kwargs: F) -> Result<Vec<Value>, Error>
     where
         F: FnOnce(Python<'_>) -> Result<Bound<'_, PyDict>, Error> + Send + 'static,
     {
@@ -76,10 +69,11 @@ impl PythonBridge {
                     .map_err(from_pyerr)?;
 
                 pythonize::depythonize::<Vec<Value>>(&result).map_err(|e| {
-                    Error::runtime(format!(
-                        "Failed to deserialize {} result: {}",
-                        method, e
-                    ), "python", false)
+                    Error::runtime(
+                        format!("Failed to deserialize {} result: {}", method, e),
+                        "python",
+                        false,
+                    )
                 })
             })
         })
@@ -95,16 +89,12 @@ impl PythonBridge {
     /// [`pyo3_async_runtimes::tokio::into_future`], and awaits it on the
     /// Tokio runtime.  The coroutine's return value is deserialized into
     /// `Vec<Value>`.
-    pub async fn call_async<F>(
-        &self,
-        method: &str,
-        build_kwargs: F,
-    ) -> Result<Vec<Value>, Error>
+    pub async fn call_async<F>(&self, method: &str, build_kwargs: F) -> Result<Vec<Value>, Error>
     where
         F: FnOnce(Python<'_>) -> Result<Bound<'_, PyDict>, Error> + Send + 'static,
     {
-        use std::pin::Pin;
         use std::future::Future;
+        use std::pin::Pin;
 
         let future: Pin<Box<dyn Future<Output = PyResult<PyObject>> + Send>> =
             Python::with_gil(|py| -> Result<_, Error> {
@@ -115,22 +105,20 @@ impl PythonBridge {
                     .call_method(method, (), Some(&kwargs))
                     .map_err(from_pyerr)?;
 
-                let fut = pyo3_async_runtimes::tokio::into_future(coroutine)
-                    .map_err(from_pyerr)?;
+                let fut = pyo3_async_runtimes::tokio::into_future(coroutine).map_err(from_pyerr)?;
 
                 Ok(Box::pin(fut))
             })?;
 
-        let py_result = future
-            .await
-            .map_err(from_pyerr)?;
+        let py_result = future.await.map_err(from_pyerr)?;
 
         Python::with_gil(|py| {
             pythonize::depythonize::<Vec<Value>>(py_result.bind(py)).map_err(|e| {
-                Error::runtime(format!(
-                    "Failed to deserialize {} result: {}",
-                    method, e
-                ), "python", false)
+                Error::runtime(
+                    format!("Failed to deserialize {} result: {}", method, e),
+                    "python",
+                    false,
+                )
             })
         })
     }

@@ -7,11 +7,10 @@ mod text;
 
 pub use audio::AudioLocation;
 pub use image::ImageLocation;
-pub use tabular::TabularLocation;
-pub use text::TextLocation;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+pub use tabular::TabularLocation;
+pub use text::TextLocation;
 
 /// A modality-specific location for a detected entity.
 ///

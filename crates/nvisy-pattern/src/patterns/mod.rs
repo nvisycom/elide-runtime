@@ -17,14 +17,13 @@ mod context_rule;
 mod json_pattern;
 mod pattern;
 
-pub use context_rule::ContextRule;
-pub use json_pattern::{JsonPattern, JsonPatternWarning};
-pub use pattern::{BoxPattern, DictionaryConfidence, MatchSource, Pattern};
-
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
+pub use context_rule::ContextRule;
 use include_dir::{Dir, include_dir};
+pub use json_pattern::{JsonPattern, JsonPatternWarning};
+pub use pattern::{BoxPattern, DictionaryConfidence, MatchSource, Pattern};
 
 /// A registry of named [`Pattern`] definitions with O(log n) lookup.
 ///
@@ -144,8 +143,7 @@ impl Default for PatternRegistry {
     }
 }
 
-static BUILTIN_REGISTRY: LazyLock<PatternRegistry> =
-    LazyLock::new(PatternRegistry::load_builtins);
+static BUILTIN_REGISTRY: LazyLock<PatternRegistry> = LazyLock::new(PatternRegistry::load_builtins);
 
 /// Return a reference to the lazily-initialised built-in [`PatternRegistry`].
 pub fn builtin_registry() -> &'static PatternRegistry {
@@ -154,8 +152,8 @@ pub fn builtin_registry() -> &'static PatternRegistry {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::pattern::RegexPattern;
+    use super::*;
 
     fn registry() -> &'static PatternRegistry {
         builtin_registry()
@@ -220,7 +218,11 @@ mod tests {
     fn all_validators_resolve() {
         let resolver = crate::validators::ValidatorResolver::builtins();
         for p in registry().values() {
-            if let MatchSource::Regex(RegexPattern { validator: Some(name), .. }) = p.match_source() {
+            if let MatchSource::Regex(RegexPattern {
+                validator: Some(name),
+                ..
+            }) = p.match_source()
+            {
                 assert!(
                     resolver.resolve(name).is_some(),
                     "pattern {} references unregistered validator {name}",

@@ -4,9 +4,8 @@ use std::path::Path;
 
 use tokio::net::TcpListener;
 
-use crate::config::ServerConfig;
-
 use super::shutdown;
+use crate::config::ServerConfig;
 
 /// Binds a TCP listener, serves the application, and cleans up on shutdown.
 ///

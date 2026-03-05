@@ -114,11 +114,7 @@ impl Error {
     }
 
     /// Shorthand for a runtime error with a source component and retryable flag.
-    pub fn runtime(
-        message: impl Into<String>,
-        source: impl Into<String>,
-        retryable: bool,
-    ) -> Self {
+    pub fn runtime(message: impl Into<String>, source: impl Into<String>, retryable: bool) -> Self {
         Self::new(ErrorKind::Runtime, message)
             .with_component(source)
             .with_retryable(retryable)
@@ -132,8 +128,7 @@ impl Error {
 
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
-        Self::new(ErrorKind::Internal, err.to_string())
-            .with_source(err)
+        Self::new(ErrorKind::Internal, err.to_string()).with_source(err)
     }
 }
 

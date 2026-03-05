@@ -4,10 +4,9 @@ mod face;
 mod voice;
 
 pub use face::FaceData;
-pub use voice::VoiceData;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+pub use voice::VoiceData;
 
 /// Biometric identity verification variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

@@ -4,11 +4,10 @@ mod input;
 mod output;
 
 pub use input::{ImageFormat, ImageInput};
-pub use output::{ImageOutput, ImageRegion, TextLevel};
-
 use nvisy_core::Error;
-use reqwest_middleware::reqwest::multipart::Part;
+pub use output::{ImageOutput, ImageRegion, TextLevel};
 use reqwest_middleware::reqwest::Response;
+use reqwest_middleware::reqwest::multipart::Part;
 
 /// Build a multipart [`Part`] from an [`ImageInput`].
 pub(crate) fn image_part(image: &ImageInput) -> Result<Part, Error> {
@@ -20,10 +19,7 @@ pub(crate) fn image_part(image: &ImageInput) -> Result<Part, Error> {
 }
 
 /// Check an HTTP response status code, returning an error for non-success.
-pub(crate) async fn check_response(
-    resp: Response,
-    provider: &str,
-) -> Result<Response, Error> {
+pub(crate) async fn check_response(resp: Response, provider: &str) -> Result<Response, Error> {
     let status = resp.status();
     if status.is_success() {
         return Ok(resp);
@@ -74,11 +70,7 @@ impl RunParams {
 #[async_trait::async_trait]
 pub trait Backend: Send + Sync + 'static {
     /// Run OCR on a single image.
-    async fn run(
-        &self,
-        image: &ImageInput,
-        params: &RunParams,
-    ) -> Result<ImageOutput, Error>;
+    async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error>;
 
     /// Run OCR on multiple images, returning results in the same order.
     ///
@@ -118,5 +110,4 @@ mod tests {
     fn run_params_rejects_nan() {
         RunParams::new(f64::NAN);
     }
-
 }

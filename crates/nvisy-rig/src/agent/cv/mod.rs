@@ -9,20 +9,18 @@ mod output;
 mod prompt;
 mod tool;
 
-pub use output::{CvEntities, CvEntity};
-
 use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+pub use output::{CvEntities, CvEntity};
+use prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use serde::Serialize;
+use tool::CvRigTool;
 use uuid::Uuid;
 
+use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
 use crate::backend::UsageTracker;
-use super::{AgentProvider, DetectionConfig};
-use super::{BaseAgent, AgentConfig};
 use crate::error::Error;
-use prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
-use tool::CvRigTool;
 
 /// A single computer-vision detection result returned by a [`CvProvider`].
 ///
@@ -72,7 +70,9 @@ impl CvAgent {
         mut config: AgentConfig,
         cv: impl CvProvider + 'static,
     ) -> Result<Self, Error> {
-        config.preamble.get_or_insert_with(|| CV_SYSTEM_PROMPT.into());
+        config
+            .preamble
+            .get_or_insert_with(|| CV_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config)
             .tool(CvRigTool::new(cv))
             .build()?;

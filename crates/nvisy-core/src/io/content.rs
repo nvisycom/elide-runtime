@@ -201,5 +201,4 @@ mod tests {
 
         assert_eq!(content, deserialized);
     }
-
 }

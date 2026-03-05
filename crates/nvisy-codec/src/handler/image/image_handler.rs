@@ -1,14 +1,12 @@
 //! [`AnyImage`]: type-erased wrapper over all image handler types.
 
 use futures::StreamExt;
-
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
-use crate::handler::{Handler, ImageHandler, SpanEditStream, SpanStream};
-
 use super::{ImageData, JpegHandler, PngHandler};
+use crate::handler::{Handler, ImageHandler, SpanEditStream, SpanStream};
 
 /// A type-erased image handler that can hold any supported image format.
 ///
@@ -23,22 +21,38 @@ pub enum AnyImage {
 impl AnyImage {
     /// Try to get the inner [`PngHandler`] by reference.
     pub fn as_png(&self) -> Option<&PngHandler> {
-        if let Self::Png(h) = self { Some(h) } else { None }
+        if let Self::Png(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`PngHandler`].
     pub fn into_png(self) -> Option<PngHandler> {
-        if let Self::Png(h) = self { Some(h) } else { None }
+        if let Self::Png(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Try to get the inner [`JpegHandler`] by reference.
     pub fn as_jpeg(&self) -> Option<&JpegHandler> {
-        if let Self::Jpeg(h) = self { Some(h) } else { None }
+        if let Self::Jpeg(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`JpegHandler`].
     pub fn into_jpeg(self) -> Option<JpegHandler> {
-        if let Self::Jpeg(h) = self { Some(h) } else { None }
+        if let Self::Jpeg(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 }
 
@@ -69,10 +83,7 @@ impl ImageHandler for AnyImage {
         }
     }
 
-    async fn edit_images(
-        &mut self,
-        edits: SpanEditStream<'_, (), ImageData>,
-    ) -> Result<(), Error> {
+    async fn edit_images(&mut self, edits: SpanEditStream<'_, (), ImageData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         let stream = SpanEditStream::new(futures::stream::iter(edits));
         match self {

@@ -42,8 +42,7 @@ impl Loader for TxtLoader {
         let lines: Vec<String> = text.lines().map(String::from).collect();
         tracing::Span::current().record("lines", lines.len());
 
-        let handler = TxtHandler::new(lines, trailing_newline)
-            .with_source(content.content_source);
+        let handler = TxtHandler::new(lines, trailing_newline).with_source(content.content_source);
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }
@@ -51,12 +50,13 @@ impl Loader for TxtLoader {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
     use futures::StreamExt;
-    use nvisy_core::path::ContentSource;
-    use nvisy_core::fs::DocumentType;
     use nvisy_core::Error;
+    use nvisy_core::fs::DocumentType;
+    use nvisy_core::path::ContentSource;
+
+    use super::*;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))
@@ -65,9 +65,7 @@ mod tests {
     #[tokio::test]
     async fn load_multiline() -> Result<(), Error> {
         let content = content_from_str("hello\nworld\n");
-        let doc = TxtLoader
-            .decode(&content, &TxtParams::default())
-            .await?;
+        let doc = TxtLoader.decode(&content, &TxtParams::default()).await?;
 
         assert_eq!(doc.document_type(), DocumentType::Txt);
         assert_eq!(doc.lines(), &["hello", "world"]);
@@ -78,9 +76,7 @@ mod tests {
     #[tokio::test]
     async fn load_no_trailing_newline() -> Result<(), Error> {
         let content = content_from_str("single line");
-        let doc = TxtLoader
-            .decode(&content, &TxtParams::default())
-            .await?;
+        let doc = TxtLoader.decode(&content, &TxtParams::default()).await?;
 
         assert_eq!(doc.len(), 1);
         assert_eq!(doc.line(0), Some("single line"));
@@ -91,9 +87,7 @@ mod tests {
     #[tokio::test]
     async fn load_preserves_spans_through_round_trip() -> Result<(), Error> {
         let content = content_from_str("Alice\nBob\nCharlie\n");
-        let doc = TxtLoader
-            .decode(&content, &TxtParams::default())
-            .await?;
+        let doc = TxtLoader.decode(&content, &TxtParams::default()).await?;
 
         let spans: Vec<_> = doc.text_spans().await.collect().await;
         assert_eq!(spans.len(), 3);

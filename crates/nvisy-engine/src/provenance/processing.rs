@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 #[builder(
     name = "ProcessingActionBuilder",
     pattern = "owned",
-    setter(into = false, strip_option, prefix = "with"),
+    setter(into = false, strip_option, prefix = "with")
 )]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessingAction {

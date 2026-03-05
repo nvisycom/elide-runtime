@@ -5,8 +5,7 @@
 //! pipe) by inspecting the first line.
 
 use nvisy_core::Error;
-use nvisy_core::io::ContentData;
-use nvisy_core::io::TextEncoding;
+use nvisy_core::io::{ContentData, TextEncoding};
 
 use crate::document::Document;
 use crate::handler::{CsvData, CsvHandler, Loader};
@@ -55,9 +54,7 @@ impl Loader for CsvLoader {
         tracing::Span::current().record("input_bytes", raw.len());
         let text = params.encoding.decode_bytes(&raw, "csv-loader")?;
         let trailing_newline = text.ends_with('\n');
-        let delimiter = params
-            .delimiter
-            .unwrap_or_else(|| detect_delimiter(&text));
+        let delimiter = params.delimiter.unwrap_or_else(|| detect_delimiter(&text));
         tracing::Span::current().record("delimiter", tracing::field::display(delimiter as char));
 
         let mut reader = csv::ReaderBuilder::new()
@@ -67,9 +64,9 @@ impl Loader for CsvLoader {
             .from_reader(text.as_bytes());
 
         let headers = if params.has_headers {
-            let hdr = reader.headers().map_err(|e| {
-                Error::validation(format!("CSV header error: {e}"), "csv-loader")
-            })?;
+            let hdr = reader
+                .headers()
+                .map_err(|e| Error::validation(format!("CSV header error: {e}"), "csv-loader"))?;
             Some(hdr.iter().map(String::from).collect())
         } else {
             None
@@ -77,9 +74,8 @@ impl Loader for CsvLoader {
 
         let mut rows = Vec::new();
         for result in reader.records() {
-            let record = result.map_err(|e| {
-                Error::validation(format!("CSV parse error: {e}"), "csv-loader")
-            })?;
+            let record = result
+                .map_err(|e| Error::validation(format!("CSV parse error: {e}"), "csv-loader"))?;
             rows.push(record.iter().map(String::from).collect());
         }
 
@@ -103,12 +99,7 @@ impl Loader for CsvLoader {
 ///
 /// Tie-break: prefer comma.
 fn detect_delimiter(text: &str) -> u8 {
-    let candidates: &[(u8, char)] = &[
-        (b',', ','),
-        (b'\t', '\t'),
-        (b';', ';'),
-        (b'|', '|'),
-    ];
+    let candidates: &[(u8, char)] = &[(b',', ','), (b'\t', '\t'), (b';', ';'), (b'|', '|')];
 
     let sample_lines: Vec<&str> = text.lines().take(5).collect();
     if sample_lines.is_empty() {
@@ -143,12 +134,13 @@ fn detect_delimiter(text: &str) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
     use futures::StreamExt;
-    use nvisy_core::path::ContentSource;
-    use nvisy_core::fs::DocumentType;
     use nvisy_core::Error;
+    use nvisy_core::fs::DocumentType;
+    use nvisy_core::path::ContentSource;
+
+    use super::*;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))
@@ -157,12 +149,13 @@ mod tests {
     #[tokio::test]
     async fn load_with_headers() -> Result<(), Error> {
         let content = content_from_str("name,age\nAlice,30\nBob,25\n");
-        let doc = CsvLoader
-            .decode(&content, &CsvParams::default())
-            .await?;
+        let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
 
         assert_eq!(doc.document_type(), DocumentType::Csv);
-        assert_eq!(doc.headers(), Some(["name", "age"].map(String::from).as_slice()));
+        assert_eq!(
+            doc.headers(),
+            Some(["name", "age"].map(String::from).as_slice())
+        );
         assert_eq!(doc.len(), 2);
         assert_eq!(doc.cell(0, 0), Some("Alice"));
         assert_eq!(doc.cell(1, 1), Some("25"));
@@ -188,9 +181,7 @@ mod tests {
     #[tokio::test]
     async fn load_tab_delimited() -> Result<(), Error> {
         let content = content_from_str("a\tb\n1\t2\n");
-        let doc = CsvLoader
-            .decode(&content, &CsvParams::default())
-            .await?;
+        let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
         assert_eq!(doc.delimiter(), b'\t');
         assert_eq!(doc.headers(), Some(["a", "b"].map(String::from).as_slice()));
         Ok(())
@@ -199,9 +190,7 @@ mod tests {
     #[tokio::test]
     async fn load_semicolon_delimited() -> Result<(), Error> {
         let content = content_from_str("a;b\n1;2\n");
-        let doc = CsvLoader
-            .decode(&content, &CsvParams::default())
-            .await?;
+        let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
         assert_eq!(doc.delimiter(), b';');
         Ok(())
     }
@@ -209,9 +198,7 @@ mod tests {
     #[tokio::test]
     async fn load_quoted_fields() -> Result<(), Error> {
         let content = content_from_str("name,bio\n\"Alice\",\"Has a, comma\"\n");
-        let doc = CsvLoader
-            .decode(&content, &CsvParams::default())
-            .await?;
+        let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
         assert_eq!(doc.cell(0, 1), Some("Has a, comma"));
         Ok(())
     }
@@ -219,9 +206,7 @@ mod tests {
     #[tokio::test]
     async fn load_spans_round_trip() -> Result<(), Error> {
         let content = content_from_str("name,age\nAlice,30\n");
-        let doc = CsvLoader
-            .decode(&content, &CsvParams::default())
-            .await?;
+        let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
         let spans: Vec<_> = doc.text_spans().await.collect().await;
 
         // 2 header + 2 data

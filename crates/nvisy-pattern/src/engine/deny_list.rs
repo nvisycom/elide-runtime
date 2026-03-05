@@ -47,8 +47,13 @@ impl DenyList {
         category: EntityCategory,
         entity_kind: EntityKind,
     ) -> Self {
-        self.entries
-            .insert(value.into(), DenyEntry { category, entity_kind });
+        self.entries.insert(
+            value.into(),
+            DenyEntry {
+                category,
+                entity_kind,
+            },
+        );
         self
     }
 
@@ -59,8 +64,13 @@ impl DenyList {
         category: EntityCategory,
         entity_kind: EntityKind,
     ) {
-        self.entries
-            .insert(value.into(), DenyEntry { category, entity_kind });
+        self.entries.insert(
+            value.into(),
+            DenyEntry {
+                category,
+                entity_kind,
+            },
+        );
     }
 
     /// Whether the list contains the given value.

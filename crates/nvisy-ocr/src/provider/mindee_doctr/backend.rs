@@ -2,18 +2,17 @@
 //!
 //! [`Backend`]: crate::Backend
 
-use serde::Deserialize;
-
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
-use crate::backend::TextLevel;
 use nvisy_rig::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_middleware::reqwest::multipart::Form;
-
-use crate::backend::{Backend, ImageInput, ImageOutput, ImageRegion, RunParams, check_response, image_part};
+use serde::Deserialize;
 
 use super::DoctrParams;
+use crate::backend::{
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response, image_part,
+};
 
 /// [`Backend`] implementation for DocTR.
 ///
@@ -68,11 +67,7 @@ struct DoctrWord {
 
 #[async_trait::async_trait]
 impl Backend for DoctrBackend {
-    async fn run(
-        &self,
-        image: &ImageInput,
-        params: &RunParams,
-    ) -> Result<ImageOutput, Error> {
+    async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
         let file_part = image_part(image)?;
 
         let form = Form::new().part("file", file_part);
@@ -89,10 +84,9 @@ impl Backend for DoctrBackend {
 
         let resp = check_response(resp, "DocTR").await?;
 
-        let parsed: DoctrResponse = resp
-            .json()
-            .await
-            .map_err(|e| Error::runtime(format!("DocTR JSON parse error: {e}"), "doctr_ocr", false))?;
+        let parsed: DoctrResponse = resp.json().await.map_err(|e| {
+            Error::runtime(format!("DocTR JSON parse error: {e}"), "doctr_ocr", false)
+        })?;
 
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());
@@ -193,5 +187,4 @@ mod tests {
         assert!((bbox.width - 200.0).abs() < 0.01);
         assert!((bbox.height - 40.0).abs() < 0.01);
     }
-
 }

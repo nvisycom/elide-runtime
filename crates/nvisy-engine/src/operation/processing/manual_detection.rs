@@ -3,12 +3,9 @@
 //! Converts user-provided inclusion [`Annotation`]s into full [`Entity`] objects
 //! and collects exclusion annotations for downstream filtering.
 
-use serde::Deserialize;
-
 use nvisy_core::Error;
-use nvisy_ontology::entity::{
-    Annotation, AnnotationKind, DetectionMethod, Entity, Location,
-};
+use nvisy_ontology::entity::{Annotation, AnnotationKind, DetectionMethod, Entity, Location};
+use serde::Deserialize;
 
 use crate::operation::{Operation, ParallelContext};
 
@@ -45,10 +42,7 @@ impl ManualDetection {
         Ok(Self)
     }
 
-    pub async fn execute(
-        &self,
-        annotations: Vec<Annotation>,
-    ) -> Result<ManualOutput, Error> {
+    pub async fn execute(&self, annotations: Vec<Annotation>) -> Result<ManualOutput, Error> {
         let mut entities = Vec::new();
         let mut exclusions = Vec::new();
 
@@ -65,13 +59,8 @@ impl ManualDetection {
                     };
                     let value = ann.value.clone().unwrap_or_default();
 
-                    let mut entity = Entity::new(
-                        category,
-                        entity_kind,
-                        value,
-                        DetectionMethod::Manual,
-                        1.0,
-                    );
+                    let mut entity =
+                        Entity::new(category, entity_kind, value, DetectionMethod::Manual, 1.0);
                     entity.location = ann.location.clone();
                     entities.push(entity);
                 }
@@ -85,7 +74,10 @@ impl ManualDetection {
             }
         }
 
-        Ok(ManualOutput { entities, exclusions })
+        Ok(ManualOutput {
+            entities,
+            exclusions,
+        })
     }
 }
 
@@ -93,10 +85,7 @@ impl Operation for ManualDetection {
     type Input = ParallelContext<Vec<Annotation>>;
     type Output = ParallelContext<ManualOutput>;
 
-    async fn call(
-        &self,
-        input: Self::Input,
-    ) -> Result<Self::Output, Error> {
+    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
         let result = self.execute(input.into_inner()).await?;
         Ok(ParallelContext::new(result))
     }
@@ -129,8 +118,9 @@ pub fn is_excluded(entity: &Entity, exclusions: &[Exclusion]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use nvisy_ontology::entity::{EntityCategory, EntityKind, TextLocation};
+
+    use super::*;
 
     fn make_entity(value: &str, start: usize, end: usize) -> Entity {
         Entity::new(
@@ -140,11 +130,14 @@ mod tests {
             DetectionMethod::Manual,
             1.0,
         )
-        .with_location(TextLocation {
-            start_offset: start,
-            end_offset: end,
-            ..Default::default()
-        }.into())
+        .with_location(
+            TextLocation {
+                start_offset: start,
+                end_offset: end,
+                ..Default::default()
+            }
+            .into(),
+        )
     }
 
     fn make_exclusion_by_value(value: &str) -> Exclusion {
@@ -156,11 +149,14 @@ mod tests {
 
     fn make_exclusion_by_location(start: usize, end: usize) -> Exclusion {
         Exclusion {
-            location: Some(TextLocation {
-                start_offset: start,
-                end_offset: end,
-                ..Default::default()
-            }.into()),
+            location: Some(
+                TextLocation {
+                    start_offset: start,
+                    end_offset: end,
+                    ..Default::default()
+                }
+                .into(),
+            ),
             value: None,
         }
     }

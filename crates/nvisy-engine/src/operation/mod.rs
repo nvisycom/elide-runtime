@@ -14,10 +14,9 @@ pub mod inference;
 pub mod lifecycle;
 pub mod processing;
 
-pub use context::{OperationContext, ParallelContext, SequentialContext};
-
 use std::future::Future;
 
+pub use context::{OperationContext, ParallelContext, SequentialContext};
 use nvisy_core::Error;
 
 /// A single unit of work in the redaction pipeline.
@@ -35,8 +34,5 @@ pub trait Operation {
     type Output: OperationContext;
 
     /// Execute the operation.
-    fn call(
-        &self,
-        input: Self::Input,
-    ) -> impl Future<Output = Result<Self::Output, Error>> + Send;
+    fn call(&self, input: Self::Input) -> impl Future<Output = Result<Self::Output, Error>> + Send;
 }

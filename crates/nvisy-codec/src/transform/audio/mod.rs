@@ -2,10 +2,10 @@
 
 mod output;
 
+use nvisy_core::Error;
 pub use output::AudioRedactionOutput;
 
 use crate::handler::AudioHandler;
-use nvisy_core::Error;
 
 /// A located audio redaction: pairs a time range with an
 /// [`AudioRedactionOutput`] that carries the method-specific parameters.

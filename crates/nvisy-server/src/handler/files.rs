@@ -136,10 +136,7 @@ async fn delete_all(
     State(state): State<ServiceState>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<Json<FileDeleteAllResponse>> {
-    let deleted = state
-        .registry()
-        .unregister_all_content(actor_id)
-        .await?;
+    let deleted = state.registry().unregister_all_content(actor_id).await?;
     tracing::info!(deleted, "all files deleted");
     Ok(Json(FileDeleteAllResponse { deleted }))
 }

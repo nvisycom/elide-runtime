@@ -26,11 +26,9 @@
 mod server;
 
 use clap::Parser;
-use tracing_subscriber::EnvFilter;
-
 use nvisy_server::middleware::{OpenApiConfig, RecoveryConfig, SecurityConfig};
-
 pub use server::ServerConfig;
+use tracing_subscriber::EnvFilter;
 
 /// Complete CLI configuration.
 ///
@@ -87,8 +85,7 @@ impl Cli {
     ///
     /// Uses `RUST_LOG` if set, otherwise defaults to `info`.
     pub fn init_tracing() {
-        let filter =
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
         tracing_subscriber::fmt()
             .with_env_filter(filter)

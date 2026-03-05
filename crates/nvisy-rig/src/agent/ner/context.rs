@@ -83,8 +83,9 @@ impl<'a> NerContext<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use nvisy_ontology::entity::EntityKind;
+
+    use super::*;
 
     fn ner_entity(id: &str, value: &str, desc: Option<&str>) -> NerEntity {
         NerEntity {
@@ -129,7 +130,11 @@ mod tests {
     fn merge_accumulates_descriptions() {
         let mut ctx = NerContext::new("");
         ctx.merge(vec![ner_entity("person_1", "Alice", Some("the CEO"))]);
-        ctx.merge(vec![ner_entity("person_1", "Alice", Some("signed the contract on Jan 5"))]);
+        ctx.merge(vec![ner_entity(
+            "person_1",
+            "Alice",
+            Some("signed the contract on Jan 5"),
+        )]);
 
         assert_eq!(
             ctx.known_entities[0].descriptions,
@@ -163,6 +168,9 @@ mod tests {
         assert!(ctx.known_entities[0].entity_type.is_none());
 
         ctx.merge(vec![ner_entity("org_1", "Acme Corp", None)]);
-        assert_eq!(ctx.known_entities[0].entity_type, Some(EntityKind::PersonName));
+        assert_eq!(
+            ctx.known_entities[0].entity_type,
+            Some(EntityKind::PersonName)
+        );
     }
 }

@@ -1,12 +1,11 @@
 //! Policy evaluation: maps detected entities to redaction instructions.
 
-use serde::Deserialize;
-
 use nvisy_core::Error;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::policy::PolicyRule;
 use nvisy_ontology::record::Redaction;
 use nvisy_ontology::specification::{RedactionInput, TextRedactionInput};
+use serde::Deserialize;
 
 use crate::operation::{Operation, ParallelContext};
 
@@ -47,10 +46,7 @@ impl EvaluatePolicy {
         Ok(Self { params })
     }
 
-    pub async fn execute(
-        &self,
-        entities: Vec<Entity>,
-    ) -> Result<Vec<Redaction>, Error> {
+    pub async fn execute(&self, entities: Vec<Entity>) -> Result<Vec<Redaction>, Error> {
         let default_spec = &self.params.default_spec;
         let default_threshold = self.params.default_confidence_threshold;
 
@@ -80,7 +76,9 @@ impl EvaluatePolicy {
             if let Some(r) = rule {
                 redaction = redaction.with_policy_rule_id(r.id);
             }
-            redaction.source.set_parent_id(Some(entity.source.as_uuid()));
+            redaction
+                .source
+                .set_parent_id(Some(entity.source.as_uuid()));
 
             redactions.push(redaction);
         }
@@ -93,10 +91,7 @@ impl Operation for EvaluatePolicy {
     type Input = ParallelContext<Vec<Entity>>;
     type Output = ParallelContext<Vec<Redaction>>;
 
-    async fn call(
-        &self,
-        input: Self::Input,
-    ) -> Result<Self::Output, Error> {
+    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
         let result = self.execute(input.into_inner()).await?;
         Ok(ParallelContext::new(result))
     }
@@ -106,7 +101,8 @@ impl Operation for EvaluatePolicy {
 /// or `None` if no rule applies.
 fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'a PolicyRule> {
     rules.iter().find(|rule| {
-        rule.selector.matches(&entity.category, entity.entity_kind, entity.confidence)
+        rule.selector
+            .matches(&entity.category, entity.entity_kind, entity.confidence)
     })
 }
 

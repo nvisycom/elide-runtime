@@ -135,8 +135,8 @@ mod tests {
     #[test]
     fn fits_within_budget() {
         let cw = ContextWindow::new(100, 20);
-        assert!(cw.fits(&"a".repeat(300)));   // ~75 tokens, budget 80
-        assert!(!cw.fits(&"a".repeat(400)));  // ~100 tokens, budget 80
+        assert!(cw.fits(&"a".repeat(300))); // ~75 tokens, budget 80
+        assert!(!cw.fits(&"a".repeat(400))); // ~100 tokens, budget 80
     }
 
     #[test]

@@ -1,9 +1,8 @@
 use std::fmt;
 
 use fjall::Keyspace;
-
-use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_core::path::ContentSource;
+use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::context::Context;
 
 use crate::id::ActorId;
@@ -58,9 +57,8 @@ impl ContextHandle {
                 Error::new(ErrorKind::Internal, "Failed to read context").with_source(err)
             })?;
 
-            let guard = value.ok_or_else(|| {
-                Error::new(ErrorKind::NotFound, "Context data not found")
-            })?;
+            let guard =
+                value.ok_or_else(|| Error::new(ErrorKind::NotFound, "Context data not found"))?;
 
             serde_json::from_slice(&guard).map_err(|err| {
                 Error::new(ErrorKind::Serialization, "Failed to deserialize context")
@@ -68,9 +66,7 @@ impl ContextHandle {
             })
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
-        })?
+        .map_err(|err| Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err))?
     }
 
     fn composite_key(&self) -> [u8; 32] {

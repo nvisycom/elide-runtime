@@ -13,8 +13,8 @@ mod process;
 
 pub use check::{Analytics, Health};
 pub use contexts::{
-    ContextDeleteAllResponse, ContextDeleteResponse, ContextDownloadResponse,
-    ContextListResponse, ContextUploadResponse,
+    ContextDeleteAllResponse, ContextDeleteResponse, ContextDownloadResponse, ContextListResponse,
+    ContextUploadResponse,
 };
 pub use error::ErrorResponse;
 pub use files::{

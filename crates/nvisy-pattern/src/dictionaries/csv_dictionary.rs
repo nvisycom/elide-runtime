@@ -43,7 +43,11 @@ impl CsvDictionary {
             }
         }
 
-        Self { name, entries, columns }
+        Self {
+            name,
+            entries,
+            columns,
+        }
     }
 }
 

@@ -1,8 +1,8 @@
 //! Content validation operation.
 
-use crate::operation::Operation;
-use crate::operation::ParallelContext;
 use nvisy_core::Error;
+
+use crate::operation::{Operation, ParallelContext};
 
 /// Validates content integrity or conformance.
 pub struct Validation;

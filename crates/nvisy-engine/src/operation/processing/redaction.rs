@@ -11,7 +11,6 @@
 //! | Tabular  | [`CsvHandler`] | Cell-level mask/remove/hash         |
 
 use std::collections::HashMap;
-use uuid::Uuid;
 
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{CsvHandler, PngHandler, TxtHandler, TxtSpan, WavHandler};
@@ -25,6 +24,7 @@ use nvisy_ontology::record::Redaction as RedactionRecord;
 use nvisy_ontology::specification::{
     AudioRedactionInput, ImageRedactionInput, RedactionInput as RedactionSpec, TextRedactionInput,
 };
+use uuid::Uuid;
 
 use crate::operation::{Operation, ParallelContext};
 
@@ -63,13 +63,13 @@ impl Operation for Redaction {
     type Input = ParallelContext<RedactionInput>;
     type Output = ParallelContext<RedactionOutput>;
 
-    async fn call(
-        &self,
-        input: Self::Input,
-    ) -> Result<Self::Output, Error> {
+    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
         let input = input.into_inner();
-        let entity_map: HashMap<Uuid, &Entity> =
-            input.entities.iter().map(|e| (e.source.as_uuid(), e)).collect();
+        let entity_map: HashMap<Uuid, &Entity> = input
+            .entities
+            .iter()
+            .map(|e| (e.source.as_uuid(), e))
+            .collect();
         let redaction_map: HashMap<Uuid, &RedactionRecord> = input
             .redactions
             .iter()
@@ -218,9 +218,9 @@ fn image_output_from_spec(spec: &RedactionSpec) -> Option<ImageRedactionOutput> 
         RedactionSpec::Image(img) => Some(match img {
             ImageRedactionInput::Blur { sigma } => ImageRedactionOutput::Blur { sigma: *sigma },
             ImageRedactionInput::Block { color } => ImageRedactionOutput::Block { color: *color },
-            ImageRedactionInput::Pixelate { block_size } => {
-                ImageRedactionOutput::Pixelate { block_size: *block_size }
-            }
+            ImageRedactionInput::Pixelate { block_size } => ImageRedactionOutput::Pixelate {
+                block_size: *block_size,
+            },
         }),
         _ => None,
     }
@@ -383,8 +383,9 @@ fn hash_string(s: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use nvisy_ontology::specification::ImageRedactionInput;
+
+    use super::*;
 
     // Text spec tests
 
@@ -476,13 +477,19 @@ mod tests {
     #[test]
     fn audio_output_silence() {
         let spec = RedactionSpec::Audio(AudioRedactionInput::Silence);
-        assert_eq!(audio_output_from_spec(&spec), Some(AudioRedactionOutput::Silence));
+        assert_eq!(
+            audio_output_from_spec(&spec),
+            Some(AudioRedactionOutput::Silence)
+        );
     }
 
     #[test]
     fn audio_output_remove() {
         let spec = RedactionSpec::Audio(AudioRedactionInput::Remove);
-        assert_eq!(audio_output_from_spec(&spec), Some(AudioRedactionOutput::Remove));
+        assert_eq!(
+            audio_output_from_spec(&spec),
+            Some(AudioRedactionOutput::Remove)
+        );
     }
 
     #[test]

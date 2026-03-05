@@ -15,14 +15,13 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-
 use nvisy_registry::ContextId;
 
 use super::error::Result;
 use super::request::{ActorQuery, ContextPath, ContextUpload};
 use super::response::{
-    ContextDeleteAllResponse, ContextDeleteResponse, ContextDownloadResponse,
-    ContextListResponse, ContextUploadResponse,
+    ContextDeleteAllResponse, ContextDeleteResponse, ContextDownloadResponse, ContextListResponse,
+    ContextUploadResponse,
 };
 use crate::extract::{Json, Path};
 use crate::service::ServiceState;
@@ -115,10 +114,7 @@ async fn delete_all(
     State(state): State<ServiceState>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<Json<ContextDeleteAllResponse>> {
-    let deleted = state
-        .registry()
-        .unregister_all_contexts(actor_id)
-        .await?;
+    let deleted = state.registry().unregister_all_contexts(actor_id).await?;
     tracing::info!(deleted, "all contexts deleted");
     Ok(Json(ContextDeleteAllResponse { deleted }))
 }

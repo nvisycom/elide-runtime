@@ -2,8 +2,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-pub mod handler;
 pub mod document;
+pub mod handler;
 pub mod transform;
 
 #[doc(hidden)]

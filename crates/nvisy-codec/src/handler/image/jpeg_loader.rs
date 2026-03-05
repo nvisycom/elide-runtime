@@ -5,7 +5,7 @@ use nvisy_core::Error;
 use nvisy_core::io::ContentData;
 
 use crate::document::Document;
-use crate::handler::{Loader, JpegHandler};
+use crate::handler::{JpegHandler, Loader};
 
 /// Parameters for [`JpegLoader`].
 #[derive(Debug, Default)]
@@ -32,8 +32,7 @@ impl Loader for JpegLoader {
         let image = super::decode_image(content, "jpeg-loader")?;
         tracing::Span::current().record("width", image.width());
         tracing::Span::current().record("height", image.height());
-        let handler = JpegHandler::new(image)
-            .with_source(content.content_source);
+        let handler = JpegHandler::new(image).with_source(content.content_source);
         let doc = Document::new(handler).with_parent(content);
         Ok(doc)
     }

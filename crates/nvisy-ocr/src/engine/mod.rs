@@ -2,14 +2,12 @@
 
 mod params;
 
-pub use params::EngineParams;
-
 use std::fmt;
 use std::sync::Arc;
 
-use tracing::instrument;
-
 use nvisy_core::Error;
+pub use params::EngineParams;
+use tracing::instrument;
 
 use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
@@ -57,11 +55,7 @@ impl Engine {
         image_bytes = image.len(),
         format = ?image.format,
     ))]
-    pub async fn run(
-        &self,
-        image: &ImageInput,
-        params: &RunParams,
-    ) -> Result<ImageOutput, Error> {
+    pub async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
         let output = self.backend.run(image, params).await?;
         tracing::debug!(regions = output.len(), "ocr complete");
         Ok(output)

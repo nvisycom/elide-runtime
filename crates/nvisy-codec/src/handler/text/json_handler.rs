@@ -22,15 +22,14 @@
 use std::num::NonZeroU32;
 
 use futures::StreamExt;
-use serde::{Deserialize, Serialize};
-
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
+use serde::{Deserialize, Serialize};
 
-use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
+use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 
@@ -133,23 +132,26 @@ impl Handler for JsonHandler {
     #[tracing::instrument(name = "json.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
         let mut bytes = match self.data.indent {
-            JsonIndent::Compact => serde_json::to_vec(&self.data.value)
-                .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler"))?,
+            JsonIndent::Compact => serde_json::to_vec(&self.data.value).map_err(|e| {
+                Error::validation(format!("JSON encode error: {e}"), "json-handler")
+            })?,
             JsonIndent::Spaces(n) => {
                 let indent = " ".repeat(n.get() as usize);
                 let mut buf = Vec::new();
                 let formatter = serde_json::ser::PrettyFormatter::with_indent(indent.as_bytes());
                 let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
-                serde::Serialize::serialize(&self.data.value, &mut ser)
-                    .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler"))?;
+                serde::Serialize::serialize(&self.data.value, &mut ser).map_err(|e| {
+                    Error::validation(format!("JSON encode error: {e}"), "json-handler")
+                })?;
                 buf
             }
             JsonIndent::Tab => {
                 let mut buf = Vec::new();
                 let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
                 let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
-                serde::Serialize::serialize(&self.data.value, &mut ser)
-                    .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler"))?;
+                serde::Serialize::serialize(&self.data.value, &mut ser).map_err(|e| {
+                    Error::validation(format!("JSON encode error: {e}"), "json-handler")
+                })?;
                 buf
             }
         };
@@ -171,14 +173,13 @@ impl TextHandler for JsonHandler {
         // String values yield their string content; non-string leaves
         // yield their JSON serialization; keys yield the key name.
         SpanStream::new(futures::stream::iter(
-            JsonSpanIter::new(&self.data.value)
-                .map(|span| {
-                    let text = match &span.data {
-                        serde_json::Value::String(s) => s.clone(),
-                        other => other.to_string(),
-                    };
-                    Span::new(span.id, TextData::from(text)).with_source(span.source)
-                })
+            JsonSpanIter::new(&self.data.value).map(|span| {
+                let text = match &span.data {
+                    serde_json::Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                Span::new(span.id, TextData::from(text)).with_source(span.source)
+            }),
         ))
     }
 
@@ -190,8 +191,11 @@ impl TextHandler for JsonHandler {
         // Apply value edits first so that pointers remain valid when
         // key renames change the path structure.
         for edit in edits.iter().filter(|e| !e.id.key_of) {
-            let target =
-                self.data.value.pointer_mut(&edit.id.pointer).ok_or_else(|| {
+            let target = self
+                .data
+                .value
+                .pointer_mut(&edit.id.pointer)
+                .ok_or_else(|| {
                     Error::validation(
                         format!("JSON pointer not found: {}", edit.id.pointer),
                         "json-handler",
@@ -241,8 +245,11 @@ impl JsonHandler {
         // Apply value edits first so that pointers remain valid when
         // key renames change the path structure.
         for edit in edits.iter().filter(|e| !e.id.key_of) {
-            let target =
-                self.data.value.pointer_mut(&edit.id.pointer).ok_or_else(|| {
+            let target = self
+                .data
+                .value
+                .pointer_mut(&edit.id.pointer)
+                .ok_or_else(|| {
                     Error::validation(
                         format!("JSON pointer not found: {}", edit.id.pointer),
                         "json-handler",
@@ -310,9 +317,9 @@ fn rename_key(
     pointer: &str,
     new_name: &serde_json::Value,
 ) -> Result<(), Error> {
-    let new_key = new_name.as_str().ok_or_else(|| {
-        Error::validation("key rename requires a string value", "json-handler")
-    })?;
+    let new_key = new_name
+        .as_str()
+        .ok_or_else(|| Error::validation("key rename requires a string value", "json-handler"))?;
 
     let (parent_ptr, old_key) = split_pointer(pointer)?;
 
@@ -385,7 +392,10 @@ enum IterFrame<'a> {
     /// An object whose entries are being yielded.
     Object(String, serde_json::map::Iter<'a>),
     /// An array whose elements are being yielded.
-    Array(String, std::iter::Enumerate<std::slice::Iter<'a, serde_json::Value>>),
+    Array(
+        String,
+        std::iter::Enumerate<std::slice::Iter<'a, serde_json::Value>>,
+    ),
 }
 
 /// Stack-based depth-first iterator over a JSON tree.
@@ -419,9 +429,7 @@ impl<'a> Iterator for JsonSpanIter<'a> {
 
             match frame {
                 IterFrame::Pending { .. } => {
-                    let IterFrame::Pending { value, pointer } =
-                        self.stack.pop().unwrap()
-                    else {
+                    let IterFrame::Pending { value, pointer } = self.stack.pop().unwrap() else {
                         unreachable!()
                     };
                     match value {
@@ -433,16 +441,16 @@ impl<'a> Iterator for JsonSpanIter<'a> {
                                 .push(IterFrame::Array(pointer, arr.iter().enumerate()));
                         }
                         leaf => {
-                            return Some(Span::new(
-                                JsonPath::value(pointer),
-                                leaf.clone(),
-                            ));
+                            return Some(Span::new(JsonPath::value(pointer), leaf.clone()));
                         }
                     }
                 }
                 IterFrame::KeySpan { .. } => {
-                    let IterFrame::KeySpan { value, pointer, key } =
-                        self.stack.pop().unwrap()
+                    let IterFrame::KeySpan {
+                        value,
+                        pointer,
+                        key,
+                    } = self.stack.pop().unwrap()
                     else {
                         unreachable!()
                     };
@@ -458,8 +466,7 @@ impl<'a> Iterator for JsonSpanIter<'a> {
                 }
                 IterFrame::Object(pointer, iter) => match iter.next() {
                     Some((key, child)) => {
-                        let child_pointer =
-                            format!("{}/{}", pointer, escape_json_pointer(key));
+                        let child_pointer = format!("{}/{}", pointer, escape_json_pointer(key));
                         self.stack.push(IterFrame::KeySpan {
                             value: child,
                             pointer: child_pointer,
@@ -500,12 +507,13 @@ fn escape_json_pointer(key: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::handler::{SpanEdit, TextHandler};
     use futures::StreamExt;
     use nvisy_core::Error;
     use nvisy_core::path::ContentSource;
     use serde_json::json;
+
+    use super::*;
+    use crate::handler::{SpanEdit, TextHandler};
 
     fn handler(value: serde_json::Value) -> JsonHandler {
         JsonHandler {

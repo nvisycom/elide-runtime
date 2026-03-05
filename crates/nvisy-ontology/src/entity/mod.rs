@@ -11,26 +11,36 @@ mod model;
 mod selector;
 mod sensitivity;
 
+use std::time::Duration;
+
 pub use annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};
 pub use category::EntityCategory;
 pub use kind::EntityKind;
 pub use location::{AudioLocation, ImageLocation, Location, TabularLocation, TextLocation};
 pub use model::{ModelInfo, ModelKind};
+use nvisy_core::path::ContentSource;
+use schemars::JsonSchema;
 pub use selector::EntitySelector;
 pub use sensitivity::EntitySensitivity;
-
-use std::time::Duration;
-
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DurationMicroSeconds, serde_as};
 use strum::{Display, EnumString};
 use uuid::Uuid;
 
-use nvisy_core::path::ContentSource;
-
 /// Method used to detect a sensitive entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    EnumString,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum DetectionMethod {

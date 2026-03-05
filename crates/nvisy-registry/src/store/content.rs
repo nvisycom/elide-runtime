@@ -2,11 +2,10 @@ use std::fmt;
 
 use bytes::Bytes;
 use fjall::Keyspace;
-
-use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_core::fs::ContentMetadata;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
+use nvisy_core::{Error, ErrorKind, Result};
 
 use crate::id::ActorId;
 
@@ -78,9 +77,7 @@ impl ContentHandle {
             Ok(ContentData::new(source, Bytes::copy_from_slice(&guard)))
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
-        })?
+        .map_err(|err| Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err))?
     }
 
     /// Reads the content metadata from the store.
@@ -105,9 +102,7 @@ impl ContentHandle {
             }
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
-        })?
+        .map_err(|err| Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err))?
     }
 
     fn composite_key(&self) -> [u8; 32] {

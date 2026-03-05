@@ -7,11 +7,10 @@ mod text;
 
 pub use credential::CredentialData;
 pub use image::ImageData;
-pub use tag::TagData;
-pub use text::{TextData, TextEntry};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+pub use tag::TagData;
+pub use text::{TextData, TextEntry};
 
 /// Direct comparison reference variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

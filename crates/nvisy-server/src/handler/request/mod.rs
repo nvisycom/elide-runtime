@@ -10,8 +10,9 @@ mod files;
 mod path;
 mod process;
 
-pub use self::base64::Base64;
 pub use contexts::ContextUpload;
 pub use files::FileUpload;
 pub use path::{ActorQuery, ContentPath, ContextPath};
 pub use process::ProcessRequest;
+
+pub use self::base64::Base64;

@@ -4,9 +4,9 @@ use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
-use crate::handler::{Handler, ImageHandler, SpanEditStream, SpanStream, TextHandler};
-use crate::handler::text::TextData;
 use crate::handler::image::ImageData;
+use crate::handler::text::TextData;
+use crate::handler::{Handler, ImageHandler, SpanEditStream, SpanStream, TextHandler};
 
 #[derive(Debug)]
 pub struct DocxHandler;
@@ -33,10 +33,7 @@ impl TextHandler for DocxHandler {
         SpanStream::new(futures::stream::empty())
     }
 
-    async fn edit_text(
-        &mut self,
-        _edits: SpanEditStream<'_, (), TextData>,
-    ) -> Result<(), Error> {
+    async fn edit_text(&mut self, _edits: SpanEditStream<'_, (), TextData>) -> Result<(), Error> {
         Ok(())
     }
 }

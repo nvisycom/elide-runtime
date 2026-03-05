@@ -1,10 +1,9 @@
 //! Data for AI-model inference operations.
 
 use derive_builder::Builder;
+use nvisy_ontology::entity::ModelInfo;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use nvisy_ontology::entity::ModelInfo;
 
 /// Data specific to AI-model operations (OCR, NER, transcription, etc.).
 ///
@@ -13,7 +12,7 @@ use nvisy_ontology::entity::ModelInfo;
 #[builder(
     name = "InferenceActionBuilder",
     pattern = "owned",
-    setter(into, strip_option, prefix = "with"),
+    setter(into, strip_option, prefix = "with")
 )]
 #[serde(rename_all = "camelCase")]
 pub struct InferenceAction {

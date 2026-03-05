@@ -14,27 +14,24 @@ mod ontology;
 mod policy;
 mod runs;
 
+use std::future::Future;
+
 pub use connections::{Connection, Connections};
 pub use default::DefaultEngine;
 pub use executor::{NodeOutput, RunOutput};
-pub use ontology::{Explainable, Explanation};
-pub use runs::{NodeProgress, RunManager, RunState, RunStatus, RunSummary};
-
-use std::future::Future;
-
-use uuid::Uuid;
-
 use nvisy_core::Error;
-use nvisy_registry::ContentHandle;
-pub use nvisy_ontology::policy::{Policies, PolicyEvaluation, RedactionSummary};
 pub use nvisy_ontology::context::Context;
 pub use nvisy_ontology::entity::DetectionOutput;
+pub use nvisy_ontology::policy::{Policies, PolicyEvaluation, RedactionSummary};
 pub use nvisy_ontology::record::RedactionMap;
-
-use crate::provenance::FileAudit;
+use nvisy_registry::ContentHandle;
+pub use ontology::{Explainable, Explanation};
+pub use runs::{NodeProgress, RunManager, RunState, RunStatus, RunSummary};
+use uuid::Uuid;
 
 use crate::compiler::Graph;
 pub use crate::compiler::{RetryPolicy, TimeoutPolicy};
+use crate::provenance::FileAudit;
 
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {

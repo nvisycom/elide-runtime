@@ -9,29 +9,28 @@
 //! [`AudioHandler`].
 
 use nvisy_core::Error;
-use nvisy_core::io::ContentData;
 use nvisy_core::fs::DocumentType;
+use nvisy_core::io::ContentData;
 
 use crate::document::Document;
 
-mod view_span;
-mod edit_span;
-mod view_stream;
-mod edit_stream;
-mod text;
-mod rich;
-mod image;
 mod audio;
+mod edit_span;
+mod edit_stream;
+mod image;
+mod rich;
+mod text;
+mod view_span;
+mod view_stream;
 
-pub use view_span::Span;
-pub use edit_span::SpanEdit;
-pub use view_stream::SpanStream;
-pub use edit_stream::SpanEditStream;
-
-pub use text::*;
-pub use rich::*;
-pub use image::*;
 pub use audio::*;
+pub use edit_span::SpanEdit;
+pub use edit_stream::SpanEditStream;
+pub use image::*;
+pub use rich::*;
+pub use text::*;
+pub use view_span::Span;
+pub use view_stream::SpanStream;
 
 /// Base trait implemented by all format handlers.
 ///

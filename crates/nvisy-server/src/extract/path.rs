@@ -6,8 +6,8 @@
 //! instead of axum's default plain-text rejection.
 
 use aide::OperationInput;
-use axum::extract::rejection::PathRejection;
 use axum::extract::FromRequestParts;
+use axum::extract::rejection::PathRejection;
 use axum::http::request::Parts;
 
 use crate::handler::error::{Error, ErrorKind};
@@ -26,16 +26,11 @@ where
 {
     type Rejection = Error<'static>;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         axum::extract::Path::<T>::from_request_parts(parts, state)
             .await
             .map(|axum::extract::Path(v)| Self(v))
-            .map_err(|rejection| {
-                ErrorKind::MissingPathParam.with_message(rejection.body_text())
-            })
+            .map_err(|rejection| ErrorKind::MissingPathParam.with_message(rejection.body_text()))
     }
 }
 

@@ -3,11 +3,11 @@
 //! Calls `nvisy_ai.transcribe()` through the Python bridge to perform
 //! speech transcription on audio, returning raw JSON values.
 
+use nvisy_core::Error;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde_json::Value;
 
-use nvisy_core::Error;
 use crate::bridge::{PythonBridge, from_pyerr};
 
 /// Parameters for transcription, independent of any pipeline types.
@@ -37,11 +37,24 @@ pub async fn transcribe(
     bridge
         .call_sync("transcribe", move |py| {
             let kwargs = PyDict::new(py);
-            kwargs.set_item("audio_bytes", &audio_data[..]).map_err(from_pyerr)?;
-            kwargs.set_item("mime_type", &mime_type).map_err(from_pyerr)?;
-            kwargs.set_item("language", &params.language).map_err(from_pyerr)?;
-            kwargs.set_item("enable_speaker_diarization", params.enable_speaker_diarization).map_err(from_pyerr)?;
-            kwargs.set_item("confidence_threshold", params.confidence_threshold).map_err(from_pyerr)?;
+            kwargs
+                .set_item("audio_bytes", &audio_data[..])
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("mime_type", &mime_type)
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("language", &params.language)
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item(
+                    "enable_speaker_diarization",
+                    params.enable_speaker_diarization,
+                )
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("confidence_threshold", params.confidence_threshold)
+                .map_err(from_pyerr)?;
             Ok(kwargs)
         })
         .await
@@ -63,11 +76,24 @@ pub async fn transcribe_async(
     bridge
         .call_async("transcribe", move |py| {
             let kwargs = PyDict::new(py);
-            kwargs.set_item("audio_bytes", &audio_data[..]).map_err(from_pyerr)?;
-            kwargs.set_item("mime_type", &mime_type).map_err(from_pyerr)?;
-            kwargs.set_item("language", &params.language).map_err(from_pyerr)?;
-            kwargs.set_item("enable_speaker_diarization", params.enable_speaker_diarization).map_err(from_pyerr)?;
-            kwargs.set_item("confidence_threshold", params.confidence_threshold).map_err(from_pyerr)?;
+            kwargs
+                .set_item("audio_bytes", &audio_data[..])
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("mime_type", &mime_type)
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("language", &params.language)
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item(
+                    "enable_speaker_diarization",
+                    params.enable_speaker_diarization,
+                )
+                .map_err(from_pyerr)?;
+            kwargs
+                .set_item("confidence_threshold", params.confidence_threshold)
+                .map_err(from_pyerr)?;
             Ok(kwargs)
         })
         .await

@@ -1,12 +1,11 @@
 use std::path::{Path, PathBuf};
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions, KvSeparationOptions};
-use uuid::Uuid;
-
-use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_core::io::Content;
 use nvisy_core::path::ContentSource;
+use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::context::Context;
+use uuid::Uuid;
 
 use super::content::ContentHandle;
 use super::context::ContextHandle;
@@ -62,7 +61,10 @@ impl Registry {
         let db = Database::builder(&base_dir).open().map_err(|err| {
             Error::new(
                 ErrorKind::Internal,
-                format!("Failed to open registry database (path: {})", base_dir.display()),
+                format!(
+                    "Failed to open registry database (path: {})",
+                    base_dir.display()
+                ),
             )
             .with_source(err)
         })?;
@@ -86,8 +88,7 @@ impl Registry {
         let contexts = db
             .keyspace("contexts", KeyspaceCreateOptions::default)
             .map_err(|err| {
-                Error::new(ErrorKind::Internal, "Failed to open contexts keyspace")
-                    .with_source(err)
+                Error::new(ErrorKind::Internal, "Failed to open contexts keyspace").with_source(err)
             })?;
 
         Ok(Self {
@@ -114,8 +115,11 @@ impl Registry {
         let (_, content_metadata) = content.into_parts();
         let meta_bytes =
             serde_json::to_vec(&content_metadata.unwrap_or_default()).map_err(|err| {
-                Error::new(ErrorKind::Serialization, "Failed to serialize content metadata")
-                    .with_source(err)
+                Error::new(
+                    ErrorKind::Serialization,
+                    "Failed to serialize content metadata",
+                )
+                .with_source(err)
             })?;
 
         let content_ks = self.content.clone();
@@ -127,8 +131,7 @@ impl Registry {
                 Error::new(ErrorKind::Internal, "Failed to write content data").with_source(err)
             })?;
             meta_ks.insert(key, &meta_bytes).map_err(|err| {
-                Error::new(ErrorKind::Internal, "Failed to write content metadata")
-                    .with_source(err)
+                Error::new(ErrorKind::Internal, "Failed to write content metadata").with_source(err)
             })?;
             db.persist(fjall::PersistMode::SyncAll).map_err(|err| {
                 Error::new(ErrorKind::Internal, "Failed to persist database").with_source(err)
@@ -215,9 +218,7 @@ impl Registry {
             Ok(())
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
-        })?
+        .map_err(|err| Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err))?
     }
 
     /// Removes all content entries for an actor.
@@ -263,9 +264,7 @@ impl Registry {
             Ok(count)
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
-        })?
+        .map_err(|err| Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err))?
     }
 
     /// Lists all content IDs for an actor.
@@ -281,17 +280,16 @@ impl Registry {
                         .with_source(err)
                 })?;
                 if key.len() == 32
-                    && let Ok(bytes) = <[u8; 16]>::try_from(&key[16..]) {
-                        ids.push(ContentId::from(Uuid::from_bytes(bytes)));
-                    }
+                    && let Ok(bytes) = <[u8; 16]>::try_from(&key[16..])
+                {
+                    ids.push(ContentId::from(Uuid::from_bytes(bytes)));
+                }
             }
             ids.sort();
             Ok(ids)
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
-        })?
+        .map_err(|err| Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err))?
     }
 
     /// Registers a context, serializing it as JSON.
@@ -326,11 +324,7 @@ impl Registry {
             Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
         })??;
 
-        Ok(ContextHandle::new(
-            actor,
-            source,
-            self.contexts.clone(),
-        ))
+        Ok(ContextHandle::new(actor, source, self.contexts.clone()))
     }
 
     /// Looks up a previously registered context by actor and context ID.
@@ -358,11 +352,7 @@ impl Registry {
         }
 
         let source = ContentSource::from(id.as_uuid());
-        Ok(ContextHandle::new(
-            actor,
-            source,
-            self.contexts.clone(),
-        ))
+        Ok(ContextHandle::new(actor, source, self.contexts.clone()))
     }
 
     /// Removes a single context entry by actor and context ID.
@@ -394,9 +384,7 @@ impl Registry {
             Ok(())
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
-        })?
+        .map_err(|err| Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err))?
     }
 
     /// Removes all context entries for an actor.
@@ -436,9 +424,7 @@ impl Registry {
             Ok(count)
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
-        })?
+        .map_err(|err| Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err))?
     }
 
     /// Lists all context IDs for an actor.
@@ -454,17 +440,16 @@ impl Registry {
                         .with_source(err)
                 })?;
                 if key.len() == 32
-                    && let Ok(bytes) = <[u8; 16]>::try_from(&key[16..]) {
-                        ids.push(ContextId::from(Uuid::from_bytes(bytes)));
-                    }
+                    && let Ok(bytes) = <[u8; 16]>::try_from(&key[16..])
+                {
+                    ids.push(ContextId::from(Uuid::from_bytes(bytes)));
+                }
             }
             ids.sort();
             Ok(ids)
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err)
-        })?
+        .map_err(|err| Error::new(ErrorKind::Internal, "Blocking task panicked").with_source(err))?
     }
 
     /// Returns the base directory path (the database location).

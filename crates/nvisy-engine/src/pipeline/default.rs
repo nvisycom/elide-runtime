@@ -12,27 +12,24 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use nvisy_core::Error;
+use nvisy_core::io::ContentData;
+use nvisy_ontology::policy::{PolicyEvaluation, RedactionSummary};
+use nvisy_ontology::record::RedactionMap;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 use uuid::Uuid;
 
-use nvisy_core::Error;
-use nvisy_core::io::ContentData;
-use nvisy_ontology::policy::{PolicyEvaluation, RedactionSummary};
+use super::connections::Connections;
+use super::executor::{NodeOutput, RunOutput, execute_node};
+use super::{Engine, EngineInput, EngineOutput};
+use crate::compiler::{Compiler, ExecutionPlan};
 use crate::operation::Operation;
 use crate::operation::processing::{EvaluatePolicy, EvaluatePolicyParams};
 use crate::provenance::{
-    AuditEntryStatus, FileAudit, FileAuditEntryBuilder,
+    AuditEntryStatus, FileAudit, FileAuditEntryBuilder, FileAuditEntryKind,
     ProcessingActionBuilder, ProcessingKind,
-    FileAuditEntryKind,
 };
-use nvisy_ontology::record::RedactionMap;
-
-use super::{Engine, EngineInput, EngineOutput};
-use super::connections::Connections;
-use super::executor::{NodeOutput, RunOutput, execute_node};
-use crate::compiler::Compiler;
-use crate::compiler::ExecutionPlan;
 
 /// Default buffer size for bounded inter-node MPSC channels.
 const CHANNEL_BUFFER_SIZE: usize = 256;
@@ -165,7 +162,8 @@ impl Engine for DefaultEngine {
         // CV layers) before the engine is called. The engine receives entities as
         // part of a higher-level orchestration layer. For now, we create an empty
         // detection output and let the execution graph handle detection actions.
-        let mut detection = nvisy_ontology::entity::DetectionOutput::new(content_source, Vec::new());
+        let mut detection =
+            nvisy_ontology::entity::DetectionOutput::new(content_source, Vec::new());
         detection.policy_id = input.policies.policies.first().map(|p| p.id);
 
         // Phase 2: Policy Evaluation
@@ -243,9 +241,9 @@ impl Engine for DefaultEngine {
             entities: detection.entities.clone(),
             redactions: all_redactions.clone(),
         };
-        let _redaction_output = redaction_op.call(
-            crate::operation::ParallelContext::new(redaction_input),
-        ).await?;
+        let _redaction_output = redaction_op
+            .call(crate::operation::ParallelContext::new(redaction_input))
+            .await?;
 
         let applied = all_redactions.iter().filter(|r| r.applied).count();
         let skipped = all_redactions.len() - applied;
@@ -253,15 +251,13 @@ impl Engine for DefaultEngine {
         // Record a redaction audit entry.
         let redaction_entry = FileAuditEntryBuilder::default()
             .with_status(AuditEntryStatus::Success)
-            .with_kind(FileAuditEntryKind::Processing(
-                ProcessingKind::Redaction(
-                    ProcessingActionBuilder::default()
-                        .with_items_count(all_redactions.len() as u64)
-                        .with_matched_count(applied as u64)
-                        .build()
-                        .unwrap_or_default(),
-                ),
-            ))
+            .with_kind(FileAuditEntryKind::Processing(ProcessingKind::Redaction(
+                ProcessingActionBuilder::default()
+                    .with_items_count(all_redactions.len() as u64)
+                    .with_matched_count(applied as u64)
+                    .build()
+                    .unwrap_or_default(),
+            )))
             .finish()
             .expect("valid audit entry");
         file_audit.push(redaction_entry);

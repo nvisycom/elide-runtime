@@ -7,7 +7,6 @@ mod region;
 pub use address::AddressData;
 pub use coordinates::GeoCoordinate;
 pub use region::{GeoBounds, GeoShape, RegionData};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

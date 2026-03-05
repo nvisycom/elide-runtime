@@ -1,10 +1,9 @@
 //! Signature reference data.
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 use nvisy_core::math::BoundingBox;
 use nvisy_core::path::ContentSource;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 /// Reference handwritten signature for verification.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

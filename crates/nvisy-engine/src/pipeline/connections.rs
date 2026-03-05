@@ -5,6 +5,7 @@
 //! [`Connections`] is a type alias mapping connection IDs to their definitions.
 
 use std::collections::HashMap;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

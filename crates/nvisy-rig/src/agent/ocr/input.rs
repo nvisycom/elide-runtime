@@ -1,10 +1,9 @@
 //! Input types for OCR verification.
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 use nvisy_core::math::BoundingBox;
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 /// An entity proposed by NER that the VLM should verify against the image.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]

@@ -4,18 +4,17 @@
 
 use std::fmt;
 
+use nvisy_core::Error;
+use nvisy_core::math::{Polygon, Vertex};
+use nvisy_rig::backend::{HttpConfig, build_http_client};
+use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
-use nvisy_core::Error;
-use nvisy_rig::backend::{HttpConfig, build_http_client};
-use nvisy_core::math::{Polygon, Vertex};
-use crate::backend::TextLevel;
-use reqwest_middleware::ClientWithMiddleware;
-
-use crate::backend::{ImageInput, ImageOutput, Backend, ImageRegion, RunParams, check_response};
-
 use super::AzureDocaiParams;
+use crate::backend::{
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
+};
 
 /// [`Backend`] implementation for Azure Document Intelligence.
 ///
@@ -96,11 +95,7 @@ struct AzureWord {
 
 #[async_trait::async_trait]
 impl Backend for AzureDocaiBackend {
-    async fn run(
-        &self,
-        image: &ImageInput,
-        params: &RunParams,
-    ) -> Result<ImageOutput, Error> {
+    async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
         let encoded = image.to_base64();
         let endpoint = self.endpoint.trim_end_matches('/');
 
@@ -168,10 +163,13 @@ impl Backend for AzureDocaiBackend {
 
             let poll_resp = check_response(poll_resp, "Azure DocAI poll").await?;
 
-            let parsed: AnalyzeResponse = poll_resp
-                .json()
-                .await
-                .map_err(|e| Error::runtime(format!("Azure DocAI JSON parse error: {e}"), "azure_docai_ocr", false))?;
+            let parsed: AnalyzeResponse = poll_resp.json().await.map_err(|e| {
+                Error::runtime(
+                    format!("Azure DocAI JSON parse error: {e}"),
+                    "azure_docai_ocr",
+                    false,
+                )
+            })?;
 
             match parsed.status.as_str() {
                 "succeeded" => break parsed,
@@ -271,5 +269,4 @@ mod tests {
         assert!((word.confidence - 0.99).abs() < 0.001);
         assert_eq!(word.polygon.len(), 8);
     }
-
 }

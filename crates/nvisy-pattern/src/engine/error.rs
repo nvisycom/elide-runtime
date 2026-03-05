@@ -5,16 +5,10 @@
 pub enum PatternEngineError {
     /// A regex pattern string failed to compile.
     #[error("failed to compile regex for pattern '{name}': {source}")]
-    RegexCompile {
-        name: String,
-        source: regex::Error,
-    },
+    RegexCompile { name: String, source: regex::Error },
     /// A pattern references a dictionary that does not exist.
     #[error("pattern '{name}' references unknown dictionary '{dictionary}'")]
-    UnknownDictionary {
-        name: String,
-        dictionary: String,
-    },
+    UnknownDictionary { name: String, dictionary: String },
     /// Failed to build an Aho-Corasick automaton.
     #[error("failed to build Aho-Corasick automaton for dictionary '{name}': {source}")]
     AhoCorasickBuild {

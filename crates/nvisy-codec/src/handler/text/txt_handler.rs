@@ -15,14 +15,13 @@
 //! indices.
 
 use futures::StreamExt;
-
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
-use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 use crate::handler::text::TextData;
+use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
 
 /// 0-based line index identifying a span within a plain-text document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -88,7 +87,11 @@ impl TextHandler for TxtHandler {
 impl TxtHandler {
     /// Create a new handler from lines and a trailing-newline flag.
     pub fn new(lines: Vec<String>, trailing_newline: bool) -> Self {
-        Self { source: ContentSource::new(), lines, trailing_newline }
+        Self {
+            source: ContentSource::new(),
+            lines,
+            trailing_newline,
+        }
     }
 
     /// Set the content source for lineage tracking.
@@ -149,10 +152,11 @@ impl<'a> ExactSizeIterator for TxtSpanIter<'a> {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::handler::{SpanEdit, TextHandler};
     use futures::StreamExt;
     use nvisy_core::Error;
+
+    use super::*;
+    use crate::handler::{SpanEdit, TextHandler};
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');

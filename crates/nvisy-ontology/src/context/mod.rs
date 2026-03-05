@@ -13,11 +13,9 @@ pub mod reference;
 pub mod temporal;
 
 pub use entry::{ContextEntry, ContextEntryData};
-
+use nvisy_core::path::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use nvisy_core::path::ContentSource;
 
 /// A persistent, reusable collection of reference data for detection.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

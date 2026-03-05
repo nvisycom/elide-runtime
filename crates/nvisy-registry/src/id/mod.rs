@@ -1,11 +1,10 @@
 use std::fmt;
 
 use jiff::Zoned;
+use nvisy_core::{Error, ErrorKind, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use nvisy_core::{Error, ErrorKind, Result};
 
 macro_rules! define_id {
     (

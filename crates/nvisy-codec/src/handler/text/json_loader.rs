@@ -8,11 +8,9 @@
 use std::num::NonZeroU32;
 
 use nvisy_core::Error;
-use nvisy_core::io::ContentData;
+use nvisy_core::io::{ContentData, TextEncoding};
 
 use crate::document::Document;
-use nvisy_core::io::TextEncoding;
-
 use crate::handler::{JsonData, JsonHandler, JsonIndent, Loader};
 
 /// Parameters for [`JsonLoader`].
@@ -46,9 +44,8 @@ impl Loader for JsonLoader {
         let text = params.encoding.decode_bytes(&raw, "json-loader")?;
         let (indent, trailing_newline) = detect_formatting(&text);
 
-        let value: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
-            Error::validation(format!("Invalid JSON: {e}"), "json-loader")
-        })?;
+        let value: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| Error::validation(format!("Invalid JSON: {e}"), "json-loader"))?;
 
         let handler = JsonHandler {
             source: content.content_source,
@@ -95,12 +92,13 @@ fn detect_formatting(source: &str) -> (JsonIndent, bool) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::Bytes;
-    use nvisy_core::path::ContentSource;
-    use nvisy_core::fs::DocumentType;
     use nvisy_core::Error;
+    use nvisy_core::fs::DocumentType;
+    use nvisy_core::path::ContentSource;
     use serde_json::json;
+
+    use super::*;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))
@@ -109,9 +107,7 @@ mod tests {
     #[tokio::test]
     async fn load_simple_object() -> Result<(), Error> {
         let content = content_from_str(r#"{"name": "Alice", "age": 30}"#);
-        let doc = JsonLoader
-            .decode(&content, &JsonParams::default())
-            .await?;
+        let doc = JsonLoader.decode(&content, &JsonParams::default()).await?;
 
         assert_eq!(doc.document_type(), DocumentType::Json);
         assert_eq!(doc.value(), &json!({"name": "Alice", "age": 30}));
@@ -121,9 +117,7 @@ mod tests {
     #[tokio::test]
     async fn load_detects_compact_formatting() -> Result<(), Error> {
         let content = content_from_str(r#"{"a":1}"#);
-        let doc = JsonLoader
-            .decode(&content, &JsonParams::default())
-            .await?;
+        let doc = JsonLoader.decode(&content, &JsonParams::default()).await?;
         assert_eq!(doc.indent(), JsonIndent::Compact);
         assert!(!doc.trailing_newline());
         Ok(())
@@ -132,9 +126,7 @@ mod tests {
     #[tokio::test]
     async fn load_detects_two_space_indent() -> Result<(), Error> {
         let content = content_from_str("{\n  \"a\": 1\n}\n");
-        let doc = JsonLoader
-            .decode(&content, &JsonParams::default())
-            .await?;
+        let doc = JsonLoader.decode(&content, &JsonParams::default()).await?;
         assert_eq!(doc.indent(), JsonIndent::two_spaces());
         assert!(doc.trailing_newline());
         Ok(())
@@ -143,9 +135,7 @@ mod tests {
     #[tokio::test]
     async fn load_detects_four_space_indent() -> Result<(), Error> {
         let content = content_from_str("{\n    \"a\": 1\n}\n");
-        let doc = JsonLoader
-            .decode(&content, &JsonParams::default())
-            .await?;
+        let doc = JsonLoader.decode(&content, &JsonParams::default()).await?;
         assert_eq!(doc.indent(), JsonIndent::four_spaces());
         Ok(())
     }
@@ -153,9 +143,7 @@ mod tests {
     #[tokio::test]
     async fn load_detects_tab_indent() -> Result<(), Error> {
         let content = content_from_str("{\n\t\"a\": 1\n}\n");
-        let doc = JsonLoader
-            .decode(&content, &JsonParams::default())
-            .await?;
+        let doc = JsonLoader.decode(&content, &JsonParams::default()).await?;
         assert_eq!(doc.indent(), JsonIndent::Tab);
         Ok(())
     }

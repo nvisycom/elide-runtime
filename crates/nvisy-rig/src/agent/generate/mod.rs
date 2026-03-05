@@ -7,16 +7,14 @@
 mod output;
 mod prompt;
 
-pub use output::{GenOutput, GeneratedEntity};
-
 use nvisy_ontology::entity::EntityKind;
+pub use output::{GenOutput, GeneratedEntity};
+use prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
 use uuid::Uuid;
 
+use super::{AgentConfig, AgentProvider, BaseAgent};
 use crate::backend::UsageTracker;
 use crate::error::Error;
-
-use super::{AgentProvider, BaseAgent, AgentConfig};
-use prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
 
 /// A request to generate a replacement value for a single entity.
 #[derive(Debug, Clone)]
@@ -68,16 +66,10 @@ impl GenAgent {
         skip_all,
         fields(batch_size = requests.len(), agent = "gen"),
     )]
-    pub async fn generate(
-        &self,
-        requests: &[GenRequest],
-    ) -> Result<Vec<GeneratedEntity>, Error> {
+    pub async fn generate(&self, requests: &[GenRequest]) -> Result<Vec<GeneratedEntity>, Error> {
         let prompt = GenPromptBuilder::build(requests);
 
-        tracing::debug!(
-            prompt_len = prompt.len(),
-            "built gen prompt"
-        );
+        tracing::debug!(prompt_len = prompt.len(), "built gen prompt");
 
         let result: GenOutput = self.base.prompt_structured(&prompt).await?;
 
@@ -97,10 +89,7 @@ impl GenAgent {
         skip_all,
         fields(entity_type = %request.entity_type, agent = "gen"),
     )]
-    pub async fn generate_one(
-        &self,
-        request: &GenRequest,
-    ) -> Result<GeneratedEntity, Error> {
+    pub async fn generate_one(&self, request: &GenRequest) -> Result<GeneratedEntity, Error> {
         let prompt = GenPromptBuilder::build_one(request);
         let synthetic_value = self.base.prompt_text(&prompt).await?;
 

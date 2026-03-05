@@ -9,15 +9,14 @@
 
 mod output;
 
-pub use output::TextRedactionOutput;
-
 use std::collections::HashMap;
 use std::hash::Hash;
 
 use futures::StreamExt;
-
-use crate::handler::{TextHandler, TextData, SpanEdit, SpanEditStream};
 use nvisy_core::Error;
+pub use output::TextRedactionOutput;
+
+use crate::handler::{SpanEdit, SpanEditStream, TextData, TextHandler};
 
 /// A located text redaction: pairs a span identifier and intra-span byte
 /// range with a [`TextRedactionOutput`] that carries the replacement.
@@ -63,7 +62,10 @@ where
         &mut self,
         redactions: &[TextRedaction<Self::TextId>],
     ) -> Result<(), Error> {
-        tracing::debug!(redaction_count = redactions.len(), "applying text redactions");
+        tracing::debug!(
+            redaction_count = redactions.len(),
+            "applying text redactions"
+        );
         if redactions.is_empty() {
             return Ok(());
         }
@@ -71,11 +73,7 @@ where
         // Group redactions by span id.
         let mut by_span: HashMap<&Self::TextId, Vec<(usize, usize, String)>> = HashMap::new();
         for r in redactions {
-            let value = r
-                .output
-                .replacement_value()
-                .unwrap_or_default()
-                .to_string();
+            let value = r.output.replacement_value().unwrap_or_default().to_string();
             by_span
                 .entry(&r.span_id)
                 .or_default()
@@ -131,10 +129,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::handler::{TxtHandler, TxtSpan};
     use futures::StreamExt;
     use nvisy_core::Error;
+
+    use super::*;
+    use crate::handler::{TxtHandler, TxtSpan};
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');
@@ -175,10 +174,10 @@ mod tests {
     #[tokio::test]
     async fn multiple_redactions_within_one_span() -> Result<(), Error> {
         let mut h = handler("Alice met Bob\n");
-        TextRedact::redact_text(&mut h, &[
-            replace(0, 0, 5, "[X]"),
-            replace(0, 10, 13, "[Y]"),
-        ])
+        TextRedact::redact_text(
+            &mut h,
+            &[replace(0, 0, 5, "[X]"), replace(0, 10, 13, "[Y]")],
+        )
         .await?;
 
         let spans: Vec<_> = h.text_spans().await.collect().await;
@@ -232,11 +231,8 @@ mod tests {
     #[tokio::test]
     async fn multiple_spans_with_separate_redactions() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
-        TextRedact::redact_text(&mut h, &[
-            replace(0, 0, 5, "[A]"),
-            replace(1, 0, 5, "[B]"),
-        ])
-        .await?;
+        TextRedact::redact_text(&mut h, &[replace(0, 0, 5, "[A]"), replace(1, 0, 5, "[B]")])
+            .await?;
 
         let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans[0].data, "[A]");

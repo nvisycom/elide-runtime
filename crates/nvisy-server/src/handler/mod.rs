@@ -19,9 +19,8 @@ mod process;
 mod request;
 mod response;
 
-pub use error::{Error, ErrorKind, Result};
-
 use aide::axum::ApiRouter;
+pub use error::{Error, ErrorKind, Result};
 
 use crate::service::ServiceState;
 

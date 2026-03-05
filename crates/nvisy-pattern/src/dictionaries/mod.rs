@@ -24,14 +24,13 @@ mod csv_dictionary;
 mod dictionary;
 mod text_dictionary;
 
-pub use csv_dictionary::CsvDictionary;
-pub use dictionary::{BoxDictionary, Dictionary};
-pub use text_dictionary::TxtDictionary;
-
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
+pub use csv_dictionary::CsvDictionary;
+pub use dictionary::{BoxDictionary, Dictionary};
 use include_dir::{Dir, include_dir};
+pub use text_dictionary::TxtDictionary;
 
 /// A registry of named [`Dictionary`] instances with O(log n) lookup.
 ///

@@ -3,7 +3,6 @@
 mod date;
 
 pub use date::DateData;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

@@ -5,12 +5,11 @@
 //! as reversible or not, enabling reconstruction of the original from the
 //! redacted output when authorized.
 
+use nvisy_core::math::{BoundingBox, TimeSpan};
+use nvisy_core::path::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use nvisy_core::math::{BoundingBox, TimeSpan};
-use nvisy_core::path::ContentSource;
 
 /// Mapping entry for a text-modality redaction.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

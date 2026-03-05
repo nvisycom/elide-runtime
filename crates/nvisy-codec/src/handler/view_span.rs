@@ -54,8 +54,9 @@ impl<Id: Clone, Data: Clone> Span<Id, Data> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use nvisy_core::path::ContentSource;
+
+    use super::*;
 
     #[test]
     fn span_new_sets_default_source() {

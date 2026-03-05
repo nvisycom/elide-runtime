@@ -28,8 +28,7 @@ impl<'a> OcrPromptBuilder<'a> {
         for entity in self.entities {
             prompt.push_str(&format!(
                 "[{}] category={}, type={}, value=\"{}\", confidence={:.2}",
-                entity.id,
-                entity.category, entity.entity_type, entity.value, entity.confidence,
+                entity.id, entity.category, entity.entity_type, entity.value, entity.confidence,
             ));
             if let Some(ref bbox) = entity.bbox {
                 prompt.push_str(&format!(
@@ -69,9 +68,10 @@ whichever fields changed: category, entity_type, value, bbox.";
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use nvisy_core::math::BoundingBox;
     use nvisy_ontology::entity::{EntityCategory, EntityKind};
+
+    use super::*;
 
     #[test]
     fn builds_prompt_with_entities() {

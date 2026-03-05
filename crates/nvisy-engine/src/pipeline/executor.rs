@@ -8,16 +8,16 @@
 //! | `Action` | Receives upstream data, applies a transformation, and forwards results. |
 //! | `Target` | Receives upstream data and writes it to an external connection. |
 
+use nvisy_core::io::ContentData;
+use nvisy_core::{Error, ErrorKind};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use uuid::Uuid;
-use nvisy_core::io::ContentData;
-use nvisy_core::{Error, ErrorKind};
-use crate::compiler::{ActionKind, GraphNode, GraphNodeKind};
-use crate::compiler::{RetryPolicy, TimeoutBehavior};
+
 use super::connections::{Connection, Connections};
 use super::policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
+use crate::compiler::{ActionKind, GraphNode, GraphNodeKind, RetryPolicy, TimeoutBehavior};
 
 /// Outcome of executing a single node in the pipeline.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -59,18 +59,26 @@ pub(crate) async fn execute_node(
         match &node.kind {
             GraphNodeKind::Source(src) => {
                 execute_source(
-                    &src.provider, &src.stream,
-                    node.retry(), &senders, connections,
-                ).await
+                    &src.provider,
+                    &src.stream,
+                    node.retry(),
+                    &senders,
+                    connections,
+                )
+                .await
             }
             GraphNodeKind::Action(act) => {
                 execute_action(&act.action, &senders, &mut receivers).await
             }
             GraphNodeKind::Target(tgt) => {
                 execute_target(
-                    &tgt.provider, &tgt.stream,
-                    node.retry(), &mut receivers, connections,
-                ).await
+                    &tgt.provider,
+                    &tgt.stream,
+                    node.retry(),
+                    &mut receivers,
+                    connections,
+                )
+                .await
             }
         }
     };
@@ -129,7 +137,9 @@ async fn execute_source(
 
     let count = match retry {
         Some(policy) => {
-            CompiledRetryPolicy::from(policy).with_retry(read_from_provider).await?
+            CompiledRetryPolicy::from(policy)
+                .with_retry(read_from_provider)
+                .await?
         }
         None => read_from_provider().await?,
     };

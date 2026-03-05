@@ -1,10 +1,9 @@
 //! Structured output types for OCR entity verification.
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 use nvisy_core::math::BoundingBox;
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 /// Whether a proposed entity was corrected or rejected by the VLM.
 ///

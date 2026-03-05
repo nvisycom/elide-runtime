@@ -29,7 +29,18 @@ use strum::Display;
 /// | `Aggregate` | Aggregate into a range or bucket |
 /// | `Generalize` | Generalize to a less precise value |
 /// | `DateShift` | Shift dates by a consistent offset |
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum TextRedactionMethod {
@@ -64,7 +75,18 @@ pub enum TextRedactionMethod {
 /// | `Blur` | Apply a gaussian blur over the region |
 /// | `Block` | Overlay an opaque rectangle |
 /// | `Pixelate` | Apply pixelation / mosaic effect |
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum ImageRedactionMethod {
@@ -82,7 +104,18 @@ pub enum ImageRedactionMethod {
 /// |---|---|
 /// | `Silence` | Replace audio segment with silence |
 /// | `Remove` | Remove the segment entirely |
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Display,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AudioRedactionMethod {
@@ -96,7 +129,18 @@ pub enum AudioRedactionMethod {
 ///
 /// Mirrors the structure of [`RedactionInput`](super::RedactionInput) but
 /// carries only the method name — no configuration payload.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    From,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 pub enum RedactionMethod {
     /// Text/tabular redaction method.

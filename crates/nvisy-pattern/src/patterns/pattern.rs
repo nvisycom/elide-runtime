@@ -4,9 +4,8 @@
 //! [`MatchSource`]: crate::patterns::MatchSource
 //! [`BoxPattern`]: crate::patterns::BoxPattern
 
-use serde::Deserialize;
-
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use serde::Deserialize;
 
 use super::context_rule::ContextRule;
 
@@ -50,12 +49,12 @@ impl DictionaryConfidence {
     pub fn resolve(&self, column: usize) -> f64 {
         match self {
             Self::Uniform(c) => *c,
-            Self::PerColumn(cols) => cols.get(column).copied().unwrap_or_else(|| {
-                cols.last().copied().unwrap_or(DEFAULT_CONFIDENCE)
-            }),
+            Self::PerColumn(cols) => cols
+                .get(column)
+                .copied()
+                .unwrap_or_else(|| cols.last().copied().unwrap_or(DEFAULT_CONFIDENCE)),
         }
     }
-
 }
 
 impl Default for DictionaryConfidence {
@@ -66,8 +65,9 @@ impl Default for DictionaryConfidence {
 
 /// Serde helper — accepts either a single number or an array of numbers.
 mod confidence_serde {
-    use super::DictionaryConfidence;
     use serde::{Deserialize, Deserializer};
+
+    use super::DictionaryConfidence;
 
     #[derive(Deserialize)]
     #[serde(untagged)]

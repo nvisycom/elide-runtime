@@ -9,17 +9,16 @@ mod input;
 mod output;
 mod prompt;
 
-pub use input::ProposedEntity;
-pub use output::{VerificationOutput, VerificationStatus, VerifiedEntity};
-
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+pub use input::ProposedEntity;
+pub use output::{VerificationOutput, VerificationStatus, VerifiedEntity};
+use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use uuid::Uuid;
 
+use super::{AgentConfig, AgentProvider, BaseAgent};
 use crate::backend::UsageTracker;
-use super::{AgentProvider, BaseAgent, AgentConfig};
 use crate::error::Error;
-use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 
 /// VLM agent that verifies NER-detected entities against the original image.
 ///
@@ -39,7 +38,9 @@ pub struct OcrAgent {
 impl OcrAgent {
     /// Create a new OCR verification agent.
     pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self, Error> {
-        config.preamble.get_or_insert_with(|| OCR_SYSTEM_PROMPT.into());
+        config
+            .preamble
+            .get_or_insert_with(|| OCR_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config).build()?;
         Ok(Self { base })
     }
@@ -78,10 +79,7 @@ impl OcrAgent {
 
         let output: VerificationOutput = self.base.prompt_structured(&prompt).await?;
 
-        tracing::info!(
-            changed = output.entities.len(),
-            "ocr verification complete"
-        );
+        tracing::info!(changed = output.entities.len(), "ocr verification complete");
 
         Ok(output)
     }

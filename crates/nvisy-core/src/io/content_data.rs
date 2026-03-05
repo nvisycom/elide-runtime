@@ -256,7 +256,6 @@ impl ContentData {
     }
 }
 
-
 impl From<&str> for ContentData {
     fn from(s: &str) -> Self {
         let source = ContentSource::new();
@@ -415,5 +414,4 @@ mod tests {
         let content = ContentData::from(hipstr);
         assert_eq!(content.as_str().unwrap(), "Hello from HipStr");
     }
-
 }

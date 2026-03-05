@@ -1,7 +1,7 @@
 //! Provider dispatch for speech-to-text models.
 
-use rig::providers::openai;
 use reqwest_middleware::ClientWithMiddleware;
+use rig::providers::openai;
 
 use crate::backend::{AuthenticatedProvider, HttpConfig, build_http_client};
 use crate::error::Error;
@@ -50,8 +50,7 @@ impl SttModels {
         match provider {
             SttProvider::OpenAi(p) => {
                 let client = p.openai_client(http)?;
-                let model =
-                    openai::transcription::TranscriptionModel::new(client, model);
+                let model = openai::transcription::TranscriptionModel::new(client, model);
                 Ok(Self::OpenAi(model))
             }
         }

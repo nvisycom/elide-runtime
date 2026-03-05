@@ -2,9 +2,8 @@
 
 mod provider;
 
-pub use provider::TtsProvider;
 pub(crate) use provider::TtsModels;
-
+pub use provider::TtsProvider;
 use rig::audio_generation::AudioGenerationModel as _;
 use uuid::Uuid;
 
@@ -50,8 +49,7 @@ impl TtsService {
     ///
     /// Returns [`Error::Request`] if client construction fails.
     pub fn new(provider: &TtsProvider, config: TtsConfig) -> Result<Self, Error> {
-        let inner =
-            TtsModels::from_provider(provider, &config.model, config.max_retries)?;
+        let inner = TtsModels::from_provider(provider, &config.model, config.max_retries)?;
 
         Ok(Self {
             id: Uuid::now_v7(),

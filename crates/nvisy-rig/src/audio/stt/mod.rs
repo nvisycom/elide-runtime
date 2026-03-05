@@ -6,9 +6,8 @@
 
 mod provider;
 
-pub use provider::SttProvider;
 pub(crate) use provider::SttModels;
-
+pub use provider::SttProvider;
 use rig::transcription::TranscriptionModel;
 use uuid::Uuid;
 
@@ -66,8 +65,7 @@ impl SttService {
     ///
     /// Returns [`Error::Request`] if client construction fails.
     pub fn new(provider: &SttProvider, config: SttConfig) -> Result<Self, Error> {
-        let inner =
-            SttModels::from_provider(provider, &config.model, config.max_retries)?;
+        let inner = SttModels::from_provider(provider, &config.model, config.max_retries)?;
 
         Ok(Self {
             id: Uuid::now_v7(),
@@ -91,11 +89,7 @@ impl SttService {
         skip_all,
         fields(service_id = %self.id, data_len = audio_data.len(), filename),
     )]
-    pub async fn transcribe(
-        &self,
-        audio_data: &[u8],
-        filename: &str,
-    ) -> Result<SttOutput, Error> {
+    pub async fn transcribe(&self, audio_data: &[u8], filename: &str) -> Result<SttOutput, Error> {
         macro_rules! build_and_send {
             ($model:expr) => {{
                 let mut builder = $model

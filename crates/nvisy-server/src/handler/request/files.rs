@@ -1,17 +1,17 @@
 //! File request types.
 
-use nvisy_registry::ActorId;
 use schemars::JsonSchema;
 use serde::Deserialize;
+use uuid::Uuid;
 
 use super::Base64;
 
 /// JSON request body for base64-encoded file upload.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct FileUpload {
+pub struct NewFile {
     /// Actor identity that owns the file.
-    pub actor_id: ActorId,
+    pub actor_id: Uuid,
     /// Base64-encoded file bytes.
     pub content: Base64,
     /// Optional original filename.

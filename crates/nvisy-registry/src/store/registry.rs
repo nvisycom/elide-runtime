@@ -9,12 +9,11 @@ use uuid::Uuid;
 
 use super::content::ContentHandle;
 use super::context::ContextHandle;
-use crate::id::{ActorId, ContentId, ContextId};
 
 /// Builds a 32-byte composite key: `[actor: 16][resource_id: 16]`.
-fn make_key(actor: ActorId, id: Uuid) -> [u8; 32] {
+fn make_key(actor: Uuid, id: Uuid) -> [u8; 32] {
     let mut key = [0u8; 32];
-    key[..16].copy_from_slice(actor.as_uuid().as_bytes());
+    key[..16].copy_from_slice(actor.as_bytes());
     key[16..].copy_from_slice(id.as_bytes());
     key
 }
@@ -105,7 +104,7 @@ impl Registry {
     /// Returns a [`ContentHandle`] for subsequent reads.
     pub async fn register_content(
         &self,
-        actor: ActorId,
+        actor: Uuid,
         content: Content,
     ) -> Result<ContentHandle> {
         let content_source = content.content_source();
@@ -154,8 +153,8 @@ impl Registry {
     /// Looks up previously registered content by actor and content ID.
     ///
     /// Returns [`ErrorKind::NotFound`] if no entry exists for the given key.
-    pub async fn read_content(&self, actor: ActorId, id: ContentId) -> Result<ContentHandle> {
-        let key = make_key(actor, id.as_uuid());
+    pub async fn read_content(&self, actor: Uuid, id: Uuid) -> Result<ContentHandle> {
+        let key = make_key(actor, id);
         let content_ks = self.content.clone();
 
         let exists = tokio::task::spawn_blocking(move || -> Result<bool> {
@@ -175,7 +174,7 @@ impl Registry {
             ));
         }
 
-        let source = ContentSource::from(id.as_uuid());
+        let source = ContentSource::from(id);
         Ok(ContentHandle::new(
             actor,
             source,
@@ -187,8 +186,8 @@ impl Registry {
     /// Removes a single content entry by actor and content ID.
     ///
     /// Returns [`ErrorKind::NotFound`] if no entry exists for the given key.
-    pub async fn unregister_content(&self, actor: ActorId, id: ContentId) -> Result<()> {
-        let key = make_key(actor, id.as_uuid());
+    pub async fn unregister_content(&self, actor: Uuid, id: Uuid) -> Result<()> {
+        let key = make_key(actor, id);
         let content_ks = self.content.clone();
         let meta_ks = self.content_meta.clone();
         let db = self.db.clone();
@@ -224,8 +223,8 @@ impl Registry {
     /// Removes all content entries for an actor.
     ///
     /// Returns the number of entries removed.
-    pub async fn unregister_all_content(&self, actor: ActorId) -> Result<usize> {
-        let prefix = actor.as_uuid().as_bytes().to_vec();
+    pub async fn unregister_all_content(&self, actor: Uuid) -> Result<usize> {
+        let prefix = actor.as_bytes().to_vec();
         let content_ks = self.content.clone();
         let meta_ks = self.content_meta.clone();
         let db = self.db.clone();
@@ -268,11 +267,11 @@ impl Registry {
     }
 
     /// Lists all content IDs for an actor.
-    pub async fn list_content(&self, actor: ActorId) -> Result<Vec<ContentId>> {
-        let prefix = actor.as_uuid().as_bytes().to_vec();
+    pub async fn list_content(&self, actor: Uuid) -> Result<Vec<Uuid>> {
+        let prefix = actor.as_bytes().to_vec();
         let content_ks = self.content.clone();
 
-        tokio::task::spawn_blocking(move || -> Result<Vec<ContentId>> {
+        tokio::task::spawn_blocking(move || -> Result<Vec<Uuid>> {
             let mut ids = Vec::new();
             for guard in content_ks.prefix(&prefix) {
                 let key = guard.key().map_err(|err| {
@@ -282,7 +281,7 @@ impl Registry {
                 if key.len() == 32
                     && let Ok(bytes) = <[u8; 16]>::try_from(&key[16..])
                 {
-                    ids.push(ContentId::from(Uuid::from_bytes(bytes)));
+                    ids.push(Uuid::from_bytes(bytes));
                 }
             }
             ids.sort();
@@ -297,7 +296,7 @@ impl Registry {
     /// Returns a [`ContextHandle`] for subsequent reads.
     pub async fn register_context(
         &self,
-        actor: ActorId,
+        actor: Uuid,
         context: Context,
     ) -> Result<ContextHandle> {
         let source = context.source;
@@ -330,8 +329,8 @@ impl Registry {
     /// Looks up a previously registered context by actor and context ID.
     ///
     /// Returns [`ErrorKind::NotFound`] if no entry exists for the given key.
-    pub async fn read_context(&self, actor: ActorId, id: ContextId) -> Result<ContextHandle> {
-        let key = make_key(actor, id.as_uuid());
+    pub async fn read_context(&self, actor: Uuid, id: Uuid) -> Result<ContextHandle> {
+        let key = make_key(actor, id);
         let ctx_ks = self.contexts.clone();
 
         let exists = tokio::task::spawn_blocking(move || -> Result<bool> {
@@ -351,15 +350,15 @@ impl Registry {
             ));
         }
 
-        let source = ContentSource::from(id.as_uuid());
+        let source = ContentSource::from(id);
         Ok(ContextHandle::new(actor, source, self.contexts.clone()))
     }
 
     /// Removes a single context entry by actor and context ID.
     ///
     /// Returns [`ErrorKind::NotFound`] if no entry exists for the given key.
-    pub async fn unregister_context(&self, actor: ActorId, id: ContextId) -> Result<()> {
-        let key = make_key(actor, id.as_uuid());
+    pub async fn unregister_context(&self, actor: Uuid, id: Uuid) -> Result<()> {
+        let key = make_key(actor, id);
         let ctx_ks = self.contexts.clone();
         let db = self.db.clone();
 
@@ -390,8 +389,8 @@ impl Registry {
     /// Removes all context entries for an actor.
     ///
     /// Returns the number of entries removed.
-    pub async fn unregister_all_contexts(&self, actor: ActorId) -> Result<usize> {
-        let prefix = actor.as_uuid().as_bytes().to_vec();
+    pub async fn unregister_all_contexts(&self, actor: Uuid) -> Result<usize> {
+        let prefix = actor.as_bytes().to_vec();
         let ctx_ks = self.contexts.clone();
         let db = self.db.clone();
 
@@ -428,11 +427,11 @@ impl Registry {
     }
 
     /// Lists all context IDs for an actor.
-    pub async fn list_contexts(&self, actor: ActorId) -> Result<Vec<ContextId>> {
-        let prefix = actor.as_uuid().as_bytes().to_vec();
+    pub async fn list_contexts(&self, actor: Uuid) -> Result<Vec<Uuid>> {
+        let prefix = actor.as_bytes().to_vec();
         let ctx_ks = self.contexts.clone();
 
-        tokio::task::spawn_blocking(move || -> Result<Vec<ContextId>> {
+        tokio::task::spawn_blocking(move || -> Result<Vec<Uuid>> {
             let mut ids = Vec::new();
             for guard in ctx_ks.prefix(&prefix) {
                 let key = guard.key().map_err(|err| {
@@ -442,7 +441,7 @@ impl Registry {
                 if key.len() == 32
                     && let Ok(bytes) = <[u8; 16]>::try_from(&key[16..])
                 {
-                    ids.push(ContextId::from(Uuid::from_bytes(bytes)));
+                    ids.push(Uuid::from_bytes(bytes));
                 }
             }
             ids.sort();
@@ -474,7 +473,7 @@ mod tests {
     #[tokio::test]
     async fn register_and_read_content() {
         let (_temp, registry) = open_temp_registry();
-        let actor = ActorId::new();
+        let actor = Uuid::now_v7();
         let content = Content::new(ContentData::from("Hello, world!"));
 
         let handle = registry.register_content(actor, content).await.unwrap();
@@ -485,12 +484,12 @@ mod tests {
     #[tokio::test]
     async fn content_scoped_by_actor() {
         let (_temp, registry) = open_temp_registry();
-        let actor_a = ActorId::new();
-        let actor_b = ActorId::new();
+        let actor_a = Uuid::now_v7();
+        let actor_b = Uuid::now_v7();
 
         let content = Content::new(ContentData::from("actor A only"));
         let handle = registry.register_content(actor_a, content).await.unwrap();
-        let id = ContentId::from(handle.content_source().as_uuid());
+        let id = handle.content_source().as_uuid();
 
         // Actor B cannot see actor A's content
         let err = registry.read_content(actor_b, id).await.unwrap_err();
@@ -503,8 +502,8 @@ mod tests {
     #[tokio::test]
     async fn list_content_per_actor() {
         let (_temp, registry) = open_temp_registry();
-        let actor_a = ActorId::new();
-        let actor_b = ActorId::new();
+        let actor_a = Uuid::now_v7();
+        let actor_b = Uuid::now_v7();
 
         registry
             .register_content(actor_a, Content::new(ContentData::from("a1")))
@@ -526,9 +525,9 @@ mod tests {
     #[tokio::test]
     async fn unregister_content() {
         let (_temp, registry) = open_temp_registry();
-        let actor = ActorId::new();
+        let actor = Uuid::now_v7();
         let content = Content::new(ContentData::from("delete me"));
-        let id = ContentId::from(content.content_source().as_uuid());
+        let id = content.content_source().as_uuid();
         registry.register_content(actor, content).await.unwrap();
 
         registry.unregister_content(actor, id).await.unwrap();
@@ -540,7 +539,7 @@ mod tests {
     #[tokio::test]
     async fn unregister_all_content() {
         let (_temp, registry) = open_temp_registry();
-        let actor = ActorId::new();
+        let actor = Uuid::now_v7();
 
         registry
             .register_content(actor, Content::new(ContentData::from("first")))
@@ -559,7 +558,7 @@ mod tests {
     #[tokio::test]
     async fn register_and_read_context() {
         let (_temp, registry) = open_temp_registry();
-        let actor = ActorId::new();
+        let actor = Uuid::now_v7();
         let ctx = Context::new("test-context", vec![]);
 
         let handle = registry.register_context(actor, ctx.clone()).await.unwrap();
@@ -570,12 +569,12 @@ mod tests {
     #[tokio::test]
     async fn context_scoped_by_actor() {
         let (_temp, registry) = open_temp_registry();
-        let actor_a = ActorId::new();
-        let actor_b = ActorId::new();
+        let actor_a = Uuid::now_v7();
+        let actor_b = Uuid::now_v7();
 
         let ctx = Context::new("private", vec![]);
         let handle = registry.register_context(actor_a, ctx).await.unwrap();
-        let id = ContextId::from(handle.source().as_uuid());
+        let id = handle.source().as_uuid();
 
         let err = registry.read_context(actor_b, id).await.unwrap_err();
         assert_eq!(err.kind, ErrorKind::NotFound);
@@ -586,7 +585,7 @@ mod tests {
     #[tokio::test]
     async fn list_contexts_per_actor() {
         let (_temp, registry) = open_temp_registry();
-        let actor = ActorId::new();
+        let actor = Uuid::now_v7();
 
         registry
             .register_context(actor, Context::new("ctx-1", vec![]))
@@ -603,9 +602,9 @@ mod tests {
     #[tokio::test]
     async fn unregister_context() {
         let (_temp, registry) = open_temp_registry();
-        let actor = ActorId::new();
+        let actor = Uuid::now_v7();
         let ctx = Context::new("remove-me", vec![]);
-        let id = ContextId::from(ctx.source.as_uuid());
+        let id = ctx.source.as_uuid();
 
         registry.register_context(actor, ctx).await.unwrap();
         registry.unregister_context(actor, id).await.unwrap();
@@ -617,7 +616,7 @@ mod tests {
     #[tokio::test]
     async fn unregister_all_contexts() {
         let (_temp, registry) = open_temp_registry();
-        let actor = ActorId::new();
+        let actor = Uuid::now_v7();
 
         registry
             .register_context(actor, Context::new("c1", vec![]))
@@ -637,10 +636,10 @@ mod tests {
     async fn data_persists_across_reopen() {
         let temp = tempfile::TempDir::new().unwrap();
         let path = temp.path().join("data");
-        let actor = ActorId::new();
+        let actor = Uuid::now_v7();
 
         let content = Content::new(ContentData::from("persistent"));
-        let id = ContentId::from(content.content_source().as_uuid());
+        let id = content.content_source().as_uuid();
 
         {
             let registry = Registry::open(&path).unwrap();

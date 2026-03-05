@@ -4,8 +4,7 @@ use fjall::Keyspace;
 use nvisy_core::path::ContentSource;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::context::Context;
-
-use crate::id::ActorId;
+use uuid::Uuid;
 
 /// Lightweight handle to a context entry stored in the registry.
 ///
@@ -14,7 +13,7 @@ use crate::id::ActorId;
 /// internally `Arc`-wrapped.
 #[derive(Clone)]
 pub struct ContextHandle {
-    actor: ActorId,
+    actor: Uuid,
     source: ContentSource,
     contexts: Keyspace,
 }
@@ -29,7 +28,7 @@ impl fmt::Debug for ContextHandle {
 }
 
 impl ContextHandle {
-    pub(crate) fn new(actor: ActorId, source: ContentSource, contexts: Keyspace) -> Self {
+    pub(crate) fn new(actor: Uuid, source: ContentSource, contexts: Keyspace) -> Self {
         Self {
             actor,
             source,
@@ -43,7 +42,7 @@ impl ContextHandle {
     }
 
     /// Returns the actor that owns this context.
-    pub fn actor(&self) -> ActorId {
+    pub fn actor(&self) -> Uuid {
         self.actor
     }
 
@@ -71,7 +70,7 @@ impl ContextHandle {
 
     fn composite_key(&self) -> [u8; 32] {
         let mut key = [0u8; 32];
-        key[..16].copy_from_slice(self.actor.as_uuid().as_bytes());
+        key[..16].copy_from_slice(self.actor.as_bytes());
         key[16..].copy_from_slice(self.source.as_uuid().as_bytes());
         key
     }

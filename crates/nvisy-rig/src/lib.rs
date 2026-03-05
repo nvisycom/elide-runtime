@@ -6,7 +6,5 @@ pub mod agent;
 pub mod audio;
 pub mod backend;
 pub mod error;
-pub mod image;
-
 #[doc(hidden)]
 pub mod prelude;

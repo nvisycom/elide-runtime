@@ -105,34 +105,6 @@ impl From<TranscriptionError> for Error {
     }
 }
 
-#[cfg(feature = "audio")]
-impl From<rig::audio_generation::AudioGenerationError> for Error {
-    fn from(err: rig::audio_generation::AudioGenerationError) -> Self {
-        use rig::audio_generation::AudioGenerationError;
-        match err {
-            AudioGenerationError::HttpError(e) => Self::Http(e.to_string()),
-            AudioGenerationError::JsonError(e) => Self::Json(e),
-            AudioGenerationError::ProviderError(msg) => Self::Provider(msg),
-            AudioGenerationError::ResponseError(msg) => Self::Response(msg),
-            AudioGenerationError::RequestError(e) => Self::Request(e.to_string()),
-        }
-    }
-}
-
-#[cfg(feature = "image")]
-impl From<rig::image_generation::ImageGenerationError> for Error {
-    fn from(err: rig::image_generation::ImageGenerationError) -> Self {
-        use rig::image_generation::ImageGenerationError;
-        match err {
-            ImageGenerationError::HttpError(e) => Self::Http(e.to_string()),
-            ImageGenerationError::JsonError(e) => Self::Json(e),
-            ImageGenerationError::ProviderError(msg) => Self::Provider(msg),
-            ImageGenerationError::ResponseError(msg) => Self::Response(msg),
-            ImageGenerationError::RequestError(e) => Self::Request(e.to_string()),
-        }
-    }
-}
-
 impl From<Error> for nvisy_core::Error {
     fn from(err: Error) -> Self {
         if matches!(&err, Error::Core(_)) {

@@ -23,7 +23,7 @@ use strum::Display;
 /// | `Hash` | Replace with a one-way hash |
 /// | `Encrypt` | Encrypt the value (recoverable with key) |
 /// | `Remove` | Delete the value entirely |
-/// | `Synthesize` | Replace with a realistic synthetic value |
+/// | `Generate` | Replace with a realistic generated value |
 /// | `Pseudonymize` | Replace with a consistent pseudonym |
 /// | `Tokenize` | Replace with a vault-backed reversible token |
 /// | `Aggregate` | Aggregate into a range or bucket |
@@ -43,8 +43,8 @@ pub enum TextRedactionMethod {
     Encrypt,
     /// Remove the value entirely.
     Remove,
-    /// Replace with a synthetically generated value.
-    Synthesize,
+    /// Replace with a realistically generated value.
+    Generate,
     /// Replace with a consistent pseudonym.
     Pseudonymize,
     /// Replace with a vault-backed reversible token.
@@ -64,7 +64,6 @@ pub enum TextRedactionMethod {
 /// | `Blur` | Apply a gaussian blur over the region |
 /// | `Block` | Overlay an opaque rectangle |
 /// | `Pixelate` | Apply pixelation / mosaic effect |
-/// | `Synthesize` | Replace with a synthetic region |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
@@ -75,8 +74,6 @@ pub enum ImageRedactionMethod {
     Block,
     /// Apply pixelation / mosaic effect.
     Pixelate,
-    /// Replace with a synthetic region.
-    Synthesize,
 }
 
 /// Audio redaction method.
@@ -85,7 +82,6 @@ pub enum ImageRedactionMethod {
 /// |---|---|
 /// | `Silence` | Replace audio segment with silence |
 /// | `Remove` | Remove the segment entirely |
-/// | `Synthesize` | Replace with synthetic audio |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
@@ -94,8 +90,6 @@ pub enum AudioRedactionMethod {
     Silence,
     /// Remove the segment entirely.
     Remove,
-    /// Replace with synthetic audio.
-    Synthesize,
 }
 
 /// Unified redaction method across all modalities.

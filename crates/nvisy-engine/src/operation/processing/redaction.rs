@@ -221,9 +221,6 @@ fn image_output_from_spec(spec: &RedactionSpec) -> Option<ImageRedactionOutput> 
             ImageRedactionInput::Pixelate { block_size } => {
                 ImageRedactionOutput::Pixelate { block_size: *block_size }
             }
-            ImageRedactionInput::Synthesize => {
-                ImageRedactionOutput::Block { color: [0, 0, 0, 255] }
-            }
         }),
         _ => None,
     }
@@ -275,7 +272,6 @@ fn audio_output_from_spec(spec: &RedactionSpec) -> Option<AudioRedactionOutput> 
         RedactionSpec::Audio(audio) => Some(match audio {
             AudioRedactionInput::Silence => AudioRedactionOutput::Silence,
             AudioRedactionInput::Remove => AudioRedactionOutput::Remove,
-            AudioRedactionInput::Synthesize => AudioRedactionOutput::Silence,
         }),
         _ => None,
     }
@@ -463,17 +459,6 @@ mod tests {
     }
 
     #[test]
-    fn image_output_synthesize_maps_to_black_block() {
-        let spec = RedactionSpec::Image(ImageRedactionInput::Synthesize);
-        assert_eq!(
-            image_output_from_spec(&spec),
-            Some(ImageRedactionOutput::Block {
-                color: [0, 0, 0, 255]
-            })
-        );
-    }
-
-    #[test]
     fn image_output_text_spec_returns_none() {
         let spec = RedactionSpec::Text(TextRedactionInput::Remove);
         assert_eq!(image_output_from_spec(&spec), None);
@@ -498,12 +483,6 @@ mod tests {
     fn audio_output_remove() {
         let spec = RedactionSpec::Audio(AudioRedactionInput::Remove);
         assert_eq!(audio_output_from_spec(&spec), Some(AudioRedactionOutput::Remove));
-    }
-
-    #[test]
-    fn audio_output_synthesize_falls_back_to_silence() {
-        let spec = RedactionSpec::Audio(AudioRedactionInput::Synthesize);
-        assert_eq!(audio_output_from_spec(&spec), Some(AudioRedactionOutput::Silence));
     }
 
     #[test]

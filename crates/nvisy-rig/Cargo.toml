@@ -18,11 +18,6 @@ documentation = { workspace = true }
 [features]
 default = []
 
-## Enable text-to-speech audio synthesis via rig-core's audio generation API.
-audio = ["rig-core/audio"]
-## Enable image synthesis via rig-core's image generation API.
-image = ["rig-core/image"]
-
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

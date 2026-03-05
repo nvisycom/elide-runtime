@@ -60,8 +60,8 @@ pub enum TextRedactionInput {
     },
     /// Remove the value entirely.
     Remove,
-    /// Replace with a synthetically generated value.
-    Synthesize,
+    /// Replace with a realistically generated value.
+    Generate,
     /// Replace with a consistent pseudonym.
     Pseudonymize,
     /// Replace with a vault-backed reversible token.
@@ -109,8 +109,6 @@ pub enum ImageRedactionInput {
         #[serde(default = "default_block_size")]
         block_size: u32,
     },
-    /// Replace with a synthetic region.
-    Synthesize,
 }
 
 
@@ -122,8 +120,6 @@ pub enum AudioRedactionInput {
     Silence,
     /// Remove the segment entirely.
     Remove,
-    /// Replace with synthetic audio.
-    Synthesize,
 }
 
 

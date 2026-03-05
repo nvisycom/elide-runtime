@@ -137,7 +137,7 @@ fn build_default_replacement(entity: &Entity, spec: &RedactionInput) -> String {
             TextRedactionInput::Remove => String::new(),
             TextRedactionInput::Hash => format!("[HASH:{}]", entity.entity_kind),
             TextRedactionInput::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
-            TextRedactionInput::Synthesize => format!("[SYNTH:{}]", entity.entity_kind),
+            TextRedactionInput::Generate => format!("[GEN:{}]", entity.entity_kind),
             TextRedactionInput::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_kind),
             TextRedactionInput::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
             TextRedactionInput::Aggregate => format!("[AGG:{}]", entity.entity_kind),

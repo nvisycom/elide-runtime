@@ -25,6 +25,6 @@ pub enum RegulationKind {
     /// Sarbanes-Oxley Act.
     Sox,
     /// User-defined regulation or framework.
-    #[strum(to_string = "{0}")]
+    #[strum(default)]
     Custom(String),
 }

@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::selector::EntitySelector;
-use super::strategy::RedactionStrategy;
+use super::strategy::Strategy;
 
 /// Conditions that must be met for a [`PolicyRule`] to apply.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct RuleCondition {
     /// Document formats this rule applies to. Empty means all formats.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -29,7 +29,7 @@ pub enum RuleAction {
     /// Apply a redaction to the matched entity.
     Redact {
         /// Redaction strategy to apply.
-        strategy: RedactionStrategy,
+        strategy: Strategy,
         /// Template string for the replacement value (e.g. `"[REDACTED]"`).
         replacement_template: String,
     },

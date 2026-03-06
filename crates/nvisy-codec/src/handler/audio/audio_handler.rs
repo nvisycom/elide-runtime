@@ -97,7 +97,7 @@ impl AudioHandler for AnyAudio {
 
 #[async_trait::async_trait]
 impl AudioRedact for AnyAudio {
-    async fn redact_audio(&mut self, redactions: &[AudioRedaction]) -> Result<(), Error> {
+    async fn redact_audio(&mut self, redactions: &[AudioRedaction<()>]) -> Result<(), Error> {
         match self {
             Self::Wav(h) => h.redact_audio(redactions).await,
             Self::Mp3(h) => h.redact_audio(redactions).await,

@@ -1,6 +1,10 @@
 //! Unified document representation.
 
-use std::ops::{Deref, DerefMut};
+mod any;
+pub mod span;
+pub mod stream;
+
+pub use any::AnyDocument;
 
 use futures::StreamExt;
 use nvisy_core::Error;
@@ -17,27 +21,15 @@ use crate::handler::{
 ///
 /// `Document` is generic over `H`, a [`Handler`] that holds the loaded data
 /// and provides methods to read and manipulate it.
-#[derive(Debug)]
+#[derive(Debug, derive_more::Deref, derive_more::DerefMut)]
 pub struct Document<H: Handler> {
     /// Content source identity and lineage.
     pub source: ContentSource,
 
     /// Format handler (holds the loaded data).
+    #[deref]
+    #[deref_mut]
     handler: H,
-}
-
-impl<H: Handler> Deref for Document<H> {
-    type Target = H;
-
-    fn deref(&self) -> &H {
-        &self.handler
-    }
-}
-
-impl<H: Handler> DerefMut for Document<H> {
-    fn deref_mut(&mut self) -> &mut H {
-        &mut self.handler
-    }
 }
 
 impl<H: Handler> Document<H> {

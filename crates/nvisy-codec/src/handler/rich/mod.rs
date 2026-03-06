@@ -12,6 +12,8 @@ mod docx_handler;
 #[cfg(feature = "docx")]
 mod docx_loader;
 
+mod rich_handler;
+
 #[cfg(feature = "docx")]
 pub use docx_handler::DocxHandler;
 #[cfg(feature = "docx")]
@@ -20,3 +22,4 @@ pub use docx_loader::{DocxLoader, DocxParams};
 pub use pdf_handler::{PdfHandler, PdfImageSpan, PdfTextSpan};
 #[cfg(feature = "pdf")]
 pub use pdf_loader::{PdfLoader, PdfParams};
+pub use rich_handler::AnyRich;

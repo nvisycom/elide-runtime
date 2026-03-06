@@ -78,7 +78,7 @@ impl AudioHandler for Mp3Handler {
 
 #[async_trait::async_trait]
 impl AudioRedact for Mp3Handler {
-    async fn redact_audio(&mut self, _redactions: &[AudioRedaction]) -> Result<(), Error> {
+    async fn redact_audio(&mut self, _redactions: &[AudioRedaction<()>]) -> Result<(), Error> {
         tracing::warn!("MP3 audio redaction is not yet implemented");
         Ok(())
     }

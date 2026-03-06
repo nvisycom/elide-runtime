@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use futures::Stream;
 
-use super::SpanEdit;
+use crate::document::span::SpanEdit;
 
 /// Async stream of edits consumed by capability trait edit methods.
 ///

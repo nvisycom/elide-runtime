@@ -15,6 +15,7 @@ mod html_loader;
 mod json_handler;
 mod json_loader;
 mod text_data;
+mod text_handler;
 mod txt_handler;
 mod txt_loader;
 #[cfg(feature = "xlsx")]
@@ -31,6 +32,7 @@ pub use html_loader::{HtmlLoader, HtmlParams};
 pub use json_handler::{JsonData, JsonHandler, JsonIndent, JsonPath};
 pub use json_loader::{JsonLoader, JsonParams};
 pub use text_data::TextData;
+pub use text_handler::AnyText;
 pub use txt_handler::{TxtHandler, TxtSpan};
 pub use txt_loader::{TxtLoader, TxtParams};
 #[cfg(feature = "xlsx")]

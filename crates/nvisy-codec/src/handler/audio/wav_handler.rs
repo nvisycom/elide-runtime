@@ -78,7 +78,7 @@ impl AudioHandler for WavHandler {
 
 #[async_trait::async_trait]
 impl AudioRedact for WavHandler {
-    async fn redact_audio(&mut self, _redactions: &[AudioRedaction]) -> Result<(), Error> {
+    async fn redact_audio(&mut self, _redactions: &[AudioRedaction<()>]) -> Result<(), Error> {
         tracing::warn!("WAV audio redaction is not yet implemented");
         Ok(())
     }

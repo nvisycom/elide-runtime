@@ -2,7 +2,7 @@
 
 use nvisy_core::path::ContentSource;
 
-use super::SpanEdit;
+use super::edit::SpanEdit;
 
 /// A span of content tagged with its origin in the source structure.
 #[derive(Debug, Clone)]

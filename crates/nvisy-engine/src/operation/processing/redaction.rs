@@ -224,7 +224,7 @@ async fn apply_image_doc(
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
 ) -> Result<Document<PngHandler>, Error> {
-    let mut redactions: Vec<ImageRedaction> = Vec::new();
+    let mut redactions: Vec<ImageRedaction<()>> = Vec::new();
 
     for (&entity_id, redaction) in redaction_map {
         let entity = match entity_map.get(&entity_id) {
@@ -243,6 +243,7 @@ async fn apply_image_doc(
         };
 
         redactions.push(ImageRedaction {
+            span_id: (),
             bounding_box: img_loc.bounding_box,
             output,
         });
@@ -271,7 +272,7 @@ async fn apply_audio_doc(
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
 ) -> Result<Document<WavHandler>, Error> {
-    let mut redactions: Vec<AudioRedaction> = Vec::new();
+    let mut redactions: Vec<AudioRedaction<()>> = Vec::new();
 
     for (&entity_id, redaction) in redaction_map {
         let entity = match entity_map.get(&entity_id) {
@@ -290,6 +291,7 @@ async fn apply_audio_doc(
         };
 
         redactions.push(AudioRedaction {
+            span_id: (),
             start_secs: audio_loc.time_span.start_secs,
             end_secs: audio_loc.time_span.end_secs,
             output,

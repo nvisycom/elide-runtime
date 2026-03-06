@@ -7,29 +7,16 @@
 //! replacements right-to-left, and writes the results back via
 //! [`TextHandler::edit_text`].
 
-mod output;
+mod instruction;
 
 use std::collections::HashMap;
 use std::hash::Hash;
 
 use futures::StreamExt;
 use nvisy_core::Error;
-pub use output::TextOutput;
+pub use instruction::{TextOutput, TextRedaction};
 
 use crate::handler::{SpanEdit, SpanEditStream, TextData, TextHandler};
-
-/// A located text redaction: pairs a span identifier and intra-span byte
-/// range with a [`TextOutput`] that carries the replacement.
-pub struct TextRedaction<S> {
-    /// Which span this redaction targets.
-    pub span_id: S,
-    /// Byte offset where the redacted region starts within the span.
-    pub start: usize,
-    /// Byte offset where the redacted region ends (exclusive) within the span.
-    pub end: usize,
-    /// The redaction output that carries the replacement value.
-    pub output: TextOutput,
-}
 
 /// Extension trait for handlers that support text redaction.
 ///

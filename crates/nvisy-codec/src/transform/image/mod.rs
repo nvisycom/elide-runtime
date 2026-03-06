@@ -1,25 +1,15 @@
 //! Image redaction output type and rendering primitives.
 
-mod output;
+mod instruction;
 mod transform;
 
 use futures::StreamExt;
 use image::DynamicImage;
 use nvisy_core::Error;
-use nvisy_core::math::BoundingBox;
-pub use output::ImageOutput;
+pub use instruction::{ImageOutput, ImageRedaction};
 pub use transform::ImageTransform;
 
 use crate::handler::{ImageData, ImageHandler, SpanEdit, SpanEditStream};
-
-/// A located image redaction: pairs a bounding box with an
-/// [`ImageOutput`] that carries the method-specific parameters.
-pub struct ImageRedaction {
-    /// Bounding box of the region to redact.
-    pub bounding_box: BoundingBox,
-    /// The redaction output that determines the rendering method.
-    pub output: ImageOutput,
-}
 
 /// Extension trait for handlers that support image redaction.
 ///
@@ -31,7 +21,10 @@ pub struct ImageRedaction {
 #[async_trait::async_trait]
 pub trait ImageRedact: ImageHandler {
     /// Apply a batch of image redactions, mutating in place.
-    async fn redact_images(&mut self, redactions: &[ImageRedaction]) -> Result<(), Error>;
+    async fn redact_images(
+        &mut self,
+        redactions: &[ImageRedaction<Self::ImageId>],
+    ) -> Result<(), Error>;
 }
 
 #[async_trait::async_trait]
@@ -40,7 +33,10 @@ where
     H::ImageId: Default,
     ImageData: From<ImageData>,
 {
-    async fn redact_images(&mut self, redactions: &[ImageRedaction]) -> Result<(), Error> {
+    async fn redact_images(
+        &mut self,
+        redactions: &[ImageRedaction<Self::ImageId>],
+    ) -> Result<(), Error> {
         tracing::debug!(
             redaction_count = redactions.len(),
             "applying image redactions"

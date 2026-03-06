@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
-use nvisy_ontology::policy::PolicyEvaluation;
+use nvisy_ontology::record::PolicyEvaluation;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 use uuid::Uuid;

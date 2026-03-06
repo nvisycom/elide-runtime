@@ -5,7 +5,6 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::regulation::RegulationKind;
 use super::rule::PolicyRule;
 
 /// A named redaction policy containing an ordered set of rules.
@@ -24,9 +23,6 @@ pub struct Policy {
     /// Parent policy identifier for inheritance.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extends: Option<Uuid>,
-    /// Compliance regulation this policy targets.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub regulation: Option<RegulationKind>,
     /// Ordered list of rules.
     pub rules: Vec<PolicyRule>,
 }

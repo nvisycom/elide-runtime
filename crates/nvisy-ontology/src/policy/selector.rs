@@ -17,11 +17,7 @@ pub struct EntitySelector {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub entity_categories: Vec<EntityCategory>,
     /// Specific entity kinds this selector matches. Empty means all kinds.
-    #[serde(
-        rename = "entity_types",
-        default,
-        skip_serializing_if = "Vec::is_empty"
-    )]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub entity_kinds: Vec<EntityKind>,
     /// Minimum detection confidence required. Entities below this threshold
     /// are not matched.

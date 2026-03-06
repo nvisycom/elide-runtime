@@ -67,10 +67,9 @@ impl EvaluatePolicy {
 
             let (spec, replacement) = match rule {
                 Some(r) => match &r.action {
-                    RuleAction::Redact {
-                        strategy,
-                        replacement_template,
-                    } => (strategy.clone(), apply_template(replacement_template, entity)),
+                    RuleAction::Redact { strategy } => {
+                        (strategy.clone(), build_default_replacement(entity, strategy))
+                    }
                     RuleAction::Review | RuleAction::Alert | RuleAction::Block | RuleAction::Suppress => continue,
                 },
                 None => {
@@ -135,17 +134,7 @@ fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'
     })
 }
 
-/// Expands a replacement template using entity metadata.
-///
-/// Supported placeholders: `{entityType}`, `{category}`, `{value}`.
-fn apply_template(template: &str, entity: &Entity) -> String {
-    template
-        .replace("{entityType}", &entity.entity_kind.to_string())
-        .replace("{category}", &entity.category.to_string())
-        .replace("{value}", &entity.value)
-}
-
-/// Generates a default replacement string for an entity using the given strategy.
+/// Generates a replacement string for an entity using the given strategy.
 fn build_default_replacement(entity: &Entity, spec: &Strategy) -> String {
     match spec {
         Strategy::Text(text) => match text {
@@ -156,7 +145,10 @@ fn build_default_replacement(entity: &Entity, spec: &Strategy) -> String {
                 if placeholder.is_empty() {
                     format!("[{}]", entity.entity_kind.to_string().to_uppercase())
                 } else {
-                    apply_template(placeholder, entity)
+                    placeholder
+                        .replace("{entityType}", &entity.entity_kind.to_string())
+                        .replace("{category}", &entity.category.to_string())
+                        .replace("{value}", &entity.value)
                 }
             }
             TextStrategy::Remove => String::new(),

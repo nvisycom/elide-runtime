@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::record::{RedactionDecision, RedactionRecord};
+use super::{RedactionDecision, RedactionRecord};
 
 /// Full outcome of evaluating a policy against a set of entities.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

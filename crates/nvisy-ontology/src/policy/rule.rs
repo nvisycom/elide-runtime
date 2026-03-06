@@ -14,9 +14,6 @@ pub struct RuleCondition {
     /// Document formats this rule applies to. Empty means all formats.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub document_types: Vec<DocumentType>,
-    /// User roles this rule applies to.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub roles: Vec<String>,
     /// Labels that must be present on the document.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_labels: Vec<String>,
@@ -30,8 +27,6 @@ pub enum RuleAction {
     Redact {
         /// Redaction strategy to apply.
         strategy: Strategy,
-        /// Template string for the replacement value (e.g. `"[REDACTED]"`).
-        replacement_template: String,
     },
     /// Require human review before any action is taken.
     Review,

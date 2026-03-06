@@ -12,10 +12,9 @@ use std::hash::Hash;
 use futures::StreamExt;
 use nvisy_core::Error;
 
+use super::instruction::TextRedaction;
 use crate::document::{SpanEdit, SpanEditStream};
 use crate::handler::{TextData, TextHandler};
-
-use super::instruction::TextRedaction;
 
 /// Extension trait for handlers that support text redaction.
 ///

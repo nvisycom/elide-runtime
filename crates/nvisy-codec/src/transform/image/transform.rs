@@ -4,11 +4,10 @@ use futures::StreamExt;
 use image::DynamicImage;
 use nvisy_core::Error;
 
-use crate::document::{SpanEdit, SpanEditStream};
-use crate::handler::{ImageData, ImageHandler};
-
 use super::instruction::{ImageOutput, ImageRedaction};
 use super::ops::ImageOps;
+use crate::document::{SpanEdit, SpanEditStream};
+use crate::handler::{ImageData, ImageHandler};
 
 /// Extension trait for handlers that support image redaction.
 ///

@@ -20,10 +20,8 @@ use nvisy_codec::transform::{
 };
 use nvisy_core::Error;
 use nvisy_ontology::entity::{Entity, Location};
+use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
 use nvisy_ontology::record::RedactionDecision;
-use nvisy_ontology::policy::{
-    AudioStrategy, ImageStrategy, Strategy, TextStrategy,
-};
 use uuid::Uuid;
 
 use crate::operation::{Operation, ParallelContext};
@@ -64,54 +62,54 @@ impl Operation for Redaction {
     type Output = ParallelContext<RedactionOutput>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        input.parallel_map(|input| async move {
-            let entity_map: HashMap<Uuid, &Entity> = input
-                .entities
-                .iter()
-                .map(|e| (e.source.as_uuid(), e))
-                .collect();
-            let redaction_map: HashMap<Uuid, &RedactionDecision> = input
-                .decisions
-                .iter()
-                .filter(|r| !r.applied)
-                .map(|r| (r.entity_id, r))
-                .collect();
+        input
+            .parallel_map(|input| async move {
+                let entity_map: HashMap<Uuid, &Entity> = input
+                    .entities
+                    .iter()
+                    .map(|e| (e.source.as_uuid(), e))
+                    .collect();
+                let redaction_map: HashMap<Uuid, &RedactionDecision> = input
+                    .decisions
+                    .iter()
+                    .filter(|r| !r.applied)
+                    .map(|r| (r.entity_id, r))
+                    .collect();
 
-            let mut result_text = Vec::with_capacity(input.text_docs.len());
-            for doc in input.text_docs {
-                result_text.push(apply_text_doc(doc, &entity_map, &redaction_map).await?);
-            }
+                let mut result_text = Vec::with_capacity(input.text_docs.len());
+                for doc in input.text_docs {
+                    result_text.push(apply_text_doc(doc, &entity_map, &redaction_map).await?);
+                }
 
-            let mut result_image = Vec::with_capacity(input.image_docs.len());
-            for doc in input.image_docs {
-                result_image.push(apply_image_doc(doc, &entity_map, &redaction_map).await?);
-            }
+                let mut result_image = Vec::with_capacity(input.image_docs.len());
+                for doc in input.image_docs {
+                    result_image.push(apply_image_doc(doc, &entity_map, &redaction_map).await?);
+                }
 
-            let mut result_audio = Vec::with_capacity(input.audio_docs.len());
-            for doc in input.audio_docs {
-                result_audio.push(apply_audio_doc(doc, &entity_map, &redaction_map).await?);
-            }
+                let mut result_audio = Vec::with_capacity(input.audio_docs.len());
+                for doc in input.audio_docs {
+                    result_audio.push(apply_audio_doc(doc, &entity_map, &redaction_map).await?);
+                }
 
-            let mut result_tabular = Vec::with_capacity(input.tabular_docs.len());
-            for doc in input.tabular_docs {
-                result_tabular.push(apply_tabular_doc(doc, &entity_map, &redaction_map).await?);
-            }
+                let mut result_tabular = Vec::with_capacity(input.tabular_docs.len());
+                for doc in input.tabular_docs {
+                    result_tabular.push(apply_tabular_doc(doc, &entity_map, &redaction_map).await?);
+                }
 
-            Ok(RedactionOutput {
-                text_docs: result_text,
-                image_docs: result_image,
-                audio_docs: result_audio,
-                tabular_docs: result_tabular,
+                Ok(RedactionOutput {
+                    text_docs: result_text,
+                    image_docs: result_image,
+                    audio_docs: result_audio,
+                    tabular_docs: result_tabular,
+                })
             })
-        }).await
+            .await
     }
 }
 
 fn text_output_from_spec(spec: &Strategy, replacement: &str) -> Option<TextOutput> {
     match spec {
-        Strategy::Text(TextStrategy::Remove) if replacement.is_empty() => {
-            Some(TextOutput::Remove)
-        }
+        Strategy::Text(TextStrategy::Remove) if replacement.is_empty() => Some(TextOutput::Remove),
         Strategy::Text(_) => Some(TextOutput::Replace {
             replacement: replacement.to_string(),
         }),

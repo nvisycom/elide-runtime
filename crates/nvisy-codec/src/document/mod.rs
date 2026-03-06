@@ -5,15 +5,14 @@ pub(crate) mod span;
 pub(crate) mod stream;
 
 pub use any::AnyDocument;
-pub use span::{Span, SpanEdit};
-pub use stream::{SpanEditStream, SpanStream};
-
 use derive_more::{Deref, DerefMut};
 use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
+pub use span::{Span, SpanEdit};
+pub use stream::{SpanEditStream, SpanStream};
 
 use crate::handler::{
     AudioData, AudioHandler, Handler, ImageData, ImageHandler, TextData, TextHandler,

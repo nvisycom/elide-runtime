@@ -47,7 +47,10 @@ impl<T> SequentialContext<T> {
     }
 
     /// Async fallibly transform the inner data into a [`SequentialContext`].
-    pub async fn sequential_map<U, E, Fut>(self, f: impl FnOnce(T) -> Fut) -> Result<SequentialContext<U>, E>
+    pub async fn sequential_map<U, E, Fut>(
+        self,
+        f: impl FnOnce(T) -> Fut,
+    ) -> Result<SequentialContext<U>, E>
     where
         Fut: Future<Output = Result<U, E>>,
     {
@@ -58,7 +61,10 @@ impl<T> SequentialContext<T> {
     }
 
     /// Async fallibly transform the inner data into a [`ParallelContext`].
-    pub async fn parallel_map<U, E, Fut>(self, f: impl FnOnce(T) -> Fut) -> Result<ParallelContext<U>, E>
+    pub async fn parallel_map<U, E, Fut>(
+        self,
+        f: impl FnOnce(T) -> Fut,
+    ) -> Result<ParallelContext<U>, E>
     where
         Fut: Future<Output = Result<U, E>>,
     {

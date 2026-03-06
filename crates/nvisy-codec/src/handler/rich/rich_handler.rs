@@ -5,14 +5,13 @@ use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
+#[cfg(feature = "docx")]
+use super::DocxHandler;
+#[cfg(feature = "pdf")]
+use super::PdfHandler;
 use crate::document::{Span, SpanEdit, SpanEditStream, SpanStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-
-#[cfg(feature = "pdf")]
-use super::PdfHandler;
-#[cfg(feature = "docx")]
-use super::DocxHandler;
 
 /// A type-erased rich-document handler that can hold any supported rich format.
 ///
@@ -44,25 +43,41 @@ impl AnyRich {
     /// Try to get the inner [`PdfHandler`] by reference.
     #[cfg(feature = "pdf")]
     pub fn as_pdf(&self) -> Option<&PdfHandler> {
-        if let Self::Pdf(h) = self { Some(h) } else { None }
+        if let Self::Pdf(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`PdfHandler`].
     #[cfg(feature = "pdf")]
     pub fn into_pdf(self) -> Option<PdfHandler> {
-        if let Self::Pdf(h) = self { Some(h) } else { None }
+        if let Self::Pdf(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Try to get the inner [`DocxHandler`] by reference.
     #[cfg(feature = "docx")]
     pub fn as_docx(&self) -> Option<&DocxHandler> {
-        if let Self::Docx(h) = self { Some(h) } else { None }
+        if let Self::Docx(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`DocxHandler`].
     #[cfg(feature = "docx")]
     pub fn into_docx(self) -> Option<DocxHandler> {
-        if let Self::Docx(h) = self { Some(h) } else { None }
+        if let Self::Docx(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 }
 
@@ -131,10 +146,7 @@ impl TextHandler for AnyRich {
         SpanStream::new(futures::stream::iter(spans))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanEditStream<'_, usize, TextData>,
-    ) -> Result<(), Error> {
+    async fn edit_text(&mut self, edits: SpanEditStream<'_, usize, TextData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         match self {
             #[cfg(feature = "pdf")]

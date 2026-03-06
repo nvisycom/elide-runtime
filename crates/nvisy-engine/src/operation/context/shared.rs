@@ -75,7 +75,10 @@ impl SharedContext {
 
     /// Append a single reference-data context.
     pub fn with_context(mut self, context: Context) -> Self {
-        Arc::make_mut(&mut self.data).contexts.contexts.push(context);
+        Arc::make_mut(&mut self.data)
+            .contexts
+            .contexts
+            .push(context);
         self
     }
 }

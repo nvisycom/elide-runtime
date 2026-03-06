@@ -4,9 +4,9 @@ use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
+use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
-use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::{Handler, ImageHandler, TextHandler};
 
 #[derive(Debug)]

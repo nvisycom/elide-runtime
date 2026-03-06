@@ -2,9 +2,8 @@
 
 use nvisy_core::Error;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::policy::{PolicyRule, RuleAction};
+use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 use nvisy_ontology::record::{RedactionDecision, RedactionRecord};
-use nvisy_ontology::policy::{Strategy, TextStrategy};
 use serde::Deserialize;
 
 use crate::operation::{Operation, ParallelContext};
@@ -67,45 +66,40 @@ impl EvaluatePolicy {
 
             let (spec, replacement) = match rule {
                 Some(r) => match &r.action {
-                    RuleAction::Redact { strategy } => {
-                        (strategy.clone(), build_default_replacement(entity, strategy))
-                    }
-                    RuleAction::Review | RuleAction::Alert | RuleAction::Block | RuleAction::Suppress => continue,
+                    RuleAction::Redact { strategy } => (
+                        strategy.clone(),
+                        build_default_replacement(entity, strategy),
+                    ),
+                    RuleAction::Review
+                    | RuleAction::Alert
+                    | RuleAction::Block
+                    | RuleAction::Suppress => continue,
                 },
                 None => {
                     if entity.confidence < default_threshold {
                         continue;
                     }
-                    (default_spec.clone(), build_default_replacement(entity, default_spec))
+                    (
+                        default_spec.clone(),
+                        build_default_replacement(entity, default_spec),
+                    )
                 }
             };
 
             let entity_id = entity.source.as_uuid();
 
-            let mut decision = RedactionDecision::new(
-                entity_id,
-                spec,
-                replacement,
-                entity.confidence,
-            );
+            let mut decision =
+                RedactionDecision::new(entity_id, spec, replacement, entity.confidence);
             if let Some(r) = rule {
                 decision = decision.with_policy_rule_id(r.id);
             }
-            decision
-                .source
-                .set_parent_id(Some(entity_id));
+            decision.source.set_parent_id(Some(entity_id));
 
-            let mut record = RedactionRecord::new(
-                entity_id,
-                &entity.value,
-                entity.confidence,
-            );
+            let mut record = RedactionRecord::new(entity_id, &entity.value, entity.confidence);
             if let Some(r) = rule {
                 record = record.with_policy_rule_id(r.id);
             }
-            record
-                .source
-                .set_parent_id(Some(entity_id));
+            record.source.set_parent_id(Some(entity_id));
 
             decisions.push(decision);
             records.push(record);
@@ -137,9 +131,7 @@ fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'
 fn build_default_replacement(entity: &Entity, spec: &Strategy) -> String {
     match spec {
         Strategy::Text(text) => match text {
-            TextStrategy::Mask { mask_char } => {
-                mask_char.to_string().repeat(entity.value.len())
-            }
+            TextStrategy::Mask { mask_char } => mask_char.to_string().repeat(entity.value.len()),
             TextStrategy::Replace { placeholder } => {
                 if placeholder.is_empty() {
                     format!("[{}]", entity.entity_kind.to_string().to_uppercase())

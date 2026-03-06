@@ -33,9 +33,9 @@ use nvisy_core::math::Dpi;
 use nvisy_core::path::ContentSource;
 
 use super::pdf_render::PdfRenderer;
+use crate::document::{Span, SpanEditStream, SpanStream};
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
-use crate::document::{Span, SpanEditStream, SpanStream};
 use crate::handler::{Handler, ImageHandler, TextHandler};
 
 /// 0-based page index for text spans within a PDF document.

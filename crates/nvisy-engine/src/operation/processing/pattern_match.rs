@@ -3,7 +3,6 @@
 //! Operates on text, CSV, HTML, and JSON spans, running both compiled
 //! regex patterns and dictionary automata via [`PatternEngine`].
 
-
 use nvisy_codec::document::Span;
 use nvisy_codec::handler::{CsvSpan, HtmlSpan, JsonPath, TxtSpan};
 use nvisy_core::Error;
@@ -31,7 +30,7 @@ pub struct PatternDetectionParams {
 pub enum PatternInput {
     Text(Vec<Span<TxtSpan, String>>),
     Csv(Vec<Span<CsvSpan, String>>),
-    
+
     Html(Vec<Span<HtmlSpan, String>>),
     Json(Vec<Span<JsonPath, Value>>),
 }
@@ -64,14 +63,16 @@ impl Operation for PatternMatch {
     type Output = ParallelContext<Vec<Entity>>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        input.parallel_map(|data| async move {
-            match data {
-                PatternInput::Text(spans) => self.detect_text(spans),
-                PatternInput::Csv(spans) => self.detect_csv(spans),
-                PatternInput::Html(spans) => self.detect_html(spans),
-                PatternInput::Json(spans) => self.detect_json(spans),
-            }
-        }).await
+        input
+            .parallel_map(|data| async move {
+                match data {
+                    PatternInput::Text(spans) => self.detect_text(spans),
+                    PatternInput::Csv(spans) => self.detect_csv(spans),
+                    PatternInput::Html(spans) => self.detect_html(spans),
+                    PatternInput::Json(spans) => self.detect_json(spans),
+                }
+            })
+            .await
     }
 }
 
@@ -175,7 +176,6 @@ impl PatternMatch {
         Ok(entities)
     }
 
-    
     fn detect_html(&self, spans: Vec<Span<HtmlSpan, String>>) -> Result<Vec<Entity>, Error> {
         let span_data: Vec<&str> = spans.iter().map(|s| s.data.as_str()).collect();
         let mut raw_matches: Vec<(usize, PatternMatchResult)> = Vec::new();

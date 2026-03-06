@@ -6,15 +6,14 @@ use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
 use super::Document;
+#[cfg(feature = "docx")]
+use crate::handler::DocxHandler;
+#[cfg(feature = "pdf")]
+use crate::handler::PdfHandler;
 use crate::handler::{
     AnyAudio, AnyImage, AnyRich, AnyText, JpegHandler, Mp3Handler, PngHandler, TxtHandler,
     WavHandler,
 };
-
-#[cfg(feature = "pdf")]
-use crate::handler::PdfHandler;
-#[cfg(feature = "docx")]
-use crate::handler::DocxHandler;
 
 /// A fully type-erased document that can hold any supported format.
 ///
@@ -54,42 +53,74 @@ impl AnyDocument {
 
     /// Try to get the inner text document by reference.
     pub fn as_text(&self) -> Option<&Document<AnyText>> {
-        if let Self::Text(d) = self { Some(d) } else { None }
+        if let Self::Text(d) = self {
+            Some(d)
+        } else {
+            None
+        }
     }
 
     /// Try to get the inner image document by reference.
     pub fn as_image(&self) -> Option<&Document<AnyImage>> {
-        if let Self::Image(d) = self { Some(d) } else { None }
+        if let Self::Image(d) = self {
+            Some(d)
+        } else {
+            None
+        }
     }
 
     /// Try to get the inner audio document by reference.
     pub fn as_audio(&self) -> Option<&Document<AnyAudio>> {
-        if let Self::Audio(d) = self { Some(d) } else { None }
+        if let Self::Audio(d) = self {
+            Some(d)
+        } else {
+            None
+        }
     }
 
     /// Try to get the inner rich document by reference.
     pub fn as_rich(&self) -> Option<&Document<AnyRich>> {
-        if let Self::Rich(d) = self { Some(d) } else { None }
+        if let Self::Rich(d) = self {
+            Some(d)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner text document.
     pub fn into_text(self) -> Option<Document<AnyText>> {
-        if let Self::Text(d) = self { Some(d) } else { None }
+        if let Self::Text(d) = self {
+            Some(d)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner image document.
     pub fn into_image(self) -> Option<Document<AnyImage>> {
-        if let Self::Image(d) = self { Some(d) } else { None }
+        if let Self::Image(d) = self {
+            Some(d)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner audio document.
     pub fn into_audio(self) -> Option<Document<AnyAudio>> {
-        if let Self::Audio(d) = self { Some(d) } else { None }
+        if let Self::Audio(d) = self {
+            Some(d)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner rich document.
     pub fn into_rich(self) -> Option<Document<AnyRich>> {
-        if let Self::Rich(d) = self { Some(d) } else { None }
+        if let Self::Rich(d) = self {
+            Some(d)
+        } else {
+            None
+        }
     }
 }
 

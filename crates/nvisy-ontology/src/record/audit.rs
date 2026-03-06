@@ -35,11 +35,7 @@ pub struct RedactionRecord {
 
 impl RedactionRecord {
     /// Create a new audit record for the given entity.
-    pub fn new(
-        entity_id: Uuid,
-        original_value: impl Into<String>,
-        confidence: f64,
-    ) -> Self {
+    pub fn new(entity_id: Uuid, original_value: impl Into<String>, confidence: f64) -> Self {
         Self {
             source: ContentSource::new(),
             entity_id,

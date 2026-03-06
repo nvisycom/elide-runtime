@@ -2,9 +2,8 @@
 
 use nvisy_core::Error;
 
-use crate::handler::AudioHandler;
-
 use super::instruction::AudioRedaction;
+use crate::handler::AudioHandler;
 
 /// Extension trait for handlers that support audio redaction.
 ///

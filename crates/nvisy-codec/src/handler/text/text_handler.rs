@@ -6,14 +6,13 @@ use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
-use super::{CsvHandler, JsonHandler, TextData, TxtHandler};
-use crate::document::{Span, SpanEdit, SpanEditStream, SpanStream};
-use crate::handler::{Handler, TextHandler};
-
 #[cfg(feature = "html")]
 use super::HtmlHandler;
 #[cfg(feature = "xlsx")]
 use super::XlsxHandler;
+use super::{CsvHandler, JsonHandler, TextData, TxtHandler};
+use crate::document::{Span, SpanEdit, SpanEditStream, SpanStream};
+use crate::handler::{Handler, TextHandler};
 
 /// A type-erased text handler that can hold any supported text format.
 ///
@@ -33,56 +32,96 @@ pub enum AnyText {
 impl AnyText {
     /// Try to get the inner [`TxtHandler`] by reference.
     pub fn as_txt(&self) -> Option<&TxtHandler> {
-        if let Self::Txt(h) = self { Some(h) } else { None }
+        if let Self::Txt(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`TxtHandler`].
     pub fn into_txt(self) -> Option<TxtHandler> {
-        if let Self::Txt(h) = self { Some(h) } else { None }
+        if let Self::Txt(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Try to get the inner [`CsvHandler`] by reference.
     pub fn as_csv(&self) -> Option<&CsvHandler> {
-        if let Self::Csv(h) = self { Some(h) } else { None }
+        if let Self::Csv(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`CsvHandler`].
     pub fn into_csv(self) -> Option<CsvHandler> {
-        if let Self::Csv(h) = self { Some(h) } else { None }
+        if let Self::Csv(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Try to get the inner [`JsonHandler`] by reference.
     pub fn as_json(&self) -> Option<&JsonHandler> {
-        if let Self::Json(h) = self { Some(h) } else { None }
+        if let Self::Json(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`JsonHandler`].
     pub fn into_json(self) -> Option<JsonHandler> {
-        if let Self::Json(h) = self { Some(h) } else { None }
+        if let Self::Json(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Try to get the inner [`HtmlHandler`] by reference.
     #[cfg(feature = "html")]
     pub fn as_html(&self) -> Option<&HtmlHandler> {
-        if let Self::Html(h) = self { Some(h) } else { None }
+        if let Self::Html(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`HtmlHandler`].
     #[cfg(feature = "html")]
     pub fn into_html(self) -> Option<HtmlHandler> {
-        if let Self::Html(h) = self { Some(h) } else { None }
+        if let Self::Html(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Try to get the inner [`XlsxHandler`] by reference.
     #[cfg(feature = "xlsx")]
     pub fn as_xlsx(&self) -> Option<&XlsxHandler> {
-        if let Self::Xlsx(h) = self { Some(h) } else { None }
+        if let Self::Xlsx(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 
     /// Consume and return the inner [`XlsxHandler`].
     #[cfg(feature = "xlsx")]
     pub fn into_xlsx(self) -> Option<XlsxHandler> {
-        if let Self::Xlsx(h) = self { Some(h) } else { None }
+        if let Self::Xlsx(h) = self {
+            Some(h)
+        } else {
+            None
+        }
     }
 }
 
@@ -160,10 +199,7 @@ impl TextHandler for AnyText {
         SpanStream::new(futures::stream::iter(spans))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanEditStream<'_, usize, TextData>,
-    ) -> Result<(), Error> {
+    async fn edit_text(&mut self, edits: SpanEditStream<'_, usize, TextData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         match self {
             Self::Txt(h) => forward_edits(h, edits).await,

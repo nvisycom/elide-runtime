@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::policy::RedactionStrategy;
+use crate::policy::Strategy;
 
 /// A pipeline-facing decision recording how a specific entity should be redacted.
 ///
@@ -21,7 +21,7 @@ pub struct RedactionDecision {
     /// Identifier of the entity being redacted.
     pub entity_id: Uuid,
     /// Redaction strategy recording the method used.
-    pub spec: RedactionStrategy,
+    pub spec: Strategy,
     /// Resolved replacement string (empty for Remove, unused for image/audio).
     pub replacement: String,
     /// Detection confidence that led to this redaction.
@@ -37,7 +37,7 @@ impl RedactionDecision {
     /// Create a new pending redaction decision for the given entity.
     pub fn new(
         entity_id: Uuid,
-        spec: RedactionStrategy,
+        spec: Strategy,
         replacement: impl Into<String>,
         confidence: f64,
     ) -> Self {

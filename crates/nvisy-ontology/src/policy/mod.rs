@@ -11,12 +11,9 @@ mod types;
 
 pub use evaluation::PolicyEvaluation;
 pub use regulation::RegulationKind;
-pub use retention::{RetentionPolicy, RetentionScope};
+pub use retention::{Retention, RetentionPolicy, RetentionScope};
 pub use rule::{PolicyRule, RuleAction, RuleCondition};
 pub use selector::EntitySelector;
-pub use strategy::{
-    AudioRedactionStrategy, ImageRedactionStrategy, RedactionStrategy, TextRedactionStrategy,
-    DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR, DEFAULT_PIXELATE_BLOCK_SIZE,
-};
+pub use strategy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
 pub use summary::RedactionSummary;
 pub use types::{Policies, Policy};

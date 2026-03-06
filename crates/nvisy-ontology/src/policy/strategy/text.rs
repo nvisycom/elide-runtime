@@ -3,8 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Default mask character for text redaction.
-pub const DEFAULT_MASK_CHAR: char = '*';
+const DEFAULT_MASK_CHAR: char = '*';
 
 fn default_mask_char() -> char {
     DEFAULT_MASK_CHAR
@@ -14,7 +13,7 @@ fn default_mask_char() -> char {
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum TextRedactionStrategy {
+pub enum TextStrategy {
     /// Replace characters with a mask character.
     Mask {
         /// Character used for masking (default `'*'`).

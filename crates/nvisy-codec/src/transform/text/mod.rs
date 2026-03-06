@@ -14,12 +14,12 @@ use std::hash::Hash;
 
 use futures::StreamExt;
 use nvisy_core::Error;
-pub use output::TextRedactionOutput;
+pub use output::TextOutput;
 
 use crate::handler::{SpanEdit, SpanEditStream, TextData, TextHandler};
 
 /// A located text redaction: pairs a span identifier and intra-span byte
-/// range with a [`TextRedactionOutput`] that carries the replacement.
+/// range with a [`TextOutput`] that carries the replacement.
 pub struct TextRedaction<S> {
     /// Which span this redaction targets.
     pub span_id: S,
@@ -28,7 +28,7 @@ pub struct TextRedaction<S> {
     /// Byte offset where the redacted region ends (exclusive) within the span.
     pub end: usize,
     /// The redaction output that carries the replacement value.
-    pub output: TextRedactionOutput,
+    pub output: TextOutput,
 }
 
 /// Extension trait for handlers that support text redaction.
@@ -44,7 +44,7 @@ pub trait TextRedact: TextHandler {
     /// Apply a batch of text redactions, mutating in place.
     ///
     /// Each [`TextRedaction`] identifies a span and an intra-span byte
-    /// range together with a [`TextRedactionOutput`] whose replacement
+    /// range together with a [`TextOutput`] whose replacement
     /// value is written into the content.  Replacements within each span
     /// are applied right-to-left so that byte offsets remain valid.
     async fn redact_text(
@@ -146,7 +146,7 @@ mod tests {
             span_id: TxtSpan(span),
             start,
             end,
-            output: TextRedactionOutput::Replace {
+            output: TextOutput::Replace {
                 replacement: replacement.to_string(),
             },
         }
@@ -157,7 +157,7 @@ mod tests {
             span_id: TxtSpan(span),
             start,
             end,
-            output: TextRedactionOutput::Remove,
+            output: TextOutput::Remove,
         }
     }
 

@@ -3,19 +3,19 @@
 mod output;
 
 use nvisy_core::Error;
-pub use output::AudioRedactionOutput;
+pub use output::AudioOutput;
 
 use crate::handler::AudioHandler;
 
 /// A located audio redaction: pairs a time range with an
-/// [`AudioRedactionOutput`] that carries the method-specific parameters.
+/// [`AudioOutput`] that carries the method-specific parameters.
 pub struct AudioRedaction {
     /// Start of the redacted segment in seconds.
     pub start_secs: f64,
     /// End of the redacted segment in seconds.
     pub end_secs: f64,
     /// The redaction output that determines the rendering method.
-    pub output: AudioRedactionOutput,
+    pub output: AudioOutput,
 }
 
 /// Extension trait for handlers that support audio redaction.

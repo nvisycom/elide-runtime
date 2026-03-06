@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// Image redaction output — records the method used and its parameters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum ImageRedactionOutput {
+pub enum ImageOutput {
     /// Gaussian blur applied to the region.
     Blur { sigma: f32 },
     /// Opaque block overlay on the region.

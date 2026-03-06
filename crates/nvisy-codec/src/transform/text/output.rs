@@ -7,14 +7,14 @@ use serde::{Deserialize, Serialize};
 /// or that the span should be removed entirely.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum TextRedactionOutput {
+pub enum TextOutput {
     /// Substituted with a replacement string.
     Replace { replacement: String },
     /// Removed entirely from the output.
     Remove,
 }
 
-impl TextRedactionOutput {
+impl TextOutput {
     /// Returns the text replacement string, regardless of specific method.
     ///
     /// Returns `None` for [`Remove`](Self::Remove) — the caller should

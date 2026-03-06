@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// Audio redaction output — records the method used.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum AudioRedactionOutput {
+pub enum AudioOutput {
     /// Segment replaced with silence.
     Silence,
     /// Segment removed entirely.

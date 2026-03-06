@@ -7,18 +7,18 @@ use futures::StreamExt;
 use image::DynamicImage;
 use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
-pub use output::ImageRedactionOutput;
+pub use output::ImageOutput;
 pub use transform::ImageTransform;
 
 use crate::handler::{ImageData, ImageHandler, SpanEdit, SpanEditStream};
 
 /// A located image redaction: pairs a bounding box with an
-/// [`ImageRedactionOutput`] that carries the method-specific parameters.
+/// [`ImageOutput`] that carries the method-specific parameters.
 pub struct ImageRedaction {
     /// Bounding box of the region to redact.
     pub bounding_box: BoundingBox,
     /// The redaction output that determines the rendering method.
-    pub output: ImageRedactionOutput,
+    pub output: ImageOutput,
 }
 
 /// Extension trait for handlers that support image redaction.
@@ -62,16 +62,16 @@ where
         for redaction in redactions {
             let region = redaction.bounding_box.to_u32();
             match &redaction.output {
-                ImageRedactionOutput::Blur { sigma } => {
+                ImageOutput::Blur { sigma } => {
                     img.apply_gaussian_blur(&region, *sigma);
                 }
-                ImageRedactionOutput::Block { color } => {
+                ImageOutput::Block { color } => {
                     img.apply_block_overlay(&region, *color);
                 }
-                ImageRedactionOutput::Pixelate { block_size } => {
+                ImageOutput::Pixelate { block_size } => {
                     img.apply_pixelate(&region, *block_size);
                 }
-                ImageRedactionOutput::Replace { data } => {
+                ImageOutput::Replace { data } => {
                     let replacement = match image::load_from_memory(data) {
                         Ok(r) => r,
                         Err(e) => {

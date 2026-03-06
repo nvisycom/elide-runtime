@@ -1,19 +1,17 @@
 //! Redaction strategies for text, image, and audio modalities.
 //!
-//! Each per-modality strategy ([`TextRedactionStrategy`],
-//! [`ImageRedactionStrategy`], [`AudioRedactionStrategy`]) pairs a redaction
-//! method with its configuration parameters. [`RedactionStrategy`] unifies
-//! them under a single tagged enum for policy rules and pipeline decisions.
+//! Each per-modality strategy ([`TextStrategy`], [`ImageStrategy`],
+//! [`AudioStrategy`]) pairs a redaction method with its configuration
+//! parameters. [`Strategy`] unifies them under a single tagged enum for
+//! policy rules and pipeline decisions.
 
 mod audio;
 mod image;
 mod text;
 
-pub use audio::AudioRedactionStrategy;
-pub use image::{
-    ImageRedactionStrategy, DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_PIXELATE_BLOCK_SIZE,
-};
-pub use text::{TextRedactionStrategy, DEFAULT_MASK_CHAR};
+pub use audio::AudioStrategy;
+pub use image::ImageStrategy;
+pub use text::TextStrategy;
 
 use derive_more::From;
 use schemars::JsonSchema;
@@ -26,11 +24,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq)]
 #[derive(From, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum RedactionStrategy {
+pub enum Strategy {
     /// Text/tabular redaction strategy.
-    Text(TextRedactionStrategy),
+    Text(TextStrategy),
     /// Image redaction strategy.
-    Image(ImageRedactionStrategy),
+    Image(ImageStrategy),
     /// Audio redaction strategy.
-    Audio(AudioRedactionStrategy),
+    Audio(AudioStrategy),
 }

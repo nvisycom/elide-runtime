@@ -4,7 +4,7 @@ use nvisy_core::Error;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::policy::{PolicyRule, RuleAction};
 use nvisy_ontology::record::{RedactionDecision, RedactionRecord};
-use nvisy_ontology::policy::{RedactionStrategy, TextRedactionStrategy};
+use nvisy_ontology::policy::{Strategy, TextStrategy};
 use serde::Deserialize;
 
 use crate::operation::{Operation, ParallelContext};
@@ -18,14 +18,14 @@ pub struct EvaluatePolicyParams {
     pub rules: Vec<PolicyRule>,
     /// Fallback redaction strategy when no rule matches.
     #[serde(default = "default_spec")]
-    pub default_spec: RedactionStrategy,
+    pub default_spec: Strategy,
     /// Fallback confidence threshold.
     #[serde(default = "default_threshold")]
     pub default_confidence_threshold: f64,
 }
 
-fn default_spec() -> RedactionStrategy {
-    RedactionStrategy::Text(TextRedactionStrategy::Mask { mask_char: '*' })
+fn default_spec() -> Strategy {
+    Strategy::Text(TextStrategy::Mask { mask_char: '*' })
 }
 fn default_threshold() -> f64 {
     0.5
@@ -146,28 +146,28 @@ fn apply_template(template: &str, entity: &Entity) -> String {
 }
 
 /// Generates a default replacement string for an entity using the given strategy.
-fn build_default_replacement(entity: &Entity, spec: &RedactionStrategy) -> String {
+fn build_default_replacement(entity: &Entity, spec: &Strategy) -> String {
     match spec {
-        RedactionStrategy::Text(text) => match text {
-            TextRedactionStrategy::Mask { mask_char } => {
+        Strategy::Text(text) => match text {
+            TextStrategy::Mask { mask_char } => {
                 mask_char.to_string().repeat(entity.value.len())
             }
-            TextRedactionStrategy::Replace { placeholder } => {
+            TextStrategy::Replace { placeholder } => {
                 if placeholder.is_empty() {
                     format!("[{}]", entity.entity_kind.to_string().to_uppercase())
                 } else {
                     apply_template(placeholder, entity)
                 }
             }
-            TextRedactionStrategy::Remove => String::new(),
-            TextRedactionStrategy::Hash => format!("[HASH:{}]", entity.entity_kind),
-            TextRedactionStrategy::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
-            TextRedactionStrategy::Generate => format!("[GEN:{}]", entity.entity_kind),
-            TextRedactionStrategy::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_kind),
-            TextRedactionStrategy::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
-            TextRedactionStrategy::Aggregate => format!("[AGG:{}]", entity.entity_kind),
-            TextRedactionStrategy::Generalize { .. } => format!("[GEN:{}]", entity.entity_kind),
+            TextStrategy::Remove => String::new(),
+            TextStrategy::Hash => format!("[HASH:{}]", entity.entity_kind),
+            TextStrategy::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
+            TextStrategy::Generate => format!("[GEN:{}]", entity.entity_kind),
+            TextStrategy::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_kind),
+            TextStrategy::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
+            TextStrategy::Aggregate => format!("[AGG:{}]", entity.entity_kind),
+            TextStrategy::Generalize { .. } => format!("[GEN:{}]", entity.entity_kind),
         },
-        RedactionStrategy::Image(_) | RedactionStrategy::Audio(_) => String::new(),
+        Strategy::Image(_) | Strategy::Audio(_) => String::new(),
     }
 }

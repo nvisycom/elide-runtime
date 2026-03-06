@@ -17,7 +17,6 @@ use nvisy_core::path::ContentSource;
 use super::AudioData;
 use crate::document::{Span, SpanEditStream, SpanStream};
 use crate::handler::{AudioHandler, Handler};
-use crate::transform::{AudioRedact, AudioRedaction};
 
 #[derive(Debug)]
 pub struct WavHandler {
@@ -73,14 +72,6 @@ impl AudioHandler for WavHandler {
         if let Some(edit) = edits.into_iter().next() {
             self.bytes = edit.data.into_inner();
         }
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl AudioRedact for WavHandler {
-    async fn redact_audio(&mut self, _redactions: &[AudioRedaction<()>]) -> Result<(), Error> {
-        tracing::warn!("WAV audio redaction is not yet implemented");
         Ok(())
     }
 }

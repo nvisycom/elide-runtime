@@ -15,8 +15,8 @@ use std::collections::HashMap;
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{CsvHandler, PngHandler, TxtHandler, TxtSpan, WavHandler};
 use nvisy_codec::transform::{
-    AudioRedact, AudioRedaction, AudioOutput, ImageRedact, ImageRedaction,
-    ImageOutput, TextRedact, TextRedaction, TextOutput,
+    AudioOutput, AudioRedaction, AudioTransform, ImageOutput, ImageRedaction, ImageTransform,
+    TextOutput, TextRedaction, TextTransform,
 };
 use nvisy_core::Error;
 use nvisy_ontology::entity::{Entity, Location};

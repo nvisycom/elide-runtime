@@ -4,6 +4,6 @@ mod audio;
 mod image;
 mod text;
 
-pub use audio::{AudioOutput, AudioRedact, AudioRedaction};
-pub use image::{ImageOutput, ImageRedact, ImageRedaction, ImageTransform};
-pub use text::{TextOutput, TextRedact, TextRedaction};
+pub use audio::{AudioOutput, AudioRedaction, AudioTransform};
+pub use image::{ImageOutput, ImageRedaction, ImageTransform};
+pub use text::{TextOutput, TextRedaction, TextTransform};

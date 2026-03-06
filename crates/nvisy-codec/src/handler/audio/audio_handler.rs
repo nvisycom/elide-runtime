@@ -9,7 +9,6 @@ use nvisy_core::io::ContentData;
 use super::{AudioData, Mp3Handler, WavHandler};
 use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::{AudioHandler, Handler};
-use crate::transform::{AudioRedact, AudioRedaction};
 
 /// A type-erased audio handler that can hold any supported audio format.
 ///
@@ -93,16 +92,6 @@ impl AudioHandler for AnyAudio {
         match self {
             Self::Wav(h) => h.edit_audio(stream).await,
             Self::Mp3(h) => h.edit_audio(stream).await,
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl AudioRedact for AnyAudio {
-    async fn redact_audio(&mut self, redactions: &[AudioRedaction<()>]) -> Result<(), Error> {
-        match self {
-            Self::Wav(h) => h.redact_audio(redactions).await,
-            Self::Mp3(h) => h.redact_audio(redactions).await,
         }
     }
 }

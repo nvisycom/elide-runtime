@@ -17,6 +17,6 @@ pub use crate::handler::{PdfHandler, PdfImageSpan, PdfLoader, PdfParams, PdfText
 #[cfg(feature = "xlsx")]
 pub use crate::handler::{XlsxHandler, XlsxLoader, XlsxParams};
 pub use crate::transform::{
-    AudioOutput, AudioRedact, AudioRedaction, ImageOutput, ImageRedact, ImageRedaction,
-    ImageTransform, TextOutput, TextRedact, TextRedaction,
+    AudioOutput, AudioRedaction, AudioTransform, ImageOutput, ImageRedaction, ImageTransform,
+    TextOutput, TextRedaction, TextTransform,
 };

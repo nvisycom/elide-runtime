@@ -4,7 +4,7 @@ mod provider;
 
 pub(crate) use provider::TtsModels;
 pub use provider::TtsProvider;
-#[cfg(feature = "openai")]
+#[cfg(feature = "openai-tts")]
 use rig::audio_generation::AudioGenerationModel as _;
 use uuid::Uuid;
 
@@ -71,7 +71,7 @@ impl TtsService {
     )]
     pub async fn generate(&self, text: &str) -> Result<Vec<u8>, Error> {
         let audio: Vec<u8> = match &self.inner {
-            #[cfg(feature = "openai")]
+            #[cfg(feature = "openai-tts")]
             TtsModels::OpenAi(model) => {
                 let response = model
                     .audio_generation_request()

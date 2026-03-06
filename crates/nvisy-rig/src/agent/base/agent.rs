@@ -5,12 +5,12 @@ use std::borrow::Cow;
 use reqwest_middleware::ClientWithMiddleware;
 use rig::agent::Agent;
 use rig::completion::Completion;
-#[cfg(feature = "anthropic")]
+#[cfg(feature = "anthropic-claude")]
 use rig::providers::anthropic;
-#[cfg(feature = "gemini")]
+#[cfg(feature = "google-gemini")]
 use rig::providers::gemini;
 use rig::providers::ollama;
-#[cfg(feature = "openai")]
+#[cfg(feature = "openai-gpt")]
 use rig::providers::openai;
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -49,11 +49,11 @@ impl Default for AgentConfig {
 }
 
 pub(crate) enum Agents {
-    #[cfg(feature = "openai")]
+    #[cfg(feature = "openai-gpt")]
     OpenAi(Agent<openai::completion::CompletionModel<ClientWithMiddleware>>),
-    #[cfg(feature = "anthropic")]
+    #[cfg(feature = "anthropic-claude")]
     Anthropic(Agent<anthropic::completion::CompletionModel<ClientWithMiddleware>>),
-    #[cfg(feature = "gemini")]
+    #[cfg(feature = "google-gemini")]
     Gemini(Agent<gemini::completion::CompletionModel<ClientWithMiddleware>>),
     Ollama(Agent<ollama::CompletionModel<ClientWithMiddleware>>),
 }
@@ -61,11 +61,11 @@ pub(crate) enum Agents {
 macro_rules! dispatch {
     ($inner:expr, |$agent:ident| $body:expr) => {
         match $inner {
-            #[cfg(feature = "openai")]
+            #[cfg(feature = "openai-gpt")]
             Agents::OpenAi($agent) => $body,
-            #[cfg(feature = "anthropic")]
+            #[cfg(feature = "anthropic-claude")]
             Agents::Anthropic($agent) => $body,
-            #[cfg(feature = "gemini")]
+            #[cfg(feature = "google-gemini")]
             Agents::Gemini($agent) => $body,
             Agents::Ollama($agent) => $body,
         }

@@ -18,12 +18,16 @@ documentation = { workspace = true }
 [features]
 default = []
 
-## Enable OpenAI provider (GPT, Whisper, TTS).
-openai = []
-## Enable Anthropic provider (Claude).
-anthropic = []
-## Enable Google Gemini provider.
-gemini = []
+## Enable OpenAI GPT completion provider.
+openai-gpt = []
+## Enable OpenAI Whisper speech-to-text provider.
+openai-whisper = []
+## Enable OpenAI text-to-speech provider.
+openai-tts = []
+## Enable Anthropic Claude completion provider.
+anthropic-claude = []
+## Enable Google Gemini completion provider.
+google-gemini = []
 
 [package.metadata.docs.rs]
 all-features = true

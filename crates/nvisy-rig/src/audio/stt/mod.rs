@@ -8,7 +8,7 @@ mod provider;
 
 pub(crate) use provider::SttModels;
 pub use provider::SttProvider;
-#[cfg(feature = "openai")]
+#[cfg(feature = "openai-whisper")]
 use rig::transcription::TranscriptionModel;
 use uuid::Uuid;
 
@@ -113,7 +113,7 @@ impl SttService {
         }
 
         let text: String = match &self.inner {
-            #[cfg(feature = "openai")]
+            #[cfg(feature = "openai-whisper")]
             SttModels::OpenAi(model) => build_and_send!(model),
             SttModels::Local => {
                 return Err(Error::Runtime(

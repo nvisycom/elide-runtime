@@ -1,12 +1,12 @@
 //! Provider dispatch for speech-to-text models.
 
-#[cfg(feature = "openai")]
+#[cfg(feature = "openai-whisper")]
 use reqwest_middleware::ClientWithMiddleware;
-#[cfg(feature = "openai")]
+#[cfg(feature = "openai-whisper")]
 use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "openai")]
+#[cfg(feature = "openai-whisper")]
 use crate::backend::{AuthenticatedProvider, HttpConfig, build_http_client};
 use crate::backend::UnauthenticatedProvider;
 use crate::error::Error;
@@ -15,8 +15,8 @@ use crate::error::Error;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SttProvider {
     /// OpenAI (Whisper)
-    #[cfg(feature = "openai")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "openai")))]
+    #[cfg(feature = "openai-whisper")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "openai-whisper")))]
     OpenAi(AuthenticatedProvider),
     /// Local speech-to-text provider (not yet implemented).
     Local(UnauthenticatedProvider),
@@ -24,8 +24,8 @@ pub enum SttProvider {
 
 impl SttProvider {
     /// Create an OpenAI transcription provider.
-    #[cfg(feature = "openai")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "openai")))]
+    #[cfg(feature = "openai-whisper")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "openai-whisper")))]
     pub fn openai(api_key: &str, model: &str) -> Self {
         Self::OpenAi(AuthenticatedProvider {
             api_key: api_key.to_owned(),
@@ -60,7 +60,7 @@ impl SttProvider {
     /// The model name for this provider.
     pub fn model(&self) -> &str {
         match self {
-            #[cfg(feature = "openai")]
+            #[cfg(feature = "openai-whisper")]
             Self::OpenAi(p) => &p.model,
             Self::Local(p) => &p.model,
         }
@@ -69,7 +69,7 @@ impl SttProvider {
 
 /// Provider-erased dispatch enum for transcription models.
 pub(crate) enum SttModels {
-    #[cfg(feature = "openai")]
+    #[cfg(feature = "openai-whisper")]
     OpenAi(openai::transcription::TranscriptionModel<ClientWithMiddleware>),
     Local,
 }
@@ -82,7 +82,7 @@ impl SttModels {
         max_retries: u32,
     ) -> Result<Self, Error> {
         match provider {
-            #[cfg(feature = "openai")]
+            #[cfg(feature = "openai-whisper")]
             SttProvider::OpenAi(p) => {
                 let http = build_http_client(&HttpConfig::with_max_retries(max_retries));
                 let client = p.openai_client(http)?;

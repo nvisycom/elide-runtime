@@ -3,7 +3,7 @@
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
 use rig::completion::CompletionModel;
-#[cfg(feature = "gemini")]
+#[cfg(feature = "google-gemini")]
 use rig::providers::gemini;
 use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
@@ -51,19 +51,19 @@ impl BaseAgentBuilder {
         let preamble = config.preamble.as_deref();
 
         let inner = match &provider {
-            #[cfg(feature = "openai")]
+            #[cfg(feature = "openai-gpt")]
             AgentProvider::OpenAi(p) => {
                 let client = p.openai_client(http_client)?;
                 let model = client.completions_api().completion_model(&p.model);
                 Agents::OpenAi(build_rig_agent(model, &config, preamble, tools))
             }
-            #[cfg(feature = "anthropic")]
+            #[cfg(feature = "anthropic-claude")]
             AgentProvider::Anthropic(p) => {
                 let client = p.anthropic_client(http_client)?;
                 let model = client.completion_model(&p.model);
                 Agents::Anthropic(build_rig_agent(model, &config, preamble, tools))
             }
-            #[cfg(feature = "gemini")]
+            #[cfg(feature = "google-gemini")]
             AgentProvider::Gemini(p) => {
                 let client = p.gemini_client(http_client)?;
                 // rig-core 0.31: Gemini's Capabilities doesn't propagate H,

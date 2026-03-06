@@ -6,9 +6,9 @@ use reqwest_middleware::ClientWithMiddleware;
 use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
+use crate::backend::UnauthenticatedProvider;
 #[cfg(feature = "openai-tts")]
 use crate::backend::{AuthenticatedProvider, HttpConfig, build_http_client};
-use crate::backend::UnauthenticatedProvider;
 use crate::error::Error;
 
 /// Supported providers for text-to-speech generation.

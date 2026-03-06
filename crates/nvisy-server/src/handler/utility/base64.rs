@@ -37,15 +37,3 @@ impl Base64 {
             .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid base64: {e}")))
     }
 }
-
-impl From<String> for Base64 {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
-
-impl From<Base64> for String {
-    fn from(b: Base64) -> Self {
-        b.0
-    }
-}

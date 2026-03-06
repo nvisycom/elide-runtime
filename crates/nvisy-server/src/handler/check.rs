@@ -12,7 +12,7 @@ use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 
 use super::error::{ErrorKind, Result};
-use super::response::{Analytics, Health};
+use super::response::{Analytics, Health, ServiceStatus};
 use crate::extract::Json;
 use crate::service::ServiceState;
 
@@ -22,7 +22,10 @@ const TARGET: &str = "nvisy_server::check";
 #[tracing::instrument(target = "nvisy_server::check", skip_all)]
 async fn health() -> Json<Health> {
     tracing::debug!(target: TARGET, "health check");
-    Json(Health { status: "ok" })
+    Json(Health {
+        status: ServiceStatus::Healthy,
+        timestamp: jiff::Timestamp::now(),
+    })
 }
 
 fn health_docs(op: TransformOperation) -> TransformOperation {

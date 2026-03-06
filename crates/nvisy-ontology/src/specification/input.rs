@@ -121,7 +121,8 @@ pub enum AudioRedactionInput {
 /// Unified redaction specification submitted to the engine.
 ///
 /// Carries the method to apply and its configuration parameters.
-#[derive(Debug, Clone, PartialEq, From, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq)]
+#[derive(From, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RedactionInput {
     /// Text/tabular redaction specification.

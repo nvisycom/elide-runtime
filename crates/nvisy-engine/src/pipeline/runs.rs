@@ -17,7 +17,8 @@ use uuid::Uuid;
 use super::executor::{NodeOutput, RunOutput};
 
 /// Lifecycle status of a pipeline run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RunStatus {
     /// The run has been created but not yet started.

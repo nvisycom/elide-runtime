@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use super::NerContext;
 
 /// A list of NER entities returned by structured output.
-#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct NerEntities {
     /// Detected entities.
     pub entities: Vec<NerEntity>,

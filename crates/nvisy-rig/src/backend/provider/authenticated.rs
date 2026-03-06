@@ -14,7 +14,11 @@ use reqwest_middleware::ClientWithMiddleware;
 use rig::providers::anthropic;
 #[cfg(feature = "google-gemini")]
 use rig::providers::gemini;
-#[cfg(any(feature = "openai-gpt", feature = "openai-whisper", feature = "openai-tts"))]
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "openai-whisper",
+    feature = "openai-tts"
+))]
 use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
@@ -47,10 +51,18 @@ impl fmt::Debug for AuthenticatedProvider {
 
 impl AuthenticatedProvider {
     /// Build an OpenAI rig-core client.
-    #[cfg(any(feature = "openai-gpt", feature = "openai-whisper", feature = "openai-tts"))]
+    #[cfg(any(
+        feature = "openai-gpt",
+        feature = "openai-whisper",
+        feature = "openai-tts"
+    ))]
     #[cfg_attr(
         docsrs,
-        doc(cfg(any(feature = "openai-gpt", feature = "openai-whisper", feature = "openai-tts")))
+        doc(cfg(any(
+            feature = "openai-gpt",
+            feature = "openai-whisper",
+            feature = "openai-tts"
+        )))
     )]
     pub(crate) fn openai_client(
         &self,

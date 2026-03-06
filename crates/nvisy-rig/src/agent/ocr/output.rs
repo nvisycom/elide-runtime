@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// Entities that are confirmed are omitted from the output entirely —
 /// only changed entities appear in [`VerificationOutput`].
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationStatus {
     /// The entity value or classification was corrected.
@@ -45,7 +46,8 @@ pub struct VerifiedEntity {
 /// Verification output containing only entities whose status changed.
 ///
 /// Entities not present in this list are implicitly confirmed.
-#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct VerificationOutput {
     /// Only entities that were corrected or rejected.
     pub entities: Vec<VerifiedEntity>,

@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use super::BoundingBox;
 
 /// A single vertex in a [`Polygon`].
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Vertex {
     /// Horizontal coordinate (pixels or normalized).
     pub x: f64,
@@ -27,7 +28,8 @@ impl Vertex {
 /// detected by OCR. Vertices are ordered (typically clockwise from
 /// top-left) and coordinates are `f64` to support both pixel and
 /// normalized values.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Polygon {
     /// Ordered vertices defining the polygon outline.
     pub vertices: Vec<Vertex>,

@@ -2,7 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(any(feature = "openai-gpt", feature = "anthropic-claude", feature = "google-gemini"))]
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "anthropic-claude",
+    feature = "google-gemini"
+))]
 use crate::backend::AuthenticatedProvider;
 use crate::backend::UnauthenticatedProvider;
 

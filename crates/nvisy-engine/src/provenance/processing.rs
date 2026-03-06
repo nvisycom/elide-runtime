@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 /// (pattern matching, redaction, etc.).
 ///
 /// Duration and error are tracked on [`FileAuditEntry`](super::FileAuditEntry).
-#[derive(Debug, Clone, Default, Builder, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default)]
+#[derive(Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "ProcessingActionBuilder",
     pattern = "owned",

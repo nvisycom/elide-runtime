@@ -2,9 +2,9 @@
 
 use nvisy_core::Error;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::policy::PolicyRule;
+use nvisy_ontology::policy::{PolicyRule, RuleAction};
 use nvisy_ontology::record::{RedactionDecision, RedactionRecord};
-use nvisy_ontology::strategy::{RedactionStrategy, TextRedactionStrategy};
+use nvisy_ontology::policy::{RedactionStrategy, TextRedactionStrategy};
 use serde::Deserialize;
 
 use crate::operation::{Operation, ParallelContext};
@@ -64,23 +64,28 @@ impl EvaluatePolicy {
 
         for entity in &entities {
             let rule = find_matching_rule(entity, &self.params.rules);
-            let spec = rule.map(|r| &r.spec).unwrap_or(default_spec);
 
-            if rule.is_none() && entity.confidence < default_threshold {
-                continue;
-            }
-
-            let replacement = if let Some(r) = rule {
-                apply_template(&r.replacement_template, entity)
-            } else {
-                build_default_replacement(entity, spec)
+            let (spec, replacement) = match rule {
+                Some(r) => match &r.action {
+                    RuleAction::Redact {
+                        strategy,
+                        replacement_template,
+                    } => (strategy.clone(), apply_template(replacement_template, entity)),
+                    RuleAction::Review | RuleAction::Alert | RuleAction::Block | RuleAction::Suppress => continue,
+                },
+                None => {
+                    if entity.confidence < default_threshold {
+                        continue;
+                    }
+                    (default_spec.clone(), build_default_replacement(entity, default_spec))
+                }
             };
 
             let entity_id = entity.source.as_uuid();
 
             let mut decision = RedactionDecision::new(
                 entity_id,
-                spec.clone(),
+                spec,
                 replacement,
                 entity.confidence,
             );

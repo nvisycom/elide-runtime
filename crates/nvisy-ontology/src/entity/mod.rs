@@ -8,7 +8,6 @@ mod category;
 mod kind;
 mod location;
 mod model;
-mod selector;
 mod sensitivity;
 
 use std::time::Duration;
@@ -20,7 +19,6 @@ pub use location::{AudioLocation, ImageLocation, Location, TabularLocation, Text
 pub use model::{ModelInfo, ModelKind};
 use nvisy_core::path::ContentSource;
 use schemars::JsonSchema;
-pub use selector::EntitySelector;
 pub use sensitivity::EntitySensitivity;
 use serde::{Deserialize, Serialize};
 use serde_with::{DurationMicroSeconds, serde_as};

@@ -21,7 +21,7 @@ use nvisy_codec::transform::{
 use nvisy_core::Error;
 use nvisy_ontology::entity::{Entity, Location};
 use nvisy_ontology::record::RedactionDecision;
-use nvisy_ontology::strategy::{
+use nvisy_ontology::policy::{
     AudioRedactionStrategy, ImageRedactionStrategy, RedactionStrategy, TextRedactionStrategy,
 };
 use uuid::Uuid;
@@ -383,7 +383,7 @@ fn hash_string(s: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::strategy::ImageRedactionStrategy;
+    use nvisy_ontology::policy::ImageRedactionStrategy;
 
     use super::*;
 
@@ -468,7 +468,7 @@ mod tests {
     #[test]
     fn image_output_audio_spec_returns_none() {
         let spec =
-            RedactionStrategy::Audio(nvisy_ontology::strategy::AudioRedactionStrategy::Silence);
+            RedactionStrategy::Audio(nvisy_ontology::policy::AudioRedactionStrategy::Silence);
         assert_eq!(image_output_from_spec(&spec), None);
     }
 

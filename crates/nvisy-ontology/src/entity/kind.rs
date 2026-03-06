@@ -15,8 +15,8 @@ use super::category::EntityCategory;
 use super::sensitivity::EntitySensitivity;
 
 /// Specific kind of sensitive entity detected or targeted for redaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString)]
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[derive(EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum EntityKind {

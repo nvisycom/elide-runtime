@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{EntityCategory, EntityKind};
+use crate::entity::{EntityCategory, EntityKind};
 
 /// Criteria for selecting which entities a policy rule applies to.
 ///

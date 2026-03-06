@@ -3,11 +3,10 @@
 use nvisy_core::fs::DocumentType;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum::Display;
 use uuid::Uuid;
 
-use crate::entity::EntitySelector;
-use crate::strategy::RedactionStrategy;
+use super::selector::EntitySelector;
+use super::strategy::RedactionStrategy;
 
 /// Conditions that must be met for a [`PolicyRule`] to apply.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -23,24 +22,17 @@ pub struct RuleCondition {
     pub required_labels: Vec<String>,
 }
 
-/// Classifies what a policy rule does when it matches.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Display,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
-#[serde(rename_all = "snake_case")]
-#[strum(serialize_all = "snake_case")]
-pub enum RuleKind {
+/// The action a policy rule performs when it matches an entity.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case")]
+pub enum RuleAction {
     /// Apply a redaction to the matched entity.
-    Redaction,
+    Redact {
+        /// Redaction strategy to apply.
+        strategy: RedactionStrategy,
+        /// Template string for the replacement value (e.g. `"[REDACTED]"`).
+        replacement_template: String,
+    },
     /// Require human review before any action is taken.
     Review,
     /// Flag the entity without redacting (for reporting / alerting).
@@ -51,19 +43,15 @@ pub enum RuleKind {
     Suppress,
 }
 
-/// A single rule within a redaction policy.
+/// A single rule within a policy.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PolicyRule {
     /// Unique identifier for this rule.
     pub id: Uuid,
-    /// What this rule does when it matches.
-    pub kind: RuleKind,
     /// Which entities this rule applies to.
     pub selector: EntitySelector,
-    /// Redaction strategy to apply when this rule matches (relevant when `kind` is `Redaction`).
-    pub spec: RedactionStrategy,
-    /// Template string for the replacement value (e.g. `"[REDACTED]"`).
-    pub replacement_template: String,
+    /// What this rule does when it matches.
+    pub action: RuleAction,
     /// Evaluation priority (lower numbers are evaluated first).
     pub priority: i32,
     /// Additional conditions for this rule to apply.

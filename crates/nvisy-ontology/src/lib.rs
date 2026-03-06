@@ -6,7 +6,6 @@ pub mod context;
 pub mod entity;
 pub mod policy;
 pub mod record;
-pub mod strategy;
 
 #[doc(hidden)]
 pub mod prelude;

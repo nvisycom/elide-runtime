@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::strategy::RedactionStrategy;
+use crate::policy::RedactionStrategy;
 
 /// A pipeline-facing decision recording how a specific entity should be redacted.
 ///

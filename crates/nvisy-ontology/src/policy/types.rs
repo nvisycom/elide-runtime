@@ -7,7 +7,6 @@ use uuid::Uuid;
 
 use super::regulation::RegulationKind;
 use super::rule::PolicyRule;
-use crate::strategy::RedactionStrategy;
 
 /// A named redaction policy containing an ordered set of rules.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -30,10 +29,6 @@ pub struct Policy {
     pub regulation: Option<RegulationKind>,
     /// Ordered list of rules.
     pub rules: Vec<PolicyRule>,
-    /// Fallback redaction strategy when no rule matches.
-    pub default_spec: RedactionStrategy,
-    /// Fallback confidence threshold when no rule matches.
-    pub default_confidence_threshold: f64,
 }
 
 /// A collection of policies to apply during a pipeline run.

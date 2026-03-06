@@ -21,6 +21,8 @@ use super::{AgentProvider, BaseAgentBuilder, ContextWindow, ResponseParser};
 use crate::backend::UsageTracker;
 use crate::error::Error;
 
+const TARGET: &str = "nvisy_rig::agent";
+
 /// Sampling, retry, context-window, and preamble settings shared by all agents.
 #[derive(Debug, Clone)]
 pub struct AgentConfig {
@@ -115,6 +117,7 @@ impl BaseAgent {
         }
 
         tracing::info!(
+            target: TARGET,
             prompt_len = prompt.len(),
             budget,
             "prompt exceeds input budget, compacting"
@@ -149,7 +152,7 @@ impl BaseAgent {
     ///
     /// Automatically compacts the prompt if a context window is configured
     /// and the prompt exceeds the input budget.
-    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "text"))]
+    #[tracing::instrument(target = "nvisy_rig::agent", skip_all, fields(agent_id = %self.id, mode = "text"))]
     pub async fn prompt_text(&self, prompt: &str) -> Result<String, Error> {
         let prompt = self.maybe_compact(prompt).await?;
         self.prompt_text_raw(&prompt).await
@@ -163,7 +166,7 @@ impl BaseAgent {
     /// Sends a completion request with an `output_schema` so the provider
     /// constrains its response to valid JSON matching `T`. On deserialization
     /// failure the raw text is re-parsed via [`ResponseParser`].
-    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "structured"))]
+    #[tracing::instrument(target = "nvisy_rig::agent", skip_all, fields(agent_id = %self.id, mode = "structured"))]
     pub async fn prompt_structured<T>(&self, prompt: &str) -> Result<T, Error>
     where
         T: DeserializeOwned + Default + JsonSchema + Serialize + Send + Sync,
@@ -188,11 +191,12 @@ impl BaseAgent {
         let parser = ResponseParser::from_text(&text);
         match serde_json::from_str::<T>(&text) {
             Ok(value) => {
-                tracing::debug!("structured output succeeded");
+                tracing::debug!(target: TARGET, "structured output succeeded");
                 Ok(value)
             }
             Err(structured_err) => {
                 tracing::warn!(
+                    target: TARGET,
                     error = %structured_err,
                     "structured JSON parse failed, falling back to text-based parsing"
                 );

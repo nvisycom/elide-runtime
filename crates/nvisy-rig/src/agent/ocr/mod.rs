@@ -20,6 +20,8 @@ use super::{AgentConfig, AgentProvider, BaseAgent};
 use crate::backend::UsageTracker;
 use crate::error::Error;
 
+const TARGET: &str = "nvisy_rig::ocr";
+
 /// VLM agent that verifies NER-detected entities against the original image.
 ///
 /// # Workflow
@@ -60,8 +62,9 @@ impl OcrAgent {
     /// Returns only entities that were corrected or rejected. Entities
     /// absent from the output are implicitly confirmed.
     #[tracing::instrument(
+        target = "nvisy_rig::ocr",
         skip_all,
-        fields(image_bytes = image_data.len(), entity_count = entities.len(), agent = "ocr"),
+        fields(image_bytes = image_data.len(), entity_count = entities.len()),
     )]
     pub async fn verify(
         &self,
@@ -70,6 +73,7 @@ impl OcrAgent {
     ) -> Result<VerificationOutput, Error> {
         let image_b64 = STANDARD.encode(image_data);
         tracing::debug!(
+            target: TARGET,
             b64_len = image_b64.len(),
             proposed = entities.len(),
             "encoded image, building verification prompt"
@@ -79,7 +83,7 @@ impl OcrAgent {
 
         let output: VerificationOutput = self.base.prompt_structured(&prompt).await?;
 
-        tracing::info!(changed = output.entities.len(), "ocr verification complete");
+        tracing::info!(target: TARGET, changed = output.entities.len(), "ocr verification complete");
 
         Ok(output)
     }

@@ -14,6 +14,8 @@ use uuid::Uuid;
 
 use crate::error::Error;
 
+const TARGET: &str = "nvisy_rig::stt";
+
 /// Configuration for the speech-to-text service.
 #[derive(Debug, Clone)]
 pub struct SttConfig {
@@ -87,6 +89,7 @@ impl SttService {
     /// * `audio_data` — raw audio bytes (MP3, WAV, etc.).
     /// * `filename` — original filename, used for MIME-type detection.
     #[tracing::instrument(
+        target = "nvisy_rig::stt",
         skip_all,
         fields(service_id = %self.id, data_len = audio_data.len(), filename),
     )]
@@ -122,7 +125,7 @@ impl SttService {
             }
         };
 
-        tracing::info!(text_len = text.len(), "transcription complete");
+        tracing::info!(target: TARGET, text_len = text.len(), "transcription complete");
 
         Ok(SttOutput { text })
     }

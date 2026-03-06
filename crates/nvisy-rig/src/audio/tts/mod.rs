@@ -10,6 +10,8 @@ use uuid::Uuid;
 
 use crate::error::Error;
 
+const TARGET: &str = "nvisy_rig::tts";
+
 /// Configuration for the text-to-speech service.
 #[derive(Debug, Clone)]
 pub struct TtsConfig {
@@ -66,6 +68,7 @@ impl TtsService {
 
     /// Generate speech from text, returning raw audio bytes.
     #[tracing::instrument(
+        target = "nvisy_rig::tts",
         skip_all,
         fields(service_id = %self.id, text_len = text.len()),
     )]
@@ -89,7 +92,7 @@ impl TtsService {
             }
         };
 
-        tracing::info!(audio_len = audio.len(), "audio generation complete");
+        tracing::info!(target: TARGET, audio_len = audio.len(), "audio generation complete");
 
         Ok(audio)
     }

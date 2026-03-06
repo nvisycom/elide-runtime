@@ -1,7 +1,11 @@
 //! Structured output types for OCR entity verification.
 
+use std::collections::HashMap;
+
 use nvisy_core::math::BoundingBox;
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{
+    DetectionMethod, Entity, EntityCategory, EntityKind, ImageLocation,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -43,6 +47,43 @@ pub struct VerifiedEntity {
     pub reason: Option<String>,
 }
 
+impl VerifiedEntity {
+    /// Apply this verdict to the original entity.
+    ///
+    /// Returns `None` for rejected entities, or `Some(corrected)` with
+    /// updated fields for corrected entities.
+    pub fn apply(self, entity: Entity) -> Option<Entity> {
+        match self.status {
+            VerificationStatus::Rejected => None,
+            VerificationStatus::Corrected => {
+                let mut corrected = Entity::new(
+                    self.category.unwrap_or(entity.category),
+                    self.entity_type.unwrap_or(entity.entity_kind),
+                    self.value.as_deref().unwrap_or(&entity.value),
+                    DetectionMethod::Ocr,
+                    self.confidence,
+                );
+                corrected.source = entity.source;
+
+                if let Some(bbox) = self.bbox {
+                    corrected = corrected.with_location(
+                        ImageLocation {
+                            bounding_box: bbox,
+                            image_id: None,
+                            page_number: None,
+                        }
+                        .into(),
+                    );
+                } else if let Some(loc) = entity.location {
+                    corrected.location = Some(loc);
+                }
+
+                Some(corrected)
+            }
+        }
+    }
+}
+
 /// Verification output containing only entities whose status changed.
 ///
 /// Entities not present in this list are implicitly confirmed.
@@ -51,4 +92,28 @@ pub struct VerifiedEntity {
 pub struct VerificationOutput {
     /// Only entities that were corrected or rejected.
     pub entities: Vec<VerifiedEntity>,
+}
+
+impl VerificationOutput {
+    /// Merge verdicts into the original entity list.
+    ///
+    /// Confirmed entities (absent from this output) pass through unchanged,
+    /// corrected entities are updated, and rejected entities are dropped.
+    pub fn merge(self, entities: Vec<Entity>) -> Vec<Entity> {
+        let mut verdicts: HashMap<usize, VerifiedEntity> =
+            self.entities.into_iter().map(|v| (v.id, v)).collect();
+
+        let mut result = Vec::with_capacity(entities.len());
+        for (i, entity) in entities.into_iter().enumerate() {
+            match verdicts.remove(&i) {
+                None => result.push(entity),
+                Some(verified) => {
+                    if let Some(corrected) = verified.apply(entity) {
+                        result.push(corrected);
+                    }
+                }
+            }
+        }
+        result
+    }
 }

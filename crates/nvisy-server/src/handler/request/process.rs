@@ -1,7 +1,7 @@
 //! Process request types.
 
 use nvisy_engine::Graph;
-use nvisy_engine::pipeline::Policies;
+use nvisy_ontology::policy::Policies;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;

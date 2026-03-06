@@ -1,12 +1,12 @@
-//! Redaction input types: configuration-carrying specifications submitted
-//! to the redaction engine, and the [`RedactorInput`] context struct
-//! passed to LLM agents.
+//! Configuration-carrying redaction strategies.
+//!
+//! Each variant pairs a redaction method with its parameters (mask
+//! character, blur sigma, encryption key, etc.). Policy rules store
+//! these, and the redaction engine matches on them to apply transforms.
 
 use derive_more::From;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::entity::{EntityCategory, EntityKind};
 
 /// Default mask character for text redaction.
 pub const DEFAULT_MASK_CHAR: char = '*';
@@ -33,10 +33,11 @@ fn default_block_size() -> u32 {
     DEFAULT_PIXELATE_BLOCK_SIZE
 }
 
-/// Text redaction specification with method-specific configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+/// Text redaction strategy with method-specific configuration.
+#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum TextRedactionInput {
+pub enum TextRedactionStrategy {
     /// Replace characters with a mask character.
     Mask {
         /// Character used for masking (default `'*'`).
@@ -76,18 +77,13 @@ pub enum TextRedactionInput {
         #[serde(default)]
         level: Option<u32>,
     },
-    /// Shift dates by a consistent offset.
-    DateShift {
-        /// Fixed offset in days (0 = engine picks a random offset).
-        #[serde(default)]
-        offset_days: i64,
-    },
 }
 
-/// Image redaction specification with method-specific configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+/// Image redaction strategy with method-specific configuration.
+#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum ImageRedactionInput {
+pub enum ImageRedactionStrategy {
     /// Apply a gaussian blur.
     Blur {
         /// Blur sigma value.
@@ -108,49 +104,29 @@ pub enum ImageRedactionInput {
     },
 }
 
-/// Audio redaction specification.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+/// Audio redaction strategy.
+#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum AudioRedactionInput {
+pub enum AudioRedactionStrategy {
     /// Replace with silence.
     Silence,
     /// Remove the segment entirely.
     Remove,
 }
 
-/// Unified redaction specification submitted to the engine.
+/// Unified redaction strategy across all modalities.
 ///
-/// Carries the method to apply and its configuration parameters.
+/// Wraps a per-modality strategy variant carrying the method and its
+/// configuration parameters.
 #[derive(Debug, Clone, PartialEq)]
 #[derive(From, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum RedactionInput {
-    /// Text/tabular redaction specification.
-    Text(TextRedactionInput),
-    /// Image redaction specification.
-    Image(ImageRedactionInput),
-    /// Audio redaction specification.
-    Audio(AudioRedactionInput),
-}
-
-/// Entity passed to a redactor agent for decision-making.
-///
-/// Contains the detected entity's classification, matched value, confidence,
-/// and byte offsets in the source text. The redactor uses this context to
-/// choose an appropriate [`RedactionMethod`](super::RedactionMethod).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RedactorInput {
-    /// Specific entity type (e.g. `EmailAddress`, `GovernmentId`).
-    pub entity_type: EntityKind,
-    /// Broad classification (e.g. `Pii`, `Financial`).
-    pub category: EntityCategory,
-    /// The matched text value.
-    pub value: String,
-    /// Detection confidence (0.0 -- 1.0).
-    pub confidence: f64,
-    /// Start byte offset in the input text.
-    pub start_offset: usize,
-    /// End byte offset in the input text.
-    pub end_offset: usize,
+pub enum RedactionStrategy {
+    /// Text/tabular redaction strategy.
+    Text(TextRedactionStrategy),
+    /// Image redaction strategy.
+    Image(ImageRedactionStrategy),
+    /// Audio redaction strategy.
+    Audio(AudioRedactionStrategy),
 }

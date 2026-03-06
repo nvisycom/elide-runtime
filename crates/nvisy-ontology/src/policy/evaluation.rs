@@ -4,15 +4,17 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::record::Redaction;
+use crate::record::{RedactionDecision, RedactionRecord};
 
 /// Full outcome of evaluating a policy against a set of entities.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PolicyEvaluation {
     /// Identifier of the policy that was evaluated.
     pub policy_id: Uuid,
-    /// Redactions produced by `Redact` rules.
-    pub redactions: Vec<Redaction>,
+    /// Pipeline-facing redaction decisions produced by `Redact` rules.
+    pub decisions: Vec<RedactionDecision>,
+    /// Audit-facing redaction records produced by `Redact` rules.
+    pub records: Vec<RedactionRecord>,
     /// Entity IDs routed to human review by `Review` rules.
     pub pending_review: Vec<Uuid>,
     /// Entity IDs suppressed from output by `Suppress` rules.

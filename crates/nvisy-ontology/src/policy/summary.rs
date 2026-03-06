@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RedactionSummary {
     /// The content source these counts apply to.
-    #[serde(flatten)]
     pub source: ContentSource,
     /// Number of redactions successfully applied.
     pub redactions_applied: usize,

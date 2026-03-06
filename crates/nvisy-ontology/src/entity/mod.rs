@@ -28,19 +28,8 @@ use strum::{Display, EnumString};
 use uuid::Uuid;
 
 /// Method used to detect a sensitive entity.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Display,
-    EnumString,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum DetectionMethod {
@@ -82,7 +71,6 @@ pub enum DetectionMethod {
 #[serde(rename_all = "camelCase")]
 pub struct Entity {
     /// Content source identity and lineage.
-    #[serde(flatten)]
     pub source: ContentSource,
     /// Broad classification of the sensitive data.
     pub category: EntityCategory,
@@ -107,6 +95,11 @@ pub struct Entity {
 }
 
 impl Entity {
+    /// The unique identifier for this entity (delegates to `source.as_uuid()`).
+    pub fn id(&self) -> Uuid {
+        self.source.as_uuid()
+    }
+
     /// Create a new entity with the given detection details.
     pub fn new(
         category: EntityCategory,
@@ -165,7 +158,6 @@ impl Entity {
 #[serde(rename_all = "camelCase")]
 pub struct DetectionOutput {
     /// Content source identity and lineage.
-    #[serde(flatten)]
     pub source: ContentSource,
     /// Entities detected in the content.
     pub entities: Vec<Entity>,
@@ -183,6 +175,11 @@ pub struct DetectionOutput {
 }
 
 impl DetectionOutput {
+    /// The unique identifier for this detection output (delegates to `source.as_uuid()`).
+    pub fn id(&self) -> Uuid {
+        self.source.as_uuid()
+    }
+
     /// Create a new detection output for the given source.
     pub fn new(source: ContentSource, entities: Vec<Entity>) -> Self {
         Self {

@@ -7,7 +7,7 @@ use strum::Display;
 use uuid::Uuid;
 
 use crate::entity::EntitySelector;
-use crate::specification::RedactionInput;
+use crate::strategy::RedactionStrategy;
 
 /// Conditions that must be met for a [`PolicyRule`] to apply.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -60,8 +60,8 @@ pub struct PolicyRule {
     pub kind: RuleKind,
     /// Which entities this rule applies to.
     pub selector: EntitySelector,
-    /// Redaction specification to apply when this rule matches (relevant when `kind` is `Redaction`).
-    pub spec: RedactionInput,
+    /// Redaction strategy to apply when this rule matches (relevant when `kind` is `Redaction`).
+    pub spec: RedactionStrategy,
     /// Template string for the replacement value (e.g. `"[REDACTED]"`).
     pub replacement_template: String,
     /// Evaluation priority (lower numbers are evaluated first).

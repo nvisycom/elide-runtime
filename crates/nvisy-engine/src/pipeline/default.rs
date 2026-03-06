@@ -181,7 +181,8 @@ impl Engine for DefaultEngine {
         // produce an empty evaluation.
         let evaluation = PolicyEvaluation {
             policy_id: Uuid::nil(),
-            redactions: Vec::new(),
+            decisions: Vec::new(),
+            records: Vec::new(),
             pending_review: Vec::new(),
             suppressed: Vec::new(),
             blocked: Vec::new(),

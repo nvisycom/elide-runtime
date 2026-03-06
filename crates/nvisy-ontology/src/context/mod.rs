@@ -22,7 +22,6 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct Context {
     /// Content source identity and lineage.
-    #[serde(flatten)]
     pub source: ContentSource,
     /// Human-readable label for this context.
     pub name: String,

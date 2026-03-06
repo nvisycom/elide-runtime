@@ -32,7 +32,6 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct FileAudit {
     /// Content source this audit belongs to.
-    #[serde(flatten)]
     pub source: ContentSource,
     /// Identifier of the pipeline run that produced this audit.
     #[builder(default, setter(into = false))]

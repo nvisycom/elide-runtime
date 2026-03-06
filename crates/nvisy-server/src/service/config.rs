@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use clap::Args;
-use nvisy_engine::pipeline::{RetryPolicy, TimeoutPolicy};
+use nvisy_engine::{RetryPolicy, TimeoutPolicy};
 
 /// Configuration for the service layer.
 ///

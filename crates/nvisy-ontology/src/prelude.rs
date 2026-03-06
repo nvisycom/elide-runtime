@@ -6,5 +6,5 @@ pub use crate::entity::{
     EntityKind, EntitySensitivity, Location,
 };
 pub use crate::policy::{Policies, Policy, PolicyRule};
-pub use crate::record::Redaction;
-pub use crate::specification::RedactionMethod;
+pub use crate::record::{RedactionDecision, RedactionRecord};
+pub use crate::strategy::{RedactionMethod, RedactionStrategy};

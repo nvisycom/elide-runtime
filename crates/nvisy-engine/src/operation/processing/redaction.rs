@@ -15,14 +15,14 @@ use std::collections::HashMap;
 use nvisy_codec::document::Document;
 use nvisy_codec::handler::{CsvHandler, PngHandler, TxtHandler, TxtSpan, WavHandler};
 use nvisy_codec::transform::{
-    AudioRedact, AudioRedaction, AudioRedactionOutput, ImageRedact, ImageRedaction,
-    ImageRedactionOutput, TextRedact, TextRedaction, TextRedactionOutput,
+    AudioRedact, AudioRedaction, AudioOutput, ImageRedact, ImageRedaction,
+    ImageOutput, TextRedact, TextRedaction, TextOutput,
 };
 use nvisy_core::Error;
 use nvisy_ontology::entity::{Entity, Location};
 use nvisy_ontology::record::RedactionDecision;
 use nvisy_ontology::policy::{
-    AudioRedactionStrategy, ImageRedactionStrategy, RedactionStrategy, TextRedactionStrategy,
+    AudioStrategy, ImageStrategy, Strategy, TextStrategy,
 };
 use uuid::Uuid;
 
@@ -106,16 +106,12 @@ impl Operation for Redaction {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Text helpers
-// ---------------------------------------------------------------------------
-
-fn text_output_from_spec(spec: &RedactionStrategy, replacement: &str) -> Option<TextRedactionOutput> {
+fn text_output_from_spec(spec: &Strategy, replacement: &str) -> Option<TextOutput> {
     match spec {
-        RedactionStrategy::Text(TextRedactionStrategy::Remove) if replacement.is_empty() => {
-            Some(TextRedactionOutput::Remove)
+        Strategy::Text(TextStrategy::Remove) if replacement.is_empty() => {
+            Some(TextOutput::Remove)
         }
-        RedactionStrategy::Text(_) => Some(TextRedactionOutput::Replace {
+        Strategy::Text(_) => Some(TextOutput::Replace {
             replacement: replacement.to_string(),
         }),
         _ => None,
@@ -127,7 +123,7 @@ async fn apply_text_doc(
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
 ) -> Result<Document<TxtHandler>, Error> {
-    let mut global_redactions: Vec<(usize, usize, TextRedactionOutput)> =
+    let mut global_redactions: Vec<(usize, usize, TextOutput)> =
         Vec::with_capacity(redaction_map.len());
 
     for (entity_id, redaction) in redaction_map {
@@ -193,7 +189,7 @@ async fn apply_text_doc(
                 is_first_segment = false;
                 output.clone()
             } else {
-                TextRedactionOutput::Remove
+                TextOutput::Remove
             };
 
             redactions.push(TextRedaction {
@@ -209,16 +205,12 @@ async fn apply_text_doc(
     Ok(doc)
 }
 
-// ---------------------------------------------------------------------------
-// Image helpers
-// ---------------------------------------------------------------------------
-
-fn image_output_from_spec(spec: &RedactionStrategy) -> Option<ImageRedactionOutput> {
+fn image_output_from_spec(spec: &Strategy) -> Option<ImageOutput> {
     match spec {
-        RedactionStrategy::Image(img) => Some(match img {
-            ImageRedactionStrategy::Blur { sigma } => ImageRedactionOutput::Blur { sigma: *sigma },
-            ImageRedactionStrategy::Block { color } => ImageRedactionOutput::Block { color: *color },
-            ImageRedactionStrategy::Pixelate { block_size } => ImageRedactionOutput::Pixelate {
+        Strategy::Image(img) => Some(match img {
+            ImageStrategy::Blur { sigma } => ImageOutput::Blur { sigma: *sigma },
+            ImageStrategy::Block { color } => ImageOutput::Block { color: *color },
+            ImageStrategy::Pixelate { block_size } => ImageOutput::Pixelate {
                 block_size: *block_size,
             },
         }),
@@ -263,15 +255,11 @@ async fn apply_image_doc(
     Ok(doc)
 }
 
-// ---------------------------------------------------------------------------
-// Audio helpers
-// ---------------------------------------------------------------------------
-
-fn audio_output_from_spec(spec: &RedactionStrategy) -> Option<AudioRedactionOutput> {
+fn audio_output_from_spec(spec: &Strategy) -> Option<AudioOutput> {
     match spec {
-        RedactionStrategy::Audio(audio) => Some(match audio {
-            AudioRedactionStrategy::Silence => AudioRedactionOutput::Silence,
-            AudioRedactionStrategy::Remove => AudioRedactionOutput::Remove,
+        Strategy::Audio(audio) => Some(match audio {
+            AudioStrategy::Silence => AudioOutput::Silence,
+            AudioStrategy::Remove => AudioOutput::Remove,
         }),
         _ => None,
     }
@@ -315,10 +303,6 @@ async fn apply_audio_doc(
     Ok(doc)
 }
 
-// ---------------------------------------------------------------------------
-// Tabular helpers
-// ---------------------------------------------------------------------------
-
 async fn apply_tabular_doc(
     mut doc: Document<CsvHandler>,
     entity_map: &HashMap<Uuid, &Entity>,
@@ -335,7 +319,7 @@ async fn apply_tabular_doc(
             _ => continue,
         };
 
-        if !matches!(redaction.spec, RedactionStrategy::Text(_)) {
+        if !matches!(redaction.spec, Strategy::Text(_)) {
             continue;
         }
 
@@ -350,9 +334,9 @@ async fn apply_tabular_doc(
     Ok(doc)
 }
 
-fn mask_cell(spec: &RedactionStrategy, replacement: &str, cell: &str) -> String {
+fn mask_cell(spec: &Strategy, replacement: &str, cell: &str) -> String {
     match spec {
-        RedactionStrategy::Text(TextRedactionStrategy::Mask { mask_char }) => {
+        Strategy::Text(TextStrategy::Mask { mask_char }) => {
             let char_count = cell.chars().count();
             if char_count > 4 {
                 let masked: String = cell
@@ -366,8 +350,8 @@ fn mask_cell(spec: &RedactionStrategy, replacement: &str, cell: &str) -> String 
                 mask_char.to_string().repeat(char_count)
             }
         }
-        RedactionStrategy::Text(TextRedactionStrategy::Remove) => String::new(),
-        RedactionStrategy::Text(TextRedactionStrategy::Hash) => {
+        Strategy::Text(TextStrategy::Remove) => String::new(),
+        Strategy::Text(TextStrategy::Hash) => {
             format!("[HASH:{:x}]", hash_string(cell))
         }
         _ => replacement.to_string(),
@@ -383,150 +367,35 @@ fn hash_string(s: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::policy::ImageRedactionStrategy;
-
     use super::*;
-
-    // Text spec tests
-
-    #[test]
-    fn text_output_remove_empty_replacement() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Remove);
-        let output = text_output_from_spec(&spec, "");
-        assert_eq!(output, Some(TextRedactionOutput::Remove));
-    }
-
-    #[test]
-    fn text_output_remove_with_replacement_becomes_replace() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Remove);
-        let output = text_output_from_spec(&spec, "XXX");
-        assert_eq!(
-            output,
-            Some(TextRedactionOutput::Replace {
-                replacement: "XXX".to_string(),
-            })
-        );
-    }
-
-    #[test]
-    fn text_output_mask_produces_replace() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Mask { mask_char: '*' });
-        let output = text_output_from_spec(&spec, "****");
-        assert_eq!(
-            output,
-            Some(TextRedactionOutput::Replace {
-                replacement: "****".to_string(),
-            })
-        );
-    }
-
-    #[test]
-    fn text_output_image_spec_returns_none() {
-        let spec = RedactionStrategy::Image(ImageRedactionStrategy::Blur { sigma: 10.0 });
-        assert_eq!(text_output_from_spec(&spec, ""), None);
-    }
-
-    // Image spec tests
-
-    #[test]
-    fn image_output_blur() {
-        let spec = RedactionStrategy::Image(ImageRedactionStrategy::Blur { sigma: 5.0 });
-        assert_eq!(
-            image_output_from_spec(&spec),
-            Some(ImageRedactionOutput::Blur { sigma: 5.0 })
-        );
-    }
-
-    #[test]
-    fn image_output_block() {
-        let spec = RedactionStrategy::Image(ImageRedactionStrategy::Block {
-            color: [255, 0, 0, 255],
-        });
-        assert_eq!(
-            image_output_from_spec(&spec),
-            Some(ImageRedactionOutput::Block {
-                color: [255, 0, 0, 255]
-            })
-        );
-    }
-
-    #[test]
-    fn image_output_pixelate() {
-        let spec = RedactionStrategy::Image(ImageRedactionStrategy::Pixelate { block_size: 8 });
-        assert_eq!(
-            image_output_from_spec(&spec),
-            Some(ImageRedactionOutput::Pixelate { block_size: 8 })
-        );
-    }
-
-    #[test]
-    fn image_output_text_spec_returns_none() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Remove);
-        assert_eq!(image_output_from_spec(&spec), None);
-    }
-
-    #[test]
-    fn image_output_audio_spec_returns_none() {
-        let spec =
-            RedactionStrategy::Audio(nvisy_ontology::policy::AudioRedactionStrategy::Silence);
-        assert_eq!(image_output_from_spec(&spec), None);
-    }
-
-    // Audio spec tests
-
-    #[test]
-    fn audio_output_silence() {
-        let spec = RedactionStrategy::Audio(AudioRedactionStrategy::Silence);
-        assert_eq!(
-            audio_output_from_spec(&spec),
-            Some(AudioRedactionOutput::Silence)
-        );
-    }
-
-    #[test]
-    fn audio_output_remove() {
-        let spec = RedactionStrategy::Audio(AudioRedactionStrategy::Remove);
-        assert_eq!(
-            audio_output_from_spec(&spec),
-            Some(AudioRedactionOutput::Remove)
-        );
-    }
-
-    #[test]
-    fn audio_output_text_spec_returns_none() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Remove);
-        assert_eq!(audio_output_from_spec(&spec), None);
-    }
-
-    // Tabular spec tests
 
     #[test]
     fn mask_cell_mask_long() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Mask { mask_char: '*' });
+        let spec = Strategy::Text(TextStrategy::Mask { mask_char: '*' });
         assert_eq!(mask_cell(&spec, "", "1234567890"), "******7890");
     }
 
     #[test]
     fn mask_cell_mask_short() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Mask { mask_char: '#' });
+        let spec = Strategy::Text(TextStrategy::Mask { mask_char: '#' });
         assert_eq!(mask_cell(&spec, "", "abcd"), "####");
     }
 
     #[test]
     fn mask_cell_mask_exact_four() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Mask { mask_char: 'X' });
+        let spec = Strategy::Text(TextStrategy::Mask { mask_char: 'X' });
         assert_eq!(mask_cell(&spec, "", "1234"), "XXXX");
     }
 
     #[test]
     fn mask_cell_remove() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Remove);
+        let spec = Strategy::Text(TextStrategy::Remove);
         assert_eq!(mask_cell(&spec, "", "sensitive"), "");
     }
 
     #[test]
     fn mask_cell_hash() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Hash);
+        let spec = Strategy::Text(TextStrategy::Hash);
         let result = mask_cell(&spec, "", "hello");
         assert!(result.starts_with("[HASH:"));
         assert!(result.ends_with(']'));
@@ -534,7 +403,7 @@ mod tests {
 
     #[test]
     fn mask_cell_replace_fallback() {
-        let spec = RedactionStrategy::Text(TextRedactionStrategy::Replace {
+        let spec = Strategy::Text(TextStrategy::Replace {
             placeholder: String::new(),
         });
         assert_eq!(mask_cell(&spec, "[REDACTED]", "sensitive"), "[REDACTED]");

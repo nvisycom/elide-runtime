@@ -28,11 +28,11 @@ const TARGET: &str = "nvisy_server::process";
 /// Build an [`EngineInput`] from a [`NewProcess`].
 fn engine_input(req: NewProcess) -> EngineInput {
     EngineInput {
-        actor: req.actor_id,
+        actor_id: req.actor_id,
         content_ids: req.content_ids,
         policies: req.policies,
         graph: req.graph,
-        contexts: Vec::new(),
+        contexts: Default::default(),
     }
 }
 

@@ -107,7 +107,7 @@ impl Operation for Ensemble {
     type Output = ParallelContext<Vec<Entity>>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, nvisy_core::Error> {
-        Ok(ParallelContext::new(self.merge(input.into_inner())))
+        Ok(input.map(|data| self.merge(data)))
     }
 }
 

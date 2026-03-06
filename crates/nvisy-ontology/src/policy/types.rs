@@ -28,7 +28,7 @@ pub struct Policy {
 }
 
 /// A collection of policies to apply during a pipeline run.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct Policies {
     /// The policies to evaluate, in order.
     pub policies: Vec<Policy>,

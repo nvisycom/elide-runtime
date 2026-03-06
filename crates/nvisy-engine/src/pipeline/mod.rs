@@ -18,7 +18,7 @@ use std::future::Future;
 pub use default::DefaultEngine;
 pub use executor::{NodeOutput, RunOutput};
 use nvisy_core::Error;
-use nvisy_ontology::context::Context;
+use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::DetectionOutput;
 use nvisy_ontology::policy::{Policies, RedactionSummary};
 use nvisy_ontology::record::PolicyEvaluation;
@@ -33,7 +33,7 @@ use crate::provenance::FileAudit;
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {
     /// Human or service account identity.
-    pub actor: Uuid,
+    pub actor_id: Uuid,
     /// Identifiers of previously uploaded content to process.
     pub content_ids: Vec<Uuid>,
     /// Policies to apply (at least one).
@@ -41,7 +41,7 @@ pub struct EngineInput {
     /// Execution graph defining the pipeline DAG.
     pub graph: Graph,
     /// Reference-data contexts for detection.
-    pub contexts: Vec<Context>,
+    pub contexts: Contexts,
 }
 
 /// Full result of a pipeline run.

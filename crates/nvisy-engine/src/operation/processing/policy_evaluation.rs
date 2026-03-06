@@ -120,8 +120,7 @@ impl Operation for EvaluatePolicy {
     type Output = ParallelContext<EvaluatePolicyOutput>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        let result = self.execute(input.into_inner()).await?;
-        Ok(ParallelContext::new(result))
+        input.parallel_map(|data| self.execute(data)).await
     }
 }
 

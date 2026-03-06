@@ -22,6 +22,7 @@ use uuid::Uuid;
 use super::executor::{NodeOutput, RunOutput, execute_node};
 use super::{Engine, EngineInput, EngineOutput};
 use crate::compiler::{Compiler, ExecutionPlan, RetryPolicy, TimeoutPolicy};
+use crate::operation::SharedContext;
 
 /// Default buffer size for bounded inter-node MPSC channels.
 const CHANNEL_BUFFER_SIZE: usize = 256;
@@ -161,8 +162,9 @@ impl Engine for DefaultEngine {
     async fn run(&self, input: EngineInput) -> Result<EngineOutput, Error> {
         let run_id = Uuid::new_v4();
 
-        // Contexts are accepted for future use by detection actions.
-        let _contexts = &input.contexts;
+        let _shared = SharedContext::new(run_id, input.actor_id)
+            .with_policies(input.policies.clone())
+            .with_contexts(input.contexts.clone());
 
         // Phase 1: Detection
         //

@@ -17,6 +17,13 @@ use nvisy_core::path::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// A collection of [`Context`]s attached to a pipeline run.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct Contexts {
+    /// The contexts to apply.
+    pub contexts: Vec<Context>,
+}
+
 /// A persistent, reusable collection of reference data for detection.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

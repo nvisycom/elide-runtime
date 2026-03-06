@@ -86,8 +86,7 @@ impl Operation for ManualDetection {
     type Output = ParallelContext<ManualOutput>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        let result = self.execute(input.into_inner()).await?;
-        Ok(ParallelContext::new(result))
+        input.parallel_map(|data| self.execute(data)).await
     }
 }
 

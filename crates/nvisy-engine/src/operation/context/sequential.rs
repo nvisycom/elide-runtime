@@ -1,42 +1,71 @@
 //! Sequential processing context.
 //!
-//! Inputs are processed one at a time, allowing the operation to carry
-//! state between calls.
+//! The orchestrator feeds one input per invocation, allowing the
+//! operation to accumulate internal state between calls (e.g. known
+//! entities for NER coreference). The [`SharedContext`] provides access
+//! to run-wide state (policies, contexts, actor, etc.).
 
-use derive_more::{Deref, DerefMut, From};
+use std::future::Future;
 
+use derive_more::{Deref, DerefMut};
+
+use super::parallel::ParallelContext;
+use super::shared::SharedContext;
 use super::{OperationContext, private};
 
-/// Inputs are processed one at a time; the operation carries state
-/// between calls.
+/// One-at-a-time processing context: the operation may carry state
+/// between invocations.
 ///
-/// The orchestrator feeds one input per invocation, allowing the
-/// operation to accumulate context (e.g. prior text for NER
-/// sliding-window).
-#[derive(Debug, Clone, Deref, DerefMut, From)]
+/// Wraps per-call data `T` together with a [`SharedContext`] that
+/// provides run-wide state. `Deref<Target = T>` and `DerefMut` forward
+/// to the inner data for ergonomic field access.
+#[derive(Debug, Clone, Deref, DerefMut)]
 pub struct SequentialContext<T = ()> {
+    /// Run-wide shared state.
+    pub shared: SharedContext,
     /// The data carried by this context.
+    #[deref]
+    #[deref_mut]
     pub data: T,
 }
 
 impl<T: Send + Sync + 'static> private::Sealed for SequentialContext<T> {}
 impl<T: Send + Sync + 'static> OperationContext for SequentialContext<T> {}
 
-impl Default for SequentialContext<()> {
-    fn default() -> Self {
-        Self { data: () }
-    }
-}
-
 impl<T> SequentialContext<T> {
-    /// Create a new sequential context with the given data.
-    pub fn new(data: T) -> Self {
-        Self { data }
+    /// Create a new sequential context with the given data and shared state.
+    pub fn new(data: T, shared: SharedContext) -> Self {
+        Self { shared, data }
     }
 
-    /// Transform the inner data, preserving the context wrapper.
+    /// Transform the inner data, preserving the shared context.
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> SequentialContext<U> {
-        SequentialContext { data: f(self.data) }
+        SequentialContext {
+            shared: self.shared,
+            data: f(self.data),
+        }
+    }
+
+    /// Async fallibly transform the inner data into a [`SequentialContext`].
+    pub async fn sequential_map<U, E, Fut>(self, f: impl FnOnce(T) -> Fut) -> Result<SequentialContext<U>, E>
+    where
+        Fut: Future<Output = Result<U, E>>,
+    {
+        Ok(SequentialContext {
+            shared: self.shared,
+            data: f(self.data).await?,
+        })
+    }
+
+    /// Async fallibly transform the inner data into a [`ParallelContext`].
+    pub async fn parallel_map<U, E, Fut>(self, f: impl FnOnce(T) -> Fut) -> Result<ParallelContext<U>, E>
+    where
+        Fut: Future<Output = Result<U, E>>,
+    {
+        Ok(ParallelContext {
+            shared: self.shared,
+            data: f(self.data).await?,
+        })
     }
 
     /// Borrow the inner data.

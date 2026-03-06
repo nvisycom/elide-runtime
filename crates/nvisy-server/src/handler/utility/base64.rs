@@ -1,7 +1,10 @@
 //! Base64-encoded string wrapper.
 
+use base64::Engine as _;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::handler::error::{ErrorKind, Result};
 
 /// A base64-encoded string.
 ///
@@ -13,6 +16,11 @@ use serde::{Deserialize, Serialize};
 pub struct Base64(String);
 
 impl Base64 {
+    /// Encodes raw bytes into a `Base64` wrapper.
+    pub fn encode(bytes: &[u8]) -> Self {
+        Self(base64::engine::general_purpose::STANDARD.encode(bytes))
+    }
+
     /// Returns the raw base64 string.
     pub fn as_str(&self) -> &str {
         &self.0
@@ -22,10 +30,11 @@ impl Base64 {
     ///
     /// # Errors
     ///
-    /// Returns a [`base64::DecodeError`] if the string is not valid base64.
-    pub fn decode(&self) -> std::result::Result<Vec<u8>, base64::DecodeError> {
-        use base64::Engine as _;
-        base64::engine::general_purpose::STANDARD.decode(&self.0)
+    /// Returns [`ErrorKind::BadRequest`] if the string is not valid base64.
+    pub fn decode(&self) -> Result<Vec<u8>> {
+        base64::engine::general_purpose::STANDARD
+            .decode(&self.0)
+            .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid base64: {e}")))
     }
 }
 

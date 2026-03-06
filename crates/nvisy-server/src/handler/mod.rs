@@ -10,6 +10,7 @@
 //! use by middleware and extractors.
 
 pub mod error;
+pub mod utility;
 
 mod check;
 mod contexts;

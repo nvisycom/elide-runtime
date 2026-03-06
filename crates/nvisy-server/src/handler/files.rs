@@ -15,40 +15,54 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use base64::Engine as _;
+use nvisy_core::fs::ContentMetadata;
 use nvisy_core::io::{Content, ContentData};
 use nvisy_registry::Registry;
 
-use super::error::{ErrorKind, Result};
+use super::error::Result;
 use super::request::{ActorQuery, ContentPath, NewFile};
 use super::response::{File, FileId, FileList};
+use super::utility::Base64;
 use crate::extract::{Json, Path};
 use crate::service::ServiceState;
 
+const TARGET: &str = "nvisy_server::files";
+
 /// `POST /api/v1/files`: upload a file as base64-encoded JSON.
-#[tracing::instrument(skip_all, fields(filename = req.filename.as_deref()))]
+#[tracing::instrument(
+    target = "nvisy_server::files",
+    skip_all,
+    fields(%req.actor_id, filename = req.filename.as_deref()),
+)]
 async fn upload(
     State(registry): State<Registry>,
     Json(req): Json<NewFile>,
 ) -> Result<(StatusCode, Json<FileId>)> {
-    let bytes = req
-        .content
-        .decode()
-        .map_err(|e| ErrorKind::BadRequest.with_message(format!("invalid base64: {e}")))?;
-
+    let bytes = req.content.decode()?;
     let size = bytes.len();
+
     let mut content_data = ContentData::from(bytes);
-    if let Some(mime) = req.content_type {
-        content_data.mime = Some(mime);
+    if let Some(ref mime) = req.content_type {
+        content_data.mime = Some(mime.clone());
     }
-    let content = Content::new(content_data);
+
+    let mut metadata = match req.filename {
+        Some(ref name) => ContentMetadata::with_path(name),
+        None => ContentMetadata::new(),
+    };
+    if let Some(ref mime) = req.content_type {
+        metadata.set_extra("content_type", serde_json::Value::String(mime.clone()));
+    }
+
+    let content = Content::with_metadata(content_data, metadata);
     let handle = registry.register_content(req.actor_id, content).await?;
     let id = handle.content_source().as_uuid();
 
     tracing::info!(
+        target: TARGET,
         %id,
         size,
-        filename = req.filename.as_deref().unwrap_or("<none>"),
+        content_type = req.content_type.as_deref().unwrap_or("<none>"),
         "file uploaded",
     );
 
@@ -66,7 +80,11 @@ fn upload_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `GET /api/v1/files/{id}`: download previously uploaded content.
-#[tracing::instrument(skip_all, fields(%id))]
+#[tracing::instrument(
+    target = "nvisy_server::files",
+    skip_all,
+    fields(%id, %actor_id),
+)]
 async fn download(
     State(registry): State<Registry>,
     Path(ContentPath { id }): Path<ContentPath>,
@@ -74,10 +92,18 @@ async fn download(
 ) -> Result<Json<File>> {
     let handle = registry.read_content(actor_id, id).await?;
     let content_data = handle.content_data().await?;
-    let content = base64::engine::general_purpose::STANDARD.encode(content_data.as_bytes());
+    let metadata = handle.metadata().await?;
+
+    tracing::debug!(target: TARGET, size = content_data.size(), "file downloaded");
+
     Ok(Json(File {
         id,
-        content: content.into(),
+        content: Base64::encode(content_data.as_bytes()),
+        content_type: metadata
+            .get_extra("content_type")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        filename: metadata.filename().map(String::from),
     }))
 }
 
@@ -89,12 +115,17 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `GET /api/v1/files`: list all uploaded file IDs.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(
+    target = "nvisy_server::files",
+    skip_all,
+    fields(%actor_id),
+)]
 async fn list(
     State(registry): State<Registry>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<Json<FileList>> {
     let files = registry.list_content(actor_id).await?;
+    tracing::debug!(target: TARGET, count = files.len(), "files listed");
     Ok(Json(FileList { files }))
 }
 
@@ -106,14 +137,18 @@ fn list_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `DELETE /api/v1/files/{id}`: delete a single uploaded file.
-#[tracing::instrument(skip_all, fields(%id))]
+#[tracing::instrument(
+    target = "nvisy_server::files",
+    skip_all,
+    fields(%id, %actor_id),
+)]
 async fn delete(
     State(registry): State<Registry>,
     Path(ContentPath { id }): Path<ContentPath>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<StatusCode> {
     registry.unregister_content(actor_id, id).await?;
-    tracing::info!(%id, "file deleted");
+    tracing::info!(target: TARGET, "file deleted");
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -125,13 +160,17 @@ fn delete_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `DELETE /api/v1/files`: delete all uploaded files.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(
+    target = "nvisy_server::files",
+    skip_all,
+    fields(%actor_id),
+)]
 async fn delete_all(
     State(registry): State<Registry>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<StatusCode> {
     let deleted = registry.unregister_all_content(actor_id).await?;
-    tracing::info!(deleted, "all files deleted");
+    tracing::info!(target: TARGET, deleted, "all files deleted");
     Ok(StatusCode::NO_CONTENT)
 }
 

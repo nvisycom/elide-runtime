@@ -16,8 +16,12 @@ use super::response::{Analytics, Health};
 use crate::extract::Json;
 use crate::service::ServiceState;
 
+const TARGET: &str = "nvisy_server::check";
+
 /// `GET /health`: liveness probe.
+#[tracing::instrument(target = "nvisy_server::check", skip_all)]
 async fn health() -> Json<Health> {
+    tracing::debug!(target: TARGET, "health check");
     Json(Health { status: "ok" })
 }
 
@@ -29,7 +33,7 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `GET /api/v1/analytics`: retrieve aggregate pipeline analytics.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(target = "nvisy_server::check", skip_all)]
 async fn analytics() -> Result<Json<Analytics>> {
     Err(ErrorKind::NotImplemented.with_message("analytics endpoint not yet implemented"))
 }

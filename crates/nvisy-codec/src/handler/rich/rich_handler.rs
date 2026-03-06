@@ -5,9 +5,9 @@ use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
-use crate::document::span::Span;
+use crate::document::{Span, SpanEdit, SpanEditStream, SpanStream};
 use crate::handler::text::TextData;
-use crate::handler::{Handler, SpanEdit, SpanEditStream, SpanStream, TextHandler};
+use crate::handler::{Handler, TextHandler};
 
 #[cfg(feature = "pdf")]
 use super::PdfHandler;

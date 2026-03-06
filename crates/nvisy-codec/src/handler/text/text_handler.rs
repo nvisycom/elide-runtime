@@ -1,13 +1,14 @@
 //! [`AnyText`]: type-erased wrapper over all text handler types.
 
+use derive_more::From;
 use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
 use super::{CsvHandler, JsonHandler, TextData, TxtHandler};
-use crate::document::span::Span;
-use crate::handler::{Handler, SpanEdit, SpanEditStream, SpanStream, TextHandler};
+use crate::document::{Span, SpanEdit, SpanEditStream, SpanStream};
+use crate::handler::{Handler, TextHandler};
 
 #[cfg(feature = "html")]
 use super::HtmlHandler;
@@ -18,7 +19,7 @@ use super::XlsxHandler;
 ///
 /// Since different text handlers use different span identifiers, `AnyText`
 /// uses `TextId = usize` as a positional span index.
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, From)]
 pub enum AnyText {
     Txt(TxtHandler),
     Csv(CsvHandler),

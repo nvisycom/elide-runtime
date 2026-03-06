@@ -1,18 +1,20 @@
 //! [`AnyImage`]: type-erased wrapper over all image handler types.
 
+use derive_more::From;
 use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
 use super::{ImageData, JpegHandler, PngHandler};
-use crate::handler::{Handler, ImageHandler, SpanEditStream, SpanStream};
+use crate::document::{SpanEditStream, SpanStream};
+use crate::handler::{Handler, ImageHandler};
 
 /// A type-erased image handler that can hold any supported image format.
 ///
 /// Since all image handlers share `ImageId = ()`, this enum can
 /// implement [`Handler`] + [`ImageHandler`] directly.
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, From)]
 pub enum AnyImage {
     Png(PngHandler),
     Jpeg(JpegHandler),

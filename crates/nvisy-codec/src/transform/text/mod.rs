@@ -16,7 +16,8 @@ use futures::StreamExt;
 use nvisy_core::Error;
 pub use instruction::{TextOutput, TextRedaction};
 
-use crate::handler::{SpanEdit, SpanEditStream, TextData, TextHandler};
+use crate::document::{SpanEdit, SpanEditStream};
+use crate::handler::{TextData, TextHandler};
 
 /// Extension trait for handlers that support text redaction.
 ///

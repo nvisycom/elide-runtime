@@ -3,7 +3,8 @@
 //! Detects entities in image spans by delegating to the CvAgent's
 //! object-detection + LLM-classification pipeline.
 
-use nvisy_codec::handler::{ImageData, Span};
+use nvisy_codec::document::Span;
+use nvisy_codec::handler::ImageData;
 use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
 use nvisy_ontology::entity::{DetectionMethod, Entity, ImageLocation};

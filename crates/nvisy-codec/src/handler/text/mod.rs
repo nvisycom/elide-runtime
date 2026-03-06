@@ -4,7 +4,8 @@ use std::hash::Hash;
 
 use nvisy_core::Error;
 
-use super::{Handler, SpanEditStream, SpanStream};
+use super::Handler;
+use crate::document::{SpanEditStream, SpanStream};
 
 mod csv_handler;
 mod csv_loader;

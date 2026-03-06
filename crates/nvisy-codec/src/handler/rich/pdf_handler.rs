@@ -35,7 +35,8 @@ use nvisy_core::path::ContentSource;
 use super::pdf_render::PdfRenderer;
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
-use crate::handler::{Handler, ImageHandler, Span, SpanEditStream, SpanStream, TextHandler};
+use crate::document::{Span, SpanEditStream, SpanStream};
+use crate::handler::{Handler, ImageHandler, TextHandler};
 
 /// 0-based page index for text spans within a PDF document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -305,7 +306,8 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::handler::{SpanEdit, TextHandler};
+    use crate::document::SpanEdit;
+    use crate::handler::TextHandler;
 
     fn handler(pages: &[&str]) -> PdfHandler {
         PdfHandler::new(pages.iter().map(|s| s.to_string()).collect(), Vec::new())

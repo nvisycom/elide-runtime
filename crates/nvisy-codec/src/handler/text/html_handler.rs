@@ -26,8 +26,9 @@ use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
+use crate::document::{Span, SpanEditStream, SpanStream};
 use crate::handler::text::TextData;
-use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
+use crate::handler::{Handler, TextHandler};
 
 /// 0-based index of a text node within the HTML document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -192,7 +193,8 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::handler::{Handler, SpanEdit, TextHandler};
+    use crate::document::SpanEdit;
+    use crate::handler::{Handler, TextHandler};
 
     fn handler_from_html(raw: &str) -> HtmlHandler {
         let dom = scraper::Html::parse_document(raw);

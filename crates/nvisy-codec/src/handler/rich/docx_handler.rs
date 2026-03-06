@@ -6,7 +6,8 @@ use nvisy_core::io::ContentData;
 
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
-use crate::handler::{Handler, ImageHandler, SpanEditStream, SpanStream, TextHandler};
+use crate::document::{SpanEditStream, SpanStream};
+use crate::handler::{Handler, ImageHandler, TextHandler};
 
 #[derive(Debug)]
 pub struct DocxHandler;

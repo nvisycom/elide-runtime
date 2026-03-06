@@ -1,5 +1,6 @@
 //! [`AnyDocument`]: type-erased document wrapper over all handler families.
 
+use derive_more::From;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
@@ -22,6 +23,7 @@ use crate::handler::DocxHandler;
 /// - **Image**: PNG, JPEG
 /// - **Audio**: WAV, MP3
 /// - **Rich**: PDF, DOCX (multi-modal documents with text + images)
+#[derive(From)]
 pub enum AnyDocument {
     Text(Document<AnyText>),
     Image(Document<AnyImage>),
@@ -88,30 +90,6 @@ impl AnyDocument {
     /// Consume and return the inner rich document.
     pub fn into_rich(self) -> Option<Document<AnyRich>> {
         if let Self::Rich(d) = self { Some(d) } else { None }
-    }
-}
-
-impl From<Document<AnyText>> for AnyDocument {
-    fn from(d: Document<AnyText>) -> Self {
-        Self::Text(d)
-    }
-}
-
-impl From<Document<AnyImage>> for AnyDocument {
-    fn from(d: Document<AnyImage>) -> Self {
-        Self::Image(d)
-    }
-}
-
-impl From<Document<AnyAudio>> for AnyDocument {
-    fn from(d: Document<AnyAudio>) -> Self {
-        Self::Audio(d)
-    }
-}
-
-impl From<Document<AnyRich>> for AnyDocument {
-    fn from(d: Document<AnyRich>) -> Self {
-        Self::Rich(d)
     }
 }
 

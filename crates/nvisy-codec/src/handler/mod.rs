@@ -20,8 +20,6 @@ mod rich;
 mod text;
 
 pub use audio::*;
-pub use crate::document::span::{Span, SpanEdit};
-pub use crate::document::stream::{SpanEditStream, SpanStream};
 pub use image::*;
 pub use rich::*;
 pub use text::*;

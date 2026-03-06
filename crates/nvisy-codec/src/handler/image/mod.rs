@@ -2,7 +2,8 @@
 
 use nvisy_core::Error;
 
-use super::{Handler, SpanEditStream, SpanStream};
+use super::Handler;
+use crate::document::{SpanEditStream, SpanStream};
 
 mod image_data;
 mod image_handler;

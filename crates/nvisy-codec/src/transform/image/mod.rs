@@ -9,7 +9,8 @@ use nvisy_core::Error;
 pub use instruction::{ImageOutput, ImageRedaction};
 pub use transform::ImageTransform;
 
-use crate::handler::{ImageData, ImageHandler, SpanEdit, SpanEditStream};
+use crate::document::{SpanEdit, SpanEditStream};
+use crate::handler::{ImageData, ImageHandler};
 
 /// Extension trait for handlers that support image redaction.
 ///

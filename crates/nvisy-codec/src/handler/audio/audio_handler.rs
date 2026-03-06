@@ -1,19 +1,21 @@
 //! [`AnyAudio`]: type-erased wrapper over all audio handler types.
 
+use derive_more::From;
 use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
 use super::{AudioData, Mp3Handler, WavHandler};
-use crate::handler::{AudioHandler, Handler, SpanEditStream, SpanStream};
+use crate::document::{SpanEditStream, SpanStream};
+use crate::handler::{AudioHandler, Handler};
 use crate::transform::{AudioRedact, AudioRedaction};
 
 /// A type-erased audio handler that can hold any supported audio format.
 ///
 /// Since all audio handlers share `AudioId = ()`, this enum can
 /// implement [`Handler`] + [`AudioHandler`] directly.
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, From)]
 pub enum AnyAudio {
     Wav(WavHandler),
     Mp3(Mp3Handler),

@@ -28,8 +28,9 @@ use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 use serde::{Deserialize, Serialize};
 
+use crate::document::{Span, SpanEditStream, SpanStream};
 use crate::handler::text::TextData;
-use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
+use crate::handler::{Handler, TextHandler};
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 
@@ -513,7 +514,8 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::handler::{SpanEdit, TextHandler};
+    use crate::document::SpanEdit;
+    use crate::handler::TextHandler;
 
     fn handler(value: serde_json::Value) -> JsonHandler {
         JsonHandler {

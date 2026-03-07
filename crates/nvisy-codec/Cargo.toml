@@ -5,6 +5,7 @@ name = "nvisy-codec"
 description = "File-format codecs — read, edit, and write documents for the Nvisy multimodal redaction platform"
 keywords = ["nvisy", "codec", "loader", "pdf", "docx"]
 categories = ["parser-implementations", "encoding"]
+readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -44,12 +45,12 @@ tokio = { workspace = true, features = ["sync"] }
 
 # (De)serialization
 csv = { workspace = true, features = [] }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
-uuid = { workspace = true, features = ["v4"] }
+uuid = { workspace = true, features = [] }
 
 # Derive macros
 derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from"] }

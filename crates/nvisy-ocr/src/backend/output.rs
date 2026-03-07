@@ -6,18 +6,8 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 /// Hierarchical level of a text region within a document page.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Display,
-    EnumString,
-    Serialize,
-    Deserialize
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Display, EnumString, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum TextLevel {

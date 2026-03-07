@@ -9,17 +9,8 @@ use strum::{Display, EnumString, IntoStaticStr};
 /// Image format passed to a [`Backend`].
 ///
 /// [`Backend`]: super::Backend
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Display,
-    EnumString,
-    IntoStaticStr
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Display, EnumString, IntoStaticStr)]
 pub enum ImageFormat {
     #[strum(serialize = "png")]
     Png,

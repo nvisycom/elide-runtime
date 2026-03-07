@@ -13,7 +13,7 @@ industries such as healthcare, legal, government, and financial services.
 
 - **Multimodal codecs**: read, edit, and write PDF, DOCX, images, audio, CSV, JSON, and plain text through a unified span-based content model
 - **Layered detection**: regex, dictionary, and checksum patterns run first at low cost; NER, OCR, object detection, and LLM classification handle what deterministic methods cannot
-- **Context-aware redaction**: mask, replace, hash, encrypt, blur, block, pixelate, and synthesize with policy-driven rules scoped to entity type, document class, and confidence threshold
+- **Context-aware redaction**: mask, replace, hash, encrypt, blur, block, and pixelate with policy-driven rules scoped to entity type, document class, and confidence threshold
 - **Pipeline engine**: DAG compiler and executor with retry, timeout, and chunked context-window policies
 - **Python extensions**: PyO3 bridge for speech-to-text, NER, and OCR via embedded Python
 

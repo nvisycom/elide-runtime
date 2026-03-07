@@ -5,6 +5,7 @@ name = "nvisy-python"
 description = "PyO3 bridge for AI NER/OCR detection via embedded Python"
 keywords = ["nvisy", "python", "pyo3", "ner"]
 categories = ["api-bindings"]
+readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }

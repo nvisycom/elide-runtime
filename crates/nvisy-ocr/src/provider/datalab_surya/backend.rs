@@ -4,7 +4,7 @@
 
 use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use nvisy_rig::backend::{HttpConfig, build_http_client};
+use crate::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;

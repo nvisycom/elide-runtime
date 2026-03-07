@@ -1,8 +1,11 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [package]
 name = "nvisy-rig"
 description = "LLM/VLM-driven detection, redaction, and OCR backends"
 keywords = ["nvisy", "rig", "llm", "vlm", "ocr"]
 categories = ["text-processing"]
+readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -54,7 +57,7 @@ reqwest-tracing = { workspace = true, features = [] }
 base64 = { workspace = true, features = [] }
 
 # (De)serialization
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
@@ -62,7 +65,7 @@ schemars = { workspace = true, features = [] }
 thiserror = { workspace = true, features = [] }
 
 # Identifiers
-uuid = { workspace = true, features = ["v7"] }
+uuid = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

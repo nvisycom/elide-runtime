@@ -7,7 +7,7 @@ use std::fmt;
 use hmac::{Hmac, Mac};
 use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use nvisy_rig::backend::{HttpConfig, build_http_client};
+use crate::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};

@@ -29,7 +29,7 @@ path = "src/main.rs"
 [dependencies]
 # Internal crates
 nvisy-registry = { workspace = true, features = [] }
-nvisy-server = { workspace = true, features = [] }
+nvisy-server = { workspace = true, features = ["openai", "anthropic", "google", "microsoft", "amazon"] }
 
 # CLI
 clap = { workspace = true, features = ["derive", "env"] }

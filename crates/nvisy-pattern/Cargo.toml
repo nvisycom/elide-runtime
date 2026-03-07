@@ -5,6 +5,7 @@ name = "nvisy-pattern"
 description = "Built-in regex patterns and dictionaries for PII/PHI detection"
 keywords = ["nvisy", "pattern", "pii", "dictionary"]
 categories = ["text-processing"]
+readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -28,7 +29,7 @@ nvisy-ontology = { workspace = true, features = [] }
 
 # (De)serialization
 csv = { workspace = true, features = [] }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 
 # Error handling

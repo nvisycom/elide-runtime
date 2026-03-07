@@ -1,8 +1,10 @@
 //! OCR backend trait and shared types.
 
+pub(crate) mod http;
 mod input;
 mod output;
 
+pub use http::{HttpConfig, build_http_client};
 pub use input::{ImageFormat, ImageInput};
 use nvisy_core::Error;
 pub use output::{ImageOutput, ImageRegion, TextLevel};

@@ -7,41 +7,141 @@
 //! - `SHUTDOWN_TIMEOUT` — Graceful shutdown timeout in seconds (default: `30`)
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::Args;
+use serde::Deserialize;
+
+/// Log output format.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogFormat {
+    #[default]
+    Json,
+    Text,
+}
+
+/// `[server.observability]` section of the TOML configuration file.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ObservabilitySection {
+    #[serde(default = "default_log_level")]
+    pub level: String,
+    #[serde(default)]
+    pub format: LogFormat,
+}
+
+impl Default for ObservabilitySection {
+    fn default() -> Self {
+        Self {
+            level: default_log_level(),
+            format: LogFormat::default(),
+        }
+    }
+}
+
+fn default_log_level() -> String {
+    "info".to_owned()
+}
+
+/// CORS configuration in TOML.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct CorsConfig {
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
+    pub max_age_secs: Option<u64>,
+}
+
+/// `[server.middleware]` section of the TOML configuration file.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct MiddlewareSection {
+    pub body_limit_mb: Option<usize>,
+    pub request_timeout_secs: Option<u64>,
+    pub cors: Option<CorsConfig>,
+}
+
+/// `[server]` section of the TOML configuration file.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ServerSection {
+    pub host: Option<IpAddr>,
+    pub port: Option<u16>,
+    pub shutdown_timeout: Option<u64>,
+    pub data_dir: Option<PathBuf>,
+    pub observability: Option<ObservabilitySection>,
+    pub middleware: Option<MiddlewareSection>,
+}
 
 /// HTTP server network and lifecycle configuration.
 ///
-/// Controls how the server binds to network interfaces and
-/// graceful shutdown behavior.
+/// CLI flags override values from the `[server]` section of the TOML file.
 #[derive(Debug, Clone, Args)]
 pub struct ServerConfig {
     /// Host address to bind the server to.
     ///
     /// Use `127.0.0.1` for localhost only, `0.0.0.0` for all interfaces.
-    #[arg(long, env = "HOST", default_value_t = IpAddr::V4(Ipv4Addr::UNSPECIFIED))]
-    pub host: IpAddr,
+    #[arg(long, env = "HOST")]
+    pub host: Option<IpAddr>,
 
     /// TCP port number for the server to listen on.
-    #[arg(short = 'p', long, env = "PORT", default_value_t = 8080)]
-    pub port: u16,
+    #[arg(short = 'p', long, env = "PORT")]
+    pub port: Option<u16>,
 
     /// Maximum time in seconds to wait for graceful shutdown.
     ///
     /// During shutdown, the server stops accepting new connections and waits
     /// for existing requests to complete before forcefully terminating.
-    #[arg(long, env = "SHUTDOWN_TIMEOUT", default_value_t = 30)]
-    pub shutdown_timeout: u64,
+    #[arg(long, env = "SHUTDOWN_TIMEOUT")]
+    pub shutdown_timeout: Option<u64>,
+
+    /// Directory for data storage (content, contexts).
+    #[arg(long, env = "DATA_DIR")]
+    pub data_dir: Option<PathBuf>,
 }
 
 impl ServerConfig {
-    /// Returns the socket address for server binding.
+    /// Resolve server settings: CLI flags → TOML `[server]` → defaults.
+    pub fn resolve(&self, toml: &Option<ServerSection>) -> ResolvedServer {
+        let toml = toml.as_ref();
+        ResolvedServer {
+            host: self
+                .host
+                .or_else(|| toml.and_then(|s| s.host))
+                .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
+            port: self
+                .port
+                .or_else(|| toml.and_then(|s| s.port))
+                .unwrap_or(8080),
+            shutdown_timeout: self
+                .shutdown_timeout
+                .or_else(|| toml.and_then(|s| s.shutdown_timeout))
+                .unwrap_or(30),
+            data_dir: self
+                .data_dir
+                .clone()
+                .or_else(|| toml.and_then(|s| s.data_dir.clone()))
+                .unwrap_or_else(|| std::env::temp_dir().join("nvisy-server-data")),
+            observability: toml
+                .and_then(|s| s.observability.clone())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+/// Fully resolved server settings with no `Option`s.
+#[derive(Debug, Clone)]
+pub struct ResolvedServer {
+    pub host: IpAddr,
+    pub port: u16,
+    pub shutdown_timeout: u64,
+    pub data_dir: PathBuf,
+    pub observability: ObservabilitySection,
+}
+
+impl ResolvedServer {
     pub fn socket_addr(&self) -> SocketAddr {
         SocketAddr::new(self.host, self.port)
     }
 
-    /// Returns the graceful shutdown timeout as a [`Duration`].
     pub fn shutdown_timeout(&self) -> Duration {
         Duration::from_secs(self.shutdown_timeout)
     }

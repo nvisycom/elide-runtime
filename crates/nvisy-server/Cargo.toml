@@ -63,9 +63,6 @@ schemars = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
 
-# CLI
-clap = { workspace = true, features = ["derive", "env"] }
-
 # Encoding
 base64 = { workspace = true, features = [] }
 

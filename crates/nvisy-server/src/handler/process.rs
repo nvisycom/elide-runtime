@@ -15,6 +15,7 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
+use nvisy_engine::NvisyConfig;
 use nvisy_engine::pipeline::{DefaultEngine, Engine, EngineInput};
 
 use super::error::Result;
@@ -25,14 +26,18 @@ use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::process";
 
-/// Build an [`EngineInput`] from a [`NewProcess`].
-fn engine_input(req: NewProcess) -> EngineInput {
+/// Build an [`EngineInput`] from a [`NewProcess`] with merged config.
+fn engine_input(req: NewProcess, config: NvisyConfig) -> EngineInput {
     EngineInput {
         actor_id: req.actor_id,
         content_ids: req.content_ids,
         policies: req.policies,
         graph: req.graph,
         contexts: Default::default(),
+        ocr: config.ocr,
+        llm: config.llm,
+        stt: config.stt,
+        tts: config.tts,
     }
 }
 
@@ -47,9 +52,14 @@ fn engine_input(req: NewProcess) -> EngineInput {
 )]
 async fn scan(
     State(engine): State<DefaultEngine>,
+    State(base_config): State<NvisyConfig>,
     Json(req): Json<NewProcess>,
 ) -> Result<Json<ProcessResult>> {
-    let input = engine_input(req);
+    let config = match &req.config {
+        Some(overrides) => base_config.merge(overrides),
+        None => base_config.clone(),
+    };
+    let input = engine_input(req, config);
     let output = engine.run(input).await?;
 
     tracing::info!(
@@ -86,9 +96,14 @@ fn scan_docs(op: TransformOperation) -> TransformOperation {
 )]
 async fn analyze(
     State(engine): State<DefaultEngine>,
+    State(base_config): State<NvisyConfig>,
     Json(req): Json<NewProcess>,
 ) -> Result<Json<ProcessResult>> {
-    let input = engine_input(req);
+    let config = match &req.config {
+        Some(overrides) => base_config.merge(overrides),
+        None => base_config.clone(),
+    };
+    let input = engine_input(req, config);
     let output = engine.run(input).await?;
 
     tracing::info!(
@@ -125,9 +140,14 @@ fn analyze_docs(op: TransformOperation) -> TransformOperation {
 )]
 async fn redact(
     State(engine): State<DefaultEngine>,
+    State(base_config): State<NvisyConfig>,
     Json(req): Json<NewProcess>,
 ) -> Result<Json<ProcessResult>> {
-    let input = engine_input(req);
+    let config = match &req.config {
+        Some(overrides) => base_config.merge(overrides),
+        None => base_config.clone(),
+    };
+    let input = engine_input(req, config);
     let output = engine.run(input).await?;
 
     tracing::info!(

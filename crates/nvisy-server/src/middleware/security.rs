@@ -11,6 +11,8 @@
 //! [`DefaultBodyLimit`]: axum::extract::DefaultBodyLimit
 //! [`RequestBodyLimitLayer`]: tower_http::limit::RequestBodyLimitLayer
 
+use std::time::Duration;
+
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::http::HeaderValue;
@@ -38,6 +40,9 @@ pub struct SecurityConfig {
     /// Allowed CORS origins. An empty list permits all origins (permissive).
     #[serde(default)]
     pub cors_allowed_origins: Vec<String>,
+
+    /// Optional max-age for CORS preflight responses.
+    pub cors_max_age_secs: Option<u64>,
 }
 
 impl Default for SecurityConfig {
@@ -46,6 +51,7 @@ impl Default for SecurityConfig {
             body_limit_bytes: DEFAULT_MAX_BODY_SIZE,
             file_body_limit_bytes: DEFAULT_MAX_FILE_BODY_SIZE,
             cors_allowed_origins: Vec::new(),
+            cors_max_age_secs: None,
         }
     }
 }
@@ -72,6 +78,12 @@ where
                 .filter_map(|o| o.parse().ok())
                 .collect();
             CorsLayer::new().allow_origin(AllowOrigin::list(origins))
+        };
+
+        let cors = if let Some(secs) = config.cors_max_age_secs {
+            cors.max_age(Duration::from_secs(secs))
+        } else {
+            cors
         };
 
         self.layer(DefaultBodyLimit::max(config.body_limit_bytes))

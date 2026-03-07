@@ -12,7 +12,7 @@ use clap::Parser;
 use nvisy_server::middleware::*;
 use nvisy_server::service::ServiceState;
 
-use crate::config::Cli;
+use crate::config::{Cli, MiddlewareSection};
 
 #[tokio::main]
 async fn main() {
@@ -32,22 +32,19 @@ async fn main() {
 /// Main application entry point.
 async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    Cli::init_tracing();
-
-    // Initialize application state
-    let state = ServiceState::new(&cli.service)?;
-
-    // Build and run
-    let router = create_router(&cli, state);
-    server::run(&cli, router).await
+    let (resolved, config, mw_section) = cli.load()?;
+    Cli::init_tracing(&resolved.observability);
+    let state = ServiceState::new(config, resolved.data_dir.clone())?;
+    let router = create_router(&cli, &mw_section, state);
+    server::run(&resolved, router, &resolved.data_dir).await
 }
 
 /// Creates the router with all middleware layers applied.
-fn create_router(cli: &Cli, state: ServiceState) -> Router {
+fn create_router(cli: &Cli, mw_section: &Option<MiddlewareSection>, state: ServiceState) -> Router {
     nvisy_server::handler::routes()
         .with_open_api(&cli.middleware.open_api_config())
-        .with_recovery(&cli.middleware.recovery_config())
+        .with_recovery(&cli.middleware.recovery_config(mw_section))
         .with_observability()
-        .with_security(&cli.middleware.security_config())
+        .with_security(&cli.middleware.security_config(mw_section))
         .with_state(state)
 }

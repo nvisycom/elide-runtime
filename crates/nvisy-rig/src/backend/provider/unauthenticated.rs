@@ -8,8 +8,11 @@ use crate::error::Error;
 
 /// Provider that does not require an API key (Ollama).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "config", derive(clap::Args))]
 pub struct UnauthenticatedProvider {
+    #[cfg_attr(feature = "config", arg(long, env = "LLM_MODEL"))]
     pub model: String,
+    #[cfg_attr(feature = "config", arg(long, env = "LLM_BASE_URL"))]
     pub base_url: Option<String>,
 }
 

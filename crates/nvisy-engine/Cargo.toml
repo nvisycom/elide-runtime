@@ -73,6 +73,9 @@ derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into"] }
 strum = { workspace = true, features = [] }
 
+# Configuration
+toml = { workspace = true, features = [] }
+
 # Validation
 validator = { workspace = true, features = [] }
 

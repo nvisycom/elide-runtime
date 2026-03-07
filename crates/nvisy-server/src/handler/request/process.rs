@@ -1,6 +1,6 @@
 //! Process request types.
 
-use nvisy_engine::Graph;
+use nvisy_engine::{Graph, NvisyConfig};
 use nvisy_ontology::policy::Policies;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -18,4 +18,8 @@ pub struct NewProcess {
     pub policies: Policies,
     /// Execution graph defining the pipeline DAG.
     pub graph: Graph,
+    /// Per-request configuration overrides (optional).
+    #[serde(default)]
+    #[schemars(skip)]
+    pub config: Option<NvisyConfig>,
 }

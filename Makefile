@@ -28,8 +28,14 @@ generate-env: ## Copies .env.example to .env.
 	@cp ./.env.example ./.env
 	@$(call log,.env file created successfully.)
 
+.PHONY: generate-config
+generate-config: ## Copies Nvisy.example.toml to Nvisy.toml.
+	@$(call log,Copying Nvisy.example.toml to Nvisy.toml...)
+	@cp ./Nvisy.example.toml ./Nvisy.toml
+	@$(call log,Nvisy.toml created successfully.)
+
 .PHONY: install
-install: install-tools generate-env ## Installs all dependencies and makes scripts executable.
+install: install-tools generate-env generate-config ## Installs all dependencies and makes scripts executable.
 	@chmod +x scripts/*.sh
 	@$(call log,Installing PDFium...)
 	@./scripts/install-pdfium.sh

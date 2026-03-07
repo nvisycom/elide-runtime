@@ -1,28 +1,28 @@
 //! OCR text extraction from images.
 //!
 //! Extracts text regions from image spans by delegating to the
-//! nvisy-ocr [`Engine`]'s text recognition pipeline.
+//! nvisy-ocr [`OcrEngine`]'s text recognition pipeline.
 //!
-//! [`Engine`]: nvisy_ocr::Engine
+//! [`OcrEngine`]: nvisy_ocr::OcrEngine
 
 use nvisy_codec::document::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::Error;
-use nvisy_ocr::{Engine, ImageFormat, ImageInput, ImageOutput, RunParams};
+use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 
 use crate::operation::{Operation, ParallelContext};
 
-/// OCR text-extraction operation: thin adapter around [`Engine`].
+/// OCR text-extraction operation: thin adapter around [`OcrEngine`].
 ///
-/// [`Engine`]: nvisy_ocr::Engine
+/// [`OcrEngine`]: nvisy_ocr::OcrEngine
 pub struct Ocr {
-    engine: Engine,
+    engine: OcrEngine,
     params: RunParams,
 }
 
 impl Ocr {
     /// Create a new OCR operation from a pre-built engine.
-    pub fn new(engine: Engine, params: RunParams) -> Self {
+    pub fn new(engine: OcrEngine, params: RunParams) -> Self {
         Self { engine, params }
     }
 

@@ -27,7 +27,7 @@ impl HttpClient {
             max_retries = config.max_retries,
             timeout_secs = config.timeout_secs,
             connect_timeout_secs = config.connect_timeout_secs,
-            pool_idle_timeout_secs = config.pool_idle_timeout_secs,
+            idle_timeout_secs = config.idle_timeout_secs,
             "building HTTP client"
         );
 
@@ -36,7 +36,7 @@ impl HttpClient {
         let client = reqwest_middleware::reqwest::Client::builder()
             .timeout(Duration::from_secs(config.timeout_secs))
             .connect_timeout(Duration::from_secs(config.connect_timeout_secs))
-            .pool_idle_timeout(Duration::from_secs(config.pool_idle_timeout_secs))
+            .pool_idle_timeout(Duration::from_secs(config.idle_timeout_secs))
             .build()
             .expect("failed to build reqwest client");
 

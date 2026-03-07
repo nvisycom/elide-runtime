@@ -14,6 +14,7 @@ use crate::error::Error;
 
 /// Supported providers for text-to-speech generation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum TtsProvider {
     /// OpenAI (tts-1, tts-1-hd)
     #[cfg(feature = "openai-tts")]

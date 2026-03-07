@@ -14,6 +14,7 @@ use crate::error::Error;
 
 /// Supported providers for speech-to-text transcription.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum SttProvider {
     /// OpenAI (Whisper)
     #[cfg(feature = "openai-whisper")]

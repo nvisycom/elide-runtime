@@ -6,7 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-pub use params::EngineParams;
+pub use params::OcrProvider;
 use tracing::instrument;
 
 use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
@@ -20,28 +20,28 @@ use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 /// # Examples
 ///
 /// ```ignore
-/// use nvisy_ocr::{Engine, ImageInput, ImageFormat, RunParams};
+/// use nvisy_ocr::{OcrEngine, ImageInput, ImageFormat, RunParams};
 /// use nvisy_ocr::provider::{DoctrBackend, DoctrParams};
 ///
 /// let backend = DoctrBackend::new(DoctrParams { base_url: "http://localhost:8000".into() });
-/// let engine = Engine::new(backend);
+/// let engine = OcrEngine::new(backend);
 ///
 /// let image = ImageInput::new(png_bytes, ImageFormat::Png);
 /// let output = engine.run(&image, &RunParams::default()).await?;
 /// println!("{} regions detected", output.len());
 /// ```
 #[derive(Clone)]
-pub struct Engine {
+pub struct OcrEngine {
     backend: Arc<dyn Backend>,
 }
 
-impl fmt::Debug for Engine {
+impl fmt::Debug for OcrEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Engine").finish_non_exhaustive()
+        f.debug_struct("OcrEngine").finish_non_exhaustive()
     }
 }
 
-impl Engine {
+impl OcrEngine {
     /// Create a new engine from any [`Backend`] implementation.
     pub fn new(backend: impl Backend) -> Self {
         Self {

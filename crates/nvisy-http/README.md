@@ -4,9 +4,29 @@
 
 Shared HTTP client with retry and tracing middleware for the Nvisy runtime.
 
-Provides `HttpConfig` and `build_http_client` used by downstream crates
-(`nvisy-ocr`, `nvisy-rig`) to construct a `reqwest` client with
-exponential-backoff retry and OpenTelemetry tracing pre-installed.
+Provides `HttpClient` and `HttpConfig` used by downstream crates
+(`nvisy-ocr`, `nvisy-rig`, `nvisy-engine`) to share a single connection
+pool with exponential-backoff retry and OpenTelemetry tracing
+pre-installed.
+
+## Usage
+
+```rust
+use nvisy_http::{HttpClient, HttpConfig};
+
+// Default configuration (3 retries, 120s timeout, 10s connect, 90s idle)
+let client = HttpClient::default();
+
+// Custom configuration
+let client = HttpClient::new(&HttpConfig {
+    max_retries: 5,
+    timeout_secs: 60,
+    ..HttpConfig::default()
+});
+```
+
+`HttpClient` implements `Deref<Target = ClientWithMiddleware>` so you
+can call `.get()`, `.post()`, etc. directly on it.
 
 ## Documentation
 

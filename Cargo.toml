@@ -131,6 +131,9 @@ pyo3 = { version = "0.24", features = [] }
 pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
 pythonize = { version = "0.24", features = [] }
 
+# Configuration
+toml = { version = "0.8", features = [] }
+
 # CLI
 clap = { version = "4.0", features = [] }
 

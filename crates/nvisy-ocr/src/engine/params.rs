@@ -1,69 +1,78 @@
 use nvisy_http::HttpClient;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "aws-textract")]
+use crate::provider::{AwsTextractBackend, AwsTextractParams};
+#[cfg(feature = "azure-docai")]
+use crate::provider::{AzureDocaiBackend, AzureDocaiParams};
+use crate::provider::{
+    DoctrBackend, DoctrParams, PaddleXBackend, PaddleXParams, SuryaBackend, SuryaParams,
+};
+#[cfg(feature = "google-vision")]
+use crate::provider::{GoogleVisionBackend, GoogleVisionParams};
+
 /// Union of all provider parameter types.
 ///
 /// Each variant holds the configuration needed to construct one OCR backend.
-/// Use [`into_engine`](EngineParams::into_engine) to build a ready-to-use
-/// [`Engine`] from any variant.
+/// Use [`into_engine`](OcrProvider::into_engine) to build a ready-to-use
+/// [`OcrEngine`] from any variant.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EngineParams {
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum OcrProvider {
     /// Datalab Surya OCR.
-    Surya(crate::provider::SuryaParams),
+    Surya(SuryaParams),
     /// Mindee DocTR.
-    Doctr(crate::provider::DoctrParams),
+    Doctr(DoctrParams),
     /// PaddlePaddle PaddleX PP-OCRv5.
-    PaddleX(crate::provider::PaddleXParams),
+    PaddleX(PaddleXParams),
     /// AWS Textract.
     #[cfg(feature = "aws-textract")]
     #[cfg_attr(docsrs, doc(cfg(feature = "aws-textract")))]
-    AwsTextract(crate::provider::AwsTextractParams),
+    AwsTextract(AwsTextractParams),
     /// Azure Document Intelligence.
     #[cfg(feature = "azure-docai")]
     #[cfg_attr(docsrs, doc(cfg(feature = "azure-docai")))]
-    AzureDocai(crate::provider::AzureDocaiParams),
+    AzureDocai(AzureDocaiParams),
     /// Google Cloud Vision.
     #[cfg(feature = "google-vision")]
     #[cfg_attr(docsrs, doc(cfg(feature = "google-vision")))]
-    GoogleVision(crate::provider::GoogleVisionParams),
+    GoogleVision(GoogleVisionParams),
 }
 
-impl EngineParams {
-    /// Build an [`Engine`] from these parameters.
-    pub fn into_engine(self) -> super::Engine {
-        use crate::provider::*;
-
+impl OcrProvider {
+    /// Build an [`OcrEngine`] from these parameters.
+    pub fn into_engine(self) -> super::OcrEngine {
         match self {
-            Self::Surya(p) => super::Engine::new(SuryaBackend::new(p)),
-            Self::Doctr(p) => super::Engine::new(DoctrBackend::new(p)),
-            Self::PaddleX(p) => super::Engine::new(PaddleXBackend::new(p)),
+            Self::Surya(p) => super::OcrEngine::new(SuryaBackend::new(p)),
+            Self::Doctr(p) => super::OcrEngine::new(DoctrBackend::new(p)),
+            Self::PaddleX(p) => super::OcrEngine::new(PaddleXBackend::new(p)),
             #[cfg(feature = "aws-textract")]
-            Self::AwsTextract(p) => super::Engine::new(AwsTextractBackend::new(p)),
+            Self::AwsTextract(p) => super::OcrEngine::new(AwsTextractBackend::new(p)),
             #[cfg(feature = "azure-docai")]
-            Self::AzureDocai(p) => super::Engine::new(AzureDocaiBackend::new(p)),
+            Self::AzureDocai(p) => super::OcrEngine::new(AzureDocaiBackend::new(p)),
             #[cfg(feature = "google-vision")]
-            Self::GoogleVision(p) => super::Engine::new(GoogleVisionBackend::new(p)),
+            Self::GoogleVision(p) => super::OcrEngine::new(GoogleVisionBackend::new(p)),
         }
     }
 
-    /// Build an [`Engine`] from these parameters using a pre-built HTTP client.
+    /// Build an [`OcrEngine`] from these parameters using a pre-built HTTP client.
     ///
     /// This shares the caller's connection pool instead of creating a new one
     /// per backend.
-    pub fn into_engine_with_client(self, client: HttpClient) -> super::Engine {
-        use crate::provider::*;
-
+    pub fn into_engine_with_client(self, client: HttpClient) -> super::OcrEngine {
         match self {
-            Self::Surya(p) => super::Engine::new(SuryaBackend::with_client(client, p)),
-            Self::Doctr(p) => super::Engine::new(DoctrBackend::with_client(client, p)),
-            Self::PaddleX(p) => super::Engine::new(PaddleXBackend::with_client(client, p)),
+            Self::Surya(p) => super::OcrEngine::new(SuryaBackend::with_client(client, p)),
+            Self::Doctr(p) => super::OcrEngine::new(DoctrBackend::with_client(client, p)),
+            Self::PaddleX(p) => super::OcrEngine::new(PaddleXBackend::with_client(client, p)),
             #[cfg(feature = "aws-textract")]
-            Self::AwsTextract(p) => super::Engine::new(AwsTextractBackend::with_client(client, p)),
+            Self::AwsTextract(p) => {
+                super::OcrEngine::new(AwsTextractBackend::with_client(client, p))
+            }
             #[cfg(feature = "azure-docai")]
-            Self::AzureDocai(p) => super::Engine::new(AzureDocaiBackend::with_client(client, p)),
+            Self::AzureDocai(p) => super::OcrEngine::new(AzureDocaiBackend::with_client(client, p)),
             #[cfg(feature = "google-vision")]
             Self::GoogleVision(p) => {
-                super::Engine::new(GoogleVisionBackend::with_client(client, p))
+                super::OcrEngine::new(GoogleVisionBackend::with_client(client, p))
             }
         }
     }

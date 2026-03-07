@@ -21,6 +21,9 @@ documentation = { workspace = true }
 [features]
 default = []
 
+## Enable `clap::Args` derives on provider parameter structs.
+config = ["dep:clap"]
+
 ## Enable AWS Textract OCR provider.
 aws-textract = ["sha2", "hmac"]
 ## Enable Google Cloud Vision OCR provider.
@@ -56,6 +59,9 @@ reqwest-middleware = { workspace = true, features = [] }
 # Async runtime
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt"] }
+
+# CLI config
+clap = { workspace = true, optional = true, features = ["derive", "env"] }
 
 # Observability
 tracing = { workspace = true, features = [] }

@@ -6,8 +6,13 @@ use serde::{Deserialize, Serialize};
 ///
 /// [`GoogleVisionBackend`]: super::GoogleVisionBackend
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "config", derive(clap::Args))]
 pub struct GoogleVisionParams {
     /// Google Cloud API key.
+    #[cfg_attr(
+        feature = "config",
+        arg(long, env = "GOOGLE_VISION_API_KEY", hide_env_values = true)
+    )]
     pub api_key: String,
 }
 

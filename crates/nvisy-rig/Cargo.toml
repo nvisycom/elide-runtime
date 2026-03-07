@@ -21,6 +21,9 @@ documentation = { workspace = true }
 [features]
 default = []
 
+## Enable `clap::Args` derives on provider structs.
+config = ["dep:clap"]
+
 ## Enable OpenAI GPT completion provider.
 openai-gpt = []
 ## Enable OpenAI Whisper speech-to-text provider.
@@ -65,6 +68,9 @@ thiserror = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
+
+# CLI config
+clap = { workspace = true, optional = true, features = ["derive", "env"] }
 
 # Observability
 tracing = { workspace = true, features = [] }

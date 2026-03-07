@@ -1,15 +1,16 @@
 //! HTTP client construction with retry and tracing middleware.
 
+mod config;
+
 use std::time::Duration;
 
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
-use reqwest_retry::RetryTransientMiddleware;
-use reqwest_retry::policies::ExponentialBackoff;
-use reqwest_tracing::TracingMiddleware;
 
-use super::HttpConfig;
+pub use config::HttpConfig;
 
-const TARGET: &str = "nvisy_ocr::http";
+use crate::middleware::{retry, tracing as mw_tracing};
+
+const TARGET: &str = "nvisy_http::client";
 
 /// Build a [`ClientWithMiddleware`] from the given configuration.
 ///
@@ -25,7 +26,7 @@ pub fn build_http_client(config: &HttpConfig) -> ClientWithMiddleware {
         "building HTTP client"
     );
 
-    let retry_policy = ExponentialBackoff::builder().build_with_max_retries(config.max_retries);
+    let retry_policy = retry::backoff_policy(config.max_retries);
 
     let client = reqwest_middleware::reqwest::Client::builder()
         .timeout(Duration::from_secs(config.timeout_secs))
@@ -35,7 +36,7 @@ pub fn build_http_client(config: &HttpConfig) -> ClientWithMiddleware {
         .expect("failed to build reqwest client");
 
     ClientBuilder::new(client)
-        .with(TracingMiddleware::default())
-        .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+        .with(mw_tracing::layer())
+        .with(retry::layer(retry_policy))
         .build()
 }

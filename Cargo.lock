@@ -2936,6 +2936,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-http"
+version = "0.1.0"
+dependencies = [
+ "reqwest-middleware",
+ "reqwest-retry",
+ "reqwest-tracing",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "nvisy-ocr"
 version = "0.1.0"
 dependencies = [
@@ -2944,9 +2955,8 @@ dependencies = [
  "bytes",
  "hmac",
  "nvisy-core",
+ "nvisy-http",
  "reqwest-middleware",
- "reqwest-retry",
- "reqwest-tracing",
  "serde",
  "serde_json",
  "sha2",
@@ -3022,10 +3032,9 @@ dependencies = [
  "async-trait",
  "base64",
  "nvisy-core",
+ "nvisy-http",
  "nvisy-ontology",
  "reqwest-middleware",
- "reqwest-retry",
- "reqwest-tracing",
  "rig-core",
  "schemars 1.2.1",
  "serde",

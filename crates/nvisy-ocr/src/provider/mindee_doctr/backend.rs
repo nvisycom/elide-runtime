@@ -9,9 +9,11 @@ use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::DoctrParams;
+use nvisy_http::{HttpConfig, build_http_client};
+
 use crate::backend::{
-    Backend, HttpConfig, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel,
-    build_http_client, check_response, image_part,
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
+    image_part,
 };
 
 /// [`Backend`] implementation for DocTR.

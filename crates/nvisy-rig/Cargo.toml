@@ -39,6 +39,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
+nvisy-http = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
 # LLM framework
@@ -50,8 +51,6 @@ tokio = { workspace = true, features = ["time"] }
 
 # HTTP middleware
 reqwest-middleware = { workspace = true, features = [] }
-reqwest-retry = { workspace = true, features = [] }
-reqwest-tracing = { workspace = true, features = [] }
 
 # Encoding
 base64 = { workspace = true, features = [] }

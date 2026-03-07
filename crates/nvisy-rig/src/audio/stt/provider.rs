@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::backend::UnauthenticatedProvider;
 #[cfg(feature = "openai-whisper")]
-use crate::backend::{AuthenticatedProvider, HttpConfig, build_http_client};
+use nvisy_http::{HttpConfig, build_http_client};
+#[cfg(feature = "openai-whisper")]
+use crate::backend::AuthenticatedProvider;
 use crate::error::Error;
 
 /// Supported providers for speech-to-text transcription.
@@ -84,7 +86,10 @@ impl SttModels {
         match provider {
             #[cfg(feature = "openai-whisper")]
             SttProvider::OpenAi(p) => {
-                let http = build_http_client(&HttpConfig::with_max_retries(max_retries));
+                let http = build_http_client(&HttpConfig {
+                    max_retries,
+                    ..HttpConfig::default()
+                });
                 let client = p.openai_client(http)?;
                 let model = openai::transcription::TranscriptionModel::new(client, model);
                 Ok(Self::OpenAi(model))

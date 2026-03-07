@@ -9,7 +9,9 @@ use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
 use super::{AgentConfig, AgentProvider, Agents, BaseAgent};
-use crate::backend::{HttpConfig, UsageTracker, build_http_client};
+use nvisy_http::{HttpConfig, build_http_client};
+
+use crate::backend::UsageTracker;
 use crate::error::Error;
 
 /// Builder for [`BaseAgent`].
@@ -46,7 +48,10 @@ impl BaseAgentBuilder {
             tools,
         } = self;
 
-        let http_config = HttpConfig::with_max_retries(config.max_retries);
+        let http_config = HttpConfig {
+            max_retries: config.max_retries,
+            ..HttpConfig::default()
+        };
         let http_client = build_http_client(&http_config);
         let preamble = config.preamble.as_deref();
 

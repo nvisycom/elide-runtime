@@ -53,12 +53,3 @@ impl Default for HttpConfig {
     }
 }
 
-impl HttpConfig {
-    /// Create a config with the given max retries and default timeouts.
-    pub fn with_max_retries(max_retries: u32) -> Self {
-        Self {
-            max_retries,
-            ..Default::default()
-        }
-    }
-}

@@ -11,9 +11,10 @@ use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use super::AzureDocaiParams;
+use nvisy_http::{HttpConfig, build_http_client};
+
 use crate::backend::{
-    Backend, HttpConfig, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel,
-    build_http_client, check_response,
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
 };
 
 /// [`Backend`] implementation for Azure Document Intelligence.

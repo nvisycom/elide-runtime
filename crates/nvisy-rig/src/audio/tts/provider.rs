@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::backend::UnauthenticatedProvider;
 #[cfg(feature = "openai-tts")]
-use crate::backend::{AuthenticatedProvider, HttpConfig, build_http_client};
+use nvisy_http::{HttpConfig, build_http_client};
+#[cfg(feature = "openai-tts")]
+use crate::backend::AuthenticatedProvider;
 use crate::error::Error;
 
 /// Supported providers for text-to-speech generation.
@@ -84,7 +86,10 @@ impl TtsModels {
         match provider {
             #[cfg(feature = "openai-tts")]
             TtsProvider::OpenAi(p) => {
-                let http = build_http_client(&HttpConfig::with_max_retries(max_retries));
+                let http = build_http_client(&HttpConfig {
+                    max_retries,
+                    ..HttpConfig::default()
+                });
                 let client = p.openai_client(http)?;
                 let model = openai::audio_generation::AudioGenerationModel::new(client, model);
                 Ok(Self::OpenAi(model))

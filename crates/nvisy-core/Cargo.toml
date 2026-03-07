@@ -43,7 +43,7 @@ thiserror = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["display", "deref", "as_ref", "from", "into"] }
 strum = { workspace = true, features = [] }
 
-# Hashing
+# Encoding
 sha2 = { workspace = true, features = [] }
 hex = { workspace = true, features = [] }
 

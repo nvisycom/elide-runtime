@@ -39,8 +39,10 @@ nvisy-core = { workspace = true, features = [] }
 # Encoding
 base64 = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
+sha2 = { workspace = true, optional = true, features = [] }
+hmac = { workspace = true, optional = true, features = [] }
 
-# Derive macros
+# Derive macros and error handling
 strum = { workspace = true, features = [] }
 
 # (De)serialization
@@ -52,11 +54,9 @@ reqwest-middleware = { workspace = true, features = [] }
 reqwest-retry = { workspace = true, features = [] }
 reqwest-tracing = { workspace = true, features = [] }
 
-# Async runtime & observability
+# Async runtime
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt"] }
-tracing = { workspace = true, features = [] }
 
-# Signing (cloud features)
-sha2 = { workspace = true, optional = true, features = [] }
-hmac = { workspace = true, optional = true, features = [] }
+# Observability
+tracing = { workspace = true, features = [] }

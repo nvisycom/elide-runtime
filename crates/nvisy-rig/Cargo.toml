@@ -48,7 +48,7 @@ rig-core = { workspace = true, features = ["derive", "reqwest-middleware", "audi
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["time"] }
 
-# HTTP middleware (retry & tracing)
+# HTTP middleware
 reqwest-middleware = { workspace = true, features = [] }
 reqwest-retry = { workspace = true, features = [] }
 reqwest-tracing = { workspace = true, features = [] }
@@ -61,10 +61,10 @@ serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
-# Error handling
+# Derive macros and error handling
 thiserror = { workspace = true, features = [] }
 
-# Identifiers
+# Primitive datatypes
 uuid = { workspace = true, features = [] }
 
 # Observability

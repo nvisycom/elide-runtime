@@ -20,6 +20,7 @@ documentation = { workspace = true }
 
 [features]
 default = []
+
 ## Enable all OpenAI providers (GPT, Whisper STT, TTS).
 openai = ["nvisy-engine/openai"]
 ## Enable Anthropic Claude completion provider.
@@ -45,7 +46,7 @@ nvisy-registry = { workspace = true, features = [] }
 # Async runtime
 futures = { workspace = true, features = [] }
 
-# HTTP framework
+# HTTP server
 axum = { workspace = true, features = ["json", "multipart", "tokio"] }
 aide = { workspace = true, features = ["axum", "axum-json", "axum-query", "scalar", "macros"] }
 tower = { workspace = true, features = ["util", "timeout"] }
@@ -61,14 +62,14 @@ schemars = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
 
-# Observability
-tracing = { workspace = true, features = [] }
-
 # CLI
 clap = { workspace = true, features = ["derive", "env"] }
 
 # Encoding
 base64 = { workspace = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

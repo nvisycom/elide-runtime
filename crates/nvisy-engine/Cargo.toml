@@ -20,6 +20,7 @@ documentation = { workspace = true }
 
 [features]
 default = []
+
 ## Enable all OpenAI providers (GPT, Whisper STT, TTS).
 openai = ["nvisy-rig/openai-gpt", "nvisy-rig/openai-whisper", "nvisy-rig/openai-tts"]
 ## Enable Anthropic Claude completion provider.

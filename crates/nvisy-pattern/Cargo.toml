@@ -32,13 +32,13 @@ csv = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 
-# Error handling
+# Derive macros and error handling
 thiserror = { workspace = true, features = [] }
 
 # Compile-time asset embedding
 include_dir = { workspace = true, features = [] }
 
-# Text processing
+# Pattern matching
 regex = { workspace = true, features = [] }
 aho-corasick = { workspace = true, features = [] }
 

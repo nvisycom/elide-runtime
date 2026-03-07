@@ -29,7 +29,7 @@ nvisy-core = { workspace = true, features = [] }
 # (De)serialization
 serde_json = { workspace = true, features = [] }
 
-# String types
+# Primitive datatypes
 hipstr = { workspace = true, features = [] }
 
 # Async runtime

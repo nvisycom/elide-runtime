@@ -27,10 +27,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
-# Embedded key-value store
+# Storage, file detection, and asset embedding
 fjall = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime and parallelism
 tokio = { workspace = true, features = ["sync", "rt"] }
 
 # (De)serialization

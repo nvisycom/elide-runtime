@@ -52,8 +52,9 @@ serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
+toml = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime and parallelism
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 tokio-util = { workspace = true, features = [] }
@@ -73,13 +74,8 @@ derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into"] }
 strum = { workspace = true, features = [] }
 
-# Configuration
-toml = { workspace = true, features = [] }
-
-# Validation
+# Utilities
 validator = { workspace = true, features = [] }
-
-# Randomness
 rand = { workspace = true, features = [] }
 
 # Observability

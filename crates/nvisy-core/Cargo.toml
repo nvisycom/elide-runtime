@@ -35,7 +35,7 @@ jiff = { workspace = true, features = [] }
 semver = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 
-# File type detection
+# Storage, file detection, and asset embedding
 infer = { workspace = true, features = [] }
 
 # Derive macros and error handling
@@ -43,7 +43,7 @@ thiserror = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["display", "deref", "as_ref", "from", "into"] }
 strum = { workspace = true, features = [] }
 
-# Encoding
+# Encoding and hashing
 sha2 = { workspace = true, features = [] }
 hex = { workspace = true, features = [] }
 

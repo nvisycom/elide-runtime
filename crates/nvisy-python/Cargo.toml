@@ -32,7 +32,7 @@ serde_json = { workspace = true, features = [] }
 # Primitive datatypes
 hipstr = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime and parallelism
 tokio = { workspace = true, features = ["sync", "rt"] }
 
 # Python interop

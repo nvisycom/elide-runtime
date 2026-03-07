@@ -38,7 +38,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime and parallelism
 async-trait = { workspace = true, features = [] }
 futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["sync"] }
@@ -54,7 +54,7 @@ bytes = { workspace = true, features = [] }
 uuid = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 
-# File type detection
+# Storage, file detection, and asset embedding
 infer = { workspace = true, features = [] }
 
 # Derive macros and error handling

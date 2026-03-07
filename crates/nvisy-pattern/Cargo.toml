@@ -32,11 +32,11 @@ csv = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 
+# Storage, file detection, and asset embedding
+include_dir = { workspace = true, features = [] }
+
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
-
-# Compile-time asset embedding
-include_dir = { workspace = true, features = [] }
 
 # Pattern matching
 regex = { workspace = true, features = [] }

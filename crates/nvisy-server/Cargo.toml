@@ -44,7 +44,7 @@ nvisy-ontology = { workspace = true, features = [] }
 nvisy-registry = { workspace = true, features = [] }
 nvisy-http = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime and parallelism
 futures = { workspace = true, features = [] }
 
 # HTTP server
@@ -59,12 +59,12 @@ serde_json = { workspace = true, features = [] }
 serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
+# Encoding and hashing
+base64 = { workspace = true, features = [] }
+
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
-
-# Encoding
-base64 = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

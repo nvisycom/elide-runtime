@@ -2958,7 +2958,6 @@ dependencies = [
  "async-trait",
  "base64",
  "bytes",
- "clap",
  "hmac",
  "nvisy-core",
  "nvisy-http",
@@ -3037,7 +3036,6 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "base64",
- "clap",
  "nvisy-core",
  "nvisy-http",
  "nvisy-ontology",

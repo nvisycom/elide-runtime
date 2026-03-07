@@ -59,7 +59,7 @@ anyhow = { workspace = true, features = [] }
 # HTTP server
 axum = { workspace = true, features = ["tokio"] }
 
-# Async runtime
+# Async runtime and parallelism
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal"] }
 
 # Observability

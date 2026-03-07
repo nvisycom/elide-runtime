@@ -1,23 +1,15 @@
-//! Policy types, redaction specifications, and governance structures.
+//! Policy types, rules, and governance structures.
 
-mod evaluation;
-mod regulation;
 mod retention;
 mod rule;
+mod selector;
+mod strategy;
 mod summary;
 mod types;
 
-pub use evaluation::PolicyEvaluation;
-pub use regulation::RegulationKind;
-pub use retention::{RetentionPolicy, RetentionScope};
-pub use rule::{PolicyRule, RuleCondition, RuleKind};
+pub use retention::{Retention, RetentionPolicy, RetentionScope};
+pub use rule::{PolicyRule, RuleAction, RuleCondition};
+pub use selector::EntitySelector;
+pub use strategy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
 pub use summary::RedactionSummary;
 pub use types::{Policies, Policy};
-
-// Re-export data types from sibling modules for convenience.
-pub use crate::record::Redaction;
-pub use crate::record::{ReviewDecision, ReviewStatus};
-pub use crate::specification::{
-    AudioRedactionInput, DEFAULT_BLOCK_COLOR, DEFAULT_BLUR_SIGMA, DEFAULT_MASK_CHAR,
-    DEFAULT_PIXELATE_BLOCK_SIZE, ImageRedactionInput, RedactionInput, TextRedactionInput,
-};

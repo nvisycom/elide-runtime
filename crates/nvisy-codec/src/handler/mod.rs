@@ -15,22 +15,14 @@ use nvisy_core::io::ContentData;
 use crate::document::Document;
 
 mod audio;
-mod edit_span;
-mod edit_stream;
 mod image;
 mod rich;
 mod text;
-mod view_span;
-mod view_stream;
 
 pub use audio::*;
-pub use edit_span::SpanEdit;
-pub use edit_stream::SpanEditStream;
 pub use image::*;
 pub use rich::*;
 pub use text::*;
-pub use view_span::Span;
-pub use view_stream::SpanStream;
 
 /// Base trait implemented by all format handlers.
 ///

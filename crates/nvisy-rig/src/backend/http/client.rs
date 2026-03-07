@@ -9,12 +9,15 @@ use reqwest_tracing::TracingMiddleware;
 
 use super::HttpConfig;
 
+const TARGET: &str = "nvisy_rig::http";
+
 /// Build a [`ClientWithMiddleware`] from the given configuration.
 ///
 /// The returned client has exponential-backoff retry and OpenTelemetry
 /// tracing middleware pre-installed.
 pub fn build_http_client(config: &HttpConfig) -> ClientWithMiddleware {
     tracing::debug!(
+        target: TARGET,
         max_retries = config.max_retries,
         timeout_secs = config.timeout_secs,
         connect_timeout_secs = config.connect_timeout_secs,

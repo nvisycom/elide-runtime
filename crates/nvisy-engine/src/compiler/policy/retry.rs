@@ -31,7 +31,8 @@ fn default_delay_ms() -> u64 {
 }
 
 /// Strategy for computing the delay between retry attempts.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum BackoffStrategy {
     /// Constant delay equal to `delay_ms` on every attempt.

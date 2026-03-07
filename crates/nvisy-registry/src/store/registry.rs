@@ -102,11 +102,7 @@ impl Registry {
     /// Registers content, writing its bytes and metadata to the store.
     ///
     /// Returns a [`ContentHandle`] for subsequent reads.
-    pub async fn register_content(
-        &self,
-        actor: Uuid,
-        content: Content,
-    ) -> Result<ContentHandle> {
+    pub async fn register_content(&self, actor: Uuid, content: Content) -> Result<ContentHandle> {
         let content_source = content.content_source();
         let key = make_key(actor, content_source.as_uuid());
         let data = content.as_bytes().to_vec();
@@ -294,11 +290,7 @@ impl Registry {
     /// Registers a context, serializing it as JSON.
     ///
     /// Returns a [`ContextHandle`] for subsequent reads.
-    pub async fn register_context(
-        &self,
-        actor: Uuid,
-        context: Context,
-    ) -> Result<ContextHandle> {
+    pub async fn register_context(&self, actor: Uuid, context: Context) -> Result<ContextHandle> {
         let source = context.source;
         let key = make_key(actor, source.as_uuid());
 

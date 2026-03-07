@@ -12,13 +12,20 @@ use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 
 use super::error::{ErrorKind, Result};
-use super::response::{Analytics, Health};
+use super::response::{Analytics, Health, ServiceStatus};
 use crate::extract::Json;
 use crate::service::ServiceState;
 
+const TARGET: &str = "nvisy_server::check";
+
 /// `GET /health`: liveness probe.
+#[tracing::instrument(target = "nvisy_server::check", skip_all)]
 async fn health() -> Json<Health> {
-    Json(Health { status: "ok" })
+    tracing::debug!(target: TARGET, "health check");
+    Json(Health {
+        status: ServiceStatus::Healthy,
+        timestamp: jiff::Timestamp::now(),
+    })
 }
 
 fn health_docs(op: TransformOperation) -> TransformOperation {
@@ -29,7 +36,7 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `GET /api/v1/analytics`: retrieve aggregate pipeline analytics.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(target = "nvisy_server::check", skip_all)]
 async fn analytics() -> Result<Json<Analytics>> {
     Err(ErrorKind::NotImplemented.with_message("analytics endpoint not yet implemented"))
 }

@@ -3,7 +3,8 @@
 //! Detects entities in image spans by delegating to the CvAgent's
 //! object-detection + LLM-classification pipeline.
 
-use nvisy_codec::handler::{ImageData, Span};
+use nvisy_codec::document::Span;
+use nvisy_codec::handler::ImageData;
 use nvisy_core::Error;
 use nvisy_core::math::BoundingBox;
 use nvisy_ontology::entity::{DetectionMethod, Entity, ImageLocation};
@@ -29,25 +30,28 @@ impl Operation for ComputerVision {
     type Output = ParallelContext<Vec<Entity>>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        let input = input.into_inner();
-        let mut entities = Vec::new();
+        input
+            .parallel_map(|spans| async move {
+                let mut entities = Vec::new();
 
-        for span in &input {
-            let png_bytes = span.data.encode_png()?;
+                for span in &spans {
+                    let png_bytes = span.data.encode_png()?;
 
-            let cv_entities = self
-                .agent
-                .detect(&png_bytes, &self.config)
-                .await
-                .map_err(|e| Error::runtime(e.to_string(), "cv-agent", e.is_retryable()))?;
+                    let cv_entities = self
+                        .agent
+                        .detect(&png_bytes, &self.config)
+                        .await
+                        .map_err(|e| Error::runtime(e.to_string(), "cv-agent", e.is_retryable()))?;
 
-            for cv_entity in &cv_entities {
-                let entity = map_cv_entity(cv_entity);
-                entities.push(entity.with_parent(&span.source));
-            }
-        }
+                    for cv_entity in &cv_entities {
+                        let entity = map_cv_entity(cv_entity);
+                        entities.push(entity.with_parent(&span.source));
+                    }
+                }
 
-        Ok(ParallelContext::new(entities))
+                Ok(entities)
+            })
+            .await
     }
 }
 

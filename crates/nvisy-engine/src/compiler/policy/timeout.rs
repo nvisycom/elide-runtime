@@ -25,7 +25,8 @@ impl TimeoutPolicy {
 }
 
 /// Behaviour when a node exceeds its [`TimeoutPolicy`] deadline.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum TimeoutBehavior {
     /// Return an error and propagate the failure.

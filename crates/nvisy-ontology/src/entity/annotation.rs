@@ -7,19 +7,8 @@ use strum::{Display, EnumString};
 use super::{EntityCategory, EntityKind, Location};
 
 /// The kind of annotation applied to a content region.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Display,
-    EnumString,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[derive(EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AnnotationKind {
@@ -32,19 +21,8 @@ pub enum AnnotationKind {
 }
 
 /// The scope to which an annotation label applies.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Display,
-    EnumString,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[derive(EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum AnnotationScope {

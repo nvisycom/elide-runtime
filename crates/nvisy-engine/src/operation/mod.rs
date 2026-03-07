@@ -16,7 +16,7 @@ pub mod processing;
 
 use std::future::Future;
 
-pub use context::{OperationContext, ParallelContext, SequentialContext};
+pub use context::{OperationContext, ParallelContext, SequentialContext, SharedContext};
 use nvisy_core::Error;
 
 /// A single unit of work in the redaction pipeline.

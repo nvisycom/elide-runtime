@@ -22,6 +22,8 @@ use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
 use crate::backend::UsageTracker;
 use crate::error::Error;
 
+const TARGET: &str = "nvisy_rig::cv";
+
 /// A single computer-vision detection result returned by a [`CvProvider`].
 ///
 /// This is the raw output from the CV backend before the VLM classifies
@@ -91,8 +93,9 @@ impl CvAgent {
 
     /// Detect privacy-sensitive objects in an image.
     #[tracing::instrument(
+        target = "nvisy_rig::cv",
         skip_all,
-        fields(image_bytes = image_data.len(), agent = "cv"),
+        fields(image_bytes = image_data.len()),
     )]
     pub async fn detect(
         &self,
@@ -101,6 +104,7 @@ impl CvAgent {
     ) -> Result<Vec<CvEntity>, Error> {
         let image_b64 = STANDARD.encode(image_data);
         tracing::debug!(
+            target: TARGET,
             b64_len = image_b64.len(),
             entity_kinds = config.entity_kinds.len(),
             "encoded image, building prompt"
@@ -111,6 +115,7 @@ impl CvAgent {
         let result: CvEntities = self.base.prompt_structured(&prompt).await?;
 
         tracing::info!(
+            target: TARGET,
             entity_count = result.entities.len(),
             "cv detection complete"
         );

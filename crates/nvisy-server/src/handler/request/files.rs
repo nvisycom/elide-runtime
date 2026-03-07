@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::Base64;
+use crate::handler::utility::Base64;
 
 /// JSON request body for base64-encoded file upload.
 #[derive(Debug, Deserialize, JsonSchema)]

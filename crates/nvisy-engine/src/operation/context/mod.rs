@@ -1,22 +1,31 @@
-//! Processing-strategy markers for operations.
+//! Operation contexts: processing strategy and run-wide shared state.
 //!
-//! An operation encodes its processing model via the [`OperationContext`]
-//! bound on [`Operation::Input`] and [`Operation::Output`]. The
-//! orchestrator inspects the concrete wrapper at the type level to decide
-//! whether to batch all inputs upfront or iterate one-by-one.
+//! Every operation receives its input and produces its output wrapped in
+//! a context type. The context serves two purposes:
 //!
-//! The trait is **sealed**: only [`ParallelContext`] and
-//! [`SequentialContext`] may implement it. This guarantees the
-//! orchestrator only needs to handle two calling conventions.
+//! 1. **Processing strategy**: the concrete wrapper ([`ParallelContext`]
+//!    or [`SequentialContext`]) tells the orchestrator *how* to invoke
+//!    the operation (batch all inputs vs. feed one-by-one).
+//!
+//! 2. **Shared state**: both wrappers carry a [`SharedContext`], giving
+//!    every operation cheap access to run-wide data (run id, actor,
+//!    policies, reference-data contexts) without threading it through
+//!    individual parameter structs.
+//!
+//! The [`OperationContext`] trait is **sealed**: only [`ParallelContext`]
+//! and [`SequentialContext`] may implement it, so the orchestrator only
+//! needs to handle two calling conventions.
 //!
 //! [`Operation::Input`]: crate::operation::Operation::Input
 //! [`Operation::Output`]: crate::operation::Operation::Output
 
 mod parallel;
 mod sequential;
+mod shared;
 
 pub use parallel::ParallelContext;
 pub use sequential::SequentialContext;
+pub use shared::SharedContext;
 
 pub(crate) mod private {
     pub trait Sealed {}

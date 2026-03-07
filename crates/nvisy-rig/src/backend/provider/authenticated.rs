@@ -2,17 +2,33 @@
 
 use std::fmt;
 
-#[cfg(any(feature = "openai", feature = "anthropic", feature = "gemini"))]
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "openai-whisper",
+    feature = "openai-tts",
+    feature = "anthropic-claude",
+    feature = "google-gemini"
+))]
 use reqwest_middleware::ClientWithMiddleware;
-#[cfg(feature = "anthropic")]
+#[cfg(feature = "anthropic-claude")]
 use rig::providers::anthropic;
-#[cfg(feature = "gemini")]
+#[cfg(feature = "google-gemini")]
 use rig::providers::gemini;
-#[cfg(feature = "openai")]
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "openai-whisper",
+    feature = "openai-tts"
+))]
 use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
-#[cfg(any(feature = "openai", feature = "anthropic", feature = "gemini"))]
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "openai-whisper",
+    feature = "openai-tts",
+    feature = "anthropic-claude",
+    feature = "google-gemini"
+))]
 use crate::error::Error;
 
 /// Provider that requires an API key (OpenAI, Anthropic, Gemini).
@@ -35,8 +51,19 @@ impl fmt::Debug for AuthenticatedProvider {
 
 impl AuthenticatedProvider {
     /// Build an OpenAI rig-core client.
-    #[cfg(feature = "openai")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "openai")))]
+    #[cfg(any(
+        feature = "openai-gpt",
+        feature = "openai-whisper",
+        feature = "openai-tts"
+    ))]
+    #[cfg_attr(
+        docsrs,
+        doc(cfg(any(
+            feature = "openai-gpt",
+            feature = "openai-whisper",
+            feature = "openai-tts"
+        )))
+    )]
     pub(crate) fn openai_client(
         &self,
         http: ClientWithMiddleware,
@@ -51,8 +78,8 @@ impl AuthenticatedProvider {
     }
 
     /// Build a Gemini rig-core client.
-    #[cfg(feature = "gemini")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "gemini")))]
+    #[cfg(feature = "google-gemini")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "google-gemini")))]
     pub(crate) fn gemini_client(
         &self,
         http: ClientWithMiddleware,
@@ -67,8 +94,8 @@ impl AuthenticatedProvider {
     }
 
     /// Build an Anthropic rig-core client.
-    #[cfg(feature = "anthropic")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "anthropic")))]
+    #[cfg(feature = "anthropic-claude")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "anthropic-claude")))]
     pub(crate) fn anthropic_client(
         &self,
         http: ClientWithMiddleware,

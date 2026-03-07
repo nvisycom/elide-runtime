@@ -1,13 +1,60 @@
-//! Verification operation wrapping [`OcrAgent`](nvisy_rig::agent::OcrAgent).
+//! OCR text extraction from images.
+//!
+//! Extracts text regions from image spans by delegating to the
+//! nvisy-ocr [`Engine`]'s text recognition pipeline.
+//!
+//! [`Engine`]: nvisy_ocr::Engine
 
-/// Verifies NER-detected entities against the original image via VLM.
-pub struct Verification;
+use nvisy_codec::document::Span;
+use nvisy_codec::handler::ImageData;
+use nvisy_core::Error;
+use nvisy_ocr::{Engine, ImageFormat, ImageInput, ImageOutput, RunParams};
 
-impl crate::operation::Operation for Verification {
-    type Input = crate::operation::ParallelContext;
-    type Output = crate::operation::ParallelContext;
+use crate::operation::{Operation, ParallelContext};
 
-    async fn call(&self, _input: Self::Input) -> Result<Self::Output, nvisy_core::Error> {
-        todo!("Verification operation not yet implemented")
+/// OCR text-extraction operation: thin adapter around [`Engine`].
+///
+/// [`Engine`]: nvisy_ocr::Engine
+pub struct Ocr {
+    engine: Engine,
+    params: RunParams,
+}
+
+impl Ocr {
+    /// Create a new OCR operation from a pre-built engine.
+    pub fn new(engine: Engine, params: RunParams) -> Self {
+        Self { engine, params }
+    }
+
+    fn to_image_input(span: &Span<(), ImageData>) -> Result<ImageInput, Error> {
+        let png_bytes = span.data.encode_png()?;
+        Ok(ImageInput::with_source(
+            span.source,
+            png_bytes,
+            ImageFormat::Png,
+        ))
+    }
+}
+
+impl Operation for Ocr {
+    type Input = ParallelContext<Vec<Span<(), ImageData>>>;
+    type Output = ParallelContext<Vec<ImageOutput>>;
+
+    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
+        let shared = input.shared.clone();
+        let spans = input.into_inner();
+
+        if spans.is_empty() {
+            return Ok(ParallelContext::new(Vec::new(), shared));
+        }
+
+        let images = spans
+            .iter()
+            .map(Self::to_image_input)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let outputs = self.engine.run_batch(&images, &self.params).await?;
+
+        Ok(ParallelContext::new(outputs, shared))
     }
 }

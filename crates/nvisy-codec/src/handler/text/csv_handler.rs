@@ -21,8 +21,9 @@ use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
+use crate::document::{Span, SpanEditStream, SpanStream};
 use crate::handler::text::TextData;
-use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
+use crate::handler::{Handler, TextHandler};
 
 /// Cell address within a CSV document.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -306,7 +307,8 @@ mod tests {
     use nvisy_core::path::ContentSource;
 
     use super::*;
-    use crate::handler::{SpanEdit, TextHandler};
+    use crate::document::SpanEdit;
+    use crate::handler::TextHandler;
 
     fn handler_with_headers(headers: Vec<&str>, rows: Vec<Vec<&str>>) -> CsvHandler {
         CsvHandler {

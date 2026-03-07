@@ -15,8 +15,8 @@ use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
 use super::AudioData;
-use crate::handler::{AudioHandler, Handler, Span, SpanEditStream, SpanStream};
-use crate::transform::{AudioRedact, AudioRedaction};
+use crate::document::{Span, SpanEditStream, SpanStream};
+use crate::handler::{AudioHandler, Handler};
 
 #[derive(Debug)]
 pub struct Mp3Handler {
@@ -76,18 +76,11 @@ impl AudioHandler for Mp3Handler {
     }
 }
 
-#[async_trait::async_trait]
-impl AudioRedact for Mp3Handler {
-    async fn redact_audio(&mut self, _redactions: &[AudioRedaction]) -> Result<(), Error> {
-        tracing::warn!("MP3 audio redaction is not yet implemented");
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::{AudioHandler, SpanEdit};
+    use crate::document::SpanEdit;
+    use crate::handler::AudioHandler;
 
     #[tokio::test]
     async fn view_spans_returns_single_span() {

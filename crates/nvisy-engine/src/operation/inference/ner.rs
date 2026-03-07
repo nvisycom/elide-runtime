@@ -4,7 +4,8 @@
 //! a time, allowing the adapter to accumulate known entities between
 //! spans for coreference resolution.
 
-use nvisy_codec::handler::{Span, TxtSpan};
+use nvisy_codec::document::Span;
+use nvisy_codec::handler::TxtSpan;
 use nvisy_core::Error;
 use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityKind, TextLocation};
 use nvisy_rig::agent::{
@@ -93,78 +94,82 @@ impl Operation for Ner {
     type Output = SequentialContext<Vec<Entity>>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        let input = input.into_inner();
-        let mut entities = Vec::new();
+        input
+            .sequential_map(|spans| async move {
+                let mut entities = Vec::new();
 
-        for span in &input {
-            // Build NER context with accumulated known entities.
-            let known = {
-                let state = self.state.lock().await;
-                state.known_entities.clone()
-            };
-            let ctx = NerContext::with_known(&span.data, known);
+                for span in &spans {
+                    // Build NER context with accumulated known entities.
+                    let known = {
+                        let state = self.state.lock().await;
+                        state.known_entities.clone()
+                    };
+                    let ctx = NerContext::with_known(&span.data, known);
 
-            let ner_entities = self
-                .agent
-                .detect(&ctx, &self.config)
-                .await
-                .map_err(|e| Error::runtime(e.to_string(), "ner-agent", e.is_retryable()))?;
+                    let ner_entities =
+                        self.agent.detect(&ctx, &self.config).await.map_err(|e| {
+                            Error::runtime(e.to_string(), "ner-agent", e.is_retryable())
+                        })?;
 
-            // Convert NerEntity → Entity with resolved offsets.
-            for ner_entity in &ner_entities {
-                let category: EntityCategory = match ner_entity.category {
-                    Some(ref c) => c.clone(),
-                    None => continue,
-                };
-                let entity_kind = match ner_entity.entity_type {
-                    Some(ek) => ek,
-                    None => continue,
-                };
-                let confidence = ner_entity.confidence.unwrap_or(0.0);
-                if confidence < self.config.confidence_threshold {
-                    continue;
+                    // Convert NerEntity → Entity with resolved offsets.
+                    for ner_entity in &ner_entities {
+                        let category: EntityCategory = match ner_entity.category {
+                            Some(ref c) => c.clone(),
+                            None => continue,
+                        };
+                        let entity_kind = match ner_entity.entity_type {
+                            Some(ek) => ek,
+                            None => continue,
+                        };
+                        let confidence = ner_entity.confidence.unwrap_or(0.0);
+                        if confidence < self.config.confidence_threshold {
+                            continue;
+                        }
+
+                        let mut entity = Entity::new(
+                            category,
+                            entity_kind,
+                            &ner_entity.value,
+                            DetectionMethod::Ner,
+                            confidence,
+                        );
+
+                        // Resolve offsets within the current span text.
+                        if let Some(offsets) = ner_entity.resolve_offsets(&ctx) {
+                            entity = entity.with_location(
+                                TextLocation {
+                                    start_offset: offsets.start,
+                                    end_offset: offsets.end,
+                                    element_id: Some(span.id.0.to_string()),
+                                    ..Default::default()
+                                }
+                                .into(),
+                            );
+                        } else {
+                            entity = entity.with_location(
+                                TextLocation {
+                                    element_id: Some(span.id.0.to_string()),
+                                    ..Default::default()
+                                }
+                                .into(),
+                            );
+                        }
+
+                        entities.push(entity.with_parent(&span.source));
+                    }
+
+                    // Accumulate known entities for coreference across spans.
+                    let mut state = self.state.lock().await;
+                    let mut merge_ctx = NerContext::with_known(
+                        &span.data,
+                        std::mem::take(&mut state.known_entities),
+                    );
+                    merge_ctx.merge(ner_entities);
+                    state.known_entities = merge_ctx.known_entities;
                 }
 
-                let mut entity = Entity::new(
-                    category,
-                    entity_kind,
-                    &ner_entity.value,
-                    DetectionMethod::Ner,
-                    confidence,
-                );
-
-                // Resolve offsets within the current span text.
-                if let Some(offsets) = ner_entity.resolve_offsets(&ctx) {
-                    entity = entity.with_location(
-                        TextLocation {
-                            start_offset: offsets.start,
-                            end_offset: offsets.end,
-                            element_id: Some(span.id.0.to_string()),
-                            ..Default::default()
-                        }
-                        .into(),
-                    );
-                } else {
-                    entity = entity.with_location(
-                        TextLocation {
-                            element_id: Some(span.id.0.to_string()),
-                            ..Default::default()
-                        }
-                        .into(),
-                    );
-                }
-
-                entities.push(entity.with_parent(&span.source));
-            }
-
-            // Accumulate known entities for coreference across spans.
-            let mut state = self.state.lock().await;
-            let mut merge_ctx =
-                NerContext::with_known(&span.data, std::mem::take(&mut state.known_entities));
-            merge_ctx.merge(ner_entities);
-            state.known_entities = merge_ctx.known_entities;
-        }
-
-        Ok(SequentialContext::new(entities))
+                Ok(entities)
+            })
+            .await
     }
 }

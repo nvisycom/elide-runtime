@@ -16,6 +16,8 @@ use super::{AgentConfig, AgentProvider, BaseAgent};
 use crate::backend::UsageTracker;
 use crate::error::Error;
 
+const TARGET: &str = "nvisy_rig::gen";
+
 /// A request to generate a replacement value for a single entity.
 #[derive(Debug, Clone)]
 pub struct GenRequest {
@@ -63,17 +65,19 @@ impl GenAgent {
 
     /// Generate synthetic replacement values for a batch of entities.
     #[tracing::instrument(
+        target = "nvisy_rig::gen",
         skip_all,
-        fields(batch_size = requests.len(), agent = "gen"),
+        fields(batch_size = requests.len()),
     )]
     pub async fn generate(&self, requests: &[GenRequest]) -> Result<Vec<GeneratedEntity>, Error> {
         let prompt = GenPromptBuilder::build(requests);
 
-        tracing::debug!(prompt_len = prompt.len(), "built gen prompt");
+        tracing::debug!(target: TARGET, prompt_len = prompt.len(), "built gen prompt");
 
         let result: GenOutput = self.base.prompt_structured(&prompt).await?;
 
         tracing::info!(
+            target: TARGET,
             entity_count = result.entities.len(),
             "text generation complete"
         );
@@ -86,8 +90,9 @@ impl GenAgent {
     /// Uses plain-text completion instead of structured output, which is
     /// lighter-weight for a single value.
     #[tracing::instrument(
+        target = "nvisy_rig::gen",
         skip_all,
-        fields(entity_type = %request.entity_type, agent = "gen"),
+        fields(entity_type = %request.entity_type),
     )]
     pub async fn generate_one(&self, request: &GenRequest) -> Result<GeneratedEntity, Error> {
         let prompt = GenPromptBuilder::build_one(request);

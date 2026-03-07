@@ -1,13 +1,12 @@
 //! Convenience re-exports.
 
-pub use crate::document::Document;
+pub use crate::document::{AnyDocument, Document, Span, SpanEdit, SpanEditStream, SpanStream};
 pub use crate::handler::{
-    AnyAudio, AnyImage, AudioData, AudioHandler, CsvData, CsvHandler, CsvLoader, CsvParams,
-    CsvSpan, Handler, ImageData, ImageHandler, JpegHandler, JpegLoader, JpegParams, JsonData,
-    JsonHandler, JsonIndent, JsonLoader, JsonParams, JsonPath, Loader, Mp3Handler, Mp3Loader,
-    Mp3Params, PngHandler, PngLoader, PngParams, Span, SpanEdit, SpanEditStream, SpanStream,
-    TextData, TextHandler, TxtHandler, TxtLoader, TxtParams, TxtSpan, WavHandler, WavLoader,
-    WavParams,
+    AnyAudio, AnyImage, AnyRich, AnyText, AudioData, AudioHandler, CsvData, CsvHandler, CsvLoader,
+    CsvParams, CsvSpan, Handler, ImageData, ImageHandler, JpegHandler, JpegLoader, JpegParams,
+    JsonData, JsonHandler, JsonIndent, JsonLoader, JsonParams, JsonPath, Loader, Mp3Handler,
+    Mp3Loader, Mp3Params, PngHandler, PngLoader, PngParams, TextData, TextHandler, TxtHandler,
+    TxtLoader, TxtParams, TxtSpan, WavHandler, WavLoader, WavParams,
 };
 #[cfg(feature = "docx")]
 pub use crate::handler::{DocxHandler, DocxLoader, DocxParams};
@@ -18,6 +17,6 @@ pub use crate::handler::{PdfHandler, PdfImageSpan, PdfLoader, PdfParams, PdfText
 #[cfg(feature = "xlsx")]
 pub use crate::handler::{XlsxHandler, XlsxLoader, XlsxParams};
 pub use crate::transform::{
-    AudioRedact, AudioRedaction, AudioRedactionOutput, ImageRedact, ImageRedaction,
-    ImageRedactionOutput, ImageTransform, TextRedact, TextRedaction, TextRedactionOutput,
+    AudioOutput, AudioRedaction, AudioTransform, ImageOutput, ImageRedaction, ImageTransform,
+    TextOutput, TextRedaction, TextTransform,
 };

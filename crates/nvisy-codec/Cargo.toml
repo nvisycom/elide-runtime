@@ -52,7 +52,7 @@ bytes = { workspace = true, features = [] }
 uuid = { workspace = true, features = ["v4"] }
 
 # Derive macros
-derive_more = { workspace = true, features = ["as_ref", "display", "from"] }
+derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from"] }
 
 # Immutable string
 hipstr = { workspace = true, features = [] }

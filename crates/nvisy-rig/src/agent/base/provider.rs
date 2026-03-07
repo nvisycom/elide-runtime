@@ -2,7 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(any(feature = "openai", feature = "anthropic", feature = "gemini"))]
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "anthropic-claude",
+    feature = "google-gemini"
+))]
 use crate::backend::AuthenticatedProvider;
 use crate::backend::UnauthenticatedProvider;
 
@@ -19,16 +23,16 @@ use crate::backend::UnauthenticatedProvider;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AgentProvider {
     /// OpenAI (GPT-4o, GPT-4, etc.)
-    #[cfg(feature = "openai")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "openai")))]
+    #[cfg(feature = "openai-gpt")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "openai-gpt")))]
     OpenAi(AuthenticatedProvider),
     /// Anthropic (Claude)
-    #[cfg(feature = "anthropic")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "anthropic")))]
+    #[cfg(feature = "anthropic-claude")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "anthropic-claude")))]
     Anthropic(AuthenticatedProvider),
     /// Google Gemini
-    #[cfg(feature = "gemini")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "gemini")))]
+    #[cfg(feature = "google-gemini")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "google-gemini")))]
     Gemini(AuthenticatedProvider),
     /// Ollama (local models)
     Ollama(UnauthenticatedProvider),
@@ -36,8 +40,8 @@ pub enum AgentProvider {
 
 impl AgentProvider {
     /// Create an OpenAI provider.
-    #[cfg(feature = "openai")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "openai")))]
+    #[cfg(feature = "openai-gpt")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "openai-gpt")))]
     pub fn openai(api_key: &str, model: &str) -> Self {
         Self::OpenAi(AuthenticatedProvider {
             api_key: api_key.to_owned(),
@@ -47,8 +51,8 @@ impl AgentProvider {
     }
 
     /// Create an Anthropic provider.
-    #[cfg(feature = "anthropic")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "anthropic")))]
+    #[cfg(feature = "anthropic-claude")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "anthropic-claude")))]
     pub fn anthropic(api_key: &str, model: &str) -> Self {
         Self::Anthropic(AuthenticatedProvider {
             api_key: api_key.to_owned(),
@@ -58,8 +62,8 @@ impl AgentProvider {
     }
 
     /// Create a Google Gemini provider.
-    #[cfg(feature = "gemini")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "gemini")))]
+    #[cfg(feature = "google-gemini")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "google-gemini")))]
     pub fn gemini(api_key: &str, model: &str) -> Self {
         Self::Gemini(AuthenticatedProvider {
             api_key: api_key.to_owned(),
@@ -87,11 +91,11 @@ impl AgentProvider {
     /// The model name for this provider.
     pub fn model(&self) -> &str {
         match self {
-            #[cfg(feature = "openai")]
+            #[cfg(feature = "openai-gpt")]
             Self::OpenAi(p) => &p.model,
-            #[cfg(feature = "anthropic")]
+            #[cfg(feature = "anthropic-claude")]
             Self::Anthropic(p) => &p.model,
-            #[cfg(feature = "gemini")]
+            #[cfg(feature = "google-gemini")]
             Self::Gemini(p) => &p.model,
             Self::Ollama(p) => &p.model,
         }

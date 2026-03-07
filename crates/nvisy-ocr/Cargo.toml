@@ -19,6 +19,7 @@ documentation = { workspace = true }
 
 [features]
 default = []
+
 ## Enable AWS Textract OCR provider.
 aws-textract = ["sha2", "hmac"]
 ## Enable Google Cloud Vision OCR provider.

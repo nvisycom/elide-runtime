@@ -21,17 +21,13 @@ documentation = { workspace = true }
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[features]
-default = ["html"]
-html = ["nvisy-codec/html"]
-
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 nvisy-registry = { workspace = true, features = [] }
-nvisy-codec = { workspace = true, features = [] }
-nvisy-rig = { workspace = true, features = ["openai", "anthropic", "gemini"] }
+nvisy-codec = { workspace = true, features = ["html"] }
+nvisy-rig = { workspace = true, features = ["openai-gpt", "openai-whisper", "openai-tts", "anthropic-claude", "google-gemini"] }
 nvisy-pattern = { workspace = true, features = [] }
 nvisy-ocr = { workspace = true, features = [] }
 

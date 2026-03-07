@@ -1,12 +1,24 @@
-//! Image redaction output type.
+//! Image redaction instruction types.
 
+use nvisy_core::math::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+/// A located image redaction: pairs a span identifier and bounding box with
+/// an [`ImageOutput`] that carries the method-specific parameters.
+pub struct ImageRedaction<S> {
+    /// Which image span this redaction targets.
+    pub span_id: S,
+    /// Bounding box of the region to redact.
+    pub bounding_box: BoundingBox,
+    /// The redaction output that determines the rendering method.
+    pub output: ImageOutput,
+}
 
 /// Image redaction output — records the method used and its parameters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-pub enum ImageRedactionOutput {
+pub enum ImageOutput {
     /// Gaussian blur applied to the region.
     Blur { sigma: f32 },
     /// Opaque block overlay on the region.

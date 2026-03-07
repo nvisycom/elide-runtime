@@ -5,12 +5,12 @@ use std::borrow::Cow;
 use reqwest_middleware::ClientWithMiddleware;
 use rig::agent::Agent;
 use rig::completion::Completion;
-#[cfg(feature = "anthropic")]
+#[cfg(feature = "anthropic-claude")]
 use rig::providers::anthropic;
-#[cfg(feature = "gemini")]
+#[cfg(feature = "google-gemini")]
 use rig::providers::gemini;
 use rig::providers::ollama;
-#[cfg(feature = "openai")]
+#[cfg(feature = "openai-gpt")]
 use rig::providers::openai;
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -20,6 +20,8 @@ use uuid::Uuid;
 use super::{AgentProvider, BaseAgentBuilder, ContextWindow, ResponseParser};
 use crate::backend::UsageTracker;
 use crate::error::Error;
+
+const TARGET: &str = "nvisy_rig::agent";
 
 /// Sampling, retry, context-window, and preamble settings shared by all agents.
 #[derive(Debug, Clone)]
@@ -49,11 +51,11 @@ impl Default for AgentConfig {
 }
 
 pub(crate) enum Agents {
-    #[cfg(feature = "openai")]
+    #[cfg(feature = "openai-gpt")]
     OpenAi(Agent<openai::completion::CompletionModel<ClientWithMiddleware>>),
-    #[cfg(feature = "anthropic")]
+    #[cfg(feature = "anthropic-claude")]
     Anthropic(Agent<anthropic::completion::CompletionModel<ClientWithMiddleware>>),
-    #[cfg(feature = "gemini")]
+    #[cfg(feature = "google-gemini")]
     Gemini(Agent<gemini::completion::CompletionModel<ClientWithMiddleware>>),
     Ollama(Agent<ollama::CompletionModel<ClientWithMiddleware>>),
 }
@@ -61,11 +63,11 @@ pub(crate) enum Agents {
 macro_rules! dispatch {
     ($inner:expr, |$agent:ident| $body:expr) => {
         match $inner {
-            #[cfg(feature = "openai")]
+            #[cfg(feature = "openai-gpt")]
             Agents::OpenAi($agent) => $body,
-            #[cfg(feature = "anthropic")]
+            #[cfg(feature = "anthropic-claude")]
             Agents::Anthropic($agent) => $body,
-            #[cfg(feature = "gemini")]
+            #[cfg(feature = "google-gemini")]
             Agents::Gemini($agent) => $body,
             Agents::Ollama($agent) => $body,
         }
@@ -115,6 +117,7 @@ impl BaseAgent {
         }
 
         tracing::info!(
+            target: TARGET,
             prompt_len = prompt.len(),
             budget,
             "prompt exceeds input budget, compacting"
@@ -149,7 +152,7 @@ impl BaseAgent {
     ///
     /// Automatically compacts the prompt if a context window is configured
     /// and the prompt exceeds the input budget.
-    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "text"))]
+    #[tracing::instrument(target = "nvisy_rig::agent", skip_all, fields(agent_id = %self.id, mode = "text"))]
     pub async fn prompt_text(&self, prompt: &str) -> Result<String, Error> {
         let prompt = self.maybe_compact(prompt).await?;
         self.prompt_text_raw(&prompt).await
@@ -163,7 +166,7 @@ impl BaseAgent {
     /// Sends a completion request with an `output_schema` so the provider
     /// constrains its response to valid JSON matching `T`. On deserialization
     /// failure the raw text is re-parsed via [`ResponseParser`].
-    #[tracing::instrument(skip_all, fields(agent_id = %self.id, mode = "structured"))]
+    #[tracing::instrument(target = "nvisy_rig::agent", skip_all, fields(agent_id = %self.id, mode = "structured"))]
     pub async fn prompt_structured<T>(&self, prompt: &str) -> Result<T, Error>
     where
         T: DeserializeOwned + Default + JsonSchema + Serialize + Send + Sync,
@@ -188,11 +191,12 @@ impl BaseAgent {
         let parser = ResponseParser::from_text(&text);
         match serde_json::from_str::<T>(&text) {
             Ok(value) => {
-                tracing::debug!("structured output succeeded");
+                tracing::debug!(target: TARGET, "structured output succeeded");
                 Ok(value)
             }
             Err(structured_err) => {
                 tracing::warn!(
+                    target: TARGET,
                     error = %structured_err,
                     "structured JSON parse failed, falling back to text-based parsing"
                 );

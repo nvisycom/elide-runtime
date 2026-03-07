@@ -17,6 +17,8 @@ use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
 use crate::backend::UsageTracker;
 use crate::error::Error;
 
+const TARGET: &str = "nvisy_rig::ner";
+
 /// Agent for textual PII/entity detection using LLM-based NER.
 ///
 /// # Workflow
@@ -56,8 +58,9 @@ impl NerAgent {
     /// instructed to reuse their `entity_id` values for coreferent
     /// mentions, enabling cross-chunk coreference resolution.
     #[tracing::instrument(
+        target = "nvisy_rig::ner",
         skip_all,
-        fields(text_len = ctx.text.len(), agent = "ner"),
+        fields(text_len = ctx.text.len()),
     )]
     pub async fn detect(
         &self,
@@ -67,6 +70,7 @@ impl NerAgent {
         let prompt = NerPromptBuilder::new(config, &ctx.known_entities).build(ctx.text);
 
         tracing::debug!(
+            target: TARGET,
             prompt_len = prompt.len(),
             entity_kinds = config.entity_kinds.len(),
             known = ctx.known_entities.len(),
@@ -76,6 +80,7 @@ impl NerAgent {
         let result: NerEntities = self.base.prompt_structured(&prompt).await?;
 
         tracing::info!(
+            target: TARGET,
             entity_count = result.entities.len(),
             "ner detection complete"
         );

@@ -8,11 +8,13 @@ mod provider;
 
 pub(crate) use provider::SttModels;
 pub use provider::SttProvider;
-#[cfg(feature = "openai")]
+#[cfg(feature = "openai-whisper")]
 use rig::transcription::TranscriptionModel;
 use uuid::Uuid;
 
 use crate::error::Error;
+
+const TARGET: &str = "nvisy_rig::stt";
 
 /// Configuration for the speech-to-text service.
 #[derive(Debug, Clone)]
@@ -87,6 +89,7 @@ impl SttService {
     /// * `audio_data` — raw audio bytes (MP3, WAV, etc.).
     /// * `filename` — original filename, used for MIME-type detection.
     #[tracing::instrument(
+        target = "nvisy_rig::stt",
         skip_all,
         fields(service_id = %self.id, data_len = audio_data.len(), filename),
     )]
@@ -113,7 +116,7 @@ impl SttService {
         }
 
         let text: String = match &self.inner {
-            #[cfg(feature = "openai")]
+            #[cfg(feature = "openai-whisper")]
             SttModels::OpenAi(model) => build_and_send!(model),
             SttModels::Local => {
                 return Err(Error::Runtime(
@@ -122,7 +125,7 @@ impl SttService {
             }
         };
 
-        tracing::info!(text_len = text.len(), "transcription complete");
+        tracing::info!(target: TARGET, text_len = text.len(), "transcription complete");
 
         Ok(SttOutput { text })
     }

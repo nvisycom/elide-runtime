@@ -3,9 +3,8 @@
 //! Operates on text, CSV, HTML, and JSON spans, running both compiled
 //! regex patterns and dictionary automata via [`PatternEngine`].
 
-#[cfg(feature = "html")]
-use nvisy_codec::handler::HtmlSpan;
-use nvisy_codec::handler::{CsvSpan, JsonPath, Span, TxtSpan};
+use nvisy_codec::document::Span;
+use nvisy_codec::handler::{CsvSpan, HtmlSpan, JsonPath, TxtSpan};
 use nvisy_core::Error;
 use nvisy_ontology::entity::{DetectionMethod, Entity, TabularLocation, TextLocation};
 use nvisy_pattern::{
@@ -31,7 +30,7 @@ pub struct PatternDetectionParams {
 pub enum PatternInput {
     Text(Vec<Span<TxtSpan, String>>),
     Csv(Vec<Span<CsvSpan, String>>),
-    #[cfg(feature = "html")]
+
     Html(Vec<Span<HtmlSpan, String>>),
     Json(Vec<Span<JsonPath, Value>>),
 }
@@ -64,15 +63,16 @@ impl Operation for PatternMatch {
     type Output = ParallelContext<Vec<Entity>>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        let input = input.into_inner();
-        let entities = match input {
-            PatternInput::Text(spans) => self.detect_text(spans),
-            PatternInput::Csv(spans) => self.detect_csv(spans),
-            #[cfg(feature = "html")]
-            PatternInput::Html(spans) => self.detect_html(spans),
-            PatternInput::Json(spans) => self.detect_json(spans),
-        }?;
-        Ok(ParallelContext::new(entities))
+        input
+            .parallel_map(|data| async move {
+                match data {
+                    PatternInput::Text(spans) => self.detect_text(spans),
+                    PatternInput::Csv(spans) => self.detect_csv(spans),
+                    PatternInput::Html(spans) => self.detect_html(spans),
+                    PatternInput::Json(spans) => self.detect_json(spans),
+                }
+            })
+            .await
     }
 }
 
@@ -176,7 +176,6 @@ impl PatternMatch {
         Ok(entities)
     }
 
-    #[cfg(feature = "html")]
     fn detect_html(&self, spans: Vec<Span<HtmlSpan, String>>) -> Result<Vec<Entity>, Error> {
         let span_data: Vec<&str> = spans.iter().map(|s| s.data.as_str()).collect();
         let mut raw_matches: Vec<(usize, PatternMatchResult)> = Vec::new();

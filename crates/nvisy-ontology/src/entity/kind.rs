@@ -15,12 +15,12 @@ use super::category::EntityCategory;
 use super::sensitivity::EntitySensitivity;
 
 /// Specific kind of sensitive entity detected or targeted for redaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString)]
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
+#[derive(EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum EntityKind {
-    // ── Identity documents:
+    // Identity documents:
     /// Government-issued identification number (SSN, SIN, Aadhaar, national ID, etc.).
     GovernmentId,
     /// Tax identification number (ITIN, EIN, TIN, etc.).
@@ -34,7 +34,7 @@ pub enum EntityKind {
     /// License plate number.
     LicensePlate,
 
-    // ── Personal information:
+    // Personal information:
     /// Person name (full, first, or last).
     PersonName,
     /// Date of birth.
@@ -44,7 +44,7 @@ pub enum EntityKind {
     /// Demographic attribute (gender, race/ethnicity, religion, orientation, etc.).
     Demographic,
 
-    // ── Contact information:
+    // Contact information:
     /// Email address.
     EmailAddress,
     /// Phone number.
@@ -56,7 +56,7 @@ pub enum EntityKind {
     /// URL or hyperlink.
     Url,
 
-    // ── Network & device identifiers:
+    // Network & device identifiers:
     /// IP address (v4 or v6).
     IpAddress,
     /// MAC (hardware) address.
@@ -66,7 +66,7 @@ pub enum EntityKind {
     /// Username or online handle.
     Username,
 
-    // ── Financial:
+    // Financial:
     /// Payment card number (credit or debit).
     PaymentCard,
     /// Payment card security code (CVV/CVC).
@@ -86,7 +86,7 @@ pub enum EntityKind {
     /// Cryptocurrency wallet address.
     CryptoAddress,
 
-    // ── Health:
+    // Health:
     /// Medical or patient identifier.
     MedicalId,
     /// Insurance policy number.
@@ -94,7 +94,7 @@ pub enum EntityKind {
     /// Prescription number.
     PrescriptionId,
 
-    // ── Credentials:
+    // Credentials:
     /// Password or passphrase.
     Password,
     /// API key.
@@ -104,7 +104,7 @@ pub enum EntityKind {
     /// Private cryptographic key.
     PrivateKey,
 
-    // ── Biometric:
+    // Biometric:
     /// Fingerprint template or minutiae data.
     Fingerprint,
     /// Voiceprint / speaker embedding.
@@ -114,21 +114,21 @@ pub enum EntityKind {
     /// Facial geometry / face embedding (not a photo — see [`Face`](Self::Face)).
     FacialGeometry,
 
-    // ── Location:
+    // Location:
     /// GPS coordinates (latitude / longitude).
     Coordinates,
     /// Geolocation metadata (EXIF, cell tower, etc.).
     GeolocationMetadata,
 
-    // ── Dates & times:
+    // Dates & times:
     /// Date and/or time value.
     DateTime,
 
-    // ── Organizations:
+    // Organizations:
     /// Company or organisation name.
     OrganizationName,
 
-    // ── Visual / image entities:
+    // Visual / image entities:
     /// Detected human face in an image.
     Face,
     /// Handwritten text region.

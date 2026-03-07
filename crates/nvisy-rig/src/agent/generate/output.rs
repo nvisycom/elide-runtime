@@ -16,7 +16,8 @@ pub struct GeneratedEntity {
 }
 
 /// Wrapper for structured output containing a batch of generated entities.
-#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct GenOutput {
     /// Generated entities.
     pub entities: Vec<GeneratedEntity>,

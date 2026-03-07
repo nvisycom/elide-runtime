@@ -23,8 +23,14 @@ use super::response::{Context, ContextId, ContextList};
 use crate::extract::{Json, Path};
 use crate::service::ServiceState;
 
+const TARGET: &str = "nvisy_server::contexts";
+
 /// `POST /api/v1/contexts`: upload a typed context.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(
+    target = "nvisy_server::contexts",
+    skip_all,
+    fields(%req.actor_id),
+)]
 async fn upload(
     State(registry): State<Registry>,
     Json(req): Json<NewContext>,
@@ -32,7 +38,7 @@ async fn upload(
     let handle = registry.register_context(req.actor_id, req.context).await?;
     let id = handle.source().as_uuid();
 
-    tracing::info!(%id, "context uploaded");
+    tracing::info!(target: TARGET, %id, "context uploaded");
 
     Ok((StatusCode::CREATED, Json(ContextId { id })))
 }
@@ -48,12 +54,17 @@ fn upload_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `GET /api/v1/contexts`: list all context identifiers.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(
+    target = "nvisy_server::contexts",
+    skip_all,
+    fields(%actor_id),
+)]
 async fn list(
     State(registry): State<Registry>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<Json<ContextList>> {
     let contexts = registry.list_contexts(actor_id).await?;
+    tracing::debug!(target: TARGET, count = contexts.len(), "contexts listed");
     Ok(Json(ContextList { contexts }))
 }
 
@@ -65,7 +76,11 @@ fn list_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `GET /api/v1/contexts/{id}`: download a previously uploaded context.
-#[tracing::instrument(skip_all, fields(%id))]
+#[tracing::instrument(
+    target = "nvisy_server::contexts",
+    skip_all,
+    fields(%id, %actor_id),
+)]
 async fn download(
     State(registry): State<Registry>,
     Path(ContextPath { id }): Path<ContextPath>,
@@ -73,6 +88,7 @@ async fn download(
 ) -> Result<Json<Context>> {
     let handle = registry.read_context(actor_id, id).await?;
     let context = handle.context().await?;
+    tracing::debug!(target: TARGET, "context downloaded");
     Ok(Json(Context { id, context }))
 }
 
@@ -84,14 +100,18 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `DELETE /api/v1/contexts/{id}`: delete a single context.
-#[tracing::instrument(skip_all, fields(%id))]
+#[tracing::instrument(
+    target = "nvisy_server::contexts",
+    skip_all,
+    fields(%id, %actor_id),
+)]
 async fn delete(
     State(registry): State<Registry>,
     Path(ContextPath { id }): Path<ContextPath>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<StatusCode> {
     registry.unregister_context(actor_id, id).await?;
-    tracing::info!(%id, "context deleted");
+    tracing::info!(target: TARGET, "context deleted");
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -103,13 +123,17 @@ fn delete_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `DELETE /api/v1/contexts`: delete all contexts.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(
+    target = "nvisy_server::contexts",
+    skip_all,
+    fields(%actor_id),
+)]
 async fn delete_all(
     State(registry): State<Registry>,
     Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<StatusCode> {
     let deleted = registry.unregister_all_contexts(actor_id).await?;
-    tracing::info!(deleted, "all contexts deleted");
+    tracing::info!(target: TARGET, deleted, "all contexts deleted");
     Ok(StatusCode::NO_CONTENT)
 }
 

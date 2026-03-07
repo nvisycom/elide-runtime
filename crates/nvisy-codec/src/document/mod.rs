@@ -1,43 +1,36 @@
 //! Unified document representation.
 
-use std::ops::{Deref, DerefMut};
+mod any;
+pub(crate) mod span;
+pub(crate) mod stream;
 
+pub use any::AnyDocument;
+use derive_more::{Deref, DerefMut};
 use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
+pub use span::{Span, SpanEdit};
+pub use stream::{SpanEditStream, SpanStream};
 
 use crate::handler::{
-    AudioData, AudioHandler, Handler, ImageData, ImageHandler, SpanEditStream, SpanStream,
-    TextData, TextHandler,
+    AudioData, AudioHandler, Handler, ImageData, ImageHandler, TextData, TextHandler,
 };
 
 /// A unified representation of any content that can be handled by the pipeline.
 ///
 /// `Document` is generic over `H`, a [`Handler`] that holds the loaded data
 /// and provides methods to read and manipulate it.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Document<H: Handler> {
     /// Content source identity and lineage.
     pub source: ContentSource,
 
     /// Format handler (holds the loaded data).
+    #[deref]
+    #[deref_mut]
     handler: H,
-}
-
-impl<H: Handler> Deref for Document<H> {
-    type Target = H;
-
-    fn deref(&self) -> &H {
-        &self.handler
-    }
-}
-
-impl<H: Handler> DerefMut for Document<H> {
-    fn deref_mut(&mut self) -> &mut H {
-        &mut self.handler
-    }
 }
 
 impl<H: Handler> Document<H> {
@@ -156,7 +149,7 @@ mod tests {
     use futures::StreamExt;
 
     use super::*;
-    use crate::handler::{SpanEdit, TxtHandler, TxtSpan};
+    use crate::handler::{TxtHandler, TxtSpan};
 
     #[tokio::test]
     async fn text_spans_injects_source() {

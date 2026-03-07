@@ -20,8 +20,9 @@ use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
+use crate::document::{Span, SpanEditStream, SpanStream};
 use crate::handler::text::TextData;
-use crate::handler::{Handler, Span, SpanEditStream, SpanStream, TextHandler};
+use crate::handler::{Handler, TextHandler};
 
 /// 0-based line index identifying a span within a plain-text document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -156,7 +157,8 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::handler::{SpanEdit, TextHandler};
+    use crate::document::SpanEdit;
+    use crate::handler::TextHandler;
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');

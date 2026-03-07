@@ -11,7 +11,7 @@ mod error;
 mod files;
 mod process;
 
-pub use check::{Analytics, Health};
+pub use check::{Analytics, Health, ServiceStatus};
 pub use contexts::{Context, ContextId, ContextList};
 pub use error::ErrorResponse;
 pub use files::{File, FileId, FileList};

@@ -20,7 +20,8 @@ pub struct CvEntity {
 }
 
 /// Wrapper for structured output parsing.
-#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct CvEntities {
     /// Detected entities.
     pub entities: Vec<CvEntity>,

@@ -1,82 +1,95 @@
-//! [`ImageTransform`] trait and implementation for [`DynamicImage`].
-//!
-//! Each method operates on a single bounding-box region and mutates the
-//! image in place (no clone).
+//! [`ImageTransform`] async trait and blanket implementation.
 
+use futures::StreamExt;
 use image::DynamicImage;
-use image::imageops::FilterType;
-use imageproc::filter::gaussian_blur_f32;
-use nvisy_core::math::BoundingBoxU32;
+use nvisy_core::Error;
 
-/// Mutating image-transform operations on individual bounding-box regions.
-pub trait ImageTransform {
-    /// Apply a gaussian blur to `region` with the given `sigma`.
-    fn apply_gaussian_blur(&mut self, region: &BoundingBoxU32, sigma: f32);
+use super::instruction::{ImageOutput, ImageRedaction};
+use super::ops::ImageOps;
+use crate::document::{SpanEdit, SpanEditStream};
+use crate::handler::{ImageData, ImageHandler};
 
-    /// Fill `region` with a solid RGBA `color`.
-    fn apply_block_overlay(&mut self, region: &BoundingBoxU32, color: [u8; 4]);
-
-    /// Pixelate `region` with the given `block_size`.
-    fn apply_pixelate(&mut self, region: &BoundingBoxU32, block_size: u32);
+/// Extension trait for handlers that support image redaction.
+///
+/// Extends [`ImageHandler`] with [`redact_images`](Self::redact_images)
+/// which applies a batch of bounding-box image redactions.
+#[async_trait::async_trait]
+pub trait ImageTransform: ImageHandler {
+    /// Apply a batch of image redactions, mutating in place.
+    async fn redact_images(
+        &mut self,
+        redactions: &[ImageRedaction<Self::ImageId>],
+    ) -> Result<(), Error>;
 }
 
-impl ImageTransform for DynamicImage {
-    fn apply_gaussian_blur(&mut self, region: &BoundingBoxU32, sigma: f32) {
-        let (x, y, w, h) = (region.x, region.y, region.width, region.height);
-
-        let img_w = self.width();
-        let img_h = self.height();
-        if x >= img_w || y >= img_h {
-            return;
-        }
-        let w = w.min(img_w - x);
-        let h = h.min(img_h - y);
-        if w == 0 || h == 0 {
-            return;
-        }
-
-        let sub = self.crop_imm(x, y, w, h);
-        let blurred = DynamicImage::ImageRgba8(gaussian_blur_f32(&sub.to_rgba8(), sigma));
-        image::imageops::overlay(self, &blurred, x as i64, y as i64);
-    }
-
-    fn apply_block_overlay(&mut self, region: &BoundingBoxU32, color: [u8; 4]) {
-        let (x, y, w, h) = (region.x, region.y, region.width, region.height);
-
-        let img_w = self.width();
-        let img_h = self.height();
-        if x >= img_w || y >= img_h {
-            return;
-        }
-        let w = w.min(img_w - x);
-        let h = h.min(img_h - y);
-
-        let block = image::RgbaImage::from_pixel(w, h, image::Rgba(color));
-        image::imageops::overlay(self, &block, x as i64, y as i64);
-    }
-
-    fn apply_pixelate(&mut self, region: &BoundingBoxU32, block_size: u32) {
-        let block_size = block_size.max(1);
-        let (x, y, w, h) = (region.x, region.y, region.width, region.height);
-
-        let img_w = self.width();
-        let img_h = self.height();
-        if x >= img_w || y >= img_h {
-            return;
-        }
-        let w = w.min(img_w - x);
-        let h = h.min(img_h - y);
-        if w == 0 || h == 0 {
-            return;
+#[async_trait::async_trait]
+impl<H: ImageHandler> ImageTransform for H
+where
+    H::ImageId: Default,
+    ImageData: From<ImageData>,
+{
+    async fn redact_images(
+        &mut self,
+        redactions: &[ImageRedaction<Self::ImageId>],
+    ) -> Result<(), Error> {
+        tracing::debug!(
+            redaction_count = redactions.len(),
+            "applying image redactions"
+        );
+        if redactions.is_empty() {
+            return Ok(());
         }
 
-        let small_w = (w / block_size).max(1);
-        let small_h = (h / block_size).max(1);
+        // Get the current image from the single span.
+        let spans: Vec<_> = self.image_spans().await.collect().await;
+        let span = match spans.into_iter().next() {
+            Some(s) => s,
+            None => return Ok(()),
+        };
 
-        let sub = self.crop_imm(x, y, w, h);
-        let small = sub.resize_exact(small_w, small_h, FilterType::Nearest);
-        let pixelated = small.resize_exact(w, h, FilterType::Nearest);
+        let image_data: ImageData = span.data;
+        let mut img: DynamicImage = image_data.into_inner();
 
-        image::imageops::overlay(self, &pixelated, x as i64, y as i64);
+        for redaction in redactions {
+            let region = redaction.bounding_box.to_u32();
+            match &redaction.output {
+                ImageOutput::Blur { sigma } => {
+                    img.apply_gaussian_blur(&region, *sigma);
+                }
+                ImageOutput::Block { color } => {
+                    img.apply_block_overlay(&region, *color);
+                }
+                ImageOutput::Pixelate { block_size } => {
+                    img.apply_pixelate(&region, *block_size);
+                }
+                ImageOutput::Replace { data } => {
+                    let replacement = match image::load_from_memory(data) {
+                        Ok(r) => r,
+                        Err(e) => {
+                            tracing::warn!(
+                                region = ?region,
+                                error = %e,
+                                "failed to decode replacement image data, skipping region"
+                            );
+                            continue;
+                        }
+                    };
+                    let resized = replacement.resize_exact(
+                        region.width,
+                        region.height,
+                        image::imageops::FilterType::Lanczos3,
+                    );
+                    image::imageops::overlay(&mut img, &resized, region.x as i64, region.y as i64);
+                }
+            }
+        }
+
+        self.edit_images(SpanEditStream::new(futures::stream::iter(std::iter::once(
+            SpanEdit::new(span.id, ImageData::from(img)),
+        ))))
+        .await?;
+
+        tracing::debug!("image redactions applied");
+        Ok(())
     }
 }

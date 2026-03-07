@@ -12,6 +12,7 @@ mod prompt;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 pub use input::ProposedEntity;
+use nvisy_ontology::entity::Entity;
 pub use output::{VerificationOutput, VerificationStatus, VerifiedEntity};
 use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use uuid::Uuid;
@@ -19,6 +20,8 @@ use uuid::Uuid;
 use super::{AgentConfig, AgentProvider, BaseAgent};
 use crate::backend::UsageTracker;
 use crate::error::Error;
+
+const TARGET: &str = "nvisy_rig::ocr";
 
 /// VLM agent that verifies NER-detected entities against the original image.
 ///
@@ -60,8 +63,9 @@ impl OcrAgent {
     /// Returns only entities that were corrected or rejected. Entities
     /// absent from the output are implicitly confirmed.
     #[tracing::instrument(
+        target = "nvisy_rig::ocr",
         skip_all,
-        fields(image_bytes = image_data.len(), entity_count = entities.len(), agent = "ocr"),
+        fields(image_bytes = image_data.len(), entity_count = entities.len()),
     )]
     pub async fn verify(
         &self,
@@ -70,6 +74,7 @@ impl OcrAgent {
     ) -> Result<VerificationOutput, Error> {
         let image_b64 = STANDARD.encode(image_data);
         tracing::debug!(
+            target: TARGET,
             b64_len = image_b64.len(),
             proposed = entities.len(),
             "encoded image, building verification prompt"
@@ -79,8 +84,39 @@ impl OcrAgent {
 
         let output: VerificationOutput = self.base.prompt_structured(&prompt).await?;
 
-        tracing::info!(changed = output.entities.len(), "ocr verification complete");
+        tracing::info!(target: TARGET, changed = output.entities.len(), "ocr verification complete");
 
         Ok(output)
+    }
+
+    /// Verify entities against the original image, returning the merged result.
+    ///
+    /// Converts each [`Entity`] into a [`ProposedEntity`], calls
+    /// [`verify`](Self::verify), then merges verdicts back: confirmed
+    /// entities pass through unchanged, corrected entities are updated,
+    /// and rejected entities are dropped.
+    #[tracing::instrument(
+        target = "nvisy_rig::ocr",
+        skip_all,
+        fields(image_bytes = image_data.len(), entity_count = entities.len()),
+    )]
+    pub async fn verify_entities(
+        &self,
+        image_data: &[u8],
+        entities: Vec<Entity>,
+    ) -> Result<Vec<Entity>, Error> {
+        if entities.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let proposed: Vec<ProposedEntity> = entities
+            .iter()
+            .enumerate()
+            .map(|(i, e)| ProposedEntity::from_entity(i, e))
+            .collect();
+
+        let output = self.verify(image_data, &proposed).await?;
+
+        Ok(output.merge(entities))
     }
 }

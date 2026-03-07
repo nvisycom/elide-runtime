@@ -23,14 +23,16 @@ use super::response::ProcessResult;
 use crate::extract::Json;
 use crate::service::ServiceState;
 
+const TARGET: &str = "nvisy_server::process";
+
 /// Build an [`EngineInput`] from a [`NewProcess`].
 fn engine_input(req: NewProcess) -> EngineInput {
     EngineInput {
-        actor: req.actor_id,
+        actor_id: req.actor_id,
         content_ids: req.content_ids,
         policies: req.policies,
         graph: req.graph,
-        contexts: Vec::new(),
+        contexts: Default::default(),
     }
 }
 
@@ -38,13 +40,23 @@ fn engine_input(req: NewProcess) -> EngineInput {
 ///
 /// Extracts text and structural information from the content without
 /// further classification or redaction.
-#[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
+#[tracing::instrument(
+    target = "nvisy_server::process",
+    skip_all,
+    fields(%req.actor_id, content_count = req.content_ids.len(), mode = "scan"),
+)]
 async fn scan(
     State(engine): State<DefaultEngine>,
     Json(req): Json<NewProcess>,
 ) -> Result<Json<ProcessResult>> {
     let input = engine_input(req);
     let output = engine.run(input).await?;
+
+    tracing::info!(
+        target: TARGET,
+        run_id = %output.run_id,
+        "scan complete",
+    );
 
     Ok(Json(ProcessResult {
         run_id: output.run_id,
@@ -67,13 +79,23 @@ fn scan_docs(op: TransformOperation) -> TransformOperation {
 ///
 /// Extracts text via OCR and classifies entities using an LLM, without
 /// applying any redactions.
-#[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
+#[tracing::instrument(
+    target = "nvisy_server::process",
+    skip_all,
+    fields(%req.actor_id, content_count = req.content_ids.len(), mode = "analyze"),
+)]
 async fn analyze(
     State(engine): State<DefaultEngine>,
     Json(req): Json<NewProcess>,
 ) -> Result<Json<ProcessResult>> {
     let input = engine_input(req);
     let output = engine.run(input).await?;
+
+    tracing::info!(
+        target: TARGET,
+        run_id = %output.run_id,
+        "analysis complete",
+    );
 
     Ok(Json(ProcessResult {
         run_id: output.run_id,
@@ -96,13 +118,23 @@ fn analyze_docs(op: TransformOperation) -> TransformOperation {
 ///
 /// Performs OCR, entity classification, policy evaluation, and redaction
 /// on previously uploaded content.
-#[tracing::instrument(skip_all, fields(actor_id = %req.actor_id, content_count = req.content_ids.len()))]
+#[tracing::instrument(
+    target = "nvisy_server::process",
+    skip_all,
+    fields(%req.actor_id, content_count = req.content_ids.len(), mode = "redact"),
+)]
 async fn redact(
     State(engine): State<DefaultEngine>,
     Json(req): Json<NewProcess>,
 ) -> Result<Json<ProcessResult>> {
     let input = engine_input(req);
     let output = engine.run(input).await?;
+
+    tracing::info!(
+        target: TARGET,
+        run_id = %output.run_id,
+        "redaction complete",
+    );
 
     Ok(Json(ProcessResult {
         run_id: output.run_id,

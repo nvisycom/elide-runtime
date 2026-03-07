@@ -2,9 +2,8 @@
 
 use nvisy_core::Error;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::policy::PolicyRule;
-use nvisy_ontology::record::Redaction;
-use nvisy_ontology::specification::{RedactionInput, TextRedactionInput};
+use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
+use nvisy_ontology::record::{RedactionDecision, RedactionRecord};
 use serde::Deserialize;
 
 use crate::operation::{Operation, ParallelContext};
@@ -16,26 +15,35 @@ pub struct EvaluatePolicyParams {
     /// Ordered policy rules to evaluate.
     #[serde(default)]
     pub rules: Vec<PolicyRule>,
-    /// Fallback redaction specification when no rule matches.
+    /// Fallback redaction strategy when no rule matches.
     #[serde(default = "default_spec")]
-    pub default_spec: RedactionInput,
+    pub default_spec: Strategy,
     /// Fallback confidence threshold.
     #[serde(default = "default_threshold")]
     pub default_confidence_threshold: f64,
 }
 
-fn default_spec() -> RedactionInput {
-    RedactionInput::Text(TextRedactionInput::Mask { mask_char: '*' })
+fn default_spec() -> Strategy {
+    Strategy::Text(TextStrategy::Mask { mask_char: '*' })
 }
 fn default_threshold() -> f64 {
     0.5
 }
 
-/// Evaluates policy rules against detected entities and produces [`Redaction`] instructions.
+/// Output of policy evaluation: both pipeline decisions and audit records.
+pub struct EvaluatePolicyOutput {
+    /// Pipeline-facing redaction decisions.
+    pub decisions: Vec<RedactionDecision>,
+    /// Audit-facing redaction records.
+    pub records: Vec<RedactionRecord>,
+}
+
+/// Evaluates policy rules against detected entities and produces
+/// [`RedactionDecision`] and [`RedactionRecord`] pairs.
 ///
 /// For each entity the action finds the first matching rule (sorted by priority),
-/// applies its redaction spec and replacement template, and creates a
-/// [`Redaction`]. Entities that fall below the confidence threshold are skipped.
+/// applies its redaction strategy and replacement template, and creates both a
+/// decision and an audit record. Entities below the confidence threshold are skipped.
 pub struct EvaluatePolicy {
     params: EvaluatePolicyParams,
 }
@@ -46,54 +54,67 @@ impl EvaluatePolicy {
         Ok(Self { params })
     }
 
-    pub async fn execute(&self, entities: Vec<Entity>) -> Result<Vec<Redaction>, Error> {
+    pub async fn execute(&self, entities: Vec<Entity>) -> Result<EvaluatePolicyOutput, Error> {
         let default_spec = &self.params.default_spec;
         let default_threshold = self.params.default_confidence_threshold;
 
-        let mut redactions = Vec::new();
+        let mut decisions = Vec::new();
+        let mut records = Vec::new();
 
         for entity in &entities {
             let rule = find_matching_rule(entity, &self.params.rules);
-            let spec = rule.map(|r| &r.spec).unwrap_or(default_spec);
 
-            if rule.is_none() && entity.confidence < default_threshold {
-                continue;
-            }
-
-            let replacement = if let Some(r) = rule {
-                apply_template(&r.replacement_template, entity)
-            } else {
-                build_default_replacement(entity, spec)
+            let (spec, replacement) = match rule {
+                Some(r) => match &r.action {
+                    RuleAction::Redact { strategy } => (
+                        strategy.clone(),
+                        build_default_replacement(entity, strategy),
+                    ),
+                    RuleAction::Review
+                    | RuleAction::Alert
+                    | RuleAction::Block
+                    | RuleAction::Suppress => continue,
+                },
+                None => {
+                    if entity.confidence < default_threshold {
+                        continue;
+                    }
+                    (
+                        default_spec.clone(),
+                        build_default_replacement(entity, default_spec),
+                    )
+                }
             };
 
-            let mut redaction = Redaction::new(
-                entity.source.as_uuid(),
-                spec.clone(),
-                replacement,
-                &entity.value,
-                entity.confidence,
-            );
-            if let Some(r) = rule {
-                redaction = redaction.with_policy_rule_id(r.id);
-            }
-            redaction
-                .source
-                .set_parent_id(Some(entity.source.as_uuid()));
+            let entity_id = entity.source.as_uuid();
 
-            redactions.push(redaction);
+            let mut decision =
+                RedactionDecision::new(entity_id, spec, replacement, entity.confidence);
+            if let Some(r) = rule {
+                decision = decision.with_policy_rule_id(r.id);
+            }
+            decision.source.set_parent_id(Some(entity_id));
+
+            let mut record = RedactionRecord::new(entity_id, &entity.value, entity.confidence);
+            if let Some(r) = rule {
+                record = record.with_policy_rule_id(r.id);
+            }
+            record.source.set_parent_id(Some(entity_id));
+
+            decisions.push(decision);
+            records.push(record);
         }
 
-        Ok(redactions)
+        Ok(EvaluatePolicyOutput { decisions, records })
     }
 }
 
 impl Operation for EvaluatePolicy {
     type Input = ParallelContext<Vec<Entity>>;
-    type Output = ParallelContext<Vec<Redaction>>;
+    type Output = ParallelContext<EvaluatePolicyOutput>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        let result = self.execute(input.into_inner()).await?;
-        Ok(ParallelContext::new(result))
+        input.parallel_map(|data| self.execute(data)).await
     }
 }
 
@@ -106,41 +127,30 @@ fn find_matching_rule<'a>(entity: &Entity, rules: &'a [PolicyRule]) -> Option<&'
     })
 }
 
-/// Expands a replacement template using entity metadata.
-///
-/// Supported placeholders: `{entityType}`, `{category}`, `{value}`.
-fn apply_template(template: &str, entity: &Entity) -> String {
-    template
-        .replace("{entityType}", &entity.entity_kind.to_string())
-        .replace("{category}", &entity.category.to_string())
-        .replace("{value}", &entity.value)
-}
-
-/// Generates a default replacement string for an entity using the given redaction spec.
-fn build_default_replacement(entity: &Entity, spec: &RedactionInput) -> String {
+/// Generates a replacement string for an entity using the given strategy.
+fn build_default_replacement(entity: &Entity, spec: &Strategy) -> String {
     match spec {
-        RedactionInput::Text(text) => match text {
-            TextRedactionInput::Mask { mask_char } => {
-                mask_char.to_string().repeat(entity.value.len())
-            }
-            TextRedactionInput::Replace { placeholder } => {
+        Strategy::Text(text) => match text {
+            TextStrategy::Mask { mask_char } => mask_char.to_string().repeat(entity.value.len()),
+            TextStrategy::Replace { placeholder } => {
                 if placeholder.is_empty() {
                     format!("[{}]", entity.entity_kind.to_string().to_uppercase())
                 } else {
-                    apply_template(placeholder, entity)
+                    placeholder
+                        .replace("{entityType}", &entity.entity_kind.to_string())
+                        .replace("{category}", &entity.category.to_string())
+                        .replace("{value}", &entity.value)
                 }
             }
-            TextRedactionInput::Remove => String::new(),
-            TextRedactionInput::Hash => format!("[HASH:{}]", entity.entity_kind),
-            TextRedactionInput::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
-            TextRedactionInput::Generate => format!("[GEN:{}]", entity.entity_kind),
-            TextRedactionInput::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_kind),
-            TextRedactionInput::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
-            TextRedactionInput::Aggregate => format!("[AGG:{}]", entity.entity_kind),
-            TextRedactionInput::Generalize { .. } => format!("[GEN:{}]", entity.entity_kind),
-            TextRedactionInput::DateShift { .. } => format!("[SHIFTED:{}]", entity.entity_kind),
+            TextStrategy::Remove => String::new(),
+            TextStrategy::Hash => format!("[HASH:{}]", entity.entity_kind),
+            TextStrategy::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
+            TextStrategy::Generate => format!("[GEN:{}]", entity.entity_kind),
+            TextStrategy::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_kind),
+            TextStrategy::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
+            TextStrategy::Aggregate => format!("[AGG:{}]", entity.entity_kind),
+            TextStrategy::Generalize { .. } => format!("[GEN:{}]", entity.entity_kind),
         },
-        // Image and audio specs don't produce text replacements.
-        RedactionInput::Image(_) | RedactionInput::Audio(_) => String::new(),
+        Strategy::Image(_) | Strategy::Audio(_) => String::new(),
     }
 }

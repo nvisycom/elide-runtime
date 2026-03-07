@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 
 use futures::Stream;
 
-use super::Span;
+use crate::document::span::Span;
 
 /// Async stream of spans returned by capability trait view methods.
 ///

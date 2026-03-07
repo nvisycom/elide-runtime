@@ -4,8 +4,9 @@ use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
+use crate::document::{SpanEditStream, SpanStream};
 use crate::handler::text::TextData;
-use crate::handler::{Handler, SpanEditStream, SpanStream, TextHandler};
+use crate::handler::{Handler, TextHandler};
 
 #[derive(Debug)]
 pub struct XlsxHandler;

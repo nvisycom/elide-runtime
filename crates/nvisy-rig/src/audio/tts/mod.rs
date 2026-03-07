@@ -4,11 +4,13 @@ mod provider;
 
 pub(crate) use provider::TtsModels;
 pub use provider::TtsProvider;
-#[cfg(feature = "openai")]
+#[cfg(feature = "openai-tts")]
 use rig::audio_generation::AudioGenerationModel as _;
 use uuid::Uuid;
 
 use crate::error::Error;
+
+const TARGET: &str = "nvisy_rig::tts";
 
 /// Configuration for the text-to-speech service.
 #[derive(Debug, Clone)]
@@ -66,12 +68,13 @@ impl TtsService {
 
     /// Generate speech from text, returning raw audio bytes.
     #[tracing::instrument(
+        target = "nvisy_rig::tts",
         skip_all,
         fields(service_id = %self.id, text_len = text.len()),
     )]
     pub async fn generate(&self, text: &str) -> Result<Vec<u8>, Error> {
         let audio: Vec<u8> = match &self.inner {
-            #[cfg(feature = "openai")]
+            #[cfg(feature = "openai-tts")]
             TtsModels::OpenAi(model) => {
                 let response = model
                     .audio_generation_request()
@@ -89,7 +92,7 @@ impl TtsService {
             }
         };
 
-        tracing::info!(audio_len = audio.len(), "audio generation complete");
+        tracing::info!(target: TARGET, audio_len = audio.len(), "audio generation complete");
 
         Ok(audio)
     }

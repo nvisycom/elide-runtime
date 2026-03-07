@@ -49,7 +49,7 @@ rig-core = { workspace = true, features = ["derive", "reqwest-middleware", "audi
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["time"] }
 
-# HTTP middleware
+# HTTP client and middleware
 reqwest-middleware = { workspace = true, features = [] }
 
 # (De)serialization

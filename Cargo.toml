@@ -51,7 +51,8 @@ nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 # LLM framework
 rig-core = { version = "0.31", features = [] }
 
-# HTTP middleware
+# HTTP client and middleware
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
 reqwest-retry = { version = "0.9", features = [] }
 reqwest-tracing = { version = "0.7", features = [] }
@@ -111,9 +112,6 @@ scraper = { version = "0.25", features = [] }
 calamine = { version = "0.33", features = [] }
 zip = { version = "8.0", features = [] }
 quick-xml = { version = "0.38", features = [] }
-
-# HTTP client
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }

@@ -26,7 +26,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 # (De)serialization
 serde = { workspace = true, features = [] }
 
-# HTTP middleware
+# HTTP client and middleware
 reqwest-middleware = { workspace = true, features = [] }
 reqwest-retry = { workspace = true, features = [] }
 reqwest-tracing = { workspace = true, features = [] }

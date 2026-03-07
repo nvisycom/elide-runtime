@@ -54,7 +54,7 @@ serde_json = { workspace = true, features = [] }
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt"] }
 
-# HTTP middleware
+# HTTP client and middleware
 reqwest-middleware = { workspace = true, features = [] }
 
 # Observability

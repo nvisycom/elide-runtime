@@ -1,14 +1,20 @@
-# nvisy-core
+# nvisy-exif
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Foundational crate for the Nvisy runtime. Defines domain types, error types, the plugin trait system, and the action/provider registry that all other crates build on.
+EXIF metadata reading and stripping for images. Called from Rust via the [`nvisy-python`](../../crates/nvisy-python) PyO3 bridge. Uses Pillow for image processing.
 
-- **Error types**: structured error hierarchy for pipeline, codec, detection, and provider failures
-- **Plugin trait system**: `Plugin`, `Action`, and `Provider` traits with a capability registry
-- **Content model**: span-based representation of document content across modalities
-- **File abstraction**: unified `File` type with MIME detection and byte-level access
-- **Math primitives**: bounding boxes, polygons, and geometric operations for spatial detection
+Supports JPEG, PNG, and TIFF formats.
+
+## Functions
+
+- **`read_exif`**: read EXIF metadata from an image file
+- **`strip_exif`**: strip EXIF metadata from an image file
+
+## Requirements
+
+- Python >= 3.11
+- Pillow
 
 ## Documentation
 

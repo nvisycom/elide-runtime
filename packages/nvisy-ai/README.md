@@ -1,14 +1,16 @@
-# nvisy-core
+# nvisy-hf
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Foundational crate for the Nvisy runtime. Defines domain types, error types, the plugin trait system, and the action/provider registry that all other crates build on.
+Hugging Face model runner for the Nvisy runtime. Called from Rust via the [`nvisy-python`](../../crates/nvisy-python) PyO3 bridge.
 
-- **Error types**: structured error hierarchy for pipeline, codec, detection, and provider failures
-- **Plugin trait system**: `Plugin`, `Action`, and `Provider` traits with a capability registry
-- **Content model**: span-based representation of document content across modalities
-- **File abstraction**: unified `File` type with MIME detection and byte-level access
-- **Math primitives**: bounding boxes, polygons, and geometric operations for spatial detection
+Runs local transformer models for NER, text classification, and token classification tasks that supplement the API-based providers in [`nvisy-rig`](../../crates/nvisy-rig).
+
+## Requirements
+
+- Python >= 3.11
+- `transformers`
+- `torch`
 
 ## Documentation
 

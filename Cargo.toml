@@ -20,7 +20,7 @@ members = [
 version = "0.1.0"
 rust-version = "1.92"
 edition = "2024"
-license = "MIT"
+license = "Apache-2.0"
 publish = false
 
 authors = ["nvisy <contact@nvisy.com>"]

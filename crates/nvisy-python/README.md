@@ -2,7 +2,16 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-PyO3 bridge plugin for the Nvisy runtime. Embeds a Python interpreter to run AI-powered named entity recognition (NER) models for text and image detection, exposing them as native Nvisy actions.
+Thin PyO3 bridge between Rust and Python. Manages interpreter lifecycle, defines intermediate types for cross-boundary data exchange, and provides a calling convention for Python packages under [`packages/`](../../packages/).
+
+- **Interpreter management**: embeds and initialises the Python runtime via PyO3
+- **Intermediate types**: Rust structs that map to Python objects for passing data across the FFI boundary
+- **Package loading**: discovers and imports Python packages at runtime
+- **Calling convention**: uniform interface for invoking any Python package from Rust engine actions
+
+Individual capabilities (NER, EXIF, etc.) live in their own Python packages; this crate only provides the bridge.
+
+Requires Python >= 3.11 at build time and runtime.
 
 ## Documentation
 

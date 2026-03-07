@@ -6,14 +6,14 @@ use std::fmt;
 
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
-use crate::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use super::AzureDocaiParams;
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
+    Backend, HttpConfig, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel,
+    build_http_client, check_response,
 };
 
 /// [`Backend`] implementation for Azure Document Intelligence.

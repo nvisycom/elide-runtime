@@ -7,14 +7,14 @@ use std::fmt;
 use hmac::{Hmac, Mac};
 use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use crate::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use super::AwsTextractParams;
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
+    Backend, HttpConfig, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel,
+    build_http_client, check_response,
 };
 
 /// [`Backend`] implementation for AWS Textract.

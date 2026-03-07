@@ -4,14 +4,14 @@
 
 use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use crate::backend::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::SuryaParams;
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response, image_part,
+    Backend, HttpConfig, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel,
+    build_http_client, check_response, image_part,
 };
 
 /// [`Backend`] implementation for Surya OCR.

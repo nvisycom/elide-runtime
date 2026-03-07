@@ -3,9 +3,7 @@
 use std::collections::HashMap;
 
 use nvisy_core::math::BoundingBox;
-use nvisy_ontology::entity::{
-    DetectionMethod, Entity, EntityCategory, EntityKind, ImageLocation,
-};
+use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityKind, ImageLocation};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

@@ -29,7 +29,7 @@ impl Ocr {
     fn to_image_input(span: &Span<(), ImageData>) -> Result<ImageInput, Error> {
         let png_bytes = span.data.encode_png()?;
         Ok(ImageInput::with_source(
-            span.source.clone(),
+            span.source,
             png_bytes,
             ImageFormat::Png,
         ))

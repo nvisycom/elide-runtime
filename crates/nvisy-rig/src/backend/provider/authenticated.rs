@@ -33,16 +33,9 @@ use crate::error::Error;
 
 /// Provider that requires an API key (OpenAI, Anthropic, Gemini).
 #[derive(Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "config", derive(clap::Args))]
 pub struct AuthenticatedProvider {
-    #[cfg_attr(
-        feature = "config",
-        arg(long, env = "LLM_API_KEY", hide_env_values = true)
-    )]
     pub api_key: String,
-    #[cfg_attr(feature = "config", arg(long, env = "LLM_MODEL"))]
     pub model: String,
-    #[cfg_attr(feature = "config", arg(long, env = "LLM_BASE_URL"))]
     pub base_url: Option<String>,
 }
 

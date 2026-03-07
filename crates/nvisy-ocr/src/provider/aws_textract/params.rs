@@ -6,22 +6,12 @@ use serde::{Deserialize, Serialize};
 ///
 /// [`AwsTextractBackend`]: super::AwsTextractBackend
 #[derive(Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "config", derive(clap::Args))]
 pub struct AwsTextractParams {
     /// AWS access key ID.
-    #[cfg_attr(
-        feature = "config",
-        arg(long, env = "AWS_ACCESS_KEY_ID", hide_env_values = true)
-    )]
     pub access_key: String,
     /// AWS secret access key.
-    #[cfg_attr(
-        feature = "config",
-        arg(long, env = "AWS_SECRET_ACCESS_KEY", hide_env_values = true)
-    )]
     pub secret_key: String,
     /// AWS region (e.g. `us-east-1`).
-    #[cfg_attr(feature = "config", arg(long, env = "AWS_REGION"))]
     pub region: String,
 }
 

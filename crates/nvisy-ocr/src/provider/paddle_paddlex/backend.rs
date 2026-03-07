@@ -4,16 +4,13 @@
 
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
-use reqwest_middleware::ClientWithMiddleware;
+use nvisy_http::HttpClient;
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::PaddleXParams;
-use nvisy_http::{HttpConfig, build_http_client};
-
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
-    image_part,
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response, image_part,
 };
 
 /// [`Backend`] implementation for PaddleX PP-OCRv5.
@@ -25,18 +22,18 @@ use crate::backend::{
 /// [`ImageRegion`]: crate::ImageRegion
 #[derive(Debug)]
 pub struct PaddleXBackend {
-    client: ClientWithMiddleware,
+    client: HttpClient,
     base_url: String,
 }
 
 impl PaddleXBackend {
     /// Create a new backend with default HTTP configuration.
     pub fn new(params: PaddleXParams) -> Self {
-        Self::with_client(build_http_client(&HttpConfig::default()), params)
+        Self::with_client(HttpClient::default(), params)
     }
 
     /// Create a new backend with a pre-configured HTTP client.
-    pub fn with_client(client: ClientWithMiddleware, params: PaddleXParams) -> Self {
+    pub fn with_client(client: HttpClient, params: PaddleXParams) -> Self {
         Self {
             client,
             base_url: params.base_url,

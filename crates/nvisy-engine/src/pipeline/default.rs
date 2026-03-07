@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
+use nvisy_http::HttpClient;
 use nvisy_ontology::record::PolicyEvaluation;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
@@ -28,20 +29,32 @@ use crate::operation::SharedContext;
 const CHANNEL_BUFFER_SIZE: usize = 256;
 
 /// Inner state shared behind an [`Arc`].
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 struct DefaultEngineInner {
     /// Default retry policy for graph nodes without one.
     retry: Option<RetryPolicy>,
     /// Default timeout policy for graph nodes without one.
     timeout: Option<TimeoutPolicy>,
+    /// Shared HTTP client for downstream providers.
+    http_client: HttpClient,
 }
 
 /// Default [`Engine`] implementation.
 ///
 /// Wraps policies in an `Arc` so cloning is cheap.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct DefaultEngine {
     inner: Arc<DefaultEngineInner>,
+}
+
+impl std::fmt::Debug for DefaultEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DefaultEngine")
+            .field("retry", &self.inner.retry)
+            .field("timeout", &self.inner.timeout)
+            .field("http_client", &self.inner.http_client)
+            .finish()
+    }
 }
 
 impl DefaultEngine {
@@ -60,6 +73,17 @@ impl DefaultEngine {
     pub fn with_timeout(mut self, policy: TimeoutPolicy) -> Self {
         Arc::make_mut(&mut self.inner).timeout = Some(policy);
         self
+    }
+
+    /// Set the shared HTTP client for downstream providers.
+    pub fn with_http_client(mut self, client: HttpClient) -> Self {
+        Arc::make_mut(&mut self.inner).http_client = client;
+        self
+    }
+
+    /// Returns the shared HTTP client.
+    pub fn http_client(&self) -> &HttpClient {
+        &self.inner.http_client
     }
 
     /// Execute a compiled [`ExecutionPlan`] by spawning concurrent tasks for

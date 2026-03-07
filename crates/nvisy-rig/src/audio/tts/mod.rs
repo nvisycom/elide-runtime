@@ -2,6 +2,7 @@
 
 mod provider;
 
+use nvisy_http::HttpClient;
 pub(crate) use provider::TtsModels;
 pub use provider::TtsProvider;
 #[cfg(feature = "openai-tts")]
@@ -52,7 +53,31 @@ impl TtsService {
     ///
     /// Returns [`Error::Request`] if client construction fails.
     pub fn new(provider: &TtsProvider, config: TtsConfig) -> Result<Self, Error> {
-        let inner = TtsModels::from_provider(provider, &config.model, config.max_retries)?;
+        let inner = TtsModels::from_provider(provider, &config.model, config.max_retries, None)?;
+
+        Ok(Self {
+            id: Uuid::now_v7(),
+            inner,
+            config,
+        })
+    }
+
+    /// Create a new TTS service using a pre-built HTTP client.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Request`] if client construction fails.
+    pub fn with_http_client(
+        provider: &TtsProvider,
+        config: TtsConfig,
+        client: HttpClient,
+    ) -> Result<Self, Error> {
+        let inner = TtsModels::from_provider(
+            provider,
+            &config.model,
+            config.max_retries,
+            Some(client.into_inner()),
+        )?;
 
         Ok(Self {
             id: Uuid::now_v7(),

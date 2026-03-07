@@ -1,16 +1,15 @@
 //! Provider dispatch for speech-to-text models.
 
 #[cfg(feature = "openai-whisper")]
+use nvisy_http::{HttpClient, HttpConfig};
 use reqwest_middleware::ClientWithMiddleware;
 #[cfg(feature = "openai-whisper")]
 use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
-use crate::backend::UnauthenticatedProvider;
-#[cfg(feature = "openai-whisper")]
-use nvisy_http::{HttpConfig, build_http_client};
 #[cfg(feature = "openai-whisper")]
 use crate::backend::AuthenticatedProvider;
+use crate::backend::UnauthenticatedProvider;
 use crate::error::Error;
 
 /// Supported providers for speech-to-text transcription.
@@ -82,13 +81,17 @@ impl SttModels {
         provider: &SttProvider,
         model: &str,
         max_retries: u32,
+        client: Option<ClientWithMiddleware>,
     ) -> Result<Self, Error> {
         match provider {
             #[cfg(feature = "openai-whisper")]
             SttProvider::OpenAi(p) => {
-                let http = build_http_client(&HttpConfig {
-                    max_retries,
-                    ..HttpConfig::default()
+                let http = client.unwrap_or_else(|| {
+                    HttpClient::new(&HttpConfig {
+                        max_retries,
+                        ..HttpConfig::default()
+                    })
+                    .into_inner()
                 });
                 let client = p.openai_client(http)?;
                 let model = openai::transcription::TranscriptionModel::new(client, model);

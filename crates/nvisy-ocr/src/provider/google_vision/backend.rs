@@ -6,12 +6,10 @@ use std::fmt;
 
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
-use reqwest_middleware::ClientWithMiddleware;
+use nvisy_http::HttpClient;
 use serde::Deserialize;
 
 use super::GoogleVisionParams;
-use nvisy_http::{HttpConfig, build_http_client};
-
 use crate::backend::{
     Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
 };
@@ -23,7 +21,7 @@ use crate::backend::{
 ///
 /// [`Backend`]: crate::Backend
 pub struct GoogleVisionBackend {
-    client: ClientWithMiddleware,
+    client: HttpClient,
     api_key: String,
 }
 
@@ -38,11 +36,11 @@ impl fmt::Debug for GoogleVisionBackend {
 impl GoogleVisionBackend {
     /// Create a new backend with default HTTP configuration.
     pub fn new(params: GoogleVisionParams) -> Self {
-        Self::with_client(build_http_client(&HttpConfig::default()), params)
+        Self::with_client(HttpClient::default(), params)
     }
 
     /// Create a new backend with a pre-configured HTTP client.
-    pub fn with_client(client: ClientWithMiddleware, params: GoogleVisionParams) -> Self {
+    pub fn with_client(client: HttpClient, params: GoogleVisionParams) -> Self {
         Self {
             client,
             api_key: params.api_key,

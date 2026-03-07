@@ -1,3 +1,4 @@
+use nvisy_http::HttpClient;
 use serde::{Deserialize, Serialize};
 
 /// Union of all provider parameter types.
@@ -42,6 +43,28 @@ impl EngineParams {
             Self::AzureDocai(p) => super::Engine::new(AzureDocaiBackend::new(p)),
             #[cfg(feature = "google-vision")]
             Self::GoogleVision(p) => super::Engine::new(GoogleVisionBackend::new(p)),
+        }
+    }
+
+    /// Build an [`Engine`] from these parameters using a pre-built HTTP client.
+    ///
+    /// This shares the caller's connection pool instead of creating a new one
+    /// per backend.
+    pub fn into_engine_with_client(self, client: HttpClient) -> super::Engine {
+        use crate::provider::*;
+
+        match self {
+            Self::Surya(p) => super::Engine::new(SuryaBackend::with_client(client, p)),
+            Self::Doctr(p) => super::Engine::new(DoctrBackend::with_client(client, p)),
+            Self::PaddleX(p) => super::Engine::new(PaddleXBackend::with_client(client, p)),
+            #[cfg(feature = "aws-textract")]
+            Self::AwsTextract(p) => super::Engine::new(AwsTextractBackend::with_client(client, p)),
+            #[cfg(feature = "azure-docai")]
+            Self::AzureDocai(p) => super::Engine::new(AzureDocaiBackend::with_client(client, p)),
+            #[cfg(feature = "google-vision")]
+            Self::GoogleVision(p) => {
+                super::Engine::new(GoogleVisionBackend::with_client(client, p))
+            }
         }
     }
 }

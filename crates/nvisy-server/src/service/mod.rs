@@ -9,6 +9,7 @@ mod config;
 
 pub use config::ServiceConfig;
 use nvisy_engine::pipeline::DefaultEngine;
+use nvisy_http::HttpClient;
 use nvisy_registry::Registry;
 
 /// Shared application state threaded through all handlers.
@@ -28,7 +29,9 @@ impl ServiceState {
     pub fn new(config: &ServiceConfig) -> nvisy_core::Result<Self> {
         let registry = Registry::open(config.data_dir())?;
 
-        let mut engine = DefaultEngine::new();
+        let http_client = HttpClient::new(&config.http_config());
+
+        let mut engine = DefaultEngine::new().with_http_client(http_client);
         if let Some(retry) = config.retry_policy() {
             engine = engine.with_retry(retry);
         }

@@ -9,6 +9,7 @@ mod output;
 mod prompt;
 
 pub use context::NerContext;
+use nvisy_http::HttpClient;
 pub use output::{KnownNerEntity, NerEntities, NerEntity, ResolvedOffsets};
 use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use uuid::Uuid;
@@ -39,6 +40,21 @@ impl NerAgent {
             .preamble
             .get_or_insert_with(|| NER_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config).build()?;
+        Ok(Self { base })
+    }
+
+    /// Create a new NER agent using a pre-built HTTP client.
+    pub fn with_http_client(
+        provider: &AgentProvider,
+        mut config: AgentConfig,
+        client: HttpClient,
+    ) -> Result<Self, Error> {
+        config
+            .preamble
+            .get_or_insert_with(|| NER_SYSTEM_PROMPT.into());
+        let base = BaseAgent::builder(provider, config)
+            .http_client(client)
+            .build()?;
         Ok(Self { base })
     }
 

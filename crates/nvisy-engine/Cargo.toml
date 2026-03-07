@@ -45,6 +45,7 @@ nvisy-codec = { workspace = true, features = [] }
 nvisy-rig = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 nvisy-ocr = { workspace = true, features = [] }
+nvisy-http = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = [] }

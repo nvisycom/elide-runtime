@@ -4,16 +4,13 @@
 
 use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use reqwest_middleware::ClientWithMiddleware;
+use nvisy_http::HttpClient;
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::SuryaParams;
-use nvisy_http::{HttpConfig, build_http_client};
-
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
-    image_part,
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response, image_part,
 };
 
 /// [`Backend`] implementation for Surya OCR.
@@ -23,21 +20,21 @@ use crate::backend::{
 /// polygon and an axis-aligned bounding box in pixel coordinates.
 ///
 /// [`Backend`]: crate::Backend
-/// [`ImageRegion`]: crate::ImageRegion
+/// [`ImageRegion`]: crate::ImageRegxion
 #[derive(Debug)]
 pub struct SuryaBackend {
-    client: ClientWithMiddleware,
+    client: HttpClient,
     base_url: String,
 }
 
 impl SuryaBackend {
     /// Create a new backend with default HTTP configuration.
     pub fn new(params: SuryaParams) -> Self {
-        Self::with_client(build_http_client(&HttpConfig::default()), params)
+        Self::with_client(HttpClient::default(), params)
     }
 
     /// Create a new backend with a pre-configured HTTP client.
-    pub fn with_client(client: ClientWithMiddleware, params: SuryaParams) -> Self {
+    pub fn with_client(client: HttpClient, params: SuryaParams) -> Self {
         Self {
             client,
             base_url: params.base_url,

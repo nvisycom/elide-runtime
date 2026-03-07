@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use clap::Args;
 use nvisy_engine::{RetryPolicy, TimeoutPolicy};
+use nvisy_http::HttpConfig;
 
 /// Configuration for the service layer.
 ///
@@ -28,6 +29,22 @@ pub struct ServiceConfig {
     /// Default timeout in milliseconds for graph nodes (0 to disable).
     #[arg(long, env = "ENGINE_TIMEOUT_MS", default_value_t = 30_000)]
     engine_timeout_ms: u64,
+
+    /// Maximum retries for transient HTTP errors in downstream providers.
+    #[arg(long, env = "HTTP_MAX_RETRIES", default_value_t = 3)]
+    http_max_retries: u32,
+
+    /// Per-request timeout in seconds for downstream HTTP calls.
+    #[arg(long, env = "HTTP_TIMEOUT_SECS", default_value_t = 120)]
+    http_timeout_secs: u64,
+
+    /// TCP connection timeout in seconds for downstream HTTP calls.
+    #[arg(long, env = "HTTP_CONNECT_TIMEOUT_SECS", default_value_t = 10)]
+    http_connect_timeout_secs: u64,
+
+    /// Keep-alive pool idle timeout in seconds for downstream HTTP calls.
+    #[arg(long, env = "HTTP_POOL_IDLE_TIMEOUT_SECS", default_value_t = 90)]
+    http_pool_idle_timeout_secs: u64,
 }
 
 impl ServiceConfig {
@@ -59,5 +76,15 @@ impl ServiceConfig {
             duration_ms: self.engine_timeout_ms,
             on_timeout: Default::default(),
         })
+    }
+
+    /// Builds the HTTP configuration for downstream provider clients.
+    pub fn http_config(&self) -> HttpConfig {
+        HttpConfig {
+            max_retries: self.http_max_retries,
+            timeout_secs: self.http_timeout_secs,
+            connect_timeout_secs: self.http_connect_timeout_secs,
+            pool_idle_timeout_secs: self.http_pool_idle_timeout_secs,
+        }
     }
 }

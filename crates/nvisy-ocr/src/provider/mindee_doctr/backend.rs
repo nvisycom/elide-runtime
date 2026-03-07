@@ -4,16 +4,13 @@
 
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
-use reqwest_middleware::ClientWithMiddleware;
+use nvisy_http::HttpClient;
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::DoctrParams;
-use nvisy_http::{HttpConfig, build_http_client};
-
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
-    image_part,
+    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response, image_part,
 };
 
 /// [`Backend`] implementation for DocTR.
@@ -27,18 +24,18 @@ use crate::backend::{
 /// [`ImageRegion`]: crate::ImageRegion
 #[derive(Debug)]
 pub struct DoctrBackend {
-    client: ClientWithMiddleware,
+    client: HttpClient,
     base_url: String,
 }
 
 impl DoctrBackend {
     /// Create a new backend with default HTTP configuration.
     pub fn new(params: DoctrParams) -> Self {
-        Self::with_client(build_http_client(&HttpConfig::default()), params)
+        Self::with_client(HttpClient::default(), params)
     }
 
     /// Create a new backend with a pre-configured HTTP client.
-    pub fn with_client(client: ClientWithMiddleware, params: DoctrParams) -> Self {
+    pub fn with_client(client: HttpClient, params: DoctrParams) -> Self {
         Self {
             client,
             base_url: params.base_url,

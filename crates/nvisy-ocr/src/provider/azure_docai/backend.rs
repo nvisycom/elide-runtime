@@ -6,13 +6,11 @@ use std::fmt;
 
 use nvisy_core::Error;
 use nvisy_core::math::{Polygon, Vertex};
-use reqwest_middleware::ClientWithMiddleware;
+use nvisy_http::HttpClient;
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use super::AzureDocaiParams;
-use nvisy_http::{HttpConfig, build_http_client};
-
 use crate::backend::{
     Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
 };
@@ -24,7 +22,7 @@ use crate::backend::{
 ///
 /// [`Backend`]: crate::Backend
 pub struct AzureDocaiBackend {
-    client: ClientWithMiddleware,
+    client: HttpClient,
     endpoint: String,
     api_key: String,
     api_version: String,
@@ -45,11 +43,11 @@ impl fmt::Debug for AzureDocaiBackend {
 impl AzureDocaiBackend {
     /// Create a new backend with default HTTP configuration.
     pub fn new(params: AzureDocaiParams) -> Self {
-        Self::with_client(build_http_client(&HttpConfig::default()), params)
+        Self::with_client(HttpClient::default(), params)
     }
 
     /// Create a new backend with a pre-configured HTTP client.
-    pub fn with_client(client: ClientWithMiddleware, params: AzureDocaiParams) -> Self {
+    pub fn with_client(client: HttpClient, params: AzureDocaiParams) -> Self {
         let poll_interval = Duration::from_millis(params.poll_interval_ms.unwrap_or(500));
         let max_poll_attempts = params.max_poll_attempts.unwrap_or(120);
         let api_version = params

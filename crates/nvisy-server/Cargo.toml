@@ -42,6 +42,7 @@ nvisy-core = { workspace = true, features = [] }
 nvisy-engine = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 nvisy-registry = { workspace = true, features = [] }
+nvisy-http = { workspace = true, features = [] }
 
 # Async runtime
 futures = { workspace = true, features = [] }

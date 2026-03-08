@@ -1,6 +1,6 @@
 //! Process request types.
 
-use nvisy_engine::{Graph, NvisyConfig};
+use nvisy_engine::{Graph, RuntimeConfig};
 use nvisy_ontology::policy::Policies;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -21,5 +21,5 @@ pub struct NewProcess {
     /// Per-request configuration overrides (optional).
     #[serde(default)]
     #[schemars(skip)]
-    pub config: Option<NvisyConfig>,
+    pub config: Option<RuntimeConfig>,
 }

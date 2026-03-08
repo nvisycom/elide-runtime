@@ -16,7 +16,7 @@ mod runs;
 
 use std::future::Future;
 
-pub use config::{EngineSection, LlmSection, NvisyConfig, OcrSection, SttSection, TtsSection};
+pub use config::{EngineSection, LlmSection, RuntimeConfig, OcrSection, SttSection, TtsSection};
 pub use default::DefaultEngine;
 pub use executor::{NodeOutput, RunOutput};
 use nvisy_core::Error;

@@ -16,7 +16,7 @@ use nvisy_server::middleware::{
     RecoveryConfig, SecurityConfig,
 };
 
-use super::server::MiddlewareSection;
+use super::file::MiddlewareSection;
 
 const MB: usize = 1024 * 1024;
 

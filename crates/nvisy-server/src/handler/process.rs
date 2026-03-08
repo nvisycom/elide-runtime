@@ -15,7 +15,7 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::post_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_engine::NvisyConfig;
+use nvisy_engine::RuntimeConfig;
 use nvisy_engine::pipeline::{DefaultEngine, Engine, EngineInput};
 
 use super::error::Result;
@@ -27,7 +27,7 @@ use crate::service::ServiceState;
 const TARGET: &str = "nvisy_server::process";
 
 /// Build an [`EngineInput`] from a [`NewProcess`] with merged config.
-fn engine_input(req: NewProcess, config: NvisyConfig) -> EngineInput {
+fn engine_input(req: NewProcess, config: RuntimeConfig) -> EngineInput {
     EngineInput {
         actor_id: req.actor_id,
         content_ids: req.content_ids,
@@ -52,7 +52,7 @@ fn engine_input(req: NewProcess, config: NvisyConfig) -> EngineInput {
 )]
 async fn scan(
     State(engine): State<DefaultEngine>,
-    State(base_config): State<NvisyConfig>,
+    State(base_config): State<RuntimeConfig>,
     Json(req): Json<NewProcess>,
 ) -> Result<Json<ProcessResult>> {
     let config = match &req.config {
@@ -96,7 +96,7 @@ fn scan_docs(op: TransformOperation) -> TransformOperation {
 )]
 async fn analyze(
     State(engine): State<DefaultEngine>,
-    State(base_config): State<NvisyConfig>,
+    State(base_config): State<RuntimeConfig>,
     Json(req): Json<NewProcess>,
 ) -> Result<Json<ProcessResult>> {
     let config = match &req.config {
@@ -140,7 +140,7 @@ fn analyze_docs(op: TransformOperation) -> TransformOperation {
 )]
 async fn redact(
     State(engine): State<DefaultEngine>,
-    State(base_config): State<NvisyConfig>,
+    State(base_config): State<RuntimeConfig>,
     Json(req): Json<NewProcess>,
 ) -> Result<Json<ProcessResult>> {
     let config = match &req.config {

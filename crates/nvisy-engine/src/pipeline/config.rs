@@ -109,7 +109,7 @@ pub struct EngineSection {
 /// The CLI layer owns the full TOML shape (including `[server]`) and passes
 /// this struct downstream.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct NvisyConfig {
+pub struct RuntimeConfig {
     /// Engine-level policies and HTTP client.
     pub engine: Option<EngineSection>,
     /// OCR subsystem configuration.
@@ -122,14 +122,14 @@ pub struct NvisyConfig {
     pub tts: Option<TtsSection>,
 }
 
-impl NvisyConfig {
+impl RuntimeConfig {
     /// Merge with per-request overrides.
     ///
     /// Non-`None` sections in `overrides` replace the corresponding section
     /// in `self`; `None` sections fall back to `self`.
     #[must_use]
-    pub fn merge(&self, overrides: &NvisyConfig) -> NvisyConfig {
-        NvisyConfig {
+    pub fn merge(&self, overrides: &RuntimeConfig) -> RuntimeConfig {
+        RuntimeConfig {
             engine: overrides.engine.clone().or_else(|| self.engine.clone()),
             ocr: overrides.ocr.clone().or_else(|| self.ocr.clone()),
             llm: overrides.llm.clone().or_else(|| self.llm.clone()),
@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn empty_toml_parses_to_defaults() {
-        let config: NvisyConfig = toml::from_str("").unwrap();
+        let config: RuntimeConfig = toml::from_str("").unwrap();
         assert!(config.engine.is_none());
         assert!(config.ocr.is_none());
         assert!(config.llm.is_none());
@@ -162,7 +162,7 @@ mod tests {
             connect_timeout_secs = 5
             idle_timeout_secs = 30
         "#;
-        let config: NvisyConfig = toml::from_str(toml).unwrap();
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
         let http = config.engine.unwrap().http.unwrap();
         assert_eq!(http.max_retries, 5);
         assert_eq!(http.timeout_secs, 60);
@@ -175,7 +175,7 @@ mod tests {
             kind = "surya"
             base_url = "http://localhost:8001"
         "#;
-        let config: NvisyConfig = toml::from_str(toml).unwrap();
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
         assert!(config.ocr.is_some());
         assert!(config.ocr.unwrap().provider.is_some());
     }
@@ -186,7 +186,7 @@ mod tests {
             [ocr.policy]
             confidence_threshold = 0.5
         "#;
-        let config: NvisyConfig = toml::from_str(toml).unwrap();
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
         let ocr = config.ocr.unwrap();
         let policy = ocr.policy.unwrap();
         assert!((policy.confidence_threshold - 0.5).abs() < f64::EPSILON);
@@ -200,7 +200,7 @@ mod tests {
             delay_ms = 500
             backoff = "fixed"
         "#;
-        let config: NvisyConfig = toml::from_str(toml).unwrap();
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
         let engine = config.engine.unwrap();
         let retry = engine.retry.unwrap();
         assert_eq!(retry.max_retries, 3);
@@ -214,7 +214,7 @@ mod tests {
             duration_ms = 30000
             on_timeout = "fail"
         "#;
-        let config: NvisyConfig = toml::from_str(toml).unwrap();
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
         let engine = config.engine.unwrap();
         let timeout = engine.timeout.unwrap();
         assert_eq!(timeout.duration_ms, 30000);
@@ -228,7 +228,7 @@ mod tests {
             max_tokens = 4096
             max_retries = 3
         "#;
-        let config: NvisyConfig = toml::from_str(toml).unwrap();
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
         let llm = config.llm.unwrap();
         let policy = llm.policy.unwrap();
         assert!((policy.temperature - 0.1).abs() < f64::EPSILON);
@@ -243,7 +243,7 @@ mod tests {
             kind = "surya"
             base_url = "http://localhost:8001"
         "#;
-        let config: NvisyConfig = toml::from_str(toml).unwrap();
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
         assert!(config.ocr.unwrap().enabled);
     }
 
@@ -253,13 +253,13 @@ mod tests {
             [ocr]
             enabled = false
         "#;
-        let config: NvisyConfig = toml::from_str(toml).unwrap();
+        let config: RuntimeConfig = toml::from_str(toml).unwrap();
         assert!(!config.ocr.unwrap().enabled);
     }
 
     #[test]
     fn merge_overrides_present_sections() {
-        let base = NvisyConfig {
+        let base = RuntimeConfig {
             engine: Some(EngineSection {
                 http: Some(nvisy_http::HttpConfig {
                     max_retries: 3,
@@ -271,7 +271,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let overrides = NvisyConfig {
+        let overrides = RuntimeConfig {
             engine: Some(EngineSection {
                 http: Some(nvisy_http::HttpConfig {
                     max_retries: 1,
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     fn merge_falls_back_to_base() {
-        let base = NvisyConfig {
+        let base = RuntimeConfig {
             engine: Some(EngineSection {
                 http: Some(nvisy_http::HttpConfig {
                     max_retries: 3,
@@ -301,7 +301,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let overrides = NvisyConfig::default();
+        let overrides = RuntimeConfig::default();
         let merged = base.merge(&overrides);
         assert_eq!(merged.engine.unwrap().http.unwrap().max_retries, 3);
     }

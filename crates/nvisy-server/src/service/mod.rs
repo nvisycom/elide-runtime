@@ -7,7 +7,7 @@
 
 use std::path::PathBuf;
 
-use nvisy_engine::NvisyConfig;
+use nvisy_engine::RuntimeConfig;
 use nvisy_engine::pipeline::DefaultEngine;
 use nvisy_http::HttpClient;
 use nvisy_registry::Registry;
@@ -18,17 +18,17 @@ use nvisy_registry::Registry;
 pub struct ServiceState {
     engine: DefaultEngine,
     registry: Registry,
-    config: NvisyConfig,
+    config: RuntimeConfig,
     data_dir: PathBuf,
 }
 
 impl ServiceState {
-    /// Creates a new service state from a resolved [`NvisyConfig`] and data directory.
+    /// Creates a new service state from a resolved [`RuntimeConfig`] and data directory.
     ///
     /// # Errors
     ///
     /// Returns an error if the registry database cannot be opened.
-    pub fn new(config: NvisyConfig, data_dir: PathBuf) -> nvisy_core::Result<Self> {
+    pub fn new(config: RuntimeConfig, data_dir: PathBuf) -> nvisy_core::Result<Self> {
         let registry = Registry::open(data_dir.clone())?;
 
         let http_config = config
@@ -73,5 +73,5 @@ macro_rules! impl_di {
 impl_di!(
     engine: DefaultEngine,
     registry: Registry,
-    config: NvisyConfig,
+    config: RuntimeConfig,
 );

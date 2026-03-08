@@ -7,12 +7,12 @@
 //! ├── server: ServerConfig        # Host, port, shutdown, data_dir
 //! └── middleware: MiddlewareConfig # Body limits, timeouts, CORS
 //!
-//! CliConfig (TOML)
+//! FileConfig (TOML)
 //! ├── server: ServerSection       # Host, port, shutdown, data_dir, observability, middleware
-//! └── (flattened NvisyConfig)     # engine, ocr, llm, stt, tts
+//! └── (flattened RuntimeConfig)   # engine, ocr, llm, stt, tts
 //! ```
 //!
-//! The CLI parses the TOML file into [`CliConfig`], then applies clap
+//! The CLI parses the TOML file into [`FileConfig`], then applies clap
 //! overrides from the CLI flags and environment variables.
 //!
 //! # Example
@@ -21,39 +21,19 @@
 //! nvisy-server --host 127.0.0.1 --port 3000 --config Nvisy.toml
 //! ```
 
+mod file;
 mod middleware;
 mod server;
 
 use std::path::PathBuf;
 
 use clap::Parser;
-pub use middleware::MiddlewareConfig;
-use nvisy_engine::NvisyConfig;
-use serde::Deserialize;
-pub use server::{
-    LogFormat, MiddlewareSection, ObservabilitySection, ResolvedServer, ServerConfig, ServerSection,
-};
+use nvisy_engine::RuntimeConfig;
 use tracing_subscriber::EnvFilter;
 
-/// Full TOML file shape: `[server]` + all engine subsystem sections.
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct CliConfig {
-    pub server: Option<ServerSection>,
-    #[serde(flatten)]
-    pub inner: NvisyConfig,
-}
-
-impl CliConfig {
-    /// Load from a TOML file, or return defaults if the file doesn't exist.
-    pub fn from_file(path: &PathBuf) -> anyhow::Result<Self> {
-        if !path.exists() {
-            return Ok(Self::default());
-        }
-        let contents = std::fs::read_to_string(path)?;
-        let config = toml::from_str(&contents)?;
-        Ok(config)
-    }
-}
+pub use file::{LogFormat, MiddlewareSection, ObservabilitySection};
+pub use middleware::MiddlewareConfig;
+pub use server::{ResolvedServer, ServerConfig};
 
 /// Complete CLI configuration.
 ///
@@ -78,8 +58,8 @@ pub struct Cli {
 
 impl Cli {
     /// Load the TOML file, apply CLI overrides, and return the resolved config.
-    pub fn load(&self) -> anyhow::Result<(ResolvedServer, NvisyConfig, Option<MiddlewareSection>)> {
-        let toml = CliConfig::from_file(&self.config)?;
+    pub fn load(&self) -> anyhow::Result<(ResolvedServer, RuntimeConfig, Option<MiddlewareSection>)> {
+        let toml = file::FileConfig::from_file(&self.config)?;
         let resolved = self.server.resolve(&toml.server);
         let mw_section = toml
             .server

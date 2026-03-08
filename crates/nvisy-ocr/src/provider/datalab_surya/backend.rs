@@ -49,6 +49,10 @@ struct SuryaResponse {
 
 #[derive(Debug, Deserialize)]
 struct SuryaPage {
+    /// Upstream page number (0-based).
+    page: u32,
+    /// Document image bounds `[x_min, y_min, x_max, y_max]`.
+    image_bbox: [f64; 4],
     text_lines: Vec<SuryaTextLine>,
 }
 
@@ -94,7 +98,7 @@ impl Backend for SuryaBackend {
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());
 
-        for (page_idx, surya_page) in parsed.pages.iter().enumerate() {
+        for surya_page in &parsed.pages {
             let mut lines = Vec::new();
 
             for text_line in &surya_page.text_lines {
@@ -159,10 +163,12 @@ impl Backend for SuryaBackend {
             let block_bbox =
                 BoundingBox::enclosing(lines.iter().map(|l| &l.bbox));
 
+            let [_x_min, _y_min, x_max, y_max] = surya_page.image_bbox;
+
             output.pages.push(Page {
-                page_number: (page_idx + 1) as u32,
-                width: None,
-                height: None,
+                page_number: surya_page.page + 1,
+                width: Some(x_max),
+                height: Some(y_max),
                 blocks: vec![Block {
                     text: block_text,
                     confidence: None,
@@ -186,6 +192,8 @@ mod tests {
     fn parse_response() {
         let json = serde_json::json!({
             "pages": [{
+                "page": 0,
+                "image_bbox": [0.0, 0.0, 800.0, 600.0],
                 "text_lines": [{
                     "words": [
                         {

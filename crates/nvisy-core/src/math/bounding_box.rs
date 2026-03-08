@@ -8,16 +8,8 @@ use serde::{Deserialize, Serialize};
 /// Coordinates are `f64` to support both pixel and normalized (0.0–1.0)
 /// values from detection models. Use [`BoundingBoxU32`] (or [`Into`])
 /// when integer pixel coordinates are needed for rendering.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct BoundingBox {
     /// Horizontal offset of the top-left corner (pixels or normalized).
     pub x: f64,

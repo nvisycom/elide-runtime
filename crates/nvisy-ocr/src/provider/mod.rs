@@ -1,11 +1,9 @@
 //! All OCR backend implementations and their parameter types.
 
 mod datalab_surya;
-mod mindee_doctr;
 mod paddle_paddlex;
 
 pub use datalab_surya::{SuryaBackend, SuryaParams};
-pub use mindee_doctr::{DoctrBackend, DoctrParams};
 pub use paddle_paddlex::{PaddleXBackend, PaddleXParams};
 
 #[cfg(feature = "aws-textract")]

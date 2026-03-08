@@ -5,9 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::provider::{AwsTextractBackend, AwsTextractParams};
 #[cfg(feature = "azure-docai")]
 use crate::provider::{AzureDocaiBackend, AzureDocaiParams};
-use crate::provider::{
-    DoctrBackend, DoctrParams, PaddleXBackend, PaddleXParams, SuryaBackend, SuryaParams,
-};
+use crate::provider::{PaddleXBackend, PaddleXParams, SuryaBackend, SuryaParams};
 #[cfg(feature = "google-vision")]
 use crate::provider::{GoogleVisionBackend, GoogleVisionParams};
 
@@ -21,8 +19,6 @@ use crate::provider::{GoogleVisionBackend, GoogleVisionParams};
 pub enum OcrProvider {
     /// Datalab Surya OCR.
     Surya(SuryaParams),
-    /// Mindee DocTR.
-    Doctr(DoctrParams),
     /// PaddlePaddle PaddleX PP-OCRv5.
     PaddleX(PaddleXParams),
     /// AWS Textract.
@@ -44,7 +40,6 @@ impl OcrProvider {
     pub fn into_engine(self) -> super::OcrEngine {
         match self {
             Self::Surya(p) => super::OcrEngine::new(SuryaBackend::new(p)),
-            Self::Doctr(p) => super::OcrEngine::new(DoctrBackend::new(p)),
             Self::PaddleX(p) => super::OcrEngine::new(PaddleXBackend::new(p)),
             #[cfg(feature = "aws-textract")]
             Self::AwsTextract(p) => super::OcrEngine::new(AwsTextractBackend::new(p)),
@@ -62,7 +57,6 @@ impl OcrProvider {
     pub fn into_engine_with_client(self, client: HttpClient) -> super::OcrEngine {
         match self {
             Self::Surya(p) => super::OcrEngine::new(SuryaBackend::with_client(client, p)),
-            Self::Doctr(p) => super::OcrEngine::new(DoctrBackend::with_client(client, p)),
             Self::PaddleX(p) => super::OcrEngine::new(PaddleXBackend::with_client(client, p)),
             #[cfg(feature = "aws-textract")]
             Self::AwsTextract(p) => {

@@ -21,9 +21,9 @@ use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 ///
 /// ```ignore
 /// use nvisy_ocr::{OcrEngine, ImageInput, ImageFormat, RunParams};
-/// use nvisy_ocr::provider::{DoctrBackend, DoctrParams};
+/// use nvisy_ocr::provider::{SuryaBackend, SuryaParams};
 ///
-/// let backend = DoctrBackend::new(DoctrParams { base_url: "http://localhost:8000".into() });
+/// let backend = SuryaBackend::new(SuryaParams { base_url: "http://localhost:8000".into() });
 /// let engine = OcrEngine::new(backend);
 ///
 /// let image = ImageInput::new(png_bytes, ImageFormat::Png);

@@ -14,5 +14,5 @@ pub use compiler::{
 // Re-export retry and timeout policies for pipeline nodes.
 pub use compiler::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 pub use pipeline::{
-    DefaultEngine, EngineSection, LlmSection, RuntimeConfig, OcrSection, SttSection, TtsSection,
+    DefaultEngine, EngineSection, LlmSection, OcrSection, RuntimeConfig, SttSection, TtsSection,
 };

@@ -1,59 +1,65 @@
-//! HTTP middleware configuration.
+//! Middleware resolution from TOML `[server.middleware]`.
 //!
-//! # Environment Variables
-//!
-//! - `BODY_LIMIT_BYTES` — Max body size for axum extractors (default: 4 MiB)
-//! - `FILE_BODY_LIMIT_BYTES` — Max body size for file uploads (default: 12 MiB)
-//! - `REQUEST_TIMEOUT_SECS` — Per-request timeout (default: 300s)
-//! - `CORS_ALLOWED_ORIGINS` — Allowed CORS origins, comma-separated
+//! Translates the optional [`MiddlewareSection`] from the TOML file into
+//! concrete middleware configs consumed by `nvisy-server`. When a TOML
+//! field is absent, the corresponding `nvisy-server` default is used.
 
 use std::time::Duration;
 
-use clap::Args;
 use nvisy_server::middleware::{
     DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE, DEFAULT_REQUEST_TIMEOUT_SECS, OpenApiConfig,
     RecoveryConfig, SecurityConfig,
 };
 
-/// Middleware configuration for body limits, timeouts, and CORS.
-#[derive(Debug, Clone, Args)]
-pub struct MiddlewareConfig {
-    /// Maximum body size in bytes for axum extractors (Json, Form, etc.).
-    #[arg(long, env = "BODY_LIMIT_BYTES", default_value_t = DEFAULT_MAX_BODY_SIZE)]
-    pub body_limit_bytes: usize,
+use super::file::MiddlewareSection;
 
-    /// Maximum body size in bytes for file uploads.
-    #[arg(long, env = "FILE_BODY_LIMIT_BYTES", default_value_t = DEFAULT_MAX_FILE_BODY_SIZE)]
-    pub file_body_limit_bytes: usize,
+const MB: usize = 1024 * 1024;
 
-    /// Per-request timeout in seconds.
-    #[arg(long, env = "REQUEST_TIMEOUT_SECS", default_value_t = DEFAULT_REQUEST_TIMEOUT_SECS)]
-    pub request_timeout_secs: u64,
+/// Builds a [`SecurityConfig`] from the TOML middleware section.
+///
+/// Resolves body limits, CORS origins, and CORS max-age. Falls back to
+/// `nvisy-server` defaults for any omitted field.
+pub fn security_config(toml: &Option<MiddlewareSection>) -> SecurityConfig {
+    let toml = toml.as_ref();
 
-    /// Allowed CORS origins (repeat for multiple). Empty means permissive.
-    #[arg(long, env = "CORS_ALLOWED_ORIGINS", value_delimiter = ',')]
-    pub cors_allowed_origins: Vec<String>,
+    let body_limit_bytes = toml
+        .and_then(|m| m.body_limit_mb)
+        .map(|mb| mb * MB)
+        .unwrap_or(DEFAULT_MAX_BODY_SIZE);
+
+    let cors_allowed_origins = toml
+        .and_then(|m| m.cors.as_ref())
+        .map(|c| c.allowed_origins.clone())
+        .unwrap_or_default();
+
+    let cors_max_age_secs = toml
+        .and_then(|m| m.cors.as_ref())
+        .and_then(|c| c.max_age_secs);
+
+    SecurityConfig {
+        body_limit_bytes,
+        file_body_limit_bytes: DEFAULT_MAX_FILE_BODY_SIZE,
+        cors_allowed_origins,
+        cors_max_age_secs,
+    }
 }
 
-impl MiddlewareConfig {
-    /// Builds a [`SecurityConfig`].
-    pub fn security_config(&self) -> SecurityConfig {
-        SecurityConfig {
-            body_limit_bytes: self.body_limit_bytes,
-            file_body_limit_bytes: self.file_body_limit_bytes,
-            cors_allowed_origins: self.cors_allowed_origins.clone(),
-        }
-    }
+/// Builds a [`RecoveryConfig`] from the TOML middleware section.
+///
+/// Uses the configured `request_timeout_secs` or falls back to the
+/// `nvisy-server` default (300 s).
+pub fn recovery_config(toml: &Option<MiddlewareSection>) -> RecoveryConfig {
+    let timeout_secs = toml
+        .as_ref()
+        .and_then(|m| m.request_timeout_secs)
+        .unwrap_or(DEFAULT_REQUEST_TIMEOUT_SECS);
 
-    /// Builds a [`RecoveryConfig`].
-    pub fn recovery_config(&self) -> RecoveryConfig {
-        RecoveryConfig {
-            request_timeout: Duration::from_secs(self.request_timeout_secs),
-        }
+    RecoveryConfig {
+        request_timeout: Duration::from_secs(timeout_secs),
     }
+}
 
-    /// Returns the default [`OpenApiConfig`].
-    pub fn open_api_config(&self) -> OpenApiConfig {
-        OpenApiConfig::default()
-    }
+/// Returns the default [`OpenApiConfig`].
+pub fn open_api_config() -> OpenApiConfig {
+    OpenApiConfig::default()
 }

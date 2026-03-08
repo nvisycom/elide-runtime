@@ -4,6 +4,12 @@
 
 Foundational crate for the Nvisy runtime. Defines domain types, error types, the plugin trait system, and the action/provider registry that all other crates build on.
 
+- **Error types**: structured error hierarchy for pipeline, codec, detection, and provider failures
+- **Plugin trait system**: `Plugin`, `Action`, and `Provider` traits with a capability registry
+- **Content model**: span-based representation of document content across modalities
+- **File abstraction**: unified `File` type with MIME detection and byte-level access
+- **Math primitives**: bounding boxes, polygons, and geometric operations for spatial detection
+
 ## Documentation
 
 See [`docs/`](../../docs/) for architecture, security, and API documentation.

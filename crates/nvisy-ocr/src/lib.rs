@@ -12,4 +12,4 @@ pub mod prelude;
 pub use backend::{
     Backend, ImageFormat, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel,
 };
-pub use engine::{Engine, EngineParams};
+pub use engine::{OcrEngine, OcrProvider};

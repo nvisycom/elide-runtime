@@ -9,7 +9,7 @@
 /// All arithmetic is based on a rough **4 characters ≈ 1 token** heuristic.
 /// This is intentionally conservative: over-splitting is harmless while
 /// exceeding the real limit causes provider errors.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ContextWindow {
     /// Maximum tokens the model supports.
     max_tokens: usize,

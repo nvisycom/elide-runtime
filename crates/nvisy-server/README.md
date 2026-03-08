@@ -6,6 +6,18 @@ HTTP server exposing the nvisy `Engine` pipeline via REST endpoints with auto-ge
 
 Built on [Axum](https://docs.rs/axum) with [Aide](https://docs.rs/aide) for OpenAPI spec generation and [Scalar](https://github.com/scalar/scalar) for interactive API docs.
 
+## Feature Flags
+
+Vendor features are forwarded from [`nvisy-engine`](../nvisy-engine). All are disabled by default.
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `openai` | no | Enable all OpenAI providers (GPT, Whisper STT, TTS) |
+| `anthropic` | no | Enable Anthropic Claude completion provider |
+| `google` | no | Enable Google Gemini + Google Cloud Vision OCR |
+| `microsoft` | no | Enable Azure Document Intelligence OCR |
+| `amazon` | no | Enable AWS Textract OCR |
+
 ## Endpoints
 
 | Method | Path                   | Handler              | Description                          |
@@ -23,11 +35,11 @@ Built on [Axum](https://docs.rs/axum) with [Aide](https://docs.rs/aide) for Open
 
 Applied in order (outermost first):
 
-1. **Specification** — finalises the aide route tree, serves OpenAPI JSON and Scalar UI.
-2. **Recovery** — catches panics and enforces per-request timeouts.
-3. **Observability** — assigns/propagates `x-request-id`, structured tracing, sensitive header redaction.
-4. **Security** — permissive CORS policy and request body size limits.
-5. **Compression** — gzip, brotli, and zstd response compression.
+1. **Specification**: finalises the aide route tree, serves OpenAPI JSON and Scalar UI.
+2. **Recovery**: catches panics and enforces per-request timeouts.
+3. **Observability**: assigns/propagates `x-request-id`, structured tracing, sensitive header redaction.
+4. **Security**: permissive CORS policy and request body size limits.
+5. **Compression**: gzip, brotli, and zstd response compression.
 
 ## Configuration
 

@@ -4,6 +4,23 @@
 
 DAG compiler and executor for the Nvisy runtime. Compiles graph definitions into executable pipelines, manages run lifecycles, and coordinates policy resolution and connection routing between nodes.
 
+- **Graph compilation**: validates and compiles graph definitions into executable DAGs via petgraph
+- **Run lifecycle**: manages pipeline execution with retry, timeout, and chunked context-window policies
+- **Policy resolution**: selects redaction strategies based on entity type, document class, and confidence
+- **Connection routing**: routes data between nodes with type-checked ports and buffered channels
+
+## Feature Flags
+
+Vendor features control which LLM and OCR providers are compiled in. All are disabled by default.
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `openai` | no | Enable all OpenAI providers (GPT, Whisper STT, TTS) |
+| `anthropic` | no | Enable Anthropic Claude completion provider |
+| `google` | no | Enable Google Gemini + Google Cloud Vision OCR |
+| `microsoft` | no | Enable Azure Document Intelligence OCR |
+| `amazon` | no | Enable AWS Textract OCR |
+
 ## Documentation
 
 See [`docs/`](../../docs/) for architecture, security, and API documentation.

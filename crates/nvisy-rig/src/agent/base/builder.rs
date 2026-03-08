@@ -1,5 +1,6 @@
 //! Builder for [`BaseAgent`](super::BaseAgent).
 
+use nvisy_http::{HttpClient, HttpConfig};
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
 use rig::completion::CompletionModel;
@@ -9,7 +10,7 @@ use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
 use super::{AgentConfig, AgentProvider, Agents, BaseAgent};
-use crate::backend::{HttpConfig, UsageTracker, build_http_client};
+use crate::backend::UsageTracker;
 use crate::error::Error;
 
 /// Builder for [`BaseAgent`].
@@ -21,6 +22,7 @@ pub(crate) struct BaseAgentBuilder {
     provider: AgentProvider,
     config: AgentConfig,
     tools: Vec<Box<dyn ToolDyn>>,
+    http_client: Option<HttpClient>,
 }
 
 impl BaseAgentBuilder {
@@ -29,6 +31,7 @@ impl BaseAgentBuilder {
             provider: provider.clone(),
             config,
             tools: Vec::new(),
+            http_client: None,
         }
     }
 
@@ -38,41 +41,54 @@ impl BaseAgentBuilder {
         self
     }
 
+    /// Use a pre-built HTTP client instead of constructing a new one.
+    pub fn http_client(mut self, client: HttpClient) -> Self {
+        self.http_client = Some(client);
+        self
+    }
+
     /// Build the [`BaseAgent`], constructing the provider-specific rig client.
     pub fn build(self) -> Result<BaseAgent, Error> {
         let Self {
             provider,
             config,
             tools,
+            http_client: existing_client,
         } = self;
 
-        let http_config = HttpConfig::with_max_retries(config.max_retries);
-        let http_client = build_http_client(&http_config);
+        let http_client = existing_client.unwrap_or_else(|| {
+            HttpClient::new(&HttpConfig {
+                max_retries: config.max_retries,
+                ..HttpConfig::default()
+            })
+        });
         let preamble = config.preamble.as_deref();
+
+        let raw_client = http_client.into_inner();
 
         let inner = match &provider {
             #[cfg(feature = "openai-gpt")]
             AgentProvider::OpenAi(p) => {
-                let client = p.openai_client(http_client)?;
+                let client = p.openai_client(raw_client)?;
                 let model = client.completions_api().completion_model(&p.model);
                 Agents::OpenAi(build_rig_agent(model, &config, preamble, tools))
             }
             #[cfg(feature = "anthropic-claude")]
             AgentProvider::Anthropic(p) => {
-                let client = p.anthropic_client(http_client)?;
+                let client = p.anthropic_client(raw_client)?;
                 let model = client.completion_model(&p.model);
                 Agents::Anthropic(build_rig_agent(model, &config, preamble, tools))
             }
             #[cfg(feature = "google-gemini")]
             AgentProvider::Gemini(p) => {
-                let client = p.gemini_client(http_client)?;
+                let client = p.gemini_client(raw_client)?;
                 // rig-core 0.31: Gemini's Capabilities doesn't propagate H,
                 // so CompletionClient is unavailable for non-default H.
                 let model = gemini::completion::CompletionModel::new(client, &p.model);
                 Agents::Gemini(build_rig_agent(model, &config, preamble, tools))
             }
             AgentProvider::Ollama(p) => {
-                let client = p.ollama_client(http_client)?;
+                let client = p.ollama_client(raw_client)?;
                 let model = client.completion_model(&p.model);
                 Agents::Ollama(build_rig_agent(model, &config, preamble, tools))
             }

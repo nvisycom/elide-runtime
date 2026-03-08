@@ -1,0 +1,83 @@
+# Nvisy configuration
+#
+# Copy to Nvisy.toml (or run `make generate-config`), then edit as needed.
+# The server loads Nvisy.toml by default; override with --config or NVISY_CONFIG.
+#
+# All sections are optional — omitted sections use runtime defaults.
+# Per-request overrides (in the JSON request body) replace entire sections.
+
+# Server binding and storage.
+# CLI flags (--host, --port, --data-dir) override these.
+[server]
+host = "0.0.0.0"
+port = 8080
+shutdown_timeout = 30
+data_dir = "./data"
+
+[server.observability]
+level = "info"               # any tracing_subscriber filter directive
+format = "json"              # json | text
+
+[server.middleware]
+body_limit_mb = 4
+request_timeout_secs = 300
+cors = { allowed_origins = ["*"], max_age_secs = 3600 }
+
+# Default retry and timeout policies applied to every graph node.
+[engine]
+retry = { max_retries = 3, delay_ms = 500, backoff = "fixed" }
+timeout = { duration_ms = 30000, on_timeout = "fail" }
+
+# Shared HTTP client for all downstream provider calls.
+[engine.http]
+max_retries = 3
+timeout_secs = 120
+connect_timeout_secs = 10
+idle_timeout_secs = 90
+
+# OCR text extraction.
+# kind: surya | doctr | paddle-x | aws-textract | azure-docai | google-vision
+[ocr]
+enabled = true
+
+[ocr.provider]
+kind = "paddle-x"
+base_url = "http://localhost:8003"
+
+[ocr.policy]
+confidence_threshold = 0.5
+
+# LLM for entity detection and classification.
+# kind: open-ai | anthropic | gemini | ollama
+[llm]
+enabled = true
+
+[llm.provider]
+kind = "open-ai"
+api_key = "sk-..."
+model = "gpt-4o"
+
+[llm.policy]
+temperature = 0.1
+max_tokens = 4096
+max_retries = 3
+
+# Speech-to-text transcription.
+# kind: open-ai | local
+[stt]
+enabled = true
+
+[stt.provider]
+kind = "open-ai"
+api_key = "sk-..."
+model = "whisper-1"
+
+# Text-to-speech synthesis.
+# kind: open-ai | local
+[tts]
+enabled = true
+
+[tts.provider]
+kind = "open-ai"
+api_key = "sk-..."
+model = "tts-1"

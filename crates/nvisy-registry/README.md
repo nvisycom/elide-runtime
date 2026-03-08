@@ -4,6 +4,10 @@
 
 Actor-scoped content and context storage backed by fjall. Provides typed identifiers (`ActorId`, `ContentId`, `ContextId`) and a unified `Registry` for managing content files and detection contexts with actor-level isolation.
 
+- **fjall storage**: embedded LSM-tree key-value store for persistent content and context data
+- **Actor isolation**: each actor operates in its own namespace preventing cross-tenant data access
+- **Typed identifiers**: `ActorId`, `ContentId`, and `ContextId` enforce type-safe lookups at compile time
+
 ## Documentation
 
 See [`docs/`](../../docs/) for architecture, security, and API documentation.

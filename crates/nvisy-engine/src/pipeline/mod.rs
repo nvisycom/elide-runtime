@@ -7,6 +7,7 @@
 //! [`DefaultEngine`] is the standard implementation that orchestrates the
 //! detect -> evaluate -> redact pipeline and drives the DAG execution graph.
 
+mod config;
 mod default;
 mod executor;
 mod ontology;
@@ -15,6 +16,7 @@ mod runs;
 
 use std::future::Future;
 
+pub use config::{EngineSection, LlmSection, OcrSection, RuntimeConfig, SttSection, TtsSection};
 pub use default::DefaultEngine;
 pub use executor::{NodeOutput, RunOutput};
 use nvisy_core::Error;
@@ -41,6 +43,14 @@ pub struct EngineInput {
     pub graph: Graph,
     /// Reference-data contexts for detection.
     pub contexts: Contexts,
+    /// OCR subsystem configuration.
+    pub ocr: Option<OcrSection>,
+    /// LLM subsystem configuration.
+    pub llm: Option<LlmSection>,
+    /// Speech-to-text subsystem configuration.
+    pub stt: Option<SttSection>,
+    /// Text-to-speech subsystem configuration.
+    pub tts: Option<TtsSection>,
 }
 
 /// Full result of a pipeline run.

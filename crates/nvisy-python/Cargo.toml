@@ -5,6 +5,7 @@ name = "nvisy-python"
 description = "PyO3 bridge for AI NER/OCR detection via embedded Python"
 keywords = ["nvisy", "python", "pyo3", "ner"]
 categories = ["api-bindings"]
+readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -28,10 +29,10 @@ nvisy-core = { workspace = true, features = [] }
 # (De)serialization
 serde_json = { workspace = true, features = [] }
 
-# String types
+# Primitive datatypes
 hipstr = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime and parallelism
 tokio = { workspace = true, features = ["sync", "rt"] }
 
 # Python interop

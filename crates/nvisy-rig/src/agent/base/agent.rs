@@ -13,8 +13,8 @@ use rig::providers::ollama;
 #[cfg(feature = "openai-gpt")]
 use rig::providers::openai;
 use schemars::JsonSchema;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{AgentProvider, BaseAgentBuilder, ContextWindow, ResponseParser};
@@ -24,7 +24,7 @@ use crate::error::Error;
 const TARGET: &str = "nvisy_rig::agent";
 
 /// Sampling, retry, context-window, and preamble settings shared by all agents.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
     /// Sampling temperature (default: 0.1).
     pub temperature: f64,

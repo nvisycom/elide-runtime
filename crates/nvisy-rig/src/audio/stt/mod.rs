@@ -6,6 +6,7 @@
 
 mod provider;
 
+use nvisy_http::HttpClient;
 pub(crate) use provider::SttModels;
 pub use provider::SttProvider;
 #[cfg(feature = "openai-whisper")]
@@ -68,7 +69,31 @@ impl SttService {
     ///
     /// Returns [`Error::Request`] if client construction fails.
     pub fn new(provider: &SttProvider, config: SttConfig) -> Result<Self, Error> {
-        let inner = SttModels::from_provider(provider, &config.model, config.max_retries)?;
+        let inner = SttModels::from_provider(provider, &config.model, config.max_retries, None)?;
+
+        Ok(Self {
+            id: Uuid::now_v7(),
+            inner,
+            config,
+        })
+    }
+
+    /// Create a new speech-to-text service using a pre-built HTTP client.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Request`] if client construction fails.
+    pub fn with_http_client(
+        provider: &SttProvider,
+        config: SttConfig,
+        client: HttpClient,
+    ) -> Result<Self, Error> {
+        let inner = SttModels::from_provider(
+            provider,
+            &config.model,
+            config.max_retries,
+            Some(client.into_inner()),
+        )?;
 
         Ok(Self {
             id: Uuid::now_v7(),

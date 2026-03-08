@@ -5,6 +5,7 @@ name = "nvisy-codec"
 description = "File-format codecs — read, edit, and write documents for the Nvisy multimodal redaction platform"
 keywords = ["nvisy", "codec", "loader", "pdf", "docx"]
 categories = ["parser-implementations", "encoding"]
+readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -17,51 +18,47 @@ repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
-
 [features]
 default = ["pdf", "docx", "html", "xlsx"]
 
-# PDF parsing, text extraction, and page-to-image rendering
+## PDF parsing, text extraction, and page-to-image rendering.
 pdf = ["dep:lopdf", "dep:pdfium-render", "dep:rayon"]
-# Microsoft Word (.docx) parsing via zip + quick-xml
+## Microsoft Word (.docx) parsing via zip + quick-xml.
 docx = ["dep:zip", "dep:quick-xml"]
-# HTML parsing and text extraction via scraper
+## HTML parsing and text extraction via scraper.
 html = ["dep:scraper"]
-# Excel (.xlsx) spreadsheet parsing via calamine
+## Excel (.xlsx) spreadsheet parsing via calamine.
 xlsx = ["dep:calamine"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime and parallelism
 async-trait = { workspace = true, features = [] }
 futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["sync"] }
 
 # (De)serialization
 csv = { workspace = true, features = [] }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
 
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
-uuid = { workspace = true, features = ["v4"] }
-
-# Derive macros
-derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from"] }
-
-# Immutable string
+uuid = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 
-# JSON Schema generation
-schemars = { workspace = true, features = [] }
-
-# File type detection
+# Storage, file detection, and asset embedding
 infer = { workspace = true, features = [] }
+
+# Derive macros and error handling
+derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from"] }
 
 # Image processing
 image = { workspace = true, features = [] }

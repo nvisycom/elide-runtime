@@ -34,7 +34,7 @@ pub(crate) async fn check_response(resp: Response, provider: &str) -> Result<Res
 }
 
 /// Parameters passed to a [`Backend`] implementation.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct RunParams {
     /// Minimum confidence threshold for OCR results (0.0..=1.0).

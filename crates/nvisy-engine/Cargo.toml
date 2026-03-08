@@ -5,6 +5,7 @@ name = "nvisy-engine"
 description = "DAG compiler and executor for Nvisy pipeline graphs"
 keywords = ["nvisy", "engine", "dag", "pipeline"]
 categories = ["concurrency"]
+readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -17,6 +18,20 @@ repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 
+[features]
+default = []
+
+## Enable all OpenAI providers (GPT, Whisper STT, TTS).
+openai = ["nvisy-rig/openai-gpt", "nvisy-rig/openai-whisper", "nvisy-rig/openai-tts"]
+## Enable Anthropic Claude completion provider.
+anthropic = ["nvisy-rig/anthropic-claude"]
+## Enable Google Gemini + Google Cloud Vision OCR.
+google = ["nvisy-rig/google-gemini", "nvisy-ocr/google-vision"]
+## Enable Azure Document Intelligence OCR.
+microsoft = ["nvisy-ocr/azure-docai"]
+## Enable AWS Textract OCR.
+amazon = ["nvisy-ocr/aws-textract"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
@@ -26,24 +41,26 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 nvisy-registry = { workspace = true, features = [] }
-nvisy-codec = { workspace = true, features = ["html"] }
-nvisy-rig = { workspace = true, features = ["openai-gpt", "openai-whisper", "openai-tts", "anthropic-claude", "google-gemini"] }
+nvisy-codec = { workspace = true, features = [] }
+nvisy-rig = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 nvisy-ocr = { workspace = true, features = [] }
+nvisy-http = { workspace = true, features = [] }
 
 # (De)serialization
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
+toml = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime and parallelism
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 tokio-util = { workspace = true, features = [] }
 
 # Primitive datatypes
-uuid = { workspace = true, features = ["serde", "v4"] }
+uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
 semver = { workspace = true, features = [] }
 
@@ -57,10 +74,8 @@ derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into"] }
 strum = { workspace = true, features = [] }
 
-# Validation
+# Utilities
 validator = { workspace = true, features = [] }
-
-# Randomness
 rand = { workspace = true, features = [] }
 
 # Observability

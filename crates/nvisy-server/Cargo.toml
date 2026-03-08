@@ -18,6 +18,20 @@ repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 
+[features]
+default = []
+
+## Enable all OpenAI providers (GPT, Whisper STT, TTS).
+openai = ["nvisy-engine/openai"]
+## Enable Anthropic Claude completion provider.
+anthropic = ["nvisy-engine/anthropic"]
+## Enable Google Gemini + Google Cloud Vision OCR.
+google = ["nvisy-engine/google"]
+## Enable Azure Document Intelligence OCR.
+microsoft = ["nvisy-engine/microsoft"]
+## Enable AWS Textract OCR.
+amazon = ["nvisy-engine/amazon"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
@@ -28,21 +42,25 @@ nvisy-core = { workspace = true, features = [] }
 nvisy-engine = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 nvisy-registry = { workspace = true, features = [] }
+nvisy-http = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime and parallelism
 futures = { workspace = true, features = [] }
 
-# HTTP framework
+# HTTP server
 axum = { workspace = true, features = ["json", "multipart", "tokio"] }
 aide = { workspace = true, features = ["axum", "axum-json", "axum-query", "scalar", "macros"] }
 tower = { workspace = true, features = ["util", "timeout"] }
 tower-http = { workspace = true, features = ["trace", "cors", "timeout", "request-id", "limit", "compression-gzip", "compression-br", "compression-zstd", "sensitive-headers", "catch-panic", "util"] }
 
 # (De)serialization
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
+
+# Encoding and hashing
+base64 = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
@@ -50,12 +68,6 @@ jiff = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }
-
-# CLI
-clap = { workspace = true, features = ["derive", "env"] }
-
-# Encoding
-base64 = { workspace = true, features = [] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

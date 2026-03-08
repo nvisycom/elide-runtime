@@ -7,6 +7,7 @@
 use nvisy_codec::document::Span;
 use nvisy_codec::handler::TxtSpan;
 use nvisy_core::Error;
+use nvisy_http::HttpClient;
 use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityKind, TextLocation};
 use nvisy_rig::agent::{
     AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
@@ -36,6 +37,9 @@ pub struct NerMethodParams {
     /// Optional agent config overrides.
     #[serde(skip)]
     pub agent_config: Option<AgentConfig>,
+    /// Pre-built HTTP client to share across providers.
+    #[serde(skip)]
+    pub http_client: Option<HttpClient>,
 }
 
 /// Accumulated state between sequential span calls.
@@ -72,8 +76,12 @@ impl Ner {
             .provider
             .ok_or_else(|| Error::validation("Ner requires a provider", "ner-method"))?;
         let agent_config = params.agent_config.unwrap_or_default();
-        let agent = NerAgent::new(&provider, agent_config)
-            .map_err(|e| Error::validation(e.to_string(), "ner-method"))?;
+        let agent = if let Some(client) = params.http_client {
+            NerAgent::with_http_client(&provider, agent_config, client)
+        } else {
+            NerAgent::new(&provider, agent_config)
+        }
+        .map_err(|e| Error::validation(e.to_string(), "ner-method"))?;
         let config = DetectionConfig {
             entity_kinds: params.entity_kinds,
             confidence_threshold: params.confidence_threshold,

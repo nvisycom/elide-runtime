@@ -6,7 +6,7 @@ use tokio::signal::ctrl_c;
 #[cfg(unix)]
 use tokio::signal::unix;
 
-use super::TRACING_TARGET_SHUTDOWN;
+const TARGET: &str = "nvisy_cli::server::shutdown";
 
 /// Waits for a shutdown signal (SIGTERM or SIGINT/Ctrl+C).
 ///
@@ -17,13 +17,13 @@ pub async fn shutdown_signal(shutdown_timeout: Duration) {
     let ctrl_c = async {
         if let Err(e) = ctrl_c().await {
             tracing::error!(
-                target: TRACING_TARGET_SHUTDOWN,
+                target: TARGET,
                 error = %e,
                 "failed to install Ctrl+C handler"
             );
         } else {
             tracing::info!(
-                target: TRACING_TARGET_SHUTDOWN,
+                target: TARGET,
                 "received Ctrl+C signal, initiating graceful shutdown"
             );
         }
@@ -35,13 +35,13 @@ pub async fn shutdown_signal(shutdown_timeout: Duration) {
             Ok(mut signal) => {
                 signal.recv().await;
                 tracing::info!(
-                    target: TRACING_TARGET_SHUTDOWN,
+                    target: TARGET,
                     "received SIGTERM signal, initiating graceful shutdown"
                 );
             }
             Err(e) => {
                 tracing::error!(
-                    target: TRACING_TARGET_SHUTDOWN,
+                    target: TARGET,
                     error = %e,
                     "failed to install SIGTERM handler"
                 );
@@ -58,7 +58,7 @@ pub async fn shutdown_signal(shutdown_timeout: Duration) {
     }
 
     tracing::info!(
-        target: TRACING_TARGET_SHUTDOWN,
+        target: TARGET,
         timeout_secs = shutdown_timeout.as_secs(),
         "graceful shutdown initiated"
     );

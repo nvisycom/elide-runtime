@@ -21,6 +21,7 @@ use crate::backend::UnauthenticatedProvider;
 /// let agent = NerAgent::new(&provider, config);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum AgentProvider {
     /// OpenAI (GPT-4o, GPT-4, etc.)
     #[cfg(feature = "openai-gpt")]

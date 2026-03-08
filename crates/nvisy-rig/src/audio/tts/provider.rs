@@ -1,18 +1,20 @@
 //! Provider dispatch for text-to-speech models.
 
 #[cfg(feature = "openai-tts")]
+use nvisy_http::{HttpClient, HttpConfig};
 use reqwest_middleware::ClientWithMiddleware;
 #[cfg(feature = "openai-tts")]
 use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
-use crate::backend::UnauthenticatedProvider;
 #[cfg(feature = "openai-tts")]
-use crate::backend::{AuthenticatedProvider, HttpConfig, build_http_client};
+use crate::backend::AuthenticatedProvider;
+use crate::backend::UnauthenticatedProvider;
 use crate::error::Error;
 
 /// Supported providers for text-to-speech generation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum TtsProvider {
     /// OpenAI (tts-1, tts-1-hd)
     #[cfg(feature = "openai-tts")]
@@ -80,11 +82,18 @@ impl TtsModels {
         provider: &TtsProvider,
         model: &str,
         max_retries: u32,
+        client: Option<ClientWithMiddleware>,
     ) -> Result<Self, Error> {
         match provider {
             #[cfg(feature = "openai-tts")]
             TtsProvider::OpenAi(p) => {
-                let http = build_http_client(&HttpConfig::with_max_retries(max_retries));
+                let http = client.unwrap_or_else(|| {
+                    HttpClient::new(&HttpConfig {
+                        max_retries,
+                        ..HttpConfig::default()
+                    })
+                    .into_inner()
+                });
                 let client = p.openai_client(http)?;
                 let model = openai::audio_generation::AudioGenerationModel::new(client, model);
                 Ok(Self::OpenAi(model))

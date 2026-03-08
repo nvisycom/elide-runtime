@@ -5,6 +5,7 @@ name = "nvisy-registry"
 description = "Actor-scoped content and context storage backed by fjall"
 keywords = ["nvisy", "registry", "storage", "actor"]
 categories = ["data-structures"]
+readme = "README.md"
 
 version = { workspace = true }
 rust-version = { workspace = true }
@@ -26,18 +27,18 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
-# Embedded key-value store
+# Storage, file detection, and asset embedding
 fjall = { workspace = true, features = [] }
 
-# Async runtime
+# Async runtime and parallelism
 tokio = { workspace = true, features = ["sync", "rt"] }
 
 # (De)serialization
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 
 # Primitive datatypes
-uuid = { workspace = true, features = ["serde", "v4", "v7"] }
+uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 
 [dev-dependencies]

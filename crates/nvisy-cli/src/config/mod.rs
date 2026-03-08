@@ -1,68 +1,87 @@
 //! CLI configuration management.
 //!
-//! This module defines the complete CLI configuration hierarchy:
+//! Parses the TOML configuration file and CLI flags, merges them using
+//! CLI → TOML → default precedence, and produces fully-resolved types
+//! ready for use by the server and middleware layers.
+//!
+//! # Architecture
 //!
 //! ```text
-//! Cli
-//! ├── server: ServerConfig           # Host, port, shutdown
-//! ├── service: ServiceConfig         # Data directory, engine policies
-//! └── middleware: MiddlewareConfig   # Body limits, timeouts, CORS
+//! Cli (clap)                      CLI flags + env vars
+//! └── server: ServerConfig        --host, --port, --shutdown-timeout, --data-dir
+//!
+//! FileConfig (Nvisy.toml)         TOML file
+//! ├── server: ServerSection       [server], [server.observability], [server.middleware]
+//! └── RuntimeConfig (flattened)   [engine], [ocr], [llm], [stt], [tts]
 //! ```
 //!
-//! All configuration can be provided via CLI arguments or environment variables.
-//! Use `--help` to see all available options.
+//! [`Cli::load`] reads the file, resolves server settings, and returns
+//! the middleware section for the router to consume.
 //!
 //! # Example
 //!
 //! ```bash
-//! # Configure via CLI flags
-//! nvisy-server --host 127.0.0.1 --port 3000 --request-timeout-secs 60
-//!
-//! # Or via environment variables
-//! HOST=127.0.0.1 PORT=3000 REQUEST_TIMEOUT_SECS=60 nvisy-server
+//! nvisy-server --host 127.0.0.1 --port 3000 --config Nvisy.toml
 //! ```
 
-mod middleware;
+mod file;
+pub mod middleware;
 mod server;
 
+use std::path::PathBuf;
+
 use clap::Parser;
-pub use middleware::MiddlewareConfig;
-use nvisy_server::service::ServiceConfig;
-pub use server::ServerConfig;
+pub use file::MiddlewareSection;
+use nvisy_engine::RuntimeConfig;
+pub use server::{ResolvedServer, ServerConfig};
 use tracing_subscriber::EnvFilter;
 
-/// Complete CLI configuration.
+/// Top-level CLI entry point.
 ///
-/// Combines all configuration groups for the nvisy server:
-/// - [`ServerConfig`]: Network binding and shutdown
-/// - [`ServiceConfig`]: Data directory and engine defaults
-/// - [`MiddlewareConfig`]: Body limits, timeouts, CORS, OpenAPI
+/// Parses command-line arguments and loads the TOML configuration file.
+/// Server network flags (`--host`, `--port`, etc.) are provided as CLI
+/// arguments; all other settings come from the TOML file.
 #[derive(Debug, Parser)]
 #[command(name = "nvisy-server", version, about = "nvisy API server")]
 pub struct Cli {
-    /// Server network and lifecycle configuration.
+    /// Path to a TOML configuration file.
+    #[arg(long, env = "NVISY_CONFIG", default_value = "Nvisy.toml")]
+    pub config: PathBuf,
+
+    /// Server network and lifecycle settings.
     #[command(flatten)]
     pub server: ServerConfig,
-
-    /// Service layer configuration (registry, engine).
-    #[command(flatten)]
-    pub service: ServiceConfig,
-
-    /// Middleware configuration (body limits, timeouts, CORS).
-    #[command(flatten)]
-    pub middleware: MiddlewareConfig,
 }
 
 impl Cli {
-    /// Initializes tracing with environment-based filtering.
+    /// Loads the TOML file and resolves all configuration.
     ///
-    /// Uses `RUST_LOG` if set, otherwise defaults to `info`.
-    pub fn init_tracing() {
-        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    /// Returns the resolved server settings, the runtime subsystem config,
+    /// and the optional middleware section for router setup.
+    pub fn load(
+        &self,
+    ) -> anyhow::Result<(ResolvedServer, RuntimeConfig, Option<MiddlewareSection>)> {
+        let toml = file::FileConfig::from_file(&self.config)?;
+        let resolved = self.server.resolve(&toml.server);
+        let mw_section = toml.server.as_ref().and_then(|s| s.middleware.clone());
+        let config = toml.inner;
+        Ok((resolved, config, mw_section))
+    }
 
-        tracing_subscriber::fmt()
-            .with_env_filter(filter)
-            .json()
-            .init();
+    /// Initializes the global `tracing` subscriber.
+    ///
+    /// Uses `RUST_LOG` if set, otherwise falls back to the resolved
+    /// `log_level`. Output format (JSON or text) comes from the resolved
+    /// `log_format`.
+    pub fn init_tracing(server: &ResolvedServer) {
+        let filter =
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&server.log_level));
+
+        let subscriber = tracing_subscriber::fmt().with_env_filter(filter);
+
+        match server.log_format {
+            file::LogFormat::Json => subscriber.json().init(),
+            file::LogFormat::Text => subscriber.init(),
+        }
     }
 }

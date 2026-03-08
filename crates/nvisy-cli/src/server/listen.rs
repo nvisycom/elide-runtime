@@ -5,35 +5,41 @@ use std::path::Path;
 use tokio::net::TcpListener;
 
 use super::shutdown;
-use crate::config::Cli;
+use crate::config::ResolvedServer;
+
+const TARGET: &str = "nvisy_cli::server";
 
 /// Binds a TCP listener, serves the application, and cleans up on shutdown.
 ///
 /// Blocks until a shutdown signal (SIGINT or SIGTERM) is received. After the
-/// server stops, it removes the temporary content directory if one was created.
-pub async fn run(config: &Cli, app: axum::Router) -> anyhow::Result<()> {
-    let addr = config.server.socket_addr();
+/// server stops, it removes the data directory if one was created.
+pub async fn run(server: &ResolvedServer, app: axum::Router) -> anyhow::Result<()> {
+    let addr = server.socket_addr();
     let listener = TcpListener::bind(addr).await?;
 
-    tracing::info!(%addr, "listening");
+    tracing::info!(target: TARGET, %addr, "listening");
 
-    let shutdown = shutdown::shutdown_signal(config.server.shutdown_timeout());
+    let shutdown = shutdown::shutdown_signal(server.shutdown_timeout());
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)
         .await?;
 
-    cleanup_data_dir(&config.service.data_dir());
+    cleanup_data_dir(&server.data_dir);
     Ok(())
 }
 
-/// Removes the temporary data directory after graceful shutdown.
+/// Removes the data directory after graceful shutdown.
 fn cleanup_data_dir(path: &Path) {
     if !path.exists() {
         return;
     }
     match std::fs::remove_dir_all(path) {
-        Ok(()) => tracing::info!(path = %path.display(), "data directory cleaned up"),
-        Err(e) => tracing::warn!(path = %path.display(), "failed to clean up data directory: {e}"),
+        Ok(()) => {
+            tracing::info!(target: TARGET, path = %path.display(), "data directory cleaned up")
+        }
+        Err(e) => {
+            tracing::warn!(target: TARGET, path = %path.display(), "failed to clean up data directory: {e}")
+        }
     }
 }

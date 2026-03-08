@@ -14,6 +14,8 @@ use nvisy_server::service::ServiceState;
 
 use crate::config::{Cli, MiddlewareSection};
 
+const TARGET: &str = "nvisy_cli";
+
 #[tokio::main]
 async fn main() {
     let Err(error) = run().await else {
@@ -21,7 +23,7 @@ async fn main() {
     };
 
     if tracing::enabled!(tracing::Level::ERROR) {
-        tracing::error!(error = %error, "application terminated with error");
+        tracing::error!(target: TARGET, error = %error, "application terminated with error");
     } else {
         eprintln!("Error: {error:#}");
     }
@@ -33,10 +35,10 @@ async fn main() {
 async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let (resolved, config, mw_section) = cli.load()?;
-    Cli::init_tracing(&resolved.observability);
+    Cli::init_tracing(&resolved);
     let state = ServiceState::new(config, resolved.data_dir.clone())?;
     let router = create_router(&mw_section, state);
-    server::run(&resolved, router, &resolved.data_dir).await
+    server::run(&resolved, router).await
 }
 
 /// Creates the router with all middleware layers applied.

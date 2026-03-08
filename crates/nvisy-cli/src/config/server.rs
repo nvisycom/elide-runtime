@@ -1,10 +1,20 @@
-//! HTTP server network and lifecycle configuration.
+//! Server network and lifecycle configuration.
 //!
-//! # Environment Variables
+//! [`ServerConfig`] captures CLI flags and environment variables for the
+//! server's network binding and data directory. [`ResolvedServer`] is the
+//! fully-resolved form produced by merging CLI → TOML → defaults.
 //!
-//! - `HOST` — Server host address (default: `0.0.0.0`)
-//! - `PORT` — Server port (default: `8080`)
-//! - `SHUTDOWN_TIMEOUT` — Graceful shutdown timeout in seconds (default: `30`)
+//! # Precedence
+//!
+//! CLI flags and environment variables take priority over TOML values.
+//! If neither is provided, a built-in default is used.
+//!
+//! | Setting          | CLI flag             | Env var            | Default                    |
+//! |------------------|----------------------|--------------------|----------------------------|
+//! | Host             | `--host`             | `HOST`             | `0.0.0.0`                  |
+//! | Port             | `-p` / `--port`      | `PORT`             | `8080`                     |
+//! | Shutdown timeout | `--shutdown-timeout` | `SHUTDOWN_TIMEOUT` | `30` s                     |
+//! | Data directory   | `--data-dir`         | `DATA_DIR`         | `$TMPDIR/nvisy-server-data`|
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
@@ -12,11 +22,12 @@ use std::time::Duration;
 
 use clap::Args;
 
-use super::file::{ObservabilitySection, ServerSection};
+use super::file::{LogFormat, ServerSection};
 
-/// HTTP server network and lifecycle configuration.
+/// CLI flags for server network and lifecycle settings.
 ///
-/// CLI flags override values from the `[server]` section of the TOML file.
+/// All fields are optional — when absent, resolution falls through to the
+/// TOML `[server]` section and finally to built-in defaults.
 #[derive(Debug, Clone, Args)]
 pub struct ServerConfig {
     /// Host address to bind the server to.
@@ -42,9 +53,13 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
-    /// Resolve server settings: CLI flags → TOML `[server]` → defaults.
+    /// Merge CLI flags with TOML `[server]` values and built-in defaults.
     pub fn resolve(&self, toml: &Option<ServerSection>) -> ResolvedServer {
         let toml = toml.as_ref();
+        let obs = toml
+            .and_then(|s| s.observability.clone())
+            .unwrap_or_default();
+
         ResolvedServer {
             host: self
                 .host
@@ -63,28 +78,39 @@ impl ServerConfig {
                 .clone()
                 .or_else(|| toml.and_then(|s| s.data_dir.clone()))
                 .unwrap_or_else(|| std::env::temp_dir().join("nvisy-server-data")),
-            observability: toml
-                .and_then(|s| s.observability.clone())
-                .unwrap_or_default(),
+            log_level: obs.level,
+            log_format: obs.format,
         }
     }
 }
 
 /// Fully resolved server settings with no `Option`s.
+///
+/// Produced by [`ServerConfig::resolve`] after merging all configuration
+/// sources. Safe to use directly without further fallback logic.
 #[derive(Debug, Clone)]
 pub struct ResolvedServer {
+    /// Bind address.
     pub host: IpAddr,
+    /// Bind port.
     pub port: u16,
+    /// Graceful shutdown timeout in seconds.
     pub shutdown_timeout: u64,
+    /// Directory for content and context storage.
     pub data_dir: PathBuf,
-    pub observability: ObservabilitySection,
+    /// Tracing filter directive (e.g. `"info"`, `"nvisy_server=debug"`).
+    pub log_level: String,
+    /// Log output format.
+    pub log_format: LogFormat,
 }
 
 impl ResolvedServer {
+    /// Returns the socket address for binding.
     pub fn socket_addr(&self) -> SocketAddr {
         SocketAddr::new(self.host, self.port)
     }
 
+    /// Returns the graceful shutdown timeout as a [`Duration`].
     pub fn shutdown_timeout(&self) -> Duration {
         Duration::from_secs(self.shutdown_timeout)
     }

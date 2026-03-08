@@ -33,10 +33,11 @@ coverage/
 dist/
 build/
 
-# Environment and config files
+# Environment, config, and runtime data
 .env*
 !.env.example
 Nvisy.toml
+data/
 
 # Logs
 logs/

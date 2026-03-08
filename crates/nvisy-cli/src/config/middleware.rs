@@ -1,4 +1,8 @@
 //! Middleware resolution from TOML `[server.middleware]`.
+//!
+//! Translates the optional [`MiddlewareSection`] from the TOML file into
+//! concrete middleware configs consumed by `nvisy-server`. When a TOML
+//! field is absent, the corresponding `nvisy-server` default is used.
 
 use std::time::Duration;
 
@@ -11,7 +15,10 @@ use super::file::MiddlewareSection;
 
 const MB: usize = 1024 * 1024;
 
-/// Resolve a [`SecurityConfig`] from `[server.middleware]` TOML → defaults.
+/// Builds a [`SecurityConfig`] from the TOML middleware section.
+///
+/// Resolves body limits, CORS origins, and CORS max-age. Falls back to
+/// `nvisy-server` defaults for any omitted field.
 pub fn security_config(toml: &Option<MiddlewareSection>) -> SecurityConfig {
     let toml = toml.as_ref();
 
@@ -37,7 +44,10 @@ pub fn security_config(toml: &Option<MiddlewareSection>) -> SecurityConfig {
     }
 }
 
-/// Resolve a [`RecoveryConfig`] from `[server.middleware]` TOML → defaults.
+/// Builds a [`RecoveryConfig`] from the TOML middleware section.
+///
+/// Uses the configured `request_timeout_secs` or falls back to the
+/// `nvisy-server` default (300 s).
 pub fn recovery_config(toml: &Option<MiddlewareSection>) -> RecoveryConfig {
     let timeout_secs = toml
         .as_ref()

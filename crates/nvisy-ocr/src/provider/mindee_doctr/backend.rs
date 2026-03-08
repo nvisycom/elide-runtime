@@ -3,25 +3,24 @@
 //! [`Backend`]: crate::Backend
 
 use nvisy_core::Error;
-use nvisy_core::math::{Polygon, Vertex};
+use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_http::HttpClient;
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::DoctrParams;
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response, image_part,
+    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
+    check_response, image_part,
 };
 
 /// [`Backend`] implementation for DocTR.
 ///
 /// Sends images as multipart form data to `{base_url}/ocr` and parses
-/// word-level results into [`ImageRegion`]. DocTR returns normalised 0..1
-/// coordinates that are denormalised using the `dimensions` field from
-/// the response.
+/// word-level results into a hierarchical tree. DocTR returns normalised
+/// 0..1 coordinates that are denormalised using the `dimensions` field.
 ///
 /// [`Backend`]: crate::Backend
-/// [`ImageRegion`]: crate::ImageRegion
 #[derive(Debug)]
 pub struct DoctrBackend {
     client: HttpClient,
@@ -90,8 +89,9 @@ impl Backend for DoctrBackend {
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());
 
-        for page in &parsed.pages {
+        for (page_idx, page) in parsed.pages.iter().enumerate() {
             let [height, width] = page.dimensions;
+            let mut words = Vec::new();
 
             for word in &page.words {
                 if word.confidence < threshold {
@@ -115,14 +115,45 @@ impl Backend for DoctrBackend {
                 };
                 let bbox = polygon.bounding_box();
 
-                output.insert(ImageRegion {
+                words.push(Word {
                     text: word.value.clone(),
                     confidence: Some(word.confidence),
                     bbox,
                     polygon: Some(polygon),
-                    level: Some(TextLevel::Word),
                 });
             }
+
+            let line_text = words
+                .iter()
+                .map(|w| w.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let line_bbox =
+                BoundingBox::enclosing(words.iter().map(|w| &w.bbox));
+
+            let line = Line {
+                text: line_text.clone(),
+                confidence: None,
+                bbox: line_bbox,
+                polygon: None,
+                words,
+            };
+
+            let block = Block {
+                text: line_text,
+                confidence: None,
+                bbox: line_bbox,
+                polygon: None,
+                kind: BlockKind::Text,
+                lines: vec![line],
+            };
+
+            output.pages.push(Page {
+                page_number: (page_idx + 1) as u32,
+                width: Some(width),
+                height: Some(height),
+                blocks: vec![block],
+            });
         }
 
         Ok(output)

@@ -5,7 +5,7 @@ mod output;
 
 pub use input::{ImageFormat, ImageInput};
 use nvisy_core::Error;
-pub use output::{ImageOutput, ImageRegion, TextLevel};
+pub use output::{Block, BlockKind, ImageOutput, Line, Page, Word};
 use reqwest_middleware::reqwest::Response;
 use reqwest_middleware::reqwest::multipart::Part;
 
@@ -61,11 +61,11 @@ impl RunParams {
 /// Backend trait for OCR providers.
 ///
 /// Implementations send image bytes to an OCR service and return
-/// typed [`ImageRegion`] results with word-level bounding boxes.
+/// hierarchical [`ImageOutput`] results with page/block/line/word structure.
 ///
 /// Confidence values **must** be normalised to 0.0..=1.0 before
-/// populating [`ImageRegion::confidence`]. Backends whose upstream
-/// API uses a different scale (e.g. AWS Textract returns 0–100) are
+/// populating [`Word::confidence`]. Backends whose upstream API uses
+/// a different scale (e.g. AWS Textract returns 0–100) are
 /// responsible for converting.
 #[async_trait::async_trait]
 pub trait Backend: Send + Sync + 'static {

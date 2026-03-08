@@ -10,6 +10,6 @@ pub mod provider;
 pub mod prelude;
 
 pub use backend::{
-    Backend, ImageFormat, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel,
+    Backend, Block, BlockKind, ImageFormat, ImageInput, ImageOutput, Line, Page, RunParams, Word,
 };
 pub use engine::{OcrEngine, OcrProvider};

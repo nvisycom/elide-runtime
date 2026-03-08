@@ -108,6 +108,16 @@ impl BoundingBox {
         if union == 0.0 { 0.0 } else { inter / union }
     }
 
+    /// Returns the smallest box enclosing all boxes in the iterator.
+    ///
+    /// Returns [`BoundingBox::default()`] if the iterator is empty.
+    pub fn enclosing<'a>(mut iter: impl Iterator<Item = &'a BoundingBox>) -> BoundingBox {
+        match iter.next() {
+            None => BoundingBox::default(),
+            Some(first) => iter.fold(*first, |acc, b| acc.union(b)),
+        }
+    }
+
     /// Convert to integer pixel coordinates by rounding each field.
     pub fn to_u32(&self) -> BoundingBoxU32 {
         BoundingBoxU32 {

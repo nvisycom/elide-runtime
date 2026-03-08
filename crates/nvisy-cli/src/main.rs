@@ -35,16 +35,16 @@ async fn run() -> anyhow::Result<()> {
     let (resolved, config, mw_section) = cli.load()?;
     Cli::init_tracing(&resolved.observability);
     let state = ServiceState::new(config, resolved.data_dir.clone())?;
-    let router = create_router(&cli, &mw_section, state);
+    let router = create_router(&mw_section, state);
     server::run(&resolved, router, &resolved.data_dir).await
 }
 
 /// Creates the router with all middleware layers applied.
-fn create_router(cli: &Cli, mw_section: &Option<MiddlewareSection>, state: ServiceState) -> Router {
+fn create_router(mw_section: &Option<MiddlewareSection>, state: ServiceState) -> Router {
     nvisy_server::handler::routes()
-        .with_open_api(&cli.middleware.open_api_config())
-        .with_recovery(&cli.middleware.recovery_config(mw_section))
+        .with_open_api(&config::middleware::open_api_config())
+        .with_recovery(&config::middleware::recovery_config(mw_section))
         .with_observability()
-        .with_security(&cli.middleware.security_config(mw_section))
+        .with_security(&config::middleware::security_config(mw_section))
         .with_state(state)
 }

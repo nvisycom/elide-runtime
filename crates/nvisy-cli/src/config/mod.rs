@@ -4,8 +4,7 @@
 //!
 //! ```text
 //! Cli (clap)
-//! ├── server: ServerConfig        # Host, port, shutdown, data_dir
-//! └── middleware: MiddlewareConfig # Body limits, timeouts, CORS
+//! └── server: ServerConfig        # Host, port, shutdown, data_dir
 //!
 //! FileConfig (TOML)
 //! ├── server: ServerSection       # Host, port, shutdown, data_dir, observability, middleware
@@ -22,7 +21,7 @@
 //! ```
 
 mod file;
-mod middleware;
+pub mod middleware;
 mod server;
 
 use std::path::PathBuf;
@@ -32,14 +31,13 @@ use nvisy_engine::RuntimeConfig;
 use tracing_subscriber::EnvFilter;
 
 pub use file::{LogFormat, MiddlewareSection, ObservabilitySection};
-pub use middleware::MiddlewareConfig;
 pub use server::{ResolvedServer, ServerConfig};
 
 /// Complete CLI configuration.
 ///
 /// Combines all configuration groups for the nvisy server:
 /// - [`ServerConfig`]: Network binding, shutdown, data directory
-/// - [`MiddlewareConfig`]: Body limits, timeouts, CORS
+/// - Middleware settings come from TOML `[server.middleware]`
 #[derive(Debug, Parser)]
 #[command(name = "nvisy-server", version, about = "nvisy API server")]
 pub struct Cli {
@@ -50,10 +48,6 @@ pub struct Cli {
     /// Server network and lifecycle configuration.
     #[command(flatten)]
     pub server: ServerConfig,
-
-    /// Middleware configuration (body limits, timeouts, CORS).
-    #[command(flatten)]
-    pub middleware: MiddlewareConfig,
 }
 
 impl Cli {

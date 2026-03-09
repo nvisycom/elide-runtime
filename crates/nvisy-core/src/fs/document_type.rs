@@ -259,7 +259,7 @@ impl DocumentType {
             .or_else(|| PresentationFormat::from_mime(mime).map(Self::Presentation))
             .or_else(|| SpreadsheetFormat::from_mime(mime).map(Self::Spreadsheet))
             .or_else(|| AudioFormat::from_mime(mime).map(Self::Audio))
-            .or_else(|| match mime {
+            .or(match mime {
                 "text/html" => Some(Self::Html),
                 "application/pdf" => Some(Self::Pdf),
                 _ => None,

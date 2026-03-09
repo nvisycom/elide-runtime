@@ -5,19 +5,21 @@
 use std::fmt;
 
 use nvisy_core::Error;
-use nvisy_core::math::{Polygon, Vertex};
+use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_http::HttpClient;
 use serde::Deserialize;
 
 use super::GoogleVisionParams;
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
+    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
+    check_response,
 };
 
 /// [`Backend`] implementation for Google Cloud Vision API.
 ///
 /// Sends images as base64-encoded JSON to the `images:annotate` endpoint
-/// and parses word-level results from the `fullTextAnnotation` response.
+/// and parses the `fullTextAnnotation` response into a hierarchical
+/// page/block/line/word tree.
 ///
 /// [`Backend`]: crate::Backend
 pub struct GoogleVisionBackend {
@@ -104,6 +106,32 @@ struct GvVertex {
     y: Option<i32>,
 }
 
+fn gv_polygon(bp: &GvBoundingPoly) -> Polygon {
+    Polygon {
+        vertices: bp
+            .vertices
+            .iter()
+            .map(|v| {
+                Vertex::new(
+                    f64::from(v.x.unwrap_or(0)),
+                    f64::from(v.y.unwrap_or(0)),
+                )
+            })
+            .collect(),
+    }
+}
+
+fn gv_bbox_polygon(bp: Option<&GvBoundingPoly>) -> (BoundingBox, Option<Polygon>) {
+    match bp {
+        Some(bp) => {
+            let polygon = gv_polygon(bp);
+            let bbox = polygon.bounding_box();
+            (bbox, Some(polygon))
+        }
+        None => (BoundingBox::default(), None),
+    }
+}
+
 #[async_trait::async_trait]
 impl Backend for GoogleVisionBackend {
     async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
@@ -142,51 +170,92 @@ impl Backend for GoogleVisionBackend {
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());
 
-        for result in &parsed.responses {
+        for (result_idx, result) in parsed.responses.iter().enumerate() {
             let annotation = match &result.full_text_annotation {
                 Some(a) => a,
                 None => continue,
             };
 
-            for page in &annotation.pages {
-                for block in &page.blocks {
-                    for paragraph in &block.paragraphs {
-                        for word in &paragraph.words {
-                            if word.confidence < threshold {
+            for (page_idx, gv_page) in annotation.pages.iter().enumerate() {
+                let mut blocks = Vec::new();
+
+                for gv_block in &gv_page.blocks {
+                    let mut lines = Vec::new();
+
+                    // Each GV paragraph maps to a Line.
+                    for paragraph in &gv_block.paragraphs {
+                        let mut words = Vec::new();
+
+                        for gv_word in &paragraph.words {
+                            if gv_word.confidence < threshold {
                                 continue;
                             }
 
                             let text: String =
-                                word.symbols.iter().map(|s| s.text.as_str()).collect();
+                                gv_word.symbols.iter().map(|s| s.text.as_str()).collect();
 
-                            let polygon = word.bounding_box.as_ref().map(|bp| Polygon {
-                                vertices: bp
-                                    .vertices
-                                    .iter()
-                                    .map(|v| {
-                                        Vertex::new(
-                                            f64::from(v.x.unwrap_or(0)),
-                                            f64::from(v.y.unwrap_or(0)),
-                                        )
-                                    })
-                                    .collect(),
-                            });
+                            let (bbox, polygon) =
+                                gv_bbox_polygon(gv_word.bounding_box.as_ref());
 
-                            let bbox = polygon
-                                .as_ref()
-                                .map(|p| p.bounding_box())
-                                .unwrap_or_default();
-
-                            output.insert(ImageRegion {
+                            words.push(Word {
                                 text,
-                                confidence: Some(word.confidence),
+                                confidence: Some(gv_word.confidence),
                                 bbox,
                                 polygon,
-                                level: Some(TextLevel::Word),
                             });
                         }
+
+                        if words.is_empty() {
+                            continue;
+                        }
+
+                        let line_text = words
+                            .iter()
+                            .map(|w| w.text.as_str())
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        let line_bbox = BoundingBox::enclosing(
+                            words.iter().map(|w| &w.bbox),
+                        );
+
+                        lines.push(Line {
+                            text: line_text,
+                            confidence: None,
+                            bbox: line_bbox,
+                            polygon: None,
+                            words,
+                        });
                     }
+
+                    if lines.is_empty() {
+                        continue;
+                    }
+
+                    let block_text = lines
+                        .iter()
+                        .map(|l| l.text.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    let block_bbox = BoundingBox::enclosing(
+                        lines.iter().map(|l| &l.bbox),
+                    );
+
+                    blocks.push(Block {
+                        text: block_text,
+                        confidence: None,
+                        bbox: block_bbox,
+                        polygon: None,
+                        kind: BlockKind::Text,
+                        lines,
+                    });
                 }
+
+                output.pages.push(Page {
+                    page_number: (result_idx + page_idx + 1) as u32,
+                    width: None,
+                    height: None,
+                    blocks,
+                });
             }
         }
 

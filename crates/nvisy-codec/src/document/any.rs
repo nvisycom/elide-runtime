@@ -170,6 +170,8 @@ impl From<Document<DocxHandler>> for AnyDocument {
 
 #[cfg(test)]
 mod tests {
+    use nvisy_core::fs::{AudioFormat, ImageFormat, TextFormat};
+
     use super::*;
 
     #[test]
@@ -177,7 +179,7 @@ mod tests {
         let doc = Document::new(TxtHandler::new(vec!["hello".into()], false));
         let any: AnyDocument = doc.into();
         assert!(any.as_text().is_some());
-        assert_eq!(any.document_type(), DocumentType::Txt);
+        assert_eq!(any.document_type(), DocumentType::Text(TextFormat::Txt));
     }
 
     #[test]
@@ -186,7 +188,7 @@ mod tests {
         let doc = Document::new(PngHandler::new(img));
         let any: AnyDocument = doc.into();
         assert!(any.as_image().is_some());
-        assert_eq!(any.document_type(), DocumentType::Png);
+        assert_eq!(any.document_type(), DocumentType::Image(ImageFormat::Png));
     }
 
     #[test]
@@ -194,7 +196,7 @@ mod tests {
         let doc = Document::new(WavHandler::new(bytes::Bytes::from_static(b"wav")));
         let any: AnyDocument = doc.into();
         assert!(any.as_audio().is_some());
-        assert_eq!(any.document_type(), DocumentType::Wav);
+        assert_eq!(any.document_type(), DocumentType::Audio(AudioFormat::Wav));
     }
 
     #[test]

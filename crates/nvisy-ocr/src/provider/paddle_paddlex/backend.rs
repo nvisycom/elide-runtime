@@ -3,23 +3,24 @@
 //! [`Backend`]: crate::Backend
 
 use nvisy_core::Error;
-use nvisy_core::math::{Polygon, Vertex};
+use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_http::HttpClient;
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::PaddleXParams;
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response, image_part,
+    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
+    check_response, image_part,
 };
 
 /// [`Backend`] implementation for PaddleX PP-OCRv5.
 ///
 /// Sends images as multipart form data to `{base_url}/ocr` with
-/// `returnWordBox=true` and parses word-level results into [`ImageRegion`].
+/// `returnWordBox=true` and parses word-level results into a
+/// hierarchical page/block/line/word tree.
 ///
 /// [`Backend`]: crate::Backend
-/// [`ImageRegion`]: crate::ImageRegion
 #[derive(Debug)]
 pub struct PaddleXBackend {
     client: HttpClient,
@@ -99,7 +100,11 @@ impl Backend for PaddleXBackend {
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());
 
+        let mut lines = Vec::new();
+
         for ocr_result in &parsed.result.ocr_results {
+            let mut words = Vec::new();
+
             for word in &ocr_result.word_results {
                 if word.confidence < threshold {
                     continue;
@@ -114,15 +119,56 @@ impl Backend for PaddleXBackend {
                 };
                 let bbox = polygon.bounding_box();
 
-                output.insert(ImageRegion {
+                words.push(Word {
                     text: word.text.clone(),
                     confidence: Some(word.confidence),
                     bbox,
                     polygon: Some(polygon),
-                    level: Some(TextLevel::Word),
                 });
             }
+
+            if words.is_empty() {
+                continue;
+            }
+
+            let line_text = words
+                .iter()
+                .map(|w| w.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let line_bbox =
+                BoundingBox::enclosing(words.iter().map(|w| &w.bbox));
+
+            lines.push(Line {
+                text: line_text,
+                confidence: None,
+                bbox: line_bbox,
+                polygon: None,
+                words,
+            });
         }
+
+        let block_text = lines
+            .iter()
+            .map(|l| l.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let block_bbox =
+            BoundingBox::enclosing(lines.iter().map(|l| &l.bbox));
+
+        output.pages.push(Page {
+            page_number: 1,
+            width: None,
+            height: None,
+            blocks: vec![Block {
+                text: block_text,
+                confidence: None,
+                bbox: block_bbox,
+                polygon: None,
+                kind: BlockKind::Text,
+                lines,
+            }],
+        });
 
         Ok(output)
     }

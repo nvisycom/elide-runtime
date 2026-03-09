@@ -5,14 +5,15 @@
 use std::fmt;
 
 use nvisy_core::Error;
-use nvisy_core::math::{Polygon, Vertex};
+use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_http::HttpClient;
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use super::AzureDocaiParams;
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
+    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
+    check_response,
 };
 
 /// [`Backend`] implementation for Azure Document Intelligence.
@@ -193,8 +194,10 @@ impl Backend for AzureDocaiBackend {
             None => return Ok(output),
         };
 
-        for page in &result.pages {
-            for word in &page.words {
+        for (page_idx, azure_page) in result.pages.iter().enumerate() {
+            let mut words = Vec::new();
+
+            for word in &azure_page.words {
                 if word.confidence < threshold {
                     continue;
                 }
@@ -216,14 +219,45 @@ impl Backend for AzureDocaiBackend {
                     .map(|p| p.bounding_box())
                     .unwrap_or_default();
 
-                output.insert(ImageRegion {
+                words.push(Word {
                     text: word.content.clone(),
                     confidence: Some(word.confidence),
                     bbox,
                     polygon,
-                    level: Some(TextLevel::Word),
                 });
             }
+
+            let line_text = words
+                .iter()
+                .map(|w| w.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let line_bbox =
+                BoundingBox::enclosing(words.iter().map(|w| &w.bbox));
+
+            let line = Line {
+                text: line_text.clone(),
+                confidence: None,
+                bbox: line_bbox,
+                polygon: None,
+                words,
+            };
+
+            let block = Block {
+                text: line_text,
+                confidence: None,
+                bbox: line_bbox,
+                polygon: None,
+                kind: BlockKind::Text,
+                lines: vec![line],
+            };
+
+            output.pages.push(Page {
+                page_number: (page_idx + 1) as u32,
+                width: None,
+                height: None,
+                blocks: vec![block],
+            });
         }
 
         Ok(output)

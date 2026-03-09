@@ -10,17 +10,17 @@ use serde::Deserialize;
 
 use super::SuryaParams;
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response, image_part,
+    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
+    check_response, image_part,
 };
 
 /// [`Backend`] implementation for Surya OCR.
 ///
 /// Sends images as multipart form data to `{base_url}/ocr` and parses
-/// word-level results into [`ImageRegion`]. Surya returns both a 4-point
-/// polygon and an axis-aligned bounding box in pixel coordinates.
+/// the response into a hierarchical page/block/line/word tree.
+/// Surya's `TextLine` maps directly to [`Line`].
 ///
 /// [`Backend`]: crate::Backend
-/// [`ImageRegion`]: crate::ImageRegxion
 #[derive(Debug)]
 pub struct SuryaBackend {
     client: HttpClient,
@@ -49,6 +49,10 @@ struct SuryaResponse {
 
 #[derive(Debug, Deserialize)]
 struct SuryaPage {
+    /// Upstream page number (0-based).
+    page: u32,
+    /// Document image bounds `[x_min, y_min, x_max, y_max]`.
+    image_bbox: [f64; 4],
     text_lines: Vec<SuryaTextLine>,
 }
 
@@ -94,9 +98,13 @@ impl Backend for SuryaBackend {
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());
 
-        for page in &parsed.pages {
-            for line in &page.text_lines {
-                for word in &line.words {
+        for surya_page in &parsed.pages {
+            let mut lines = Vec::new();
+
+            for text_line in &surya_page.text_lines {
+                let mut words = Vec::new();
+
+                for word in &text_line.words {
                     if word.confidence < threshold {
                         continue;
                     }
@@ -118,15 +126,58 @@ impl Backend for SuryaBackend {
                             .collect(),
                     };
 
-                    output.insert(ImageRegion {
+                    words.push(Word {
                         text: word.text.clone(),
                         confidence: Some(word.confidence),
                         bbox,
                         polygon: Some(polygon),
-                        level: Some(TextLevel::Word),
                     });
                 }
+
+                if words.is_empty() {
+                    continue;
+                }
+
+                let line_text = words
+                    .iter()
+                    .map(|w| w.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let line_bbox =
+                    BoundingBox::enclosing(words.iter().map(|w| &w.bbox));
+
+                lines.push(Line {
+                    text: line_text,
+                    confidence: None,
+                    bbox: line_bbox,
+                    polygon: None,
+                    words,
+                });
             }
+
+            let block_text = lines
+                .iter()
+                .map(|l| l.text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let block_bbox =
+                BoundingBox::enclosing(lines.iter().map(|l| &l.bbox));
+
+            let [_x_min, _y_min, x_max, y_max] = surya_page.image_bbox;
+
+            output.pages.push(Page {
+                page_number: surya_page.page + 1,
+                width: Some(x_max),
+                height: Some(y_max),
+                blocks: vec![Block {
+                    text: block_text,
+                    confidence: None,
+                    bbox: block_bbox,
+                    polygon: None,
+                    kind: BlockKind::Text,
+                    lines,
+                }],
+            });
         }
 
         Ok(output)
@@ -141,6 +192,8 @@ mod tests {
     fn parse_response() {
         let json = serde_json::json!({
             "pages": [{
+                "page": 0,
+                "image_bbox": [0.0, 0.0, 800.0, 600.0],
                 "text_lines": [{
                     "words": [
                         {

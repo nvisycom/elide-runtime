@@ -21,14 +21,14 @@ use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 ///
 /// ```ignore
 /// use nvisy_ocr::{OcrEngine, ImageInput, ImageFormat, RunParams};
-/// use nvisy_ocr::provider::{DoctrBackend, DoctrParams};
+/// use nvisy_ocr::provider::{SuryaBackend, SuryaParams};
 ///
-/// let backend = DoctrBackend::new(DoctrParams { base_url: "http://localhost:8000".into() });
+/// let backend = SuryaBackend::new(SuryaParams { base_url: "http://localhost:8000".into() });
 /// let engine = OcrEngine::new(backend);
 ///
 /// let image = ImageInput::new(png_bytes, ImageFormat::Png);
 /// let output = engine.run(&image, &RunParams::default()).await?;
-/// println!("{} regions detected", output.len());
+/// println!("{} words detected", output.word_count());
 /// ```
 #[derive(Clone)]
 pub struct OcrEngine {
@@ -57,7 +57,7 @@ impl OcrEngine {
     ))]
     pub async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
         let output = self.backend.run(image, params).await?;
-        tracing::debug!(regions = output.len(), "ocr complete");
+        tracing::debug!(words = output.word_count(), "ocr complete");
         Ok(output)
     }
 
@@ -69,8 +69,8 @@ impl OcrEngine {
         params: &RunParams,
     ) -> Result<Vec<ImageOutput>, Error> {
         let outputs = self.backend.run_batch(images, params).await?;
-        let regions: usize = outputs.iter().map(|o| o.len()).sum();
-        tracing::debug!(regions, "batch ocr complete");
+        let words: usize = outputs.iter().map(|o| o.word_count()).sum();
+        tracing::debug!(words, "batch ocr complete");
         Ok(outputs)
     }
 }

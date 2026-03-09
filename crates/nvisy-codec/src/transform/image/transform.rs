@@ -51,7 +51,7 @@ where
         let mut img: DynamicImage = image_data.into_inner();
 
         for redaction in redactions {
-            let region = redaction.bounding_box.to_u32();
+            let region = redaction.bounding_box.to_pixel();
             match &redaction.output {
                 ImageOutput::Blur { sigma } => {
                     img.apply_gaussian_blur(&region, *sigma);

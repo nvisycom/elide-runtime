@@ -3,28 +3,11 @@
 use nvisy_core::math::{BoundingBox, Polygon};
 use nvisy_core::path::ContentSource;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
 
-/// Hierarchical level of a text region within a document page.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Display, EnumString, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-#[strum(serialize_all = "snake_case")]
-pub enum TextLevel {
-    /// Full page.
-    Page,
-    /// Block-level region (paragraph, table, figure).
-    Block,
-    /// Single line of text.
-    Line,
-    /// Individual word.
-    Word,
-}
-
-/// A single text region detected by an OCR backend.
+/// A single word detected by OCR.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImageRegion {
-    /// Extracted text content.
+pub struct Word {
+    /// Recognised text content.
     pub text: String,
     /// Confidence score (0.0..=1.0), if the backend provides one.
     pub confidence: Option<f64>,
@@ -32,36 +15,72 @@ pub struct ImageRegion {
     pub bbox: BoundingBox,
     /// Polygon vertices for rotated or skewed text regions.
     pub polygon: Option<Polygon>,
-    /// Hierarchical level of this text region: word, line, block, etc.
-    pub level: Option<TextLevel>,
 }
 
-impl ImageRegion {
-    /// Returns `true` if the extracted text is empty.
-    pub fn is_empty(&self) -> bool {
-        self.text.is_empty()
-    }
-
-    /// Length of the extracted text in bytes.
-    pub fn text_len(&self) -> usize {
-        self.text.len()
-    }
-
-    /// Area of the bounding box: width × height.
-    pub fn area(&self) -> f64 {
-        self.bbox.width * self.bbox.height
-    }
-
-    /// Returns `true` if the confidence meets or exceeds the given threshold.
-    pub fn meets_threshold(&self, threshold: f64) -> bool {
-        self.confidence.unwrap_or(0.0) >= threshold
-    }
+/// A line of text: ordered sequence of words.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Line {
+    /// Concatenated text from all words in this line.
+    pub text: String,
+    /// Line-level confidence, if the provider gives one.
+    pub confidence: Option<f64>,
+    /// Axis-aligned bounding box enclosing the line.
+    pub bbox: BoundingBox,
+    /// Polygon vertices for the line region.
+    pub polygon: Option<Polygon>,
+    /// Words in reading order.
+    pub words: Vec<Word>,
 }
 
-/// Output from an OCR run on a single image.
+/// Classification of a block region.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BlockKind {
+    /// Paragraph / prose.
+    Text,
+    /// Tabular content.
+    Table,
+    /// Figure / chart.
+    Figure,
+    /// Unclassified.
+    Other,
+}
+
+/// A block (paragraph, table cell, figure caption, etc.).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Block {
+    /// Concatenated text from all lines in this block.
+    pub text: String,
+    /// Block-level confidence, if available.
+    pub confidence: Option<f64>,
+    /// Axis-aligned bounding box enclosing the block.
+    pub bbox: BoundingBox,
+    /// Polygon vertices for the block region.
+    pub polygon: Option<Polygon>,
+    /// Classification of this block.
+    pub kind: BlockKind,
+    /// Lines in reading order.
+    pub lines: Vec<Line>,
+}
+
+/// A single page of OCR results.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Page {
+    /// 1-based page number.
+    pub page_number: u32,
+    /// Page width in pixels, when known.
+    pub width: Option<f64>,
+    /// Page height in pixels, when known.
+    pub height: Option<f64>,
+    /// Blocks in reading order.
+    pub blocks: Vec<Block>,
+}
+
+/// Complete OCR output for one image/document.
 ///
-/// Groups detected [`ImageRegion`]s together with a [`ContentSource`]
-/// derived from the input image for provenance tracking.
+/// Groups detected text into a hierarchical tree of
+/// [`Page`] → [`Block`] → [`Line`] → [`Word`], together with a
+/// [`ContentSource`] derived from the input image for provenance tracking.
 ///
 /// [`ContentSource`]: nvisy_core::path::ContentSource
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,8 +89,8 @@ pub struct ImageOutput {
     ///
     /// [`ContentSource`]: nvisy_core::path::ContentSource
     pub source: ContentSource,
-    /// Text regions detected in the image.
-    pub regions: Vec<ImageRegion>,
+    /// Pages of OCR results.
+    pub pages: Vec<Page>,
 }
 
 impl ImageOutput {
@@ -79,72 +98,59 @@ impl ImageOutput {
     pub fn new(source: ContentSource) -> Self {
         Self {
             source,
-            regions: Vec::new(),
+            pages: Vec::new(),
         }
     }
 
-    /// Insert a region into this output.
-    pub fn insert(&mut self, region: ImageRegion) {
-        self.regions.push(region);
-    }
-
-    /// Number of detected regions.
+    /// Number of pages.
     pub fn len(&self) -> usize {
-        self.regions.len()
+        self.pages.len()
     }
 
-    /// Returns `true` if no regions were detected.
+    /// Returns `true` if no pages or no words were detected.
     pub fn is_empty(&self) -> bool {
-        self.regions.is_empty()
+        self.pages.is_empty() || self.words().next().is_none()
     }
 
-    /// Iterator over the detected regions.
-    pub fn iter(&self) -> std::slice::Iter<'_, ImageRegion> {
-        self.regions.iter()
-    }
-
-    /// Mutable iterator over the detected regions.
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, ImageRegion> {
-        self.regions.iter_mut()
-    }
-
-    /// Retain only regions that satisfy the predicate.
-    pub fn retain(&mut self, f: impl FnMut(&ImageRegion) -> bool) {
-        self.regions.retain(f);
-    }
-
-    /// Filter regions that meet the given confidence threshold.
-    pub fn above_threshold(&self, threshold: f64) -> Vec<&ImageRegion> {
-        self.regions
+    /// Flat iterator over all words across all pages/blocks/lines.
+    pub fn words(&self) -> impl Iterator<Item = &Word> {
+        self.pages
             .iter()
-            .filter(|r| r.meets_threshold(threshold))
-            .collect()
+            .flat_map(|p| &p.blocks)
+            .flat_map(|b| &b.lines)
+            .flat_map(|l| &l.words)
     }
-}
 
-impl<'a> IntoIterator for &'a ImageOutput {
-    type IntoIter = std::slice::Iter<'a, ImageRegion>;
-    type Item = &'a ImageRegion;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
+    /// Flat iterator over all lines.
+    pub fn lines(&self) -> impl Iterator<Item = &Line> {
+        self.pages
+            .iter()
+            .flat_map(|p| &p.blocks)
+            .flat_map(|b| &b.lines)
     }
-}
 
-impl<'a> IntoIterator for &'a mut ImageOutput {
-    type IntoIter = std::slice::IterMut<'a, ImageRegion>;
-    type Item = &'a mut ImageRegion;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter_mut()
+    /// Flat iterator over all blocks.
+    pub fn blocks(&self) -> impl Iterator<Item = &Block> {
+        self.pages.iter().flat_map(|p| &p.blocks)
     }
-}
 
-impl IntoIterator for ImageOutput {
-    type IntoIter = std::vec::IntoIter<ImageRegion>;
-    type Item = ImageRegion;
+    /// Full extracted text (pages joined by `\n\n`).
+    pub fn full_text(&self) -> String {
+        self.pages
+            .iter()
+            .map(|p| {
+                p.blocks
+                    .iter()
+                    .map(|b| b.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    }
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.regions.into_iter()
+    /// Total word count across all pages.
+    pub fn word_count(&self) -> usize {
+        self.words().count()
     }
 }

@@ -22,7 +22,7 @@ pub struct PngHandler {
 
 impl_image_handler!(
     PngHandler,
-    nvisy_core::fs::DocumentType::Png,
+    nvisy_core::fs::DocumentType::Image(nvisy_core::fs::ImageFormat::Png),
     image::ImageFormat::Png,
     "png-handler",
     "png.encode"

@@ -17,7 +17,7 @@
 
 use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
+use nvisy_core::fs::{DocumentType, SpreadsheetFormat};
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
@@ -84,7 +84,7 @@ pub struct CsvHandler {
 
 impl Handler for CsvHandler {
     fn document_type(&self) -> DocumentType {
-        DocumentType::Csv
+        DocumentType::Spreadsheet(SpreadsheetFormat::Csv)
     }
 
     #[tracing::instrument(name = "csv.encode", skip_all, fields(output_bytes))]

@@ -2,6 +2,7 @@
 //!
 //! [`Backend`]: crate::Backend
 
+use std::collections::HashMap;
 use std::fmt;
 
 use hmac::{Hmac, Mac};
@@ -13,7 +14,8 @@ use sha2::{Digest, Sha256};
 
 use super::AwsTextractParams;
 use crate::backend::{
-    Backend, ImageInput, ImageOutput, ImageRegion, RunParams, TextLevel, check_response,
+    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
+    check_response,
 };
 
 /// [`Backend`] implementation for AWS Textract.
@@ -124,9 +126,18 @@ struct TextractResponse {
 #[serde(rename_all = "PascalCase")]
 struct TextractBlock {
     block_type: String,
+    id: Option<String>,
     text: Option<String>,
     confidence: Option<f64>,
     geometry: Option<TextractGeometry>,
+    relationships: Option<Vec<TextractRelationship>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct TextractRelationship {
+    r#type: String,
+    ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -150,6 +161,30 @@ struct TextractBBox {
 struct TextractPoint {
     x: f64,
     y: f64,
+}
+
+fn extract_geometry(geom: Option<&TextractGeometry>) -> (BoundingBox, Option<Polygon>) {
+    match geom {
+        Some(geom) => {
+            let bbox = geom
+                .bounding_box
+                .as_ref()
+                .map(|b| BoundingBox {
+                    x: b.left,
+                    y: b.top,
+                    width: b.width,
+                    height: b.height,
+                })
+                .unwrap_or_default();
+
+            let polygon = geom.polygon.as_ref().map(|pts| Polygon {
+                vertices: pts.iter().map(|p| Vertex::new(p.x, p.y)).collect(),
+            });
+
+            (bbox, polygon)
+        }
+        None => (BoundingBox::default(), None),
+    }
 }
 
 #[async_trait::async_trait]
@@ -220,53 +255,116 @@ impl Backend for AwsTextractBackend {
         })?;
 
         let threshold = params.confidence_threshold;
+
+        // Index blocks by ID for relationship lookups.
+        let block_map: HashMap<&str, &TextractBlock> = parsed
+            .blocks
+            .iter()
+            .filter_map(|b| b.id.as_deref().map(|id| (id, b)))
+            .collect();
+
+        fn child_ids(block: &TextractBlock) -> Vec<&str> {
+            block
+                .relationships
+                .as_ref()
+                .into_iter()
+                .flatten()
+                .filter(|r| r.r#type == "CHILD")
+                .flat_map(|r| r.ids.iter().map(|s| s.as_str()))
+                .collect()
+        }
+
         let mut output = ImageOutput::new(image.source.derive());
 
+        // Iterate PAGE blocks; build LINE→WORD tree from relationships.
+        let mut page_number = 0u32;
         for block in &parsed.blocks {
-            if block.block_type != "WORD" {
+            if block.block_type != "PAGE" {
                 continue;
             }
+            page_number += 1;
 
-            let text = match &block.text {
-                Some(t) => t.clone(),
-                None => continue,
-            };
+            let line_ids = child_ids(block);
+            let mut lines = Vec::new();
 
-            // Textract returns confidence as 0–100; normalise to 0–1.
-            let confidence = block.confidence.unwrap_or(0.0) / 100.0;
+            for line_id in &line_ids {
+                let line_block = match block_map.get(line_id) {
+                    Some(b) if b.block_type == "LINE" => b,
+                    _ => continue,
+                };
 
-            if confidence < threshold {
-                continue;
-            }
+                let word_ids = child_ids(line_block);
+                let mut words = Vec::new();
 
-            let (bbox, polygon) = match &block.geometry {
-                Some(geom) => {
-                    let bbox = geom
-                        .bounding_box
-                        .as_ref()
-                        .map(|b| BoundingBox {
-                            x: b.left,
-                            y: b.top,
-                            width: b.width,
-                            height: b.height,
-                        })
-                        .unwrap_or_default();
+                for word_id in &word_ids {
+                    let word_block = match block_map.get(word_id) {
+                        Some(b) if b.block_type == "WORD" => b,
+                        _ => continue,
+                    };
 
-                    let polygon = geom.polygon.as_ref().map(|pts| Polygon {
-                        vertices: pts.iter().map(|p| Vertex::new(p.x, p.y)).collect(),
+                    let text = match &word_block.text {
+                        Some(t) => t.clone(),
+                        None => continue,
+                    };
+
+                    // Textract returns confidence as 0–100; normalise to 0–1.
+                    let confidence = word_block.confidence.unwrap_or(0.0) / 100.0;
+                    if confidence < threshold {
+                        continue;
+                    }
+
+                    let (bbox, polygon) = extract_geometry(word_block.geometry.as_ref());
+
+                    words.push(Word {
+                        text,
+                        confidence: Some(confidence),
+                        bbox,
+                        polygon,
                     });
-
-                    (bbox, polygon)
                 }
-                None => (BoundingBox::default(), None),
-            };
 
-            output.insert(ImageRegion {
-                text,
-                confidence: Some(confidence),
-                bbox,
-                polygon,
-                level: Some(TextLevel::Word),
+                if words.is_empty() {
+                    continue;
+                }
+
+                let line_text = words
+                    .iter()
+                    .map(|w| w.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let line_confidence =
+                    line_block.confidence.map(|c| c / 100.0);
+                let (line_bbox, line_polygon) =
+                    extract_geometry(line_block.geometry.as_ref());
+
+                lines.push(Line {
+                    text: line_text,
+                    confidence: line_confidence,
+                    bbox: line_bbox,
+                    polygon: line_polygon,
+                    words,
+                });
+            }
+
+            let block_text = lines
+                .iter()
+                .map(|l| l.text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let (page_bbox, _) = extract_geometry(block.geometry.as_ref());
+
+            output.pages.push(Page {
+                page_number,
+                width: Some(page_bbox.width),
+                height: Some(page_bbox.height),
+                blocks: vec![Block {
+                    text: block_text,
+                    confidence: None,
+                    bbox: page_bbox,
+                    polygon: None,
+                    kind: BlockKind::Text,
+                    lines,
+                }],
             });
         }
 
@@ -347,6 +445,70 @@ mod tests {
         assert!((bbox.left - 0.1).abs() < 0.001);
         assert!((bbox.top - 0.3).abs() < 0.001);
         assert!((bbox.width - 0.2).abs() < 0.001);
+    }
+
+    #[test]
+    fn build_hierarchy_from_relationships() {
+        let json = serde_json::json!({
+            "Blocks": [
+                {
+                    "BlockType": "PAGE",
+                    "Id": "page-1",
+                    "Geometry": {
+                        "BoundingBox": { "Width": 1.0, "Height": 1.0, "Left": 0.0, "Top": 0.0 }
+                    },
+                    "Relationships": [{
+                        "Type": "CHILD",
+                        "Ids": ["line-1"]
+                    }]
+                },
+                {
+                    "BlockType": "LINE",
+                    "Id": "line-1",
+                    "Text": "hello world",
+                    "Confidence": 98.0,
+                    "Geometry": {
+                        "BoundingBox": { "Width": 0.5, "Height": 0.05, "Left": 0.1, "Top": 0.3 }
+                    },
+                    "Relationships": [{
+                        "Type": "CHILD",
+                        "Ids": ["word-1", "word-2"]
+                    }]
+                },
+                {
+                    "BlockType": "WORD",
+                    "Id": "word-1",
+                    "Text": "hello",
+                    "Confidence": 99.0,
+                    "Geometry": {
+                        "BoundingBox": { "Width": 0.2, "Height": 0.05, "Left": 0.1, "Top": 0.3 }
+                    }
+                },
+                {
+                    "BlockType": "WORD",
+                    "Id": "word-2",
+                    "Text": "world",
+                    "Confidence": 97.0,
+                    "Geometry": {
+                        "BoundingBox": { "Width": 0.2, "Height": 0.05, "Left": 0.35, "Top": 0.3 }
+                    }
+                }
+            ]
+        });
+
+        let resp: TextractResponse = serde_json::from_value(json).unwrap();
+        assert_eq!(resp.blocks.len(), 4);
+
+        // Verify the relationship structure.
+        let page = &resp.blocks[0];
+        assert_eq!(page.block_type, "PAGE");
+        let rels = page.relationships.as_ref().unwrap();
+        assert_eq!(rels[0].ids, vec!["line-1"]);
+
+        let line = &resp.blocks[1];
+        assert_eq!(line.block_type, "LINE");
+        let rels = line.relationships.as_ref().unwrap();
+        assert_eq!(rels[0].ids, vec!["word-1", "word-2"]);
     }
 
     #[test]

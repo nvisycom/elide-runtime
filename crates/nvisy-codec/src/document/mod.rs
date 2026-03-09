@@ -178,7 +178,10 @@ mod tests {
     fn document_type_delegates() {
         let handler = TxtHandler::new(vec![], false);
         let doc = Document::new(handler);
-        assert_eq!(doc.document_type(), DocumentType::Txt);
+        assert_eq!(
+            doc.document_type(),
+            DocumentType::Text(nvisy_core::fs::TextFormat::Txt),
+        );
     }
 
     #[test]

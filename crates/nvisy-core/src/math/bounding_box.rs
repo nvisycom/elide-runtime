@@ -6,18 +6,10 @@ use serde::{Deserialize, Serialize};
 /// Axis-aligned bounding box for image-based entity locations.
 ///
 /// Coordinates are `f64` to support both pixel and normalized (0.0–1.0)
-/// values from detection models. Use [`BoundingBoxU32`] (or [`Into`])
+/// values from detection models. Use [`BoundingBoxPixel`] (or [`Into`])
 /// when integer pixel coordinates are needed for rendering.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct BoundingBox {
     /// Horizontal offset of the top-left corner (pixels or normalized).
     pub x: f64,
@@ -108,9 +100,19 @@ impl BoundingBox {
         if union == 0.0 { 0.0 } else { inter / union }
     }
 
+    /// Returns the smallest box enclosing all boxes in the iterator.
+    ///
+    /// Returns [`BoundingBox::default()`] if the iterator is empty.
+    pub fn enclosing<'a>(mut iter: impl Iterator<Item = &'a BoundingBox>) -> BoundingBox {
+        match iter.next() {
+            None => BoundingBox::default(),
+            Some(first) => iter.fold(*first, |acc, b| acc.union(b)),
+        }
+    }
+
     /// Convert to integer pixel coordinates by rounding each field.
-    pub fn to_u32(&self) -> BoundingBoxU32 {
-        BoundingBoxU32 {
+    pub fn to_pixel(&self) -> BoundingBoxPixel {
+        BoundingBoxPixel {
             x: self.x.round() as u32,
             y: self.y.round() as u32,
             width: self.width.round() as u32,
@@ -125,7 +127,7 @@ impl BoundingBox {
 /// integer. Use this at the rendering boundary where pixel-exact
 /// coordinates are required.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BoundingBoxU32 {
+pub struct BoundingBoxPixel {
     /// Horizontal offset of the top-left corner in pixels.
     pub x: u32,
     /// Vertical offset of the top-left corner in pixels.
@@ -136,13 +138,13 @@ pub struct BoundingBoxU32 {
     pub height: u32,
 }
 
-impl From<&BoundingBox> for BoundingBoxU32 {
+impl From<&BoundingBox> for BoundingBoxPixel {
     fn from(bb: &BoundingBox) -> Self {
-        bb.to_u32()
+        bb.to_pixel()
     }
 }
 
-impl From<BoundingBox> for BoundingBoxU32 {
+impl From<BoundingBox> for BoundingBoxPixel {
     fn from(bb: BoundingBox) -> Self {
         Self::from(&bb)
     }
@@ -219,9 +221,9 @@ mod tests {
     }
 
     #[test]
-    fn to_u32_rounds() {
+    fn to_pixel_rounds() {
         let bb = BoundingBox::new(1.4, 2.6, 3.5, 4.4);
-        let u = bb.to_u32();
+        let u = bb.to_pixel();
         assert_eq!(u.x, 1);
         assert_eq!(u.y, 3);
         assert_eq!(u.width, 4);

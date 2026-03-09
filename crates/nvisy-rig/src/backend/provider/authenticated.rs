@@ -68,7 +68,7 @@ impl AuthenticatedProvider {
         &self,
         http: ClientWithMiddleware,
     ) -> Result<openai::Client<ClientWithMiddleware>, Error> {
-        let mut b = openai::Client::<ClientWithMiddleware>::builder()
+        let mut b = openai::Client::builder()
             .api_key(&self.api_key)
             .http_client(http);
         if let Some(url) = &self.base_url {
@@ -84,7 +84,7 @@ impl AuthenticatedProvider {
         &self,
         http: ClientWithMiddleware,
     ) -> Result<gemini::Client<ClientWithMiddleware>, Error> {
-        let mut b = gemini::Client::<ClientWithMiddleware>::builder()
+        let mut b = gemini::Client::builder()
             .api_key(&self.api_key)
             .http_client(http);
         if let Some(url) = &self.base_url {
@@ -100,7 +100,7 @@ impl AuthenticatedProvider {
         &self,
         http: ClientWithMiddleware,
     ) -> Result<anthropic::Client<ClientWithMiddleware>, Error> {
-        let mut b = anthropic::Client::<ClientWithMiddleware>::builder()
+        let mut b = anthropic::Client::builder()
             .api_key(&self.api_key)
             .http_client(http);
         if let Some(url) = &self.base_url {

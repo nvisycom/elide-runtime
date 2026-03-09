@@ -19,7 +19,7 @@ impl UnauthenticatedProvider {
         &self,
         http: ClientWithMiddleware,
     ) -> Result<ollama::Client<ClientWithMiddleware>, Error> {
-        let mut b = ollama::Client::<ClientWithMiddleware>::builder()
+        let mut b = ollama::Client::builder()
             .api_key(rig::client::Nothing)
             .http_client(http);
         if let Some(url) = &self.base_url {

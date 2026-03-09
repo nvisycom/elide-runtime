@@ -23,7 +23,7 @@ use std::num::NonZeroU32;
 
 use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
+use nvisy_core::fs::{DocumentType, TextFormat};
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 use serde::{Deserialize, Serialize};
@@ -127,7 +127,7 @@ pub struct JsonHandler {
 
 impl Handler for JsonHandler {
     fn document_type(&self) -> DocumentType {
-        DocumentType::Json
+        DocumentType::Text(TextFormat::Json)
     }
 
     #[tracing::instrument(name = "json.encode", skip_all, fields(output_bytes))]

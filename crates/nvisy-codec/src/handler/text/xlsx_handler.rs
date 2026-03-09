@@ -1,7 +1,7 @@
 //! XLSX handler (stub: awaiting full spreadsheet support).
 
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
+use nvisy_core::fs::{DocumentType, SpreadsheetFormat};
 use nvisy_core::io::ContentData;
 
 use crate::document::{SpanEditStream, SpanStream};
@@ -13,7 +13,7 @@ pub struct XlsxHandler;
 
 impl Handler for XlsxHandler {
     fn document_type(&self) -> DocumentType {
-        DocumentType::Xlsx
+        DocumentType::Spreadsheet(SpreadsheetFormat::Xlsx)
     }
 
     #[tracing::instrument(name = "xlsx.encode", skip_all)]

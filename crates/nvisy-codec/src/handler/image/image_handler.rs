@@ -113,13 +113,19 @@ mod tests {
     #[test]
     fn png_variant_document_type() {
         let h = AnyImage::Png(make_png());
-        assert_eq!(h.document_type(), DocumentType::Png);
+        assert_eq!(
+            h.document_type(),
+            DocumentType::Image(nvisy_core::fs::ImageFormat::Png),
+        );
     }
 
     #[test]
     fn jpeg_variant_document_type() {
         let h = AnyImage::Jpeg(make_jpeg());
-        assert_eq!(h.document_type(), DocumentType::Jpeg);
+        assert_eq!(
+            h.document_type(),
+            DocumentType::Image(nvisy_core::fs::ImageFormat::Jpeg),
+        );
     }
 
     #[tokio::test]

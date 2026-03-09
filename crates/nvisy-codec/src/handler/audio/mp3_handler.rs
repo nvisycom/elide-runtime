@@ -10,7 +10,7 @@
 use bytes::Bytes;
 use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
+use nvisy_core::fs::{AudioFormat, DocumentType};
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
@@ -45,7 +45,7 @@ impl Mp3Handler {
 
 impl Handler for Mp3Handler {
     fn document_type(&self) -> DocumentType {
-        DocumentType::Mp3
+        DocumentType::Audio(AudioFormat::Mp3)
     }
 
     #[tracing::instrument(name = "mp3.encode", skip_all, fields(output_bytes))]

@@ -12,4 +12,7 @@ mod document_type;
 
 pub use content_kind::ContentKind;
 pub use content_metadata::ContentMetadata;
-pub use document_type::DocumentType;
+pub use document_type::{
+    AudioFormat, DocumentType, ImageFormat, PresentationFormat, SpreadsheetFormat, TextFormat,
+    WordFormat,
+};

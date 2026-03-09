@@ -94,7 +94,7 @@ fn detect_formatting(source: &str) -> (JsonIndent, bool) {
 mod tests {
     use bytes::Bytes;
     use nvisy_core::Error;
-    use nvisy_core::fs::DocumentType;
+    use nvisy_core::fs::{DocumentType, TextFormat};
     use nvisy_core::path::ContentSource;
     use serde_json::json;
 
@@ -109,7 +109,7 @@ mod tests {
         let content = content_from_str(r#"{"name": "Alice", "age": 30}"#);
         let doc = JsonLoader.decode(&content, &JsonParams::default()).await?;
 
-        assert_eq!(doc.document_type(), DocumentType::Json);
+        assert_eq!(doc.document_type(), DocumentType::Text(TextFormat::Json));
         assert_eq!(doc.value(), &json!({"name": "Alice", "age": 30}));
         Ok(())
     }

@@ -104,7 +104,10 @@ mod tests {
     #[tokio::test]
     async fn wav_variant_delegates() {
         let h = AnyAudio::Wav(WavHandler::new(bytes::Bytes::from_static(b"wav-data")));
-        assert_eq!(h.document_type(), DocumentType::Wav);
+        assert_eq!(
+            h.document_type(),
+            DocumentType::Audio(nvisy_core::fs::AudioFormat::Wav),
+        );
         let spans: Vec<_> = h.audio_spans().await.collect().await;
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].data.as_bytes().as_ref(), b"wav-data");
@@ -113,7 +116,10 @@ mod tests {
     #[tokio::test]
     async fn mp3_variant_delegates() {
         let h = AnyAudio::Mp3(Mp3Handler::new(bytes::Bytes::from_static(b"mp3-data")));
-        assert_eq!(h.document_type(), DocumentType::Mp3);
+        assert_eq!(
+            h.document_type(),
+            DocumentType::Audio(nvisy_core::fs::AudioFormat::Mp3),
+        );
         assert_eq!(h.encode().unwrap().as_bytes(), b"mp3-data");
     }
 

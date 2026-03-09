@@ -222,7 +222,10 @@ mod tests {
     #[test]
     fn txt_variant_document_type() {
         let h = AnyText::Txt(TxtHandler::new(vec!["hello".into()], false));
-        assert_eq!(h.document_type(), DocumentType::Txt);
+        assert_eq!(
+            h.document_type(),
+            DocumentType::Text(nvisy_core::fs::TextFormat::Txt),
+        );
     }
 
     #[tokio::test]

@@ -53,7 +53,7 @@ mod tests {
     use bytes::Bytes;
     use futures::StreamExt;
     use nvisy_core::Error;
-    use nvisy_core::fs::DocumentType;
+    use nvisy_core::fs::{DocumentType, TextFormat};
     use nvisy_core::path::ContentSource;
 
     use super::*;
@@ -67,7 +67,7 @@ mod tests {
         let content = content_from_str("hello\nworld\n");
         let doc = TxtLoader.decode(&content, &TxtParams::default()).await?;
 
-        assert_eq!(doc.document_type(), DocumentType::Txt);
+        assert_eq!(doc.document_type(), DocumentType::Text(TextFormat::Txt));
         assert_eq!(doc.lines(), &["hello", "world"]);
         assert!(doc.trailing_newline());
         Ok(())

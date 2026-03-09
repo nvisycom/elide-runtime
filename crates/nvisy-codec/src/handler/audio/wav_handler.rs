@@ -10,7 +10,7 @@
 use bytes::Bytes;
 use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
+use nvisy_core::fs::{AudioFormat, DocumentType};
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
@@ -45,7 +45,7 @@ impl WavHandler {
 
 impl Handler for WavHandler {
     fn document_type(&self) -> DocumentType {
-        DocumentType::Wav
+        DocumentType::Audio(AudioFormat::Wav)
     }
 
     #[tracing::instrument(name = "wav.encode", skip_all, fields(output_bytes))]

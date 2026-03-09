@@ -22,7 +22,7 @@ pub struct JpegHandler {
 
 impl_image_handler!(
     JpegHandler,
-    nvisy_core::fs::DocumentType::Jpeg,
+    nvisy_core::fs::DocumentType::Image(nvisy_core::fs::ImageFormat::Jpeg),
     image::ImageFormat::Jpeg,
     "jpeg-handler",
     "jpeg.encode"

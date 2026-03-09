@@ -3,38 +3,8 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use bytes::Bytes;
+use nvisy_core::fs::ImageFormat;
 use nvisy_core::path::ContentSource;
-use strum::{Display, EnumString, IntoStaticStr};
-
-/// Image format passed to a [`Backend`].
-///
-/// [`Backend`]: super::Backend
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Display, EnumString, IntoStaticStr)]
-pub enum ImageFormat {
-    #[strum(serialize = "png")]
-    Png,
-    #[strum(serialize = "jpeg")]
-    Jpeg,
-}
-
-impl ImageFormat {
-    /// MIME type string for this format.
-    pub fn mime_type(self) -> &'static str {
-        match self {
-            Self::Png => "image/png",
-            Self::Jpeg => "image/jpeg",
-        }
-    }
-
-    /// File extension for this format (without leading dot).
-    pub fn extension(self) -> &'static str {
-        match self {
-            Self::Png => "png",
-            Self::Jpeg => "jpeg",
-        }
-    }
-}
 
 /// Image payload passed to [`Backend::run`].
 ///

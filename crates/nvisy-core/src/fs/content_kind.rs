@@ -38,8 +38,6 @@ pub enum ContentKind {
     Spreadsheet,
     /// Image files
     Image,
-    /// Archive files (ZIP, TAR, etc.)
-    Archive,
     /// Unknown or unsupported content type
     #[default]
     Unknown,
@@ -69,12 +67,6 @@ impl ContentKind {
     pub fn is_image(&self) -> bool {
         matches!(self, Self::Image)
     }
-
-    /// Check if this content kind represents an archive
-    #[must_use]
-    pub fn is_archive(&self) -> bool {
-        matches!(self, Self::Archive)
-    }
 }
 
 #[cfg(test)]
@@ -94,9 +86,6 @@ mod tests {
 
         assert!(ContentKind::Image.is_image());
         assert!(!ContentKind::Text.is_image());
-
-        assert!(ContentKind::Archive.is_archive());
-        assert!(!ContentKind::Document.is_archive());
     }
 
     #[test]
@@ -105,7 +94,6 @@ mod tests {
         assert_eq!(ContentKind::Document.to_string(), "document");
         assert_eq!(ContentKind::Spreadsheet.to_string(), "spreadsheet");
         assert_eq!(ContentKind::Image.to_string(), "image");
-        assert_eq!(ContentKind::Archive.to_string(), "archive");
         assert_eq!(ContentKind::Unknown.to_string(), "unknown");
     }
 

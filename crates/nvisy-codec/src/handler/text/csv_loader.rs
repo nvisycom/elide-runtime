@@ -137,7 +137,7 @@ mod tests {
     use bytes::Bytes;
     use futures::StreamExt;
     use nvisy_core::Error;
-    use nvisy_core::fs::DocumentType;
+    use nvisy_core::fs::{DocumentType, SpreadsheetFormat};
     use nvisy_core::path::ContentSource;
 
     use super::*;
@@ -151,7 +151,7 @@ mod tests {
         let content = content_from_str("name,age\nAlice,30\nBob,25\n");
         let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
 
-        assert_eq!(doc.document_type(), DocumentType::Csv);
+        assert_eq!(doc.document_type(), DocumentType::Spreadsheet(SpreadsheetFormat::Csv));
         assert_eq!(
             doc.headers(),
             Some(["name", "age"].map(String::from).as_slice())

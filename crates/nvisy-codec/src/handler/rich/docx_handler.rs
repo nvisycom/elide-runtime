@@ -1,7 +1,7 @@
 //! DOCX handler (stub: awaiting migration to full Loader/Handler pattern).
 
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
+use nvisy_core::fs::{DocumentType, WordFormat};
 use nvisy_core::io::ContentData;
 
 use crate::document::{SpanEditStream, SpanStream};
@@ -14,7 +14,7 @@ pub struct DocxHandler;
 
 impl Handler for DocxHandler {
     fn document_type(&self) -> DocumentType {
-        DocumentType::Docx
+        DocumentType::Word(WordFormat::Docx)
     }
 
     #[tracing::instrument(name = "docx.encode", skip_all)]

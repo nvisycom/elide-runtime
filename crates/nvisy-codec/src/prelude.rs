@@ -14,7 +14,7 @@ pub use crate::handler::{DocxLoader, DocxParams};
 #[cfg(feature = "html")]
 pub use crate::handler::{HtmlData, HtmlHandler, HtmlLoader, HtmlParams, HtmlSpan};
 #[cfg(feature = "pdf")]
-pub use crate::handler::{PdfLoader, PdfParams, RichImageSpan, RichTextHandler, RichTextSpan};
+pub use crate::handler::{PdfLoader, PdfParams, RichTextHandler, RichTextSpan};
 #[cfg(feature = "xlsx")]
 pub use crate::handler::{XlsxHandler, XlsxLoader, XlsxParams};
 pub use crate::transform::{

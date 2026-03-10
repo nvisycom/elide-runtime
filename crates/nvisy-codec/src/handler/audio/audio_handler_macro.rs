@@ -29,7 +29,7 @@ macro_rules! impl_audio_handler {
             {
                 crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
                     crate::document::Span::new(
-                        crate::handler::AudioSpanId,
+                        crate::handler::AudioSpanId::default(),
                         crate::handler::AudioData::new(self.bytes.clone()),
                     ),
                 )))

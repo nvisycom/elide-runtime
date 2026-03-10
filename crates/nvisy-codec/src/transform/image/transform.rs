@@ -20,11 +20,7 @@ pub trait ImageTransform: ImageHandler {
 }
 
 #[async_trait::async_trait]
-impl<H: ImageHandler> ImageTransform for H
-where
-    H::ImageId: Default,
-    ImageData: From<ImageData>,
-{
+impl<H: ImageHandler> ImageTransform for H {
     async fn redact_images(&mut self, redactions: &[ImageRedaction]) -> Result<(), Error> {
         tracing::debug!(
             redaction_count = redactions.len(),

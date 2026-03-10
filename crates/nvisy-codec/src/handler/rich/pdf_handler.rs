@@ -15,12 +15,6 @@
 //! For PDF documents the changes are applied to the underlying content
 //! streams via [`lopdf::Document::replace_text`].
 //!
-//! # Image span model
-//!
-//! [`ImageHandler::image_spans`] yields one [`Span`] per rendered page
-//! image.  Each span is addressed by a [`RichImageSpan`] containing
-//! the page index and image index.
-//!
 //! # Encoding
 //!
 //! [`Handler::encode`] returns the raw document bytes.  Edits applied via
@@ -39,20 +33,11 @@ use super::pdf_render::PdfRenderer;
 use crate::document::{Span, SpanStream};
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
-use crate::handler::{Handler, ImageHandler, TextHandler};
+use crate::handler::{Handler, TextHandler};
 
 /// 0-based page index for text spans within a rich document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RichTextSpan(pub u32);
-
-/// Identifier for an image span within a rich (multi-page) document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RichImageSpan {
-    /// 0-based page index.
-    pub page: u32,
-    /// 0-based image index within the page.
-    pub index: u32,
-}
 
 /// Handler for rich documents containing pages of text and images.
 ///
@@ -250,40 +235,6 @@ impl TextHandler for RichTextHandler {
             }
         }
 
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl ImageHandler for RichTextHandler {
-    type ImageId = RichImageSpan;
-
-    async fn image_spans(&self) -> SpanStream<'_, RichImageSpan, ImageData> {
-        let images = match PdfRenderer::parallel_render(&self.raw, Dpi::OCR) {
-            Ok(imgs) => imgs,
-            Err(e) => {
-                tracing::warn!(error = %e, "failed to render pages for image_spans");
-                return SpanStream::new(futures::stream::empty());
-            }
-        };
-        SpanStream::new(futures::stream::iter(images.into_iter().enumerate().map(
-            |(i, img)| {
-                Span::new(
-                    RichImageSpan {
-                        page: i as u32,
-                        index: 0,
-                    },
-                    img,
-                )
-            },
-        )))
-    }
-
-    async fn edit_images(
-        &mut self,
-        _edits: SpanStream<'_, RichImageSpan, ImageData>,
-    ) -> Result<(), Error> {
-        tracing::warn!("rich document image editing is not yet supported");
         Ok(())
     }
 }

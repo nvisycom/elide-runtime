@@ -28,14 +28,12 @@ macro_rules! impl_image_handler {
 
         #[async_trait::async_trait]
         impl crate::handler::ImageHandler for $handler {
-            type ImageId = crate::handler::ImageSpanId;
-
             async fn image_spans(
                 &self,
             ) -> crate::document::SpanStream<'_, crate::handler::ImageSpanId, crate::handler::ImageData> {
                 crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
                     crate::document::Span::new(
-                        crate::handler::ImageSpanId,
+                        crate::handler::ImageSpanId::default(),
                         crate::handler::ImageData::from(self.image.clone()),
                     ),
                 )))

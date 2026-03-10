@@ -25,8 +25,11 @@ macro_rules! impl_audio_handler {
         impl crate::handler::AudioHandler for $handler {
             async fn audio_spans(
                 &self,
-            ) -> crate::document::SpanStream<'_, crate::handler::AudioSpanId, crate::handler::AudioData>
-            {
+            ) -> crate::document::SpanStream<
+                '_,
+                crate::handler::AudioSpanId,
+                crate::handler::AudioData,
+            > {
                 crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
                     crate::document::Span::new(
                         crate::handler::AudioSpanId::default(),
@@ -37,7 +40,11 @@ macro_rules! impl_audio_handler {
 
             async fn edit_audio(
                 &mut self,
-                edits: crate::document::SpanStream<'_, crate::handler::AudioSpanId, crate::handler::AudioData>,
+                edits: crate::document::SpanStream<
+                    '_,
+                    crate::handler::AudioSpanId,
+                    crate::handler::AudioData,
+                >,
             ) -> Result<(), nvisy_core::Error> {
                 use futures::StreamExt;
                 let edits: Vec<_> = edits.collect().await;

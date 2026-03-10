@@ -104,10 +104,7 @@ impl TextHandler for HtmlHandler {
         }))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanStream<'_, HtmlSpan, TextData>,
-    ) -> Result<(), Error> {
+    async fn edit_text(&mut self, edits: SpanStream<'_, HtmlSpan, TextData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
             let node = self.data.text_nodes.get_mut(edit.id.0).ok_or_else(|| {
@@ -232,9 +229,10 @@ mod tests {
     async fn encode_after_edit_spans() -> Result<(), Error> {
         let raw = "<html><head></head><body><p>Hello</p><p>World</p></body></html>";
         let mut h = handler_from_html(raw);
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![
-            Span::new(HtmlSpan(0), "[REDACTED]".into()),
-        ])))
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+            HtmlSpan(0),
+            "[REDACTED]".into(),
+        )])))
         .await?;
         let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("[REDACTED]"));
@@ -261,9 +259,10 @@ mod tests {
         let raw = "<html><head></head><body><p>hello</p><p>hello</p></body></html>";
         let mut h = handler_from_html(raw);
         // Edit only the first "hello" — the second should remain unchanged.
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![
-            Span::new(HtmlSpan(0), "FIRST".into()),
-        ])))
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+            HtmlSpan(0),
+            "FIRST".into(),
+        )])))
         .await?;
         let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("<p>FIRST</p>"));
@@ -286,9 +285,10 @@ mod tests {
     async fn edit_spans_out_of_bounds() {
         let mut h = handler_from_html("<html><head></head><body><p>only</p></body></html>");
         let err = h
-            .edit_text(SpanStream::new(futures::stream::iter(vec![
-                Span::new(HtmlSpan(99), "nope".into()),
-            ])))
+            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+                HtmlSpan(99),
+                "nope".into(),
+            )])))
             .await
             .unwrap_err();
         assert!(err.to_string().contains("out of bounds"));

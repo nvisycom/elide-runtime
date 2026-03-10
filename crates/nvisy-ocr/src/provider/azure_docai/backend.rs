@@ -12,8 +12,7 @@ use tokio::time::{Duration, sleep};
 
 use super::AzureDocaiParams;
 use crate::backend::{
-    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
-    check_response,
+    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word, check_response,
 };
 
 /// [`Backend`] implementation for Azure Document Intelligence.
@@ -232,8 +231,7 @@ impl Backend for AzureDocaiBackend {
                 .map(|w| w.text.as_str())
                 .collect::<Vec<_>>()
                 .join(" ");
-            let line_bbox =
-                BoundingBox::enclosing(words.iter().map(|w| &w.bbox));
+            let line_bbox = BoundingBox::enclosing(words.iter().map(|w| &w.bbox));
 
             let line = Line {
                 text: line_text.clone(),

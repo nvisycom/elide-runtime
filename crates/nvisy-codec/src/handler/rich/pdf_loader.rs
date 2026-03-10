@@ -36,8 +36,8 @@ impl Loader for PdfLoader {
         tracing::Span::current().record("input_bytes", raw.len());
 
         let source = ContentSource::new().with_parent(&content.content_source);
-        let handler = RichTextHandler::from_pdf(raw, params.password.as_deref())?
-            .with_source(source);
+        let handler =
+            RichTextHandler::from_pdf(raw, params.password.as_deref())?.with_source(source);
 
         tracing::Span::current().record("pages", handler.page_count());
 
@@ -52,9 +52,8 @@ mod tests {
     use nvisy_core::fs::DocumentType;
     use nvisy_core::path::ContentSource;
 
-    use crate::handler::{Handler, TextHandler};
-
     use super::*;
+    use crate::handler::{Handler, TextHandler};
 
     fn content_from_bytes(bytes: &[u8]) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(bytes.to_vec()))

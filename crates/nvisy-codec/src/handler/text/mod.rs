@@ -76,7 +76,11 @@ pub(crate) async fn reindex_stream<'a, H: TextHandler + 'a>(
     handler: &'a H,
 ) -> SpanStream<'a, usize, TextData> {
     let inner = handler.text_spans().await;
-    SpanStream::new(inner.enumerate().map(|(i, s)| Span::new(i, s.data).with_source(s.source)))
+    SpanStream::new(
+        inner
+            .enumerate()
+            .map(|(i, s)| Span::new(i, s.data).with_source(s.source)),
+    )
 }
 
 /// Collect native IDs from a handler, map `usize` edits back, and apply.

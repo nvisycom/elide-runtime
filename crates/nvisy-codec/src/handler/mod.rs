@@ -19,10 +19,9 @@ mod text;
 
 pub use audio::*;
 pub use image::*;
+use nvisy_core::path::ContentSource;
 pub use rich::*;
 pub use text::*;
-
-use nvisy_core::path::ContentSource;
 
 /// Base trait implemented by all format handlers.
 ///

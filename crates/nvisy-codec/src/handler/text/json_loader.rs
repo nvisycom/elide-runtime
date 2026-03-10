@@ -96,9 +96,8 @@ mod tests {
     use nvisy_core::path::ContentSource;
     use serde_json::json;
 
-    use crate::handler::Handler;
-
     use super::*;
+    use crate::handler::Handler;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

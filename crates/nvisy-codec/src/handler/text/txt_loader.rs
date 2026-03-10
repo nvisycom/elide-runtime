@@ -56,9 +56,8 @@ mod tests {
     use nvisy_core::fs::{DocumentType, TextFormat};
     use nvisy_core::path::ContentSource;
 
-    use crate::handler::{Handler, TextHandler};
-
     use super::*;
+    use crate::handler::{Handler, TextHandler};
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

@@ -11,8 +11,7 @@ use serde::Deserialize;
 
 use super::GoogleVisionParams;
 use crate::backend::{
-    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
-    check_response,
+    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word, check_response,
 };
 
 /// [`Backend`] implementation for Google Cloud Vision API.
@@ -111,12 +110,7 @@ fn gv_polygon(bp: &GvBoundingPoly) -> Polygon {
         vertices: bp
             .vertices
             .iter()
-            .map(|v| {
-                Vertex::new(
-                    f64::from(v.x.unwrap_or(0)),
-                    f64::from(v.y.unwrap_or(0)),
-                )
-            })
+            .map(|v| Vertex::new(f64::from(v.x.unwrap_or(0)), f64::from(v.y.unwrap_or(0))))
             .collect(),
     }
 }
@@ -194,8 +188,7 @@ impl Backend for GoogleVisionBackend {
                             let text: String =
                                 gv_word.symbols.iter().map(|s| s.text.as_str()).collect();
 
-                            let (bbox, polygon) =
-                                gv_bbox_polygon(gv_word.bounding_box.as_ref());
+                            let (bbox, polygon) = gv_bbox_polygon(gv_word.bounding_box.as_ref());
 
                             words.push(Word {
                                 text,
@@ -214,9 +207,7 @@ impl Backend for GoogleVisionBackend {
                             .map(|w| w.text.as_str())
                             .collect::<Vec<_>>()
                             .join(" ");
-                        let line_bbox = BoundingBox::enclosing(
-                            words.iter().map(|w| &w.bbox),
-                        );
+                        let line_bbox = BoundingBox::enclosing(words.iter().map(|w| &w.bbox));
 
                         lines.push(Line {
                             text: line_text,
@@ -236,9 +227,7 @@ impl Backend for GoogleVisionBackend {
                         .map(|l| l.text.as_str())
                         .collect::<Vec<_>>()
                         .join("\n");
-                    let block_bbox = BoundingBox::enclosing(
-                        lines.iter().map(|l| &l.bbox),
-                    );
+                    let block_bbox = BoundingBox::enclosing(lines.iter().map(|l| &l.bbox));
 
                     blocks.push(Block {
                         text: block_text,

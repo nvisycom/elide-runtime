@@ -58,11 +58,7 @@ pub struct RichTextHandler {
 
 impl RichTextHandler {
     /// Create a new handler from per-page text and raw document bytes.
-    pub fn new(
-        document_type: DocumentType,
-        pages: Vec<String>,
-        raw: impl Into<Bytes>,
-    ) -> Self {
+    pub fn new(document_type: DocumentType, pages: Vec<String>, raw: impl Into<Bytes>) -> Self {
         Self {
             source: ContentSource::new(),
             document_type,
@@ -213,8 +209,7 @@ impl TextHandler for RichTextHandler {
                 let idx = edit.id.0 as usize;
                 let old_text = &self.pages[idx];
                 if !old_text.is_empty() && old_text.as_str() != edit.data.as_str() {
-                    let _ =
-                        doc.replace_text((idx as u32) + 1, old_text, edit.data.as_str(), None);
+                    let _ = doc.replace_text((idx as u32) + 1, old_text, edit.data.as_str(), None);
                 }
                 self.pages[idx] = edit.data.as_str().to_owned();
             }
@@ -250,7 +245,10 @@ impl<'a> Iterator for RichTextSpanIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let text = self.pages.get(self.index)?;
-        let span = Span::new(RichTextSpan(self.index as u32), TextData::from(text.clone()));
+        let span = Span::new(
+            RichTextSpan(self.index as u32),
+            TextData::from(text.clone()),
+        );
         self.index += 1;
         Some(span)
     }
@@ -325,9 +323,10 @@ mod tests {
     async fn edit_spans_updates_text() -> Result<(), Error> {
         let mut h = handler(&["hello"]);
         let err = h
-            .edit_text(SpanStream::new(futures::stream::iter(vec![
-                Span::new(RichTextSpan(5), "nope".into()),
-            ])))
+            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+                RichTextSpan(5),
+                "nope".into(),
+            )])))
             .await
             .unwrap_err();
         assert!(err.to_string().contains("out of bounds"));

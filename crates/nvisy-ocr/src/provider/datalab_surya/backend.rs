@@ -143,8 +143,7 @@ impl Backend for SuryaBackend {
                     .map(|w| w.text.as_str())
                     .collect::<Vec<_>>()
                     .join(" ");
-                let line_bbox =
-                    BoundingBox::enclosing(words.iter().map(|w| &w.bbox));
+                let line_bbox = BoundingBox::enclosing(words.iter().map(|w| &w.bbox));
 
                 lines.push(Line {
                     text: line_text,
@@ -160,8 +159,7 @@ impl Backend for SuryaBackend {
                 .map(|l| l.text.as_str())
                 .collect::<Vec<_>>()
                 .join("\n");
-            let block_bbox =
-                BoundingBox::enclosing(lines.iter().map(|l| &l.bbox));
+            let block_bbox = BoundingBox::enclosing(lines.iter().map(|l| &l.bbox));
 
             let [_x_min, _y_min, x_max, y_max] = surya_page.image_bbox;
 

@@ -3,13 +3,12 @@
 mod span;
 mod stream;
 
-pub use span::Span;
-pub use stream::SpanStream;
-
 use derive_more::{From, IsVariant, TryInto};
 use nvisy_core::Error;
 use nvisy_core::fs::{AudioFormat, DocumentType, ImageFormat};
 use nvisy_core::io::ContentData;
+pub use span::Span;
+pub use stream::SpanStream;
 
 use crate::handler::{
     AnyText, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler, Handler, JpegLoader,

@@ -138,9 +138,8 @@ mod tests {
     use nvisy_core::fs::{DocumentType, SpreadsheetFormat};
     use nvisy_core::path::ContentSource;
 
-    use crate::handler::{Handler, TextHandler};
-
     use super::*;
+    use crate::handler::{Handler, TextHandler};
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))
@@ -151,7 +150,10 @@ mod tests {
         let content = content_from_str("name,age\nAlice,30\nBob,25\n");
         let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
 
-        assert_eq!(doc.document_type(), DocumentType::Spreadsheet(SpreadsheetFormat::Csv));
+        assert_eq!(
+            doc.document_type(),
+            DocumentType::Spreadsheet(SpreadsheetFormat::Csv)
+        );
         assert_eq!(
             doc.headers(),
             Some(["name", "age"].map(String::from).as_slice())

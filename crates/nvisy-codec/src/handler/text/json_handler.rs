@@ -187,10 +187,7 @@ impl TextHandler for JsonHandler {
         ))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanStream<'_, JsonPath, TextData>,
-    ) -> Result<(), Error> {
+    async fn edit_text(&mut self, edits: SpanStream<'_, JsonPath, TextData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         // Apply value edits first so that pointers remain valid when
         // key renames change the path structure.
@@ -603,9 +600,10 @@ mod tests {
     #[tokio::test]
     async fn edit_text_replace_string_value() -> Result<(), Error> {
         let mut h = handler(json!({"ssn": "123-45-6789"}));
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![
-            Span::new(JsonPath::value("/ssn"), "[REDACTED]".into()),
-        ])))
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+            JsonPath::value("/ssn"),
+            "[REDACTED]".into(),
+        )])))
         .await?;
         assert_eq!(h.value(), &json!({"ssn": "[REDACTED]"}));
         Ok(())
@@ -614,9 +612,10 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_replace_value() -> Result<(), Error> {
         let mut h = handler(json!({"ssn": "123-45-6789"}));
-        h.edit_spans(SpanStream::new(futures::stream::iter(vec![
-            Span::new(JsonPath::value("/ssn"), json!(null)),
-        ])))
+        h.edit_spans(SpanStream::new(futures::stream::iter(vec![Span::new(
+            JsonPath::value("/ssn"),
+            json!(null),
+        )])))
         .await?;
         assert_eq!(h.value(), &json!({"ssn": null}));
         Ok(())
@@ -625,9 +624,10 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_rename_key() -> Result<(), Error> {
         let mut h = handler(json!({"John Smith": {"age": 30}}));
-        h.edit_spans(SpanStream::new(futures::stream::iter(vec![
-            Span::new(JsonPath::key("/John Smith"), json!("[REDACTED]")),
-        ])))
+        h.edit_spans(SpanStream::new(futures::stream::iter(vec![Span::new(
+            JsonPath::key("/John Smith"),
+            json!("[REDACTED]"),
+        )])))
         .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
         Ok(())
@@ -636,9 +636,10 @@ mod tests {
     #[tokio::test]
     async fn edit_text_rename_key() -> Result<(), Error> {
         let mut h = handler(json!({"John Smith": {"age": 30}}));
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![
-            Span::new(JsonPath::key("/John Smith"), "[REDACTED]".into()),
-        ])))
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+            JsonPath::key("/John Smith"),
+            "[REDACTED]".into(),
+        )])))
         .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
         Ok(())
@@ -647,9 +648,10 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_rename_nested_key() -> Result<(), Error> {
         let mut h = handler(json!({"a": {"secret_field": 42}}));
-        h.edit_spans(SpanStream::new(futures::stream::iter(vec![
-            Span::new(JsonPath::key("/a/secret_field"), json!("redacted")),
-        ])))
+        h.edit_spans(SpanStream::new(futures::stream::iter(vec![Span::new(
+            JsonPath::key("/a/secret_field"),
+            json!("redacted"),
+        )])))
         .await?;
         assert_eq!(h.value(), &json!({"a": {"redacted": 42}}));
         Ok(())
@@ -659,9 +661,10 @@ mod tests {
     async fn edit_spans_rename_key_requires_string() {
         let mut h = handler(json!({"a": 1}));
         let err = h
-            .edit_spans(SpanStream::new(futures::stream::iter(vec![
-                Span::new(JsonPath::key("/a"), json!(42)),
-            ])))
+            .edit_spans(SpanStream::new(futures::stream::iter(vec![Span::new(
+                JsonPath::key("/a"),
+                json!(42),
+            )])))
             .await
             .unwrap_err();
         assert!(err.to_string().contains("string"));
@@ -671,9 +674,10 @@ mod tests {
     async fn edit_spans_bad_pointer() {
         let mut h = handler(json!({"a": 1}));
         let err = h
-            .edit_spans(SpanStream::new(futures::stream::iter(vec![
-                Span::new(JsonPath::value("/nonexistent"), json!(null)),
-            ])))
+            .edit_spans(SpanStream::new(futures::stream::iter(vec![Span::new(
+                JsonPath::value("/nonexistent"),
+                json!(null),
+            )])))
             .await
             .unwrap_err();
         assert!(err.to_string().contains("not found"));

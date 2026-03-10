@@ -132,10 +132,7 @@ impl TextHandler for CsvHandler {
         SpanStream::new(futures::stream::iter(CsvSpanIter::new(&self.data)))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanStream<'_, CsvSpan, TextData>,
-    ) -> Result<(), Error> {
+    async fn edit_text(&mut self, edits: SpanStream<'_, CsvSpan, TextData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
             if edit.id.header {
@@ -391,9 +388,10 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_data_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["ssn"], vec![vec!["123-45-6789"]]);
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![
-            Span::new(CsvSpan::cell(0, 0, "ssn"), "[REDACTED]".into()),
-        ])))
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+            CsvSpan::cell(0, 0, "ssn"),
+            "[REDACTED]".into(),
+        )])))
         .await?;
         assert_eq!(h.cell(0, 0), Some("[REDACTED]"));
         Ok(())
@@ -402,9 +400,10 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_header_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["secret_field"], vec![vec!["value"]]);
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![
-            Span::new(CsvSpan::header_cell(0, "secret_field"), "redacted".into()),
-        ])))
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+            CsvSpan::header_cell(0, "secret_field"),
+            "redacted".into(),
+        )])))
         .await?;
         assert_eq!(h.headers(), Some(["redacted".to_string()].as_slice()));
         Ok(())
@@ -414,9 +413,10 @@ mod tests {
     async fn edit_spans_row_out_of_bounds() {
         let mut h = handler_no_headers(vec![vec!["a"]]);
         let err = h
-            .edit_text(SpanStream::new(futures::stream::iter(vec![
-                Span::new(CsvSpan::cell(5, 0, "0"), "x".into()),
-            ])))
+            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+                CsvSpan::cell(5, 0, "0"),
+                "x".into(),
+            )])))
             .await
             .unwrap_err();
         assert!(err.to_string().contains("out of bounds"));
@@ -426,9 +426,10 @@ mod tests {
     async fn edit_spans_col_out_of_bounds() {
         let mut h = handler_no_headers(vec![vec!["a"]]);
         let err = h
-            .edit_text(SpanStream::new(futures::stream::iter(vec![
-                Span::new(CsvSpan::cell(0, 5, "5"), "x".into()),
-            ])))
+            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+                CsvSpan::cell(0, 5, "5"),
+                "x".into(),
+            )])))
             .await
             .unwrap_err();
         assert!(err.to_string().contains("out of bounds"));

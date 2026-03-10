@@ -470,9 +470,8 @@ mod tests {
         use crate::fs::ImageFormat;
 
         let png = vec![
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-            0x00, 0x00, 0x00, 0x0D,
-            0x49, 0x48, 0x44, 0x52,
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
+            0x44, 0x52,
         ];
         let mut content = ContentData::from(png);
         assert_eq!(
@@ -483,8 +482,8 @@ mod tests {
 
     #[test]
     fn test_document_type_prefers_explicit_mime() {
-        let mut content = ContentData::from("not really json")
-            .with_content_type("application/json");
+        let mut content =
+            ContentData::from("not really json").with_content_type("application/json");
         assert_eq!(
             content.document_type(),
             Some(DocumentType::Text(crate::fs::TextFormat::Json)),
@@ -494,12 +493,10 @@ mod tests {
     #[test]
     fn test_content_type_precedence() {
         let png = vec![
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-            0x00, 0x00, 0x00, 0x0D,
-            0x49, 0x48, 0x44, 0x52,
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
+            0x44, 0x52,
         ];
-        let mut content = ContentData::from(png)
-            .with_content_type("image/jpeg");
+        let mut content = ContentData::from(png).with_content_type("image/jpeg");
         // Explicit MIME takes precedence over detected.
         content.detect_mime();
         assert_eq!(content.content_type(), Some("image/jpeg"));
@@ -542,8 +539,7 @@ mod tests {
 
     #[test]
     fn test_infer_document_type_respects_explicit_mime() {
-        let content = ContentData::from("not really json")
-            .with_content_type("application/json");
+        let content = ContentData::from("not really json").with_content_type("application/json");
         assert_eq!(
             content.infer_document_type(),
             Some(DocumentType::Text(crate::fs::TextFormat::Json)),

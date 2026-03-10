@@ -30,7 +30,6 @@ pub enum AnyText {
     Xlsx(XlsxHandler),
 }
 
-
 impl Handler for AnyText {
     fn document_type(&self) -> DocumentType {
         match self {

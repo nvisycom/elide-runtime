@@ -34,12 +34,8 @@ impl Loader for DocxLoader {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
         let source = ContentSource::new().with_parent(&content.content_source);
-        let handler = RichTextHandler::new(
-            DocumentType::Word(WordFormat::Docx),
-            Vec::new(),
-            raw,
-        )
-        .with_source(source);
+        let handler = RichTextHandler::new(DocumentType::Word(WordFormat::Docx), Vec::new(), raw)
+            .with_source(source);
         Ok(handler)
     }
 }

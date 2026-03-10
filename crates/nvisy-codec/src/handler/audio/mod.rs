@@ -14,10 +14,9 @@ mod mp3_loader;
 mod wav_handler;
 mod wav_loader;
 
-use audio_handler_macro::impl_audio_handler;
-
 pub use audio_data::AudioData;
 pub use audio_handler::BoxedAudioHandler;
+use audio_handler_macro::impl_audio_handler;
 pub use audio_span_id::AudioSpanId;
 pub use mp3_handler::Mp3Handler;
 pub use mp3_loader::{Mp3Loader, Mp3Params};

@@ -71,10 +71,7 @@ impl TextHandler for TxtHandler {
         }))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanStream<'_, TxtSpan, TextData>,
-    ) -> Result<(), Error> {
+    async fn edit_text(&mut self, edits: SpanStream<'_, TxtSpan, TextData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
             let line = self.lines.get_mut(edit.id.0).ok_or_else(|| {
@@ -195,9 +192,10 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_replace_line() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![
-            Span::new(TxtSpan(1), "[REDACTED]".into()),
-        ])))
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+            TxtSpan(1),
+            "[REDACTED]".into(),
+        )])))
         .await?;
         assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
         Ok(())
@@ -207,9 +205,10 @@ mod tests {
     async fn edit_spans_out_of_bounds() {
         let mut h = handler("one line");
         let err = h
-            .edit_text(SpanStream::new(futures::stream::iter(vec![
-                Span::new(TxtSpan(5), "nope".into()),
-            ])))
+            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+                TxtSpan(5),
+                "nope".into(),
+            )])))
             .await
             .unwrap_err();
         assert!(err.to_string().contains("out of bounds"));

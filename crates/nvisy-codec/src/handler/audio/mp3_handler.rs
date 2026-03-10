@@ -49,9 +49,10 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_replaces_bytes() -> Result<(), Error> {
         let mut h = Mp3Handler::new(Bytes::from_static(b"original"));
-        h.edit_audio(SpanStream::new(futures::stream::iter(vec![
-            Span::new(AudioSpanId::default(), AudioData::new(Bytes::from_static(b"replaced"))),
-        ])))
+        h.edit_audio(SpanStream::new(futures::stream::iter(vec![Span::new(
+            AudioSpanId::default(),
+            AudioData::new(Bytes::from_static(b"replaced")),
+        )])))
         .await?;
         assert_eq!(h.bytes().as_ref(), b"replaced");
         Ok(())

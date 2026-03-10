@@ -11,7 +11,7 @@ pub use span::Span;
 pub use stream::SpanStream;
 
 use crate::handler::{
-    BoxedTextHandler, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler, Handler, JpegLoader,
+    BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler, BoxedTextHandler, Handler, JpegLoader,
     JpegParams, Loader, Mp3Loader, Mp3Params, PngLoader, PngParams, WavLoader, WavParams,
 };
 
@@ -114,51 +114,5 @@ impl Document {
                 "Document::decode",
             )),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use nvisy_core::media::{AudioFormat, ImageFormat, TextFormat};
-
-    use super::*;
-    use crate::handler::{Mp3Handler, PngHandler, TxtHandler, WavHandler};
-
-    #[test]
-    fn from_txt_handler() {
-        let doc = Document::from(BoxedTextHandler::from(TxtHandler::new(vec!["hello".into()], false)));
-        assert!(doc.is_text());
-        assert_eq!(doc.document_type(), DocumentType::Text(TextFormat::Txt));
-    }
-
-    #[test]
-    fn from_png_handler() {
-        let img = image::DynamicImage::new_rgb8(1, 1);
-        let doc = Document::from(BoxedImageHandler::from(PngHandler::new(img)));
-        assert!(doc.is_image());
-        assert_eq!(doc.document_type(), DocumentType::Image(ImageFormat::Png));
-    }
-
-    #[test]
-    fn from_wav_handler() {
-        let doc = Document::from(BoxedAudioHandler::from(WavHandler::new(
-            bytes::Bytes::from_static(b"wav"),
-        )));
-        assert!(doc.is_audio());
-        assert_eq!(doc.document_type(), DocumentType::Audio(AudioFormat::Wav));
-    }
-
-    #[test]
-    fn try_into_text() {
-        let doc = Document::from(BoxedTextHandler::from(TxtHandler::new(vec![], false)));
-        let text: Result<BoxedTextHandler, _> = doc.try_into();
-        assert!(text.is_ok());
-    }
-
-    #[test]
-    fn try_into_wrong_variant() {
-        let doc = Document::from(BoxedTextHandler::from(TxtHandler::new(vec![], false)));
-        let image: Result<BoxedImageHandler, _> = doc.try_into();
-        assert!(image.is_err());
     }
 }

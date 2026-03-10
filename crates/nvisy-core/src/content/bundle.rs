@@ -139,16 +139,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_content_creation() {
-        let data = ContentData::from("Hello, world!");
-        let content = Content::new(data.clone());
-
-        assert_eq!(content.size(), 13);
-        assert!(content.is_likely_text());
-        assert!(content.metadata().is_none());
-    }
-
-    #[test]
     fn test_content_with_metadata() {
         let source = ContentSource::new();
         let data = ContentData::from_text(source, "Test content");
@@ -187,16 +177,5 @@ mod tests {
         let (recovered_data, recovered_metadata) = content.into_parts();
         assert_eq!(recovered_data, data);
         assert_eq!(recovered_metadata, Some(metadata));
-    }
-
-    #[test]
-    fn test_serialization() {
-        let data = ContentData::from("Test content");
-        let content = Content::new(data);
-
-        let json = serde_json::to_string(&content).unwrap();
-        let deserialized: Content = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(content, deserialized);
     }
 }

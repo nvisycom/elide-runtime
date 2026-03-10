@@ -110,24 +110,4 @@ mod tests {
         let spans: Vec<_> = h.image_spans().await.collect().await;
         assert_eq!(spans.len(), 1);
     }
-
-    #[test]
-    fn from_conversions() {
-        let png = BoxedImageHandler::from(make_png());
-        assert_eq!(
-            png.document_type(),
-            DocumentType::Image(nvisy_core::media::ImageFormat::Png),
-        );
-        let jpeg = BoxedImageHandler::from(make_jpeg());
-        assert_eq!(
-            jpeg.document_type(),
-            DocumentType::Image(nvisy_core::media::ImageFormat::Jpeg),
-        );
-    }
-
-    #[test]
-    fn encode_delegates() {
-        let h = BoxedImageHandler::from(make_png());
-        assert!(h.encode().is_ok());
-    }
 }

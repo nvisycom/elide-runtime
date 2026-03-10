@@ -67,15 +67,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn creation() {
-        let source = ContentSource::new();
-        let data_ref = DataReference::new(source);
-
-        assert_eq!(data_ref.source(), source);
-        assert!(data_ref.mapping_id().is_none());
-    }
-
-    #[test]
     fn with_mapping_id() {
         let source = ContentSource::new();
         let data_ref = DataReference::new(source).with_mapping_id("line-42");

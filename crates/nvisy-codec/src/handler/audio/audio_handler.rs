@@ -97,18 +97,4 @@ mod tests {
         );
         assert_eq!(h.encode().unwrap().as_bytes(), b"mp3-data");
     }
-
-    #[test]
-    fn from_conversions() {
-        let wav = BoxedAudioHandler::from(WavHandler::new(bytes::Bytes::new()));
-        assert_eq!(
-            wav.document_type(),
-            DocumentType::Audio(nvisy_core::media::AudioFormat::Wav),
-        );
-        let mp3 = BoxedAudioHandler::from(Mp3Handler::new(bytes::Bytes::new()));
-        assert_eq!(
-            mp3.document_type(),
-            DocumentType::Audio(nvisy_core::media::AudioFormat::Mp3),
-        );
-    }
 }

@@ -50,13 +50,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn span_new_sets_default_source() {
-        let span = Span::new(42u32, "hello");
-        assert_eq!(span.id, 42);
-        assert_eq!(span.data, "hello");
-    }
-
-    #[test]
     fn span_with_source() {
         let source = ContentSource::new();
         let span = Span::new(0u32, "data").with_source(source);

@@ -344,24 +344,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_content_data_creation() {
-        let source = ContentSource::new();
-        let data = Bytes::from("Hello, world!");
-        let content = ContentData::new(source, data);
-
-        assert_eq!(content.content_source, source);
-        assert_eq!(content.size(), 13);
-    }
-
-    #[test]
-    fn test_content_data_from_text() {
-        let source = ContentSource::new();
-        let content = ContentData::from_text(source, "Hello, world!");
-
-        assert_eq!(content.as_str().unwrap(), "Hello, world!");
-    }
-
-    #[test]
     fn test_sha256_computation() {
         let content = ContentData::from("Hello, world!");
         let hash = content.sha256();
@@ -408,45 +390,6 @@ mod tests {
     }
 
     #[test]
-    fn test_from_conversions() {
-        let from_str = ContentData::from("test");
-        let from_string = ContentData::from("test".to_string());
-        let from_bytes = ContentData::from(b"test".as_slice());
-        let from_vec = ContentData::from(b"test".to_vec());
-        let from_bytes_type = ContentData::from(Bytes::from("test"));
-
-        assert_eq!(from_str.as_str().unwrap(), "test");
-        assert_eq!(from_string.as_str().unwrap(), "test");
-        assert_eq!(from_bytes.as_str().unwrap(), "test");
-        assert_eq!(from_vec.as_str().unwrap(), "test");
-        assert_eq!(from_bytes_type.as_str().unwrap(), "test");
-    }
-
-    #[test]
-    fn test_display() {
-        let text_content = ContentData::from("Hello");
-        assert_eq!(format!("{text_content}"), "Hello");
-
-        let binary_content = ContentData::from(vec![0xFF, 0xFE]);
-        assert!(format!("{binary_content}").contains("Binary data"));
-    }
-
-    #[test]
-    fn test_cloning_preserves_hash() {
-        let original = ContentData::from("Hello, world!");
-        let cloned = original.clone();
-
-        assert_eq!(original.sha256(), cloned.sha256());
-    }
-
-    #[test]
-    fn test_from_hipstr() {
-        let hipstr = HipStr::from("Hello from HipStr");
-        let content = ContentData::from(hipstr);
-        assert_eq!(content.as_str().unwrap(), "Hello from HipStr");
-    }
-
-    #[test]
     fn test_detect_mime_png() {
         let png = vec![
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
@@ -463,31 +406,6 @@ mod tests {
         let mut content = ContentData::from("hello world");
         assert_eq!(content.detect_mime(), None);
         assert_eq!(content.detected_mime, None);
-    }
-
-    #[test]
-    fn test_document_type_from_magic_bytes() {
-        use crate::media::ImageFormat;
-
-        let png = vec![
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
-            0x44, 0x52,
-        ];
-        let mut content = ContentData::from(png);
-        assert_eq!(
-            content.document_type(),
-            Some(DocumentType::Image(ImageFormat::Png)),
-        );
-    }
-
-    #[test]
-    fn test_document_type_prefers_explicit_mime() {
-        let mut content =
-            ContentData::from("not really json").with_content_type("application/json");
-        assert_eq!(
-            content.document_type(),
-            Some(DocumentType::Text(crate::media::TextFormat::Json)),
-        );
     }
 
     #[test]

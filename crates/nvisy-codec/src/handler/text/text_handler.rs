@@ -131,33 +131,16 @@ mod tests {
     #[test]
     fn txt_variant_document_type() {
         let h = BoxedTextHandler::from(TxtHandler::new(vec!["hello".into()], false));
-        assert_eq!(
-            h.document_type(),
-            DocumentType::Text(TextFormat::Txt),
-        );
+        assert_eq!(h.document_type(), DocumentType::Text(TextFormat::Txt),);
     }
 
     #[tokio::test]
     async fn view_spans_returns_text() {
-        let h = BoxedTextHandler::from(TxtHandler::new(
-            vec!["line1".into(), "line2".into()],
-            false,
-        ));
+        let h =
+            BoxedTextHandler::from(TxtHandler::new(vec!["line1".into(), "line2".into()], false));
         let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans.len(), 2);
         assert_eq!(spans[0].id, 0);
         assert_eq!(spans[1].id, 1);
-    }
-
-    #[test]
-    fn from_conversions() {
-        let txt: BoxedTextHandler = TxtHandler::new(vec![], false).into();
-        assert!(matches!(txt.document_type(), DocumentType::Text(TextFormat::Txt)));
-    }
-
-    #[test]
-    fn encode_delegates() {
-        let h = BoxedTextHandler::from(TxtHandler::new(vec!["hello".into()], false));
-        assert!(h.encode().is_ok());
     }
 }

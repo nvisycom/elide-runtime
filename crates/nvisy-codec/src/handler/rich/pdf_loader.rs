@@ -18,7 +18,7 @@ pub struct PdfParams {
 /// Loader that parses PDF files and extracts per-page text.
 ///
 /// Produces a single [`RichTextHandler`] per input.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PdfLoader;
 
 #[async_trait::async_trait]

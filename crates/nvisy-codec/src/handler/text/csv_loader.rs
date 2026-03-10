@@ -36,7 +36,7 @@ impl Default for CsvParams {
 /// Loader that validates and parses CSV files.
 ///
 /// Produces a single [`CsvHandler`] per input.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CsvLoader;
 
 #[async_trait::async_trait]

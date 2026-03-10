@@ -17,7 +17,7 @@ pub struct DocxParams;
 ///
 /// Text extraction is not yet implemented — produces an empty handler
 /// that preserves the raw bytes for round-trip encoding.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DocxLoader;
 
 #[async_trait::async_trait]

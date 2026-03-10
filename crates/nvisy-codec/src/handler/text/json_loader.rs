@@ -25,7 +25,7 @@ pub struct JsonParams {
 /// Produces a single [`JsonHandler`] per input.  The
 /// loaded handler stores the parsed [`serde_json::Value`] tree
 /// together with formatting metadata for round-trip fidelity.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct JsonLoader;
 
 #[async_trait::async_trait]

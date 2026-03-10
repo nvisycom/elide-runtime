@@ -21,7 +21,7 @@ pub struct HtmlParams {
 /// Loader that validates and parses HTML files.
 ///
 /// Produces a single [`HtmlHandler`] per input.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HtmlLoader;
 
 #[async_trait::async_trait]

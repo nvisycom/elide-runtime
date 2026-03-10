@@ -13,7 +13,7 @@ pub struct Mp3Params;
 /// Loader that wraps raw MP3 bytes.
 ///
 /// Produces a single [`Mp3Handler`] per input.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Mp3Loader;
 
 #[async_trait::async_trait]

@@ -21,7 +21,7 @@ pub struct TxtParams {
 /// Loader that validates and parses plain-text files.
 ///
 /// Produces a single [`TxtHandler`] per input.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TxtLoader;
 
 #[async_trait::async_trait]

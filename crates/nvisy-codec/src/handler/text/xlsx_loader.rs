@@ -13,7 +13,7 @@ pub struct XlsxParams;
 /// Loader that parses XLSX spreadsheets.
 ///
 /// Produces a single [`XlsxHandler`] per input.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct XlsxLoader;
 
 #[async_trait::async_trait]

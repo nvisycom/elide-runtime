@@ -13,7 +13,7 @@ pub struct WavParams;
 /// Loader that wraps raw WAV bytes.
 ///
 /// Produces a single [`WavHandler`] per input.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct WavLoader;
 
 #[async_trait::async_trait]

@@ -45,15 +45,3 @@ pub trait ImageHandler: Handler {
         edits: SpanStream<'_, ImageSpanId, ImageData>,
     ) -> Result<(), Error>;
 }
-
-use image::DynamicImage;
-use nvisy_core::io::ContentData;
-
-/// Decode raw bytes into a [`DynamicImage`].
-///
-/// Shared by all image loaders.
-pub(crate) fn decode_image(content: &ContentData, origin: &str) -> Result<DynamicImage, Error> {
-    let raw = content.to_bytes();
-    image::load_from_memory(&raw)
-        .map_err(|e| Error::validation(format!("image decode failed: {e}"), origin))
-}

@@ -1,9 +1,9 @@
 //! [`BoxedImageHandler`]: type-erased wrapper over all image handler types.
 
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
-use nvisy_core::path::ContentSource;
+use nvisy_core::media::DocumentType;
+use nvisy_core::content::ContentData;
+use nvisy_core::content::ContentSource;
 
 use super::{ImageData, ImageSpanId, JpegHandler, PngHandler};
 use crate::document::SpanStream;
@@ -92,7 +92,7 @@ mod tests {
         let h = BoxedImageHandler::from(make_png());
         assert_eq!(
             h.document_type(),
-            DocumentType::Image(nvisy_core::fs::ImageFormat::Png),
+            DocumentType::Image(nvisy_core::media::ImageFormat::Png),
         );
     }
 
@@ -101,7 +101,7 @@ mod tests {
         let h = BoxedImageHandler::from(make_jpeg());
         assert_eq!(
             h.document_type(),
-            DocumentType::Image(nvisy_core::fs::ImageFormat::Jpeg),
+            DocumentType::Image(nvisy_core::media::ImageFormat::Jpeg),
         );
     }
 
@@ -117,12 +117,12 @@ mod tests {
         let png = BoxedImageHandler::from(make_png());
         assert_eq!(
             png.document_type(),
-            DocumentType::Image(nvisy_core::fs::ImageFormat::Png),
+            DocumentType::Image(nvisy_core::media::ImageFormat::Png),
         );
         let jpeg = BoxedImageHandler::from(make_jpeg());
         assert_eq!(
             jpeg.document_type(),
-            DocumentType::Image(nvisy_core::fs::ImageFormat::Jpeg),
+            DocumentType::Image(nvisy_core::media::ImageFormat::Jpeg),
         );
     }
 

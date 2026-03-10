@@ -3,9 +3,9 @@
 use derive_more::From;
 use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
-use nvisy_core::path::ContentSource;
+use nvisy_core::media::DocumentType;
+use nvisy_core::content::ContentData;
+use nvisy_core::content::ContentSource;
 
 #[cfg(feature = "html")]
 use super::HtmlHandler;
@@ -109,7 +109,7 @@ mod tests {
         let h = AnyText::Txt(TxtHandler::new(vec!["hello".into()], false));
         assert_eq!(
             h.document_type(),
-            DocumentType::Text(nvisy_core::fs::TextFormat::Txt),
+            DocumentType::Text(nvisy_core::media::TextFormat::Txt),
         );
     }
 

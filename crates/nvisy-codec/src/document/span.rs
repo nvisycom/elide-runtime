@@ -1,6 +1,6 @@
 //! [`Span`]: a span of content tagged with its origin.
 
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::ContentSource;
 
 /// A span of content tagged with its origin in the source structure.
 ///
@@ -45,7 +45,7 @@ impl<Id, Data> Span<Id, Data> {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::path::ContentSource;
+    use nvisy_core::content::ContentSource;
 
     use super::*;
 

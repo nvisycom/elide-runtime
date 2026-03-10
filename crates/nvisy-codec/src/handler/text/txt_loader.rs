@@ -6,8 +6,8 @@
 //! reconstructed after edits.
 
 use nvisy_core::Error;
-use nvisy_core::io::{ContentData, TextEncoding};
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::{ContentData, TextEncoding};
+use nvisy_core::content::ContentSource;
 
 use crate::handler::{Loader, TxtHandler};
 
@@ -53,8 +53,8 @@ mod tests {
     use bytes::Bytes;
     use futures::StreamExt;
     use nvisy_core::Error;
-    use nvisy_core::fs::{DocumentType, TextFormat};
-    use nvisy_core::path::ContentSource;
+    use nvisy_core::media::{DocumentType, TextFormat};
+    use nvisy_core::content::ContentSource;
 
     use super::*;
     use crate::handler::{Handler, TextHandler};

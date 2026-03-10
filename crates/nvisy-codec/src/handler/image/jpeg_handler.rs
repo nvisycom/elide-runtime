@@ -9,7 +9,7 @@
 //! [`ImageHandler::edit_images`](crate::handler::ImageHandler::edit_images)
 //! replaces the image in-place.
 
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::ContentSource;
 
 use super::impl_image_handler;
 
@@ -26,7 +26,7 @@ pub struct JpegHandler {
 
 impl_image_handler!(
     JpegHandler,
-    nvisy_core::fs::DocumentType::Image(nvisy_core::fs::ImageFormat::Jpeg),
+    nvisy_core::media::DocumentType::Image(nvisy_core::media::ImageFormat::Jpeg),
     image::ImageFormat::Jpeg,
     "jpeg-handler",
     "jpeg.encode"

@@ -3,8 +3,8 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use bytes::Bytes;
-use nvisy_core::fs::ImageFormat;
-use nvisy_core::path::ContentSource;
+use nvisy_core::media::ImageFormat;
+use nvisy_core::content::ContentSource;
 
 /// Image payload passed to [`Backend::run`].
 ///
@@ -12,7 +12,7 @@ use nvisy_core::path::ContentSource;
 /// [`ContentSource`] for provenance tracking.
 ///
 /// [`Backend::run`]: super::Backend::run
-/// [`ContentSource`]: nvisy_core::path::ContentSource
+/// [`ContentSource`]: nvisy_core::content::ContentSource
 #[derive(Debug, Clone)]
 pub struct ImageInput {
     /// Provenance identifier for this image.

@@ -5,7 +5,7 @@ mod output;
 
 pub use input::ImageInput;
 use nvisy_core::Error;
-pub use nvisy_core::fs::ImageFormat;
+pub use nvisy_core::media::ImageFormat;
 pub use output::{Block, BlockKind, ImageOutput, Line, Page, Word};
 use reqwest_middleware::reqwest::Response;
 use reqwest_middleware::reqwest::multipart::Part;

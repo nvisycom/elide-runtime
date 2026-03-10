@@ -1,0 +1,22 @@
+//! Content data containers, metadata, and source identity.
+//!
+//! - [`ContentData`]: Raw content bytes with MIME detection and hashing
+//! - [`Content`]: [`ContentData`] paired with optional [`ContentMetadata`]
+//! - [`ContentSource`]: UUIDv7-based content identity and lineage
+//! - [`DataReference`]: Lightweight pointer into a content source
+
+mod bundle;
+mod content_bytes;
+mod content_data;
+mod content_metadata;
+mod data_reference;
+mod encoding;
+mod source;
+
+pub use bundle::Content;
+pub use content_bytes::ContentBytes;
+pub use content_data::ContentData;
+pub use content_metadata::ContentMetadata;
+pub use data_reference::DataReference;
+pub use encoding::TextEncoding;
+pub use source::ContentSource;

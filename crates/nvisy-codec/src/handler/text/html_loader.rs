@@ -5,8 +5,8 @@
 //! in document order, and produces a handler backed by those nodes.
 
 use nvisy_core::Error;
-use nvisy_core::io::ContentData;
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::ContentData;
+use nvisy_core::content::ContentSource;
 use scraper::Html;
 
 use crate::handler::{HtmlData, HtmlHandler, Loader};
@@ -15,7 +15,7 @@ use crate::handler::{HtmlData, HtmlHandler, Loader};
 #[derive(Debug, Default)]
 pub struct HtmlParams {
     /// Character encoding of the input bytes.
-    pub encoding: nvisy_core::io::TextEncoding,
+    pub encoding: nvisy_core::content::TextEncoding,
 }
 
 /// Loader that validates and parses HTML files.

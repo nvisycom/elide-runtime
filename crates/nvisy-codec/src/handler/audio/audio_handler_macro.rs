@@ -5,19 +5,19 @@
 macro_rules! impl_audio_handler {
     ($handler:ident, $doc_type:expr, $origin:literal, $encode_name:literal) => {
         impl crate::handler::Handler for $handler {
-            fn document_type(&self) -> nvisy_core::fs::DocumentType {
+            fn document_type(&self) -> nvisy_core::media::DocumentType {
                 $doc_type
             }
 
-            fn source(&self) -> nvisy_core::path::ContentSource {
+            fn source(&self) -> nvisy_core::content::ContentSource {
                 self.source
             }
 
             #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
-            fn encode(&self) -> Result<nvisy_core::io::ContentData, nvisy_core::Error> {
+            fn encode(&self) -> Result<nvisy_core::content::ContentData, nvisy_core::Error> {
                 tracing::Span::current().record("output_bytes", self.bytes.len());
-                let source = nvisy_core::path::ContentSource::new().with_parent(&self.source);
-                Ok(nvisy_core::io::ContentData::new(source, self.bytes.clone()))
+                let source = nvisy_core::content::ContentSource::new().with_parent(&self.source);
+                Ok(nvisy_core::content::ContentData::new(source, self.bytes.clone()))
             }
         }
 
@@ -59,13 +59,13 @@ macro_rules! impl_audio_handler {
             /// Create a handler from raw audio bytes.
             pub fn new(bytes: bytes::Bytes) -> Self {
                 Self {
-                    source: nvisy_core::path::ContentSource::new(),
+                    source: nvisy_core::content::ContentSource::new(),
                     bytes,
                 }
             }
 
             /// Set the content source for lineage tracking.
-            pub fn with_source(mut self, source: nvisy_core::path::ContentSource) -> Self {
+            pub fn with_source(mut self, source: nvisy_core::content::ContentSource) -> Self {
                 self.source = source;
                 self
             }

@@ -5,24 +5,24 @@
 macro_rules! impl_image_handler {
     ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal, $encode_name:literal) => {
         impl crate::handler::Handler for $handler {
-            fn document_type(&self) -> nvisy_core::fs::DocumentType {
+            fn document_type(&self) -> nvisy_core::media::DocumentType {
                 $doc_type
             }
 
-            fn source(&self) -> nvisy_core::path::ContentSource {
+            fn source(&self) -> nvisy_core::content::ContentSource {
                 self.source
             }
 
             #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
-            fn encode(&self) -> Result<nvisy_core::io::ContentData, nvisy_core::Error> {
+            fn encode(&self) -> Result<nvisy_core::content::ContentData, nvisy_core::Error> {
                 let mut buf = std::io::Cursor::new(Vec::new());
                 self.image.write_to(&mut buf, $fmt).map_err(|e| {
                     nvisy_core::Error::validation(format!("encode failed: {e}"), $origin)
                 })?;
                 let out = buf.into_inner();
                 tracing::Span::current().record("output_bytes", out.len());
-                let source = nvisy_core::path::ContentSource::new().with_parent(&self.source);
-                Ok(nvisy_core::io::ContentData::new(source, out.into()))
+                let source = nvisy_core::content::ContentSource::new().with_parent(&self.source);
+                Ok(nvisy_core::content::ContentData::new(source, out.into()))
             }
         }
 
@@ -64,13 +64,13 @@ macro_rules! impl_image_handler {
             /// Create a handler from an already-decoded image.
             pub fn new(image: image::DynamicImage) -> Self {
                 Self {
-                    source: nvisy_core::path::ContentSource::new(),
+                    source: nvisy_core::content::ContentSource::new(),
                     image,
                 }
             }
 
             /// Set the content source for lineage tracking.
-            pub fn with_source(mut self, source: nvisy_core::path::ContentSource) -> Self {
+            pub fn with_source(mut self, source: nvisy_core::content::ContentSource) -> Self {
                 self.source = source;
                 self
             }

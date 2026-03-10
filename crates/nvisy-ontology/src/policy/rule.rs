@@ -1,6 +1,6 @@
 //! Policy rule types.
 
-use nvisy_core::fs::DocumentType;
+use nvisy_core::media::DocumentType;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

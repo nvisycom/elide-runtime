@@ -6,10 +6,8 @@
 use derive_more::{AsRef, Deref};
 use serde::{Deserialize, Serialize};
 
-use super::ContentData;
+use super::{ContentData, ContentMetadata, ContentSource};
 use crate::error::Result;
-use crate::fs::ContentMetadata;
-use crate::path::ContentSource;
 
 /// Complete content representation with data and metadata
 ///
@@ -20,8 +18,8 @@ use crate::path::ContentSource;
 /// # Examples
 ///
 /// ```rust
-/// use nvisy_core::io::{Content, ContentData};
-/// use nvisy_core::fs::ContentMetadata;
+/// use nvisy_core::content::{Content, ContentData};
+/// use nvisy_core::content::ContentMetadata;
 ///
 /// // Create content from data
 /// let data = ContentData::from("Hello, world!");

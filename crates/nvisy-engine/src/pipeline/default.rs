@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_core::io::ContentData;
+use nvisy_core::content::ContentData;
 use nvisy_http::HttpClient;
 use nvisy_ontology::record::PolicyEvaluation;
 use tokio::sync::{mpsc, watch};
@@ -197,7 +197,7 @@ impl Engine for DefaultEngine {
         // part of a higher-level orchestration layer. For now, we create an empty
         // detection output and let the execution graph handle detection actions.
         let detection = nvisy_ontology::entity::DetectionOutput::new(
-            nvisy_core::path::ContentSource::new(),
+            nvisy_core::content::ContentSource::new(),
             Vec::new(),
         );
 

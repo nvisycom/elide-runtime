@@ -17,7 +17,7 @@ pub use category::EntityCategory;
 pub use kind::EntityKind;
 pub use location::{AudioLocation, ImageLocation, Location, TabularLocation, TextLocation};
 pub use model::{ModelInfo, ModelKind};
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 pub use sensitivity::EntitySensitivity;
 use serde::{Deserialize, Serialize};

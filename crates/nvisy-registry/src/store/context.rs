@@ -1,7 +1,7 @@
 use std::fmt;
 
 use fjall::Keyspace;
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::ContentSource;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::context::Context;
 use uuid::Uuid;

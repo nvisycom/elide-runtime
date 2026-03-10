@@ -8,7 +8,7 @@
 //! | `Action` | Receives upstream data, applies a transformation, and forwards results. |
 //! | `Target` | Receives upstream data and writes it to an external provider. |
 
-use nvisy_core::io::ContentData;
+use nvisy_core::content::ContentData;
 use nvisy_core::{Error, ErrorKind};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

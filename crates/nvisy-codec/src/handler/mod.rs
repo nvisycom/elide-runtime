@@ -9,8 +9,8 @@
 //! [`AudioHandler`].
 
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
+use nvisy_core::media::DocumentType;
+use nvisy_core::content::ContentData;
 
 mod audio;
 mod image;
@@ -19,7 +19,7 @@ mod text;
 
 pub use audio::*;
 pub use image::*;
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::ContentSource;
 pub use rich::*;
 pub use text::*;
 

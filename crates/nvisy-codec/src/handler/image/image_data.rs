@@ -3,7 +3,7 @@
 use derive_more::{From, Into};
 use image::DynamicImage;
 use nvisy_core::Error;
-use nvisy_core::io::ContentData;
+use nvisy_core::content::ContentData;
 
 /// Opaque wrapper around a decoded image.
 ///

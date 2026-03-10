@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::path::ContentSource;
+use super::ContentSource;
 
 /// A lightweight pointer to a specific location within a content source.
 ///
@@ -13,8 +13,8 @@ use crate::path::ContentSource;
 /// # Examples
 ///
 /// ```rust
-/// use nvisy_core::io::DataReference;
-/// use nvisy_core::path::ContentSource;
+/// use nvisy_core::content::DataReference;
+/// use nvisy_core::content::ContentSource;
 ///
 /// let source = ContentSource::new();
 /// let data_ref = DataReference::new(source)

@@ -3,9 +3,9 @@
 //! Currently produces an empty [`RichTextHandler`] with no pages.
 
 use nvisy_core::Error;
-use nvisy_core::fs::{DocumentType, WordFormat};
-use nvisy_core::io::ContentData;
-use nvisy_core::path::ContentSource;
+use nvisy_core::media::{DocumentType, WordFormat};
+use nvisy_core::content::ContentData;
+use nvisy_core::content::ContentSource;
 
 use crate::handler::{Loader, RichTextHandler};
 

@@ -7,7 +7,7 @@
 //! entire audio payload as [`AudioData`].  [`AudioHandler::edit_audio`]
 //! replaces the payload from the first incoming edit.
 
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::ContentSource;
 
 use super::impl_audio_handler;
 
@@ -23,7 +23,7 @@ pub struct Mp3Handler {
 
 impl_audio_handler!(
     Mp3Handler,
-    nvisy_core::fs::DocumentType::Audio(nvisy_core::fs::AudioFormat::Mp3),
+    nvisy_core::media::DocumentType::Audio(nvisy_core::media::AudioFormat::Mp3),
     "mp3-handler",
     "mp3.encode"
 );

@@ -12,8 +12,8 @@ use sha2::{Digest, Sha256};
 
 use super::content_bytes::ContentBytes;
 use crate::error::{Error, ErrorKind, Result};
-use crate::fs::DocumentType;
-use crate::path::ContentSource;
+use super::ContentSource;
+use crate::media::DocumentType;
 
 /// Content data with metadata and computed hashes.
 ///
@@ -40,7 +40,7 @@ impl ContentData {
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::{io::ContentData, path::ContentSource};
+    /// use nvisy_core::content::{ContentData, ContentSource};
     /// use bytes::Bytes;
     ///
     /// let source = ContentSource::new();
@@ -64,7 +64,7 @@ impl ContentData {
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::{io::ContentData, path::ContentSource};
+    /// use nvisy_core::content::{ContentData, ContentSource};
     ///
     /// let source = ContentSource::new();
     /// let content = ContentData::from_text(source, "Hello, world!");
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn test_document_type_from_magic_bytes() {
-        use crate::fs::ImageFormat;
+        use crate::media::ImageFormat;
 
         let png = vec![
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
@@ -486,7 +486,7 @@ mod tests {
             ContentData::from("not really json").with_content_type("application/json");
         assert_eq!(
             content.document_type(),
-            Some(DocumentType::Text(crate::fs::TextFormat::Json)),
+            Some(DocumentType::Text(crate::media::TextFormat::Json)),
         );
     }
 
@@ -504,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_infer_document_type_formats() {
-        use crate::fs::{AudioFormat, ImageFormat};
+        use crate::media::{AudioFormat, ImageFormat};
 
         let jpeg = ContentData::from(vec![0xFF, 0xD8, 0xFF, 0xE0]);
         assert_eq!(
@@ -542,7 +542,7 @@ mod tests {
         let content = ContentData::from("not really json").with_content_type("application/json");
         assert_eq!(
             content.infer_document_type(),
-            Some(DocumentType::Text(crate::fs::TextFormat::Json)),
+            Some(DocumentType::Text(crate::media::TextFormat::Json)),
         );
     }
 }

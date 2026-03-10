@@ -5,8 +5,8 @@ mod stream;
 
 use derive_more::{From, IsVariant, TryInto};
 use nvisy_core::Error;
-use nvisy_core::fs::{AudioFormat, DocumentType, ImageFormat};
-use nvisy_core::io::ContentData;
+use nvisy_core::media::{AudioFormat, DocumentType, ImageFormat};
+use nvisy_core::content::ContentData;
 pub use span::Span;
 pub use stream::SpanStream;
 
@@ -119,7 +119,7 @@ impl Document {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::fs::{AudioFormat, ImageFormat, TextFormat};
+    use nvisy_core::media::{AudioFormat, ImageFormat, TextFormat};
 
     use super::*;
     use crate::handler::{Mp3Handler, PngHandler, TxtHandler, WavHandler};

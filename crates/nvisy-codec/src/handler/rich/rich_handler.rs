@@ -1,9 +1,9 @@
 //! [`BoxedRichHandler`]: type-erased wrapper over all rich-document handler types.
 
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
-use nvisy_core::path::ContentSource;
+use nvisy_core::media::DocumentType;
+use nvisy_core::content::ContentData;
+use nvisy_core::content::ContentSource;
 
 #[cfg(feature = "pdf")]
 use super::RichTextHandler;

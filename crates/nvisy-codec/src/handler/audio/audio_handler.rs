@@ -1,9 +1,9 @@
 //! [`BoxedAudioHandler`]: type-erased wrapper over all audio handler types.
 
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
-use nvisy_core::path::ContentSource;
+use nvisy_core::media::DocumentType;
+use nvisy_core::content::ContentData;
+use nvisy_core::content::ContentSource;
 
 use super::{AudioData, AudioSpanId, Mp3Handler, WavHandler};
 use crate::document::SpanStream;
@@ -82,7 +82,7 @@ mod tests {
         let h = BoxedAudioHandler::from(WavHandler::new(bytes::Bytes::from_static(b"wav-data")));
         assert_eq!(
             h.document_type(),
-            DocumentType::Audio(nvisy_core::fs::AudioFormat::Wav),
+            DocumentType::Audio(nvisy_core::media::AudioFormat::Wav),
         );
         let spans: Vec<_> = h.audio_spans().await.collect().await;
         assert_eq!(spans.len(), 1);
@@ -94,7 +94,7 @@ mod tests {
         let h = BoxedAudioHandler::from(Mp3Handler::new(bytes::Bytes::from_static(b"mp3-data")));
         assert_eq!(
             h.document_type(),
-            DocumentType::Audio(nvisy_core::fs::AudioFormat::Mp3),
+            DocumentType::Audio(nvisy_core::media::AudioFormat::Mp3),
         );
         assert_eq!(h.encode().unwrap().as_bytes(), b"mp3-data");
     }
@@ -104,12 +104,12 @@ mod tests {
         let wav = BoxedAudioHandler::from(WavHandler::new(bytes::Bytes::new()));
         assert_eq!(
             wav.document_type(),
-            DocumentType::Audio(nvisy_core::fs::AudioFormat::Wav),
+            DocumentType::Audio(nvisy_core::media::AudioFormat::Wav),
         );
         let mp3 = BoxedAudioHandler::from(Mp3Handler::new(bytes::Bytes::new()));
         assert_eq!(
             mp3.document_type(),
-            DocumentType::Audio(nvisy_core::fs::AudioFormat::Mp3),
+            DocumentType::Audio(nvisy_core::media::AudioFormat::Mp3),
         );
     }
 }

@@ -16,7 +16,7 @@ pub use entry::{
 pub use inference::{InferenceAction, InferenceActionBuilder};
 pub use kind::{FileAuditEntryKind, InferenceKind, LifecycleKind, ProcessingKind};
 pub use lifecycle::{LifecycleAction, LifecycleActionBuilder};
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::ContentSource;
 pub use processing::{ProcessingAction, ProcessingActionBuilder};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

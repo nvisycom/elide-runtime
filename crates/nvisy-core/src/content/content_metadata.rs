@@ -26,7 +26,7 @@ impl ContentMetadata {
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::fs::ContentMetadata;
+    /// use nvisy_core::content::ContentMetadata;
     ///
     /// let metadata = ContentMetadata::new();
     /// ```
@@ -43,7 +43,7 @@ impl ContentMetadata {
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::fs::ContentMetadata;
+    /// use nvisy_core::content::ContentMetadata;
     /// use std::path::PathBuf;
     ///
     /// let metadata = ContentMetadata::with_path(PathBuf::from("document.pdf"));

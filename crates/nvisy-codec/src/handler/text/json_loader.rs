@@ -48,14 +48,12 @@ impl Loader for JsonLoader {
             .map_err(|e| Error::validation(format!("Invalid JSON: {e}"), "json-loader"))?;
 
         let source = ContentSource::new().with_parent(&content.content_source);
-        let handler = JsonHandler {
-            source,
-            data: JsonData {
-                value,
-                indent,
-                trailing_newline,
-            },
-        };
+        let handler = JsonHandler::new(JsonData {
+            value,
+            indent,
+            trailing_newline,
+        })
+        .with_source(source);
         Ok(handler)
     }
 }

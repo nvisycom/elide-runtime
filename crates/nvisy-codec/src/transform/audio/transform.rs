@@ -26,6 +26,7 @@ impl<H: AudioHandler> AudioTransform for H {
             return Ok(());
         }
 
+        // TODO: implement audio redaction (silence/remove time ranges)
         tracing::warn!("audio redaction is not yet implemented");
         Ok(())
     }

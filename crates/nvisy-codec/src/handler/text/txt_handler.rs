@@ -33,9 +33,9 @@ pub struct TxtSpan(pub usize);
 /// Each line is independently addressable via [`TxtSpan`].
 #[derive(Debug)]
 pub struct TxtHandler {
-    pub(crate) source: ContentSource,
-    pub(crate) lines: Vec<String>,
-    pub(crate) trailing_newline: bool,
+    source: ContentSource,
+    lines: Vec<String>,
+    trailing_newline: bool,
 }
 
 impl Handler for TxtHandler {

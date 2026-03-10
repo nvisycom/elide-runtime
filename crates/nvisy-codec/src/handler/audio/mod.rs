@@ -7,10 +7,13 @@ use crate::document::SpanStream;
 
 mod audio_data;
 mod audio_handler;
+mod audio_handler_macro;
 mod mp3_handler;
 mod mp3_loader;
 mod wav_handler;
 mod wav_loader;
+
+use audio_handler_macro::impl_audio_handler;
 
 pub use audio_data::AudioData;
 pub use audio_handler::BoxedAudioHandler;

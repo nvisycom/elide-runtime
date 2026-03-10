@@ -81,15 +81,13 @@ impl Loader for CsvLoader {
 
         tracing::Span::current().record("rows", rows.len());
         let source = ContentSource::new().with_parent(&content.content_source);
-        let handler = CsvHandler {
-            source,
-            data: CsvData {
-                headers,
-                rows,
-                delimiter,
-                trailing_newline,
-            },
-        };
+        let handler = CsvHandler::new(CsvData {
+            headers,
+            rows,
+            delimiter,
+            trailing_newline,
+        })
+        .with_source(source);
         Ok(handler)
     }
 }

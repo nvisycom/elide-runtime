@@ -13,9 +13,8 @@
 //! JSON string values and keys.
 //!
 //! For full JSON value access (including non-string leaves), use the
-//! inherent [`view_spans`](JsonHandler::view_spans) and
-//! [`edit_spans`](JsonHandler::edit_spans) methods that operate on
-//! `serde_json::Value` directly.
+//! inherent [`JsonHandler::view_spans`] and [`JsonHandler::edit_spans`]
+//! methods that operate on `serde_json::Value` directly.
 //!
 //! [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
 
@@ -121,8 +120,8 @@ impl Default for JsonData {
 /// object keys as text spans for the redaction pipeline.
 #[derive(Debug)]
 pub struct JsonHandler {
-    pub(crate) source: ContentSource,
-    pub(crate) data: JsonData,
+    source: ContentSource,
+    data: JsonData,
 }
 
 impl Handler for JsonHandler {
@@ -228,6 +227,14 @@ impl TextHandler for JsonHandler {
 }
 
 impl JsonHandler {
+    /// Create a new handler from parsed JSON data.
+    pub fn new(data: JsonData) -> Self {
+        Self {
+            source: ContentSource::new(),
+            data,
+        }
+    }
+
     /// Set the content source for lineage tracking.
     pub fn with_source(mut self, source: ContentSource) -> Self {
         self.source = source;
@@ -514,7 +521,6 @@ fn escape_json_pointer(key: &str) -> String {
 mod tests {
     use futures::StreamExt;
     use nvisy_core::Error;
-    use nvisy_core::path::ContentSource;
     use serde_json::json;
 
     use super::*;
@@ -522,13 +528,10 @@ mod tests {
     use crate::handler::TextHandler;
 
     fn handler(value: serde_json::Value) -> JsonHandler {
-        JsonHandler {
-            source: ContentSource::new(),
-            data: JsonData {
-                value,
-                ..JsonData::default()
-            },
-        }
+        JsonHandler::new(JsonData {
+            value,
+            ..JsonData::default()
+        })
     }
 
     #[tokio::test]
@@ -690,14 +693,11 @@ mod tests {
 
     #[test]
     fn encode_compact() -> Result<(), Error> {
-        let h = JsonHandler {
-            source: ContentSource::new(),
-            data: JsonData {
-                value: json!({"a": 1}),
-                indent: JsonIndent::Compact,
-                trailing_newline: false,
-            },
-        };
+        let h = JsonHandler::new(JsonData {
+            value: json!({"a": 1}),
+            indent: JsonIndent::Compact,
+            trailing_newline: false,
+        });
         let content = h.encode()?;
         assert_eq!(content.as_str().expect("valid utf-8"), r#"{"a":1}"#);
         Ok(())
@@ -705,14 +705,11 @@ mod tests {
 
     #[test]
     fn encode_two_spaces_with_trailing_newline() -> Result<(), Error> {
-        let h = JsonHandler {
-            source: ContentSource::new(),
-            data: JsonData {
-                value: json!({"a": 1}),
-                indent: JsonIndent::two_spaces(),
-                trailing_newline: true,
-            },
-        };
+        let h = JsonHandler::new(JsonData {
+            value: json!({"a": 1}),
+            indent: JsonIndent::two_spaces(),
+            trailing_newline: true,
+        });
         let text = h.encode()?.as_str().expect("valid utf-8").to_owned();
         assert!(text.contains("  \"a\""));
         assert!(text.ends_with('\n'));
@@ -721,14 +718,11 @@ mod tests {
 
     #[test]
     fn encode_tab_indent() -> Result<(), Error> {
-        let h = JsonHandler {
-            source: ContentSource::new(),
-            data: JsonData {
-                value: json!({"a": 1}),
-                indent: JsonIndent::Tab,
-                trailing_newline: false,
-            },
-        };
+        let h = JsonHandler::new(JsonData {
+            value: json!({"a": 1}),
+            indent: JsonIndent::Tab,
+            trailing_newline: false,
+        });
         let text = h.encode()?.as_str().expect("valid utf-8").to_owned();
         assert!(text.contains("\t\"a\""));
         assert!(!text.ends_with('\n'));

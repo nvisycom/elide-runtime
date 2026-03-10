@@ -78,8 +78,8 @@ pub struct CsvData {
 /// Handler for loaded CSV content.
 #[derive(Debug)]
 pub struct CsvHandler {
-    pub(crate) source: ContentSource,
-    pub(crate) data: CsvData,
+    source: ContentSource,
+    data: CsvData,
 }
 
 impl Handler for CsvHandler {
@@ -172,6 +172,14 @@ impl TextHandler for CsvHandler {
 }
 
 impl CsvHandler {
+    /// Create a new handler from parsed CSV data.
+    pub fn new(data: CsvData) -> Self {
+        Self {
+            source: ContentSource::new(),
+            data,
+        }
+    }
+
     /// Set the content source for lineage tracking.
     pub fn with_source(mut self, source: ContentSource) -> Self {
         self.source = source;
@@ -308,40 +316,33 @@ impl<'a> Iterator for CsvSpanIter<'a> {
 mod tests {
     use futures::StreamExt;
     use nvisy_core::Error;
-    use nvisy_core::path::ContentSource;
 
     use super::*;
     use crate::document::Span;
     use crate::handler::TextHandler;
 
     fn handler_with_headers(headers: Vec<&str>, rows: Vec<Vec<&str>>) -> CsvHandler {
-        CsvHandler {
-            source: ContentSource::new(),
-            data: CsvData {
-                headers: Some(headers.into_iter().map(String::from).collect()),
-                rows: rows
-                    .into_iter()
-                    .map(|r| r.into_iter().map(String::from).collect())
-                    .collect(),
-                delimiter: b',',
-                trailing_newline: true,
-            },
-        }
+        CsvHandler::new(CsvData {
+            headers: Some(headers.into_iter().map(String::from).collect()),
+            rows: rows
+                .into_iter()
+                .map(|r| r.into_iter().map(String::from).collect())
+                .collect(),
+            delimiter: b',',
+            trailing_newline: true,
+        })
     }
 
     fn handler_no_headers(rows: Vec<Vec<&str>>) -> CsvHandler {
-        CsvHandler {
-            source: ContentSource::new(),
-            data: CsvData {
-                headers: None,
-                rows: rows
-                    .into_iter()
-                    .map(|r| r.into_iter().map(String::from).collect())
-                    .collect(),
-                delimiter: b',',
-                trailing_newline: true,
-            },
-        }
+        CsvHandler::new(CsvData {
+            headers: None,
+            rows: rows
+                .into_iter()
+                .map(|r| r.into_iter().map(String::from).collect())
+                .collect(),
+            delimiter: b',',
+            trailing_newline: true,
+        })
     }
 
     #[tokio::test]

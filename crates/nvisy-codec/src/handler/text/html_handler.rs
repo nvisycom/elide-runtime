@@ -48,8 +48,8 @@ pub struct HtmlData {
 /// Each text node is independently addressable via [`HtmlSpan`].
 #[derive(Debug)]
 pub struct HtmlHandler {
-    pub(crate) source: ContentSource,
-    pub(crate) data: HtmlData,
+    source: ContentSource,
+    data: HtmlData,
 }
 
 impl Handler for HtmlHandler {

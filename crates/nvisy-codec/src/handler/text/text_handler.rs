@@ -30,101 +30,6 @@ pub enum AnyText {
     Xlsx(XlsxHandler),
 }
 
-impl AnyText {
-    /// Try to get the inner [`TxtHandler`] by reference.
-    pub fn as_txt(&self) -> Option<&TxtHandler> {
-        if let Self::Txt(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`TxtHandler`].
-    pub fn into_txt(self) -> Option<TxtHandler> {
-        if let Self::Txt(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`CsvHandler`] by reference.
-    pub fn as_csv(&self) -> Option<&CsvHandler> {
-        if let Self::Csv(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`CsvHandler`].
-    pub fn into_csv(self) -> Option<CsvHandler> {
-        if let Self::Csv(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`JsonHandler`] by reference.
-    pub fn as_json(&self) -> Option<&JsonHandler> {
-        if let Self::Json(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`JsonHandler`].
-    pub fn into_json(self) -> Option<JsonHandler> {
-        if let Self::Json(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`HtmlHandler`] by reference.
-    #[cfg(feature = "html")]
-    pub fn as_html(&self) -> Option<&HtmlHandler> {
-        if let Self::Html(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`HtmlHandler`].
-    #[cfg(feature = "html")]
-    pub fn into_html(self) -> Option<HtmlHandler> {
-        if let Self::Html(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`XlsxHandler`] by reference.
-    #[cfg(feature = "xlsx")]
-    pub fn as_xlsx(&self) -> Option<&XlsxHandler> {
-        if let Self::Xlsx(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`XlsxHandler`].
-    #[cfg(feature = "xlsx")]
-    pub fn into_xlsx(self) -> Option<XlsxHandler> {
-        if let Self::Xlsx(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-}
 
 impl Handler for AnyText {
     fn document_type(&self) -> DocumentType {
@@ -221,7 +126,7 @@ mod tests {
     #[test]
     fn from_conversions() {
         let txt: AnyText = TxtHandler::new(vec![], false).into();
-        assert!(txt.as_txt().is_some());
+        assert!(matches!(txt, AnyText::Txt(_)));
     }
 
     #[test]

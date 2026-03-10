@@ -40,48 +40,6 @@ impl From<DocxHandler> for AnyRich {
     }
 }
 
-impl AnyRich {
-    /// Try to get the inner [`PdfHandler`] by reference.
-    #[cfg(feature = "pdf")]
-    pub fn as_pdf(&self) -> Option<&PdfHandler> {
-        if let Self::Pdf(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`PdfHandler`].
-    #[cfg(feature = "pdf")]
-    pub fn into_pdf(self) -> Option<PdfHandler> {
-        if let Self::Pdf(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`DocxHandler`] by reference.
-    #[cfg(feature = "docx")]
-    pub fn as_docx(&self) -> Option<&DocxHandler> {
-        if let Self::Docx(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`DocxHandler`].
-    #[cfg(feature = "docx")]
-    pub fn into_docx(self) -> Option<DocxHandler> {
-        if let Self::Docx(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-}
-
 impl Handler for AnyRich {
     fn document_type(&self) -> DocumentType {
         match self {

@@ -5,12 +5,14 @@
 
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
-use nvisy_core::Error;
+use nvisy_core::{Error, Result};
 use nvisy_core::math::BoundingBox;
 use nvisy_ontology::entity::{DetectionMethod, Entity, ImageLocation};
 use nvisy_rig::agent::{CvAgent, CvEntity, DetectionConfig};
 
 use crate::operation::{Operation, ParallelContext};
+
+const TARGET: &str = "nvisy_engine::op::computer_vision";
 
 /// Computer-vision detection operation: thin adapter around [`CvAgent`].
 pub struct ComputerVision {
@@ -23,35 +25,36 @@ impl ComputerVision {
     pub fn from_agent(agent: CvAgent, config: DetectionConfig) -> Self {
         Self { agent, config }
     }
+
+    async fn detect(&self, spans: Vec<Span<(), ImageData>>) -> Result<Vec<Entity>> {
+        tracing::debug!(target: TARGET, span_count = spans.len(), "detecting entities");
+        let mut entities = Vec::new();
+
+        for span in &spans {
+            let png_bytes = span.data.encode_png()?;
+
+            let cv_entities = self
+                .agent
+                .detect(&png_bytes, &self.config)
+                .await
+                .map_err(|e| Error::runtime(e.to_string(), "cv-agent", e.is_retryable()))?;
+
+            for cv_entity in &cv_entities {
+                let entity = map_cv_entity(cv_entity);
+                entities.push(entity.with_parent(&span.source));
+            }
+        }
+
+        Ok(entities)
+    }
 }
 
 impl Operation for ComputerVision {
     type Input = ParallelContext<Vec<Span<(), ImageData>>>;
     type Output = ParallelContext<Vec<Entity>>;
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        input
-            .parallel_map(|spans| async move {
-                let mut entities = Vec::new();
-
-                for span in &spans {
-                    let png_bytes = span.data.encode_png()?;
-
-                    let cv_entities = self
-                        .agent
-                        .detect(&png_bytes, &self.config)
-                        .await
-                        .map_err(|e| Error::runtime(e.to_string(), "cv-agent", e.is_retryable()))?;
-
-                    for cv_entity in &cv_entities {
-                        let entity = map_cv_entity(cv_entity);
-                        entities.push(entity.with_parent(&span.source));
-                    }
-                }
-
-                Ok(entities)
-            })
-            .await
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input.parallel_map(|spans| self.detect(spans)).await
     }
 }
 

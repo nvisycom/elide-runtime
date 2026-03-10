@@ -3,11 +3,13 @@
 //! Converts user-provided inclusion [`Annotation`]s into full [`Entity`] objects
 //! and collects exclusion annotations for downstream filtering.
 
-use nvisy_core::Error;
+use nvisy_core::Result;
 use nvisy_ontology::entity::{Annotation, AnnotationKind, DetectionMethod, Entity, Location};
 use serde::Deserialize;
 
 use crate::operation::{Operation, ParallelContext};
+
+const TARGET: &str = "nvisy_engine::op::manual_detection";
 
 /// Typed parameters for [`ManualDetection`].
 #[derive(Debug, Deserialize)]
@@ -38,11 +40,12 @@ pub struct ManualOutput {
 pub struct ManualDetection;
 
 impl ManualDetection {
-    pub async fn connect(_params: ManualDetectionParams) -> Result<Self, Error> {
+    pub async fn connect(_params: ManualDetectionParams) -> Result<Self> {
         Ok(Self)
     }
 
-    pub async fn execute(&self, annotations: Vec<Annotation>) -> Result<ManualOutput, Error> {
+    pub async fn execute(&self, annotations: Vec<Annotation>) -> Result<ManualOutput> {
+        tracing::debug!(target: TARGET, count = annotations.len(), "processing annotations");
         let mut entities = Vec::new();
         let mut exclusions = Vec::new();
 
@@ -85,7 +88,7 @@ impl Operation for ManualDetection {
     type Input = ParallelContext<Vec<Annotation>>;
     type Output = ParallelContext<ManualOutput>;
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.execute(data)).await
     }
 }

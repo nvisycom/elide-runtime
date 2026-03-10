@@ -4,9 +4,12 @@
 //! overlapping location into a single entity with the highest
 //! confidence and `DetectionMethod::Composite` when methods differ.
 
+use nvisy_core::Result;
 use nvisy_ontology::entity::{DetectionMethod, Entity, Location};
 
 use crate::operation::{Operation, ParallelContext};
+
+const TARGET: &str = "nvisy_engine::op::deduplication";
 
 /// Deduplications a list of entities by merging duplicates.
 ///
@@ -20,6 +23,13 @@ use crate::operation::{Operation, ParallelContext};
 pub struct Deduplication;
 
 impl Deduplication {
+    async fn deduplicate(&self, entities: Vec<Entity>) -> Result<Vec<Entity>> {
+        let before = entities.len();
+        let result = Self::execute(entities);
+        tracing::debug!(target: TARGET, before, after = result.len(), "deduplicated entities");
+        Ok(result)
+    }
+
     /// Deduplication and merge overlapping entities.
     pub fn execute(entities: Vec<Entity>) -> Vec<Entity> {
         if entities.len() <= 1 {
@@ -58,8 +68,8 @@ impl Operation for Deduplication {
     type Input = ParallelContext<Vec<Entity>>;
     type Output = ParallelContext<Vec<Entity>>;
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output, nvisy_core::Error> {
-        Ok(input.map(Self::execute))
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input.parallel_map(|data| self.deduplicate(data)).await
     }
 }
 

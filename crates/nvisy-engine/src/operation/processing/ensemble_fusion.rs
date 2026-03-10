@@ -3,9 +3,12 @@
 
 use std::collections::HashMap;
 
+use nvisy_core::Result;
 use nvisy_ontology::entity::{DetectionMethod, Entity, Location};
 
 use crate::operation::{Operation, ParallelContext};
+
+const TARGET: &str = "nvisy_engine::op::ensemble";
 
 /// Strategy for combining confidence scores from multiple detectors.
 #[derive(Debug, Clone)]
@@ -30,6 +33,13 @@ impl Ensemble {
     /// Create a new ensemble merge with the given strategy.
     pub fn new(strategy: FusionStrategy) -> Self {
         Self { strategy }
+    }
+
+    async fn fuse(&self, entities: Vec<Entity>) -> Result<Vec<Entity>> {
+        let before = entities.len();
+        let result = self.merge(entities);
+        tracing::debug!(target: TARGET, before, after = result.len(), "fused entities");
+        Ok(result)
     }
 
     /// Group entities by `(kind, value, overlapping location)` then fuse
@@ -106,8 +116,8 @@ impl Operation for Ensemble {
     type Input = ParallelContext<Vec<Entity>>;
     type Output = ParallelContext<Vec<Entity>>;
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output, nvisy_core::Error> {
-        Ok(input.map(|data| self.merge(data)))
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input.parallel_map(|data| self.fuse(data)).await
     }
 }
 

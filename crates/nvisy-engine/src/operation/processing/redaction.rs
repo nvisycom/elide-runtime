@@ -17,13 +17,15 @@ use nvisy_codec::transform::{
     AudioOutput, AudioRedaction, AudioTransform, ImageOutput, ImageRedaction, ImageTransform,
     TextOutput, TextRedaction, TextTransform,
 };
-use nvisy_core::Error;
+use nvisy_core::Result;
 use nvisy_ontology::entity::{Entity, Location};
 use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
 use nvisy_ontology::record::RedactionDecision;
 use uuid::Uuid;
 
 use crate::operation::{Operation, ParallelContext};
+
+const TARGET: &str = "nvisy_engine::op::redaction";
 
 /// Typed input for the [`Redaction`] operation.
 pub struct RedactionInput {
@@ -56,53 +58,61 @@ pub struct RedactionOutput {
 /// Applies pending redaction instructions to document content.
 pub struct Redaction;
 
+impl Redaction {
+    async fn execute(&self, input: RedactionInput) -> Result<RedactionOutput> {
+        tracing::debug!(
+            target: TARGET,
+            decisions = input.decisions.len(),
+            entities = input.entities.len(),
+            "applying redactions",
+        );
+        let entity_map: HashMap<Uuid, &Entity> = input
+            .entities
+            .iter()
+            .map(|e| (e.source.as_uuid(), e))
+            .collect();
+        let redaction_map: HashMap<Uuid, &RedactionDecision> = input
+            .decisions
+            .iter()
+            .filter(|r| !r.applied)
+            .map(|r| (r.entity_id, r))
+            .collect();
+
+        let mut result_text = Vec::with_capacity(input.text_docs.len());
+        for doc in input.text_docs {
+            result_text.push(apply_text_doc(doc, &entity_map, &redaction_map).await?);
+        }
+
+        let mut result_image = Vec::with_capacity(input.image_docs.len());
+        for doc in input.image_docs {
+            result_image.push(apply_image_doc(doc, &entity_map, &redaction_map).await?);
+        }
+
+        let mut result_audio = Vec::with_capacity(input.audio_docs.len());
+        for doc in input.audio_docs {
+            result_audio.push(apply_audio_doc(doc, &entity_map, &redaction_map).await?);
+        }
+
+        let mut result_tabular = Vec::with_capacity(input.tabular_docs.len());
+        for doc in input.tabular_docs {
+            result_tabular.push(apply_tabular_doc(doc, &entity_map, &redaction_map).await?);
+        }
+
+        Ok(RedactionOutput {
+            text_docs: result_text,
+            image_docs: result_image,
+            audio_docs: result_audio,
+            tabular_docs: result_tabular,
+        })
+    }
+}
+
 impl Operation for Redaction {
     type Input = ParallelContext<RedactionInput>;
     type Output = ParallelContext<RedactionOutput>;
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        input
-            .parallel_map(|input| async move {
-                let entity_map: HashMap<Uuid, &Entity> = input
-                    .entities
-                    .iter()
-                    .map(|e| (e.source.as_uuid(), e))
-                    .collect();
-                let redaction_map: HashMap<Uuid, &RedactionDecision> = input
-                    .decisions
-                    .iter()
-                    .filter(|r| !r.applied)
-                    .map(|r| (r.entity_id, r))
-                    .collect();
-
-                let mut result_text = Vec::with_capacity(input.text_docs.len());
-                for doc in input.text_docs {
-                    result_text.push(apply_text_doc(doc, &entity_map, &redaction_map).await?);
-                }
-
-                let mut result_image = Vec::with_capacity(input.image_docs.len());
-                for doc in input.image_docs {
-                    result_image.push(apply_image_doc(doc, &entity_map, &redaction_map).await?);
-                }
-
-                let mut result_audio = Vec::with_capacity(input.audio_docs.len());
-                for doc in input.audio_docs {
-                    result_audio.push(apply_audio_doc(doc, &entity_map, &redaction_map).await?);
-                }
-
-                let mut result_tabular = Vec::with_capacity(input.tabular_docs.len());
-                for doc in input.tabular_docs {
-                    result_tabular.push(apply_tabular_doc(doc, &entity_map, &redaction_map).await?);
-                }
-
-                Ok(RedactionOutput {
-                    text_docs: result_text,
-                    image_docs: result_image,
-                    audio_docs: result_audio,
-                    tabular_docs: result_tabular,
-                })
-            })
-            .await
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input.parallel_map(|data| self.execute(data)).await
     }
 }
 
@@ -120,7 +130,7 @@ async fn apply_text_doc(
     mut doc: TxtHandler,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
-) -> Result<TxtHandler, Error> {
+) -> Result<TxtHandler> {
     let mut global_redactions: Vec<(usize, usize, TextOutput)> =
         Vec::with_capacity(redaction_map.len());
 
@@ -220,7 +230,7 @@ async fn apply_image_doc(
     mut doc: PngHandler,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
-) -> Result<PngHandler, Error> {
+) -> Result<PngHandler> {
     let mut redactions: Vec<ImageRedaction> = Vec::new();
 
     for (&entity_id, redaction) in redaction_map {
@@ -267,7 +277,7 @@ async fn apply_audio_doc(
     mut doc: WavHandler,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
-) -> Result<WavHandler, Error> {
+) -> Result<WavHandler> {
     let mut redactions: Vec<AudioRedaction> = Vec::new();
 
     for (&entity_id, redaction) in redaction_map {
@@ -305,7 +315,7 @@ async fn apply_tabular_doc(
     mut doc: CsvHandler,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
-) -> Result<CsvHandler, Error> {
+) -> Result<CsvHandler> {
     for (&entity_id, redaction) in redaction_map {
         let entity = match entity_map.get(&entity_id) {
             Some(e) => e,

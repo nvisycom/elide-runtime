@@ -504,4 +504,49 @@ mod tests {
         content.detect_mime();
         assert_eq!(content.content_type(), Some("image/jpeg"));
     }
+
+    #[test]
+    fn test_infer_document_type_formats() {
+        use crate::fs::{AudioFormat, ImageFormat};
+
+        let jpeg = ContentData::from(vec![0xFF, 0xD8, 0xFF, 0xE0]);
+        assert_eq!(
+            jpeg.infer_document_type(),
+            Some(DocumentType::Image(ImageFormat::Jpeg)),
+        );
+
+        let mut wav = [0u8; 12];
+        wav[..4].copy_from_slice(b"RIFF");
+        wav[8..12].copy_from_slice(b"WAVE");
+        let wav = ContentData::from(wav.to_vec());
+        assert_eq!(
+            wav.infer_document_type(),
+            Some(DocumentType::Audio(AudioFormat::Wav)),
+        );
+
+        let mp3 = ContentData::from(vec![0x49, 0x44, 0x33]);
+        assert_eq!(
+            mp3.infer_document_type(),
+            Some(DocumentType::Audio(AudioFormat::Mp3)),
+        );
+
+        let pdf = ContentData::from(b"%PDF-1.4".to_vec());
+        assert_eq!(pdf.infer_document_type(), Some(DocumentType::Pdf));
+    }
+
+    #[test]
+    fn test_infer_document_type_unknown() {
+        assert_eq!(ContentData::from("hello world").infer_document_type(), None);
+        assert_eq!(ContentData::from("").infer_document_type(), None);
+    }
+
+    #[test]
+    fn test_infer_document_type_respects_explicit_mime() {
+        let content = ContentData::from("not really json")
+            .with_content_type("application/json");
+        assert_eq!(
+            content.infer_document_type(),
+            Some(DocumentType::Text(crate::fs::TextFormat::Json)),
+        );
+    }
 }

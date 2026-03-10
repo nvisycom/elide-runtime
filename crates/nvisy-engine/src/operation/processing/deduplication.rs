@@ -11,7 +11,7 @@ use crate::operation::{Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::deduplication";
 
-/// Deduplications a list of entities by merging duplicates.
+/// Deduplicates a list of entities by merging duplicates.
 ///
 /// Two entities are considered duplicates when they have the same
 /// `entity_kind` and `value` and their locations overlap.
@@ -30,7 +30,7 @@ impl Deduplication {
         Ok(result)
     }
 
-    /// Deduplication and merge overlapping entities.
+    /// Deduplicate and merge overlapping entities.
     pub fn execute(entities: Vec<Entity>) -> Vec<Entity> {
         if entities.len() <= 1 {
             return entities;

@@ -1,13 +1,18 @@
-//! Operations: units of work in the redaction pipeline.
+//! Operations: composable units of work in the redaction pipeline.
 //!
-//! Each operation implements the [`Operation`] trait and belongs to one of
-//! three provenance categories:
+//! Each operation implements the [`Operation`] trait: a single async
+//! function from typed input to typed output. Input and output are
+//! wrapped in a context marker ([`ParallelContext`] or
+//! [`SequentialContext`]) that tells the orchestrator how to invoke
+//! the operation.
 //!
-//! | Category       | Module        | Examples                          |
-//! |---------------|---------------|-----------------------------------|
-//! | Inference     | [`inference`] | OCR, NER, transcription, CV, …    |
-//! | Processing    | [`processing`]| Redaction, pattern match, …       |
-//! | Lifecycle     | [`lifecycle`] | Ingest, publish, encryption, …    |
+//! Operations are grouped into three categories:
+//!
+//! | Category       | Module        | Purpose                                  |
+//! |----------------|---------------|------------------------------------------|
+//! | Inference      | [`inference`] | ML/AI model calls (OCR, NER, CV, …)     |
+//! | Processing     | [`processing`]| Deterministic transforms (redact, match) |
+//! | Lifecycle      | [`lifecycle`] | Content I/O (ingest, publish, encrypt)   |
 
 mod context;
 pub mod inference;

@@ -36,9 +36,7 @@ impl Ocr {
             ImageFormat::Png,
         ))
     }
-}
 
-impl Ocr {
     async fn extract(&self, spans: Vec<Span<(), ImageData>>) -> Result<Vec<ImageOutput>> {
         if spans.is_empty() {
             tracing::debug!(target: TARGET, "no spans to process");

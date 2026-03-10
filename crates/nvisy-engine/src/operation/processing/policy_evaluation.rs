@@ -1,4 +1,12 @@
-//! Policy evaluation: maps detected entities to redaction instructions.
+//! Policy evaluation: maps detected entities to redaction decisions.
+//!
+//! Applies configured [`PolicyRule`]s to each entity, producing a
+//! [`RedactionDecision`] that specifies the redaction strategy and
+//! replacement text for downstream application by [`Redaction`].
+//!
+//! [`PolicyRule`]: nvisy_ontology::policy::PolicyRule
+//! [`RedactionDecision`]: nvisy_ontology::record::RedactionDecision
+//! [`Redaction`]: super::Redaction
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;

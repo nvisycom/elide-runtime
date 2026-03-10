@@ -37,9 +37,7 @@ impl OcrVerification {
     pub fn new(agent: OcrAgent) -> Self {
         Self { agent }
     }
-}
 
-impl OcrVerification {
     async fn verify(&self, data: OcrVerificationInput) -> Result<Vec<Entity>> {
         if data.entities.is_empty() {
             tracing::debug!(target: TARGET, "no entities to verify");

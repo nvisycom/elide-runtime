@@ -1,8 +1,7 @@
 //! MP3 loader: wraps raw audio bytes into a [`Mp3Handler`].
 
 use nvisy_core::Error;
-use nvisy_core::content::ContentData;
-use nvisy_core::content::ContentSource;
+use nvisy_core::content::{ContentData, ContentSource};
 
 use crate::handler::{Loader, Mp3Handler};
 

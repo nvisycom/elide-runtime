@@ -3,8 +3,8 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use bytes::Bytes;
-use nvisy_core::media::ImageFormat;
 use nvisy_core::content::ContentSource;
+use nvisy_core::media::ImageFormat;
 
 /// Image payload passed to [`Backend::run`].
 ///

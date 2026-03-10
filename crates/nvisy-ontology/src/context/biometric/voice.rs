@@ -1,7 +1,7 @@
 //! Voice biometric reference data.
 
-use nvisy_core::math::TimeSpan;
 use nvisy_core::content::ContentSource;
+use nvisy_core::math::TimeSpan;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

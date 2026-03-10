@@ -1,8 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions, KvSeparationOptions};
-use nvisy_core::content::Content;
-use nvisy_core::content::ContentSource;
+use nvisy_core::content::{Content, ContentSource};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::context::Context;
 use uuid::Uuid;

@@ -1,9 +1,8 @@
 //! [`BoxedAudioHandler`]: type-erased wrapper over all audio handler types.
 
 use nvisy_core::Error;
+use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_core::content::ContentData;
-use nvisy_core::content::ContentSource;
 
 use super::{AudioData, AudioSpanId, Mp3Handler, WavHandler};
 use crate::document::SpanStream;

@@ -22,9 +22,8 @@ use std::num::NonZeroU32;
 
 use futures::StreamExt;
 use nvisy_core::Error;
+use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
-use nvisy_core::content::ContentData;
-use nvisy_core::content::ContentSource;
 use serde::{Deserialize, Serialize};
 
 use crate::document::{Span, SpanStream};

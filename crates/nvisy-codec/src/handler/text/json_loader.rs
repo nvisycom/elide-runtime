@@ -8,8 +8,7 @@
 use std::num::NonZeroU32;
 
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, TextEncoding};
-use nvisy_core::content::ContentSource;
+use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
 
 use crate::handler::{JsonData, JsonHandler, JsonIndent, Loader};
 
@@ -92,8 +91,8 @@ fn detect_formatting(source: &str) -> (JsonIndent, bool) {
 mod tests {
     use bytes::Bytes;
     use nvisy_core::Error;
-    use nvisy_core::media::{DocumentType, TextFormat};
     use nvisy_core::content::ContentSource;
+    use nvisy_core::media::{DocumentType, TextFormat};
     use serde_json::json;
 
     use super::*;

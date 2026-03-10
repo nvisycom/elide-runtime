@@ -17,7 +17,10 @@ macro_rules! impl_audio_handler {
             fn encode(&self) -> Result<nvisy_core::content::ContentData, nvisy_core::Error> {
                 tracing::Span::current().record("output_bytes", self.bytes.len());
                 let source = nvisy_core::content::ContentSource::new().with_parent(&self.source);
-                Ok(nvisy_core::content::ContentData::new(source, self.bytes.clone()))
+                Ok(nvisy_core::content::ContentData::new(
+                    source,
+                    self.bytes.clone(),
+                ))
             }
         }
 

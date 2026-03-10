@@ -1,9 +1,8 @@
 //! [`BoxedImageHandler`]: type-erased wrapper over all image handler types.
 
 use nvisy_core::Error;
+use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_core::content::ContentData;
-use nvisy_core::content::ContentSource;
 
 use super::{ImageData, ImageSpanId, JpegHandler, PngHandler};
 use crate::document::SpanStream;

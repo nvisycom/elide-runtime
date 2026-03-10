@@ -10,9 +10,9 @@ use hipstr::HipStr;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use super::ContentSource;
 use super::content_bytes::ContentBytes;
 use crate::error::{Error, ErrorKind, Result};
-use super::ContentSource;
 use crate::media::DocumentType;
 
 /// Content data with metadata and computed hashes.

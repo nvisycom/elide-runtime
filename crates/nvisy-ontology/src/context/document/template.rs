@@ -1,7 +1,7 @@
 //! Document template reference data.
 
-use nvisy_core::math::BoundingBox;
 use nvisy_core::content::ContentSource;
+use nvisy_core::math::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

@@ -22,9 +22,8 @@
 
 use futures::StreamExt;
 use nvisy_core::Error;
+use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_core::content::ContentData;
-use nvisy_core::content::ContentSource;
 
 use crate::document::{Span, SpanStream};
 use crate::handler::text::TextData;

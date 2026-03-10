@@ -2,8 +2,7 @@
 //! [`JpegHandler`].
 
 use nvisy_core::Error;
-use nvisy_core::content::ContentData;
-use nvisy_core::content::ContentSource;
+use nvisy_core::content::{ContentData, ContentSource};
 
 use crate::handler::{ImageData, JpegHandler, Loader};
 

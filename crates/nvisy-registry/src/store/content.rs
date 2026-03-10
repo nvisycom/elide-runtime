@@ -2,9 +2,7 @@ use std::fmt;
 
 use bytes::Bytes;
 use fjall::Keyspace;
-use nvisy_core::content::ContentMetadata;
-use nvisy_core::content::ContentData;
-use nvisy_core::content::ContentSource;
+use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_core::{Error, ErrorKind, Result};
 use uuid::Uuid;
 

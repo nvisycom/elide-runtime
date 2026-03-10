@@ -5,8 +5,8 @@ mod stream;
 
 use derive_more::{From, IsVariant, TryInto};
 use nvisy_core::Error;
-use nvisy_core::media::{AudioFormat, DocumentType, ImageFormat};
 use nvisy_core::content::ContentData;
+use nvisy_core::media::{AudioFormat, DocumentType, ImageFormat};
 pub use span::Span;
 pub use stream::SpanStream;
 

@@ -6,6 +6,7 @@ mod tabular;
 mod text;
 
 pub use audio::AudioLocation;
+use derive_more::From;
 pub use image::ImageLocation;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,7 +17,7 @@ pub use text::TextLocation;
 ///
 /// Exactly one variant is set per entity, enforcing the invariant that
 /// an entity exists in a single modality.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, From, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Location {
     /// Entity found in text content.
@@ -60,29 +61,5 @@ impl Location {
             Self::Audio(loc) => Some(loc),
             _ => None,
         }
-    }
-}
-
-impl From<TextLocation> for Location {
-    fn from(loc: TextLocation) -> Self {
-        Self::Text(loc)
-    }
-}
-
-impl From<ImageLocation> for Location {
-    fn from(loc: ImageLocation) -> Self {
-        Self::Image(loc)
-    }
-}
-
-impl From<TabularLocation> for Location {
-    fn from(loc: TabularLocation) -> Self {
-        Self::Tabular(loc)
-    }
-}
-
-impl From<AudioLocation> for Location {
-    fn from(loc: AudioLocation) -> Self {
-        Self::Audio(loc)
     }
 }

@@ -33,7 +33,7 @@ serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 
 # Derive macros and error handling
-derive_more = { workspace = true, features = ["from"] }
+derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into_iterator"] }
 strum = { workspace = true, features = [] }
 
 # Primitive datatypes

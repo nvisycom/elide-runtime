@@ -9,7 +9,7 @@
 //! [`Redaction`]: super::Redaction
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::Entity;
+use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 use serde::Deserialize;
 
@@ -64,7 +64,7 @@ impl EvaluatePolicy {
         Ok(Self { params })
     }
 
-    pub async fn execute(&self, entities: Vec<Entity>) -> Result<EvaluatePolicyOutput> {
+    pub async fn execute(&self, entities: Entities) -> Result<EvaluatePolicyOutput> {
         tracing::debug!(target: TARGET, entity_count = entities.len(), "evaluating policies");
         let default_spec = &self.params.default_spec;
         let default_threshold = self.params.default_confidence_threshold;
@@ -121,7 +121,7 @@ impl EvaluatePolicy {
 }
 
 impl Operation for EvaluatePolicy {
-    type Input = ParallelContext<Vec<Entity>>;
+    type Input = ParallelContext<Entities>;
     type Output = ParallelContext<EvaluatePolicyOutput>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {

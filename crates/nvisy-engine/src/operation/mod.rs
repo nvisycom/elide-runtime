@@ -32,7 +32,7 @@ use nvisy_core::Result;
 /// with an input value and the operation produces a typed output or an error.
 ///
 /// Both `Input` and `Output` must implement [`OperationContext`], encoding the
-/// processing strategy (e.g. [`ParallelContext<Vec<Entity>>`] or
+/// processing strategy (e.g. [`ParallelContext<Entities>`] or
 /// [`SequentialContext<Vec<Span>>`]) directly in the type.
 pub trait Operation {
     /// Data consumed by this operation: wraps the payload in a context marker.

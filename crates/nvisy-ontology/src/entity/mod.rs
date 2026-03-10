@@ -1,71 +1,34 @@
 //! Sensitive-data entity types and detection metadata.
 //!
 //! An [`Entity`] represents a single occurrence of sensitive data detected
-//! within a document.
+//! within a document. [`Entities`] is the canonical collection type used
+//! across the pipeline.
 
 mod annotation;
 mod category;
 mod kind;
 mod location;
+mod method;
 mod model;
+mod output;
 mod sensitivity;
-
-use std::time::Duration;
 
 pub use annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};
 pub use category::EntityCategory;
+use derive_more::{Deref, DerefMut, From, IntoIterator};
 pub use kind::EntityKind;
 pub use location::{AudioLocation, ImageLocation, Location, TabularLocation, TextLocation};
+pub use method::DetectionMethod;
 pub use model::{ModelInfo, ModelKind};
 use nvisy_core::content::ContentSource;
+pub use output::DetectionOutput;
 use schemars::JsonSchema;
 pub use sensitivity::EntitySensitivity;
 use serde::{Deserialize, Serialize};
-use serde_with::{DurationMicroSeconds, serde_as};
-use strum::{Display, EnumString};
 use uuid::Uuid;
 
-/// Method used to detect a sensitive entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[strum(serialize_all = "snake_case")]
-pub enum DetectionMethod {
-    // A. Deterministic / pattern-based
-    /// Regular expression pattern matching.
-    Regex,
-    /// Lookup in a known-value dictionary.
-    Dictionary,
-
-    // B. ML / NLP
-    /// Named-entity recognition via AI model.
-    Ner,
-    /// Contextual NLP analysis (discourse-level understanding).
-    ContextualNlp,
-
-    // C. Computer vision
-    /// OCR text extraction with bounding boxes.
-    Ocr,
-    /// Face detection in images.
-    FaceDetection,
-    /// Object detection in images.
-    ObjectDetection,
-
-    // D. Audio
-    /// Entity detection from speech transcription.
-    SpeechTranscript,
-    /// Speaker-identified audio segment for redaction.
-    SpeakerRedaction,
-
-    // Meta
-    /// Multiple methods combined to produce a single detection.
-    Composite,
-    /// User-provided annotations.
-    Manual,
-}
-
 /// A detected sensitive data occurrence within a document.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Entity {
     /// Content source identity and lineage.
@@ -150,54 +113,79 @@ impl Entity {
     }
 }
 
-/// The output of a detection pass over a single content source.
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DetectionOutput {
-    /// Content source identity and lineage.
-    pub source: ContentSource,
-    /// Entities detected in the content.
-    pub entities: Vec<Entity>,
-    /// Identifier of the policy that governed detection.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy_id: Option<Uuid>,
-    /// Processing time.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde_as(as = "Option<DurationMicroSeconds>")]
-    #[schemars(with = "Option<u64>")]
-    pub duration: Option<Duration>,
-    /// Non-fatal errors or warnings encountered during detection.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub errors: Vec<String>,
+/// A collection of detected entities.
+///
+/// Wraps `Vec<Entity>` with transparent `Deref`/`DerefMut` access and
+/// domain-specific filtering helpers. Used as the canonical entity
+/// container in both operation I/O and [`DocumentEnvelope`].
+///
+/// [`DocumentEnvelope`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/operation/struct.DocumentEnvelope.html
+#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Deref, DerefMut, From, IntoIterator)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+pub struct Entities(pub Vec<Entity>);
+
+impl Entities {
+    /// Create an empty collection.
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    /// Append an entity.
+    pub fn push(&mut self, entity: Entity) {
+        self.0.push(entity);
+    }
+
+    /// Extend with entities from another collection.
+    pub fn extend(&mut self, other: impl IntoIterator<Item = Entity>) {
+        self.0.extend(other);
+    }
+
+    /// Retain only entities above the given confidence threshold.
+    pub fn above_confidence(&self, threshold: f64) -> Self {
+        self.0
+            .iter()
+            .filter(|e| e.confidence >= threshold)
+            .cloned()
+            .collect()
+    }
+
+    /// Retain only entities matching the given detection method.
+    pub fn by_method(&self, method: DetectionMethod) -> Self {
+        self.0
+            .iter()
+            .filter(|e| e.detection_method == method)
+            .cloned()
+            .collect()
+    }
+
+    /// Retain only entities matching the given category.
+    pub fn by_category(&self, category: EntityCategory) -> Self {
+        self.0
+            .iter()
+            .filter(|e| e.category == category)
+            .cloned()
+            .collect()
+    }
+
+    /// Consume and return the inner `Vec<Entity>`.
+    pub fn into_inner(self) -> Vec<Entity> {
+        self.0
+    }
 }
 
-impl DetectionOutput {
-    /// The unique identifier for this detection output (delegates to `source.as_uuid()`).
-    pub fn id(&self) -> Uuid {
-        self.source.as_uuid()
-    }
+impl<'a> IntoIterator for &'a Entities {
+    type IntoIter = std::slice::Iter<'a, Entity>;
+    type Item = &'a Entity;
 
-    /// Create a new detection output for the given source.
-    pub fn new(source: ContentSource, entities: Vec<Entity>) -> Self {
-        Self {
-            source,
-            entities,
-            policy_id: None,
-            duration: None,
-            errors: Vec::new(),
-        }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
+}
 
-    /// Set the policy identifier.
-    pub fn with_policy_id(mut self, policy_id: Uuid) -> Self {
-        self.policy_id = Some(policy_id);
-        self
-    }
-
-    /// Set the processing duration.
-    pub fn with_duration(mut self, duration: Duration) -> Self {
-        self.duration = Some(duration);
-        self
+impl FromIterator<Entity> for Entities {
+    fn from_iter<I: IntoIterator<Item = Entity>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
     }
 }

@@ -20,7 +20,7 @@
 //! ```
 
 use nvisy_codec::Document;
-use nvisy_ontology::entity::Entity;
+use nvisy_ontology::entity::Entities;
 
 use crate::provenance::Audit;
 
@@ -47,7 +47,7 @@ pub struct DocumentEnvelope {
     /// Populated by OCR, NER, computer vision, pattern matching,
     /// and manual annotation. Refined by deduplication and ensemble
     /// fusion before policy evaluation.
-    pub entities: Vec<Entity>,
+    pub entities: Entities,
 
     /// Per-document audit trail: execution log, redaction decisions,
     /// and redaction records.
@@ -60,7 +60,7 @@ impl DocumentEnvelope {
         let audit = Audit::new(document.source());
         Self {
             document,
-            entities: Vec::new(),
+            entities: Entities::new(),
             audit,
         }
     }

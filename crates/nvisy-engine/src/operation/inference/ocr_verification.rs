@@ -9,7 +9,7 @@
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::Entity;
+use nvisy_ontology::entity::Entities;
 use nvisy_rig::agent::OcrAgent;
 
 use crate::operation::{Operation, ParallelContext};
@@ -21,7 +21,7 @@ pub struct OcrVerificationInput {
     /// Image spans to verify against.
     pub image_spans: Vec<Span<(), ImageData>>,
     /// Entities detected by prior operations that should be verified.
-    pub entities: Vec<Entity>,
+    pub entities: Entities,
 }
 
 /// OCR verification operation: verifies detected entities against images
@@ -38,10 +38,10 @@ impl OcrVerification {
         Self { agent }
     }
 
-    async fn verify(&self, data: OcrVerificationInput) -> Result<Vec<Entity>> {
+    async fn verify(&self, data: OcrVerificationInput) -> Result<Entities> {
         if data.entities.is_empty() {
             tracing::debug!(target: TARGET, "no entities to verify");
-            return Ok(Vec::new());
+            return Ok(Entities::new());
         }
         tracing::debug!(target: TARGET, entity_count = data.entities.len(), "verifying entities");
 
@@ -52,17 +52,17 @@ impl OcrVerification {
 
         let entities = self
             .agent
-            .verify_entities(&image_bytes, data.entities)
+            .verify_entities(&image_bytes, data.entities.into_inner())
             .await
             .map_err(|e| Error::runtime(e.to_string(), "ocr-verification", e.is_retryable()))?;
 
-        Ok(entities)
+        Ok(entities.into())
     }
 }
 
 impl Operation for OcrVerification {
     type Input = ParallelContext<OcrVerificationInput>;
-    type Output = ParallelContext<Vec<Entity>>;
+    type Output = ParallelContext<Entities>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.verify(data)).await

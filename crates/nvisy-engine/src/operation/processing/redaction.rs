@@ -18,7 +18,7 @@ use nvisy_codec::transform::{
     TextOutput, TextRedaction, TextTransform,
 };
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Entity, Location};
+use nvisy_ontology::entity::{Entities, Entity, Location};
 use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
 use uuid::Uuid;
 
@@ -38,7 +38,7 @@ pub struct RedactionInput {
     /// Tabular documents to redact.
     pub tabular_docs: Vec<CsvHandler>,
     /// Detected entities referenced by redaction instructions.
-    pub entities: Vec<Entity>,
+    pub entities: Entities,
     /// Redaction instructions to apply.
     pub decisions: Vec<RedactionDecision>,
 }

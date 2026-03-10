@@ -4,7 +4,9 @@
 //! and collects exclusion annotations for downstream filtering.
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Annotation, AnnotationKind, DetectionMethod, Entity, Location};
+use nvisy_ontology::entity::{
+    Annotation, AnnotationKind, DetectionMethod, Entities, Entity, Location,
+};
 use serde::Deserialize;
 
 use crate::operation::{Operation, ParallelContext};
@@ -29,7 +31,7 @@ pub struct Exclusion {
 #[derive(Debug)]
 pub struct ManualOutput {
     /// Entities derived from inclusion annotations.
-    pub entities: Vec<Entity>,
+    pub entities: Entities,
     /// Exclusion zones derived from exclusion annotations.
     pub exclusions: Vec<Exclusion>,
 }
@@ -78,7 +80,7 @@ impl ManualDetection {
         }
 
         Ok(ManualOutput {
-            entities,
+            entities: entities.into(),
             exclusions,
         })
     }

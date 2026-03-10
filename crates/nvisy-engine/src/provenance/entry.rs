@@ -10,7 +10,7 @@ use serde_with::{DurationMicroSeconds, serde_as};
 use strum::{Display, EnumString};
 use uuid::Uuid;
 
-use super::FileAuditEntryKind;
+use super::AuditEntryKind;
 
 /// Outcome status of an audit entry operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -26,17 +26,17 @@ pub enum AuditEntryStatus {
     Partial,
 }
 
-/// A single processing-log entry within a [`FileAudit`](super::FileAudit).
+/// A single processing-log entry within an [`Audit`](super::Audit).
 #[serde_as]
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
-    name = "FileAuditEntryBuilder",
+    name = "AuditEntryBuilder",
     pattern = "owned",
     setter(into, strip_option, prefix = "with"),
-    build_fn(validate = "Self::validate")
+    build_fn(private, name = "build_inner")
 )]
 #[serde(rename_all = "camelCase")]
-pub struct FileAuditEntry {
+pub struct AuditEntry {
     /// When the operation occurred.
     #[builder(default = "Timestamp::now()")]
     #[schemars(with = "String")]
@@ -64,25 +64,18 @@ pub struct FileAuditEntry {
     pub policy_id: Option<Uuid>,
     /// What kind of operation was performed, with associated data.
     #[serde(flatten)]
-    pub kind: FileAuditEntryKind,
+    pub kind: AuditEntryKind,
 }
 
-impl FileAuditEntryBuilder {
-    /// If an error is set but the status was not explicitly overridden,
-    /// default to [`AuditEntryStatus::Failed`].
-    fn validate(&self) -> Result<(), String> {
-        if self.error.is_some() && self.status.is_none() {
-            // Cannot mutate in validate; we handle this in a custom build wrapper.
-        }
-        Ok(())
-    }
-
-    /// Build the entry, automatically marking it as failed when an error is set
-    /// and no explicit status was provided.
-    pub fn finish(mut self) -> Result<FileAuditEntry, FileAuditEntryBuilderError> {
+impl AuditEntryBuilder {
+    /// Build the entry.
+    ///
+    /// When an error is set and no explicit status was provided, the status
+    /// is automatically set to [`AuditEntryStatus::Failed`].
+    pub fn build(mut self) -> Result<AuditEntry, AuditEntryBuilderError> {
         if self.error.is_some() && self.status.is_none() {
             self.status = Some(AuditEntryStatus::Failed);
         }
-        self.build()
+        self.build_inner()
     }
 }

@@ -4,6 +4,7 @@ use jiff::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
+use uuid::Uuid;
 
 /// Status of a human review on a redaction decision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -28,7 +29,7 @@ pub struct ReviewDecision {
     /// Outcome of the review.
     pub status: ReviewStatus,
     /// Identifier of the reviewer (human or service account).
-    pub reviewer_id: String,
+    pub reviewer_id: Uuid,
     /// When the review decision was made.
     #[schemars(with = "String")]
     pub timestamp: Timestamp,

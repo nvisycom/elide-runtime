@@ -109,10 +109,11 @@ impl Ner {
             };
             let ctx = NerContext::with_known(&span.data, known);
 
-            let ner_entities =
-                self.agent.detect(&ctx, &self.config).await.map_err(|e| {
-                    Error::runtime(e.to_string(), "ner-agent", e.is_retryable())
-                })?;
+            let ner_entities = self
+                .agent
+                .detect(&ctx, &self.config)
+                .await
+                .map_err(|e| Error::runtime(e.to_string(), "ner-agent", e.is_retryable()))?;
 
             for ner_entity in &ner_entities {
                 let category: EntityCategory = match ner_entity.category {
@@ -160,10 +161,8 @@ impl Ner {
             }
 
             let mut state = self.state.lock().await;
-            let mut merge_ctx = NerContext::with_known(
-                &span.data,
-                std::mem::take(&mut state.known_entities),
-            );
+            let mut merge_ctx =
+                NerContext::with_known(&span.data, std::mem::take(&mut state.known_entities));
             merge_ctx.merge(ner_entities);
             state.known_entities = merge_ctx.known_entities;
         }

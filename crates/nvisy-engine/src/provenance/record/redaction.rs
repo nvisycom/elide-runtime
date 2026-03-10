@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::ReviewDecision;
+use super::review::ReviewDecision;
 
 /// An audit-facing record of a redaction that was (or will be) applied.
 ///

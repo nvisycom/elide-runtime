@@ -4,7 +4,7 @@ use nvisy_ontology::entity::DetectionMethod;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{InferenceAction, LifecycleAction, ProcessingAction};
+use super::action::{InferenceAction, LifecycleAction, ProcessingAction};
 
 /// Inference operation variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -34,9 +34,9 @@ impl InferenceKind {
             Self::Transcription(_) => DetectionMethod::SpeechTranscript,
             Self::Ner(_) => DetectionMethod::Ner,
             Self::ComputerVision(_) => DetectionMethod::ObjectDetection,
-            Self::Translation(_) => DetectionMethod::ContextualNlp,
-            Self::Classification(_) => DetectionMethod::ContextualNlp,
-            Self::Summarization(_) => DetectionMethod::ContextualNlp,
+            Self::Translation(_) | Self::Classification(_) | Self::Summarization(_) => {
+                DetectionMethod::ContextualNlp
+            }
         }
     }
 }
@@ -71,10 +71,10 @@ pub enum LifecycleKind {
     Conversion(LifecycleAction),
 }
 
-/// Top-level category for a [`FileAuditEntry`](super::FileAuditEntry).
+/// Top-level category for an [`AuditEntry`](super::AuditEntry).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "category", content = "action", rename_all = "snake_case")]
-pub enum FileAuditEntryKind {
+pub enum AuditEntryKind {
     /// AI-model inference operations.
     Inference(InferenceKind),
     /// Deterministic processing operations.

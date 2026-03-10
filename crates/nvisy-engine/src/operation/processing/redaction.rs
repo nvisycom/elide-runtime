@@ -20,10 +20,10 @@ use nvisy_codec::transform::{
 use nvisy_core::Result;
 use nvisy_ontology::entity::{Entity, Location};
 use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
-use nvisy_ontology::record::RedactionDecision;
 use uuid::Uuid;
 
 use crate::operation::{Operation, ParallelContext};
+use crate::provenance::RedactionDecision;
 
 const TARGET: &str = "nvisy_engine::op::redaction";
 

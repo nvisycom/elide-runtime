@@ -15,7 +15,6 @@ use std::sync::Arc;
 use nvisy_core::Error;
 use nvisy_core::content::ContentData;
 use nvisy_http::HttpClient;
-use nvisy_ontology::record::PolicyEvaluation;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 use uuid::Uuid;
@@ -24,6 +23,7 @@ use super::executor::{NodeOutput, RunOutput, execute_node};
 use super::{Engine, EngineInput, EngineOutput};
 use crate::compiler::{Compiler, ExecutionPlan, RetryPolicy, TimeoutPolicy};
 use crate::operation::SharedContext;
+use crate::provenance::PolicyEvaluation;
 
 /// Default buffer size for bounded inter-node MPSC channels.
 const CHANNEL_BUFFER_SIZE: usize = 256;
@@ -205,15 +205,7 @@ impl Engine for DefaultEngine {
         //
         // Policy evaluation is handled by the execution graph. For now we
         // produce an empty evaluation.
-        let evaluation = PolicyEvaluation {
-            policy_id: Uuid::nil(),
-            decisions: Vec::new(),
-            records: Vec::new(),
-            pending_review: Vec::new(),
-            suppressed: Vec::new(),
-            blocked: Vec::new(),
-            alerted: Vec::new(),
-        };
+        let evaluation = PolicyEvaluation::new(Uuid::nil());
 
         // Phase 3: DAG Execution
         //

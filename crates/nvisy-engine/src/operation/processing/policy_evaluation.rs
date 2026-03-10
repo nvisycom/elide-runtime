@@ -5,16 +5,16 @@
 //! replacement text for downstream application by [`Redaction`].
 //!
 //! [`PolicyRule`]: nvisy_ontology::policy::PolicyRule
-//! [`RedactionDecision`]: nvisy_ontology::record::RedactionDecision
+//! [`RedactionDecision`]: crate::provenance::RedactionDecision
 //! [`Redaction`]: super::Redaction
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
-use nvisy_ontology::record::{RedactionDecision, RedactionRecord};
 use serde::Deserialize;
 
 use crate::operation::{Operation, ParallelContext};
+use crate::provenance::{RedactionDecision, RedactionRecord};
 
 const TARGET: &str = "nvisy_engine::op::policy_evaluation";
 

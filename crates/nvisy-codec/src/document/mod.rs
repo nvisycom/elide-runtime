@@ -5,7 +5,7 @@ mod stream;
 
 use derive_more::{From, IsVariant, TryInto};
 use nvisy_core::Error;
-use nvisy_core::content::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{AudioFormat, DocumentType, ImageFormat};
 pub use span::Span;
 pub use stream::SpanStream;
@@ -34,6 +34,14 @@ pub enum Document {
     Rich(BoxedRichHandler),
 }
 
+impl std::fmt::Debug for Document {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Document")
+            .field(&self.document_type())
+            .finish()
+    }
+}
+
 impl Document {
     /// The document type of the underlying content.
     pub fn document_type(&self) -> DocumentType {
@@ -42,6 +50,16 @@ impl Document {
             Self::Image(h) => h.document_type(),
             Self::Audio(h) => h.document_type(),
             Self::Rich(h) => h.document_type(),
+        }
+    }
+
+    /// Content source identity and lineage.
+    pub fn source(&self) -> ContentSource {
+        match self {
+            Self::Text(h) => h.source(),
+            Self::Image(h) => h.source(),
+            Self::Audio(h) => h.source(),
+            Self::Rich(h) => h.source(),
         }
     }
 

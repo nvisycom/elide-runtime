@@ -5,8 +5,8 @@
 
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
-use nvisy_core::{Error, Result};
 use nvisy_core::math::BoundingBox;
+use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::{DetectionMethod, Entity, ImageLocation};
 use nvisy_rig::agent::{CvAgent, CvEntity, DetectionConfig};
 

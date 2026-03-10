@@ -6,9 +6,8 @@ use serde::{Deserialize, Serialize};
 
 /// Data specific to I/O lifecycle operations (ingest, publish, etc.).
 ///
-/// Duration and error are tracked on [`FileAuditEntry`](super::FileAuditEntry).
-#[derive(Debug, Clone, Default)]
-#[derive(Builder, Serialize, Deserialize, JsonSchema)]
+/// Duration and error are tracked on [`AuditEntry`](super::super::AuditEntry).
+#[derive(Debug, Clone, Default, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "LifecycleActionBuilder",
     pattern = "owned",

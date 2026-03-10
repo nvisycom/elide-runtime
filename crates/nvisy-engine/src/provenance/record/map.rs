@@ -7,11 +7,10 @@
 //! when authorized.
 
 use nvisy_core::content::ContentSource;
+use nvisy_ontology::entity::Location;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use crate::entity::Location;
 
 /// A single entry in a [`RedactionMap`], linking an entity and its redaction
 /// to a modality-specific location.
@@ -72,10 +71,5 @@ impl RedactionMap {
     /// Returns `true` if the map contains no entries.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
-    }
-
-    /// Returns an iterator over entries that are flagged as reversible.
-    pub fn reversible_entries(&self) -> impl Iterator<Item = &RedactionMapEntry> {
-        self.entries.iter().filter(|entry| entry.reversible)
     }
 }

@@ -6,7 +6,7 @@
 //!
 //! [`OcrAgent`]: nvisy_rig::agent::OcrAgent
 
-use nvisy_codec::document::Span;
+use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::Error;
 use nvisy_ontology::entity::Entity;

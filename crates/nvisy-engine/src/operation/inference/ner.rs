@@ -4,7 +4,7 @@
 //! a time, allowing the adapter to accumulate known entities between
 //! spans for coreference resolution.
 
-use nvisy_codec::document::Span;
+use nvisy_codec::Span;
 use nvisy_codec::handler::TxtSpan;
 use nvisy_core::Error;
 use nvisy_http::HttpClient;

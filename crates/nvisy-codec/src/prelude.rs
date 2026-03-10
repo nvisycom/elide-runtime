@@ -1,6 +1,5 @@
 //! Convenience re-exports.
 
-pub use crate::document::{Document, Span, SpanStream};
 pub use crate::handler::{
     AudioData, AudioHandler, AudioSpanId, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
     BoxedTextHandler, CsvData, CsvHandler, CsvLoader, CsvParams, CsvSpan, Handler, ImageData,
@@ -21,3 +20,4 @@ pub use crate::transform::{
     AudioOutput, AudioRedaction, AudioTransform, ImageOutput, ImageRedaction, ImageTransform,
     TextOutput, TextRedaction, TextTransform,
 };
+pub use crate::{Document, Span, SpanStream};

@@ -2,9 +2,11 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-pub mod document;
+mod document;
 pub mod handler;
 pub mod transform;
+
+pub use document::{Document, Span, SpanStream};
 
 #[doc(hidden)]
 pub mod prelude;

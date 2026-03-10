@@ -11,7 +11,7 @@ pub use span::Span;
 pub use stream::SpanStream;
 
 use crate::handler::{
-    AnyText, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler, Handler, JpegLoader,
+    BoxedTextHandler, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler, Handler, JpegLoader,
     JpegParams, Loader, Mp3Loader, Mp3Params, PngLoader, PngParams, WavLoader, WavParams,
 };
 
@@ -28,7 +28,7 @@ use crate::handler::{
 /// extract the inner handler.
 #[derive(From, IsVariant, TryInto)]
 pub enum Document {
-    Text(AnyText),
+    Text(BoxedTextHandler),
     Image(BoxedImageHandler),
     Audio(BoxedAudioHandler),
     Rich(BoxedRichHandler),
@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn from_txt_handler() {
-        let doc = Document::from(AnyText::from(TxtHandler::new(vec!["hello".into()], false)));
+        let doc = Document::from(BoxedTextHandler::from(TxtHandler::new(vec!["hello".into()], false)));
         assert!(doc.is_text());
         assert_eq!(doc.document_type(), DocumentType::Text(TextFormat::Txt));
     }
@@ -150,14 +150,14 @@ mod tests {
 
     #[test]
     fn try_into_text() {
-        let doc = Document::from(AnyText::from(TxtHandler::new(vec![], false)));
-        let text: Result<AnyText, _> = doc.try_into();
+        let doc = Document::from(BoxedTextHandler::from(TxtHandler::new(vec![], false)));
+        let text: Result<BoxedTextHandler, _> = doc.try_into();
         assert!(text.is_ok());
     }
 
     #[test]
     fn try_into_wrong_variant() {
-        let doc = Document::from(AnyText::from(TxtHandler::new(vec![], false)));
+        let doc = Document::from(BoxedTextHandler::from(TxtHandler::new(vec![], false)));
         let image: Result<BoxedImageHandler, _> = doc.try_into();
         assert!(image.is_err());
     }

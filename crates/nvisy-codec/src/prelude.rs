@@ -2,8 +2,8 @@
 
 pub use crate::document::{Document, Span, SpanStream};
 pub use crate::handler::{
-    AnyText, AudioData, AudioHandler, AudioSpanId, BoxedAudioHandler, BoxedImageHandler,
-    BoxedRichHandler, CsvData, CsvHandler, CsvLoader, CsvParams, CsvSpan, Handler, ImageData,
+    AudioData, AudioHandler, AudioSpanId, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
+    BoxedTextHandler, CsvData, CsvHandler, CsvLoader, CsvParams, CsvSpan, Handler, ImageData,
     ImageHandler, ImageSpanId, JpegHandler, JpegLoader, JpegParams, JsonData, JsonHandler,
     JsonIndent, JsonLoader, JsonParams, JsonPath, Loader, Mp3Handler, Mp3Loader, Mp3Params,
     PngHandler, PngLoader, PngParams, TextData, TextHandler, TxtHandler, TxtLoader, TxtParams,

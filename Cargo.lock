@@ -2870,7 +2870,6 @@ dependencies = [
  "hipstr",
  "image",
  "imageproc",
- "infer",
  "lopdf",
  "nvisy-core",
  "pdfium-render",

@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 
 use super::content_bytes::ContentBytes;
 use crate::error::{Error, ErrorKind, Result};
+use crate::fs::DocumentType;
 use crate::path::ContentSource;
 
 /// Content data with metadata and computed hashes.
@@ -104,9 +105,39 @@ impl ContentData {
         self.mime.as_deref().or(self.detected_mime.as_deref())
     }
 
-    /// Detect the MIME type from magic bytes and store it.
-    pub fn detect_mime(&mut self) {
-        self.detected_mime = infer::get(self.data.as_bytes()).map(|t| t.mime_type().to_string());
+    /// Detect the MIME type from magic bytes and cache the result.
+    ///
+    /// The detected type is stored in `detected_mime` and returned by
+    /// [`content_type`](Self::content_type) when no explicit MIME is set.
+    pub fn detect_mime(&mut self) -> Option<&str> {
+        self.detected_mime = infer::get(self.data.as_bytes()).map(|t| t.mime_type().to_owned());
+        self.detected_mime.as_deref()
+    }
+
+    /// Detect the [`DocumentType`] from the best-available MIME type,
+    /// caching the detected MIME for future calls.
+    ///
+    /// Calls [`detect_mime`](Self::detect_mime) if no MIME type is
+    /// available yet, then maps the result via [`DocumentType::from_mime`].
+    pub fn document_type(&mut self) -> Option<DocumentType> {
+        if self.content_type().is_none() {
+            self.detect_mime();
+        }
+        self.content_type().and_then(DocumentType::from_mime)
+    }
+
+    /// Infer the [`DocumentType`] without mutating or caching.
+    ///
+    /// Uses the caller-supplied or previously detected MIME if available,
+    /// otherwise falls back to magic-byte sniffing on the raw content.
+    #[must_use]
+    pub fn infer_document_type(&self) -> Option<DocumentType> {
+        self.content_type()
+            .and_then(DocumentType::from_mime)
+            .or_else(|| {
+                let kind = infer::get(self.data.as_bytes())?;
+                DocumentType::from_mime(kind.mime_type())
+            })
     }
 
     /// Returns the size of the content in bytes.
@@ -413,5 +444,64 @@ mod tests {
         let hipstr = HipStr::from("Hello from HipStr");
         let content = ContentData::from(hipstr);
         assert_eq!(content.as_str().unwrap(), "Hello from HipStr");
+    }
+
+    #[test]
+    fn test_detect_mime_png() {
+        let png = vec![
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+            0x00, 0x00, 0x00, 0x0D, // IHDR length
+            0x49, 0x48, 0x44, 0x52, // IHDR
+        ];
+        let mut content = ContentData::from(png);
+        assert_eq!(content.detect_mime(), Some("image/png"));
+        assert_eq!(content.detected_mime.as_deref(), Some("image/png"));
+    }
+
+    #[test]
+    fn test_detect_mime_unknown() {
+        let mut content = ContentData::from("hello world");
+        assert_eq!(content.detect_mime(), None);
+        assert_eq!(content.detected_mime, None);
+    }
+
+    #[test]
+    fn test_document_type_from_magic_bytes() {
+        use crate::fs::ImageFormat;
+
+        let png = vec![
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x0D,
+            0x49, 0x48, 0x44, 0x52,
+        ];
+        let mut content = ContentData::from(png);
+        assert_eq!(
+            content.document_type(),
+            Some(DocumentType::Image(ImageFormat::Png)),
+        );
+    }
+
+    #[test]
+    fn test_document_type_prefers_explicit_mime() {
+        let mut content = ContentData::from("not really json")
+            .with_content_type("application/json");
+        assert_eq!(
+            content.document_type(),
+            Some(DocumentType::Text(crate::fs::TextFormat::Json)),
+        );
+    }
+
+    #[test]
+    fn test_content_type_precedence() {
+        let png = vec![
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x0D,
+            0x49, 0x48, 0x44, 0x52,
+        ];
+        let mut content = ContentData::from(png)
+            .with_content_type("image/jpeg");
+        // Explicit MIME takes precedence over detected.
+        content.detect_mime();
+        assert_eq!(content.content_type(), Some("image/jpeg"));
     }
 }

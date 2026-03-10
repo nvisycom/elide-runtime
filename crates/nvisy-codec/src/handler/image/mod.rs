@@ -3,11 +3,12 @@
 use nvisy_core::Error;
 
 use super::Handler;
-use crate::document::{SpanEditStream, SpanStream};
+use crate::document::SpanStream;
 
 mod image_data;
 mod image_handler;
 mod image_handler_macro;
+mod image_span_id;
 
 mod jpeg_handler;
 mod jpeg_loader;
@@ -16,8 +17,9 @@ mod png_handler;
 mod png_loader;
 
 pub use image_data::ImageData;
-pub use image_handler::AnyImage;
+pub use image_handler::BoxedImageHandler;
 pub(crate) use image_handler_macro::impl_image_handler;
+pub use image_span_id::ImageSpanId;
 pub use jpeg_handler::JpegHandler;
 pub use jpeg_loader::{JpegLoader, JpegParams};
 pub use png_handler::PngHandler;
@@ -25,31 +27,21 @@ pub use png_loader::{PngLoader, PngParams};
 
 /// Capability trait for handlers that expose image content.
 ///
-/// Handlers implementing this trait can yield image spans and accept
-/// image edits.
+/// All image handlers use [`ImageSpanId`] as their span identifier,
+/// making this trait directly object-safe without a `Dyn*` wrapper.
 #[async_trait::async_trait]
 pub trait ImageHandler: Handler {
-    /// Strongly-typed identifier for an image span within this handler.
-    type ImageId: Send + Sync + Clone + 'static;
+    /// Return image content as an async stream of [`Span`](crate::document::Span)s.
+    ///
+    /// Each span carries an [`ImageSpanId`] and [`ImageData`] payload.
+    async fn image_spans(&self) -> SpanStream<'_, ImageSpanId, ImageData>;
 
-    /// Return image content as an async stream of spans.
-    async fn image_spans(&self) -> SpanStream<'_, Self::ImageId, ImageData>;
-
-    /// Apply image edits from an async stream back to the source structure.
+    /// Apply image edits from an async stream back to the handler.
+    ///
+    /// The stream items must use the same [`ImageSpanId`] returned by
+    /// [`image_spans`](Self::image_spans).
     async fn edit_images(
         &mut self,
-        edits: SpanEditStream<'_, Self::ImageId, ImageData>,
+        edits: SpanStream<'_, ImageSpanId, ImageData>,
     ) -> Result<(), Error>;
-}
-
-use image::DynamicImage;
-use nvisy_core::io::ContentData;
-
-/// Decode raw bytes into a [`DynamicImage`].
-///
-/// Shared by all image loaders.
-pub(crate) fn decode_image(content: &ContentData, origin: &str) -> Result<DynamicImage, Error> {
-    let raw = content.to_bytes();
-    image::load_from_memory(&raw)
-        .map_err(|e| Error::validation(format!("image decode failed: {e}"), origin))
 }

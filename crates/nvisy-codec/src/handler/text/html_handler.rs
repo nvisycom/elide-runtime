@@ -22,11 +22,10 @@
 
 use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::media::DocumentType;
 
-use crate::document::{Span, SpanEditStream, SpanStream};
+use crate::document::{Span, SpanStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
 
@@ -48,13 +47,17 @@ pub struct HtmlData {
 /// Each text node is independently addressable via [`HtmlSpan`].
 #[derive(Debug)]
 pub struct HtmlHandler {
-    pub(crate) source: ContentSource,
-    pub(crate) data: HtmlData,
+    source: ContentSource,
+    data: HtmlData,
 }
 
 impl Handler for HtmlHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Html
+    }
+
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "html.encode", skip_all, fields(output_bytes))]
@@ -100,10 +103,7 @@ impl TextHandler for HtmlHandler {
         }))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanEditStream<'_, HtmlSpan, TextData>,
-    ) -> Result<(), Error> {
+    async fn edit_text(&mut self, edits: SpanStream<'_, HtmlSpan, TextData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
             let node = self.data.text_nodes.get_mut(edit.id.0).ok_or_else(|| {
@@ -193,7 +193,7 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::document::SpanEdit;
+    use crate::document::Span;
     use crate::handler::{Handler, TextHandler};
 
     fn handler_from_html(raw: &str) -> HtmlHandler {
@@ -228,9 +228,10 @@ mod tests {
     async fn encode_after_edit_spans() -> Result<(), Error> {
         let raw = "<html><head></head><body><p>Hello</p><p>World</p></body></html>";
         let mut h = handler_from_html(raw);
-        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(HtmlSpan(0), "[REDACTED]".into()),
-        ])))
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+            HtmlSpan(0),
+            "[REDACTED]".into(),
+        )])))
         .await?;
         let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("[REDACTED]"));
@@ -257,9 +258,10 @@ mod tests {
         let raw = "<html><head></head><body><p>hello</p><p>hello</p></body></html>";
         let mut h = handler_from_html(raw);
         // Edit only the first "hello" — the second should remain unchanged.
-        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(HtmlSpan(0), "FIRST".into()),
-        ])))
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+            HtmlSpan(0),
+            "FIRST".into(),
+        )])))
         .await?;
         let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("<p>FIRST</p>"));
@@ -282,9 +284,10 @@ mod tests {
     async fn edit_spans_out_of_bounds() {
         let mut h = handler_from_html("<html><head></head><body><p>only</p></body></html>");
         let err = h
-            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit::new(HtmlSpan(99), "nope".into()),
-            ])))
+            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+                HtmlSpan(99),
+                "nope".into(),
+            )])))
             .await
             .unwrap_err();
         assert!(err.to_string().contains("out of bounds"));

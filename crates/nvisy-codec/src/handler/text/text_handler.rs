@@ -1,251 +1,146 @@
-//! [`AnyText`]: type-erased wrapper over all text handler types.
+//! [`BoxedTextHandler`]: type-erased wrapper over all text handler types.
 
-use derive_more::From;
-use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::media::DocumentType;
 
-#[cfg(feature = "html")]
-use super::HtmlHandler;
-#[cfg(feature = "xlsx")]
-use super::XlsxHandler;
-use super::{CsvHandler, JsonHandler, TextData, TxtHandler};
-use crate::document::{Span, SpanEdit, SpanEditStream, SpanStream};
+use super::{TextData, forward_edits, reindex_stream};
+use crate::document::SpanStream;
 use crate::handler::{Handler, TextHandler};
 
-/// A type-erased text handler that can hold any supported text format.
+/// A type-erased text handler backed by a boxed trait object.
 ///
-/// Since different text handlers use different span identifiers, `AnyText`
-/// uses `TextId = usize` as a positional span index.
-#[derive(Debug, From)]
-pub enum AnyText {
-    Txt(TxtHandler),
-    Csv(CsvHandler),
-    Json(JsonHandler),
-    #[cfg(feature = "html")]
-    Html(HtmlHandler),
-    #[cfg(feature = "xlsx")]
-    Xlsx(XlsxHandler),
-}
+/// Normalises text span IDs to `usize` (positional index) so that
+/// heterogeneous text handlers can be used interchangeably.
+pub struct BoxedTextHandler(Box<dyn DynTextHandler>);
 
-impl AnyText {
-    /// Try to get the inner [`TxtHandler`] by reference.
-    pub fn as_txt(&self) -> Option<&TxtHandler> {
-        if let Self::Txt(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`TxtHandler`].
-    pub fn into_txt(self) -> Option<TxtHandler> {
-        if let Self::Txt(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`CsvHandler`] by reference.
-    pub fn as_csv(&self) -> Option<&CsvHandler> {
-        if let Self::Csv(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`CsvHandler`].
-    pub fn into_csv(self) -> Option<CsvHandler> {
-        if let Self::Csv(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`JsonHandler`] by reference.
-    pub fn as_json(&self) -> Option<&JsonHandler> {
-        if let Self::Json(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`JsonHandler`].
-    pub fn into_json(self) -> Option<JsonHandler> {
-        if let Self::Json(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`HtmlHandler`] by reference.
-    #[cfg(feature = "html")]
-    pub fn as_html(&self) -> Option<&HtmlHandler> {
-        if let Self::Html(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`HtmlHandler`].
-    #[cfg(feature = "html")]
-    pub fn into_html(self) -> Option<HtmlHandler> {
-        if let Self::Html(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`XlsxHandler`] by reference.
-    #[cfg(feature = "xlsx")]
-    pub fn as_xlsx(&self) -> Option<&XlsxHandler> {
-        if let Self::Xlsx(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`XlsxHandler`].
-    #[cfg(feature = "xlsx")]
-    pub fn into_xlsx(self) -> Option<XlsxHandler> {
-        if let Self::Xlsx(h) = self {
-            Some(h)
-        } else {
-            None
-        }
+impl BoxedTextHandler {
+    /// Wrap any concrete text handler into a boxed, type-erased wrapper.
+    fn new<H: DynTextHandler>(handler: H) -> Self {
+        Self(Box::new(handler))
     }
 }
 
-impl Handler for AnyText {
+impl std::fmt::Debug for BoxedTextHandler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("BoxedTextHandler")
+            .field(&self.0.document_type())
+            .finish()
+    }
+}
+
+impl Handler for BoxedTextHandler {
     fn document_type(&self) -> DocumentType {
-        match self {
-            Self::Txt(h) => h.document_type(),
-            Self::Csv(h) => h.document_type(),
-            Self::Json(h) => h.document_type(),
-            #[cfg(feature = "html")]
-            Self::Html(h) => h.document_type(),
-            #[cfg(feature = "xlsx")]
-            Self::Xlsx(h) => h.document_type(),
-        }
+        Handler::document_type(self.0.as_ref())
+    }
+
+    fn source(&self) -> ContentSource {
+        Handler::source(self.0.as_ref())
     }
 
     fn encode(&self) -> Result<ContentData, Error> {
-        match self {
-            Self::Txt(h) => h.encode(),
-            Self::Csv(h) => h.encode(),
-            Self::Json(h) => h.encode(),
-            #[cfg(feature = "html")]
-            Self::Html(h) => h.encode(),
-            #[cfg(feature = "xlsx")]
-            Self::Xlsx(h) => h.encode(),
-        }
+        Handler::encode(self.0.as_ref())
     }
-}
-
-/// Collect all spans from a handler, re-indexing with `usize`.
-async fn reindex_spans<H: TextHandler>(handler: &H) -> Vec<Span<usize, TextData>> {
-    handler
-        .text_spans()
-        .await
-        .enumerate()
-        .map(|(i, s)| Span::new(i, s.data).with_source(s.source))
-        .collect()
-        .await
-}
-
-/// Collect span IDs from a handler so we can map usize back to the native ID.
-async fn collect_ids<H: TextHandler>(handler: &H) -> Vec<H::TextId> {
-    handler.text_spans().await.map(|s| s.id).collect().await
-}
-
-/// Map edits from `usize` indices back to native IDs and forward them.
-async fn forward_edits<H: TextHandler>(
-    handler: &mut H,
-    edits: Vec<SpanEdit<usize, TextData>>,
-) -> Result<(), Error> {
-    let ids = collect_ids(handler).await;
-    let mapped: Vec<_> = edits
-        .into_iter()
-        .filter_map(|e| ids.get(e.id).cloned().map(|id| SpanEdit::new(id, e.data)))
-        .collect();
-    handler
-        .edit_text(SpanEditStream::new(futures::stream::iter(mapped)))
-        .await
 }
 
 #[async_trait::async_trait]
-impl TextHandler for AnyText {
+impl TextHandler for BoxedTextHandler {
     type TextId = usize;
 
     async fn text_spans(&self) -> SpanStream<'_, usize, TextData> {
-        let spans = match self {
-            Self::Txt(h) => reindex_spans(h).await,
-            Self::Csv(h) => reindex_spans(h).await,
-            Self::Json(h) => reindex_spans(h).await,
-            #[cfg(feature = "html")]
-            Self::Html(h) => reindex_spans(h).await,
-            #[cfg(feature = "xlsx")]
-            Self::Xlsx(h) => reindex_spans(h).await,
-        };
-        SpanStream::new(futures::stream::iter(spans))
+        self.0.text_spans_reindexed().await
     }
 
-    async fn edit_text(&mut self, edits: SpanEditStream<'_, usize, TextData>) -> Result<(), Error> {
-        let edits: Vec<_> = edits.collect().await;
-        match self {
-            Self::Txt(h) => forward_edits(h, edits).await,
-            Self::Csv(h) => forward_edits(h, edits).await,
-            Self::Json(h) => forward_edits(h, edits).await,
-            #[cfg(feature = "html")]
-            Self::Html(h) => forward_edits(h, edits).await,
-            #[cfg(feature = "xlsx")]
-            Self::Xlsx(h) => forward_edits(h, edits).await,
-        }
+    async fn edit_text(&mut self, edits: SpanStream<'_, usize, TextData>) -> Result<(), Error> {
+        self.0.edit_text_reindexed(edits).await
     }
 }
+
+/// Object-safe private supertrait that bridges [`Handler`] and
+/// [`TextHandler`] for dynamic dispatch.
+///
+/// Text handlers have heterogeneous `TextId` types (e.g. `TxtSpan`,
+/// `CsvSpan`, `JsonPath`). This trait normalises them to `usize` via
+/// [`reindex_stream`] and [`forward_edits`], allowing
+/// [`BoxedTextHandler`] to present a uniform
+/// `TextHandler<TextId = usize>` interface.
+///
+/// Concrete implementations are generated by [`impl_dyn_text!`].
+#[async_trait::async_trait]
+pub(crate) trait DynTextHandler: Handler {
+    /// Return text spans with IDs re-mapped to sequential `usize` indices.
+    async fn text_spans_reindexed(&self) -> SpanStream<'_, usize, TextData>;
+
+    /// Accept `usize`-keyed edits and forward them back using the
+    /// handler's native [`TextId`](crate::handler::TextHandler::TextId).
+    async fn edit_text_reindexed(
+        &mut self,
+        edits: SpanStream<'_, usize, TextData>,
+    ) -> Result<(), Error>;
+}
+
+macro_rules! impl_dyn_text {
+    ($ty:ty) => {
+        #[async_trait::async_trait]
+        impl DynTextHandler for $ty {
+            async fn text_spans_reindexed(&self) -> SpanStream<'_, usize, TextData> {
+                reindex_stream(self).await
+            }
+
+            async fn edit_text_reindexed(
+                &mut self,
+                edits: SpanStream<'_, usize, TextData>,
+            ) -> Result<(), Error> {
+                use futures::StreamExt;
+                let edits: Vec<_> = edits.collect().await;
+                forward_edits(self, edits).await
+            }
+        }
+
+        impl From<$ty> for BoxedTextHandler {
+            fn from(h: $ty) -> Self {
+                Self::new(h)
+            }
+        }
+    };
+}
+
+use super::{CsvHandler, JsonHandler, TxtHandler};
+impl_dyn_text!(TxtHandler);
+impl_dyn_text!(CsvHandler);
+impl_dyn_text!(JsonHandler);
+
+#[cfg(feature = "html")]
+use super::HtmlHandler;
+#[cfg(feature = "html")]
+impl_dyn_text!(HtmlHandler);
+
+#[cfg(feature = "xlsx")]
+use super::XlsxHandler;
+#[cfg(feature = "xlsx")]
+impl_dyn_text!(XlsxHandler);
 
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
+    use nvisy_core::media::TextFormat;
 
     use super::*;
+    use crate::handler::TxtHandler;
 
     #[test]
     fn txt_variant_document_type() {
-        let h = AnyText::Txt(TxtHandler::new(vec!["hello".into()], false));
-        assert_eq!(
-            h.document_type(),
-            DocumentType::Text(nvisy_core::fs::TextFormat::Txt),
-        );
+        let h = BoxedTextHandler::from(TxtHandler::new(vec!["hello".into()], false));
+        assert_eq!(h.document_type(), DocumentType::Text(TextFormat::Txt),);
     }
 
     #[tokio::test]
     async fn view_spans_returns_text() {
-        let h = AnyText::Txt(TxtHandler::new(vec!["line1".into(), "line2".into()], false));
+        let h =
+            BoxedTextHandler::from(TxtHandler::new(vec!["line1".into(), "line2".into()], false));
         let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans.len(), 2);
         assert_eq!(spans[0].id, 0);
         assert_eq!(spans[1].id, 1);
-    }
-
-    #[test]
-    fn from_conversions() {
-        let txt: AnyText = TxtHandler::new(vec![], false).into();
-        assert!(txt.as_txt().is_some());
-    }
-
-    #[test]
-    fn encode_delegates() {
-        let h = AnyText::Txt(TxtHandler::new(vec!["hello".into()], false));
-        assert!(h.encode().is_ok());
     }
 }

@@ -14,8 +14,7 @@ use sha2::{Digest, Sha256};
 
 use super::AwsTextractParams;
 use crate::backend::{
-    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
-    check_response,
+    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word, check_response,
 };
 
 /// [`Backend`] implementation for AWS Textract.
@@ -332,10 +331,8 @@ impl Backend for AwsTextractBackend {
                     .map(|w| w.text.as_str())
                     .collect::<Vec<_>>()
                     .join(" ");
-                let line_confidence =
-                    line_block.confidence.map(|c| c / 100.0);
-                let (line_bbox, line_polygon) =
-                    extract_geometry(line_block.geometry.as_ref());
+                let line_confidence = line_block.confidence.map(|c| c / 100.0);
+                let (line_bbox, line_polygon) = extract_geometry(line_block.geometry.as_ref());
 
                 lines.push(Line {
                     text: line_text,

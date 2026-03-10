@@ -3,7 +3,7 @@
 //! Operates on text, CSV, HTML, and JSON spans, running both compiled
 //! regex patterns and dictionary automata via [`PatternEngine`].
 
-use nvisy_codec::document::Span;
+use nvisy_codec::Span;
 use nvisy_codec::handler::{CsvSpan, HtmlSpan, JsonPath, TxtSpan};
 use nvisy_core::Error;
 use nvisy_ontology::entity::{DetectionMethod, Entity, TabularLocation, TextLocation};

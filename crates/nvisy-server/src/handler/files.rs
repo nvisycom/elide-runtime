@@ -15,8 +15,7 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_core::fs::ContentMetadata;
-use nvisy_core::io::{Content, ContentData};
+use nvisy_core::content::{Content, ContentData, ContentMetadata};
 use nvisy_registry::Registry;
 
 use super::error::Result;

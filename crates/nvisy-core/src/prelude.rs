@@ -3,7 +3,8 @@
 //! Import everything from this module to get the most commonly used
 //! types without individual `use` statements.
 
-pub use crate::fs::{ContentKind, ContentMetadata};
-pub use crate::io::{Content, ContentBytes, ContentData, DataReference};
-pub use crate::path::ContentSource;
+pub use crate::content::{
+    Content, ContentBytes, ContentData, ContentMetadata, ContentSource, DataReference,
+};
+pub use crate::media::ContentKind;
 pub use crate::{Error, ErrorKind, Result};

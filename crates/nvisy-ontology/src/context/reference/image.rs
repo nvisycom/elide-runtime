@@ -1,7 +1,7 @@
 //! Image reference data for object matching.
 
+use nvisy_core::content::ContentSource;
 use nvisy_core::math::BoundingBox;
-use nvisy_core::path::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

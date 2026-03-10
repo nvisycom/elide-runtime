@@ -1,104 +1,80 @@
-//! [`AnyImage`]: type-erased wrapper over all image handler types.
+//! [`BoxedImageHandler`]: type-erased wrapper over all image handler types.
 
-use derive_more::From;
-use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::media::DocumentType;
 
-use super::{ImageData, JpegHandler, PngHandler};
-use crate::document::{SpanEditStream, SpanStream};
+use super::{ImageData, ImageSpanId, JpegHandler, PngHandler};
+use crate::document::SpanStream;
 use crate::handler::{Handler, ImageHandler};
 
-/// A type-erased image handler that can hold any supported image format.
+/// A type-erased image handler backed by a boxed trait object.
 ///
-/// Since all image handlers share `ImageId = ()`, this enum can
-/// implement [`Handler`] + [`ImageHandler`] directly.
-#[derive(Debug, From)]
-pub enum AnyImage {
-    Png(PngHandler),
-    Jpeg(JpegHandler),
-}
+/// Since [`ImageHandler`] uses a concrete [`ImageSpanId`] (no associated
+/// type), the trait is directly object-safe and can be boxed without a
+/// private `Dyn*` indirection layer.
+pub struct BoxedImageHandler(Box<dyn ImageHandler>);
 
-impl AnyImage {
-    /// Try to get the inner [`PngHandler`] by reference.
-    pub fn as_png(&self) -> Option<&PngHandler> {
-        if let Self::Png(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`PngHandler`].
-    pub fn into_png(self) -> Option<PngHandler> {
-        if let Self::Png(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`JpegHandler`] by reference.
-    pub fn as_jpeg(&self) -> Option<&JpegHandler> {
-        if let Self::Jpeg(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`JpegHandler`].
-    pub fn into_jpeg(self) -> Option<JpegHandler> {
-        if let Self::Jpeg(h) = self {
-            Some(h)
-        } else {
-            None
-        }
+impl BoxedImageHandler {
+    /// Wrap any concrete image handler into a type-erased box.
+    pub fn new<H: ImageHandler>(handler: H) -> Self {
+        Self(Box::new(handler))
     }
 }
 
-impl Handler for AnyImage {
+impl std::fmt::Debug for BoxedImageHandler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("BoxedImageHandler")
+            .field(&self.0.document_type())
+            .finish()
+    }
+}
+
+impl From<PngHandler> for BoxedImageHandler {
+    fn from(h: PngHandler) -> Self {
+        Self::new(h)
+    }
+}
+
+impl From<JpegHandler> for BoxedImageHandler {
+    fn from(h: JpegHandler) -> Self {
+        Self::new(h)
+    }
+}
+
+impl Handler for BoxedImageHandler {
     fn document_type(&self) -> DocumentType {
-        match self {
-            Self::Png(h) => h.document_type(),
-            Self::Jpeg(h) => h.document_type(),
-        }
+        Handler::document_type(self.0.as_ref())
+    }
+
+    fn source(&self) -> ContentSource {
+        Handler::source(self.0.as_ref())
     }
 
     fn encode(&self) -> Result<ContentData, Error> {
-        match self {
-            Self::Png(h) => h.encode(),
-            Self::Jpeg(h) => h.encode(),
-        }
+        Handler::encode(self.0.as_ref())
     }
 }
 
 #[async_trait::async_trait]
-impl ImageHandler for AnyImage {
-    type ImageId = ();
-
-    async fn image_spans(&self) -> SpanStream<'_, (), ImageData> {
-        match self {
-            Self::Png(h) => h.image_spans().await,
-            Self::Jpeg(h) => h.image_spans().await,
-        }
+impl ImageHandler for BoxedImageHandler {
+    async fn image_spans(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
+        self.0.image_spans().await
     }
 
-    async fn edit_images(&mut self, edits: SpanEditStream<'_, (), ImageData>) -> Result<(), Error> {
-        let edits: Vec<_> = edits.collect().await;
-        let stream = SpanEditStream::new(futures::stream::iter(edits));
-        match self {
-            Self::Png(h) => h.edit_images(stream).await,
-            Self::Jpeg(h) => h.edit_images(stream).await,
-        }
+    async fn edit_images(
+        &mut self,
+        edits: SpanStream<'_, ImageSpanId, ImageData>,
+    ) -> Result<(), Error> {
+        self.0.edit_images(edits).await
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use futures::StreamExt;
+
     use super::*;
-    use crate::handler::ImageHandler;
 
     fn make_png() -> PngHandler {
         let img = image::DynamicImage::new_rgb8(1, 1);
@@ -112,40 +88,26 @@ mod tests {
 
     #[test]
     fn png_variant_document_type() {
-        let h = AnyImage::Png(make_png());
+        let h = BoxedImageHandler::from(make_png());
         assert_eq!(
             h.document_type(),
-            DocumentType::Image(nvisy_core::fs::ImageFormat::Png),
+            DocumentType::Image(nvisy_core::media::ImageFormat::Png),
         );
     }
 
     #[test]
     fn jpeg_variant_document_type() {
-        let h = AnyImage::Jpeg(make_jpeg());
+        let h = BoxedImageHandler::from(make_jpeg());
         assert_eq!(
             h.document_type(),
-            DocumentType::Image(nvisy_core::fs::ImageFormat::Jpeg),
+            DocumentType::Image(nvisy_core::media::ImageFormat::Jpeg),
         );
     }
 
     #[tokio::test]
     async fn view_spans_returns_image() {
-        let h = AnyImage::Png(make_png());
+        let h = BoxedImageHandler::from(make_png());
         let spans: Vec<_> = h.image_spans().await.collect().await;
         assert_eq!(spans.len(), 1);
-    }
-
-    #[test]
-    fn from_conversions() {
-        let png: AnyImage = make_png().into();
-        assert!(png.as_png().is_some());
-        let jpeg: AnyImage = make_jpeg().into();
-        assert!(jpeg.as_jpeg().is_some());
-    }
-
-    #[test]
-    fn encode_delegates() {
-        let h = AnyImage::Png(make_png());
-        assert!(h.encode().is_ok());
     }
 }

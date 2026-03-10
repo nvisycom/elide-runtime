@@ -35,7 +35,7 @@ jiff = { workspace = true, features = [] }
 semver = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 
-# Storage, file detection, and asset embedding
+# File type detection
 infer = { workspace = true, features = [] }
 
 # Derive macros and error handling

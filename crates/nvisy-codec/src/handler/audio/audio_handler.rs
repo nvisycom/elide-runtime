@@ -1,112 +1,87 @@
-//! [`AnyAudio`]: type-erased wrapper over all audio handler types.
+//! [`BoxedAudioHandler`]: type-erased wrapper over all audio handler types.
 
-use derive_more::From;
-use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::media::DocumentType;
 
-use super::{AudioData, Mp3Handler, WavHandler};
-use crate::document::{SpanEditStream, SpanStream};
+use super::{AudioData, AudioSpanId, Mp3Handler, WavHandler};
+use crate::document::SpanStream;
 use crate::handler::{AudioHandler, Handler};
 
-/// A type-erased audio handler that can hold any supported audio format.
+/// A type-erased audio handler backed by a boxed trait object.
 ///
-/// Since all audio handlers share `AudioId = ()`, this enum can
-/// implement [`Handler`] + [`AudioHandler`] directly.
-#[derive(Debug, From)]
-pub enum AnyAudio {
-    Wav(WavHandler),
-    Mp3(Mp3Handler),
-}
+/// Since [`AudioHandler`] uses a concrete [`AudioSpanId`] (no associated
+/// type), the trait is directly object-safe and can be boxed without a
+/// private `Dyn*` indirection layer.
+pub struct BoxedAudioHandler(Box<dyn AudioHandler>);
 
-impl AnyAudio {
-    /// Try to get the inner [`WavHandler`] by reference.
-    pub fn as_wav(&self) -> Option<&WavHandler> {
-        if let Self::Wav(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`WavHandler`].
-    pub fn into_wav(self) -> Option<WavHandler> {
-        if let Self::Wav(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`Mp3Handler`] by reference.
-    pub fn as_mp3(&self) -> Option<&Mp3Handler> {
-        if let Self::Mp3(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`Mp3Handler`].
-    pub fn into_mp3(self) -> Option<Mp3Handler> {
-        if let Self::Mp3(h) = self {
-            Some(h)
-        } else {
-            None
-        }
+impl BoxedAudioHandler {
+    /// Wrap any concrete audio handler into a type-erased box.
+    pub fn new<H: AudioHandler>(handler: H) -> Self {
+        Self(Box::new(handler))
     }
 }
 
-impl Handler for AnyAudio {
+impl std::fmt::Debug for BoxedAudioHandler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("BoxedAudioHandler")
+            .field(&self.0.document_type())
+            .finish()
+    }
+}
+
+impl From<WavHandler> for BoxedAudioHandler {
+    fn from(h: WavHandler) -> Self {
+        Self::new(h)
+    }
+}
+
+impl From<Mp3Handler> for BoxedAudioHandler {
+    fn from(h: Mp3Handler) -> Self {
+        Self::new(h)
+    }
+}
+
+impl Handler for BoxedAudioHandler {
     fn document_type(&self) -> DocumentType {
-        match self {
-            Self::Wav(h) => h.document_type(),
-            Self::Mp3(h) => h.document_type(),
-        }
+        Handler::document_type(self.0.as_ref())
+    }
+
+    fn source(&self) -> ContentSource {
+        Handler::source(self.0.as_ref())
     }
 
     fn encode(&self) -> Result<ContentData, Error> {
-        match self {
-            Self::Wav(h) => h.encode(),
-            Self::Mp3(h) => h.encode(),
-        }
+        Handler::encode(self.0.as_ref())
     }
 }
 
 #[async_trait::async_trait]
-impl AudioHandler for AnyAudio {
-    type AudioId = ();
-
-    async fn audio_spans(&self) -> SpanStream<'_, (), AudioData> {
-        match self {
-            Self::Wav(h) => h.audio_spans().await,
-            Self::Mp3(h) => h.audio_spans().await,
-        }
+impl AudioHandler for BoxedAudioHandler {
+    async fn audio_spans(&self) -> SpanStream<'_, AudioSpanId, AudioData> {
+        self.0.audio_spans().await
     }
 
-    async fn edit_audio(&mut self, edits: SpanEditStream<'_, (), AudioData>) -> Result<(), Error> {
-        // Collect and re-dispatch since we need to forward the stream.
-        let edits: Vec<_> = edits.collect().await;
-        let stream = SpanEditStream::new(futures::stream::iter(edits));
-        match self {
-            Self::Wav(h) => h.edit_audio(stream).await,
-            Self::Mp3(h) => h.edit_audio(stream).await,
-        }
+    async fn edit_audio(
+        &mut self,
+        edits: SpanStream<'_, AudioSpanId, AudioData>,
+    ) -> Result<(), Error> {
+        self.0.edit_audio(edits).await
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use futures::StreamExt;
+
     use super::*;
-    use crate::handler::AudioHandler;
 
     #[tokio::test]
     async fn wav_variant_delegates() {
-        let h = AnyAudio::Wav(WavHandler::new(bytes::Bytes::from_static(b"wav-data")));
+        let h = BoxedAudioHandler::from(WavHandler::new(bytes::Bytes::from_static(b"wav-data")));
         assert_eq!(
             h.document_type(),
-            DocumentType::Audio(nvisy_core::fs::AudioFormat::Wav),
+            DocumentType::Audio(nvisy_core::media::AudioFormat::Wav),
         );
         let spans: Vec<_> = h.audio_spans().await.collect().await;
         assert_eq!(spans.len(), 1);
@@ -115,19 +90,11 @@ mod tests {
 
     #[tokio::test]
     async fn mp3_variant_delegates() {
-        let h = AnyAudio::Mp3(Mp3Handler::new(bytes::Bytes::from_static(b"mp3-data")));
+        let h = BoxedAudioHandler::from(Mp3Handler::new(bytes::Bytes::from_static(b"mp3-data")));
         assert_eq!(
             h.document_type(),
-            DocumentType::Audio(nvisy_core::fs::AudioFormat::Mp3),
+            DocumentType::Audio(nvisy_core::media::AudioFormat::Mp3),
         );
         assert_eq!(h.encode().unwrap().as_bytes(), b"mp3-data");
-    }
-
-    #[test]
-    fn from_conversions() {
-        let wav: AnyAudio = WavHandler::new(bytes::Bytes::new()).into();
-        assert!(wav.as_wav().is_some());
-        let mp3: AnyAudio = Mp3Handler::new(bytes::Bytes::new()).into();
-        assert!(mp3.as_mp3().is_some());
     }
 }

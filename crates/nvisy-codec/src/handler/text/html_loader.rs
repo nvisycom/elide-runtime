@@ -1,27 +1,26 @@
 //! HTML loader: validates and parses raw HTML content into a
-//! [`Document<HtmlHandler>`].
+//! [`HtmlHandler`].
 //!
 //! The loader parses the input using [`scraper`], extracts text nodes
 //! in document order, and produces a handler backed by those nodes.
 
 use nvisy_core::Error;
-use nvisy_core::io::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
 use scraper::Html;
 
-use crate::document::Document;
 use crate::handler::{HtmlData, HtmlHandler, Loader};
 
 /// Parameters for [`HtmlLoader`].
 #[derive(Debug, Default)]
 pub struct HtmlParams {
     /// Character encoding of the input bytes.
-    pub encoding: nvisy_core::io::TextEncoding,
+    pub encoding: nvisy_core::content::TextEncoding,
 }
 
 /// Loader that validates and parses HTML files.
 ///
-/// Produces a single [`Document<HtmlHandler>`] per input.
-#[derive(Debug)]
+/// Produces a single [`HtmlHandler`] per input.
+#[derive(Debug, Default)]
 pub struct HtmlLoader;
 
 #[async_trait::async_trait]
@@ -34,7 +33,7 @@ impl Loader for HtmlLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Document<HtmlHandler>, Error> {
+    ) -> Result<HtmlHandler, Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
         let text = params.encoding.decode_bytes(&raw, "html-loader")?;
@@ -53,12 +52,12 @@ impl Loader for HtmlLoader {
             .collect();
         tracing::Span::current().record("text_nodes", text_nodes.len());
 
+        let source = ContentSource::new().with_parent(&content.content_source);
         let handler = HtmlHandler::new(HtmlData {
             text_nodes,
             raw: text,
         })
-        .with_source(content.content_source);
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        .with_source(source);
+        Ok(handler)
     }
 }

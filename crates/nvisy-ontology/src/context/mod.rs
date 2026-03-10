@@ -13,7 +13,7 @@ pub mod reference;
 pub mod temporal;
 
 pub use entry::{ContextEntry, ContextEntryData};
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

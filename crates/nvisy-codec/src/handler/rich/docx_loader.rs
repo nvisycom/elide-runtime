@@ -1,24 +1,27 @@
-//! DOCX loader (stub: awaiting real implementation).
+//! DOCX loader (stub: awaiting full text extraction implementation).
+//!
+//! Currently produces an empty [`RichTextHandler`] with no pages.
 
 use nvisy_core::Error;
-use nvisy_core::io::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::media::{DocumentType, WordFormat};
 
-use crate::document::Document;
-use crate::handler::{DocxHandler, Loader};
+use crate::handler::{Loader, RichTextHandler};
 
 /// Parameters for [`DocxLoader`].
 #[derive(Debug, Default)]
 pub struct DocxParams;
 
-/// Loader that creates a stub DOCX handler.
+/// Loader that creates a [`RichTextHandler`] from DOCX content.
 ///
-/// Produces a single [`Document<DocxHandler>`] per input.
-#[derive(Debug)]
+/// Text extraction is not yet implemented — produces an empty handler
+/// that preserves the raw bytes for round-trip encoding.
+#[derive(Debug, Default)]
 pub struct DocxLoader;
 
 #[async_trait::async_trait]
 impl Loader for DocxLoader {
-    type Handler = DocxHandler;
+    type Handler = RichTextHandler;
     type Params = DocxParams;
 
     #[tracing::instrument(name = "docx.decode", skip_all, fields(input_bytes))]
@@ -26,10 +29,12 @@ impl Loader for DocxLoader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Document<DocxHandler>, Error> {
-        tracing::Span::current().record("input_bytes", content.to_bytes().len());
-        let handler = DocxHandler;
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+    ) -> Result<RichTextHandler, Error> {
+        let raw = content.to_bytes();
+        tracing::Span::current().record("input_bytes", raw.len());
+        let source = ContentSource::new().with_parent(&content.content_source);
+        let handler = RichTextHandler::new(DocumentType::Word(WordFormat::Docx), Vec::new(), raw)
+            .with_source(source);
+        Ok(handler)
     }
 }

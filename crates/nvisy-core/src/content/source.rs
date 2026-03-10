@@ -34,7 +34,7 @@ impl ContentSource {
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::path::ContentSource;
+    /// use nvisy_core::content::ContentSource;
     ///
     /// let source = ContentSource::new();
     /// assert!(!source.as_uuid().is_nil());
@@ -59,7 +59,7 @@ impl ContentSource {
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::path::ContentSource;
+    /// use nvisy_core::content::ContentSource;
     /// use uuid::Uuid;
     ///
     /// let source = ContentSource::new();
@@ -80,7 +80,7 @@ impl ContentSource {
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::path::ContentSource;
+    /// use nvisy_core::content::ContentSource;
     ///
     /// let source = ContentSource::new();
     /// let uuid = source.as_uuid();
@@ -100,7 +100,7 @@ impl ContentSource {
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::path::ContentSource;
+    /// use nvisy_core::content::ContentSource;
     ///
     /// let source = ContentSource::new();
     /// let id_str = source.to_string();
@@ -152,7 +152,7 @@ impl ContentSource {
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::path::ContentSource;
+    /// use nvisy_core::content::ContentSource;
     /// use std::time::{SystemTime, UNIX_EPOCH};
     ///
     /// let source = ContentSource::new();
@@ -180,7 +180,7 @@ impl ContentSource {
     /// # Example
     ///
     /// ```
-    /// use nvisy_core::path::ContentSource;
+    /// use nvisy_core::content::ContentSource;
     /// use std::thread;
     /// use std::time::Duration;
     ///

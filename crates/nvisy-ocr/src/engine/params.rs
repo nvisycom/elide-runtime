@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use crate::provider::{AwsTextractBackend, AwsTextractParams};
 #[cfg(feature = "azure-docai")]
 use crate::provider::{AzureDocaiBackend, AzureDocaiParams};
-use crate::provider::{PaddleXBackend, PaddleXParams, SuryaBackend, SuryaParams};
 #[cfg(feature = "google-vision")]
 use crate::provider::{GoogleVisionBackend, GoogleVisionParams};
+use crate::provider::{PaddleXBackend, PaddleXParams, SuryaBackend, SuryaParams};
 
 /// Union of all provider parameter types.
 ///

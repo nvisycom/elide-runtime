@@ -1,158 +1,111 @@
-//! [`AnyRich`]: type-erased wrapper over all rich-document handler types.
+//! [`BoxedRichHandler`]: type-erased wrapper over all rich-document handler types.
 
-use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::media::DocumentType;
 
-#[cfg(feature = "docx")]
-use super::DocxHandler;
 #[cfg(feature = "pdf")]
-use super::PdfHandler;
-use crate::document::{Span, SpanEdit, SpanEditStream, SpanStream};
-use crate::handler::text::TextData;
+use super::RichTextHandler;
+use crate::document::SpanStream;
+use crate::handler::text::{TextData, forward_edits, reindex_stream};
 use crate::handler::{Handler, TextHandler};
 
-/// A type-erased rich-document handler that can hold any supported rich format.
+/// A type-erased rich-document handler backed by a boxed trait object.
 ///
-/// Like [`AnyText`](crate::handler::AnyText), uses `TextId = usize` as a
-/// positional span index to unify the heterogeneous span identifiers.
-#[derive(Debug)]
-pub enum AnyRich {
-    #[cfg(feature = "pdf")]
-    Pdf(PdfHandler),
-    #[cfg(feature = "docx")]
-    Docx(DocxHandler),
+/// Normalises text span IDs to `usize` (positional index) so that
+/// heterogeneous rich handlers can be used interchangeably.
+pub struct BoxedRichHandler(Box<dyn DynRichHandler>);
+
+impl BoxedRichHandler {
+    fn new<H: DynRichHandler>(handler: H) -> Self {
+        Self(Box::new(handler))
+    }
+}
+
+impl std::fmt::Debug for BoxedRichHandler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("BoxedRichHandler")
+            .field(&self.0.document_type())
+            .finish()
+    }
 }
 
 #[cfg(feature = "pdf")]
-impl From<PdfHandler> for AnyRich {
-    fn from(h: PdfHandler) -> Self {
-        Self::Pdf(h)
+impl From<RichTextHandler> for BoxedRichHandler {
+    fn from(h: RichTextHandler) -> Self {
+        Self::new(h)
     }
 }
 
-#[cfg(feature = "docx")]
-impl From<DocxHandler> for AnyRich {
-    fn from(h: DocxHandler) -> Self {
-        Self::Docx(h)
-    }
-}
-
-impl AnyRich {
-    /// Try to get the inner [`PdfHandler`] by reference.
-    #[cfg(feature = "pdf")]
-    pub fn as_pdf(&self) -> Option<&PdfHandler> {
-        if let Self::Pdf(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`PdfHandler`].
-    #[cfg(feature = "pdf")]
-    pub fn into_pdf(self) -> Option<PdfHandler> {
-        if let Self::Pdf(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Try to get the inner [`DocxHandler`] by reference.
-    #[cfg(feature = "docx")]
-    pub fn as_docx(&self) -> Option<&DocxHandler> {
-        if let Self::Docx(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-
-    /// Consume and return the inner [`DocxHandler`].
-    #[cfg(feature = "docx")]
-    pub fn into_docx(self) -> Option<DocxHandler> {
-        if let Self::Docx(h) = self {
-            Some(h)
-        } else {
-            None
-        }
-    }
-}
-
-impl Handler for AnyRich {
+impl Handler for BoxedRichHandler {
     fn document_type(&self) -> DocumentType {
-        match self {
-            #[cfg(feature = "pdf")]
-            Self::Pdf(h) => h.document_type(),
-            #[cfg(feature = "docx")]
-            Self::Docx(h) => h.document_type(),
-        }
+        Handler::document_type(self.0.as_ref())
+    }
+
+    fn source(&self) -> ContentSource {
+        Handler::source(self.0.as_ref())
     }
 
     fn encode(&self) -> Result<ContentData, Error> {
-        match self {
-            #[cfg(feature = "pdf")]
-            Self::Pdf(h) => h.encode(),
-            #[cfg(feature = "docx")]
-            Self::Docx(h) => h.encode(),
-        }
+        Handler::encode(self.0.as_ref())
     }
-}
-
-/// Collect all spans from a handler, re-indexing with `usize`.
-async fn reindex_spans<H: TextHandler>(handler: &H) -> Vec<Span<usize, TextData>> {
-    handler
-        .text_spans()
-        .await
-        .enumerate()
-        .map(|(i, s)| Span::new(i, s.data).with_source(s.source))
-        .collect()
-        .await
-}
-
-/// Collect span IDs from a handler so we can map usize back to the native ID.
-async fn collect_ids<H: TextHandler>(handler: &H) -> Vec<H::TextId> {
-    handler.text_spans().await.map(|s| s.id).collect().await
-}
-
-/// Map edits from `usize` indices back to native IDs and forward them.
-async fn forward_edits<H: TextHandler>(
-    handler: &mut H,
-    edits: Vec<SpanEdit<usize, TextData>>,
-) -> Result<(), Error> {
-    let ids = collect_ids(handler).await;
-    let mapped: Vec<_> = edits
-        .into_iter()
-        .filter_map(|e| ids.get(e.id).cloned().map(|id| SpanEdit::new(id, e.data)))
-        .collect();
-    handler
-        .edit_text(SpanEditStream::new(futures::stream::iter(mapped)))
-        .await
 }
 
 #[async_trait::async_trait]
-impl TextHandler for AnyRich {
+impl TextHandler for BoxedRichHandler {
     type TextId = usize;
 
     async fn text_spans(&self) -> SpanStream<'_, usize, TextData> {
-        let spans = match self {
-            #[cfg(feature = "pdf")]
-            Self::Pdf(h) => reindex_spans(h).await,
-            #[cfg(feature = "docx")]
-            Self::Docx(h) => reindex_spans(h).await,
-        };
-        SpanStream::new(futures::stream::iter(spans))
+        self.0.text_spans_reindexed().await
     }
 
-    async fn edit_text(&mut self, edits: SpanEditStream<'_, usize, TextData>) -> Result<(), Error> {
-        let edits: Vec<_> = edits.collect().await;
-        match self {
-            #[cfg(feature = "pdf")]
-            Self::Pdf(h) => forward_edits(h, edits).await,
-            #[cfg(feature = "docx")]
-            Self::Docx(h) => forward_edits(h, edits).await,
-        }
+    async fn edit_text(&mut self, edits: SpanStream<'_, usize, TextData>) -> Result<(), Error> {
+        self.0.edit_text_reindexed(edits).await
     }
 }
+
+/// Object-safe private supertrait that bridges [`Handler`] and
+/// [`TextHandler`] for dynamic dispatch.
+///
+/// Rich-document handlers have heterogeneous `TextId` types (e.g.
+/// [`RichTextSpan`](super::RichTextSpan) for PDF). This trait
+/// normalises them to `usize` via [`reindex_stream`] and
+/// [`forward_edits`], allowing [`BoxedRichHandler`] to present a
+/// uniform `TextHandler<TextId = usize>` interface.
+///
+/// Concrete implementations are generated by [`impl_dyn_rich!`].
+#[async_trait::async_trait]
+trait DynRichHandler: Handler {
+    /// Return text spans with IDs re-mapped to sequential `usize` indices.
+    async fn text_spans_reindexed(&self) -> SpanStream<'_, usize, TextData>;
+
+    /// Accept `usize`-keyed edits and forward them back using the
+    /// handler's native [`TextId`](crate::handler::TextHandler::TextId).
+    async fn edit_text_reindexed(
+        &mut self,
+        edits: SpanStream<'_, usize, TextData>,
+    ) -> Result<(), Error>;
+}
+
+macro_rules! impl_dyn_rich {
+    ($ty:ty) => {
+        #[async_trait::async_trait]
+        impl DynRichHandler for $ty {
+            async fn text_spans_reindexed(&self) -> SpanStream<'_, usize, TextData> {
+                reindex_stream(self).await
+            }
+
+            async fn edit_text_reindexed(
+                &mut self,
+                edits: SpanStream<'_, usize, TextData>,
+            ) -> Result<(), Error> {
+                use futures::StreamExt;
+                let edits: Vec<_> = edits.collect().await;
+                forward_edits(self, edits).await
+            }
+        }
+    };
+}
+
+#[cfg(feature = "pdf")]
+impl_dyn_rich!(RichTextHandler);

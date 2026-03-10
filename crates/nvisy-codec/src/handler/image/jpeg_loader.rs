@@ -1,11 +1,10 @@
 //! JPEG loader: validates and decodes raw JPEG bytes into a
-//! [`Document<JpegHandler>`].
+//! [`JpegHandler`].
 
 use nvisy_core::Error;
-use nvisy_core::io::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
 
-use crate::document::Document;
-use crate::handler::{JpegHandler, Loader};
+use crate::handler::{ImageData, JpegHandler, Loader};
 
 /// Parameters for [`JpegLoader`].
 #[derive(Debug, Default)]
@@ -13,8 +12,8 @@ pub struct JpegParams;
 
 /// Loader that validates and decodes JPEG files.
 ///
-/// Produces a single [`Document<JpegHandler>`] per input.
-#[derive(Debug)]
+/// Produces a single [`JpegHandler`] per input.
+#[derive(Debug, Default)]
 pub struct JpegLoader;
 
 #[async_trait::async_trait]
@@ -27,13 +26,11 @@ impl Loader for JpegLoader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Document<JpegHandler>, Error> {
+    ) -> Result<JpegHandler, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
-        let image = super::decode_image(content, "jpeg-loader")?;
-        tracing::Span::current().record("width", image.width());
-        tracing::Span::current().record("height", image.height());
-        let handler = JpegHandler::new(image).with_source(content.content_source);
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        let image = ImageData::decode(content, "jpeg-loader")?.into_inner();
+        let source = ContentSource::new().with_parent(&content.content_source);
+        let handler = JpegHandler::new(image).with_source(source);
+        Ok(handler)
     }
 }

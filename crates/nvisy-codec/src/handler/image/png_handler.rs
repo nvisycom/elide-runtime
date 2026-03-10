@@ -1,11 +1,15 @@
 //! PNG handler: holds a decoded image and provides single-span access
-//! via [`Handler`].
+//! via [`ImageHandler`](crate::handler::ImageHandler).
 //!
 //! # Span model
 //!
-//! [`Handler::view_spans`] yields exactly one [`Span`] whose data is the
-//! current [`DynamicImage`](image::DynamicImage).
-//! [`Handler::edit_spans`] replaces the image in-place.
+//! [`ImageHandler::image_spans`](crate::handler::ImageHandler::image_spans)
+//! yields exactly one [`Span`] whose data is the current
+//! [`DynamicImage`](image::DynamicImage).
+//! [`ImageHandler::edit_images`](crate::handler::ImageHandler::edit_images)
+//! replaces the image in-place.
+
+use nvisy_core::content::ContentSource;
 
 use super::impl_image_handler;
 
@@ -16,13 +20,13 @@ use super::impl_image_handler;
 /// [`Handler::encode`](crate::handler::Handler::encode).
 #[derive(Debug)]
 pub struct PngHandler {
-    source: nvisy_core::path::ContentSource,
+    source: ContentSource,
     image: image::DynamicImage,
 }
 
 impl_image_handler!(
     PngHandler,
-    nvisy_core::fs::DocumentType::Image(nvisy_core::fs::ImageFormat::Png),
+    nvisy_core::media::DocumentType::Image(nvisy_core::media::ImageFormat::Png),
     image::ImageFormat::Png,
     "png-handler",
     "png.encode"

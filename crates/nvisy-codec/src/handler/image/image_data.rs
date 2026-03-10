@@ -3,6 +3,7 @@
 use derive_more::{From, Into};
 use image::DynamicImage;
 use nvisy_core::Error;
+use nvisy_core::content::ContentData;
 
 /// Opaque wrapper around a decoded image.
 ///
@@ -12,6 +13,18 @@ use nvisy_core::Error;
 pub struct ImageData(DynamicImage);
 
 impl ImageData {
+    /// Decode raw bytes into an [`ImageData`].
+    ///
+    /// Records `width` and `height` on the current tracing span if set.
+    pub fn decode(content: &ContentData, origin: &str) -> Result<Self, Error> {
+        let raw = content.to_bytes();
+        let img = image::load_from_memory(&raw)
+            .map_err(|e| Error::validation(format!("image decode failed: {e}"), origin))?;
+        tracing::Span::current().record("width", img.width());
+        tracing::Span::current().record("height", img.height());
+        Ok(Self(img))
+    }
+
     /// Encode to PNG bytes.
     pub fn encode_png(&self) -> Result<bytes::Bytes, Error> {
         let mut buf = std::io::Cursor::new(Vec::new());

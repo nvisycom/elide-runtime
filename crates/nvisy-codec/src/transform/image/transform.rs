@@ -6,7 +6,7 @@ use nvisy_core::Error;
 
 use super::instruction::{ImageOutput, ImageRedaction};
 use super::ops::ImageOps;
-use crate::document::{SpanEdit, SpanEditStream};
+use crate::document::{Span, SpanStream};
 use crate::handler::{ImageData, ImageHandler};
 
 /// Extension trait for handlers that support image redaction.
@@ -16,22 +16,12 @@ use crate::handler::{ImageData, ImageHandler};
 #[async_trait::async_trait]
 pub trait ImageTransform: ImageHandler {
     /// Apply a batch of image redactions, mutating in place.
-    async fn redact_images(
-        &mut self,
-        redactions: &[ImageRedaction<Self::ImageId>],
-    ) -> Result<(), Error>;
+    async fn redact_images(&mut self, redactions: &[ImageRedaction]) -> Result<(), Error>;
 }
 
 #[async_trait::async_trait]
-impl<H: ImageHandler> ImageTransform for H
-where
-    H::ImageId: Default,
-    ImageData: From<ImageData>,
-{
-    async fn redact_images(
-        &mut self,
-        redactions: &[ImageRedaction<Self::ImageId>],
-    ) -> Result<(), Error> {
+impl<H: ImageHandler> ImageTransform for H {
+    async fn redact_images(&mut self, redactions: &[ImageRedaction]) -> Result<(), Error> {
         tracing::debug!(
             redaction_count = redactions.len(),
             "applying image redactions"
@@ -84,8 +74,8 @@ where
             }
         }
 
-        self.edit_images(SpanEditStream::new(futures::stream::iter(std::iter::once(
-            SpanEdit::new(span.id, ImageData::from(img)),
+        self.edit_images(SpanStream::new(futures::stream::iter(std::iter::once(
+            Span::new(span.id, ImageData::from(img)),
         ))))
         .await?;
 

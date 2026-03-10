@@ -1,18 +1,16 @@
 //! Loader and handler traits.
 //!
-//! A [`Loader`] validates and parses raw content, producing a
-//! [`Document`] containing the corresponding [`Handler`]. The handler
-//! holds the loaded data and provides methods to read and manipulate it.
+//! A [`Loader`] validates and parses raw content, producing the
+//! corresponding [`Handler`]. The handler holds the loaded data and
+//! provides methods to read and manipulate it.
 //!
 //! Each handler implements the base [`Handler`] trait (identity + encode)
 //! and one or more capability traits: [`TextHandler`], [`ImageHandler`],
 //! [`AudioHandler`].
 
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
-
-use crate::document::Document;
+use nvisy_core::content::ContentData;
+use nvisy_core::media::DocumentType;
 
 mod audio;
 mod image;
@@ -21,6 +19,7 @@ mod text;
 
 pub use audio::*;
 pub use image::*;
+use nvisy_core::content::ContentSource;
 pub use rich::*;
 pub use text::*;
 
@@ -36,14 +35,17 @@ pub trait Handler: Send + Sync + 'static {
     /// The document type this handler represents.
     fn document_type(&self) -> DocumentType;
 
+    /// Content source identity and lineage for this handler.
+    fn source(&self) -> ContentSource;
+
     /// Serialize the current handler content back to [`ContentData`].
     fn encode(&self) -> Result<ContentData, Error>;
 }
 
 /// Trait implemented by format loaders.
 ///
-/// A loader validates and parses raw content, producing a
-/// [`Document`] with the corresponding handler.
+/// A loader validates and parses raw content, producing the
+/// corresponding handler.
 #[async_trait::async_trait]
 pub trait Loader: Send + Sync + 'static {
     /// The handler type this loader produces.
@@ -51,11 +53,10 @@ pub trait Loader: Send + Sync + 'static {
     /// Strongly-typed parameters for loading.
     type Params: Send;
 
-    /// Validate and parse the content, returning a document with
-    /// the loaded handler.
+    /// Validate and parse the content, returning the loaded handler.
     async fn decode(
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Document<Self::Handler>, Error>;
+    ) -> Result<Self::Handler, Error>;
 }

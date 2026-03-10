@@ -1,9 +1,9 @@
-//! [`impl_image_handler!`]: shared macro for image handler structs.
+//! [`impl_audio_handler!`]: shared macro for audio handler structs.
 
-/// Implement [`Handler`] + [`ImageHandler`] + inherent methods for an
-/// image handler struct that holds a single `DynamicImage`.
-macro_rules! impl_image_handler {
-    ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal, $encode_name:literal) => {
+/// Implement [`Handler`] + [`AudioHandler`] + inherent methods for an
+/// audio handler struct that holds raw bytes.
+macro_rules! impl_audio_handler {
+    ($handler:ident, $doc_type:expr, $origin:literal, $encode_name:literal) => {
         impl crate::handler::Handler for $handler {
             fn document_type(&self) -> nvisy_core::media::DocumentType {
                 $doc_type
@@ -15,57 +15,55 @@ macro_rules! impl_image_handler {
 
             #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
             fn encode(&self) -> Result<nvisy_core::content::ContentData, nvisy_core::Error> {
-                let mut buf = std::io::Cursor::new(Vec::new());
-                self.image.write_to(&mut buf, $fmt).map_err(|e| {
-                    nvisy_core::Error::validation(format!("encode failed: {e}"), $origin)
-                })?;
-                let out = buf.into_inner();
-                tracing::Span::current().record("output_bytes", out.len());
+                tracing::Span::current().record("output_bytes", self.bytes.len());
                 let source = nvisy_core::content::ContentSource::new().with_parent(&self.source);
-                Ok(nvisy_core::content::ContentData::new(source, out.into()))
+                Ok(nvisy_core::content::ContentData::new(
+                    source,
+                    self.bytes.clone(),
+                ))
             }
         }
 
         #[async_trait::async_trait]
-        impl crate::handler::ImageHandler for $handler {
-            async fn image_spans(
+        impl crate::handler::AudioHandler for $handler {
+            async fn audio_spans(
                 &self,
             ) -> crate::document::SpanStream<
                 '_,
-                crate::handler::ImageSpanId,
-                crate::handler::ImageData,
+                crate::handler::AudioSpanId,
+                crate::handler::AudioData,
             > {
                 crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
                     crate::document::Span::new(
-                        crate::handler::ImageSpanId::default(),
-                        crate::handler::ImageData::from(self.image.clone()),
+                        crate::handler::AudioSpanId::default(),
+                        crate::handler::AudioData::new(self.bytes.clone()),
                     ),
                 )))
             }
 
-            async fn edit_images(
+            async fn edit_audio(
                 &mut self,
                 edits: crate::document::SpanStream<
                     '_,
-                    crate::handler::ImageSpanId,
-                    crate::handler::ImageData,
+                    crate::handler::AudioSpanId,
+                    crate::handler::AudioData,
                 >,
             ) -> Result<(), nvisy_core::Error> {
                 use futures::StreamExt;
                 let edits: Vec<_> = edits.collect().await;
                 if let Some(edit) = edits.into_iter().next() {
-                    self.image = edit.data.into_inner();
+                    self.bytes = edit.data.into_inner();
                 }
                 Ok(())
             }
         }
 
         impl $handler {
-            /// Create a handler from an already-decoded image.
-            pub fn new(image: image::DynamicImage) -> Self {
+            /// Create a handler from raw audio bytes.
+            pub fn new(bytes: bytes::Bytes) -> Self {
                 Self {
                     source: nvisy_core::content::ContentSource::new(),
-                    image,
+                    bytes,
                 }
             }
 
@@ -75,12 +73,12 @@ macro_rules! impl_image_handler {
                 self
             }
 
-            /// Reference to the decoded image.
-            pub fn image(&self) -> &image::DynamicImage {
-                &self.image
+            /// Reference to the raw audio bytes.
+            pub fn bytes(&self) -> &bytes::Bytes {
+                &self.bytes
             }
         }
     };
 }
 
-pub(crate) use impl_image_handler;
+pub(crate) use impl_audio_handler;

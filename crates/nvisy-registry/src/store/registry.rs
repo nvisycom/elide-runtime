@@ -1,8 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions, KvSeparationOptions};
-use nvisy_core::io::Content;
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::{Content, ContentSource};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::context::Context;
 use uuid::Uuid;
@@ -451,7 +450,7 @@ impl Registry {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::io::{Content, ContentData};
+    use nvisy_core::content::{Content, ContentData};
     use nvisy_ontology::context::Context;
 
     use super::*;

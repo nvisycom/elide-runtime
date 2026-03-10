@@ -80,7 +80,9 @@ impl WordFormat {
     pub fn from_mime(mime: &str) -> Option<Self> {
         match mime {
             "application/msword" => Some(Self::Doc),
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => Some(Self::Docx),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => {
+                Some(Self::Docx)
+            }
             "application/vnd.oasis.opendocument.text" => Some(Self::Odt),
             _ => None,
         }
@@ -103,7 +105,9 @@ impl PresentationFormat {
     pub fn mime_type(self) -> &'static str {
         match self {
             Self::Ppt => "application/vnd.ms-powerpoint",
-            Self::Pptx => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            Self::Pptx => {
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            }
             Self::Odp => "application/vnd.oasis.opendocument.presentation",
         }
     }
@@ -112,7 +116,9 @@ impl PresentationFormat {
     pub fn from_mime(mime: &str) -> Option<Self> {
         match mime {
             "application/vnd.ms-powerpoint" => Some(Self::Ppt),
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation" => Some(Self::Pptx),
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation" => {
+                Some(Self::Pptx)
+            }
             "application/vnd.oasis.opendocument.presentation" => Some(Self::Odp),
             _ => None,
         }
@@ -152,7 +158,9 @@ impl SpreadsheetFormat {
             "application/vnd.ms-excel" => Some(Self::Xls),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => Some(Self::Xlsx),
             "application/vnd.ms-excel.sheet.macroEnabled.12" => Some(Self::Xlsm),
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.template" => Some(Self::Xltx),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.template" => {
+                Some(Self::Xltx)
+            }
             "text/csv" => Some(Self::Csv),
             "application/vnd.oasis.opendocument.spreadsheet" => Some(Self::Ods),
             _ => None,
@@ -220,7 +228,17 @@ impl TextFormat {
 }
 
 /// Document format that content can be classified as.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "snake_case")]
 pub enum DocumentType {
     Text(TextFormat),

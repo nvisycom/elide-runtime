@@ -12,8 +12,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_codec::document::Document;
-use nvisy_codec::handler::{CsvHandler, PngHandler, TxtHandler, TxtSpan, WavHandler};
+use nvisy_codec::handler::{CsvHandler, Handler, PngHandler, TxtHandler, TxtSpan, WavHandler};
 use nvisy_codec::transform::{
     AudioOutput, AudioRedaction, AudioTransform, ImageOutput, ImageRedaction, ImageTransform,
     TextOutput, TextRedaction, TextTransform,
@@ -29,13 +28,13 @@ use crate::operation::{Operation, ParallelContext};
 /// Typed input for the [`Redaction`] operation.
 pub struct RedactionInput {
     /// Text documents to redact.
-    pub text_docs: Vec<Document<TxtHandler>>,
+    pub text_docs: Vec<TxtHandler>,
     /// Image documents to redact.
-    pub image_docs: Vec<Document<PngHandler>>,
+    pub image_docs: Vec<PngHandler>,
     /// Audio documents to redact.
-    pub audio_docs: Vec<Document<WavHandler>>,
+    pub audio_docs: Vec<WavHandler>,
     /// Tabular documents to redact.
-    pub tabular_docs: Vec<Document<CsvHandler>>,
+    pub tabular_docs: Vec<CsvHandler>,
     /// Detected entities referenced by redaction instructions.
     pub entities: Vec<Entity>,
     /// Redaction instructions to apply.
@@ -45,13 +44,13 @@ pub struct RedactionInput {
 /// Typed output from the [`Redaction`] operation.
 pub struct RedactionOutput {
     /// Redacted text documents.
-    pub text_docs: Vec<Document<TxtHandler>>,
+    pub text_docs: Vec<TxtHandler>,
     /// Redacted image documents.
-    pub image_docs: Vec<Document<PngHandler>>,
+    pub image_docs: Vec<PngHandler>,
     /// Redacted audio documents.
-    pub audio_docs: Vec<Document<WavHandler>>,
+    pub audio_docs: Vec<WavHandler>,
     /// Redacted tabular documents.
-    pub tabular_docs: Vec<Document<CsvHandler>>,
+    pub tabular_docs: Vec<CsvHandler>,
 }
 
 /// Applies pending redaction instructions to document content.
@@ -118,10 +117,10 @@ fn text_output_from_spec(spec: &Strategy, replacement: &str) -> Option<TextOutpu
 }
 
 async fn apply_text_doc(
-    mut doc: Document<TxtHandler>,
+    mut doc: TxtHandler,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
-) -> Result<Document<TxtHandler>, Error> {
+) -> Result<TxtHandler, Error> {
     let mut global_redactions: Vec<(usize, usize, TextOutput)> =
         Vec::with_capacity(redaction_map.len());
 
@@ -131,7 +130,7 @@ async fn apply_text_doc(
             None => continue,
         };
 
-        if entity.source.parent_id() != Some(doc.source.as_uuid()) {
+        if entity.source.parent_id() != Some(doc.source().as_uuid()) {
             continue;
         }
 
@@ -152,7 +151,7 @@ async fn apply_text_doc(
         return Ok(doc);
     }
 
-    let lines = doc.handler().lines();
+    let lines = doc.lines();
     let mut line_starts: Vec<usize> = Vec::with_capacity(lines.len());
     let mut offset = 0usize;
     for line in lines {
@@ -200,7 +199,7 @@ async fn apply_text_doc(
         }
     }
 
-    doc.handler_mut().redact_text(&redactions).await?;
+    doc.redact_text(&redactions).await?;
     Ok(doc)
 }
 
@@ -218,11 +217,11 @@ fn image_output_from_spec(spec: &Strategy) -> Option<ImageOutput> {
 }
 
 async fn apply_image_doc(
-    mut doc: Document<PngHandler>,
+    mut doc: PngHandler,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
-) -> Result<Document<PngHandler>, Error> {
-    let mut redactions: Vec<ImageRedaction<()>> = Vec::new();
+) -> Result<PngHandler, Error> {
+    let mut redactions: Vec<ImageRedaction> = Vec::new();
 
     for (&entity_id, redaction) in redaction_map {
         let entity = match entity_map.get(&entity_id) {
@@ -241,7 +240,6 @@ async fn apply_image_doc(
         };
 
         redactions.push(ImageRedaction {
-            span_id: (),
             bounding_box: img_loc.bounding_box,
             output,
         });
@@ -251,7 +249,7 @@ async fn apply_image_doc(
         return Ok(doc);
     }
 
-    doc.handler_mut().redact_images(&redactions).await?;
+    doc.redact_images(&redactions).await?;
     Ok(doc)
 }
 
@@ -266,11 +264,11 @@ fn audio_output_from_spec(spec: &Strategy) -> Option<AudioOutput> {
 }
 
 async fn apply_audio_doc(
-    mut doc: Document<WavHandler>,
+    mut doc: WavHandler,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
-) -> Result<Document<WavHandler>, Error> {
-    let mut redactions: Vec<AudioRedaction<()>> = Vec::new();
+) -> Result<WavHandler, Error> {
+    let mut redactions: Vec<AudioRedaction> = Vec::new();
 
     for (&entity_id, redaction) in redaction_map {
         let entity = match entity_map.get(&entity_id) {
@@ -289,7 +287,6 @@ async fn apply_audio_doc(
         };
 
         redactions.push(AudioRedaction {
-            span_id: (),
             start_secs: audio_loc.time_span.start_secs,
             end_secs: audio_loc.time_span.end_secs,
             output,
@@ -300,15 +297,15 @@ async fn apply_audio_doc(
         return Ok(doc);
     }
 
-    doc.handler_mut().redact_audio(&redactions).await?;
+    doc.redact_audio(&redactions).await?;
     Ok(doc)
 }
 
 async fn apply_tabular_doc(
-    mut doc: Document<CsvHandler>,
+    mut doc: CsvHandler,
     entity_map: &HashMap<Uuid, &Entity>,
     redaction_map: &HashMap<Uuid, &RedactionDecision>,
-) -> Result<Document<CsvHandler>, Error> {
+) -> Result<CsvHandler, Error> {
     for (&entity_id, redaction) in redaction_map {
         let entity = match entity_map.get(&entity_id) {
             Some(e) => e,
@@ -325,7 +322,7 @@ async fn apply_tabular_doc(
         }
 
         let (row_idx, col_idx) = (tab_loc.row_index, tab_loc.column_index);
-        if let Some(row) = doc.handler_mut().rows_mut().get_mut(row_idx)
+        if let Some(row) = doc.rows_mut().get_mut(row_idx)
             && let Some(cell) = row.get_mut(col_idx)
         {
             *cell = mask_cell(&redaction.spec, &redaction.replacement, cell);

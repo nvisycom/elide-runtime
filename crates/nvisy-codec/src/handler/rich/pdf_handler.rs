@@ -1,76 +1,66 @@
-//! PDF handler: holds per-page extracted text and raw PDF bytes,
-//! providing span-based access via [`Handler`] + [`TextHandler`] +
+//! Rich-text handler: holds per-page extracted text and raw document
+//! bytes, providing span-based access via [`Handler`] + [`TextHandler`] +
 //! [`ImageHandler`].
+//!
+//! This handler is format-agnostic and used for any rich document that
+//! contains pages of text and embedded images (PDF, DOCX, etc.).
 //!
 //! # Text span model
 //!
 //! [`TextHandler::text_spans`] yields one [`Span`] per page.  Each span
-//! is addressed by a [`PdfTextSpan`] (0-based page index) and carries the
+//! is addressed by a [`RichTextSpan`] (0-based page index) and carries the
 //! extracted text for that page as `TextData`.
 //!
-//! [`TextHandler::edit_text`] replaces the text at the given page indices
-//! and applies the changes to the underlying PDF content streams via
-//! [`lopdf::Document::replace_text`].
-//!
-//! # Image span model
-//!
-//! [`ImageHandler::image_spans`] yields one [`Span`] per rendered page
-//! image.  Each span is addressed by a [`PdfImageSpan`] containing
-//! the page index and image index.
+//! [`TextHandler::edit_text`] replaces the text at the given page indices.
+//! For PDF documents the changes are applied to the underlying content
+//! streams via [`lopdf::Document::replace_text`].
 //!
 //! # Encoding
 //!
-//! [`Handler::encode`] returns the raw PDF bytes.  Edits applied via
+//! [`Handler::encode`] returns the raw document bytes.  Edits applied via
 //! [`edit_text`](TextHandler::edit_text) are already baked into the raw
 //! bytes, so `encode` is a simple clone.
 
 use bytes::Bytes;
 use futures::StreamExt;
 use nvisy_core::Error;
-use nvisy_core::fs::DocumentType;
-use nvisy_core::io::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::math::Dpi;
-use nvisy_core::path::ContentSource;
+use nvisy_core::media::DocumentType;
 
 use super::pdf_render::PdfRenderer;
-use crate::document::{Span, SpanEditStream, SpanStream};
+use crate::document::{Span, SpanStream};
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
-use crate::handler::{Handler, ImageHandler, TextHandler};
+use crate::handler::{Handler, TextHandler};
 
-/// 0-based page index for text spans within a PDF document.
+/// 0-based page index for text spans within a rich document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PdfTextSpan(pub u32);
+pub struct RichTextSpan(pub u32);
 
-/// Identifier for an embedded image within a PDF document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PdfImageSpan {
-    /// 0-based page index.
-    pub page: u32,
-    /// 0-based image index within the page.
-    pub index: u32,
-}
-
-/// PDF document handler.
+/// Handler for rich documents containing pages of text and images.
 ///
-/// Stores per-page extracted text alongside the raw PDF bytes.
-/// Rendering is dispatched to a dedicated single-thread pool via
-/// [`PdfRenderer`].
+/// Both PDF and DOCX documents share this representation: per-page
+/// extracted text alongside the raw document bytes. Rendering is
+/// dispatched to a dedicated single-thread pool via [`PdfRenderer`].
 #[derive(Debug)]
-pub struct PdfHandler {
+pub struct RichTextHandler {
     /// Content source for lineage tracking.
     source: ContentSource,
+    /// The document type (PDF, DOCX, etc.).
+    document_type: DocumentType,
     /// Per-page extracted text (0-indexed).
     pages: Vec<String>,
-    /// Raw PDF bytes for encode and rendering.
+    /// Raw document bytes for encode and rendering.
     raw: Bytes,
 }
 
-impl PdfHandler {
-    /// Create a new handler from per-page text and raw PDF bytes.
-    pub fn new(pages: Vec<String>, raw: impl Into<Bytes>) -> Self {
+impl RichTextHandler {
+    /// Create a new handler from per-page text and raw document bytes.
+    pub fn new(document_type: DocumentType, pages: Vec<String>, raw: impl Into<Bytes>) -> Self {
         Self {
             source: ContentSource::new(),
+            document_type,
             pages,
             raw: raw.into(),
         }
@@ -86,12 +76,12 @@ impl PdfHandler {
     ///
     /// Uses [`lopdf::Document::extract_text_chunks`] with error-filtering
     /// for resilience (PDF font encoding issues are common).
-    pub fn from_raw(raw: impl Into<Bytes>, password: Option<&str>) -> Result<Self, Error> {
+    pub fn from_pdf(raw: impl Into<Bytes>, password: Option<&str>) -> Result<Self, Error> {
         let raw: Bytes = raw.into();
         let mut doc = lopdf::Document::load_mem(&raw).map_err(|e| {
             Error::runtime(
                 format!("failed to extract text from PDF: {e}"),
-                "pdf-handler",
+                "rich-text-handler",
                 false,
             )
         })?;
@@ -99,7 +89,7 @@ impl PdfHandler {
             doc.decrypt(password.unwrap_or("")).map_err(|e| {
                 Error::runtime(
                     format!("failed to extract text from PDF: {e}"),
-                    "pdf-handler",
+                    "rich-text-handler",
                     false,
                 )
             })?;
@@ -107,13 +97,13 @@ impl PdfHandler {
         let page_count = doc.get_pages().len();
         let mut pages = Vec::with_capacity(page_count);
         for page_num in 1..=(page_count as u32) {
-            // Resilient: skip chunks that fail encoding
             let chunks = doc.extract_text_chunks(&[page_num]);
             let text: String = chunks.into_iter().filter_map(|r| r.ok()).collect();
             pages.push(text);
         }
         Ok(Self {
             source: ContentSource::new(),
+            document_type: DocumentType::Pdf,
             pages,
             raw,
         })
@@ -134,7 +124,7 @@ impl PdfHandler {
         self.pages.len()
     }
 
-    /// The raw PDF bytes.
+    /// The raw document bytes.
     pub fn raw(&self) -> &[u8] {
         &self.raw
     }
@@ -157,12 +147,16 @@ impl PdfHandler {
     }
 }
 
-impl Handler for PdfHandler {
+impl Handler for RichTextHandler {
     fn document_type(&self) -> DocumentType {
-        DocumentType::Pdf
+        self.document_type
     }
 
-    #[tracing::instrument(name = "pdf.encode", skip_all, fields(output_bytes))]
+    fn source(&self) -> ContentSource {
+        self.source
+    }
+
+    #[tracing::instrument(name = "rich.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
         tracing::Span::current().record("output_bytes", self.raw.len());
         let source = ContentSource::new().with_parent(&self.source);
@@ -171,11 +165,11 @@ impl Handler for PdfHandler {
 }
 
 #[async_trait::async_trait]
-impl TextHandler for PdfHandler {
-    type TextId = PdfTextSpan;
+impl TextHandler for RichTextHandler {
+    type TextId = RichTextSpan;
 
-    async fn text_spans(&self) -> SpanStream<'_, PdfTextSpan, TextData> {
-        SpanStream::new(futures::stream::iter(PdfTextSpanIter {
+    async fn text_spans(&self) -> SpanStream<'_, RichTextSpan, TextData> {
+        SpanStream::new(futures::stream::iter(RichTextSpanIter {
             pages: &self.pages,
             index: 0,
         }))
@@ -183,111 +177,77 @@ impl TextHandler for PdfHandler {
 
     async fn edit_text(
         &mut self,
-        edits: SpanEditStream<'_, PdfTextSpan, TextData>,
+        edits: SpanStream<'_, RichTextSpan, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         if edits.is_empty() {
             return Ok(());
         }
 
-        // Validate all indices before mutating anything.
         for edit in &edits {
             let idx = edit.id.0 as usize;
             if idx >= self.pages.len() {
                 return Err(Error::validation(
                     format!("page index out of bounds: {idx}"),
-                    "pdf-handler",
+                    "rich-text-handler",
                 ));
             }
         }
 
-        // Load the PDF document for content-stream manipulation.
-        let mut doc = lopdf::Document::load_mem(&self.raw).map_err(|e| {
-            Error::runtime(
-                format!("failed to load PDF for editing: {e}"),
-                "pdf-handler",
-                false,
-            )
-        })?;
+        // PDF-specific: apply replacements to content streams.
+        if self.document_type == DocumentType::Pdf {
+            let mut doc = lopdf::Document::load_mem(&self.raw).map_err(|e| {
+                Error::runtime(
+                    format!("failed to load PDF for editing: {e}"),
+                    "rich-text-handler",
+                    false,
+                )
+            })?;
 
-        for edit in &edits {
-            let idx = edit.id.0 as usize;
-            let old_text = &self.pages[idx];
-
-            // Apply replacement to the PDF content stream.
-            // lopdf uses 1-based page numbers.
-            if !old_text.is_empty() && old_text.as_str() != edit.data.as_str() {
-                let _ = doc.replace_text((idx as u32) + 1, old_text, edit.data.as_str(), None);
+            for edit in &edits {
+                let idx = edit.id.0 as usize;
+                let old_text = &self.pages[idx];
+                if !old_text.is_empty() && old_text.as_str() != edit.data.as_str() {
+                    let _ = doc.replace_text((idx as u32) + 1, old_text, edit.data.as_str(), None);
+                }
+                self.pages[idx] = edit.data.as_str().to_owned();
             }
 
-            // Update the in-memory text.
-            self.pages[idx] = edit.data.as_str().to_owned();
+            let mut buf = Vec::new();
+            doc.save_to(&mut buf).map_err(|e| {
+                Error::runtime(
+                    format!("failed to save edited PDF: {e}"),
+                    "rich-text-handler",
+                    false,
+                )
+            })?;
+            self.raw = Bytes::from(buf);
+        } else {
+            for edit in &edits {
+                let idx = edit.id.0 as usize;
+                self.pages[idx] = edit.data.as_str().to_owned();
+            }
         }
 
-        // Serialize the modified document back to raw bytes.
-        let mut buf = Vec::new();
-        doc.save_to(&mut buf).map_err(|e| {
-            Error::runtime(
-                format!("failed to save edited PDF: {e}"),
-                "pdf-handler",
-                false,
-            )
-        })?;
-        self.raw = Bytes::from(buf);
-
         Ok(())
     }
 }
 
-#[async_trait::async_trait]
-impl ImageHandler for PdfHandler {
-    type ImageId = PdfImageSpan;
-
-    async fn image_spans(&self) -> SpanStream<'_, PdfImageSpan, ImageData> {
-        // Render pages to images on demand.
-        let images = match PdfRenderer::parallel_render(&self.raw, Dpi::OCR) {
-            Ok(imgs) => imgs,
-            Err(e) => {
-                tracing::warn!(error = %e, "failed to render PDF pages for image_spans");
-                return SpanStream::new(futures::stream::empty());
-            }
-        };
-        SpanStream::new(futures::stream::iter(images.into_iter().enumerate().map(
-            |(i, img)| {
-                Span::new(
-                    PdfImageSpan {
-                        page: i as u32,
-                        index: 0,
-                    },
-                    img,
-                )
-            },
-        )))
-    }
-
-    async fn edit_images(
-        &mut self,
-        _edits: SpanEditStream<'_, PdfImageSpan, ImageData>,
-    ) -> Result<(), Error> {
-        // Image editing for PDF is not yet supported — rendered images
-        // are read-only snapshots.
-        tracing::warn!("PDF image editing is not yet supported");
-        Ok(())
-    }
-}
-
-/// Iterator over pages of a PDF document (text spans).
-struct PdfTextSpanIter<'a> {
+/// Iterator over pages of a rich document (text spans).
+struct RichTextSpanIter<'a> {
     pages: &'a [String],
     index: usize,
 }
 
-impl<'a> Iterator for PdfTextSpanIter<'a> {
-    type Item = Span<PdfTextSpan, TextData>;
+impl<'a> Iterator for RichTextSpanIter<'a> {
+    type Item = Span<RichTextSpan, TextData>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let text = self.pages.get(self.index)?;
-        let span = Span::new(PdfTextSpan(self.index as u32), TextData::from(text.clone()));
+        let span = Span::new(
+            RichTextSpan(self.index as u32),
+            TextData::from(text.clone()),
+        );
         self.index += 1;
         Some(span)
     }
@@ -298,7 +258,7 @@ impl<'a> Iterator for PdfTextSpanIter<'a> {
     }
 }
 
-impl ExactSizeIterator for PdfTextSpanIter<'_> {}
+impl ExactSizeIterator for RichTextSpanIter<'_> {}
 
 #[cfg(test)]
 mod tests {
@@ -306,11 +266,15 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::document::SpanEdit;
+    use crate::document::Span;
     use crate::handler::TextHandler;
 
-    fn handler(pages: &[&str]) -> PdfHandler {
-        PdfHandler::new(pages.iter().map(|s| s.to_string()).collect(), Vec::new())
+    fn handler(pages: &[&str]) -> RichTextHandler {
+        RichTextHandler::new(
+            DocumentType::Pdf,
+            pages.iter().map(|s| s.to_string()).collect(),
+            Vec::new(),
+        )
     }
 
     #[tokio::test]
@@ -319,11 +283,11 @@ mod tests {
         let spans: Vec<_> = h.text_spans().await.collect().await;
 
         assert_eq!(spans.len(), 3);
-        assert_eq!(spans[0].id, PdfTextSpan(0));
+        assert_eq!(spans[0].id, RichTextSpan(0));
         assert_eq!(spans[0].data, "page one");
-        assert_eq!(spans[1].id, PdfTextSpan(1));
+        assert_eq!(spans[1].id, RichTextSpan(1));
         assert_eq!(spans[1].data, "page two");
-        assert_eq!(spans[2].id, PdfTextSpan(2));
+        assert_eq!(spans[2].id, RichTextSpan(2));
         assert_eq!(spans[2].data, "page three");
     }
 
@@ -349,20 +313,19 @@ mod tests {
     #[test]
     fn encode_returns_raw_bytes() -> Result<(), Error> {
         let raw = b"fake-pdf-bytes";
-        let h = PdfHandler::new(vec!["text".into()], raw.to_vec());
+        let h = RichTextHandler::new(DocumentType::Pdf, vec!["text".into()], raw.to_vec());
         assert_eq!(h.encode()?.as_bytes(), raw);
         Ok(())
     }
 
     #[tokio::test]
     async fn edit_spans_updates_text() -> Result<(), Error> {
-        // With empty raw bytes, lopdf will fail to parse — but we can
-        // test the out-of-bounds validation path.
         let mut h = handler(&["hello"]);
         let err = h
-            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit::new(PdfTextSpan(5), "nope".into()),
-            ])))
+            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+                RichTextSpan(5),
+                "nope".into(),
+            )])))
             .await
             .unwrap_err();
         assert!(err.to_string().contains("out of bounds"));

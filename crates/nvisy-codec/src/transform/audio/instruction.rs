@@ -3,11 +3,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// A located audio redaction: pairs a span identifier and time range with
+/// A located audio redaction: pairs a time range with
 /// an [`AudioOutput`] that carries the method-specific parameters.
-pub struct AudioRedaction<S> {
-    /// Which audio span this redaction targets.
-    pub span_id: S,
+pub struct AudioRedaction {
     /// Start of the redacted segment in seconds.
     pub start_secs: f64,
     /// End of the redacted segment in seconds.

@@ -1,12 +1,11 @@
-//! PDF loader: parses raw PDF content into a [`Document<PdfHandler>`].
+//! PDF loader: parses raw PDF content into a [`RichTextHandler`].
 //!
 //! Text is extracted per page via [`lopdf`].  The raw bytes are
 //! preserved for encoding and rendering.
 
-use nvisy_core::io::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
 
-use crate::document::Document;
-use crate::handler::{Loader, PdfHandler};
+use crate::handler::{Loader, RichTextHandler};
 
 /// Parameters for [`PdfLoader`].
 #[derive(Debug, Default)]
@@ -17,13 +16,13 @@ pub struct PdfParams {
 
 /// Loader that parses PDF files and extracts per-page text.
 ///
-/// Produces a single [`Document<PdfHandler>`] per input.
-#[derive(Debug)]
+/// Produces a single [`RichTextHandler`] per input.
+#[derive(Debug, Default)]
 pub struct PdfLoader;
 
 #[async_trait::async_trait]
 impl Loader for PdfLoader {
-    type Handler = PdfHandler;
+    type Handler = RichTextHandler;
     type Params = PdfParams;
 
     #[tracing::instrument(name = "pdf.decode", skip_all, fields(input_bytes, pages))]
@@ -31,17 +30,17 @@ impl Loader for PdfLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Document<PdfHandler>, nvisy_core::Error> {
+    ) -> Result<RichTextHandler, nvisy_core::Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
 
-        let handler = PdfHandler::from_raw(raw, params.password.as_deref())?
-            .with_source(content.content_source);
+        let source = ContentSource::new().with_parent(&content.content_source);
+        let handler =
+            RichTextHandler::from_pdf(raw, params.password.as_deref())?.with_source(source);
 
         tracing::Span::current().record("pages", handler.page_count());
 
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        Ok(handler)
     }
 }
 
@@ -49,10 +48,11 @@ impl Loader for PdfLoader {
 mod tests {
     use bytes::Bytes;
     use futures::StreamExt;
-    use nvisy_core::fs::DocumentType;
-    use nvisy_core::path::ContentSource;
+    use nvisy_core::content::ContentSource;
+    use nvisy_core::media::DocumentType;
 
     use super::*;
+    use crate::handler::{Handler, TextHandler};
 
     fn content_from_bytes(bytes: &[u8]) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(bytes.to_vec()))
@@ -119,7 +119,6 @@ mod tests {
 
         assert_eq!(doc.document_type(), DocumentType::Pdf);
         assert_eq!(doc.page_count(), 1);
-        // Blank page should yield empty or whitespace-only text.
         assert!(doc.page(0).unwrap().trim().is_empty());
     }
 

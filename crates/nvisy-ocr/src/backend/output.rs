@@ -1,7 +1,7 @@
 //! OCR output types.
 
+use nvisy_core::content::ContentSource;
 use nvisy_core::math::{BoundingBox, Polygon};
-use nvisy_core::path::ContentSource;
 use serde::{Deserialize, Serialize};
 
 /// A single word detected by OCR.
@@ -82,12 +82,12 @@ pub struct Page {
 /// [`Page`] → [`Block`] → [`Line`] → [`Word`], together with a
 /// [`ContentSource`] derived from the input image for provenance tracking.
 ///
-/// [`ContentSource`]: nvisy_core::path::ContentSource
+/// [`ContentSource`]: nvisy_core::content::ContentSource
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageOutput {
     /// Provenance: derived from the input's [`ContentSource`].
     ///
-    /// [`ContentSource`]: nvisy_core::path::ContentSource
+    /// [`ContentSource`]: nvisy_core::content::ContentSource
     pub source: ContentSource,
     /// Pages of OCR results.
     pub pages: Vec<Page>,

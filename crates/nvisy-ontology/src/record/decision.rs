@@ -1,6 +1,6 @@
 //! Pipeline-facing redaction decision.
 
-use nvisy_core::path::ContentSource;
+use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

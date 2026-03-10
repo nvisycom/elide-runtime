@@ -1,19 +1,38 @@
 //! XLSX handler (stub: awaiting full spreadsheet support).
 
 use nvisy_core::Error;
-use nvisy_core::fs::{DocumentType, SpreadsheetFormat};
-use nvisy_core::io::ContentData;
+use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 
-use crate::document::{SpanEditStream, SpanStream};
+use crate::document::SpanStream;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
 
-#[derive(Debug)]
-pub struct XlsxHandler;
+#[derive(Debug, Default)]
+pub struct XlsxHandler {
+    source: ContentSource,
+}
+
+impl XlsxHandler {
+    /// Create a new stub handler.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the content source for lineage tracking.
+    pub fn with_source(mut self, source: ContentSource) -> Self {
+        self.source = source;
+        self
+    }
+}
 
 impl Handler for XlsxHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Spreadsheet(SpreadsheetFormat::Xlsx)
+    }
+
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "xlsx.encode", skip_all)]
@@ -33,7 +52,7 @@ impl TextHandler for XlsxHandler {
         SpanStream::new(futures::stream::empty())
     }
 
-    async fn edit_text(&mut self, _edits: SpanEditStream<'_, (), TextData>) -> Result<(), Error> {
+    async fn edit_text(&mut self, _edits: SpanStream<'_, (), TextData>) -> Result<(), Error> {
         Ok(())
     }
 }

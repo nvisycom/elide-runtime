@@ -9,7 +9,7 @@ use crate::document::SpanStream;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct XlsxHandler {
     source: ContentSource,
 }
@@ -17,9 +17,7 @@ pub struct XlsxHandler {
 impl XlsxHandler {
     /// Create a new stub handler.
     pub fn new() -> Self {
-        Self {
-            source: ContentSource::new(),
-        }
+        Self::default()
     }
 
     /// Set the content source for lineage tracking.

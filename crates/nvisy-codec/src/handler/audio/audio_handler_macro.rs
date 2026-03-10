@@ -23,8 +23,6 @@ macro_rules! impl_audio_handler {
 
         #[async_trait::async_trait]
         impl crate::handler::AudioHandler for $handler {
-            type AudioId = crate::handler::AudioSpanId;
-
             async fn audio_spans(
                 &self,
             ) -> crate::document::SpanStream<'_, crate::handler::AudioSpanId, crate::handler::AudioData>

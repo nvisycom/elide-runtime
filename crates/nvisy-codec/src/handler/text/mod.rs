@@ -46,16 +46,25 @@ pub use xlsx_loader::{XlsxLoader, XlsxParams};
 ///
 /// Handlers implementing this trait can yield text spans and accept
 /// text edits. Each handler defines its own text span addressing
-/// scheme via [`TextId`](Self::TextId).
+/// scheme via [`TextId`](Self::TextId) (e.g. line numbers for plain
+/// text, JSON paths for JSON, page-level IDs for rich documents).
 #[async_trait::async_trait]
 pub trait TextHandler: Handler {
     /// Strongly-typed identifier for a text span within this handler.
+    ///
+    /// Must be hashable so that edit routing can map IDs back to their
+    /// original spans.
     type TextId: Send + Sync + Clone + Eq + Hash + 'static;
 
-    /// Return text content as an async stream of spans.
+    /// Return text content as an async stream of [`Span`](crate::document::Span)s.
+    ///
+    /// Each span carries a [`TextId`](Self::TextId) and [`TextData`] payload.
     async fn text_spans(&self) -> SpanStream<'_, Self::TextId, TextData>;
 
-    /// Apply text edits from an async stream back to the source structure.
+    /// Apply text edits from an async stream back to the handler.
+    ///
+    /// The stream items must use the same [`TextId`](Self::TextId)
+    /// returned by [`text_spans`](Self::text_spans).
     async fn edit_text(
         &mut self,
         edits: SpanStream<'_, Self::TextId, TextData>,

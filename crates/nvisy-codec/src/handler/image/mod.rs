@@ -30,16 +30,27 @@ pub struct ImageSpanId;
 /// Capability trait for handlers that expose image content.
 ///
 /// Handlers implementing this trait can yield image spans and accept
-/// image edits.
+/// image edits. The associated [`ImageId`](Self::ImageId) type allows
+/// different handlers to use different addressing schemes (e.g.
+/// [`ImageSpanId`] for standalone images, `RichImageSpan` for images
+/// embedded in multi-page documents).
 #[async_trait::async_trait]
 pub trait ImageHandler: Handler {
     /// Strongly-typed identifier for an image span within this handler.
+    ///
+    /// Standalone image handlers use [`ImageSpanId`] (a unit type),
+    /// while rich-document handlers may use a page-aware identifier.
     type ImageId: Send + Sync + Clone + 'static;
 
-    /// Return image content as an async stream of spans.
+    /// Return image content as an async stream of [`Span`](crate::document::Span)s.
+    ///
+    /// Each span carries an [`ImageId`](Self::ImageId) and [`ImageData`] payload.
     async fn image_spans(&self) -> SpanStream<'_, Self::ImageId, ImageData>;
 
-    /// Apply image edits from an async stream back to the source structure.
+    /// Apply image edits from an async stream back to the handler.
+    ///
+    /// The stream items must use the same [`ImageId`](Self::ImageId)
+    /// returned by [`image_spans`](Self::image_spans).
     async fn edit_images(
         &mut self,
         edits: SpanStream<'_, Self::ImageId, ImageData>,

@@ -1,19 +1,20 @@
 //! Convenience re-exports.
 
-pub use crate::document::{AnyDocument, Span, SpanStream};
+pub use crate::document::{Document, Span, SpanStream};
 pub use crate::handler::{
-    BoxedAudioHandler, BoxedImageHandler, AnyRich, AnyText, AudioData, AudioHandler, AudioSpanId, CsvData,
-    CsvHandler, CsvLoader, CsvParams, CsvSpan, Handler, ImageData, ImageHandler, ImageSpanId,
-    JpegHandler, JpegLoader, JpegParams, JsonData, JsonHandler, JsonIndent, JsonLoader, JsonParams,
-    JsonPath, Loader, Mp3Handler, Mp3Loader, Mp3Params, PngHandler, PngLoader, PngParams, TextData,
-    TextHandler, TxtHandler, TxtLoader, TxtParams, TxtSpan, WavHandler, WavLoader, WavParams,
+    AnyText, AudioData, AudioHandler, AudioSpanId, BoxedAudioHandler, BoxedImageHandler,
+    BoxedRichHandler, CsvData, CsvHandler, CsvLoader, CsvParams, CsvSpan, Handler, ImageData,
+    ImageHandler, ImageSpanId, JpegHandler, JpegLoader, JpegParams, JsonData, JsonHandler,
+    JsonIndent, JsonLoader, JsonParams, JsonPath, Loader, Mp3Handler, Mp3Loader, Mp3Params,
+    PngHandler, PngLoader, PngParams, TextData, TextHandler, TxtHandler, TxtLoader, TxtParams,
+    TxtSpan, WavHandler, WavLoader, WavParams,
 };
 #[cfg(feature = "docx")]
-pub use crate::handler::{DocxHandler, DocxLoader, DocxParams};
+pub use crate::handler::{DocxLoader, DocxParams};
 #[cfg(feature = "html")]
 pub use crate::handler::{HtmlData, HtmlHandler, HtmlLoader, HtmlParams, HtmlSpan};
 #[cfg(feature = "pdf")]
-pub use crate::handler::{PdfHandler, PdfLoader, PdfParams, PdfTextSpan, RichImageSpan};
+pub use crate::handler::{PdfLoader, PdfParams, RichImageSpan, RichTextHandler, RichTextSpan};
 #[cfg(feature = "xlsx")]
 pub use crate::handler::{XlsxHandler, XlsxLoader, XlsxParams};
 pub use crate::transform::{

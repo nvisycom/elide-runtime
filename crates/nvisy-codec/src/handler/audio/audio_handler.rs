@@ -11,13 +11,14 @@ use crate::handler::{AudioHandler, Handler};
 
 /// A type-erased audio handler backed by a boxed trait object.
 ///
-/// All audio handlers share `AudioId = AudioSpanId`, so a single
-/// boxed trait object can unify them without per-variant boilerplate.
-pub struct BoxedAudioHandler(Box<dyn DynAudioHandler>);
+/// Since [`AudioHandler`] uses a concrete [`AudioSpanId`] (no associated
+/// type), the trait is directly object-safe and can be boxed without a
+/// private `Dyn*` indirection layer.
+pub struct BoxedAudioHandler(Box<dyn AudioHandler>);
 
 impl BoxedAudioHandler {
     /// Wrap any concrete audio handler into a type-erased box.
-    fn new<H: DynAudioHandler>(handler: H) -> Self {
+    pub fn new<H: AudioHandler>(handler: H) -> Self {
         Self(Box::new(handler))
     }
 }
@@ -58,8 +59,6 @@ impl Handler for BoxedAudioHandler {
 
 #[async_trait::async_trait]
 impl AudioHandler for BoxedAudioHandler {
-    type AudioId = AudioSpanId;
-
     async fn audio_spans(&self) -> SpanStream<'_, AudioSpanId, AudioData> {
         self.0.audio_spans().await
     }
@@ -71,37 +70,6 @@ impl AudioHandler for BoxedAudioHandler {
         self.0.edit_audio(edits).await
     }
 }
-
-/// Object-safe supertrait combining Handler + AudioHandler for boxing.
-#[async_trait::async_trait]
-trait DynAudioHandler: Handler {
-    async fn audio_spans(&self) -> SpanStream<'_, AudioSpanId, AudioData>;
-    async fn edit_audio(
-        &mut self,
-        edits: SpanStream<'_, AudioSpanId, AudioData>,
-    ) -> Result<(), Error>;
-}
-
-macro_rules! impl_dyn_audio {
-    ($ty:ty) => {
-        #[async_trait::async_trait]
-        impl DynAudioHandler for $ty {
-            async fn audio_spans(&self) -> SpanStream<'_, AudioSpanId, AudioData> {
-                AudioHandler::audio_spans(self).await
-            }
-
-            async fn edit_audio(
-                &mut self,
-                edits: SpanStream<'_, AudioSpanId, AudioData>,
-            ) -> Result<(), Error> {
-                AudioHandler::edit_audio(self, edits).await
-            }
-        }
-    };
-}
-
-impl_dyn_audio!(WavHandler);
-impl_dyn_audio!(Mp3Handler);
 
 #[cfg(test)]
 mod tests {

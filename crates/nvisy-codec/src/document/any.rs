@@ -1,17 +1,15 @@
-//! [`AnyDocument`]: type-erased document wrapper over all handler families.
+//! [`Document`]: type-erased document wrapper over all handler families.
 
 use derive_more::From;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
 
-#[cfg(feature = "docx")]
-use crate::handler::DocxHandler;
 #[cfg(feature = "pdf")]
-use crate::handler::PdfHandler;
+use crate::handler::RichTextHandler;
 use crate::handler::{
-    BoxedAudioHandler, BoxedImageHandler, AnyRich, AnyText, Handler, JpegHandler, Mp3Handler,
-    PngHandler, TxtHandler, WavHandler,
+    AnyText, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler, Handler, JpegHandler,
+    Mp3Handler, PngHandler, TxtHandler, WavHandler,
 };
 
 /// A fully type-erased document that can hold any supported format.
@@ -22,14 +20,14 @@ use crate::handler::{
 /// - **Audio**: WAV, MP3
 /// - **Rich**: PDF, DOCX (multi-modal documents with text + images)
 #[derive(From)]
-pub enum AnyDocument {
+pub enum Document {
     Text(AnyText),
     Image(BoxedImageHandler),
     Audio(BoxedAudioHandler),
-    Rich(AnyRich),
+    Rich(BoxedRichHandler),
 }
 
-impl AnyDocument {
+impl Document {
     /// The document type of the underlying content.
     pub fn document_type(&self) -> DocumentType {
         match self {
@@ -78,7 +76,7 @@ impl AnyDocument {
     }
 
     /// Try to get the inner rich handler by reference.
-    pub fn as_rich(&self) -> Option<&AnyRich> {
+    pub fn as_rich(&self) -> Option<&BoxedRichHandler> {
         if let Self::Rich(h) = self {
             Some(h)
         } else {
@@ -114,7 +112,7 @@ impl AnyDocument {
     }
 
     /// Consume and return the inner rich handler.
-    pub fn into_rich(self) -> Option<AnyRich> {
+    pub fn into_rich(self) -> Option<BoxedRichHandler> {
         if let Self::Rich(h) = self {
             Some(h)
         } else {
@@ -123,47 +121,40 @@ impl AnyDocument {
     }
 }
 
-impl From<TxtHandler> for AnyDocument {
+impl From<TxtHandler> for Document {
     fn from(h: TxtHandler) -> Self {
         Self::Text(AnyText::from(h))
     }
 }
 
-impl From<PngHandler> for AnyDocument {
+impl From<PngHandler> for Document {
     fn from(h: PngHandler) -> Self {
         Self::Image(BoxedImageHandler::from(h))
     }
 }
 
-impl From<JpegHandler> for AnyDocument {
+impl From<JpegHandler> for Document {
     fn from(h: JpegHandler) -> Self {
         Self::Image(BoxedImageHandler::from(h))
     }
 }
 
-impl From<WavHandler> for AnyDocument {
+impl From<WavHandler> for Document {
     fn from(h: WavHandler) -> Self {
         Self::Audio(BoxedAudioHandler::from(h))
     }
 }
 
-impl From<Mp3Handler> for AnyDocument {
+impl From<Mp3Handler> for Document {
     fn from(h: Mp3Handler) -> Self {
         Self::Audio(BoxedAudioHandler::from(h))
     }
 }
 
 #[cfg(feature = "pdf")]
-impl From<PdfHandler> for AnyDocument {
-    fn from(h: PdfHandler) -> Self {
-        Self::Rich(AnyRich::from(h))
-    }
-}
-
-#[cfg(feature = "docx")]
-impl From<DocxHandler> for AnyDocument {
-    fn from(h: DocxHandler) -> Self {
-        Self::Rich(AnyRich::from(h))
+impl From<RichTextHandler> for Document {
+    fn from(h: RichTextHandler) -> Self {
+        Self::Rich(BoxedRichHandler::from(h))
     }
 }
 
@@ -176,39 +167,39 @@ mod tests {
     #[test]
     fn from_txt_handler() {
         let handler = TxtHandler::new(vec!["hello".into()], false);
-        let any: AnyDocument = handler.into();
-        assert!(any.as_text().is_some());
-        assert_eq!(any.document_type(), DocumentType::Text(TextFormat::Txt));
+        let doc: Document = handler.into();
+        assert!(doc.as_text().is_some());
+        assert_eq!(doc.document_type(), DocumentType::Text(TextFormat::Txt));
     }
 
     #[test]
     fn from_png_handler() {
         let img = image::DynamicImage::new_rgb8(1, 1);
         let handler = PngHandler::new(img);
-        let any: AnyDocument = handler.into();
-        assert!(any.as_image().is_some());
-        assert_eq!(any.document_type(), DocumentType::Image(ImageFormat::Png));
+        let doc: Document = handler.into();
+        assert!(doc.as_image().is_some());
+        assert_eq!(doc.document_type(), DocumentType::Image(ImageFormat::Png));
     }
 
     #[test]
     fn from_wav_handler() {
         let handler = WavHandler::new(bytes::Bytes::from_static(b"wav"));
-        let any: AnyDocument = handler.into();
-        assert!(any.as_audio().is_some());
-        assert_eq!(any.document_type(), DocumentType::Audio(AudioFormat::Wav));
+        let doc: Document = handler.into();
+        assert!(doc.as_audio().is_some());
+        assert_eq!(doc.document_type(), DocumentType::Audio(AudioFormat::Wav));
     }
 
     #[test]
     fn into_text_returns_some() {
         let handler = TxtHandler::new(vec![], false);
-        let any: AnyDocument = handler.into();
-        assert!(any.into_text().is_some());
+        let doc: Document = handler.into();
+        assert!(doc.into_text().is_some());
     }
 
     #[test]
     fn into_wrong_variant_returns_none() {
         let handler = TxtHandler::new(vec![], false);
-        let any: AnyDocument = handler.into();
-        assert!(any.into_image().is_none());
+        let doc: Document = handler.into();
+        assert!(doc.into_image().is_none());
     }
 }

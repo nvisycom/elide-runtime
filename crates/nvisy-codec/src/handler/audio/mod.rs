@@ -28,19 +28,21 @@ pub struct AudioSpanId;
 
 /// Capability trait for handlers that expose audio content.
 ///
-/// Handlers implementing this trait can yield audio spans and accept
-/// audio edits.
+/// All audio handlers use [`AudioSpanId`] as their span identifier,
+/// making this trait directly object-safe without a `Dyn*` wrapper.
 #[async_trait::async_trait]
 pub trait AudioHandler: Handler {
-    /// Strongly-typed identifier for an audio span within this handler.
-    type AudioId: Send + Sync + Clone + 'static;
+    /// Return audio content as an async stream of [`Span`](crate::document::Span)s.
+    ///
+    /// Each span carries an [`AudioSpanId`] and [`AudioData`] payload.
+    async fn audio_spans(&self) -> SpanStream<'_, AudioSpanId, AudioData>;
 
-    /// Return audio content as an async stream of spans.
-    async fn audio_spans(&self) -> SpanStream<'_, Self::AudioId, AudioData>;
-
-    /// Apply audio edits from an async stream back to the source structure.
+    /// Apply audio edits from an async stream back to the handler.
+    ///
+    /// The stream items must use the same [`AudioSpanId`] returned by
+    /// [`audio_spans`](Self::audio_spans).
     async fn edit_audio(
         &mut self,
-        edits: SpanStream<'_, Self::AudioId, AudioData>,
+        edits: SpanStream<'_, AudioSpanId, AudioData>,
     ) -> Result<(), Error>;
 }

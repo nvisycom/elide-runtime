@@ -20,7 +20,7 @@ use nvisy_core::fs::{DocumentType, TextFormat};
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
-use crate::document::{Span, SpanEditStream, SpanStream};
+use crate::document::{Span, SpanStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
 
@@ -41,6 +41,10 @@ pub struct TxtHandler {
 impl Handler for TxtHandler {
     fn document_type(&self) -> DocumentType {
         DocumentType::Text(TextFormat::Txt)
+    }
+
+    fn source(&self) -> ContentSource {
+        self.source
     }
 
     #[tracing::instrument(name = "txt.encode", skip_all, fields(output_bytes))]
@@ -69,7 +73,7 @@ impl TextHandler for TxtHandler {
 
     async fn edit_text(
         &mut self,
-        edits: SpanEditStream<'_, TxtSpan, TextData>,
+        edits: SpanStream<'_, TxtSpan, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
@@ -157,7 +161,7 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::document::SpanEdit;
+    use crate::document::Span;
     use crate::handler::TextHandler;
 
     fn handler(text: &str) -> TxtHandler {
@@ -191,8 +195,8 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_replace_line() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
-        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(TxtSpan(1), "[REDACTED]".into()),
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![
+            Span::new(TxtSpan(1), "[REDACTED]".into()),
         ])))
         .await?;
         assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
@@ -203,8 +207,8 @@ mod tests {
     async fn edit_spans_out_of_bounds() {
         let mut h = handler("one line");
         let err = h
-            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit::new(TxtSpan(5), "nope".into()),
+            .edit_text(SpanStream::new(futures::stream::iter(vec![
+                Span::new(TxtSpan(5), "nope".into()),
             ])))
             .await
             .unwrap_err();

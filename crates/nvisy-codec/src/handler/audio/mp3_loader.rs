@@ -1,9 +1,9 @@
-//! MP3 loader: wraps raw audio bytes into a [`Document<Mp3Handler>`].
+//! MP3 loader: wraps raw audio bytes into a [`Mp3Handler`].
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
-use crate::document::Document;
 use crate::handler::{Loader, Mp3Handler};
 
 /// Parameters for [`Mp3Loader`].
@@ -12,7 +12,7 @@ pub struct Mp3Params;
 
 /// Loader that wraps raw MP3 bytes.
 ///
-/// Produces a single [`Document<Mp3Handler>`] per input.
+/// Produces a single [`Mp3Handler`] per input.
 #[derive(Debug)]
 pub struct Mp3Loader;
 
@@ -26,10 +26,10 @@ impl Loader for Mp3Loader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Document<Mp3Handler>, Error> {
+    ) -> Result<Mp3Handler, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
-        let handler = Mp3Handler::new(content.to_bytes()).with_source(content.content_source);
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        let source = ContentSource::new().with_parent(&content.content_source);
+        let handler = Mp3Handler::new(content.to_bytes()).with_source(source);
+        Ok(handler)
     }
 }

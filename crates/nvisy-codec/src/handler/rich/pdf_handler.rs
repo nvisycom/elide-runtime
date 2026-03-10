@@ -15,7 +15,7 @@
 //! # Image span model
 //!
 //! [`ImageHandler::image_spans`] yields one [`Span`] per rendered page
-//! image.  Each span is addressed by a [`PdfImageSpan`] containing
+//! image.  Each span is addressed by a [`RichImageSpan`] containing
 //! the page index and image index.
 //!
 //! # Encoding
@@ -33,7 +33,7 @@ use nvisy_core::math::Dpi;
 use nvisy_core::path::ContentSource;
 
 use super::pdf_render::PdfRenderer;
-use crate::document::{Span, SpanEditStream, SpanStream};
+use crate::document::{Span, SpanStream};
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, ImageHandler, TextHandler};
@@ -42,9 +42,9 @@ use crate::handler::{Handler, ImageHandler, TextHandler};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PdfTextSpan(pub u32);
 
-/// Identifier for an embedded image within a PDF document.
+/// Identifier for an image span within a rich (multi-page) document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PdfImageSpan {
+pub struct RichImageSpan {
     /// 0-based page index.
     pub page: u32,
     /// 0-based image index within the page.
@@ -162,6 +162,10 @@ impl Handler for PdfHandler {
         DocumentType::Pdf
     }
 
+    fn source(&self) -> ContentSource {
+        self.source
+    }
+
     #[tracing::instrument(name = "pdf.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
         tracing::Span::current().record("output_bytes", self.raw.len());
@@ -183,7 +187,7 @@ impl TextHandler for PdfHandler {
 
     async fn edit_text(
         &mut self,
-        edits: SpanEditStream<'_, PdfTextSpan, TextData>,
+        edits: SpanStream<'_, PdfTextSpan, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         if edits.is_empty() {
@@ -241,9 +245,9 @@ impl TextHandler for PdfHandler {
 
 #[async_trait::async_trait]
 impl ImageHandler for PdfHandler {
-    type ImageId = PdfImageSpan;
+    type ImageId = RichImageSpan;
 
-    async fn image_spans(&self) -> SpanStream<'_, PdfImageSpan, ImageData> {
+    async fn image_spans(&self) -> SpanStream<'_, RichImageSpan, ImageData> {
         // Render pages to images on demand.
         let images = match PdfRenderer::parallel_render(&self.raw, Dpi::OCR) {
             Ok(imgs) => imgs,
@@ -255,7 +259,7 @@ impl ImageHandler for PdfHandler {
         SpanStream::new(futures::stream::iter(images.into_iter().enumerate().map(
             |(i, img)| {
                 Span::new(
-                    PdfImageSpan {
+                    RichImageSpan {
                         page: i as u32,
                         index: 0,
                     },
@@ -267,7 +271,7 @@ impl ImageHandler for PdfHandler {
 
     async fn edit_images(
         &mut self,
-        _edits: SpanEditStream<'_, PdfImageSpan, ImageData>,
+        _edits: SpanStream<'_, RichImageSpan, ImageData>,
     ) -> Result<(), Error> {
         // Image editing for PDF is not yet supported — rendered images
         // are read-only snapshots.
@@ -306,7 +310,7 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::document::SpanEdit;
+    use crate::document::Span;
     use crate::handler::TextHandler;
 
     fn handler(pages: &[&str]) -> PdfHandler {
@@ -360,8 +364,8 @@ mod tests {
         // test the out-of-bounds validation path.
         let mut h = handler(&["hello"]);
         let err = h
-            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit::new(PdfTextSpan(5), "nope".into()),
+            .edit_text(SpanStream::new(futures::stream::iter(vec![
+                Span::new(PdfTextSpan(5), "nope".into()),
             ])))
             .await
             .unwrap_err();

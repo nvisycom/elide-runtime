@@ -1,5 +1,5 @@
 //! Plain-text loader: validates and parses raw text content into a
-//! [`Document<TxtHandler>`].
+//! [`TxtHandler`].
 //!
 //! The loader splits the input into lines and records whether the
 //! source ended with a trailing newline so the file can be
@@ -7,8 +7,8 @@
 
 use nvisy_core::Error;
 use nvisy_core::io::{ContentData, TextEncoding};
+use nvisy_core::path::ContentSource;
 
-use crate::document::Document;
 use crate::handler::{Loader, TxtHandler};
 
 /// Parameters for [`TxtLoader`].
@@ -20,7 +20,7 @@ pub struct TxtParams {
 
 /// Loader that validates and parses plain-text files.
 ///
-/// Produces a single [`Document<TxtHandler>`] per input.
+/// Produces a single [`TxtHandler`] per input.
 #[derive(Debug)]
 pub struct TxtLoader;
 
@@ -34,7 +34,7 @@ impl Loader for TxtLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Document<TxtHandler>, Error> {
+    ) -> Result<TxtHandler, Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
         let text = params.encoding.decode_bytes(&raw, "txt-loader")?;
@@ -42,9 +42,9 @@ impl Loader for TxtLoader {
         let lines: Vec<String> = text.lines().map(String::from).collect();
         tracing::Span::current().record("lines", lines.len());
 
-        let handler = TxtHandler::new(lines, trailing_newline).with_source(content.content_source);
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        let source = ContentSource::new().with_parent(&content.content_source);
+        let handler = TxtHandler::new(lines, trailing_newline).with_source(source);
+        Ok(handler)
     }
 }
 
@@ -55,6 +55,8 @@ mod tests {
     use nvisy_core::Error;
     use nvisy_core::fs::{DocumentType, TextFormat};
     use nvisy_core::path::ContentSource;
+
+    use crate::handler::{Handler, TextHandler};
 
     use super::*;
 

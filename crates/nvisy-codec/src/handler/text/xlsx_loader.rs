@@ -2,8 +2,8 @@
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
-use crate::document::Document;
 use crate::handler::{Loader, XlsxHandler};
 
 /// Parameters for [`XlsxLoader`].
@@ -12,7 +12,7 @@ pub struct XlsxParams;
 
 /// Loader that parses XLSX spreadsheets.
 ///
-/// Produces a single [`Document<XlsxHandler>`] per input.
+/// Produces a single [`XlsxHandler`] per input.
 #[derive(Debug)]
 pub struct XlsxLoader;
 
@@ -26,10 +26,10 @@ impl Loader for XlsxLoader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Document<XlsxHandler>, Error> {
+    ) -> Result<XlsxHandler, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
-        let handler = XlsxHandler;
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        let source = ContentSource::new().with_parent(&content.content_source);
+        let handler = XlsxHandler::new().with_source(source);
+        Ok(handler)
     }
 }

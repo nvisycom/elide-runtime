@@ -1,5 +1,5 @@
 //! JSON loader: validates and parses raw JSON content into a
-//! [`Document<JsonHandler>`].
+//! [`JsonHandler`].
 //!
 //! The loader detects the indentation style and trailing-newline
 //! convention of the source file so that [`JsonData`] preserves
@@ -9,8 +9,8 @@ use std::num::NonZeroU32;
 
 use nvisy_core::Error;
 use nvisy_core::io::{ContentData, TextEncoding};
+use nvisy_core::path::ContentSource;
 
-use crate::document::Document;
 use crate::handler::{JsonData, JsonHandler, JsonIndent, Loader};
 
 /// Parameters for [`JsonLoader`].
@@ -22,7 +22,7 @@ pub struct JsonParams {
 
 /// Loader that validates and parses JSON files.
 ///
-/// Produces a single [`Document<JsonHandler>`] per input.  The
+/// Produces a single [`JsonHandler`] per input.  The
 /// loaded handler stores the parsed [`serde_json::Value`] tree
 /// together with formatting metadata for round-trip fidelity.
 #[derive(Debug)]
@@ -38,7 +38,7 @@ impl Loader for JsonLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Document<JsonHandler>, Error> {
+    ) -> Result<JsonHandler, Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
         let text = params.encoding.decode_bytes(&raw, "json-loader")?;
@@ -47,16 +47,16 @@ impl Loader for JsonLoader {
         let value: serde_json::Value = serde_json::from_str(&text)
             .map_err(|e| Error::validation(format!("Invalid JSON: {e}"), "json-loader"))?;
 
+        let source = ContentSource::new().with_parent(&content.content_source);
         let handler = JsonHandler {
-            source: content.content_source,
+            source,
             data: JsonData {
                 value,
                 indent,
                 trailing_newline,
             },
         };
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        Ok(handler)
     }
 }
 
@@ -97,6 +97,8 @@ mod tests {
     use nvisy_core::fs::{DocumentType, TextFormat};
     use nvisy_core::path::ContentSource;
     use serde_json::json;
+
+    use crate::handler::Handler;
 
     use super::*;
 

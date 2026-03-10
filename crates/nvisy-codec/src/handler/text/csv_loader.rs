@@ -1,13 +1,13 @@
 //! CSV loader: validates and parses raw CSV content into a
-//! [`Document<CsvHandler>`].
+//! [`CsvHandler`].
 //!
 //! The loader auto-detects the field delimiter (comma, tab, semicolon,
 //! pipe) by inspecting the first line.
 
 use nvisy_core::Error;
 use nvisy_core::io::{ContentData, TextEncoding};
+use nvisy_core::path::ContentSource;
 
-use crate::document::Document;
 use crate::handler::{CsvData, CsvHandler, Loader};
 
 /// Parameters for [`CsvLoader`].
@@ -35,7 +35,7 @@ impl Default for CsvParams {
 
 /// Loader that validates and parses CSV files.
 ///
-/// Produces a single [`Document<CsvHandler>`] per input.
+/// Produces a single [`CsvHandler`] per input.
 #[derive(Debug)]
 pub struct CsvLoader;
 
@@ -49,7 +49,7 @@ impl Loader for CsvLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Document<CsvHandler>, Error> {
+    ) -> Result<CsvHandler, Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
         let text = params.encoding.decode_bytes(&raw, "csv-loader")?;
@@ -80,8 +80,9 @@ impl Loader for CsvLoader {
         }
 
         tracing::Span::current().record("rows", rows.len());
+        let source = ContentSource::new().with_parent(&content.content_source);
         let handler = CsvHandler {
-            source: content.content_source,
+            source,
             data: CsvData {
                 headers,
                 rows,
@@ -89,8 +90,7 @@ impl Loader for CsvLoader {
                 trailing_newline,
             },
         };
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        Ok(handler)
     }
 }
 
@@ -139,6 +139,8 @@ mod tests {
     use nvisy_core::Error;
     use nvisy_core::fs::{DocumentType, SpreadsheetFormat};
     use nvisy_core::path::ContentSource;
+
+    use crate::handler::{Handler, TextHandler};
 
     use super::*;
 

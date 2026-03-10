@@ -19,7 +19,7 @@ pub use docx_handler::DocxHandler;
 #[cfg(feature = "docx")]
 pub use docx_loader::{DocxLoader, DocxParams};
 #[cfg(feature = "pdf")]
-pub use pdf_handler::{PdfHandler, PdfImageSpan, PdfTextSpan};
+pub use pdf_handler::{PdfHandler, PdfTextSpan, RichImageSpan};
 #[cfg(feature = "pdf")]
 pub use pdf_loader::{PdfLoader, PdfParams};
 pub use rich_handler::AnyRich;

@@ -9,6 +9,10 @@ macro_rules! impl_image_handler {
                 $doc_type
             }
 
+            fn source(&self) -> nvisy_core::path::ContentSource {
+                self.source
+            }
+
             #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
             fn encode(&self) -> Result<nvisy_core::io::ContentData, nvisy_core::Error> {
                 let mut buf = std::io::Cursor::new(Vec::new());
@@ -24,14 +28,14 @@ macro_rules! impl_image_handler {
 
         #[async_trait::async_trait]
         impl crate::handler::ImageHandler for $handler {
-            type ImageId = ();
+            type ImageId = crate::handler::ImageSpanId;
 
             async fn image_spans(
                 &self,
-            ) -> crate::document::SpanStream<'_, (), crate::handler::ImageData> {
+            ) -> crate::document::SpanStream<'_, crate::handler::ImageSpanId, crate::handler::ImageData> {
                 crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
                     crate::document::Span::new(
-                        (),
+                        crate::handler::ImageSpanId,
                         crate::handler::ImageData::from(self.image.clone()),
                     ),
                 )))
@@ -39,7 +43,7 @@ macro_rules! impl_image_handler {
 
             async fn edit_images(
                 &mut self,
-                edits: crate::document::SpanEditStream<'_, (), crate::handler::ImageData>,
+                edits: crate::document::SpanStream<'_, crate::handler::ImageSpanId, crate::handler::ImageData>,
             ) -> Result<(), nvisy_core::Error> {
                 use futures::StreamExt;
                 let edits: Vec<_> = edits.collect().await;

@@ -2,10 +2,11 @@
 
 use std::hash::Hash;
 
+use futures::StreamExt;
 use nvisy_core::Error;
 
 use super::Handler;
-use crate::document::{SpanEditStream, SpanStream};
+use crate::document::{Span, SpanStream};
 
 mod csv_handler;
 mod csv_loader;
@@ -57,6 +58,29 @@ pub trait TextHandler: Handler {
     /// Apply text edits from an async stream back to the source structure.
     async fn edit_text(
         &mut self,
-        edits: SpanEditStream<'_, Self::TextId, TextData>,
+        edits: SpanStream<'_, Self::TextId, TextData>,
     ) -> Result<(), Error>;
+}
+
+/// Re-index a handler's span stream to sequential `usize` IDs.
+pub(crate) async fn reindex_stream<'a, H: TextHandler + 'a>(
+    handler: &'a H,
+) -> SpanStream<'a, usize, TextData> {
+    let inner = handler.text_spans().await;
+    SpanStream::new(inner.enumerate().map(|(i, s)| Span::new(i, s.data).with_source(s.source)))
+}
+
+/// Collect native IDs from a handler, map `usize` edits back, and apply.
+pub(crate) async fn forward_edits<H: TextHandler>(
+    handler: &mut H,
+    edits: Vec<Span<usize, TextData>>,
+) -> Result<(), Error> {
+    let ids: Vec<H::TextId> = handler.text_spans().await.map(|s| s.id).collect().await;
+    let mapped: Vec<_> = edits
+        .into_iter()
+        .filter_map(|e| ids.get(e.id).cloned().map(|id| Span::new(id, e.data)))
+        .collect();
+    handler
+        .edit_text(SpanStream::new(futures::stream::iter(mapped)))
+        .await
 }

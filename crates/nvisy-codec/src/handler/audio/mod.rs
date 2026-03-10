@@ -3,7 +3,7 @@
 use nvisy_core::Error;
 
 use super::Handler;
-use crate::document::{SpanEditStream, SpanStream};
+use crate::document::SpanStream;
 
 mod audio_data;
 mod audio_handler;
@@ -13,11 +13,15 @@ mod wav_handler;
 mod wav_loader;
 
 pub use audio_data::AudioData;
-pub use audio_handler::AnyAudio;
+pub use audio_handler::BoxedAudioHandler;
 pub use mp3_handler::Mp3Handler;
 pub use mp3_loader::{Mp3Loader, Mp3Params};
 pub use wav_handler::WavHandler;
 pub use wav_loader::{WavLoader, WavParams};
+
+/// Identifier for an audio span within a single-track handler.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AudioSpanId;
 
 /// Capability trait for handlers that expose audio content.
 ///
@@ -34,6 +38,6 @@ pub trait AudioHandler: Handler {
     /// Apply audio edits from an async stream back to the source structure.
     async fn edit_audio(
         &mut self,
-        edits: SpanEditStream<'_, Self::AudioId, AudioData>,
+        edits: SpanStream<'_, Self::AudioId, AudioData>,
     ) -> Result<(), Error>;
 }

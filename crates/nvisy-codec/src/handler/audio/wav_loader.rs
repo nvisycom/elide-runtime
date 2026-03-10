@@ -1,9 +1,9 @@
-//! WAV loader: wraps raw audio bytes into a [`Document<WavHandler>`].
+//! WAV loader: wraps raw audio bytes into a [`WavHandler`].
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
-use crate::document::Document;
 use crate::handler::{Loader, WavHandler};
 
 /// Parameters for [`WavLoader`].
@@ -12,7 +12,7 @@ pub struct WavParams;
 
 /// Loader that wraps raw WAV bytes.
 ///
-/// Produces a single [`Document<WavHandler>`] per input.
+/// Produces a single [`WavHandler`] per input.
 #[derive(Debug)]
 pub struct WavLoader;
 
@@ -26,10 +26,10 @@ impl Loader for WavLoader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Document<WavHandler>, Error> {
+    ) -> Result<WavHandler, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
-        let handler = WavHandler::new(content.to_bytes()).with_source(content.content_source);
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        let source = ContentSource::new().with_parent(&content.content_source);
+        let handler = WavHandler::new(content.to_bytes()).with_source(source);
+        Ok(handler)
     }
 }

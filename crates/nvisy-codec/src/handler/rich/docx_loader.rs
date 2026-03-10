@@ -2,8 +2,8 @@
 
 use nvisy_core::Error;
 use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
-use crate::document::Document;
 use crate::handler::{DocxHandler, Loader};
 
 /// Parameters for [`DocxLoader`].
@@ -12,7 +12,7 @@ pub struct DocxParams;
 
 /// Loader that creates a stub DOCX handler.
 ///
-/// Produces a single [`Document<DocxHandler>`] per input.
+/// Produces a single [`DocxHandler`] per input.
 #[derive(Debug)]
 pub struct DocxLoader;
 
@@ -26,10 +26,10 @@ impl Loader for DocxLoader {
         &self,
         content: &ContentData,
         _params: &Self::Params,
-    ) -> Result<Document<DocxHandler>, Error> {
+    ) -> Result<DocxHandler, Error> {
         tracing::Span::current().record("input_bytes", content.to_bytes().len());
-        let handler = DocxHandler;
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        let source = ContentSource::new().with_parent(&content.content_source);
+        let handler = DocxHandler::new().with_source(source);
+        Ok(handler)
     }
 }

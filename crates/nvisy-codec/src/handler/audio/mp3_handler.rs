@@ -14,8 +14,8 @@ use nvisy_core::fs::{AudioFormat, DocumentType};
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
-use super::AudioData;
-use crate::document::{Span, SpanEditStream, SpanStream};
+use super::{AudioData, AudioSpanId};
+use crate::document::{Span, SpanStream};
 use crate::handler::{AudioHandler, Handler};
 
 #[derive(Debug)]
@@ -48,6 +48,10 @@ impl Handler for Mp3Handler {
         DocumentType::Audio(AudioFormat::Mp3)
     }
 
+    fn source(&self) -> ContentSource {
+        self.source
+    }
+
     #[tracing::instrument(name = "mp3.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
         tracing::Span::current().record("output_bytes", self.bytes.len());
@@ -58,16 +62,16 @@ impl Handler for Mp3Handler {
 
 #[async_trait::async_trait]
 impl AudioHandler for Mp3Handler {
-    type AudioId = ();
+    type AudioId = AudioSpanId;
 
-    async fn audio_spans(&self) -> SpanStream<'_, (), AudioData> {
+    async fn audio_spans(&self) -> SpanStream<'_, AudioSpanId, AudioData> {
         SpanStream::new(futures::stream::iter(std::iter::once(Span::new(
-            (),
+            AudioSpanId,
             AudioData::new(self.bytes.clone()),
         ))))
     }
 
-    async fn edit_audio(&mut self, edits: SpanEditStream<'_, (), AudioData>) -> Result<(), Error> {
+    async fn edit_audio(&mut self, edits: SpanStream<'_, AudioSpanId, AudioData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         if let Some(edit) = edits.into_iter().next() {
             self.bytes = edit.data.into_inner();
@@ -79,7 +83,7 @@ impl AudioHandler for Mp3Handler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::document::SpanEdit;
+    use crate::document::Span;
     use crate::handler::AudioHandler;
 
     #[tokio::test]
@@ -93,8 +97,8 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_replaces_bytes() -> Result<(), Error> {
         let mut h = Mp3Handler::new(Bytes::from_static(b"original"));
-        h.edit_audio(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new((), AudioData::new(Bytes::from_static(b"replaced"))),
+        h.edit_audio(SpanStream::new(futures::stream::iter(vec![
+            Span::new(AudioSpanId, AudioData::new(Bytes::from_static(b"replaced"))),
         ])))
         .await?;
         assert_eq!(h.bytes().as_ref(), b"replaced");

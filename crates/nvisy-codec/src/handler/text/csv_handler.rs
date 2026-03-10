@@ -21,7 +21,7 @@ use nvisy_core::fs::{DocumentType, SpreadsheetFormat};
 use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 
-use crate::document::{Span, SpanEditStream, SpanStream};
+use crate::document::{Span, SpanStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
 
@@ -87,6 +87,10 @@ impl Handler for CsvHandler {
         DocumentType::Spreadsheet(SpreadsheetFormat::Csv)
     }
 
+    fn source(&self) -> ContentSource {
+        self.source
+    }
+
     #[tracing::instrument(name = "csv.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
         let mut wtr = csv::WriterBuilder::new()
@@ -130,7 +134,7 @@ impl TextHandler for CsvHandler {
 
     async fn edit_text(
         &mut self,
-        edits: SpanEditStream<'_, CsvSpan, TextData>,
+        edits: SpanStream<'_, CsvSpan, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         for edit in edits {
@@ -307,7 +311,7 @@ mod tests {
     use nvisy_core::path::ContentSource;
 
     use super::*;
-    use crate::document::SpanEdit;
+    use crate::document::Span;
     use crate::handler::TextHandler;
 
     fn handler_with_headers(headers: Vec<&str>, rows: Vec<Vec<&str>>) -> CsvHandler {
@@ -386,8 +390,8 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_data_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["ssn"], vec![vec!["123-45-6789"]]);
-        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(CsvSpan::cell(0, 0, "ssn"), "[REDACTED]".into()),
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![
+            Span::new(CsvSpan::cell(0, 0, "ssn"), "[REDACTED]".into()),
         ])))
         .await?;
         assert_eq!(h.cell(0, 0), Some("[REDACTED]"));
@@ -397,8 +401,8 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_header_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["secret_field"], vec![vec!["value"]]);
-        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(CsvSpan::header_cell(0, "secret_field"), "redacted".into()),
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![
+            Span::new(CsvSpan::header_cell(0, "secret_field"), "redacted".into()),
         ])))
         .await?;
         assert_eq!(h.headers(), Some(["redacted".to_string()].as_slice()));
@@ -409,8 +413,8 @@ mod tests {
     async fn edit_spans_row_out_of_bounds() {
         let mut h = handler_no_headers(vec![vec!["a"]]);
         let err = h
-            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit::new(CsvSpan::cell(5, 0, "0"), "x".into()),
+            .edit_text(SpanStream::new(futures::stream::iter(vec![
+                Span::new(CsvSpan::cell(5, 0, "0"), "x".into()),
             ])))
             .await
             .unwrap_err();
@@ -421,8 +425,8 @@ mod tests {
     async fn edit_spans_col_out_of_bounds() {
         let mut h = handler_no_headers(vec![vec!["a"]]);
         let err = h
-            .edit_text(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit::new(CsvSpan::cell(0, 5, "5"), "x".into()),
+            .edit_text(SpanStream::new(futures::stream::iter(vec![
+                Span::new(CsvSpan::cell(0, 5, "5"), "x".into()),
             ])))
             .await
             .unwrap_err();

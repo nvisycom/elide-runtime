@@ -1,11 +1,11 @@
-//! PDF loader: parses raw PDF content into a [`Document<PdfHandler>`].
+//! PDF loader: parses raw PDF content into a [`PdfHandler`].
 //!
 //! Text is extracted per page via [`lopdf`].  The raw bytes are
 //! preserved for encoding and rendering.
 
 use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
-use crate::document::Document;
 use crate::handler::{Loader, PdfHandler};
 
 /// Parameters for [`PdfLoader`].
@@ -17,7 +17,7 @@ pub struct PdfParams {
 
 /// Loader that parses PDF files and extracts per-page text.
 ///
-/// Produces a single [`Document<PdfHandler>`] per input.
+/// Produces a single [`PdfHandler`] per input.
 #[derive(Debug)]
 pub struct PdfLoader;
 
@@ -31,17 +31,17 @@ impl Loader for PdfLoader {
         &self,
         content: &ContentData,
         params: &Self::Params,
-    ) -> Result<Document<PdfHandler>, nvisy_core::Error> {
+    ) -> Result<PdfHandler, nvisy_core::Error> {
         let raw = content.to_bytes();
         tracing::Span::current().record("input_bytes", raw.len());
 
+        let source = ContentSource::new().with_parent(&content.content_source);
         let handler = PdfHandler::from_raw(raw, params.password.as_deref())?
-            .with_source(content.content_source);
+            .with_source(source);
 
         tracing::Span::current().record("pages", handler.page_count());
 
-        let doc = Document::new(handler).with_parent(content);
-        Ok(doc)
+        Ok(handler)
     }
 }
 
@@ -51,6 +51,8 @@ mod tests {
     use futures::StreamExt;
     use nvisy_core::fs::DocumentType;
     use nvisy_core::path::ContentSource;
+
+    use crate::handler::{Handler, TextHandler};
 
     use super::*;
 

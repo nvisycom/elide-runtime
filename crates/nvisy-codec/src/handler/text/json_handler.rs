@@ -28,7 +28,7 @@ use nvisy_core::io::ContentData;
 use nvisy_core::path::ContentSource;
 use serde::{Deserialize, Serialize};
 
-use crate::document::{Span, SpanEditStream, SpanStream};
+use crate::document::{Span, SpanStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
 
@@ -130,6 +130,10 @@ impl Handler for JsonHandler {
         DocumentType::Text(TextFormat::Json)
     }
 
+    fn source(&self) -> ContentSource {
+        self.source
+    }
+
     #[tracing::instrument(name = "json.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
         let mut bytes = match self.data.indent {
@@ -186,7 +190,7 @@ impl TextHandler for JsonHandler {
 
     async fn edit_text(
         &mut self,
-        edits: SpanEditStream<'_, JsonPath, TextData>,
+        edits: SpanStream<'_, JsonPath, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         // Apply value edits first so that pointers remain valid when
@@ -240,7 +244,7 @@ impl JsonHandler {
     /// `serde_json::Value` data.
     pub async fn edit_spans(
         &mut self,
-        edits: SpanEditStream<'_, JsonPath, serde_json::Value>,
+        edits: SpanStream<'_, JsonPath, serde_json::Value>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         // Apply value edits first so that pointers remain valid when
@@ -514,7 +518,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::document::SpanEdit;
+    use crate::document::Span;
     use crate::handler::TextHandler;
 
     fn handler(value: serde_json::Value) -> JsonHandler {
@@ -596,8 +600,8 @@ mod tests {
     #[tokio::test]
     async fn edit_text_replace_string_value() -> Result<(), Error> {
         let mut h = handler(json!({"ssn": "123-45-6789"}));
-        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(JsonPath::value("/ssn"), "[REDACTED]".into()),
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![
+            Span::new(JsonPath::value("/ssn"), "[REDACTED]".into()),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"ssn": "[REDACTED]"}));
@@ -607,8 +611,8 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_replace_value() -> Result<(), Error> {
         let mut h = handler(json!({"ssn": "123-45-6789"}));
-        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(JsonPath::value("/ssn"), json!(null)),
+        h.edit_spans(SpanStream::new(futures::stream::iter(vec![
+            Span::new(JsonPath::value("/ssn"), json!(null)),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"ssn": null}));
@@ -618,8 +622,8 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_rename_key() -> Result<(), Error> {
         let mut h = handler(json!({"John Smith": {"age": 30}}));
-        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(JsonPath::key("/John Smith"), json!("[REDACTED]")),
+        h.edit_spans(SpanStream::new(futures::stream::iter(vec![
+            Span::new(JsonPath::key("/John Smith"), json!("[REDACTED]")),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
@@ -629,8 +633,8 @@ mod tests {
     #[tokio::test]
     async fn edit_text_rename_key() -> Result<(), Error> {
         let mut h = handler(json!({"John Smith": {"age": 30}}));
-        h.edit_text(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(JsonPath::key("/John Smith"), "[REDACTED]".into()),
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![
+            Span::new(JsonPath::key("/John Smith"), "[REDACTED]".into()),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
@@ -640,8 +644,8 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_rename_nested_key() -> Result<(), Error> {
         let mut h = handler(json!({"a": {"secret_field": 42}}));
-        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(JsonPath::key("/a/secret_field"), json!("redacted")),
+        h.edit_spans(SpanStream::new(futures::stream::iter(vec![
+            Span::new(JsonPath::key("/a/secret_field"), json!("redacted")),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"a": {"redacted": 42}}));
@@ -652,8 +656,8 @@ mod tests {
     async fn edit_spans_rename_key_requires_string() {
         let mut h = handler(json!({"a": 1}));
         let err = h
-            .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit::new(JsonPath::key("/a"), json!(42)),
+            .edit_spans(SpanStream::new(futures::stream::iter(vec![
+                Span::new(JsonPath::key("/a"), json!(42)),
             ])))
             .await
             .unwrap_err();
@@ -664,8 +668,8 @@ mod tests {
     async fn edit_spans_bad_pointer() {
         let mut h = handler(json!({"a": 1}));
         let err = h
-            .edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-                SpanEdit::new(JsonPath::value("/nonexistent"), json!(null)),
+            .edit_spans(SpanStream::new(futures::stream::iter(vec![
+                Span::new(JsonPath::value("/nonexistent"), json!(null)),
             ])))
             .await
             .unwrap_err();
@@ -675,9 +679,9 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_value_before_key_rename() -> Result<(), Error> {
         let mut h = handler(json!({"name": "Alice"}));
-        h.edit_spans(SpanEditStream::new(futures::stream::iter(vec![
-            SpanEdit::new(JsonPath::key("/name"), json!("[REDACTED]")),
-            SpanEdit::new(JsonPath::value("/name"), json!("***")),
+        h.edit_spans(SpanStream::new(futures::stream::iter(vec![
+            Span::new(JsonPath::key("/name"), json!("[REDACTED]")),
+            Span::new(JsonPath::value("/name"), json!("***")),
         ])))
         .await?;
         assert_eq!(h.value(), &json!({"[REDACTED]": "***"}));

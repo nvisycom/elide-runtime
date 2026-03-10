@@ -13,7 +13,7 @@ use futures::StreamExt;
 use nvisy_core::Error;
 
 use super::instruction::TextRedaction;
-use crate::document::{SpanEdit, SpanEditStream};
+use crate::document::{Span, SpanStream};
 use crate::handler::{TextData, TextHandler};
 
 /// Extension trait for handlers that support text redaction.
@@ -64,7 +64,7 @@ where
         // Read current content for affected spans.
         let all_spans: Vec<_> = self.text_spans().await.collect().await;
 
-        let mut edits: Vec<SpanEdit<Self::TextId, TextData>> = Vec::new();
+        let mut edits: Vec<Span<Self::TextId, TextData>> = Vec::new();
         for span in &all_spans {
             let Some(replacements) = by_span.get_mut(&span.id) else {
                 continue;
@@ -94,12 +94,12 @@ where
                 result.replace_range(s..e, value);
             }
 
-            edits.push(SpanEdit::new(span.id.clone(), TextData::from(result)));
+            edits.push(Span::new(span.id.clone(), TextData::from(result)));
         }
 
         let edit_count = edits.len();
         if !edits.is_empty() {
-            self.edit_text(SpanEditStream::new(futures::stream::iter(edits)))
+            self.edit_text(SpanStream::new(futures::stream::iter(edits)))
                 .await?;
         }
 

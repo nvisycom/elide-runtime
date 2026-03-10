@@ -4,13 +4,14 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
 #[cfg(feature = "docx")]
 use super::DocxHandler;
 #[cfg(feature = "pdf")]
 use super::PdfHandler;
-use crate::document::{Span, SpanEdit, SpanEditStream, SpanStream};
-use crate::handler::text::TextData;
+use crate::document::SpanStream;
+use crate::handler::text::{TextData, forward_edits, reindex_stream};
 use crate::handler::{Handler, TextHandler};
 
 /// A type-erased rich-document handler that can hold any supported rich format.
@@ -91,6 +92,15 @@ impl Handler for AnyRich {
         }
     }
 
+    fn source(&self) -> ContentSource {
+        match self {
+            #[cfg(feature = "pdf")]
+            Self::Pdf(h) => h.source(),
+            #[cfg(feature = "docx")]
+            Self::Docx(h) => h.source(),
+        }
+    }
+
     fn encode(&self) -> Result<ContentData, Error> {
         match self {
             #[cfg(feature = "pdf")]
@@ -101,52 +111,20 @@ impl Handler for AnyRich {
     }
 }
 
-/// Collect all spans from a handler, re-indexing with `usize`.
-async fn reindex_spans<H: TextHandler>(handler: &H) -> Vec<Span<usize, TextData>> {
-    handler
-        .text_spans()
-        .await
-        .enumerate()
-        .map(|(i, s)| Span::new(i, s.data).with_source(s.source))
-        .collect()
-        .await
-}
-
-/// Collect span IDs from a handler so we can map usize back to the native ID.
-async fn collect_ids<H: TextHandler>(handler: &H) -> Vec<H::TextId> {
-    handler.text_spans().await.map(|s| s.id).collect().await
-}
-
-/// Map edits from `usize` indices back to native IDs and forward them.
-async fn forward_edits<H: TextHandler>(
-    handler: &mut H,
-    edits: Vec<SpanEdit<usize, TextData>>,
-) -> Result<(), Error> {
-    let ids = collect_ids(handler).await;
-    let mapped: Vec<_> = edits
-        .into_iter()
-        .filter_map(|e| ids.get(e.id).cloned().map(|id| SpanEdit::new(id, e.data)))
-        .collect();
-    handler
-        .edit_text(SpanEditStream::new(futures::stream::iter(mapped)))
-        .await
-}
-
 #[async_trait::async_trait]
 impl TextHandler for AnyRich {
     type TextId = usize;
 
     async fn text_spans(&self) -> SpanStream<'_, usize, TextData> {
-        let spans = match self {
+        match self {
             #[cfg(feature = "pdf")]
-            Self::Pdf(h) => reindex_spans(h).await,
+            Self::Pdf(h) => reindex_stream(h).await,
             #[cfg(feature = "docx")]
-            Self::Docx(h) => reindex_spans(h).await,
-        };
-        SpanStream::new(futures::stream::iter(spans))
+            Self::Docx(h) => reindex_stream(h).await,
+        }
     }
 
-    async fn edit_text(&mut self, edits: SpanEditStream<'_, usize, TextData>) -> Result<(), Error> {
+    async fn edit_text(&mut self, edits: SpanStream<'_, usize, TextData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         match self {
             #[cfg(feature = "pdf")]

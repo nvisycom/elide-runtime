@@ -3,7 +3,7 @@
 use nvisy_core::Error;
 
 use super::Handler;
-use crate::document::{SpanEditStream, SpanStream};
+use crate::document::SpanStream;
 
 mod image_data;
 mod image_handler;
@@ -16,12 +16,16 @@ mod png_handler;
 mod png_loader;
 
 pub use image_data::ImageData;
-pub use image_handler::AnyImage;
+pub use image_handler::BoxedImageHandler;
 pub(crate) use image_handler_macro::impl_image_handler;
 pub use jpeg_handler::JpegHandler;
 pub use jpeg_loader::{JpegLoader, JpegParams};
 pub use png_handler::PngHandler;
 pub use png_loader::{PngLoader, PngParams};
+
+/// Identifier for an image span within a single-image handler.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ImageSpanId;
 
 /// Capability trait for handlers that expose image content.
 ///
@@ -38,7 +42,7 @@ pub trait ImageHandler: Handler {
     /// Apply image edits from an async stream back to the source structure.
     async fn edit_images(
         &mut self,
-        edits: SpanEditStream<'_, Self::ImageId, ImageData>,
+        edits: SpanStream<'_, Self::ImageId, ImageData>,
     ) -> Result<(), Error>;
 }
 

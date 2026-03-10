@@ -7,6 +7,8 @@
 //! current [`DynamicImage`](image::DynamicImage).
 //! [`Handler::edit_spans`] replaces the image in-place.
 
+use nvisy_core::path::ContentSource;
+
 use super::impl_image_handler;
 
 /// Handler for loaded PNG content.
@@ -16,7 +18,7 @@ use super::impl_image_handler;
 /// [`Handler::encode`](crate::handler::Handler::encode).
 #[derive(Debug)]
 pub struct PngHandler {
-    source: nvisy_core::path::ContentSource,
+    source: ContentSource,
     image: image::DynamicImage,
 }
 

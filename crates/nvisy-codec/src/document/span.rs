@@ -2,9 +2,11 @@
 
 use nvisy_core::path::ContentSource;
 
-use super::edit::SpanEdit;
-
 /// A span of content tagged with its origin in the source structure.
+///
+/// Used both when reading spans from a handler and when sending
+/// edits back. The `id` locates the span within the handler's data
+/// model and `data` carries the content (or replacement content).
 #[derive(Debug, Clone)]
 pub struct Span<Id, Data> {
     /// Content source identity and lineage.
@@ -41,17 +43,6 @@ impl<Id, Data> Span<Id, Data> {
     }
 }
 
-impl<Id: Clone, Data: Clone> Span<Id, Data> {
-    /// Clone this span into a [`SpanEdit`] with the same id and data.
-    pub fn to_edit(&self) -> SpanEdit<Id, Data> {
-        SpanEdit {
-            source: self.source,
-            id: self.id.clone(),
-            data: self.data.clone(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use nvisy_core::path::ContentSource;
@@ -78,13 +69,5 @@ mod tests {
         let mapped = span.map(|d| d.len());
         assert_eq!(mapped.id, 1);
         assert_eq!(mapped.data, 5);
-    }
-
-    #[test]
-    fn span_to_edit() {
-        let span = Span::new(7u32, "world".to_string());
-        let edit = span.to_edit();
-        assert_eq!(edit.id, 7);
-        assert_eq!(edit.data, "world");
     }
 }

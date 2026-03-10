@@ -12,18 +12,12 @@ use crate::handler::AudioHandler;
 #[async_trait::async_trait]
 pub trait AudioTransform: AudioHandler {
     /// Apply a batch of audio redactions, mutating in place.
-    async fn redact_audio(
-        &mut self,
-        redactions: &[AudioRedaction<Self::AudioId>],
-    ) -> Result<(), Error>;
+    async fn redact_audio(&mut self, redactions: &[AudioRedaction]) -> Result<(), Error>;
 }
 
 #[async_trait::async_trait]
 impl<H: AudioHandler> AudioTransform for H {
-    async fn redact_audio(
-        &mut self,
-        redactions: &[AudioRedaction<Self::AudioId>],
-    ) -> Result<(), Error> {
+    async fn redact_audio(&mut self, redactions: &[AudioRedaction]) -> Result<(), Error> {
         tracing::debug!(
             redaction_count = redactions.len(),
             "applying audio redactions"

@@ -5,13 +5,14 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::fs::DocumentType;
 use nvisy_core::io::ContentData;
+use nvisy_core::path::ContentSource;
 
 #[cfg(feature = "html")]
 use super::HtmlHandler;
 #[cfg(feature = "xlsx")]
 use super::XlsxHandler;
-use super::{CsvHandler, JsonHandler, TextData, TxtHandler};
-use crate::document::{Span, SpanEdit, SpanEditStream, SpanStream};
+use super::{CsvHandler, JsonHandler, TextData, TxtHandler, forward_edits, reindex_stream};
+use crate::document::SpanStream;
 use crate::handler::{Handler, TextHandler};
 
 /// A type-erased text handler that can hold any supported text format.
@@ -138,6 +139,18 @@ impl Handler for AnyText {
         }
     }
 
+    fn source(&self) -> ContentSource {
+        match self {
+            Self::Txt(h) => h.source(),
+            Self::Csv(h) => h.source(),
+            Self::Json(h) => h.source(),
+            #[cfg(feature = "html")]
+            Self::Html(h) => h.source(),
+            #[cfg(feature = "xlsx")]
+            Self::Xlsx(h) => h.source(),
+        }
+    }
+
     fn encode(&self) -> Result<ContentData, Error> {
         match self {
             Self::Txt(h) => h.encode(),
@@ -151,55 +164,23 @@ impl Handler for AnyText {
     }
 }
 
-/// Collect all spans from a handler, re-indexing with `usize`.
-async fn reindex_spans<H: TextHandler>(handler: &H) -> Vec<Span<usize, TextData>> {
-    handler
-        .text_spans()
-        .await
-        .enumerate()
-        .map(|(i, s)| Span::new(i, s.data).with_source(s.source))
-        .collect()
-        .await
-}
-
-/// Collect span IDs from a handler so we can map usize back to the native ID.
-async fn collect_ids<H: TextHandler>(handler: &H) -> Vec<H::TextId> {
-    handler.text_spans().await.map(|s| s.id).collect().await
-}
-
-/// Map edits from `usize` indices back to native IDs and forward them.
-async fn forward_edits<H: TextHandler>(
-    handler: &mut H,
-    edits: Vec<SpanEdit<usize, TextData>>,
-) -> Result<(), Error> {
-    let ids = collect_ids(handler).await;
-    let mapped: Vec<_> = edits
-        .into_iter()
-        .filter_map(|e| ids.get(e.id).cloned().map(|id| SpanEdit::new(id, e.data)))
-        .collect();
-    handler
-        .edit_text(SpanEditStream::new(futures::stream::iter(mapped)))
-        .await
-}
-
 #[async_trait::async_trait]
 impl TextHandler for AnyText {
     type TextId = usize;
 
     async fn text_spans(&self) -> SpanStream<'_, usize, TextData> {
-        let spans = match self {
-            Self::Txt(h) => reindex_spans(h).await,
-            Self::Csv(h) => reindex_spans(h).await,
-            Self::Json(h) => reindex_spans(h).await,
+        match self {
+            Self::Txt(h) => reindex_stream(h).await,
+            Self::Csv(h) => reindex_stream(h).await,
+            Self::Json(h) => reindex_stream(h).await,
             #[cfg(feature = "html")]
-            Self::Html(h) => reindex_spans(h).await,
+            Self::Html(h) => reindex_stream(h).await,
             #[cfg(feature = "xlsx")]
-            Self::Xlsx(h) => reindex_spans(h).await,
-        };
-        SpanStream::new(futures::stream::iter(spans))
+            Self::Xlsx(h) => reindex_stream(h).await,
+        }
     }
 
-    async fn edit_text(&mut self, edits: SpanEditStream<'_, usize, TextData>) -> Result<(), Error> {
+    async fn edit_text(&mut self, edits: SpanStream<'_, usize, TextData>) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         match self {
             Self::Txt(h) => forward_edits(h, edits).await,

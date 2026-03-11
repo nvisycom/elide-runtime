@@ -12,7 +12,7 @@
 //! |----------------|---------------|------------------------------------------|
 //! | Inference      | [`inference`] | ML/AI model calls (OCR, NER, CV, …)     |
 //! | Processing     | [`processing`]| Deterministic transforms (redact, match) |
-//! | Lifecycle      | [`lifecycle`] | Content I/O (ingest, publish, encrypt)   |
+//! | Lifecycle      | [`lifecycle`] | Content I/O (import, export, encrypt)    |
 
 mod context;
 pub mod inference;

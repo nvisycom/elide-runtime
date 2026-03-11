@@ -16,7 +16,7 @@ use crate::operation::{Operation, ParallelContext};
 const TARGET: &str = "nvisy_engine::op::decryption";
 
 /// Decrypts content produced by [`super::Encryption`], yielding raw
-/// [`ContentData`] suitable for re-ingestion.
+/// [`ContentData`] suitable for re-import.
 pub struct Decryption {
     key_provider: Arc<dyn KeyProvider>,
 }

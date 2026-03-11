@@ -1,13 +1,13 @@
-//! Content ingestion: the first stage of the redaction pipeline.
+//! Content import: the first stage of the redaction pipeline.
 //!
-//! [`Ingestion`] accepts raw [`ContentData`] (bytes + metadata), decodes it
+//! [`Import`] accepts raw [`ContentData`] (bytes + metadata), decodes it
 //! into a typed [`Document`], and wraps the result in a
 //! [`DocumentEnvelope`] — the per-document state object that travels
 //! through every subsequent pipeline stage.
 //!
 //! ```text
 //! ContentData (raw bytes + optional MIME)
-//!   ↓ Ingestion::call
+//!   ↓ Import::call
 //! DocumentEnvelope { document, entities: [], audit }
 //! ```
 //!
@@ -44,7 +44,7 @@ use nvisy_core::content::ContentData;
 
 use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
 
-const TARGET: &str = "nvisy_engine::op::ingestion";
+const TARGET: &str = "nvisy_engine::op::import";
 
 /// Decodes raw content into a [`DocumentEnvelope`].
 ///
@@ -57,24 +57,24 @@ const TARGET: &str = "nvisy_engine::op::ingestion";
 /// [`Audit`]: crate::provenance::Audit
 /// [`ContentSource`]: nvisy_core::content::ContentSource
 /// [`ContentData`]: nvisy_core::content::ContentData
-pub struct Ingestion;
+pub struct Import;
 
-impl Ingestion {
+impl Import {
     /// Decode raw bytes into a [`Document`] and wrap it in a fresh envelope.
     #[tracing::instrument(target = TARGET, skip_all, fields(size = content.size()))]
-    async fn ingest(&self, content: ContentData) -> Result<DocumentEnvelope> {
+    async fn import(&self, content: ContentData) -> Result<DocumentEnvelope> {
         let doc = Document::decode(&content).await?;
         tracing::debug!(target: TARGET, doc_type = %doc.document_type(), "decoded document");
         Ok(DocumentEnvelope::new(doc))
     }
 }
 
-impl Operation for Ingestion {
+impl Operation for Import {
     type Input = ParallelContext<ContentData>;
     type Output = ParallelContext<DocumentEnvelope>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input.parallel_map(|data| self.ingest(data)).await
+        input.parallel_map(|data| self.import(data)).await
     }
 }
 
@@ -88,6 +88,6 @@ mod tests {
         let shared = SharedContext::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
         let content = ContentData::from("plain text has no magic bytes");
         let input = ParallelContext::new(content, shared);
-        assert!(Ingestion.call(input).await.is_err());
+        assert!(Import.call(input).await.is_err());
     }
 }

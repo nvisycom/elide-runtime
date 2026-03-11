@@ -59,10 +59,10 @@ pub enum ProcessingKind {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum LifecycleKind {
-    /// File ingest or load.
-    Ingest(LifecycleAction),
-    /// File publish or deliver.
-    Publish(LifecycleAction),
+    /// File import or load.
+    Import(LifecycleAction),
+    /// File export or deliver.
+    Export(LifecycleAction),
     /// Content encryption.
     Encryption(LifecycleAction),
     /// Content compression.

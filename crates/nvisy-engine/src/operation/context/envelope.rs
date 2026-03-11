@@ -1,13 +1,13 @@
 //! Per-document state accumulated across pipeline operations.
 //!
-//! A [`DocumentEnvelope`] is created at ingestion and travels through
+//! A [`DocumentEnvelope`] is created at import and travels through
 //! every operation in the pipeline. Each stage reads from and writes to
 //! the envelope, progressively enriching it with entities and audit
 //! records until the document is fully redacted.
 //!
 //! ```text
 //! ContentData
-//!   ↓ Ingestion
+//!   ↓ Import
 //! DocumentEnvelope { document, … }
 //!   ↓ OCR / NER / CV / PatternMatch
 //! DocumentEnvelope { document, entities, … }
@@ -26,12 +26,12 @@ use crate::provenance::Audit;
 
 /// Per-document state that flows through the entire pipeline.
 ///
-/// Created by [`Ingestion`] from a decoded [`Document`], then
+/// Created by [`Import`] from a decoded [`Document`], then
 /// progressively enriched by detection, policy, and redaction
 /// operations. The orchestrator passes the envelope (wrapped in a
 /// [`ParallelContext`] or [`SequentialContext`]) between stages.
 ///
-/// [`Ingestion`]: crate::operation::lifecycle::Ingestion
+/// [`Import`]: crate::operation::lifecycle::Import
 /// [`ParallelContext`]: super::ParallelContext
 /// [`SequentialContext`]: super::SequentialContext
 pub struct DocumentEnvelope {

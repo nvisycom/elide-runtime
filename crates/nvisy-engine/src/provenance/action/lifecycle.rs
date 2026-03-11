@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Data specific to I/O lifecycle operations (ingest, publish, etc.).
+/// Data specific to I/O lifecycle operations (import, export, etc.).
 ///
 /// Duration and error are tracked on [`AuditEntry`](super::super::AuditEntry).
 #[derive(Debug, Clone, Default, Builder, Serialize, Deserialize, JsonSchema)]

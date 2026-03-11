@@ -1,5 +1,6 @@
 //! Document format classification.
 
+use std::ffi::OsStr;
 use std::fmt;
 
 use schemars::JsonSchema;
@@ -282,6 +283,41 @@ impl DocumentType {
                 "application/pdf" => Some(Self::Pdf),
                 _ => None,
             })
+    }
+
+    /// Map a file extension (without leading dot) to a [`DocumentType`].
+    ///
+    /// Handles cases where the MIME type alone is ambiguous (e.g.
+    /// `text/plain` cannot distinguish `.txt` from `.log`).
+    pub fn from_extension(ext: &OsStr) -> Option<Self> {
+        let ext = ext.to_str()?;
+        match ext.to_ascii_lowercase().as_str() {
+            "txt" => Some(Self::Text(TextFormat::Txt)),
+            "log" => Some(Self::Text(TextFormat::Log)),
+            "json" => Some(Self::Text(TextFormat::Json)),
+            "csv" => Some(Self::Spreadsheet(SpreadsheetFormat::Csv)),
+            "html" | "htm" => Some(Self::Html),
+            "png" => Some(Self::Image(ImageFormat::Png)),
+            "jpg" | "jpeg" => Some(Self::Image(ImageFormat::Jpeg)),
+            "webp" => Some(Self::Image(ImageFormat::Webp)),
+            "gif" => Some(Self::Image(ImageFormat::Gif)),
+            "tiff" | "tif" => Some(Self::Image(ImageFormat::Tiff)),
+            "wav" => Some(Self::Audio(AudioFormat::Wav)),
+            "mp3" => Some(Self::Audio(AudioFormat::Mp3)),
+            "pdf" => Some(Self::Pdf),
+            "doc" => Some(Self::Word(WordFormat::Doc)),
+            "docx" => Some(Self::Word(WordFormat::Docx)),
+            "odt" => Some(Self::Word(WordFormat::Odt)),
+            "xls" => Some(Self::Spreadsheet(SpreadsheetFormat::Xls)),
+            "xlsx" => Some(Self::Spreadsheet(SpreadsheetFormat::Xlsx)),
+            "xlsm" => Some(Self::Spreadsheet(SpreadsheetFormat::Xlsm)),
+            "xltx" => Some(Self::Spreadsheet(SpreadsheetFormat::Xltx)),
+            "ods" => Some(Self::Spreadsheet(SpreadsheetFormat::Ods)),
+            "ppt" => Some(Self::Presentation(PresentationFormat::Ppt)),
+            "pptx" => Some(Self::Presentation(PresentationFormat::Pptx)),
+            "odp" => Some(Self::Presentation(PresentationFormat::Odp)),
+            _ => None,
+        }
     }
 }
 

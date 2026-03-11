@@ -42,7 +42,10 @@ async fn upload(
 
     let mut content_data = ContentData::from(bytes);
     if let Some(ref mime) = req.content_type {
-        content_data.mime = Some(mime.clone());
+        content_data = content_data.with_content_type(mime.clone());
+    }
+    if let Some(ref name) = req.filename {
+        content_data = content_data.with_filename(name.as_str());
     }
 
     let mut metadata = match req.filename {

@@ -4,11 +4,14 @@
 //! overlapping location into a single entity with the highest
 //! confidence and `DetectionMethod::Composite` when methods differ.
 
-use nvisy_ontology::entity::{DetectionMethod, Entity, Location};
+use nvisy_core::Result;
+use nvisy_ontology::entity::{DetectionMethod, Entities, Entity, Location};
 
 use crate::operation::{Operation, ParallelContext};
 
-/// Deduplications a list of entities by merging duplicates.
+const TARGET: &str = "nvisy_engine::op::deduplication";
+
+/// Deduplicates a list of entities by merging duplicates.
 ///
 /// Two entities are considered duplicates when they have the same
 /// `entity_kind` and `value` and their locations overlap.
@@ -20,8 +23,15 @@ use crate::operation::{Operation, ParallelContext};
 pub struct Deduplication;
 
 impl Deduplication {
-    /// Deduplication and merge overlapping entities.
-    pub fn execute(entities: Vec<Entity>) -> Vec<Entity> {
+    async fn deduplicate(&self, entities: Entities) -> Result<Entities> {
+        let before = entities.len();
+        let result = Self::execute(entities);
+        tracing::debug!(target: TARGET, before, after = result.len(), "deduplicated entities");
+        Ok(result)
+    }
+
+    /// Deduplicate and merge overlapping entities.
+    pub fn execute(entities: Entities) -> Entities {
         if entities.len() <= 1 {
             return entities;
         }
@@ -50,16 +60,16 @@ impl Deduplication {
             }
         }
 
-        result
+        result.into()
     }
 }
 
 impl Operation for Deduplication {
-    type Input = ParallelContext<Vec<Entity>>;
-    type Output = ParallelContext<Vec<Entity>>;
+    type Input = ParallelContext<Entities>;
+    type Output = ParallelContext<Entities>;
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output, nvisy_core::Error> {
-        Ok(input.map(Self::execute))
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input.parallel_map(|data| self.deduplicate(data)).await
     }
 }
 
@@ -107,10 +117,11 @@ mod tests {
 
     #[test]
     fn duplicates_merged_same_method() {
-        let entities = vec![
+        let entities: Entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
             text_entity("John", DetectionMethod::Regex, 0.9, 0, 4),
-        ];
+        ]
+        .into();
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
@@ -119,10 +130,11 @@ mod tests {
 
     #[test]
     fn different_methods_become_composite() {
-        let entities = vec![
+        let entities: Entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
             text_entity("John", DetectionMethod::Ner, 0.85, 0, 4),
-        ];
+        ]
+        .into();
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].detection_method, DetectionMethod::Composite);
@@ -131,33 +143,36 @@ mod tests {
 
     #[test]
     fn non_overlapping_preserved() {
-        let entities = vec![
+        let entities: Entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
             text_entity("John", DetectionMethod::Regex, 0.9, 10, 14),
-        ];
+        ]
+        .into();
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 2);
     }
 
     #[test]
     fn different_values_not_merged() {
-        let entities = vec![
+        let entities: Entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
             text_entity("Jane", DetectionMethod::Regex, 0.9, 0, 4),
-        ];
+        ]
+        .into();
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 2);
     }
 
     #[test]
     fn empty_input() {
-        let result = Deduplication::execute(Vec::new());
+        let result = Deduplication::execute(Entities::new());
         assert!(result.is_empty());
     }
 
     #[test]
     fn single_entity_unchanged() {
-        let entities = vec![text_entity("John", DetectionMethod::Regex, 0.8, 0, 4)];
+        let entities: Entities =
+            vec![text_entity("John", DetectionMethod::Regex, 0.8, 0, 4)].into();
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
     }
@@ -165,10 +180,11 @@ mod tests {
     #[test]
     fn overlapping_ranges_merge() {
         // Partially overlapping: 0..6 and 3..9.
-        let entities = vec![
+        let entities: Entities = vec![
             text_entity("John Doe", DetectionMethod::Regex, 0.7, 0, 6),
             text_entity("John Doe", DetectionMethod::Ner, 0.9, 3, 9),
-        ];
+        ]
+        .into();
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].detection_method, DetectionMethod::Composite);

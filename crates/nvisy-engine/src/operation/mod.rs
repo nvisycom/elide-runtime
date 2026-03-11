@@ -1,23 +1,31 @@
-//! Operations: units of work in the redaction pipeline.
+//! Operations: composable units of work in the redaction pipeline.
 //!
-//! Each operation implements the [`Operation`] trait and belongs to one of
-//! three provenance categories:
+//! Each operation implements the [`Operation`] trait: a single async
+//! function from typed input to typed output. Input and output are
+//! wrapped in a context marker ([`ParallelContext`] or
+//! [`SequentialContext`]) that tells the orchestrator how to invoke
+//! the operation.
 //!
-//! | Category       | Module        | Examples                          |
-//! |---------------|---------------|-----------------------------------|
-//! | Inference     | [`inference`] | OCR, NER, transcription, CV, …    |
-//! | Processing    | [`processing`]| Redaction, pattern match, …       |
-//! | Lifecycle     | [`lifecycle`] | Ingest, publish, encryption, …    |
+//! Operations are grouped into three categories:
+//!
+//! | Category       | Module        | Purpose                                  |
+//! |----------------|---------------|------------------------------------------|
+//! | Inference      | [`inference`] | ML/AI model calls (OCR, NER, CV, …)     |
+//! | Processing     | [`processing`]| Deterministic transforms (redact, match) |
+//! | Lifecycle      | [`lifecycle`] | Content I/O (import, export, encrypt)    |
 
 mod context;
 pub mod inference;
 pub mod lifecycle;
 pub mod processing;
+pub mod utility;
 
 use std::future::Future;
 
-pub use context::{OperationContext, ParallelContext, SequentialContext, SharedContext};
-use nvisy_core::Error;
+pub use context::{
+    DocumentEnvelope, OperationContext, ParallelContext, SequentialContext, SharedContext,
+};
+use nvisy_core::Result;
 
 /// A single unit of work in the redaction pipeline.
 ///
@@ -25,7 +33,7 @@ use nvisy_core::Error;
 /// with an input value and the operation produces a typed output or an error.
 ///
 /// Both `Input` and `Output` must implement [`OperationContext`], encoding the
-/// processing strategy (e.g. [`ParallelContext<Vec<Entity>>`] or
+/// processing strategy (e.g. [`ParallelContext<Entities>`] or
 /// [`SequentialContext<Vec<Span>>`]) directly in the type.
 pub trait Operation {
     /// Data consumed by this operation: wraps the payload in a context marker.
@@ -34,5 +42,5 @@ pub trait Operation {
     type Output: OperationContext;
 
     /// Execute the operation.
-    fn call(&self, input: Self::Input) -> impl Future<Output = Result<Self::Output, Error>> + Send;
+    fn call(&self, input: Self::Input) -> impl Future<Output = Result<Self::Output>> + Send;
 }

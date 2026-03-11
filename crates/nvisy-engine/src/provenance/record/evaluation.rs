@@ -4,10 +4,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{RedactionDecision, RedactionRecord};
+use super::decision::RedactionDecision;
+use super::redaction::RedactionRecord;
 
 /// Full outcome of evaluating a policy against a set of entities.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PolicyEvaluation {
     /// Identifier of the policy that was evaluated.
     pub policy_id: Uuid,
@@ -29,4 +31,19 @@ pub struct PolicyEvaluation {
     /// Entity IDs that triggered alert notifications via `Alert` rules.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub alerted: Vec<Uuid>,
+}
+
+impl PolicyEvaluation {
+    /// Create an empty evaluation for the given policy.
+    pub fn new(policy_id: Uuid) -> Self {
+        Self {
+            policy_id,
+            decisions: Vec::new(),
+            records: Vec::new(),
+            pending_review: Vec::new(),
+            suppressed: Vec::new(),
+            blocked: Vec::new(),
+            alerted: Vec::new(),
+        }
+    }
 }

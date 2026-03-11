@@ -1,12 +1,22 @@
-//! Policy evaluation: maps detected entities to redaction instructions.
+//! Policy evaluation: maps detected entities to redaction decisions.
+//!
+//! Applies configured [`PolicyRule`]s to each entity, producing a
+//! [`RedactionDecision`] that specifies the redaction strategy and
+//! replacement text for downstream application by [`Redaction`].
+//!
+//! [`PolicyRule`]: nvisy_ontology::policy::PolicyRule
+//! [`RedactionDecision`]: crate::provenance::RedactionDecision
+//! [`Redaction`]: super::Redaction
 
-use nvisy_core::Error;
-use nvisy_ontology::entity::Entity;
+use nvisy_core::Result;
+use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
-use nvisy_ontology::record::{RedactionDecision, RedactionRecord};
 use serde::Deserialize;
 
 use crate::operation::{Operation, ParallelContext};
+use crate::provenance::{RedactionDecision, RedactionRecord};
+
+const TARGET: &str = "nvisy_engine::op::policy_evaluation";
 
 /// Typed parameters for [`EvaluatePolicy`].
 #[derive(Debug, Deserialize)]
@@ -49,12 +59,13 @@ pub struct EvaluatePolicy {
 }
 
 impl EvaluatePolicy {
-    pub async fn connect(mut params: EvaluatePolicyParams) -> Result<Self, Error> {
+    pub async fn connect(mut params: EvaluatePolicyParams) -> Result<Self> {
         params.rules.sort_by_key(|r| r.priority);
         Ok(Self { params })
     }
 
-    pub async fn execute(&self, entities: Vec<Entity>) -> Result<EvaluatePolicyOutput, Error> {
+    pub async fn execute(&self, entities: Entities) -> Result<EvaluatePolicyOutput> {
+        tracing::debug!(target: TARGET, entity_count = entities.len(), "evaluating policies");
         let default_spec = &self.params.default_spec;
         let default_threshold = self.params.default_confidence_threshold;
 
@@ -110,10 +121,10 @@ impl EvaluatePolicy {
 }
 
 impl Operation for EvaluatePolicy {
-    type Input = ParallelContext<Vec<Entity>>;
+    type Input = ParallelContext<Entities>;
     type Output = ParallelContext<EvaluatePolicyOutput>;
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.execute(data)).await
     }
 }

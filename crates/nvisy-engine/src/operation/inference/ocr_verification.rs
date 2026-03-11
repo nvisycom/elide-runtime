@@ -8,18 +8,20 @@
 
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
-use nvisy_core::Error;
-use nvisy_ontology::entity::Entity;
+use nvisy_core::{Error, Result};
+use nvisy_ontology::entity::Entities;
 use nvisy_rig::agent::OcrAgent;
 
 use crate::operation::{Operation, ParallelContext};
+
+const TARGET: &str = "nvisy_engine::op::ocr_verification";
 
 /// Input for the OCR verification operation.
 pub struct OcrVerificationInput {
     /// Image spans to verify against.
     pub image_spans: Vec<Span<(), ImageData>>,
     /// Entities detected by prior operations that should be verified.
-    pub entities: Vec<Entity>,
+    pub entities: Entities,
 }
 
 /// OCR verification operation: verifies detected entities against images
@@ -35,31 +37,34 @@ impl OcrVerification {
     pub fn new(agent: OcrAgent) -> Self {
         Self { agent }
     }
-}
 
-impl Operation for OcrVerification {
-    type Input = ParallelContext<OcrVerificationInput>;
-    type Output = ParallelContext<Vec<Entity>>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        let shared = input.shared.clone();
-        let data = input.into_inner();
-
+    async fn verify(&self, data: OcrVerificationInput) -> Result<Entities> {
         if data.entities.is_empty() {
-            return Ok(ParallelContext::new(Vec::new(), shared));
+            tracing::debug!(target: TARGET, "no entities to verify");
+            return Ok(Entities::new());
         }
+        tracing::debug!(target: TARGET, entity_count = data.entities.len(), "verifying entities");
 
         let image_bytes = match data.image_spans.first() {
             Some(span) => span.data.encode_png()?,
-            None => return Ok(ParallelContext::new(data.entities, shared)),
+            None => return Ok(data.entities),
         };
 
         let entities = self
             .agent
-            .verify_entities(&image_bytes, data.entities)
+            .verify_entities(&image_bytes, data.entities.into_inner())
             .await
             .map_err(|e| Error::runtime(e.to_string(), "ocr-verification", e.is_retryable()))?;
 
-        Ok(ParallelContext::new(entities, shared))
+        Ok(entities.into())
+    }
+}
+
+impl Operation for OcrVerification {
+    type Input = ParallelContext<OcrVerificationInput>;
+    type Output = ParallelContext<Entities>;
+
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input.parallel_map(|data| self.verify(data)).await
     }
 }

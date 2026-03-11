@@ -26,7 +26,7 @@ pub enum ActionKind {
     /// Emit a per-file audit record.
     Audit,
     /// Deliver to a target connection.
-    Publish,
+    Export,
 }
 
 /// A transformation or detection step.

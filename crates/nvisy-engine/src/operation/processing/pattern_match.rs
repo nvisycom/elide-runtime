@@ -5,8 +5,8 @@
 
 use nvisy_codec::Span;
 use nvisy_codec::handler::{CsvSpan, HtmlSpan, JsonPath, TxtSpan};
-use nvisy_core::Error;
-use nvisy_ontology::entity::{DetectionMethod, Entity, TabularLocation, TextLocation};
+use nvisy_core::{Error, Result};
+use nvisy_ontology::entity::{DetectionMethod, Entities, Entity, TabularLocation, TextLocation};
 use nvisy_pattern::{
     ContextRule, DetectionSource, PatternEngine, PatternEngineBuilder,
     PatternMatch as PatternMatchResult,
@@ -15,6 +15,8 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::operation::{Operation, ParallelContext};
+
+const TARGET: &str = "nvisy_engine::op::pattern_match";
 
 /// Typed parameters for [`PatternMatch`].
 #[derive(Debug, Deserialize)]
@@ -45,7 +47,7 @@ pub struct PatternMatch {
 
 impl PatternMatch {
     /// Connect and build a pattern match operation from typed parameters.
-    pub async fn connect(params: PatternDetectionParams) -> Result<Self, Error> {
+    pub async fn connect(params: PatternDetectionParams) -> Result<Self> {
         let mut builder =
             PatternEngineBuilder::default().with_confidence_threshold(params.confidence_threshold);
         if let Some(ref names) = params.patterns {
@@ -58,26 +60,29 @@ impl PatternMatch {
     }
 }
 
+impl PatternMatch {
+    async fn scan(&self, data: PatternInput) -> Result<Entities> {
+        tracing::debug!(target: TARGET, "scanning for patterns");
+        match data {
+            PatternInput::Text(spans) => self.detect_text(spans),
+            PatternInput::Csv(spans) => self.detect_csv(spans),
+            PatternInput::Html(spans) => self.detect_html(spans),
+            PatternInput::Json(spans) => self.detect_json(spans),
+        }
+    }
+}
+
 impl Operation for PatternMatch {
     type Input = ParallelContext<PatternInput>;
-    type Output = ParallelContext<Vec<Entity>>;
+    type Output = ParallelContext<Entities>;
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output, Error> {
-        input
-            .parallel_map(|data| async move {
-                match data {
-                    PatternInput::Text(spans) => self.detect_text(spans),
-                    PatternInput::Csv(spans) => self.detect_csv(spans),
-                    PatternInput::Html(spans) => self.detect_html(spans),
-                    PatternInput::Json(spans) => self.detect_json(spans),
-                }
-            })
-            .await
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input.parallel_map(|data| self.scan(data)).await
     }
 }
 
 impl PatternMatch {
-    fn detect_text(&self, spans: Vec<Span<TxtSpan, String>>) -> Result<Vec<Entity>, Error> {
+    fn detect_text(&self, spans: Vec<Span<TxtSpan, String>>) -> Result<Entities> {
         // Phase 1: collect raw matches per span index.
         let span_data: Vec<&str> = spans.iter().map(|s| s.data.as_str()).collect();
         let mut raw_matches: Vec<(usize, PatternMatchResult)> = Vec::new();
@@ -120,10 +125,10 @@ impl PatternMatch {
             entities.push(entity);
         }
 
-        Ok(entities)
+        Ok(entities.into())
     }
 
-    fn detect_csv(&self, spans: Vec<Span<CsvSpan, String>>) -> Result<Vec<Entity>, Error> {
+    fn detect_csv(&self, spans: Vec<Span<CsvSpan, String>>) -> Result<Entities> {
         // Collect all span data (including headers) for co-occurrence window.
         let span_data: Vec<&str> = spans.iter().map(|s| s.data.as_str()).collect();
 
@@ -173,10 +178,10 @@ impl PatternMatch {
             entities.push(entity);
         }
 
-        Ok(entities)
+        Ok(entities.into())
     }
 
-    fn detect_html(&self, spans: Vec<Span<HtmlSpan, String>>) -> Result<Vec<Entity>, Error> {
+    fn detect_html(&self, spans: Vec<Span<HtmlSpan, String>>) -> Result<Entities> {
         let span_data: Vec<&str> = spans.iter().map(|s| s.data.as_str()).collect();
         let mut raw_matches: Vec<(usize, PatternMatchResult)> = Vec::new();
 
@@ -217,10 +222,10 @@ impl PatternMatch {
             entities.push(entity);
         }
 
-        Ok(entities)
+        Ok(entities.into())
     }
 
-    fn detect_json(&self, spans: Vec<Span<JsonPath, Value>>) -> Result<Vec<Entity>, Error> {
+    fn detect_json(&self, spans: Vec<Span<JsonPath, Value>>) -> Result<Entities> {
         // Filter to string-valued spans and collect text for co-occurrence.
         let string_spans: Vec<(usize, &str)> = spans
             .iter()
@@ -269,7 +274,7 @@ impl PatternMatch {
             entities.push(entity);
         }
 
-        Ok(entities)
+        Ok(entities.into())
     }
 }
 

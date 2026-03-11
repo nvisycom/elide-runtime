@@ -4,6 +4,7 @@
 //! along with its metadata and source information.
 
 use std::fmt;
+use std::path::PathBuf;
 
 use bytes::Bytes;
 use hipstr::HipStr;
@@ -26,10 +27,13 @@ pub struct ContentData {
     pub content_source: ContentSource,
     /// The actual content data.
     data: ContentBytes,
+    /// Original filename (e.g. from upload, file path, or Content-Disposition).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filename: Option<PathBuf>,
     /// Caller-supplied MIME type (e.g. from HTTP Content-Type header).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mime: Option<String>,
-    /// MIME type detected from magic bytes.
+    pub supplied_mime: Option<String>,
+    /// MIME type detected from magic bytes (computed eagerly on construction).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detected_mime: Option<String>,
 }
@@ -50,12 +54,14 @@ impl ContentData {
     /// assert_eq!(content.size(), 13);
     /// ```
     pub fn new(content_source: ContentSource, data: Bytes) -> Self {
+        let detected_mime = infer::get(&data).map(|t| t.mime_type().to_owned());
         Self {
             content_source,
             data: ContentBytes::from(data),
 
-            mime: None,
-            detected_mime: None,
+            filename: None,
+            supplied_mime: None,
+            detected_mime,
         }
     }
 
@@ -72,72 +78,106 @@ impl ContentData {
     /// assert_eq!(content.as_str().unwrap(), "Hello, world!");
     /// ```
     pub fn from_text(content_source: ContentSource, text: impl Into<String>) -> Self {
+        let data = ContentBytes::from(text.into());
+        let detected_mime = infer::get(data.as_bytes()).map(|t| t.mime_type().to_owned());
         Self {
             content_source,
-            data: ContentBytes::from(text.into()),
+            data,
 
-            mime: None,
-            detected_mime: None,
+            filename: None,
+            supplied_mime: None,
+            detected_mime,
         }
     }
 
     /// Creates content data with explicit `ContentBytes`.
     pub fn with_content_bytes(content_source: ContentSource, data: ContentBytes) -> Self {
+        let detected_mime = infer::get(data.as_bytes()).map(|t| t.mime_type().to_owned());
         Self {
             content_source,
             data,
 
-            mime: None,
-            detected_mime: None,
+            filename: None,
+            supplied_mime: None,
+            detected_mime,
         }
+    }
+
+    /// Set the original filename (builder pattern).
+    #[must_use]
+    pub fn with_filename(mut self, filename: impl Into<PathBuf>) -> Self {
+        self.filename = Some(filename.into());
+        self
     }
 
     /// Set the caller-provided MIME type (builder pattern).
     #[must_use]
     pub fn with_content_type(mut self, mime: impl Into<String>) -> Self {
-        self.mime = Some(mime.into());
+        self.supplied_mime = Some(mime.into());
         self
     }
 
-    /// Get the best-available MIME type (provided takes precedence over detected).
+    /// Get the best-available MIME type (supplied takes precedence over detected).
     #[must_use]
     pub fn content_type(&self) -> Option<&str> {
-        self.mime.as_deref().or(self.detected_mime.as_deref())
+        self.supplied_mime
+            .as_deref()
+            .or(self.detected_mime.as_deref())
     }
 
-    /// Detect the MIME type from magic bytes and cache the result.
+    /// Infer the [`DocumentType`] using three strategies:
     ///
-    /// The detected type is stored in `detected_mime` and returned by
-    /// [`content_type`](Self::content_type) when no explicit MIME is set.
-    pub fn detect_mime(&mut self) -> Option<&str> {
-        self.detected_mime = infer::get(self.data.as_bytes()).map(|t| t.mime_type().to_owned());
-        self.detected_mime.as_deref()
-    }
-
-    /// Detect the [`DocumentType`] from the best-available MIME type,
-    /// caching the detected MIME for future calls.
+    /// 1. **Caller-supplied MIME** — highest priority.
+    /// 2. **Magic-byte detection** — for binary formats.
+    /// 3. **Filename extension** — refines ambiguous results (e.g.
+    ///    distinguishes `.log` from `.txt` when MIME is `text/plain`).
     ///
-    /// Calls [`detect_mime`](Self::detect_mime) if no MIME type is
-    /// available yet, then maps the result via [`DocumentType::from_mime`].
-    pub fn document_type(&mut self) -> Option<DocumentType> {
-        if self.content_type().is_none() {
-            self.detect_mime();
-        }
-        self.content_type().and_then(DocumentType::from_mime)
-    }
-
-    /// Infer the [`DocumentType`] without mutating or caching.
-    ///
-    /// Uses the caller-supplied or previously detected MIME if available,
-    /// otherwise falls back to magic-byte sniffing on the raw content.
+    /// All three are always evaluated. If the MIME and magic-byte
+    /// results disagree, a warning is logged and the MIME wins.
+    /// The filename extension is used to refine the winning result
+    /// when the extension provides a more specific type within the
+    /// same family (e.g. `text/plain` + `.log` → `TextFormat::Log`).
     #[must_use]
     pub fn infer_document_type(&self) -> Option<DocumentType> {
-        self.content_type()
-            .and_then(DocumentType::from_mime)
-            .or_else(|| {
-                let kind = infer::get(self.data.as_bytes())?;
-                DocumentType::from_mime(kind.mime_type())
-            })
+        let from_supplied = self
+            .supplied_mime
+            .as_deref()
+            .and_then(DocumentType::from_mime);
+        let from_detected = self
+            .detected_mime
+            .as_deref()
+            .and_then(DocumentType::from_mime);
+        let from_ext = self
+            .filename
+            .as_ref()
+            .and_then(|f| f.extension())
+            .and_then(DocumentType::from_extension);
+
+        tracing::trace!(
+            supplied = from_supplied.map(|t| t.to_string()).as_deref(),
+            detected = from_detected.map(|t| t.to_string()).as_deref(),
+            ext = from_ext.map(|t| t.to_string()).as_deref(),
+            "document type inference",
+        );
+
+        if let (Some(supplied), Some(detected)) = (from_supplied, from_detected)
+            && supplied != detected
+        {
+            tracing::warn!(
+                supplied = %supplied,
+                detected = %detected,
+                "supplied MIME does not match magic-byte detection; using supplied",
+            );
+        }
+
+        let result = from_supplied.or(from_detected);
+
+        // Refine with filename extension when it provides a more
+        // specific variant within the same format family.
+        match (result, from_ext) {
+            (Some(DocumentType::Text(_)), Some(refined @ DocumentType::Text(_))) => Some(refined),
+            _ => result.or(from_ext),
+        }
     }
 
     /// Returns the size of the content in bytes.
@@ -390,21 +430,19 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_mime_png() {
+    fn test_detected_mime_png() {
         let png = vec![
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
             0x00, 0x00, 0x00, 0x0D, // IHDR length
             0x49, 0x48, 0x44, 0x52, // IHDR
         ];
-        let mut content = ContentData::from(png);
-        assert_eq!(content.detect_mime(), Some("image/png"));
+        let content = ContentData::from(png);
         assert_eq!(content.detected_mime.as_deref(), Some("image/png"));
     }
 
     #[test]
-    fn test_detect_mime_unknown() {
-        let mut content = ContentData::from("hello world");
-        assert_eq!(content.detect_mime(), None);
+    fn test_detected_mime_unknown() {
+        let content = ContentData::from("hello world");
         assert_eq!(content.detected_mime, None);
     }
 
@@ -414,9 +452,8 @@ mod tests {
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
             0x44, 0x52,
         ];
-        let mut content = ContentData::from(png).with_content_type("image/jpeg");
-        // Explicit MIME takes precedence over detected.
-        content.detect_mime();
+        let content = ContentData::from(png).with_content_type("image/jpeg");
+        // Supplied MIME takes precedence over detected.
         assert_eq!(content.content_type(), Some("image/jpeg"));
     }
 
@@ -461,6 +498,30 @@ mod tests {
         assert_eq!(
             content.infer_document_type(),
             Some(DocumentType::Text(crate::media::TextFormat::Json)),
+        );
+    }
+
+    #[test]
+    fn test_infer_document_type_extension_refines_text() {
+        use crate::media::TextFormat;
+
+        let content = ContentData::from("some log lines")
+            .with_content_type("text/plain")
+            .with_filename("app.log");
+        assert_eq!(
+            content.infer_document_type(),
+            Some(DocumentType::Text(TextFormat::Log)),
+        );
+    }
+
+    #[test]
+    fn test_infer_document_type_extension_fallback() {
+        use crate::media::TextFormat;
+
+        let content = ContentData::from("plain text").with_filename("notes.txt");
+        assert_eq!(
+            content.infer_document_type(),
+            Some(DocumentType::Text(TextFormat::Txt)),
         );
     }
 }

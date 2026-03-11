@@ -3,9 +3,12 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{DetectionMethod, Entity, Location};
+use nvisy_core::Result;
+use nvisy_ontology::entity::{DetectionMethod, Entities, Entity, Location};
 
 use crate::operation::{Operation, ParallelContext};
+
+const TARGET: &str = "nvisy_engine::op::ensemble";
 
 /// Strategy for combining confidence scores from multiple detectors.
 #[derive(Debug, Clone)]
@@ -32,9 +35,16 @@ impl Ensemble {
         Self { strategy }
     }
 
+    async fn fuse(&self, entities: Entities) -> Result<Entities> {
+        let before = entities.len();
+        let result = self.merge(entities);
+        tracing::debug!(target: TARGET, before, after = result.len(), "fused entities");
+        Ok(result)
+    }
+
     /// Group entities by `(kind, value, overlapping location)` then fuse
     /// confidence according to the strategy.
-    pub fn merge(&self, entities: Vec<Entity>) -> Vec<Entity> {
+    pub fn merge(&self, entities: Entities) -> Entities {
         if entities.len() <= 1 {
             return entities;
         }
@@ -103,11 +113,11 @@ impl Ensemble {
 }
 
 impl Operation for Ensemble {
-    type Input = ParallelContext<Vec<Entity>>;
-    type Output = ParallelContext<Vec<Entity>>;
+    type Input = ParallelContext<Entities>;
+    type Output = ParallelContext<Entities>;
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output, nvisy_core::Error> {
-        Ok(input.map(|data| self.merge(data)))
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input.parallel_map(|data| self.fuse(data)).await
     }
 }
 
@@ -153,10 +163,11 @@ mod tests {
     #[test]
     fn max_confidence_strategy() {
         let merge = Ensemble::new(FusionStrategy::MaxConfidence);
-        let entities = vec![
+        let entities: Entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.7, 0, 4),
             text_entity("John", DetectionMethod::Ner, 0.85, 0, 4),
-        ];
+        ]
+        .into();
         let result = merge.merge(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
@@ -166,10 +177,11 @@ mod tests {
     #[test]
     fn noisy_or_strategy() {
         let merge = Ensemble::new(FusionStrategy::NoisyOr);
-        let entities = vec![
+        let entities: Entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.7, 0, 4),
             text_entity("John", DetectionMethod::Ner, 0.8, 0, 4),
-        ];
+        ]
+        .into();
         let result = merge.merge(entities);
         assert_eq!(result.len(), 1);
         // P = 1 − (1 − 0.7)(1 − 0.8) = 1 − (0.3)(0.2) = 0.94
@@ -183,10 +195,11 @@ mod tests {
         weights.insert(DetectionMethod::Ner, 2.0);
 
         let merge = Ensemble::new(FusionStrategy::WeightedAverage { weights });
-        let entities = vec![
+        let entities: Entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.6, 0, 4),
             text_entity("John", DetectionMethod::Ner, 0.9, 0, 4),
-        ];
+        ]
+        .into();
         let result = merge.merge(entities);
         assert_eq!(result.len(), 1);
         // (0.6 * 1.0 + 0.9 * 2.0) / (1.0 + 2.0) = 2.4 / 3.0 = 0.8
@@ -196,10 +209,11 @@ mod tests {
     #[test]
     fn non_overlapping_not_merged() {
         let merge = Ensemble::new(FusionStrategy::NoisyOr);
-        let entities = vec![
+        let entities: Entities = vec![
             text_entity("John", DetectionMethod::Regex, 0.7, 0, 4),
             text_entity("John", DetectionMethod::Ner, 0.8, 10, 14),
-        ];
+        ]
+        .into();
         let result = merge.merge(entities);
         assert_eq!(result.len(), 2);
     }
@@ -207,7 +221,8 @@ mod tests {
     #[test]
     fn single_entity_unchanged() {
         let merge = Ensemble::new(FusionStrategy::NoisyOr);
-        let entities = vec![text_entity("John", DetectionMethod::Regex, 0.7, 0, 4)];
+        let entities: Entities =
+            vec![text_entity("John", DetectionMethod::Regex, 0.7, 0, 4)].into();
         let result = merge.merge(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.7).abs() < f64::EPSILON);
@@ -217,7 +232,7 @@ mod tests {
     #[test]
     fn empty_input() {
         let merge = Ensemble::new(FusionStrategy::MaxConfidence);
-        let result = merge.merge(Vec::new());
+        let result = merge.merge(Entities::new());
         assert!(result.is_empty());
     }
 }

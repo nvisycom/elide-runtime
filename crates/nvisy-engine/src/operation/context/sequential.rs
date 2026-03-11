@@ -34,19 +34,12 @@ impl<T: Send + Sync + 'static> OperationContext for SequentialContext<T> {}
 
 impl<T> SequentialContext<T> {
     /// Create a new sequential context with the given data and shared state.
+    #[inline]
     pub fn new(data: T, shared: SharedContext) -> Self {
         Self { shared, data }
     }
 
-    /// Transform the inner data, preserving the shared context.
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> SequentialContext<U> {
-        SequentialContext {
-            shared: self.shared,
-            data: f(self.data),
-        }
-    }
-
-    /// Async fallibly transform the inner data into a [`SequentialContext`].
+    /// Async fallibly transform the inner data, staying in [`SequentialContext`].
     pub async fn sequential_map<U, E, Fut>(
         self,
         f: impl FnOnce(T) -> Fut,
@@ -75,16 +68,19 @@ impl<T> SequentialContext<T> {
     }
 
     /// Borrow the inner data.
+    #[inline]
     pub fn inner(&self) -> &T {
         &self.data
     }
 
     /// Mutably borrow the inner data.
+    #[inline]
     pub fn inner_mut(&mut self) -> &mut T {
         &mut self.data
     }
 
     /// Consume the context and return the inner data.
+    #[inline]
     pub fn into_inner(self) -> T {
         self.data
     }

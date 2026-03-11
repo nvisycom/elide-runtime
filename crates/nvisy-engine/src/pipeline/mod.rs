@@ -23,13 +23,12 @@ use nvisy_core::Error;
 use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::DetectionOutput;
 use nvisy_ontology::policy::{Policies, RedactionSummary};
-use nvisy_ontology::record::{PolicyEvaluation, RedactionMap};
 pub use ontology::{Explainable, Explanation};
 pub use runs::{NodeProgress, RunManager, RunState, RunStatus, RunSummary};
 use uuid::Uuid;
 
 use crate::compiler::Graph;
-use crate::provenance::FileAudit;
+use crate::provenance::{Audit, PolicyEvaluation, RedactionMap};
 
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {
@@ -67,7 +66,7 @@ pub struct EngineOutput {
     /// Per-source redaction summaries.
     pub summaries: Vec<RedactionSummary>,
     /// Per-file processing logs.
-    pub file_audits: Vec<FileAudit>,
+    pub file_audits: Vec<Audit>,
     /// Redaction mapping artifacts.
     pub redaction_maps: Vec<RedactionMap>,
     /// Per-node execution results from the DAG runner.

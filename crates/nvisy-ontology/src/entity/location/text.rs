@@ -4,7 +4,16 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Location of an entity within text content.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(rename_all = "camelCase")]
 pub struct TextLocation {
     /// Byte or character offset where the entity starts.

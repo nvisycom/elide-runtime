@@ -74,6 +74,10 @@ derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into"] }
 strum = { workspace = true, features = [] }
 
+# Encryption
+aes-gcm = { workspace = true, features = [] }
+bytes = { workspace = true, features = [] }
+
 # Utilities
 validator = { workspace = true, features = [] }
 rand = { workspace = true, features = [] }

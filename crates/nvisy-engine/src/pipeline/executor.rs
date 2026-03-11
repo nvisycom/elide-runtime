@@ -139,7 +139,7 @@ async fn execute_action(
         ActionKind::Classify => tracing::trace!("action node: classify (passthrough)"),
         ActionKind::Summarize => tracing::trace!("action node: summarize (passthrough)"),
         ActionKind::Audit => tracing::trace!("action node: audit (passthrough)"),
-        ActionKind::Publish => tracing::trace!("action node: publish (passthrough)"),
+        ActionKind::Export => tracing::trace!("action node: export (passthrough)"),
     }
 
     // Forward items from all upstream receivers to all downstream senders.

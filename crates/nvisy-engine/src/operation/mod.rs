@@ -18,6 +18,7 @@ mod context;
 pub mod inference;
 pub mod lifecycle;
 pub mod processing;
+pub mod utility;
 
 use std::future::Future;
 

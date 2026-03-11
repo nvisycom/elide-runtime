@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use nvisy_core::Result;
 use nvisy_ontology::entity::{DetectionMethod, Entities, Entity, Location};
 
+use crate::operation::envelope::RefinedEntities;
 use crate::operation::{Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::ensemble";
@@ -35,11 +36,11 @@ impl Ensemble {
         Self { strategy }
     }
 
-    async fn fuse(&self, entities: Entities) -> Result<Entities> {
+    async fn fuse(&self, entities: Entities) -> Result<RefinedEntities> {
         let before = entities.len();
         let result = self.merge(entities);
         tracing::debug!(target: TARGET, before, after = result.len(), "fused entities");
-        Ok(result)
+        Ok(RefinedEntities(result))
     }
 
     /// Group entities by `(kind, value, overlapping location)` then fuse
@@ -114,7 +115,7 @@ impl Ensemble {
 
 impl Operation for Ensemble {
     type Input = ParallelContext<Entities>;
-    type Output = ParallelContext<Entities>;
+    type Output = ParallelContext<RefinedEntities>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.fuse(data)).await

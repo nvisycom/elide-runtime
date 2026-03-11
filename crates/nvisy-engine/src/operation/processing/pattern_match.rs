@@ -14,6 +14,7 @@ use nvisy_pattern::{
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::operation::envelope::DetectedEntities;
 use crate::operation::{Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::pattern_match";
@@ -61,20 +62,20 @@ impl PatternMatch {
 }
 
 impl PatternMatch {
-    async fn scan(&self, data: PatternInput) -> Result<Entities> {
+    async fn scan(&self, data: PatternInput) -> Result<DetectedEntities> {
         tracing::debug!(target: TARGET, "scanning for patterns");
         match data {
-            PatternInput::Text(spans) => self.detect_text(spans),
-            PatternInput::Csv(spans) => self.detect_csv(spans),
-            PatternInput::Html(spans) => self.detect_html(spans),
-            PatternInput::Json(spans) => self.detect_json(spans),
+            PatternInput::Text(spans) => self.detect_text(spans).map(DetectedEntities),
+            PatternInput::Csv(spans) => self.detect_csv(spans).map(DetectedEntities),
+            PatternInput::Html(spans) => self.detect_html(spans).map(DetectedEntities),
+            PatternInput::Json(spans) => self.detect_json(spans).map(DetectedEntities),
         }
     }
 }
 
 impl Operation for PatternMatch {
     type Input = ParallelContext<PatternInput>;
-    type Output = ParallelContext<Entities>;
+    type Output = ParallelContext<DetectedEntities>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.scan(data)).await

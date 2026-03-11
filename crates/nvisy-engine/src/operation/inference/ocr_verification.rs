@@ -12,6 +12,7 @@ use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use nvisy_rig::agent::OcrAgent;
 
+use crate::operation::envelope::DetectedEntities;
 use crate::operation::{Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::ocr_verification";
@@ -38,16 +39,16 @@ impl OcrVerification {
         Self { agent }
     }
 
-    async fn verify(&self, data: OcrVerificationInput) -> Result<Entities> {
+    async fn verify(&self, data: OcrVerificationInput) -> Result<DetectedEntities> {
         if data.entities.is_empty() {
             tracing::debug!(target: TARGET, "no entities to verify");
-            return Ok(Entities::new());
+            return Ok(DetectedEntities(Entities::new()));
         }
         tracing::debug!(target: TARGET, entity_count = data.entities.len(), "verifying entities");
 
         let image_bytes = match data.image_spans.first() {
             Some(span) => span.data.encode_png()?,
-            None => return Ok(data.entities),
+            None => return Ok(DetectedEntities(data.entities)),
         };
 
         let entities = self
@@ -56,13 +57,13 @@ impl OcrVerification {
             .await
             .map_err(|e| Error::runtime(e.to_string(), "ocr-verification", e.is_retryable()))?;
 
-        Ok(entities.into())
+        Ok(DetectedEntities(entities.into()))
     }
 }
 
 impl Operation for OcrVerification {
     type Input = ParallelContext<OcrVerificationInput>;
-    type Output = ParallelContext<Entities>;
+    type Output = ParallelContext<DetectedEntities>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.verify(data)).await

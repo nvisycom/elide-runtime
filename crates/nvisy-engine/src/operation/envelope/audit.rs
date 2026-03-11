@@ -1,9 +1,8 @@
 //! Audit entry patches.
 
-use crate::provenance::AuditEntry;
-
-use super::apply::ApplyPatch;
 use super::DocumentEnvelope;
+use super::apply::ApplyPatch;
+use crate::provenance::AuditEntry;
 
 /// A single audit log entry recording what an operation did.
 pub struct OperationEntry(pub AuditEntry);

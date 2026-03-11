@@ -7,6 +7,7 @@
 use nvisy_core::Result;
 use nvisy_ontology::entity::{DetectionMethod, Entities, Entity, Location};
 
+use crate::operation::envelope::RefinedEntities;
 use crate::operation::{Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::deduplication";
@@ -23,11 +24,11 @@ const TARGET: &str = "nvisy_engine::op::deduplication";
 pub struct Deduplication;
 
 impl Deduplication {
-    async fn deduplicate(&self, entities: Entities) -> Result<Entities> {
+    async fn deduplicate(&self, entities: Entities) -> Result<RefinedEntities> {
         let before = entities.len();
         let result = Self::execute(entities);
         tracing::debug!(target: TARGET, before, after = result.len(), "deduplicated entities");
-        Ok(result)
+        Ok(RefinedEntities(result))
     }
 
     /// Deduplicate and merge overlapping entities.
@@ -66,7 +67,7 @@ impl Deduplication {
 
 impl Operation for Deduplication {
     type Input = ParallelContext<Entities>;
-    type Output = ParallelContext<Entities>;
+    type Output = ParallelContext<RefinedEntities>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.deduplicate(data)).await

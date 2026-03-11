@@ -2,8 +2,8 @@
 
 use nvisy_ontology::entity::Entities;
 
-use super::apply::ApplyPatch;
 use super::DocumentEnvelope;
+use super::apply::ApplyPatch;
 
 /// New entities discovered by a detection operation (NER, OCR, CV,
 /// pattern match, manual annotation).

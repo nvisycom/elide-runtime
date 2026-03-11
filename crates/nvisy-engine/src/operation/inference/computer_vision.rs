@@ -7,9 +7,10 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::math::BoundingBox;
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::{DetectionMethod, Entities, Entity, ImageLocation};
+use nvisy_ontology::entity::{DetectionMethod, Entity, ImageLocation};
 use nvisy_rig::agent::{CvAgent, CvEntity, DetectionConfig};
 
+use crate::operation::envelope::DetectedEntities;
 use crate::operation::{Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::computer_vision";
@@ -26,7 +27,7 @@ impl ComputerVision {
         Self { agent, config }
     }
 
-    async fn detect(&self, spans: Vec<Span<(), ImageData>>) -> Result<Entities> {
+    async fn detect(&self, spans: Vec<Span<(), ImageData>>) -> Result<DetectedEntities> {
         tracing::debug!(target: TARGET, span_count = spans.len(), "detecting entities");
         let mut entities = Vec::new();
 
@@ -45,13 +46,13 @@ impl ComputerVision {
             }
         }
 
-        Ok(entities.into())
+        Ok(DetectedEntities(entities.into()))
     }
 }
 
 impl Operation for ComputerVision {
     type Input = ParallelContext<Vec<Span<(), ImageData>>>;
-    type Output = ParallelContext<Entities>;
+    type Output = ParallelContext<DetectedEntities>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|spans| self.detect(spans)).await

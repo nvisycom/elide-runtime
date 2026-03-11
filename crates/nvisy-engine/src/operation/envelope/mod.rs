@@ -30,10 +30,9 @@ mod policy;
 pub use apply::ApplyPatch;
 pub use audit::OperationEntry;
 pub use detection::{DetectedEntities, RefinedEntities};
-pub use policy::PolicyOutcome;
-
 use nvisy_codec::Document;
 use nvisy_ontology::entity::Entities;
+pub use policy::PolicyOutcome;
 
 use crate::provenance::Audit;
 

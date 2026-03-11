@@ -79,18 +79,10 @@ impl Document {
 
     /// Decode [`ContentData`] into a `Document` using default parameters.
     ///
-    /// Format detection uses two strategies:
-    ///
-    /// 1. **MIME type** — if the caller set an explicit MIME via
-    ///    [`ContentData::with_content_type`], or a previous
-    ///    magic-byte detection populated `detected_mime` on construction,
-    ///    the MIME is mapped to a [`DocumentType`] first. This is the
-    ///    only way to reach text-based formats (TXT, CSV, JSON, HTML)
-    ///    that lack magic-byte signatures.
-    ///
-    /// 2. **Magic bytes** — binary formats (PNG, JPEG, WAV, MP3, PDF,
-    ///    DOCX, XLSX) are identified by their file signatures as a
-    ///    fallback when no MIME is provided.
+    /// Format detection is delegated to
+    /// [`ContentData::infer_document_type`], which evaluates three
+    /// strategies (supplied MIME, magic bytes, filename extension).
+    /// See its documentation for details.
     ///
     /// # Errors
     ///

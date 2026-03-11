@@ -339,4 +339,23 @@ mod tests {
             Some(DocumentType::Audio(AudioFormat::Wav)),
         );
     }
+
+    #[test]
+    fn from_extension_common_formats() {
+        use std::ffi::OsStr;
+
+        assert_eq!(
+            DocumentType::from_extension(OsStr::new("png")),
+            Some(DocumentType::Image(ImageFormat::Png)),
+        );
+        assert_eq!(
+            DocumentType::from_extension(OsStr::new("log")),
+            Some(DocumentType::Text(TextFormat::Log)),
+        );
+        assert_eq!(
+            DocumentType::from_extension(OsStr::new("PDF")),
+            Some(DocumentType::Pdf),
+        );
+        assert_eq!(DocumentType::from_extension(OsStr::new("unknown")), None);
+    }
 }

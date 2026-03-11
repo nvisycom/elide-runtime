@@ -139,9 +139,14 @@ impl ContentData {
     /// same family (e.g. `text/plain` + `.log` → `TextFormat::Log`).
     #[must_use]
     pub fn infer_document_type(&self) -> Option<DocumentType> {
-        let from_mime = self.content_type().and_then(DocumentType::from_mime);
-        let from_magic = infer::get(self.data.as_bytes())
-            .and_then(|kind| DocumentType::from_mime(kind.mime_type()));
+        let from_supplied = self
+            .supplied_mime
+            .as_deref()
+            .and_then(DocumentType::from_mime);
+        let from_detected = self
+            .detected_mime
+            .as_deref()
+            .and_then(DocumentType::from_mime);
         let from_ext = self
             .filename
             .as_ref()
@@ -149,23 +154,23 @@ impl ContentData {
             .and_then(DocumentType::from_extension);
 
         tracing::trace!(
-            mime = from_mime.map(|t| t.to_string()).as_deref(),
-            magic = from_magic.map(|t| t.to_string()).as_deref(),
+            supplied = from_supplied.map(|t| t.to_string()).as_deref(),
+            detected = from_detected.map(|t| t.to_string()).as_deref(),
             ext = from_ext.map(|t| t.to_string()).as_deref(),
             "document type inference",
         );
 
-        if let (Some(mime_type), Some(magic_type)) = (from_mime, from_magic) {
-            if mime_type != magic_type {
-                tracing::warn!(
-                    mime = %mime_type,
-                    magic = %magic_type,
-                    "MIME type does not match magic-byte detection; using MIME",
-                );
-            }
+        if let (Some(supplied), Some(detected)) = (from_supplied, from_detected)
+            && supplied != detected
+        {
+            tracing::warn!(
+                supplied = %supplied,
+                detected = %detected,
+                "supplied MIME does not match magic-byte detection; using supplied",
+            );
         }
 
-        let result = from_mime.or(from_magic);
+        let result = from_supplied.or(from_detected);
 
         // Refine with filename extension when it provides a more
         // specific variant within the same format family.
@@ -493,6 +498,30 @@ mod tests {
         assert_eq!(
             content.infer_document_type(),
             Some(DocumentType::Text(crate::media::TextFormat::Json)),
+        );
+    }
+
+    #[test]
+    fn test_infer_document_type_extension_refines_text() {
+        use crate::media::TextFormat;
+
+        let content = ContentData::from("some log lines")
+            .with_content_type("text/plain")
+            .with_filename("app.log");
+        assert_eq!(
+            content.infer_document_type(),
+            Some(DocumentType::Text(TextFormat::Log)),
+        );
+    }
+
+    #[test]
+    fn test_infer_document_type_extension_fallback() {
+        use crate::media::TextFormat;
+
+        let content = ContentData::from("plain text").with_filename("notes.txt");
+        assert_eq!(
+            content.infer_document_type(),
+            Some(DocumentType::Text(TextFormat::Txt)),
         );
     }
 }

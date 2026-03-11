@@ -13,7 +13,7 @@
 //!
 //! ## Format detection
 //!
-//! [`Document::decode`] resolves the format through two strategies
+//! [`Document::decode`] resolves the format through three strategies
 //! evaluated by [`ContentData::infer_document_type`]:
 //!
 //! 1. **Caller-supplied MIME** — set via
@@ -22,14 +22,20 @@
 //!    no magic-byte signature.
 //!
 //! 2. **Magic-byte detection** — binary formats (PNG, JPEG, WAV, MP3,
-//!    PDF, DOCX, XLSX) are identified by their file signatures.
+//!    PDF, DOCX, XLSX) are identified by their file signatures,
+//!    eagerly computed on [`ContentData`] construction.
 //!
-//! Both strategies are always evaluated. If a MIME type is present and
-//! magic bytes also produce a result but the two disagree, a warning
-//! is logged and the caller-supplied MIME takes precedence.
+//! 3. **Filename extension** — set via
+//!    [`ContentData::with_filename`]. Refines ambiguous results
+//!    (e.g. distinguishes `.log` from `.txt` when MIME is
+//!    `text/plain`).
+//!
+//! All three are always evaluated. If a supplied MIME and magic bytes
+//! disagree, a warning is logged and the supplied MIME takes precedence.
 //!
 //! [`ContentData`]: nvisy_core::content::ContentData
 //! [`ContentData::with_content_type`]: nvisy_core::content::ContentData::with_content_type
+//! [`ContentData::with_filename`]: nvisy_core::content::ContentData::with_filename
 //! [`ContentData::infer_document_type`]: nvisy_core::content::ContentData::infer_document_type
 
 use nvisy_codec::Document;

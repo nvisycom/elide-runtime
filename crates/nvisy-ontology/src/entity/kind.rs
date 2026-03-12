@@ -4,8 +4,9 @@
 //! can detect or redact.  Each variant maps to a stable `snake_case`
 //! string for serialization and display.
 //!
-//! Every variant also maps to an [`EntityCategory`] via [`EntityKind::category`]
-//! and an [`EntitySensitivity`] via [`EntityKind::sensitivity`].
+//! Every variant also maps to:
+//! - an [`EntityCategory`] via [`EntityKind::category`],
+//! - an [`EntitySensitivity`] via [`EntityKind::sensitivity`].
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -20,7 +21,11 @@ use super::sensitivity::EntitySensitivity;
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum EntityKind {
-    // Identity documents:
+    // Personal identity
+    /// Person name (full, first, or last).
+    PersonName,
+    /// Date of birth.
+    DateOfBirth,
     /// Government-issued identification number (SSN, SIN, Aadhaar, national ID, etc.).
     GovernmentId,
     /// Tax identification number (ITIN, EIN, TIN, etc.).
@@ -29,44 +34,42 @@ pub enum EntityKind {
     DriversLicense,
     /// Passport number.
     PassportNumber,
+    /// National insurance or social-security equivalent (NI, BSN, AHVN, etc.).
+    NationalInsuranceNumber,
     /// Vehicle identification number (VIN).
     VehicleId,
     /// License plate number.
     LicensePlate,
 
-    // Personal information:
-    /// Person name (full, first, or last).
-    PersonName,
-    /// Date of birth.
-    DateOfBirth,
-    /// Age value.
-    Age,
-    /// Demographic attribute (gender, race/ethnicity, religion, orientation, etc.).
-    Demographic,
-
-    // Contact information:
+    // Contact information
     /// Email address.
     EmailAddress,
     /// Phone number.
     PhoneNumber,
-    /// Physical / mailing address.
+    /// Physical or mailing address.
     Address,
     /// Postal or ZIP code.
     PostalCode,
     /// URL or hyperlink.
     Url,
 
-    // Network & device identifiers:
-    /// IP address (v4 or v6).
-    IpAddress,
-    /// MAC (hardware) address.
-    MacAddress,
-    /// Device identifier (IMEI, IDFA, etc.).
-    DeviceId,
-    /// Username or online handle.
-    Username,
+    // Demographic
+    /// Age value.
+    Age,
+    /// Gender identity.
+    Gender,
+    /// Racial or ethnic background.
+    Ethnicity,
+    /// Religious affiliation.
+    Religion,
+    /// Nationality.
+    Nationality,
+    /// Citizenship status.
+    Citizenship,
+    /// Language or dialect spoken.
+    Language,
 
-    // Financial:
+    // Financial
     /// Payment card number (credit or debit).
     PaymentCard,
     /// Payment card security code (CVV/CVC).
@@ -75,26 +78,40 @@ pub enum EntityKind {
     CardExpiry,
     /// Bank account number.
     BankAccount,
-    /// Bank routing / transit number.
+    /// Bank routing or transit number.
     BankRouting,
     /// International Bank Account Number (IBAN).
     Iban,
     /// SWIFT / BIC code.
     SwiftCode,
-    /// Monetary amount.
-    Amount,
     /// Cryptocurrency wallet address.
     CryptoAddress,
+    /// Monetary amount.
+    Amount,
 
-    // Health:
+    // Health
     /// Medical or patient identifier.
     MedicalId,
     /// Insurance policy number.
     InsuranceId,
     /// Prescription number.
     PrescriptionId,
+    /// Medical diagnosis or condition.
+    Diagnosis,
+    /// Drug or medication name in a patient context.
+    Medication,
 
-    // Credentials:
+    // Biometric
+    /// Fingerprint template or minutiae data.
+    Fingerprint,
+    /// Voiceprint or speaker embedding.
+    Voiceprint,
+    /// Retina or iris scan data.
+    RetinaScan,
+    /// Facial geometry or face embedding (not a photo: see [`Face`](Self::Face)).
+    FacialGeometry,
+
+    // Credentials
     /// Password or passphrase.
     Password,
     /// API key.
@@ -104,31 +121,23 @@ pub enum EntityKind {
     /// Private cryptographic key.
     PrivateKey,
 
-    // Biometric:
-    /// Fingerprint template or minutiae data.
-    Fingerprint,
-    /// Voiceprint / speaker embedding.
-    Voiceprint,
-    /// Retina or iris scan data.
-    RetinaScan,
-    /// Facial geometry / face embedding (not a photo — see [`Face`](Self::Face)).
-    FacialGeometry,
+    // Network and device identifiers
+    /// IP address (v4 or v6).
+    IpAddress,
+    /// MAC (hardware) address.
+    MacAddress,
+    /// Device identifier (IMEI, IDFA, etc.).
+    DeviceId,
+    /// Username or online handle.
+    Username,
 
-    // Location:
+    // Location
     /// GPS coordinates (latitude / longitude).
     Coordinates,
     /// Geolocation metadata (EXIF, cell tower, etc.).
     GeolocationMetadata,
 
-    // Dates & times:
-    /// Date and/or time value.
-    DateTime,
-
-    // Organizations:
-    /// Company or organisation name.
-    OrganizationName,
-
-    // Visual / image entities:
+    // Visual
     /// Detected human face in an image.
     Face,
     /// Handwritten text region.
@@ -139,35 +148,54 @@ pub enum EntityKind {
     Logo,
     /// Barcode (1D) or QR code (2D).
     Barcode,
+
+    // Organizational
+    /// Company or institution name.
+    OrganizationName,
+    /// Internal division or department name.
+    DepartmentName,
+    /// Physical facility name (hospital, office, school).
+    FacilityName,
+    /// Legal or administrative case identifier.
+    CaseNumber,
+    /// Internal reference number (invoice, contract, PO, employee number, membership ID).
+    InternalId,
+
+    // Temporal
+    /// Date, time, or datetime value.
+    DateTime,
 }
 
 impl EntityKind {
     /// Returns the [`EntityCategory`] this entity kind belongs to.
     pub fn category(&self) -> EntityCategory {
         match self {
-            // Identity & personal
-            Self::GovernmentId
+            // Personal identity
+            Self::PersonName
+            | Self::DateOfBirth
+            | Self::GovernmentId
             | Self::TaxId
             | Self::DriversLicense
             | Self::PassportNumber
+            | Self::NationalInsuranceNumber
             | Self::VehicleId
-            | Self::LicensePlate
-            | Self::PersonName
-            | Self::DateOfBirth
-            | Self::Age
-            | Self::Demographic => EntityCategory::Pii,
+            | Self::LicensePlate => EntityCategory::PersonalIdentity,
 
             // Contact
             Self::EmailAddress
             | Self::PhoneNumber
             | Self::Address
             | Self::PostalCode
-            | Self::Url => EntityCategory::Pii,
+            | Self::Url => EntityCategory::ContactInfo,
 
-            // Network & device
-            Self::IpAddress | Self::MacAddress | Self::DeviceId | Self::Username => {
-                EntityCategory::Pii
-            }
+            // Demographic
+            Self::Age
+            | Self::Gender
+            | Self::Ethnicity
+            | Self::Religion
+            | Self::Nationality
+            | Self::Citizenship
+            | Self::Language => EntityCategory::Demographic,
 
             // Financial
             Self::PaymentCard
@@ -177,35 +205,50 @@ impl EntityKind {
             | Self::BankRouting
             | Self::Iban
             | Self::SwiftCode
-            | Self::Amount
-            | Self::CryptoAddress => EntityCategory::Financial,
+            | Self::CryptoAddress
+            | Self::Amount => EntityCategory::Financial,
 
             // Health
-            Self::MedicalId | Self::InsuranceId | Self::PrescriptionId => EntityCategory::Phi,
+            Self::MedicalId
+            | Self::InsuranceId
+            | Self::PrescriptionId
+            | Self::Diagnosis
+            | Self::Medication => EntityCategory::Health,
+
+            // Biometric
+            Self::Fingerprint | Self::Voiceprint | Self::RetinaScan | Self::FacialGeometry => {
+                EntityCategory::Biometric
+            }
 
             // Credentials
             Self::Password | Self::ApiKey | Self::AuthToken | Self::PrivateKey => {
                 EntityCategory::Credentials
             }
 
-            // Biometric
-            Self::Fingerprint
-            | Self::Voiceprint
-            | Self::RetinaScan
-            | Self::FacialGeometry
-            | Self::Face => EntityCategory::Biometric,
+            // Network
+            Self::IpAddress | Self::MacAddress | Self::DeviceId | Self::Username => {
+                EntityCategory::NetworkIdentifier
+            }
 
             // Location
-            Self::Coordinates | Self::GeolocationMetadata => EntityCategory::Pii,
+            Self::Coordinates | Self::GeolocationMetadata => EntityCategory::Location,
 
-            // Dates & times
-            Self::DateTime => EntityCategory::Pii,
+            // Visual
+            Self::Face | Self::Handwriting | Self::Signature | Self::Logo | Self::Barcode => {
+                EntityCategory::Visual
+            }
 
-            // Organizations
-            Self::OrganizationName => EntityCategory::Pii,
+            // Organizational
+            Self::OrganizationName
+            | Self::DepartmentName
+            | Self::FacilityName
+            | Self::CaseNumber
+            | Self::InternalId => EntityCategory::Organizational,
 
-            // Visual / image
-            Self::Handwriting | Self::Signature | Self::Logo | Self::Barcode => EntityCategory::Pii,
+            // Temporal (grouped under PersonalIdentity: bare dates most
+            // commonly appear alongside personal data and are regulated
+            // as PII by GDPR/CCPA)
+            Self::DateTime => EntityCategory::PersonalIdentity,
         }
     }
 
@@ -215,6 +258,7 @@ impl EntityKind {
             // Critical: irrevocable identifiers, secrets, biometrics
             Self::GovernmentId
             | Self::PassportNumber
+            | Self::NationalInsuranceNumber
             | Self::PaymentCard
             | Self::CardSecurityCode
             | Self::BankAccount
@@ -238,33 +282,46 @@ impl EntityKind {
             | Self::MedicalId
             | Self::InsuranceId
             | Self::PrescriptionId
+            | Self::Diagnosis
+            | Self::Medication
             | Self::Iban
             | Self::CryptoAddress
             | Self::Face
-            | Self::Signature => EntitySensitivity::High,
+            | Self::Signature
+            | Self::Coordinates => EntitySensitivity::High,
 
             // Medium: indirectly identifying
             Self::Age
-            | Self::Demographic
+            | Self::Gender
+            | Self::Ethnicity
+            | Self::Religion
+            | Self::Nationality
+            | Self::Citizenship
+            | Self::Language
             | Self::PostalCode
             | Self::IpAddress
             | Self::MacAddress
             | Self::DeviceId
             | Self::Username
-            | Self::Coordinates
-            | Self::GeolocationMetadata
             | Self::CardExpiry
             | Self::BankRouting
             | Self::SwiftCode
             | Self::VehicleId
             | Self::LicensePlate
+            | Self::GeolocationMetadata
             | Self::DateTime
-            | Self::Handwriting => EntitySensitivity::Medium,
+            | Self::Handwriting
+            | Self::CaseNumber
+            | Self::InternalId => EntitySensitivity::Medium,
 
-            // Low: quasi-public
-            Self::Url | Self::Amount | Self::OrganizationName | Self::Logo | Self::Barcode => {
-                EntitySensitivity::Low
-            }
+            // Low: quasi-public or context-dependent
+            Self::Url
+            | Self::Amount
+            | Self::OrganizationName
+            | Self::DepartmentName
+            | Self::FacilityName
+            | Self::Logo
+            | Self::Barcode => EntitySensitivity::Low,
         }
     }
 }
@@ -302,10 +359,38 @@ mod tests {
     }
 
     #[test]
-    fn category_pii() {
-        assert_eq!(EntityKind::GovernmentId.category(), EntityCategory::Pii);
-        assert_eq!(EntityKind::PersonName.category(), EntityCategory::Pii);
-        assert_eq!(EntityKind::Address.category(), EntityCategory::Pii);
+    fn category_personal_identity() {
+        assert_eq!(
+            EntityKind::GovernmentId.category(),
+            EntityCategory::PersonalIdentity
+        );
+        assert_eq!(
+            EntityKind::PersonName.category(),
+            EntityCategory::PersonalIdentity
+        );
+        assert_eq!(
+            EntityKind::DateOfBirth.category(),
+            EntityCategory::PersonalIdentity
+        );
+    }
+
+    #[test]
+    fn category_contact_info() {
+        assert_eq!(
+            EntityKind::EmailAddress.category(),
+            EntityCategory::ContactInfo
+        );
+        assert_eq!(EntityKind::Address.category(), EntityCategory::ContactInfo);
+    }
+
+    #[test]
+    fn category_demographic() {
+        assert_eq!(EntityKind::Gender.category(), EntityCategory::Demographic);
+        assert_eq!(
+            EntityKind::Ethnicity.category(),
+            EntityCategory::Demographic
+        );
+        assert_eq!(EntityKind::Religion.category(), EntityCategory::Demographic);
     }
 
     #[test]
@@ -318,23 +403,16 @@ mod tests {
     }
 
     #[test]
-    fn category_phi() {
-        assert_eq!(EntityKind::MedicalId.category(), EntityCategory::Phi);
-        assert_eq!(EntityKind::PrescriptionId.category(), EntityCategory::Phi);
+    fn category_health() {
+        assert_eq!(EntityKind::MedicalId.category(), EntityCategory::Health);
+        assert_eq!(EntityKind::Diagnosis.category(), EntityCategory::Health);
+        assert_eq!(EntityKind::Medication.category(), EntityCategory::Health);
     }
 
     #[test]
     fn category_credentials() {
         assert_eq!(EntityKind::Password.category(), EntityCategory::Credentials);
         assert_eq!(EntityKind::ApiKey.category(), EntityCategory::Credentials);
-        assert_eq!(
-            EntityKind::AuthToken.category(),
-            EntityCategory::Credentials
-        );
-        assert_eq!(
-            EntityKind::PrivateKey.category(),
-            EntityCategory::Credentials
-        );
     }
 
     #[test]
@@ -345,11 +423,23 @@ mod tests {
         );
         assert_eq!(EntityKind::Voiceprint.category(), EntityCategory::Biometric);
         assert_eq!(EntityKind::RetinaScan.category(), EntityCategory::Biometric);
+        assert_eq!(EntityKind::Face.category(), EntityCategory::Visual);
+    }
+
+    #[test]
+    fn category_organizational() {
         assert_eq!(
-            EntityKind::FacialGeometry.category(),
-            EntityCategory::Biometric
+            EntityKind::OrganizationName.category(),
+            EntityCategory::Organizational
         );
-        assert_eq!(EntityKind::Face.category(), EntityCategory::Biometric);
+        assert_eq!(
+            EntityKind::CaseNumber.category(),
+            EntityCategory::Organizational
+        );
+        assert_eq!(
+            EntityKind::InternalId.category(),
+            EntityCategory::Organizational
+        );
     }
 
     #[test]
@@ -383,6 +473,7 @@ mod tests {
             EntitySensitivity::High
         );
         assert_eq!(EntityKind::MedicalId.sensitivity(), EntitySensitivity::High);
+        assert_eq!(EntityKind::Diagnosis.sensitivity(), EntitySensitivity::High);
     }
 
     #[test]

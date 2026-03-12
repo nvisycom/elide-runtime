@@ -1,10 +1,10 @@
 //! Explainability metadata for data protection decisions.
 //!
-//! An [`Explanation`] records why an action was taken — which model, rule,
+//! An [`Explanation`] records why an action was taken: which model, rule,
 //! and confidence level were involved. Types that carry this metadata
 //! implement the [`Explainable`] trait.
 
-use nvisy_ontology::entity::{DetectionMethod, ModelInfo};
+use nvisy_ontology::entity::{ModelInfo, RecognitionMethod};
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -31,9 +31,9 @@ pub struct Explanation {
     /// Detection confidence score.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub confidence: Option<f64>,
-    /// Detection method used.
+    /// Recognition method used.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub detection_method: Option<DetectionMethod>,
+    pub recognition_method: Option<RecognitionMethod>,
     /// Human-readable reason for the action.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,

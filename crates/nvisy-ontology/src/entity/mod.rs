@@ -13,19 +13,20 @@ mod model;
 mod output;
 mod sensitivity;
 
-pub use annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};
-pub use category::EntityCategory;
 use derive_more::{Deref, DerefMut, From, IntoIterator};
-pub use kind::EntityKind;
-pub use location::{AudioLocation, ImageLocation, Location, TabularLocation, TextLocation};
-pub use method::DetectionMethod;
-pub use model::{ModelInfo, ModelKind};
 use nvisy_core::content::ContentSource;
-pub use output::DetectionOutput;
 use schemars::JsonSchema;
-pub use sensitivity::EntitySensitivity;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+pub use self::annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};
+pub use self::category::EntityCategory;
+pub use self::kind::EntityKind;
+pub use self::location::{AudioLocation, ImageLocation, Location, TabularLocation, TextLocation};
+pub use self::method::{ExtractionMethod, RecognitionMethod, RefinementMethod};
+pub use self::model::{ModelInfo, ModelKind};
+pub use self::output::DetectionOutput;
+pub use self::sensitivity::EntitySensitivity;
 
 /// A detected sensitive data occurrence within a document.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -40,8 +41,14 @@ pub struct Entity {
     pub entity_kind: EntityKind,
     /// The matched text or value.
     pub value: String,
-    /// How this entity was detected.
-    pub detection_method: DetectionMethod,
+    /// How content was extracted from its source modality, ordered by application time.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extraction_methods: Vec<ExtractionMethod>,
+    /// Techniques used to identify this entity, ordered by application time.
+    pub recognition_methods: Vec<RecognitionMethod>,
+    /// Post-detection refinements applied to this entity, ordered by application time.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub refinement_methods: Vec<RefinementMethod>,
     /// Detection confidence score in the range `[0.0, 1.0]`.
     pub confidence: f64,
     /// Modality-specific location of the entity.
@@ -61,12 +68,15 @@ impl Entity {
         self.source.as_uuid()
     }
 
-    /// Create a new entity with the given detection details.
+    /// Create a new entity with the given recognition method and confidence.
+    ///
+    /// The `category` is derived from `entity_kind` via
+    /// [`EntityKind::category()`] when not supplied explicitly.
     pub fn new(
         category: EntityCategory,
         entity_kind: EntityKind,
         value: impl Into<String>,
-        detection_method: DetectionMethod,
+        recognition_method: RecognitionMethod,
         confidence: f64,
     ) -> Self {
         Self {
@@ -74,12 +84,30 @@ impl Entity {
             category,
             entity_kind,
             value: value.into(),
-            detection_method,
+            extraction_methods: Vec::new(),
+            recognition_methods: vec![recognition_method],
+            refinement_methods: Vec::new(),
             confidence,
             location: None,
             language: None,
             model: None,
         }
+    }
+
+    /// Create a new entity, deriving the category from the entity kind.
+    pub fn from_kind(
+        entity_kind: EntityKind,
+        value: impl Into<String>,
+        recognition_method: RecognitionMethod,
+        confidence: f64,
+    ) -> Self {
+        Self::new(
+            entity_kind.category(),
+            entity_kind,
+            value,
+            recognition_method,
+            confidence,
+        )
     }
 
     /// Set the modality-specific location on this entity.
@@ -151,11 +179,20 @@ impl Entities {
             .collect()
     }
 
-    /// Retain only entities matching the given detection method.
-    pub fn by_method(&self, method: DetectionMethod) -> Self {
+    /// Retain only entities that were recognised (at least partly) by the given method.
+    pub fn by_recognition_method(&self, method: RecognitionMethod) -> Self {
         self.0
             .iter()
-            .filter(|e| e.detection_method == method)
+            .filter(|e| e.recognition_methods.contains(&method))
+            .cloned()
+            .collect()
+    }
+
+    /// Retain only entities whose content was extracted by the given method.
+    pub fn by_extraction_method(&self, method: ExtractionMethod) -> Self {
+        self.0
+            .iter()
+            .filter(|e| e.extraction_methods.contains(&method))
             .cloned()
             .collect()
     }

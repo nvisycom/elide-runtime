@@ -7,7 +7,7 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::math::BoundingBox;
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::{DetectionMethod, Entity, ImageLocation};
+use nvisy_ontology::entity::{Entity, ExtractionMethod, ImageLocation, RecognitionMethod};
 use nvisy_rig::agent::{CvAgent, CvEntity, DetectionConfig};
 
 use crate::operation::envelope::DetectedEntities;
@@ -61,14 +61,15 @@ impl Operation for ComputerVision {
 
 /// Convert a [`CvEntity`] to an [`Entity`] with [`ImageLocation`].
 fn map_cv_entity(cv: &CvEntity) -> Entity {
-    Entity::new(
-        cv.category.clone(),
+    let mut entity = Entity::new(
+        cv.category,
         cv.entity_type,
         &cv.label,
-        DetectionMethod::ObjectDetection,
+        RecognitionMethod::Classification,
         cv.confidence,
-    )
-    .with_location(
+    );
+    entity.extraction_methods = vec![ExtractionMethod::ObjectDetection];
+    entity.with_location(
         ImageLocation {
             bounding_box: BoundingBox {
                 x: cv.bbox[0],

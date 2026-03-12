@@ -3,7 +3,10 @@
 use std::collections::HashMap;
 
 use nvisy_core::math::BoundingBox;
-use nvisy_ontology::entity::{DetectionMethod, Entity, EntityCategory, EntityKind, ImageLocation};
+use nvisy_ontology::entity::{
+    Entity, EntityCategory, EntityKind, ExtractionMethod, ImageLocation, RecognitionMethod,
+    RefinementMethod,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -58,9 +61,13 @@ impl VerifiedEntity {
                     self.category.unwrap_or(entity.category),
                     self.entity_type.unwrap_or(entity.entity_kind),
                     self.value.as_deref().unwrap_or(&entity.value),
-                    DetectionMethod::Ocr,
+                    RecognitionMethod::Ner,
                     self.confidence,
                 );
+                corrected.extraction_methods = vec![ExtractionMethod::OpticalCharacterRecognition];
+                corrected
+                    .refinement_methods
+                    .push(RefinementMethod::ModelVerification);
                 corrected.source = entity.source;
 
                 if let Some(bbox) = self.bbox {

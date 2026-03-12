@@ -17,7 +17,7 @@ Detection runs in three phases:
    dictionary are injected as synthetic matches with confidence `1.0`.
 
 Allow-list filtering is applied inline during phases 1 and 2. All three phases
-feed into a unified `Vec<PatternMatch>`.
+feed into a unified `Vec<RawMatch>`.
 
 ### Pattern JSON schema
 
@@ -27,7 +27,7 @@ Patterns are JSON definition files embedded at compile time from
 ```json
 {
   "name": "ssn",
-  "category": "pii",
+  "category": "personal_identity",
   "entity_type": "government_id",
   "pattern": {
     "regex": "\\b(\\d{3})-(\\d{2})-(\\d{4})\\b",
@@ -97,7 +97,7 @@ let allow = AllowList::new()
     .with("000-00-0000");
 
 let deny = DenyList::new()
-    .with("John Doe", EntityCategory::Pii, EntityKind::PersonName);
+    .with("John Doe", EntityCategory::PersonalIdentity, EntityKind::PersonName);
 
 let engine = PatternEngine::builder()
     .with_allow(allow)
@@ -109,8 +109,7 @@ let engine = PatternEngine::builder()
   are silently dropped during `scan_text`.
 - **Deny list** (`DenyList`): if a deny-list value is found in the text but
   was not matched by any regex or dictionary pattern, it is injected as a
-  synthetic `PatternMatch` with confidence `1.0` and source
-  `DetectionSource::DenyList`.
+  synthetic `RawMatch` with confidence `1.0` and `pattern_name: None`.
 
 Both types implement `FromIterator` for easy construction from iterators.
 

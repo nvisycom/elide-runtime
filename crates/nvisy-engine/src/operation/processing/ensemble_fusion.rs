@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::{DetectionMethod, Entities, Entity, Location};
+use nvisy_ontology::entity::{Entities, Entity, Location, RecognitionMethod, RefinementMethod};
 
 use crate::operation::envelope::RefinedEntities;
 use crate::operation::{Operation, ParallelContext};
@@ -16,9 +16,9 @@ const TARGET: &str = "nvisy_engine::op::ensemble";
 pub enum FusionStrategy {
     /// Take the maximum confidence across all detectors.
     MaxConfidence,
-    /// Weighted average by detection method.
+    /// Weighted average by recognition method.
     WeightedAverage {
-        weights: HashMap<DetectionMethod, f64>,
+        weights: HashMap<RecognitionMethod, f64>,
     },
     /// Noisy-OR: `P = 1 − ∏(1 − pᵢ)` for independent detectors.
     NoisyOr,
@@ -88,7 +88,9 @@ impl Ensemble {
                 let mut total_weight = 0.0;
                 let mut weighted_sum = 0.0;
                 for e in &group {
-                    let w = weights.get(&e.detection_method).copied().unwrap_or(1.0);
+                    // Use the first recognition method for weight lookup.
+                    let primary = e.recognition_methods.first();
+                    let w = primary.and_then(|m| weights.get(m)).copied().unwrap_or(1.0);
                     weighted_sum += e.confidence * w;
                     total_weight += w;
                 }
@@ -105,10 +107,23 @@ impl Ensemble {
             }
         };
 
-        // Use the first entity as the base and update confidence/method.
+        // Collect all recognition methods from the group in order.
+        let mut merged_methods = Vec::new();
+        for e in &group {
+            for m in &e.recognition_methods {
+                if !merged_methods.contains(m) {
+                    merged_methods.push(*m);
+                }
+            }
+        }
+
+        // Use the first entity as the base and update confidence/methods.
         let mut result = group.into_iter().next().unwrap();
         result.confidence = fused_confidence;
-        result.detection_method = DetectionMethod::Composite;
+        result.recognition_methods = merged_methods;
+        result
+            .refinement_methods
+            .push(RefinementMethod::EnsembleFusion);
         result
     }
 }
@@ -139,13 +154,13 @@ mod tests {
 
     fn text_entity(
         value: &str,
-        method: DetectionMethod,
+        method: RecognitionMethod,
         confidence: f64,
         start: usize,
         end: usize,
     ) -> Entity {
         Entity::new(
-            EntityCategory::Pii,
+            EntityCategory::PersonalIdentity,
             EntityKind::PersonName,
             value,
             method,
@@ -165,22 +180,29 @@ mod tests {
     fn max_confidence_strategy() {
         let merge = Ensemble::new(FusionStrategy::MaxConfidence);
         let entities: Entities = vec![
-            text_entity("John", DetectionMethod::Regex, 0.7, 0, 4),
-            text_entity("John", DetectionMethod::Ner, 0.85, 0, 4),
+            text_entity("John", RecognitionMethod::Regex, 0.7, 0, 4),
+            text_entity("John", RecognitionMethod::Ner, 0.85, 0, 4),
         ]
         .into();
         let result = merge.merge(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
-        assert_eq!(result[0].detection_method, DetectionMethod::Composite);
+        assert_eq!(
+            result[0].recognition_methods,
+            vec![RecognitionMethod::Regex, RecognitionMethod::Ner]
+        );
+        assert_eq!(
+            result[0].refinement_methods,
+            vec![RefinementMethod::EnsembleFusion]
+        );
     }
 
     #[test]
     fn noisy_or_strategy() {
         let merge = Ensemble::new(FusionStrategy::NoisyOr);
         let entities: Entities = vec![
-            text_entity("John", DetectionMethod::Regex, 0.7, 0, 4),
-            text_entity("John", DetectionMethod::Ner, 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::Regex, 0.7, 0, 4),
+            text_entity("John", RecognitionMethod::Ner, 0.8, 0, 4),
         ]
         .into();
         let result = merge.merge(entities);
@@ -192,13 +214,13 @@ mod tests {
     #[test]
     fn weighted_average_strategy() {
         let mut weights = HashMap::new();
-        weights.insert(DetectionMethod::Regex, 1.0);
-        weights.insert(DetectionMethod::Ner, 2.0);
+        weights.insert(RecognitionMethod::Regex, 1.0);
+        weights.insert(RecognitionMethod::Ner, 2.0);
 
         let merge = Ensemble::new(FusionStrategy::WeightedAverage { weights });
         let entities: Entities = vec![
-            text_entity("John", DetectionMethod::Regex, 0.6, 0, 4),
-            text_entity("John", DetectionMethod::Ner, 0.9, 0, 4),
+            text_entity("John", RecognitionMethod::Regex, 0.6, 0, 4),
+            text_entity("John", RecognitionMethod::Ner, 0.9, 0, 4),
         ]
         .into();
         let result = merge.merge(entities);
@@ -211,8 +233,8 @@ mod tests {
     fn non_overlapping_not_merged() {
         let merge = Ensemble::new(FusionStrategy::NoisyOr);
         let entities: Entities = vec![
-            text_entity("John", DetectionMethod::Regex, 0.7, 0, 4),
-            text_entity("John", DetectionMethod::Ner, 0.8, 10, 14),
+            text_entity("John", RecognitionMethod::Regex, 0.7, 0, 4),
+            text_entity("John", RecognitionMethod::Ner, 0.8, 10, 14),
         ]
         .into();
         let result = merge.merge(entities);
@@ -223,11 +245,14 @@ mod tests {
     fn single_entity_unchanged() {
         let merge = Ensemble::new(FusionStrategy::NoisyOr);
         let entities: Entities =
-            vec![text_entity("John", DetectionMethod::Regex, 0.7, 0, 4)].into();
+            vec![text_entity("John", RecognitionMethod::Regex, 0.7, 0, 4)].into();
         let result = merge.merge(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.7).abs() < f64::EPSILON);
-        assert_eq!(result[0].detection_method, DetectionMethod::Regex);
+        assert_eq!(
+            result[0].recognition_methods,
+            vec![RecognitionMethod::Regex]
+        );
     }
 
     #[test]

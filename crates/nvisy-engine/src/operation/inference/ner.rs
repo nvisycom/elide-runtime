@@ -8,9 +8,7 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::TxtSpan;
 use nvisy_core::{Error, Result};
 use nvisy_http::HttpClient;
-use nvisy_ontology::entity::{
-    DetectionMethod, Entity, EntityCategory, EntityKind, TextLocation,
-};
+use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod, TextLocation};
 use nvisy_rig::agent::{
     AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
 };
@@ -120,7 +118,7 @@ impl Ner {
 
             for ner_entity in &ner_entities {
                 let category: EntityCategory = match ner_entity.category {
-                    Some(ref c) => c.clone(),
+                    Some(c) => c,
                     None => continue,
                 };
                 let entity_kind = match ner_entity.entity_type {
@@ -136,7 +134,7 @@ impl Ner {
                     category,
                     entity_kind,
                     &ner_entity.value,
-                    DetectionMethod::Ner,
+                    RecognitionMethod::Ner,
                     confidence,
                 );
 

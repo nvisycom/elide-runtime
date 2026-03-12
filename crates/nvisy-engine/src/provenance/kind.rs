@@ -1,6 +1,6 @@
 //! Two-level tagged enum discriminating audit entry categories.
 
-use nvisy_ontology::entity::DetectionMethod;
+use nvisy_ontology::entity::ExtractionMethod;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -27,16 +27,18 @@ pub enum InferenceKind {
 }
 
 impl InferenceKind {
-    /// Returns the [`DetectionMethod`] that corresponds to this inference kind.
-    pub fn detection_method(&self) -> DetectionMethod {
+    /// Returns the [`ExtractionMethod`] for inference kinds that perform
+    /// content extraction. Returns `None` for pure recognition or
+    /// non-extraction operations.
+    pub fn extraction_method(&self) -> Option<ExtractionMethod> {
         match self {
-            Self::Ocr(_) => DetectionMethod::Ocr,
-            Self::Transcription(_) => DetectionMethod::SpeechTranscript,
-            Self::Ner(_) => DetectionMethod::Ner,
-            Self::ComputerVision(_) => DetectionMethod::ObjectDetection,
-            Self::Translation(_) | Self::Classification(_) | Self::Summarization(_) => {
-                DetectionMethod::ContextualNlp
-            }
+            Self::Ocr(_) => Some(ExtractionMethod::OpticalCharacterRecognition),
+            Self::Transcription(_) => Some(ExtractionMethod::Transcription),
+            Self::ComputerVision(_) => Some(ExtractionMethod::ObjectDetection),
+            Self::Ner(_)
+            | Self::Translation(_)
+            | Self::Classification(_)
+            | Self::Summarization(_) => None,
         }
     }
 }

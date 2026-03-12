@@ -2,10 +2,10 @@
 //!
 //! Merges entities that share the same `entity_kind`, `value`, and
 //! overlapping location into a single entity with the highest
-//! confidence and `DetectionMethod::Composite` when methods differ.
+//! confidence and combined recognition methods.
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::{DetectionMethod, Entities, Entity, Location};
+use nvisy_ontology::entity::{Entities, Entity, Location, RefinementMethod};
 
 use crate::operation::envelope::RefinedEntities;
 use crate::operation::{Operation, ParallelContext};
@@ -19,8 +19,8 @@ const TARGET: &str = "nvisy_engine::op::deduplication";
 ///
 /// When merging:
 /// - The highest confidence score is kept.
-/// - If the detection methods differ, the merged entity uses
-///   `DetectionMethod::Composite`.
+/// - Recognition methods are combined into an ordered vector.
+/// - [`RefinementMethod::Deduplication`] is recorded on the merged entity.
 pub struct Deduplication;
 
 impl Deduplication {
@@ -51,8 +51,18 @@ impl Deduplication {
                     if entity.confidence > existing.confidence {
                         existing.confidence = entity.confidence;
                     }
-                    if existing.detection_method != entity.detection_method {
-                        existing.detection_method = DetectionMethod::Composite;
+                    for m in entity.recognition_methods {
+                        if !existing.recognition_methods.contains(&m) {
+                            existing.recognition_methods.push(m);
+                        }
+                    }
+                    if !existing
+                        .refinement_methods
+                        .contains(&RefinementMethod::Deduplication)
+                    {
+                        existing
+                            .refinement_methods
+                            .push(RefinementMethod::Deduplication);
                     }
                 }
                 None => {
@@ -88,19 +98,19 @@ fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{EntityCategory, EntityKind, TextLocation};
+    use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod, TextLocation};
 
     use super::*;
 
     fn text_entity(
         value: &str,
-        method: DetectionMethod,
+        method: RecognitionMethod,
         confidence: f64,
         start: usize,
         end: usize,
     ) -> Entity {
         Entity::new(
-            EntityCategory::Pii,
+            EntityCategory::PersonalIdentity,
             EntityKind::PersonName,
             value,
             method,
@@ -119,34 +129,44 @@ mod tests {
     #[test]
     fn duplicates_merged_same_method() {
         let entities: Entities = vec![
-            text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
-            text_entity("John", DetectionMethod::Regex, 0.9, 0, 4),
+            text_entity("John", RecognitionMethod::Regex, 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::Regex, 0.9, 0, 4),
         ]
         .into();
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
-        assert_eq!(result[0].detection_method, DetectionMethod::Regex);
+        assert_eq!(
+            result[0].recognition_methods,
+            vec![RecognitionMethod::Regex]
+        );
+        assert_eq!(
+            result[0].refinement_methods,
+            vec![RefinementMethod::Deduplication]
+        );
     }
 
     #[test]
-    fn different_methods_become_composite() {
+    fn different_methods_are_combined() {
         let entities: Entities = vec![
-            text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
-            text_entity("John", DetectionMethod::Ner, 0.85, 0, 4),
+            text_entity("John", RecognitionMethod::Regex, 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::Ner, 0.85, 0, 4),
         ]
         .into();
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].detection_method, DetectionMethod::Composite);
+        assert_eq!(
+            result[0].recognition_methods,
+            vec![RecognitionMethod::Regex, RecognitionMethod::Ner]
+        );
         assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
     }
 
     #[test]
     fn non_overlapping_preserved() {
         let entities: Entities = vec![
-            text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
-            text_entity("John", DetectionMethod::Regex, 0.9, 10, 14),
+            text_entity("John", RecognitionMethod::Regex, 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::Regex, 0.9, 10, 14),
         ]
         .into();
         let result = Deduplication::execute(entities);
@@ -156,8 +176,8 @@ mod tests {
     #[test]
     fn different_values_not_merged() {
         let entities: Entities = vec![
-            text_entity("John", DetectionMethod::Regex, 0.8, 0, 4),
-            text_entity("Jane", DetectionMethod::Regex, 0.9, 0, 4),
+            text_entity("John", RecognitionMethod::Regex, 0.8, 0, 4),
+            text_entity("Jane", RecognitionMethod::Regex, 0.9, 0, 4),
         ]
         .into();
         let result = Deduplication::execute(entities);
@@ -173,7 +193,7 @@ mod tests {
     #[test]
     fn single_entity_unchanged() {
         let entities: Entities =
-            vec![text_entity("John", DetectionMethod::Regex, 0.8, 0, 4)].into();
+            vec![text_entity("John", RecognitionMethod::Regex, 0.8, 0, 4)].into();
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
     }
@@ -182,12 +202,15 @@ mod tests {
     fn overlapping_ranges_merge() {
         // Partially overlapping: 0..6 and 3..9.
         let entities: Entities = vec![
-            text_entity("John Doe", DetectionMethod::Regex, 0.7, 0, 6),
-            text_entity("John Doe", DetectionMethod::Ner, 0.9, 3, 9),
+            text_entity("John Doe", RecognitionMethod::Regex, 0.7, 0, 6),
+            text_entity("John Doe", RecognitionMethod::Ner, 0.9, 3, 9),
         ]
         .into();
         let result = Deduplication::execute(entities);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].detection_method, DetectionMethod::Composite);
+        assert_eq!(
+            result[0].recognition_methods,
+            vec![RecognitionMethod::Regex, RecognitionMethod::Ner]
+        );
     }
 }

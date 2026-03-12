@@ -1,6 +1,6 @@
 {
   "name": "date-of-birth",
-  "category": "pii",
+  "category": "personal_identity",
   "entity_type": "date_of_birth",
   "pattern": {
     "regex": "\\b(?:0[1-9]|1[0-2])[/\\-](?:0[1-9]|[12]\\d|3[01])[/\\-](?:19|20)\\d{2}\\b",

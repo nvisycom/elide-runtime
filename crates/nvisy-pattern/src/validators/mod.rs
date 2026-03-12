@@ -10,9 +10,9 @@ mod ssn;
 
 use std::collections::HashMap;
 
-pub use iban::validate_iban;
-pub use luhn::luhn_check;
-pub use ssn::validate_ssn;
+pub use self::iban::validate_iban;
+pub use self::luhn::luhn_check;
+pub use self::ssn::validate_ssn;
 
 /// Signature for a validation function: takes the matched text and returns
 /// `true` if the value is valid.

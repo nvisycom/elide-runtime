@@ -22,15 +22,28 @@ pub struct RegexPattern {
     pub validator: Option<String>,
     /// Whether the regex is case-sensitive.
     ///
-    /// Defaults to `false`.  When `false`, the regex is compiled with
-    /// inline `(?i)` or equivalent flag.
-    #[serde(default)]
+    /// Defaults to `true`.  When `false`, the regex is compiled with
+    /// an inline `(?i)` prefix.
+    #[serde(default = "default_case_sensitive")]
     pub case_sensitive: bool,
     /// Confidence score (0.0–1.0) assigned to matches from this pattern.
     ///
     /// Defaults to `1.0` when not specified.
     #[serde(default = "default_confidence")]
     pub confidence: f64,
+}
+
+impl RegexPattern {
+    /// Return the regex string ready for compilation.
+    ///
+    /// Prepends `(?i)` when [`case_sensitive`](Self::case_sensitive) is `false`.
+    pub fn effective_regex(&self) -> String {
+        if self.case_sensitive {
+            self.regex.clone()
+        } else {
+            format!("(?i){}", self.regex)
+        }
+    }
 }
 
 /// Confidence for a dictionary pattern: either a single uniform score
@@ -126,6 +139,17 @@ pub enum MatchSource {
     Dictionary(DictionaryPattern),
 }
 
+/// Default confidence score when `"confidence"` is omitted from JSON.
+pub const DEFAULT_CONFIDENCE: f64 = 1.0;
+
+fn default_confidence() -> f64 {
+    DEFAULT_CONFIDENCE
+}
+
+fn default_case_sensitive() -> bool {
+    true
+}
+
 /// A named detection pattern.
 ///
 /// Implementors describe a single entity type to detect, including how to
@@ -137,19 +161,12 @@ pub enum MatchSource {
 /// from the JSON files under `assets/patterns/`.
 ///
 /// [`JsonPattern`]: super::JsonPattern
-/// Default confidence score when `"confidence"` is omitted from JSON.
-pub const DEFAULT_CONFIDENCE: f64 = 1.0;
-
-fn default_confidence() -> f64 {
-    DEFAULT_CONFIDENCE
-}
-
 pub trait Pattern: Send + Sync {
     /// Unique name identifying this pattern (e.g. `"ssn"`, `"credit-card"`).
     fn name(&self) -> &str;
 
-    /// High-level entity category (PII, Financial, Credentials, ...).
-    fn category(&self) -> &EntityCategory;
+    /// High-level entity category (PersonalIdentity, Financial, Credentials, ...).
+    fn category(&self) -> EntityCategory;
 
     /// Specific entity kind within the category (e.g. `GovernmentId`, `PaymentCard`).
     fn entity_kind(&self) -> EntityKind;

@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 use super::context_rule::ContextRule;
 use super::pattern::{DictionaryPattern, MatchSource, Pattern, RegexPattern};
+use crate::validators::ValidatorResolver;
 
 /// Error returned when a JSON pattern file cannot be loaded.
 #[derive(Debug, thiserror::Error)]
@@ -25,10 +26,6 @@ pub enum JsonPatternError {
 /// indicate misconfiguration (e.g. a typo in the validator name).
 #[derive(Debug)]
 pub enum JsonPatternWarning {
-    /// The `"category"` value was not a recognised variant and fell through
-    /// to [`EntityCategory::Custom`].
-    UnknownCategory { pattern: String, slug: String },
-
     /// The `"validator"` name does not match any built-in validator, so
     /// the pattern will have no post-match validation.
     UnknownValidator { pattern: String, validator: String },
@@ -50,6 +47,10 @@ pub struct JsonPattern {
 impl JsonPattern {
     /// Deserialize and validate a pattern from raw JSON bytes.
     ///
+    /// `validators` is used to check whether a referenced validator name
+    /// is registered; unrecognised names produce a [`JsonPatternWarning`]
+    /// but do not prevent loading.
+    ///
     /// On success returns the pattern together with a (possibly empty)
     /// list of [`JsonPatternWarning`]s.
     ///
@@ -60,6 +61,7 @@ impl JsonPattern {
     /// and `dictionary`).
     pub(crate) fn from_bytes(
         bytes: &[u8],
+        validators: &ValidatorResolver,
     ) -> Result<(Self, Vec<JsonPatternWarning>), JsonPatternError> {
         /// Serde helper: exactly one of `pattern` or `dictionary`.
         #[derive(Deserialize)]
@@ -91,19 +93,11 @@ impl JsonPattern {
 
         let mut warnings = Vec::new();
 
-        if let EntityCategory::Custom(ref slug) = raw.category {
-            warnings.push(JsonPatternWarning::UnknownCategory {
-                pattern: raw.name.clone(),
-                slug: slug.clone(),
-            });
-        }
         if let MatchSource::Regex(RegexPattern {
             validator: Some(ref v),
             ..
         }) = match_source
-            && crate::validators::ValidatorResolver::builtins()
-                .resolve(v)
-                .is_none()
+            && validators.resolve(v).is_none()
         {
             warnings.push(JsonPatternWarning::UnknownValidator {
                 pattern: raw.name.clone(),
@@ -128,8 +122,8 @@ impl Pattern for JsonPattern {
         &self.name
     }
 
-    fn category(&self) -> &EntityCategory {
-        &self.category
+    fn category(&self) -> EntityCategory {
+        self.category
     }
 
     fn entity_kind(&self) -> EntityKind {

@@ -20,10 +20,14 @@ mod pattern;
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
-pub use context_rule::ContextRule;
 use include_dir::{Dir, include_dir};
-pub use json_pattern::{JsonPattern, JsonPatternWarning};
-pub use pattern::{BoxPattern, DictionaryConfidence, MatchSource, Pattern};
+
+pub use self::context_rule::ContextRule;
+pub use self::json_pattern::{JsonPattern, JsonPatternWarning};
+pub use self::pattern::{BoxPattern, DictionaryConfidence, MatchSource, Pattern};
+use crate::validators::ValidatorResolver;
+
+const TARGET: &str = "nvisy_pattern::patterns";
 
 /// A registry of named [`Pattern`] definitions with O(log n) lookup.
 ///
@@ -65,10 +69,15 @@ impl PatternRegistry {
         self.inner.get(name).map(|b| b.as_ref())
     }
 
-    /// All patterns in deterministic (alphabetical) order.
-    #[must_use]
-    pub fn values(&self) -> Vec<&dyn Pattern> {
-        self.inner.values().map(|b| b.as_ref()).collect()
+    /// Iterate over all registered patterns as `&dyn Pattern` in
+    /// deterministic (alphabetical) order.
+    pub fn iter(&self) -> impl Iterator<Item = &dyn Pattern> {
+        self.inner.values().map(|b| b.as_ref())
+    }
+
+    /// Iterate over all registered pattern names.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.inner.keys().map(|s| s.as_str())
     }
 
     /// Total number of registered patterns.
@@ -77,14 +86,21 @@ impl PatternRegistry {
         self.inner.len()
     }
 
+    /// Whether the registry contains no patterns.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
     /// Load all `.json` files from the embedded `assets/patterns/`
     /// directory and return a populated registry.
     ///
     /// Files that fail to parse are logged as warnings and skipped.
-    #[tracing::instrument(name = "patterns.load_builtins", fields(count))]
+    #[tracing::instrument(target = TARGET, name = "patterns.load_builtins", fields(count))]
     pub fn load_builtins() -> Self {
         static PATTERN_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets/patterns");
 
+        let validators = ValidatorResolver::builtins();
         let mut reg = Self::new();
 
         for file in PATTERN_DIR.files() {
@@ -92,16 +108,18 @@ impl PatternRegistry {
 
             let Some("json") = path.extension().and_then(|e| e.to_str()) else {
                 tracing::warn!(
+                    target: TARGET,
                     path = %path.display(),
                     "skipping non-JSON file in patterns directory",
                 );
                 continue;
             };
 
-            let (pattern, warnings) = match JsonPattern::from_bytes(file.contents()) {
+            let (pattern, warnings) = match JsonPattern::from_bytes(file.contents(), &validators) {
                 Ok(pair) => pair,
                 Err(e) => {
                     tracing::warn!(
+                        target: TARGET,
                         path = %path.display(),
                         error = %e,
                         "failed to load pattern, skipping",
@@ -112,16 +130,14 @@ impl PatternRegistry {
 
             for w in &warnings {
                 match w {
-                    JsonPatternWarning::UnknownCategory { pattern, slug } => {
-                        tracing::warn!(%pattern, category = %slug, "unrecognised category falls through to Custom");
-                    }
                     JsonPatternWarning::UnknownValidator { pattern, validator } => {
-                        tracing::warn!(%pattern, %validator, "unknown validator name, pattern will have no post-match validation");
+                        tracing::warn!(target: TARGET, %pattern, %validator, "unknown validator name, pattern will have no post-match validation");
                     }
                 }
             }
 
             tracing::trace!(
+                target: TARGET,
                 name = %pattern.name(),
                 category = %pattern.category(),
                 entity_kind = %pattern.entity_kind(),
@@ -132,7 +148,7 @@ impl PatternRegistry {
         }
 
         tracing::Span::current().record("count", reg.len());
-        tracing::debug!("built-in patterns loaded");
+        tracing::debug!(target: TARGET, "built-in patterns loaded");
         reg
     }
 }
@@ -161,12 +177,12 @@ mod tests {
 
     #[test]
     fn builtins_load() {
-        assert!(registry().len() > 0);
+        assert!(!registry().is_empty());
     }
 
     #[test]
     fn pattern_names_are_sorted() {
-        let names: Vec<&str> = registry().values().iter().map(|p| p.name()).collect();
+        let names: Vec<&str> = registry().names().collect();
         let mut sorted = names.clone();
         sorted.sort();
         assert_eq!(names, sorted);
@@ -174,15 +190,14 @@ mod tests {
 
     #[test]
     fn no_duplicate_pattern_names() {
-        let all = registry().values();
-        let names: Vec<_> = all.iter().map(|p| p.name()).collect();
+        let names: Vec<_> = registry().names().collect();
         let unique: std::collections::HashSet<_> = names.iter().collect();
         assert_eq!(names.len(), unique.len(), "duplicate pattern names found");
     }
 
     #[test]
     fn all_patterns_have_valid_fields() {
-        for p in registry().values() {
+        for p in registry().iter() {
             assert!(!p.name().is_empty(), "pattern name is empty");
             match p.match_source() {
                 MatchSource::Regex(rp) => {
@@ -202,10 +217,10 @@ mod tests {
 
     #[test]
     fn all_regex_patterns_compile() {
-        for p in registry().values() {
+        for p in registry().iter() {
             if let MatchSource::Regex(rp) = p.match_source() {
                 assert!(
-                    regex::Regex::new(&rp.regex).is_ok(),
+                    regex::Regex::new(&rp.effective_regex()).is_ok(),
                     "pattern {} failed to compile: {}",
                     p.name(),
                     rp.regex,
@@ -217,7 +232,7 @@ mod tests {
     #[test]
     fn all_validators_resolve() {
         let resolver = crate::validators::ValidatorResolver::builtins();
-        for p in registry().values() {
+        for p in registry().iter() {
             if let MatchSource::Regex(RegexPattern {
                 validator: Some(name),
                 ..
@@ -234,13 +249,14 @@ mod tests {
 
     #[test]
     fn registry_insert_and_get() {
+        let validators = ValidatorResolver::builtins();
         let json = br#"{
             "name": "test",
-            "category": "pii",
+            "category": "personal_identity",
             "entity_type": "government_id",
             "pattern": { "regex": "\\d+", "confidence": 0.9 }
         }"#;
-        let (pattern, _warnings) = JsonPattern::from_bytes(json).unwrap();
+        let (pattern, _warnings) = JsonPattern::from_bytes(json, &validators).unwrap();
 
         let mut reg = PatternRegistry::new();
         reg.insert(Box::new(pattern));

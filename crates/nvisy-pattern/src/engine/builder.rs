@@ -10,10 +10,12 @@ use crate::dictionaries;
 use crate::patterns::{self, MatchSource, Pattern};
 use crate::validators::ValidatorResolver;
 
+const TARGET: &str = "nvisy_pattern::engine";
+
 /// Builder for [`PatternEngine`].
 ///
 /// By default all built-in patterns are included. Use
-/// [`patterns`](Self::patterns) to restrict to a subset.
+/// [`with_patterns`](Self::with_patterns) to restrict to a subset.
 #[derive(Default)]
 pub struct PatternEngineBuilder {
     pattern_names: Option<Vec<String>>,
@@ -69,14 +71,14 @@ impl PatternEngineBuilder {
     /// Returns [`PatternEngineError`] if a regex fails to compile, a
     /// referenced dictionary is missing, or the Aho-Corasick automaton
     /// cannot be built.
-    #[tracing::instrument(name = "PatternEngine::build", skip(self))]
+    #[tracing::instrument(target = TARGET, name = "PatternEngine::build", skip(self))]
     pub fn build(self) -> Result<PatternEngine, PatternEngineError> {
         let pat_reg = patterns::builtin_registry();
         let dict_reg = dictionaries::builtin_registry();
 
         let active: Vec<&dyn Pattern> = match &self.pattern_names {
             Some(names) => names.iter().filter_map(|n| pat_reg.get(n)).collect(),
-            None => pat_reg.values(),
+            None => pat_reg.iter().collect(),
         };
 
         let mut regex_entries = Vec::new();
@@ -86,15 +88,16 @@ impl PatternEngineBuilder {
         for p in &active {
             match p.match_source() {
                 MatchSource::Regex(rp) => {
+                    let effective = rp.effective_regex();
                     let compiled =
-                        Regex::new(&rp.regex).map_err(|e| PatternEngineError::RegexCompile {
+                        Regex::new(&effective).map_err(|e| PatternEngineError::RegexCompile {
                             name: p.name().to_owned(),
                             source: e,
                         })?;
-                    regex_strings.push(rp.regex.clone());
+                    regex_strings.push(effective);
                     regex_entries.push(RegexEntry {
                         pattern_name: p.name().to_owned(),
-                        category: p.category().clone(),
+                        category: p.category(),
                         entity_kind: p.entity_kind(),
                         confidence: rp.confidence,
                         validator_name: rp.validator.clone(),
@@ -123,7 +126,7 @@ impl PatternEngineBuilder {
                         })?;
                     dict_entries.push(DictEntry {
                         pattern_name: p.name().to_owned(),
-                        category: p.category().clone(),
+                        category: p.category(),
                         entity_kind: p.entity_kind(),
                         confidence: dp.confidence.clone(),
                         automaton,
@@ -140,6 +143,7 @@ impl PatternEngineBuilder {
         let validators = ValidatorResolver::builtins();
 
         tracing::debug!(
+            target: TARGET,
             regex_count = regex_entries.len(),
             dict_count = dict_entries.len(),
             "PatternEngine built",

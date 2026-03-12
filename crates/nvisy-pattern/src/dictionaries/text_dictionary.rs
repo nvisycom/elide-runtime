@@ -1,5 +1,7 @@
 //! Plain-text dictionary: one matchable entry per line.
 
+use std::path::Path;
+
 use super::Dictionary;
 
 /// A dictionary parsed from a plain-text file (one entry per line).
@@ -25,6 +27,23 @@ impl TxtDictionary {
             .collect();
 
         Self { name, entries }
+    }
+
+    /// Load a plain-text dictionary from a file path.
+    ///
+    /// The dictionary name is derived from the file stem.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`std::io::Error`] if the file cannot be read.
+    pub fn from_path(path: impl AsRef<Path>) -> std::io::Result<Self> {
+        let path = path.as_ref();
+        let name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        let text = std::fs::read_to_string(path)?;
+        Ok(Self::new(name, &text))
     }
 }
 

@@ -1,24 +1,26 @@
 //! [`DenyList`] — forced detection of known sensitive values.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
 
-/// A deny-list entry: a known sensitive value that must always be detected.
+/// A deny-list rule: a known sensitive value that must always be detected.
 #[derive(Debug, Clone)]
-pub struct DenyEntry {
+pub struct DenyRule {
     /// Entity category for the injected match.
     pub category: EntityCategory,
     /// Entity kind for the injected match.
     pub entity_kind: EntityKind,
+    /// Recognition method to assign to injected matches.
+    pub method: RecognitionMethod,
 }
 
 /// Exact-match deny list for forcing detection of known sensitive values.
 ///
 /// If a deny-list value is found in the scanned text but was not already
 /// matched by any regex or dictionary pattern, it is injected as a synthetic
-/// [`PatternMatch`](super::PatternMatch) with confidence `1.0` and source
-/// [`DetectionSource::DenyList`](super::DetectionSource::DenyList).
+/// [`RawMatch`](super::RawMatch) with confidence `1.0` and
+/// `pattern_name: None`.
 ///
 /// # Examples
 ///
@@ -26,12 +28,12 @@ pub struct DenyEntry {
 /// use nvisy_ontology::entity::{EntityCategory, EntityKind};
 ///
 /// let deny = DenyList::new()
-///     .with("John Doe", EntityCategory::Pii, EntityKind::PersonName)
-///     .with("ACME Corp", EntityCategory::Pii, EntityKind::Organization);
+///     .with("John Doe", EntityCategory::PersonalIdentity, EntityKind::PersonName)
+///     .with("ACME Corp", EntityCategory::PersonalIdentity, EntityKind::OrganizationName);
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct DenyList {
-    pub(crate) entries: HashMap<String, DenyEntry>,
+    pub(crate) entries: BTreeMap<String, DenyRule>,
 }
 
 impl DenyList {
@@ -40,7 +42,7 @@ impl DenyList {
         Self::default()
     }
 
-    /// Add a single entry.
+    /// Add a single rule with `RecognitionMethod::Dictionary` as the default method.
     pub fn with(
         mut self,
         value: impl Into<String>,
@@ -49,15 +51,35 @@ impl DenyList {
     ) -> Self {
         self.entries.insert(
             value.into(),
-            DenyEntry {
+            DenyRule {
                 category,
                 entity_kind,
+                method: RecognitionMethod::Dictionary,
             },
         );
         self
     }
 
-    /// Insert an entry into this list.
+    /// Add a single rule with an explicit recognition method.
+    pub fn with_method(
+        mut self,
+        value: impl Into<String>,
+        category: EntityCategory,
+        entity_kind: EntityKind,
+        method: RecognitionMethod,
+    ) -> Self {
+        self.entries.insert(
+            value.into(),
+            DenyRule {
+                category,
+                entity_kind,
+                method,
+            },
+        );
+        self
+    }
+
+    /// Insert a rule into this list with `RecognitionMethod::Dictionary` as the default method.
     pub fn insert(
         &mut self,
         value: impl Into<String>,
@@ -66,9 +88,10 @@ impl DenyList {
     ) {
         self.entries.insert(
             value.into(),
-            DenyEntry {
+            DenyRule {
                 category,
                 entity_kind,
+                method: RecognitionMethod::Dictionary,
             },
         );
     }
@@ -79,9 +102,9 @@ impl DenyList {
         self.entries.contains_key(value)
     }
 
-    /// Look up the entry for a value.
+    /// Look up the rule for a value.
     #[must_use]
-    pub fn get(&self, value: &str) -> Option<&DenyEntry> {
+    pub fn get(&self, value: &str) -> Option<&DenyRule> {
         self.entries.get(value)
     }
 
@@ -97,8 +120,8 @@ impl DenyList {
         self.entries.is_empty()
     }
 
-    /// Iterate over (value, entry) pairs.
-    pub fn iter(&self) -> impl Iterator<Item = (&str, &DenyEntry)> {
+    /// Iterate over (value, rule) pairs.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &DenyRule)> {
         self.entries.iter().map(|(k, v)| (k.as_str(), v))
     }
 }

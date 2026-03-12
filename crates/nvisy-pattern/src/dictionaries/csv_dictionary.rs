@@ -1,27 +1,20 @@
-//! CSV dictionary: one row per entity, each cell is a matchable variant.
+//! CSV dictionary: one row per entity, each cell becomes a matchable variant.
 
 use std::path::Path;
 
-use super::Dictionary;
-
-/// Error returned when a CSV dictionary cannot be parsed.
-#[derive(Debug, thiserror::Error)]
-#[error("failed to parse CSV record in dictionary '{name}': {source}")]
-pub struct CsvDictionaryError {
-    name: String,
-    source: csv::Error,
-}
+use super::{CsvDictionaryError, Dictionary, DictionaryLoadError, DictionaryTerm};
 
 /// A dictionary parsed from a CSV file.
 ///
 /// Each row may contain multiple columns (e.g. name, symbol, code).
-/// Every non-empty cell becomes a matchable term.
-#[derive(Debug, Clone)]
+/// Every non-empty cell becomes a matchable term whose [`column`]
+/// records which CSV column it came from.
+///
+/// [`column`]: DictionaryTerm::column
+#[derive(Debug)]
 pub struct CsvDictionary {
     name: String,
-    entries: Vec<String>,
-    /// Source column index for each entry (parallel to `entries`).
-    columns: Vec<usize>,
+    terms: Vec<DictionaryTerm>,
 }
 
 impl CsvDictionary {
@@ -38,8 +31,7 @@ impl CsvDictionary {
     pub fn new(name: impl Into<String>, text: &str) -> Result<Self, CsvDictionaryError> {
         let name = name.into();
 
-        let mut entries = Vec::new();
-        let mut columns = Vec::new();
+        let mut terms = Vec::new();
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(false)
             .flexible(true)
@@ -53,17 +45,15 @@ impl CsvDictionary {
             })?;
             for (col, field) in record.iter().enumerate() {
                 if !field.is_empty() {
-                    entries.push(field.to_owned());
-                    columns.push(col);
+                    terms.push(DictionaryTerm {
+                        value: field.to_owned(),
+                        column: Some(col as u32),
+                    });
                 }
             }
         }
 
-        Ok(Self {
-            name,
-            entries,
-            columns,
-        })
+        Ok(Self { name, terms })
     }
 
     /// Load a CSV dictionary from a file path.
@@ -72,21 +62,20 @@ impl CsvDictionary {
     ///
     /// # Errors
     ///
-    /// Returns [`DictionaryLoadError`](super::DictionaryLoadError) if the
-    /// file cannot be read or the CSV content cannot be parsed.
-    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, super::DictionaryLoadError> {
+    /// Returns [`DictionaryLoadError`] if the file cannot be read or
+    /// the CSV content cannot be parsed.
+    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, DictionaryLoadError> {
         let path = path.as_ref();
         let name = path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or_default();
-        let text = std::fs::read_to_string(path).map_err(|source| {
-            super::DictionaryLoadError::ReadFile {
+        let text =
+            std::fs::read_to_string(path).map_err(|source| DictionaryLoadError::ReadFile {
                 path: path.to_owned(),
                 source,
-            }
-        })?;
-        Self::new(name, &text).map_err(|source| super::DictionaryLoadError::CsvParse {
+            })?;
+        Self::new(name, &text).map_err(|source| DictionaryLoadError::CsvParse {
             path: path.to_owned(),
             source,
         })
@@ -98,12 +87,8 @@ impl Dictionary for CsvDictionary {
         &self.name
     }
 
-    fn entries(&self) -> &[String] {
-        &self.entries
-    }
-
-    fn columns(&self) -> Option<&[usize]> {
-        Some(&self.columns)
+    fn terms(&self) -> &[DictionaryTerm] {
+        &self.terms
     }
 }
 
@@ -115,24 +100,29 @@ mod tests {
     fn parses_rows_with_variants() {
         let dict = CsvDictionary::new("test", "US Dollar,USD\nEuro,EUR\n").unwrap();
         assert_eq!(dict.name(), "test");
-        assert_eq!(dict.entries(), &["US Dollar", "USD", "Euro", "EUR"]);
+
+        let values: Vec<&str> = dict.terms().iter().map(|t| t.value.as_str()).collect();
+        assert_eq!(values, &["US Dollar", "USD", "Euro", "EUR"]);
     }
 
     #[test]
     fn handles_variable_columns() {
         let dict = CsvDictionary::new("test", "a,b,c\nd,e\n").unwrap();
-        assert_eq!(dict.entries(), &["a", "b", "c", "d", "e"]);
+        let values: Vec<&str> = dict.terms().iter().map(|t| t.value.as_str()).collect();
+        assert_eq!(values, &["a", "b", "c", "d", "e"]);
     }
 
     #[test]
     fn skips_empty_fields() {
         let dict = CsvDictionary::new("test", "a,,b\n").unwrap();
-        assert_eq!(dict.entries(), &["a", "b"]);
+        let values: Vec<&str> = dict.terms().iter().map(|t| t.value.as_str()).collect();
+        assert_eq!(values, &["a", "b"]);
     }
 
     #[test]
     fn column_indices_are_tracked() {
         let dict = CsvDictionary::new("test", "a,b,c\nd,e\n").unwrap();
-        assert_eq!(dict.columns(), Some([0, 1, 2, 0, 1].as_slice()));
+        let columns: Vec<Option<u32>> = dict.terms().iter().map(|t| t.column).collect();
+        assert_eq!(columns, &[Some(0), Some(1), Some(2), Some(0), Some(1)]);
     }
 }

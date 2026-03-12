@@ -1,8 +1,4 @@
-//! Core [`Pattern`] trait, [`MatchSource`] enum, and [`BoxPattern`] alias.
-//!
-//! [`Pattern`]: crate::patterns::Pattern
-//! [`MatchSource`]: crate::patterns::MatchSource
-//! [`BoxPattern`]: crate::patterns::BoxPattern
+//! Core [`Pattern`] trait, [`MatchSource`] enum, and [`BoxPattern`] type alias.
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use serde::Deserialize;
@@ -14,7 +10,7 @@ use super::context_rule::ContextRule;
 pub struct RegexPattern {
     /// The regular expression string.
     pub regex: String,
-    /// Optional validator name (e.g. `"luhn"`, `"ssn"`, `"iban"`),
+    /// Optional validator name (e.g. `"luhn"`, `"ssn"`, `"iban"`):
     /// resolved at detection time via [`ValidatorResolver`].
     ///
     /// [`ValidatorResolver`]: crate::validators::ValidatorResolver
@@ -22,7 +18,7 @@ pub struct RegexPattern {
     pub validator: Option<String>,
     /// Whether the regex is case-sensitive.
     ///
-    /// Defaults to `true`.  When `false`, the regex is compiled with
+    /// Defaults to `true`. When `false`, the regex is compiled with
     /// an inline `(?i)` prefix.
     #[serde(default = "default_case_sensitive")]
     pub case_sensitive: bool,
@@ -76,7 +72,7 @@ impl Default for DictionaryConfidence {
     }
 }
 
-/// Serde helper — accepts either a single number or an array of numbers.
+/// Serde helper: accepts either a single number or an array of numbers.
 mod confidence_serde {
     use serde::{Deserialize, Deserializer};
 
@@ -108,15 +104,15 @@ pub struct DictionaryPattern {
     pub name: String,
     /// Whether matching is case-sensitive.
     ///
-    /// Defaults to `false`.  Controls the Aho-Corasick automaton's
+    /// Defaults to `false`. Controls the Aho-Corasick automaton's
     /// `ascii_case_insensitive` setting.
     #[serde(default)]
     pub case_sensitive: bool,
     /// Confidence score(s) for matches from this dictionary.
     ///
-    /// A single number applies uniformly to all entries.
-    /// An array assigns per-column confidence for CSV dictionaries
-    /// (e.g. `[0.85, 0.55]` gives column 0 entries 0.85 and column 1
+    /// A single number applies uniformly to all entries. An array
+    /// assigns per-column confidence for CSV dictionaries (e.g.
+    /// `[0.85, 0.55]` gives column 0 entries 0.85 and column 1
     /// entries 0.55).
     ///
     /// Defaults to `1.0` when not specified.

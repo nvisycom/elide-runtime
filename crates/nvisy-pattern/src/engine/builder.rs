@@ -1,16 +1,12 @@
-//! [`PatternEngineBuilder`] — configures and compiles a [`PatternEngine`].
+//! [`PatternEngineBuilder`]: configures and compiles a [`PatternEngine`].
 
 use regex::{Regex, RegexSet};
 
-use super::allow_list::AllowList;
-use super::deny_list::DenyList;
 use super::error::PatternEngineError;
-use super::{DictEntry, PatternEngine, RegexEntry};
+use super::{DictEntry, PatternEngine, RegexEntry, TARGET};
 use crate::dictionaries;
-use crate::patterns::{self, MatchSource, Pattern};
+use crate::patterns::{MatchSource, Pattern};
 use crate::validators::ValidatorResolver;
-
-const TARGET: &str = "nvisy_pattern::engine";
 
 /// Builder for [`PatternEngine`].
 ///
@@ -20,8 +16,6 @@ const TARGET: &str = "nvisy_pattern::engine";
 pub struct PatternEngineBuilder {
     pattern_names: Option<Vec<String>>,
     confidence_threshold: f64,
-    allow_list: AllowList,
-    deny_list: DenyList,
 }
 
 impl PatternEngineBuilder {
@@ -39,28 +33,9 @@ impl PatternEngineBuilder {
     /// Set the minimum confidence score for matches.
     ///
     /// Matches with confidence below this value are discarded during
-    /// [`scan_text`](PatternEngine::scan_text).  Defaults to `0.0`.
+    /// [`scan_text`](PatternEngine::scan_text). Defaults to `0.0`.
     pub fn with_confidence_threshold(mut self, threshold: f64) -> Self {
         self.confidence_threshold = threshold;
-        self
-    }
-
-    /// Set the allow list.
-    ///
-    /// Matches whose exact value appears in the allow list are suppressed
-    /// (dropped) during [`scan_text`](PatternEngine::scan_text).
-    pub fn with_allow(mut self, list: AllowList) -> Self {
-        self.allow_list = list;
-        self
-    }
-
-    /// Set the deny list.
-    ///
-    /// If a deny-list value is found in the scanned text but was not matched
-    /// by any regex or dictionary pattern, it is injected as a synthetic match
-    /// with confidence `1.0`.
-    pub fn with_deny(mut self, list: DenyList) -> Self {
-        self.deny_list = list;
         self
     }
 
@@ -68,12 +43,12 @@ impl PatternEngineBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`PatternEngineError`] if a regex fails to compile, a
+    /// Returns [`nvisy_core::Error`] if a regex fails to compile, a
     /// referenced dictionary is missing, or the Aho-Corasick automaton
     /// cannot be built.
     #[tracing::instrument(target = TARGET, name = "PatternEngine::build", skip(self))]
-    pub fn build(self) -> Result<PatternEngine, PatternEngineError> {
-        let pat_reg = patterns::builtin_registry();
+    pub fn build(self) -> nvisy_core::Result<PatternEngine> {
+        let pat_reg = crate::patterns::builtin_registry();
         let dict_reg = dictionaries::builtin_registry();
 
         let active: Vec<&dyn Pattern> = match &self.pattern_names {
@@ -112,11 +87,12 @@ impl PatternEngineBuilder {
                             dictionary: dp.name.clone(),
                         }
                     })?;
-                    let values: Vec<String> = dict.entries().to_vec();
-                    if values.is_empty() {
+                    let terms = dict.terms();
+                    if terms.is_empty() {
                         continue;
                     }
-                    let columns = dict.columns().map(|c| c.to_vec());
+                    let values: Vec<String> = terms.iter().map(|t| t.value.clone()).collect();
+                    let columns: Vec<Option<u32>> = terms.iter().map(|t| t.column).collect();
                     let automaton = aho_corasick::AhoCorasickBuilder::new()
                         .ascii_case_insensitive(!dp.case_sensitive)
                         .build(&values)
@@ -155,8 +131,6 @@ impl PatternEngineBuilder {
             dict_entries,
             validators,
             confidence_threshold: self.confidence_threshold,
-            allow_set: self.allow_list,
-            deny_set: self.deny_list,
         })
     }
 }

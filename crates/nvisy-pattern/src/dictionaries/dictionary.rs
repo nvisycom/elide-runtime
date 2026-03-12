@@ -1,12 +1,27 @@
-//! Core [`Dictionary`] trait and [`BoxDictionary`] alias.
+//! Core [`Dictionary`] trait, [`DictionaryTerm`], and [`BoxDictionary`] type alias.
+
+/// A single matchable term within a [`Dictionary`].
+///
+/// Each term carries its matched value and, for multi-column sources like
+/// CSV files, the column index it originated from. Plain-text dictionaries
+/// leave `column` as `None` (logically equivalent to column 0).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DictionaryTerm {
+    /// The matchable text value.
+    pub value: String,
+    /// Source column index for CSV dictionaries.
+    ///
+    /// `None` for plain-text dictionaries where column position is
+    /// not meaningful.
+    pub column: Option<u32>,
+}
 
 /// A named collection of matchable terms (e.g. nationalities, currencies).
 ///
-/// Implementors load their entries from an asset file at compile time.
 /// Two built-in implementations are provided:
 ///
 /// - [`TxtDictionary`]: plain text, one entry per line.
-/// - [`CsvDictionary`]: CSV, each cell is a term.
+/// - [`CsvDictionary`]: CSV, each cell is a term with its column index.
 ///
 /// [`TxtDictionary`]: super::TxtDictionary
 /// [`CsvDictionary`]: super::CsvDictionary
@@ -15,16 +30,7 @@ pub trait Dictionary: Send + Sync {
     fn name(&self) -> &str;
 
     /// All matchable terms produced by this dictionary.
-    fn entries(&self) -> &[String];
-
-    /// Column index for each entry, parallel to [`entries`](Self::entries).
-    ///
-    /// Returns `Some` for CSV dictionaries where each cell tracks its
-    /// source column. Returns `None` for plain-text dictionaries (all
-    /// entries are logically in column 0).
-    fn columns(&self) -> Option<&[usize]> {
-        None
-    }
+    fn terms(&self) -> &[DictionaryTerm];
 }
 
 /// Type-erased boxed [`Dictionary`].

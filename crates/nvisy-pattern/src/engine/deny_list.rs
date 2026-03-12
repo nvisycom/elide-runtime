@@ -1,4 +1,4 @@
-//! [`DenyList`] — forced detection of known sensitive values.
+//! [`DenyList`]: forced detection of known sensitive values.
 
 use std::collections::BTreeMap;
 
@@ -11,7 +11,7 @@ pub struct DenyRule {
     pub category: EntityCategory,
     /// Entity kind for the injected match.
     pub entity_kind: EntityKind,
-    /// Recognition method to assign to injected matches.
+    /// Recognition method carried from the original detection source.
     pub method: RecognitionMethod,
 }
 
@@ -25,11 +25,14 @@ pub struct DenyRule {
 /// # Examples
 ///
 /// ```rust,ignore
-/// use nvisy_ontology::entity::{EntityCategory, EntityKind};
+/// use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
 ///
 /// let deny = DenyList::new()
-///     .with("John Doe", EntityCategory::PersonalIdentity, EntityKind::PersonName)
-///     .with("ACME Corp", EntityCategory::PersonalIdentity, EntityKind::OrganizationName);
+///     .with("John Doe", DenyRule {
+///         category: EntityCategory::PersonalIdentity,
+///         entity_kind: EntityKind::PersonName,
+///         method: RecognitionMethod::Ner,
+///     });
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct DenyList {
@@ -42,58 +45,15 @@ impl DenyList {
         Self::default()
     }
 
-    /// Add a single rule with `RecognitionMethod::Dictionary` as the default method.
-    pub fn with(
-        mut self,
-        value: impl Into<String>,
-        category: EntityCategory,
-        entity_kind: EntityKind,
-    ) -> Self {
-        self.entries.insert(
-            value.into(),
-            DenyRule {
-                category,
-                entity_kind,
-                method: RecognitionMethod::Dictionary,
-            },
-        );
+    /// Add a single rule (builder style).
+    pub fn with(mut self, value: impl Into<String>, rule: DenyRule) -> Self {
+        self.entries.insert(value.into(), rule);
         self
     }
 
-    /// Add a single rule with an explicit recognition method.
-    pub fn with_method(
-        mut self,
-        value: impl Into<String>,
-        category: EntityCategory,
-        entity_kind: EntityKind,
-        method: RecognitionMethod,
-    ) -> Self {
-        self.entries.insert(
-            value.into(),
-            DenyRule {
-                category,
-                entity_kind,
-                method,
-            },
-        );
-        self
-    }
-
-    /// Insert a rule into this list with `RecognitionMethod::Dictionary` as the default method.
-    pub fn insert(
-        &mut self,
-        value: impl Into<String>,
-        category: EntityCategory,
-        entity_kind: EntityKind,
-    ) {
-        self.entries.insert(
-            value.into(),
-            DenyRule {
-                category,
-                entity_kind,
-                method: RecognitionMethod::Dictionary,
-            },
-        );
+    /// Insert a rule into this list.
+    pub fn insert(&mut self, value: impl Into<String>, rule: DenyRule) {
+        self.entries.insert(value.into(), rule);
     }
 
     /// Whether the list contains the given value.
@@ -123,15 +83,5 @@ impl DenyList {
     /// Iterate over (value, rule) pairs.
     pub fn iter(&self) -> impl Iterator<Item = (&str, &DenyRule)> {
         self.entries.iter().map(|(k, v)| (k.as_str(), v))
-    }
-}
-
-impl<S: Into<String>> FromIterator<(S, EntityCategory, EntityKind)> for DenyList {
-    fn from_iter<I: IntoIterator<Item = (S, EntityCategory, EntityKind)>>(iter: I) -> Self {
-        let mut list = Self::new();
-        for (value, category, entity_kind) in iter {
-            list.insert(value, category, entity_kind);
-        }
-        list
     }
 }

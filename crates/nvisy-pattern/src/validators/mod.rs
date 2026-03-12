@@ -1,7 +1,7 @@
 //! Post-match validators for detected entity values.
 //!
 //! Patterns can reference a validator by name (e.g. `"validator": "luhn"`)
-//! to reduce false positives.  At detection time the name is resolved to a
+//! to reduce false positives. At detection time the name is resolved to a
 //! [`ValidatorFn`] via [`ValidatorResolver`].
 
 mod iban;
@@ -14,18 +14,15 @@ pub use self::iban::validate_iban;
 pub use self::luhn::luhn_check;
 pub use self::ssn::validate_ssn;
 
-/// Signature for a validation function: takes the matched text and returns
-/// `true` if the value is valid.
+/// Validation function signature: takes matched text, returns `true` if
+/// the value is valid.
 pub type ValidatorFn = fn(&str) -> bool;
 
 /// Maps validator names to [`ValidatorFn`]s.
 ///
-/// Created with the built-in validators via [`builtins`] (or
-/// [`Default`]), then optionally extended with [`register`] for
-/// custom validators.
-///
-/// [`builtins`]: Self::builtins
-/// [`register`]: Self::register
+/// Created with the built-in validators via [`builtins`](Self::builtins)
+/// (or [`Default`]), then optionally extended with
+/// [`register`](Self::register) for custom validators.
 #[derive(Debug, Clone)]
 pub struct ValidatorResolver {
     table: HashMap<&'static str, ValidatorFn>,

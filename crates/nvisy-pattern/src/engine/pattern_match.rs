@@ -1,4 +1,4 @@
-//! [`RawMatch`] — output type from pattern scanning.
+//! [`RawMatch`]: output type from pattern scanning.
 
 use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
 
@@ -8,7 +8,7 @@ use crate::patterns::ContextRule;
 #[derive(Debug, Clone)]
 pub struct RawMatch {
     /// Name of the pattern that produced this match, or `None` for
-    /// deny-list injected matches.
+    /// deny-list–injected matches.
     pub pattern_name: Option<String>,
     /// Entity category of the match.
     pub category: EntityCategory,
@@ -36,12 +36,13 @@ impl RawMatch {
     /// The returned entity has no location or parent set: the caller
     /// should attach those from the span context via
     /// [`Entity::with_location`] and [`Entity::with_parent`].
+    ///
     /// # Panics
     ///
     /// Panics if `recognition_methods` is empty. All engine-produced
     /// matches always carry at least one method.
     pub fn into_entity(self) -> Entity {
-        assert!(
+        debug_assert!(
             !self.recognition_methods.is_empty(),
             "RawMatch::into_entity requires at least one recognition method"
         );

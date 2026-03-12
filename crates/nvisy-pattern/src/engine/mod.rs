@@ -2,23 +2,23 @@
 //!
 //! [`PatternEngine`] compiles all built-in (and optionally user-selected)
 //! regex patterns and dictionary automata into a single unit that can
-//! scan text in one call.  Use [`PatternEngineBuilder`] for configuration
-//! or [`default_engine`] for an out-of-the-box singleton.
+//! scan text in one call. Use [`PatternEngine::builder`] for configuration
+//! or [`PatternEngine::instance`] for an out-of-the-box singleton.
 //!
 //! # Key types
 //!
-//! - [`PatternEngine`]: the pre-compiled scanning engine.
-//! - [`PatternEngineBuilder`]: builder for configuring patterns, thresholds,
-//!   and allow/deny lists.
-//! - [`RawMatch`]: a single match produced by scanning.
+//! - [`PatternEngine`]: pre-compiled scanning engine.
+//! - [`ScanContext`]: per-scan allow/deny list configuration.
+//! - [`RawMatch`]: single match produced by scanning.
 //! - [`AllowList`] / [`DenyList`]: exact-match suppression and forced detection.
-//! - [`PatternEngineError`]: build-time errors.
+//! - [`PatternEngineBuilder`]: builder for configuring patterns and thresholds.
 
 mod allow_list;
 mod builder;
 mod deny_list;
 mod error;
 mod pattern_match;
+mod scan_context;
 
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -30,8 +30,8 @@ use regex::{Regex, RegexSet};
 pub use self::allow_list::AllowList;
 pub use self::builder::PatternEngineBuilder;
 pub use self::deny_list::{DenyList, DenyRule};
-pub use self::error::PatternEngineError;
 pub use self::pattern_match::RawMatch;
+pub use self::scan_context::ScanContext;
 use crate::patterns::{ContextRule, DictionaryConfidence};
 use crate::validators::ValidatorResolver;
 
@@ -58,8 +58,8 @@ struct DictEntry {
     /// The terms used to build the automaton, indexed by pattern id.
     values: Vec<String>,
     /// Per-entry column index from the source dictionary (parallel to `values`).
-    /// `None` for plain-text dictionaries (all entries are column 0).
-    columns: Option<Vec<usize>>,
+    /// `None` entries indicate plain-text origin (logically column 0).
+    columns: Vec<Option<u32>>,
     context: Option<ContextRule>,
 }
 
@@ -68,9 +68,10 @@ impl DictEntry {
     fn resolve_confidence(&self, pattern_index: usize) -> f64 {
         let col = self
             .columns
-            .as_ref()
-            .and_then(|cols| cols.get(pattern_index).copied())
-            .unwrap_or(0);
+            .get(pattern_index)
+            .copied()
+            .flatten()
+            .unwrap_or(0) as usize;
         self.confidence.resolve(col)
     }
 }
@@ -79,25 +80,23 @@ impl DictEntry {
 ///
 /// Scanning runs in three phases:
 ///
-/// 1. **Regex** — a [`RegexSet`] pre-filter selects candidate patterns,
+/// 1. **Regex**: a [`RegexSet`] pre-filter selects candidate patterns,
 ///    then each matching regex extracts offsets and values.
-/// 2. **Dictionary** — Aho-Corasick automata perform literal multi-pattern
+/// 2. **Dictionary**: Aho-Corasick automata perform literal multi-pattern
 ///    matching against known-value dictionaries.
-/// 3. **Deny list** — known sensitive values not already matched are
+/// 3. **Deny list**: known sensitive values not already matched are
 ///    injected as synthetic matches with confidence `1.0`.
 ///
 /// Allow-list filtering is applied inline during phases 1 and 2.
 ///
-/// Build via [`PatternEngine::builder`] or use [`default_engine`] for
-/// the singleton with all built-in patterns.
+/// Build via [`PatternEngine::builder`] or use [`PatternEngine::instance`]
+/// for the singleton with all built-in patterns.
 pub struct PatternEngine {
     regex_set: RegexSet,
     regex_entries: Vec<RegexEntry>,
     dict_entries: Vec<DictEntry>,
     validators: ValidatorResolver,
     confidence_threshold: f64,
-    allow_set: AllowList,
-    deny_set: DenyList,
 }
 
 impl std::fmt::Debug for PatternEngine {
@@ -111,6 +110,12 @@ impl std::fmt::Debug for PatternEngine {
 }
 
 impl PatternEngine {
+    /// Return a reference to the lazily-initialised default engine
+    /// containing all built-in patterns.
+    pub fn instance() -> &'static Self {
+        &DEFAULT_ENGINE
+    }
+
     /// Create a new [`PatternEngineBuilder`].
     pub fn builder() -> PatternEngineBuilder {
         PatternEngineBuilder::default()
@@ -121,21 +126,21 @@ impl PatternEngine {
     /// Matches whose value appears in the allow list are suppressed.
     /// Deny-list values found in the text are injected as synthetic matches
     /// with confidence `1.0` when not already matched.
-    #[tracing::instrument(target = TARGET, skip(self, text), fields(text_len = text.len(), matches = tracing::field::Empty))]
-    pub fn scan_text(&self, text: &str) -> Vec<RawMatch> {
+    #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), matches = tracing::field::Empty))]
+    pub fn scan_text(&self, text: &str, ctx: &ScanContext) -> Vec<RawMatch> {
         let mut results = Vec::new();
 
-        self.scan_regex(text, &mut results);
-        self.scan_dict(text, &mut results);
-        self.scan_deny_list(text, &mut results);
+        self.scan_regex(text, &ctx.allow, &mut results);
+        self.scan_dict(text, &ctx.allow, &mut results);
+        self.scan_deny_list(text, &ctx.deny, &mut results);
 
         tracing::Span::current().record("matches", results.len());
         results
     }
 
-    /// Phase 1: regex matches — use `RegexSet` as a pre-filter, then run
+    /// Phase 1: regex matches. Uses `RegexSet` as a pre-filter, then runs
     /// each matching regex individually to extract offsets and values.
-    fn scan_regex(&self, text: &str, results: &mut Vec<RawMatch>) {
+    fn scan_regex(&self, text: &str, allow: &AllowList, results: &mut Vec<RawMatch>) {
         let set_matches = self.regex_set.matches(text);
         for idx in set_matches.iter() {
             let entry = &self.regex_entries[idx];
@@ -147,7 +152,7 @@ impl PatternEngine {
             for mat in entry.regex.find_iter(text) {
                 let value = mat.as_str();
 
-                if self.allow_set.contains(value) {
+                if allow.contains(value) {
                     continue;
                 }
 
@@ -178,21 +183,19 @@ impl PatternEngine {
     }
 
     /// Phase 2: dictionary matches via Aho-Corasick automata.
-    fn scan_dict(&self, text: &str, results: &mut Vec<RawMatch>) {
+    fn scan_dict(&self, text: &str, allow: &AllowList, results: &mut Vec<RawMatch>) {
         for entry in &self.dict_entries {
             for mat in entry.automaton.find_iter(text) {
                 let pat_idx = mat.pattern().as_usize();
                 let value = &entry.values[pat_idx];
 
-                // Resolve per-entry confidence: use column override if available,
-                // otherwise fall back to the pattern's base confidence.
                 let confidence = entry.resolve_confidence(pat_idx);
 
                 if confidence < self.confidence_threshold {
                     continue;
                 }
 
-                if self.allow_set.contains(value.as_str()) {
+                if allow.contains(value.as_str()) {
                     continue;
                 }
 
@@ -211,13 +214,13 @@ impl PatternEngine {
         }
     }
 
-    /// Phase 3: inject deny-list values found in `text` that were not
-    /// already matched by regex or dictionary.
-    fn scan_deny_list(&self, text: &str, results: &mut Vec<RawMatch>) {
+    /// Phase 3: inject deny-list values found in `text` not already
+    /// matched by regex or dictionary.
+    fn scan_deny_list(&self, text: &str, deny: &DenyList, results: &mut Vec<RawMatch>) {
         let matched_values: HashSet<&str> = results.iter().map(|r| r.value.as_str()).collect();
 
         let mut deny_matches = Vec::new();
-        for (deny_value, deny_rule) in self.deny_set.iter() {
+        for (deny_value, deny_rule) in deny.iter() {
             if matched_values.contains(deny_value) {
                 continue;
             }
@@ -249,26 +252,24 @@ static DEFAULT_ENGINE: LazyLock<PatternEngine> = LazyLock::new(|| {
         .expect("built-in patterns must compile")
 });
 
-/// Return a reference to the lazily-initialised default [`PatternEngine`]
-/// containing all built-in patterns.
-pub fn default_engine() -> &'static PatternEngine {
-    &DEFAULT_ENGINE
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn empty_ctx() -> ScanContext {
+        ScanContext::default()
+    }
+
     #[test]
     fn default_engine_builds() {
-        let engine = default_engine();
+        let engine = PatternEngine::instance();
         assert!(!engine.regex_entries.is_empty());
     }
 
     #[test]
     fn scan_text_finds_ssn() {
-        let engine = default_engine();
-        let matches = engine.scan_text("My SSN is 123-45-6789.");
+        let engine = PatternEngine::instance();
+        let matches = engine.scan_text("My SSN is 123-45-6789.", &empty_ctx());
         assert!(
             matches
                 .iter()
@@ -280,8 +281,8 @@ mod tests {
 
     #[test]
     fn scan_text_finds_email() {
-        let engine = default_engine();
-        let matches = engine.scan_text("Contact: alice@example.com");
+        let engine = PatternEngine::instance();
+        let matches = engine.scan_text("Contact: alice@example.com", &empty_ctx());
         assert!(
             matches
                 .iter()
@@ -297,7 +298,7 @@ mod tests {
             .with_confidence_threshold(0.99)
             .build()
             .unwrap();
-        let matches = engine.scan_text("My SSN is 123-45-6789.");
+        let matches = engine.scan_text("My SSN is 123-45-6789.", &empty_ctx());
         assert!(
             !matches
                 .iter()
@@ -318,9 +319,9 @@ mod tests {
 
     #[test]
     fn scan_text_returns_correct_offsets() {
-        let engine = default_engine();
+        let engine = PatternEngine::instance();
         let text = "SSN: 123-45-6789";
-        let matches = engine.scan_text(text);
+        let matches = engine.scan_text(text, &empty_ctx());
         let ssn_match = matches
             .iter()
             .find(|m| m.pattern_name.as_deref() == Some("ssn"))
@@ -330,8 +331,8 @@ mod tests {
 
     #[test]
     fn dictionary_matches_are_found() {
-        let engine = default_engine();
-        let matches = engine.scan_text("She is American and speaks English.");
+        let engine = PatternEngine::instance();
+        let matches = engine.scan_text("She is American and speaks English.", &empty_ctx());
         assert!(
             matches.iter().any(|m| m
                 .recognition_methods
@@ -348,10 +349,10 @@ mod tests {
     fn allow_list_suppresses_match() {
         let engine = PatternEngine::builder()
             .with_patterns(&["ssn"])
-            .with_allow(AllowList::new().with("123-45-6789"))
             .build()
             .unwrap();
-        let matches = engine.scan_text("SSN: 123-45-6789");
+        let ctx = ScanContext::new().with_allow(AllowList::new().with("123-45-6789"));
+        let matches = engine.scan_text("SSN: 123-45-6789", &ctx);
         assert!(
             !matches
                 .iter()
@@ -364,15 +365,18 @@ mod tests {
     fn deny_list_injects_match() {
         let deny = DenyList::new().with(
             "secret-value-42",
-            EntityCategory::PersonalIdentity,
-            EntityKind::PersonName,
+            DenyRule {
+                category: EntityCategory::PersonalIdentity,
+                entity_kind: EntityKind::PersonName,
+                method: RecognitionMethod::Ner,
+            },
         );
         let engine = PatternEngine::builder()
             .with_patterns(&["email"])
-            .with_deny(deny)
             .build()
             .unwrap();
-        let matches = engine.scan_text("The secret-value-42 should be detected.");
+        let ctx = ScanContext::new().with_deny(deny);
+        let matches = engine.scan_text("The secret-value-42 should be detected.", &ctx);
         let deny_match = matches
             .iter()
             .find(|m| m.pattern_name.is_none())
@@ -380,25 +384,25 @@ mod tests {
         assert_eq!(deny_match.value, "secret-value-42");
         assert_eq!(deny_match.confidence, 1.0);
         assert_eq!(deny_match.entity_kind, EntityKind::PersonName);
-        assert_eq!(
-            deny_match.recognition_methods,
-            vec![RecognitionMethod::Dictionary]
-        );
+        assert_eq!(deny_match.recognition_methods, vec![RecognitionMethod::Ner]);
     }
 
     #[test]
     fn deny_list_not_injected_when_absent() {
         let deny = DenyList::new().with(
             "not-in-text",
-            EntityCategory::PersonalIdentity,
-            EntityKind::PersonName,
+            DenyRule {
+                category: EntityCategory::PersonalIdentity,
+                entity_kind: EntityKind::PersonName,
+                method: RecognitionMethod::Manual,
+            },
         );
         let engine = PatternEngine::builder()
             .with_patterns(&["email"])
-            .with_deny(deny)
             .build()
             .unwrap();
-        let matches = engine.scan_text("Nothing special here.");
+        let ctx = ScanContext::new().with_deny(deny);
+        let matches = engine.scan_text("Nothing special here.", &ctx);
         assert!(
             !matches.iter().any(|m| m.pattern_name.is_none()),
             "deny list value not in text should not be injected"
@@ -415,28 +419,36 @@ mod tests {
     }
 
     #[test]
-    fn deny_list_from_iterator() {
-        let deny: DenyList = [
-            (
-                "secret",
-                EntityCategory::PersonalIdentity,
-                EntityKind::PersonName,
-            ),
-            ("other", EntityCategory::Financial, EntityKind::PaymentCard),
-        ]
-        .into_iter()
-        .collect();
+    fn deny_list_insert_and_lookup() {
+        let mut deny = DenyList::new();
+        deny.insert(
+            "secret",
+            DenyRule {
+                category: EntityCategory::PersonalIdentity,
+                entity_kind: EntityKind::PersonName,
+                method: RecognitionMethod::Ner,
+            },
+        );
+        deny.insert(
+            "other",
+            DenyRule {
+                category: EntityCategory::Financial,
+                entity_kind: EntityKind::PaymentCard,
+                method: RecognitionMethod::Manual,
+            },
+        );
         assert_eq!(deny.len(), 2);
         assert!(deny.contains("secret"));
         let rule = deny.get("other").unwrap();
         assert_eq!(rule.category, EntityCategory::Financial);
+        assert_eq!(rule.method, RecognitionMethod::Manual);
     }
 
     #[test]
     fn column_confidence_applies_to_csv_dictionaries() {
-        let engine = default_engine();
+        let engine = PatternEngine::instance();
         // "US Dollar" is column 0 (full name), "USD" is column 1 (code).
-        let matches = engine.scan_text("I paid in US Dollar and also in USD.");
+        let matches = engine.scan_text("I paid in US Dollar and also in USD.", &empty_ctx());
         let full_name = matches.iter().find(|m| m.value == "US Dollar");
         let code = matches.iter().find(|m| m.value == "USD");
         assert!(full_name.is_some(), "should match 'US Dollar'");
@@ -455,7 +467,7 @@ mod tests {
             .with_patterns(&["ssn"])
             .build()
             .unwrap();
-        let matches = engine.scan_text("SSN: 123-45-6789");
+        let matches = engine.scan_text("SSN: 123-45-6789", &empty_ctx());
         let ssn_match = matches
             .iter()
             .find(|m| m.pattern_name.as_deref() == Some("ssn"))

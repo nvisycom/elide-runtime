@@ -1,8 +1,12 @@
-//! Errors produced during [`PatternEngine`](super::PatternEngine) construction.
+//! Errors produced during [`PatternEngine`] construction.
+//!
+//! [`PatternEngine`]: super::PatternEngine
+
+use nvisy_core::{Error, ErrorKind};
 
 /// Errors that can occur while building a [`PatternEngine`](super::PatternEngine).
 #[derive(Debug, thiserror::Error)]
-pub enum PatternEngineError {
+pub(crate) enum PatternEngineError {
     /// A regex pattern string failed to compile.
     #[error("failed to compile regex for pattern '{name}': {source}")]
     RegexCompile { name: String, source: regex::Error },
@@ -18,4 +22,12 @@ pub enum PatternEngineError {
     /// Failed to build the RegexSet pre-filter.
     #[error("failed to build RegexSet pre-filter: {0}")]
     RegexSetBuild(regex::Error),
+}
+
+impl From<PatternEngineError> for Error {
+    fn from(err: PatternEngineError) -> Self {
+        Error::new(ErrorKind::Validation, err.to_string())
+            .with_component("nvisy-pattern::engine")
+            .with_source(err)
+    }
 }

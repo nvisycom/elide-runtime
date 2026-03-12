@@ -3,13 +3,13 @@
 #![doc = include_str!("../README.md")]
 
 pub mod dictionaries;
-pub mod engine;
-pub(crate) mod patterns;
+pub(crate) mod engine;
+pub mod patterns;
 pub(crate) mod validators;
 
-pub use self::dictionaries::{DictionaryLoadError, DictionaryRegistry};
-pub use self::engine::{PatternEngine, PatternEngineBuilder, RawMatch};
-pub use self::patterns::ContextRule;
+pub use self::engine::{
+    AllowList, DenyList, DenyRule, PatternEngine, PatternEngineBuilder, RawMatch, ScanContext,
+};
 
 #[doc(hidden)]
 pub mod prelude;

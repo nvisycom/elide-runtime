@@ -7,7 +7,8 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::TextData;
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::TextLocation;
-use nvisy_pattern::{ContextRule, PatternEngine, PatternEngineBuilder, RawMatch};
+use nvisy_pattern::patterns::ContextRule;
+use nvisy_pattern::{PatternEngine, PatternEngineBuilder, RawMatch, ScanContext};
 use serde::Deserialize;
 
 use crate::operation::envelope::DetectedEntities;
@@ -55,9 +56,10 @@ impl PatternMatch {
 
         let span_data: Vec<&str> = spans.iter().map(|s| s.data.as_str()).collect();
         let mut raw_matches: Vec<(usize, RawMatch)> = Vec::new();
+        let scan_ctx = ScanContext::default();
 
         for (idx, span) in spans.iter().enumerate() {
-            for m in self.engine.scan_text(span.data.as_str()) {
+            for m in self.engine.scan_text(span.data.as_str(), &scan_ctx) {
                 raw_matches.push((idx, m));
             }
         }

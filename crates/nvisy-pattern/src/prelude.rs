@@ -5,6 +5,5 @@
 //! ```
 
 pub use crate::{
-    ContextRule, DictionaryLoadError, DictionaryRegistry, PatternEngine, PatternEngineBuilder,
-    RawMatch,
+    AllowList, DenyList, DenyRule, PatternEngine, PatternEngineBuilder, RawMatch, ScanContext,
 };

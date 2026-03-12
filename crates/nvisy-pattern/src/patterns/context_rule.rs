@@ -1,11 +1,11 @@
-//! [`ContextRule`] — co-occurrence context for span-level confidence boosting.
+//! [`ContextRule`]: co-occurrence context for span-level confidence boosting.
 
 use serde::Deserialize;
 
 /// Co-occurrence context rule for span-level confidence boosting.
 ///
 /// When a pattern match is found, nearby spans are searched for any of the
-/// `keywords`.  If at least one keyword is present within `window` spans,
+/// `keywords`. If at least one keyword is present within `window` spans,
 /// the match confidence is increased by `boost` (clamped to `[0.0, 1.0]`).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "RawContextRule")]
@@ -19,12 +19,12 @@ pub struct ContextRule {
     pub boost: f64,
     /// Whether keyword matching is case-sensitive.
     ///
-    /// Defaults to `false` (case-insensitive).
+    /// Defaults to `false`: case-insensitive.
     pub case_sensitive: bool,
 }
 
 /// Serde intermediary that mirrors the JSON shape before validation.
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct RawContextRule {
     keywords: Vec<String>,
     #[serde(default = "default_window")]

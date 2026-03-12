@@ -1,14 +1,14 @@
-//! Plain-text dictionary: one matchable entry per line.
+//! Plain-text dictionary: one entry per line.
 
 use std::path::Path;
 
-use super::Dictionary;
+use super::{Dictionary, DictionaryTerm};
 
 /// A dictionary parsed from a plain-text file (one entry per line).
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TxtDictionary {
     name: String,
-    entries: Vec<String>,
+    terms: Vec<DictionaryTerm>,
 }
 
 impl TxtDictionary {
@@ -19,14 +19,17 @@ impl TxtDictionary {
     pub fn new(name: impl Into<String>, text: &str) -> Self {
         let name = name.into();
 
-        let entries = text
+        let terms = text
             .lines()
             .map(|l| l.trim())
             .filter(|l| !l.is_empty())
-            .map(String::from)
+            .map(|l| DictionaryTerm {
+                value: l.to_owned(),
+                column: None,
+            })
             .collect();
 
-        Self { name, entries }
+        Self { name, terms }
     }
 
     /// Load a plain-text dictionary from a file path.
@@ -52,8 +55,8 @@ impl Dictionary for TxtDictionary {
         &self.name
     }
 
-    fn entries(&self) -> &[String] {
-        &self.entries
+    fn terms(&self) -> &[DictionaryTerm] {
+        &self.terms
     }
 }
 
@@ -65,6 +68,10 @@ mod tests {
     fn parses_lines() {
         let dict = TxtDictionary::new("test", "alpha\n  beta \n\ngamma\n");
         assert_eq!(dict.name(), "test");
-        assert_eq!(dict.entries(), &["alpha", "beta", "gamma"]);
+
+        let values: Vec<&str> = dict.terms().iter().map(|t| t.value.as_str()).collect();
+        assert_eq!(values, &["alpha", "beta", "gamma"]);
+
+        assert!(dict.terms().iter().all(|t| t.column.is_none()));
     }
 }

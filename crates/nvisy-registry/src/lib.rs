@@ -1,19 +1,12 @@
-//! Actor-scoped content and context storage backed by fjall.
-//!
-//! This crate provides [`Registry`], a unified store that manages both
-//! content files and detection contexts. Every resource is scoped by a
-//! `Uuid` actor identity, so listing and reading are inherently
-//! actor-isolated at the database level via composite keys.
-//!
-//! # Core Types
-//!
-//! - [`Registry`]: Shared, clonable handle to the fjall database
-//! - [`ContentHandle`]: Lightweight async handle to stored content
-//! - [`ContextHandle`]: Lightweight async handle to a stored context
+#![forbid(unsafe_code)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![doc = include_str!("../README.md")]
 
-mod store;
+mod handler;
+mod registry;
 
 #[doc(hidden)]
 pub mod prelude;
 
-pub use self::store::{ContentHandle, ContextHandle, Registry};
+pub use self::handler::{ContentHandle, ContextHandle};
+pub use self::registry::Registry;

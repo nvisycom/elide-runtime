@@ -3,8 +3,8 @@
 mod datalab_surya;
 mod paddle_paddlex;
 
-pub use datalab_surya::{SuryaBackend, SuryaParams};
-pub use paddle_paddlex::{PaddleXBackend, PaddleXParams};
+pub use self::datalab_surya::{SuryaBackend, SuryaParams};
+pub use self::paddle_paddlex::{PaddleXBackend, PaddleXParams};
 
 #[cfg(feature = "aws-textract")]
 #[cfg_attr(docsrs, doc(cfg(feature = "aws-textract")))]
@@ -18,10 +18,10 @@ mod google_vision;
 
 #[cfg(feature = "aws-textract")]
 #[cfg_attr(docsrs, doc(cfg(feature = "aws-textract")))]
-pub use aws_textract::{AwsTextractBackend, AwsTextractParams};
+pub use self::aws_textract::{AwsTextractBackend, AwsTextractParams};
 #[cfg(feature = "azure-docai")]
 #[cfg_attr(docsrs, doc(cfg(feature = "azure-docai")))]
-pub use azure_docai::{AzureDocaiBackend, AzureDocaiParams};
+pub use self::azure_docai::{AzureDocaiBackend, AzureDocaiParams};
 #[cfg(feature = "google-vision")]
 #[cfg_attr(docsrs, doc(cfg(feature = "google-vision")))]
-pub use google_vision::{GoogleVisionBackend, GoogleVisionParams};
+pub use self::google_vision::{GoogleVisionBackend, GoogleVisionParams};

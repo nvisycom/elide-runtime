@@ -3,5 +3,5 @@
 mod retry;
 mod timeout;
 
-pub use retry::{BackoffStrategy, RetryPolicy};
-pub use timeout::{TimeoutBehavior, TimeoutPolicy};
+pub use self::retry::{BackoffStrategy, RetryPolicy};
+pub use self::timeout::{TimeoutBehavior, TimeoutPolicy};

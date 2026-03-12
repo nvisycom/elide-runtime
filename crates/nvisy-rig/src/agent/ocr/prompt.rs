@@ -78,7 +78,7 @@ mod tests {
         let entities = vec![
             ProposedEntity {
                 id: 0,
-                category: EntityCategory::Pii,
+                category: EntityCategory::PersonalIdentity,
                 entity_type: EntityKind::PersonName,
                 value: "John Doe".into(),
                 confidence: 0.95,
@@ -100,7 +100,7 @@ mod tests {
         ];
 
         let prompt = OcrPromptBuilder::new(&entities).build("AAAA");
-        assert!(prompt.contains("[0] category=pii"));
+        assert!(prompt.contains("[0] category=personal_identity"));
         assert!(prompt.contains("person_name"));
         assert!(prompt.contains("John Doe"));
         assert!(prompt.contains("bbox=[10.0, 20.0, 100.0, 30.0]"));

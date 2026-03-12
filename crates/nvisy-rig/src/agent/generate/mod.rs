@@ -8,10 +8,10 @@ mod output;
 mod prompt;
 
 use nvisy_ontology::entity::EntityKind;
-pub use output::{GenOutput, GeneratedEntity};
-use prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
 use uuid::Uuid;
 
+pub use self::output::{GenOutput, GeneratedEntity};
+use self::prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
 use super::{AgentConfig, AgentProvider, BaseAgent};
 use crate::backend::UsageTracker;
 use crate::error::Error;

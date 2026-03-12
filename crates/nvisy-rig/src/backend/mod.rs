@@ -2,5 +2,5 @@
 
 mod metrics;
 mod provider;
-pub use metrics::{UsageStats, UsageTracker};
-pub use provider::{AuthenticatedProvider, UnauthenticatedProvider};
+pub use self::metrics::{UsageStats, UsageTracker};
+pub use self::provider::{AuthenticatedProvider, UnauthenticatedProvider};

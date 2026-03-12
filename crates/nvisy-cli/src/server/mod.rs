@@ -3,4 +3,4 @@
 mod listen;
 mod shutdown;
 
-pub use listen::run;
+pub use self::listen::run;

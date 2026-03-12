@@ -23,9 +23,10 @@ pub mod utility;
 
 use std::future::Future;
 
-pub use context::{OperationContext, ParallelContext, SequentialContext, SharedContext};
-pub use envelope::DocumentEnvelope;
 use nvisy_core::Result;
+
+pub use self::context::{OperationContext, ParallelContext, SequentialContext, SharedContext};
+pub use self::envelope::DocumentEnvelope;
 
 /// A single unit of work in the redaction pipeline.
 ///

@@ -9,12 +9,13 @@ mod audio;
 mod image;
 mod text;
 
-pub use audio::AudioStrategy;
 use derive_more::From;
-pub use image::ImageStrategy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-pub use text::TextStrategy;
+
+pub use self::audio::AudioStrategy;
+pub use self::image::ImageStrategy;
+pub use self::text::TextStrategy;
 
 /// Unified redaction strategy across all modalities.
 ///

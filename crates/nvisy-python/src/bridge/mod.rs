@@ -6,12 +6,13 @@
 
 mod error;
 
-pub use error::from_pyerr;
 use hipstr::HipStr;
 use nvisy_core::Error;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde_json::Value;
+
+pub use self::error::from_pyerr;
 
 /// Lightweight handle to a Python NER module.
 ///

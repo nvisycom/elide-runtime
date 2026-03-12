@@ -27,13 +27,13 @@ mod audit;
 mod detection;
 mod policy;
 
-pub use apply::ApplyPatch;
-pub use audit::OperationEntry;
-pub use detection::{DetectedEntities, RefinedEntities};
 use nvisy_codec::Document;
 use nvisy_ontology::entity::Entities;
-pub use policy::PolicyOutcome;
 
+pub use self::apply::ApplyPatch;
+pub use self::audit::OperationEntry;
+pub use self::detection::{DetectedEntities, RefinedEntities};
+pub use self::policy::PolicyOutcome;
 use crate::provenance::Audit;
 
 /// Per-document state that flows through the entire pipeline.

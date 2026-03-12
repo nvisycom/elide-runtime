@@ -3,10 +3,11 @@
 mod embedding;
 mod pattern;
 
-pub use embedding::EmbeddingData;
-pub use pattern::PatternData;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+pub use self::embedding::EmbeddingData;
+pub use self::pattern::PatternData;
 
 /// Analytic computation variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

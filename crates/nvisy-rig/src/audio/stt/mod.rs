@@ -7,12 +7,12 @@
 mod provider;
 
 use nvisy_http::HttpClient;
-pub(crate) use provider::SttModels;
-pub use provider::SttProvider;
 #[cfg(feature = "openai-whisper")]
 use rig::transcription::TranscriptionModel;
 use uuid::Uuid;
 
+pub(crate) use self::provider::SttModels;
+pub use self::provider::SttProvider;
 use crate::error::Error;
 
 const TARGET: &str = "nvisy_rig::stt";

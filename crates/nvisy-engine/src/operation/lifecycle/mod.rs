@@ -24,10 +24,10 @@ mod encryption;
 mod export;
 mod import;
 
-pub use compression::Compression;
-pub use conversion::Conversion;
-pub use decompression::Decompression;
-pub use decryption::Decryption;
-pub use encryption::Encryption;
-pub use export::Export;
-pub use import::Import;
+pub use self::compression::Compression;
+pub use self::conversion::Conversion;
+pub use self::decompression::Decompression;
+pub use self::decryption::Decryption;
+pub use self::encryption::Encryption;
+pub use self::export::Export;
+pub use self::import::Import;

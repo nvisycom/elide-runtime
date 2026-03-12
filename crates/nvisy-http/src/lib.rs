@@ -5,7 +5,7 @@
 mod client;
 mod middleware;
 
-pub use client::{HttpClient, HttpConfig};
+pub use self::client::{HttpClient, HttpConfig};
 
 #[doc(hidden)]
 pub mod prelude;

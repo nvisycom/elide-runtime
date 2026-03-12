@@ -16,14 +16,14 @@ mod jpeg_loader;
 mod png_handler;
 mod png_loader;
 
-pub use image_data::ImageData;
-pub use image_handler::BoxedImageHandler;
-pub(crate) use image_handler_macro::impl_image_handler;
-pub use image_span_id::ImageSpanId;
-pub use jpeg_handler::JpegHandler;
-pub use jpeg_loader::{JpegLoader, JpegParams};
-pub use png_handler::PngHandler;
-pub use png_loader::{PngLoader, PngParams};
+pub use self::image_data::ImageData;
+pub use self::image_handler::BoxedImageHandler;
+pub(crate) use self::image_handler_macro::impl_image_handler;
+pub use self::image_span_id::ImageSpanId;
+pub use self::jpeg_handler::JpegHandler;
+pub use self::jpeg_loader::{JpegLoader, JpegParams};
+pub use self::png_handler::PngHandler;
+pub use self::png_loader::{PngLoader, PngParams};
 
 /// Capability trait for handlers that expose image content.
 ///

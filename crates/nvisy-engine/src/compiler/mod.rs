@@ -10,15 +10,16 @@ mod policy;
 
 use std::collections::HashMap;
 
-pub use graph::{
-    ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind, SourceNode, TargetNode,
-};
 use nvisy_core::Error;
 use petgraph::algo::{is_cyclic_directed, toposort};
 use petgraph::graph::{DiGraph, NodeIndex};
-pub(crate) use plan::{ExecutionPlan, ResolvedNode};
-pub use policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 use uuid::Uuid;
+
+pub use self::graph::{
+    ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind, SourceNode, TargetNode,
+};
+pub(crate) use self::plan::{ExecutionPlan, ResolvedNode};
+pub use self::policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 
 /// Pipeline compiler with optional default policies.
 ///

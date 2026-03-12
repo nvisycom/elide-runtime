@@ -4,6 +4,6 @@ mod json;
 mod path;
 mod version;
 
-pub use json::Json;
-pub use path::Path;
-pub use version::Version;
+pub use self::json::Json;
+pub use self::path::Path;
+pub use self::version::Version;

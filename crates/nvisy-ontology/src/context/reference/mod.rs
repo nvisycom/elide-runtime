@@ -5,12 +5,13 @@ mod image;
 mod tag;
 mod text;
 
-pub use credential::CredentialData;
-pub use image::ImageData;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-pub use tag::TagData;
-pub use text::{TextData, TextEntry};
+
+pub use self::credential::CredentialData;
+pub use self::image::ImageData;
+pub use self::tag::TagData;
+pub use self::text::{TextData, TextEntry};
 
 /// Direct comparison reference variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

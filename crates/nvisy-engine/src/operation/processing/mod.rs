@@ -22,12 +22,12 @@ mod policy_evaluation;
 mod redaction;
 mod validation;
 
-pub use deduplication::Deduplication;
-pub use ensemble_fusion::{Ensemble, FusionStrategy};
-pub use manual_detection::{
+pub use self::deduplication::Deduplication;
+pub use self::ensemble_fusion::{Ensemble, FusionStrategy};
+pub use self::manual_detection::{
     Exclusion, ManualDetection, ManualDetectionParams, ManualOutput, is_excluded,
 };
-pub use pattern_match::{PatternDetectionParams, PatternInput, PatternMatch};
-pub use policy_evaluation::{EvaluatePolicy, EvaluatePolicyParams};
-pub use redaction::{Redaction, RedactionInput, RedactionOutput};
-pub use validation::Validation;
+pub use self::pattern_match::{PatternDetectionParams, PatternMatch};
+pub use self::policy_evaluation::{EvaluatePolicy, EvaluatePolicyParams};
+pub use self::redaction::{Redaction, RedactionInput, RedactionOutput};
+pub use self::validation::Validation;

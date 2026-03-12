@@ -3,5 +3,5 @@
 pub mod stt;
 pub mod tts;
 
-pub use stt::SttProvider;
-pub use tts::TtsProvider;
+pub use self::stt::SttProvider;
+pub use self::tts::TtsProvider;

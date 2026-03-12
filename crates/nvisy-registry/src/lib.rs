@@ -16,4 +16,4 @@ mod store;
 #[doc(hidden)]
 pub mod prelude;
 
-pub use store::{ContentHandle, ContextHandle, Registry};
+pub use self::store::{ContentHandle, ContextHandle, Registry};

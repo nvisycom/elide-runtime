@@ -6,5 +6,5 @@
 mod backend;
 mod params;
 
-pub use backend::PaddleXBackend;
-pub use params::PaddleXParams;
+pub use self::backend::PaddleXBackend;
+pub use self::params::PaddleXParams;

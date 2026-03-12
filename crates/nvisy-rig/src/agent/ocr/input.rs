@@ -31,7 +31,7 @@ impl ProposedEntity {
         };
         Self {
             id,
-            category: entity.category.clone(),
+            category: entity.category,
             entity_type: entity.entity_kind,
             value: entity.value.clone(),
             confidence: entity.confidence,

@@ -7,9 +7,9 @@ mod strategy;
 mod summary;
 mod types;
 
-pub use retention::{Retention, RetentionPolicy, RetentionScope};
-pub use rule::{PolicyRule, RuleAction, RuleCondition};
-pub use selector::EntitySelector;
-pub use strategy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
-pub use summary::RedactionSummary;
-pub use types::{Policies, Policy};
+pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
+pub use self::rule::{PolicyRule, RuleAction, RuleCondition};
+pub use self::selector::EntitySelector;
+pub use self::strategy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
+pub use self::summary::RedactionSummary;
+pub use self::types::{Policies, Policy};

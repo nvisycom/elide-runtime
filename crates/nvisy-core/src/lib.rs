@@ -7,7 +7,7 @@ pub mod math;
 pub mod media;
 
 mod error;
-pub use error::{Error, ErrorKind, Result};
+pub use self::error::{Error, ErrorKind, Result};
 
 #[doc(hidden)]
 pub mod prelude;

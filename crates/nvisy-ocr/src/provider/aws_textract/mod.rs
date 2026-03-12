@@ -6,5 +6,5 @@
 mod backend;
 mod params;
 
-pub use backend::AwsTextractBackend;
-pub use params::AwsTextractParams;
+pub use self::backend::AwsTextractBackend;
+pub use self::params::AwsTextractParams;

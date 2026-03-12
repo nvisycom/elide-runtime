@@ -2,6 +2,6 @@ mod content;
 mod context;
 mod registry;
 
-pub use content::ContentHandle;
-pub use context::ContextHandle;
-pub use registry::Registry;
+pub use self::content::ContentHandle;
+pub use self::context::ContextHandle;
+pub use self::registry::Registry;

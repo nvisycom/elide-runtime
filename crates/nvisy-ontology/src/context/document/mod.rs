@@ -5,8 +5,9 @@ mod template;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-pub use signature::SignatureData;
-pub use template::TemplateData;
+
+pub use self::signature::SignatureData;
+pub use self::template::TemplateData;
 
 /// Document-related reference variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

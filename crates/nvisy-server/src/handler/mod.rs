@@ -21,8 +21,8 @@ mod request;
 mod response;
 
 use aide::axum::ApiRouter;
-pub use error::{Error, ErrorKind, Result};
 
+pub use self::error::{Error, ErrorKind, Result};
 use crate::service::ServiceState;
 
 /// Build the handler route tree.

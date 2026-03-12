@@ -5,13 +5,14 @@ mod image;
 mod tabular;
 mod text;
 
-pub use audio::AudioLocation;
 use derive_more::From;
-pub use image::ImageLocation;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-pub use tabular::TabularLocation;
-pub use text::TextLocation;
+
+pub use self::audio::AudioLocation;
+pub use self::image::ImageLocation;
+pub use self::tabular::TabularLocation;
+pub use self::text::TextLocation;
 
 /// A modality-specific location for a detected entity.
 ///

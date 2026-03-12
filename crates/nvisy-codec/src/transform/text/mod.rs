@@ -3,5 +3,5 @@
 mod instruction;
 mod transform;
 
-pub use instruction::{TextOutput, TextRedaction};
-pub use transform::TextTransform;
+pub use self::instruction::{TextOutput, TextRedaction};
+pub use self::transform::TextTransform;

@@ -6,9 +6,9 @@ use std::fmt;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-pub use params::OcrProvider;
 use tracing::instrument;
 
+pub use self::params::OcrProvider;
 use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
 /// Type-erased OCR engine wrapping any [`Backend`] implementation.

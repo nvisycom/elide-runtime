@@ -6,8 +6,8 @@
 mod content_kind;
 mod document_type;
 
-pub use content_kind::ContentKind;
-pub use document_type::{
+pub use self::content_kind::ContentKind;
+pub use self::document_type::{
     AudioFormat, DocumentType, ImageFormat, PresentationFormat, SpreadsheetFormat, TextFormat,
     WordFormat,
 };

@@ -23,9 +23,9 @@ mod parallel;
 mod sequential;
 mod shared;
 
-pub use parallel::ParallelContext;
-pub use sequential::SequentialContext;
-pub use shared::SharedContext;
+pub use self::parallel::ParallelContext;
+pub use self::sequential::SequentialContext;
+pub use self::shared::SharedContext;
 
 pub(crate) mod private {
     pub trait Sealed {}

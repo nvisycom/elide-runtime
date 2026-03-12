@@ -2,7 +2,7 @@
 
 pub use crate::context::{Context, ContextEntry, ContextEntryData};
 pub use crate::entity::{
-    Annotation, AnnotationKind, DetectionMethod, DetectionOutput, Entities, Entity, EntityCategory,
-    EntityKind, EntitySensitivity, Location,
+    Annotation, AnnotationKind, DetectionOutput, Entities, Entity, EntityCategory, EntityKind,
+    EntitySensitivity, ExtractionMethod, Location, RecognitionMethod, RefinementMethod,
 };
 pub use crate::policy::{Policies, Policy, PolicyRule, Strategy};

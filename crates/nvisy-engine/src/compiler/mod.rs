@@ -10,14 +10,12 @@ mod policy;
 
 use std::collections::HashMap;
 
+use derive_builder::Builder;
 use nvisy_core::Error;
 use petgraph::algo::{is_cyclic_directed, toposort};
-use petgraph::graph::{DiGraph, NodeIndex};
-use uuid::Uuid;
+use petgraph::graph::DiGraph;
 
-pub use self::graph::{
-    ActionKind, ActionNode, Graph, GraphEdge, GraphNode, GraphNodeKind, SourceNode, TargetNode,
-};
+pub use self::graph::{Graph, GraphEdge, GraphNode, GraphNodeKind};
 pub(crate) use self::plan::{ExecutionPlan, ResolvedNode};
 pub use self::policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 
@@ -25,41 +23,49 @@ pub use self::policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPol
 ///
 /// Nodes that don't carry their own retry or timeout policy will inherit
 /// the compiler-level defaults (if set) at compile time.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Builder)]
+#[builder(
+    name = "CompilerBuilder",
+    pattern = "owned",
+    setter(into, strip_option, prefix = "with"),
+    build_fn(private, name = "build_inner")
+)]
 pub(crate) struct Compiler {
     /// Default retry policy applied to nodes without one.
+    #[builder(default)]
     pub retry: Option<RetryPolicy>,
     /// Default timeout policy applied to nodes without one.
+    #[builder(default)]
     pub timeout: Option<TimeoutPolicy>,
 }
 
+impl CompilerBuilder {
+    /// Build the compiler.
+    pub fn build(self) -> Result<Compiler, Error> {
+        self.build_inner()
+            .map_err(|e| Error::validation(e.to_string(), "compiler"))
+    }
+}
+
 impl Compiler {
-    /// Create a compiler with no default policies.
+    /// Creates a compiler with no default policies.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Set the default retry policy.
-    pub fn with_retry(mut self, policy: RetryPolicy) -> Self {
-        self.retry = Some(policy);
-        self
+    /// Returns a builder for configuring compiler defaults.
+    pub fn builder() -> CompilerBuilder {
+        CompilerBuilder::default()
     }
 
-    /// Set the default timeout policy.
-    pub fn with_timeout(mut self, policy: TimeoutPolicy) -> Self {
-        self.timeout = Some(policy);
-        self
-    }
-
-    /// Compile a [`Graph`] into an [`ExecutionPlan`].
+    /// Compiles a [`Graph`] into an [`ExecutionPlan`].
     ///
     /// Validates the graph, applies compiler-level default policies to nodes
-    /// that don't specify their own, builds a `petgraph` representation,
+    /// that don't specify their own, builds a petgraph representation,
     /// checks for cycles, and produces a topologically-sorted plan.
     pub fn compile(&self, graph: &Graph) -> Result<ExecutionPlan, Error> {
         let mut graph = graph.clone();
 
-        // Apply compiler-level defaults to nodes missing their own policies.
         for node in &mut graph.nodes {
             if node.retry.is_none() {
                 node.retry.clone_from(&self.retry);
@@ -71,9 +77,38 @@ impl Compiler {
 
         graph.validate()?;
 
-        // Build petgraph
-        let mut pg: DiGraph<GraphNode, ()> = DiGraph::new();
-        let mut index_map: HashMap<Uuid, NodeIndex> = HashMap::new();
+        let pg = Self::build_petgraph(&graph)?;
+
+        let topo = toposort(&pg, None)
+            .map_err(|_| Error::validation("graph contains a cycle", "compiler"))?;
+
+        let resolved = topo
+            .iter()
+            .map(|&idx| {
+                let upstream_ids = pg
+                    .neighbors_directed(idx, petgraph::Direction::Incoming)
+                    .map(|n| pg[n].id)
+                    .collect();
+                let downstream_ids = pg
+                    .neighbors_directed(idx, petgraph::Direction::Outgoing)
+                    .map(|n| pg[n].id)
+                    .collect();
+                ResolvedNode {
+                    node: pg[idx].clone(),
+                    upstream_ids,
+                    downstream_ids,
+                }
+            })
+            .collect();
+
+        Ok(ExecutionPlan { nodes: resolved })
+    }
+
+    /// Builds a petgraph `DiGraph` from a validated [`Graph`] and checks
+    /// for cycles.
+    fn build_petgraph(graph: &Graph) -> Result<DiGraph<GraphNode, GraphEdge>, Error> {
+        let mut pg = DiGraph::with_capacity(graph.nodes.len(), graph.edges.len());
+        let mut index_map = HashMap::with_capacity(graph.nodes.len());
 
         for node in &graph.nodes {
             let idx = pg.add_node(node.clone());
@@ -83,39 +118,13 @@ impl Compiler {
         for edge in &graph.edges {
             let from = index_map[&edge.source];
             let to = index_map[&edge.target];
-            pg.add_edge(from, to, ());
+            pg.add_edge(from, to, edge.clone());
         }
 
-        // Cycle detection
         if is_cyclic_directed(&pg) {
-            return Err(Error::validation("Graph contains a cycle", "compiler"));
+            return Err(Error::validation("graph contains a cycle", "compiler"));
         }
 
-        // Topological sort
-        let topo = toposort(&pg, None)
-            .map_err(|_| Error::validation("Graph contains a cycle", "compiler"))?;
-
-        // Build resolved nodes with adjacency info in topological order.
-        let mut resolved = Vec::new();
-
-        for idx in &topo {
-            let upstream_ids: Vec<Uuid> = pg
-                .neighbors_directed(*idx, petgraph::Direction::Incoming)
-                .map(|n| pg[n].id)
-                .collect();
-
-            let downstream_ids: Vec<Uuid> = pg
-                .neighbors_directed(*idx, petgraph::Direction::Outgoing)
-                .map(|n| pg[n].id)
-                .collect();
-
-            resolved.push(ResolvedNode {
-                node: pg[*idx].clone(),
-                upstream_ids,
-                downstream_ids,
-            });
-        }
-
-        Ok(ExecutionPlan { nodes: resolved })
+        Ok(pg)
     }
 }

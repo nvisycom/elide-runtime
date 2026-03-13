@@ -1,15 +1,17 @@
 //! Graph data model for pipeline definitions.
 //!
 //! A pipeline is represented as a set of [`GraphNode`]s connected by
-//! [`GraphEdge`]s, collected into a [`Graph`]. Nodes are flattened into
-//! a struct carrying shared fields (`id`, `retry`, `timeout`) alongside
-//! a `kind` discriminator that determines the node's role.
+//! [`GraphEdge`]s, collected into a [`Graph`]. Each node carries shared
+//! fields (`id`, `retry`, `timeout`) alongside a [`GraphNodeKind`] that
+//! determines what the node does.
 
-mod action;
-mod source;
-mod target;
+mod context;
+mod extraction;
+mod lifecycle;
+mod recognition;
+mod refinement;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use nvisy_core::Error;
 use schemars::JsonSchema;
@@ -17,60 +19,130 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-pub use self::action::{ActionKind, ActionNode};
-pub use self::source::SourceNode;
-pub use self::target::TargetNode;
+pub use self::context::{GenerateContextAction, LoadContextAction, SaveContextAction};
+pub use self::extraction::{AudialExtractionAction, VisualExtractionAction};
+pub use self::lifecycle::{ExportAction, ImportAction};
+pub use self::recognition::{NamedEntityRecognitionAction, PatternRecognitionAction};
+pub use self::refinement::{FusionAction, RedactionAction};
 use super::policy::{RetryPolicy, TimeoutPolicy};
+
+/// The set of strongly-typed actions a pipeline node can perform.
+///
+/// Each variant maps to one or more [`Operation`](crate::operation::Operation)
+/// implementations. Variants carry a dedicated configuration struct.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case")]
+pub enum GraphNodeKind {
+    /// Loads reference-data contexts required by downstream actions.
+    LoadContext(LoadContextAction),
+    /// Persists contexts produced during the pipeline run.
+    SaveContext(SaveContextAction),
+    /// Generates a new context from detection results and content data.
+    GenerateContext(GenerateContextAction),
+
+    /// Extracts text and entities from images and scanned documents.
+    VisualExtraction(VisualExtractionAction),
+    /// Extracts text from speech audio.
+    AudialExtraction(AudialExtractionAction),
+
+    /// Detects named entities via language model inference.
+    NamedEntityRecognition(NamedEntityRecognitionAction),
+    /// Detects entities via regex, checksum, dictionary, and heuristic rules.
+    PatternRecognition(PatternRecognitionAction),
+
+    /// Merges and scores entities from multiple detection sources.
+    Fusion(FusionAction),
+    /// Applies redaction instructions to produce output content.
+    Redaction(RedactionAction),
+
+    /// Imports content into the pipeline for processing.
+    Import(ImportAction),
+    /// Exports processed content to a target destination.
+    Export(ExportAction),
+}
+
+impl GraphNodeKind {
+    /// Returns the pipeline phase for this node kind.
+    ///
+    /// Phases enforce execution ordering: edges must flow from equal or
+    /// lower phase to equal or higher phase.
+    ///
+    /// | Phase | Actions                                    |
+    /// |-------|--------------------------------------------|
+    /// | 0     | Import, LoadContext                         |
+    /// | 1     | VisualExtraction, AudialExtraction          |
+    /// | 2     | NamedEntityRecognition, PatternRecognition  |
+    /// | 3     | Fusion                                     |
+    /// | 4     | Redaction, GenerateContext                  |
+    /// | 5     | Export, SaveContext                         |
+    #[must_use]
+    pub fn phase(&self) -> u8 {
+        match self {
+            Self::Import(_) | Self::LoadContext(_) => 0,
+            Self::VisualExtraction(_) | Self::AudialExtraction(_) => 1,
+            Self::NamedEntityRecognition(_) | Self::PatternRecognition(_) => 2,
+            Self::Fusion(_) => 3,
+            Self::Redaction(_) | Self::GenerateContext(_) => 4,
+            Self::Export(_) | Self::SaveContext(_) => 5,
+        }
+    }
+
+    /// Validates action-specific configuration.
+    pub fn validate(&self) -> Result<(), Error> {
+        match self {
+            Self::LoadContext(action) => action.validate(),
+            Self::SaveContext(action) => action.validate(),
+            Self::NamedEntityRecognition(action) => action.validate(),
+            _ => Ok(()),
+        }
+    }
+}
 
 /// A node in the pipeline graph.
 ///
-/// Shared fields (`id`, `retry`, `timeout`) live directly on the struct
-/// while the role-specific payload is carried in [`GraphNodeKind`] via
-/// `#[serde(flatten)]`.
+/// Common fields (`id`, `retry`, `timeout`) live on the struct directly.
+/// The action-specific payload is carried in [`GraphNodeKind`].
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GraphNode {
     /// Unique identifier for this node within the graph.
     pub id: Uuid,
-    /// Optional retry policy.
+    /// Optional retry policy for this node.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<RetryPolicy>,
-    /// Optional timeout policy.
+    /// Optional timeout policy for this node.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<TimeoutPolicy>,
-    /// Role-specific payload (source, action, or target).
+    /// Action-specific payload.
     #[serde(flatten)]
     pub kind: GraphNodeKind,
 }
 
 impl GraphNode {
-    /// Returns the retry policy, if one is configured.
+    /// Creates a new node with the given ID and action kind.
+    pub fn new(id: Uuid, kind: GraphNodeKind) -> Self {
+        Self {
+            id,
+            retry: None,
+            timeout: None,
+            kind,
+        }
+    }
+
+    /// Returns the retry policy, if configured.
+    #[must_use]
     pub fn retry(&self) -> Option<&RetryPolicy> {
         self.retry.as_ref()
     }
 
-    /// Returns the timeout policy, if one is configured.
+    /// Returns the timeout policy, if configured.
+    #[must_use]
     pub fn timeout(&self) -> Option<&TimeoutPolicy> {
         self.timeout.as_ref()
     }
 }
 
-/// Discriminator for the three node roles in a pipeline.
-///
-/// Serialized with a `"type"` tag so JSON definitions specify
-/// `"source"`, `"action"`, or `"target"`.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum GraphNodeKind {
-    /// A data source that reads from an external provider via a named stream.
-    Source(SourceNode),
-    /// A transformation or detection step applied to data flowing through the pipeline.
-    Action(ActionNode),
-    /// A data sink that writes to an external provider via a named stream.
-    Target(TargetNode),
-}
-
 /// A directed edge connecting two nodes.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GraphEdge {
     /// ID of the upstream node.
     pub source: Uuid,
@@ -78,9 +150,7 @@ pub struct GraphEdge {
     pub target: Uuid,
 }
 
-/// A complete pipeline graph definition containing nodes and edges.
-///
-/// The graph must be a valid DAG (directed acyclic graph) with unique node IDs.
+/// A complete pipeline graph: nodes and directed edges forming a DAG.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Graph {
     /// All nodes in the pipeline.
@@ -90,24 +160,31 @@ pub struct Graph {
 }
 
 impl Graph {
-    /// Validate structural invariants.
+    /// Creates a new graph from nodes and edges.
+    pub fn new(nodes: Vec<GraphNode>, edges: Vec<GraphEdge>) -> Self {
+        Self { nodes, edges }
+    }
+
+    /// Validates structural invariants.
     ///
-    /// - The graph must contain at least one node.
-    /// - All node IDs must be unique.
-    /// - All edge endpoints must reference existing node IDs.
+    /// Checks that the graph contains at least one node, all node IDs are
+    /// unique, node-level policies and action configs are valid, edges have
+    /// no self-loops or duplicates, all edge endpoints reference existing
+    /// node IDs, and edges respect pipeline phase ordering.
+    #[must_use = "validation errors are silently ignored if the result is unused"]
     pub fn validate(&self) -> Result<(), Error> {
         if self.nodes.is_empty() {
             return Err(Error::validation(
-                "Graph must have at least one node",
+                "graph must have at least one node",
                 "compiler",
             ));
         }
 
-        let mut seen = HashSet::new();
+        let mut node_map = HashMap::with_capacity(self.nodes.len());
         for node in &self.nodes {
-            if !seen.insert(node.id) {
+            if node_map.insert(node.id, node).is_some() {
                 return Err(Error::validation(
-                    format!("Duplicate node ID: {}", node.id),
+                    format!("duplicate node id: {}", node.id),
                     "compiler",
                 ));
             }
@@ -115,28 +192,58 @@ impl Graph {
 
         for node in &self.nodes {
             if let Some(retry) = &node.retry {
-                retry.validate().map_err(|e| {
-                    Error::validation(format!("Node {}: {}", node.id, e), "compiler")
-                })?;
+                retry
+                    .validate()
+                    .map_err(|e| Error::validation(format!("node {}: {e}", node.id), "compiler"))?;
             }
             if let Some(timeout) = &node.timeout {
-                timeout.validate().map_err(|e| {
-                    Error::validation(format!("Node {}: {}", node.id, e), "compiler")
-                })?;
+                timeout
+                    .validate()
+                    .map_err(|e| Error::validation(format!("node {}: {e}", node.id), "compiler"))?;
             }
+            node.kind.validate().map_err(|e| {
+                Error::validation(format!("node {}: {}", node.id, e.message), "compiler")
+            })?;
         }
 
-        let node_ids: HashSet<Uuid> = seen;
+        let mut seen_edges = HashSet::with_capacity(self.edges.len());
         for edge in &self.edges {
-            if !node_ids.contains(&edge.source) {
+            if edge.source == edge.target {
                 return Err(Error::validation(
-                    format!("Edge references unknown source node: {}", edge.source),
+                    format!("self-loop on node {}", edge.source),
                     "compiler",
                 ));
             }
-            if !node_ids.contains(&edge.target) {
+
+            if !seen_edges.insert((edge.source, edge.target)) {
                 return Err(Error::validation(
-                    format!("Edge references unknown target node: {}", edge.target),
+                    format!("duplicate edge from {} to {}", edge.source, edge.target,),
+                    "compiler",
+                ));
+            }
+
+            let source = node_map.get(&edge.source).ok_or_else(|| {
+                Error::validation(
+                    format!("edge references unknown source node: {}", edge.source),
+                    "compiler",
+                )
+            })?;
+            let target = node_map.get(&edge.target).ok_or_else(|| {
+                Error::validation(
+                    format!("edge references unknown target node: {}", edge.target),
+                    "compiler",
+                )
+            })?;
+
+            let source_phase = source.kind.phase();
+            let target_phase = target.kind.phase();
+            if source_phase > target_phase {
+                return Err(Error::validation(
+                    format!(
+                        "edge from node {} (phase {source_phase}) to node {} \
+                         (phase {target_phase}) violates pipeline ordering",
+                        edge.source, edge.target,
+                    ),
                     "compiler",
                 ));
             }

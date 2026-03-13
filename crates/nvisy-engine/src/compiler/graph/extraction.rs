@@ -1,0 +1,41 @@
+//! Extraction action configurations: visual and audial.
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+/// Configuration for the [`VisualExtraction`](super::GraphNodeKind::VisualExtraction) action.
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
+pub struct VisualExtractionAction {
+    /// Run a secondary LLM verification pass on OCR results.
+    #[serde(default)]
+    pub verification: bool,
+    /// Run computer vision entity detection on images.
+    #[serde(default)]
+    pub entity_detection: bool,
+}
+
+/// Configuration for the [`AudialExtraction`](super::GraphNodeKind::AudialExtraction) action.
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
+pub struct AudialExtractionAction {
+    /// Segment the audio by speaker identity.
+    #[serde(default)]
+    pub diarization: bool,
+}

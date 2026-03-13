@@ -31,10 +31,8 @@ const CHANNEL_BUFFER_SIZE: usize = 256;
 /// Inner state shared behind an [`Arc`].
 #[derive(Clone, Default)]
 struct DefaultEngineInner {
-    /// Default retry policy for graph nodes without one.
-    retry: Option<RetryPolicy>,
-    /// Default timeout policy for graph nodes without one.
-    timeout: Option<TimeoutPolicy>,
+    /// Compiler with default retry and timeout policies.
+    compiler: Compiler,
     /// Shared HTTP client for downstream providers.
     http_client: HttpClient,
 }
@@ -50,8 +48,7 @@ pub struct DefaultEngine {
 impl std::fmt::Debug for DefaultEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultEngine")
-            .field("retry", &self.inner.retry)
-            .field("timeout", &self.inner.timeout)
+            .field("compiler", &self.inner.compiler)
             .field("http_client", &self.inner.http_client)
             .finish()
     }
@@ -65,13 +62,13 @@ impl DefaultEngine {
 
     /// Set the default retry policy.
     pub fn with_retry(mut self, policy: RetryPolicy) -> Self {
-        Arc::make_mut(&mut self.inner).retry = Some(policy);
+        Arc::make_mut(&mut self.inner).compiler.retry = Some(policy);
         self
     }
 
     /// Set the default timeout policy.
     pub fn with_timeout(mut self, policy: TimeoutPolicy) -> Self {
-        Arc::make_mut(&mut self.inner).timeout = Some(policy);
+        Arc::make_mut(&mut self.inner).compiler.timeout = Some(policy);
         self
     }
 
@@ -211,14 +208,7 @@ impl Engine for DefaultEngine {
         //
         // Compile the graph into a topologically-sorted execution plan and
         // run Source/Action/Target nodes concurrently.
-        let mut compiler = Compiler::new();
-        if let Some(ref retry) = self.inner.retry {
-            compiler = compiler.with_retry(retry.clone());
-        }
-        if let Some(ref timeout) = self.inner.timeout {
-            compiler = compiler.with_timeout(timeout.clone());
-        }
-        let plan = compiler.compile(&input.graph)?;
+        let plan = self.inner.compiler.compile(&input.graph)?;
         let run_output = Self::run_graph(&plan).await?;
 
         Ok(EngineOutput {

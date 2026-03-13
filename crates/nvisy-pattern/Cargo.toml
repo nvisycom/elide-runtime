@@ -44,3 +44,6 @@ aho-corasick = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

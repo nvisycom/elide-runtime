@@ -11,12 +11,12 @@ mod prompt;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-pub use input::ProposedEntity;
 use nvisy_ontology::entity::Entity;
-pub use output::{VerificationOutput, VerificationStatus, VerifiedEntity};
-use prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use uuid::Uuid;
 
+pub use self::input::ProposedEntity;
+pub use self::output::{VerificationOutput, VerificationStatus, VerifiedEntity};
+use self::prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use super::{AgentConfig, AgentProvider, BaseAgent};
 use crate::backend::UsageTracker;
 use crate::error::Error;

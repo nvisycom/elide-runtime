@@ -25,22 +25,22 @@ mod xlsx_handler;
 #[cfg(feature = "xlsx")]
 mod xlsx_loader;
 
-pub use csv_handler::{CsvData, CsvHandler, CsvSpan};
-pub use csv_loader::{CsvLoader, CsvParams};
+pub use self::csv_handler::{CsvData, CsvHandler, CsvSpan};
+pub use self::csv_loader::{CsvLoader, CsvParams};
 #[cfg(feature = "html")]
-pub use html_handler::{HtmlData, HtmlHandler, HtmlSpan};
+pub use self::html_handler::{HtmlData, HtmlHandler, HtmlSpan};
 #[cfg(feature = "html")]
-pub use html_loader::{HtmlLoader, HtmlParams};
-pub use json_handler::{JsonData, JsonHandler, JsonIndent, JsonPath};
-pub use json_loader::{JsonLoader, JsonParams};
-pub use text_data::TextData;
-pub use text_handler::BoxedTextHandler;
-pub use txt_handler::{TxtHandler, TxtSpan};
-pub use txt_loader::{TxtLoader, TxtParams};
+pub use self::html_loader::{HtmlLoader, HtmlParams};
+pub use self::json_handler::{JsonData, JsonHandler, JsonIndent, JsonPath};
+pub use self::json_loader::{JsonLoader, JsonParams};
+pub use self::text_data::TextData;
+pub use self::text_handler::BoxedTextHandler;
+pub use self::txt_handler::{TxtHandler, TxtSpan};
+pub use self::txt_loader::{TxtLoader, TxtParams};
 #[cfg(feature = "xlsx")]
-pub use xlsx_handler::XlsxHandler;
+pub use self::xlsx_handler::XlsxHandler;
 #[cfg(feature = "xlsx")]
-pub use xlsx_loader::{XlsxLoader, XlsxParams};
+pub use self::xlsx_loader::{XlsxLoader, XlsxParams};
 
 /// Capability trait for handlers that expose text content.
 ///

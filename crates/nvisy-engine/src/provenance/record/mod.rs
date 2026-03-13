@@ -7,8 +7,8 @@ mod map;
 mod redaction;
 mod review;
 
-pub use decision::RedactionDecision;
-pub use evaluation::PolicyEvaluation;
-pub use map::{RedactionMap, RedactionMapEntry};
-pub use redaction::RedactionRecord;
-pub use review::{ReviewDecision, ReviewStatus};
+pub use self::decision::RedactionDecision;
+pub use self::evaluation::PolicyEvaluation;
+pub use self::map::{RedactionMap, RedactionMapEntry};
+pub use self::redaction::RedactionRecord;
+pub use self::review::{ReviewDecision, ReviewStatus};

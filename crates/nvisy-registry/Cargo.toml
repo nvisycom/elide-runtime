@@ -33,6 +33,9 @@ fjall = { workspace = true, features = [] }
 # Async runtime and parallelism
 tokio = { workspace = true, features = ["sync", "rt"] }
 
+# Observability
+tracing = { workspace = true, features = [] }
+
 # (De)serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }

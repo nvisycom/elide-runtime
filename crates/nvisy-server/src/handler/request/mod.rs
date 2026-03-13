@@ -9,7 +9,7 @@ mod files;
 mod path;
 mod process;
 
-pub use contexts::NewContext;
-pub use files::NewFile;
-pub use path::{ActorQuery, ContentPath, ContextPath};
-pub use process::NewProcess;
+pub use self::contexts::NewContext;
+pub use self::files::NewFile;
+pub use self::path::{ActorQuery, ContentPath, ContextPath};
+pub use self::process::NewProcess;

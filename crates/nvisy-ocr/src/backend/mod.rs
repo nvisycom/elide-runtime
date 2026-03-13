@@ -3,12 +3,13 @@
 mod input;
 mod output;
 
-pub use input::ImageInput;
 use nvisy_core::Error;
 pub use nvisy_core::media::ImageFormat;
-pub use output::{Block, BlockKind, ImageOutput, Line, Page, Word};
 use reqwest_middleware::reqwest::Response;
 use reqwest_middleware::reqwest::multipart::Part;
+
+pub use self::input::ImageInput;
+pub use self::output::{Block, BlockKind, ImageOutput, Line, Page, Word};
 
 /// Build a multipart [`Part`] from an [`ImageInput`].
 pub(crate) fn image_part(image: &ImageInput) -> Result<Part, Error> {

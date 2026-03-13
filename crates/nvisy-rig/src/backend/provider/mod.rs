@@ -6,5 +6,5 @@
 mod authenticated;
 mod unauthenticated;
 
-pub use authenticated::AuthenticatedProvider;
-pub use unauthenticated::UnauthenticatedProvider;
+pub use self::authenticated::AuthenticatedProvider;
+pub use self::unauthenticated::UnauthenticatedProvider;

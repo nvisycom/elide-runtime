@@ -31,10 +31,11 @@ mod server;
 use std::path::PathBuf;
 
 use clap::Parser;
-pub use file::MiddlewareSection;
 use nvisy_engine::RuntimeConfig;
-pub use server::{ResolvedServer, ServerConfig};
 use tracing_subscriber::EnvFilter;
+
+pub use self::file::MiddlewareSection;
+pub use self::server::{ResolvedServer, ServerConfig};
 
 /// Top-level CLI entry point.
 ///

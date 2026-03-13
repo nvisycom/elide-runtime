@@ -9,9 +9,9 @@ use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{
     AudioFormat, DocumentType, ImageFormat, SpreadsheetFormat, TextFormat, WordFormat,
 };
-pub use span::Span;
-pub use stream::SpanStream;
 
+pub use self::span::Span;
+pub use self::stream::SpanStream;
 use crate::handler::{
     BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler, BoxedTextHandler, CsvLoader, CsvParams,
     Handler, HtmlLoader, HtmlParams, JpegLoader, JpegParams, JsonLoader, JsonParams, Loader,

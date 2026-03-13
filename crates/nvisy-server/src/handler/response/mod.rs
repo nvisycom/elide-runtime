@@ -11,8 +11,8 @@ mod error;
 mod files;
 mod process;
 
-pub use check::{Analytics, Health, ServiceStatus};
-pub use contexts::{Context, ContextId, ContextList};
-pub use error::ErrorResponse;
-pub use files::{File, FileId, FileList};
-pub use process::ProcessResult;
+pub use self::check::{Analytics, Health, ServiceStatus};
+pub use self::contexts::{Context, ContextId, ContextList};
+pub use self::error::ErrorResponse;
+pub use self::files::{File, FileId, FileList};
+pub use self::process::ProcessResult;

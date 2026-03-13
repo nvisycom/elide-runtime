@@ -3,5 +3,5 @@
 mod instruction;
 mod transform;
 
-pub use instruction::{AudioOutput, AudioRedaction};
-pub use transform::AudioTransform;
+pub use self::instruction::{AudioOutput, AudioRedaction};
+pub use self::transform::AudioTransform;

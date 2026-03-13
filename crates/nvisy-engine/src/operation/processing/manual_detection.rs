@@ -5,7 +5,7 @@
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::{
-    Annotation, AnnotationKind, DetectionMethod, Entities, Entity, Location,
+    Annotation, AnnotationKind, Entities, Entity, Location, RecognitionMethod,
 };
 use serde::Deserialize;
 
@@ -37,7 +37,7 @@ pub struct ManualOutput {
 }
 
 /// Converts each inclusion [`Annotation`] into a full [`Entity`] with
-/// `DetectionMethod::Manual` and confidence 1.0.  Collects exclusion
+/// `RecognitionMethod::Manual` and confidence 1.0.  Collects exclusion
 /// annotations for downstream filtering.
 pub struct ManualDetection;
 
@@ -54,8 +54,8 @@ impl ManualDetection {
         for ann in &annotations {
             match ann.kind {
                 AnnotationKind::Inclusion => {
-                    let category = match &ann.category {
-                        Some(c) => c.clone(),
+                    let category = match ann.category {
+                        Some(c) => c,
                         None => continue,
                     };
                     let entity_kind = match ann.entity_kind {
@@ -65,7 +65,7 @@ impl ManualDetection {
                     let value = ann.value.clone().unwrap_or_default();
 
                     let mut entity =
-                        Entity::new(category, entity_kind, value, DetectionMethod::Manual, 1.0);
+                        Entity::new(category, entity_kind, value, RecognitionMethod::Manual, 1.0);
                     entity.location = ann.location.clone();
                     entities.push(entity);
                 }
@@ -128,10 +128,10 @@ mod tests {
 
     fn make_entity(value: &str, start: usize, end: usize) -> Entity {
         Entity::new(
-            EntityCategory::Pii,
+            EntityCategory::PersonalIdentity,
             EntityKind::PersonName,
             value,
-            DetectionMethod::Manual,
+            RecognitionMethod::Manual,
             1.0,
         )
         .with_location(
@@ -199,7 +199,7 @@ mod tests {
         let annotations = vec![
             Annotation {
                 kind: AnnotationKind::Inclusion,
-                category: Some(EntityCategory::Pii),
+                category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
                 value: Some("Alice".into()),
                 location: None,

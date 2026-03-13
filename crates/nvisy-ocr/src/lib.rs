@@ -9,7 +9,7 @@ pub mod provider;
 #[doc(hidden)]
 pub mod prelude;
 
-pub use backend::{
+pub use self::backend::{
     Backend, Block, BlockKind, ImageFormat, ImageInput, ImageOutput, Line, Page, RunParams, Word,
 };
-pub use engine::{OcrEngine, OcrProvider};
+pub use self::engine::{OcrEngine, OcrProvider};

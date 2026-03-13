@@ -1,6 +1,6 @@
 {
   "name": "us-passport",
-  "category": "pii",
+  "category": "personal_identity",
   "entity_type": "passport_number",
   "pattern": {
     "regex": "\\b[A-Z]\\d{8}\\b",

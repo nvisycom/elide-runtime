@@ -17,11 +17,12 @@ mod image;
 mod rich;
 mod text;
 
-pub use audio::*;
-pub use image::*;
 use nvisy_core::content::ContentSource;
-pub use rich::*;
-pub use text::*;
+
+pub use self::audio::*;
+pub use self::image::*;
+pub use self::rich::*;
+pub use self::text::*;
 
 /// Base trait implemented by all format handlers.
 ///

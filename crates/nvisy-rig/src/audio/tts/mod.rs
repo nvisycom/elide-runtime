@@ -3,12 +3,12 @@
 mod provider;
 
 use nvisy_http::HttpClient;
-pub(crate) use provider::TtsModels;
-pub use provider::TtsProvider;
 #[cfg(feature = "openai-tts")]
 use rig::audio_generation::AudioGenerationModel as _;
 use uuid::Uuid;
 
+pub(crate) use self::provider::TtsModels;
+pub use self::provider::TtsProvider;
 use crate::error::Error;
 
 const TARGET: &str = "nvisy_rig::tts";

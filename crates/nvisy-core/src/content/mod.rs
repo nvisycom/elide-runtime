@@ -13,10 +13,10 @@ mod data_reference;
 mod encoding;
 mod source;
 
-pub use bundle::Content;
-pub use content_bytes::ContentBytes;
-pub use content_data::ContentData;
-pub use content_metadata::ContentMetadata;
-pub use data_reference::DataReference;
-pub use encoding::TextEncoding;
-pub use source::ContentSource;
+pub use self::bundle::Content;
+pub use self::content_bytes::ContentBytes;
+pub use self::content_data::ContentData;
+pub use self::content_metadata::ContentMetadata;
+pub use self::data_reference::DataReference;
+pub use self::encoding::TextEncoding;
+pub use self::source::ContentSource;

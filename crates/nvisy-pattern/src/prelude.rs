@@ -4,4 +4,6 @@
 //! use nvisy_pattern::prelude::*;
 //! ```
 
-pub use crate::{ContextRule, DetectionSource, PatternEngine, PatternEngineBuilder, PatternMatch};
+pub use crate::{
+    AllowList, DenyList, DenyRule, PatternEngine, PatternEngineBuilder, RawMatch, ScanContext,
+};

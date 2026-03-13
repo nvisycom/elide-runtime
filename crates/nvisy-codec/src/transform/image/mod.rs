@@ -4,5 +4,5 @@ mod instruction;
 mod ops;
 mod transform;
 
-pub use instruction::{ImageOutput, ImageRedaction};
-pub use transform::ImageTransform;
+pub use self::instruction::{ImageOutput, ImageRedaction};
+pub use self::transform::ImageTransform;

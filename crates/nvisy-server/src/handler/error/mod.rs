@@ -8,5 +8,5 @@ mod from_core;
 mod http_error;
 mod http_kind;
 
-pub use http_error::{Error, Result};
-pub use http_kind::ErrorKind;
+pub use self::http_error::{Error, Result};
+pub use self::http_kind::ErrorKind;

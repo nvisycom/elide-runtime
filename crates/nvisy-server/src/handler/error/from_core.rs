@@ -19,7 +19,7 @@ impl From<nvisy_core::Error> for Error<'static> {
         };
 
         let mut error = Self::new(kind).with_message(err.message);
-        if let Some(component) = err.source_component {
+        if let Some(component) = err.component {
             error = error.with_context(component);
         }
         error

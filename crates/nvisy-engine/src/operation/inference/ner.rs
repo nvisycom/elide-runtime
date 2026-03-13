@@ -8,15 +8,14 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::TxtSpan;
 use nvisy_core::{Error, Result};
 use nvisy_http::HttpClient;
-use nvisy_ontology::entity::{
-    DetectionMethod, Entities, Entity, EntityCategory, EntityKind, TextLocation,
-};
+use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod, TextLocation};
 use nvisy_rig::agent::{
     AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
 };
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
+use crate::operation::envelope::DetectedEntities;
 use crate::operation::{Operation, SequentialContext};
 
 const TARGET: &str = "nvisy_engine::op::ner";
@@ -100,7 +99,7 @@ impl Ner {
         state.known_entities.clear();
     }
 
-    async fn detect(&self, spans: Vec<Span<TxtSpan, String>>) -> Result<Entities> {
+    async fn detect(&self, spans: Vec<Span<TxtSpan, String>>) -> Result<DetectedEntities> {
         tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
         let mut entities = Vec::new();
 
@@ -119,7 +118,7 @@ impl Ner {
 
             for ner_entity in &ner_entities {
                 let category: EntityCategory = match ner_entity.category {
-                    Some(ref c) => c.clone(),
+                    Some(c) => c,
                     None => continue,
                 };
                 let entity_kind = match ner_entity.entity_type {
@@ -135,7 +134,7 @@ impl Ner {
                     category,
                     entity_kind,
                     &ner_entity.value,
-                    DetectionMethod::Ner,
+                    RecognitionMethod::Ner,
                     confidence,
                 );
 
@@ -169,13 +168,13 @@ impl Ner {
             state.known_entities = merge_ctx.known_entities;
         }
 
-        Ok(entities.into())
+        Ok(DetectedEntities(entities.into()))
     }
 }
 
 impl Operation for Ner {
     type Input = SequentialContext<Vec<Span<TxtSpan, String>>>;
-    type Output = SequentialContext<Entities>;
+    type Output = SequentialContext<DetectedEntities>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.sequential_map(|spans| self.detect(spans)).await

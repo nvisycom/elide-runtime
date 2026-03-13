@@ -7,6 +7,6 @@ mod inference;
 mod lifecycle;
 mod processing;
 
-pub use inference::{InferenceAction, InferenceActionBuilder};
-pub use lifecycle::{LifecycleAction, LifecycleActionBuilder};
-pub use processing::{ProcessingAction, ProcessingActionBuilder};
+pub use self::inference::{InferenceAction, InferenceActionBuilder};
+pub use self::lifecycle::{LifecycleAction, LifecycleActionBuilder};
+pub use self::processing::{ProcessingAction, ProcessingActionBuilder};

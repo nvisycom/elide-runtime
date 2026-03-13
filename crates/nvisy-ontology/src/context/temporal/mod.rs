@@ -2,9 +2,10 @@
 
 mod date;
 
-pub use date::DateData;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+pub use self::date::DateData;
 
 /// Temporal matching variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

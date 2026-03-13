@@ -8,12 +8,12 @@ mod context;
 mod output;
 mod prompt;
 
-pub use context::NerContext;
 use nvisy_http::HttpClient;
-pub use output::{KnownNerEntity, NerEntities, NerEntity, ResolvedOffsets};
-use prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use uuid::Uuid;
 
+pub use self::context::NerContext;
+pub use self::output::{KnownNerEntity, NerEntities, NerEntity, ResolvedOffsets};
+use self::prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
 use crate::backend::UsageTracker;
 use crate::error::Error;

@@ -6,5 +6,5 @@
 mod backend;
 mod params;
 
-pub use backend::SuryaBackend;
-pub use params::SuryaParams;
+pub use self::backend::SuryaBackend;
+pub use self::params::SuryaParams;

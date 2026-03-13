@@ -1,31 +1,55 @@
-//! Shared entity category tag.
+//! Broad entity category classification.
 //!
-//! [`EntityCategory`] classifies detected sensitive data into broad
-//! categories used by both detection and pattern matching crates.
+//! [`EntityCategory`] groups related [`EntityKind`](super::EntityKind)
+//! variants into policy-addressable buckets.  Policy selectors can
+//! target an entire category (e.g. "redact all financial data") without
+//! enumerating individual kinds.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
-/// Category of sensitive data an entity belongs to.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Display, EnumString)]
-#[derive(Serialize, Deserialize, JsonSchema)]
+/// Broad category of sensitive data.
+///
+/// Each [`EntityKind`](super::EntityKind) maps to exactly one category
+/// via [`EntityKind::category()`](super::EntityKind::category).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum EntityCategory {
-    /// Personally Identifiable Information (names, SSNs, addresses, etc.).
-    Pii,
-    /// Protected Health Information (HIPAA-regulated data).
-    Phi,
-    /// Financial data (credit card numbers, bank accounts, etc.).
+    /// Personal identity: names, government IDs, dates of birth, and
+    /// other attributes that directly identify a natural person.
+    PersonalIdentity,
+    /// Contact information: email addresses, phone numbers, physical
+    /// addresses, postal codes, and URLs.
+    ContactInfo,
+    /// Demographic attributes: age, gender, ethnicity, religion,
+    /// nationality, and citizenship.
+    Demographic,
+    /// Financial instruments and accounts: payment cards, bank
+    /// accounts, routing numbers, IBAN, crypto addresses, and
+    /// monetary amounts.
     Financial,
-    /// Secrets and credentials (API keys, passwords, tokens).
-    Credentials,
-    /// Legal documents and privileged communications.
-    Legal,
-    /// Biometric data (fingerprints, iris scans, voiceprints).
+    /// Protected health information: medical record numbers,
+    /// insurance IDs, prescriptions, diagnoses, and medications.
+    Health,
+    /// Biometric identifiers: fingerprints, voiceprints, retina
+    /// scans, and facial geometry templates.
     Biometric,
-    /// User-defined or plugin-specific category.
-    #[strum(default)]
-    Custom(String),
+    /// Secrets and credentials: passwords, API keys, authentication
+    /// tokens, and private cryptographic keys.
+    Credentials,
+    /// Network and device identifiers: IP addresses, MAC addresses,
+    /// device IDs, and usernames.
+    NetworkIdentifier,
+    /// Geographic and spatial data: GPS coordinates and geolocation
+    /// metadata.
+    Location,
+    /// Sensitive visual elements detected in images or video:
+    /// faces, handwriting, signatures, logos, and barcodes.
+    Visual,
+    /// Organizational identifiers: company names, departments,
+    /// facilities, and institutional reference numbers.
+    Organizational,
 }

@@ -7,6 +7,6 @@ pub mod handler;
 pub mod middleware;
 pub mod service;
 
-pub use handler::error::{Error, ErrorKind, Result};
-pub use handler::routes;
-pub use service::ServiceState;
+pub use self::handler::error::{Error, ErrorKind, Result};
+pub use self::handler::routes;
+pub use self::service::ServiceState;

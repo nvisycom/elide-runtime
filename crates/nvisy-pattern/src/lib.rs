@@ -2,13 +2,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-pub(crate) mod dictionaries;
-pub mod engine;
-pub(crate) mod patterns;
+pub mod dictionaries;
+pub(crate) mod engine;
+pub mod patterns;
 pub(crate) mod validators;
 
-pub use engine::{DetectionSource, PatternEngine, PatternEngineBuilder, PatternMatch};
-pub use patterns::ContextRule;
+pub use self::engine::{
+    AllowList, DenyList, DenyRule, PatternEngine, PatternEngineBuilder, RawMatch, ScanContext,
+};
 
 #[doc(hidden)]
 pub mod prelude;

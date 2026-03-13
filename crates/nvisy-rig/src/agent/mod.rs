@@ -11,11 +11,15 @@ mod generate;
 mod ner;
 mod ocr;
 
-pub(crate) use base::{ALL_TYPES_HINT, BaseAgent};
-pub use base::{
+pub(crate) use self::base::{ALL_TYPES_HINT, BaseAgent};
+pub use self::base::{
     AgentConfig, AgentProvider, ContextWindow, DetectionConfig, DetectionRequest, DetectionResponse,
 };
-pub use cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
-pub use generate::{GenAgent, GenOutput, GenRequest, GeneratedEntity};
-pub use ner::{KnownNerEntity, NerAgent, NerContext, NerEntities, NerEntity, ResolvedOffsets};
-pub use ocr::{OcrAgent, ProposedEntity, VerificationOutput, VerificationStatus, VerifiedEntity};
+pub use self::cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
+pub use self::generate::{GenAgent, GenOutput, GenRequest, GeneratedEntity};
+pub use self::ner::{
+    KnownNerEntity, NerAgent, NerContext, NerEntities, NerEntity, ResolvedOffsets,
+};
+pub use self::ocr::{
+    OcrAgent, ProposedEntity, VerificationOutput, VerificationStatus, VerifiedEntity,
+};

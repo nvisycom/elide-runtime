@@ -3045,6 +3045,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tracing",
 ]
@@ -3060,6 +3061,7 @@ dependencies = [
  "pythonize",
  "serde_json",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -3074,6 +3076,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tracing",
  "uuid",
 ]
 

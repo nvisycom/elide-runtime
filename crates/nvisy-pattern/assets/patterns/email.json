@@ -1,6 +1,6 @@
 {
   "name": "email",
-  "category": "pii",
+  "category": "contact_info",
   "entity_type": "email_address",
   "pattern": {
     "regex": "\\b[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}\\b",

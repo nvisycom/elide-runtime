@@ -6,5 +6,5 @@
 mod backend;
 mod params;
 
-pub use backend::GoogleVisionBackend;
-pub use params::GoogleVisionParams;
+pub use self::backend::GoogleVisionBackend;
+pub use self::params::GoogleVisionParams;

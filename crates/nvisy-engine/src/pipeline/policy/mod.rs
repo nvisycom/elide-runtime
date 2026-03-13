@@ -9,5 +9,5 @@
 mod retry;
 mod timeout;
 
-pub use retry::CompiledRetryPolicy;
-pub use timeout::CompiledTimeoutPolicy;
+pub use self::retry::CompiledRetryPolicy;
+pub use self::timeout::CompiledTimeoutPolicy;

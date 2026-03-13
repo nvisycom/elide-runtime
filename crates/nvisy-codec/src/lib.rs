@@ -6,7 +6,7 @@ mod document;
 pub mod handler;
 pub mod transform;
 
-pub use document::{Document, Span, SpanStream};
+pub use self::document::{Document, Span, SpanStream};
 
 #[doc(hidden)]
 pub mod prelude;

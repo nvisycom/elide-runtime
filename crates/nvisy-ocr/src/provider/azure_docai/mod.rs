@@ -6,5 +6,5 @@
 mod backend;
 mod params;
 
-pub use backend::AzureDocaiBackend;
-pub use params::AzureDocaiParams;
+pub use self::backend::AzureDocaiBackend;
+pub use self::params::AzureDocaiParams;

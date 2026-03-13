@@ -2,29 +2,47 @@
 //!
 //! Implements the [Luhn algorithm](https://en.wikipedia.org/wiki/Luhn_algorithm)
 //! used to validate credit/debit card numbers and other identification
-//! numbers.  Non-digit characters (spaces, dashes) are stripped before
-//! the check.
+//! numbers. Only digits, spaces, and dashes are accepted as input: any
+//! other character causes the check to fail.
 
 /// Return `true` if `num` passes the Luhn checksum.
 ///
-/// All non-digit characters are ignored, so `"4539 1488 0343 6467"`,
-/// `"4539-1488-0343-6467"`, and `"4539148803436467"` are equivalent.
+/// Spaces and dashes are stripped before validation, so
+/// `"4539 1488 0343 6467"`, `"4539-1488-0343-6467"`, and
+/// `"4539148803436467"` are all equivalent.
+///
+/// Returns `false` if the input is empty or contains characters other
+/// than digits, spaces, and dashes.
 pub fn luhn_check(num: &str) -> bool {
-    let digits: String = num.chars().filter(|c| c.is_ascii_digit()).collect();
+    if num.is_empty() {
+        return false;
+    }
+
+    // Reject anything that isn't a digit, space, or dash.
+    if !num
+        .chars()
+        .all(|c| c.is_ascii_digit() || c == ' ' || c == '-')
+    {
+        return false;
+    }
+
+    let digits: Vec<u32> = num.chars().filter_map(|c| c.to_digit(10)).collect();
+
     if digits.is_empty() {
         return false;
     }
+
     let mut sum = 0u32;
     let mut alternate = false;
-    for ch in digits.chars().rev() {
-        let mut n = ch.to_digit(10).unwrap_or(0);
+    for &n in digits.iter().rev() {
+        let mut d = n;
         if alternate {
-            n *= 2;
-            if n > 9 {
-                n -= 9;
+            d *= 2;
+            if d > 9 {
+                d -= 9;
             }
         }
-        sum += n;
+        sum += d;
         alternate = !alternate;
     }
     sum.is_multiple_of(10)
@@ -58,7 +76,19 @@ mod tests {
     }
 
     #[test]
+    fn mixed_alpha_digit_rejected() {
+        assert!(!luhn_check("45abc39"));
+        assert!(!luhn_check("4539 14X8 0343 6467"));
+    }
+
+    #[test]
     fn single_zero() {
         assert!(luhn_check("0"));
+    }
+
+    #[test]
+    fn only_separators_rejected() {
+        assert!(!luhn_check("   "));
+        assert!(!luhn_check("---"));
     }
 }

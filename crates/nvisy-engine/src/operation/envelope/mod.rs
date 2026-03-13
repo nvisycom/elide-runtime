@@ -9,19 +9,31 @@
 //! ContentData
 //!   ↓ Import
 //! DocumentEnvelope { document, … }
-//!   ↓ OCR / NER / CV / PatternMatch
+//!   ↓ OCR / NER / CV / PatternMatch  →  DetectedEntities
 //! DocumentEnvelope { document, entities, … }
-//!   ↓ Deduplication / Ensemble
+//!   ↓ Deduplication / Ensemble        →  RefinedEntities
 //! DocumentEnvelope { document, entities (merged), … }
-//!   ↓ PolicyEvaluation
+//!   ↓ PolicyEvaluation                →  PolicyOutcome
 //! DocumentEnvelope { document, entities, audit { decisions, records }, … }
 //!   ↓ Redaction
 //! DocumentEnvelope { document (redacted), entities, audit { … } }
 //! ```
+//!
+//! Operations produce typed patch values that implement [`ApplyPatch`].
+//! The orchestrator merges each patch via [`DocumentEnvelope::apply`].
+
+mod apply;
+mod audit;
+mod detection;
+mod policy;
 
 use nvisy_codec::Document;
 use nvisy_ontology::entity::Entities;
 
+pub use self::apply::ApplyPatch;
+pub use self::audit::OperationEntry;
+pub use self::detection::{DetectedEntities, RefinedEntities};
+pub use self::policy::PolicyOutcome;
 use crate::provenance::Audit;
 
 /// Per-document state that flows through the entire pipeline.
@@ -68,6 +80,11 @@ impl DocumentEnvelope {
     /// Number of detected entities.
     pub fn entity_count(&self) -> usize {
         self.entities.len()
+    }
+
+    /// Merge an operation's output into this envelope.
+    pub fn apply(&mut self, patch: impl ApplyPatch) {
+        patch.apply(self);
     }
 }
 

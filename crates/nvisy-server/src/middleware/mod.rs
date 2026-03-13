@@ -47,10 +47,10 @@ mod recovery;
 mod security;
 mod specification;
 
-pub use constants::{
+pub use self::constants::{
     DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE, DEFAULT_REQUEST_TIMEOUT_SECS,
 };
-pub use observability::RouterObservabilityExt;
-pub use recovery::{RecoveryConfig, RouterRecoveryExt};
-pub use security::{RouterSecurityExt, SecurityConfig};
-pub use specification::{OpenApiConfig, RouterOpenApiExt};
+pub use self::observability::RouterObservabilityExt;
+pub use self::recovery::{RecoveryConfig, RouterRecoveryExt};
+pub use self::security::{RouterSecurityExt, SecurityConfig};
+pub use self::specification::{OpenApiConfig, RouterOpenApiExt};

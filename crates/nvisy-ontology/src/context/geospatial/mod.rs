@@ -4,11 +4,12 @@ mod address;
 mod coordinates;
 mod region;
 
-pub use address::AddressData;
-pub use coordinates::GeoCoordinate;
-pub use region::{GeoBounds, GeoShape, RegionData};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+pub use self::address::AddressData;
+pub use self::coordinates::GeoCoordinate;
+pub use self::region::{GeoBounds, GeoShape, RegionData};
 
 /// Geospatial location variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

@@ -17,7 +17,7 @@ Detection runs in three phases:
    dictionary are injected as synthetic matches with confidence `1.0`.
 
 Allow-list filtering is applied inline during phases 1 and 2. All three phases
-feed into a unified `Vec<PatternMatch>`.
+feed into a unified `Vec<RawMatch>`.
 
 ### Pattern JSON schema
 
@@ -27,7 +27,7 @@ Patterns are JSON definition files embedded at compile time from
 ```json
 {
   "name": "ssn",
-  "category": "pii",
+  "category": "personal_identity",
   "entity_type": "government_id",
   "pattern": {
     "regex": "\\b(\\d{3})-(\\d{2})-(\\d{4})\\b",
@@ -56,15 +56,15 @@ Patterns are JSON definition files embedded at compile time from
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `regex` | string | — | Regular expression string |
-| `validator` | string | — | Post-match validator name resolved via `ValidatorResolver` |
+| `regex` | string | required | Regular expression string |
+| `validator` | string | none | Post-match validator name resolved via `ValidatorResolver` |
 | `case_sensitive` | bool | `false` | Whether matching is case-sensitive |
 
 ### `dictionary` object (dictionary match source)
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `name` | string | — | Named dictionary from `DictionaryRegistry` |
+| `name` | string | required | Named dictionary from `DictionaryRegistry` |
 | `case_sensitive` | bool | `false` | Whether matching is case-sensitive |
 
 ### Context rule (co-occurrence scoring)
@@ -76,7 +76,7 @@ increased by `boost`, clamped to `[0.0, 1.0]`.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `keywords` | string[] | — | Strings to search for in nearby spans |
+| `keywords` | string[] | required | Strings to search for in nearby spans |
 | `window` | int | `3` | Number of spans before/after the match to examine |
 | `boost` | float | `0.1` | Confidence increase when a keyword is found |
 | `case_sensitive` | bool | `false` | Whether keyword matching is case-sensitive |
@@ -88,36 +88,37 @@ adjacent spans.
 
 ## Allow/deny lists
 
-The `PatternEngineBuilder` supports exact-match allow and deny lists via the
-[`AllowList`] and [`DenyList`] types:
+Allow and deny lists are configured per-scan via [`ScanContext`], not on the
+engine itself:
 
 ```rust,ignore
-let allow = AllowList::new()
-    .with("123-45-6789")             // suppress known test SSN
-    .with("000-00-0000");
+use nvisy_pattern::prelude::*;
+use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
 
-let deny = DenyList::new()
-    .with("John Doe", EntityCategory::Pii, EntityKind::PersonName);
+let ctx = ScanContext::new()
+    .with_allow(AllowList::new()
+        .with("123-45-6789")         // suppress known test SSN
+        .with("000-00-0000"))
+    .with_deny(DenyList::new()
+        .with("John Doe", DenyRule {
+            category: EntityCategory::PersonalIdentity,
+            entity_kind: EntityKind::PersonName,
+            method: RecognitionMethod::Ner,
+        }));
 
-let engine = PatternEngine::builder()
-    .with_allow(allow)
-    .with_deny(deny)
-    .build()?;
+let matches = PatternEngine::instance().scan_text("...", &ctx);
 ```
 
 - **Allow list** (`AllowList`): matched values that appear in the allow list
   are silently dropped during `scan_text`.
 - **Deny list** (`DenyList`): if a deny-list value is found in the text but
   was not matched by any regex or dictionary pattern, it is injected as a
-  synthetic `PatternMatch` with confidence `1.0` and source
-  `DetectionSource::DenyList`.
-
-Both types implement `FromIterator` for easy construction from iterators.
+  synthetic `RawMatch` with confidence `1.0` and `pattern_name: None`.
 
 ## Validators
 
 Validators are post-match checks resolved by name through `ValidatorResolver`.
-Regex patterns reference a validator by name in their `pattern.validator` field;
+Regex patterns reference a validator by name in their `pattern.validator` field:
 the engine runs the validator on each raw match and drops values that fail.
 
 ## Documentation

@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn parse_json_raw_array() {
-        let text = r#"[{"category":"pii","entity_type":"email_address","value":"a@b.com","confidence":0.9,"start_offset":0,"end_offset":7}]"#;
+        let text = r#"[{"category":"contact_info","entity_type":"email_address","value":"a@b.com","confidence":0.9,"start_offset":0,"end_offset":7}]"#;
         let result = ResponseParser::from_text(text)
             .parse_json::<Vec<Value>>()
             .unwrap();
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn parse_json_fenced() {
-        let text = "```json\n[{\"category\":\"pii\",\"entity_type\":\"email_address\",\"value\":\"a@b.com\",\"confidence\":0.9}]\n```";
+        let text = "```json\n[{\"category\":\"contact_info\",\"entity_type\":\"email_address\",\"value\":\"a@b.com\",\"confidence\":0.9}]\n```";
         let result = ResponseParser::from_text(text)
             .parse_json::<Vec<Value>>()
             .unwrap();

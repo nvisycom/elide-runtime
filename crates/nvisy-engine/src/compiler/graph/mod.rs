@@ -11,15 +11,15 @@ mod target;
 
 use std::collections::HashSet;
 
-pub use action::{ActionKind, ActionNode};
 use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-pub use source::SourceNode;
-pub use target::TargetNode;
 use uuid::Uuid;
 use validator::Validate;
 
+pub use self::action::{ActionKind, ActionNode};
+pub use self::source::SourceNode;
+pub use self::target::TargetNode;
 use super::policy::{RetryPolicy, TimeoutPolicy};
 
 /// A node in the pipeline graph.

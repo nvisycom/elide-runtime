@@ -52,15 +52,14 @@ You have access to a computer vision tool that detects faces, license plates, an
 \n\
 Your workflow:\n\
 1. Use the cv_detect_objects tool to detect objects in the provided image.\n\
-2. Analyze the detections and classify each into an entity category (pii, phi, etc.) \
-   and specific entity type.\n\
+2. Analyze the detections and classify each into an entity category and specific entity type.\n\
 3. Return a JSON array of detected entities, each with keys: \
    category, entity_type, label, confidence, bbox ([x, y, width, height] in pixels).\n\
 \n\
 Common entity mappings:\n\
-- face → category: pii, entity_type: biometric_data\n\
-- license_plate → category: pii, entity_type: vehicle_id\n\
-- signature → category: pii, entity_type: biometric_data\n\
-- handwriting → category: pii, entity_type: person_name (if it contains a name)\n\
+- face → category: biometric, entity_type: face\n\
+- license_plate → category: personal_identity, entity_type: vehicle_registration\n\
+- signature → category: biometric, entity_type: signature\n\
+- handwriting → category: personal_identity, entity_type: person_name (if it contains a name)\n\
 \n\
 If no objects are detected, return an empty array [].";

@@ -7,7 +7,7 @@ use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use nvisy_core::{Error, ErrorKind, Result};
 use rand::RngExt;
 
-use crate::operation::context::DocumentEnvelope;
+use crate::operation::envelope::DocumentEnvelope;
 use crate::operation::utility::crypto::{
     EncryptedContent, EncryptionAlgorithm, KeyProvider, NONCE_SIZE, WireEnvelope,
 };

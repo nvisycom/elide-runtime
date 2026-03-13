@@ -15,6 +15,7 @@
 //! | Lifecycle      | [`lifecycle`] | Content I/O (import, export, encrypt)    |
 
 mod context;
+pub mod envelope;
 pub mod inference;
 pub mod lifecycle;
 pub mod processing;
@@ -22,10 +23,10 @@ pub mod utility;
 
 use std::future::Future;
 
-pub use context::{
-    DocumentEnvelope, OperationContext, ParallelContext, SequentialContext, SharedContext,
-};
 use nvisy_core::Result;
+
+pub use self::context::{OperationContext, ParallelContext, SequentialContext, SharedContext};
+pub use self::envelope::DocumentEnvelope;
 
 /// A single unit of work in the redaction pipeline.
 ///

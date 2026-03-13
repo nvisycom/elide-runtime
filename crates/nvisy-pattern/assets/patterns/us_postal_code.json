@@ -1,6 +1,6 @@
 {
   "name": "us-postal-code",
-  "category": "pii",
+  "category": "contact_info",
   "entity_type": "postal_code",
   "pattern": {
     "regex": "\\b\\d{5}(?:-\\d{4})?\\b",

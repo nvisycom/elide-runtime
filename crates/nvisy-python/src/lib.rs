@@ -3,9 +3,7 @@
 #![doc = include_str!("../README.md")]
 
 pub mod bridge;
-pub mod ner;
-pub mod ocr;
-pub mod transcribe;
+pub mod exif;
 
 #[doc(hidden)]
 pub mod prelude;

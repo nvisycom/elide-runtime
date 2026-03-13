@@ -1,25 +1,15 @@
-//! [`PatternMatch`] and [`DetectionSource`] — output types from pattern scanning.
+//! [`RawMatch`]: output type from pattern scanning.
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
 
 use crate::patterns::ContextRule;
 
-/// How the match was produced.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DetectionSource {
-    /// Matched by a compiled regular expression.
-    Regex,
-    /// Matched by Aho-Corasick dictionary lookup.
-    Dictionary,
-    /// Injected by the deny list (known sensitive value).
-    DenyList,
-}
-
 /// A single match produced by [`PatternEngine::scan_text`](super::PatternEngine::scan_text).
 #[derive(Debug, Clone)]
-pub struct PatternMatch {
-    /// Name of the pattern that produced this match.
-    pub pattern_name: String,
+pub struct RawMatch {
+    /// Name of the pattern that produced this match, or `None` for
+    /// deny-list–injected matches.
+    pub pattern_name: Option<String>,
     /// Entity category of the match.
     pub category: EntityCategory,
     /// Entity kind of the match.
@@ -32,8 +22,38 @@ pub struct PatternMatch {
     pub end: usize,
     /// Confidence score assigned by the pattern definition.
     pub confidence: f64,
-    /// How this match was produced (regex, dictionary, or deny list).
-    pub source: DetectionSource,
+    /// Recognition methods that produced this match, ordered by
+    /// application time (e.g. `[Regex, Checksum]` when a regex
+    /// match was confirmed by a validator).
+    pub recognition_methods: Vec<RecognitionMethod>,
     /// Optional context rule for span-level co-occurrence scoring.
     pub context: Option<ContextRule>,
+}
+
+impl RawMatch {
+    /// Build an [`Entity`] from this match.
+    ///
+    /// The returned entity has no location or parent set: the caller
+    /// should attach those from the span context via
+    /// [`Entity::with_location`] and [`Entity::with_parent`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if `recognition_methods` is empty. All engine-produced
+    /// matches always carry at least one method.
+    pub fn into_entity(self) -> Entity {
+        debug_assert!(
+            !self.recognition_methods.is_empty(),
+            "RawMatch::into_entity requires at least one recognition method"
+        );
+        let mut entity = Entity::new(
+            self.category,
+            self.entity_kind,
+            self.value,
+            self.recognition_methods[0],
+            self.confidence,
+        );
+        entity.recognition_methods = self.recognition_methods;
+        entity
+    }
 }

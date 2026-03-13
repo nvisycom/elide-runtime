@@ -13,6 +13,7 @@ use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 use serde::Deserialize;
 
+use crate::operation::envelope::PolicyOutcome;
 use crate::operation::{Operation, ParallelContext};
 use crate::provenance::{RedactionDecision, RedactionRecord};
 
@@ -40,14 +41,6 @@ fn default_threshold() -> f64 {
     0.5
 }
 
-/// Output of policy evaluation: both pipeline decisions and audit records.
-pub struct EvaluatePolicyOutput {
-    /// Pipeline-facing redaction decisions.
-    pub decisions: Vec<RedactionDecision>,
-    /// Audit-facing redaction records.
-    pub records: Vec<RedactionRecord>,
-}
-
 /// Evaluates policy rules against detected entities and produces
 /// [`RedactionDecision`] and [`RedactionRecord`] pairs.
 ///
@@ -64,7 +57,7 @@ impl EvaluatePolicy {
         Ok(Self { params })
     }
 
-    pub async fn execute(&self, entities: Entities) -> Result<EvaluatePolicyOutput> {
+    pub async fn execute(&self, entities: Entities) -> Result<PolicyOutcome> {
         tracing::debug!(target: TARGET, entity_count = entities.len(), "evaluating policies");
         let default_spec = &self.params.default_spec;
         let default_threshold = self.params.default_confidence_threshold;
@@ -116,13 +109,13 @@ impl EvaluatePolicy {
             records.push(record);
         }
 
-        Ok(EvaluatePolicyOutput { decisions, records })
+        Ok(PolicyOutcome { decisions, records })
     }
 }
 
 impl Operation for EvaluatePolicy {
     type Input = ParallelContext<Entities>;
-    type Output = ParallelContext<EvaluatePolicyOutput>;
+    type Output = ParallelContext<PolicyOutcome>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.execute(data)).await

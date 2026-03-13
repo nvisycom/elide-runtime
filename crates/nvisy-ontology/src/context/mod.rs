@@ -12,10 +12,11 @@ pub mod geospatial;
 pub mod reference;
 pub mod temporal;
 
-pub use entry::{ContextEntry, ContextEntryData};
 use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+pub use self::entry::{ContextEntry, ContextEntryData};
 
 /// A collection of [`Context`]s attached to a pipeline run.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]

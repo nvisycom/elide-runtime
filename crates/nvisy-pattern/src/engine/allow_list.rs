@@ -1,4 +1,4 @@
-//! [`AllowList`] — exact-match suppression of known false positives.
+//! [`AllowList`]: exact-match suppression of known false positives.
 
 use std::collections::HashSet;
 

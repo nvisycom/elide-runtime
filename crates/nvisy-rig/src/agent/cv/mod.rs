@@ -12,12 +12,12 @@ mod tool;
 use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-pub use output::{CvEntities, CvEntity};
-use prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use serde::Serialize;
-use tool::CvRigTool;
 use uuid::Uuid;
 
+pub use self::output::{CvEntities, CvEntity};
+use self::prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
+use self::tool::CvRigTool;
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
 use crate::backend::UsageTracker;
 use crate::error::Error;

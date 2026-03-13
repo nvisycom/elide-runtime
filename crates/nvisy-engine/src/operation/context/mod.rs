@@ -19,15 +19,13 @@
 //! [`Operation::Input`]: crate::operation::Operation::Input
 //! [`Operation::Output`]: crate::operation::Operation::Output
 
-mod envelope;
 mod parallel;
 mod sequential;
 mod shared;
 
-pub use envelope::DocumentEnvelope;
-pub use parallel::ParallelContext;
-pub use sequential::SequentialContext;
-pub use shared::SharedContext;
+pub use self::parallel::ParallelContext;
+pub use self::sequential::SequentialContext;
+pub use self::shared::SharedContext;
 
 pub(crate) mod private {
     pub trait Sealed {}

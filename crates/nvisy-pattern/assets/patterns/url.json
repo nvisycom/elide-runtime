@@ -1,6 +1,6 @@
 {
   "name": "url",
-  "category": "pii",
+  "category": "contact_info",
   "entity_type": "url",
   "pattern": {
     "regex": "\\bhttps?://[^\\s/$.?#][^\\s]*\\b",

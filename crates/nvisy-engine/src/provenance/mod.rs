@@ -19,14 +19,14 @@ mod kind;
 mod action;
 mod record;
 
-pub use action::{
+pub use self::action::{
     InferenceAction, InferenceActionBuilder, LifecycleAction, LifecycleActionBuilder,
     ProcessingAction, ProcessingActionBuilder,
 };
-pub use audit::Audit;
-pub use entry::{AuditEntry, AuditEntryBuilder, AuditEntryBuilderError, AuditEntryStatus};
-pub use kind::{AuditEntryKind, InferenceKind, LifecycleKind, ProcessingKind};
-pub use record::{
+pub use self::audit::Audit;
+pub use self::entry::{AuditEntry, AuditEntryBuilder, AuditEntryBuilderError, AuditEntryStatus};
+pub use self::kind::{AuditEntryKind, InferenceKind, LifecycleKind, ProcessingKind};
+pub use self::record::{
     PolicyEvaluation, RedactionDecision, RedactionMap, RedactionMapEntry, RedactionRecord,
     ReviewDecision, ReviewStatus,
 };

@@ -44,7 +44,7 @@ pub struct Error {
     /// Human-readable description of what went wrong.
     pub message: String,
     /// Name of the component that produced this error (e.g. `"s3-read"`, `"detect-regex"`).
-    pub source_component: Option<String>,
+    pub component: Option<String>,
     /// Whether the operation that failed can be safely retried.
     pub retryable: bool,
     /// The underlying cause, if any.
@@ -58,7 +58,7 @@ impl Error {
         Self {
             kind,
             message: message.into(),
-            source_component: None,
+            component: None,
             retryable: false,
             source: None,
         }
@@ -72,7 +72,7 @@ impl Error {
 
     /// Tag this error with the name of the component that produced it.
     pub fn with_component(mut self, component: impl Into<String>) -> Self {
-        self.source_component = Some(component.into());
+        self.component = Some(component.into());
         self
     }
 

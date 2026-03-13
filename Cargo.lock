@@ -3061,6 +3061,7 @@ dependencies = [
  "pythonize",
  "serde_json",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

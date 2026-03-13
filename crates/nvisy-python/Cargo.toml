@@ -2,8 +2,8 @@
 
 [package]
 name = "nvisy-python"
-description = "PyO3 bridge for AI NER/OCR detection via embedded Python"
-keywords = ["nvisy", "python", "pyo3", "ner"]
+description = "PyO3 bridge for Python-backed processing via embedded Python"
+keywords = ["nvisy", "python", "pyo3", "exif"]
 categories = ["api-bindings"]
 readme = "README.md"
 
@@ -34,6 +34,9 @@ hipstr = { workspace = true, features = [] }
 
 # Async runtime and parallelism
 tokio = { workspace = true, features = ["sync", "rt"] }
+
+# Observability
+tracing = { workspace = true, features = [] }
 
 # Python interop
 pyo3 = { workspace = true, features = ["auto-initialize"] }

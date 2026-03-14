@@ -5,40 +5,31 @@ use nvisy_ontology::entity::EntityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Default minimum confidence threshold for NER detections.
-const DEFAULT_CONFIDENCE_THRESHOLD: f64 = 0.5;
-
 /// Configuration for the [`NamedEntityRecognition`](super::GraphNodeKind::NamedEntityRecognition) action.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct NamedEntityRecognitionAction {
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct NamedEntityRecognition {
     /// Entity kinds to detect. An empty list means all known kinds.
     #[serde(default)]
     pub entity_kinds: Vec<EntityKind>,
     /// Minimum confidence threshold for detections (0.0 to 1.0).
-    #[serde(default = "default_confidence_threshold")]
-    pub confidence_threshold: f64,
+    /// When `None`, confidence filtering is disabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confidence_threshold: Option<f64>,
 }
 
-impl Default for NamedEntityRecognitionAction {
-    fn default() -> Self {
-        Self {
-            entity_kinds: Vec::new(),
-            confidence_threshold: DEFAULT_CONFIDENCE_THRESHOLD,
-        }
-    }
-}
-
-impl NamedEntityRecognitionAction {
-    /// Validates that the confidence threshold is within `0.0..=1.0`.
+impl NamedEntityRecognition {
+    /// Validates that the confidence threshold, if set, is within `0.0..=1.0`.
     pub fn validate(&self) -> Result<(), Error> {
-        if !(0.0..=1.0).contains(&self.confidence_threshold) {
-            return Err(Error::validation(
-                format!(
-                    "confidence_threshold must be between 0.0 and 1.0, got {}",
-                    self.confidence_threshold,
-                ),
-                "compiler",
-            ));
+        if let Some(t) = self.confidence_threshold {
+            if !(0.0..=1.0).contains(&t) {
+                return Err(Error::validation(
+                    format!(
+                        "confidence_threshold must be between 0.0 and 1.0, got {}",
+                        t,
+                    ),
+                    "compiler",
+                ));
+            }
         }
         Ok(())
     }
@@ -46,7 +37,7 @@ impl NamedEntityRecognitionAction {
 
 /// Configuration for the [`PatternRecognition`](super::GraphNodeKind::PatternRecognition) action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct PatternRecognitionAction {
+pub struct PatternRecognition {
     /// Enable format heuristics, entropy, and structural cues.
     #[serde(default)]
     pub heuristic: bool,
@@ -58,7 +49,7 @@ pub struct PatternRecognitionAction {
     pub second_pass: bool,
 }
 
-impl Default for PatternRecognitionAction {
+impl Default for PatternRecognition {
     fn default() -> Self {
         Self {
             heuristic: false,
@@ -70,8 +61,4 @@ impl Default for PatternRecognitionAction {
 
 fn default_true() -> bool {
     true
-}
-
-fn default_confidence_threshold() -> f64 {
-    DEFAULT_CONFIDENCE_THRESHOLD
 }

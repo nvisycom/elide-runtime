@@ -7,8 +7,7 @@
 
 use std::path::PathBuf;
 
-use nvisy_engine::RuntimeConfig;
-use nvisy_engine::pipeline::DefaultEngine;
+use nvisy_engine::{DefaultEngine, RuntimeConfig};
 use nvisy_http::HttpClient;
 use nvisy_registry::Registry;
 

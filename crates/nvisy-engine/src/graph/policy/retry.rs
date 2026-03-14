@@ -1,4 +1,4 @@
-//! Retry policy types and backoff strategies.
+//! User-facing retry policy configuration.
 //!
 //! [`RetryPolicy`] configures how many times a failed node should be retried,
 //! the base delay between attempts, and the [`BackoffStrategy`] to use.

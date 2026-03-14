@@ -1,10 +1,8 @@
-//! Compiled runtime policies and execution helpers.
+//! Compiled runtime policy types stored on [`ResolvedNode`](super::ResolvedNode).
 //!
-//! The compiler-level [`RetryPolicy`](crate::compiler::RetryPolicy) and
-//! [`TimeoutPolicy`](crate::compiler::TimeoutPolicy) are user-facing
-//! configuration types. This module provides their compiled runtime
-//! counterparts ([`CompiledRetryPolicy`], [`CompiledTimeoutPolicy`])
-//! with `with_retry` and `with_timeout` methods.
+//! These types convert user-facing config types from [`crate::graph::policy`]
+//! into runtime representations with pre-computed [`Duration`](std::time::Duration)
+//! values and async execution helpers.
 
 mod retry;
 mod timeout;

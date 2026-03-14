@@ -3,7 +3,7 @@ use nvisy_rig::agent::{AgentConfig, AgentProvider};
 use nvisy_rig::audio::{SttProvider, TtsProvider};
 use serde::{Deserialize, Serialize};
 
-use crate::compiler::{RetryPolicy, TimeoutPolicy};
+use crate::graph::policy::{RetryPolicy, TimeoutPolicy};
 
 /// OCR subsystem configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]

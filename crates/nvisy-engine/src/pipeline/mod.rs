@@ -7,12 +7,13 @@
 //! [`DefaultEngine`] is the standard implementation that orchestrates the
 //! detect -> evaluate -> redact pipeline and drives the DAG execution graph.
 
-mod config;
+pub mod config;
 mod default;
 mod executor;
 mod ontology;
-mod policy;
-mod runs;
+mod plan;
+pub(crate) mod policy;
+pub mod runs;
 
 use std::future::Future;
 
@@ -26,10 +27,11 @@ pub use self::config::{
     EngineSection, LlmSection, OcrSection, RuntimeConfig, SttSection, TtsSection,
 };
 pub use self::default::DefaultEngine;
-pub use self::executor::{NodeOutput, RunOutput};
 pub use self::ontology::{Explainable, Explanation};
-pub use self::runs::{NodeProgress, RunManager, RunState, RunStatus, RunSummary};
-use crate::compiler::Graph;
+pub use self::runs::{
+    NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
+};
+use crate::graph::Graph;
 use crate::provenance::{Audit, PolicyEvaluation, RedactionMap};
 
 /// Everything the caller must provide to run a redaction pipeline.
@@ -57,7 +59,7 @@ pub struct EngineInput {
 /// Full result of a pipeline run.
 ///
 /// Contains per-phase breakdown (detection, classification, policy evaluation),
-/// per-source summaries, audit records, and the raw DAG execution result.
+/// per-source summaries, and audit records.
 pub struct EngineOutput {
     /// Unique run identifier.
     pub run_id: Uuid,
@@ -71,8 +73,6 @@ pub struct EngineOutput {
     pub file_audits: Vec<Audit>,
     /// Redaction mapping artifacts.
     pub redaction_maps: Vec<RedactionMap>,
-    /// Per-node execution results from the DAG runner.
-    pub run_output: RunOutput,
 }
 
 /// The top-level redaction engine contract.
@@ -82,4 +82,21 @@ pub struct EngineOutput {
 pub trait Engine: Send + Sync {
     /// Execute a full redaction pipeline.
     fn run(&self, input: EngineInput) -> impl Future<Output = Result<EngineOutput, Error>> + Send;
+}
+
+/// Read-only access to pipeline run state.
+///
+/// Runs are created internally by [`Engine::run()`]. External callers
+/// can inspect and cancel runs through this trait.
+pub trait Runs: Send + Sync {
+    /// Get a full snapshot of a single run.
+    fn get_run(&self, id: Uuid) -> impl Future<Output = Option<RunSnapshot>> + Send;
+
+    /// List runs matching the given filter.
+    fn list_runs(&self, filter: RunFilter) -> impl Future<Output = Vec<RunSummary>> + Send;
+
+    /// Request cancellation of an in-progress run.
+    ///
+    /// Returns `Err` if the run was not found or has already finished.
+    fn cancel_run(&self, id: Uuid) -> impl Future<Output = Result<(), Error>> + Send;
 }

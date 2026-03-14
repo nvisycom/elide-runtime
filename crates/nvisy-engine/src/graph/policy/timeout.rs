@@ -1,4 +1,6 @@
-//! Timeout configuration for pipeline graph nodes.
+//! User-facing timeout policy configuration.
+//!
+//! [`TimeoutPolicy`] controls how long a node may run before timing out.
 
 use std::time::Duration;
 

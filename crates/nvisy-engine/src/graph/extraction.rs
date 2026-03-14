@@ -4,17 +4,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Configuration for the [`VisualExtraction`](super::GraphNodeKind::VisualExtraction) action.
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
-pub struct VisualExtractionAction {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct VisualExtraction {
     /// Run a secondary LLM verification pass on OCR results.
     #[serde(default)]
     pub verification: bool,
@@ -24,17 +16,9 @@ pub struct VisualExtractionAction {
 }
 
 /// Configuration for the [`AudialExtraction`](super::GraphNodeKind::AudialExtraction) action.
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
-pub struct AudialExtractionAction {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct AudialExtraction {
     /// Segment the audio by speaker identity.
     #[serde(default)]
     pub diarization: bool,

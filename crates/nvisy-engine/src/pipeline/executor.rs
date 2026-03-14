@@ -1,23 +1,24 @@
 //! Node-level execution dispatchers.
 //!
 //! [`execute_node`] dispatches each graph node to the appropriate handler
-//! based on its [`GraphNodeKind`]. A per-node timeout is applied when
-//! configured, with [`TimeoutBehavior`] controlling whether a timeout
-//! is treated as an error or silently yields zero items.
+//! based on its [`GraphNodeKind`]. Pre-compiled timeout and retry policies
+//! from the [`ResolvedNode`] are applied directly, with
+//! [`TimeoutBehavior`] controlling whether a timeout is treated as an error
+//! or silently yields zero items.
 
 use nvisy_core::content::ContentData;
 use nvisy_core::{Error, ErrorKind};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::policy::CompiledTimeoutPolicy;
-use crate::compiler::{GraphNode, GraphNodeKind, TimeoutBehavior};
+use super::plan::ResolvedNode;
+use crate::graph::GraphNodeKind;
+use crate::graph::policy::TimeoutBehavior;
 
 /// Outcome of executing a single node in the pipeline.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct NodeOutput {
+#[derive(Debug, Clone)]
+pub(super) struct NodeOutput {
     /// ID of the node that produced this result.
     pub node_id: Uuid,
     /// Number of data items processed by this node.
@@ -27,32 +28,41 @@ pub struct NodeOutput {
 }
 
 /// Aggregate outcome of executing an entire pipeline graph.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct RunOutput {
-    /// Unique identifier for this execution run.
-    pub run_id: Uuid,
+#[derive(Debug, Clone)]
+pub(super) struct RunOutput {
     /// Per-node results in completion order.
     pub node_results: Vec<NodeOutput>,
-    /// `true` if all nodes completed without error.
-    pub success: bool,
 }
 
-/// Executes a single graph node by dispatching on its [`GraphNodeKind`].
+/// Executes a single resolved node by dispatching on its [`GraphNodeKind`].
 ///
-/// A per-node timeout is applied when configured. The [`TimeoutBehavior`]
-/// determines whether a timeout is treated as an error (`Fail`) or silently
-/// yields zero items (`Skip`).
-pub(crate) async fn execute_node(
-    node: &GraphNode,
+/// Uses pre-compiled timeout and retry policies from the [`ResolvedNode`]
+/// instead of compiling them inline. Checks the `cancel` token before and
+/// during execution to support cooperative cancellation.
+pub(super) async fn execute_node(
+    resolved: &ResolvedNode,
     senders: Vec<mpsc::Sender<ContentData>>,
     mut receivers: Vec<mpsc::Receiver<ContentData>>,
+    cancel: CancellationToken,
 ) -> Result<u64, Error> {
-    let run = async { execute_action(&node.kind, &senders, &mut receivers).await };
+    if cancel.is_cancelled() {
+        return Err(Error::cancellation("run cancelled"));
+    }
 
-    match node.timeout() {
-        Some(policy) => {
-            let compiled = CompiledTimeoutPolicy::from(policy);
-            let result = compiled.with_timeout(run).await;
+    let run = async {
+        tokio::select! {
+            _ = cancel.cancelled() => {
+                Err(Error::cancellation("run cancelled"))
+            }
+            result = execute_action(&resolved.node.kind, &senders, &mut receivers) => {
+                result
+            }
+        }
+    };
+
+    match &resolved.compiled_timeout {
+        Some(compiled) => {
+            let result: Result<u64, Error> = compiled.with_timeout(run).await;
             match (&result, &compiled.on_timeout) {
                 (Err(e), TimeoutBehavior::Skip) if e.kind == ErrorKind::Timeout => Ok(0),
                 _ => result,

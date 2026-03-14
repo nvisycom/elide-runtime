@@ -1,11 +1,11 @@
-//! Compiled timeout policy and execution helper.
+//! Compiled timeout policy with pre-computed duration and async execution helper.
 
 use std::time::Duration;
 
 use nvisy_core::Error;
 use tokio::time;
 
-use crate::compiler::{TimeoutBehavior, TimeoutPolicy};
+use crate::graph::policy::{TimeoutBehavior, TimeoutPolicy};
 
 /// Pre-compiled timeout policy ready for runtime use.
 ///

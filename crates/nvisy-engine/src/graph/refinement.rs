@@ -4,17 +4,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Configuration for the [`Fusion`](super::GraphNodeKind::Fusion) action.
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
-pub struct FusionAction {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Fusion {
     /// Remove overlapping duplicate entities before fusion.
     #[serde(default)]
     pub entity_deduplication: bool,
@@ -27,17 +19,9 @@ pub struct FusionAction {
 }
 
 /// Configuration for the [`Redaction`](super::GraphNodeKind::Redaction) action.
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
-pub struct RedactionAction {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Redaction {
     /// Run a validation pass on the redacted output.
     #[serde(default)]
     pub validation: bool,

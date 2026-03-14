@@ -8,6 +8,7 @@
 mod context;
 mod extraction;
 mod lifecycle;
+pub mod policy;
 mod recognition;
 mod refinement;
 
@@ -19,12 +20,12 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-pub use self::context::{GenerateContextAction, LoadContextAction, SaveContextAction};
-pub use self::extraction::{AudialExtractionAction, VisualExtractionAction};
-pub use self::lifecycle::{ExportAction, ImportAction};
-pub use self::recognition::{NamedEntityRecognitionAction, PatternRecognitionAction};
-pub use self::refinement::{FusionAction, RedactionAction};
-use super::policy::{RetryPolicy, TimeoutPolicy};
+pub use self::context::{GenerateContext, LoadContext, SaveContext};
+pub use self::extraction::{AudialExtraction, VisualExtraction};
+pub use self::lifecycle::{Export, Import};
+use self::policy::{RetryPolicy, TimeoutPolicy};
+pub use self::recognition::{NamedEntityRecognition, PatternRecognition};
+pub use self::refinement::{Fusion, Redaction};
 
 /// The set of strongly-typed actions a pipeline node can perform.
 ///
@@ -34,31 +35,31 @@ use super::policy::{RetryPolicy, TimeoutPolicy};
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum GraphNodeKind {
     /// Loads reference-data contexts required by downstream actions.
-    LoadContext(LoadContextAction),
+    LoadContext(LoadContext),
     /// Persists contexts produced during the pipeline run.
-    SaveContext(SaveContextAction),
+    SaveContext(SaveContext),
     /// Generates a new context from detection results and content data.
-    GenerateContext(GenerateContextAction),
+    GenerateContext(GenerateContext),
 
     /// Extracts text and entities from images and scanned documents.
-    VisualExtraction(VisualExtractionAction),
+    VisualExtraction(VisualExtraction),
     /// Extracts text from speech audio.
-    AudialExtraction(AudialExtractionAction),
+    AudialExtraction(AudialExtraction),
 
     /// Detects named entities via language model inference.
-    NamedEntityRecognition(NamedEntityRecognitionAction),
+    NamedEntityRecognition(NamedEntityRecognition),
     /// Detects entities via regex, checksum, dictionary, and heuristic rules.
-    PatternRecognition(PatternRecognitionAction),
+    PatternRecognition(PatternRecognition),
 
     /// Merges and scores entities from multiple detection sources.
-    Fusion(FusionAction),
+    Fusion(Fusion),
     /// Applies redaction instructions to produce output content.
-    Redaction(RedactionAction),
+    Redaction(Redaction),
 
     /// Imports content into the pipeline for processing.
-    Import(ImportAction),
+    Import(Import),
     /// Exports processed content to a target destination.
-    Export(ExportAction),
+    Export(Export),
 }
 
 impl GraphNodeKind {

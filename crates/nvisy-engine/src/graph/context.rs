@@ -7,12 +7,12 @@ use uuid::Uuid;
 
 /// Configuration for the [`LoadContext`](super::GraphNodeKind::LoadContext) action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct LoadContextAction {
+pub struct LoadContext {
     /// Context identifiers to load.
     pub context_ids: Vec<Uuid>,
 }
 
-impl LoadContextAction {
+impl LoadContext {
     /// Validates that at least one context ID is specified.
     pub fn validate(&self) -> Result<(), Error> {
         if self.context_ids.is_empty() {
@@ -27,12 +27,12 @@ impl LoadContextAction {
 
 /// Configuration for the [`SaveContext`](super::GraphNodeKind::SaveContext) action.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct SaveContextAction {
+pub struct SaveContext {
     /// Context identifiers to persist.
     pub context_ids: Vec<Uuid>,
 }
 
-impl SaveContextAction {
+impl SaveContext {
     /// Validates that at least one context ID is specified.
     pub fn validate(&self) -> Result<(), Error> {
         if self.context_ids.is_empty() {
@@ -46,17 +46,9 @@ impl SaveContextAction {
 }
 
 /// Configuration for the [`GenerateContext`](super::GraphNodeKind::GenerateContext) action.
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
-pub struct GenerateContextAction {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct GenerateContext {
     /// Include a span-level summary in the generated context.
     #[serde(default)]
     pub summarization: bool,

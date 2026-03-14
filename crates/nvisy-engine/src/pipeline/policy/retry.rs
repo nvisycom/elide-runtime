@@ -1,11 +1,11 @@
-//! Compiled retry policy and execution helper.
+//! Compiled retry policy with pre-computed delay and async execution helper.
 
 use std::time::Duration;
 
 use nvisy_core::Error;
 use tokio::time;
 
-use crate::compiler::{BackoffStrategy, RetryPolicy};
+use crate::graph::policy::{BackoffStrategy, RetryPolicy};
 
 /// Pre-compiled retry policy ready for runtime use.
 ///

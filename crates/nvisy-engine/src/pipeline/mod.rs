@@ -28,9 +28,7 @@ pub use self::config::{
 };
 pub use self::default::DefaultEngine;
 pub use self::ontology::{Explainable, Explanation};
-pub use self::runs::{
-    NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
-};
+pub use self::runs::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
 use crate::graph::Graph;
 use crate::provenance::{Audit, PolicyEvaluation, RedactionMap};
 

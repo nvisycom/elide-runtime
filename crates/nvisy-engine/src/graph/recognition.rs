@@ -20,16 +20,13 @@ pub struct NamedEntityRecognition {
 impl NamedEntityRecognition {
     /// Validates that the confidence threshold, if set, is within `0.0..=1.0`.
     pub fn validate(&self) -> Result<(), Error> {
-        if let Some(t) = self.confidence_threshold {
-            if !(0.0..=1.0).contains(&t) {
-                return Err(Error::validation(
-                    format!(
-                        "confidence_threshold must be between 0.0 and 1.0, got {}",
-                        t,
-                    ),
-                    "compiler",
-                ));
-            }
+        if let Some(t) = self.confidence_threshold
+            && !(0.0..=1.0).contains(&t)
+        {
+            return Err(Error::validation(
+                format!("confidence_threshold must be between 0.0 and 1.0, got {t}"),
+                "compiler",
+            ));
         }
         Ok(())
     }

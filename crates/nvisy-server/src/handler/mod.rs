@@ -15,7 +15,7 @@ pub mod utility;
 mod check;
 mod contexts;
 mod files;
-mod process;
+mod runs;
 
 mod request;
 mod response;
@@ -31,5 +31,5 @@ pub fn routes() -> ApiRouter<ServiceState> {
         .merge(check::routes())
         .merge(contexts::routes())
         .merge(files::routes())
-        .merge(process::routes())
+        .merge(runs::routes())
 }

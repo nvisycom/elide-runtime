@@ -3107,6 +3107,7 @@ dependencies = [
  "aide",
  "axum",
  "base64",
+ "derive_more",
  "futures",
  "jiff",
  "nvisy-core",

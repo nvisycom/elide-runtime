@@ -1,4 +1,4 @@
-//! Typed request bodies for API endpoints.
+//! Typed request bodies and path parameters for API endpoints.
 //!
 //! Each struct derives [`Deserialize`](serde::Deserialize) and
 //! [`JsonSchema`](schemars::JsonSchema) for automatic OpenAPI schema
@@ -7,9 +7,9 @@
 mod contexts;
 mod files;
 mod path;
-mod process;
+mod runs;
 
 pub use self::contexts::NewContext;
 pub use self::files::NewFile;
-pub use self::path::{ActorQuery, ContentPath, ContextPath};
-pub use self::process::NewProcess;
+pub use self::path::{ContentPath, ContextPath, RunPath};
+pub use self::runs::NewRun;

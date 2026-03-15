@@ -1,9 +1,13 @@
-//! Pipeline run data types.
+//! Pipeline run data types and the [`Runs`] trait.
 //!
 //! Pure data definitions for run lifecycle tracking. All mutation and
-//! querying happens through the [`Runs`](super::Runs) trait.
+//! querying happens through the [`Runs`] trait, implemented on
+//! [`DefaultEngine`](super::DefaultEngine).
+
+use std::future::Future;
 
 use jiff::Timestamp;
+use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -103,4 +107,21 @@ pub struct RunFilter {
     pub status: Option<RunStatus>,
     /// If set, only return runs belonging to this actor.
     pub actor_id: Option<Uuid>,
+}
+
+/// Read-only access to pipeline run state.
+///
+/// Runs are created internally by [`Engine::run()`](super::Engine::run).
+/// External callers can inspect and cancel runs through this trait.
+pub trait Runs: Send + Sync {
+    /// Get a full snapshot of a single run.
+    fn get_run(&self, id: Uuid) -> impl Future<Output = Option<RunSnapshot>> + Send;
+
+    /// List runs matching the given filter.
+    fn list_runs(&self, filter: RunFilter) -> impl Future<Output = Vec<RunSummary>> + Send;
+
+    /// Request cancellation of an in-progress run.
+    ///
+    /// Returns `Err` if the run was not found or has already finished.
+    fn cancel_run(&self, id: Uuid) -> impl Future<Output = Result<(), Error>> + Send;
 }

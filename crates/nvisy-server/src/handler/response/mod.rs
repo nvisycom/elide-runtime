@@ -1,18 +1,17 @@
-//! Typed response bodies and error types for API endpoints.
+//! Typed response bodies for API endpoints.
 //!
 //! Each struct derives [`Serialize`](serde::Serialize) and
 //! [`JsonSchema`](schemars::JsonSchema) for automatic OpenAPI schema
-//! generation via aide. [`ErrorResponse`] is the serializable JSON
-//! body returned by every error path.
+//! generation via aide.
 
 mod check;
 mod contexts;
 mod error;
 mod files;
-mod process;
+mod runs;
 
 pub use self::check::{Analytics, Health, ServiceStatus};
 pub use self::contexts::{Context, ContextId, ContextList};
 pub use self::error::ErrorResponse;
 pub use self::files::{File, FileId, FileList};
-pub use self::process::ProcessResult;
+pub use self::runs::{Run, RunList, RunResult};

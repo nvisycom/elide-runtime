@@ -207,6 +207,10 @@ impl Graph {
             })?;
         }
 
+        // Collect in-degree and out-degree per node for structural checks
+        let mut in_degree: HashMap<Uuid, usize> = HashMap::new();
+        let mut out_degree: HashMap<Uuid, usize> = HashMap::new();
+
         let mut seen_edges = HashSet::with_capacity(self.edges.len());
         for edge in &self.edges {
             if edge.source == edge.target {
@@ -247,6 +251,30 @@ impl Graph {
                     ),
                     "compiler",
                 ));
+            }
+
+            *out_degree.entry(edge.source).or_default() += 1;
+            *in_degree.entry(edge.target).or_default() += 1;
+        }
+
+        for node in &self.nodes {
+            let incoming = in_degree.get(&node.id).copied().unwrap_or(0);
+            let outgoing = out_degree.get(&node.id).copied().unwrap_or(0);
+
+            match &node.kind {
+                GraphNodeKind::Import(_) if incoming > 0 => {
+                    return Err(Error::validation(
+                        format!("import node {} must not have incoming edges", node.id),
+                        "compiler",
+                    ));
+                }
+                GraphNodeKind::Export(_) if outgoing > 0 => {
+                    return Err(Error::validation(
+                        format!("export node {} must not have outgoing edges", node.id),
+                        "compiler",
+                    ));
+                }
+                _ => {}
             }
         }
 

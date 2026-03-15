@@ -7,13 +7,13 @@
 //! [`DefaultEngine`] is the standard implementation that orchestrates the
 //! detect -> evaluate -> redact pipeline and drives the DAG execution graph.
 
-pub mod config;
+mod config;
 mod default;
 mod executor;
 mod ontology;
 mod plan;
 pub(crate) mod policy;
-pub mod runs;
+mod runs;
 
 use std::future::Future;
 
@@ -28,7 +28,9 @@ pub use self::config::{
 };
 pub use self::default::DefaultEngine;
 pub use self::ontology::{Explainable, Explanation};
-pub use self::runs::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
+pub use self::runs::{
+    NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary, Runs,
+};
 use crate::graph::Graph;
 use crate::provenance::{Audit, PolicyEvaluation, RedactionMap};
 
@@ -44,14 +46,8 @@ pub struct EngineInput {
     pub graph: Graph,
     /// Reference-data contexts for detection.
     pub contexts: Contexts,
-    /// OCR subsystem configuration.
-    pub ocr: Option<OcrSection>,
-    /// LLM subsystem configuration.
-    pub llm: Option<LlmSection>,
-    /// Speech-to-text subsystem configuration.
-    pub stt: Option<SttSection>,
-    /// Text-to-speech subsystem configuration.
-    pub tts: Option<TtsSection>,
+    /// Per-request configuration overrides (merged with engine defaults).
+    pub config: Option<RuntimeConfig>,
 }
 
 /// Full result of a pipeline run.
@@ -80,21 +76,4 @@ pub struct EngineOutput {
 pub trait Engine: Send + Sync {
     /// Execute a full redaction pipeline.
     fn run(&self, input: EngineInput) -> impl Future<Output = Result<EngineOutput, Error>> + Send;
-}
-
-/// Read-only access to pipeline run state.
-///
-/// Runs are created internally by [`Engine::run()`]. External callers
-/// can inspect and cancel runs through this trait.
-pub trait Runs: Send + Sync {
-    /// Get a full snapshot of a single run.
-    fn get_run(&self, id: Uuid) -> impl Future<Output = Option<RunSnapshot>> + Send;
-
-    /// List runs matching the given filter.
-    fn list_runs(&self, filter: RunFilter) -> impl Future<Output = Vec<RunSummary>> + Send;
-
-    /// Request cancellation of an in-progress run.
-    ///
-    /// Returns `Err` if the run was not found or has already finished.
-    fn cancel_run(&self, id: Uuid) -> impl Future<Output = Result<(), Error>> + Send;
 }

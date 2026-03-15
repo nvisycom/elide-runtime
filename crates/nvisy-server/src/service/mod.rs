@@ -17,8 +17,6 @@ use nvisy_registry::Registry;
 pub struct ServiceState {
     engine: DefaultEngine,
     registry: Registry,
-    config: RuntimeConfig,
-    data_dir: PathBuf,
 }
 
 impl ServiceState {
@@ -28,7 +26,7 @@ impl ServiceState {
     ///
     /// Returns an error if the registry database cannot be opened.
     pub fn new(config: RuntimeConfig, data_dir: PathBuf) -> nvisy_core::Result<Self> {
-        let registry = Registry::open(data_dir.clone())?;
+        let registry = Registry::open(data_dir)?;
 
         let http_config = config
             .engine
@@ -37,25 +35,32 @@ impl ServiceState {
             .unwrap_or_default();
         let http_client = HttpClient::new(&http_config);
 
-        let mut engine = DefaultEngine::new().with_http_client(http_client);
-        if let Some(retry) = config.engine.as_ref().and_then(|e| e.retry.clone()) {
+        let mut engine = DefaultEngine::new()
+            .with_config(config)
+            .with_http_client(http_client);
+        if let Some(retry) = engine
+            .config()
+            .engine
+            .as_ref()
+            .and_then(|e| e.retry.clone())
+        {
             engine = engine.with_retry(retry);
         }
-        if let Some(timeout) = config.engine.as_ref().and_then(|e| e.timeout.clone()) {
+        if let Some(timeout) = engine
+            .config()
+            .engine
+            .as_ref()
+            .and_then(|e| e.timeout.clone())
+        {
             engine = engine.with_timeout(timeout);
         }
 
-        Ok(Self {
-            engine,
-            registry,
-            config,
-            data_dir,
-        })
+        Ok(Self { engine, registry })
     }
 
-    /// Returns the resolved data directory.
+    /// Returns the data directory path from the registry.
     pub fn data_dir(&self) -> &std::path::Path {
-        &self.data_dir
+        self.registry.base_dir()
     }
 }
 
@@ -72,5 +77,4 @@ macro_rules! impl_di {
 impl_di!(
     engine: DefaultEngine,
     registry: Registry,
-    config: RuntimeConfig,
 );

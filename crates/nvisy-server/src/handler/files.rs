@@ -13,16 +13,16 @@
 use aide::axum::ApiRouter;
 use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use nvisy_core::content::{Content, ContentData, ContentMetadata};
 use nvisy_registry::Registry;
 
 use super::error::Result;
-use super::request::{ActorQuery, ContentPath, NewFile};
+use super::request::{ContentPath, NewFile};
 use super::response::{File, FileId, FileList};
 use super::utility::Base64;
-use crate::extract::{Json, Path};
+use crate::extract::{ActorId, Json, Path};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::files";
@@ -31,10 +31,11 @@ const TARGET: &str = "nvisy_server::files";
 #[tracing::instrument(
     target = "nvisy_server::files",
     skip_all,
-    fields(%req.actor_id, filename = req.filename.as_deref()),
+    fields(%actor_id, filename = req.filename.as_deref()),
 )]
 async fn upload(
     State(registry): State<Registry>,
+    ActorId(actor_id): ActorId,
     Json(req): Json<NewFile>,
 ) -> Result<(StatusCode, Json<FileId>)> {
     let bytes = req.content.decode()?;
@@ -57,7 +58,7 @@ async fn upload(
     }
 
     let content = Content::with_metadata(content_data, metadata);
-    let handle = registry.register_content(req.actor_id, content).await?;
+    let handle = registry.register_content(actor_id, content).await?;
     let id = handle.content_source().as_uuid();
 
     tracing::info!(
@@ -89,8 +90,8 @@ fn upload_docs(op: TransformOperation) -> TransformOperation {
 )]
 async fn download(
     State(registry): State<Registry>,
+    ActorId(actor_id): ActorId,
     Path(ContentPath { id }): Path<ContentPath>,
-    Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<Json<File>> {
     let handle = registry.read_content(actor_id, id).await?;
     let content_data = handle.content_data().await?;
@@ -124,7 +125,7 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
 )]
 async fn list(
     State(registry): State<Registry>,
-    Query(ActorQuery { actor_id }): Query<ActorQuery>,
+    ActorId(actor_id): ActorId,
 ) -> Result<Json<FileList>> {
     let files = registry.list_content(actor_id).await?;
     tracing::debug!(target: TARGET, count = files.len(), "files listed");
@@ -146,8 +147,8 @@ fn list_docs(op: TransformOperation) -> TransformOperation {
 )]
 async fn delete(
     State(registry): State<Registry>,
+    ActorId(actor_id): ActorId,
     Path(ContentPath { id }): Path<ContentPath>,
-    Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<StatusCode> {
     registry.unregister_content(actor_id, id).await?;
     tracing::info!(target: TARGET, "file deleted");
@@ -169,7 +170,7 @@ fn delete_docs(op: TransformOperation) -> TransformOperation {
 )]
 async fn delete_all(
     State(registry): State<Registry>,
-    Query(ActorQuery { actor_id }): Query<ActorQuery>,
+    ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
     let deleted = registry.unregister_all_content(actor_id).await?;
     tracing::info!(target: TARGET, deleted, "all files deleted");

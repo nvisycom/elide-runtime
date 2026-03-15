@@ -62,6 +62,9 @@ schemars = { workspace = true, features = [] }
 # Encoding and hashing
 base64 = { workspace = true, features = [] }
 
+# Derive macros
+derive_more = { workspace = true, features = ["deref", "display"] }
+
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }

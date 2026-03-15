@@ -21,10 +21,11 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+use super::config::RuntimeConfig;
 use super::executor::{NodeOutput, RunOutput, execute_node};
 use super::plan::{self, ExecutionPlan};
-use super::runs::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
-use super::{Engine, EngineInput, EngineOutput, Runs};
+use super::runs::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary, Runs};
+use super::{Engine, EngineInput, EngineOutput};
 use crate::graph::policy::{RetryPolicy, TimeoutPolicy};
 use crate::operation::SharedContext;
 use crate::provenance::PolicyEvaluation;
@@ -66,6 +67,7 @@ impl RunEntry {
 impl Clone for DefaultEngineInner {
     fn clone(&self) -> Self {
         Self {
+            config: self.config.clone(),
             default_retry: self.default_retry.clone(),
             default_timeout: self.default_timeout.clone(),
             http_client: self.http_client.clone(),
@@ -76,6 +78,8 @@ impl Clone for DefaultEngineInner {
 
 /// Inner state shared behind an [`Arc`].
 struct DefaultEngineInner {
+    /// Base runtime configuration (OCR, LLM, STT, TTS sections).
+    config: RuntimeConfig,
     /// Default retry policy for graph nodes.
     default_retry: Option<RetryPolicy>,
     /// Default timeout policy for graph nodes.
@@ -89,6 +93,7 @@ struct DefaultEngineInner {
 impl Default for DefaultEngineInner {
     fn default() -> Self {
         Self {
+            config: RuntimeConfig::default(),
             default_retry: None,
             default_timeout: None,
             http_client: HttpClient::default(),
@@ -108,6 +113,7 @@ pub struct DefaultEngine {
 impl std::fmt::Debug for DefaultEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultEngine")
+            .field("config", &self.inner.config)
             .field("default_retry", &self.inner.default_retry)
             .field("default_timeout", &self.inner.default_timeout)
             .field("http_client", &self.inner.http_client)
@@ -119,6 +125,12 @@ impl DefaultEngine {
     /// Create a new engine with no default policies.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the base runtime configuration.
+    pub fn with_config(mut self, config: RuntimeConfig) -> Self {
+        Arc::make_mut(&mut self.inner).config = config;
+        self
     }
 
     /// Set the default retry policy.
@@ -137,6 +149,11 @@ impl DefaultEngine {
     pub fn with_http_client(mut self, client: HttpClient) -> Self {
         Arc::make_mut(&mut self.inner).http_client = client;
         self
+    }
+
+    /// Returns the base runtime configuration.
+    pub fn config(&self) -> &RuntimeConfig {
+        &self.inner.config
     }
 
     /// Returns the shared HTTP client.

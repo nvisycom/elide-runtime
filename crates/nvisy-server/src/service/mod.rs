@@ -47,14 +47,17 @@ impl ServiceState {
     }
 }
 
-impl axum::extract::FromRef<ServiceState> for DefaultEngine {
-    fn from_ref(state: &ServiceState) -> Self {
-        state.engine.clone()
-    }
+macro_rules! impl_di {
+    ($($extract:expr => $t:ty),+ $(,)?) => {$(
+        impl axum::extract::FromRef<ServiceState> for $t {
+            fn from_ref(state: &ServiceState) -> Self {
+                $extract(state)
+            }
+        }
+    )+};
 }
 
-impl axum::extract::FromRef<ServiceState> for Registry {
-    fn from_ref(state: &ServiceState) -> Self {
-        state.engine.registry().clone()
-    }
-}
+impl_di!(
+    |s: &ServiceState| s.engine.clone() => DefaultEngine,
+    |s: &ServiceState| s.engine.registry().clone() => Registry,
+);

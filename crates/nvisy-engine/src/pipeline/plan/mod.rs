@@ -1,15 +1,11 @@
 //! Compiled execution plan types and the `compile()` entry point.
 //!
 //! An [`ExecutionPlan`] is the central orchestration artifact produced by
-//! [`compile()`]. It contains topologically-sorted [`ResolvedNode`]s,
-//! pre-computed adjacency information, [`ResolvedEdge`]s with channel
-//! configuration, and [`PhaseGroup`]s for phase-aware scheduling.
+//! [`compile()`]. It contains topologically-sorted [`ResolvedNode`]s and
+//! pre-computed [`ResolvedEdge`]s with channel configuration.
 
 mod edge;
 mod node;
-mod phase;
-
-use std::collections::HashMap;
 
 use nvisy_core::{Error, Result};
 use petgraph::algo::{is_cyclic_directed, toposort};
@@ -18,7 +14,6 @@ use uuid::Uuid;
 
 pub use self::edge::{EdgeConfig, ResolvedEdge};
 pub use self::node::ResolvedNode;
-pub use self::phase::PhaseGroup;
 use super::policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
 use crate::graph::policy::{RetryPolicy, TimeoutPolicy};
 use crate::graph::{Graph, GraphEdge, GraphNode};
@@ -58,7 +53,7 @@ pub(crate) fn compile(
 /// for cycles.
 fn build_petgraph(graph: &Graph) -> Result<DiGraph<GraphNode, GraphEdge>> {
     let mut pg = DiGraph::with_capacity(graph.nodes.len(), graph.edges.len());
-    let mut index_map = HashMap::with_capacity(graph.nodes.len());
+    let mut index_map = std::collections::HashMap::with_capacity(graph.nodes.len());
 
     for node in &graph.nodes {
         let idx = pg.add_node(node.clone());
@@ -80,25 +75,19 @@ fn build_petgraph(graph: &Graph) -> Result<DiGraph<GraphNode, GraphEdge>> {
 
 /// A compiled execution plan ready for the executor.
 ///
-/// Contains all nodes in topological order, edges with channel configuration,
-/// phase groupings, and pre-computed root/leaf indices. Constructed only via
-/// [`compile()`].
+/// Contains all nodes in topological order and edges with channel
+/// configuration. Constructed only via [`compile()`].
 pub struct ExecutionPlan {
     nodes: Vec<ResolvedNode>,
     edges: Vec<ResolvedEdge>,
-    index_map: HashMap<Uuid, usize>,
-    phases: Vec<PhaseGroup>,
-    roots: Vec<usize>,
-    leaves: Vec<usize>,
 }
 
 impl ExecutionPlan {
     /// Builds an execution plan from a petgraph and its topological ordering.
     fn from_graph(pg: &DiGraph<GraphNode, GraphEdge>, topo: &[NodeIndex]) -> Self {
-        let mut index_map = HashMap::with_capacity(topo.len());
         let mut nodes = Vec::with_capacity(topo.len());
 
-        for (i, &idx) in topo.iter().enumerate() {
+        for &idx in topo {
             let graph_node = &pg[idx];
             let upstream_ids: Vec<Uuid> = pg
                 .neighbors_directed(idx, petgraph::Direction::Incoming)
@@ -112,9 +101,7 @@ impl ExecutionPlan {
             let compiled_retry = graph_node.retry().map(CompiledRetryPolicy::from);
             let compiled_timeout = graph_node.timeout().map(CompiledTimeoutPolicy::from);
 
-            index_map.insert(graph_node.id, i);
             nodes.push(ResolvedNode {
-                phase: graph_node.kind.phase(),
                 node: graph_node.clone(),
                 upstream_ids,
                 downstream_ids,
@@ -135,56 +122,7 @@ impl ExecutionPlan {
             })
             .collect();
 
-        let roots: Vec<usize> = nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, n)| n.upstream_ids.is_empty())
-            .map(|(i, _)| i)
-            .collect();
-
-        let leaves: Vec<usize> = nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, n)| n.downstream_ids.is_empty())
-            .map(|(i, _)| i)
-            .collect();
-
-        let mut phase_map: HashMap<u8, Vec<usize>> = HashMap::new();
-        for (i, node) in nodes.iter().enumerate() {
-            phase_map.entry(node.phase).or_default().push(i);
-        }
-        let mut phases: Vec<PhaseGroup> = phase_map
-            .into_iter()
-            .map(|(phase, node_indices)| PhaseGroup {
-                phase,
-                node_indices,
-            })
-            .collect();
-        phases.sort_by_key(|g| g.phase);
-
-        Self {
-            nodes,
-            edges,
-            index_map,
-            phases,
-            roots,
-            leaves,
-        }
-    }
-
-    /// Number of nodes in the plan.
-    pub fn len(&self) -> usize {
-        self.nodes.len()
-    }
-
-    /// Returns `true` if the plan contains no nodes.
-    pub fn is_empty(&self) -> bool {
-        self.nodes.is_empty()
-    }
-
-    /// Number of edges in the plan.
-    pub fn edge_count(&self) -> usize {
-        self.edges.len()
+        Self { nodes, edges }
     }
 
     /// All nodes in topological order.
@@ -196,41 +134,6 @@ impl ExecutionPlan {
     pub fn edges(&self) -> &[ResolvedEdge] {
         &self.edges
     }
-
-    /// Look up a node by its UUID in O(1).
-    pub fn node_by_id(&self, id: Uuid) -> Option<&ResolvedNode> {
-        self.index_map.get(&id).map(|&i| &self.nodes[i])
-    }
-
-    /// Returns the topological index for a node UUID.
-    pub fn index_of(&self, id: Uuid) -> Option<usize> {
-        self.index_map.get(&id).copied()
-    }
-
-    /// Indices of root nodes (no upstream dependencies).
-    pub fn roots(&self) -> &[usize] {
-        &self.roots
-    }
-
-    /// Indices of leaf nodes (no downstream dependents).
-    pub fn leaves(&self) -> &[usize] {
-        &self.leaves
-    }
-
-    /// Phase groups sorted by phase number, containing only occupied phases.
-    pub fn phases(&self) -> &[PhaseGroup] {
-        &self.phases
-    }
-
-    /// Iterator over edges originating from the given node.
-    pub fn outgoing_edges(&self, id: Uuid) -> impl Iterator<Item = &ResolvedEdge> {
-        self.edges.iter().filter(move |e| e.source == id)
-    }
-
-    /// Iterator over edges targeting the given node.
-    pub fn incoming_edges(&self, id: Uuid) -> impl Iterator<Item = &ResolvedEdge> {
-        self.edges.iter().filter(move |e| e.target == id)
-    }
 }
 
 impl std::fmt::Debug for ExecutionPlan {
@@ -238,9 +141,6 @@ impl std::fmt::Debug for ExecutionPlan {
         f.debug_struct("ExecutionPlan")
             .field("nodes", &self.nodes.len())
             .field("edges", &self.edges.len())
-            .field("phases", &self.phases.len())
-            .field("roots", &self.roots)
-            .field("leaves", &self.leaves)
             .finish()
     }
 }

@@ -1,12 +1,13 @@
 //! Node-level execution dispatchers.
 //!
-//! [`execute_node`] dispatches each graph node to the appropriate handler
+//! [`NodeExecutor`] dispatches each graph node to the appropriate handler
 //! based on its [`GraphNodeKind`]. Pre-compiled timeout and retry policies
 //! from the [`ResolvedNode`] are applied directly, with
 //! [`TimeoutBehavior`] controlling whether a timeout is treated as an error
 //! or silently yields zero items.
 
-use nvisy_core::content::ContentData;
+use std::sync::Arc;
+
 use nvisy_core::{Error, ErrorKind};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -15,9 +16,10 @@ use uuid::Uuid;
 use super::plan::ResolvedNode;
 use crate::graph::GraphNodeKind;
 use crate::graph::policy::TimeoutBehavior;
+use crate::operation::{DocumentEnvelope, SharedContext};
 
 /// Outcome of executing a single node in the pipeline.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(super) struct NodeOutput {
     /// ID of the node that produced this result.
     pub node_id: Uuid,
@@ -25,97 +27,181 @@ pub(super) struct NodeOutput {
     pub items_processed: u64,
     /// Error message if the node failed, or `None` on success.
     pub error: Option<String>,
+    /// Envelopes collected by terminal (export) nodes.
+    pub envelopes: Vec<Arc<DocumentEnvelope>>,
 }
 
 /// Aggregate outcome of executing an entire pipeline graph.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(super) struct RunOutput {
     /// Per-node results in completion order.
     pub node_results: Vec<NodeOutput>,
 }
 
-/// Executes a single resolved node by dispatching on its [`GraphNodeKind`].
-///
-/// Uses pre-compiled timeout and retry policies from the [`ResolvedNode`]
-/// instead of compiling them inline. Checks the `cancel` token before and
-/// during execution to support cooperative cancellation.
-pub(super) async fn execute_node(
-    resolved: &ResolvedNode,
-    senders: Vec<mpsc::Sender<ContentData>>,
-    mut receivers: Vec<mpsc::Receiver<ContentData>>,
+/// Executes a single resolved node within a pipeline run.
+pub(super) struct NodeExecutor {
+    shared: SharedContext,
     cancel: CancellationToken,
-) -> Result<u64, Error> {
-    if cancel.is_cancelled() {
-        return Err(Error::cancellation("run cancelled"));
-    }
-
-    let run = async {
-        tokio::select! {
-            _ = cancel.cancelled() => {
-                Err(Error::cancellation("run cancelled"))
-            }
-            result = execute_action(&resolved.node.kind, &senders, &mut receivers) => {
-                result
-            }
-        }
-    };
-
-    match &resolved.compiled_timeout {
-        Some(compiled) => {
-            let result: Result<u64, Error> = compiled.with_timeout(run).await;
-            match (&result, &compiled.on_timeout) {
-                (Err(e), TimeoutBehavior::Skip) if e.kind == ErrorKind::Timeout => Ok(0),
-                _ => result,
-            }
-        }
-        None => run.await,
-    }
 }
 
-/// Dispatches an action node: receives upstream data, logs the action kind,
-/// and forwards items downstream.
-///
-/// Concrete action implementations will replace these passthrough stubs
-/// as the orchestrator is built out.
-async fn execute_action(
-    action: &GraphNodeKind,
-    senders: &[mpsc::Sender<ContentData>],
-    receivers: &mut [mpsc::Receiver<ContentData>],
-) -> Result<u64, Error> {
-    match action {
-        GraphNodeKind::LoadContext(_) => tracing::trace!("action node: load_context (passthrough)"),
-        GraphNodeKind::SaveContext(_) => tracing::trace!("action node: save_context (passthrough)"),
-        GraphNodeKind::GenerateContext(_) => {
-            tracing::trace!("action node: generate_context (passthrough)")
-        }
-        GraphNodeKind::VisualExtraction(_) => {
-            tracing::trace!("action node: visual_extraction (passthrough)")
-        }
-        GraphNodeKind::AudialExtraction(_) => {
-            tracing::trace!("action node: audial_extraction (passthrough)")
-        }
-        GraphNodeKind::NamedEntityRecognition(_) => {
-            tracing::trace!("action node: ner (passthrough)")
-        }
-        GraphNodeKind::PatternRecognition(_) => {
-            tracing::trace!("action node: pattern_recognition (passthrough)")
-        }
-        GraphNodeKind::Fusion(_) => tracing::trace!("action node: fusion (passthrough)"),
-        GraphNodeKind::Redaction(_) => tracing::trace!("action node: redaction (passthrough)"),
-        GraphNodeKind::Import(_) => tracing::trace!("action node: import (passthrough)"),
-        GraphNodeKind::Export(_) => tracing::trace!("action node: export (passthrough)"),
+impl NodeExecutor {
+    pub fn new(shared: SharedContext, cancel: CancellationToken) -> Self {
+        Self { shared, cancel }
     }
 
-    // Forward items from all upstream receivers to all downstream senders.
-    let mut count = 0u64;
-    for rx in receivers.iter_mut() {
-        while let Some(item) = rx.recv().await {
-            count += 1;
-            for tx in senders {
-                let _ = tx.send(item.clone()).await;
+    /// Execute a resolved node, applying timeout policies and cancellation.
+    pub async fn execute(
+        &self,
+        resolved: &ResolvedNode,
+        senders: Vec<mpsc::Sender<Arc<DocumentEnvelope>>>,
+        mut receivers: Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>,
+    ) -> Result<NodeOutput, Error> {
+        if self.cancel.is_cancelled() {
+            return Err(Error::cancellation("run cancelled"));
+        }
+
+        let node_id = resolved.node.id;
+        let cancel = self.cancel.clone();
+
+        let run = async {
+            tokio::select! {
+                _ = cancel.cancelled() => {
+                    Err(Error::cancellation("run cancelled"))
+                }
+                result = self.dispatch(node_id, &resolved.node.kind, &senders, &mut receivers) => {
+                    result
+                }
+            }
+        };
+
+        match &resolved.compiled_timeout {
+            Some(compiled) => {
+                let result: Result<NodeOutput, Error> = compiled.with_timeout(run).await;
+                match (&result, &compiled.on_timeout) {
+                    (Err(e), TimeoutBehavior::Skip) if e.kind == ErrorKind::Timeout => {
+                        Ok(NodeOutput {
+                            node_id,
+                            items_processed: 0,
+                            error: None,
+                            envelopes: Vec::new(),
+                        })
+                    }
+                    _ => result,
+                }
+            }
+            None => run.await,
+        }
+    }
+
+    /// Dispatch based on node kind: Import decodes content, Export collects
+    /// envelopes, all others pass through.
+    async fn dispatch(
+        &self,
+        node_id: Uuid,
+        action: &GraphNodeKind,
+        senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
+        receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
+    ) -> Result<NodeOutput, Error> {
+        match action {
+            GraphNodeKind::Import(_) => self.execute_import(node_id, senders, receivers).await,
+            GraphNodeKind::Export(_) => self.execute_export(node_id, receivers).await,
+            kind => self.execute_passthrough(node_id, kind, senders, receivers).await,
+        }
+    }
+
+    async fn execute_import(
+        &self,
+        node_id: Uuid,
+        senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
+        receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
+    ) -> Result<NodeOutput, Error> {
+        // TODO: Import nodes should receive ContentData from the registry,
+        // not from upstream channels. For now this is a stub that will be
+        // wired when content storage is connected.
+        let mut count = 0u64;
+        let mut envelopes = Vec::new();
+
+        for rx in receivers.iter_mut() {
+            while let Some(envelope) = rx.recv().await {
+                for tx in senders {
+                    let _ = tx.send(Arc::clone(&envelope)).await;
+                }
+                count += 1;
+                envelopes.push(envelope);
             }
         }
+
+        Ok(NodeOutput {
+            node_id,
+            items_processed: count,
+            error: None,
+            envelopes,
+        })
     }
 
-    Ok(count)
+    async fn execute_export(
+        &self,
+        node_id: Uuid,
+        receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
+    ) -> Result<NodeOutput, Error> {
+        let mut count = 0u64;
+        let mut envelopes = Vec::new();
+
+        for rx in receivers.iter_mut() {
+            while let Some(envelope) = rx.recv().await {
+                count += 1;
+                envelopes.push(envelope);
+            }
+        }
+
+        tracing::debug!(count, "export node collected envelopes");
+
+        Ok(NodeOutput {
+            node_id,
+            items_processed: count,
+            error: None,
+            envelopes,
+        })
+    }
+
+    async fn execute_passthrough(
+        &self,
+        node_id: Uuid,
+        kind: &GraphNodeKind,
+        senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
+        receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
+    ) -> Result<NodeOutput, Error> {
+        let label = match kind {
+            GraphNodeKind::LoadContext(_) => "load_context",
+            GraphNodeKind::SaveContext(_) => "save_context",
+            GraphNodeKind::GenerateContext(_) => "generate_context",
+            GraphNodeKind::VisualExtraction(_) => "visual_extraction",
+            GraphNodeKind::AudialExtraction(_) => "audial_extraction",
+            GraphNodeKind::NamedEntityRecognition(_) => "ner",
+            GraphNodeKind::PatternRecognition(_) => "pattern_recognition",
+            GraphNodeKind::Fusion(_) => "fusion",
+            GraphNodeKind::Redaction(_) => "redaction",
+            GraphNodeKind::Import(_) | GraphNodeKind::Export(_) => unreachable!(),
+        };
+
+        // TODO: wire operation dispatch
+        tracing::trace!(action = label, "passthrough");
+
+        let mut count = 0u64;
+        for rx in receivers.iter_mut() {
+            while let Some(item) = rx.recv().await {
+                count += 1;
+                for tx in senders {
+                    let _ = tx.send(Arc::clone(&item)).await;
+                }
+            }
+        }
+
+        Ok(NodeOutput {
+            node_id,
+            items_processed: count,
+            error: None,
+            envelopes: Vec::new(),
+        })
+    }
 }

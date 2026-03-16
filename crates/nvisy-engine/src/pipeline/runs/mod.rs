@@ -113,7 +113,7 @@ pub struct RunFilter {
 ///
 /// Runs are created internally by [`Engine::run()`](super::Engine::run).
 /// External callers can inspect and cancel runs through this trait.
-pub trait Runs: Send + Sync {
+pub trait EngineRuns: Send + Sync {
     /// Get a full snapshot of a single run.
     fn get_run(&self, id: Uuid) -> impl Future<Output = Option<RunSnapshot>> + Send;
 

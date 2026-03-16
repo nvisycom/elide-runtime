@@ -15,7 +15,7 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::{DefaultEngine, Engine, EngineInput, RunFilter, Runs};
+use nvisy_engine::{DefaultEngine, Engine, EngineInput, EngineRuns, RunFilter};
 
 use super::error::{ErrorKind, Result};
 use super::request::{NewRun, RunPath};

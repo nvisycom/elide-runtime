@@ -7,12 +7,12 @@
 //! [`DefaultEngine`] is the standard implementation that orchestrates the
 //! detect -> evaluate -> redact pipeline and drives the DAG execution graph.
 
+mod analytics;
 mod config;
 mod default;
 mod executor;
-mod ontology;
 mod plan;
-pub(crate) mod policy;
+mod policy;
 mod runs;
 
 use std::future::Future;
@@ -23,13 +23,14 @@ use nvisy_ontology::entity::DetectionOutput;
 use nvisy_ontology::policy::{Policies, RedactionSummary};
 use uuid::Uuid;
 
+pub use self::analytics::{AnalyticsSnapshot, EngineAnalytics};
 pub use self::config::{
     EngineSection, LlmSection, OcrSection, RuntimeConfig, SttSection, TtsSection,
 };
 pub use self::default::DefaultEngine;
-pub use self::ontology::{Explainable, Explanation};
+pub use self::policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
 pub use self::runs::{
-    NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary, Runs,
+    EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
 };
 use crate::graph::Graph;
 use crate::provenance::{Audit, PolicyEvaluation, RedactionMap};

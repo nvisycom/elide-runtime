@@ -14,20 +14,21 @@ use std::sync::Arc;
 
 use jiff::Timestamp;
 use nvisy_core::Error;
-use nvisy_core::content::ContentData;
+use nvisy_core::content::ContentSource;
 use nvisy_http::HttpClient;
 use tokio::sync::{RwLock, mpsc, watch};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+use super::analytics::{AnalyticsSnapshot, EngineAnalytics};
 use super::config::RuntimeConfig;
-use super::executor::{NodeOutput, RunOutput, execute_node};
+use super::executor::{NodeExecutor, NodeOutput, RunOutput};
 use super::plan::{self, ExecutionPlan};
-use super::runs::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary, Runs};
+use super::runs::{EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
 use super::{Engine, EngineInput, EngineOutput};
 use crate::graph::policy::{RetryPolicy, TimeoutPolicy};
-use crate::operation::SharedContext;
+use crate::operation::{DocumentEnvelope, SharedContext};
 use crate::provenance::PolicyEvaluation;
 
 /// Private mutable state for a single run, held inside `DefaultEngineInner`.
@@ -166,10 +167,11 @@ impl DefaultEngine {
     async fn run_graph(
         plan: &ExecutionPlan,
         cancel: CancellationToken,
+        shared: SharedContext,
     ) -> Result<RunOutput, Error> {
-        // Create channels for each edge using pre-computed config
-        let mut senders: HashMap<Uuid, Vec<mpsc::Sender<ContentData>>> = HashMap::new();
-        let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<ContentData>>> = HashMap::new();
+        let mut senders: HashMap<Uuid, Vec<mpsc::Sender<Arc<DocumentEnvelope>>>> = HashMap::new();
+        let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>> =
+            HashMap::new();
 
         for edge in plan.edges() {
             let (tx, rx) = mpsc::channel(edge.config.channel_buffer);
@@ -177,7 +179,6 @@ impl DefaultEngine {
             receivers.entry(edge.target).or_default().push(rx);
         }
 
-        // Create completion signals per node
         let mut signal_senders: HashMap<Uuid, watch::Sender<bool>> = HashMap::new();
         let mut signal_receivers: HashMap<Uuid, watch::Receiver<bool>> = HashMap::new();
 
@@ -187,13 +188,12 @@ impl DefaultEngine {
             signal_receivers.insert(resolved.node.id, rx);
         }
 
-        // Spawn tasks
         let mut join_set: JoinSet<NodeOutput> = JoinSet::new();
 
         for resolved in plan.nodes() {
             let resolved = resolved.clone();
             let node_id = resolved.node.id;
-            let cancel = cancel.clone();
+            let executor = NodeExecutor::new(shared.clone(), cancel.clone());
 
             let upstream_watches: Vec<watch::Receiver<bool>> = resolved
                 .upstream_ids
@@ -206,34 +206,28 @@ impl DefaultEngine {
             let node_receivers = receivers.remove(&node_id).unwrap_or_default();
 
             join_set.spawn(async move {
-                // Wait for upstream nodes to complete
                 for mut rx in upstream_watches {
                     let _ = rx.wait_for(|&done| done).await;
                 }
 
-                let result = execute_node(&resolved, node_senders, node_receivers, cancel).await;
+                let result = executor.execute(&resolved, node_senders, node_receivers).await;
 
-                // Signal completion
                 if let Some(tx) = completion_tx {
                     let _ = tx.send(true);
                 }
 
                 match result {
-                    Ok(count) => NodeOutput {
-                        node_id,
-                        items_processed: count,
-                        error: None,
-                    },
+                    Ok(output) => output,
                     Err(e) => NodeOutput {
                         node_id,
                         items_processed: 0,
                         error: Some(e.to_string()),
+                        envelopes: Vec::new(),
                     },
                 }
             });
         }
 
-        // Collect results
         let mut node_results = Vec::new();
         while let Some(result) = join_set.join_next().await {
             match result {
@@ -242,6 +236,7 @@ impl DefaultEngine {
                     node_id: Uuid::nil(),
                     items_processed: 0,
                     error: Some(format!("Task panicked: {}", e)),
+                    envelopes: Vec::new(),
                 }),
             }
         }
@@ -273,7 +268,6 @@ impl Engine for DefaultEngine {
         let run_id = Uuid::new_v4();
         let cancel = CancellationToken::new();
 
-        // Register the run as Pending
         {
             let entry = RunEntry {
                 actor_id: input.actor_id,
@@ -286,31 +280,20 @@ impl Engine for DefaultEngine {
             self.inner.runs.write().await.insert(run_id, entry);
         }
 
-        // Transition to Running
         if let Some(entry) = self.inner.runs.write().await.get_mut(&run_id) {
             entry.status = RunStatus::Running;
         }
 
-        let _shared = SharedContext::new(run_id, input.actor_id)
+        let shared = SharedContext::new(run_id, input.actor_id)
             .with_policies(input.policies.clone())
             .with_contexts(input.contexts.clone());
 
-        // Phase 1: Detection
-        let detection = nvisy_ontology::entity::DetectionOutput::new(
-            nvisy_core::content::ContentSource::new(),
-            Vec::new(),
-        );
-
-        // Phase 2: Policy Evaluation
-        let evaluation = PolicyEvaluation::new(Uuid::nil());
-
-        // Phase 3: DAG Execution
         let compiled = plan::compile(
             &input.graph,
             self.inner.default_retry.as_ref(),
             self.inner.default_timeout.as_ref(),
         )?;
-        let run_output = Self::run_graph(&compiled, cancel).await?;
+        let run_output = Self::run_graph(&compiled, cancel, shared).await?;
 
         // Transition to Succeeded/Failed and populate node snapshots
         {
@@ -328,18 +311,51 @@ impl Engine for DefaultEngine {
             }
         }
 
+        // Collect envelopes from all nodes (export nodes accumulate them)
+        let mut all_entities = nvisy_ontology::entity::Entities::new();
+        let mut file_audits = Vec::new();
+        let first_policy_id = input
+            .policies
+            .policies
+            .first()
+            .map(|p| p.id)
+            .unwrap_or(Uuid::nil());
+
+        for nr in &run_output.node_results {
+            for envelope in &nr.envelopes {
+                all_entities.extend(envelope.entities.iter().cloned());
+                file_audits.push(envelope.audit.clone());
+            }
+        }
+
+        let detection =
+            nvisy_ontology::entity::DetectionOutput::new(ContentSource::new(), all_entities);
+        let evaluation = PolicyEvaluation::new(first_policy_id);
+
         Ok(EngineOutput {
             run_id,
             detection,
             evaluation,
             summaries: Vec::new(),
-            file_audits: Vec::new(),
+            file_audits,
             redaction_maps: Vec::new(),
         })
     }
 }
 
-impl Runs for DefaultEngine {
+impl EngineAnalytics for DefaultEngine {
+    async fn snapshot(&self) -> AnalyticsSnapshot {
+        let runs = self.inner.runs.read().await;
+        AnalyticsSnapshot {
+            timestamp: Timestamp::now(),
+            total_runs: runs.len() as u64,
+            total_entities_detected: 0,
+            total_redactions_applied: 0,
+        }
+    }
+}
+
+impl EngineRuns for DefaultEngine {
     async fn get_run(&self, id: Uuid) -> Option<RunSnapshot> {
         self.inner
             .runs

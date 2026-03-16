@@ -12,8 +12,6 @@ use crate::pipeline::policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
 pub struct ResolvedNode {
     /// The original graph node definition.
     pub node: GraphNode,
-    /// Pipeline phase for this node (derived from the node kind).
-    pub phase: u8,
     /// IDs of nodes that feed data into this node.
     pub upstream_ids: Vec<Uuid>,
     /// IDs of nodes that receive data from this node.

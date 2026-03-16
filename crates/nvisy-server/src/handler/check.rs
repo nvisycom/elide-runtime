@@ -5,13 +5,14 @@
 //! | Method | Path                  | Description                          |
 //! |--------|-----------------------|--------------------------------------|
 //! | `GET`  | `/health`             | Liveness probe (`{"status": "ok"}`)  |
-//! | `GET`  | `/api/v1/analytics`   | Aggregate pipeline metrics (stub)    |
+//! | `GET`  | `/api/v1/analytics`   | Aggregate pipeline metrics           |
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
+use axum::extract::State;
+use nvisy_engine::{DefaultEngine, EngineAnalytics};
 
-use super::error::{ErrorKind, Result};
 use super::response::{Analytics, Health, ServiceStatus};
 use crate::extract::Json;
 use crate::service::ServiceState;
@@ -37,8 +38,14 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
 
 /// `GET /api/v1/analytics`: retrieve aggregate pipeline analytics.
 #[tracing::instrument(target = "nvisy_server::check", skip_all)]
-async fn analytics() -> Result<Json<Analytics>> {
-    Err(ErrorKind::NotImplemented.with_message("analytics endpoint not yet implemented"))
+async fn analytics(State(engine): State<DefaultEngine>) -> Json<Analytics> {
+    let snapshot = engine.snapshot().await;
+    Json(Analytics {
+        timestamp: snapshot.timestamp,
+        total_runs: snapshot.total_runs,
+        total_entities_detected: snapshot.total_entities_detected,
+        total_redactions_applied: snapshot.total_redactions_applied,
+    })
 }
 
 fn analytics_docs(op: TransformOperation) -> TransformOperation {

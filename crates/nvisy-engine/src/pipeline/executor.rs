@@ -105,7 +105,10 @@ impl NodeExecutor {
         match action {
             GraphNodeKind::Import(_) => self.execute_import(node_id, senders, receivers).await,
             GraphNodeKind::Export(_) => self.execute_export(node_id, receivers).await,
-            kind => self.execute_passthrough(node_id, kind, senders, receivers).await,
+            kind => {
+                self.execute_passthrough(node_id, kind, senders, receivers)
+                    .await
+            }
         }
     }
 

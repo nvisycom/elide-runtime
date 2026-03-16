@@ -16,6 +16,7 @@ use jiff::Timestamp;
 use nvisy_core::Error;
 use nvisy_core::content::ContentSource;
 use nvisy_http::HttpClient;
+use nvisy_registry::Registry;
 use tokio::sync::{RwLock, mpsc, watch};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -25,7 +26,9 @@ use super::analytics::{AnalyticsSnapshot, EngineAnalytics};
 use super::config::RuntimeConfig;
 use super::executor::{NodeExecutor, NodeOutput, RunOutput};
 use super::plan::{self, ExecutionPlan};
-use super::runs::{EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
+use super::runs::{
+    EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
+};
 use super::{Engine, EngineInput, EngineOutput};
 use crate::graph::policy::{RetryPolicy, TimeoutPolicy};
 use crate::operation::{DocumentEnvelope, SharedContext};
@@ -72,6 +75,7 @@ impl Clone for DefaultEngineInner {
             default_retry: self.default_retry.clone(),
             default_timeout: self.default_timeout.clone(),
             http_client: self.http_client.clone(),
+            registry: self.registry.clone(),
             runs: RwLock::new(HashMap::new()),
         }
     }
@@ -87,26 +91,16 @@ struct DefaultEngineInner {
     default_timeout: Option<TimeoutPolicy>,
     /// Shared HTTP client for downstream providers.
     http_client: HttpClient,
+    /// Content and context storage.
+    registry: Registry,
     /// All tracked runs keyed by their UUID.
     runs: RwLock<HashMap<Uuid, RunEntry>>,
 }
 
-impl Default for DefaultEngineInner {
-    fn default() -> Self {
-        Self {
-            config: RuntimeConfig::default(),
-            default_retry: None,
-            default_timeout: None,
-            http_client: HttpClient::default(),
-            runs: RwLock::new(HashMap::new()),
-        }
-    }
-}
-
 /// Default [`Engine`] implementation.
 ///
-/// Wraps policies in an `Arc` so cloning is cheap.
-#[derive(Clone, Default)]
+/// Wraps state in an `Arc` so cloning is cheap.
+#[derive(Clone)]
 pub struct DefaultEngine {
     inner: Arc<DefaultEngineInner>,
 }
@@ -123,24 +117,45 @@ impl std::fmt::Debug for DefaultEngine {
 }
 
 impl DefaultEngine {
-    /// Create a new engine with no default policies.
-    pub fn new() -> Self {
-        Self::default()
+    /// Create a new engine backed by the given registry.
+    pub fn new(registry: Registry) -> Self {
+        Self {
+            inner: Arc::new(DefaultEngineInner {
+                config: RuntimeConfig::default(),
+                default_retry: None,
+                default_timeout: None,
+                http_client: HttpClient::default(),
+                registry,
+                runs: RwLock::new(HashMap::new()),
+            }),
+        }
     }
 
     /// Set the base runtime configuration.
+    ///
+    /// Automatically extracts default retry and timeout policies from the
+    /// `[engine]` section, if present.
     pub fn with_config(mut self, config: RuntimeConfig) -> Self {
-        Arc::make_mut(&mut self.inner).config = config;
+        let inner = Arc::make_mut(&mut self.inner);
+        if let Some(engine) = &config.engine {
+            if inner.default_retry.is_none() {
+                inner.default_retry = engine.retry.clone();
+            }
+            if inner.default_timeout.is_none() {
+                inner.default_timeout = engine.timeout.clone();
+            }
+        }
+        inner.config = config;
         self
     }
 
-    /// Set the default retry policy.
+    /// Override the default retry policy.
     pub fn with_retry(mut self, policy: RetryPolicy) -> Self {
         Arc::make_mut(&mut self.inner).default_retry = Some(policy);
         self
     }
 
-    /// Set the default timeout policy.
+    /// Override the default timeout policy.
     pub fn with_timeout(mut self, policy: TimeoutPolicy) -> Self {
         Arc::make_mut(&mut self.inner).default_timeout = Some(policy);
         self
@@ -160,6 +175,11 @@ impl DefaultEngine {
     /// Returns the shared HTTP client.
     pub fn http_client(&self) -> &HttpClient {
         &self.inner.http_client
+    }
+
+    /// Returns the content and context registry.
+    pub fn registry(&self) -> &Registry {
+        &self.inner.registry
     }
 
     /// Execute a compiled [`ExecutionPlan`] by spawning concurrent tasks for
@@ -210,7 +230,9 @@ impl DefaultEngine {
                     let _ = rx.wait_for(|&done| done).await;
                 }
 
-                let result = executor.execute(&resolved, node_senders, node_receivers).await;
+                let result = executor
+                    .execute(&resolved, node_senders, node_receivers)
+                    .await;
 
                 if let Some(tx) = completion_tx {
                     let _ = tx.send(true);

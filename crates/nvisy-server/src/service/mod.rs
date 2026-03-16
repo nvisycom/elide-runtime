@@ -1,11 +1,11 @@
 //! Application state and dependency injection.
 //!
-//! [`ServiceState`] holds shared dependencies (engine, registry) and is
-//! threaded through every handler via Axum's `State` extractor. Individual
-//! handlers extract only the dependency they need (e.g. `State<Registry>`)
-//! rather than the full state.
+//! [`ServiceState`] holds the [`DefaultEngine`] which owns all shared
+//! dependencies (registry, HTTP client, policies). Individual handlers
+//! extract the dependency they need (e.g. `State<Registry>`) via
+//! `FromRef` implementations that pull from the engine.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use nvisy_engine::{DefaultEngine, RuntimeConfig};
 use nvisy_http::HttpClient;
@@ -16,7 +16,6 @@ use nvisy_registry::Registry;
 #[derive(Clone)]
 pub struct ServiceState {
     engine: DefaultEngine,
-    registry: Registry,
 }
 
 impl ServiceState {
@@ -35,46 +34,27 @@ impl ServiceState {
             .unwrap_or_default();
         let http_client = HttpClient::new(&http_config);
 
-        let mut engine = DefaultEngine::new()
+        let engine = DefaultEngine::new(registry)
             .with_config(config)
             .with_http_client(http_client);
-        if let Some(retry) = engine
-            .config()
-            .engine
-            .as_ref()
-            .and_then(|e| e.retry.clone())
-        {
-            engine = engine.with_retry(retry);
-        }
-        if let Some(timeout) = engine
-            .config()
-            .engine
-            .as_ref()
-            .and_then(|e| e.timeout.clone())
-        {
-            engine = engine.with_timeout(timeout);
-        }
 
-        Ok(Self { engine, registry })
+        Ok(Self { engine })
     }
 
     /// Returns the data directory path from the registry.
-    pub fn data_dir(&self) -> &std::path::Path {
-        self.registry.base_dir()
+    pub fn data_dir(&self) -> &Path {
+        self.engine.registry().base_dir()
     }
 }
 
-macro_rules! impl_di {
-    ($($f:ident: $t:ty),+ $(,)?) => {$(
-        impl axum::extract::FromRef<ServiceState> for $t {
-            fn from_ref(state: &ServiceState) -> Self {
-                state.$f.clone()
-            }
-        }
-    )+};
+impl axum::extract::FromRef<ServiceState> for DefaultEngine {
+    fn from_ref(state: &ServiceState) -> Self {
+        state.engine.clone()
+    }
 }
 
-impl_di!(
-    engine: DefaultEngine,
-    registry: Registry,
-);
+impl axum::extract::FromRef<ServiceState> for Registry {
+    fn from_ref(state: &ServiceState) -> Self {
+        state.engine.registry().clone()
+    }
+}

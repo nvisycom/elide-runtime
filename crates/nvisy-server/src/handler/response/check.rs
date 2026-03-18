@@ -46,12 +46,10 @@ pub struct Analytics {
     pub failed_runs: u64,
     /// Number of runs that were cancelled.
     pub cancelled_runs: u64,
-    /// Total number of graph nodes executed across all runs.
-    pub total_nodes_executed: u64,
-    /// Total number of data items processed across all runs.
-    pub total_items_processed: u64,
-    /// Total number of node-level failures across all runs.
-    pub total_node_failures: u64,
+    /// Total number of entities detected across all completed runs.
+    pub total_entities_detected: u64,
+    /// Total number of redactions applied across all completed runs.
+    pub total_redactions_applied: u64,
     /// Number of distinct actors that have triggered runs.
     pub distinct_actors: u64,
 }

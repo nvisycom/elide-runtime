@@ -47,6 +47,8 @@ struct RunEntry {
     completed_at: Option<Timestamp>,
     nodes: HashMap<Uuid, NodeSnapshot>,
     cancel: CancellationToken,
+    entities_detected: u64,
+    redactions_applied: u64,
 }
 
 impl RunEntry {
@@ -374,6 +376,8 @@ impl Engine for DefaultEngine {
                         completed_at: Some(Timestamp::now()),
                         nodes: HashMap::new(),
                         cancel: cancel.clone(),
+                        entities_detected: 0,
+                        redactions_applied: 0,
                     },
                 );
                 return Err(e);
@@ -406,6 +410,8 @@ impl Engine for DefaultEngine {
                 completed_at: None,
                 nodes: initial_nodes,
                 cancel: cancel.clone(),
+                entities_detected: 0,
+                redactions_applied: 0,
             },
         );
 
@@ -437,17 +443,31 @@ impl Engine for DefaultEngine {
             }
         };
 
-        let status = Self::run_status(&run_output);
-        self.finalize_run(run_id, status).await;
-
         // Collect envelopes from export nodes (they accumulate downstream results).
         let mut all_entities = nvisy_ontology::entity::Entities::new();
         let mut file_audits = Vec::new();
+        let mut redactions_applied = 0u64;
 
         for nr in &run_output.node_results {
             for envelope in &nr.envelopes {
                 all_entities.extend(envelope.entities.iter().cloned());
+                redactions_applied += envelope.audit.decisions.iter()
+                    .filter(|d| d.applied)
+                    .count() as u64;
                 file_audits.push(envelope.audit.clone());
+            }
+        }
+
+        let entities_detected = all_entities.len() as u64;
+
+        let status = Self::run_status(&run_output);
+        {
+            let mut runs = self.runs.write().await;
+            if let Some(entry) = runs.get_mut(&run_id) {
+                entry.status = status;
+                entry.completed_at = Some(Timestamp::now());
+                entry.entities_detected = entities_detected;
+                entry.redactions_applied = redactions_applied;
             }
         }
 
@@ -479,9 +499,8 @@ impl EngineAnalytics for DefaultEngine {
         let mut succeeded = 0u64;
         let mut failed = 0u64;
         let mut cancelled = 0u64;
-        let mut total_nodes = 0u64;
-        let mut total_items = 0u64;
-        let mut total_node_failures = 0u64;
+        let mut total_entities = 0u64;
+        let mut total_redactions = 0u64;
         let mut actors = std::collections::HashSet::new();
 
         for entry in runs.values() {
@@ -492,13 +511,8 @@ impl EngineAnalytics for DefaultEngine {
                 RunStatus::Cancelled => cancelled += 1,
             }
             actors.insert(entry.actor_id);
-            for node in entry.nodes.values() {
-                total_nodes += 1;
-                total_items += node.items_processed;
-                if node.error.is_some() {
-                    total_node_failures += 1;
-                }
-            }
+            total_entities += entry.entities_detected;
+            total_redactions += entry.redactions_applied;
         }
 
         AnalyticsSnapshot {
@@ -508,9 +522,8 @@ impl EngineAnalytics for DefaultEngine {
             succeeded_runs: succeeded,
             failed_runs: failed,
             cancelled_runs: cancelled,
-            total_nodes_executed: total_nodes,
-            total_items_processed: total_items,
-            total_node_failures,
+            total_entities_detected: total_entities,
+            total_redactions_applied: total_redactions,
             distinct_actors: actors.len() as u64,
         }
     }
@@ -554,7 +567,7 @@ impl EngineRuns for DefaultEngine {
             _ => Err(Error::new(
                 nvisy_core::ErrorKind::Validation,
                 "run has already finished",
-            )),
+            ).with_component("run")),
         }
     }
 }

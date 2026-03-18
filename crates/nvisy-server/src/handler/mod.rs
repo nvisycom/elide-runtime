@@ -12,7 +12,7 @@
 pub mod error;
 pub mod utility;
 
-mod check;
+mod infra;
 mod contexts;
 mod files;
 mod runs;
@@ -28,7 +28,7 @@ use crate::service::ServiceState;
 /// Build the handler route tree.
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
-        .merge(check::routes())
+        .merge(infra::routes())
         .merge(contexts::routes())
         .merge(files::routes())
         .merge(runs::routes())

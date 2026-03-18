@@ -16,6 +16,8 @@ use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_engine::{DefaultEngine, Engine, EngineInput, EngineRuns, RunFilter};
+use nvisy_ontology::context::Contexts;
+use nvisy_registry::Registry;
 
 use super::error::{ErrorKind, Result};
 use super::request::{NewRun, RunPath};
@@ -44,19 +46,22 @@ const TARGET: &str = "nvisy_server::runs";
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%actor_id, content_count = req.content_ids.len(), mode = "full"),
+    fields(%actor_id, content_count = req.content_ids.len()),
 )]
 async fn create(
     State(engine): State<DefaultEngine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
 ) -> Result<(StatusCode, Json<RunResult>)> {
+    let contexts = resolve_contexts(&registry, actor_id, &req.context_ids).await?;
+
     let input = EngineInput {
         actor_id,
         content_ids: req.content_ids,
         policies: req.policies,
         graph: req.graph,
-        contexts: Default::default(),
+        contexts,
         config: req.config,
     };
     let output = engine.run(input).await?;
@@ -64,6 +69,7 @@ async fn create(
     tracing::info!(
         target: TARGET,
         run_id = %output.run_id,
+        entities = output.detection.entities.len(),
         "pipeline complete",
     );
 
@@ -71,8 +77,11 @@ async fn create(
         StatusCode::CREATED,
         Json(RunResult {
             run_id: output.run_id,
-            summaries: serde_json::to_value(&output.summaries).unwrap_or_default(),
-            audits: serde_json::to_value(&output.file_audits).unwrap_or_default(),
+            detection: output.detection,
+            evaluation: output.evaluation,
+            summaries: output.summaries,
+            audits: output.file_audits,
+            redaction_maps: output.redaction_maps,
         }),
     ))
 }
@@ -98,15 +107,18 @@ fn create_docs(op: TransformOperation) -> TransformOperation {
 )]
 async fn scan(
     State(engine): State<DefaultEngine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
 ) -> Result<(StatusCode, Json<RunResult>)> {
+    let contexts = resolve_contexts(&registry, actor_id, &req.context_ids).await?;
+
     let input = EngineInput {
         actor_id,
         content_ids: req.content_ids,
         policies: req.policies,
         graph: req.graph,
-        contexts: Default::default(),
+        contexts,
         config: req.config,
     };
     let output = engine.run(input).await?;
@@ -114,6 +126,7 @@ async fn scan(
     tracing::info!(
         target: TARGET,
         run_id = %output.run_id,
+        entities = output.detection.entities.len(),
         "scan complete",
     );
 
@@ -121,8 +134,11 @@ async fn scan(
         StatusCode::CREATED,
         Json(RunResult {
             run_id: output.run_id,
-            summaries: serde_json::to_value(&output.summaries).unwrap_or_default(),
-            audits: serde_json::to_value(&output.file_audits).unwrap_or_default(),
+            detection: output.detection,
+            evaluation: output.evaluation,
+            summaries: output.summaries,
+            audits: output.file_audits,
+            redaction_maps: output.redaction_maps,
         }),
     ))
 }
@@ -212,8 +228,23 @@ fn cancel_docs(op: TransformOperation) -> TransformOperation {
         .description(
             "Requests cancellation of a pending or running pipeline run. \
              Returns 204 on success, 404 if the run does not exist, \
-             or 400 if the run has already finished.",
+             or 409 if the run has already finished.",
         )
+}
+
+/// Resolve context IDs to a [`Contexts`] collection.
+async fn resolve_contexts(
+    registry: &Registry,
+    actor_id: uuid::Uuid,
+    context_ids: &[uuid::Uuid],
+) -> Result<Contexts> {
+    let mut contexts = Vec::with_capacity(context_ids.len());
+    for &id in context_ids {
+        let handle = registry.read_context(actor_id, id).await?;
+        let context = handle.context().await?;
+        contexts.push(context);
+    }
+    Ok(Contexts { contexts })
 }
 
 /// Run routes.

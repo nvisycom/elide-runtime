@@ -1,20 +1,29 @@
 //! Run response types.
 
+use nvisy_engine::provenance::{Audit, PolicyEvaluation, RedactionMap};
+use nvisy_ontology::entity::DetectionOutput;
+use nvisy_ontology::policy::RedactionSummary;
 use nvisy_engine::{RunSnapshot, RunSummary};
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
 
-/// Response body for `POST /api/v1/runs` and `POST /api/v1/runs/scan`.
+/// Response body for `POST /api/v1/runs`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RunResult {
     /// Unique run identifier.
     pub run_id: Uuid,
-    /// Per-source result summaries as opaque JSON.
-    pub summaries: serde_json::Value,
-    /// Audit trail entries as opaque JSON.
-    pub audits: serde_json::Value,
+    /// Full detection result (entities, sensitivity, risk).
+    pub detection: DetectionOutput,
+    /// Policy evaluation breakdown (decisions, reviews, suppressions).
+    pub evaluation: PolicyEvaluation,
+    /// Per-source redaction summaries.
+    pub summaries: Vec<RedactionSummary>,
+    /// Per-file processing audit trails.
+    pub audits: Vec<Audit>,
+    /// Redaction mapping artifacts.
+    pub redaction_maps: Vec<RedactionMap>,
 }
 
 /// Response body for `GET /api/v1/runs/{id}`.

@@ -5,7 +5,9 @@ use nvisy_ontology::entity::EntityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configuration for the [`NamedEntityRecognition`](super::GraphNodeKind::NamedEntityRecognition) action.
+/// Configuration for the [`NamedEntityRecognition`] action.
+///
+/// [`NamedEntityRecognition`]: super::GraphNodeKind::NamedEntityRecognition
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct NamedEntityRecognition {
     /// Entity kinds to detect. An empty list means all known kinds.
@@ -32,7 +34,9 @@ impl NamedEntityRecognition {
     }
 }
 
-/// Configuration for the [`PatternRecognition`](super::GraphNodeKind::PatternRecognition) action.
+/// Configuration for the [`PatternRecognition`] action.
+///
+/// [`PatternRecognition`]: super::GraphNodeKind::PatternRecognition
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PatternRecognition {
     /// Enable format heuristics, entropy, and structural cues.

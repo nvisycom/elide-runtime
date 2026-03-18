@@ -7,7 +7,9 @@ use crate::pipeline::policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
 
 /// A graph node enriched with adjacency information and compiled policies.
 ///
-/// Order is implicit in the position within [`ExecutionPlan::nodes`](super::ExecutionPlan::nodes).
+/// Order is implicit in the position within [`ExecutionPlan::nodes`].
+///
+/// [`ExecutionPlan::nodes`]: super::ExecutionPlan::nodes
 #[derive(Debug, Clone)]
 pub struct ResolvedNode {
     /// The original graph node definition.

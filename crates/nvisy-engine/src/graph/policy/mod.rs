@@ -1,7 +1,9 @@
 //! User-facing retry and timeout policy configuration types.
 //!
-//! These types are fields on [`GraphNode`](super::GraphNode) and are
-//! serializable via serde. They carry no async or tokio dependencies.
+//! These types are fields on [`GraphNode`] and are serializable via serde.
+//! They carry no async or tokio dependencies.
+//!
+//! [`GraphNode`]: super::GraphNode
 
 mod retry;
 mod timeout;

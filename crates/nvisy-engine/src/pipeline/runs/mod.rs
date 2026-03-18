@@ -1,8 +1,10 @@
-//! Pipeline run data types and the [`Runs`] trait.
+//! Pipeline run data types and the [`EngineRuns`] trait.
 //!
 //! Pure data definitions for run lifecycle tracking. All mutation and
-//! querying happens through the [`Runs`] trait, implemented on
-//! [`DefaultEngine`](super::DefaultEngine).
+//! querying happens through the [`EngineRuns`] trait, implemented on
+//! [`DefaultEngine`].
+//!
+//! [`DefaultEngine`]: super::DefaultEngine
 
 use std::future::Future;
 
@@ -36,7 +38,7 @@ pub enum RunStatus {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum NodeStatus {
-    /// The node has not yet started.
+    /// The node is waiting for upstream dependencies.
     Pending,
     /// The node is actively executing.
     Running,
@@ -111,7 +113,9 @@ pub struct RunFilter {
 
 /// Read-only access to pipeline run state.
 ///
-/// Runs are created internally by [`Engine::run()`](super::Engine::run).
+/// Runs are created internally by [`Engine::run()`].
+///
+/// [`Engine::run()`]: super::Engine::run
 /// External callers can inspect and cancel runs through this trait.
 pub trait EngineRuns: Send + Sync {
     /// Get a full snapshot of a single run.

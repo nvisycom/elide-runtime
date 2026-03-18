@@ -8,7 +8,9 @@ use uuid::Uuid;
 /// Data specific to deterministic processing operations
 /// (pattern matching, redaction, etc.).
 ///
-/// Duration and error are tracked on [`AuditEntry`](super::super::AuditEntry).
+/// Duration and error are tracked on [`AuditEntry`].
+///
+/// [`AuditEntry`]: super::super::AuditEntry
 #[derive(Debug, Clone, Default, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "ProcessingActionBuilder",

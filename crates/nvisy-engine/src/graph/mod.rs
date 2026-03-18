@@ -29,8 +29,10 @@ pub use self::refinement::{Fusion, Redaction};
 
 /// The set of strongly-typed actions a pipeline node can perform.
 ///
-/// Each variant maps to one or more [`Operation`](crate::operation::Operation)
-/// implementations. Variants carry a dedicated configuration struct.
+/// Each variant maps to one or more [`Operation`] implementations.
+/// Variants carry a dedicated configuration struct.
+///
+/// [`Operation`]: crate::operation::Operation
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum GraphNodeKind {
@@ -60,6 +62,24 @@ pub enum GraphNodeKind {
     Import(Import),
     /// Exports processed content to a target destination.
     Export(Export),
+}
+
+impl std::fmt::Display for GraphNodeKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LoadContext(_) => f.write_str("load_context"),
+            Self::SaveContext(_) => f.write_str("save_context"),
+            Self::GenerateContext(_) => f.write_str("generate_context"),
+            Self::VisualExtraction(_) => f.write_str("visual_extraction"),
+            Self::AudialExtraction(_) => f.write_str("audial_extraction"),
+            Self::NamedEntityRecognition(_) => f.write_str("ner"),
+            Self::PatternRecognition(_) => f.write_str("pattern_recognition"),
+            Self::Fusion(_) => f.write_str("fusion"),
+            Self::Redaction(_) => f.write_str("redaction"),
+            Self::Import(_) => f.write_str("import"),
+            Self::Export(_) => f.write_str("export"),
+        }
+    }
 }
 
 impl GraphNodeKind {

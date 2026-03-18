@@ -3,7 +3,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configuration for the [`VisualExtraction`](super::GraphNodeKind::VisualExtraction) action.
+/// Configuration for the [`VisualExtraction`] action.
+///
+/// [`VisualExtraction`]: super::GraphNodeKind::VisualExtraction
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct VisualExtraction {
@@ -15,7 +17,9 @@ pub struct VisualExtraction {
     pub entity_detection: bool,
 }
 
-/// Configuration for the [`AudialExtraction`](super::GraphNodeKind::AudialExtraction) action.
+/// Configuration for the [`AudialExtraction`] action.
+///
+/// [`AudialExtraction`]: super::GraphNodeKind::AudialExtraction
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct AudialExtraction {

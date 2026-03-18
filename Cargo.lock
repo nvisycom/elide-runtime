@@ -2962,6 +2962,7 @@ dependencies = [
  "bytes",
  "derive_builder",
  "derive_more",
+ "futures",
  "jiff",
  "nvisy-codec",
  "nvisy-core",

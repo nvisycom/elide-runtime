@@ -5,7 +5,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// Configuration for the [`LoadContext`](super::GraphNodeKind::LoadContext) action.
+/// Configuration for the [`LoadContext`] action.
+///
+/// [`LoadContext`]: super::GraphNodeKind::LoadContext
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct LoadContext {
     /// Context identifiers to load.
@@ -25,7 +27,9 @@ impl LoadContext {
     }
 }
 
-/// Configuration for the [`SaveContext`](super::GraphNodeKind::SaveContext) action.
+/// Configuration for the [`SaveContext`] action.
+///
+/// [`SaveContext`]: super::GraphNodeKind::SaveContext
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct SaveContext {
     /// Context identifiers to persist.
@@ -45,7 +49,9 @@ impl SaveContext {
     }
 }
 
-/// Configuration for the [`GenerateContext`](super::GraphNodeKind::GenerateContext) action.
+/// Configuration for the [`GenerateContext`] action.
+///
+/// [`GenerateContext`]: super::GraphNodeKind::GenerateContext
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct GenerateContext {

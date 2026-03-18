@@ -11,7 +11,9 @@ use super::review::ReviewDecision;
 ///
 /// `RedactionRecord` retains the original sensitive value for audit purposes
 /// and tracks versioning and human review. It does **not** carry the redaction
-/// spec or replacement — those live in [`RedactionDecision`](super::RedactionDecision).
+/// spec or replacement — those live in [`RedactionDecision`].
+///
+/// [`RedactionDecision`]: super::RedactionDecision
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionRecord {

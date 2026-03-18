@@ -73,7 +73,9 @@ pub enum LifecycleKind {
     Conversion(LifecycleAction),
 }
 
-/// Top-level category for an [`AuditEntry`](super::AuditEntry).
+/// Top-level category for an [`AuditEntry`].
+///
+/// [`AuditEntry`]: super::AuditEntry
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "category", content = "action", rename_all = "snake_case")]
 pub enum AuditEntryKind {

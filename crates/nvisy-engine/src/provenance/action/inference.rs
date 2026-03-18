@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 
 /// Data specific to AI-model operations (OCR, NER, transcription, etc.).
 ///
-/// Duration and error are tracked on [`AuditEntry`](super::super::AuditEntry).
+/// Duration and error are tracked on [`AuditEntry`].
+///
+/// [`AuditEntry`]: super::super::AuditEntry
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "InferenceActionBuilder",

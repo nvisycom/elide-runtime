@@ -3,7 +3,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configuration for the [`Fusion`](super::GraphNodeKind::Fusion) action.
+/// Configuration for the [`Fusion`] action.
+///
+/// [`Fusion`]: super::GraphNodeKind::Fusion
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Fusion {
@@ -18,7 +20,9 @@ pub struct Fusion {
     pub contextual_adjustment: bool,
 }
 
-/// Configuration for the [`Redaction`](super::GraphNodeKind::Redaction) action.
+/// Configuration for the [`Redaction`] action.
+///
+/// [`Redaction`]: super::GraphNodeKind::Redaction
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Redaction {

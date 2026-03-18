@@ -1,8 +1,10 @@
-//! Aggregate pipeline analytics types and the [`Analytics`] trait.
+//! Aggregate pipeline analytics types and the [`EngineAnalytics`] trait.
 //!
 //! Pure data definitions for pipeline-wide metrics. Querying happens
-//! through the [`Analytics`] trait, implemented on
-//! [`DefaultEngine`](super::DefaultEngine).
+//! through the [`EngineAnalytics`] trait, implemented on
+//! [`DefaultEngine`].
+//!
+//! [`DefaultEngine`]: super::DefaultEngine
 
 use std::future::Future;
 
@@ -19,10 +21,22 @@ pub struct AnalyticsSnapshot {
     pub timestamp: Timestamp,
     /// Total number of pipeline runs tracked by the engine.
     pub total_runs: u64,
-    /// Total number of entities detected across all runs.
-    pub total_entities_detected: u64,
-    /// Total number of redactions applied across all runs.
-    pub total_redactions_applied: u64,
+    /// Number of runs currently in progress.
+    pub active_runs: u64,
+    /// Number of runs that completed successfully.
+    pub succeeded_runs: u64,
+    /// Number of runs that failed (fully or partially).
+    pub failed_runs: u64,
+    /// Number of runs that were cancelled.
+    pub cancelled_runs: u64,
+    /// Total number of graph nodes executed across all runs.
+    pub total_nodes_executed: u64,
+    /// Total number of data items processed across all runs.
+    pub total_items_processed: u64,
+    /// Total number of node-level failures across all runs.
+    pub total_node_failures: u64,
+    /// Number of distinct actors that have triggered runs.
+    pub distinct_actors: u64,
 }
 
 /// Read-only access to aggregate pipeline analytics.

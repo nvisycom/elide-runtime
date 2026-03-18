@@ -43,8 +43,14 @@ async fn analytics(State(engine): State<DefaultEngine>) -> Json<Analytics> {
     Json(Analytics {
         timestamp: snapshot.timestamp,
         total_runs: snapshot.total_runs,
-        total_entities_detected: snapshot.total_entities_detected,
-        total_redactions_applied: snapshot.total_redactions_applied,
+        active_runs: snapshot.active_runs,
+        succeeded_runs: snapshot.succeeded_runs,
+        failed_runs: snapshot.failed_runs,
+        cancelled_runs: snapshot.cancelled_runs,
+        total_nodes_executed: snapshot.total_nodes_executed,
+        total_items_processed: snapshot.total_items_processed,
+        total_node_failures: snapshot.total_node_failures,
+        distinct_actors: snapshot.distinct_actors,
     })
 }
 

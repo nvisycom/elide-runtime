@@ -24,23 +24,28 @@ use uuid::Uuid;
 
 use super::analytics::{AnalyticsSnapshot, EngineAnalytics};
 use super::config::RuntimeConfig;
-use super::executor::{NodeExecutor, NodeOutput, RunOutput};
+use super::executor::{ImportSource, NodeExecutor, NodeOutput, RunOutput};
 use super::plan::{self, ExecutionPlan};
 use super::runs::{
     EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
 };
 use super::{Engine, EngineInput, EngineOutput};
+use crate::graph::GraphNodeKind;
 use crate::graph::policy::{RetryPolicy, TimeoutPolicy};
 use crate::operation::{DocumentEnvelope, SharedContext};
 use crate::provenance::PolicyEvaluation;
 
-/// Private mutable state for a single run, held inside `DefaultEngineInner`.
+/// Shared handle to the runs map, passed into spawned node tasks so they
+/// can update their own [`NodeSnapshot`] in real time.
+type RunMap = Arc<RwLock<HashMap<Uuid, RunEntry>>>;
+
+/// Private mutable state for a single run.
 struct RunEntry {
     actor_id: Uuid,
     status: RunStatus,
     created_at: Timestamp,
     completed_at: Option<Timestamp>,
-    nodes: Vec<NodeSnapshot>,
+    nodes: HashMap<Uuid, NodeSnapshot>,
     cancel: CancellationToken,
 }
 
@@ -52,7 +57,7 @@ impl RunEntry {
             status: self.status,
             created_at: self.created_at,
             completed_at: self.completed_at,
-            nodes: self.nodes.clone(),
+            nodes: self.nodes.values().cloned().collect(),
         }
     }
 
@@ -68,21 +73,13 @@ impl RunEntry {
     }
 }
 
-impl Clone for DefaultEngineInner {
-    fn clone(&self) -> Self {
-        Self {
-            config: self.config.clone(),
-            default_retry: self.default_retry.clone(),
-            default_timeout: self.default_timeout.clone(),
-            http_client: self.http_client.clone(),
-            registry: self.registry.clone(),
-            runs: RwLock::new(HashMap::new()),
-        }
-    }
-}
-
-/// Inner state shared behind an [`Arc`].
-struct DefaultEngineInner {
+/// Immutable configuration created during engine construction.
+///
+/// Separated from run state so that `Clone` is straightforward and
+/// builder methods (`with_config`, etc.) cannot accidentally be called
+/// after runs have been created.
+#[derive(Clone)]
+struct EngineConfig {
     /// Base runtime configuration (OCR, LLM, STT, TTS sections).
     config: RuntimeConfig,
     /// Default retry policy for graph nodes.
@@ -93,25 +90,26 @@ struct DefaultEngineInner {
     http_client: HttpClient,
     /// Content and context storage.
     registry: Registry,
-    /// All tracked runs keyed by their UUID.
-    runs: RwLock<HashMap<Uuid, RunEntry>>,
 }
 
 /// Default [`Engine`] implementation.
 ///
-/// Wraps state in an `Arc` so cloning is cheap.
+/// Immutable configuration lives in `Arc<EngineConfig>` (set during
+/// construction). Mutable run state lives in `Arc<RwLock<...>>` and is
+/// shared across all clones of the same engine instance.
 #[derive(Clone)]
 pub struct DefaultEngine {
-    inner: Arc<DefaultEngineInner>,
+    cfg: Arc<EngineConfig>,
+    runs: Arc<RwLock<HashMap<Uuid, RunEntry>>>,
 }
 
 impl std::fmt::Debug for DefaultEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultEngine")
-            .field("config", &self.inner.config)
-            .field("default_retry", &self.inner.default_retry)
-            .field("default_timeout", &self.inner.default_timeout)
-            .field("http_client", &self.inner.http_client)
+            .field("config", &self.cfg.config)
+            .field("default_retry", &self.cfg.default_retry)
+            .field("default_timeout", &self.cfg.default_timeout)
+            .field("http_client", &self.cfg.http_client)
             .finish()
     }
 }
@@ -120,14 +118,14 @@ impl DefaultEngine {
     /// Create a new engine backed by the given registry.
     pub fn new(registry: Registry) -> Self {
         Self {
-            inner: Arc::new(DefaultEngineInner {
+            cfg: Arc::new(EngineConfig {
                 config: RuntimeConfig::default(),
                 default_retry: None,
                 default_timeout: None,
                 http_client: HttpClient::default(),
                 registry,
-                runs: RwLock::new(HashMap::new()),
             }),
+            runs: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -136,58 +134,65 @@ impl DefaultEngine {
     /// Automatically extracts default retry and timeout policies from the
     /// `[engine]` section, if present.
     pub fn with_config(mut self, config: RuntimeConfig) -> Self {
-        let inner = Arc::make_mut(&mut self.inner);
+        let cfg = Arc::make_mut(&mut self.cfg);
         if let Some(engine) = &config.engine {
-            if inner.default_retry.is_none() {
-                inner.default_retry = engine.retry.clone();
+            if cfg.default_retry.is_none() {
+                cfg.default_retry = engine.retry.clone();
             }
-            if inner.default_timeout.is_none() {
-                inner.default_timeout = engine.timeout.clone();
+            if cfg.default_timeout.is_none() {
+                cfg.default_timeout = engine.timeout.clone();
             }
         }
-        inner.config = config;
+        cfg.config = config;
         self
     }
 
     /// Override the default retry policy.
     pub fn with_retry(mut self, policy: RetryPolicy) -> Self {
-        Arc::make_mut(&mut self.inner).default_retry = Some(policy);
+        Arc::make_mut(&mut self.cfg).default_retry = Some(policy);
         self
     }
 
     /// Override the default timeout policy.
     pub fn with_timeout(mut self, policy: TimeoutPolicy) -> Self {
-        Arc::make_mut(&mut self.inner).default_timeout = Some(policy);
+        Arc::make_mut(&mut self.cfg).default_timeout = Some(policy);
         self
     }
 
     /// Set the shared HTTP client for downstream providers.
     pub fn with_http_client(mut self, client: HttpClient) -> Self {
-        Arc::make_mut(&mut self.inner).http_client = client;
+        Arc::make_mut(&mut self.cfg).http_client = client;
         self
     }
 
     /// Returns the base runtime configuration.
     pub fn config(&self) -> &RuntimeConfig {
-        &self.inner.config
+        &self.cfg.config
     }
 
     /// Returns the shared HTTP client.
     pub fn http_client(&self) -> &HttpClient {
-        &self.inner.http_client
+        &self.cfg.http_client
     }
 
     /// Returns the content and context registry.
     pub fn registry(&self) -> &Registry {
-        &self.inner.registry
+        &self.cfg.registry
     }
 
     /// Execute a compiled [`ExecutionPlan`] by spawning concurrent tasks for
-    /// each node.
+    /// each node. Each task updates its [`NodeSnapshot`] in the shared
+    /// `runs` map so that `GET /runs/{id}` reflects live progress.
+    #[allow(clippy::too_many_arguments)]
     async fn run_graph(
         plan: &ExecutionPlan,
+        run_id: Uuid,
+        runs: RunMap,
         cancel: CancellationToken,
         shared: SharedContext,
+        import_source: ImportSource,
+        config: RuntimeConfig,
+        http_client: HttpClient,
     ) -> Result<RunOutput, Error> {
         let mut senders: HashMap<Uuid, Vec<mpsc::Sender<Arc<DocumentEnvelope>>>> = HashMap::new();
         let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>> =
@@ -213,7 +218,17 @@ impl DefaultEngine {
         for resolved in plan.nodes() {
             let resolved = resolved.clone();
             let node_id = resolved.node.id;
-            let executor = NodeExecutor::new(shared.clone(), cancel.clone());
+            let runs = runs.clone();
+
+            let mut executor = NodeExecutor::new(
+                shared.clone(),
+                cancel.clone(),
+                config.clone(),
+                http_client.clone(),
+            );
+            if matches!(resolved.node.kind, GraphNodeKind::Import(_)) {
+                executor = executor.with_import_source(import_source.clone());
+            }
 
             let upstream_watches: Vec<watch::Receiver<bool>> = resolved
                 .upstream_ids
@@ -230,6 +245,9 @@ impl DefaultEngine {
                     let _ = rx.wait_for(|&done| done).await;
                 }
 
+                Self::update_node(&runs, run_id, node_id, NodeStatus::Running, 0, None)
+                    .await;
+
                 let result = executor
                     .execute(&resolved, node_senders, node_receivers)
                     .await;
@@ -238,7 +256,7 @@ impl DefaultEngine {
                     let _ = tx.send(true);
                 }
 
-                match result {
+                let output = match result {
                     Ok(output) => output,
                     Err(e) => NodeOutput {
                         node_id,
@@ -246,7 +264,24 @@ impl DefaultEngine {
                         error: Some(e.to_string()),
                         envelopes: Vec::new(),
                     },
-                }
+                };
+
+                let status = if output.error.is_none() {
+                    NodeStatus::Succeeded
+                } else {
+                    NodeStatus::Failed
+                };
+                Self::update_node(
+                    &runs,
+                    run_id,
+                    node_id,
+                    status,
+                    output.items_processed,
+                    output.error.clone(),
+                )
+                .await;
+
+                output
             });
         }
 
@@ -266,22 +301,41 @@ impl DefaultEngine {
         Ok(RunOutput { node_results })
     }
 
-    /// Build [`NodeSnapshot`]s from a completed [`RunOutput`].
-    fn node_snapshots(run_output: &RunOutput) -> Vec<NodeSnapshot> {
-        run_output
-            .node_results
-            .iter()
-            .map(|nr| NodeSnapshot {
-                node_id: nr.node_id,
-                status: if nr.error.is_none() {
-                    NodeStatus::Succeeded
-                } else {
-                    NodeStatus::Failed
-                },
-                items_processed: nr.items_processed,
-                error: nr.error.clone(),
-            })
-            .collect()
+    /// Update a single node's snapshot within a run.
+    async fn update_node(
+        runs: &RunMap,
+        run_id: Uuid,
+        node_id: Uuid,
+        status: NodeStatus,
+        items_processed: u64,
+        error: Option<String>,
+    ) {
+        if let Some(entry) = runs.write().await.get_mut(&run_id)
+            && let Some(node) = entry.nodes.get_mut(&node_id)
+        {
+            node.status = status;
+            node.items_processed = items_processed;
+            node.error = error;
+        }
+    }
+
+    /// Determine overall run status from node results.
+    fn run_status(run_output: &RunOutput) -> RunStatus {
+        let any_ok = run_output.node_results.iter().any(|r| r.error.is_none());
+        let any_err = run_output.node_results.iter().any(|r| r.error.is_some());
+        match (any_ok, any_err) {
+            (_, false) => RunStatus::Succeeded,
+            (true, true) => RunStatus::PartialFailure,
+            _ => RunStatus::Failed,
+        }
+    }
+
+    /// Transition a run to its final status.
+    async fn finalize_run(&self, run_id: Uuid, status: RunStatus) {
+        if let Some(entry) = self.runs.write().await.get_mut(&run_id) {
+            entry.status = status;
+            entry.completed_at = Some(Timestamp::now());
+        }
     }
 }
 
@@ -290,58 +344,105 @@ impl Engine for DefaultEngine {
         let run_id = Uuid::new_v4();
         let cancel = CancellationToken::new();
 
-        {
-            let entry = RunEntry {
+        // Merge per-request config overrides with engine defaults.
+        let effective_config = match &input.config {
+            Some(overrides) => self.cfg.config.merge(overrides),
+            None => self.cfg.config.clone(),
+        };
+
+        let compiled = match plan::compile(
+            &input.graph,
+            effective_config
+                .engine
+                .as_ref()
+                .and_then(|e| e.retry.as_ref())
+                .or(self.cfg.default_retry.as_ref()),
+            effective_config
+                .engine
+                .as_ref()
+                .and_then(|e| e.timeout.as_ref())
+                .or(self.cfg.default_timeout.as_ref()),
+        ) {
+            Ok(plan) => plan,
+            Err(e) => {
+                self.runs.write().await.insert(
+                    run_id,
+                    RunEntry {
+                        actor_id: input.actor_id,
+                        status: RunStatus::Failed,
+                        created_at: Timestamp::now(),
+                        completed_at: Some(Timestamp::now()),
+                        nodes: HashMap::new(),
+                        cancel: cancel.clone(),
+                    },
+                );
+                return Err(e);
+            }
+        };
+
+        // Seed all nodes as Pending so GET /runs/{id} shows them immediately.
+        let initial_nodes: HashMap<Uuid, NodeSnapshot> = compiled
+            .nodes()
+            .iter()
+            .map(|n| {
+                (
+                    n.node.id,
+                    NodeSnapshot {
+                        node_id: n.node.id,
+                        status: NodeStatus::Pending,
+                        items_processed: 0,
+                        error: None,
+                    },
+                )
+            })
+            .collect();
+
+        self.runs.write().await.insert(
+            run_id,
+            RunEntry {
                 actor_id: input.actor_id,
-                status: RunStatus::Pending,
+                status: RunStatus::Running,
                 created_at: Timestamp::now(),
                 completed_at: None,
-                nodes: Vec::new(),
+                nodes: initial_nodes,
                 cancel: cancel.clone(),
-            };
-            self.inner.runs.write().await.insert(run_id, entry);
-        }
-
-        if let Some(entry) = self.inner.runs.write().await.get_mut(&run_id) {
-            entry.status = RunStatus::Running;
-        }
+            },
+        );
 
         let shared = SharedContext::new(run_id, input.actor_id)
             .with_policies(input.policies.clone())
             .with_contexts(input.contexts.clone());
 
-        let compiled = plan::compile(
-            &input.graph,
-            self.inner.default_retry.as_ref(),
-            self.inner.default_timeout.as_ref(),
-        )?;
-        let run_output = Self::run_graph(&compiled, cancel, shared).await?;
+        let import_source = ImportSource {
+            registry: self.cfg.registry.clone(),
+            content_ids: input.content_ids.into(),
+        };
 
-        // Transition to Succeeded/Failed and populate node snapshots
+        let run_output = match Self::run_graph(
+            &compiled,
+            run_id,
+            self.runs.clone(),
+            cancel,
+            shared,
+            import_source,
+            effective_config,
+            self.cfg.http_client.clone(),
+        )
+        .await
         {
-            let snapshots = Self::node_snapshots(&run_output);
-            if let Some(entry) = self.inner.runs.write().await.get_mut(&run_id) {
-                let any_ok = run_output.node_results.iter().any(|r| r.error.is_none());
-                let any_err = run_output.node_results.iter().any(|r| r.error.is_some());
-                entry.status = match (any_ok, any_err) {
-                    (_, false) => RunStatus::Succeeded,
-                    (true, true) => RunStatus::PartialFailure,
-                    _ => RunStatus::Failed,
-                };
-                entry.completed_at = Some(Timestamp::now());
-                entry.nodes = snapshots;
+            Ok(output) => output,
+            Err(e) => {
+                self.finalize_run(run_id, RunStatus::Failed).await;
+                return Err(e);
             }
-        }
+        };
 
-        // Collect envelopes from all nodes (export nodes accumulate them)
+        let status = Self::run_status(&run_output);
+        self.finalize_run(run_id, status).await;
+
+        // Collect envelopes from export nodes (they accumulate downstream results).
         let mut all_entities = nvisy_ontology::entity::Entities::new();
         let mut file_audits = Vec::new();
-        let first_policy_id = input
-            .policies
-            .policies
-            .first()
-            .map(|p| p.id)
-            .unwrap_or(Uuid::nil());
 
         for nr in &run_output.node_results {
             for envelope in &nr.envelopes {
@@ -350,14 +451,20 @@ impl Engine for DefaultEngine {
             }
         }
 
-        let detection =
-            nvisy_ontology::entity::DetectionOutput::new(ContentSource::new(), all_entities);
-        let evaluation = PolicyEvaluation::new(first_policy_id);
+        let policy_id = input
+            .policies
+            .policies
+            .first()
+            .map(|p| p.id)
+            .unwrap_or(Uuid::nil());
 
         Ok(EngineOutput {
             run_id,
-            detection,
-            evaluation,
+            detection: nvisy_ontology::entity::DetectionOutput::new(
+                ContentSource::new(),
+                all_entities,
+            ),
+            evaluation: PolicyEvaluation::new(policy_id),
             summaries: Vec::new(),
             file_audits,
             redaction_maps: Vec::new(),
@@ -367,20 +474,51 @@ impl Engine for DefaultEngine {
 
 impl EngineAnalytics for DefaultEngine {
     async fn snapshot(&self) -> AnalyticsSnapshot {
-        let runs = self.inner.runs.read().await;
+        let runs = self.runs.read().await;
+        let mut active = 0u64;
+        let mut succeeded = 0u64;
+        let mut failed = 0u64;
+        let mut cancelled = 0u64;
+        let mut total_nodes = 0u64;
+        let mut total_items = 0u64;
+        let mut total_node_failures = 0u64;
+        let mut actors = std::collections::HashSet::new();
+
+        for entry in runs.values() {
+            match entry.status {
+                RunStatus::Pending | RunStatus::Running => active += 1,
+                RunStatus::Succeeded => succeeded += 1,
+                RunStatus::Failed | RunStatus::PartialFailure => failed += 1,
+                RunStatus::Cancelled => cancelled += 1,
+            }
+            actors.insert(entry.actor_id);
+            for node in entry.nodes.values() {
+                total_nodes += 1;
+                total_items += node.items_processed;
+                if node.error.is_some() {
+                    total_node_failures += 1;
+                }
+            }
+        }
+
         AnalyticsSnapshot {
             timestamp: Timestamp::now(),
             total_runs: runs.len() as u64,
-            total_entities_detected: 0,
-            total_redactions_applied: 0,
+            active_runs: active,
+            succeeded_runs: succeeded,
+            failed_runs: failed,
+            cancelled_runs: cancelled,
+            total_nodes_executed: total_nodes,
+            total_items_processed: total_items,
+            total_node_failures,
+            distinct_actors: actors.len() as u64,
         }
     }
 }
 
 impl EngineRuns for DefaultEngine {
     async fn get_run(&self, id: Uuid) -> Option<RunSnapshot> {
-        self.inner
-            .runs
+        self.runs
             .read()
             .await
             .get(&id)
@@ -388,8 +526,7 @@ impl EngineRuns for DefaultEngine {
     }
 
     async fn list_runs(&self, filter: RunFilter) -> Vec<RunSummary> {
-        self.inner
-            .runs
+        self.runs
             .read()
             .await
             .iter()
@@ -402,7 +539,7 @@ impl EngineRuns for DefaultEngine {
     }
 
     async fn cancel_run(&self, id: Uuid) -> Result<(), Error> {
-        let mut runs = self.inner.runs.write().await;
+        let mut runs = self.runs.write().await;
         let entry = runs
             .get_mut(&id)
             .ok_or_else(|| Error::new(nvisy_core::ErrorKind::NotFound, "run not found"))?;

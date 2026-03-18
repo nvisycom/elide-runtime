@@ -3,7 +3,9 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configuration for the [`Import`](super::GraphNodeKind::Import) action.
+/// Configuration for the [`Import`] action.
+///
+/// [`Import`]: super::GraphNodeKind::Import
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Import {
@@ -18,7 +20,9 @@ pub struct Import {
     pub conversion: bool,
 }
 
-/// Configuration for the [`Export`](super::GraphNodeKind::Export) action.
+/// Configuration for the [`Export`] action.
+///
+/// [`Export`]: super::GraphNodeKind::Export
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Export {

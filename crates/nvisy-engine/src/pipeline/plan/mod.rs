@@ -8,7 +8,7 @@ mod edge;
 mod node;
 
 use nvisy_core::{Error, Result};
-use petgraph::algo::{is_cyclic_directed, toposort};
+use petgraph::algo::toposort;
 use petgraph::graph::{DiGraph, NodeIndex};
 use uuid::Uuid;
 
@@ -41,7 +41,7 @@ pub(crate) fn compile(
 
     graph.validate()?;
 
-    let pg = build_petgraph(&graph)?;
+    let pg = build_petgraph(&graph);
 
     let topo =
         toposort(&pg, None).map_err(|_| Error::validation("graph contains a cycle", "compiler"))?;
@@ -49,9 +49,8 @@ pub(crate) fn compile(
     Ok(ExecutionPlan::from_graph(&pg, &topo))
 }
 
-/// Builds a petgraph `DiGraph` from a validated [`Graph`] and checks
-/// for cycles.
-fn build_petgraph(graph: &Graph) -> Result<DiGraph<GraphNode, GraphEdge>> {
+/// Builds a petgraph `DiGraph` from a validated [`Graph`].
+fn build_petgraph(graph: &Graph) -> DiGraph<GraphNode, GraphEdge> {
     let mut pg = DiGraph::with_capacity(graph.nodes.len(), graph.edges.len());
     let mut index_map = std::collections::HashMap::with_capacity(graph.nodes.len());
 
@@ -66,11 +65,7 @@ fn build_petgraph(graph: &Graph) -> Result<DiGraph<GraphNode, GraphEdge>> {
         pg.add_edge(from, to, edge.clone());
     }
 
-    if is_cyclic_directed(&pg) {
-        return Err(Error::validation("graph contains a cycle", "compiler"));
-    }
-
-    Ok(pg)
+    pg
 }
 
 /// A compiled execution plan ready for the executor.

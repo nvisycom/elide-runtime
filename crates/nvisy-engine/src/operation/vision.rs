@@ -31,6 +31,41 @@ pub struct VisualExtraction {
 }
 
 impl VisualExtraction {
+    fn build_ocr_agent(config: &RuntimeConfig) -> Result<OcrAgent> {
+        let llm = config.llm.as_ref().ok_or_else(|| {
+            Error::new(ErrorKind::Validation, "OCR verification requires an LLM provider")
+        })?;
+        let provider = llm.provider.as_ref().ok_or_else(|| {
+            Error::new(ErrorKind::Validation, "OCR verification requires an LLM provider")
+        })?;
+        OcrAgent::new(provider, llm.policy.clone().unwrap_or_default())
+            .map_err(|e| Error::runtime(e.to_string(), "ocr-agent", false))
+    }
+
+    fn map_cv_entity(cv: &CvEntity, image_id: Option<uuid::Uuid>) -> Entity {
+        let mut entity = Entity::new(
+            cv.category,
+            cv.entity_type,
+            &cv.label,
+            RecognitionMethod::Classification,
+            cv.confidence,
+        );
+        entity.extraction_methods = vec![ExtractionMethod::ObjectDetection];
+        let bbox = if cv.bbox.len() >= 4 {
+            BoundingBox {
+                x: cv.bbox[0],
+                y: cv.bbox[1],
+                width: cv.bbox[2],
+                height: cv.bbox[3],
+            }
+        } else {
+            BoundingBox::default()
+        };
+        entity.with_location(
+            ImageLocation { bounding_box: bbox, image_id, page_number: None }.into(),
+        )
+    }
+
     /// Build from graph config and runtime dependencies.
     pub fn connect(
         cfg: &crate::graph::VisualExtraction,
@@ -55,7 +90,7 @@ impl VisualExtraction {
         let ocr = OcrOp::new(ocr_engine, ocr_params);
 
         let verifier = if cfg.verification {
-            match build_ocr_agent(config) {
+            match Self::build_ocr_agent(config) {
                 Ok(agent) => Some(VerifyOp::new(agent)),
                 Err(e) => {
                     tracing::warn!(target: TARGET, error = %e, "OCR verification unavailable, skipping");
@@ -94,7 +129,7 @@ impl NodeHandler for VisualExtraction {
 
         let retry = self.retry.as_ref();
         let ocr_ref = &self.ocr;
-        let _ocr_output = call_with_retry(retry, || {
+        let _ocr_output = CompiledRetryPolicy::call(retry, || {
             let spans = ocr_spans.clone();
             let shared = self.shared.clone();
             async move {
@@ -130,7 +165,7 @@ impl NodeHandler for VisualExtraction {
                     verifier.call(ctx).await
                 }
             };
-            match call_with_retry(retry, do_verify).await {
+            match CompiledRetryPolicy::call(retry, do_verify).await {
                 Ok(output) => envelope.apply(output.into_inner()),
                 Err(e) => tracing::warn!(
                     target: TARGET,
@@ -238,64 +273,3 @@ impl Operation for VerifyOp {
     }
 }
 
-// --- Internal: CV entity mapping ---
-
-fn map_cv_entity(cv: &CvEntity, image_id: Option<uuid::Uuid>) -> Entity {
-    let mut entity = Entity::new(
-        cv.category,
-        cv.entity_type,
-        &cv.label,
-        RecognitionMethod::Classification,
-        cv.confidence,
-    );
-    entity.extraction_methods = vec![ExtractionMethod::ObjectDetection];
-    let bbox = if cv.bbox.len() >= 4 {
-        BoundingBox {
-            x: cv.bbox[0],
-            y: cv.bbox[1],
-            width: cv.bbox[2],
-            height: cv.bbox[3],
-        }
-    } else {
-        BoundingBox::default()
-    };
-    entity.with_location(
-        ImageLocation {
-            bounding_box: bbox,
-            image_id,
-            page_number: None,
-        }
-        .into(),
-    )
-}
-
-fn build_ocr_agent(config: &RuntimeConfig) -> Result<OcrAgent> {
-    let llm = config.llm.as_ref().ok_or_else(|| {
-        Error::new(
-            ErrorKind::Validation,
-            "OCR verification requires an LLM provider",
-        )
-    })?;
-    let provider = llm.provider.as_ref().ok_or_else(|| {
-        Error::new(
-            ErrorKind::Validation,
-            "OCR verification requires an LLM provider",
-        )
-    })?;
-    OcrAgent::new(provider, llm.policy.clone().unwrap_or_default())
-        .map_err(|e| Error::runtime(e.to_string(), "ocr-agent", false))
-}
-
-async fn call_with_retry<T, F, Fut>(
-    retry: Option<&CompiledRetryPolicy>,
-    mut f: F,
-) -> Result<T, Error>
-where
-    F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = Result<T, Error>>,
-{
-    match retry {
-        Some(policy) => policy.with_retry(f).await,
-        None => f().await,
-    }
-}

@@ -14,6 +14,21 @@ pub use self::image::ImageLocation;
 pub use self::tabular::TabularLocation;
 pub use self::text::TextLocation;
 
+/// Trait for checking whether two values overlap spatially or temporally.
+pub trait Overlap {
+    fn overlaps(&self, other: &Self) -> bool;
+}
+
+impl<T: Overlap> Overlap for Option<T> {
+    /// Two `None`s are considered distinct (no overlap).
+    fn overlaps(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Some(a), Some(b)) => a.overlaps(b),
+            _ => false,
+        }
+    }
+}
+
 /// A modality-specific location for a detected entity.
 ///
 /// Exactly one variant is set per entity, enforcing the invariant that
@@ -61,6 +76,19 @@ impl Location {
         match self {
             Self::Audio(loc) => Some(loc),
             _ => None,
+        }
+    }
+
+}
+
+impl Overlap for Location {
+    fn overlaps(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Text(a), Self::Text(b)) => a.overlaps(b),
+            (Self::Image(a), Self::Image(b)) => a.overlaps(b),
+            (Self::Audio(a), Self::Audio(b)) => a.overlaps(b),
+            (Self::Tabular(a), Self::Tabular(b)) => a.overlaps(b),
+            _ => false,
         }
     }
 }

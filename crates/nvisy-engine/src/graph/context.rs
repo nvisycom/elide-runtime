@@ -1,52 +1,28 @@
 //! Context action configurations: load, save, and generate.
 
-use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use validator::Validate;
 
 /// Configuration for the [`LoadContext`] action.
 ///
 /// [`LoadContext`]: super::GraphNodeKind::LoadContext
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Validate, Serialize, Deserialize, JsonSchema)]
 pub struct LoadContext {
-    /// Context identifiers to load.
+    /// Context identifiers to load. Must contain at least one.
+    #[validate(length(min = 1, message = "load_context requires at least one context_id"))]
     pub context_ids: Vec<Uuid>,
-}
-
-impl LoadContext {
-    /// Validates that at least one context ID is specified.
-    pub fn validate(&self) -> Result<(), Error> {
-        if self.context_ids.is_empty() {
-            return Err(Error::validation(
-                "load_context requires at least one context id",
-                "compiler",
-            ));
-        }
-        Ok(())
-    }
 }
 
 /// Configuration for the [`SaveContext`] action.
 ///
 /// [`SaveContext`]: super::GraphNodeKind::SaveContext
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Validate, Serialize, Deserialize, JsonSchema)]
 pub struct SaveContext {
-    /// Context identifiers to persist.
+    /// Context identifiers to persist. Must contain at least one.
+    #[validate(length(min = 1, message = "save_context requires at least one context_id"))]
     pub context_ids: Vec<Uuid>,
-}
-
-impl SaveContext {
-    /// Validates that at least one context ID is specified.
-    pub fn validate(&self) -> Result<(), Error> {
-        if self.context_ids.is_empty() {
-            return Err(Error::validation(
-                "save_context requires at least one context id",
-                "compiler",
-            ));
-        }
-        Ok(())
-    }
 }
 
 /// Configuration for the [`GenerateContext`] action.

@@ -37,6 +37,31 @@ pub struct EntityRecognition {
 }
 
 impl EntityRecognition {
+    fn build_agent(
+        provider: &AgentProvider,
+        config: AgentConfig,
+        http_client: Option<HttpClient>,
+    ) -> Result<NerAgent> {
+        let agent = if let Some(client) = http_client {
+            NerAgent::with_http_client(provider, config, client)
+        } else {
+            NerAgent::new(provider, config)
+        }
+        .map_err(|e| Error::validation(e.to_string(), "ner-agent"))?;
+        Ok(agent)
+    }
+
+    async fn collect_spans(doc: &Document) -> Vec<Span<TxtSpan, String>> {
+        let raw: Vec<Span<usize, TextData>> = match doc {
+            Document::Text(h) => h.text_spans().await.collect().await,
+            Document::Rich(h) => h.text_spans().await.collect().await,
+            _ => return Vec::new(),
+        };
+        raw.into_iter()
+            .map(|s| Span::new(TxtSpan(s.id), s.data.into_inner()).with_source(s.source))
+            .collect()
+    }
+
     /// Build from graph config and runtime dependencies.
     pub async fn connect(
         cfg: &crate::graph::NamedEntityRecognition,
@@ -51,7 +76,7 @@ impl EntityRecognition {
             .ok_or_else(|| Error::new(ErrorKind::Validation, "NER requires an LLM provider"))?;
         let agent_config = llm.and_then(|s| s.policy.clone()).unwrap_or_default();
 
-        let agent = build_ner_agent(&provider, agent_config, Some(http_client.clone()))?;
+        let agent = Self::build_agent(&provider, agent_config, Some(http_client.clone()))?;
         let config = DetectionConfig {
             entity_kinds: cfg.entity_kinds.clone(),
             confidence_threshold: cfg.confidence_threshold.unwrap_or(0.5),
@@ -136,7 +161,7 @@ impl EntityRecognition {
 #[async_trait::async_trait]
 impl NodeHandler for EntityRecognition {
     async fn handle(&self, mut envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
-        let spans = collect_ner_spans(&envelope.document).await;
+        let spans = Self::collect_spans(&envelope.document).await;
         if !spans.is_empty() {
             let ner_ref = self;
             let retry = self.retry.as_ref();
@@ -167,6 +192,14 @@ pub struct PatternRecognition {
 }
 
 impl PatternRecognition {
+    async fn collect_spans(doc: &Document) -> Vec<Span<usize, TextData>> {
+        match doc {
+            Document::Text(h) => h.text_spans().await.collect().await,
+            Document::Rich(h) => h.text_spans().await.collect().await,
+            _ => Vec::new(),
+        }
+    }
+
     pub async fn connect(shared: SharedContext) -> Result<Self> {
         Ok(Self { shared })
     }
@@ -175,7 +208,7 @@ impl PatternRecognition {
 #[async_trait::async_trait]
 impl NodeHandler for PatternRecognition {
     async fn handle(&self, mut envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
-        let spans = collect_text_spans(&envelope.document).await;
+        let spans = Self::collect_spans(&envelope.document).await;
         if spans.is_empty() {
             return Ok(envelope);
         }
@@ -215,40 +248,6 @@ impl NodeHandler for PatternRecognition {
     }
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
-
-async fn collect_ner_spans(doc: &Document) -> Vec<Span<TxtSpan, String>> {
-    let raw: Vec<Span<usize, TextData>> = match doc {
-        Document::Text(h) => h.text_spans().await.collect().await,
-        Document::Rich(h) => h.text_spans().await.collect().await,
-        _ => return Vec::new(),
-    };
-    raw.into_iter()
-        .map(|s| Span::new(TxtSpan(s.id), s.data.into_inner()).with_source(s.source))
-        .collect()
-}
-
-async fn collect_text_spans(doc: &Document) -> Vec<Span<usize, TextData>> {
-    match doc {
-        Document::Text(h) => h.text_spans().await.collect().await,
-        Document::Rich(h) => h.text_spans().await.collect().await,
-        _ => Vec::new(),
-    }
-}
-
-fn build_ner_agent(
-    provider: &AgentProvider,
-    config: AgentConfig,
-    http_client: Option<HttpClient>,
-) -> Result<NerAgent> {
-    let agent = if let Some(client) = http_client {
-        NerAgent::with_http_client(provider, config, client)
-    } else {
-        NerAgent::new(provider, config)
-    }
-    .map_err(|e| Error::validation(e.to_string(), "ner-agent"))?;
-    Ok(agent)
-}
 
 /// Manual annotation: not a standalone NodeHandler, but a utility
 /// for converting user-provided annotations into entities.

@@ -3,6 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use validator::Validate;
 
 /// Supported compression formats for import/export.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,10 +28,11 @@ pub enum EncryptionFormat {
 /// Configuration for the [`Import`] action.
 ///
 /// [`Import`]: super::GraphNodeKind::Import
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Import {
-    /// Identifiers of previously uploaded content to import.
+    /// Identifiers of previously uploaded content to import. Must contain at least one.
+    #[validate(length(min = 1, message = "import requires at least one content_id"))]
     #[serde(default)]
     pub content_ids: Vec<Uuid>,
     /// Decompress the content before decoding.

@@ -11,13 +11,13 @@ mod lifecycle;
 mod policy;
 mod recognition;
 mod refinement;
+mod validate;
 
-use std::collections::{HashMap, HashSet};
-
-use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use nvisy_core::Error;
 use validator::Validate;
 
 pub use self::context::{GenerateContext, LoadContext, SaveContext};
@@ -25,7 +25,7 @@ pub use self::extraction::{AudialExtraction, VisualExtraction};
 pub use self::lifecycle::{CompressionFormat, EncryptionFormat, Export, Import};
 pub use self::policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 pub use self::recognition::{NamedEntityRecognition, PatternRecognition};
-pub use self::refinement::{Fusion, Redaction, Validation};
+pub use self::refinement::{Fusion, FusionStrategy, Redaction, Validation};
 
 /// The set of strongly-typed actions a pipeline node can perform.
 ///
@@ -74,7 +74,7 @@ impl std::fmt::Display for GraphNodeKind {
             Self::GenerateContext(_) => f.write_str("generate_context"),
             Self::VisualExtraction(_) => f.write_str("visual_extraction"),
             Self::AudialExtraction(_) => f.write_str("audial_extraction"),
-            Self::NamedEntityRecognition(_) => f.write_str("ner"),
+            Self::NamedEntityRecognition(_) => f.write_str("named_entity_recognition"),
             Self::PatternRecognition(_) => f.write_str("pattern_recognition"),
             Self::Fusion(_) => f.write_str("fusion"),
             Self::Redaction(_) => f.write_str("redaction"),
@@ -90,6 +90,16 @@ impl GraphNodeKind {
     ///
     /// Phases enforce execution ordering: edges must flow from equal or
     /// lower phase to equal or higher phase.
+    ///
+    /// | Phase | Actions                                           |
+    /// |-------|---------------------------------------------------|
+    /// | 0     | Import, LoadContext                                |
+    /// | 1     | VisualExtraction, AudialExtraction                 |
+    /// | 2     | NamedEntityRecognition, PatternRecognition         |
+    /// | 3     | Fusion                                            |
+    /// | 4     | Redaction, GenerateContext                         |
+    /// | 5     | Validation                                        |
+    /// | 6     | Export, SaveContext                                |
     #[must_use]
     pub fn phase(&self) -> u8 {
         match self {
@@ -106,10 +116,18 @@ impl GraphNodeKind {
     /// Validates action-specific configuration.
     pub fn validate(&self) -> Result<(), Error> {
         match self {
-            Self::LoadContext(action) => action.validate(),
-            Self::SaveContext(action) => action.validate(),
-            Self::NamedEntityRecognition(action) => action.validate(),
-            _ => Ok(()),
+            Self::Import(cfg) => validate_struct(cfg),
+            Self::LoadContext(cfg) => validate_struct(cfg),
+            Self::SaveContext(cfg) => validate_struct(cfg),
+            Self::NamedEntityRecognition(cfg) => cfg.validate(),
+            Self::Export(_)
+            | Self::VisualExtraction(_)
+            | Self::AudialExtraction(_)
+            | Self::PatternRecognition(_)
+            | Self::Fusion(_)
+            | Self::Redaction(_)
+            | Self::Validation(_)
+            | Self::GenerateContext(_) => Ok(()),
         }
     }
 }
@@ -180,119 +198,10 @@ impl Graph {
     pub fn new(nodes: Vec<GraphNode>, edges: Vec<GraphEdge>) -> Self {
         Self { nodes, edges }
     }
+}
 
-    /// Validates structural invariants.
-    ///
-    /// Checks that the graph contains at least one node, all node IDs are
-    /// unique, node-level policies and action configs are valid, edges have
-    /// no self-loops or duplicates, all edge endpoints reference existing
-    /// node IDs, and edges respect pipeline phase ordering.
-    #[must_use = "validation errors are silently ignored if the result is unused"]
-    pub fn validate(&self) -> Result<(), Error> {
-        if self.nodes.is_empty() {
-            return Err(Error::validation(
-                "graph must have at least one node",
-                "compiler",
-            ));
-        }
-
-        let mut node_map = HashMap::with_capacity(self.nodes.len());
-        for node in &self.nodes {
-            if node_map.insert(node.id, node).is_some() {
-                return Err(Error::validation(
-                    format!("duplicate node id: {}", node.id),
-                    "compiler",
-                ));
-            }
-        }
-
-        for node in &self.nodes {
-            if let Some(retry) = &node.retry {
-                retry
-                    .validate()
-                    .map_err(|e| Error::validation(format!("node {}: {e}", node.id), "compiler"))?;
-            }
-            if let Some(timeout) = &node.timeout {
-                timeout
-                    .validate()
-                    .map_err(|e| Error::validation(format!("node {}: {e}", node.id), "compiler"))?;
-            }
-            node.kind.validate().map_err(|e| {
-                Error::validation(format!("node {}: {}", node.id, e.message), "compiler")
-            })?;
-        }
-
-        // Collect in-degree and out-degree per node for structural checks
-        let mut in_degree: HashMap<Uuid, usize> = HashMap::new();
-        let mut out_degree: HashMap<Uuid, usize> = HashMap::new();
-
-        let mut seen_edges = HashSet::with_capacity(self.edges.len());
-        for edge in &self.edges {
-            if edge.source == edge.target {
-                return Err(Error::validation(
-                    format!("self-loop on node {}", edge.source),
-                    "compiler",
-                ));
-            }
-
-            if !seen_edges.insert((edge.source, edge.target)) {
-                return Err(Error::validation(
-                    format!("duplicate edge from {} to {}", edge.source, edge.target,),
-                    "compiler",
-                ));
-            }
-
-            let source = node_map.get(&edge.source).ok_or_else(|| {
-                Error::validation(
-                    format!("edge references unknown source node: {}", edge.source),
-                    "compiler",
-                )
-            })?;
-            let target = node_map.get(&edge.target).ok_or_else(|| {
-                Error::validation(
-                    format!("edge references unknown target node: {}", edge.target),
-                    "compiler",
-                )
-            })?;
-
-            let source_phase = source.kind.phase();
-            let target_phase = target.kind.phase();
-            if source_phase > target_phase {
-                return Err(Error::validation(
-                    format!(
-                        "edge from node {} (phase {source_phase}) to node {} \
-                         (phase {target_phase}) violates pipeline ordering",
-                        edge.source, edge.target,
-                    ),
-                    "compiler",
-                ));
-            }
-
-            *out_degree.entry(edge.source).or_default() += 1;
-            *in_degree.entry(edge.target).or_default() += 1;
-        }
-
-        for node in &self.nodes {
-            let incoming = in_degree.get(&node.id).copied().unwrap_or(0);
-            let outgoing = out_degree.get(&node.id).copied().unwrap_or(0);
-
-            match &node.kind {
-                GraphNodeKind::Import(_) if incoming > 0 => {
-                    return Err(Error::validation(
-                        format!("import node {} must not have incoming edges", node.id),
-                        "compiler",
-                    ));
-                }
-                GraphNodeKind::Export(_) if outgoing > 0 => {
-                    return Err(Error::validation(
-                        format!("export node {} must not have outgoing edges", node.id),
-                        "compiler",
-                    ));
-                }
-                _ => {}
-            }
-        }
-
-        Ok(())
-    }
+/// Convert a `validator::Validate` result into our `Error` type.
+fn validate_struct(v: &impl Validate) -> Result<(), Error> {
+    v.validate()
+        .map_err(|e| Error::validation(e.to_string(), "compiler"))
 }

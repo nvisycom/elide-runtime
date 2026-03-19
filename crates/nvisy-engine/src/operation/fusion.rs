@@ -4,57 +4,22 @@
 //! the ensemble pass (fuse multi-detector confidence scores) into
 //! a single operation.
 
-use std::collections::HashMap;
-
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::{Entities, Entity, Location, RecognitionMethod, RefinementMethod};
+use nvisy_ontology::entity::{Entities, Entity, Overlap, RefinementMethod};
 
+use crate::graph::FusionStrategy;
 use crate::operation::envelope::RefinedEntities;
 use crate::operation::{DocumentEnvelope, NodeHandler, Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::fusion";
 
-/// Strategy for combining confidence scores from multiple detectors.
-#[derive(Debug, Clone)]
-pub enum FusionStrategy {
-    /// Take the maximum confidence across all detectors.
-    MaxConfidence,
-    /// Weighted average by recognition method.
-    WeightedAverage {
-        weights: HashMap<RecognitionMethod, f64>,
-    },
-    /// Noisy-OR: `P = 1 − ∏(1 − pᵢ)` for independent detectors.
-    NoisyOr,
-}
-
-/// Configuration for the fusion operation.
-#[derive(Debug, Clone)]
-pub struct FusionParams {
-    /// Run deduplication before ensemble fusion.
-    pub deduplicate: bool,
-    /// Confidence combination strategy.
-    pub strategy: FusionStrategy,
-}
-
-impl Default for FusionParams {
-    fn default() -> Self {
-        Self {
-            deduplicate: true,
-            strategy: FusionStrategy::MaxConfidence,
-        }
-    }
-}
-
 /// Combined deduplication + ensemble fusion operation.
 pub struct Fusion {
-    params: FusionParams,
+    deduplicate: bool,
+    strategy: FusionStrategy,
 }
 
 impl Fusion {
-    pub fn new(params: FusionParams) -> Self {
-        Self { params }
-    }
-
     /// Build from graph config.
     pub fn from_graph(cfg: &crate::graph::Fusion) -> Self {
         if cfg.confidence_calibration {
@@ -63,10 +28,10 @@ impl Fusion {
         if cfg.contextual_adjustment {
             tracing::warn!(target: TARGET, "contextual_adjustment not yet implemented, skipping");
         }
-        Self::new(FusionParams {
+        Self {
             deduplicate: cfg.entity_deduplication,
-            strategy: FusionStrategy::MaxConfidence,
-        })
+            strategy: cfg.strategy.clone(),
+        }
     }
 
     async fn execute(&self, entities: Entities) -> Result<RefinedEntities> {
@@ -76,14 +41,14 @@ impl Fusion {
 
         let before = entities.len();
 
-        let entities = if self.params.deduplicate {
-            deduplicate(entities)
+        let entities = if self.deduplicate {
+            Self::deduplicate(entities)
         } else {
             entities
         };
 
         let after_dedup = entities.len();
-        let result = ensemble(&self.params.strategy, entities);
+        let result = self.strategy.fuse(entities);
 
         tracing::debug!(
             target: TARGET,
@@ -95,6 +60,49 @@ impl Fusion {
 
         Ok(RefinedEntities(result))
     }
+
+    fn deduplicate(entities: Entities) -> Entities {
+        if entities.len() <= 1 {
+            return entities;
+        }
+
+        let mut result: Vec<Entity> = Vec::new();
+
+        for entity in entities {
+            let merged = result.iter_mut().find(|existing| {
+                existing.entity_kind == entity.entity_kind
+                    && existing.value == entity.value
+                    && existing.location.overlaps(&entity.location)
+            });
+
+            match merged {
+                Some(existing) => {
+                    if entity.confidence > existing.confidence {
+                        existing.confidence = entity.confidence;
+                    }
+                    for m in entity.recognition_methods {
+                        if !existing.recognition_methods.contains(&m) {
+                            existing.recognition_methods.push(m);
+                        }
+                    }
+                    if !existing
+                        .refinement_methods
+                        .contains(&RefinementMethod::Deduplication)
+                    {
+                        existing
+                            .refinement_methods
+                            .push(RefinementMethod::Deduplication);
+                    }
+                }
+                None => {
+                    result.push(entity);
+                }
+            }
+        }
+
+        result.into()
+    }
+
 }
 
 impl Operation for Fusion {
@@ -117,144 +125,14 @@ impl NodeHandler for Fusion {
     }
 }
 
-/// Check whether two optional locations overlap.
-///
-/// Two entities with no location are considered distinct — merging
-/// locationless entities risks combining different occurrences.
-pub(crate) fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
-    match (a, b) {
-        (None, None) => false,
-        (Some(Location::Text(a_loc)), Some(Location::Text(b_loc))) => a_loc.overlaps(b_loc),
-        _ => false,
-    }
-}
-
-fn deduplicate(entities: Entities) -> Entities {
-    if entities.len() <= 1 {
-        return entities;
-    }
-
-    let mut result: Vec<Entity> = Vec::new();
-
-    for entity in entities {
-        let merged = result.iter_mut().find(|existing| {
-            existing.entity_kind == entity.entity_kind
-                && existing.value == entity.value
-                && locations_overlap(&existing.location, &entity.location)
-        });
-
-        match merged {
-            Some(existing) => {
-                if entity.confidence > existing.confidence {
-                    existing.confidence = entity.confidence;
-                }
-                for m in entity.recognition_methods {
-                    if !existing.recognition_methods.contains(&m) {
-                        existing.recognition_methods.push(m);
-                    }
-                }
-                if !existing
-                    .refinement_methods
-                    .contains(&RefinementMethod::Deduplication)
-                {
-                    existing
-                        .refinement_methods
-                        .push(RefinementMethod::Deduplication);
-                }
-            }
-            None => {
-                result.push(entity);
-            }
-        }
-    }
-
-    result.into()
-}
-
-fn ensemble(strategy: &FusionStrategy, entities: Entities) -> Entities {
-    if entities.len() <= 1 {
-        return entities;
-    }
-
-    let mut groups: Vec<Vec<Entity>> = Vec::new();
-
-    for entity in entities {
-        let group = groups.iter_mut().find(|group| {
-            let rep = &group[0];
-            rep.entity_kind == entity.entity_kind
-                && rep.value == entity.value
-                && locations_overlap(&rep.location, &entity.location)
-        });
-
-        match group {
-            Some(g) => g.push(entity),
-            None => groups.push(vec![entity]),
-        }
-    }
-
-    groups
-        .into_iter()
-        .map(|group| fuse_group(strategy, group))
-        .collect()
-}
-
-fn fuse_group(strategy: &FusionStrategy, group: Vec<Entity>) -> Entity {
-    debug_assert!(!group.is_empty());
-
-    if group.len() == 1 {
-        return group.into_iter().next().unwrap();
-    }
-
-    let fused_confidence = match strategy {
-        FusionStrategy::MaxConfidence => group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max),
-        FusionStrategy::WeightedAverage { weights } => {
-            let mut total_weight = 0.0;
-            let mut weighted_sum = 0.0;
-            for e in &group {
-                let w = e
-                    .recognition_methods
-                    .first()
-                    .and_then(|m| weights.get(m))
-                    .copied()
-                    .unwrap_or(1.0);
-                weighted_sum += e.confidence * w;
-                total_weight += w;
-            }
-            if total_weight > 0.0 {
-                weighted_sum / total_weight
-            } else {
-                0.0
-            }
-        }
-        FusionStrategy::NoisyOr => {
-            let product: f64 = group.iter().map(|e| 1.0 - e.confidence).product();
-            1.0 - product
-        }
-    };
-
-    let mut merged_methods = Vec::new();
-    for e in &group {
-        for m in &e.recognition_methods {
-            if !merged_methods.contains(m) {
-                merged_methods.push(*m);
-            }
-        }
-    }
-
-    let mut result = group.into_iter().next().unwrap();
-    result.confidence = fused_confidence;
-    result.recognition_methods = merged_methods;
-    result
-        .refinement_methods
-        .push(RefinementMethod::EnsembleFusion);
-    result
-}
-
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{EntityCategory, EntityKind, TextLocation};
+    use std::collections::HashMap;
+
+    use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod, TextLocation};
 
     use super::*;
+    use crate::graph::FusionStrategy::*;
 
     fn text_entity(
         value: &str,
@@ -287,7 +165,7 @@ mod tests {
             text_entity("John", RecognitionMethod::Regex, 0.9, 0, 4),
         ]
         .into();
-        let result = deduplicate(entities);
+        let result = Fusion::deduplicate(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
     }
@@ -299,7 +177,7 @@ mod tests {
             text_entity("John", RecognitionMethod::Regex, 0.9, 10, 14),
         ]
         .into();
-        let result = deduplicate(entities);
+        let result = Fusion::deduplicate(entities);
         assert_eq!(result.len(), 2);
     }
 
@@ -310,7 +188,7 @@ mod tests {
             text_entity("John", RecognitionMethod::Ner, 0.85, 0, 4),
         ]
         .into();
-        let result = ensemble(&FusionStrategy::MaxConfidence, entities);
+        let result = MaxConfidence.fuse(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
     }
@@ -322,7 +200,7 @@ mod tests {
             text_entity("John", RecognitionMethod::Ner, 0.8, 0, 4),
         ]
         .into();
-        let result = ensemble(&FusionStrategy::NoisyOr, entities);
+        let result = NoisyOr.fuse(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.94).abs() < 0.001);
     }
@@ -338,14 +216,17 @@ mod tests {
             text_entity("John", RecognitionMethod::Ner, 0.9, 0, 4),
         ]
         .into();
-        let result = ensemble(&FusionStrategy::WeightedAverage { weights }, entities);
+        let result = WeightedAverage { weights }.fuse(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.8).abs() < 0.001);
     }
 
-    #[test]
-    fn full_pipeline_dedup_then_fuse() {
-        let fusion = Fusion::new(FusionParams::default());
+    #[tokio::test]
+    async fn full_pipeline_dedup_then_fuse() {
+        let fusion = Fusion {
+            deduplicate: true,
+            strategy: FusionStrategy::MaxConfidence,
+        };
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::Regex, 0.7, 0, 4),
             text_entity("John", RecognitionMethod::Regex, 0.8, 0, 4),
@@ -353,17 +234,14 @@ mod tests {
         ]
         .into();
 
-        let result = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(fusion.execute(entities))
-            .unwrap();
+        let result = fusion.execute(entities).await.unwrap();
         assert_eq!(result.0.len(), 1);
         assert!((result.0[0].confidence - 0.85).abs() < f64::EPSILON);
     }
 
     #[test]
     fn empty_input() {
-        let result = deduplicate(Entities::new());
+        let result = Fusion::deduplicate(Entities::new());
         assert!(result.is_empty());
     }
 }

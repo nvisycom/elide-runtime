@@ -28,7 +28,7 @@ pub use self::config::{
     EngineSection, LlmSection, OcrSection, RuntimeConfig, SttSection, TtsSection,
 };
 pub use self::default::DefaultEngine;
-pub use self::policy::CompiledRetryPolicy;
+pub use self::policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
 pub use self::runs::{
     EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
 };

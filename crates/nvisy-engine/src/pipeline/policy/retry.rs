@@ -72,4 +72,19 @@ impl CompiledRetryPolicy {
         }
         Err(last_err.unwrap_or_else(|| Error::runtime("Retry exhausted", "policy", false)))
     }
+
+    /// Call a closure with optional retry. If no policy is provided, call directly.
+    pub async fn call<T, F, Fut>(
+        retry: Option<&Self>,
+        mut f: F,
+    ) -> Result<T, Error>
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = Result<T, Error>>,
+    {
+        match retry {
+            Some(policy) => policy.with_retry(f).await,
+            None => f().await,
+        }
+    }
 }

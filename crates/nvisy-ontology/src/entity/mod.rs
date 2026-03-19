@@ -22,7 +22,9 @@ use uuid::Uuid;
 pub use self::annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;
-pub use self::location::{AudioLocation, ImageLocation, Location, TabularLocation, TextLocation};
+pub use self::location::{
+    AudioLocation, ImageLocation, Location, Overlap, TabularLocation, TextLocation,
+};
 pub use self::method::{ExtractionMethod, RecognitionMethod, RefinementMethod};
 pub use self::model::{ModelInfo, ModelKind};
 pub use self::output::DetectionOutput;

@@ -43,4 +43,15 @@ impl CompiledTimeoutPolicy {
             ))),
         }
     }
+
+    /// Apply an optional timeout to a future. If no policy is provided, call directly.
+    pub async fn call<F, T>(timeout: Option<&Self>, f: F) -> Result<T, Error>
+    where
+        F: std::future::Future<Output = Result<T, Error>>,
+    {
+        match timeout {
+            Some(policy) => policy.with_timeout(f).await,
+            None => f.await,
+        }
+    }
 }

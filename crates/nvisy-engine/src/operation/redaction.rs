@@ -110,7 +110,7 @@ impl PolicyEvaluator {
             let (spec, replacement) = match rule {
                 Some(r) => match &r.action {
                     RuleAction::Redact { strategy } => {
-                        (strategy.clone(), build_replacement(entity, strategy))
+                        (strategy.clone(), Self::build_replacement(entity, strategy))
                     }
                     action @ (RuleAction::Review
                     | RuleAction::Alert
@@ -132,7 +132,7 @@ impl PolicyEvaluator {
                     }
                     (
                         self.default_spec.clone(),
-                        build_replacement(entity, &self.default_spec),
+                        Self::build_replacement(entity, &self.default_spec),
                     )
                 }
             };
@@ -165,6 +165,37 @@ impl PolicyEvaluator {
                 .matches(&entity.category, entity.entity_kind, entity.confidence)
         })
     }
+
+    fn build_replacement(entity: &Entity, spec: &Strategy) -> String {
+        match spec {
+            Strategy::Text(text) => match text {
+                TextStrategy::Mask { mask_char } => {
+                    mask_char.to_string().repeat(entity.value.len())
+                }
+                TextStrategy::Replace { placeholder } => {
+                    if placeholder.is_empty() {
+                        format!("[{}]", entity.entity_kind.to_string().to_uppercase())
+                    } else {
+                        placeholder
+                            .replace("{entityType}", &entity.entity_kind.to_string())
+                            .replace("{category}", &entity.category.to_string())
+                            .replace("{value}", &entity.value)
+                    }
+                }
+                TextStrategy::Remove => String::new(),
+                TextStrategy::Hash => format!("[HASH:{}]", entity.entity_kind),
+                TextStrategy::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
+                TextStrategy::Generate => format!("[GEN:{}]", entity.entity_kind),
+                TextStrategy::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_kind),
+                TextStrategy::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
+                TextStrategy::Aggregate => format!("[AGG:{}]", entity.entity_kind),
+                TextStrategy::Generalize { .. } => {
+                    format!("[GENERALIZE:{}]", entity.entity_kind)
+                }
+            },
+            Strategy::Image(_) | Strategy::Audio(_) => String::new(),
+        }
+    }
 }
 
 impl Operation for PolicyEvaluator {
@@ -173,32 +204,5 @@ impl Operation for PolicyEvaluator {
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.evaluate(data)).await
-    }
-}
-
-fn build_replacement(entity: &Entity, spec: &Strategy) -> String {
-    match spec {
-        Strategy::Text(text) => match text {
-            TextStrategy::Mask { mask_char } => mask_char.to_string().repeat(entity.value.len()),
-            TextStrategy::Replace { placeholder } => {
-                if placeholder.is_empty() {
-                    format!("[{}]", entity.entity_kind.to_string().to_uppercase())
-                } else {
-                    placeholder
-                        .replace("{entityType}", &entity.entity_kind.to_string())
-                        .replace("{category}", &entity.category.to_string())
-                        .replace("{value}", &entity.value)
-                }
-            }
-            TextStrategy::Remove => String::new(),
-            TextStrategy::Hash => format!("[HASH:{}]", entity.entity_kind),
-            TextStrategy::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
-            TextStrategy::Generate => format!("[GEN:{}]", entity.entity_kind),
-            TextStrategy::Pseudonymize => format!("[PSEUDO:{}]", entity.entity_kind),
-            TextStrategy::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
-            TextStrategy::Aggregate => format!("[AGG:{}]", entity.entity_kind),
-            TextStrategy::Generalize { .. } => format!("[GENERALIZE:{}]", entity.entity_kind),
-        },
-        Strategy::Image(_) | Strategy::Audio(_) => String::new(),
     }
 }

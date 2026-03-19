@@ -3,7 +3,7 @@
 use nvisy_engine::provenance::{Audit, PolicyEvaluation, RedactionMap};
 use nvisy_ontology::entity::DetectionOutput;
 use nvisy_ontology::policy::RedactionSummary;
-use nvisy_engine::{RunSnapshot, RunSummary};
+use nvisy_engine::{EngineOutput, RunSnapshot, RunSummary};
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;
@@ -24,6 +24,19 @@ pub struct RunResult {
     pub audits: Vec<Audit>,
     /// Redaction mapping artifacts.
     pub redaction_maps: Vec<RedactionMap>,
+}
+
+impl From<EngineOutput> for RunResult {
+    fn from(output: EngineOutput) -> Self {
+        Self {
+            run_id: output.run_id,
+            detection: output.detection,
+            evaluation: output.evaluation,
+            summaries: output.summaries,
+            audits: output.file_audits,
+            redaction_maps: output.redaction_maps,
+        }
+    }
 }
 
 /// Response body for `GET /api/v1/runs/{id}`.

@@ -40,8 +40,9 @@ impl ComputerVision {
                 .await
                 .map_err(|e| Error::runtime(e.to_string(), "cv-agent", e.is_retryable()))?;
 
+            let image_id = Some(span.source.as_uuid());
             for cv_entity in &cv_entities {
-                let entity = map_cv_entity(cv_entity);
+                let entity = map_cv_entity(cv_entity, image_id);
                 entities.push(entity.with_parent(&span.source));
             }
         }
@@ -60,7 +61,7 @@ impl Operation for ComputerVision {
 }
 
 /// Convert a [`CvEntity`] to an [`Entity`] with [`ImageLocation`].
-fn map_cv_entity(cv: &CvEntity) -> Entity {
+fn map_cv_entity(cv: &CvEntity, image_id: Option<uuid::Uuid>) -> Entity {
     let mut entity = Entity::new(
         cv.category,
         cv.entity_type,
@@ -69,15 +70,20 @@ fn map_cv_entity(cv: &CvEntity) -> Entity {
         cv.confidence,
     );
     entity.extraction_methods = vec![ExtractionMethod::ObjectDetection];
+    let bbox = if cv.bbox.len() >= 4 {
+        BoundingBox {
+            x: cv.bbox[0],
+            y: cv.bbox[1],
+            width: cv.bbox[2],
+            height: cv.bbox[3],
+        }
+    } else {
+        BoundingBox::default()
+    };
     entity.with_location(
         ImageLocation {
-            bounding_box: BoundingBox {
-                x: cv.bbox[0],
-                y: cv.bbox[1],
-                width: cv.bbox[2],
-                height: cv.bbox[3],
-            },
-            image_id: None,
+            bounding_box: bbox,
+            image_id,
             page_number: None,
         }
         .into(),

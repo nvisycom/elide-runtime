@@ -1,4 +1,4 @@
-//! Refinement action configurations: fusion and redaction.
+//! Refinement action configurations: fusion, redaction, and validation.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -26,10 +26,18 @@ pub struct Fusion {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Redaction {
-    /// Run a validation pass on the redacted output.
-    #[serde(default)]
-    pub validation: bool,
     /// Strip or redact document metadata (EXIF, PDF properties).
     #[serde(default)]
     pub process_metadata: bool,
+}
+
+/// Configuration for the [`Validation`] action.
+///
+/// [`Validation`]: super::GraphNodeKind::Validation
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Validation {
+    /// Fail the run if any leaked values are detected.
+    #[serde(default)]
+    pub fail_on_leak: bool,
 }

@@ -25,7 +25,7 @@ pub use self::extraction::{AudialExtraction, VisualExtraction};
 pub use self::lifecycle::{Export, Import};
 use self::policy::{RetryPolicy, TimeoutPolicy};
 pub use self::recognition::{NamedEntityRecognition, PatternRecognition};
-pub use self::refinement::{Fusion, Redaction};
+pub use self::refinement::{Fusion, Redaction, Validation};
 
 /// The set of strongly-typed actions a pipeline node can perform.
 ///
@@ -57,6 +57,8 @@ pub enum GraphNodeKind {
     Fusion(Fusion),
     /// Applies redaction instructions to produce output content.
     Redaction(Redaction),
+    /// Verifies that redacted content does not leak original values.
+    Validation(Validation),
 
     /// Imports content into the pipeline for processing.
     Import(Import),
@@ -76,6 +78,7 @@ impl std::fmt::Display for GraphNodeKind {
             Self::PatternRecognition(_) => f.write_str("pattern_recognition"),
             Self::Fusion(_) => f.write_str("fusion"),
             Self::Redaction(_) => f.write_str("redaction"),
+            Self::Validation(_) => f.write_str("validation"),
             Self::Import(_) => f.write_str("import"),
             Self::Export(_) => f.write_str("export"),
         }
@@ -88,14 +91,15 @@ impl GraphNodeKind {
     /// Phases enforce execution ordering: edges must flow from equal or
     /// lower phase to equal or higher phase.
     ///
-    /// | Phase | Actions                                    |
-    /// |-------|--------------------------------------------|
-    /// | 0     | Import, LoadContext                         |
-    /// | 1     | VisualExtraction, AudialExtraction          |
-    /// | 2     | NamedEntityRecognition, PatternRecognition  |
-    /// | 3     | Fusion                                     |
-    /// | 4     | Redaction, GenerateContext                  |
-    /// | 5     | Export, SaveContext                         |
+    /// | Phase | Actions                                           |
+    /// |-------|---------------------------------------------------|
+    /// | 0     | Import, LoadContext                                |
+    /// | 1     | VisualExtraction, AudialExtraction                 |
+    /// | 2     | NamedEntityRecognition, PatternRecognition         |
+    /// | 3     | Fusion                                            |
+    /// | 4     | Redaction, GenerateContext                         |
+    /// | 5     | Validation                                        |
+    /// | 6     | Export, SaveContext                                |
     #[must_use]
     pub fn phase(&self) -> u8 {
         match self {
@@ -104,7 +108,8 @@ impl GraphNodeKind {
             Self::NamedEntityRecognition(_) | Self::PatternRecognition(_) => 2,
             Self::Fusion(_) => 3,
             Self::Redaction(_) | Self::GenerateContext(_) => 4,
-            Self::Export(_) | Self::SaveContext(_) => 5,
+            Self::Validation(_) => 5,
+            Self::Export(_) | Self::SaveContext(_) => 6,
         }
     }
 

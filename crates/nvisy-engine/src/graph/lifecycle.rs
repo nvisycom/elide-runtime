@@ -2,6 +2,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Configuration for the [`Import`] action.
 ///
@@ -9,15 +10,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Import {
+    /// Identifiers of previously uploaded content to import.
+    #[serde(default)]
+    pub content_ids: Vec<Uuid>,
     /// Decompress the content before processing.
     #[serde(default)]
     pub decompression: bool,
     /// Decrypt the content before processing.
     #[serde(default)]
     pub decryption: bool,
-    /// Convert the content to a processable format.
-    #[serde(default)]
-    pub conversion: bool,
 }
 
 /// Configuration for the [`Export`] action.
@@ -32,7 +33,4 @@ pub struct Export {
     /// Encrypt the content before publishing.
     #[serde(default)]
     pub encryption: bool,
-    /// Convert the content to the target format.
-    #[serde(default)]
-    pub conversion: bool,
 }

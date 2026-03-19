@@ -69,8 +69,6 @@ pub enum LifecycleKind {
     Encryption(LifecycleAction),
     /// Content compression.
     Compression(LifecycleAction),
-    /// Format conversion (e.g. PDF to text, image resize).
-    Conversion(LifecycleAction),
 }
 
 /// Top-level category for an [`AuditEntry`].

@@ -239,6 +239,10 @@ async fn apply_image_doc(
             None => continue,
         };
 
+        if entity.source.parent_id() != Some(doc.source().as_uuid()) {
+            continue;
+        }
+
         let img_loc = match &entity.location {
             Some(Location::Image(loc)) => loc,
             _ => continue,
@@ -285,6 +289,10 @@ async fn apply_audio_doc(
             Some(e) => e,
             None => continue,
         };
+
+        if entity.source.parent_id() != Some(doc.source().as_uuid()) {
+            continue;
+        }
 
         let audio_loc = match &entity.location {
             Some(Location::Audio(loc)) => loc,
@@ -366,11 +374,14 @@ fn mask_cell(spec: &Strategy, replacement: &str, cell: &str) -> String {
     }
 }
 
+/// Produce a stable hash of a string for redaction tokens.
+///
+/// Uses the first 8 bytes of a SHA-256 digest so the output is
+/// reproducible across Rust versions and platforms.
 fn hash_string(s: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    s.hash(&mut hasher);
-    hasher.finish()
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(s.as_bytes());
+    u64::from_le_bytes(digest[..8].try_into().unwrap())
 }
 
 #[cfg(test)]

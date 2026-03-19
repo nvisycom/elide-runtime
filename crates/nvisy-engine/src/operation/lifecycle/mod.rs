@@ -1,33 +1,28 @@
-//! Lifecycle operations: content import, packaging, and delivery.
+//! Lifecycle operations: file I/O and context management.
 //!
-//! These operations manage the content lifecycle from raw bytes through
-//! to final delivery, bookending the detection and redaction stages.
+//! | Operation          | Description                                           |
+//! |--------------------|-------------------------------------------------------|
+//! | [`ImportFile`]     | Decodes raw bytes into a typed [`Document`]           |
+//! | [`ExportFile`]     | Delivers redacted content to a downstream target      |
+//! | [`LoadContext`]    | Loads contexts from the registry into the envelope    |
+//! | [`SaveContext`]    | Persists selected envelope contexts to the registry   |
+//! | [`GenerateContext`]| Generates contexts from pipeline results (stub)       |
 //!
-//! | Operation         | Description                                           |
-//! |-------------------|-------------------------------------------------------|
-//! | [`Import`]        | Decodes raw bytes into a typed [`Document`]           |
-//! | [`Conversion`]    | Converts content between formats                      |
-//! | [`Compression`]   | Compresses content for storage or transfer             |
-//! | [`Decompression`] | Decompresses content from storage or transfer          |
-//! | [`Encryption`]    | Encrypts content using AES-256-GCM                    |
-//! | [`Decryption`]    | Decrypts content back to [`ContentData`]              |
-//! | [`Export`]        | Delivers redacted content to a downstream target       |
+//! Compression and encryption are utility steps within [`ImportFile`]
+//! and [`ExportFile`], not standalone operations. See
+//! [`compression`](crate::operation::utility::compression) and
+//! [`encryption`](crate::operation::utility::encryption).
 //!
 //! [`Document`]: nvisy_codec::Document
-//! [`ContentData`]: nvisy_core::content::ContentData
 
-mod compression;
-mod conversion;
-mod decompression;
-mod decryption;
-mod encryption;
-mod export;
-mod import;
+mod export_file;
+mod generate_context;
+mod import_file;
+mod load_context;
+mod save_context;
 
-pub use self::compression::Compression;
-pub use self::conversion::Conversion;
-pub use self::decompression::Decompression;
-pub use self::decryption::Decryption;
-pub use self::encryption::Encryption;
-pub use self::export::Export;
-pub use self::import::Import;
+pub use self::export_file::ExportFile;
+pub use self::generate_context::GenerateContext;
+pub use self::import_file::ImportFile;
+pub use self::load_context::LoadContext;
+pub use self::save_context::SaveContext;

@@ -86,11 +86,11 @@ impl Operation for Deduplication {
 
 /// Check whether two optional locations overlap.
 ///
-/// Currently supports overlap detection for text locations.
-/// Other modalities are considered overlapping only if both are `None`.
-fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
+/// Two entities with no location are considered distinct — merging
+/// locationless entities risks combining different occurrences.
+pub(crate) fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
     match (a, b) {
-        (None, None) => true,
+        (None, None) => false,
         (Some(Location::Text(a_loc)), Some(Location::Text(b_loc))) => a_loc.overlaps(b_loc),
         _ => false,
     }

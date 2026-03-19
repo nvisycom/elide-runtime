@@ -31,7 +31,7 @@ const TARGET: &str = "nvisy_server::contexts";
     skip_all,
     fields(%actor_id),
 )]
-async fn upload(
+async fn upload_context(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewContext>,
@@ -44,7 +44,7 @@ async fn upload(
     Ok((StatusCode::CREATED, Json(ContextId { id })))
 }
 
-fn upload_docs(op: TransformOperation) -> TransformOperation {
+fn upload_context_docs(op: TransformOperation) -> TransformOperation {
     op.id("uploadContext")
         .tag("contexts")
         .summary("Upload a typed context")
@@ -60,7 +60,7 @@ fn upload_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%actor_id),
 )]
-async fn list(
+async fn list_contexts(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
 ) -> Result<Json<ContextList>> {
@@ -69,7 +69,7 @@ async fn list(
     Ok(Json(ContextList { contexts }))
 }
 
-fn list_docs(op: TransformOperation) -> TransformOperation {
+fn list_contexts_docs(op: TransformOperation) -> TransformOperation {
     op.id("listContexts")
         .tag("contexts")
         .summary("List all uploaded contexts")
@@ -82,7 +82,7 @@ fn list_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%id, %actor_id),
 )]
-async fn download(
+async fn download_context(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Path(ContextPath { id }): Path<ContextPath>,
@@ -93,7 +93,7 @@ async fn download(
     Ok(Json(Context { id, context }))
 }
 
-fn download_docs(op: TransformOperation) -> TransformOperation {
+fn download_context_docs(op: TransformOperation) -> TransformOperation {
     op.id("downloadContext")
         .tag("contexts")
         .summary("Download a previously uploaded context")
@@ -106,7 +106,7 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%id, %actor_id),
 )]
-async fn delete(
+async fn delete_context(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Path(ContextPath { id }): Path<ContextPath>,
@@ -116,7 +116,7 @@ async fn delete(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn delete_docs(op: TransformOperation) -> TransformOperation {
+fn delete_context_docs(op: TransformOperation) -> TransformOperation {
     op.id("deleteContext")
         .tag("contexts")
         .summary("Delete an uploaded context")
@@ -129,7 +129,7 @@ fn delete_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%actor_id),
 )]
-async fn delete_all(
+async fn delete_all_contexts(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
@@ -138,7 +138,7 @@ async fn delete_all(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn delete_all_docs(op: TransformOperation) -> TransformOperation {
+fn delete_all_contexts_docs(op: TransformOperation) -> TransformOperation {
     op.id("deleteAllContexts")
         .tag("contexts")
         .summary("Delete all uploaded contexts")
@@ -150,12 +150,13 @@ pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .api_route(
             "/api/v1/contexts",
-            post_with(upload, upload_docs)
-                .get_with(list, list_docs)
-                .delete_with(delete_all, delete_all_docs),
+            post_with(upload_context, upload_context_docs)
+                .get_with(list_contexts, list_contexts_docs)
+                .delete_with(delete_all_contexts, delete_all_contexts_docs),
         )
         .api_route(
             "/api/v1/contexts/{id}",
-            get_with(download, download_docs).delete_with(delete, delete_docs),
+            get_with(download_context, download_context_docs)
+                .delete_with(delete_context, delete_context_docs),
         )
 }

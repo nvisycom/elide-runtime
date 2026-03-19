@@ -74,10 +74,19 @@ impl EvaluatePolicy {
                         strategy.clone(),
                         build_default_replacement(entity, strategy),
                     ),
-                    RuleAction::Review
+                    action @ (RuleAction::Review
                     | RuleAction::Alert
                     | RuleAction::Block
-                    | RuleAction::Suppress => continue,
+                    | RuleAction::Suppress) => {
+                        tracing::debug!(
+                            target: TARGET,
+                            entity_id = %entity.source.as_uuid(),
+                            rule_id = %r.id,
+                            action = ?action,
+                            "non-redact policy action applied",
+                        );
+                        continue;
+                    }
                 },
                 None => {
                     if entity.confidence < default_threshold {

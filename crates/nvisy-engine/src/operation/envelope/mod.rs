@@ -28,6 +28,7 @@ mod detection;
 mod policy;
 
 use nvisy_codec::Document;
+use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::Entities;
 
 pub use self::apply::ApplyPatch;
@@ -61,6 +62,14 @@ pub struct DocumentEnvelope {
     /// fusion before policy evaluation.
     pub entities: Entities,
 
+    /// Reference-data contexts loaded by [`LoadContext`] nodes.
+    ///
+    /// Populated as envelopes pass through `LoadContext` nodes and
+    /// available to downstream operations that need contextual data.
+    ///
+    /// [`LoadContext`]: crate::graph::LoadContext
+    pub contexts: Contexts,
+
     /// Per-document audit trail: execution log, redaction decisions,
     /// and redaction records.
     pub audit: Audit,
@@ -73,6 +82,7 @@ impl DocumentEnvelope {
         Self {
             document,
             entities: Entities::new(),
+            contexts: Contexts::new(),
             audit,
         }
     }
@@ -94,6 +104,7 @@ impl std::fmt::Debug for DocumentEnvelope {
             .field("document_type", &self.document.document_type())
             .field("source", &self.document.source())
             .field("entities", &self.entities.len())
+            .field("contexts", &self.contexts.contexts.len())
             .field("audit_entries", &self.audit.len())
             .field("decisions", &self.audit.decisions.len())
             .field("records", &self.audit.records.len())

@@ -1,3 +1,4 @@
 //! Shared utilities used across operation categories.
 
-pub mod crypto;
+pub mod compression;
+pub mod encryption;

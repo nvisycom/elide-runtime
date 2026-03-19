@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Entities, Entity, Location, RecognitionMethod, RefinementMethod};
+use nvisy_ontology::entity::{Entities, Entity, RecognitionMethod, RefinementMethod};
 
 use crate::operation::envelope::RefinedEntities;
 use crate::operation::{Operation, ParallelContext};
@@ -137,14 +137,7 @@ impl Operation for Ensemble {
     }
 }
 
-/// Check whether two optional locations overlap.
-fn locations_overlap(a: &Option<Location>, b: &Option<Location>) -> bool {
-    match (a, b) {
-        (None, None) => true,
-        (Some(Location::Text(a_loc)), Some(Location::Text(b_loc))) => a_loc.overlaps(b_loc),
-        _ => false,
-    }
-}
+use super::deduplication::locations_overlap;
 
 #[cfg(test)]
 mod tests {

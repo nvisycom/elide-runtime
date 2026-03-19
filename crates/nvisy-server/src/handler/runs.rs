@@ -15,9 +15,7 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::{DefaultEngine, Engine, EngineInput, EngineRuns, RunFilter};
-use nvisy_ontology::context::Contexts;
-use nvisy_registry::Registry;
+use nvisy_engine::{DefaultEngine, Engine, EngineInput, EngineOutput, EngineRuns, RunFilter};
 
 use super::error::{ErrorKind, Result};
 use super::request::{NewRun, RunPath};
@@ -42,29 +40,18 @@ const TARGET: &str = "nvisy_server::runs";
 /// `POST /api/v1/runs`: run the full pipeline on uploaded content.
 ///
 /// Performs extraction, detection, policy evaluation, and redaction
-/// on previously uploaded content identified by `content_ids`.
+/// on previously uploaded content identified by the graph's Import nodes.
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%actor_id, content_count = req.content_ids.len()),
+    fields(%actor_id),
 )]
-async fn create(
+async fn create_run(
     State(engine): State<DefaultEngine>,
-    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
 ) -> Result<(StatusCode, Json<RunResult>)> {
-    let contexts = resolve_contexts(&registry, actor_id, &req.context_ids).await?;
-
-    let input = EngineInput {
-        actor_id,
-        content_ids: req.content_ids,
-        policies: req.policies,
-        graph: req.graph,
-        contexts,
-        config: req.config,
-    };
-    let output = engine.run(input).await?;
+    let output = execute_pipeline(&engine, actor_id, req).await?;
 
     tracing::info!(
         target: TARGET,
@@ -73,20 +60,10 @@ async fn create(
         "pipeline complete",
     );
 
-    Ok((
-        StatusCode::CREATED,
-        Json(RunResult {
-            run_id: output.run_id,
-            detection: output.detection,
-            evaluation: output.evaluation,
-            summaries: output.summaries,
-            audits: output.file_audits,
-            redaction_maps: output.redaction_maps,
-        }),
-    ))
+    Ok((StatusCode::CREATED, Json(output.into())))
 }
 
-fn create_docs(op: TransformOperation) -> TransformOperation {
+fn create_run_docs(op: TransformOperation) -> TransformOperation {
     op.id("createRun")
         .tag("runs")
         .summary("Run the full pipeline on uploaded content")
@@ -103,25 +80,14 @@ fn create_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%actor_id, content_count = req.content_ids.len(), mode = "scan"),
+    fields(%actor_id, mode = "scan"),
 )]
-async fn scan(
+async fn scan_content(
     State(engine): State<DefaultEngine>,
-    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
 ) -> Result<(StatusCode, Json<RunResult>)> {
-    let contexts = resolve_contexts(&registry, actor_id, &req.context_ids).await?;
-
-    let input = EngineInput {
-        actor_id,
-        content_ids: req.content_ids,
-        policies: req.policies,
-        graph: req.graph,
-        contexts,
-        config: req.config,
-    };
-    let output = engine.run(input).await?;
+    let output = execute_pipeline(&engine, actor_id, req).await?;
 
     tracing::info!(
         target: TARGET,
@@ -130,20 +96,10 @@ async fn scan(
         "scan complete",
     );
 
-    Ok((
-        StatusCode::CREATED,
-        Json(RunResult {
-            run_id: output.run_id,
-            detection: output.detection,
-            evaluation: output.evaluation,
-            summaries: output.summaries,
-            audits: output.file_audits,
-            redaction_maps: output.redaction_maps,
-        }),
-    ))
+    Ok((StatusCode::CREATED, Json(output.into())))
 }
 
-fn scan_docs(op: TransformOperation) -> TransformOperation {
+fn scan_content_docs(op: TransformOperation) -> TransformOperation {
     op.id("scanContent")
         .tag("runs")
         .summary("Run a read-only scan on uploaded content")
@@ -159,7 +115,7 @@ fn scan_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(?query.status, ?query.actor_id),
 )]
-async fn list(
+async fn list_runs(
     State(engine): State<DefaultEngine>,
     Query(query): Query<RunQuery>,
 ) -> Result<Json<RunList>> {
@@ -172,7 +128,7 @@ async fn list(
     Ok(Json(RunList { runs }))
 }
 
-fn list_docs(op: TransformOperation) -> TransformOperation {
+fn list_runs_docs(op: TransformOperation) -> TransformOperation {
     op.id("listRuns")
         .tag("runs")
         .summary("List pipeline runs")
@@ -187,7 +143,7 @@ fn list_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%id),
 )]
-async fn get(
+async fn get_run(
     State(engine): State<DefaultEngine>,
     Path(RunPath { id }): Path<RunPath>,
 ) -> Result<Json<Run>> {
@@ -199,7 +155,7 @@ async fn get(
     Ok(Json(Run { run }))
 }
 
-fn get_docs(op: TransformOperation) -> TransformOperation {
+fn get_run_docs(op: TransformOperation) -> TransformOperation {
     op.id("getRun")
         .tag("runs")
         .summary("Get a pipeline run")
@@ -212,7 +168,7 @@ fn get_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%id),
 )]
-async fn cancel(
+async fn cancel_run(
     State(engine): State<DefaultEngine>,
     Path(RunPath { id }): Path<RunPath>,
 ) -> Result<StatusCode> {
@@ -221,7 +177,7 @@ async fn cancel(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn cancel_docs(op: TransformOperation) -> TransformOperation {
+fn cancel_run_docs(op: TransformOperation) -> TransformOperation {
     op.id("cancelRun")
         .tag("runs")
         .summary("Cancel a pipeline run")
@@ -232,19 +188,20 @@ fn cancel_docs(op: TransformOperation) -> TransformOperation {
         )
 }
 
-/// Resolve context IDs to a [`Contexts`] collection.
-async fn resolve_contexts(
-    registry: &Registry,
+/// Execute the pipeline for both `create_run` and `scan_content`.
+async fn execute_pipeline(
+    engine: &DefaultEngine,
     actor_id: uuid::Uuid,
-    context_ids: &[uuid::Uuid],
-) -> Result<Contexts> {
-    let mut contexts = Vec::with_capacity(context_ids.len());
-    for &id in context_ids {
-        let handle = registry.read_context(actor_id, id).await?;
-        let context = handle.context().await?;
-        contexts.push(context);
-    }
-    Ok(Contexts { contexts })
+    req: NewRun,
+) -> Result<EngineOutput> {
+    let input = EngineInput {
+        actor_id,
+        policies: req.policies,
+        graph: req.graph,
+        config: req.config,
+    };
+
+    Ok(engine.run(input).await?)
 }
 
 /// Run routes.
@@ -252,9 +209,9 @@ pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .api_route(
             "/api/v1/runs",
-            post_with(create, create_docs).get_with(list, list_docs),
+            post_with(create_run, create_run_docs).get_with(list_runs, list_runs_docs),
         )
-        .api_route("/api/v1/runs/scan", post_with(scan, scan_docs))
-        .api_route("/api/v1/runs/{id}", get_with(get, get_docs))
-        .api_route("/api/v1/runs/{id}/cancel", post_with(cancel, cancel_docs))
+        .api_route("/api/v1/runs/scan", post_with(scan_content, scan_content_docs))
+        .api_route("/api/v1/runs/{id}", get_with(get_run, get_run_docs))
+        .api_route("/api/v1/runs/{id}/cancel", post_with(cancel_run, cancel_run_docs))
 }

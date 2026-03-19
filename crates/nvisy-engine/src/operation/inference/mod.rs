@@ -10,28 +10,22 @@
 //! | [`OcrVerification`]   | Confirms/rejects OCR entities with a VLM           |
 //! | [`Ner`]               | Named-entity recognition with coreference state    |
 //! | [`ComputerVision`]    | Object detection + classification on images        |
-//! | [`Classification`]    | Content sensitivity/topic classification           |
-//! | [`Summarization`]     | Summarizes text content                            |
-//! | [`Transcription`]     | Audio-to-text transcription                        |
-//! | [`Translation`]       | Cross-language text translation                    |
+//!
+//! Audio transcription is handled by [`SttService`] within the
+//! `AudialExtraction` handler, not as a standalone operation.
+//! Summarization and translation are steps within [`GenerateContext`].
 //!
 //! [`Entity`]: nvisy_ontology::entity::Entity
 //! [`ImageOutput`]: nvisy_ocr::ImageOutput
+//! [`SttService`]: nvisy_rig::audio::stt::SttService
+//! [`GenerateContext`]: crate::operation::lifecycle::GenerateContext
 
-mod classification;
 mod computer_vision;
 mod ner;
 mod ocr;
 mod ocr_verification;
-mod summarization;
-mod transcription;
-mod translation;
 
-pub use self::classification::Classification;
 pub use self::computer_vision::ComputerVision;
 pub use self::ner::{Ner, NerMethodParams};
 pub use self::ocr::Ocr;
 pub use self::ocr_verification::{OcrVerification, OcrVerificationInput};
-pub use self::summarization::Summarization;
-pub use self::transcription::Transcription;
-pub use self::translation::Translation;

@@ -1,10 +1,12 @@
-//! Pipeline run data types and the [`EngineRuns`] trait.
+//! Pipeline run data types, state storage, and the [`EngineRuns`] trait.
 //!
 //! Pure data definitions for run lifecycle tracking. All mutation and
 //! querying happens through the [`EngineRuns`] trait, implemented on
 //! [`DefaultEngine`].
 //!
 //! [`DefaultEngine`]: super::DefaultEngine
+
+pub(crate) mod state;
 
 use std::future::Future;
 

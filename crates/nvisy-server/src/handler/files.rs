@@ -33,7 +33,7 @@ const TARGET: &str = "nvisy_server::files";
     skip_all,
     fields(%actor_id, filename = req.filename.as_deref()),
 )]
-async fn upload(
+async fn upload_file(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewFile>,
@@ -72,7 +72,7 @@ async fn upload(
     Ok((StatusCode::CREATED, Json(FileId { id })))
 }
 
-fn upload_docs(op: TransformOperation) -> TransformOperation {
+fn upload_file_docs(op: TransformOperation) -> TransformOperation {
     op.id("uploadFile")
         .tag("files")
         .summary("Upload a file as base64-encoded JSON")
@@ -88,7 +88,7 @@ fn upload_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%id, %actor_id),
 )]
-async fn download(
+async fn download_file(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Path(ContentPath { id }): Path<ContentPath>,
@@ -110,7 +110,7 @@ async fn download(
     }))
 }
 
-fn download_docs(op: TransformOperation) -> TransformOperation {
+fn download_file_docs(op: TransformOperation) -> TransformOperation {
     op.id("downloadFile")
         .tag("files")
         .summary("Download a previously uploaded file")
@@ -123,7 +123,7 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%actor_id),
 )]
-async fn list(
+async fn list_files(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
 ) -> Result<Json<FileList>> {
@@ -132,7 +132,7 @@ async fn list(
     Ok(Json(FileList { files }))
 }
 
-fn list_docs(op: TransformOperation) -> TransformOperation {
+fn list_files_docs(op: TransformOperation) -> TransformOperation {
     op.id("listFiles")
         .tag("files")
         .summary("List all uploaded file IDs")
@@ -145,7 +145,7 @@ fn list_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%id, %actor_id),
 )]
-async fn delete(
+async fn delete_file(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Path(ContentPath { id }): Path<ContentPath>,
@@ -155,7 +155,7 @@ async fn delete(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn delete_docs(op: TransformOperation) -> TransformOperation {
+fn delete_file_docs(op: TransformOperation) -> TransformOperation {
     op.id("deleteFile")
         .tag("files")
         .summary("Delete an uploaded file")
@@ -168,7 +168,7 @@ fn delete_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%actor_id),
 )]
-async fn delete_all(
+async fn delete_all_files(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
@@ -177,7 +177,7 @@ async fn delete_all(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn delete_all_docs(op: TransformOperation) -> TransformOperation {
+fn delete_all_files_docs(op: TransformOperation) -> TransformOperation {
     op.id("deleteAllFiles")
         .tag("files")
         .summary("Delete all uploaded files")
@@ -189,12 +189,13 @@ pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .api_route(
             "/api/v1/files",
-            post_with(upload, upload_docs)
-                .get_with(list, list_docs)
-                .delete_with(delete_all, delete_all_docs),
+            post_with(upload_file, upload_file_docs)
+                .get_with(list_files, list_files_docs)
+                .delete_with(delete_all_files, delete_all_files_docs),
         )
         .api_route(
             "/api/v1/files/{id}",
-            get_with(download, download_docs).delete_with(delete, delete_docs),
+            get_with(download_file, download_file_docs)
+                .delete_with(delete_file, delete_file_docs),
         )
 }

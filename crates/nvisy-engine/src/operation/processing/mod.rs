@@ -12,7 +12,7 @@
 //! | [`Ensemble`]        | Fuses multi-detector entities with confidence fusion  |
 //! | [`EvaluatePolicy`]  | Maps entities to redaction decisions via policy rules |
 //! | [`Redaction`]       | Applies redaction instructions to document content   |
-//! | [`Validation`]      | Validates content integrity or conformance           |
+//! | [`Validation`]      | Verifies redacted content does not leak originals    |
 
 mod deduplication;
 mod ensemble_fusion;
@@ -30,4 +30,4 @@ pub use self::manual_detection::{
 pub use self::pattern_match::{PatternDetectionParams, PatternMatch};
 pub use self::policy_evaluation::{EvaluatePolicy, EvaluatePolicyParams};
 pub use self::redaction::{Redaction, RedactionInput, RedactionOutput};
-pub use self::validation::Validation;
+pub use self::validation::{LeakedValue, Validation, ValidationInput, ValidationOutput};

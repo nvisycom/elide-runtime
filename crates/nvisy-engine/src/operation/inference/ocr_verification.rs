@@ -44,20 +44,30 @@ impl OcrVerification {
             tracing::debug!(target: TARGET, "no entities to verify");
             return Ok(DetectedEntities(Entities::new()));
         }
-        tracing::debug!(target: TARGET, entity_count = data.entities.len(), "verifying entities");
+        if data.image_spans.is_empty() {
+            return Ok(DetectedEntities(data.entities));
+        }
 
-        let image_bytes = match data.image_spans.first() {
-            Some(span) => span.data.encode_png()?,
-            None => return Ok(DetectedEntities(data.entities)),
-        };
+        tracing::debug!(
+            target: TARGET,
+            entity_count = data.entities.len(),
+            image_count = data.image_spans.len(),
+            "verifying entities",
+        );
 
-        let entities = self
-            .agent
-            .verify_entities(&image_bytes, data.entities.into_inner())
-            .await
-            .map_err(|e| Error::runtime(e.to_string(), "ocr-verification", e.is_retryable()))?;
+        // Verify against each image span and accumulate results.
+        // Entities that survive verification against any span are kept.
+        let mut verified = data.entities.into_inner();
+        for span in &data.image_spans {
+            let image_bytes = span.data.encode_png()?;
+            verified = self
+                .agent
+                .verify_entities(&image_bytes, verified)
+                .await
+                .map_err(|e| Error::runtime(e.to_string(), "ocr-verification", e.is_retryable()))?;
+        }
 
-        Ok(DetectedEntities(entities.into()))
+        Ok(DetectedEntities(verified.into()))
     }
 }
 

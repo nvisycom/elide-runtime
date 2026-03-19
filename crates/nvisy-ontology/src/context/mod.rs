@@ -25,6 +25,13 @@ pub struct Contexts {
     pub contexts: Vec<Context>,
 }
 
+impl Contexts {
+    /// Create an empty collection.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// A persistent, reusable collection of reference data for detection.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

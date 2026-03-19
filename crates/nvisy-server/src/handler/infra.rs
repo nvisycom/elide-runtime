@@ -23,7 +23,7 @@ const TARGET: &str = "nvisy_server::infra";
 ///
 /// Verifies the data directory is accessible and returns the service status.
 #[tracing::instrument(target = "nvisy_server::infra", skip_all)]
-async fn health(State(engine): State<DefaultEngine>) -> Json<Health> {
+async fn health_check(State(engine): State<DefaultEngine>) -> Json<Health> {
     let status = if engine.registry().base_dir().is_dir() {
         ServiceStatus::Healthy
     } else {
@@ -50,7 +50,7 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
 
 /// `GET /api/v1/analytics`: retrieve aggregate pipeline analytics.
 #[tracing::instrument(target = "nvisy_server::infra", skip_all)]
-async fn analytics(State(engine): State<DefaultEngine>) -> Json<Analytics> {
+async fn get_analytics(State(engine): State<DefaultEngine>) -> Json<Analytics> {
     let snapshot = engine.snapshot().await;
     Json(Analytics {
         timestamp: snapshot.timestamp,
@@ -75,6 +75,6 @@ fn analytics_docs(op: TransformOperation) -> TransformOperation {
 /// Infra routes.
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
-        .api_route("/health", get_with(health, health_docs))
-        .api_route("/api/v1/analytics", get_with(analytics, analytics_docs))
+        .api_route("/health", get_with(health_check, health_docs))
+        .api_route("/api/v1/analytics", get_with(get_analytics, analytics_docs))
 }

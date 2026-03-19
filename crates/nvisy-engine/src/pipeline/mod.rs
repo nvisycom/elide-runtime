@@ -11,6 +11,7 @@ mod analytics;
 mod config;
 mod default;
 mod executor;
+mod orchestrator;
 mod plan;
 mod policy;
 mod runs;
@@ -18,7 +19,6 @@ mod runs;
 use std::future::Future;
 
 use nvisy_core::Error;
-use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::DetectionOutput;
 use nvisy_ontology::policy::{Policies, RedactionSummary};
 use uuid::Uuid;
@@ -38,14 +38,15 @@ use crate::provenance::{Audit, PolicyEvaluation, RedactionMap};
 pub struct EngineInput {
     /// Human or service account identity.
     pub actor_id: Uuid,
-    /// Identifiers of previously uploaded content to process.
-    pub content_ids: Vec<Uuid>,
     /// Policies to apply (at least one).
     pub policies: Policies,
     /// Execution graph defining the pipeline DAG.
+    ///
+    /// Content identifiers live on [`Import`] nodes within the graph,
+    /// not as a top-level field.
+    ///
+    /// [`Import`]: crate::graph::Import
     pub graph: Graph,
-    /// Reference-data contexts for detection.
-    pub contexts: Contexts,
     /// Per-request configuration overrides (merged with engine defaults).
     pub config: Option<RuntimeConfig>,
 }

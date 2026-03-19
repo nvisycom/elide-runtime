@@ -8,22 +8,19 @@
 //! |---------------------|------------------------------------------------------|
 //! | [`PatternMatch`]    | Regex + dictionary entity detection across modalities|
 //! | [`ManualDetection`] | Converts user annotations into entities/exclusions   |
-//! | [`Deduplication`]   | Merges overlapping duplicate entities                 |
-//! | [`Ensemble`]        | Fuses multi-detector entities with confidence fusion  |
+//! | [`Fusion`]          | Deduplication + ensemble confidence fusion            |
 //! | [`EvaluatePolicy`]  | Maps entities to redaction decisions via policy rules |
 //! | [`Redaction`]       | Applies redaction instructions to document content   |
 //! | [`Validation`]      | Verifies redacted content does not leak originals    |
 
-mod deduplication;
-mod ensemble_fusion;
+mod fusion;
 mod manual_detection;
 mod pattern_match;
 mod policy_evaluation;
 mod redaction;
 mod validation;
 
-pub use self::deduplication::Deduplication;
-pub use self::ensemble_fusion::{Ensemble, FusionStrategy};
+pub use self::fusion::{Fusion, FusionParams, FusionStrategy};
 pub use self::manual_detection::{
     Exclusion, ManualDetection, ManualDetectionParams, ManualOutput, is_excluded,
 };

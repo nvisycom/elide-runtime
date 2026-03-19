@@ -2,11 +2,12 @@
 //!
 //! The export pipeline applies optional post-processing steps in order:
 //!
-//! 1. **Encryption** — encrypt content (if `encryption` is set)
-//! 2. **Compression** — compress for storage or transfer (if `compression` is set)
+//! 1. **Encryption** — encrypt content (if format specified)
+//! 2. **Compression** — compress for storage or transfer (if format specified)
 
 use nvisy_core::Result;
 
+use crate::graph::{CompressionFormat, EncryptionFormat};
 use crate::operation::{Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::export_file";
@@ -14,42 +15,39 @@ const TARGET: &str = "nvisy_engine::op::export_file";
 /// Exports processed content, optionally applying encryption and
 /// compression afterward.
 pub struct ExportFile {
-    encryption: bool,
-    compression: bool,
+    encryption: Option<EncryptionFormat>,
+    compression: Option<CompressionFormat>,
 }
 
 impl ExportFile {
-    /// Create a new export operation with default settings (no post-processing).
     pub fn new() -> Self {
         Self {
-            encryption: false,
-            compression: false,
+            encryption: None,
+            compression: None,
         }
     }
 
-    /// Enable encryption before export.
-    pub fn with_encryption(mut self, enabled: bool) -> Self {
-        self.encryption = enabled;
+    pub fn with_encryption(mut self, format: Option<EncryptionFormat>) -> Self {
+        self.encryption = format;
         self
     }
 
-    /// Enable compression before export.
-    pub fn with_compression(mut self, enabled: bool) -> Self {
-        self.compression = enabled;
+    pub fn with_compression(mut self, format: Option<CompressionFormat>) -> Self {
+        self.compression = format;
         self
     }
 
     async fn export(&self, _data: ()) -> Result<()> {
-        if self.encryption {
+        if let Some(format) = self.encryption {
             return Err(nvisy_core::Error::runtime(
-                "export encryption is not yet implemented",
+                format!("export encryption ({format:?}) is not yet implemented"),
                 "export_file",
                 false,
             ));
         }
-        if self.compression {
+        if let Some(format) = self.compression {
             return Err(nvisy_core::Error::runtime(
-                "export compression is not yet implemented",
+                format!("export compression ({format:?}) is not yet implemented"),
                 "export_file",
                 false,
             ));

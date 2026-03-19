@@ -2,8 +2,8 @@
 //!
 //! The import pipeline applies optional pre-processing steps in order:
 //!
-//! 1. **Decompression** — decompress raw bytes (if `decompression` is set)
-//! 2. **Decryption** — decrypt content (if `decryption` is set)
+//! 1. **Decompression** — decompress raw bytes (if format specified)
+//! 2. **Decryption** — decrypt content (if format specified)
 //! 3. **Decode** — detect format and decode into a typed [`Document`]
 //!
 //! [`Document`]: nvisy_codec::Document
@@ -12,6 +12,7 @@ use nvisy_codec::Document;
 use nvisy_core::Result;
 use nvisy_core::content::ContentData;
 
+use crate::graph::{CompressionFormat, EncryptionFormat};
 use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
@@ -19,44 +20,41 @@ const TARGET: &str = "nvisy_engine::op::import_file";
 /// Decodes raw content into a [`DocumentEnvelope`], optionally applying
 /// decompression and decryption beforehand.
 pub struct ImportFile {
-    decompression: bool,
-    decryption: bool,
+    decompression: Option<CompressionFormat>,
+    decryption: Option<EncryptionFormat>,
 }
 
 impl ImportFile {
-    /// Create a new import operation with default settings (no pre-processing).
     pub fn new() -> Self {
         Self {
-            decompression: false,
-            decryption: false,
+            decompression: None,
+            decryption: None,
         }
     }
 
-    /// Enable decompression before decoding.
-    pub fn with_decompression(mut self, enabled: bool) -> Self {
-        self.decompression = enabled;
+    pub fn with_decompression(mut self, format: Option<CompressionFormat>) -> Self {
+        self.decompression = format;
         self
     }
 
-    /// Enable decryption before decoding.
-    pub fn with_decryption(mut self, enabled: bool) -> Self {
-        self.decryption = enabled;
+    pub fn with_decryption(mut self, format: Option<EncryptionFormat>) -> Self {
+        self.decryption = format;
         self
     }
 
     async fn import(&self, content: ContentData) -> Result<DocumentEnvelope> {
         let data = content;
 
-        if self.decompression {
+        if let Some(format) = self.decompression {
             return Err(nvisy_core::Error::runtime(
-                "import decompression is not yet implemented",
+                format!("import decompression ({format:?}) is not yet implemented"),
                 "import_file",
                 false,
             ));
         }
-        if self.decryption {
+        if let Some(format) = self.decryption {
             return Err(nvisy_core::Error::runtime(
-                "import decryption is not yet implemented",
+                format!("import decryption ({format:?}) is not yet implemented"),
                 "import_file",
                 false,
             ));

@@ -7,7 +7,7 @@ use super::super::handler::NodeHandler;
 use super::retry;
 use crate::graph;
 use crate::operation::processing::{
-    Deduplication, Ensemble, EvaluatePolicy, EvaluatePolicyParams, FusionStrategy,
+    EvaluatePolicy, EvaluatePolicyParams, Fusion as FusionOp, FusionParams, FusionStrategy,
     Validation, ValidationInput,
 };
 use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
@@ -16,7 +16,7 @@ use crate::pipeline::policy::CompiledRetryPolicy;
 const TARGET: &str = "nvisy_engine::pipeline::executor";
 
 pub(crate) struct FusionHandler {
-    dedup: bool,
+    op: FusionOp,
     shared: SharedContext,
     retry: Option<CompiledRetryPolicy>,
 }
@@ -29,45 +29,30 @@ impl FusionHandler {
         if cfg.contextual_adjustment {
             tracing::warn!(target: TARGET, "contextual_adjustment not yet implemented, skipping");
         }
-        Self {
-            dedup: cfg.entity_deduplication,
-            shared,
-            retry,
-        }
+        let op = FusionOp::new(FusionParams {
+            deduplicate: cfg.entity_deduplication,
+            strategy: FusionStrategy::MaxConfidence,
+        });
+        Self { op, shared, retry }
     }
 }
 
 #[async_trait::async_trait]
 impl NodeHandler for FusionHandler {
     async fn handle(&self, mut envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
-        let retry = self.retry.as_ref();
-
-        if self.dedup && !envelope.entities.is_empty() {
-            let do_dedup = || {
-                let entities = envelope.entities.clone();
-                let shared = self.shared.clone();
-                async move {
-                    let input = ParallelContext::new(entities, shared);
-                    Deduplication.call(input).await
-                }
-            };
-            let output = retry::call(retry, do_dedup).await?;
-            envelope.apply(output.into_inner());
-        }
-
         if !envelope.entities.is_empty() {
-            let do_ensemble = || {
+            let op_ref = &self.op;
+            let do_fuse = || {
                 let entities = envelope.entities.clone();
                 let shared = self.shared.clone();
                 async move {
                     let input = ParallelContext::new(entities, shared);
-                    Ensemble::new(FusionStrategy::MaxConfidence).call(input).await
+                    op_ref.call(input).await
                 }
             };
-            let output = retry::call(retry, do_ensemble).await?;
+            let output = retry::call(self.retry.as_ref(), do_fuse).await?;
             envelope.apply(output.into_inner());
         }
-
         Ok(envelope)
     }
 }

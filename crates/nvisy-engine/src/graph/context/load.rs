@@ -18,7 +18,8 @@ use validator::Validate;
 /// every document envelope passing through this node.
 ///
 /// [`LoadContext`]: crate::graph::GraphNodeKind::LoadContext
-#[derive(Debug, Clone, PartialEq, Eq, Validate, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Validate, Serialize, Deserialize, JsonSchema)]
 pub struct LoadContext {
     /// Context identifiers to load from the registry.
     /// Must contain at least one.

@@ -17,7 +17,8 @@ use validator::Validate;
 /// `context_ids` are saved.
 ///
 /// [`SaveContext`]: crate::graph::GraphNodeKind::SaveContext
-#[derive(Debug, Clone, PartialEq, Eq, Validate, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Validate, Serialize, Deserialize, JsonSchema)]
 pub struct SaveContext {
     /// Context identifiers to persist to the registry.
     /// Must contain at least one.

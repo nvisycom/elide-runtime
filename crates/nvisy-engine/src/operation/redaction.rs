@@ -8,9 +8,9 @@ use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 
+use crate::graph::RetryPolicy;
 use crate::operation::envelope::PolicyOutcome;
 use crate::operation::{DocumentEnvelope, NodeHandler, Operation, ParallelContext, SharedContext};
-use crate::graph::RetryPolicy;
 use crate::provenance::{RedactionDecision, RedactionRecord};
 
 const TARGET: &str = "nvisy_engine::op::redaction";

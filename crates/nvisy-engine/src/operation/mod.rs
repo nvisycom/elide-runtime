@@ -39,7 +39,6 @@ use std::future::Future;
 
 use nvisy_core::{Error, Result};
 
-pub(crate) use self::speech::AudialExtraction;
 pub use self::context::{OperationContext, ParallelContext, SequentialContext, SharedContext};
 pub use self::envelope::DocumentEnvelope;
 pub(crate) use self::fusion::Fusion;
@@ -49,6 +48,7 @@ pub(crate) use self::load_context::LoadContext;
 pub(crate) use self::recognition::{EntityRecognition, PatternRecognition};
 pub(crate) use self::redaction::Redaction;
 pub(crate) use self::save_context::SaveContext;
+pub(crate) use self::speech::AudialExtraction;
 pub(crate) use self::validation::Validation;
 pub(crate) use self::vision::VisualExtraction;
 

@@ -102,7 +102,6 @@ impl Fusion {
 
         result.into()
     }
-
 }
 
 impl Operation for Fusion {

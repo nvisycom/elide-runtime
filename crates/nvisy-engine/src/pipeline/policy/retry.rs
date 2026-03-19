@@ -35,10 +35,7 @@ impl RetryPolicy {
     }
 
     /// Call a closure with optional retry. If no policy is provided, call directly.
-    pub async fn call<T, F, Fut>(
-        retry: Option<&Self>,
-        mut f: F,
-    ) -> Result<T, Error>
+    pub async fn call<T, F, Fut>(retry: Option<&Self>, mut f: F) -> Result<T, Error>
     where
         F: FnMut() -> Fut,
         Fut: std::future::Future<Output = Result<T, Error>>,

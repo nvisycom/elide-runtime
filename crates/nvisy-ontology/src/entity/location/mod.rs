@@ -78,7 +78,6 @@ impl Location {
             _ => None,
         }
     }
-
 }
 
 impl Overlap for Location {

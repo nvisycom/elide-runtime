@@ -6,8 +6,8 @@ use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::HttpClient;
 use nvisy_rig::audio::stt::{SttConfig, SttService};
 
-use crate::operation::{DocumentEnvelope, NodeHandler};
 use crate::graph::RetryPolicy;
+use crate::operation::{DocumentEnvelope, NodeHandler};
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::audial_extraction";

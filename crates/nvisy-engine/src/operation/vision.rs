@@ -16,9 +16,9 @@ use nvisy_ontology::entity::{
 };
 use nvisy_rig::agent::{CvEntity, DetectionConfig, OcrAgent};
 
+use crate::graph::RetryPolicy;
 use crate::operation::envelope::DetectedEntities;
 use crate::operation::{DocumentEnvelope, NodeHandler, Operation, ParallelContext, SharedContext};
-use crate::graph::RetryPolicy;
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::visual_extraction";
@@ -34,10 +34,16 @@ pub struct VisualExtraction {
 impl VisualExtraction {
     fn build_ocr_agent(config: &RuntimeConfig) -> Result<OcrAgent> {
         let llm = config.llm.as_ref().ok_or_else(|| {
-            Error::new(ErrorKind::Validation, "OCR verification requires an LLM provider")
+            Error::new(
+                ErrorKind::Validation,
+                "OCR verification requires an LLM provider",
+            )
         })?;
         let provider = llm.provider.as_ref().ok_or_else(|| {
-            Error::new(ErrorKind::Validation, "OCR verification requires an LLM provider")
+            Error::new(
+                ErrorKind::Validation,
+                "OCR verification requires an LLM provider",
+            )
         })?;
         OcrAgent::new(provider, llm.policy.clone().unwrap_or_default())
             .map_err(|e| Error::runtime(e.to_string(), "ocr-agent", false))
@@ -63,7 +69,12 @@ impl VisualExtraction {
             BoundingBox::default()
         };
         entity.with_location(
-            ImageLocation { bounding_box: bbox, image_id, page_number: None }.into(),
+            ImageLocation {
+                bounding_box: bbox,
+                image_id,
+                page_number: None,
+            }
+            .into(),
         )
     }
 
@@ -273,4 +284,3 @@ impl Operation for VerifyOp {
         input.parallel_map(|data| self.verify(data)).await
     }
 }
-

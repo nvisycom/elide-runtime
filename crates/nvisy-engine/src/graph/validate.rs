@@ -179,10 +179,8 @@ impl Graph {
             Done,
         }
 
-        let mut state: HashMap<Uuid, State> = node_map
-            .keys()
-            .map(|&id| (id, State::Unvisited))
-            .collect();
+        let mut state: HashMap<Uuid, State> =
+            node_map.keys().map(|&id| (id, State::Unvisited)).collect();
 
         fn dfs(
             node: Uuid,

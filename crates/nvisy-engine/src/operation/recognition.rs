@@ -18,9 +18,9 @@ use nvisy_rig::agent::{
 };
 use tokio::sync::Mutex;
 
+use crate::graph::RetryPolicy;
 use crate::operation::envelope::DetectedEntities;
 use crate::operation::{DocumentEnvelope, NodeHandler, SequentialContext, SharedContext};
-use crate::graph::RetryPolicy;
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::recognition";
@@ -248,7 +248,6 @@ impl NodeHandler for PatternRecognition {
         Ok(envelope)
     }
 }
-
 
 /// Manual annotation: not a standalone NodeHandler, but a utility
 /// for converting user-provided annotations into entities.

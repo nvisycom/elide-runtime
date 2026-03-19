@@ -249,7 +249,11 @@ impl NodeExecutor {
             }
 
             GraphNodeKind::LoadContext(cfg) => {
-                let loaded = cfg.load(&shared.registry, shared.actor_id).await?;
+                let mut loaded = Vec::with_capacity(cfg.context_ids.len());
+                for &id in &cfg.context_ids {
+                    let handle = shared.registry.read_context(shared.actor_id, id).await?;
+                    loaded.push(handle.context().await?);
+                }
                 let count = process_envelopes(senders, receivers, |mut envelope| {
                     let loaded = &loaded;
                     async move {

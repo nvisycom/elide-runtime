@@ -20,7 +20,8 @@ use tokio::sync::Mutex;
 
 use crate::operation::envelope::DetectedEntities;
 use crate::operation::{DocumentEnvelope, NodeHandler, SequentialContext, SharedContext};
-use crate::pipeline::{CompiledRetryPolicy, RuntimeConfig};
+use crate::graph::RetryPolicy;
+use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::recognition";
 
@@ -33,7 +34,7 @@ pub struct EntityRecognition {
     config: DetectionConfig,
     state: Mutex<Vec<KnownNerEntity>>,
     shared: SharedContext,
-    retry: Option<CompiledRetryPolicy>,
+    retry: Option<RetryPolicy>,
 }
 
 impl EntityRecognition {
@@ -68,7 +69,7 @@ impl EntityRecognition {
         runtime: &RuntimeConfig,
         http_client: &HttpClient,
         shared: SharedContext,
-        retry: Option<CompiledRetryPolicy>,
+        retry: Option<RetryPolicy>,
     ) -> Result<Self> {
         let llm = runtime.llm.as_ref();
         let provider = llm

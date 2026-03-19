@@ -1,17 +1,11 @@
-//! Compiled runtime policy types.
+//! Async execution helpers for graph policy types.
 //!
-//! These types convert user-facing config types from [`crate::graph::policy`]
-//! into runtime representations with pre-computed [`Duration`] values and
-//! async execution helpers.
+//! Adds `with_retry`, `with_timeout`, and `call` methods to
+//! [`RetryPolicy`] and [`TimeoutPolicy`] via impl blocks that
+//! use tokio for async sleep/timeout.
 //!
-//! [`Duration`]: std::time::Duration
-//!
-//! [`CompiledTimeoutPolicy`] wraps the entire node execution with a
-//! deadline. [`CompiledRetryPolicy`] wraps each individual item
-//! processed by the node (e.g. each content import).
+//! [`RetryPolicy`]: crate::graph::RetryPolicy
+//! [`TimeoutPolicy`]: crate::graph::TimeoutPolicy
 
 mod retry;
 mod timeout;
-
-pub use self::retry::CompiledRetryPolicy;
-pub use self::timeout::CompiledTimeoutPolicy;

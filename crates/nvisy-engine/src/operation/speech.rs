@@ -7,14 +7,15 @@ use nvisy_http::HttpClient;
 use nvisy_rig::audio::stt::{SttConfig, SttService};
 
 use crate::operation::{DocumentEnvelope, NodeHandler};
-use crate::pipeline::{CompiledRetryPolicy, RuntimeConfig};
+use crate::graph::RetryPolicy;
+use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::audial_extraction";
 
 /// Audial extraction: transcribes audio documents via STT.
 pub struct AudialExtraction {
     stt: SttService,
-    retry: Option<CompiledRetryPolicy>,
+    retry: Option<RetryPolicy>,
 }
 
 impl AudialExtraction {
@@ -22,7 +23,7 @@ impl AudialExtraction {
         cfg: &crate::graph::AudialExtraction,
         config: &RuntimeConfig,
         http_client: &HttpClient,
-        retry: Option<CompiledRetryPolicy>,
+        retry: Option<RetryPolicy>,
     ) -> Result<Self> {
         let stt_provider = config
             .stt

@@ -10,7 +10,7 @@ use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 
 use crate::operation::envelope::PolicyOutcome;
 use crate::operation::{DocumentEnvelope, NodeHandler, Operation, ParallelContext, SharedContext};
-use crate::pipeline::CompiledRetryPolicy;
+use crate::graph::RetryPolicy;
 use crate::provenance::{RedactionDecision, RedactionRecord};
 
 const TARGET: &str = "nvisy_engine::op::redaction";
@@ -19,7 +19,7 @@ const TARGET: &str = "nvisy_engine::op::redaction";
 pub struct Redaction {
     evaluator: PolicyEvaluator,
     shared: SharedContext,
-    retry: Option<CompiledRetryPolicy>,
+    retry: Option<RetryPolicy>,
 }
 
 impl Redaction {
@@ -27,7 +27,7 @@ impl Redaction {
     pub async fn connect(
         cfg: &crate::graph::Redaction,
         shared: SharedContext,
-        retry: Option<CompiledRetryPolicy>,
+        retry: Option<RetryPolicy>,
     ) -> Result<Self> {
         let rules = shared
             .policies

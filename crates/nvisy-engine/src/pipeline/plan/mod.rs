@@ -14,7 +14,6 @@ use uuid::Uuid;
 
 pub use self::edge::{EdgeConfig, ResolvedEdge};
 pub use self::node::ResolvedNode;
-use super::policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
 use crate::graph::{Graph, GraphEdge, GraphNode, RetryPolicy, TimeoutPolicy};
 
 /// Compiles a [`Graph`] into an [`ExecutionPlan`].
@@ -92,15 +91,15 @@ impl ExecutionPlan {
                 .map(|n| pg[n].id)
                 .collect();
 
-            let compiled_retry = graph_node.retry().map(CompiledRetryPolicy::from);
-            let compiled_timeout = graph_node.timeout().map(CompiledTimeoutPolicy::from);
+            let retry = graph_node.retry().cloned();
+            let timeout = graph_node.timeout().cloned();
 
             nodes.push(ResolvedNode {
                 node: graph_node.clone(),
                 upstream_ids,
                 downstream_ids,
-                compiled_retry,
-                compiled_timeout,
+                retry,
+                timeout,
             });
         }
 

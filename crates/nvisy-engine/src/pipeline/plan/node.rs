@@ -2,8 +2,7 @@
 
 use uuid::Uuid;
 
-use crate::graph::GraphNode;
-use crate::pipeline::policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
+use crate::graph::{GraphNode, RetryPolicy, TimeoutPolicy};
 
 /// A graph node enriched with adjacency information and compiled policies.
 ///
@@ -18,8 +17,8 @@ pub struct ResolvedNode {
     pub upstream_ids: Vec<Uuid>,
     /// IDs of nodes that receive data from this node.
     pub downstream_ids: Vec<Uuid>,
-    /// Pre-compiled retry policy, if configured.
-    pub compiled_retry: Option<CompiledRetryPolicy>,
-    /// Pre-compiled timeout policy, if configured.
-    pub compiled_timeout: Option<CompiledTimeoutPolicy>,
+    /// Retry policy for this node, if configured.
+    pub retry: Option<RetryPolicy>,
+    /// Timeout policy for this node, if configured.
+    pub timeout: Option<TimeoutPolicy>,
 }

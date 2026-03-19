@@ -18,7 +18,8 @@ use nvisy_rig::agent::{CvEntity, DetectionConfig, OcrAgent};
 
 use crate::operation::envelope::DetectedEntities;
 use crate::operation::{DocumentEnvelope, NodeHandler, Operation, ParallelContext, SharedContext};
-use crate::pipeline::{CompiledRetryPolicy, RuntimeConfig};
+use crate::graph::RetryPolicy;
+use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::visual_extraction";
 
@@ -27,7 +28,7 @@ pub struct VisualExtraction {
     ocr: OcrOp,
     verifier: Option<VerifyOp>,
     shared: SharedContext,
-    retry: Option<CompiledRetryPolicy>,
+    retry: Option<RetryPolicy>,
 }
 
 impl VisualExtraction {
@@ -72,7 +73,7 @@ impl VisualExtraction {
         config: &RuntimeConfig,
         http_client: &HttpClient,
         shared: SharedContext,
-        retry: Option<CompiledRetryPolicy>,
+        retry: Option<RetryPolicy>,
     ) -> Result<Self> {
         let ocr_section = config.ocr.as_ref();
         let ocr_provider = ocr_section
@@ -129,7 +130,7 @@ impl NodeHandler for VisualExtraction {
 
         let retry = self.retry.as_ref();
         let ocr_ref = &self.ocr;
-        let _ocr_output = CompiledRetryPolicy::call(retry, || {
+        let _ocr_output = RetryPolicy::call(retry, || {
             let spans = ocr_spans.clone();
             let shared = self.shared.clone();
             async move {
@@ -165,7 +166,7 @@ impl NodeHandler for VisualExtraction {
                     verifier.call(ctx).await
                 }
             };
-            match CompiledRetryPolicy::call(retry, do_verify).await {
+            match RetryPolicy::call(retry, do_verify).await {
                 Ok(output) => envelope.apply(output.into_inner()),
                 Err(e) => tracing::warn!(
                     target: TARGET,

@@ -15,8 +15,7 @@ use uuid::Uuid;
 
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
-use super::policy::CompiledRetryPolicy;
-use crate::graph::{self, GraphNodeKind, TimeoutBehavior};
+use crate::graph::{self, GraphNodeKind, RetryPolicy, TimeoutBehavior};
 use crate::operation::{
     AudialExtraction, DocumentEnvelope, EntityRecognition, Fusion, GenerateContext, ImportFile,
     LoadContext, NodeHandler, Operation, ParallelContext, PatternRecognition, Redaction,
@@ -83,14 +82,14 @@ impl NodeExecutor {
                 result = self.dispatch(
                     node_id,
                     &resolved.node.kind,
-                    resolved.compiled_retry.clone(),
+                    resolved.retry.clone(),
                     &senders,
                     &mut receivers,
                 ) => result,
             }
         };
 
-        match &resolved.compiled_timeout {
+        match &resolved.timeout {
             Some(compiled) => {
                 let result: Result<NodeOutput, Error> = compiled.with_timeout(run).await;
                 match (&result, &compiled.on_timeout) {
@@ -113,7 +112,7 @@ impl NodeExecutor {
         &self,
         node_id: Uuid,
         kind: &GraphNodeKind,
-        retry: Option<CompiledRetryPolicy>,
+        retry: Option<RetryPolicy>,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -141,7 +140,7 @@ impl NodeExecutor {
     async fn build_operation(
         &self,
         kind: &GraphNodeKind,
-        retry: Option<CompiledRetryPolicy>,
+        retry: Option<RetryPolicy>,
     ) -> Result<Box<dyn NodeHandler>, Error> {
         match kind {
             GraphNodeKind::VisualExtraction(cfg) => Ok(Box::new(VisualExtraction::connect(
@@ -190,7 +189,7 @@ impl NodeExecutor {
         &self,
         node_id: Uuid,
         cfg: &graph::Import,
-        retry: Option<&CompiledRetryPolicy>,
+        retry: Option<&RetryPolicy>,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let import = ImportFile::new()

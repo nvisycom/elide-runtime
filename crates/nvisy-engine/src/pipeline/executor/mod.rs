@@ -1,12 +1,8 @@
-//! Node-level execution: dispatch, envelope flow, and handler construction.
+//! Node-level execution: dispatch and envelope flow.
 //!
-//! [`NodeExecutor`] builds a [`NodeHandler`] from the node's [`GraphNodeKind`]
-//! and config, then runs the standard recv → transform → send loop via
-//! [`process_envelopes`]. Import and Export are structural exceptions
-//! handled directly.
-
-mod handler;
-mod handlers;
+//! [`NodeExecutor`] builds operations from [`GraphNodeKind`] and runs
+//! the standard recv → transform → send loop. Import and Export are
+//! structural exceptions handled directly.
 
 use std::sync::Arc;
 
@@ -17,18 +13,15 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use self::handler::NodeHandler;
-use self::handlers::context::{GenerateContextHandler, LoadContextHandler, SaveContextHandler};
-use self::handlers::extraction::{AudialExtractionHandler, VisualExtractionHandler};
-use self::handlers::recognition::{NerHandler, PatternRecognitionHandler};
-use self::handlers::refinement::{FusionHandler, RedactionHandler, ValidationHandler};
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
 use super::policy::CompiledRetryPolicy;
-use crate::graph::{self, GraphNodeKind};
-use crate::graph::policy::TimeoutBehavior;
-use crate::operation::lifecycle::ImportFile;
-use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
+use crate::graph::{self, GraphNodeKind, TimeoutBehavior};
+use crate::operation::{
+    AudialExtraction, DocumentEnvelope, EntityRecognition, Fusion, GenerateContext, ImportFile,
+    LoadContext, NodeHandler, Operation, ParallelContext, PatternRecognition, Redaction,
+    SaveContext, SharedContext, Validation, VisualExtraction,
+};
 
 const TARGET: &str = "nvisy_engine::pipeline::executor";
 
@@ -62,7 +55,12 @@ impl NodeExecutor {
         config: RuntimeConfig,
         http_client: HttpClient,
     ) -> Self {
-        Self { shared, cancel, config, http_client }
+        Self {
+            shared,
+            cancel,
+            config,
+            http_client,
+        }
     }
 
     /// Execute a resolved node, applying timeout and cancellation.
@@ -111,7 +109,6 @@ impl NodeExecutor {
         }
     }
 
-    /// Dispatch to the appropriate handler based on node kind.
     async fn dispatch(
         &self,
         node_id: Uuid,
@@ -122,17 +119,15 @@ impl NodeExecutor {
     ) -> Result<NodeOutput, Error> {
         match kind {
             GraphNodeKind::Import(cfg) => {
-                self.execute_import(node_id, cfg, retry.as_ref(), senders).await
+                self.execute_import(node_id, cfg, retry.as_ref(), senders)
+                    .await
             }
-            GraphNodeKind::Export(cfg) => {
-                self.execute_export(node_id, cfg, receivers).await
-            }
+            GraphNodeKind::Export(cfg) => self.execute_export(node_id, cfg, receivers).await,
             _ => {
-                let handler = self.build_handler(kind, retry).await?;
-                let count = process_envelopes(senders, receivers, |envelope| {
-                    handler.handle(envelope)
-                })
-                .await?;
+                let handler = self.build_operation(kind, retry).await?;
+                let count =
+                    process_envelopes(senders, receivers, |envelope| handler.handle(envelope))
+                        .await?;
                 Ok(NodeOutput {
                     node_id,
                     items_processed: count,
@@ -143,43 +138,48 @@ impl NodeExecutor {
         }
     }
 
-    /// Build a [`NodeHandler`] for a transform node.
-    async fn build_handler(
+    async fn build_operation(
         &self,
         kind: &GraphNodeKind,
         retry: Option<CompiledRetryPolicy>,
     ) -> Result<Box<dyn NodeHandler>, Error> {
         match kind {
-            GraphNodeKind::VisualExtraction(cfg) => Ok(Box::new(
-                VisualExtractionHandler::new(cfg, &self.config, &self.http_client, self.shared.clone(), retry)?,
-            )),
-            GraphNodeKind::AudialExtraction(cfg) => Ok(Box::new(
-                AudialExtractionHandler::new(cfg, &self.config, &self.http_client, retry)?,
-            )),
+            GraphNodeKind::VisualExtraction(cfg) => Ok(Box::new(VisualExtraction::connect(
+                cfg,
+                &self.config,
+                &self.http_client,
+                self.shared.clone(),
+                retry,
+            )?)),
+            GraphNodeKind::AudialExtraction(cfg) => Ok(Box::new(AudialExtraction::connect(
+                cfg,
+                &self.config,
+                &self.http_client,
+                retry,
+            )?)),
             GraphNodeKind::NamedEntityRecognition(cfg) => Ok(Box::new(
-                NerHandler::new(cfg, &self.config, &self.http_client, self.shared.clone(), retry).await?,
+                EntityRecognition::connect(
+                    cfg,
+                    &self.config,
+                    &self.http_client,
+                    self.shared.clone(),
+                    retry,
+                )
+                .await?,
             )),
             GraphNodeKind::PatternRecognition(_) => Ok(Box::new(
-                PatternRecognitionHandler::new(self.shared.clone(), retry).await?,
+                PatternRecognition::connect(self.shared.clone()).await?,
             )),
-            GraphNodeKind::Fusion(cfg) => Ok(Box::new(
-                FusionHandler::new(cfg, self.shared.clone(), retry),
-            )),
+            GraphNodeKind::Fusion(cfg) => Ok(Box::new(Fusion::from_graph(cfg))),
             GraphNodeKind::Redaction(cfg) => Ok(Box::new(
-                RedactionHandler::new(cfg, self.shared.clone(), retry).await?,
+                Redaction::connect(cfg, self.shared.clone(), retry).await?,
             )),
-            GraphNodeKind::Validation(cfg) => Ok(Box::new(
-                ValidationHandler::new(cfg, self.shared.clone()),
-            )),
-            GraphNodeKind::LoadContext(cfg) => Ok(Box::new(
-                LoadContextHandler::new(cfg, self.shared.clone()).await?,
-            )),
-            GraphNodeKind::SaveContext(cfg) => Ok(Box::new(
-                SaveContextHandler::new(cfg, self.shared.clone()),
-            )),
-            GraphNodeKind::GenerateContext(cfg) => Ok(Box::new(
-                GenerateContextHandler::new(cfg),
-            )),
+            GraphNodeKind::Validation(cfg) => Ok(Box::new(Validation::new(cfg))),
+            GraphNodeKind::LoadContext(cfg) => {
+                Ok(Box::new(LoadContext::connect(cfg, &self.shared).await?))
+            }
+            GraphNodeKind::SaveContext(cfg) => Ok(Box::new(SaveContext::new(cfg, &self.shared))),
+            GraphNodeKind::GenerateContext(cfg) => Ok(Box::new(GenerateContext::new(cfg))),
             GraphNodeKind::Import(_) | GraphNodeKind::Export(_) => {
                 unreachable!("import/export handled directly in dispatch")
             }
@@ -236,10 +236,6 @@ impl NodeExecutor {
         _cfg: &graph::Export,
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        // Export post-processing (encryption, compression)
-        // will be applied when ExportFile gains real implementation.
-        // For now, export just collects envelopes for the engine output.
-
         let mut count = 0u64;
         let mut envelopes = Vec::new();
         for rx in receivers.iter_mut() {
@@ -260,7 +256,7 @@ impl NodeExecutor {
     }
 }
 
-/// Receive envelopes from upstream, transform each one, and send downstream.
+/// Receive envelopes from upstream, transform, send downstream.
 async fn process_envelopes<F, Fut>(
     senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
     receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
@@ -286,7 +282,7 @@ where
     Ok(count)
 }
 
-/// Take ownership of the envelope from an `Arc`, cloning via
+/// Take ownership of an envelope from an `Arc`, cloning via
 /// encode/decode when the reference count is > 1 (fan-out).
 async fn unwrap_envelope(arc: Arc<DocumentEnvelope>) -> Result<DocumentEnvelope, Error> {
     match Arc::try_unwrap(arc) {

@@ -15,7 +15,7 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::{DefaultEngine, Engine, EngineInput, EngineOutput, EngineRuns, RunFilter};
+use nvisy_engine::pipeline::{DefaultEngine, Engine, EngineInput, EngineOutput, EngineRuns, RunFilter};
 
 use super::error::{ErrorKind, Result};
 use super::request::{NewRun, RunPath};
@@ -29,7 +29,7 @@ use crate::service::ServiceState;
 pub struct RunQuery {
     /// Filter by run status (e.g. `running`, `succeeded`).
     #[serde(default)]
-    pub status: Option<nvisy_engine::RunStatus>,
+    pub status: Option<nvisy_engine::pipeline::RunStatus>,
     /// Filter by actor identity.
     #[serde(default)]
     pub actor_id: Option<uuid::Uuid>,
@@ -211,7 +211,13 @@ pub fn routes() -> ApiRouter<ServiceState> {
             "/api/v1/runs",
             post_with(create_run, create_run_docs).get_with(list_runs, list_runs_docs),
         )
-        .api_route("/api/v1/runs/scan", post_with(scan_content, scan_content_docs))
+        .api_route(
+            "/api/v1/runs/scan",
+            post_with(scan_content, scan_content_docs),
+        )
         .api_route("/api/v1/runs/{id}", get_with(get_run, get_run_docs))
-        .api_route("/api/v1/runs/{id}/cancel", post_with(cancel_run, cancel_run_docs))
+        .api_route(
+            "/api/v1/runs/{id}/cancel",
+            post_with(cancel_run, cancel_run_docs),
+        )
 }

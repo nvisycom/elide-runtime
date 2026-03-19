@@ -135,11 +135,9 @@ impl RunState {
     /// Request cancellation of an in-progress run.
     pub async fn cancel_run(&self, id: Uuid) -> Result<(), nvisy_core::Error> {
         let mut runs = self.runs.write().await;
-        let entry = runs
-            .get_mut(&id)
-            .ok_or_else(|| {
-                nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
-            })?;
+        let entry = runs.get_mut(&id).ok_or_else(|| {
+            nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
+        })?;
 
         match entry.status {
             RunStatus::Pending | RunStatus::Running => {

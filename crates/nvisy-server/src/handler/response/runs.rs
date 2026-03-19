@@ -1,9 +1,9 @@
 //! Run response types.
 
 use nvisy_engine::provenance::{Audit, PolicyEvaluation, RedactionMap};
+use nvisy_engine::pipeline::{EngineOutput, RunSnapshot, RunSummary};
 use nvisy_ontology::entity::DetectionOutput;
 use nvisy_ontology::policy::RedactionSummary;
-use nvisy_engine::{EngineOutput, RunSnapshot, RunSummary};
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;

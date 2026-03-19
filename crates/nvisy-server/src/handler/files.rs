@@ -195,7 +195,6 @@ pub fn routes() -> ApiRouter<ServiceState> {
         )
         .api_route(
             "/api/v1/files/{id}",
-            get_with(download_file, download_file_docs)
-                .delete_with(delete_file, delete_file_docs),
+            get_with(download_file, download_file_docs).delete_with(delete_file, delete_file_docs),
         )
 }

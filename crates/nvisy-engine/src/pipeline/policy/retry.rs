@@ -5,7 +5,7 @@ use std::time::Duration;
 use nvisy_core::Error;
 use tokio::time;
 
-use crate::graph::policy::{BackoffStrategy, RetryPolicy};
+use crate::graph::{BackoffStrategy, RetryPolicy};
 
 /// Pre-compiled retry policy ready for runtime use.
 ///

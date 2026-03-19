@@ -1,6 +1,7 @@
 //! Run request types.
 
-use nvisy_engine::{Graph, RuntimeConfig};
+use nvisy_engine::graph::Graph;
+use nvisy_engine::pipeline::RuntimeConfig;
 use nvisy_ontology::policy::Policies;
 use schemars::JsonSchema;
 use serde::Deserialize;

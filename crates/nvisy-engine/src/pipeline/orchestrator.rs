@@ -42,7 +42,12 @@ pub(super) async fn run_graph(
     runs: RunState,
     ctx: RunContext,
 ) -> Result<RunOutput, Error> {
-    let RunContext { cancel, shared, config, http_client } = ctx;
+    let RunContext {
+        cancel,
+        shared,
+        config,
+        http_client,
+    } = ctx;
 
     let mut senders: HashMap<Uuid, Vec<mpsc::Sender<Arc<DocumentEnvelope>>>> = HashMap::new();
     let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>> = HashMap::new();

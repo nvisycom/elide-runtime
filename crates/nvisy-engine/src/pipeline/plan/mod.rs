@@ -15,8 +15,7 @@ use uuid::Uuid;
 pub use self::edge::{EdgeConfig, ResolvedEdge};
 pub use self::node::ResolvedNode;
 use super::policy::{CompiledRetryPolicy, CompiledTimeoutPolicy};
-use crate::graph::policy::{RetryPolicy, TimeoutPolicy};
-use crate::graph::{Graph, GraphEdge, GraphNode};
+use crate::graph::{Graph, GraphEdge, GraphNode, RetryPolicy, TimeoutPolicy};
 
 /// Compiles a [`Graph`] into an [`ExecutionPlan`].
 ///

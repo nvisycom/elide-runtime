@@ -1,0 +1,95 @@
+//! Audial extraction: speech-to-text transcription.
+
+use nvisy_codec::Document;
+use nvisy_codec::handler::Handler;
+use nvisy_core::{Error, ErrorKind, Result};
+use nvisy_http::HttpClient;
+use nvisy_rig::audio::stt::{SttConfig, SttService};
+
+use crate::operation::{DocumentEnvelope, NodeHandler};
+use crate::pipeline::{CompiledRetryPolicy, RuntimeConfig};
+
+const TARGET: &str = "nvisy_engine::op::audial_extraction";
+
+/// Audial extraction: transcribes audio documents via STT.
+pub struct AudialExtraction {
+    stt: SttService,
+    retry: Option<CompiledRetryPolicy>,
+}
+
+impl AudialExtraction {
+    pub fn connect(
+        cfg: &crate::graph::AudialExtraction,
+        config: &RuntimeConfig,
+        http_client: &HttpClient,
+        retry: Option<CompiledRetryPolicy>,
+    ) -> Result<Self> {
+        let stt_provider = config
+            .stt
+            .as_ref()
+            .and_then(|s| s.provider.clone())
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Validation,
+                    "audial_extraction requires an STT provider",
+                )
+            })?;
+
+        let stt =
+            SttService::with_http_client(&stt_provider, SttConfig::default(), http_client.clone())
+                .map_err(|e: nvisy_rig::error::Error| {
+                    Error::runtime(e.to_string(), "stt-service", false)
+                })?;
+
+        if cfg.diarization {
+            tracing::warn!(target: TARGET, "diarization not yet supported, skipping");
+        }
+
+        Ok(Self { stt, retry })
+    }
+}
+
+#[async_trait::async_trait]
+impl NodeHandler for AudialExtraction {
+    async fn handle(&self, envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
+        let Document::Audio(ref handler) = envelope.document else {
+            return Ok(envelope);
+        };
+
+        let audio_data = Handler::encode(handler)?;
+        let filename: String = audio_data
+            .filename
+            .as_deref()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "audio.wav".to_string());
+
+        let stt_ref = &self.stt;
+        let retry = self.retry.as_ref();
+        let do_transcribe = || {
+            let bytes = audio_data.as_bytes().to_vec();
+            let fname = filename.clone();
+            async move {
+                stt_ref
+                    .transcribe(&bytes, &fname)
+                    .await
+                    .map_err(|e: nvisy_rig::error::Error| {
+                        Error::runtime(e.to_string(), "stt-transcribe", e.is_retryable())
+                    })
+            }
+        };
+
+        let stt_output = match retry {
+            Some(policy) => policy.with_retry(do_transcribe).await?,
+            None => do_transcribe().await?,
+        };
+
+        tracing::debug!(
+            target: TARGET,
+            text_len = stt_output.text.len(),
+            "transcription complete",
+        );
+        // TODO: inject transcribed text into envelope for downstream NER.
+
+        Ok(envelope)
+    }
+}

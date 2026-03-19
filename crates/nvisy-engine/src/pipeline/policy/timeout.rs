@@ -5,7 +5,7 @@ use std::time::Duration;
 use nvisy_core::Error;
 use tokio::time;
 
-use crate::graph::policy::{TimeoutBehavior, TimeoutPolicy};
+use crate::graph::{TimeoutBehavior, TimeoutPolicy};
 
 /// Pre-compiled timeout policy ready for runtime use.
 ///

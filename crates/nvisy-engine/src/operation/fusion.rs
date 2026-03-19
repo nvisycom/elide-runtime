@@ -6,13 +6,11 @@
 
 use std::collections::HashMap;
 
-use nvisy_core::Result;
-use nvisy_ontology::entity::{
-    Entities, Entity, Location, RecognitionMethod, RefinementMethod,
-};
+use nvisy_core::{Error, Result};
+use nvisy_ontology::entity::{Entities, Entity, Location, RecognitionMethod, RefinementMethod};
 
 use crate::operation::envelope::RefinedEntities;
-use crate::operation::{Operation, ParallelContext};
+use crate::operation::{DocumentEnvelope, NodeHandler, Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::fusion";
 
@@ -57,6 +55,20 @@ impl Fusion {
         Self { params }
     }
 
+    /// Build from graph config.
+    pub fn from_graph(cfg: &crate::graph::Fusion) -> Self {
+        if cfg.confidence_calibration {
+            tracing::warn!(target: TARGET, "confidence_calibration not yet implemented, skipping");
+        }
+        if cfg.contextual_adjustment {
+            tracing::warn!(target: TARGET, "contextual_adjustment not yet implemented, skipping");
+        }
+        Self::new(FusionParams {
+            deduplicate: cfg.entity_deduplication,
+            strategy: FusionStrategy::MaxConfidence,
+        })
+    }
+
     async fn execute(&self, entities: Entities) -> Result<RefinedEntities> {
         if entities.is_empty() {
             return Ok(RefinedEntities(entities));
@@ -91,6 +103,17 @@ impl Operation for Fusion {
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.execute(data)).await
+    }
+}
+
+#[async_trait::async_trait]
+impl NodeHandler for Fusion {
+    async fn handle(&self, mut envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
+        if !envelope.entities.is_empty() {
+            let result = self.execute(envelope.entities.clone()).await?;
+            envelope.apply(result);
+        }
+        Ok(envelope)
     }
 }
 
@@ -183,9 +206,7 @@ fn fuse_group(strategy: &FusionStrategy, group: Vec<Entity>) -> Entity {
     }
 
     let fused_confidence = match strategy {
-        FusionStrategy::MaxConfidence => {
-            group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max)
-        }
+        FusionStrategy::MaxConfidence => group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max),
         FusionStrategy::WeightedAverage { weights } => {
             let mut total_weight = 0.0;
             let mut weighted_sum = 0.0;

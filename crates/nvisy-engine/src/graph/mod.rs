@@ -8,7 +8,7 @@
 mod context;
 mod extraction;
 mod lifecycle;
-pub mod policy;
+mod policy;
 mod recognition;
 mod refinement;
 
@@ -23,7 +23,7 @@ use validator::Validate;
 pub use self::context::{GenerateContext, LoadContext, SaveContext};
 pub use self::extraction::{AudialExtraction, VisualExtraction};
 pub use self::lifecycle::{CompressionFormat, EncryptionFormat, Export, Import};
-use self::policy::{RetryPolicy, TimeoutPolicy};
+pub use self::policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 pub use self::recognition::{NamedEntityRecognition, PatternRecognition};
 pub use self::refinement::{Fusion, Redaction, Validation};
 
@@ -90,16 +90,6 @@ impl GraphNodeKind {
     ///
     /// Phases enforce execution ordering: edges must flow from equal or
     /// lower phase to equal or higher phase.
-    ///
-    /// | Phase | Actions                                           |
-    /// |-------|---------------------------------------------------|
-    /// | 0     | Import, LoadContext                                |
-    /// | 1     | VisualExtraction, AudialExtraction                 |
-    /// | 2     | NamedEntityRecognition, PatternRecognition         |
-    /// | 3     | Fusion                                            |
-    /// | 4     | Redaction, GenerateContext                         |
-    /// | 5     | Validation                                        |
-    /// | 6     | Export, SaveContext                                |
     #[must_use]
     pub fn phase(&self) -> u8 {
         match self {

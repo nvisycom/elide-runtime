@@ -11,7 +11,7 @@ use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::extract::State;
-use nvisy_engine::{DefaultEngine, EngineAnalytics};
+use nvisy_engine::pipeline::{DefaultEngine, EngineAnalytics};
 
 use super::response::{Analytics, Health, ServiceStatus};
 use crate::extract::Json;

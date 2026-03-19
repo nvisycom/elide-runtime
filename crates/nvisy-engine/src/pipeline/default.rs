@@ -17,13 +17,12 @@ use uuid::Uuid;
 use super::analytics::{AnalyticsSnapshot, EngineAnalytics};
 use super::config::RuntimeConfig;
 use super::orchestrator::{self, RunContext};
-use super::plan;
 use super::runs::state::{RunEntry, RunState};
 use super::runs::{
     EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
 };
-use super::{Engine, EngineInput, EngineOutput};
-use crate::graph::policy::{RetryPolicy, TimeoutPolicy};
+use super::{Engine, EngineInput, EngineOutput, plan};
+use crate::graph::{RetryPolicy, TimeoutPolicy};
 use crate::operation::SharedContext;
 use crate::provenance::PolicyEvaluation;
 
@@ -212,20 +211,14 @@ impl Engine for DefaultEngine {
             http_client: self.cfg.http_client.clone(),
         };
 
-        let run_output = match orchestrator::run_graph(
-            &compiled,
-            run_id,
-            self.runs.clone(),
-            ctx,
-        )
-        .await
-        {
-            Ok(output) => output,
-            Err(e) => {
-                self.runs.fail(run_id).await;
-                return Err(e);
-            }
-        };
+        let run_output =
+            match orchestrator::run_graph(&compiled, run_id, self.runs.clone(), ctx).await {
+                Ok(output) => output,
+                Err(e) => {
+                    self.runs.fail(run_id).await;
+                    return Err(e);
+                }
+            };
 
         let (output, entities_detected, redactions_applied) =
             collect_output(run_id, &input.policies, &run_output);
@@ -280,10 +273,7 @@ fn collect_output(
 
     let output = EngineOutput {
         run_id,
-        detection: nvisy_ontology::entity::DetectionOutput::new(
-            ContentSource::new(),
-            all_entities,
-        ),
+        detection: nvisy_ontology::entity::DetectionOutput::new(ContentSource::new(), all_entities),
         evaluation,
         summaries: Vec::new(),
         file_audits,

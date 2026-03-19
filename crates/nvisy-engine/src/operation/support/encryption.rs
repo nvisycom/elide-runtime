@@ -120,7 +120,10 @@ impl CryptoService {
 
         let raw_key = self.key_provider.resolve(&self.key_id)?;
         let cipher = Aes256Gcm::new_from_slice(&raw_key).map_err(|e| {
-            Error::validation(format!("invalid AES-256 key: {e}"), "CryptoService::encrypt")
+            Error::validation(
+                format!("invalid AES-256 key: {e}"),
+                "CryptoService::encrypt",
+            )
         })?;
 
         let mut nonce_bytes = [0u8; NONCE_SIZE];
@@ -173,7 +176,10 @@ impl CryptoService {
         let raw_key = self.key_provider.resolve(envelope.key_id)?;
 
         let cipher = Aes256Gcm::new_from_slice(&raw_key).map_err(|e| {
-            Error::validation(format!("invalid AES-256 key: {e}"), "CryptoService::decrypt")
+            Error::validation(
+                format!("invalid AES-256 key: {e}"),
+                "CryptoService::decrypt",
+            )
         })?;
 
         let nonce = Nonce::from_slice(envelope.nonce);

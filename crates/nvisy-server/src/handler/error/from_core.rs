@@ -46,9 +46,11 @@ mod tests {
 
     #[test]
     fn from_nvisy_core_validation_run_conflict() {
-        let core_err =
-            nvisy_core::Error::new(nvisy_core::ErrorKind::Validation, "run has already finished")
-                .with_component("run");
+        let core_err = nvisy_core::Error::new(
+            nvisy_core::ErrorKind::Validation,
+            "run has already finished",
+        )
+        .with_component("run");
         let err = Error::from(core_err);
         assert_eq!(err.kind(), ErrorKind::Conflict);
     }

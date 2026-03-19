@@ -7,7 +7,7 @@ use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use uuid::Uuid;
 
-use crate::operation::{DocumentEnvelope, NodeHandler};
+use crate::operation::DocumentEnvelope;
 use crate::provenance::RedactionDecision;
 
 const TARGET: &str = "nvisy_engine::op::validation";
@@ -74,11 +74,11 @@ impl Validation {
 
         ValidationResult { passed, leaked }
     }
-}
 
-#[async_trait::async_trait]
-impl NodeHandler for Validation {
-    async fn handle(&self, envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
+    pub(crate) async fn process(
+        &self,
+        envelope: DocumentEnvelope,
+    ) -> Result<DocumentEnvelope, Error> {
         let redacted_text = match &envelope.document {
             Document::Text(h) => {
                 let spans: Vec<_> = h.text_spans().await.collect().await;

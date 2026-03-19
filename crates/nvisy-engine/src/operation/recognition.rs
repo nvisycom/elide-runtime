@@ -1,7 +1,7 @@
 //! Entity recognition: NER, pattern matching, and manual detection.
 //!
 //! Combines all entity detection methods into operations that implement
-//! [`NodeHandler`]. The NER agent, pattern engine, and manual annotation
+//! [``]. The NER agent, pattern engine, and manual annotation
 //! converter are internal implementation details.
 
 use futures::StreamExt;
@@ -20,7 +20,7 @@ use tokio::sync::Mutex;
 
 use crate::graph::RetryPolicy;
 use crate::operation::envelope::DetectedEntities;
-use crate::operation::{DocumentEnvelope, NodeHandler, SequentialContext, SharedContext};
+use crate::operation::{DocumentEnvelope, SequentialContext, SharedContext};
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::recognition";
@@ -93,7 +93,10 @@ impl EntityRecognition {
         })
     }
 
-    async fn detect(&self, spans: Vec<Span<TxtSpan, String>>) -> Result<DetectedEntities> {
+    pub(crate) async fn detect(
+        &self,
+        spans: Vec<Span<TxtSpan, String>>,
+    ) -> Result<DetectedEntities> {
         tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
         let mut entities = Vec::new();
 
@@ -154,14 +157,14 @@ impl EntityRecognition {
         Ok(DetectedEntities(entities.into()))
     }
 
-    async fn reset(&self) {
+    pub(crate) async fn reset(&self) {
         self.state.lock().await.clear();
     }
-}
 
-#[async_trait::async_trait]
-impl NodeHandler for EntityRecognition {
-    async fn handle(&self, mut envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
+    pub(crate) async fn process(
+        &self,
+        mut envelope: DocumentEnvelope,
+    ) -> Result<DocumentEnvelope, Error> {
         let spans = Self::collect_spans(&envelope.document).await;
         if !spans.is_empty() {
             let ner_ref = self;
@@ -204,11 +207,11 @@ impl PatternRecognition {
     pub async fn connect(shared: SharedContext) -> Result<Self> {
         Ok(Self { shared })
     }
-}
 
-#[async_trait::async_trait]
-impl NodeHandler for PatternRecognition {
-    async fn handle(&self, mut envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
+    pub(crate) async fn process(
+        &self,
+        mut envelope: DocumentEnvelope,
+    ) -> Result<DocumentEnvelope, Error> {
         let spans = Self::collect_spans(&envelope.document).await;
         if spans.is_empty() {
             return Ok(envelope);
@@ -249,7 +252,7 @@ impl NodeHandler for PatternRecognition {
     }
 }
 
-/// Manual annotation: not a standalone NodeHandler, but a utility
+/// Manual annotation: not a standalone but a utility
 /// for converting user-provided annotations into entities.
 pub fn apply_manual_annotations(annotations: &[Annotation], entities: &mut Entities) {
     for ann in annotations {

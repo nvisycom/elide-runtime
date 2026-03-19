@@ -1,7 +1,7 @@
 //! Operations: the building blocks of the redaction pipeline.
 //!
 //! Each operation file corresponds to a [`GraphNodeKind`] variant and
-//! implements [`NodeHandler`] — a single async transform from
+//! implements [`Operation`] — a single async transform from
 //! [`DocumentEnvelope`] to [`DocumentEnvelope`].
 //!
 //! | File                    | Graph node              | Purpose                              |
@@ -68,14 +68,4 @@ pub trait Operation {
 
     /// Execute the operation.
     fn call(&self, input: Self::Input) -> impl Future<Output = Result<Self::Output>> + Send;
-}
-
-/// Envelope-level transform for a pipeline node.
-///
-/// Each graph node kind has a corresponding struct that implements
-/// this trait. The executor calls [`handle`](NodeHandler::handle)
-/// for each envelope passing through the node.
-#[async_trait::async_trait]
-pub trait NodeHandler: Send + Sync {
-    async fn handle(&self, envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error>;
 }

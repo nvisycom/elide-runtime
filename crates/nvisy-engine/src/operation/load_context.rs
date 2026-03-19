@@ -1,12 +1,9 @@
 //! Load reference-data contexts from the registry into the envelope.
 
-use std::collections::HashSet;
-
 use nvisy_core::{Error, Result};
 use nvisy_ontology::context::Contexts;
-use uuid::Uuid;
 
-use crate::operation::{DocumentEnvelope, NodeHandler, SharedContext};
+use crate::operation::{DocumentEnvelope, SharedContext};
 
 const TARGET: &str = "nvisy_engine::op::load_context";
 
@@ -19,35 +16,26 @@ pub struct LoadContext {
 impl LoadContext {
     /// Build from graph config and shared context.
     pub async fn load(cfg: &crate::graph::LoadContext, shared: &SharedContext) -> Result<Self> {
-        let mut seen = HashSet::with_capacity(cfg.context_ids.len());
-        let mut contexts = Vec::with_capacity(cfg.context_ids.len());
+        let mut loaded = Contexts::new();
         for &id in &cfg.context_ids {
-            if !seen.insert(id) {
+            if loaded.contains(&id) {
                 continue;
             }
             let handle = shared.registry.read_context(shared.actor_id, id).await?;
             let context = handle.context().await?;
-            contexts.push(context);
+            loaded.insert(context);
         }
-        tracing::debug!(target: TARGET, count = contexts.len(), "loaded contexts from registry");
-        Ok(Self {
-            loaded: Contexts { contexts },
-        })
+        tracing::debug!(target: TARGET, count = loaded.len(), "loaded contexts from registry");
+        Ok(Self { loaded })
     }
-}
 
-#[async_trait::async_trait]
-impl NodeHandler for LoadContext {
-    async fn handle(&self, mut envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
-        let existing_ids: HashSet<Uuid> = envelope
-            .contexts
-            .contexts
-            .iter()
-            .map(|c| c.source.as_uuid())
-            .collect();
-        for ctx in &self.loaded.contexts {
-            if !existing_ids.contains(&ctx.source.as_uuid()) {
-                envelope.contexts.contexts.push(ctx.clone());
+    pub(crate) async fn process(
+        &self,
+        mut envelope: DocumentEnvelope,
+    ) -> Result<DocumentEnvelope, Error> {
+        for (id, ctx) in self.loaded.iter() {
+            if !envelope.contexts.contains(id) {
+                envelope.contexts.insert(ctx.clone());
             }
         }
         Ok(envelope)

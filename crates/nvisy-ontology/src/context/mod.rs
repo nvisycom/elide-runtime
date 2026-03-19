@@ -12,23 +12,63 @@ pub mod geospatial;
 pub mod reference;
 pub mod temporal;
 
+use std::collections::HashMap;
+
 use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub use self::entry::{ContextEntry, ContextEntryData};
 
-/// A collection of [`Context`]s attached to a pipeline run.
+/// A collection of [`Context`]s keyed by their source UUID.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct Contexts {
-    /// The contexts to apply.
-    pub contexts: Vec<Context>,
+    /// The contexts, keyed by source UUID.
+    #[serde(flatten)]
+    contexts: HashMap<Uuid, Context>,
 }
 
 impl Contexts {
     /// Create an empty collection.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Get a context by its source UUID.
+    pub fn get(&self, id: &Uuid) -> Option<&Context> {
+        self.contexts.get(id)
+    }
+
+    /// Insert a context, keyed by its source UUID. Replaces any existing
+    /// context with the same ID.
+    pub fn insert(&mut self, context: Context) {
+        self.contexts.insert(context.source.as_uuid(), context);
+    }
+
+    /// Number of contexts in the collection.
+    pub fn len(&self) -> usize {
+        self.contexts.len()
+    }
+
+    /// Returns `true` if the collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.contexts.is_empty()
+    }
+
+    /// Returns `true` if a context with the given ID exists.
+    pub fn contains(&self, id: &Uuid) -> bool {
+        self.contexts.contains_key(id)
+    }
+
+    /// Iterate over all contexts.
+    pub fn iter(&self) -> impl Iterator<Item = (&Uuid, &Context)> {
+        self.contexts.iter()
+    }
+
+    /// Iterate over all context values.
+    pub fn values(&self) -> impl Iterator<Item = &Context> {
+        self.contexts.values()
     }
 }
 

@@ -9,7 +9,7 @@ use nvisy_ontology::entity::{Entities, Entity, Overlap, RefinementMethod};
 
 use crate::graph::FusionStrategy;
 use crate::operation::envelope::RefinedEntities;
-use crate::operation::{DocumentEnvelope, NodeHandler, Operation, ParallelContext};
+use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::fusion";
 
@@ -34,7 +34,7 @@ impl Fusion {
         }
     }
 
-    async fn execute(&self, entities: Entities) -> Result<RefinedEntities> {
+    pub(crate) async fn execute(&self, entities: Entities) -> Result<RefinedEntities> {
         if entities.is_empty() {
             return Ok(RefinedEntities(entities));
         }
@@ -110,17 +110,6 @@ impl Operation for Fusion {
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|data| self.execute(data)).await
-    }
-}
-
-#[async_trait::async_trait]
-impl NodeHandler for Fusion {
-    async fn handle(&self, mut envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
-        if !envelope.entities.is_empty() {
-            let result = self.execute(envelope.entities.clone()).await?;
-            envelope.apply(result);
-        }
-        Ok(envelope)
     }
 }
 

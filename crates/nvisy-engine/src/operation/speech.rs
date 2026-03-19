@@ -7,7 +7,7 @@ use nvisy_http::HttpClient;
 use nvisy_rig::audio::stt::{SttConfig, SttService};
 
 use crate::graph::RetryPolicy;
-use crate::operation::{DocumentEnvelope, NodeHandler};
+use crate::operation::DocumentEnvelope;
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::audial_extraction";
@@ -48,11 +48,11 @@ impl AudialExtraction {
 
         Ok(Self { stt, retry })
     }
-}
 
-#[async_trait::async_trait]
-impl NodeHandler for AudialExtraction {
-    async fn handle(&self, envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
+    pub(crate) async fn process(
+        &self,
+        envelope: DocumentEnvelope,
+    ) -> Result<DocumentEnvelope, Error> {
         let Document::Audio(ref handler) = envelope.document else {
             return Ok(envelope);
         };

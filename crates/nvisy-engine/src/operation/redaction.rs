@@ -10,7 +10,7 @@ use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 
 use crate::graph::RetryPolicy;
 use crate::operation::envelope::PolicyOutcome;
-use crate::operation::{DocumentEnvelope, NodeHandler, Operation, ParallelContext, SharedContext};
+use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
 use crate::provenance::{RedactionDecision, RedactionRecord};
 
 const TARGET: &str = "nvisy_engine::op::redaction";
@@ -48,11 +48,16 @@ impl Redaction {
             retry,
         })
     }
-}
 
-#[async_trait::async_trait]
-impl NodeHandler for Redaction {
-    async fn handle(&self, mut envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
+    /// Evaluate policies against entities and produce redaction decisions.
+    pub(crate) async fn evaluate(&self, entities: Entities) -> Result<PolicyOutcome> {
+        self.evaluator.evaluate(entities).await
+    }
+
+    pub(crate) async fn process(
+        &self,
+        mut envelope: DocumentEnvelope,
+    ) -> Result<DocumentEnvelope, Error> {
         if !envelope.entities.is_empty() {
             let eval_ref = &self.evaluator;
             let retry = self.retry.as_ref();
@@ -99,7 +104,7 @@ impl PolicyEvaluator {
         }
     }
 
-    async fn evaluate(&self, entities: Entities) -> Result<PolicyOutcome> {
+    pub(crate) async fn evaluate(&self, entities: Entities) -> Result<PolicyOutcome> {
         tracing::debug!(target: TARGET, entity_count = entities.len(), "evaluating policies");
         let mut decisions = Vec::new();
         let mut records = Vec::new();

@@ -5,6 +5,9 @@
 //!
 //! [`ExportFile`]: crate::graph::ExportFile
 
+use nvisy_core::Result;
+use nvisy_ontology::context::Contexts;
+use nvisy_registry::Registry;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -24,4 +27,23 @@ pub struct SaveContext {
     /// Must contain at least one.
     #[validate(length(min = 1, message = "save_context requires at least one context_id"))]
     pub context_ids: Vec<Uuid>,
+}
+
+impl SaveContext {
+    /// Save matching contexts to the registry. Returns the number saved.
+    pub async fn save(
+        &self,
+        registry: &Registry,
+        actor_id: Uuid,
+        contexts: &Contexts,
+    ) -> Result<usize> {
+        let mut saved = 0usize;
+        for &id in &self.context_ids {
+            if let Some(context) = contexts.get(&id) {
+                registry.register_context(actor_id, context.clone()).await?;
+                saved += 1;
+            }
+        }
+        Ok(saved)
+    }
 }

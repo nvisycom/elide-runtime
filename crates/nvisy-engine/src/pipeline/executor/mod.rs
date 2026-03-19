@@ -1,12 +1,15 @@
 //! Node-level execution: dispatch and envelope flow.
 //!
-//! [`NodeExecutor`] builds operations from [`GraphNodeKind`] and runs
-//! the standard recv → transform → send loop. Import and Export are
-//! structural exceptions handled directly.
+//! The executor matches on [`GraphNodeKind`], constructs the appropriate
+//! operation, then runs the standard recv → extract → call → apply → send
+//! loop. Operations never see the [`DocumentEnvelope`] — they receive
+//! typed inputs and produce typed outputs via the [`Operation`] trait.
 
 use std::sync::Arc;
 
-use nvisy_codec::Document;
+use futures::StreamExt;
+use nvisy_codec::handler::{ImageHandler, TextHandler};
+use nvisy_codec::{Document, Span};
 use nvisy_core::{Error, ErrorKind};
 use nvisy_http::HttpClient;
 use tokio::sync::mpsc;
@@ -17,9 +20,8 @@ use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
 use crate::graph::{self, GraphNodeKind, RetryPolicy, TimeoutBehavior};
 use crate::operation::{
-    AudialExtraction, DocumentEnvelope, EntityRecognition, Fusion, GenerateContext, ImportFile,
-    LoadContext, NodeHandler, Operation, ParallelContext, PatternRecognition, Redaction,
-    SaveContext, SharedContext, Validation, VisualExtraction,
+    DocumentEnvelope, Fusion, ImportFile, Operation, ParallelContext, SharedContext,
+    VisualExtraction,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::executor";
@@ -90,9 +92,9 @@ impl NodeExecutor {
         };
 
         match &resolved.timeout {
-            Some(compiled) => {
-                let result: Result<NodeOutput, Error> = compiled.with_timeout(run).await;
-                match (&result, &compiled.on_timeout) {
+            Some(timeout) => {
+                let result: Result<NodeOutput, Error> = timeout.with_timeout(run).await;
+                match (&result, &timeout.on_timeout) {
                     (Err(e), TimeoutBehavior::Skip) if e.kind == ErrorKind::Timeout => {
                         Ok(NodeOutput {
                             node_id,
@@ -116,71 +118,180 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
+        let shared = &self.shared;
+        let retry_ref = retry.as_ref();
+
         match kind {
             GraphNodeKind::ImportFile(cfg) => {
-                self.execute_import(node_id, cfg, retry.as_ref(), senders)
-                    .await
+                self.execute_import(node_id, cfg, retry_ref, senders).await
             }
             GraphNodeKind::ExportFile(cfg) => self.execute_export(node_id, cfg, receivers).await,
-            _ => {
-                let handler = self.build_operation(kind, retry).await?;
-                let count =
-                    process_envelopes(senders, receivers, |envelope| handler.handle(envelope))
-                        .await?;
-                Ok(NodeOutput {
-                    node_id,
-                    items_processed: count,
-                    error: None,
-                    envelopes: Vec::new(),
-                })
-            }
-        }
-    }
 
-    async fn build_operation(
-        &self,
-        kind: &GraphNodeKind,
-        retry: Option<RetryPolicy>,
-    ) -> Result<Box<dyn NodeHandler>, Error> {
-        match kind {
-            GraphNodeKind::VisualExtraction(cfg) => Ok(Box::new(VisualExtraction::connect(
-                cfg,
-                &self.config,
-                &self.http_client,
-                self.shared.clone(),
-                retry,
-            )?)),
-            GraphNodeKind::AudialExtraction(cfg) => Ok(Box::new(AudialExtraction::connect(
-                cfg,
-                &self.config,
-                &self.http_client,
-                retry,
-            )?)),
-            GraphNodeKind::NamedEntityRecognition(cfg) => Ok(Box::new(
-                EntityRecognition::connect(
+            GraphNodeKind::VisualExtraction(cfg) => {
+                let op = VisualExtraction::connect(
                     cfg,
                     &self.config,
                     &self.http_client,
-                    self.shared.clone(),
-                    retry,
-                )
-                .await?,
-            )),
-            GraphNodeKind::PatternRecognition(_) => Ok(Box::new(
-                PatternRecognition::connect(self.shared.clone()).await?,
-            )),
-            GraphNodeKind::Fusion(cfg) => Ok(Box::new(Fusion::from_graph(cfg))),
-            GraphNodeKind::Redaction(cfg) => Ok(Box::new(
-                Redaction::connect(cfg, self.shared.clone(), retry).await?,
-            )),
-            GraphNodeKind::Validation(cfg) => Ok(Box::new(Validation::new(cfg))),
-            GraphNodeKind::LoadContext(cfg) => {
-                Ok(Box::new(LoadContext::load(cfg, &self.shared).await?))
+                    shared.clone(),
+                    retry.clone(),
+                )?;
+                let count = process_envelopes(senders, receivers, |mut envelope| async {
+                    // OCR extracts from images — the operation handles extraction internally
+                    // the operation handles extraction internally
+                    // once the OCR output can be applied as a patch.
+
+                    envelope = op.process(envelope).await?;
+                    Ok(envelope)
+                })
+                .await?;
+                Ok(node_output(node_id, count))
             }
-            GraphNodeKind::SaveContext(cfg) => Ok(Box::new(SaveContext::save(cfg, &self.shared))),
-            GraphNodeKind::GenerateContext(cfg) => Ok(Box::new(GenerateContext::new(cfg))),
-            GraphNodeKind::ImportFile(_) | GraphNodeKind::ExportFile(_) => {
-                unreachable!("import/export handled directly in dispatch")
+
+            GraphNodeKind::AudialExtraction(cfg) => {
+                let op = crate::operation::AudialExtraction::connect(
+                    cfg,
+                    &self.config,
+                    &self.http_client,
+                    retry.clone(),
+                )?;
+                let count = process_envelopes(senders, receivers, |envelope| async {
+                    op.process(envelope).await
+                })
+                .await?;
+                Ok(node_output(node_id, count))
+            }
+
+            GraphNodeKind::NamedEntityRecognition(cfg) => {
+                let op = crate::operation::EntityRecognition::connect(
+                    cfg,
+                    &self.config,
+                    &self.http_client,
+                    shared.clone(),
+                    retry.clone(),
+                )
+                .await?;
+                let count = process_envelopes(senders, receivers, |mut envelope| {
+                    let op_ref = &op;
+                    let shared = shared.clone();
+                    async move {
+                        let spans = collect_ner_spans(&envelope.document).await;
+                        if !spans.is_empty() {
+                            let do_ner = || {
+                                let spans = spans.clone();
+                                let shared = shared.clone();
+                                async move {
+                                    let input =
+                                        crate::operation::SequentialContext::new(spans, shared);
+                                    op_ref.detect(input.data).await
+                                }
+                            };
+                            let output = RetryPolicy::call(retry_ref, do_ner).await?;
+                            envelope.apply(output);
+                        }
+                        op_ref.reset().await;
+                        Ok(envelope)
+                    }
+                })
+                .await?;
+                Ok(node_output(node_id, count))
+            }
+
+            GraphNodeKind::PatternRecognition(_) => {
+                let op = crate::operation::PatternRecognition::connect(shared.clone()).await?;
+                let count = process_envelopes(senders, receivers, |mut envelope| async {
+                    envelope = op.process(envelope).await?;
+                    Ok(envelope)
+                })
+                .await?;
+                Ok(node_output(node_id, count))
+            }
+
+            GraphNodeKind::Fusion(cfg) => {
+                let op = Fusion::from_graph(cfg);
+                let count = process_envelopes(senders, receivers, |mut envelope| {
+                    let op_ref = &op;
+                    async move {
+                        if !envelope.entities.is_empty() {
+                            let result = op_ref.execute(envelope.entities.clone()).await?;
+                            envelope.apply(result);
+                        }
+                        Ok(envelope)
+                    }
+                })
+                .await?;
+                Ok(node_output(node_id, count))
+            }
+
+            GraphNodeKind::Redaction(cfg) => {
+                let op = crate::operation::Redaction::connect(cfg, shared.clone(), retry.clone())
+                    .await?;
+                let count = process_envelopes(senders, receivers, |mut envelope| {
+                    let op_ref = &op;
+                    async move {
+                        if !envelope.entities.is_empty() {
+                            let outcome = op_ref.evaluate(envelope.entities.clone()).await?;
+                            envelope.apply(outcome);
+                        }
+                        Ok(envelope)
+                    }
+                })
+                .await?;
+                Ok(node_output(node_id, count))
+            }
+
+            GraphNodeKind::Validation(cfg) => {
+                let op = crate::operation::Validation::new(cfg);
+                let count = process_envelopes(senders, receivers, |envelope| async {
+                    op.process(envelope).await
+                })
+                .await?;
+                Ok(node_output(node_id, count))
+            }
+
+            GraphNodeKind::LoadContext(cfg) => {
+                let loaded = cfg.load(&shared.registry, shared.actor_id).await?;
+                let count = process_envelopes(senders, receivers, |mut envelope| {
+                    let loaded = &loaded;
+                    async move {
+                        for ctx in loaded {
+                            let id = ctx.source.as_uuid();
+                            if !envelope.contexts.contains(&id) {
+                                envelope.contexts.insert(ctx.clone());
+                            }
+                        }
+                        Ok(envelope)
+                    }
+                })
+                .await?;
+                Ok(node_output(node_id, count))
+            }
+
+            GraphNodeKind::SaveContext(cfg) => {
+                let registry = shared.registry.clone();
+                let actor_id = shared.actor_id;
+                let context_ids = cfg.context_ids.clone();
+                let count = process_envelopes(senders, receivers, |envelope| {
+                    let registry = &registry;
+                    let context_ids = &context_ids;
+                    async move {
+                        for &id in context_ids.iter() {
+                            if let Some(context) = envelope.contexts.get(&id) {
+                                registry.register_context(actor_id, context.clone()).await?;
+                            }
+                        }
+                        Ok(envelope)
+                    }
+                })
+                .await?;
+                Ok(node_output(node_id, count))
+            }
+
+            GraphNodeKind::GenerateContext(_cfg) => {
+                // Stub — passes through unchanged
+                let count =
+                    process_envelopes(senders, receivers, |envelope| async { Ok(envelope) })
+                        .await?;
+                Ok(node_output(node_id, count))
             }
         }
     }
@@ -255,6 +366,15 @@ impl NodeExecutor {
     }
 }
 
+fn node_output(node_id: Uuid, items_processed: u64) -> NodeOutput {
+    NodeOutput {
+        node_id,
+        items_processed,
+        error: None,
+        envelopes: Vec::new(),
+    }
+}
+
 /// Receive envelopes from upstream, transform, send downstream.
 async fn process_envelopes<F, Fut>(
     senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
@@ -297,4 +417,19 @@ async fn unwrap_envelope(arc: Arc<DocumentEnvelope>) -> Result<DocumentEnvelope,
             })
         }
     }
+}
+
+async fn collect_ner_spans(doc: &Document) -> Vec<Span<nvisy_codec::handler::TxtSpan, String>> {
+    use nvisy_codec::handler::TextData;
+    let raw: Vec<Span<usize, TextData>> = match doc {
+        Document::Text(h) => h.text_spans().await.collect().await,
+        Document::Rich(h) => h.text_spans().await.collect().await,
+        _ => return Vec::new(),
+    };
+    raw.into_iter()
+        .map(|s| {
+            Span::new(nvisy_codec::handler::TxtSpan(s.id), s.data.into_inner())
+                .with_source(s.source)
+        })
+        .collect()
 }

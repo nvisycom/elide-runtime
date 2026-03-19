@@ -14,6 +14,7 @@ const TARGET: &str = "nvisy_engine::op::export_file";
 
 /// Exports processed content, optionally applying encryption and
 /// compression afterward.
+#[derive(Default)]
 pub struct ExportFile {
     encryption: Option<EncryptionFormat>,
     compression: Option<CompressionFormat>,
@@ -21,10 +22,7 @@ pub struct ExportFile {
 
 impl ExportFile {
     pub fn new() -> Self {
-        Self {
-            encryption: None,
-            compression: None,
-        }
+        Self::default()
     }
 
     pub fn with_encryption(mut self, format: Option<EncryptionFormat>) -> Self {
@@ -54,12 +52,6 @@ impl ExportFile {
         }
         tracing::debug!(target: TARGET, "exporting content");
         Ok(())
-    }
-}
-
-impl Default for ExportFile {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

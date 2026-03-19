@@ -6,6 +6,9 @@
 //!
 //! [`ImportFile`]: crate::graph::ImportFile
 
+use nvisy_core::Result;
+use nvisy_ontology::context::Context;
+use nvisy_registry::Registry;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -25,4 +28,16 @@ pub struct LoadContext {
     /// Must contain at least one.
     #[validate(length(min = 1, message = "load_context requires at least one context_id"))]
     pub context_ids: Vec<Uuid>,
+}
+
+impl LoadContext {
+    /// Load all contexts from the registry by their configured IDs.
+    pub async fn load(&self, registry: &Registry, actor_id: Uuid) -> Result<Vec<Context>> {
+        let mut contexts = Vec::with_capacity(self.context_ids.len());
+        for &id in &self.context_ids {
+            let handle = registry.read_context(actor_id, id).await?;
+            contexts.push(handle.context().await?);
+        }
+        Ok(contexts)
+    }
 }

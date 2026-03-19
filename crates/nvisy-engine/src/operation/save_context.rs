@@ -3,7 +3,7 @@
 use nvisy_core::{Error, Result};
 use uuid::Uuid;
 
-use crate::operation::{DocumentEnvelope, NodeHandler, SharedContext};
+use crate::operation::{DocumentEnvelope, SharedContext};
 
 const TARGET: &str = "nvisy_engine::op::save_context";
 
@@ -22,14 +22,14 @@ impl SaveContext {
             registry: shared.registry.clone(),
         }
     }
-}
 
-#[async_trait::async_trait]
-impl NodeHandler for SaveContext {
-    async fn handle(&self, envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
+    pub(crate) async fn process(
+        &self,
+        envelope: DocumentEnvelope,
+    ) -> Result<DocumentEnvelope, Error> {
         let mut saved = 0usize;
-        for context in &envelope.contexts.contexts {
-            if self.context_ids.contains(&context.source.as_uuid()) {
+        for &id in &self.context_ids {
+            if let Some(context) = envelope.contexts.get(&id) {
                 self.registry
                     .register_context(self.actor_id, context.clone())
                     .await?;

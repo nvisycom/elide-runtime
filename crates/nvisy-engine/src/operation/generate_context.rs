@@ -2,7 +2,7 @@
 
 use nvisy_core::{Error, Result};
 
-use crate::operation::{DocumentEnvelope, NodeHandler};
+use crate::operation::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::generate_context";
 
@@ -24,11 +24,11 @@ impl GenerateContext {
         }
         Self
     }
-}
 
-#[async_trait::async_trait]
-impl NodeHandler for GenerateContext {
-    async fn handle(&self, envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
+    pub(crate) async fn process(
+        &self,
+        envelope: DocumentEnvelope,
+    ) -> Result<DocumentEnvelope, Error> {
         Ok(envelope)
     }
 }

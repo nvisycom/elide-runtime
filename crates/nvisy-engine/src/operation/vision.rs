@@ -18,7 +18,7 @@ use nvisy_rig::agent::{CvEntity, DetectionConfig, OcrAgent};
 
 use crate::graph::RetryPolicy;
 use crate::operation::envelope::DetectedEntities;
-use crate::operation::{DocumentEnvelope, NodeHandler, Operation, ParallelContext, SharedContext};
+use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::visual_extraction";
@@ -124,11 +124,11 @@ impl VisualExtraction {
             retry,
         })
     }
-}
 
-#[async_trait::async_trait]
-impl NodeHandler for VisualExtraction {
-    async fn handle(&self, mut envelope: DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
+    pub(crate) async fn process(
+        &self,
+        mut envelope: DocumentEnvelope,
+    ) -> Result<DocumentEnvelope, Error> {
         let Document::Image(ref handler) = envelope.document else {
             return Ok(envelope);
         };

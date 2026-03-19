@@ -6,25 +6,24 @@
 //! determines what the node does.
 
 mod context;
+mod detection;
 mod extraction;
-mod lifecycle;
+mod ingest;
 mod policy;
-mod recognition;
 mod refinement;
 mod validate;
 
+use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-use nvisy_core::Error;
 use validator::Validate;
 
 pub use self::context::{GenerateContext, LoadContext, SaveContext};
+pub use self::detection::{NamedEntityRecognition, PatternRecognition};
 pub use self::extraction::{AudialExtraction, VisualExtraction};
-pub use self::lifecycle::{CompressionFormat, EncryptionFormat, Export, Import};
+pub use self::ingest::{CompressionFormat, EncryptionFormat, ExportFile, ImportFile};
 pub use self::policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
-pub use self::recognition::{NamedEntityRecognition, PatternRecognition};
 pub use self::refinement::{Fusion, FusionStrategy, Redaction, Validation};
 
 /// The set of strongly-typed actions a pipeline node can perform.
@@ -61,9 +60,9 @@ pub enum GraphNodeKind {
     Validation(Validation),
 
     /// Imports content into the pipeline for processing.
-    Import(Import),
+    ImportFile(ImportFile),
     /// Exports processed content to a target destination.
-    Export(Export),
+    ExportFile(ExportFile),
 }
 
 impl std::fmt::Display for GraphNodeKind {
@@ -79,8 +78,8 @@ impl std::fmt::Display for GraphNodeKind {
             Self::Fusion(_) => f.write_str("fusion"),
             Self::Redaction(_) => f.write_str("redaction"),
             Self::Validation(_) => f.write_str("validation"),
-            Self::Import(_) => f.write_str("import"),
-            Self::Export(_) => f.write_str("export"),
+            Self::ImportFile(_) => f.write_str("import"),
+            Self::ExportFile(_) => f.write_str("export"),
         }
     }
 }
@@ -88,39 +87,36 @@ impl std::fmt::Display for GraphNodeKind {
 impl GraphNodeKind {
     /// Returns the pipeline phase for this node kind.
     ///
-    /// Phases enforce execution ordering: edges must flow from equal or
-    /// lower phase to equal or higher phase.
-    ///
     /// | Phase | Actions                                           |
     /// |-------|---------------------------------------------------|
-    /// | 0     | Import, LoadContext                                |
+    /// | 0     | ImportFile, LoadContext                             |
     /// | 1     | VisualExtraction, AudialExtraction                 |
     /// | 2     | NamedEntityRecognition, PatternRecognition         |
     /// | 3     | Fusion                                            |
     /// | 4     | Redaction, GenerateContext                         |
     /// | 5     | Validation                                        |
-    /// | 6     | Export, SaveContext                                |
+    /// | 6     | ExportFile, SaveContext                            |
     #[must_use]
     pub fn phase(&self) -> u8 {
         match self {
-            Self::Import(_) | Self::LoadContext(_) => 0,
+            Self::ImportFile(_) | Self::LoadContext(_) => 0,
             Self::VisualExtraction(_) | Self::AudialExtraction(_) => 1,
             Self::NamedEntityRecognition(_) | Self::PatternRecognition(_) => 2,
             Self::Fusion(_) => 3,
             Self::Redaction(_) | Self::GenerateContext(_) => 4,
             Self::Validation(_) => 5,
-            Self::Export(_) | Self::SaveContext(_) => 6,
+            Self::ExportFile(_) | Self::SaveContext(_) => 6,
         }
     }
 
     /// Validates action-specific configuration.
     pub fn validate(&self) -> Result<(), Error> {
         match self {
-            Self::Import(cfg) => validate_struct(cfg),
+            Self::ImportFile(cfg) => validate_struct(cfg),
             Self::LoadContext(cfg) => validate_struct(cfg),
             Self::SaveContext(cfg) => validate_struct(cfg),
             Self::NamedEntityRecognition(cfg) => cfg.validate(),
-            Self::Export(_)
+            Self::ExportFile(_)
             | Self::VisualExtraction(_)
             | Self::AudialExtraction(_)
             | Self::PatternRecognition(_)
@@ -133,9 +129,6 @@ impl GraphNodeKind {
 }
 
 /// A node in the pipeline graph.
-///
-/// Common fields (`id`, `retry`, `timeout`) live on the struct directly.
-/// The action-specific payload is carried in [`GraphNodeKind`].
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct GraphNode {
     /// Unique identifier for this node within the graph.
@@ -152,7 +145,6 @@ pub struct GraphNode {
 }
 
 impl GraphNode {
-    /// Creates a new node with the given ID and action kind.
     pub fn new(id: Uuid, kind: GraphNodeKind) -> Self {
         Self {
             id,
@@ -162,13 +154,11 @@ impl GraphNode {
         }
     }
 
-    /// Returns the retry policy, if configured.
     #[must_use]
     pub fn retry(&self) -> Option<&RetryPolicy> {
         self.retry.as_ref()
     }
 
-    /// Returns the timeout policy, if configured.
     #[must_use]
     pub fn timeout(&self) -> Option<&TimeoutPolicy> {
         self.timeout.as_ref()
@@ -178,29 +168,23 @@ impl GraphNode {
 /// A directed edge connecting two nodes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct GraphEdge {
-    /// ID of the upstream node.
     pub source: Uuid,
-    /// ID of the downstream node.
     pub target: Uuid,
 }
 
 /// A complete pipeline graph: nodes and directed edges forming a DAG.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Graph {
-    /// All nodes in the pipeline.
     pub nodes: Vec<GraphNode>,
-    /// Directed edges describing data flow between nodes.
     pub edges: Vec<GraphEdge>,
 }
 
 impl Graph {
-    /// Creates a new graph from nodes and edges.
     pub fn new(nodes: Vec<GraphNode>, edges: Vec<GraphEdge>) -> Self {
         Self { nodes, edges }
     }
 }
 
-/// Convert a `validator::Validate` result into our `Error` type.
 fn validate_struct(v: &impl Validate) -> Result<(), Error> {
     v.validate()
         .map_err(|e| Error::validation(e.to_string(), "compiler"))

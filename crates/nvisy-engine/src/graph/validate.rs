@@ -130,13 +130,13 @@ impl Graph {
             let outgoing = out_degree.get(&node.id).copied().unwrap_or(0);
 
             match &node.kind {
-                GraphNodeKind::Import(_) if incoming > 0 => {
+                GraphNodeKind::ImportFile(_) if incoming > 0 => {
                     return Err(Error::validation(
                         format!("import node {} must not have incoming edges", node.id),
                         "compiler",
                     ));
                 }
-                GraphNodeKind::Export(_) if outgoing > 0 => {
+                GraphNodeKind::ExportFile(_) if outgoing > 0 => {
                     return Err(Error::validation(
                         format!("export node {} must not have outgoing edges", node.id),
                         "compiler",
@@ -147,11 +147,11 @@ impl Graph {
 
             let is_source = matches!(
                 &node.kind,
-                GraphNodeKind::Import(_) | GraphNodeKind::LoadContext(_)
+                GraphNodeKind::ImportFile(_) | GraphNodeKind::LoadContext(_)
             );
             let is_sink = matches!(
                 &node.kind,
-                GraphNodeKind::Export(_) | GraphNodeKind::SaveContext(_)
+                GraphNodeKind::ExportFile(_) | GraphNodeKind::SaveContext(_)
             );
 
             if !is_source && !is_sink && incoming == 0 && outgoing == 0 {

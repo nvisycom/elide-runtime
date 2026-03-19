@@ -42,10 +42,10 @@ pub struct EngineInput {
     pub policies: Policies,
     /// Execution graph defining the pipeline DAG.
     ///
-    /// Content identifiers live on [`Import`] nodes within the graph,
+    /// Content identifiers live on [`ImportFile`] nodes within the graph,
     /// not as a top-level field.
     ///
-    /// [`Import`]: crate::graph::Import
+    /// [`ImportFile`]: crate::graph::ImportFile
     pub graph: Graph,
     /// Per-request configuration overrides (merged with engine defaults).
     pub config: Option<RuntimeConfig>,

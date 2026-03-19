@@ -117,11 +117,11 @@ impl NodeExecutor {
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         match kind {
-            GraphNodeKind::Import(cfg) => {
+            GraphNodeKind::ImportFile(cfg) => {
                 self.execute_import(node_id, cfg, retry.as_ref(), senders)
                     .await
             }
-            GraphNodeKind::Export(cfg) => self.execute_export(node_id, cfg, receivers).await,
+            GraphNodeKind::ExportFile(cfg) => self.execute_export(node_id, cfg, receivers).await,
             _ => {
                 let handler = self.build_operation(kind, retry).await?;
                 let count =
@@ -175,11 +175,11 @@ impl NodeExecutor {
             )),
             GraphNodeKind::Validation(cfg) => Ok(Box::new(Validation::new(cfg))),
             GraphNodeKind::LoadContext(cfg) => {
-                Ok(Box::new(LoadContext::connect(cfg, &self.shared).await?))
+                Ok(Box::new(LoadContext::load(cfg, &self.shared).await?))
             }
-            GraphNodeKind::SaveContext(cfg) => Ok(Box::new(SaveContext::new(cfg, &self.shared))),
+            GraphNodeKind::SaveContext(cfg) => Ok(Box::new(SaveContext::save(cfg, &self.shared))),
             GraphNodeKind::GenerateContext(cfg) => Ok(Box::new(GenerateContext::new(cfg))),
-            GraphNodeKind::Import(_) | GraphNodeKind::Export(_) => {
+            GraphNodeKind::ImportFile(_) | GraphNodeKind::ExportFile(_) => {
                 unreachable!("import/export handled directly in dispatch")
             }
         }
@@ -188,7 +188,7 @@ impl NodeExecutor {
     async fn execute_import(
         &self,
         node_id: Uuid,
-        cfg: &graph::Import,
+        cfg: &graph::ImportFile,
         retry: Option<&RetryPolicy>,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -232,7 +232,7 @@ impl NodeExecutor {
     async fn execute_export(
         &self,
         node_id: Uuid,
-        _cfg: &graph::Export,
+        _cfg: &graph::ExportFile,
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let mut count = 0u64;

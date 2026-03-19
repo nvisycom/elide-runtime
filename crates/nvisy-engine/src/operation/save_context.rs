@@ -15,7 +15,7 @@ pub struct SaveContext {
 }
 
 impl SaveContext {
-    pub fn new(cfg: &crate::graph::SaveContext, shared: &SharedContext) -> Self {
+    pub fn save(cfg: &crate::graph::SaveContext, shared: &SharedContext) -> Self {
         Self {
             actor_id: shared.actor_id,
             context_ids: cfg.context_ids.clone(),

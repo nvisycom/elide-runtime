@@ -1,13 +1,20 @@
-//! Recognition action configurations: NER and pattern-based.
+//! Named entity recognition node configuration.
+//!
+//! [`NamedEntityRecognition`] runs at **phase 2**, after extraction. It drives
+//! language-model inference to identify and classify named entities within the
+//! extracted text, optionally filtering by entity kind and confidence score.
 
 use nvisy_core::Error;
 use nvisy_ontology::entity::EntityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configuration for the [`NamedEntityRecognition`] action.
+/// Configuration for the [`NamedEntityRecognition`] graph node.
 ///
-/// [`NamedEntityRecognition`]: super::GraphNodeKind::NamedEntityRecognition
+/// Controls which entity kinds are targeted and sets the minimum confidence
+/// threshold below which detections are discarded.
+///
+/// [`NamedEntityRecognition`]: crate::graph::GraphNodeKind::NamedEntityRecognition
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct NamedEntityRecognition {
     /// Entity kinds to detect. An empty list means all known kinds.
@@ -32,34 +39,4 @@ impl NamedEntityRecognition {
         }
         Ok(())
     }
-}
-
-/// Configuration for the [`PatternRecognition`] action.
-///
-/// [`PatternRecognition`]: super::GraphNodeKind::PatternRecognition
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct PatternRecognition {
-    /// Enable format heuristics, entropy, and structural cues.
-    #[serde(default)]
-    pub heuristic: bool,
-    /// Enable co-occurrence analysis for contextual confidence adjustment.
-    #[serde(default = "default_true")]
-    pub contextual_analysis: bool,
-    /// Run a second pass with stricter thresholds.
-    #[serde(default = "default_true")]
-    pub second_pass: bool,
-}
-
-impl Default for PatternRecognition {
-    fn default() -> Self {
-        Self {
-            heuristic: false,
-            contextual_analysis: true,
-            second_pass: true,
-        }
-    }
-}
-
-fn default_true() -> bool {
-    true
 }

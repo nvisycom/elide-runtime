@@ -1,9 +1,8 @@
-//! Refinement action configurations: fusion, redaction, and validation.
+//! Fusion node configuration and strategy.
 
 use std::collections::HashMap;
 
 use nvisy_ontology::entity::{Entities, Entity, Overlap, RecognitionMethod, RefinementMethod};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -107,9 +106,7 @@ impl FusionStrategy {
     }
 }
 
-/// Configuration for the [`Fusion`] action.
-///
-/// [`Fusion`]: super::GraphNodeKind::Fusion
+/// Configuration for the `Fusion` graph node.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Fusion {
@@ -125,26 +122,4 @@ pub struct Fusion {
     /// Use surrounding document context to upgrade or downgrade confidence.
     #[serde(default)]
     pub contextual_adjustment: bool,
-}
-
-/// Configuration for the [`Redaction`] action.
-///
-/// [`Redaction`]: super::GraphNodeKind::Redaction
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct Redaction {
-    /// Strip or redact document metadata (EXIF, PDF properties).
-    #[serde(default)]
-    pub process_metadata: bool,
-}
-
-/// Configuration for the [`Validation`] action.
-///
-/// [`Validation`]: super::GraphNodeKind::Validation
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct Validation {
-    /// Fail the run if any leaked values are detected.
-    #[serde(default)]
-    pub fail_on_leak: bool,
 }

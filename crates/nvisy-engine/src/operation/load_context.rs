@@ -18,7 +18,7 @@ pub struct LoadContext {
 
 impl LoadContext {
     /// Build from graph config and shared context.
-    pub async fn connect(cfg: &crate::graph::LoadContext, shared: &SharedContext) -> Result<Self> {
+    pub async fn load(cfg: &crate::graph::LoadContext, shared: &SharedContext) -> Result<Self> {
         let mut seen = HashSet::with_capacity(cfg.context_ids.len());
         let mut contexts = Vec::with_capacity(cfg.context_ids.len());
         for &id in &cfg.context_ids {

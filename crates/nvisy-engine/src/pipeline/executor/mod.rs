@@ -119,8 +119,7 @@ impl NodeExecutor {
 
         match kind {
             GraphNodeKind::ImportFile(cfg) => {
-                self.execute_import(cfg, retry.as_ref(), senders)
-                    .await
+                self.execute_import(cfg, retry.as_ref(), senders).await
             }
             GraphNodeKind::ExportFile(cfg) => self.execute_export(cfg, receivers).await,
 
@@ -210,8 +209,7 @@ impl NodeExecutor {
             }
 
             GraphNodeKind::NamedEntityRecognition(cfg) => {
-                let op =
-                    EntityRecognition::new(cfg, &self.config, &self.http_client).await?;
+                let op = EntityRecognition::new(cfg, &self.config, &self.http_client).await?;
                 let count = process_envelopes(senders, receivers, |mut envelope| {
                     let op = &op;
                     let shared = shared.clone();

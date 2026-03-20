@@ -24,10 +24,7 @@ pub struct Redaction {
 
 impl Redaction {
     /// Build from graph config and shared context.
-    pub async fn new(
-        cfg: &RedactionCfg,
-        shared: &SharedContext,
-    ) -> Result<Self> {
+    pub async fn new(cfg: &RedactionCfg, shared: &SharedContext) -> Result<Self> {
         let rules = shared
             .policies
             .policies

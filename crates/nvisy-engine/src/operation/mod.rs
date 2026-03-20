@@ -29,8 +29,8 @@ use std::future::Future;
 use nvisy_core::Result;
 
 pub(crate) use self::entity_recognition::EntityRecognition;
-pub(crate) use self::export_file::ExportFile;
 pub use self::envelope::DocumentEnvelope;
+pub(crate) use self::export_file::ExportFile;
 pub(crate) use self::fusion::Fusion;
 pub(crate) use self::generate_context::GenerateContext;
 pub(crate) use self::import_file::ImportFile;

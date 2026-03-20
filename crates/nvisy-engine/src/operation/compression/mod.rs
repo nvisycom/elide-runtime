@@ -1,10 +1,10 @@
-//! Content compression and decompression utilities.
+//! Content compression and decompression.
 //!
 //! Used as pre/post-processing steps within [`ImportFile`] and
 //! [`ExportFile`] operations, not as standalone pipeline operations.
 //!
-//! [`ImportFile`]: crate::operation::lifecycle::ImportFile
-//! [`ExportFile`]: crate::operation::lifecycle::ExportFile
+//! [`ImportFile`]: crate::operation::ImportFile
+//! [`ExportFile`]: crate::operation::ExportFile
 
 use bytes::Bytes;
 use nvisy_core::{Error, Result};

@@ -1,8 +1,8 @@
-//! Visual extraction: OCR text extraction, verification, and computer vision.
+//! Visual extraction operation.
 //!
-//! Extracts text and entities from image documents by running OCR,
-//! optionally verifying detected entities against the source image,
-//! and optionally running computer vision entity detection.
+//! Runs at **phase 1**, after ingestion. Extracts text and entities from
+//! image documents by running OCR, optionally verifying detected entities
+//! against the source image, and optionally running computer vision.
 
 use futures::StreamExt;
 use nvisy_codec::handler::{ImageData, ImageHandler};
@@ -16,7 +16,7 @@ use nvisy_ontology::entity::{
 };
 use nvisy_rig::agent::{CvEntity, DetectionConfig, OcrAgent};
 
-use crate::graph::RetryPolicy;
+use crate::graph::{RetryPolicy, VisualExtraction as VisualExtractionCfg};
 use crate::operation::envelope::DetectedEntities;
 use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
 use crate::pipeline::RuntimeConfig;
@@ -79,8 +79,8 @@ impl VisualExtraction {
     }
 
     /// Build from graph config and runtime dependencies.
-    pub fn connect(
-        cfg: &crate::graph::VisualExtraction,
+    pub fn new(
+        cfg: &VisualExtractionCfg,
         config: &RuntimeConfig,
         http_client: &HttpClient,
         shared: SharedContext,
@@ -191,8 +191,6 @@ impl VisualExtraction {
     }
 }
 
-// --- Internal: OCR ---
-
 struct OcrOp {
     engine: OcrEngine,
     params: RunParams,
@@ -233,8 +231,6 @@ impl Operation for OcrOp {
         input.parallel_map(|spans| self.extract(spans)).await
     }
 }
-
-// --- Internal: Verification ---
 
 struct VerifyInput {
     image_spans: Vec<Span<(), ImageData>>,

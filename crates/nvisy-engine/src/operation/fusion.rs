@@ -1,13 +1,13 @@
-//! Entity fusion: deduplication and ensemble confidence merging.
+//! Entity fusion operation.
 //!
-//! Combines the deduplication pass (merge exact duplicates) and
-//! the ensemble pass (fuse multi-detector confidence scores) into
-//! a single operation.
+//! Runs at **phase 3**, after detection. Combines the deduplication pass
+//! (merge exact duplicates) and the ensemble pass (fuse multi-detector
+//! confidence scores) into a single operation.
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::{Entities, Entity, Overlap, RefinementMethod};
 
-use crate::graph::FusionStrategy;
+use crate::graph::{Fusion as FusionCfg, FusionStrategy};
 use crate::operation::envelope::RefinedEntities;
 use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
 
@@ -20,8 +20,8 @@ pub struct Fusion {
 }
 
 impl Fusion {
-    /// Build from graph config.
-    pub fn from_graph(cfg: &crate::graph::Fusion) -> Self {
+    /// Create from graph config.
+    pub fn new(cfg: &FusionCfg) -> Self {
         if cfg.confidence_calibration {
             tracing::warn!(target: TARGET, "confidence_calibration not yet implemented, skipping");
         }

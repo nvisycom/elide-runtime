@@ -1,14 +1,15 @@
-//! Redaction: policy evaluation + content redaction.
+//! Redaction operation.
 //!
-//! Evaluates policy rules against detected entities to produce redaction
-//! decisions, then (when content-level redaction is wired) applies those
-//! decisions to the document content.
+//! Runs at **phase 4** alongside [`GenerateContext`]. Evaluates policy
+//! rules against detected entities to produce redaction decisions.
+//!
+//! [`GenerateContext`]: crate::operation::GenerateContext
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 
-use crate::graph::RetryPolicy;
+use crate::graph::{Redaction as RedactionCfg, RetryPolicy};
 use crate::operation::envelope::PolicyOutcome;
 use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
 use crate::provenance::{RedactionDecision, RedactionRecord};
@@ -24,8 +25,8 @@ pub struct Redaction {
 
 impl Redaction {
     /// Build from graph config and shared context.
-    pub async fn connect(
-        cfg: &crate::graph::Redaction,
+    pub async fn new(
+        cfg: &RedactionCfg,
         shared: SharedContext,
         retry: Option<RetryPolicy>,
     ) -> Result<Self> {
@@ -85,8 +86,6 @@ impl Redaction {
         Ok(envelope)
     }
 }
-
-// ── Internal: Policy Evaluator ────────────────────────────────────
 
 struct PolicyEvaluator {
     rules: Vec<PolicyRule>,

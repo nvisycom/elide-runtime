@@ -20,7 +20,9 @@
 //!
 //! [`GraphNodeKind`]: crate::graph::GraphNodeKind
 
+pub(crate) mod compression;
 mod context;
+pub(crate) mod encryption;
 mod entity_recognition;
 pub mod envelope;
 mod export_file;
@@ -32,7 +34,6 @@ mod pattern_recognition;
 mod redaction;
 mod save_context;
 mod speech;
-pub(crate) mod support;
 mod validation;
 mod vision;
 

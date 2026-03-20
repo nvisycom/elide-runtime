@@ -1,8 +1,15 @@
-//! Load reference-data contexts from the registry into the envelope.
+//! Load context operation.
+//!
+//! Runs at **phase 0** alongside [`ImportFile`]. Loads reference-data
+//! contexts from the registry by their configured IDs and merges them
+//! into each passing envelope.
+//!
+//! [`ImportFile`]: crate::operation::ImportFile
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::context::Contexts;
 
+use crate::graph::LoadContext as LoadContextCfg;
 use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
 
 const TARGET: &str = "nvisy_engine::op::load_context";
@@ -14,8 +21,8 @@ pub struct LoadContext {
 }
 
 impl LoadContext {
-    /// Build from graph config and shared context.
-    pub async fn load(cfg: &crate::graph::LoadContext, shared: &SharedContext) -> Result<Self> {
+    /// Create from graph config and shared context.
+    pub async fn new(cfg: &LoadContextCfg, shared: &SharedContext) -> Result<Self> {
         let mut loaded = Contexts::new();
         for &id in &cfg.context_ids {
             if loaded.contains(&id) {
@@ -33,6 +40,7 @@ impl LoadContext {
         &self,
         mut envelope: DocumentEnvelope,
     ) -> Result<DocumentEnvelope, Error> {
+        tracing::debug!(target: TARGET, loaded = self.loaded.len(), "merging contexts into envelope");
         for (id, ctx) in self.loaded.iter() {
             if !envelope.contexts.contains(id) {
                 envelope.contexts.insert(ctx.clone());

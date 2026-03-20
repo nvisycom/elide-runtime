@@ -1,5 +1,11 @@
-//! File export: deliver processed content to a downstream target.
+//! File export operation.
 //!
+//!
+//! Runs at **phase 6** alongside [`SaveContext`]. Delivers processed
+//! content, optionally applying encryption and compression.
+//!
+//! [`SaveContext`]: crate::operation::SaveContext
+
 //! The export pipeline applies optional post-processing steps in order:
 //!
 //! 1. **Encryption** — encrypt content (if format specified)

@@ -128,7 +128,7 @@ impl NodeExecutor {
             GraphNodeKind::ExportFile(cfg) => self.execute_export(node_id, cfg, receivers).await,
 
             GraphNodeKind::VisualExtraction(cfg) => {
-                let op = VisualExtraction::connect(
+                let op = VisualExtraction::new(
                     cfg,
                     &self.config,
                     &self.http_client,
@@ -148,7 +148,7 @@ impl NodeExecutor {
             }
 
             GraphNodeKind::AudialExtraction(cfg) => {
-                let op = crate::operation::AudialExtraction::connect(
+                let op = crate::operation::AudialExtraction::new(
                     cfg,
                     &self.config,
                     &self.http_client,
@@ -162,7 +162,7 @@ impl NodeExecutor {
             }
 
             GraphNodeKind::NamedEntityRecognition(cfg) => {
-                let op = crate::operation::EntityRecognition::connect(
+                let op = crate::operation::EntityRecognition::new(
                     cfg,
                     &self.config,
                     &self.http_client,
@@ -178,7 +178,7 @@ impl NodeExecutor {
             }
 
             GraphNodeKind::PatternRecognition(_) => {
-                let op = crate::operation::PatternRecognition::connect(shared.clone()).await?;
+                let op = crate::operation::PatternRecognition::new(shared.clone()).await?;
                 let count = process_envelopes(senders, receivers, |mut envelope| async {
                     envelope = op.process(envelope).await?;
                     Ok(envelope)
@@ -188,7 +188,7 @@ impl NodeExecutor {
             }
 
             GraphNodeKind::Fusion(cfg) => {
-                let op = Fusion::from_graph(cfg);
+                let op = Fusion::new(cfg);
                 let count = process_envelopes(senders, receivers, |mut envelope| {
                     let op_ref = &op;
                     async move {
@@ -204,8 +204,8 @@ impl NodeExecutor {
             }
 
             GraphNodeKind::Redaction(cfg) => {
-                let op = crate::operation::Redaction::connect(cfg, shared.clone(), retry.clone())
-                    .await?;
+                let op =
+                    crate::operation::Redaction::new(cfg, shared.clone(), retry.clone()).await?;
                 let count = process_envelopes(senders, receivers, |mut envelope| {
                     let op_ref = &op;
                     async move {

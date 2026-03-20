@@ -1,18 +1,25 @@
-//! Generate contexts from pipeline results (stub).
+//! Generate context operation (stub).
+//!
+//! Runs at **phase 4** alongside [`Redaction`]. Will eventually support
+//! summarization, translation, and audit context generation.
+//!
+//! [`Redaction`]: crate::operation::Redaction
 
 use nvisy_core::{Error, Result};
 
+use crate::graph::GenerateContext as GenerateContextCfg;
 use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::generate_context";
 
 /// Generates contexts from detection results and content data.
-/// Currently a stub — will support summarization, translation,
-/// and audit context generation.
+///
+/// Currently a passthrough stub.
 pub struct GenerateContext;
 
 impl GenerateContext {
-    pub fn new(cfg: &crate::graph::GenerateContext) -> Self {
+    /// Create from graph config.
+    pub fn new(cfg: &GenerateContextCfg) -> Self {
         if cfg.summarization {
             tracing::warn!(target: TARGET, "summarization not yet implemented, skipping");
         }
@@ -29,7 +36,14 @@ impl GenerateContext {
         &self,
         envelope: DocumentEnvelope,
     ) -> Result<DocumentEnvelope, Error> {
+        tracing::debug!(target: TARGET, "generate context passthrough");
         Ok(envelope)
+    }
+}
+
+impl Default for GenerateContext {
+    fn default() -> Self {
+        Self
     }
 }
 

@@ -1,4 +1,8 @@
-//! Named entity recognition via language model inference.
+//! Named entity recognition operation.
+
+//!
+//! Runs at **phase 2**, after extraction. Drives language-model inference
+//! to identify and classify named entities within extracted text.
 
 use futures::StreamExt;
 use nvisy_codec::handler::{TextData, TextHandler};
@@ -11,7 +15,7 @@ use nvisy_rig::agent::{
 };
 use tokio::sync::Mutex;
 
-use crate::graph::RetryPolicy;
+use crate::graph::{NamedEntityRecognition as NamedEntityRecognitionCfg, RetryPolicy};
 use crate::operation::envelope::DetectedEntities;
 use crate::operation::{DocumentEnvelope, Operation, SequentialContext, SharedContext};
 use crate::pipeline::RuntimeConfig;
@@ -52,8 +56,8 @@ impl EntityRecognition {
     }
 
     /// Build from graph config and runtime dependencies.
-    pub async fn connect(
-        cfg: &crate::graph::NamedEntityRecognition,
+    pub async fn new(
+        cfg: &NamedEntityRecognitionCfg,
         runtime: &RuntimeConfig,
         http_client: &HttpClient,
         shared: SharedContext,

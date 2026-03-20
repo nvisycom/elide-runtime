@@ -1,4 +1,8 @@
-//! Audial extraction: speech-to-text transcription.
+//! Audial extraction operation.
+
+//!
+//! Runs at **phase 1**, after ingestion. Transcribes speech audio into
+//! text using automatic speech recognition.
 
 use nvisy_codec::Document;
 use nvisy_codec::handler::Handler;
@@ -6,7 +10,7 @@ use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::HttpClient;
 use nvisy_rig::audio::stt::{SttConfig, SttOutput, SttService};
 
-use crate::graph::RetryPolicy;
+use crate::graph::{AudialExtraction as AudialExtractionCfg, RetryPolicy};
 use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
 use crate::pipeline::RuntimeConfig;
 
@@ -19,8 +23,8 @@ pub struct AudialExtraction {
 }
 
 impl AudialExtraction {
-    pub fn connect(
-        cfg: &crate::graph::AudialExtraction,
+    pub fn new(
+        cfg: &AudialExtractionCfg,
         config: &RuntimeConfig,
         http_client: &HttpClient,
         retry: Option<RetryPolicy>,

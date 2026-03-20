@@ -1,5 +1,10 @@
-//! Post-redaction validation: verify redacted content doesn't leak originals.
+//! Post-redaction validation operation.
 
+//!
+//! Runs at **phase 5**, after [`Redaction`]. Re-scans redacted content
+//! to verify that no originally detected values remain visible.
+//!
+//! [`Redaction`]: crate::operation::Redaction
 use futures::StreamExt;
 use nvisy_codec::Document;
 use nvisy_codec::handler::TextHandler;
@@ -42,6 +47,7 @@ pub struct Validation {
 }
 
 impl Validation {
+    /// Create from graph config.
     pub fn new(cfg: &crate::graph::Validation) -> Self {
         Self {
             fail_on_leak: cfg.fail_on_leak,
@@ -86,6 +92,7 @@ impl Validation {
         ValidationResult { passed, leaked }
     }
 
+    /// Process a single envelope through validation.
     pub(crate) async fn process(
         &self,
         envelope: DocumentEnvelope,

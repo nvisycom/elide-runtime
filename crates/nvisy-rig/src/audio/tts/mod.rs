@@ -11,6 +11,7 @@ pub(crate) use self::provider::TtsModels;
 pub use self::provider::TtsProvider;
 use crate::error::Error;
 
+#[cfg(feature = "openai-tts")]
 const TARGET: &str = "nvisy_rig::tts";
 
 /// Configuration for the text-to-speech service.
@@ -98,7 +99,8 @@ impl TtsService {
         fields(service_id = %self.id, text_len = text.len()),
     )]
     pub async fn generate(&self, text: &str) -> Result<Vec<u8>, Error> {
-        let audio: Vec<u8> = match &self.inner {
+        let _ = &self.config;
+        match &self.inner {
             #[cfg(feature = "openai-tts")]
             TtsModels::OpenAi(model) => {
                 let response = model
@@ -108,17 +110,12 @@ impl TtsService {
                     .speed(self.config.speed)
                     .send()
                     .await?;
-                response.audio
+                tracing::info!(target: TARGET, audio_len = response.audio.len(), "audio generation complete");
+                Ok(response.audio)
             }
-            TtsModels::Local => {
-                return Err(Error::Runtime(
-                    "local text-to-speech provider is not yet implemented".to_owned(),
-                ));
-            }
-        };
-
-        tracing::info!(target: TARGET, audio_len = audio.len(), "audio generation complete");
-
-        Ok(audio)
+            TtsModels::Local => Err(Error::Runtime(
+                "local text-to-speech provider is not yet implemented".to_owned(),
+            )),
+        }
     }
 }

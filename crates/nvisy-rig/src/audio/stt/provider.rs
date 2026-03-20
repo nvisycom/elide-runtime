@@ -98,7 +98,10 @@ impl SttModels {
                 let model = openai::transcription::TranscriptionModel::new(client, model);
                 Ok(Self::OpenAi(model))
             }
-            SttProvider::Local(_) => Ok(Self::Local),
+            SttProvider::Local(_) => {
+                let _ = (model, max_retries, client);
+                Ok(Self::Local)
+            }
         }
     }
 }

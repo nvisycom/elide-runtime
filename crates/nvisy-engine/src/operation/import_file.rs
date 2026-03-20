@@ -84,7 +84,7 @@ impl ImportFile {
             tracing::debug!(target: TARGET, key_id = %enc_cfg.key_id, "decrypting content");
             let crypto = CryptoService::new(&enc_cfg.key_id, Arc::clone(key_provider));
             let encrypted = EncryptedContent {
-                source: data.content_source.clone(),
+                source: data.content_source,
                 ciphertext: bytes::Bytes::copy_from_slice(data.as_bytes()),
                 key_id: enc_cfg.key_id.clone(),
                 algorithm: EncryptionAlgorithm::Aes256Gcm,

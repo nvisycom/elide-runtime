@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
-use nvisy_codec::handler::{Handler, ImageHandler, TextData, TextHandler};
+use nvisy_codec::handler::{BoxedTextHandler, Handler, ImageHandler, TextHandler, TxtHandler};
 use nvisy_codec::{Document, Span};
 use nvisy_core::{Error, ErrorKind};
 use nvisy_http::HttpClient;
@@ -178,7 +178,7 @@ impl NodeExecutor {
             GraphNodeKind::AudialExtraction(cfg) => {
                 let op =
                     crate::operation::AudialExtraction::new(cfg, &self.config, &self.http_client)?;
-                let count = process_envelopes(senders, receivers, |envelope| {
+                let count = process_envelopes(senders, receivers, |mut envelope| {
                     let op = &op;
                     let shared = shared.clone();
                     async move {
@@ -198,8 +198,19 @@ impl NodeExecutor {
                                 },
                                 shared,
                             );
-                            let _output = op.call(input).await?;
-                            // TODO: inject transcribed text into envelope
+                            let output = op.call(input).await?;
+                            let stt_result = output.into_inner();
+                            if !stt_result.text.is_empty() {
+                                let lines: Vec<String> =
+                                    stt_result.text.lines().map(String::from).collect();
+                                let trailing = stt_result.text.ends_with('\n');
+                                let source = envelope.document.source();
+                                let handler =
+                                    TxtHandler::new(lines, trailing).with_source(source);
+                                envelope.document =
+                                    Document::from(BoxedTextHandler::from(handler));
+                                tracing::debug!(target: TARGET, "replaced audio document with transcript text");
+                            }
                         }
                         Ok(envelope)
                     }
@@ -214,7 +225,7 @@ impl NodeExecutor {
                     let op = &op;
                     let shared = shared.clone();
                     async move {
-                        let spans = collect_text_spans(&envelope.document).await;
+                        let spans = envelope.document.collect_text_spans().await;
                         if !spans.is_empty() {
                             tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
                             let input = SequentialContext::new(spans, shared);
@@ -234,7 +245,7 @@ impl NodeExecutor {
                     let op = &op;
                     let shared = shared.clone();
                     async move {
-                        let spans = collect_text_spans(&envelope.document).await;
+                        let spans = envelope.document.collect_text_spans().await;
                         if !spans.is_empty() {
                             tracing::debug!(target: TARGET, span_count = spans.len(), "running pattern detection");
                             let input = ParallelContext::new(spans, shared);
@@ -416,7 +427,9 @@ impl NodeExecutor {
     ) -> Result<NodeOutput, Error> {
         let mut export = ExportFile::new()
             .with_encryption(cfg.encryption.clone())
-            .with_compression(cfg.compression);
+            .with_compression(cfg.compression)
+            .with_registry(self.shared.registry.clone(), self.shared.actor_id)
+            .with_content_ids(cfg.content_ids.clone());
         if let Some(ref kp) = self.shared.key_provider {
             export = export.with_key_provider(Arc::clone(kp));
         }
@@ -425,14 +438,15 @@ impl NodeExecutor {
         let mut envelopes = Vec::new();
         for rx in receivers.iter_mut() {
             while let Some(envelope) = rx.recv().await {
-                let input = ParallelContext::new((), self.shared.clone());
-                export.call(input).await?;
+                let owned = unwrap_envelope(envelope).await?;
+                let input = ParallelContext::new(owned, self.shared.clone());
+                let output = export.call(input).await?;
                 count += 1;
-                envelopes.push(envelope);
+                envelopes.push(Arc::new(output.into_inner()));
             }
         }
 
-        tracing::debug!(target: TARGET, count, "export collected envelopes");
+        tracing::debug!(target: TARGET, count, "export complete");
 
         Ok(NodeOutput {
             items_processed: count,
@@ -491,14 +505,5 @@ async fn unwrap_envelope(arc: Arc<DocumentEnvelope>) -> Result<DocumentEnvelope,
                 audit: arc.audit.clone(),
             })
         }
-    }
-}
-
-/// Collect text spans from text or rich documents for NER/pattern detection.
-async fn collect_text_spans(doc: &Document) -> Vec<Span<usize, TextData>> {
-    match doc {
-        Document::Text(h) => h.text_spans().await.collect().await,
-        Document::Rich(h) => h.text_spans().await.collect().await,
-        _ => Vec::new(),
     }
 }

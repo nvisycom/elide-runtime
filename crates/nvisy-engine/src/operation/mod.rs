@@ -7,7 +7,7 @@
 
 pub(crate) mod compression;
 pub mod context;
-pub(crate) mod encryption;
+pub mod encryption;
 mod entity_recognition;
 pub mod envelope;
 mod export_file;

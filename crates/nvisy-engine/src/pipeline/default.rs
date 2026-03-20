@@ -24,6 +24,7 @@ use super::runs::{
 use super::{Engine, EngineInput, EngineOutput, plan};
 use crate::graph::{RetryPolicy, TimeoutPolicy};
 use crate::operation::context::SharedContext;
+use crate::operation::encryption::KeyProvider;
 use crate::provenance::PolicyEvaluation;
 
 /// Immutable configuration created during engine construction.
@@ -34,6 +35,7 @@ struct EngineConfig {
     default_timeout: Option<TimeoutPolicy>,
     http_client: HttpClient,
     registry: Registry,
+    key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
 /// Default [`Engine`] implementation.
@@ -68,6 +70,7 @@ impl DefaultEngine {
                 default_timeout: None,
                 http_client: HttpClient::default(),
                 registry,
+                key_provider: None,
             }),
             runs: RunState::new(),
         }
@@ -106,6 +109,12 @@ impl DefaultEngine {
     /// Set the shared HTTP client for downstream providers.
     pub fn with_http_client(mut self, client: HttpClient) -> Self {
         Arc::make_mut(&mut self.cfg).http_client = client;
+        self
+    }
+
+    /// Set the key provider for encryption/decryption operations.
+    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
+        Arc::make_mut(&mut self.cfg).key_provider = Some(provider);
         self
     }
 
@@ -201,8 +210,11 @@ impl Engine for DefaultEngine {
             )
             .await;
 
-        let shared = SharedContext::new(run_id, input.actor_id, self.cfg.registry.clone())
+        let mut shared = SharedContext::new(run_id, input.actor_id, self.cfg.registry.clone())
             .with_policies(input.policies.clone());
+        if let Some(ref kp) = self.cfg.key_provider {
+            shared = shared.with_key_provider(Arc::clone(kp));
+        }
 
         let ctx = RunContext {
             cancel,

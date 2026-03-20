@@ -8,9 +8,9 @@ use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::HttpClient;
 use nvisy_rig::audio::stt::{SttConfig, SttOutput, SttService};
 
-use crate::graph::{AudialExtraction as AudialExtractionCfg, RetryPolicy};
-use crate::operation::context::ParallelContext;
+use crate::graph::AudialExtraction as AudialExtractionCfg;
 use crate::operation::Operation;
+use crate::operation::context::ParallelContext;
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::audial_extraction";
@@ -18,8 +18,6 @@ const TARGET: &str = "nvisy_engine::op::audial_extraction";
 /// Audial extraction: transcribes audio documents via STT.
 pub struct AudialExtraction {
     stt: SttService,
-    #[allow(dead_code)]
-    retry: Option<RetryPolicy>,
 }
 
 impl AudialExtraction {
@@ -27,7 +25,6 @@ impl AudialExtraction {
         cfg: &AudialExtractionCfg,
         config: &RuntimeConfig,
         http_client: &HttpClient,
-        retry: Option<RetryPolicy>,
     ) -> Result<Self> {
         let stt_provider = config
             .stt
@@ -50,9 +47,8 @@ impl AudialExtraction {
             tracing::warn!(target: TARGET, "diarization not yet supported, skipping");
         }
 
-        Ok(Self { stt, retry })
+        Ok(Self { stt })
     }
-
 }
 
 /// Typed input for the [`Operation`] impl: raw audio bytes + filename.

@@ -86,10 +86,6 @@ impl ExecutionPlan {
                 .neighbors_directed(idx, petgraph::Direction::Incoming)
                 .map(|n| pg[n].id)
                 .collect();
-            let downstream_ids: Vec<Uuid> = pg
-                .neighbors_directed(idx, petgraph::Direction::Outgoing)
-                .map(|n| pg[n].id)
-                .collect();
 
             let retry = graph_node.retry().cloned();
             let timeout = graph_node.timeout().cloned();
@@ -97,7 +93,6 @@ impl ExecutionPlan {
             nodes.push(ResolvedNode {
                 node: graph_node.clone(),
                 upstream_ids,
-                downstream_ids,
                 retry,
                 timeout,
             });

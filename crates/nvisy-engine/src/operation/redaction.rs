@@ -9,10 +9,10 @@ use nvisy_core::Result;
 use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 
-use crate::graph::{Redaction as RedactionCfg, RetryPolicy};
+use crate::graph::Redaction as RedactionCfg;
+use crate::operation::Operation;
 use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::envelope::PolicyOutcome;
-use crate::operation::Operation;
 use crate::provenance::{RedactionDecision, RedactionRecord};
 
 const TARGET: &str = "nvisy_engine::op::redaction";
@@ -20,18 +20,13 @@ const TARGET: &str = "nvisy_engine::op::redaction";
 /// Redaction operation: evaluates policies and applies redaction decisions.
 pub struct Redaction {
     evaluator: PolicyEvaluator,
-    #[allow(dead_code)]
-    shared: SharedContext,
-    #[allow(dead_code)]
-    retry: Option<RetryPolicy>,
 }
 
 impl Redaction {
     /// Build from graph config and shared context.
     pub async fn new(
         cfg: &RedactionCfg,
-        shared: SharedContext,
-        retry: Option<RetryPolicy>,
+        shared: &SharedContext,
     ) -> Result<Self> {
         let rules = shared
             .policies
@@ -46,13 +41,8 @@ impl Redaction {
             tracing::debug!(target: TARGET, "metadata processing handled by policy evaluation");
         }
 
-        Ok(Self {
-            evaluator,
-            shared,
-            retry,
-        })
+        Ok(Self { evaluator })
     }
-
 }
 
 impl Operation for Redaction {

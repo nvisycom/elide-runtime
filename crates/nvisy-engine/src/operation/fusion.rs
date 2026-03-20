@@ -8,9 +8,9 @@ use nvisy_core::Result;
 use nvisy_ontology::entity::{Entities, Entity, Overlap, RefinementMethod};
 
 use crate::graph::{Fusion as FusionCfg, FusionStrategy};
+use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
 use crate::operation::envelope::RefinedEntities;
-use crate::operation::Operation;
 
 const TARGET: &str = "nvisy_engine::op::fusion";
 

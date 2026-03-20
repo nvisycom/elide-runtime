@@ -10,8 +10,8 @@ use nvisy_core::Result;
 use nvisy_ontology::context::Contexts;
 
 use crate::graph::LoadContext as LoadContextCfg;
-use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::Operation;
+use crate::operation::context::{ParallelContext, SharedContext};
 
 const TARGET: &str = "nvisy_engine::op::load_context";
 
@@ -36,7 +36,6 @@ impl LoadContext {
         tracing::debug!(target: TARGET, count = loaded.len(), "loaded contexts from registry");
         Ok(Self { loaded })
     }
-
 }
 
 impl Operation for LoadContext {

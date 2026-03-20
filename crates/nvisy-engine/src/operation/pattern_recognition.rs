@@ -6,27 +6,24 @@
 //!
 //! [`EntityRecognition`]: crate::operation::EntityRecognition
 
-use nvisy_codec::handler::TextData;
 use nvisy_codec::Span;
+use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
 use nvisy_ontology::entity::{Entity, RecognitionMethod, TextLocation};
 
-use crate::operation::context::{ParallelContext, SharedContext};
-use crate::operation::envelope::DetectedEntities;
 use crate::operation::Operation;
+use crate::operation::context::ParallelContext;
+use crate::operation::envelope::DetectedEntities;
 
 const TARGET: &str = "nvisy_engine::op::pattern_recognition";
 
 /// Pattern-based entity recognition using regex and dictionary matching.
-pub struct PatternRecognition {
-    #[allow(dead_code)]
-    shared: SharedContext,
-}
+pub struct PatternRecognition {}
 
 impl PatternRecognition {
     /// Create a new pattern recognition operation.
-    pub async fn new(shared: SharedContext) -> Result<Self> {
-        Ok(Self { shared })
+    pub async fn new() -> Result<Self> {
+        Ok(Self {})
     }
 
     fn scan(spans: &[Span<usize, TextData>]) -> Vec<Entity> {
@@ -60,7 +57,6 @@ impl PatternRecognition {
 
         entities
     }
-
 }
 
 impl Operation for PatternRecognition {

@@ -4,8 +4,8 @@
 //! image documents by running OCR, optionally verifying detected entities
 //! against the source image, and optionally running computer vision.
 
-use nvisy_codec::handler::ImageData;
 use nvisy_codec::Span;
+use nvisy_codec::handler::ImageData;
 use nvisy_core::math::BoundingBox;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::HttpClient;
@@ -15,10 +15,10 @@ use nvisy_ontology::entity::{
 };
 use nvisy_rig::agent::{CvEntity, OcrAgent};
 
-use crate::graph::{RetryPolicy, VisualExtraction as VisualExtractionCfg};
-use crate::operation::context::{ParallelContext, SharedContext};
-use crate::operation::envelope::DetectedEntities;
+use crate::graph::VisualExtraction as VisualExtractionCfg;
 use crate::operation::Operation;
+use crate::operation::context::ParallelContext;
+use crate::operation::envelope::DetectedEntities;
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::visual_extraction";
@@ -27,10 +27,6 @@ const TARGET: &str = "nvisy_engine::op::visual_extraction";
 pub struct VisualExtraction {
     ocr: OcrOp,
     verifier: Option<VerifyOp>,
-    #[allow(dead_code)]
-    shared: SharedContext,
-    #[allow(dead_code)]
-    retry: Option<RetryPolicy>,
 }
 
 impl VisualExtraction {
@@ -86,8 +82,6 @@ impl VisualExtraction {
         cfg: &VisualExtractionCfg,
         config: &RuntimeConfig,
         http_client: &HttpClient,
-        shared: SharedContext,
-        retry: Option<RetryPolicy>,
     ) -> Result<Self> {
         let ocr_section = config.ocr.as_ref();
         let ocr_provider = ocr_section
@@ -120,12 +114,7 @@ impl VisualExtraction {
             tracing::warn!(target: TARGET, "CV entity detection not yet configurable, skipping");
         }
 
-        Ok(Self {
-            ocr,
-            verifier,
-            shared,
-            retry,
-        })
+        Ok(Self { ocr, verifier })
     }
 
     /// Access the inner OCR operation for direct dispatch.

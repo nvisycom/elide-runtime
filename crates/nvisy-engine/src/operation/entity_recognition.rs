@@ -4,8 +4,8 @@
 //! Runs at **phase 2**, after extraction. Drives language-model inference
 //! to identify and classify named entities within extracted text.
 
-use nvisy_codec::handler::TextData;
 use nvisy_codec::Span;
+use nvisy_codec::handler::TextData;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::HttpClient;
 use nvisy_ontology::entity::{Entity, EntityCategory, RecognitionMethod, TextLocation};
@@ -14,10 +14,10 @@ use nvisy_rig::agent::{
 };
 use tokio::sync::Mutex;
 
-use crate::graph::{NamedEntityRecognition as NamedEntityRecognitionCfg, RetryPolicy};
-use crate::operation::context::{SequentialContext, SharedContext};
-use crate::operation::envelope::DetectedEntities;
+use crate::graph::NamedEntityRecognition as NamedEntityRecognitionCfg;
 use crate::operation::Operation;
+use crate::operation::context::SequentialContext;
+use crate::operation::envelope::DetectedEntities;
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::entity_recognition";
@@ -28,10 +28,6 @@ pub struct EntityRecognition {
     agent: NerAgent,
     config: DetectionConfig,
     state: Mutex<Vec<KnownNerEntity>>,
-    #[allow(dead_code)]
-    shared: SharedContext,
-    #[allow(dead_code)]
-    retry: Option<RetryPolicy>,
 }
 
 impl EntityRecognition {
@@ -54,8 +50,6 @@ impl EntityRecognition {
         cfg: &NamedEntityRecognitionCfg,
         runtime: &RuntimeConfig,
         http_client: &HttpClient,
-        shared: SharedContext,
-        retry: Option<RetryPolicy>,
     ) -> Result<Self> {
         let llm = runtime.llm.as_ref();
         let provider = llm
@@ -74,8 +68,6 @@ impl EntityRecognition {
             agent,
             config,
             state: Mutex::new(Vec::new()),
-            shared,
-            retry,
         })
     }
 
@@ -147,7 +139,6 @@ impl EntityRecognition {
     pub(crate) async fn reset(&self) {
         self.state.lock().await.clear();
     }
-
 }
 
 impl Operation for EntityRecognition {

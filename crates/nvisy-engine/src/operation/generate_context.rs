@@ -8,8 +8,8 @@
 use nvisy_core::Result;
 
 use crate::graph::GenerateContext as GenerateContextCfg;
-use crate::operation::context::ParallelContext;
 use crate::operation::Operation;
+use crate::operation::context::ParallelContext;
 
 const TARGET: &str = "nvisy_engine::op::generate_context";
 
@@ -32,7 +32,6 @@ impl GenerateContext {
         }
         Self
     }
-
 }
 
 impl Default for GenerateContext {

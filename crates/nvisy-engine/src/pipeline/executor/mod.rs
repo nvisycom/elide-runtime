@@ -14,15 +14,14 @@ use nvisy_core::{Error, ErrorKind};
 use nvisy_http::HttpClient;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
 use crate::graph::{self, GraphNodeKind, RetryPolicy, TimeoutBehavior};
 use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
 use crate::operation::{
-    AudioInput, DocumentEnvelope, EntityRecognition, Fusion, GenerateContext, ImportFile,
-    LoadContext, Operation, PatternRecognition, Redaction, SaveContext, Validation,
+    AudioInput, DocumentEnvelope, EntityRecognition, ExportFile, Fusion, GenerateContext,
+    ImportFile, LoadContext, Operation, PatternRecognition, Redaction, SaveContext, Validation,
     ValidationInput, VerifyInput, VisualExtraction,
 };
 
@@ -31,8 +30,6 @@ const TARGET: &str = "nvisy_engine::pipeline::executor";
 /// Outcome of executing a single node.
 #[derive(Debug)]
 pub(super) struct NodeOutput {
-    #[allow(dead_code)]
-    pub node_id: Uuid,
     pub items_processed: u64,
     pub error: Option<String>,
     pub envelopes: Vec<Arc<DocumentEnvelope>>,
@@ -78,14 +75,12 @@ impl NodeExecutor {
             return Err(Error::cancellation("run cancelled"));
         }
 
-        let node_id = resolved.node.id;
         let cancel = self.cancel.clone();
 
         let run = async {
             tokio::select! {
                 _ = cancel.cancelled() => Err(Error::cancellation("run cancelled")),
                 result = self.dispatch(
-                    node_id,
                     &resolved.node.kind,
                     resolved.retry.clone(),
                     &senders,
@@ -100,7 +95,6 @@ impl NodeExecutor {
                 match (&result, &timeout.on_timeout) {
                     (Err(e), TimeoutBehavior::Skip) if e.kind == ErrorKind::Timeout => {
                         Ok(NodeOutput {
-                            node_id,
                             items_processed: 0,
                             error: None,
                             envelopes: Vec::new(),
@@ -116,7 +110,6 @@ impl NodeExecutor {
     #[allow(clippy::too_many_lines)]
     async fn dispatch(
         &self,
-        node_id: Uuid,
         kind: &GraphNodeKind,
         retry: Option<RetryPolicy>,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
@@ -126,17 +119,13 @@ impl NodeExecutor {
 
         match kind {
             GraphNodeKind::ImportFile(cfg) => {
-                self.execute_import(node_id, cfg, retry.as_ref(), senders)
+                self.execute_import(cfg, retry.as_ref(), senders)
                     .await
             }
-            GraphNodeKind::ExportFile(cfg) => {
-                self.execute_export(node_id, cfg, receivers).await
-            }
+            GraphNodeKind::ExportFile(cfg) => self.execute_export(cfg, receivers).await,
 
             GraphNodeKind::VisualExtraction(cfg) => {
-                let op = VisualExtraction::new(
-                    cfg, &self.config, &self.http_client, shared.clone(), retry.clone(),
-                )?;
+                let op = VisualExtraction::new(cfg, &self.config, &self.http_client)?;
                 let count = process_envelopes(senders, receivers, |mut envelope| {
                     let op = &op;
                     let shared = shared.clone();
@@ -152,42 +141,44 @@ impl NodeExecutor {
                             let input = ParallelContext::new(ocr_spans, shared.clone());
                             let _ocr_output = op.ocr().call(input).await?;
 
-                            if let Some(verifier) = op.verifier() {
-                                if !envelope.entities.is_empty() {
-                                    let verify_spans: Vec<_> = match &envelope.document {
-                                        Document::Image(h) => h
-                                            .image_spans().await
-                                            .collect::<Vec<_>>().await
-                                            .into_iter()
-                                            .map(|s| Span::new((), s.data).with_source(s.source))
-                                            .collect(),
-                                        _ => Vec::new(),
-                                    };
-                                    let verify_input = VerifyInput {
-                                        image_spans: verify_spans,
-                                        entities: envelope.entities.clone(),
-                                    };
-                                    let input = ParallelContext::new(verify_input, shared.clone());
-                                    match verifier.call(input).await {
-                                        Ok(output) => envelope.apply(output.into_inner()),
-                                        Err(e) => tracing::warn!(
-                                            target: TARGET, error = %e,
-                                            "OCR verification failed, keeping unverified entities"
-                                        ),
-                                    }
+                            if let Some(verifier) = op.verifier()
+                                && !envelope.entities.is_empty()
+                            {
+                                let verify_spans: Vec<_> = match &envelope.document {
+                                    Document::Image(h) => h
+                                        .image_spans()
+                                        .await
+                                        .collect::<Vec<_>>()
+                                        .await
+                                        .into_iter()
+                                        .map(|s| Span::new((), s.data).with_source(s.source))
+                                        .collect(),
+                                    _ => Vec::new(),
+                                };
+                                let verify_input = VerifyInput {
+                                    image_spans: verify_spans,
+                                    entities: envelope.entities.clone(),
+                                };
+                                let input = ParallelContext::new(verify_input, shared.clone());
+                                match verifier.call(input).await {
+                                    Ok(output) => envelope.apply(output.into_inner()),
+                                    Err(e) => tracing::warn!(
+                                        target: TARGET, error = %e,
+                                        "OCR verification failed, keeping unverified entities"
+                                    ),
                                 }
                             }
                         }
                         Ok(envelope)
                     }
-                }).await?;
-                Ok(node_output(node_id, count))
+                })
+                .await?;
+                Ok(node_output(count))
             }
 
             GraphNodeKind::AudialExtraction(cfg) => {
-                let op = crate::operation::AudialExtraction::new(
-                    cfg, &self.config, &self.http_client, retry.clone(),
-                )?;
+                let op =
+                    crate::operation::AudialExtraction::new(cfg, &self.config, &self.http_client)?;
                 let count = process_envelopes(senders, receivers, |envelope| {
                     let op = &op;
                     let shared = shared.clone();
@@ -196,12 +187,16 @@ impl NodeExecutor {
                             tracing::debug!(target: TARGET, "extracting audio for transcription");
                             let audio_data = Handler::encode(handler)?;
                             let filename: String = audio_data
-                                .filename.as_deref()
+                                .filename
+                                .as_deref()
                                 .map(|p| p.to_string_lossy().to_string())
                                 .unwrap_or_else(|| "audio.wav".to_string());
 
                             let input = ParallelContext::new(
-                                AudioInput { audio_data: audio_data.as_bytes().to_vec(), filename },
+                                AudioInput {
+                                    audio_data: audio_data.as_bytes().to_vec(),
+                                    filename,
+                                },
                                 shared,
                             );
                             let _output = op.call(input).await?;
@@ -209,14 +204,14 @@ impl NodeExecutor {
                         }
                         Ok(envelope)
                     }
-                }).await?;
-                Ok(node_output(node_id, count))
+                })
+                .await?;
+                Ok(node_output(count))
             }
 
             GraphNodeKind::NamedEntityRecognition(cfg) => {
-                let op = EntityRecognition::new(
-                    cfg, &self.config, &self.http_client, shared.clone(), retry.clone(),
-                ).await?;
+                let op =
+                    EntityRecognition::new(cfg, &self.config, &self.http_client).await?;
                 let count = process_envelopes(senders, receivers, |mut envelope| {
                     let op = &op;
                     let shared = shared.clone();
@@ -232,11 +227,11 @@ impl NodeExecutor {
                         Ok(envelope)
                     }
                 }).await?;
-                Ok(node_output(node_id, count))
+                Ok(node_output(count))
             }
 
             GraphNodeKind::PatternRecognition(_) => {
-                let op = PatternRecognition::new(shared.clone()).await?;
+                let op = PatternRecognition::new().await?;
                 let count = process_envelopes(senders, receivers, |mut envelope| {
                     let op = &op;
                     let shared = shared.clone();
@@ -251,7 +246,7 @@ impl NodeExecutor {
                         Ok(envelope)
                     }
                 }).await?;
-                Ok(node_output(node_id, count))
+                Ok(node_output(count))
             }
 
             GraphNodeKind::Fusion(cfg) => {
@@ -269,11 +264,11 @@ impl NodeExecutor {
                         Ok(envelope)
                     }
                 }).await?;
-                Ok(node_output(node_id, count))
+                Ok(node_output(count))
             }
 
             GraphNodeKind::Redaction(cfg) => {
-                let op = Redaction::new(cfg, shared.clone(), retry.clone()).await?;
+                let op = Redaction::new(cfg, shared).await?;
                 let count = process_envelopes(senders, receivers, |mut envelope| {
                     let op = &op;
                     let shared = shared.clone();
@@ -287,7 +282,7 @@ impl NodeExecutor {
                         Ok(envelope)
                     }
                 }).await?;
-                Ok(node_output(node_id, count))
+                Ok(node_output(count))
             }
 
             GraphNodeKind::Validation(cfg) => {
@@ -296,7 +291,6 @@ impl NodeExecutor {
                     let op = &op;
                     let shared = shared.clone();
                     async move {
-                        tracing::debug!(target: TARGET, "running post-redaction validation");
                         let redacted_text = match &envelope.document {
                             Document::Text(h) => {
                                 let spans: Vec<_> = h.text_spans().await.collect().await;
@@ -312,28 +306,12 @@ impl NodeExecutor {
                             },
                             shared,
                         );
-                        let output = op.call(input).await?;
-                        let result = output.data;
-                        if !result.leaked.is_empty() {
-                            tracing::warn!(
-                                target: TARGET,
-                                leaked = result.leaked.len(),
-                                passed = result.passed,
-                                "validation found leaked values",
-                            );
-                            if cfg.fail_on_leak {
-                                return Err(Error::validation(
-                                    format!("{} redacted values leaked in output", result.leaked.len()),
-                                    "validation",
-                                ));
-                            }
-                        } else {
-                            tracing::debug!(target: TARGET, passed = result.passed, "validation passed");
-                        }
+                        op.call(input).await?;
                         Ok(envelope)
                     }
-                }).await?;
-                Ok(node_output(node_id, count))
+                })
+                .await?;
+                Ok(node_output(count))
             }
 
             GraphNodeKind::LoadContext(cfg) => {
@@ -348,8 +326,9 @@ impl NodeExecutor {
                         envelope.contexts = output.data;
                         Ok(envelope)
                     }
-                }).await?;
-                Ok(node_output(node_id, count))
+                })
+                .await?;
+                Ok(node_output(count))
             }
 
             GraphNodeKind::SaveContext(cfg) => {
@@ -363,8 +342,9 @@ impl NodeExecutor {
                         op.call(input).await?;
                         Ok(envelope)
                     }
-                }).await?;
-                Ok(node_output(node_id, count))
+                })
+                .await?;
+                Ok(node_output(count))
             }
 
             GraphNodeKind::GenerateContext(cfg) => {
@@ -378,15 +358,15 @@ impl NodeExecutor {
                         op.call(input).await?;
                         Ok(envelope)
                     }
-                }).await?;
-                Ok(node_output(node_id, count))
+                })
+                .await?;
+                Ok(node_output(count))
             }
         }
     }
 
     async fn execute_import(
         &self,
-        node_id: Uuid,
         cfg: &graph::ImportFile,
         retry: Option<&RetryPolicy>,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
@@ -422,7 +402,6 @@ impl NodeExecutor {
         }
 
         Ok(NodeOutput {
-            node_id,
             items_processed: count,
             error: None,
             envelopes: Vec::new(),
@@ -431,14 +410,19 @@ impl NodeExecutor {
 
     async fn execute_export(
         &self,
-        node_id: Uuid,
-        _cfg: &graph::ExportFile,
+        cfg: &graph::ExportFile,
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
+        let export = ExportFile::new()
+            .with_encryption(cfg.encryption)
+            .with_compression(cfg.compression);
+
         let mut count = 0u64;
         let mut envelopes = Vec::new();
         for rx in receivers.iter_mut() {
             while let Some(envelope) = rx.recv().await {
+                let input = ParallelContext::new((), self.shared.clone());
+                export.call(input).await?;
                 count += 1;
                 envelopes.push(envelope);
             }
@@ -447,7 +431,6 @@ impl NodeExecutor {
         tracing::debug!(target: TARGET, count, "export collected envelopes");
 
         Ok(NodeOutput {
-            node_id,
             items_processed: count,
             error: None,
             envelopes,
@@ -455,9 +438,8 @@ impl NodeExecutor {
     }
 }
 
-fn node_output(node_id: Uuid, items_processed: u64) -> NodeOutput {
+fn node_output(items_processed: u64) -> NodeOutput {
     NodeOutput {
-        node_id,
         items_processed,
         error: None,
         envelopes: Vec::new(),

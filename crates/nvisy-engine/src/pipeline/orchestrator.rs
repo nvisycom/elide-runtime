@@ -111,7 +111,6 @@ pub(super) async fn run_graph(
             let output = match result {
                 Ok(output) => output,
                 Err(e) => NodeOutput {
-                    node_id,
                     items_processed: 0,
                     error: Some(e.to_string()),
                     envelopes: Vec::new(),
@@ -141,7 +140,6 @@ pub(super) async fn run_graph(
         match result {
             Ok(nr) => node_results.push(nr),
             Err(e) => node_results.push(NodeOutput {
-                node_id: Uuid::nil(),
                 items_processed: 0,
                 error: Some(format!("Task panicked: {e}")),
                 envelopes: Vec::new(),

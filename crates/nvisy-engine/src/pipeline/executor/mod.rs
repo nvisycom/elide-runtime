@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
-use nvisy_codec::handler::{ImageHandler, TextHandler};
+use nvisy_codec::handler::{Handler, ImageHandler, TextData, TextHandler};
 use nvisy_codec::{Document, Span};
 use nvisy_core::{Error, ErrorKind};
 use nvisy_http::HttpClient;
@@ -19,14 +19,19 @@ use uuid::Uuid;
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
 use crate::graph::{self, GraphNodeKind, RetryPolicy, TimeoutBehavior};
-use crate::operation::context::{ParallelContext, SharedContext};
-use crate::operation::{DocumentEnvelope, Fusion, ImportFile, Operation, VisualExtraction};
+use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
+use crate::operation::{
+    AudioInput, DocumentEnvelope, EntityRecognition, Fusion, GenerateContext, ImportFile,
+    LoadContext, Operation, PatternRecognition, Redaction, SaveContext, Validation,
+    ValidationInput, VerifyInput, VisualExtraction,
+};
 
 const TARGET: &str = "nvisy_engine::pipeline::executor";
 
 /// Outcome of executing a single node.
 #[derive(Debug)]
 pub(super) struct NodeOutput {
+    #[allow(dead_code)]
     pub node_id: Uuid,
     pub items_processed: u64,
     pub error: Option<String>,
@@ -108,6 +113,7 @@ impl NodeExecutor {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn dispatch(
         &self,
         node_id: Uuid,
@@ -117,163 +123,262 @@ impl NodeExecutor {
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.shared;
-        let retry_ref = retry.as_ref();
 
         match kind {
             GraphNodeKind::ImportFile(cfg) => {
-                self.execute_import(node_id, cfg, retry_ref, senders).await
+                self.execute_import(node_id, cfg, retry.as_ref(), senders)
+                    .await
             }
-            GraphNodeKind::ExportFile(cfg) => self.execute_export(node_id, cfg, receivers).await,
+            GraphNodeKind::ExportFile(cfg) => {
+                self.execute_export(node_id, cfg, receivers).await
+            }
 
             GraphNodeKind::VisualExtraction(cfg) => {
                 let op = VisualExtraction::new(
-                    cfg,
-                    &self.config,
-                    &self.http_client,
-                    shared.clone(),
-                    retry.clone(),
+                    cfg, &self.config, &self.http_client, shared.clone(), retry.clone(),
                 )?;
-                let count = process_envelopes(senders, receivers, |mut envelope| async {
-                    // OCR extracts from images — the operation handles extraction internally
-                    // the operation handles extraction internally
-                    // once the OCR output can be applied as a patch.
+                let count = process_envelopes(senders, receivers, |mut envelope| {
+                    let op = &op;
+                    let shared = shared.clone();
+                    async move {
+                        if let Document::Image(ref handler) = envelope.document {
+                            tracing::debug!(target: TARGET, "extracting image spans for OCR");
+                            let image_spans: Vec<_> = handler.image_spans().await.collect().await;
+                            let ocr_spans: Vec<Span<(), _>> = image_spans
+                                .into_iter()
+                                .map(|s| Span::new((), s.data).with_source(s.source))
+                                .collect();
 
-                    envelope = op.process(envelope).await?;
-                    Ok(envelope)
-                })
-                .await?;
+                            let input = ParallelContext::new(ocr_spans, shared.clone());
+                            let _ocr_output = op.ocr().call(input).await?;
+
+                            if let Some(verifier) = op.verifier() {
+                                if !envelope.entities.is_empty() {
+                                    let verify_spans: Vec<_> = match &envelope.document {
+                                        Document::Image(h) => h
+                                            .image_spans().await
+                                            .collect::<Vec<_>>().await
+                                            .into_iter()
+                                            .map(|s| Span::new((), s.data).with_source(s.source))
+                                            .collect(),
+                                        _ => Vec::new(),
+                                    };
+                                    let verify_input = VerifyInput {
+                                        image_spans: verify_spans,
+                                        entities: envelope.entities.clone(),
+                                    };
+                                    let input = ParallelContext::new(verify_input, shared.clone());
+                                    match verifier.call(input).await {
+                                        Ok(output) => envelope.apply(output.into_inner()),
+                                        Err(e) => tracing::warn!(
+                                            target: TARGET, error = %e,
+                                            "OCR verification failed, keeping unverified entities"
+                                        ),
+                                    }
+                                }
+                            }
+                        }
+                        Ok(envelope)
+                    }
+                }).await?;
                 Ok(node_output(node_id, count))
             }
 
             GraphNodeKind::AudialExtraction(cfg) => {
                 let op = crate::operation::AudialExtraction::new(
-                    cfg,
-                    &self.config,
-                    &self.http_client,
-                    retry.clone(),
+                    cfg, &self.config, &self.http_client, retry.clone(),
                 )?;
-                let count = process_envelopes(senders, receivers, |envelope| async {
-                    op.process(envelope).await
-                })
-                .await?;
+                let count = process_envelopes(senders, receivers, |envelope| {
+                    let op = &op;
+                    let shared = shared.clone();
+                    async move {
+                        if let Document::Audio(ref handler) = envelope.document {
+                            tracing::debug!(target: TARGET, "extracting audio for transcription");
+                            let audio_data = Handler::encode(handler)?;
+                            let filename: String = audio_data
+                                .filename.as_deref()
+                                .map(|p| p.to_string_lossy().to_string())
+                                .unwrap_or_else(|| "audio.wav".to_string());
+
+                            let input = ParallelContext::new(
+                                AudioInput { audio_data: audio_data.as_bytes().to_vec(), filename },
+                                shared,
+                            );
+                            let _output = op.call(input).await?;
+                            // TODO: inject transcribed text into envelope
+                        }
+                        Ok(envelope)
+                    }
+                }).await?;
                 Ok(node_output(node_id, count))
             }
 
             GraphNodeKind::NamedEntityRecognition(cfg) => {
-                let op = crate::operation::EntityRecognition::new(
-                    cfg,
-                    &self.config,
-                    &self.http_client,
-                    shared.clone(),
-                    retry.clone(),
-                )
-                .await?;
-                let count = process_envelopes(senders, receivers, |envelope| async {
-                    op.process(envelope).await
-                })
-                .await?;
+                let op = EntityRecognition::new(
+                    cfg, &self.config, &self.http_client, shared.clone(), retry.clone(),
+                ).await?;
+                let count = process_envelopes(senders, receivers, |mut envelope| {
+                    let op = &op;
+                    let shared = shared.clone();
+                    async move {
+                        let spans = collect_text_spans(&envelope.document).await;
+                        if !spans.is_empty() {
+                            tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
+                            let input = SequentialContext::new(spans, shared);
+                            let output = op.call(input).await?;
+                            envelope.apply(output.into_inner());
+                        }
+                        op.reset().await;
+                        Ok(envelope)
+                    }
+                }).await?;
                 Ok(node_output(node_id, count))
             }
 
             GraphNodeKind::PatternRecognition(_) => {
-                let op = crate::operation::PatternRecognition::new(shared.clone()).await?;
-                let count = process_envelopes(senders, receivers, |mut envelope| async {
-                    envelope = op.process(envelope).await?;
-                    Ok(envelope)
-                })
-                .await?;
+                let op = PatternRecognition::new(shared.clone()).await?;
+                let count = process_envelopes(senders, receivers, |mut envelope| {
+                    let op = &op;
+                    let shared = shared.clone();
+                    async move {
+                        let spans = collect_text_spans(&envelope.document).await;
+                        if !spans.is_empty() {
+                            tracing::debug!(target: TARGET, span_count = spans.len(), "running pattern detection");
+                            let input = ParallelContext::new(spans, shared);
+                            let output = op.call(input).await?;
+                            envelope.apply(output.into_inner());
+                        }
+                        Ok(envelope)
+                    }
+                }).await?;
                 Ok(node_output(node_id, count))
             }
 
             GraphNodeKind::Fusion(cfg) => {
                 let op = Fusion::new(cfg);
                 let count = process_envelopes(senders, receivers, |mut envelope| {
-                    let op_ref = &op;
+                    let op = &op;
+                    let shared = shared.clone();
                     async move {
                         if !envelope.entities.is_empty() {
-                            let result = op_ref.execute(envelope.entities.clone()).await?;
-                            envelope.apply(result);
+                            tracing::debug!(target: TARGET, entities = envelope.entities.len(), "running fusion");
+                            let input = ParallelContext::new(envelope.entities.clone(), shared);
+                            let output = op.call(input).await?;
+                            envelope.apply(output.into_inner());
                         }
                         Ok(envelope)
                     }
-                })
-                .await?;
+                }).await?;
                 Ok(node_output(node_id, count))
             }
 
             GraphNodeKind::Redaction(cfg) => {
-                let op =
-                    crate::operation::Redaction::new(cfg, shared.clone(), retry.clone()).await?;
+                let op = Redaction::new(cfg, shared.clone(), retry.clone()).await?;
                 let count = process_envelopes(senders, receivers, |mut envelope| {
-                    let op_ref = &op;
+                    let op = &op;
+                    let shared = shared.clone();
                     async move {
                         if !envelope.entities.is_empty() {
-                            let outcome = op_ref.evaluate(envelope.entities.clone()).await?;
-                            envelope.apply(outcome);
+                            tracing::debug!(target: TARGET, entities = envelope.entities.len(), "evaluating redaction policies");
+                            let input = ParallelContext::new(envelope.entities.clone(), shared);
+                            let output = op.call(input).await?;
+                            envelope.apply(output.into_inner());
                         }
                         Ok(envelope)
                     }
-                })
-                .await?;
+                }).await?;
                 Ok(node_output(node_id, count))
             }
 
             GraphNodeKind::Validation(cfg) => {
-                let op = crate::operation::Validation::new(cfg);
-                let count = process_envelopes(senders, receivers, |envelope| async {
-                    op.process(envelope).await
-                })
-                .await?;
+                let op = Validation::new(cfg);
+                let count = process_envelopes(senders, receivers, |envelope| {
+                    let op = &op;
+                    let shared = shared.clone();
+                    async move {
+                        tracing::debug!(target: TARGET, "running post-redaction validation");
+                        let redacted_text = match &envelope.document {
+                            Document::Text(h) => {
+                                let spans: Vec<_> = h.text_spans().await.collect().await;
+                                Some(spans.iter().map(|s| s.data.as_str()).collect::<String>())
+                            }
+                            _ => None,
+                        };
+                        let input = ParallelContext::new(
+                            ValidationInput {
+                                entities: envelope.entities.clone(),
+                                decisions: envelope.audit.decisions.clone(),
+                                redacted_text,
+                            },
+                            shared,
+                        );
+                        let output = op.call(input).await?;
+                        let result = output.data;
+                        if !result.leaked.is_empty() {
+                            tracing::warn!(
+                                target: TARGET,
+                                leaked = result.leaked.len(),
+                                passed = result.passed,
+                                "validation found leaked values",
+                            );
+                            if cfg.fail_on_leak {
+                                return Err(Error::validation(
+                                    format!("{} redacted values leaked in output", result.leaked.len()),
+                                    "validation",
+                                ));
+                            }
+                        } else {
+                            tracing::debug!(target: TARGET, passed = result.passed, "validation passed");
+                        }
+                        Ok(envelope)
+                    }
+                }).await?;
                 Ok(node_output(node_id, count))
             }
 
             GraphNodeKind::LoadContext(cfg) => {
-                let mut loaded = Vec::with_capacity(cfg.context_ids.len());
-                for &id in &cfg.context_ids {
-                    let handle = shared.registry.read_context(shared.actor_id, id).await?;
-                    loaded.push(handle.context().await?);
-                }
+                let op = LoadContext::new(cfg, shared).await?;
                 let count = process_envelopes(senders, receivers, |mut envelope| {
-                    let loaded = &loaded;
+                    let op = &op;
+                    let shared = shared.clone();
                     async move {
-                        for ctx in loaded {
-                            let id = ctx.source.as_uuid();
-                            if !envelope.contexts.contains(&id) {
-                                envelope.contexts.insert(ctx.clone());
-                            }
-                        }
+                        tracing::debug!(target: TARGET, "merging loaded contexts into envelope");
+                        let input = ParallelContext::new(envelope.contexts.clone(), shared);
+                        let output = op.call(input).await?;
+                        envelope.contexts = output.data;
                         Ok(envelope)
                     }
-                })
-                .await?;
+                }).await?;
                 Ok(node_output(node_id, count))
             }
 
             GraphNodeKind::SaveContext(cfg) => {
-                let registry = shared.registry.clone();
-                let actor_id = shared.actor_id;
-                let context_ids = cfg.context_ids.clone();
+                let op = SaveContext::new(cfg, shared);
                 let count = process_envelopes(senders, receivers, |envelope| {
-                    let registry = &registry;
-                    let context_ids = &context_ids;
+                    let op = &op;
+                    let shared = shared.clone();
                     async move {
-                        for &id in context_ids.iter() {
-                            if let Some(context) = envelope.contexts.get(&id) {
-                                registry.register_context(actor_id, context.clone()).await?;
-                            }
-                        }
+                        tracing::debug!(target: TARGET, "saving contexts to registry");
+                        let input = ParallelContext::new(envelope.contexts.clone(), shared);
+                        op.call(input).await?;
                         Ok(envelope)
                     }
-                })
-                .await?;
+                }).await?;
                 Ok(node_output(node_id, count))
             }
 
-            GraphNodeKind::GenerateContext(_cfg) => {
-                // Stub — passes through unchanged
-                let count =
-                    process_envelopes(senders, receivers, |envelope| async { Ok(envelope) })
-                        .await?;
+            GraphNodeKind::GenerateContext(cfg) => {
+                let op = GenerateContext::new(cfg);
+                let count = process_envelopes(senders, receivers, |envelope| {
+                    let op = &op;
+                    let shared = shared.clone();
+                    async move {
+                        tracing::debug!(target: TARGET, "generate context passthrough");
+                        let input = ParallelContext::new((), shared);
+                        op.call(input).await?;
+                        Ok(envelope)
+                    }
+                }).await?;
                 Ok(node_output(node_id, count))
             }
         }
@@ -296,6 +401,7 @@ impl NodeExecutor {
             let actor_id = self.shared.actor_id;
             let import_ref = &import;
             let do_import = || async {
+                tracing::debug!(target: TARGET, %content_id, "importing content");
                 let handle = registry.read_content(actor_id, content_id).await?;
                 let content_data = handle.content_data().await?;
                 let input = ParallelContext::new(content_data, self.shared.clone());
@@ -399,5 +505,14 @@ async fn unwrap_envelope(arc: Arc<DocumentEnvelope>) -> Result<DocumentEnvelope,
                 audit: arc.audit.clone(),
             })
         }
+    }
+}
+
+/// Collect text spans from text or rich documents for NER/pattern detection.
+async fn collect_text_spans(doc: &Document) -> Vec<Span<usize, TextData>> {
+    match doc {
+        Document::Text(h) => h.text_spans().await.collect().await,
+        Document::Rich(h) => h.text_spans().await.collect().await,
+        _ => Vec::new(),
     }
 }

@@ -4,15 +4,13 @@
 //! Runs at **phase 1**, after ingestion. Transcribes speech audio into
 //! text using automatic speech recognition.
 
-use nvisy_codec::Document;
-use nvisy_codec::handler::Handler;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::HttpClient;
 use nvisy_rig::audio::stt::{SttConfig, SttOutput, SttService};
 
 use crate::graph::{AudialExtraction as AudialExtractionCfg, RetryPolicy};
 use crate::operation::context::ParallelContext;
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::Operation;
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::audial_extraction";
@@ -20,6 +18,7 @@ const TARGET: &str = "nvisy_engine::op::audial_extraction";
 /// Audial extraction: transcribes audio documents via STT.
 pub struct AudialExtraction {
     stt: SttService,
+    #[allow(dead_code)]
     retry: Option<RetryPolicy>,
 }
 
@@ -54,50 +53,6 @@ impl AudialExtraction {
         Ok(Self { stt, retry })
     }
 
-    pub(crate) async fn process(
-        &self,
-        envelope: DocumentEnvelope,
-    ) -> Result<DocumentEnvelope, Error> {
-        let Document::Audio(ref handler) = envelope.document else {
-            return Ok(envelope);
-        };
-
-        let audio_data = Handler::encode(handler)?;
-        let filename: String = audio_data
-            .filename
-            .as_deref()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| "audio.wav".to_string());
-
-        let stt_ref = &self.stt;
-        let retry = self.retry.as_ref();
-        let do_transcribe = || {
-            let bytes = audio_data.as_bytes().to_vec();
-            let fname = filename.clone();
-            async move {
-                stt_ref
-                    .transcribe(&bytes, &fname)
-                    .await
-                    .map_err(|e: nvisy_rig::error::Error| {
-                        Error::runtime(e.to_string(), "stt-transcribe", e.is_retryable())
-                    })
-            }
-        };
-
-        let stt_output = match retry {
-            Some(policy) => policy.with_retry(do_transcribe).await?,
-            None => do_transcribe().await?,
-        };
-
-        tracing::debug!(
-            target: TARGET,
-            text_len = stt_output.text.len(),
-            "transcription complete",
-        );
-        // TODO: inject transcribed text into envelope for downstream NER.
-
-        Ok(envelope)
-    }
 }
 
 /// Typed input for the [`Operation`] impl: raw audio bytes + filename.

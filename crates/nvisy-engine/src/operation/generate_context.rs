@@ -5,11 +5,11 @@
 //!
 //! [`Redaction`]: crate::operation::Redaction
 
-use nvisy_core::{Error, Result};
+use nvisy_core::Result;
 
 use crate::graph::GenerateContext as GenerateContextCfg;
 use crate::operation::context::ParallelContext;
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::Operation;
 
 const TARGET: &str = "nvisy_engine::op::generate_context";
 
@@ -33,13 +33,6 @@ impl GenerateContext {
         Self
     }
 
-    pub(crate) async fn process(
-        &self,
-        envelope: DocumentEnvelope,
-    ) -> Result<DocumentEnvelope, Error> {
-        tracing::debug!(target: TARGET, "generate context passthrough");
-        Ok(envelope)
-    }
 }
 
 impl Default for GenerateContext {

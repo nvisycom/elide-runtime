@@ -4,13 +4,13 @@
 //! (merge exact duplicates) and the ensemble pass (fuse multi-detector
 //! confidence scores) into a single operation.
 
-use nvisy_core::{Error, Result};
+use nvisy_core::Result;
 use nvisy_ontology::entity::{Entities, Entity, Overlap, RefinementMethod};
 
 use crate::graph::{Fusion as FusionCfg, FusionStrategy};
 use crate::operation::context::ParallelContext;
 use crate::operation::envelope::RefinedEntities;
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::Operation;
 
 const TARGET: &str = "nvisy_engine::op::fusion";
 

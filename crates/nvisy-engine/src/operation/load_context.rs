@@ -6,12 +6,12 @@
 //!
 //! [`ImportFile`]: crate::operation::ImportFile
 
-use nvisy_core::{Error, Result};
+use nvisy_core::Result;
 use nvisy_ontology::context::Contexts;
 
 use crate::graph::LoadContext as LoadContextCfg;
 use crate::operation::context::{ParallelContext, SharedContext};
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::Operation;
 
 const TARGET: &str = "nvisy_engine::op::load_context";
 
@@ -37,18 +37,6 @@ impl LoadContext {
         Ok(Self { loaded })
     }
 
-    pub(crate) async fn process(
-        &self,
-        mut envelope: DocumentEnvelope,
-    ) -> Result<DocumentEnvelope, Error> {
-        tracing::debug!(target: TARGET, loaded = self.loaded.len(), "merging contexts into envelope");
-        for (id, ctx) in self.loaded.iter() {
-            if !envelope.contexts.contains(id) {
-                envelope.contexts.insert(ctx.clone());
-            }
-        }
-        Ok(envelope)
-    }
 }
 
 impl Operation for LoadContext {

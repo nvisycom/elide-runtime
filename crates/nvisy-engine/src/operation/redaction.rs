@@ -5,14 +5,14 @@
 //!
 //! [`GenerateContext`]: crate::operation::GenerateContext
 
-use nvisy_core::{Error, Result};
+use nvisy_core::Result;
 use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 
 use crate::graph::{Redaction as RedactionCfg, RetryPolicy};
 use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::envelope::PolicyOutcome;
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::Operation;
 use crate::provenance::{RedactionDecision, RedactionRecord};
 
 const TARGET: &str = "nvisy_engine::op::redaction";
@@ -20,7 +20,9 @@ const TARGET: &str = "nvisy_engine::op::redaction";
 /// Redaction operation: evaluates policies and applies redaction decisions.
 pub struct Redaction {
     evaluator: PolicyEvaluator,
+    #[allow(dead_code)]
     shared: SharedContext,
+    #[allow(dead_code)]
     retry: Option<RetryPolicy>,
 }
 
@@ -51,40 +53,14 @@ impl Redaction {
         })
     }
 
-    /// Evaluate policies against entities and produce redaction decisions.
-    pub(crate) async fn evaluate(&self, entities: Entities) -> Result<PolicyOutcome> {
-        self.evaluator.evaluate(entities).await
-    }
+}
 
-    pub(crate) async fn process(
-        &self,
-        mut envelope: DocumentEnvelope,
-    ) -> Result<DocumentEnvelope, Error> {
-        if !envelope.entities.is_empty() {
-            let eval_ref = &self.evaluator;
-            let retry = self.retry.as_ref();
-            let do_eval = || {
-                let entities = envelope.entities.clone();
-                let shared = self.shared.clone();
-                async move {
-                    let input = ParallelContext::new(entities, shared);
-                    eval_ref.call(input).await
-                }
-            };
-            let output = match retry {
-                Some(policy) => policy.with_retry(do_eval).await?,
-                None => do_eval().await?,
-            };
-            envelope.apply(output.into_inner());
-        }
+impl Operation for Redaction {
+    type Input = ParallelContext<Entities>;
+    type Output = ParallelContext<PolicyOutcome>;
 
-        // Content-level redaction (byte-level text replacement, image blur,
-        // audio silence) requires handler downcast from the type-erased
-        // Document. Policy evaluation above populated the audit decisions
-        // and records. Content mutation will be wired when the codec
-        // exposes a modality-agnostic redaction API.
-
-        Ok(envelope)
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        self.evaluator.call(input).await
     }
 }
 

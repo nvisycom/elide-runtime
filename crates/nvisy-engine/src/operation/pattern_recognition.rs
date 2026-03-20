@@ -6,20 +6,20 @@
 //!
 //! [`EntityRecognition`]: crate::operation::EntityRecognition
 
-use futures::StreamExt;
-use nvisy_codec::handler::{TextData, TextHandler};
-use nvisy_codec::{Document, Span};
-use nvisy_core::{Error, Result};
+use nvisy_codec::handler::TextData;
+use nvisy_codec::Span;
+use nvisy_core::Result;
 use nvisy_ontology::entity::{Entity, RecognitionMethod, TextLocation};
 
 use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::envelope::DetectedEntities;
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::Operation;
 
 const TARGET: &str = "nvisy_engine::op::pattern_recognition";
 
 /// Pattern-based entity recognition using regex and dictionary matching.
 pub struct PatternRecognition {
+    #[allow(dead_code)]
     shared: SharedContext,
 }
 
@@ -27,14 +27,6 @@ impl PatternRecognition {
     /// Create a new pattern recognition operation.
     pub async fn new(shared: SharedContext) -> Result<Self> {
         Ok(Self { shared })
-    }
-
-    async fn collect_spans(doc: &Document) -> Vec<Span<usize, TextData>> {
-        match doc {
-            Document::Text(h) => h.text_spans().await.collect().await,
-            Document::Rich(h) => h.text_spans().await.collect().await,
-            _ => Vec::new(),
-        }
     }
 
     fn scan(spans: &[Span<usize, TextData>]) -> Vec<Entity> {
@@ -69,24 +61,6 @@ impl PatternRecognition {
         entities
     }
 
-    pub(crate) async fn process(
-        &self,
-        mut envelope: DocumentEnvelope,
-    ) -> Result<DocumentEnvelope, Error> {
-        let spans = Self::collect_spans(&envelope.document).await;
-        if spans.is_empty() {
-            return Ok(envelope);
-        }
-
-        tracing::debug!(target: TARGET, span_count = spans.len(), "scanning text spans");
-        let entities = Self::scan(&spans);
-        tracing::debug!(target: TARGET, detected = entities.len(), "pattern detection complete");
-
-        if !entities.is_empty() {
-            envelope.apply(DetectedEntities(entities.into()));
-        }
-        Ok(envelope)
-    }
 }
 
 impl Operation for PatternRecognition {
@@ -94,8 +68,13 @@ impl Operation for PatternRecognition {
     type Output = ParallelContext<DetectedEntities>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        tracing::debug!(target: TARGET, "running pattern detection");
         input
-            .parallel_map(|spans| async move { Ok(DetectedEntities(Self::scan(&spans).into())) })
+            .parallel_map(|spans| async move {
+                let entities = Self::scan(&spans);
+                tracing::debug!(target: TARGET, detected = entities.len(), "pattern scan complete");
+                Ok(DetectedEntities(entities.into()))
+            })
             .await
     }
 }

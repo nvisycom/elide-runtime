@@ -5,21 +5,19 @@
 //! to verify that no originally detected values remain visible.
 //!
 //! [`Redaction`]: crate::operation::Redaction
-use futures::StreamExt;
-use nvisy_codec::Document;
-use nvisy_codec::handler::TextHandler;
-use nvisy_core::{Error, Result};
+use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
 use uuid::Uuid;
 
 use crate::operation::context::ParallelContext;
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::Operation;
 use crate::provenance::RedactionDecision;
 
 const TARGET: &str = "nvisy_engine::op::validation";
 
 /// A sensitive value that was not properly redacted.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct LeakedValue {
     pub value: String,
     pub entity_id: Uuid,
@@ -44,6 +42,7 @@ pub struct ValidationInput {
 
 /// Post-redaction validator that checks for leaked sensitive values.
 pub struct Validation {
+    #[allow(dead_code)]
     fail_on_leak: bool,
 }
 
@@ -93,45 +92,6 @@ impl Validation {
         ValidationResult { passed, leaked }
     }
 
-    /// Process a single envelope through validation.
-    pub(crate) async fn process(
-        &self,
-        envelope: DocumentEnvelope,
-    ) -> Result<DocumentEnvelope, Error> {
-        let redacted_text = match &envelope.document {
-            Document::Text(h) => {
-                let spans: Vec<_> = h.text_spans().await.collect().await;
-                let text: String = spans.iter().map(|s| s.data.as_str()).collect();
-                Some(text)
-            }
-            _ => None,
-        };
-
-        let result = Self::check(
-            &envelope.entities,
-            &envelope.audit.decisions,
-            redacted_text.as_deref(),
-        );
-
-        if !result.leaked.is_empty() {
-            tracing::warn!(
-                target: TARGET,
-                leaked = result.leaked.len(),
-                passed = result.passed,
-                "validation found leaked values",
-            );
-            if self.fail_on_leak {
-                return Err(Error::validation(
-                    format!("{} redacted values leaked in output", result.leaked.len()),
-                    "validation",
-                ));
-            }
-        } else {
-            tracing::debug!(target: TARGET, passed = result.passed, "validation passed");
-        }
-
-        Ok(envelope)
-    }
 }
 
 impl Operation for Validation {
@@ -139,13 +99,25 @@ impl Operation for Validation {
     type Output = ParallelContext<ValidationResult>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        tracing::debug!(target: TARGET, "running post-redaction validation");
         input
             .parallel_map(|data| async move {
-                Ok(Self::check(
+                let result = Self::check(
                     &data.entities,
                     &data.decisions,
                     data.redacted_text.as_deref(),
-                ))
+                );
+                if result.leaked.is_empty() {
+                    tracing::debug!(target: TARGET, passed = result.passed, "validation passed");
+                } else {
+                    tracing::warn!(
+                        target: TARGET,
+                        leaked = result.leaked.len(),
+                        passed = result.passed,
+                        "validation found leaked values",
+                    );
+                }
+                Ok(result)
             })
             .await
     }

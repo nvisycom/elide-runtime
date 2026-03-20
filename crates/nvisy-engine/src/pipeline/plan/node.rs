@@ -16,6 +16,7 @@ pub struct ResolvedNode {
     /// IDs of nodes that feed data into this node.
     pub upstream_ids: Vec<Uuid>,
     /// IDs of nodes that receive data from this node.
+    #[allow(dead_code)]
     pub downstream_ids: Vec<Uuid>,
     /// Retry policy for this node, if configured.
     pub retry: Option<RetryPolicy>,

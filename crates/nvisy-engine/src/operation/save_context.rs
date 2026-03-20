@@ -5,14 +5,14 @@
 //!
 //! [`ExportFile`]: crate::operation::ExportFile
 
-use nvisy_core::{Error, Result};
+use nvisy_core::Result;
 use nvisy_ontology::context::Contexts;
 use nvisy_registry::Registry;
 use uuid::Uuid;
 
 use crate::graph::SaveContext as SaveContextCfg;
 use crate::operation::context::{ParallelContext, SharedContext};
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::Operation;
 
 const TARGET: &str = "nvisy_engine::op::save_context";
 
@@ -46,14 +46,6 @@ impl SaveContext {
         Ok(saved)
     }
 
-    pub(crate) async fn process(
-        &self,
-        envelope: DocumentEnvelope,
-    ) -> Result<DocumentEnvelope, Error> {
-        let saved = self.persist(&envelope.contexts).await?;
-        tracing::debug!(target: TARGET, saved, "saved contexts to registry");
-        Ok(envelope)
-    }
 }
 
 impl Operation for SaveContext {
@@ -61,9 +53,11 @@ impl Operation for SaveContext {
     type Output = ParallelContext<()>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        tracing::debug!(target: TARGET, "saving contexts to registry");
         input
             .parallel_map(|contexts| async move {
-                self.persist(&contexts).await?;
+                let saved = self.persist(&contexts).await?;
+                tracing::debug!(target: TARGET, saved, "persisted contexts");
                 Ok(())
             })
             .await

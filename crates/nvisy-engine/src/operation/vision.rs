@@ -4,9 +4,8 @@
 //! image documents by running OCR, optionally verifying detected entities
 //! against the source image, and optionally running computer vision.
 
-use futures::StreamExt;
-use nvisy_codec::handler::{ImageData, ImageHandler};
-use nvisy_codec::{Document, Span};
+use nvisy_codec::handler::ImageData;
+use nvisy_codec::Span;
 use nvisy_core::math::BoundingBox;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::HttpClient;
@@ -14,12 +13,12 @@ use nvisy_ocr::{ImageFormat, ImageInput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{
     Entities, Entity, ExtractionMethod, ImageLocation, RecognitionMethod,
 };
-use nvisy_rig::agent::{CvEntity, DetectionConfig, OcrAgent};
+use nvisy_rig::agent::{CvEntity, OcrAgent};
 
 use crate::graph::{RetryPolicy, VisualExtraction as VisualExtractionCfg};
 use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::envelope::DetectedEntities;
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::Operation;
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::visual_extraction";
@@ -28,7 +27,9 @@ const TARGET: &str = "nvisy_engine::op::visual_extraction";
 pub struct VisualExtraction {
     ocr: OcrOp,
     verifier: Option<VerifyOp>,
+    #[allow(dead_code)]
     shared: SharedContext,
+    #[allow(dead_code)]
     retry: Option<RetryPolicy>,
 }
 
@@ -50,6 +51,7 @@ impl VisualExtraction {
             .map_err(|e| Error::runtime(e.to_string(), "ocr-agent", false))
     }
 
+    #[allow(dead_code)]
     fn map_cv_entity(cv: &CvEntity, image_id: Option<uuid::Uuid>) -> Entity {
         let mut entity = Entity::new(
             cv.category,
@@ -126,73 +128,18 @@ impl VisualExtraction {
         })
     }
 
-    pub(crate) async fn process(
-        &self,
-        mut envelope: DocumentEnvelope,
-    ) -> Result<DocumentEnvelope, Error> {
-        let Document::Image(ref handler) = envelope.document else {
-            return Ok(envelope);
-        };
+    /// Access the inner OCR operation for direct dispatch.
+    pub(crate) fn ocr(&self) -> &OcrOp {
+        &self.ocr
+    }
 
-        let image_spans: Vec<_> = handler.image_spans().await.collect().await;
-        let ocr_spans: Vec<Span<(), _>> = image_spans
-            .into_iter()
-            .map(|s| Span::new((), s.data).with_source(s.source))
-            .collect();
-
-        let retry = self.retry.as_ref();
-        let ocr_ref = &self.ocr;
-        let _ocr_output = RetryPolicy::call(retry, || {
-            let spans = ocr_spans.clone();
-            let shared = self.shared.clone();
-            async move {
-                let input = ParallelContext::new(spans, shared);
-                ocr_ref.call(input).await
-            }
-        })
-        .await?;
-
-        if let Some(ref verifier) = self.verifier
-            && !envelope.entities.is_empty()
-        {
-            let verify_spans: Vec<_> = match &envelope.document {
-                Document::Image(h) => h
-                    .image_spans()
-                    .await
-                    .collect::<Vec<_>>()
-                    .await
-                    .into_iter()
-                    .map(|s| Span::new((), s.data).with_source(s.source))
-                    .collect(),
-                _ => Vec::new(),
-            };
-
-            let do_verify = || {
-                let input = VerifyInput {
-                    image_spans: verify_spans.clone(),
-                    entities: envelope.entities.clone(),
-                };
-                let shared = self.shared.clone();
-                async move {
-                    let ctx = ParallelContext::new(input, shared);
-                    verifier.call(ctx).await
-                }
-            };
-            match RetryPolicy::call(retry, do_verify).await {
-                Ok(output) => envelope.apply(output.into_inner()),
-                Err(e) => tracing::warn!(
-                    target: TARGET,
-                    error = %e,
-                    "OCR verification failed, keeping unverified entities"
-                ),
-            }
-        }
-
-        Ok(envelope)
+    /// Access the optional verification operation for direct dispatch.
+    pub(crate) fn verifier(&self) -> Option<&VerifyOp> {
+        self.verifier.as_ref()
     }
 }
 
-struct OcrOp {
+pub(crate) struct OcrOp {
     engine: OcrEngine,
     params: RunParams,
 }
@@ -233,9 +180,9 @@ impl Operation for OcrOp {
     }
 }
 
-struct VerifyInput {
-    image_spans: Vec<Span<(), ImageData>>,
-    entities: Entities,
+pub(crate) struct VerifyInput {
+    pub(crate) image_spans: Vec<Span<(), ImageData>>,
+    pub(crate) entities: Entities,
 }
 
 impl Clone for VerifyInput {
@@ -247,7 +194,7 @@ impl Clone for VerifyInput {
     }
 }
 
-struct VerifyOp {
+pub(crate) struct VerifyOp {
     agent: OcrAgent,
 }
 

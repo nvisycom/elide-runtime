@@ -4,9 +4,8 @@
 //! Runs at **phase 2**, after extraction. Drives language-model inference
 //! to identify and classify named entities within extracted text.
 
-use futures::StreamExt;
-use nvisy_codec::handler::{TextData, TextHandler};
-use nvisy_codec::{Document, Span};
+use nvisy_codec::handler::TextData;
+use nvisy_codec::Span;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::HttpClient;
 use nvisy_ontology::entity::{Entity, EntityCategory, RecognitionMethod, TextLocation};
@@ -18,7 +17,7 @@ use tokio::sync::Mutex;
 use crate::graph::{NamedEntityRecognition as NamedEntityRecognitionCfg, RetryPolicy};
 use crate::operation::context::{SequentialContext, SharedContext};
 use crate::operation::envelope::DetectedEntities;
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::Operation;
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::entity_recognition";
@@ -29,7 +28,9 @@ pub struct EntityRecognition {
     agent: NerAgent,
     config: DetectionConfig,
     state: Mutex<Vec<KnownNerEntity>>,
+    #[allow(dead_code)]
     shared: SharedContext,
+    #[allow(dead_code)]
     retry: Option<RetryPolicy>,
 }
 
@@ -46,14 +47,6 @@ impl EntityRecognition {
         }
         .map_err(|e| Error::validation(e.to_string(), "ner-agent"))?;
         Ok(agent)
-    }
-
-    async fn collect_spans(doc: &Document) -> Vec<Span<usize, TextData>> {
-        match doc {
-            Document::Text(h) => h.text_spans().await.collect().await,
-            Document::Rich(h) => h.text_spans().await.collect().await,
-            _ => Vec::new(),
-        }
     }
 
     /// Build from graph config and runtime dependencies.
@@ -155,31 +148,6 @@ impl EntityRecognition {
         self.state.lock().await.clear();
     }
 
-    pub(crate) async fn process(
-        &self,
-        mut envelope: DocumentEnvelope,
-    ) -> Result<DocumentEnvelope, Error> {
-        let spans = Self::collect_spans(&envelope.document).await;
-        if !spans.is_empty() {
-            let ner_ref = self;
-            let retry = self.retry.as_ref();
-            let do_ner = || {
-                let spans = spans.clone();
-                let shared = self.shared.clone();
-                async move {
-                    let input = SequentialContext::new(spans, shared);
-                    ner_ref.detect(input.data).await
-                }
-            };
-            let output = match retry {
-                Some(policy) => policy.with_retry(do_ner).await?,
-                None => do_ner().await?,
-            };
-            envelope.apply(output);
-        }
-        self.reset().await;
-        Ok(envelope)
-    }
 }
 
 impl Operation for EntityRecognition {

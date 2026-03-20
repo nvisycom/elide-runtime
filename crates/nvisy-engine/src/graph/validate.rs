@@ -6,7 +6,7 @@ use nvisy_core::Error;
 use uuid::Uuid;
 use validator::Validate;
 
-use super::{Graph, GraphEdge, GraphNode, GraphNodeKind};
+use super::{Graph, GraphNode, GraphNodeKind};
 
 /// Maps node ID → edge count (in-degree or out-degree).
 type DegreeMap = HashMap<Uuid, usize>;

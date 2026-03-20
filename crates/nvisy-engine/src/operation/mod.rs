@@ -5,11 +5,14 @@
 //!
 //! [`GraphNodeKind`]: crate::graph::GraphNodeKind
 
+#[allow(dead_code)]
 pub(crate) mod compression;
 pub mod context;
+#[allow(dead_code)]
 pub(crate) mod encryption;
 mod entity_recognition;
 pub mod envelope;
+#[allow(dead_code)]
 mod export_file;
 mod fusion;
 mod generate_context;
@@ -37,7 +40,9 @@ pub(crate) use self::redaction::Redaction;
 pub(crate) use self::save_context::SaveContext;
 pub(crate) use self::speech::AudialExtraction;
 pub(crate) use self::validation::Validation;
-pub(crate) use self::vision::VisualExtraction;
+pub(crate) use self::speech::AudioInput;
+pub(crate) use self::validation::ValidationInput;
+pub(crate) use self::vision::{VerifyInput, VisualExtraction};
 
 /// A single unit of work in the redaction pipeline.
 ///

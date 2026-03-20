@@ -7,4 +7,6 @@ mod provider;
 mod service;
 mod wire;
 
-// Re-exports will be added when encryption is wired into import/export.
+pub(crate) use self::provider::{KeyProvider, StaticKeyProvider};
+pub(crate) use self::service::CryptoService;
+pub(crate) use self::wire::EncryptedContent;

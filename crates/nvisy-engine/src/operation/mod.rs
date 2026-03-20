@@ -5,7 +5,6 @@
 //!
 //! [`GraphNodeKind`]: crate::graph::GraphNodeKind
 
-#[allow(dead_code)]
 pub(crate) mod compression;
 pub mod context;
 #[allow(dead_code)]

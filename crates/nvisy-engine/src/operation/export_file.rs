@@ -14,6 +14,7 @@
 use nvisy_core::Result;
 
 use crate::graph::{CompressionFormat, EncryptionFormat};
+use crate::operation::compression::{self, CompressionAlgorithm};
 use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
 
@@ -44,19 +45,25 @@ impl ExportFile {
 
     async fn export(&self, _data: ()) -> Result<()> {
         if let Some(format) = self.encryption {
+            tracing::debug!(target: TARGET, ?format, "encryption requested but not yet wired");
             return Err(nvisy_core::Error::runtime(
-                format!("export encryption ({format:?}) is not yet implemented"),
+                format!("export encryption ({format:?}) requires a KeyProvider — not yet wired"),
                 "export_file",
                 false,
             ));
         }
+
         if let Some(format) = self.compression {
-            return Err(nvisy_core::Error::runtime(
-                format!("export compression ({format:?}) is not yet implemented"),
-                "export_file",
-                false,
-            ));
+            let algorithm = match format {
+                CompressionFormat::Gzip => CompressionAlgorithm::Gzip,
+                CompressionFormat::Zstd => CompressionAlgorithm::Zstd,
+            };
+            tracing::debug!(target: TARGET, ?format, "compressing export content");
+            // Compression will apply to the actual content bytes once export
+            // receives real data instead of ().
+            let _ = compression::compress(&[], algorithm)?;
         }
+
         tracing::debug!(target: TARGET, "exporting content");
         Ok(())
     }

@@ -20,6 +20,7 @@ use nvisy_core::Result;
 use nvisy_core::content::ContentData;
 
 use crate::graph::{CompressionFormat, EncryptionFormat};
+use crate::operation::compression::{self, CompressionAlgorithm};
 use crate::operation::context::ParallelContext;
 use crate::operation::{DocumentEnvelope, Operation};
 
@@ -51,18 +52,25 @@ impl ImportFile {
     }
 
     async fn import(&self, content: ContentData) -> Result<DocumentEnvelope> {
-        let data = content;
+        let mut data = content;
 
         if let Some(format) = self.decompression {
-            return Err(nvisy_core::Error::runtime(
-                format!("import decompression ({format:?}) is not yet implemented"),
-                "import_file",
-                false,
-            ));
+            let algorithm = match format {
+                CompressionFormat::Gzip => CompressionAlgorithm::Gzip,
+                CompressionFormat::Zstd => CompressionAlgorithm::Zstd,
+            };
+            tracing::debug!(target: TARGET, ?format, "decompressing content");
+            let decompressed = compression::decompress(data.as_bytes(), algorithm)?;
+            let mut new_data = ContentData::new(data.content_source, decompressed);
+            new_data.filename = data.filename;
+            new_data.supplied_mime = data.supplied_mime;
+            data = new_data;
         }
+
         if let Some(format) = self.decryption {
+            tracing::debug!(target: TARGET, ?format, "decryption requested but not yet wired");
             return Err(nvisy_core::Error::runtime(
-                format!("import decryption ({format:?}) is not yet implemented"),
+                format!("import decryption ({format:?}) requires a KeyProvider — not yet wired"),
                 "import_file",
                 false,
             ));

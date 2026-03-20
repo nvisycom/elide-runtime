@@ -8,64 +8,83 @@
 
 //! The export pipeline applies optional post-processing steps in order:
 //!
-//! 1. **Encryption** — encrypt content (if format specified)
+//! 1. **Encryption** — encrypt content (if config specified)
 //! 2. **Compression** — compress for storage or transfer (if format specified)
+
+use std::sync::Arc;
 
 use nvisy_core::Result;
 
-use crate::graph::{CompressionFormat, EncryptionFormat};
-use crate::operation::compression::{self, CompressionAlgorithm};
+use crate::graph::{CompressionAlgorithm, EncryptionConfig};
 use crate::operation::Operation;
+use crate::operation::compression::CompressionService;
 use crate::operation::context::ParallelContext;
+use crate::operation::encryption::KeyProvider;
 
 const TARGET: &str = "nvisy_engine::op::export_file";
 
 /// Exports processed content, optionally applying encryption and
 /// compression afterward.
-#[derive(Default)]
 pub struct ExportFile {
-    encryption: Option<EncryptionFormat>,
-    compression: Option<CompressionFormat>,
+    encryption: Option<EncryptionConfig>,
+    compression: Option<CompressionAlgorithm>,
+    key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
 impl ExportFile {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            encryption: None,
+            compression: None,
+            key_provider: None,
+        }
     }
 
-    pub fn with_encryption(mut self, format: Option<EncryptionFormat>) -> Self {
-        self.encryption = format;
+    pub fn with_encryption(mut self, config: Option<EncryptionConfig>) -> Self {
+        self.encryption = config;
         self
     }
 
-    pub fn with_compression(mut self, format: Option<CompressionFormat>) -> Self {
+    pub fn with_compression(mut self, format: Option<CompressionAlgorithm>) -> Self {
         self.compression = format;
         self
     }
 
+    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
+        self.key_provider = Some(provider);
+        self
+    }
+
     async fn export(&self, _data: ()) -> Result<()> {
-        if let Some(format) = self.encryption {
-            tracing::debug!(target: TARGET, ?format, "encryption requested but not yet wired");
-            return Err(nvisy_core::Error::runtime(
-                format!("export encryption ({format:?}) requires a KeyProvider — not yet wired"),
-                "export_file",
-                false,
-            ));
+        if let Some(ref enc_cfg) = self.encryption {
+            let key_provider = self.key_provider.as_ref().ok_or_else(|| {
+                nvisy_core::Error::runtime(
+                    "encryption requires a KeyProvider",
+                    "export_file",
+                    false,
+                )
+            })?;
+            // Validate the key exists before we need it
+            key_provider.resolve(&enc_cfg.key_id)?;
+            // TODO: encrypt actual content once export receives real data
+            tracing::debug!(target: TARGET, key_id = %enc_cfg.key_id, "encryption configured, will apply when content export is wired");
         }
 
-        if let Some(format) = self.compression {
-            let algorithm = match format {
-                CompressionFormat::Gzip => CompressionAlgorithm::Gzip,
-                CompressionFormat::Zstd => CompressionAlgorithm::Zstd,
-            };
-            tracing::debug!(target: TARGET, ?format, "compressing export content");
+        if let Some(algorithm) = self.compression {
+            tracing::debug!(target: TARGET, ?algorithm, "compressing export content");
             // Compression will apply to the actual content bytes once export
             // receives real data instead of ().
-            let _ = compression::compress(&[], algorithm)?;
+            let _ = CompressionService::new(algorithm).compress(&[])?;
         }
 
         tracing::debug!(target: TARGET, "exporting content");
         Ok(())
+    }
+}
+
+impl Default for ExportFile {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -10,18 +10,21 @@
 //! The import pipeline applies optional pre-processing steps in order:
 //!
 //! 1. **Decompression** — decompress raw bytes (if format specified)
-//! 2. **Decryption** — decrypt content (if format specified)
+//! 2. **Decryption** — decrypt content (if encryption config specified)
 //! 3. **Decode** — detect format and decode into a typed [`Document`]
 //!
 //! [`Document`]: nvisy_codec::Document
+
+use std::sync::Arc;
 
 use nvisy_codec::Document;
 use nvisy_core::Result;
 use nvisy_core::content::ContentData;
 
-use crate::graph::{CompressionFormat, EncryptionFormat};
-use crate::operation::compression::{self, CompressionAlgorithm};
+use crate::graph::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
+use crate::operation::compression::CompressionService;
 use crate::operation::context::ParallelContext;
+use crate::operation::encryption::{CryptoService, EncryptedContent, KeyProvider};
 use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
@@ -29,8 +32,9 @@ const TARGET: &str = "nvisy_engine::op::import_file";
 /// Decodes raw content into a [`DocumentEnvelope`], optionally applying
 /// decompression and decryption beforehand.
 pub struct ImportFile {
-    decompression: Option<CompressionFormat>,
-    decryption: Option<EncryptionFormat>,
+    decompression: Option<CompressionAlgorithm>,
+    decryption: Option<EncryptionConfig>,
+    key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
 impl ImportFile {
@@ -38,42 +42,55 @@ impl ImportFile {
         Self {
             decompression: None,
             decryption: None,
+            key_provider: None,
         }
     }
 
-    pub fn with_decompression(mut self, format: Option<CompressionFormat>) -> Self {
+    pub fn with_decompression(mut self, format: Option<CompressionAlgorithm>) -> Self {
         self.decompression = format;
         self
     }
 
-    pub fn with_decryption(mut self, format: Option<EncryptionFormat>) -> Self {
-        self.decryption = format;
+    pub fn with_decryption(mut self, config: Option<EncryptionConfig>) -> Self {
+        self.decryption = config;
+        self
+    }
+
+    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
+        self.key_provider = Some(provider);
         self
     }
 
     async fn import(&self, content: ContentData) -> Result<DocumentEnvelope> {
         let mut data = content;
 
-        if let Some(format) = self.decompression {
-            let algorithm = match format {
-                CompressionFormat::Gzip => CompressionAlgorithm::Gzip,
-                CompressionFormat::Zstd => CompressionAlgorithm::Zstd,
-            };
-            tracing::debug!(target: TARGET, ?format, "decompressing content");
-            let decompressed = compression::decompress(data.as_bytes(), algorithm)?;
+        if let Some(algorithm) = self.decompression {
+            tracing::debug!(target: TARGET, ?algorithm, "decompressing content");
+            let decompressed = CompressionService::new(algorithm).decompress(data.as_bytes())?;
             let mut new_data = ContentData::new(data.content_source, decompressed);
             new_data.filename = data.filename;
             new_data.supplied_mime = data.supplied_mime;
             data = new_data;
         }
 
-        if let Some(format) = self.decryption {
-            tracing::debug!(target: TARGET, ?format, "decryption requested but not yet wired");
-            return Err(nvisy_core::Error::runtime(
-                format!("import decryption ({format:?}) requires a KeyProvider — not yet wired"),
-                "import_file",
-                false,
-            ));
+        if let Some(ref enc_cfg) = self.decryption {
+            let key_provider = self.key_provider.as_ref().ok_or_else(|| {
+                nvisy_core::Error::runtime(
+                    "decryption requires a KeyProvider",
+                    "import_file",
+                    false,
+                )
+            })?;
+            tracing::debug!(target: TARGET, key_id = %enc_cfg.key_id, "decrypting content");
+            let crypto = CryptoService::new(&enc_cfg.key_id, Arc::clone(key_provider));
+            let encrypted = EncryptedContent {
+                source: data.content_source.clone(),
+                ciphertext: bytes::Bytes::copy_from_slice(data.as_bytes()),
+                key_id: enc_cfg.key_id.clone(),
+                algorithm: EncryptionAlgorithm::Aes256Gcm,
+                filename: data.filename.clone(),
+            };
+            data = crypto.decrypt(encrypted).await?;
         }
 
         let doc = Document::decode(&data).await?;

@@ -7,7 +7,6 @@
 
 pub(crate) mod compression;
 pub mod context;
-#[allow(dead_code)]
 pub(crate) mod encryption;
 mod entity_recognition;
 pub mod envelope;

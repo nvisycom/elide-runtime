@@ -9,45 +9,64 @@
 use bytes::Bytes;
 use nvisy_core::{Error, Result};
 
+use crate::graph::CompressionAlgorithm;
+
 const TARGET: &str = "nvisy_engine::compression";
 
-/// Supported compression algorithms.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CompressionAlgorithm {
-    /// Gzip compression.
-    Gzip,
-    /// Zstandard compression.
-    Zstd,
+/// Compression and decompression service.
+///
+/// Wraps a specific algorithm selected at construction time.
+pub struct CompressionService {
+    algorithm: CompressionAlgorithm,
 }
 
-/// Compress raw bytes using the specified algorithm.
-pub fn compress(data: &[u8], algorithm: CompressionAlgorithm) -> Result<Bytes> {
-    tracing::debug!(
-        target: TARGET,
-        algorithm = ?algorithm,
-        input_len = data.len(),
-        "compressing content",
-    );
-    let _ = (data, algorithm);
-    Err(Error::runtime(
-        format!("compression ({algorithm:?}) not yet implemented"),
-        "compress",
-        false,
-    ))
-}
+impl CompressionService {
+    /// Create a new service for the given algorithm.
+    pub fn new(algorithm: CompressionAlgorithm) -> Self {
+        Self { algorithm }
+    }
 
-/// Decompress raw bytes using the specified algorithm.
-pub fn decompress(data: &[u8], algorithm: CompressionAlgorithm) -> Result<Bytes> {
-    tracing::debug!(
-        target: TARGET,
-        algorithm = ?algorithm,
-        input_len = data.len(),
-        "decompressing content",
-    );
-    let _ = (data, algorithm);
-    Err(Error::runtime(
-        format!("decompression ({algorithm:?}) not yet implemented"),
-        "decompress",
-        false,
-    ))
+    /// Compress raw bytes.
+    pub fn compress(&self, data: &[u8]) -> Result<Bytes> {
+        tracing::debug!(
+            target: TARGET,
+            algorithm = ?self.algorithm,
+            input_len = data.len(),
+            "compressing content",
+        );
+        match self.algorithm {
+            CompressionAlgorithm::Gzip => Err(Error::runtime(
+                "gzip compression not yet implemented",
+                "compression",
+                false,
+            )),
+            CompressionAlgorithm::Zstd => Err(Error::runtime(
+                "zstd compression not yet implemented",
+                "compression",
+                false,
+            )),
+        }
+    }
+
+    /// Decompress raw bytes.
+    pub fn decompress(&self, data: &[u8]) -> Result<Bytes> {
+        tracing::debug!(
+            target: TARGET,
+            algorithm = ?self.algorithm,
+            input_len = data.len(),
+            "decompressing content",
+        );
+        match self.algorithm {
+            CompressionAlgorithm::Gzip => Err(Error::runtime(
+                "gzip decompression not yet implemented",
+                "compression",
+                false,
+            )),
+            CompressionAlgorithm::Zstd => Err(Error::runtime(
+                "zstd decompression not yet implemented",
+                "compression",
+                false,
+            )),
+        }
+    }
 }

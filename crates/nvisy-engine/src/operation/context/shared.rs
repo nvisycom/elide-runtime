@@ -12,6 +12,8 @@ use nvisy_ontology::policy::{Policies, Policy};
 use nvisy_registry::Registry;
 use uuid::Uuid;
 
+use crate::operation::encryption::KeyProvider;
+
 /// Immutable run-wide state behind an [`Arc`].
 ///
 /// Constructed once at the start of a pipeline run and shared across
@@ -26,6 +28,8 @@ pub struct SharedData {
     pub policies: Policies,
     /// Content and context storage.
     pub registry: Registry,
+    /// Optional key provider for encryption/decryption.
+    pub key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
 /// Cheaply-clonable handle to run-wide [`SharedData`].
@@ -51,8 +55,15 @@ impl SharedContext {
                 actor_id,
                 policies: Policies::default(),
                 registry,
+                key_provider: None,
             }),
         }
+    }
+
+    /// Attach a key provider for encryption/decryption operations.
+    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
+        Arc::make_mut(&mut self.data).key_provider = Some(provider);
+        self
     }
 
     /// Attach policies to this shared context.

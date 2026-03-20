@@ -6,12 +6,11 @@ use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use bytes::Bytes;
 use nvisy_core::content::ContentData;
-use nvisy_core::{Error, ErrorKind, Result};
-use rand::RngExt;
+use nvisy_core::{Error, Result};
 
 use super::provider::KeyProvider;
-use super::wire::{EncryptedContent, EncryptionAlgorithm, NONCE_SIZE, WireEnvelope};
-use crate::operation::DocumentEnvelope;
+use super::wire::{EncryptedContent, WireEnvelope};
+use crate::graph::EncryptionAlgorithm;
 
 const TARGET: &str = "nvisy_engine::crypto";
 
@@ -31,7 +30,15 @@ impl CryptoService {
     }
 
     /// Encrypt a [`DocumentEnvelope`] into an [`EncryptedContent`] blob.
-    pub async fn encrypt(&self, envelope: &DocumentEnvelope) -> Result<EncryptedContent> {
+    pub async fn encrypt(
+        &self,
+        envelope: &crate::operation::DocumentEnvelope,
+    ) -> Result<EncryptedContent> {
+        use nvisy_core::ErrorKind;
+        use rand::RngExt;
+
+        use super::wire::NONCE_SIZE;
+
         let content_data = envelope.document.encode()?;
         let source = content_data.content_source;
         let filename = content_data.filename.clone();
@@ -92,6 +99,23 @@ impl CryptoService {
             ));
         }
 
+        if envelope.key_id != self.key_id {
+            return Err(Error::validation(
+                format!(
+                    "key_id mismatch: wire envelope contains '{}' but service expects '{}'",
+                    envelope.key_id, self.key_id,
+                ),
+                "CryptoService::decrypt",
+            ));
+        }
+
+        tracing::debug!(
+            target: TARGET,
+            key_id = %encrypted.key_id,
+            algorithm = ?encrypted.algorithm,
+            "decrypting content",
+        );
+
         let raw_key = self.key_provider.resolve(envelope.key_id)?;
         let cipher = Aes256Gcm::new_from_slice(&raw_key).map_err(|e| {
             Error::validation(
@@ -133,6 +157,7 @@ mod tests {
     use nvisy_core::content::{ContentData, ContentSource};
 
     use super::*;
+    use crate::operation::DocumentEnvelope;
     use crate::operation::encryption::StaticKeyProvider;
 
     fn test_key_provider() -> Arc<StaticKeyProvider> {

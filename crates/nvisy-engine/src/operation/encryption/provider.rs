@@ -1,7 +1,5 @@
 //! Key provider abstraction for encryption key resolution.
 
-use std::collections::HashMap;
-
 use nvisy_core::Result;
 
 /// Abstraction for resolving encryption keys by identifier.
@@ -13,7 +11,7 @@ pub trait KeyProvider: Send + Sync {
 /// In-memory key store for tests and simple deployments.
 #[derive(Debug, Clone)]
 pub struct StaticKeyProvider {
-    keys: HashMap<String, Vec<u8>>,
+    keys: std::collections::HashMap<String, Vec<u8>>,
 }
 
 impl StaticKeyProvider {

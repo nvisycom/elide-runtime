@@ -11,7 +11,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{CompressionFormat, EncryptionFormat};
+use super::{CompressionAlgorithm, EncryptionConfig};
 
 /// Configuration for the [`ExportFile`] graph node.
 ///
@@ -27,8 +27,8 @@ pub struct ExportFile {
     pub content_ids: Vec<Uuid>,
     /// Encrypt the content before publishing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub encryption: Option<EncryptionFormat>,
+    pub encryption: Option<EncryptionConfig>,
     /// Compress the content before publishing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub compression: Option<CompressionFormat>,
+    pub compression: Option<CompressionAlgorithm>,
 }

@@ -22,7 +22,9 @@ use validator::Validate;
 pub use self::context::{GenerateContext, LoadContext, SaveContext};
 pub use self::detection::{NamedEntityRecognition, PatternRecognition};
 pub use self::extraction::{AudialExtraction, VisualExtraction};
-pub use self::ingest::{CompressionFormat, EncryptionFormat, ExportFile, ImportFile};
+pub use self::ingest::{
+    CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig, ExportFile, ImportFile,
+};
 pub use self::policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 pub use self::refinement::{Fusion, FusionStrategy, Redaction, Validation};
 

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use super::{CompressionFormat, EncryptionFormat};
+use super::{CompressionAlgorithm, EncryptionConfig};
 
 /// Configuration for the [`ImportFile`] graph node.
 ///
@@ -29,8 +29,8 @@ pub struct ImportFile {
     pub content_ids: Vec<Uuid>,
     /// Decompress the content before decoding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub decompression: Option<CompressionFormat>,
+    pub decompression: Option<CompressionAlgorithm>,
     /// Decrypt the content before decoding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub decryption: Option<EncryptionFormat>,
+    pub decryption: Option<EncryptionConfig>,
 }

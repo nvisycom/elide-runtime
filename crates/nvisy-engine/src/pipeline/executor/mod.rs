@@ -369,9 +369,12 @@ impl NodeExecutor {
         retry: Option<&RetryPolicy>,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let import = ImportFile::new()
+        let mut import = ImportFile::new()
             .with_decompression(cfg.decompression)
-            .with_decryption(cfg.decryption);
+            .with_decryption(cfg.decryption.clone());
+        if let Some(ref kp) = self.shared.key_provider {
+            import = import.with_key_provider(Arc::clone(kp));
+        }
 
         let mut count = 0u64;
         for &content_id in &cfg.content_ids {
@@ -411,9 +414,12 @@ impl NodeExecutor {
         cfg: &graph::ExportFile,
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let export = ExportFile::new()
-            .with_encryption(cfg.encryption)
+        let mut export = ExportFile::new()
+            .with_encryption(cfg.encryption.clone())
             .with_compression(cfg.compression);
+        if let Some(ref kp) = self.shared.key_provider {
+            export = export.with_key_provider(Arc::clone(kp));
+        }
 
         let mut count = 0u64;
         let mut envelopes = Vec::new();

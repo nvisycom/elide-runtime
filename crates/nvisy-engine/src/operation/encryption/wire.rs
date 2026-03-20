@@ -6,6 +6,8 @@ use bytes::Bytes;
 use nvisy_core::content::ContentSource;
 use nvisy_core::{Error, Result};
 
+use crate::graph::EncryptionAlgorithm;
+
 /// Wire-format magic bytes identifying an Nvisy encrypted blob.
 const MAGIC: &[u8; 4] = b"NVSE";
 /// Wire-format version.
@@ -14,31 +16,6 @@ const WIRE_VERSION: u8 = 0x01;
 pub(crate) const NONCE_SIZE: usize = 12;
 /// Minimum wire envelope size: magic(4) + version(1) + algo(1) + key_id_len(2) + nonce(12).
 const MIN_HEADER_SIZE: usize = 4 + 1 + 1 + 2 + NONCE_SIZE;
-
-/// Supported encryption algorithms.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EncryptionAlgorithm {
-    /// AES-256 in Galois/Counter Mode.
-    Aes256Gcm,
-}
-
-impl EncryptionAlgorithm {
-    pub(crate) fn wire_tag(self) -> u8 {
-        match self {
-            Self::Aes256Gcm => 0x01,
-        }
-    }
-
-    pub(crate) fn from_wire_tag(tag: u8) -> Result<Self> {
-        match tag {
-            0x01 => Ok(Self::Aes256Gcm),
-            _ => Err(Error::validation(
-                format!("unknown encryption algorithm tag: 0x{tag:02x}"),
-                "EncryptionAlgorithm::from_wire_tag",
-            )),
-        }
-    }
-}
 
 /// Encrypted content blob with metadata.
 #[derive(Debug, Clone)]

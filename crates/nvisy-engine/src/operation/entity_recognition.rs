@@ -1,18 +1,11 @@
-//! Entity recognition: NER, pattern matching, and manual detection.
-//!
-//! Combines all entity detection methods into operations that implement
-//! [``]. The NER agent, pattern engine, and manual annotation
-//! converter are internal implementation details.
+//! Named entity recognition via language model inference.
 
 use futures::StreamExt;
-use nvisy_codec::handler::{TextData, TextHandler, TxtSpan};
+use nvisy_codec::handler::{TextData, TextHandler};
 use nvisy_codec::{Document, Span};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::HttpClient;
-use nvisy_ontology::entity::{
-    Annotation, AnnotationKind, Entities, Entity, EntityCategory, Location, RecognitionMethod,
-    TextLocation,
-};
+use nvisy_ontology::entity::{Entity, EntityCategory, RecognitionMethod, TextLocation};
 use nvisy_rig::agent::{
     AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
 };
@@ -20,12 +13,10 @@ use tokio::sync::Mutex;
 
 use crate::graph::RetryPolicy;
 use crate::operation::envelope::DetectedEntities;
-use crate::operation::{DocumentEnvelope, SequentialContext, SharedContext};
+use crate::operation::{DocumentEnvelope, Operation, SequentialContext, SharedContext};
 use crate::pipeline::RuntimeConfig;
 
-const TARGET: &str = "nvisy_engine::op::recognition";
-
-// ── Named Entity Recognition ──────────────────────────────────────
+const TARGET: &str = "nvisy_engine::op::entity_recognition";
 
 /// NER-based entity recognition. Wraps an [`NerAgent`] and carries
 /// coreference state between spans via [`SequentialContext`].
@@ -52,15 +43,12 @@ impl EntityRecognition {
         Ok(agent)
     }
 
-    async fn collect_spans(doc: &Document) -> Vec<Span<TxtSpan, String>> {
-        let raw: Vec<Span<usize, TextData>> = match doc {
+    async fn collect_spans(doc: &Document) -> Vec<Span<usize, TextData>> {
+        match doc {
             Document::Text(h) => h.text_spans().await.collect().await,
             Document::Rich(h) => h.text_spans().await.collect().await,
-            _ => return Vec::new(),
-        };
-        raw.into_iter()
-            .map(|s| Span::new(TxtSpan(s.id), s.data.into_inner()).with_source(s.source))
-            .collect()
+            _ => Vec::new(),
+        }
     }
 
     /// Build from graph config and runtime dependencies.
@@ -95,14 +83,14 @@ impl EntityRecognition {
 
     pub(crate) async fn detect(
         &self,
-        spans: Vec<Span<TxtSpan, String>>,
+        spans: Vec<Span<usize, TextData>>,
     ) -> Result<DetectedEntities> {
         tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
         let mut entities = Vec::new();
 
         for span in &spans {
             let known = self.state.lock().await.clone();
-            let ctx = NerContext::with_known(&span.data, known);
+            let ctx = NerContext::with_known(span.data.as_str(), known);
 
             let ner_entities = self
                 .agent
@@ -135,12 +123,12 @@ impl EntityRecognition {
                     TextLocation {
                         start_offset: offsets.start,
                         end_offset: offsets.end,
-                        element_id: Some(span.id.0.to_string()),
+                        element_id: Some(span.id.to_string()),
                         ..Default::default()
                     }
                 } else {
                     TextLocation {
-                        element_id: Some(span.id.0.to_string()),
+                        element_id: Some(span.id.to_string()),
                         ..Default::default()
                     }
                 };
@@ -149,7 +137,8 @@ impl EntityRecognition {
             }
 
             let mut state = self.state.lock().await;
-            let mut merge_ctx = NerContext::with_known(&span.data, std::mem::take(&mut *state));
+            let mut merge_ctx =
+                NerContext::with_known(span.data.as_str(), std::mem::take(&mut *state));
             merge_ctx.merge(ner_entities);
             *state = merge_ctx.known_entities;
         }
@@ -188,109 +177,11 @@ impl EntityRecognition {
     }
 }
 
-// ── Pattern Recognition ───────────────────────────────────────────
+impl Operation for EntityRecognition {
+    type Input = SequentialContext<Vec<Span<usize, TextData>>>;
+    type Output = SequentialContext<DetectedEntities>;
 
-/// Pattern-based entity recognition using regex and dictionary matching.
-pub struct PatternRecognition {
-    shared: SharedContext,
-}
-
-impl PatternRecognition {
-    async fn collect_spans(doc: &Document) -> Vec<Span<usize, TextData>> {
-        match doc {
-            Document::Text(h) => h.text_spans().await.collect().await,
-            Document::Rich(h) => h.text_spans().await.collect().await,
-            _ => Vec::new(),
-        }
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input.sequential_map(|spans| self.detect(spans)).await
     }
-
-    pub async fn connect(shared: SharedContext) -> Result<Self> {
-        Ok(Self { shared })
-    }
-
-    pub(crate) async fn process(
-        &self,
-        mut envelope: DocumentEnvelope,
-    ) -> Result<DocumentEnvelope, Error> {
-        let spans = Self::collect_spans(&envelope.document).await;
-        if spans.is_empty() {
-            return Ok(envelope);
-        }
-
-        let engine = nvisy_pattern::PatternEngine::instance();
-        let scan_ctx = nvisy_pattern::ScanContext::default();
-        let mut entities = Vec::new();
-
-        for span in &spans {
-            let matches = engine.scan_text(span.data.as_str(), &scan_ctx);
-            for m in matches {
-                let entity = Entity::new(
-                    m.category,
-                    m.entity_kind,
-                    &m.value,
-                    RecognitionMethod::Regex,
-                    m.confidence,
-                )
-                .with_location(
-                    TextLocation {
-                        start_offset: m.start,
-                        end_offset: m.end,
-                        element_id: Some(span.id.to_string()),
-                        ..Default::default()
-                    }
-                    .into(),
-                )
-                .with_parent(&span.source);
-                entities.push(entity);
-            }
-        }
-
-        if !entities.is_empty() {
-            envelope.apply(DetectedEntities(entities.into()));
-        }
-        Ok(envelope)
-    }
-}
-
-/// Manual annotation: not a standalone but a utility
-/// for converting user-provided annotations into entities.
-pub fn apply_manual_annotations(annotations: &[Annotation], entities: &mut Entities) {
-    for ann in annotations {
-        if ann.kind != AnnotationKind::Inclusion {
-            continue;
-        }
-        let category = match ann.category {
-            Some(c) => c,
-            None => continue,
-        };
-        let entity_kind = match ann.entity_kind {
-            Some(ek) => ek,
-            None => continue,
-        };
-        let value = ann.value.clone().unwrap_or_default();
-        let mut entity = Entity::new(category, entity_kind, value, RecognitionMethod::Manual, 1.0);
-        entity.location = ann.location.clone();
-        entities.push(entity);
-    }
-}
-
-/// Check whether an entity falls within any exclusion annotation.
-pub fn is_excluded(entity: &Entity, annotations: &[Annotation]) -> bool {
-    for ann in annotations {
-        if ann.kind != AnnotationKind::Exclusion {
-            continue;
-        }
-        if let Some(ref excl_val) = ann.value
-            && *excl_val == entity.value
-        {
-            return true;
-        }
-        if let (Some(Location::Text(entity_loc)), Some(Location::Text(excl_loc))) =
-            (&entity.location, &ann.location)
-            && entity_loc.overlaps(excl_loc)
-        {
-            return true;
-        }
-    }
-    false
 }

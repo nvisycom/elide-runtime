@@ -2,7 +2,7 @@
 
 use nvisy_core::{Error, Result};
 
-use crate::operation::DocumentEnvelope;
+use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
 
 const TARGET: &str = "nvisy_engine::op::generate_context";
 
@@ -30,5 +30,14 @@ impl GenerateContext {
         envelope: DocumentEnvelope,
     ) -> Result<DocumentEnvelope, Error> {
         Ok(envelope)
+    }
+}
+
+impl Operation for GenerateContext {
+    type Input = ParallelContext;
+    type Output = ParallelContext;
+
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input.parallel_map(|_| async { Ok(()) }).await
     }
 }

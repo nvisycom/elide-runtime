@@ -3,7 +3,7 @@
 use nvisy_core::{Error, Result};
 use nvisy_ontology::context::Contexts;
 
-use crate::operation::{DocumentEnvelope, SharedContext};
+use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
 
 const TARGET: &str = "nvisy_engine::op::load_context";
 
@@ -39,5 +39,23 @@ impl LoadContext {
             }
         }
         Ok(envelope)
+    }
+}
+
+impl Operation for LoadContext {
+    type Input = ParallelContext<Contexts>;
+    type Output = ParallelContext<Contexts>;
+
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input
+            .parallel_map(|mut existing| async move {
+                for (id, ctx) in self.loaded.iter() {
+                    if !existing.contains(id) {
+                        existing.insert(ctx.clone());
+                    }
+                }
+                Ok(existing)
+            })
+            .await
     }
 }

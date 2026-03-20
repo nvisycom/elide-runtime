@@ -7,7 +7,7 @@ use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use uuid::Uuid;
 
-use crate::operation::DocumentEnvelope;
+use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
 use crate::provenance::RedactionDecision;
 
 const TARGET: &str = "nvisy_engine::op::validation";
@@ -23,6 +23,17 @@ pub struct LeakedValue {
 pub struct ValidationResult {
     pub passed: usize,
     pub leaked: Vec<LeakedValue>,
+}
+
+/// Input for the typed [`Operation`] impl.
+#[derive(Clone)]
+pub struct ValidationInput {
+    /// Entities that were detected.
+    pub entities: Entities,
+    /// Redaction decisions that should have been applied.
+    pub decisions: Vec<RedactionDecision>,
+    /// The redacted document content as text (for text-based checks).
+    pub redacted_text: Option<String>,
 }
 
 /// Post-redaction validator that checks for leaked sensitive values.
@@ -112,5 +123,22 @@ impl Validation {
         }
 
         Ok(envelope)
+    }
+}
+
+impl Operation for Validation {
+    type Input = ParallelContext<ValidationInput>;
+    type Output = ParallelContext<ValidationResult>;
+
+    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+        input
+            .parallel_map(|data| async move {
+                Ok(Self::check(
+                    &data.entities,
+                    &data.decisions,
+                    data.redacted_text.as_deref(),
+                ))
+            })
+            .await
     }
 }

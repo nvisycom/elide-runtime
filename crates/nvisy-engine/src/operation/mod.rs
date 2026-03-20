@@ -1,33 +1,34 @@
 //! Operations: the building blocks of the redaction pipeline.
 //!
 //! Each operation file corresponds to a [`GraphNodeKind`] variant and
-//! implements [`Operation`] — a single async transform from
-//! [`DocumentEnvelope`] to [`DocumentEnvelope`].
+//! implements the [`Operation`] trait with typed inputs and outputs.
 //!
-//! | File                    | Graph node              | Purpose                              |
-//! |-------------------------|-------------------------|--------------------------------------|
-//! | [`import_file`]         | `Import`                | Load content from registry, decode   |
-//! | [`export_file`]         | `Export`                 | Collect results for delivery         |
-//! | [`vision`]              | `VisualExtraction`      | OCR + verification + CV              |
-//! | [`speech`]              | `AudialExtraction`      | Speech-to-text transcription         |
-//! | [`recognition`]         | `NamedEntityRecognition` / `PatternRecognition` | NER + regex + manual |
-//! | [`fusion`]              | `Fusion`                | Deduplication + confidence merge     |
-//! | [`redaction`]           | `Redaction`             | Policy evaluation + content redaction|
-//! | [`validation`]          | `Validation`            | Post-redaction leak detection        |
-//! | [`load_context`]        | `LoadContext`           | Load contexts from registry          |
-//! | [`save_context`]        | `SaveContext`           | Persist contexts to registry         |
-//! | [`generate_context`]    | `GenerateContext`       | Generate contexts from results       |
+//! | File                      | Graph node                | Purpose                              |
+//! |---------------------------|---------------------------|--------------------------------------|
+//! | [`import_file`]           | `ImportFile`              | Load content from registry, decode   |
+//! | [`export_file`]           | `ExportFile`              | Collect results for delivery         |
+//! | [`vision`]                | `VisualExtraction`        | OCR + verification + CV              |
+//! | [`speech`]                | `AudialExtraction`        | Speech-to-text transcription         |
+//! | [`entity_recognition`]    | `NamedEntityRecognition`  | NER via language model               |
+//! | [`pattern_recognition`]   | `PatternRecognition`      | Regex + dictionary detection         |
+//! | [`fusion`]                | `Fusion`                  | Deduplication + confidence merge     |
+//! | [`redaction`]             | `Redaction`               | Policy evaluation + content redaction|
+//! | [`validation`]            | `Validation`              | Post-redaction leak detection        |
+//! | [`load_context`]          | `LoadContext`             | Load contexts from registry          |
+//! | [`save_context`]          | `SaveContext`             | Persist contexts to registry         |
+//! | [`generate_context`]      | `GenerateContext`         | Generate contexts from results       |
 //!
 //! [`GraphNodeKind`]: crate::graph::GraphNodeKind
 
 mod context;
+mod entity_recognition;
 pub mod envelope;
 mod export_file;
 mod fusion;
 mod generate_context;
 mod import_file;
 mod load_context;
-mod recognition;
+mod pattern_recognition;
 mod redaction;
 mod save_context;
 mod speech;
@@ -37,15 +38,16 @@ mod vision;
 
 use std::future::Future;
 
-use nvisy_core::{Error, Result};
+use nvisy_core::Result;
 
 pub use self::context::{OperationContext, ParallelContext, SequentialContext, SharedContext};
+pub(crate) use self::entity_recognition::EntityRecognition;
 pub use self::envelope::DocumentEnvelope;
 pub(crate) use self::fusion::Fusion;
 pub(crate) use self::generate_context::GenerateContext;
 pub(crate) use self::import_file::ImportFile;
 pub(crate) use self::load_context::LoadContext;
-pub(crate) use self::recognition::{EntityRecognition, PatternRecognition};
+pub(crate) use self::pattern_recognition::PatternRecognition;
 pub(crate) use self::redaction::Redaction;
 pub(crate) use self::save_context::SaveContext;
 pub(crate) use self::speech::AudialExtraction;

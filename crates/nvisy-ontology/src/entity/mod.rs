@@ -19,7 +19,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::annotation::{Annotation, AnnotationKind, AnnotationLabel, AnnotationScope};
+pub use self::annotation::{
+    Annotation, AnnotationKind, AnnotationLabel, AnnotationScope, Annotations,
+};
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;
 pub use self::location::{

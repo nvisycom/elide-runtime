@@ -170,27 +170,8 @@ impl NodeExecutor {
                     retry.clone(),
                 )
                 .await?;
-                let count = process_envelopes(senders, receivers, |mut envelope| {
-                    let op_ref = &op;
-                    let shared = shared.clone();
-                    async move {
-                        let spans = collect_ner_spans(&envelope.document).await;
-                        if !spans.is_empty() {
-                            let do_ner = || {
-                                let spans = spans.clone();
-                                let shared = shared.clone();
-                                async move {
-                                    let input =
-                                        crate::operation::SequentialContext::new(spans, shared);
-                                    op_ref.detect(input.data).await
-                                }
-                            };
-                            let output = RetryPolicy::call(retry_ref, do_ner).await?;
-                            envelope.apply(output);
-                        }
-                        op_ref.reset().await;
-                        Ok(envelope)
-                    }
+                let count = process_envelopes(senders, receivers, |envelope| async {
+                    op.process(envelope).await
                 })
                 .await?;
                 Ok(node_output(node_id, count))
@@ -421,19 +402,4 @@ async fn unwrap_envelope(arc: Arc<DocumentEnvelope>) -> Result<DocumentEnvelope,
             })
         }
     }
-}
-
-async fn collect_ner_spans(doc: &Document) -> Vec<Span<nvisy_codec::handler::TxtSpan, String>> {
-    use nvisy_codec::handler::TextData;
-    let raw: Vec<Span<usize, TextData>> = match doc {
-        Document::Text(h) => h.text_spans().await.collect().await,
-        Document::Rich(h) => h.text_spans().await.collect().await,
-        _ => return Vec::new(),
-    };
-    raw.into_iter()
-        .map(|s| {
-            Span::new(nvisy_codec::handler::TxtSpan(s.id), s.data.into_inner())
-                .with_source(s.source)
-        })
-        .collect()
 }

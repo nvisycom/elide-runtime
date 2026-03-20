@@ -10,7 +10,8 @@ use nvisy_core::{Error, Result};
 use nvisy_ontology::context::Contexts;
 
 use crate::graph::LoadContext as LoadContextCfg;
-use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
+use crate::operation::context::{ParallelContext, SharedContext};
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::load_context";
 

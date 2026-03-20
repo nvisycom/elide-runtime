@@ -23,7 +23,7 @@ use super::runs::{
 };
 use super::{Engine, EngineInput, EngineOutput, plan};
 use crate::graph::{RetryPolicy, TimeoutPolicy};
-use crate::operation::SharedContext;
+use crate::operation::context::SharedContext;
 use crate::provenance::PolicyEvaluation;
 
 /// Immutable configuration created during engine construction.

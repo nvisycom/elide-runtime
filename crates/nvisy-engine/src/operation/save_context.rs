@@ -11,7 +11,8 @@ use nvisy_registry::Registry;
 use uuid::Uuid;
 
 use crate::graph::SaveContext as SaveContextCfg;
-use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
+use crate::operation::context::{ParallelContext, SharedContext};
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::save_context";
 

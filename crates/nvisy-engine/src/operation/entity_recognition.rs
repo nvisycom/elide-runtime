@@ -16,8 +16,9 @@ use nvisy_rig::agent::{
 use tokio::sync::Mutex;
 
 use crate::graph::{NamedEntityRecognition as NamedEntityRecognitionCfg, RetryPolicy};
+use crate::operation::context::{SequentialContext, SharedContext};
 use crate::operation::envelope::DetectedEntities;
-use crate::operation::{DocumentEnvelope, Operation, SequentialContext, SharedContext};
+use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::entity_recognition";

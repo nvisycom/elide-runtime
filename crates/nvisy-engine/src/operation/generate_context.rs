@@ -8,7 +8,8 @@
 use nvisy_core::{Error, Result};
 
 use crate::graph::GenerateContext as GenerateContextCfg;
-use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
+use crate::operation::context::ParallelContext;
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::generate_context";
 

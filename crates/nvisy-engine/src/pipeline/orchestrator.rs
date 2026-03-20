@@ -19,7 +19,8 @@ use super::executor::{NodeExecutor, NodeOutput, RunOutput};
 use super::plan::ExecutionPlan;
 use super::runs::state::RunState;
 use super::runs::{NodeStatus, RunStatus};
-use crate::operation::{DocumentEnvelope, SharedContext};
+use crate::operation::DocumentEnvelope;
+use crate::operation::context::SharedContext;
 
 /// Per-run execution context.
 pub(super) struct RunContext {

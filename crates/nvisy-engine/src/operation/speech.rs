@@ -11,7 +11,8 @@ use nvisy_http::HttpClient;
 use nvisy_rig::audio::stt::{SttConfig, SttOutput, SttService};
 
 use crate::graph::{AudialExtraction as AudialExtractionCfg, RetryPolicy};
-use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
+use crate::operation::context::ParallelContext;
+use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::audial_extraction";

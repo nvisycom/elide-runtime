@@ -8,6 +8,9 @@ use validator::Validate;
 
 use super::{Graph, GraphEdge, GraphNode, GraphNodeKind};
 
+/// Maps node ID → edge count (in-degree or out-degree).
+type DegreeMap = HashMap<Uuid, usize>;
+
 impl Graph {
     /// Validates all structural invariants of the graph.
     #[must_use = "validation errors are silently ignored if the result is unused"]
@@ -63,9 +66,9 @@ impl Graph {
     fn validate_edges(
         &self,
         node_map: &HashMap<Uuid, &GraphNode>,
-    ) -> Result<(HashMap<Uuid, usize>, HashMap<Uuid, usize>), Error> {
-        let mut in_degree: HashMap<Uuid, usize> = HashMap::new();
-        let mut out_degree: HashMap<Uuid, usize> = HashMap::new();
+    ) -> Result<(DegreeMap, DegreeMap), Error> {
+        let mut in_degree: DegreeMap = HashMap::new();
+        let mut out_degree: DegreeMap = HashMap::new();
         let mut seen_edges = HashSet::with_capacity(self.edges.len());
 
         for edge in &self.edges {
@@ -121,9 +124,9 @@ impl Graph {
     /// are not isolated.
     fn validate_structure(
         &self,
-        node_map: &HashMap<Uuid, &GraphNode>,
-        in_degree: &HashMap<Uuid, usize>,
-        out_degree: &HashMap<Uuid, usize>,
+        _node_map: &HashMap<Uuid, &GraphNode>,
+        in_degree: &DegreeMap,
+        out_degree: &DegreeMap,
     ) -> Result<(), Error> {
         for node in &self.nodes {
             let incoming = in_degree.get(&node.id).copied().unwrap_or(0);

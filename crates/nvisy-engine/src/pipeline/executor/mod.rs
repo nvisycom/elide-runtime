@@ -19,10 +19,8 @@ use uuid::Uuid;
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
 use crate::graph::{self, GraphNodeKind, RetryPolicy, TimeoutBehavior};
-use crate::operation::{
-    DocumentEnvelope, Fusion, ImportFile, Operation, ParallelContext, SharedContext,
-    VisualExtraction,
-};
+use crate::operation::context::{ParallelContext, SharedContext};
+use crate::operation::{DocumentEnvelope, Fusion, ImportFile, Operation, VisualExtraction};
 
 const TARGET: &str = "nvisy_engine::pipeline::executor";
 

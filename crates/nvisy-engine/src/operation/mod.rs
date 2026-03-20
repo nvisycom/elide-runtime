@@ -3,25 +3,10 @@
 //! Each operation file corresponds to a [`GraphNodeKind`] variant and
 //! implements the [`Operation`] trait with typed inputs and outputs.
 //!
-//! | File                      | Graph node                | Purpose                              |
-//! |---------------------------|---------------------------|--------------------------------------|
-//! | [`import_file`]           | `ImportFile`              | Load content from registry, decode   |
-//! | [`export_file`]           | `ExportFile`              | Collect results for delivery         |
-//! | [`vision`]                | `VisualExtraction`        | OCR + verification + CV              |
-//! | [`speech`]                | `AudialExtraction`        | Speech-to-text transcription         |
-//! | [`entity_recognition`]    | `NamedEntityRecognition`  | NER via language model               |
-//! | [`pattern_recognition`]   | `PatternRecognition`      | Regex + dictionary detection         |
-//! | [`fusion`]                | `Fusion`                  | Deduplication + confidence merge     |
-//! | [`redaction`]             | `Redaction`               | Policy evaluation + content redaction|
-//! | [`validation`]            | `Validation`              | Post-redaction leak detection        |
-//! | [`load_context`]          | `LoadContext`             | Load contexts from registry          |
-//! | [`save_context`]          | `SaveContext`             | Persist contexts to registry         |
-//! | [`generate_context`]      | `GenerateContext`         | Generate contexts from results       |
-//!
 //! [`GraphNodeKind`]: crate::graph::GraphNodeKind
 
 pub(crate) mod compression;
-mod context;
+pub mod context;
 pub(crate) mod encryption;
 mod entity_recognition;
 pub mod envelope;
@@ -41,7 +26,6 @@ use std::future::Future;
 
 use nvisy_core::Result;
 
-pub use self::context::{OperationContext, ParallelContext, SequentialContext, SharedContext};
 pub(crate) use self::entity_recognition::EntityRecognition;
 pub use self::envelope::DocumentEnvelope;
 pub(crate) use self::fusion::Fusion;
@@ -65,9 +49,9 @@ pub(crate) use self::vision::VisualExtraction;
 /// [`SequentialContext<Vec<Span>>`]) directly in the type.
 pub trait Operation {
     /// Data consumed by this operation: wraps the payload in a context marker.
-    type Input: OperationContext;
+    type Input: context::OperationContext;
     /// Data produced by this operation: wraps the payload in a context marker.
-    type Output: OperationContext;
+    type Output: context::OperationContext;
 
     /// Execute the operation.
     fn call(&self, input: Self::Input) -> impl Future<Output = Result<Self::Output>> + Send;

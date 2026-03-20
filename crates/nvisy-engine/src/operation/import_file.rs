@@ -20,7 +20,8 @@ use nvisy_core::Result;
 use nvisy_core::content::ContentData;
 
 use crate::graph::{CompressionFormat, EncryptionFormat};
-use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
+use crate::operation::context::ParallelContext;
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 
@@ -91,7 +92,7 @@ impl Operation for ImportFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::operation::SharedContext;
+    use crate::operation::context::SharedContext;
 
     #[tokio::test]
     async fn unknown_format_errors() {

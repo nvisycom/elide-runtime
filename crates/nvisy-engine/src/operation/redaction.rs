@@ -10,8 +10,9 @@ use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 
 use crate::graph::{Redaction as RedactionCfg, RetryPolicy};
+use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::envelope::PolicyOutcome;
-use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
+use crate::operation::{DocumentEnvelope, Operation};
 use crate::provenance::{RedactionDecision, RedactionRecord};
 
 const TARGET: &str = "nvisy_engine::op::redaction";

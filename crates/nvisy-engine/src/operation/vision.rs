@@ -17,8 +17,9 @@ use nvisy_ontology::entity::{
 use nvisy_rig::agent::{CvEntity, DetectionConfig, OcrAgent};
 
 use crate::graph::{RetryPolicy, VisualExtraction as VisualExtractionCfg};
+use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::envelope::DetectedEntities;
-use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
+use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::visual_extraction";

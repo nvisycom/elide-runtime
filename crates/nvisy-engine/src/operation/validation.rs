@@ -12,7 +12,8 @@ use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use uuid::Uuid;
 
-use crate::operation::{DocumentEnvelope, Operation, ParallelContext};
+use crate::operation::context::ParallelContext;
+use crate::operation::{DocumentEnvelope, Operation};
 use crate::provenance::RedactionDecision;
 
 const TARGET: &str = "nvisy_engine::op::validation";

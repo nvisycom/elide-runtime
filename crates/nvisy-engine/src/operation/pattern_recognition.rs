@@ -12,8 +12,9 @@ use nvisy_codec::{Document, Span};
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::{Entity, RecognitionMethod, TextLocation};
 
+use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::envelope::DetectedEntities;
-use crate::operation::{DocumentEnvelope, Operation, ParallelContext, SharedContext};
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::pattern_recognition";
 

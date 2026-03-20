@@ -14,7 +14,8 @@
 use nvisy_core::Result;
 
 use crate::graph::{CompressionFormat, EncryptionFormat};
-use crate::operation::{Operation, ParallelContext};
+use crate::operation::Operation;
+use crate::operation::context::ParallelContext;
 
 const TARGET: &str = "nvisy_engine::op::export_file";
 

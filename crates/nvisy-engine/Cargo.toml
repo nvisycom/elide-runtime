@@ -58,6 +58,7 @@ toml = { workspace = true, features = [] }
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
 tokio-util = { workspace = true, features = [] }
+futures = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
@@ -74,8 +75,9 @@ derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into"] }
 strum = { workspace = true, features = [] }
 
-# Encryption
+# Encryption and hashing
 aes-gcm = { workspace = true, features = [] }
+sha2 = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 
 # Utilities
@@ -84,3 +86,6 @@ rand = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

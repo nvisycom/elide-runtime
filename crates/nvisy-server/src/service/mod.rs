@@ -1,14 +1,13 @@
 //! Application state and dependency injection.
 //!
-//! [`ServiceState`] holds shared dependencies (engine, registry) and is
-//! threaded through every handler via Axum's `State` extractor. Individual
-//! handlers extract only the dependency they need (e.g. `State<Registry>`)
-//! rather than the full state.
+//! [`ServiceState`] holds the [`DefaultEngine`] which owns all shared
+//! dependencies (registry, HTTP client, policies). Individual handlers
+//! extract the dependency they need (e.g. `State<Registry>`) via
+//! `FromRef` implementations that pull from the engine.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use nvisy_engine::RuntimeConfig;
-use nvisy_engine::pipeline::DefaultEngine;
+use nvisy_engine::pipeline::{DefaultEngine, RuntimeConfig};
 use nvisy_http::HttpClient;
 use nvisy_registry::Registry;
 
@@ -17,9 +16,6 @@ use nvisy_registry::Registry;
 #[derive(Clone)]
 pub struct ServiceState {
     engine: DefaultEngine,
-    registry: Registry,
-    config: RuntimeConfig,
-    data_dir: PathBuf,
 }
 
 impl ServiceState {
@@ -29,7 +25,7 @@ impl ServiceState {
     ///
     /// Returns an error if the registry database cannot be opened.
     pub fn new(config: RuntimeConfig, data_dir: PathBuf) -> nvisy_core::Result<Self> {
-        let registry = Registry::open(data_dir.clone())?;
+        let registry = Registry::open(data_dir)?;
 
         let http_config = config
             .engine
@@ -38,40 +34,30 @@ impl ServiceState {
             .unwrap_or_default();
         let http_client = HttpClient::new(&http_config);
 
-        let mut engine = DefaultEngine::new().with_http_client(http_client);
-        if let Some(retry) = config.engine.as_ref().and_then(|e| e.retry.clone()) {
-            engine = engine.with_retry(retry);
-        }
-        if let Some(timeout) = config.engine.as_ref().and_then(|e| e.timeout.clone()) {
-            engine = engine.with_timeout(timeout);
-        }
+        let engine = DefaultEngine::new(registry)
+            .with_config(config)
+            .with_http_client(http_client);
 
-        Ok(Self {
-            engine,
-            registry,
-            config,
-            data_dir,
-        })
+        Ok(Self { engine })
     }
 
-    /// Returns the resolved data directory.
-    pub fn data_dir(&self) -> &std::path::Path {
-        &self.data_dir
+    /// Returns the data directory path from the registry.
+    pub fn data_dir(&self) -> &Path {
+        self.engine.registry().base_dir()
     }
 }
 
 macro_rules! impl_di {
-    ($($f:ident: $t:ty),+ $(,)?) => {$(
+    ($($extract:expr => $t:ty),+ $(,)?) => {$(
         impl axum::extract::FromRef<ServiceState> for $t {
             fn from_ref(state: &ServiceState) -> Self {
-                state.$f.clone()
+                $extract(state)
             }
         }
     )+};
 }
 
 impl_di!(
-    engine: DefaultEngine,
-    registry: Registry,
-    config: RuntimeConfig,
+    |s: &ServiceState| s.engine.clone() => DefaultEngine,
+    |s: &ServiceState| s.engine.registry().clone() => Registry,
 );

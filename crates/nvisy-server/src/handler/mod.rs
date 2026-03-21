@@ -12,10 +12,10 @@
 pub mod error;
 pub mod utility;
 
-mod check;
 mod contexts;
 mod files;
-mod process;
+mod infra;
+mod runs;
 
 mod request;
 mod response;
@@ -28,8 +28,8 @@ use crate::service::ServiceState;
 /// Build the handler route tree.
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
-        .merge(check::routes())
+        .merge(infra::routes())
         .merge(contexts::routes())
         .merge(files::routes())
-        .merge(process::routes())
+        .merge(runs::routes())
 }

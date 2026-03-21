@@ -82,19 +82,19 @@ impl Error {
         self
     }
 
-    /// Shorthand for a validation error with a source component.
-    pub fn validation(message: impl Into<String>, source: impl Into<String>) -> Self {
-        Self::new(ErrorKind::Validation, message).with_component(source)
+    /// Shorthand for a validation error with a component name.
+    pub fn validation(message: impl Into<String>, component: impl Into<String>) -> Self {
+        Self::new(ErrorKind::Validation, message).with_component(component)
     }
 
-    /// Shorthand for a connection error with a source component and retryable flag.
+    /// Shorthand for a connection error with a component name and retryable flag.
     pub fn connection(
         message: impl Into<String>,
-        source: impl Into<String>,
+        component: impl Into<String>,
         retryable: bool,
     ) -> Self {
         Self::new(ErrorKind::Connection, message)
-            .with_component(source)
+            .with_component(component)
             .with_retryable(retryable)
     }
 
@@ -113,10 +113,14 @@ impl Error {
         Self::new(ErrorKind::Policy, message)
     }
 
-    /// Shorthand for a runtime error with a source component and retryable flag.
-    pub fn runtime(message: impl Into<String>, source: impl Into<String>, retryable: bool) -> Self {
+    /// Shorthand for a runtime error with a component name and retryable flag.
+    pub fn runtime(
+        message: impl Into<String>,
+        component: impl Into<String>,
+        retryable: bool,
+    ) -> Self {
         Self::new(ErrorKind::Runtime, message)
-            .with_component(source)
+            .with_component(component)
             .with_retryable(retryable)
     }
 

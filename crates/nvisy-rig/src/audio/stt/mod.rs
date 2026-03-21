@@ -15,6 +15,7 @@ pub(crate) use self::provider::SttModels;
 pub use self::provider::SttProvider;
 use crate::error::Error;
 
+#[cfg(feature = "openai-whisper")]
 const TARGET: &str = "nvisy_rig::stt";
 
 /// Configuration for the speech-to-text service.
@@ -119,9 +120,11 @@ impl SttService {
         fields(service_id = %self.id, data_len = audio_data.len(), filename),
     )]
     pub async fn transcribe(&self, audio_data: &[u8], filename: &str) -> Result<SttOutput, Error> {
-        macro_rules! build_and_send {
-            ($model:expr) => {{
-                let mut builder = $model
+        let _ = (&self.config, filename);
+        match &self.inner {
+            #[cfg(feature = "openai-whisper")]
+            SttModels::OpenAi(model) => {
+                let mut builder = model
                     .transcription_request()
                     .data(audio_data.to_vec())
                     .filename(Some(filename.to_owned()));
@@ -136,22 +139,13 @@ impl SttService {
                     builder = builder.prompt(prompt.clone());
                 }
 
-                builder.send().await?.text
-            }};
-        }
-
-        let text: String = match &self.inner {
-            #[cfg(feature = "openai-whisper")]
-            SttModels::OpenAi(model) => build_and_send!(model),
-            SttModels::Local => {
-                return Err(Error::Runtime(
-                    "local speech-to-text provider is not yet implemented".to_owned(),
-                ));
+                let text = builder.send().await?.text;
+                tracing::info!(target: TARGET, text_len = text.len(), "transcription complete");
+                Ok(SttOutput { text })
             }
-        };
-
-        tracing::info!(target: TARGET, text_len = text.len(), "transcription complete");
-
-        Ok(SttOutput { text })
+            SttModels::Local => Err(Error::Runtime(
+                "local speech-to-text provider is not yet implemented".to_owned(),
+            )),
+        }
     }
 }

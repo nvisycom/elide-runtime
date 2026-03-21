@@ -1,32 +1,44 @@
-//! Operations: composable units of work in the redaction pipeline.
+//! Operations: the building blocks of the redaction pipeline.
 //!
-//! Each operation implements the [`Operation`] trait: a single async
-//! function from typed input to typed output. Input and output are
-//! wrapped in a context marker ([`ParallelContext`] or
-//! [`SequentialContext`]) that tells the orchestrator how to invoke
-//! the operation.
+//! Each operation file corresponds to a [`GraphNodeKind`] variant and
+//! implements the [`Operation`] trait with typed inputs and outputs.
 //!
-//! Operations are grouped into three categories:
-//!
-//! | Category       | Module        | Purpose                                  |
-//! |----------------|---------------|------------------------------------------|
-//! | Inference      | [`inference`] | ML/AI model calls (OCR, NER, CV, …)     |
-//! | Processing     | [`processing`]| Deterministic transforms (redact, match) |
-//! | Lifecycle      | [`lifecycle`] | Content I/O (import, export, encrypt)    |
+//! [`GraphNodeKind`]: crate::graph::GraphNodeKind
 
-mod context;
+pub(crate) mod compression;
+pub mod context;
+pub mod encryption;
+mod entity_recognition;
 pub mod envelope;
-pub mod inference;
-pub mod lifecycle;
-pub mod processing;
-pub mod utility;
+mod export_file;
+mod fusion;
+mod generate_context;
+mod import_file;
+mod load_context;
+mod pattern_recognition;
+mod redaction;
+mod save_context;
+mod speech;
+mod validation;
+mod vision;
 
 use std::future::Future;
 
 use nvisy_core::Result;
 
-pub use self::context::{OperationContext, ParallelContext, SequentialContext, SharedContext};
+pub(crate) use self::entity_recognition::EntityRecognition;
 pub use self::envelope::DocumentEnvelope;
+pub(crate) use self::export_file::ExportFile;
+pub(crate) use self::fusion::Fusion;
+pub(crate) use self::generate_context::GenerateContext;
+pub(crate) use self::import_file::ImportFile;
+pub(crate) use self::load_context::LoadContext;
+pub(crate) use self::pattern_recognition::PatternRecognition;
+pub(crate) use self::redaction::Redaction;
+pub(crate) use self::save_context::SaveContext;
+pub(crate) use self::speech::{AudialExtraction, AudioInput};
+pub(crate) use self::validation::{Validation, ValidationInput};
+pub(crate) use self::vision::{VerifyInput, VisualExtraction};
 
 /// A single unit of work in the redaction pipeline.
 ///
@@ -38,9 +50,9 @@ pub use self::envelope::DocumentEnvelope;
 /// [`SequentialContext<Vec<Span>>`]) directly in the type.
 pub trait Operation {
     /// Data consumed by this operation: wraps the payload in a context marker.
-    type Input: OperationContext;
+    type Input: context::OperationContext;
     /// Data produced by this operation: wraps the payload in a context marker.
-    type Output: OperationContext;
+    type Output: context::OperationContext;
 
     /// Execute the operation.
     fn call(&self, input: Self::Input) -> impl Future<Output = Result<Self::Output>> + Send;

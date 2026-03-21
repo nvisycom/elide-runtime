@@ -1,13 +1,11 @@
-//! Compiled runtime policies and execution helpers.
+//! Async execution helpers for graph policy types.
 //!
-//! The compiler-level [`RetryPolicy`](crate::compiler::RetryPolicy) and
-//! [`TimeoutPolicy`](crate::compiler::TimeoutPolicy) are user-facing
-//! configuration types. This module provides their compiled runtime
-//! counterparts ([`CompiledRetryPolicy`], [`CompiledTimeoutPolicy`])
-//! with `with_retry` and `with_timeout` methods.
+//! Adds `with_retry`, `with_timeout`, and `call` methods to
+//! [`RetryPolicy`] and [`TimeoutPolicy`] via impl blocks that
+//! use tokio for async sleep/timeout.
+//!
+//! [`RetryPolicy`]: crate::graph::RetryPolicy
+//! [`TimeoutPolicy`]: crate::graph::TimeoutPolicy
 
 mod retry;
 mod timeout;
-
-pub use self::retry::CompiledRetryPolicy;
-pub use self::timeout::CompiledTimeoutPolicy;

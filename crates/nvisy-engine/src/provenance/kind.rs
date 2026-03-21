@@ -69,11 +69,11 @@ pub enum LifecycleKind {
     Encryption(LifecycleAction),
     /// Content compression.
     Compression(LifecycleAction),
-    /// Format conversion (e.g. PDF to text, image resize).
-    Conversion(LifecycleAction),
 }
 
-/// Top-level category for an [`AuditEntry`](super::AuditEntry).
+/// Top-level category for an [`AuditEntry`].
+///
+/// [`AuditEntry`]: super::AuditEntry
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "category", content = "action", rename_all = "snake_case")]
 pub enum AuditEntryKind {

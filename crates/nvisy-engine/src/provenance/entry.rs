@@ -26,7 +26,9 @@ pub enum AuditEntryStatus {
     Partial,
 }
 
-/// A single processing-log entry within an [`Audit`](super::Audit).
+/// A single processing-log entry within an [`Audit`].
+///
+/// [`Audit`]: super::Audit
 #[serde_as]
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(

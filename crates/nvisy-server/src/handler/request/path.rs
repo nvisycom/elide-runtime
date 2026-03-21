@@ -1,4 +1,4 @@
-//! Typed path and query parameters for API endpoints.
+//! Typed path parameters for API endpoints.
 
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -18,10 +18,9 @@ pub struct ContextPath {
     pub id: Uuid,
 }
 
-/// Query parameter for endpoints that need actor scoping.
+/// Path parameter for run endpoints.
 #[derive(Debug, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ActorQuery {
-    /// Actor identity.
-    pub actor_id: Uuid,
+pub struct RunPath {
+    /// Run identifier.
+    pub id: Uuid,
 }

@@ -38,8 +38,18 @@ pub struct Analytics {
     pub timestamp: Timestamp,
     /// Total number of pipeline runs.
     pub total_runs: u64,
-    /// Total number of entities detected across all runs.
+    /// Number of runs currently in progress.
+    pub active_runs: u64,
+    /// Number of runs that completed successfully.
+    pub succeeded_runs: u64,
+    /// Number of runs that failed (fully or partially).
+    pub failed_runs: u64,
+    /// Number of runs that were cancelled.
+    pub cancelled_runs: u64,
+    /// Total number of entities detected across all completed runs.
     pub total_entities_detected: u64,
-    /// Total number of redactions applied across all runs.
+    /// Total number of redactions applied across all completed runs.
     pub total_redactions_applied: u64,
+    /// Number of distinct actors that have triggered runs.
+    pub distinct_actors: u64,
 }

@@ -98,7 +98,10 @@ impl TtsModels {
                 let model = openai::audio_generation::AudioGenerationModel::new(client, model);
                 Ok(Self::OpenAi(model))
             }
-            TtsProvider::Local(_) => Ok(Self::Local),
+            TtsProvider::Local(_) => {
+                let _ = (model, max_retries, client);
+                Ok(Self::Local)
+            }
         }
     }
 }

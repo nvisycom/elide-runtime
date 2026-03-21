@@ -6,9 +6,14 @@ use super::http_kind::ErrorKind;
 impl From<nvisy_core::Error> for Error<'static> {
     fn from(err: nvisy_core::Error) -> Self {
         let kind = match err.kind {
-            nvisy_core::ErrorKind::Validation | nvisy_core::ErrorKind::Serialization => {
-                ErrorKind::BadRequest
+            nvisy_core::ErrorKind::Validation => {
+                if err.component.as_deref() == Some("run") {
+                    ErrorKind::Conflict
+                } else {
+                    ErrorKind::BadRequest
+                }
             }
+            nvisy_core::ErrorKind::Serialization => ErrorKind::BadRequest,
             nvisy_core::ErrorKind::Policy => ErrorKind::Forbidden,
             nvisy_core::ErrorKind::NotFound => ErrorKind::NotFound,
             nvisy_core::ErrorKind::Connection
@@ -37,6 +42,17 @@ mod tests {
         let err = Error::from(core_err);
         assert_eq!(err.kind(), ErrorKind::BadRequest);
         assert_eq!(err.message(), Some("field is required"));
+    }
+
+    #[test]
+    fn from_nvisy_core_validation_run_conflict() {
+        let core_err = nvisy_core::Error::new(
+            nvisy_core::ErrorKind::Validation,
+            "run has already finished",
+        )
+        .with_component("run");
+        let err = Error::from(core_err);
+        assert_eq!(err.kind(), ErrorKind::Conflict);
     }
 
     #[test]

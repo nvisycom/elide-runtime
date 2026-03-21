@@ -15,8 +15,8 @@ pub use self::stream::SpanStream;
 use crate::handler::{
     BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler, BoxedTextHandler, CsvLoader, CsvParams,
     Handler, HtmlLoader, HtmlParams, JpegLoader, JpegParams, JsonLoader, JsonParams, Loader,
-    Mp3Loader, Mp3Params, PngLoader, PngParams, TxtLoader, TxtParams, WavLoader, WavParams,
-    XlsxLoader, XlsxParams,
+    Mp3Loader, Mp3Params, PngLoader, PngParams, TextData, TxtLoader, TxtParams, WavLoader,
+    WavParams, XlsxLoader, XlsxParams,
 };
 
 /// A fully type-erased document that can hold any supported format.
@@ -74,6 +74,20 @@ impl Document {
             Self::Image(h) => h.encode(),
             Self::Audio(h) => h.encode(),
             Self::Rich(h) => h.encode(),
+        }
+    }
+
+    /// Collect all text spans from text or rich documents.
+    ///
+    /// Returns an empty vec for image and audio documents.
+    pub async fn collect_text_spans(&self) -> Vec<Span<usize, TextData>> {
+        use futures::StreamExt;
+
+        use crate::handler::TextHandler;
+        match self {
+            Self::Text(h) => h.text_spans().await.collect().await,
+            Self::Rich(h) => h.text_spans().await.collect().await,
+            _ => Vec::new(),
         }
     }
 

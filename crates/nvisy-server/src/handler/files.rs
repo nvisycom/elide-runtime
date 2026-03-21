@@ -13,16 +13,16 @@
 use aide::axum::ApiRouter;
 use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use nvisy_core::content::{Content, ContentData, ContentMetadata};
 use nvisy_registry::Registry;
 
 use super::error::Result;
-use super::request::{ActorQuery, ContentPath, NewFile};
+use super::request::{ContentPath, NewFile};
 use super::response::{File, FileId, FileList};
 use super::utility::Base64;
-use crate::extract::{Json, Path};
+use crate::extract::{ActorId, Json, Path};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::files";
@@ -31,10 +31,11 @@ const TARGET: &str = "nvisy_server::files";
 #[tracing::instrument(
     target = "nvisy_server::files",
     skip_all,
-    fields(%req.actor_id, filename = req.filename.as_deref()),
+    fields(%actor_id, filename = req.filename.as_deref()),
 )]
-async fn upload(
+async fn upload_file(
     State(registry): State<Registry>,
+    ActorId(actor_id): ActorId,
     Json(req): Json<NewFile>,
 ) -> Result<(StatusCode, Json<FileId>)> {
     let bytes = req.content.decode()?;
@@ -57,7 +58,7 @@ async fn upload(
     }
 
     let content = Content::with_metadata(content_data, metadata);
-    let handle = registry.register_content(req.actor_id, content).await?;
+    let handle = registry.register_content(actor_id, content).await?;
     let id = handle.content_source().as_uuid();
 
     tracing::info!(
@@ -71,7 +72,7 @@ async fn upload(
     Ok((StatusCode::CREATED, Json(FileId { id })))
 }
 
-fn upload_docs(op: TransformOperation) -> TransformOperation {
+fn upload_file_docs(op: TransformOperation) -> TransformOperation {
     op.id("uploadFile")
         .tag("files")
         .summary("Upload a file as base64-encoded JSON")
@@ -87,10 +88,10 @@ fn upload_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%id, %actor_id),
 )]
-async fn download(
+async fn download_file(
     State(registry): State<Registry>,
+    ActorId(actor_id): ActorId,
     Path(ContentPath { id }): Path<ContentPath>,
-    Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<Json<File>> {
     let handle = registry.read_content(actor_id, id).await?;
     let content_data = handle.content_data().await?;
@@ -109,7 +110,7 @@ async fn download(
     }))
 }
 
-fn download_docs(op: TransformOperation) -> TransformOperation {
+fn download_file_docs(op: TransformOperation) -> TransformOperation {
     op.id("downloadFile")
         .tag("files")
         .summary("Download a previously uploaded file")
@@ -122,16 +123,16 @@ fn download_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%actor_id),
 )]
-async fn list(
+async fn list_files(
     State(registry): State<Registry>,
-    Query(ActorQuery { actor_id }): Query<ActorQuery>,
+    ActorId(actor_id): ActorId,
 ) -> Result<Json<FileList>> {
     let files = registry.list_content(actor_id).await?;
     tracing::debug!(target: TARGET, count = files.len(), "files listed");
     Ok(Json(FileList { files }))
 }
 
-fn list_docs(op: TransformOperation) -> TransformOperation {
+fn list_files_docs(op: TransformOperation) -> TransformOperation {
     op.id("listFiles")
         .tag("files")
         .summary("List all uploaded file IDs")
@@ -144,17 +145,17 @@ fn list_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%id, %actor_id),
 )]
-async fn delete(
+async fn delete_file(
     State(registry): State<Registry>,
+    ActorId(actor_id): ActorId,
     Path(ContentPath { id }): Path<ContentPath>,
-    Query(ActorQuery { actor_id }): Query<ActorQuery>,
 ) -> Result<StatusCode> {
     registry.unregister_content(actor_id, id).await?;
     tracing::info!(target: TARGET, "file deleted");
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn delete_docs(op: TransformOperation) -> TransformOperation {
+fn delete_file_docs(op: TransformOperation) -> TransformOperation {
     op.id("deleteFile")
         .tag("files")
         .summary("Delete an uploaded file")
@@ -167,16 +168,16 @@ fn delete_docs(op: TransformOperation) -> TransformOperation {
     skip_all,
     fields(%actor_id),
 )]
-async fn delete_all(
+async fn delete_all_files(
     State(registry): State<Registry>,
-    Query(ActorQuery { actor_id }): Query<ActorQuery>,
+    ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
     let deleted = registry.unregister_all_content(actor_id).await?;
     tracing::info!(target: TARGET, deleted, "all files deleted");
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn delete_all_docs(op: TransformOperation) -> TransformOperation {
+fn delete_all_files_docs(op: TransformOperation) -> TransformOperation {
     op.id("deleteAllFiles")
         .tag("files")
         .summary("Delete all uploaded files")
@@ -188,12 +189,12 @@ pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .api_route(
             "/api/v1/files",
-            post_with(upload, upload_docs)
-                .get_with(list, list_docs)
-                .delete_with(delete_all, delete_all_docs),
+            post_with(upload_file, upload_file_docs)
+                .get_with(list_files, list_files_docs)
+                .delete_with(delete_all_files, delete_all_files_docs),
         )
         .api_route(
             "/api/v1/files/{id}",
-            get_with(download, download_docs).delete_with(delete, delete_docs),
+            get_with(download_file, download_file_docs).delete_with(delete_file, delete_file_docs),
         )
 }

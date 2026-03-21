@@ -11,7 +11,9 @@ use uuid::Uuid;
 /// `RedactionDecision` carries the information needed by the redaction operation
 /// to apply a redaction: the spec, replacement text, and whether it has been
 /// applied. It does **not** retain the original sensitive value — that lives in
-/// [`RedactionRecord`](super::RedactionRecord).
+/// [`RedactionRecord`].
+///
+/// [`RedactionRecord`]: super::RedactionRecord
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionDecision {

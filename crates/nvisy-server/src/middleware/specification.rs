@@ -102,13 +102,18 @@ fn api_docs(mut api: TransformOpenApi<'_>, config: OpenApiConfig) -> TransformOp
         ..Default::default()
     })
     .tag(Tag {
-        name: "pipeline".into(),
-        description: Some("Pipeline execution and redaction".into()),
+        name: "runs".into(),
+        description: Some("Pipeline execution, inspection, and cancellation".into()),
         ..Default::default()
     })
     .tag(Tag {
-        name: "ingest".into(),
-        description: Some("Content upload and download".into()),
+        name: "files".into(),
+        description: Some("Content file upload, download, and management".into()),
+        ..Default::default()
+    })
+    .tag(Tag {
+        name: "contexts".into(),
+        description: Some("Reference-data context upload and management".into()),
         ..Default::default()
     })
 }

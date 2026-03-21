@@ -3,6 +3,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use super::Overlap;
+
 /// Location of an entity within text content.
 #[derive(
     Debug,
@@ -41,5 +43,11 @@ impl TextLocation {
     /// Returns `true` if this text location overlaps with `other`.
     pub fn overlaps(&self, other: &TextLocation) -> bool {
         self.start_offset < other.end_offset && other.start_offset < self.end_offset
+    }
+}
+
+impl Overlap for TextLocation {
+    fn overlaps(&self, other: &Self) -> bool {
+        self.overlaps(other)
     }
 }

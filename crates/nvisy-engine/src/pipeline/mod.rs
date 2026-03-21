@@ -7,57 +7,54 @@
 //! [`DefaultEngine`] is the standard implementation that orchestrates the
 //! detect -> evaluate -> redact pipeline and drives the DAG execution graph.
 
+mod analytics;
 mod config;
 mod default;
 mod executor;
-mod ontology;
+mod orchestrator;
+mod plan;
 mod policy;
 mod runs;
 
 use std::future::Future;
 
 use nvisy_core::Error;
-use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::DetectionOutput;
 use nvisy_ontology::policy::{Policies, RedactionSummary};
 use uuid::Uuid;
 
+pub use self::analytics::{AnalyticsSnapshot, EngineAnalytics};
 pub use self::config::{
     EngineSection, LlmSection, OcrSection, RuntimeConfig, SttSection, TtsSection,
 };
 pub use self::default::DefaultEngine;
-pub use self::executor::{NodeOutput, RunOutput};
-pub use self::ontology::{Explainable, Explanation};
-pub use self::runs::{NodeProgress, RunManager, RunState, RunStatus, RunSummary};
-use crate::compiler::Graph;
+pub use self::runs::{
+    EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
+};
+use crate::graph::Graph;
 use crate::provenance::{Audit, PolicyEvaluation, RedactionMap};
 
 /// Everything the caller must provide to run a redaction pipeline.
 pub struct EngineInput {
     /// Human or service account identity.
     pub actor_id: Uuid,
-    /// Identifiers of previously uploaded content to process.
-    pub content_ids: Vec<Uuid>,
     /// Policies to apply (at least one).
     pub policies: Policies,
     /// Execution graph defining the pipeline DAG.
+    ///
+    /// Content identifiers live on [`ImportFile`] nodes within the graph,
+    /// not as a top-level field.
+    ///
+    /// [`ImportFile`]: crate::graph::ImportFile
     pub graph: Graph,
-    /// Reference-data contexts for detection.
-    pub contexts: Contexts,
-    /// OCR subsystem configuration.
-    pub ocr: Option<OcrSection>,
-    /// LLM subsystem configuration.
-    pub llm: Option<LlmSection>,
-    /// Speech-to-text subsystem configuration.
-    pub stt: Option<SttSection>,
-    /// Text-to-speech subsystem configuration.
-    pub tts: Option<TtsSection>,
+    /// Per-request configuration overrides (merged with engine defaults).
+    pub config: Option<RuntimeConfig>,
 }
 
 /// Full result of a pipeline run.
 ///
 /// Contains per-phase breakdown (detection, classification, policy evaluation),
-/// per-source summaries, audit records, and the raw DAG execution result.
+/// per-source summaries, and audit records.
 pub struct EngineOutput {
     /// Unique run identifier.
     pub run_id: Uuid,
@@ -71,8 +68,6 @@ pub struct EngineOutput {
     pub file_audits: Vec<Audit>,
     /// Redaction mapping artifacts.
     pub redaction_maps: Vec<RedactionMap>,
-    /// Per-node execution results from the DAG runner.
-    pub run_output: RunOutput,
 }
 
 /// The top-level redaction engine contract.

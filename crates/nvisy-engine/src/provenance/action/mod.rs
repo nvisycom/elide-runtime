@@ -1,4 +1,6 @@
-//! Per-category action payloads for [`AuditEntry`](super::AuditEntry).
+//! Per-category action payloads for [`AuditEntry`].
+//!
+//! [`AuditEntry`]: super::AuditEntry
 //!
 //! Each audit entry carries one of these payloads describing what happened
 //! during the operation it records.

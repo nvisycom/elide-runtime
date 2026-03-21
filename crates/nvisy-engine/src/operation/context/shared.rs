@@ -8,9 +8,11 @@
 use std::sync::Arc;
 
 use derive_more::Deref;
-use nvisy_ontology::context::{Context, Contexts};
 use nvisy_ontology::policy::{Policies, Policy};
+use nvisy_registry::Registry;
 use uuid::Uuid;
+
+use crate::operation::encryption::KeyProvider;
 
 /// Immutable run-wide state behind an [`Arc`].
 ///
@@ -24,8 +26,10 @@ pub struct SharedData {
     pub actor_id: Uuid,
     /// Policies governing redaction behaviour.
     pub policies: Policies,
-    /// Reference-data contexts for detection.
-    pub contexts: Contexts,
+    /// Content and context storage.
+    pub registry: Registry,
+    /// Optional key provider for encryption/decryption.
+    pub key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
 /// Cheaply-clonable handle to run-wide [`SharedData`].
@@ -43,16 +47,23 @@ pub struct SharedContext {
 }
 
 impl SharedContext {
-    /// Create a new shared context with the given run and actor identifiers.
-    pub fn new(run_id: Uuid, actor_id: Uuid) -> Self {
+    /// Create a new shared context with the given run, actor, and registry.
+    pub fn new(run_id: Uuid, actor_id: Uuid, registry: Registry) -> Self {
         Self {
             data: Arc::new(SharedData {
                 run_id,
                 actor_id,
                 policies: Policies::default(),
-                contexts: Contexts::default(),
+                registry,
+                key_provider: None,
             }),
         }
+    }
+
+    /// Attach a key provider for encryption/decryption operations.
+    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
+        Arc::make_mut(&mut self.data).key_provider = Some(provider);
+        self
     }
 
     /// Attach policies to this shared context.
@@ -64,21 +75,6 @@ impl SharedContext {
     /// Append a single policy.
     pub fn with_policy(mut self, policy: Policy) -> Self {
         Arc::make_mut(&mut self.data).policies.policies.push(policy);
-        self
-    }
-
-    /// Attach reference-data contexts to this shared context.
-    pub fn with_contexts(mut self, contexts: Contexts) -> Self {
-        Arc::make_mut(&mut self.data).contexts = contexts;
-        self
-    }
-
-    /// Append a single reference-data context.
-    pub fn with_context(mut self, context: Context) -> Self {
-        Arc::make_mut(&mut self.data)
-            .contexts
-            .contexts
-            .push(context);
         self
     }
 }

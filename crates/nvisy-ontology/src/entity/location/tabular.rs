@@ -3,6 +3,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use super::Overlap;
+
 /// Location of an entity within tabular data.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -23,4 +25,10 @@ pub struct TabularLocation {
     /// Sheet or table name (for multi-sheet documents).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sheet_name: Option<String>,
+}
+
+impl Overlap for TabularLocation {
+    fn overlaps(&self, other: &Self) -> bool {
+        self.row_index == other.row_index && self.column_index == other.column_index
+    }
 }

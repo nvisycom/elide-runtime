@@ -5,6 +5,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::Overlap;
+
 /// Location of an entity within an image.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -17,4 +19,10 @@ pub struct ImageLocation {
     /// 1-based page number (for multi-page documents like PDFs).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_number: Option<u32>,
+}
+
+impl Overlap for ImageLocation {
+    fn overlaps(&self, other: &Self) -> bool {
+        self.bounding_box.overlaps(&other.bounding_box)
+    }
 }

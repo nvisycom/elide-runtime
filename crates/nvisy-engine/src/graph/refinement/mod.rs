@@ -1,0 +1,15 @@
+//! Refinement node configurations: fusion, redaction, and validation.
+//!
+//! Refinement nodes form the final processing stages before export.
+//! [`Fusion`] runs at **phase 3** to merge and score entity candidates from
+//! all detectors. [`Redaction`] runs at **phase 4** to apply the scored
+//! entity list to the document. [`Validation`] runs at **phase 5** to verify
+//! that redaction was complete and no values leaked through.
+
+mod fusion;
+mod redaction;
+mod validation;
+
+pub use self::fusion::{Fusion, FusionStrategy};
+pub use self::redaction::Redaction;
+pub use self::validation::Validation;

@@ -20,7 +20,7 @@
 use std::net::IpAddr;
 use std::path::PathBuf;
 
-use nvisy_engine::RuntimeConfig;
+use nvisy_engine::pipeline::RuntimeConfig;
 use serde::Deserialize;
 
 /// Log output format for `tracing_subscriber`.

@@ -1,234 +1,316 @@
-//! Default engine implementation that orchestrates the full pipeline.
+//! Default engine implementation.
 //!
-//! [`DefaultEngine`] executes the three-phase pipeline:
-//!
-//! 1. **Detect**: run configured detection methods on the input content.
-//! 2. **Evaluate**: map detected entities to redaction instructions via policies.
-//! 3. **Redact**: apply redaction instructions to produce output content.
-//!
-//! After the content-level pipeline completes, the execution graph is run
-//! so that any Source/Action/Target DAG nodes are also executed.
+//! [`DefaultEngine`] ties together configuration, run state, and the
+//! DAG orchestrator. It implements [`Engine`], [`EngineAnalytics`], and
+//! [`EngineRuns`].
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_core::content::ContentData;
+use nvisy_core::content::ContentSource;
 use nvisy_http::HttpClient;
-use tokio::sync::{mpsc, watch};
-use tokio::task::JoinSet;
+use nvisy_registry::Registry;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::executor::{NodeOutput, RunOutput, execute_node};
-use super::{Engine, EngineInput, EngineOutput};
-use crate::compiler::{Compiler, ExecutionPlan, RetryPolicy, TimeoutPolicy};
-use crate::operation::SharedContext;
+use super::analytics::{AnalyticsSnapshot, EngineAnalytics};
+use super::config::RuntimeConfig;
+use super::orchestrator::{self, RunContext};
+use super::runs::state::{RunEntry, RunState};
+use super::runs::{
+    EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
+};
+use super::{Engine, EngineInput, EngineOutput, plan};
+use crate::graph::{RetryPolicy, TimeoutPolicy};
+use crate::operation::context::SharedContext;
+use crate::operation::encryption::KeyProvider;
 use crate::provenance::PolicyEvaluation;
 
-/// Default buffer size for bounded inter-node MPSC channels.
-const CHANNEL_BUFFER_SIZE: usize = 256;
-
-/// Inner state shared behind an [`Arc`].
-#[derive(Clone, Default)]
-struct DefaultEngineInner {
-    /// Default retry policy for graph nodes without one.
-    retry: Option<RetryPolicy>,
-    /// Default timeout policy for graph nodes without one.
-    timeout: Option<TimeoutPolicy>,
-    /// Shared HTTP client for downstream providers.
+/// Immutable configuration created during engine construction.
+#[derive(Clone)]
+struct EngineConfig {
+    config: RuntimeConfig,
+    default_retry: Option<RetryPolicy>,
+    default_timeout: Option<TimeoutPolicy>,
     http_client: HttpClient,
+    registry: Registry,
+    key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
 /// Default [`Engine`] implementation.
 ///
-/// Wraps policies in an `Arc` so cloning is cheap.
-#[derive(Clone, Default)]
+/// Immutable configuration lives in `Arc<EngineConfig>` (set during
+/// construction). Mutable run state lives in [`RunState`] and is
+/// shared across all clones.
+#[derive(Clone)]
 pub struct DefaultEngine {
-    inner: Arc<DefaultEngineInner>,
+    cfg: Arc<EngineConfig>,
+    runs: RunState,
 }
 
 impl std::fmt::Debug for DefaultEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DefaultEngine")
-            .field("retry", &self.inner.retry)
-            .field("timeout", &self.inner.timeout)
-            .field("http_client", &self.inner.http_client)
+            .field("config", &self.cfg.config)
+            .field("default_retry", &self.cfg.default_retry)
+            .field("default_timeout", &self.cfg.default_timeout)
+            .field("http_client", &self.cfg.http_client)
             .finish()
     }
 }
 
 impl DefaultEngine {
-    /// Create a new engine with no default policies.
-    pub fn new() -> Self {
-        Self::default()
+    /// Create a new engine backed by the given registry.
+    pub fn new(registry: Registry) -> Self {
+        Self {
+            cfg: Arc::new(EngineConfig {
+                config: RuntimeConfig::default(),
+                default_retry: None,
+                default_timeout: None,
+                http_client: HttpClient::default(),
+                registry,
+                key_provider: None,
+            }),
+            runs: RunState::new(),
+        }
     }
 
-    /// Set the default retry policy.
-    pub fn with_retry(mut self, policy: RetryPolicy) -> Self {
-        Arc::make_mut(&mut self.inner).retry = Some(policy);
+    /// Set the base runtime configuration.
+    ///
+    /// Automatically extracts default retry and timeout policies from the
+    /// `[engine]` section, if present.
+    pub fn with_config(mut self, config: RuntimeConfig) -> Self {
+        let cfg = Arc::make_mut(&mut self.cfg);
+        if let Some(engine) = &config.engine {
+            if cfg.default_retry.is_none() {
+                cfg.default_retry = engine.retry.clone();
+            }
+            if cfg.default_timeout.is_none() {
+                cfg.default_timeout = engine.timeout.clone();
+            }
+        }
+        cfg.config = config;
         self
     }
 
-    /// Set the default timeout policy.
+    /// Override the default retry policy.
+    pub fn with_retry(mut self, policy: RetryPolicy) -> Self {
+        Arc::make_mut(&mut self.cfg).default_retry = Some(policy);
+        self
+    }
+
+    /// Override the default timeout policy.
     pub fn with_timeout(mut self, policy: TimeoutPolicy) -> Self {
-        Arc::make_mut(&mut self.inner).timeout = Some(policy);
+        Arc::make_mut(&mut self.cfg).default_timeout = Some(policy);
         self
     }
 
     /// Set the shared HTTP client for downstream providers.
     pub fn with_http_client(mut self, client: HttpClient) -> Self {
-        Arc::make_mut(&mut self.inner).http_client = client;
+        Arc::make_mut(&mut self.cfg).http_client = client;
         self
+    }
+
+    /// Set the key provider for encryption/decryption operations.
+    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
+        Arc::make_mut(&mut self.cfg).key_provider = Some(provider);
+        self
+    }
+
+    /// Returns the base runtime configuration.
+    pub fn config(&self) -> &RuntimeConfig {
+        &self.cfg.config
     }
 
     /// Returns the shared HTTP client.
     pub fn http_client(&self) -> &HttpClient {
-        &self.inner.http_client
+        &self.cfg.http_client
     }
 
-    /// Execute a compiled [`ExecutionPlan`] by spawning concurrent tasks for
-    /// each node.
-    async fn run_graph(plan: &ExecutionPlan) -> Result<RunOutput, Error> {
-        let run_id = Uuid::new_v4();
-
-        // Create channels for each edge
-        let mut senders: HashMap<Uuid, Vec<mpsc::Sender<ContentData>>> = HashMap::new();
-        let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<ContentData>>> = HashMap::new();
-
-        for node in &plan.nodes {
-            let node_id = node.node.id;
-            for downstream_id in &node.downstream_ids {
-                let (tx, rx) = mpsc::channel(CHANNEL_BUFFER_SIZE);
-                senders.entry(node_id).or_default().push(tx);
-                receivers.entry(*downstream_id).or_default().push(rx);
-            }
-        }
-
-        // Create completion signals per node
-        let mut signal_senders: HashMap<Uuid, watch::Sender<bool>> = HashMap::new();
-        let mut signal_receivers: HashMap<Uuid, watch::Receiver<bool>> = HashMap::new();
-
-        for node in &plan.nodes {
-            let (tx, rx) = watch::channel(false);
-            signal_senders.insert(node.node.id, tx);
-            signal_receivers.insert(node.node.id, rx);
-        }
-
-        // Spawn tasks
-        let mut join_set: JoinSet<NodeOutput> = JoinSet::new();
-
-        for resolved in &plan.nodes {
-            let node = resolved.node.clone();
-            let node_id = node.id;
-            let upstream_ids = resolved.upstream_ids.clone();
-
-            let upstream_watches: Vec<watch::Receiver<bool>> = upstream_ids
-                .iter()
-                .filter_map(|id| signal_receivers.get(id).cloned())
-                .collect();
-
-            let completion_tx = signal_senders.remove(&node_id);
-            let node_senders = senders.remove(&node_id).unwrap_or_default();
-            let node_receivers = receivers.remove(&node_id).unwrap_or_default();
-
-            join_set.spawn(async move {
-                // Wait for upstream nodes to complete
-                for mut rx in upstream_watches {
-                    let _ = rx.wait_for(|&done| done).await;
-                }
-
-                let result = execute_node(&node, node_senders, node_receivers).await;
-
-                // Signal completion
-                if let Some(tx) = completion_tx {
-                    let _ = tx.send(true);
-                }
-
-                match result {
-                    Ok(count) => NodeOutput {
-                        node_id,
-                        items_processed: count,
-                        error: None,
-                    },
-                    Err(e) => NodeOutput {
-                        node_id,
-                        items_processed: 0,
-                        error: Some(e.to_string()),
-                    },
-                }
-            });
-        }
-
-        // Collect results
-        let mut node_results = Vec::new();
-        while let Some(result) = join_set.join_next().await {
-            match result {
-                Ok(nr) => node_results.push(nr),
-                Err(e) => node_results.push(NodeOutput {
-                    node_id: Uuid::nil(),
-                    items_processed: 0,
-                    error: Some(format!("Task panicked: {}", e)),
-                }),
-            }
-        }
-
-        let success = node_results.iter().all(|r| r.error.is_none());
-
-        Ok(RunOutput {
-            run_id,
-            node_results,
-            success,
-        })
+    /// Returns the content and context registry.
+    pub fn registry(&self) -> &Registry {
+        &self.cfg.registry
     }
 }
 
 impl Engine for DefaultEngine {
     async fn run(&self, input: EngineInput) -> Result<EngineOutput, Error> {
-        let run_id = Uuid::new_v4();
+        let run_id = uuid::Uuid::new_v4();
+        let cancel = CancellationToken::new();
 
-        let _shared = SharedContext::new(run_id, input.actor_id)
-            .with_policies(input.policies.clone())
-            .with_contexts(input.contexts.clone());
+        let effective_config = match &input.config {
+            Some(overrides) => self.cfg.config.merge(overrides),
+            None => self.cfg.config.clone(),
+        };
 
-        // Phase 1: Detection
-        //
-        // Detection is handled externally (via DetectionService / NER / Pattern /
-        // CV layers) before the engine is called. The engine receives entities as
-        // part of a higher-level orchestration layer. For now, we create an empty
-        // detection output and let the execution graph handle detection actions.
-        let detection = nvisy_ontology::entity::DetectionOutput::new(
-            nvisy_core::content::ContentSource::new(),
-            Vec::new(),
-        );
+        let compiled = match plan::compile(
+            &input.graph,
+            effective_config
+                .engine
+                .as_ref()
+                .and_then(|e| e.retry.as_ref())
+                .or(self.cfg.default_retry.as_ref()),
+            effective_config
+                .engine
+                .as_ref()
+                .and_then(|e| e.timeout.as_ref())
+                .or(self.cfg.default_timeout.as_ref()),
+        ) {
+            Ok(plan) => plan,
+            Err(e) => {
+                self.runs
+                    .insert(
+                        run_id,
+                        RunEntry {
+                            actor_id: input.actor_id,
+                            status: RunStatus::Failed,
+                            created_at: jiff::Timestamp::now(),
+                            completed_at: Some(jiff::Timestamp::now()),
+                            nodes: HashMap::new(),
+                            cancel: cancel.clone(),
+                            entities_detected: 0,
+                            redactions_applied: 0,
+                        },
+                    )
+                    .await;
+                return Err(e);
+            }
+        };
 
-        // Phase 2: Policy Evaluation
-        //
-        // Policy evaluation is handled by the execution graph. For now we
-        // produce an empty evaluation.
-        let evaluation = PolicyEvaluation::new(Uuid::nil());
+        let initial_nodes: HashMap<Uuid, NodeSnapshot> = compiled
+            .nodes()
+            .iter()
+            .map(|n| {
+                (
+                    n.node.id,
+                    NodeSnapshot {
+                        node_id: n.node.id,
+                        status: NodeStatus::Pending,
+                        items_processed: 0,
+                        error: None,
+                    },
+                )
+            })
+            .collect();
 
-        // Phase 3: DAG Execution
-        //
-        // Compile the graph into a topologically-sorted execution plan and
-        // run Source/Action/Target nodes concurrently.
-        let mut compiler = Compiler::new();
-        if let Some(ref retry) = self.inner.retry {
-            compiler = compiler.with_retry(retry.clone());
+        self.runs
+            .insert(
+                run_id,
+                RunEntry {
+                    actor_id: input.actor_id,
+                    status: RunStatus::Running,
+                    created_at: jiff::Timestamp::now(),
+                    completed_at: None,
+                    nodes: initial_nodes,
+                    cancel: cancel.clone(),
+                    entities_detected: 0,
+                    redactions_applied: 0,
+                },
+            )
+            .await;
+
+        let mut shared = SharedContext::new(run_id, input.actor_id, self.cfg.registry.clone())
+            .with_policies(input.policies.clone());
+        if let Some(ref kp) = self.cfg.key_provider {
+            shared = shared.with_key_provider(Arc::clone(kp));
         }
-        if let Some(ref timeout) = self.inner.timeout {
-            compiler = compiler.with_timeout(timeout.clone());
-        }
-        let plan = compiler.compile(&input.graph)?;
-        let run_output = Self::run_graph(&plan).await?;
 
-        Ok(EngineOutput {
-            run_id,
-            detection,
-            evaluation,
-            summaries: Vec::new(),
-            file_audits: Vec::new(),
-            redaction_maps: Vec::new(),
-            run_output,
-        })
+        let ctx = RunContext {
+            cancel,
+            shared,
+            config: effective_config,
+            http_client: self.cfg.http_client.clone(),
+        };
+
+        let run_output =
+            match orchestrator::run_graph(&compiled, run_id, self.runs.clone(), ctx).await {
+                Ok(output) => output,
+                Err(e) => {
+                    self.runs.fail(run_id).await;
+                    return Err(e);
+                }
+            };
+
+        let (output, entities_detected, redactions_applied) =
+            collect_output(run_id, &input.policies, &run_output);
+
+        let status = orchestrator::run_status(&run_output);
+        self.runs
+            .finalize(run_id, status, entities_detected, redactions_applied)
+            .await;
+
+        Ok(output)
+    }
+}
+
+/// Collect [`EngineOutput`] from completed node results.
+fn collect_output(
+    run_id: Uuid,
+    policies: &nvisy_ontology::policy::Policies,
+    run_output: &super::executor::RunOutput,
+) -> (EngineOutput, u64, u64) {
+    let mut all_entities = nvisy_ontology::entity::Entities::new();
+    let mut all_decisions = Vec::new();
+    let mut all_records = Vec::new();
+    let mut file_audits = Vec::new();
+    let mut redactions_applied = 0u64;
+
+    for nr in &run_output.node_results {
+        for envelope in &nr.envelopes {
+            all_entities.extend(envelope.entities.iter().cloned());
+            all_decisions.extend(envelope.audit.decisions.iter().cloned());
+            all_records.extend(envelope.audit.records.iter().cloned());
+            redactions_applied += envelope
+                .audit
+                .decisions
+                .iter()
+                .filter(|d| d.applied)
+                .count() as u64;
+            file_audits.push(envelope.audit.clone());
+        }
+    }
+
+    let entities_detected = all_entities.len() as u64;
+
+    let policy_id = policies
+        .policies
+        .first()
+        .map(|p| p.id)
+        .unwrap_or(Uuid::nil());
+
+    let mut evaluation = PolicyEvaluation::new(policy_id);
+    evaluation.decisions = all_decisions;
+    evaluation.records = all_records;
+
+    let output = EngineOutput {
+        run_id,
+        detection: nvisy_ontology::entity::DetectionOutput::new(ContentSource::new(), all_entities),
+        evaluation,
+        summaries: Vec::new(),
+        file_audits,
+        redaction_maps: Vec::new(),
+    };
+
+    (output, entities_detected, redactions_applied)
+}
+
+impl EngineAnalytics for DefaultEngine {
+    async fn snapshot(&self) -> AnalyticsSnapshot {
+        self.runs.snapshot().await
+    }
+}
+
+impl EngineRuns for DefaultEngine {
+    async fn get_run(&self, id: Uuid) -> Option<RunSnapshot> {
+        self.runs.get_run(id).await
+    }
+
+    async fn list_runs(&self, filter: RunFilter) -> Vec<RunSummary> {
+        self.runs.list_runs(&filter).await
+    }
+
+    async fn cancel_run(&self, id: Uuid) -> Result<(), Error> {
+        self.runs.cancel_run(id).await
     }
 }

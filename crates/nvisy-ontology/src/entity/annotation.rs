@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
-use super::{EntityCategory, EntityKind, Location};
+use super::{Entities, Entity, EntityCategory, EntityKind, Location, RecognitionMethod};
 
 /// The kind of annotation applied to a content region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
@@ -92,4 +92,88 @@ pub struct Annotation {
     /// Classification labels attached to this annotation.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub labels: Vec<AnnotationLabel>,
+}
+
+/// A collection of [`Annotation`]s.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct Annotations(Vec<Annotation>);
+
+impl Annotations {
+    /// Create an empty collection.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Number of annotations.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns `true` if the collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Iterate over all annotations.
+    pub fn iter(&self) -> std::slice::Iter<'_, Annotation> {
+        self.0.iter()
+    }
+
+    /// Add an annotation.
+    pub fn push(&mut self, annotation: Annotation) {
+        self.0.push(annotation);
+    }
+
+    /// Check whether the given entity falls within any exclusion annotation.
+    ///
+    /// An entity is excluded if:
+    /// - An exclusion annotation has the same value (exact match), or
+    /// - An exclusion annotation has a text location that overlaps the entity's.
+    pub fn is_excluded(&self, entity: &Entity) -> bool {
+        for ann in &self.0 {
+            if ann.kind != AnnotationKind::Exclusion {
+                continue;
+            }
+            if let Some(ref excl_val) = ann.value
+                && *excl_val == entity.value
+            {
+                return true;
+            }
+            if let (Some(Location::Text(entity_loc)), Some(Location::Text(excl_loc))) =
+                (&entity.location, &ann.location)
+                && entity_loc.overlaps(excl_loc)
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Convert inclusion annotations into entities and add them to the collection.
+    pub fn apply_inclusions(&self, entities: &mut Entities) {
+        for ann in &self.0 {
+            if ann.kind != AnnotationKind::Inclusion {
+                continue;
+            }
+            let category = match ann.category {
+                Some(c) => c,
+                None => continue,
+            };
+            let entity_kind = match ann.entity_kind {
+                Some(ek) => ek,
+                None => continue,
+            };
+            let value = ann.value.clone().unwrap_or_default();
+            let mut entity =
+                Entity::new(category, entity_kind, value, RecognitionMethod::Manual, 1.0);
+            entity.location = ann.location.clone();
+            entities.push(entity);
+        }
+    }
+}
+
+impl From<Vec<Annotation>> for Annotations {
+    fn from(v: Vec<Annotation>) -> Self {
+        Self(v)
+    }
 }

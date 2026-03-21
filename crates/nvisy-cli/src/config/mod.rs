@@ -31,7 +31,7 @@ mod server;
 use std::path::PathBuf;
 
 use clap::Parser;
-use nvisy_engine::RuntimeConfig;
+use nvisy_engine::pipeline::RuntimeConfig;
 use tracing_subscriber::EnvFilter;
 
 pub use self::file::MiddlewareSection;

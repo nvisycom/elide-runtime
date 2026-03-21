@@ -9,26 +9,26 @@ use serde::{Deserialize, Serialize};
 pub struct Pagination {
     /// Maximum number of items to return (default: 50).
     #[serde(default = "default_limit")]
-    pub limit: usize,
+    pub limit: u32,
     /// Number of items to skip (default: 0).
     #[serde(default)]
-    pub offset: usize,
+    pub offset: u32,
 }
 
-fn default_limit() -> usize {
+fn default_limit() -> u32 {
     50
 }
 
 impl Pagination {
     /// Apply pagination to a vector, returning a [`Page`].
     pub fn paginate<T: Serialize + JsonSchema>(&self, items: Vec<T>) -> Page<T> {
-        let total = items.len();
+        let total = items.len() as u32;
         let items: Vec<T> = items
             .into_iter()
-            .skip(self.offset)
-            .take(self.limit)
+            .skip(self.offset as usize)
+            .take(self.limit as usize)
             .collect();
-        let has_more = self.offset + items.len() < total;
+        let has_more = self.offset + items.len() as u32 > total;
         Page {
             total,
             has_more,
@@ -42,7 +42,7 @@ impl Pagination {
 #[serde(rename_all = "camelCase")]
 pub struct Page<T: Serialize + JsonSchema> {
     /// Total number of items before pagination.
-    pub total: usize,
+    pub total: u32,
     /// Whether more items exist beyond this page.
     pub has_more: bool,
     /// The items in this page.

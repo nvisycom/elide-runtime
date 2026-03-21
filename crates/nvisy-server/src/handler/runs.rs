@@ -43,13 +43,13 @@ pub struct RunQuery {
     pub actor_id: Option<uuid::Uuid>,
     /// Maximum number of items to return (default: 50).
     #[serde(default = "default_limit")]
-    pub limit: usize,
+    pub limit: u32,
     /// Number of items to skip (default: 0).
     #[serde(default)]
-    pub offset: usize,
+    pub offset: u32,
 }
 
-fn default_limit() -> usize {
+fn default_limit() -> u32 {
     50
 }
 

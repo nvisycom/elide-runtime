@@ -130,4 +130,12 @@ pub trait EngineRuns: Send + Sync {
     ///
     /// Returns `Err` if the run was not found or has already finished.
     fn cancel_run(&self, id: Uuid) -> impl Future<Output = Result<(), Error>> + Send;
+
+    /// Delete a single finished run.
+    ///
+    /// Returns `Err` if the run does not exist or is still active.
+    fn delete_run(&self, id: Uuid) -> impl Future<Output = Result<(), Error>> + Send;
+
+    /// Delete all finished runs. Returns the number of removed entries.
+    fn delete_all_runs(&self) -> impl Future<Output = usize> + Send;
 }

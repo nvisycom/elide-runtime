@@ -154,6 +154,41 @@ impl RunState {
         }
     }
 
+    /// Remove a single run from the store.
+    ///
+    /// Returns `Err` if the run does not exist or is still active.
+    pub async fn delete_run(&self, id: Uuid) -> Result<(), nvisy_core::Error> {
+        let mut runs = self.runs.write().await;
+        let entry = runs.get(&id).ok_or_else(|| {
+            nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
+        })?;
+
+        match entry.status {
+            RunStatus::Pending | RunStatus::Running => {
+                return Err(nvisy_core::Error::new(
+                    nvisy_core::ErrorKind::Validation,
+                    "cannot delete an active run",
+                )
+                .with_component("run"));
+            }
+            _ => {}
+        }
+
+        runs.remove(&id);
+        Ok(())
+    }
+
+    /// Remove all finished runs from the store.
+    ///
+    /// Active runs (pending or running) are preserved. Returns the
+    /// number of removed entries.
+    pub async fn delete_all_runs(&self) -> usize {
+        let mut runs = self.runs.write().await;
+        let before = runs.len();
+        runs.retain(|_, entry| matches!(entry.status, RunStatus::Pending | RunStatus::Running));
+        before - runs.len()
+    }
+
     /// Collect a point-in-time analytics snapshot.
     pub async fn snapshot(&self) -> AnalyticsSnapshot {
         let runs = self.runs.read().await;

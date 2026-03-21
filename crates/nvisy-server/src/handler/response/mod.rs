@@ -10,8 +10,8 @@ mod error;
 mod files;
 mod runs;
 
-pub use self::check::{Analytics, Health, ServiceStatus};
+pub use self::check::{Analytics, ComponentCheck, Health, ServiceStatus};
 pub use self::contexts::{Context, ContextId, ContextList};
 pub use self::error::ErrorResponse;
 pub use self::files::{File, FileId, FileList};
-pub use self::runs::{Run, RunList, RunResult};
+pub use self::runs::{RunDetail, RunList, RunResult};

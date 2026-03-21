@@ -44,90 +44,102 @@ impl ErrorResponse<'static> {
     pub const BAD_REQUEST: Self = Self {
         name: Cow::Borrowed("bad_request"),
         status: StatusCode::BAD_REQUEST,
-        message: None,
+        message: Some(Cow::Borrowed("The request is invalid or malformed")),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed("Check the request body and query parameters")),
     };
     pub const CONFLICT: Self = Self {
         name: Cow::Borrowed("conflict"),
         status: StatusCode::CONFLICT,
-        message: None,
+        message: Some(Cow::Borrowed(
+            "The request conflicts with the current resource state",
+        )),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed(
+            "The resource may have been modified; retry the operation",
+        )),
     };
     pub const FORBIDDEN: Self = Self {
         name: Cow::Borrowed("forbidden"),
         status: StatusCode::FORBIDDEN,
-        message: None,
+        message: Some(Cow::Borrowed("Access to this resource is denied")),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed("Check your permissions for this resource")),
     };
     pub const INTERNAL_SERVER_ERROR: Self = Self {
         name: Cow::Borrowed("internal_server_error"),
         status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: None,
+        message: Some(Cow::Borrowed("An unexpected error occurred")),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed(
+            "Retry the request; contact support if the issue persists",
+        )),
     };
     pub const MALFORMED_AUTH_TOKEN: Self = Self {
         name: Cow::Borrowed("malformed_auth_token"),
         status: StatusCode::UNAUTHORIZED,
-        message: None,
+        message: Some(Cow::Borrowed("The authentication token is malformed")),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed("Ensure the token is a valid UUID")),
     };
     pub const MISSING_AUTH_TOKEN: Self = Self {
         name: Cow::Borrowed("missing_auth_token"),
         status: StatusCode::UNAUTHORIZED,
-        message: None,
+        message: Some(Cow::Borrowed("No authentication token was provided")),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed(
+            "Include the X-Actor-Id header in the request",
+        )),
     };
     pub const MISSING_PATH_PARAM: Self = Self {
         name: Cow::Borrowed("missing_path_param"),
         status: StatusCode::BAD_REQUEST,
-        message: None,
+        message: Some(Cow::Borrowed(
+            "A required path parameter is missing or invalid",
+        )),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed(
+            "Include the required path parameter in the URL",
+        )),
     };
     pub const NOT_FOUND: Self = Self {
         name: Cow::Borrowed("not_found"),
         status: StatusCode::NOT_FOUND,
-        message: None,
+        message: Some(Cow::Borrowed("The requested resource was not found")),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed("Verify the resource identifier exists")),
     };
     pub const NOT_IMPLEMENTED: Self = Self {
         name: Cow::Borrowed("not_implemented"),
         status: StatusCode::NOT_IMPLEMENTED,
-        message: None,
+        message: Some(Cow::Borrowed("This operation is not yet implemented")),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed("This feature is not yet available")),
     };
     pub const TOO_MANY_REQUESTS: Self = Self {
         name: Cow::Borrowed("too_many_requests"),
         status: StatusCode::TOO_MANY_REQUESTS,
-        message: None,
+        message: Some(Cow::Borrowed("Rate limit exceeded")),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed("Wait before retrying")),
     };
     pub const UNAUTHORIZED: Self = Self {
         name: Cow::Borrowed("unauthorized"),
         status: StatusCode::UNAUTHORIZED,
-        message: None,
+        message: Some(Cow::Borrowed("Authentication is required")),
         resource: None,
         context: None,
-        suggestion: None,
+        suggestion: Some(Cow::Borrowed("Provide valid credentials in the request")),
     };
 }
 

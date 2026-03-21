@@ -346,4 +346,12 @@ impl EngineRuns for DefaultEngine {
     async fn cancel_run(&self, id: Uuid) -> Result<(), Error> {
         self.runs.cancel_run(id).await
     }
+
+    async fn delete_run(&self, id: Uuid) -> Result<(), Error> {
+        self.runs.delete_run(id).await
+    }
+
+    async fn delete_all_runs(&self) -> usize {
+        self.runs.delete_all_runs().await
+    }
 }

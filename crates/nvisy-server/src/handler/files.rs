@@ -2,27 +2,34 @@
 //!
 //! # Endpoints
 //!
-//! | Method   | Path                    | Description                         |
-//! |----------|-------------------------|-------------------------------------|
-//! | `POST`   | `/api/v1/files`         | Upload file (base64 JSON)           |
-//! | `GET`    | `/api/v1/files`         | List all uploaded file IDs          |
-//! | `GET`    | `/api/v1/files/{id}`    | Download previously uploaded file   |
-//! | `DELETE` | `/api/v1/files/{id}`    | Delete a single file                |
-//! | `DELETE` | `/api/v1/files`         | Delete all files                    |
+//! | Method   | Path                        | Description                         |
+//! |----------|-----------------------------|-------------------------------------|
+//! | `POST`   | `/api/v1/files`             | Upload file (base64 JSON)           |
+//! | `GET`    | `/api/v1/files`             | List all uploaded file IDs          |
+//! | `GET`    | `/api/v1/files/{id}`        | Download previously uploaded file   |
+//! | `DELETE` | `/api/v1/files/{id}`        | Delete a single file                |
+//! | `DELETE` | `/api/v1/files`             | Delete all files                    |
+
+use std::time::Duration;
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
-use axum::extract::State;
+use axum::error_handling::HandleErrorLayer;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_core::content::{Content, ContentData, ContentMetadata};
 use nvisy_registry::Registry;
+use tower::ServiceBuilder;
+use tower::timeout::TimeoutLayer;
 
 use super::error::Result;
-use super::request::{ContentPath, NewFile};
+use super::request::{ContentPath, NewFile, Pagination};
 use super::response::{File, FileId, FileList};
 use super::utility::Base64;
 use crate::extract::{ActorId, Json, Path};
+use crate::middleware::constants::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS};
+use crate::middleware::recovery::handle_error;
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::files";
@@ -126,10 +133,12 @@ fn download_file_docs(op: TransformOperation) -> TransformOperation {
 async fn list_files(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
+    Query(pagination): Query<Pagination>,
 ) -> Result<Json<FileList>> {
     let files = registry.list_content(actor_id).await?;
-    tracing::debug!(target: TARGET, count = files.len(), "files listed");
-    Ok(Json(FileList { files }))
+    let page = pagination.paginate(files);
+    tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "files listed");
+    Ok(Json(page))
 }
 
 fn list_files_docs(op: TransformOperation) -> TransformOperation {
@@ -186,15 +195,37 @@ fn delete_all_files_docs(op: TransformOperation) -> TransformOperation {
 
 /// File routes.
 pub fn routes() -> ApiRouter<ServiceState> {
-    ApiRouter::new()
+    let read_routes = ApiRouter::new()
+        .api_route("/api/v1/files", get_with(list_files, list_files_docs))
+        .api_route(
+            "/api/v1/files/{id}",
+            get_with(download_file, download_file_docs),
+        )
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(handle_error))
+                .layer(TimeoutLayer::new(Duration::from_secs(
+                    DEFAULT_READ_TIMEOUT_SECS,
+                ))),
+        );
+
+    let write_routes = ApiRouter::new()
         .api_route(
             "/api/v1/files",
             post_with(upload_file, upload_file_docs)
-                .get_with(list_files, list_files_docs)
                 .delete_with(delete_all_files, delete_all_files_docs),
         )
         .api_route(
             "/api/v1/files/{id}",
-            get_with(download_file, download_file_docs).delete_with(delete_file, delete_file_docs),
+            aide::axum::routing::delete_with(delete_file, delete_file_docs),
         )
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(handle_error))
+                .layer(TimeoutLayer::new(Duration::from_secs(
+                    DEFAULT_WRITE_TIMEOUT_SECS,
+                ))),
+        );
+
+    read_routes.merge(write_routes)
 }

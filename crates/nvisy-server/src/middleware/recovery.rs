@@ -93,7 +93,7 @@ where
 ///
 /// Distinguishes timeouts ([`Elapsed`](tower::timeout::error::Elapsed))
 /// from other middleware errors and logs accordingly.
-fn handle_error(err: tower::BoxError) -> ResponseFut {
+pub(crate) fn handle_error(err: tower::BoxError) -> ResponseFut {
     use tower::timeout::error::Elapsed;
 
     if err.downcast_ref::<Elapsed>().is_some() {

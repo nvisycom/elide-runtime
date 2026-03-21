@@ -2958,6 +2958,7 @@ dependencies = [
  "aes-gcm",
  "anyhow",
  "async-trait",
+ "base64",
  "bytes",
  "derive_builder",
  "derive_more",

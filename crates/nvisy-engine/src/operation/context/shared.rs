@@ -8,11 +8,12 @@
 use std::sync::Arc;
 
 use derive_more::Deref;
+use nvisy_ontology::context::ContextMap;
 use nvisy_ontology::policy::{Policies, Policy};
 use nvisy_registry::Registry;
 use uuid::Uuid;
 
-use crate::operation::encryption::KeyProvider;
+use crate::operation::encryption::SharedKeyProvider;
 
 /// Immutable run-wide state behind an [`Arc`].
 ///
@@ -28,8 +29,10 @@ pub struct SharedData {
     pub policies: Policies,
     /// Content and context storage.
     pub registry: Registry,
-    /// Optional key provider for encryption/decryption.
-    pub key_provider: Option<Arc<dyn KeyProvider>>,
+    /// Key provider for encryption/decryption.
+    pub key_provider: SharedKeyProvider,
+    /// Pre-loaded contexts for this pipeline run.
+    pub context_map: ContextMap,
 }
 
 /// Cheaply-clonable handle to run-wide [`SharedData`].
@@ -55,20 +58,27 @@ impl SharedContext {
                 actor_id,
                 policies: Policies::default(),
                 registry,
-                key_provider: None,
+                key_provider: SharedKeyProvider::default(),
+                context_map: ContextMap::new(),
             }),
         }
     }
 
     /// Attach a key provider for encryption/decryption operations.
-    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
-        Arc::make_mut(&mut self.data).key_provider = Some(provider);
+    pub fn with_key_provider(mut self, provider: SharedKeyProvider) -> Self {
+        Arc::make_mut(&mut self.data).key_provider = provider;
         self
     }
 
     /// Attach policies to this shared context.
     pub fn with_policies(mut self, policies: Policies) -> Self {
         Arc::make_mut(&mut self.data).policies = policies;
+        self
+    }
+
+    /// Attach a pre-loaded context map.
+    pub fn with_context_map(mut self, map: ContextMap) -> Self {
+        Arc::make_mut(&mut self.data).context_map = map;
         self
     }
 

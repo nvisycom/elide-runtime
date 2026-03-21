@@ -10,6 +10,7 @@ use std::sync::Arc;
 use nvisy_core::Error;
 use nvisy_core::content::ContentSource;
 use nvisy_http::HttpClient;
+use nvisy_ontology::context::ContextMap;
 use nvisy_registry::Registry;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -22,9 +23,9 @@ use super::runs::{
     EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
 };
 use super::{Engine, EngineInput, EngineOutput, plan};
-use crate::graph::{RetryPolicy, TimeoutPolicy};
+use crate::graph::{GraphNodeKind, RetryPolicy, TimeoutPolicy};
 use crate::operation::context::SharedContext;
-use crate::operation::encryption::KeyProvider;
+use crate::operation::encryption::SharedKeyProvider;
 use crate::provenance::PolicyEvaluation;
 
 /// Immutable configuration created during engine construction.
@@ -35,7 +36,7 @@ struct EngineConfig {
     default_timeout: Option<TimeoutPolicy>,
     http_client: HttpClient,
     registry: Registry,
-    key_provider: Option<Arc<dyn KeyProvider>>,
+    key_provider: Option<SharedKeyProvider>,
 }
 
 /// Default [`Engine`] implementation.
@@ -113,7 +114,7 @@ impl DefaultEngine {
     }
 
     /// Set the key provider for encryption/decryption operations.
-    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
+    pub fn with_key_provider(mut self, provider: SharedKeyProvider) -> Self {
         Arc::make_mut(&mut self.cfg).key_provider = Some(provider);
         self
     }
@@ -210,10 +211,42 @@ impl Engine for DefaultEngine {
             )
             .await;
 
+        let mut context_ids: Vec<Uuid> = input
+            .graph
+            .nodes
+            .iter()
+            .filter_map(|node| match &node.kind {
+                GraphNodeKind::LoadContext(cfg) => Some(cfg.context_ids.clone()),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        context_ids.sort_unstable();
+        context_ids.dedup();
+
+        let mut context_map = ContextMap::new();
+        for id in &context_ids {
+            match self.cfg.registry.read_context(input.actor_id, *id).await {
+                Ok(handle) => match handle.context().await {
+                    Ok(context) => {
+                        context_map.insert(context);
+                    }
+                    Err(e) => {
+                        tracing::warn!(%id, error = %e, "failed to load context, skipping");
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!(%id, error = %e, "failed to load context, skipping");
+                }
+            }
+        }
+        tracing::debug!(loaded = context_map.len(), "pre-loaded contexts");
+
         let mut shared = SharedContext::new(run_id, input.actor_id, self.cfg.registry.clone())
-            .with_policies(input.policies.clone());
+            .with_policies(input.policies.clone())
+            .with_context_map(context_map);
         if let Some(ref kp) = self.cfg.key_provider {
-            shared = shared.with_key_provider(Arc::clone(kp));
+            shared = shared.with_key_provider(kp.clone());
         }
 
         let ctx = RunContext {

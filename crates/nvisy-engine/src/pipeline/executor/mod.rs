@@ -328,12 +328,12 @@ impl NodeExecutor {
             }
 
             GraphNodeKind::LoadContext(cfg) => {
-                let op = LoadContext::new(cfg, shared).await?;
+                let op = LoadContext::new(cfg);
                 let count = process_envelopes(senders, receivers, |mut envelope| {
                     let op = &op;
                     let shared = shared.clone();
                     async move {
-                        tracing::debug!(target: TARGET, "merging loaded contexts into envelope");
+                        tracing::debug!(target: TARGET, "adding context references to envelope");
                         let input = ParallelContext::new(envelope.contexts.clone(), shared);
                         let output = op.call(input).await?;
                         envelope.contexts = output.data;
@@ -345,7 +345,7 @@ impl NodeExecutor {
             }
 
             GraphNodeKind::SaveContext(cfg) => {
-                let op = SaveContext::new(cfg, shared);
+                let op = SaveContext::new(cfg);
                 let count = process_envelopes(senders, receivers, |envelope| {
                     let op = &op;
                     let shared = shared.clone();
@@ -384,12 +384,9 @@ impl NodeExecutor {
         retry: Option<&RetryPolicy>,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let mut import = ImportFile::new()
+        let import = ImportFile::new()
             .with_decompression(cfg.decompression)
             .with_decryption(cfg.decryption.clone());
-        if let Some(ref kp) = self.shared.key_provider {
-            import = import.with_key_provider(Arc::clone(kp));
-        }
 
         let mut count = 0u64;
         for &content_id in &cfg.content_ids {
@@ -429,14 +426,10 @@ impl NodeExecutor {
         cfg: &graph::ExportFile,
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let mut export = ExportFile::new()
+        let export = ExportFile::new()
             .with_encryption(cfg.encryption.clone())
             .with_compression(cfg.compression)
-            .with_registry(self.shared.registry.clone(), self.shared.actor_id)
             .with_content_ids(cfg.content_ids.clone());
-        if let Some(ref kp) = self.shared.key_provider {
-            export = export.with_key_provider(Arc::clone(kp));
-        }
 
         let mut count = 0u64;
         let mut envelopes = Vec::new();

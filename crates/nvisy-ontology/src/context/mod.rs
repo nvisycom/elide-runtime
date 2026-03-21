@@ -22,14 +22,20 @@ use uuid::Uuid;
 pub use self::entry::{ContextEntry, ContextEntryData};
 
 /// A collection of [`Context`]s keyed by their source UUID.
+///
+/// This is the run-wide store: every context loaded during a pipeline
+/// run is held here. Individual [`DocumentEnvelope`]s carry a
+/// lightweight [`Contexts`] reference set instead.
+///
+/// [`DocumentEnvelope`]: https://docs.rs/nvisy-engine
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-pub struct Contexts {
+pub struct ContextMap {
     /// The contexts, keyed by source UUID.
     #[serde(flatten)]
     contexts: HashMap<Uuid, Context>,
 }
 
-impl Contexts {
+impl ContextMap {
     /// Create an empty collection.
     pub fn new() -> Self {
         Self::default()
@@ -69,6 +75,51 @@ impl Contexts {
     /// Iterate over all context values.
     pub fn values(&self) -> impl Iterator<Item = &Context> {
         self.contexts.values()
+    }
+}
+
+/// Lightweight set of context references carried by each [`DocumentEnvelope`].
+///
+/// Each UUID points to a [`Context`] in the run-wide [`ContextMap`].
+///
+/// [`DocumentEnvelope`]: https://docs.rs/nvisy-engine
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct Contexts(Vec<Uuid>);
+
+impl Contexts {
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    pub fn from_ids(ids: Vec<Uuid>) -> Self {
+        Self(ids)
+    }
+
+    pub fn push(&mut self, id: Uuid) {
+        if !self.0.contains(&id) {
+            self.0.push(id);
+        }
+    }
+
+    pub fn ids(&self) -> &[Uuid] {
+        &self.0
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn contains(&self, id: &Uuid) -> bool {
+        self.0.contains(id)
+    }
+
+    /// Resolve all references against a [`ContextMap`], returning matching contexts.
+    pub fn resolve<'a>(&'a self, map: &'a ContextMap) -> Vec<&'a Context> {
+        self.0.iter().filter_map(|id| map.get(id)).collect()
     }
 }
 

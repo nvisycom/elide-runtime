@@ -15,35 +15,32 @@
 //!
 //! [`Document`]: nvisy_codec::Document
 
-use std::sync::Arc;
-
 use nvisy_codec::Document;
 use nvisy_core::Result;
 use nvisy_core::content::ContentData;
 
 use crate::graph::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 use crate::operation::compression::CompressionService;
-use crate::operation::context::ParallelContext;
-use crate::operation::encryption::{CryptoService, EncryptedContent, KeyProvider};
+use crate::operation::context::{ParallelContext, SharedContext};
+use crate::operation::encryption::{CryptoService, EncryptedContent};
 use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 
 /// Decodes raw content into a [`DocumentEnvelope`], optionally applying
 /// decompression and decryption beforehand.
+///
+/// Key provider is read from the [`SharedContext`] at call time —
+/// only graph-config fields are stored on the struct.
+#[derive(Default)]
 pub struct ImportFile {
     decompression: Option<CompressionAlgorithm>,
     decryption: Option<EncryptionConfig>,
-    key_provider: Option<Arc<dyn KeyProvider>>,
 }
 
 impl ImportFile {
     pub fn new() -> Self {
-        Self {
-            decompression: None,
-            decryption: None,
-            key_provider: None,
-        }
+        Self::default()
     }
 
     pub fn with_decompression(mut self, format: Option<CompressionAlgorithm>) -> Self {
@@ -56,12 +53,11 @@ impl ImportFile {
         self
     }
 
-    pub fn with_key_provider(mut self, provider: Arc<dyn KeyProvider>) -> Self {
-        self.key_provider = Some(provider);
-        self
-    }
-
-    async fn import(&self, content: ContentData) -> Result<DocumentEnvelope> {
+    async fn import(
+        &self,
+        content: ContentData,
+        shared: &SharedContext,
+    ) -> Result<DocumentEnvelope> {
         let mut data = content;
 
         if let Some(algorithm) = self.decompression {
@@ -74,15 +70,8 @@ impl ImportFile {
         }
 
         if let Some(ref enc_cfg) = self.decryption {
-            let key_provider = self.key_provider.as_ref().ok_or_else(|| {
-                nvisy_core::Error::runtime(
-                    "decryption requires a KeyProvider",
-                    "import_file",
-                    false,
-                )
-            })?;
             tracing::debug!(target: TARGET, key_id = %enc_cfg.key_id, "decrypting content");
-            let crypto = CryptoService::new(&enc_cfg.key_id, Arc::clone(key_provider));
+            let crypto = CryptoService::new(&enc_cfg.key_id, shared.key_provider.clone());
             let encrypted = EncryptedContent {
                 source: data.content_source,
                 ciphertext: bytes::Bytes::copy_from_slice(data.as_bytes()),
@@ -99,18 +88,13 @@ impl ImportFile {
     }
 }
 
-impl Default for ImportFile {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Operation for ImportFile {
     type Input = ParallelContext<ContentData>;
     type Output = ParallelContext<DocumentEnvelope>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input.parallel_map(|data| self.import(data)).await
+        let shared = input.shared.clone();
+        input.parallel_map(|data| self.import(data, &shared)).await
     }
 }
 

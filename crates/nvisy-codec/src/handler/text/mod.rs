@@ -18,6 +18,7 @@ mod json_handler;
 mod json_loader;
 mod text_data;
 mod text_handler;
+mod text_span_id;
 mod txt_handler;
 mod txt_loader;
 #[cfg(feature = "xlsx")]
@@ -35,6 +36,7 @@ pub use self::json_handler::{JsonData, JsonHandler, JsonIndent, JsonPath};
 pub use self::json_loader::{JsonLoader, JsonParams};
 pub use self::text_data::TextData;
 pub use self::text_handler::BoxedTextHandler;
+pub use self::text_span_id::TextSpanId;
 pub use self::txt_handler::{TxtHandler, TxtSpan};
 pub use self::txt_loader::{TxtLoader, TxtParams};
 #[cfg(feature = "xlsx")]
@@ -71,27 +73,31 @@ pub trait TextHandler: Handler {
     ) -> Result<(), Error>;
 }
 
-/// Re-index a handler's span stream to sequential `usize` IDs.
+/// Re-index a handler's span stream to sequential [`TextSpanId`] IDs.
 pub(crate) async fn reindex_stream<'a, H: TextHandler + 'a>(
     handler: &'a H,
-) -> SpanStream<'a, usize, TextData> {
+) -> SpanStream<'a, TextSpanId, TextData> {
     let inner = handler.text_spans().await;
     SpanStream::new(
         inner
             .enumerate()
-            .map(|(i, s)| Span::new(i, s.data).with_source(s.source)),
+            .map(|(i, s)| Span::new(TextSpanId::new(i), s.data).with_source(s.source)),
     )
 }
 
-/// Collect native IDs from a handler, map `usize` edits back, and apply.
+/// Collect native IDs from a handler, map [`TextSpanId`] edits back, and apply.
 pub(crate) async fn forward_edits<H: TextHandler>(
     handler: &mut H,
-    edits: Vec<Span<usize, TextData>>,
+    edits: Vec<Span<TextSpanId, TextData>>,
 ) -> Result<(), Error> {
     let ids: Vec<H::TextId> = handler.text_spans().await.map(|s| s.id).collect().await;
     let mapped: Vec<_> = edits
         .into_iter()
-        .filter_map(|e| ids.get(e.id).cloned().map(|id| Span::new(id, e.data)))
+        .filter_map(|e| {
+            ids.get(e.id.index())
+                .cloned()
+                .map(|id| Span::new(id, e.data))
+        })
         .collect();
     handler
         .edit_text(SpanStream::new(futures::stream::iter(mapped)))

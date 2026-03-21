@@ -14,9 +14,9 @@ pub use self::span::Span;
 pub use self::stream::SpanStream;
 use crate::handler::{
     BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler, BoxedTextHandler, CsvLoader, CsvParams,
-    Handler, HtmlLoader, HtmlParams, JpegLoader, JpegParams, JsonLoader, JsonParams, Loader,
-    Mp3Loader, Mp3Params, PngLoader, PngParams, TextData, TxtLoader, TxtParams, WavLoader,
-    WavParams, XlsxLoader, XlsxParams,
+    Handler, HtmlLoader, HtmlParams, ImageData, ImageHandler, ImageSpanId, JpegLoader, JpegParams,
+    JsonLoader, JsonParams, Loader, Mp3Loader, Mp3Params, PngLoader, PngParams, TextData,
+    TextHandler, TextSpanId, TxtLoader, TxtParams, WavLoader, WavParams, XlsxLoader, XlsxParams,
 };
 
 /// A fully type-erased document that can hold any supported format.
@@ -77,17 +77,26 @@ impl Document {
         }
     }
 
-    /// Collect all text spans from text or rich documents.
+    /// Stream text spans from text or rich documents.
     ///
-    /// Returns an empty vec for image and audio documents.
-    pub async fn collect_text_spans(&self) -> Vec<Span<usize, TextData>> {
-        use futures::StreamExt;
-
-        use crate::handler::TextHandler;
+    /// Returns an empty stream for image and audio documents.
+    pub async fn text_spans(&self) -> SpanStream<'_, TextSpanId, TextData> {
         match self {
-            Self::Text(h) => h.text_spans().await.collect().await,
-            Self::Rich(h) => h.text_spans().await.collect().await,
-            _ => Vec::new(),
+            Self::Text(h) => h.text_spans().await,
+            Self::Rich(h) => h.text_spans().await,
+            _ => SpanStream::new(futures::stream::empty()),
+        }
+    }
+
+    /// Stream image spans from image documents.
+    ///
+    /// Returns an empty stream for text, audio, and rich documents.
+    /// Rich document image support will be added when `RichHandler`
+    /// implements `ImageHandler`.
+    pub async fn image_spans(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
+        match self {
+            Self::Image(h) => h.image_spans().await,
+            _ => SpanStream::new(futures::stream::empty()),
         }
     }
 

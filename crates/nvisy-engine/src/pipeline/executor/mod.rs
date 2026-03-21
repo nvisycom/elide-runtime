@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use futures::StreamExt;
-use nvisy_codec::handler::{BoxedTextHandler, Handler, ImageHandler, TextHandler, TxtHandler};
+use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_codec::{Document, Span};
 use nvisy_core::{Error, ErrorKind};
 use nvisy_http::HttpClient;
@@ -129,9 +129,10 @@ impl NodeExecutor {
                     let op = &op;
                     let shared = shared.clone();
                     async move {
-                        if let Document::Image(ref handler) = envelope.document {
-                            tracing::debug!(target: TARGET, "extracting image spans for OCR");
-                            let image_spans: Vec<_> = handler.image_spans().await.collect().await;
+                        tracing::debug!(target: TARGET, "extracting image spans for OCR");
+                        let image_spans: Vec<_> =
+                            envelope.document.image_spans().await.collect().await;
+                        if !image_spans.is_empty() {
                             let ocr_spans: Vec<Span<(), _>> = image_spans
                                 .into_iter()
                                 .map(|s| Span::new((), s.data).with_source(s.source))
@@ -143,17 +144,15 @@ impl NodeExecutor {
                             if let Some(verifier) = op.verifier()
                                 && !envelope.entities.is_empty()
                             {
-                                let verify_spans: Vec<_> = match &envelope.document {
-                                    Document::Image(h) => h
-                                        .image_spans()
-                                        .await
-                                        .collect::<Vec<_>>()
-                                        .await
-                                        .into_iter()
-                                        .map(|s| Span::new((), s.data).with_source(s.source))
-                                        .collect(),
-                                    _ => Vec::new(),
-                                };
+                                let verify_spans: Vec<_> = envelope
+                                    .document
+                                    .image_spans()
+                                    .await
+                                    .collect::<Vec<_>>()
+                                    .await
+                                    .into_iter()
+                                    .map(|s| Span::new((), s.data).with_source(s.source))
+                                    .collect();
                                 let verify_input = VerifyInput {
                                     image_spans: verify_spans,
                                     entities: envelope.entities.clone(),
@@ -225,7 +224,7 @@ impl NodeExecutor {
                     let op = &op;
                     let shared = shared.clone();
                     async move {
-                        let spans = envelope.document.collect_text_spans().await;
+                        let spans: Vec<_> = envelope.document.text_spans().await.collect().await;
                         if !spans.is_empty() {
                             tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
                             let input = SequentialContext::new(spans, shared);
@@ -245,7 +244,7 @@ impl NodeExecutor {
                     let op = &op;
                     let shared = shared.clone();
                     async move {
-                        let spans = envelope.document.collect_text_spans().await;
+                        let spans: Vec<_> = envelope.document.text_spans().await.collect().await;
                         if !spans.is_empty() {
                             tracing::debug!(target: TARGET, span_count = spans.len(), "running pattern detection");
                             let input = ParallelContext::new(spans, shared);
@@ -300,12 +299,17 @@ impl NodeExecutor {
                     let op = &op;
                     let shared = shared.clone();
                     async move {
-                        let redacted_text = match &envelope.document {
-                            Document::Text(h) => {
-                                let spans: Vec<_> = h.text_spans().await.collect().await;
-                                Some(spans.iter().map(|s| s.data.as_str()).collect::<String>())
-                            }
-                            _ => None,
+                        let text_spans: Vec<_> =
+                            envelope.document.text_spans().await.collect().await;
+                        let redacted_text = if text_spans.is_empty() {
+                            None
+                        } else {
+                            Some(
+                                text_spans
+                                    .iter()
+                                    .map(|s| s.data.as_str())
+                                    .collect::<String>(),
+                            )
                         };
                         let input = ParallelContext::new(
                             ValidationInput {

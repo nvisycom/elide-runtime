@@ -38,19 +38,9 @@ pub struct RunQuery {
     /// Filter by run status (e.g. `running`, `succeeded`).
     #[serde(default)]
     pub status: Option<nvisy_engine::pipeline::RunStatus>,
-    /// Filter by actor identity.
-    #[serde(default)]
-    pub actor_id: Option<uuid::Uuid>,
-    /// Maximum number of items to return (default: 50).
-    #[serde(default = "default_limit")]
-    pub limit: u32,
-    /// Number of items to skip (default: 0).
-    #[serde(default)]
-    pub offset: u32,
-}
-
-fn default_limit() -> u32 {
-    50
+    /// Pagination parameters.
+    #[serde(flatten)]
+    pub pagination: super::request::Pagination,
 }
 
 const TARGET: &str = "nvisy_server::runs";
@@ -98,26 +88,22 @@ fn create_run_docs(op: TransformOperation) -> TransformOperation {
         )
 }
 
-/// `GET /api/v1/runs`: list runs with optional status/actor filters.
+/// `GET /api/v1/runs`: list runs with optional status filter, scoped to the caller.
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(?query.status, ?query.actor_id),
+    fields(%actor_id, ?query.status),
 )]
 async fn list_runs(
     State(engine): State<DefaultEngine>,
+    ActorId(actor_id): ActorId,
     Query(query): Query<RunQuery>,
 ) -> Result<Json<RunList>> {
     let filter = RunFilter {
         status: query.status,
-        actor_id: query.actor_id,
     };
-    let runs = engine.list_runs(filter).await;
-    let page = super::request::Pagination {
-        limit: query.limit,
-        offset: query.offset,
-    }
-    .paginate(runs);
+    let runs = engine.list_runs(actor_id, filter).await;
+    let page = query.pagination.paginate(runs);
     tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "runs listed");
     Ok(Json(page))
 }
@@ -135,14 +121,15 @@ fn list_runs_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%id),
+    fields(%actor_id, %id),
 )]
 async fn get_run(
     State(engine): State<DefaultEngine>,
+    ActorId(actor_id): ActorId,
     Path(RunPath { id }): Path<RunPath>,
 ) -> Result<Json<RunDetail>> {
     let run = engine
-        .get_run(id)
+        .get_run(actor_id, id)
         .await
         .ok_or_else(|| ErrorKind::NotFound.with_resource("run"))?;
     tracing::debug!(target: TARGET, "run retrieved");
@@ -160,13 +147,14 @@ fn get_run_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%id),
+    fields(%actor_id, %id),
 )]
 async fn cancel_run(
     State(engine): State<DefaultEngine>,
+    ActorId(actor_id): ActorId,
     Path(RunPath { id }): Path<RunPath>,
 ) -> Result<StatusCode> {
-    engine.cancel_run(id).await?;
+    engine.cancel_run(actor_id, id).await?;
     tracing::info!(target: TARGET, "run cancelled");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -186,13 +174,14 @@ fn cancel_run_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%id),
+    fields(%actor_id, %id),
 )]
 async fn delete_run(
     State(engine): State<DefaultEngine>,
+    ActorId(actor_id): ActorId,
     Path(RunPath { id }): Path<RunPath>,
 ) -> Result<StatusCode> {
-    engine.delete_run(id).await?;
+    engine.delete_run(actor_id, id).await?;
     tracing::info!(target: TARGET, "run deleted");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -208,9 +197,12 @@ fn delete_run_docs(op: TransformOperation) -> TransformOperation {
 }
 
 /// `DELETE /api/v1/runs`: delete all finished runs.
-#[tracing::instrument(target = "nvisy_server::runs", skip_all)]
-async fn delete_all_runs(State(engine): State<DefaultEngine>) -> Result<StatusCode> {
-    let deleted = engine.delete_all_runs().await;
+#[tracing::instrument(target = "nvisy_server::runs", skip_all, fields(%actor_id))]
+async fn delete_all_runs(
+    State(engine): State<DefaultEngine>,
+    ActorId(actor_id): ActorId,
+) -> Result<StatusCode> {
+    let deleted = engine.delete_all_runs(actor_id).await;
     tracing::info!(target: TARGET, deleted, "all finished runs deleted");
     Ok(StatusCode::NO_CONTENT)
 }

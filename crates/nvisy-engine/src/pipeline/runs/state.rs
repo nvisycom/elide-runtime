@@ -110,34 +110,42 @@ impl RunState {
     }
 
     /// Get a full snapshot of a single run.
-    pub async fn get_run(&self, id: Uuid) -> Option<RunSnapshot> {
+    ///
+    /// Returns `None` if the run does not exist or belongs to a different actor.
+    pub async fn get_run(&self, actor_id: Uuid, id: Uuid) -> Option<RunSnapshot> {
         self.runs
             .read()
             .await
             .get(&id)
+            .filter(|entry| entry.actor_id == actor_id)
             .map(|entry| entry.to_snapshot(id))
     }
 
-    /// List runs matching the given filter.
-    pub async fn list_runs(&self, filter: &RunFilter) -> Vec<RunSummary> {
+    /// List runs matching the given filter, scoped to the given actor.
+    pub async fn list_runs(&self, actor_id: Uuid, filter: &RunFilter) -> Vec<RunSummary> {
         self.runs
             .read()
             .await
             .iter()
             .filter(|(_, entry)| {
-                filter.status.is_none_or(|s| entry.status == s)
-                    && filter.actor_id.is_none_or(|a| entry.actor_id == a)
+                entry.actor_id == actor_id && filter.status.is_none_or(|s| entry.status == s)
             })
             .map(|(&id, entry)| entry.to_summary(id))
             .collect()
     }
 
     /// Request cancellation of an in-progress run.
-    pub async fn cancel_run(&self, id: Uuid) -> Result<(), nvisy_core::Error> {
+    ///
+    /// Returns a `NotFound` error if the run does not exist or belongs
+    /// to a different actor.
+    pub async fn cancel_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), nvisy_core::Error> {
         let mut runs = self.runs.write().await;
-        let entry = runs.get_mut(&id).ok_or_else(|| {
-            nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
-        })?;
+        let entry = runs
+            .get_mut(&id)
+            .filter(|e| e.actor_id == actor_id)
+            .ok_or_else(|| {
+                nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
+            })?;
 
         match entry.status {
             RunStatus::Pending | RunStatus::Running => {
@@ -156,12 +164,16 @@ impl RunState {
 
     /// Remove a single run from the store.
     ///
-    /// Returns `Err` if the run does not exist or is still active.
-    pub async fn delete_run(&self, id: Uuid) -> Result<(), nvisy_core::Error> {
+    /// Returns `Err` if the run does not exist, belongs to a different
+    /// actor, or is still active.
+    pub async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), nvisy_core::Error> {
         let mut runs = self.runs.write().await;
-        let entry = runs.get(&id).ok_or_else(|| {
-            nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
-        })?;
+        let entry = runs
+            .get(&id)
+            .filter(|e| e.actor_id == actor_id)
+            .ok_or_else(|| {
+                nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
+            })?;
 
         match entry.status {
             RunStatus::Pending | RunStatus::Running => {
@@ -178,14 +190,17 @@ impl RunState {
         Ok(())
     }
 
-    /// Remove all finished runs from the store.
+    /// Remove all finished runs belonging to the given actor.
     ///
     /// Active runs (pending or running) are preserved. Returns the
     /// number of removed entries.
-    pub async fn delete_all_runs(&self) -> usize {
+    pub async fn delete_all_runs(&self, actor_id: Uuid) -> usize {
         let mut runs = self.runs.write().await;
         let before = runs.len();
-        runs.retain(|_, entry| matches!(entry.status, RunStatus::Pending | RunStatus::Running));
+        runs.retain(|_, entry| {
+            entry.actor_id != actor_id
+                || matches!(entry.status, RunStatus::Pending | RunStatus::Running)
+        });
         before - runs.len()
     }
 

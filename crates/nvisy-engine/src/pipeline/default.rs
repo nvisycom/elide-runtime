@@ -335,23 +335,23 @@ impl EngineAnalytics for DefaultEngine {
 }
 
 impl EngineRuns for DefaultEngine {
-    async fn get_run(&self, id: Uuid) -> Option<RunSnapshot> {
-        self.runs.get_run(id).await
+    async fn get_run(&self, actor_id: Uuid, id: Uuid) -> Option<RunSnapshot> {
+        self.runs.get_run(actor_id, id).await
     }
 
-    async fn list_runs(&self, filter: RunFilter) -> Vec<RunSummary> {
-        self.runs.list_runs(&filter).await
+    async fn list_runs(&self, actor_id: Uuid, filter: RunFilter) -> Vec<RunSummary> {
+        self.runs.list_runs(actor_id, &filter).await
     }
 
-    async fn cancel_run(&self, id: Uuid) -> Result<(), Error> {
-        self.runs.cancel_run(id).await
+    async fn cancel_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
+        self.runs.cancel_run(actor_id, id).await
     }
 
-    async fn delete_run(&self, id: Uuid) -> Result<(), Error> {
-        self.runs.delete_run(id).await
+    async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
+        self.runs.delete_run(actor_id, id).await
     }
 
-    async fn delete_all_runs(&self) -> usize {
-        self.runs.delete_all_runs().await
+    async fn delete_all_runs(&self, actor_id: Uuid) -> usize {
+        self.runs.delete_all_runs(actor_id).await
     }
 }

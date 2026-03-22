@@ -109,8 +109,6 @@ pub struct RunSummary {
 pub struct RunFilter {
     /// If set, only return runs with this status.
     pub status: Option<RunStatus>,
-    /// If set, only return runs belonging to this actor.
-    pub actor_id: Option<Uuid>,
 }
 
 /// Read-only access to pipeline run state.
@@ -121,21 +119,34 @@ pub struct RunFilter {
 /// External callers can inspect and cancel runs through this trait.
 pub trait EngineRuns: Send + Sync {
     /// Get a full snapshot of a single run.
-    fn get_run(&self, id: Uuid) -> impl Future<Output = Option<RunSnapshot>> + Send;
+    fn get_run(&self, actor_id: Uuid, id: Uuid)
+    -> impl Future<Output = Option<RunSnapshot>> + Send;
 
     /// List runs matching the given filter.
-    fn list_runs(&self, filter: RunFilter) -> impl Future<Output = Vec<RunSummary>> + Send;
+    fn list_runs(
+        &self,
+        actor_id: Uuid,
+        filter: RunFilter,
+    ) -> impl Future<Output = Vec<RunSummary>> + Send;
 
     /// Request cancellation of an in-progress run.
     ///
     /// Returns `Err` if the run was not found or has already finished.
-    fn cancel_run(&self, id: Uuid) -> impl Future<Output = Result<(), Error>> + Send;
+    fn cancel_run(
+        &self,
+        actor_id: Uuid,
+        id: Uuid,
+    ) -> impl Future<Output = Result<(), Error>> + Send;
 
     /// Delete a single finished run.
     ///
     /// Returns `Err` if the run does not exist or is still active.
-    fn delete_run(&self, id: Uuid) -> impl Future<Output = Result<(), Error>> + Send;
+    fn delete_run(
+        &self,
+        actor_id: Uuid,
+        id: Uuid,
+    ) -> impl Future<Output = Result<(), Error>> + Send;
 
     /// Delete all finished runs. Returns the number of removed entries.
-    fn delete_all_runs(&self) -> impl Future<Output = usize> + Send;
+    fn delete_all_runs(&self, actor_id: Uuid) -> impl Future<Output = usize> + Send;
 }

@@ -24,24 +24,12 @@ use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 
 use super::error::{ErrorKind, Result};
-use super::request::{NewRun, RunPath};
+use super::request::{NewRun, RunPath, RunQuery};
 use super::response::{RunDetail, RunList, RunResult};
 use crate::extract::{ActorId, Json, Path};
 use crate::middleware::constants::{DEFAULT_PIPELINE_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS};
 use crate::middleware::recovery::handle_error;
 use crate::service::ServiceState;
-
-/// Optional query parameters for listing runs.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RunQuery {
-    /// Filter by run status (e.g. `running`, `succeeded`).
-    #[serde(default)]
-    pub status: Option<nvisy_engine::pipeline::RunStatus>,
-    /// Pagination parameters.
-    #[serde(flatten)]
-    pub pagination: super::request::Pagination,
-}
 
 const TARGET: &str = "nvisy_server::runs";
 

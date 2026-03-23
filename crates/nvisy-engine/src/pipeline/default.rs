@@ -15,6 +15,10 @@ use nvisy_registry::Registry;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+use nvisy_core::content::Content;
+use nvisy_ontology::context::Context;
+
+use super::EngineStorage;
 use super::analytics::{AnalyticsSnapshot, EngineAnalytics};
 use super::config::RuntimeConfig;
 use super::orchestrator::{self, RunContext};
@@ -62,6 +66,16 @@ impl std::fmt::Debug for DefaultEngine {
 }
 
 impl DefaultEngine {
+    /// Open a new engine backed by a registry at the given data directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the registry database cannot be opened.
+    pub fn open(data_dir: std::path::PathBuf) -> Result<Self, Error> {
+        let registry = Registry::open(data_dir)?;
+        Ok(Self::new(registry))
+    }
+
     /// Create a new engine backed by the given registry.
     pub fn new(registry: Registry) -> Self {
         Self {
@@ -268,7 +282,7 @@ impl Engine for DefaultEngine {
         let (output, entities_detected, redactions_applied) =
             collect_output(run_id, &input.policies, &run_output);
 
-        let status = orchestrator::run_status(&run_output);
+        let status = run_output.run_status();
         self.runs
             .finalize(run_id, status, entities_detected, redactions_applied)
             .await;
@@ -353,5 +367,61 @@ impl EngineRuns for DefaultEngine {
 
     async fn delete_all_runs(&self, actor_id: Uuid) -> usize {
         self.runs.delete_all_runs(actor_id).await
+    }
+}
+
+impl EngineStorage for DefaultEngine {
+    async fn upload_content(&self, actor_id: Uuid, content: Content) -> Result<Uuid, Error> {
+        let handle = self.cfg.registry.register_content(actor_id, content).await?;
+        Ok(handle.content_source().as_uuid())
+    }
+
+    async fn download_content(
+        &self,
+        actor_id: Uuid,
+        content_id: Uuid,
+    ) -> Result<Content, Error> {
+        let handle = self.cfg.registry.read_content(actor_id, content_id).await?;
+        let data = handle.content_data().await?;
+        let metadata = handle.metadata().await?;
+        Ok(Content::with_metadata(data, metadata))
+    }
+
+    async fn list_content(&self, actor_id: Uuid) -> Result<Vec<Uuid>, Error> {
+        self.cfg.registry.list_content(actor_id).await
+    }
+
+    async fn delete_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<(), Error> {
+        self.cfg.registry.unregister_content(actor_id, content_id).await
+    }
+
+    async fn delete_all_content(&self, actor_id: Uuid) -> Result<usize, Error> {
+        self.cfg.registry.unregister_all_content(actor_id).await
+    }
+
+    async fn upload_context(&self, actor_id: Uuid, context: Context) -> Result<Uuid, Error> {
+        let handle = self.cfg.registry.register_context(actor_id, context).await?;
+        Ok(handle.source().as_uuid())
+    }
+
+    async fn download_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<Context, Error> {
+        let handle = self.cfg.registry.read_context(actor_id, context_id).await?;
+        handle.context().await
+    }
+
+    async fn list_contexts(&self, actor_id: Uuid) -> Result<Vec<Uuid>, Error> {
+        self.cfg.registry.list_contexts(actor_id).await
+    }
+
+    async fn delete_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<(), Error> {
+        self.cfg.registry.unregister_context(actor_id, context_id).await
+    }
+
+    async fn delete_all_contexts(&self, actor_id: Uuid) -> Result<usize, Error> {
+        self.cfg.registry.unregister_all_contexts(actor_id).await
+    }
+
+    fn data_dir(&self) -> &std::path::Path {
+        self.cfg.registry.base_dir()
     }
 }

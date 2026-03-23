@@ -14,7 +14,7 @@ use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::State;
-use nvisy_engine::pipeline::{DefaultEngine, EngineAnalytics};
+use nvisy_engine::pipeline::{DefaultEngine, EngineAnalytics, EngineStorage};
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 
@@ -34,7 +34,7 @@ const TARGET: &str = "nvisy_server::infra";
 async fn health_check(State(engine): State<DefaultEngine>) -> Json<Health> {
     let mut checks = vec![];
 
-    let fs_ok = engine.registry().base_dir().is_dir();
+    let fs_ok = engine.data_dir().is_dir();
     checks.push(ComponentCheck {
         name: "filesystem".into(),
         status: if fs_ok {
@@ -44,7 +44,7 @@ async fn health_check(State(engine): State<DefaultEngine>) -> Json<Health> {
         },
     });
 
-    let registry_ok = engine.registry().base_dir().is_dir();
+    let registry_ok = engine.data_dir().is_dir();
     checks.push(ComponentCheck {
         name: "registry".into(),
         status: if registry_ok {

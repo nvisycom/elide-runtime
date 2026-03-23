@@ -18,7 +18,7 @@ use super::config::RuntimeConfig;
 use super::executor::{NodeExecutor, NodeOutput, RunOutput};
 use super::plan::ExecutionPlan;
 use super::runs::state::RunState;
-use super::runs::{NodeStatus, RunStatus};
+use super::runs::NodeStatus;
 use crate::operation::DocumentEnvelope;
 use crate::operation::context::SharedContext;
 
@@ -148,15 +148,4 @@ pub(super) async fn run_graph(
     }
 
     Ok(RunOutput { node_results })
-}
-
-/// Determine overall run status from node results.
-pub(super) fn run_status(run_output: &RunOutput) -> RunStatus {
-    let any_ok = run_output.node_results.iter().any(|r| r.error.is_none());
-    let any_err = run_output.node_results.iter().any(|r| r.error.is_some());
-    match (any_ok, any_err) {
-        (_, false) => RunStatus::Succeeded,
-        (true, true) => RunStatus::PartialFailure,
-        _ => RunStatus::Failed,
-    }
 }

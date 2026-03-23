@@ -41,6 +41,19 @@ pub(super) struct RunOutput {
     pub node_results: Vec<NodeOutput>,
 }
 
+impl RunOutput {
+    /// Determine overall run status from node results.
+    pub fn run_status(&self) -> super::runs::RunStatus {
+        let any_ok = self.node_results.iter().any(|r| r.error.is_none());
+        let any_err = self.node_results.iter().any(|r| r.error.is_some());
+        match (any_ok, any_err) {
+            (_, false) => super::runs::RunStatus::Succeeded,
+            (true, true) => super::runs::RunStatus::PartialFailure,
+            _ => super::runs::RunStatus::Failed,
+        }
+    }
+}
+
 /// Executes a single resolved node within a pipeline run.
 pub(super) struct NodeExecutor {
     shared: SharedContext,

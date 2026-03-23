@@ -1,9 +1,18 @@
-//! Pipeline run data types and state storage.
+//! Pipeline run lifecycle types.
 //!
-//! Pure data definitions for run lifecycle tracking. All mutation and
-//! querying happens through inherent methods on [`Engine`].
+//! A run progresses through [`RunStatus`] states: `Pending` → `Running` →
+//! `Succeeded` | `PartialFailure` | `Failed` | `Cancelled`. Each node
+//! within a run has its own [`NodeStatus`] tracking.
 //!
-//! [`Engine`]: super::Engine
+//! Two projection types serve different API needs:
+//!
+//! - [`RunSnapshot`] — full detail including per-node snapshots, used for
+//!   `GET /runs/{id}` responses.
+//! - [`RunSummary`] — lightweight (node count only, no per-node detail),
+//!   used for `GET /runs` listing responses.
+//!
+//! The [`state`] submodule contains the in-memory storage
+//! ([`RunState`](state::RunState)) that backs all run queries and mutations.
 
 pub(crate) mod state;
 

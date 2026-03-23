@@ -1,8 +1,22 @@
-//! Compiled execution plan types and the `compile()` entry point.
+//! Compilation of a [`Graph`] into an [`ExecutionPlan`].
 //!
-//! An [`ExecutionPlan`] is the central orchestration artifact produced by
-//! [`compile()`]. It contains topologically-sorted [`ResolvedNode`]s and
-//! pre-computed [`ResolvedEdge`]s with channel configuration.
+//! [`compile()`] is the bridge between the user-facing [`Graph`] definition
+//! and the runtime execution model. It performs the following steps:
+//!
+//! 1. **Policy defaults** — nodes without explicit retry/timeout policies
+//!    inherit the engine-level defaults.
+//! 2. **Validation** — the graph is checked for structural correctness
+//!    (via [`Graph::validate`]).
+//! 3. **petgraph construction** — nodes and edges are inserted into a
+//!    [`DiGraph`](petgraph::graph::DiGraph) for cycle detection and
+//!    topological sorting.
+//! 4. **Topological sort** — produces the node execution order, ensuring
+//!    every node runs after its dependencies.
+//! 5. **Edge resolution** — each edge is paired with an [`EdgeConfig`]
+//!    controlling the bounded MPSC channel buffer size.
+//!
+//! The resulting [`ExecutionPlan`] is consumed by the
+//! [orchestrator](super::orchestrator) to spawn concurrent tasks.
 
 use nvisy_core::{Error, Result};
 use petgraph::algo::toposort;
@@ -89,7 +103,8 @@ pub(crate) fn compile(
     ))
 }
 
-/// Builds a petgraph `DiGraph` from a validated [`Graph`].
+/// Build a petgraph `DiGraph` from a validated [`Graph`], mapping node
+/// IDs to indices for edge wiring.
 fn build_petgraph(graph: &Graph) -> DiGraph<GraphNode, GraphEdge> {
     let mut pg = DiGraph::with_capacity(graph.nodes.len(), graph.edges.len());
     let mut index_map = std::collections::HashMap::with_capacity(graph.nodes.len());

@@ -1,7 +1,24 @@
-//! Engine implementation.
+//! [`Engine`] implementation: the main entry point for running pipelines.
 //!
-//! [`Engine`] ties together configuration, run state, and the
-//! DAG orchestrator.
+//! A pipeline run follows these phases:
+//!
+//! 1. **Config merge** — per-request [`RuntimeConfig`] overrides are merged
+//!    with the engine's base config (section-level replacement).
+//! 2. **Context pre-loading** — [`LoadContext`](crate::graph::LoadContext)
+//!    nodes are scanned and their context IDs are bulk-loaded from the
+//!    [`Registry`] into a [`ContextMap`](nvisy_ontology::context::ContextMap)
+//!    before execution begins.
+//! 3. **Compile** — the [`Graph`] is compiled into an
+//!    [`ExecutionPlan`](super::plan::ExecutionPlan) via [`plan::compile`].
+//! 4. **Schedule & execute** — the orchestrator spawns concurrent tasks
+//!    per node and collects results (see [`orchestrator::run_graph`]).
+//! 5. **Finalize** — detection counts and redaction counts are computed
+//!    from node results, the run status is recorded, and an
+//!    [`EngineOutput`] is returned.
+//!
+//! All mutable state lives in [`EngineInner`] behind an `Arc`. Builder
+//! methods (`with_key_provider`) require exclusive access via
+//! `Arc::get_mut` and must be called before the engine is cloned.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -65,13 +82,23 @@ pub struct EngineOutput {
 }
 
 /// Shared inner state for the engine, behind an `Arc`.
+///
+/// All fields are immutable after construction except [`RunState`],
+/// which is internally synchronized.
 struct EngineInner {
+    /// Base configuration (merged with per-request overrides at runtime).
     config: RuntimeConfig,
+    /// Engine-level default retry policy, applied to nodes that lack one.
     default_retry: Option<RetryPolicy>,
+    /// Engine-level default timeout policy, applied to nodes that lack one.
     default_timeout: Option<TimeoutPolicy>,
+    /// Shared HTTP client for all downstream API calls.
     http_client: HttpClient,
+    /// Content and context storage backend.
     registry: Registry,
+    /// Optional encryption key provider for encrypt/decrypt operations.
     key_provider: Option<SharedKeyProvider>,
+    /// In-memory run lifecycle tracker.
     runs: RunState,
 }
 
@@ -182,6 +209,15 @@ impl Engine {
     }
 
     /// Execute a full redaction pipeline.
+    ///
+    /// Compiles the graph, pre-loads contexts, runs the DAG orchestrator,
+    /// and collects results. See the [module docs](super::default) for the
+    /// full phase breakdown.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if graph compilation fails, the run times out, or
+    /// all nodes fail during execution.
     pub async fn run(&self, input: EngineInput) -> Result<EngineOutput, Error> {
         let run_id = uuid::Uuid::new_v4();
         let cancel = CancellationToken::new();
@@ -215,12 +251,7 @@ impl Engine {
         let concurrency = input
             .graph
             .concurrency
-            .or_else(|| {
-                effective_config
-                    .engine
-                    .as_ref()
-                    .and_then(|e| e.concurrency)
-            });
+            .or_else(|| effective_config.engine.as_ref().and_then(|e| e.concurrency));
 
         let compiled = match plan::compile(
             input.graph,
@@ -507,7 +538,11 @@ impl Engine {
     }
 }
 
-/// Collect [`EngineOutput`] from completed node results.
+/// Aggregate entity detections, policy decisions, and audit records from
+/// all completed node results into a single [`EngineOutput`].
+///
+/// Returns `(output, entities_detected, redactions_applied)` for
+/// finalization bookkeeping.
 fn collect_output(
     run_id: Uuid,
     policies: &nvisy_ontology::policy::Policies,

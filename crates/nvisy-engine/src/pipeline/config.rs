@@ -1,3 +1,14 @@
+//! Pipeline runtime configuration.
+//!
+//! [`RuntimeConfig`] is the top-level configuration object for the engine,
+//! typically deserialized from a TOML file. It contains optional sections
+//! for each subsystem — [`EngineSection`], [`OcrSection`], [`LlmSection`],
+//! [`SttSection`], and [`TtsSection`].
+//!
+//! Per-request overrides are supported via [`RuntimeConfig::merge`], which
+//! replaces entire sections (not individual fields) when the override
+//! provides a non-`None` value.
+
 use nvisy_http::HttpConfig;
 use nvisy_rig::agent::{AgentConfig, AgentProvider};
 use nvisy_rig::audio::{SttProvider, TtsProvider};
@@ -100,7 +111,7 @@ pub struct EngineSection {
     pub timeout: Option<TimeoutPolicy>,
     /// HTTP client configuration for downstream calls.
     pub http: Option<HttpConfig>,
-    /// Default concurrpiency limit for graph execution.
+    /// Default concurrency limit for graph execution.
     /// Overridden by [`Graph::concurrency`] if set.
     ///
     /// [`Graph::concurrency`]: crate::graph::Graph::concurrency
@@ -114,21 +125,20 @@ pub struct EngineSection {
     pub channel_buffer: Option<usize>,
 }
 
-/// Pipeline subsystem configuration.
-///
-/// Contains engine policies and provider settings for OCR, LLM, STT, TTS,
-/// and HTTP. Deserialized from the non-`[server]` sections of the TOML file.
-/// The CLI layer owns the full TOML shape (including `[server]`) and passes
-/// this struct downstream.
 fn default_config_version() -> u32 {
     1
 }
 
+/// Top-level pipeline configuration, typically deserialized from TOML.
+///
+/// Contains optional subsystem sections for engine policies, OCR, LLM,
+/// STT, and TTS. The CLI layer owns the full TOML shape (including
+/// `[server]`) and passes this struct downstream to the engine.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     /// Configuration schema version.
     #[serde(default = "default_config_version")]
-        pub version: u32,
+    pub version: u32,
     /// Engine-level policies and HTTP client.
     pub engine: Option<EngineSection>,
     /// OCR subsystem configuration.

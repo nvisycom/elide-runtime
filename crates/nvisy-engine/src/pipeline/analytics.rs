@@ -1,9 +1,10 @@
-//! Aggregate pipeline analytics types.
+//! Aggregate pipeline analytics.
 //!
-//! Pure data definitions for pipeline-wide metrics. Querying happens
-//! through inherent methods on [`Engine`].
-//!
-//! [`Engine`]: super::Engine
+//! [`AnalyticsSnapshot`] captures point-in-time metrics across all tracked
+//! pipeline runs — counts by status, entity/redaction totals, distinct
+//! actors, and min/max/avg run durations. The snapshot is computed on
+//! demand from the in-memory [`RunState`](super::runs::state::RunState)
+//! and is exposed via [`Engine::snapshot`](super::Engine::snapshot).
 
 use jiff::Timestamp;
 use schemars::JsonSchema;

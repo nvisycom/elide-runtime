@@ -1,9 +1,16 @@
 //! In-memory run state storage.
 //!
-//! [`RunState`] wraps a concurrent map of [`RunEntry`] records,
-//! providing the read/write operations needed by the engine and
-//! orchestrator. All runs are lost on restart — this is an in-memory
-//! implementation.
+//! [`RunState`] wraps an `Arc<RwLock<HashMap<Uuid, RunEntry>>>` providing
+//! concurrent read/write access to run records. It is cheaply clonable
+//! (Arc bump) and shared between the [`Engine`](super::super::Engine)
+//! and the [orchestrator](super::super::orchestrator).
+//!
+//! All queries are scoped by `actor_id` — an actor can only see and
+//! mutate their own runs. Finalization forces any still-pending or
+//! still-running nodes into `Failed` status to maintain consistent
+//! terminal state.
+//!
+//! This is a volatile, in-memory store; all runs are lost on restart.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -16,29 +23,43 @@ use uuid::Uuid;
 use super::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
 use crate::pipeline::analytics::AnalyticsSnapshot;
 
-/// In-memory run state.
+/// In-memory run state backed by `Arc<RwLock<HashMap>>`.
 ///
-/// Cheaply clonable (`Arc` bump). All clones share the same
-/// underlying data.
+/// Cheaply clonable (Arc bump). All clones share the same underlying
+/// data. The orchestrator and engine both hold clones to read/write
+/// run progress concurrently.
 #[derive(Clone)]
 pub(crate) struct RunState {
     inner: Arc<RwLock<HashMap<Uuid, RunEntry>>>,
 }
 
-/// Private mutable state for a single run.
+/// Mutable state for a single pipeline run.
+///
+/// Tracks lifecycle timestamps, per-node snapshots, aggregate counters,
+/// and a [`CancellationToken`] for cooperative cancellation.
 pub(crate) struct RunEntry {
+    /// Identity of the actor who initiated this run.
     pub actor_id: Uuid,
+    /// Current lifecycle status.
     pub status: RunStatus,
+    /// When the run was first created (before compilation).
     pub created_at: Timestamp,
+    /// When DAG execution actually began (after compilation + context loading).
     pub started_at: Option<Timestamp>,
+    /// When the run reached a terminal state.
     pub completed_at: Option<Timestamp>,
+    /// Per-node progress snapshots, keyed by node ID.
     pub nodes: HashMap<Uuid, NodeSnapshot>,
+    /// Token shared with all node tasks for cooperative cancellation.
     pub cancel: CancellationToken,
+    /// Running total of entities detected across all nodes.
     pub entities_detected: u64,
+    /// Running total of redactions applied across all nodes.
     pub redactions_applied: u64,
 }
 
 impl RunEntry {
+    /// Project this entry into a full [`RunSnapshot`] for API responses.
     fn to_snapshot(&self, id: Uuid) -> RunSnapshot {
         RunSnapshot {
             id,
@@ -51,6 +72,7 @@ impl RunEntry {
         }
     }
 
+    /// Project this entry into a lightweight [`RunSummary`] for listing.
     fn to_summary(&self, id: Uuid) -> RunSummary {
         RunSummary {
             id,
@@ -109,7 +131,11 @@ impl RunState {
         }
     }
 
-    /// Transition a run to its final status.
+    /// Transition a run to its final status and record aggregate counters.
+    ///
+    /// Any nodes still in `Pending` or `Running` state are forced to
+    /// `Failed` with an explanatory error message, ensuring all nodes
+    /// reach a terminal status.
     pub async fn finalize(
         &self,
         run_id: Uuid,
@@ -140,7 +166,7 @@ impl RunState {
         }
     }
 
-    /// Mark a run as failed without entity/redaction counts.
+    /// Shorthand to mark a run as [`RunStatus::Failed`] with zero counters.
     pub async fn fail(&self, run_id: Uuid) {
         self.finalize(run_id, RunStatus::Failed, 0, 0).await;
     }
@@ -177,7 +203,7 @@ impl RunState {
     pub async fn cancel_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), nvisy_core::Error> {
         let mut guard = self.inner.write().await;
         let entry = guard
-                        .get_mut(&id)
+            .get_mut(&id)
             .filter(|e| e.actor_id == actor_id)
             .ok_or_else(|| {
                 nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
@@ -198,14 +224,14 @@ impl RunState {
         }
     }
 
-    /// Remove a single run from the store.
+    /// Remove a single finished run from the store.
     ///
     /// Returns `Err` if the run does not exist, belongs to a different
-    /// actor, or is still active.
+    /// actor, or is still active (pending/running).
     pub async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), nvisy_core::Error> {
         let mut guard = self.inner.write().await;
         let entry = guard
-                        .get(&id)
+            .get(&id)
             .filter(|e| e.actor_id == actor_id)
             .ok_or_else(|| {
                 nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
@@ -240,7 +266,7 @@ impl RunState {
         before - guard.len()
     }
 
-    /// Collect a point-in-time analytics snapshot.
+    /// Compute a point-in-time [`AnalyticsSnapshot`] from all tracked runs.
     pub async fn snapshot(&self) -> AnalyticsSnapshot {
         let guard = self.inner.read().await;
         let mut active = 0u64;

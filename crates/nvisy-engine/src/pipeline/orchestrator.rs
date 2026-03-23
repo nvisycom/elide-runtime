@@ -1,8 +1,21 @@
-//! DAG orchestrator: spawns concurrent node tasks and collects results.
+//! DAG orchestrator: concurrent task scheduling for compiled execution plans.
 //!
 //! [`run_graph`] takes a compiled [`ExecutionPlan`] and spawns one tokio
-//! task per node. Tasks wait for upstream completion via watch channels
-//! before executing, and report progress to the shared [`RunState`].
+//! task per node into a [`JoinSet`](tokio::task::JoinSet). Each task:
+//!
+//! 1. Waits for all upstream dependencies to complete via `watch::Receiver`
+//!    channels (each initialized to `false`, flipped to `true` on completion).
+//! 2. Acquires a permit from the optional concurrency [`Semaphore`](tokio::sync::Semaphore)
+//!    (configured via [`ConcurrencyPolicy`](crate::graph::ConcurrencyPolicy)).
+//! 3. Delegates to [`NodeExecutor::execute`] for the actual operation dispatch.
+//! 4. Reports node status updates to the shared [`RunState`] for live
+//!    progress visibility.
+//!
+//! [`CompletionGuard`] ensures the watch-channel signal is sent even if
+//! the task panics, preventing downstream tasks from deadlocking.
+//!
+//! Data flows between nodes through bounded MPSC channels allocated from
+//! the [`ResolvedEdge`](super::plan::ResolvedEdge) configuration.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -24,8 +37,10 @@ use crate::operation::context::SharedContext;
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
-/// Guard that sends the completion signal when dropped, ensuring the
-/// signal is sent even if the task panics.
+/// RAII guard that sends a `true` on its `watch::Sender` when dropped.
+///
+/// This ensures downstream tasks are unblocked even if the owning task
+/// panics, preventing deadlocks in the DAG.
 struct CompletionGuard {
     tx: Option<watch::Sender<bool>>,
 }
@@ -44,12 +59,18 @@ impl Drop for CompletionGuard {
     }
 }
 
-/// Per-run execution context.
+/// Per-run execution context passed from [`Engine::run`](super::Engine::run)
+/// to the orchestrator.
 pub(super) struct RunContext {
+    /// Token to signal cancellation to all node tasks.
     pub cancel: CancellationToken,
+    /// Shared operation context (run ID, actor, registry, policies, key provider).
     pub shared: SharedContext,
+    /// Effective configuration after merging per-request overrides.
     pub config: RuntimeConfig,
+    /// Shared HTTP client for downstream API calls.
     pub http_client: HttpClient,
+    /// Optional limit on how many nodes may execute concurrently.
     pub concurrency: Option<crate::graph::ConcurrencyPolicy>,
 }
 

@@ -1,9 +1,21 @@
 //! Node-level execution: dispatch and envelope flow.
 //!
-//! The executor matches on [`GraphNodeKind`], constructs the appropriate
-//! operation, then runs the standard recv → extract → call → apply → send
-//! loop. Operations never see the [`DocumentEnvelope`] — they receive
+//! [`NodeExecutor`] is responsible for running a single [`ResolvedNode`]
+//! within a pipeline. It matches on [`GraphNodeKind`], constructs the
+//! appropriate [`Operation`], then runs the envelope processing loop:
+//!
+//! 1. **Receive** — pull `Arc<DocumentEnvelope>` from upstream MPSC channels.
+//! 2. **Extract** — unwrap ownership (cloning via encode/decode when the
+//!    `Arc` refcount > 1, which happens during fan-out).
+//! 3. **Call** — invoke the operation with typed inputs.
+//! 4. **Apply** — merge operation outputs back into the envelope.
+//! 5. **Send** — forward the envelope to all downstream channels.
+//!
+//! Operations never see the [`DocumentEnvelope`] directly — they receive
 //! typed inputs and produce typed outputs via the [`Operation`] trait.
+//!
+//! [`NodeOutput`] and [`RunOutput`] carry per-node and per-run results
+//! back to the orchestrator and engine for finalization.
 
 use std::sync::Arc;
 
@@ -30,14 +42,18 @@ const TARGET: &str = "nvisy_engine::pipeline::executor";
 /// Outcome of executing a single node.
 #[derive(Debug)]
 pub(super) struct NodeOutput {
+    /// Number of envelopes processed by this node.
     pub items_processed: u64,
+    /// Error message if the node failed, `None` on success.
     pub error: Option<String>,
+    /// Completed envelopes (populated only by export nodes for output collection).
     pub envelopes: Vec<Arc<DocumentEnvelope>>,
 }
 
-/// Aggregate outcome of executing the full graph.
+/// Aggregate outcome of executing the full DAG.
 #[derive(Debug)]
 pub(super) struct RunOutput {
+    /// Results from all executed nodes (order is non-deterministic).
     pub node_results: Vec<NodeOutput>,
 }
 
@@ -54,7 +70,10 @@ impl RunOutput {
     }
 }
 
-/// Executes a single resolved node within a pipeline run.
+/// Executes a single [`ResolvedNode`] within a pipeline run.
+///
+/// Owns clones of the run-scoped context, cancellation token, config,
+/// and HTTP client. The orchestrator creates one executor per node task.
 pub(super) struct NodeExecutor {
     shared: SharedContext,
     cancel: CancellationToken,
@@ -77,7 +96,11 @@ impl NodeExecutor {
         }
     }
 
-    /// Execute a resolved node, applying timeout and cancellation.
+    /// Execute a resolved node, applying timeout and cancellation policies.
+    ///
+    /// If the node has a [`TimeoutPolicy`](crate::graph::TimeoutPolicy)
+    /// with [`TimeoutBehavior::Skip`](crate::graph::TimeoutBehavior::Skip),
+    /// a timeout produces an empty success rather than an error.
     pub async fn execute(
         &self,
         resolved: &ResolvedNode,
@@ -120,6 +143,7 @@ impl NodeExecutor {
         }
     }
 
+    /// Route a node to its operation-specific handler based on [`GraphNodeKind`].
     async fn dispatch(
         &self,
         kind: &GraphNodeKind,
@@ -562,6 +586,7 @@ impl NodeExecutor {
     }
 }
 
+/// Build a successful [`NodeOutput`] with no retained envelopes.
 fn node_output(items_processed: u64) -> NodeOutput {
     NodeOutput {
         items_processed,
@@ -570,7 +595,11 @@ fn node_output(items_processed: u64) -> NodeOutput {
     }
 }
 
-/// Receive envelopes from upstream, transform, send downstream.
+/// Core envelope processing loop shared by most node types.
+///
+/// Drains all upstream receivers, applies `transform` to each envelope,
+/// and fans out the result to all downstream senders. Returns the total
+/// number of envelopes processed.
 async fn process_envelopes<F, Fut>(
     senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
     receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
@@ -610,8 +639,12 @@ where
     Ok(count)
 }
 
-/// Take ownership of an envelope from an `Arc`, cloning via
-/// encode/decode when the reference count is > 1 (fan-out).
+/// Take ownership of an envelope from an `Arc`.
+///
+/// When the refcount is 1, this is a zero-cost unwrap. During fan-out
+/// (refcount > 1), the document is cloned via encode/decode to produce
+/// an independent copy while entity, context, and audit data are cloned
+/// directly.
 async fn unwrap_envelope(arc: Arc<DocumentEnvelope>) -> Result<DocumentEnvelope, Error> {
     match Arc::try_unwrap(arc) {
         Ok(envelope) => Ok(envelope),

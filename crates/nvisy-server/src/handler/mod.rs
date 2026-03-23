@@ -1,11 +1,11 @@
 //! HTTP handler functions and route wiring.
 //!
 //! Each submodule corresponds to an API resource and exposes a `routes()`
-//! function that returns its [`ApiRouter`](aide::axum::ApiRouter) fragment.
+//! function that returns its `ApiRouter` fragment.
 //! The top-level [`routes()`] function merges all fragments into a single
 //! router.
 //!
-//! Request and response types live in the [`request`] and [`response`]
+//! Request and response types live in the `request` and `response`
 //! submodules. [`Error`], [`ErrorKind`], and [`Result`] are re-exported for
 //! use by middleware and extractors.
 

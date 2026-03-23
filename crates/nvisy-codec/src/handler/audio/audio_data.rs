@@ -7,7 +7,7 @@ use derive_more::{AsRef, From, Into};
 ///
 /// Mirrors [`ImageData`](crate::handler::ImageData) and
 /// [`TextData`](crate::handler::TextData) for audio-bearing handlers,
-/// providing a consistent type boundary at the [`AudioHandler`] trait
+/// providing a consistent type boundary at the `AudioHandler` trait
 /// level.
 #[derive(Debug, Clone, From, Into, AsRef)]
 pub struct AudioData(Bytes);

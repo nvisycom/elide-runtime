@@ -45,9 +45,9 @@ pub(crate) use self::vision::{VerifyInput, VisualExtraction};
 /// Operations are stateless and composable. The engine calls [`Operation::call`]
 /// with an input value and the operation produces a typed output or an error.
 ///
-/// Both `Input` and `Output` must implement [`OperationContext`], encoding the
-/// processing strategy (e.g. [`ParallelContext<Entities>`] or
-/// [`SequentialContext<Vec<Span>>`]) directly in the type.
+/// Both `Input` and `Output` must implement [`OperationContext`](context::OperationContext),
+/// encoding the processing strategy (e.g. `ParallelContext<Entities>` or
+/// `SequentialContext<Vec<Span>>`) directly in the type.
 pub trait Operation {
     /// Data consumed by this operation: wraps the payload in a context marker.
     type Input: context::OperationContext;

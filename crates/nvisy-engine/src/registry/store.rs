@@ -120,7 +120,7 @@ impl Registry {
 
     /// Registers content, writing its bytes and metadata to the store.
     ///
-    /// Returns a [`ContentHandle`] for subsequent reads.
+    /// Returns a `ContentHandle` for subsequent reads.
     ///
     /// # Errors
     ///
@@ -372,7 +372,7 @@ impl Registry {
 
     /// Registers a context, serializing it as JSON.
     ///
-    /// Returns a [`ContextHandle`] for subsequent reads.
+    /// Returns a `ContextHandle` for subsequent reads.
     ///
     /// # Errors
     ///

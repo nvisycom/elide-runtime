@@ -26,7 +26,7 @@ const TARGET: &str = "nvisy_rig::ner";
 ///
 /// 1. Caller passes a [`NerContext`] and a [`DetectionConfig`] to
 ///    [`detect`](Self::detect).
-/// 2. The agent builds a user prompt via [`NerPromptBuilder`] that
+/// 2. The agent builds a user prompt via `NerPromptBuilder` that
 ///    specifies entity types, confidence thresholds, and known entities.
 /// 3. Structured output is parsed into `Vec<NerEntity>`.
 pub struct NerAgent {

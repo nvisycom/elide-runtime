@@ -37,7 +37,7 @@ pub struct GenRequest {
 ///
 /// 1. Caller passes a batch of [`GenRequest`]s to
 ///    [`generate`](Self::generate).
-/// 2. The agent builds a user prompt via [`GenPromptBuilder`].
+/// 2. The agent builds a user prompt via `GenPromptBuilder`.
 /// 3. Structured output is parsed into `Vec<GeneratedEntity>`.
 pub struct GenAgent {
     base: BaseAgent,

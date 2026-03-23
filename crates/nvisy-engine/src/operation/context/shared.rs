@@ -35,7 +35,7 @@ pub struct SharedData {
     pub context_map: ContextMap,
 }
 
-/// Cheaply-clonable handle to run-wide [`SharedData`].
+/// Cheaply-clonable handle to run-wide shared data.
 ///
 /// Cloning is an `Arc` bump: every [`ParallelContext`] and
 /// [`SequentialContext`] carries one of these. `Deref<Target =

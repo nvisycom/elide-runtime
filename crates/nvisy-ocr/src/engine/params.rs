@@ -13,7 +13,7 @@ use crate::provider::{PaddleXBackend, PaddleXParams, SuryaBackend, SuryaParams};
 ///
 /// Each variant holds the configuration needed to construct one OCR backend.
 /// Use [`into_engine`](OcrProvider::into_engine) to build a ready-to-use
-/// [`OcrEngine`] from any variant.
+/// `OcrEngine` from any variant.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum OcrProvider {
@@ -36,7 +36,7 @@ pub enum OcrProvider {
 }
 
 impl OcrProvider {
-    /// Build an [`OcrEngine`] from these parameters.
+    /// Build an `OcrEngine` from these parameters.
     pub fn into_engine(self) -> super::OcrEngine {
         match self {
             Self::Surya(p) => super::OcrEngine::new(SuryaBackend::new(p)),
@@ -50,7 +50,7 @@ impl OcrProvider {
         }
     }
 
-    /// Build an [`OcrEngine`] from these parameters using a pre-built HTTP client.
+    /// Build an `OcrEngine` from these parameters using a pre-built HTTP client.
     ///
     /// This shares the caller's connection pool instead of creating a new one
     /// per backend.

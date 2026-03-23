@@ -27,7 +27,7 @@ impl CsvDictionary {
     ///
     /// # Errors
     ///
-    /// Returns [`CsvDictionaryError`] if any CSV record cannot be parsed.
+    /// Returns `CsvDictionaryError` if any CSV record cannot be parsed.
     pub fn new(name: impl Into<String>, text: &str) -> Result<Self, CsvDictionaryError> {
         let name = name.into();
 
@@ -62,7 +62,7 @@ impl CsvDictionary {
     ///
     /// # Errors
     ///
-    /// Returns [`DictionaryLoadError`] if the file cannot be read or
+    /// Returns `DictionaryLoadError` if the file cannot be read or
     /// the CSV content cannot be parsed.
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self, DictionaryLoadError> {
         let path = path.as_ref();

@@ -1,6 +1,6 @@
 //! Content encryption and decryption.
 //!
-//! Provides [`CryptoService`] for AES-256-GCM encryption/decryption,
+//! Provides `CryptoService` for AES-256-GCM encryption/decryption,
 //! [`KeyProvider`] for key resolution, and a self-describing wire format.
 
 mod provider;

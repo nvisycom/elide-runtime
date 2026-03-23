@@ -72,7 +72,7 @@ serde_json = { version = "1.0", features = [] }
 serde_with = { version = "3.18", features = [] }
 schemars = { version = "1.0", features = ["uuid1", "bytes1"] }
 csv = { version = "1.0", features = [] }
-toml = { version = "1.0", features = [] }
+toml = { version = "1.1", features = [] }
 
 # Derive macros and error handling
 thiserror = { version = "2.0", features = [] }
@@ -109,7 +109,7 @@ pdfium-render = { version = "0.8", features = [] }
 # Document parsing
 scraper = { version = "0.26", features = [] }
 calamine = { version = "0.34", features = [] }
-zip = { version = "8.2", features = [] }
+zip = { version = "8.4", features = [] }
 quick-xml = { version = "0.39", features = [] }
 
 # Image processing

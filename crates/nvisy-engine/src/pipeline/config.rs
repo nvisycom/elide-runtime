@@ -196,7 +196,7 @@ fn default_config_version() -> u32 {
 /// [`RuntimeConfig::merge`] replaces entire sections — if the override
 /// provides a non-`None` section, it wins completely. Fields within a
 /// section are not merged individually.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     /// Configuration schema version (default: 1).
     #[serde(default = "default_config_version")]
@@ -214,15 +214,29 @@ pub struct RuntimeConfig {
     pub tts: Option<TtsSection>,
 }
 
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self {
+            version: default_config_version(),
+            engine: None,
+            ocr: None,
+            llm: None,
+            stt: None,
+            tts: None,
+        }
+    }
+}
+
 impl RuntimeConfig {
     /// Merge with per-request overrides.
     ///
     /// Non-`None` sections in `overrides` replace the corresponding section
-    /// in `self`; `None` sections fall back to `self`.
+    /// in `self`; `None` sections fall back to `self`. The version is taken
+    /// from the base config.
     #[must_use]
     pub fn merge(&self, overrides: &RuntimeConfig) -> RuntimeConfig {
         RuntimeConfig {
-            version: overrides.version,
+            version: self.version,
             engine: overrides.engine.clone().or_else(|| self.engine.clone()),
             ocr: overrides.ocr.clone().or_else(|| self.ocr.clone()),
             llm: overrides.llm.clone().or_else(|| self.llm.clone()),

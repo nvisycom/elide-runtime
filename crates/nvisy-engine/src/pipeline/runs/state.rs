@@ -135,6 +135,10 @@ impl RunState {
 
     /// Transition a run to its final status and record aggregate counters.
     ///
+    /// If the run was already cancelled (via [`cancel_run`](Self::cancel_run)),
+    /// the `Cancelled` status is preserved rather than being overwritten by
+    /// the orchestrator's computed status.
+    ///
     /// Any nodes still in `Pending` or `Running` state are forced to
     /// `Failed` with an explanatory error message, ensuring all nodes
     /// reach a terminal status.
@@ -147,7 +151,9 @@ impl RunState {
     ) {
         let mut guard = self.inner.write().await;
         if let Some(entry) = guard.get_mut(&run_id) {
-            entry.status = status;
+            if entry.status != RunStatus::Cancelled {
+                entry.status = status;
+            }
             entry.completed_at = Some(Timestamp::now());
             entry.entities_detected = entities_detected;
             entry.redactions_applied = redactions_applied;

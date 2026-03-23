@@ -15,6 +15,9 @@ impl Graph {
     /// Validates all structural invariants of the graph.
     #[must_use = "validation errors are silently ignored if the result is unused"]
     pub fn validate(&self) -> Result<(), Error> {
+        if let Some(ref concurrency) = self.concurrency {
+            concurrency.validate()?;
+        }
         let node_map = self.validate_nodes()?;
         let (in_degree, out_degree) = self.validate_edges(&node_map)?;
         self.validate_structure(&node_map, &in_degree, &out_degree)?;

@@ -31,8 +31,8 @@ use uuid::Uuid;
 use super::config::RuntimeConfig;
 use super::executor::{NodeExecutor, NodeOutput, RunOutput};
 use super::plan::ExecutionPlan;
-use super::runs::NodeStatus;
 use super::runs::state::RunState;
+use super::runs::NodeStatus;
 use crate::graph::ConcurrencyPolicy;
 use crate::operation::DocumentEnvelope;
 use crate::operation::context::SharedContext;
@@ -69,7 +69,7 @@ pub(super) struct RunContext {
     /// Shared operation context (run ID, actor, registry, policies, key provider).
     pub shared: SharedContext,
     /// Effective configuration after merging per-request overrides.
-    pub config: RuntimeConfig,
+    pub config: Arc<RuntimeConfig>,
     /// Shared HTTP client for downstream API calls.
     pub http_client: HttpClient,
     /// Optional limit on how many nodes may execute concurrently.
@@ -127,7 +127,7 @@ pub(super) async fn run_graph(
         let executor = NodeExecutor::new(
             shared.clone(),
             cancel.clone(),
-            config.clone(),
+            Arc::clone(&config),
             http_client.clone(),
         );
 
@@ -141,6 +141,7 @@ pub(super) async fn run_graph(
         let node_senders = senders.remove(&node_id).unwrap_or_default();
         let node_receivers = receivers.remove(&node_id).unwrap_or_default();
         let sem = semaphore.clone();
+        let fail_fast_cancel = cancel.clone();
 
         join_set.spawn(async move {
             let _guard = CompletionGuard::new(completion_tx);
@@ -176,6 +177,7 @@ pub(super) async fn run_graph(
             let status = if output.error.is_none() {
                 NodeStatus::Succeeded
             } else {
+                fail_fast_cancel.cancel();
                 NodeStatus::Failed
             };
             tracing::debug!(target: TARGET, %node_id, ?status, items = output.items_processed, "node completed");

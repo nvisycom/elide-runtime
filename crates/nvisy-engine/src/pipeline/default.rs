@@ -258,6 +258,10 @@ impl Engine {
             .concurrency
             .or_else(|| effective_config.engine.as_ref().and_then(|e| e.concurrency));
 
+        if let Some(ref c) = concurrency {
+            c.validate()?;
+        }
+
         let compiled = match plan::compile(
             input.graph,
             effective_config
@@ -370,7 +374,7 @@ impl Engine {
         let ctx = RunContext {
             cancel,
             shared,
-            config: effective_config,
+            config: Arc::new(effective_config),
             http_client: self.inner.http_client.clone(),
             concurrency,
         };

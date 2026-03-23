@@ -61,25 +61,43 @@ pub(super) struct RunOutput {
 
 impl RunOutput {
     /// Determine overall run status from node results.
+    ///
+    /// If all errors are cancellation errors, returns `Cancelled`.
+    /// Otherwise uses the standard ok/err breakdown.
     pub fn run_status(&self) -> RunStatus {
         let any_ok = self.node_results.iter().any(|r| r.error.is_none());
-        let any_err = self.node_results.iter().any(|r| r.error.is_some());
-        match (any_ok, any_err) {
-            (_, false) => RunStatus::Succeeded,
-            (true, true) => RunStatus::PartialFailure,
-            _ => RunStatus::Failed,
+        let errors: Vec<_> = self
+            .node_results
+            .iter()
+            .filter_map(|r| r.error.as_deref())
+            .collect();
+
+        if errors.is_empty() {
+            return RunStatus::Succeeded;
+        }
+
+        let all_cancelled = errors.iter().all(|e| e.contains("cancelled"));
+        if all_cancelled {
+            return RunStatus::Cancelled;
+        }
+
+        if any_ok {
+            RunStatus::PartialFailure
+        } else {
+            RunStatus::Failed
         }
     }
 }
 
 /// Executes a single [`ResolvedNode`] within a pipeline run.
 ///
-/// Owns clones of the run-scoped context, cancellation token, config,
-/// and HTTP client. The orchestrator creates one executor per node task.
+/// Owns clones of the run-scoped context, cancellation token, and
+/// shared references to config and HTTP client. The orchestrator
+/// creates one executor per node task.
 pub(super) struct NodeExecutor {
     shared: SharedContext,
     cancel: CancellationToken,
-    config: RuntimeConfig,
+    config: Arc<RuntimeConfig>,
     http_client: HttpClient,
 }
 
@@ -87,7 +105,7 @@ impl NodeExecutor {
     pub fn new(
         shared: SharedContext,
         cancel: CancellationToken,
-        config: RuntimeConfig,
+        config: Arc<RuntimeConfig>,
         http_client: HttpClient,
     ) -> Self {
         Self {
@@ -539,24 +557,7 @@ impl NodeExecutor {
                 None => do_import().await?,
             };
 
-            let envelope = Arc::new(envelope);
-            if senders.len() == 1 {
-                senders[0]
-                    .send(envelope)
-                    .await
-                    .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
-            } else {
-                for tx in &senders[..senders.len() - 1] {
-                    tx.send(Arc::clone(&envelope)).await.map_err(|_| {
-                        Error::runtime("downstream channel closed", "executor", false)
-                    })?;
-                }
-                if let Some(tx) = senders.last() {
-                    tx.send(envelope).await.map_err(|_| {
-                        Error::runtime("downstream channel closed", "executor", false)
-                    })?;
-                }
-            }
+            fan_out(senders, envelope).await?;
             count += 1;
         }
 
@@ -611,9 +612,9 @@ fn node_output(items_processed: u64) -> NodeOutput {
 
 /// Core envelope processing loop shared by most node types.
 ///
-/// Drains all upstream receivers, applies `transform` to each envelope,
-/// and fans out the result to all downstream senders. Returns the total
-/// number of envelopes processed.
+/// Merges all upstream receivers concurrently (true fan-in), applies
+/// `transform` to each envelope, and fans out the result to all
+/// downstream senders. Returns the total number of envelopes processed.
 async fn process_envelopes<F, Fut>(
     senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
     receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
@@ -624,33 +625,67 @@ where
     Fut: std::future::Future<Output = Result<DocumentEnvelope, Error>>,
 {
     let mut count = 0u64;
-    for rx in receivers.iter_mut() {
-        while let Some(item) = rx.recv().await {
-            let envelope = unwrap_envelope(item).await?;
-            let envelope = transform(envelope).await?;
 
-            count += 1;
-            let envelope = Arc::new(envelope);
-            if senders.len() == 1 {
-                senders[0]
-                    .send(envelope)
-                    .await
-                    .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
-            } else {
-                for tx in &senders[..senders.len() - 1] {
-                    tx.send(Arc::clone(&envelope)).await.map_err(|_| {
-                        Error::runtime("downstream channel closed", "executor", false)
-                    })?;
-                }
-                if let Some(tx) = senders.last() {
-                    tx.send(envelope).await.map_err(|_| {
-                        Error::runtime("downstream channel closed", "executor", false)
-                    })?;
-                }
+    if receivers.len() <= 1 {
+        // Fast path: single receiver, no merging needed.
+        if let Some(rx) = receivers.first_mut() {
+            while let Some(item) = rx.recv().await {
+                let envelope = unwrap_envelope(item).await?;
+                let envelope = transform(envelope).await?;
+                count += 1;
+                fan_out(senders, envelope).await?;
             }
         }
+    } else {
+        // Concurrent fan-in: merge all receivers into a single stream
+        // so slow upstreams don't block fast ones.
+        let streams: Vec<_> = receivers
+            .iter_mut()
+            .map(|rx| {
+                let (_, mut dummy) = mpsc::channel(1);
+                std::mem::swap(rx, &mut dummy);
+                Box::pin(futures::stream::unfold(dummy, |mut rx| async move {
+                    rx.recv().await.map(|item| (item, rx))
+                }))
+                    as std::pin::Pin<Box<dyn futures::Stream<Item = Arc<DocumentEnvelope>> + Send>>
+            })
+            .collect();
+        let mut merged = futures::stream::select_all(streams);
+
+        while let Some(item) = StreamExt::next(&mut merged).await {
+            let envelope = unwrap_envelope(item).await?;
+            let envelope = transform(envelope).await?;
+            count += 1;
+            fan_out(senders, envelope).await?;
+        }
     }
+
     Ok(count)
+}
+
+/// Send an envelope to all downstream senders.
+///
+/// Clones the `Arc` for all senders except the last, which receives
+/// ownership to avoid an unnecessary refcount bump.
+async fn fan_out(
+    senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
+    envelope: DocumentEnvelope,
+) -> Result<(), Error> {
+    if senders.is_empty() {
+        return Ok(());
+    }
+    let envelope = Arc::new(envelope);
+    for tx in &senders[..senders.len() - 1] {
+        tx.send(Arc::clone(&envelope))
+            .await
+            .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
+    }
+    if let Some(tx) = senders.last() {
+        tx.send(envelope)
+            .await
+            .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
+    }
+    Ok(())
 }
 
 /// Take ownership of an envelope from an `Arc`.

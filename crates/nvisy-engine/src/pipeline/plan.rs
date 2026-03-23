@@ -71,7 +71,8 @@ pub struct ResolvedNode {
 
 /// Compiles a [`Graph`] into an [`ExecutionPlan`].
 ///
-/// Validates the graph, applies default policies to nodes that don't specify
+/// Validates the graph first (so errors reflect user input, not injected
+/// defaults), then applies default policies to nodes that don't specify
 /// their own, builds a petgraph representation, checks for cycles, and
 /// produces a topologically-sorted plan.
 pub(crate) fn compile(
@@ -80,6 +81,8 @@ pub(crate) fn compile(
     default_timeout: Option<&TimeoutPolicy>,
     channel_buffer: Option<usize>,
 ) -> Result<ExecutionPlan> {
+    graph.validate()?;
+
     for node in &mut graph.nodes {
         if node.retry.is_none() {
             node.retry = default_retry.cloned();
@@ -88,8 +91,6 @@ pub(crate) fn compile(
             node.timeout = default_timeout.cloned();
         }
     }
-
-    graph.validate()?;
 
     let pg = build_petgraph(&graph);
 

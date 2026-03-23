@@ -103,7 +103,7 @@ aho-corasick = { version = "1.0", features = [] }
 petgraph = { version = "0.8", features = [] }
 
 # PDF processing (parsing, text extraction, page-to-image rendering)
-lopdf = { version = "0.39", features = [] }
+lopdf = { version = "0.40", features = [] }
 pdfium-render = { version = "0.8", features = [] }
 
 # Document parsing

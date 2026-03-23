@@ -5,7 +5,7 @@
 //! to identify and classify named entities within extracted text.
 
 use nvisy_codec::Span;
-use nvisy_codec::handler::TextData;
+use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::HttpClient;
 use nvisy_ontology::entity::{Entity, EntityCategory, RecognitionMethod, TextLocation};
@@ -73,7 +73,7 @@ impl EntityRecognition {
 
     pub(crate) async fn detect(
         &self,
-        spans: Vec<Span<usize, TextData>>,
+        spans: Vec<Span<TextSpanId, TextData>>,
     ) -> Result<DetectedEntities> {
         tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
         let mut entities = Vec::new();
@@ -142,7 +142,7 @@ impl EntityRecognition {
 }
 
 impl Operation for EntityRecognition {
-    type Input = SequentialContext<Vec<Span<usize, TextData>>>;
+    type Input = SequentialContext<Vec<Span<TextSpanId, TextData>>>;
     type Output = SequentialContext<DetectedEntities>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {

@@ -1,10 +1,12 @@
 //! Run request types.
 
 use nvisy_engine::graph::Graph;
-use nvisy_engine::pipeline::RuntimeConfig;
+use nvisy_engine::pipeline::{RunStatus, RuntimeConfig};
 use nvisy_ontology::policy::Policies;
 use schemars::JsonSchema;
 use serde::Deserialize;
+
+use super::Pagination;
 
 /// Request body for `POST /api/v1/runs`.
 ///
@@ -23,4 +25,16 @@ pub struct NewRun {
     #[serde(default)]
     #[schemars(skip)]
     pub config: Option<RuntimeConfig>,
+}
+
+/// Query parameters for listing runs.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RunQuery {
+    /// Filter by run status (e.g. `running`, `succeeded`).
+    #[serde(default)]
+    pub status: Option<RunStatus>,
+    /// Pagination parameters.
+    #[serde(flatten)]
+    pub pagination: Pagination,
 }

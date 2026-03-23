@@ -7,6 +7,6 @@ mod provider;
 mod service;
 mod wire;
 
-pub use self::provider::{KeyProvider, StaticKeyProvider};
+pub use self::provider::{KeyProvider, SharedKeyProvider, StaticKeyProvider};
 pub(crate) use self::service::CryptoService;
 pub(crate) use self::wire::EncryptedContent;

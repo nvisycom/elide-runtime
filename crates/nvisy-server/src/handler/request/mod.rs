@@ -6,10 +6,12 @@
 
 mod contexts;
 mod files;
+mod pagination;
 mod path;
 mod runs;
 
 pub use self::contexts::NewContext;
 pub use self::files::NewFile;
+pub use self::pagination::{Page, Pagination};
 pub use self::path::{ContentPath, ContextPath, RunPath};
-pub use self::runs::NewRun;
+pub use self::runs::{NewRun, RunQuery};

@@ -7,7 +7,7 @@
 //! [`EntityRecognition`]: crate::operation::EntityRecognition
 
 use nvisy_codec::Span;
-use nvisy_codec::handler::TextData;
+use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::Result;
 use nvisy_ontology::entity::{Entity, RecognitionMethod, TextLocation};
 
@@ -26,7 +26,7 @@ impl PatternRecognition {
         Ok(Self {})
     }
 
-    fn scan(spans: &[Span<usize, TextData>]) -> Vec<Entity> {
+    fn scan(spans: &[Span<TextSpanId, TextData>]) -> Vec<Entity> {
         let engine = nvisy_pattern::PatternEngine::instance();
         let scan_ctx = nvisy_pattern::ScanContext::default();
         let mut entities = Vec::new();
@@ -60,7 +60,7 @@ impl PatternRecognition {
 }
 
 impl Operation for PatternRecognition {
-    type Input = ParallelContext<Vec<Span<usize, TextData>>>;
+    type Input = ParallelContext<Vec<Span<TextSpanId, TextData>>>;
     type Output = ParallelContext<DetectedEntities>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {

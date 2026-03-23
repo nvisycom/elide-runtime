@@ -17,10 +17,32 @@ use uuid::Uuid;
 use super::config::RuntimeConfig;
 use super::executor::{NodeExecutor, NodeOutput, RunOutput};
 use super::plan::ExecutionPlan;
+use super::runs::NodeStatus;
 use super::runs::state::RunState;
-use super::runs::{NodeStatus, RunStatus};
 use crate::operation::DocumentEnvelope;
 use crate::operation::context::SharedContext;
+
+const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
+
+/// Guard that sends the completion signal when dropped, ensuring the
+/// signal is sent even if the task panics.
+struct CompletionGuard {
+    tx: Option<watch::Sender<bool>>,
+}
+
+impl CompletionGuard {
+    fn new(tx: Option<watch::Sender<bool>>) -> Self {
+        Self { tx }
+    }
+}
+
+impl Drop for CompletionGuard {
+    fn drop(&mut self) {
+        if let Some(tx) = self.tx.take() {
+            let _ = tx.send(true);
+        }
+    }
+}
 
 /// Per-run execution context.
 pub(super) struct RunContext {
@@ -28,6 +50,7 @@ pub(super) struct RunContext {
     pub shared: SharedContext,
     pub config: RuntimeConfig,
     pub http_client: HttpClient,
+    pub max_concurrent_nodes: Option<usize>,
 }
 
 /// Execute a compiled [`ExecutionPlan`] by spawning concurrent tasks for
@@ -48,7 +71,10 @@ pub(super) async fn run_graph(
         shared,
         config,
         http_client,
+        max_concurrent_nodes,
     } = ctx;
+
+    let semaphore = max_concurrent_nodes.map(|n| Arc::new(tokio::sync::Semaphore::new(n)));
 
     let mut senders: HashMap<Uuid, Vec<mpsc::Sender<Arc<DocumentEnvelope>>>> = HashMap::new();
     let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>> = HashMap::new();
@@ -91,22 +117,29 @@ pub(super) async fn run_graph(
         let completion_tx = signal_senders.remove(&node_id);
         let node_senders = senders.remove(&node_id).unwrap_or_default();
         let node_receivers = receivers.remove(&node_id).unwrap_or_default();
+        let sem = semaphore.clone();
 
         join_set.spawn(async move {
+            let _guard = CompletionGuard::new(completion_tx);
+
             for mut rx in upstream_watches {
                 let _ = rx.wait_for(|&done| done).await;
             }
+            tracing::trace!(target: TARGET, %node_id, "all upstream dependencies satisfied");
 
+            let _permit = if let Some(ref sem) = sem {
+                Some(sem.acquire().await.expect("semaphore closed"))
+            } else {
+                None
+            };
+
+            tracing::debug!(target: TARGET, %node_id, "node starting");
             runs.update_node(run_id, node_id, NodeStatus::Running, 0, None)
                 .await;
 
             let result = executor
                 .execute(&resolved, node_senders, node_receivers)
                 .await;
-
-            if let Some(tx) = completion_tx {
-                let _ = tx.send(true);
-            }
 
             let output = match result {
                 Ok(output) => output,
@@ -122,6 +155,7 @@ pub(super) async fn run_graph(
             } else {
                 NodeStatus::Failed
             };
+            tracing::debug!(target: TARGET, %node_id, ?status, items = output.items_processed, "node completed");
             runs.update_node(
                 run_id,
                 node_id,
@@ -139,24 +173,36 @@ pub(super) async fn run_graph(
     while let Some(result) = join_set.join_next().await {
         match result {
             Ok(nr) => node_results.push(nr),
-            Err(e) => node_results.push(NodeOutput {
-                items_processed: 0,
-                error: Some(format!("Task panicked: {e}")),
-                envelopes: Vec::new(),
-            }),
+            Err(e) => {
+                let msg = if e.is_panic() {
+                    let panic_payload = e.into_panic();
+                    let panic_msg = panic_payload
+                        .downcast_ref::<&str>()
+                        .copied()
+                        .or_else(|| panic_payload.downcast_ref::<String>().map(|s| s.as_str()))
+                        .unwrap_or("unknown panic");
+                    tracing::error!(
+                        target: TARGET,
+                        panic = panic_msg,
+                        "node task panicked"
+                    );
+                    format!("Task panicked: {panic_msg}")
+                } else {
+                    tracing::error!(
+                        target: TARGET,
+                        error = %e,
+                        "node task failed"
+                    );
+                    format!("Task failed: {e}")
+                };
+                node_results.push(NodeOutput {
+                    items_processed: 0,
+                    error: Some(msg),
+                    envelopes: Vec::new(),
+                });
+            }
         }
     }
 
     Ok(RunOutput { node_results })
-}
-
-/// Determine overall run status from node results.
-pub(super) fn run_status(run_output: &RunOutput) -> RunStatus {
-    let any_ok = run_output.node_results.iter().any(|r| r.error.is_none());
-    let any_err = run_output.node_results.iter().any(|r| r.error.is_some());
-    match (any_ok, any_err) {
-        (_, false) => RunStatus::Succeeded,
-        (true, true) => RunStatus::PartialFailure,
-        _ => RunStatus::Failed,
-    }
 }

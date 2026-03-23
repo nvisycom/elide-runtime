@@ -7,33 +7,69 @@
 //! | `GET`  | `/health`             | Liveness probe                       |
 //! | `GET`  | `/api/v1/analytics`   | Aggregate pipeline metrics           |
 
+use std::time::Duration;
+
 use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
+use axum::error_handling::HandleErrorLayer;
 use axum::extract::State;
-use nvisy_engine::pipeline::{DefaultEngine, EngineAnalytics};
+use nvisy_engine::pipeline::Engine;
+use tower::ServiceBuilder;
+use tower::timeout::TimeoutLayer;
 
-use super::response::{Analytics, Health, ServiceStatus};
+use super::response::{Analytics, ComponentCheck, Health, ServiceStatus};
 use crate::extract::Json;
+use crate::middleware::constants::{DEFAULT_HEALTH_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS};
+use crate::middleware::recovery::handle_error;
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::infra";
 
 /// `GET /health`: liveness probe.
 ///
-/// Verifies the data directory is accessible and returns the service status.
+/// Verifies the data directory and registry are accessible, returns
+/// component-level checks alongside an overall service status.
 #[tracing::instrument(target = "nvisy_server::infra", skip_all)]
-async fn health_check(State(engine): State<DefaultEngine>) -> Json<Health> {
-    let status = if engine.registry().base_dir().is_dir() {
+async fn health_check(State(engine): State<Engine>) -> Json<Health> {
+    let mut checks = vec![];
+
+    let fs_ok = engine.data_dir().is_dir();
+    checks.push(ComponentCheck {
+        name: "filesystem".into(),
+        status: if fs_ok {
+            ServiceStatus::Healthy
+        } else {
+            ServiceStatus::Unhealthy
+        },
+    });
+
+    let registry_ok = engine.data_dir().is_dir();
+    checks.push(ComponentCheck {
+        name: "registry".into(),
+        status: if registry_ok {
+            ServiceStatus::Healthy
+        } else {
+            ServiceStatus::Degraded
+        },
+    });
+
+    let overall = if checks.iter().all(|c| c.status == ServiceStatus::Healthy) {
         ServiceStatus::Healthy
-    } else {
-        tracing::warn!(target: TARGET, "data directory is not accessible");
+    } else if checks.iter().any(|c| c.status == ServiceStatus::Unhealthy) {
         ServiceStatus::Unhealthy
+    } else {
+        ServiceStatus::Degraded
     };
 
-    tracing::debug!(target: TARGET, ?status, "health check");
+    if overall != ServiceStatus::Healthy {
+        tracing::warn!(target: TARGET, ?overall, "health check degraded or unhealthy");
+    }
+
+    tracing::debug!(target: TARGET, ?overall, "health check");
     Json(Health {
-        status,
+        status: overall,
+        checks,
         timestamp: jiff::Timestamp::now(),
     })
 }
@@ -43,14 +79,15 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
         .tag("infra")
         .summary("Liveness probe")
         .description(
-            "Checks that the server is running and the data directory is accessible. \
-             Returns 200 with status `healthy` or `unhealthy`.",
+            "Checks that the server is running, the data directory is accessible, \
+             and the registry is operational. Returns 200 with an overall status \
+             and per-component checks.",
         )
 }
 
 /// `GET /api/v1/analytics`: retrieve aggregate pipeline analytics.
 #[tracing::instrument(target = "nvisy_server::infra", skip_all)]
-async fn get_analytics(State(engine): State<DefaultEngine>) -> Json<Analytics> {
+async fn get_analytics(State(engine): State<Engine>) -> Json<Analytics> {
     let snapshot = engine.snapshot().await;
     Json(Analytics {
         timestamp: snapshot.timestamp,
@@ -74,7 +111,25 @@ fn analytics_docs(op: TransformOperation) -> TransformOperation {
 
 /// Infra routes.
 pub fn routes() -> ApiRouter<ServiceState> {
-    ApiRouter::new()
+    let health = ApiRouter::new()
         .api_route("/health", get_with(health_check, health_docs))
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(handle_error))
+                .layer(TimeoutLayer::new(Duration::from_secs(
+                    DEFAULT_HEALTH_TIMEOUT_SECS,
+                ))),
+        );
+
+    let analytics = ApiRouter::new()
         .api_route("/api/v1/analytics", get_with(get_analytics, analytics_docs))
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(handle_error))
+                .layer(TimeoutLayer::new(Duration::from_secs(
+                    DEFAULT_READ_TIMEOUT_SECS,
+                ))),
+        );
+
+    health.merge(analytics)
 }

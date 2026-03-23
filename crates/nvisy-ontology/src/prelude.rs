@@ -1,6 +1,6 @@
 //! Convenience re-exports for common nvisy-ontology types.
 
-pub use crate::context::{Context, ContextEntry, ContextEntryData};
+pub use crate::context::{Context, ContextEntry, ContextEntryData, ContextMap, Contexts};
 pub use crate::entity::{
     Annotation, AnnotationKind, DetectionOutput, Entities, Entity, EntityCategory, EntityKind,
     EntitySensitivity, ExtractionMethod, Location, RecognitionMethod, RefinementMethod,

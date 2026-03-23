@@ -43,7 +43,6 @@ path = "src/main.rs"
 [dependencies]
 # Internal crates
 nvisy-engine = { workspace = true, features = [] }
-nvisy-registry = { workspace = true, features = [] }
 nvisy-server = { workspace = true, features = [] }
 
 # CLI

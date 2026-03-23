@@ -1,6 +1,11 @@
 //! Run response types.
 
 use nvisy_engine::pipeline::{EngineOutput, RunSnapshot, RunSummary};
+
+use crate::handler::request::Page;
+
+/// Response body for `GET /api/v1/runs`.
+pub type RunList = Page<RunSummary>;
 use nvisy_engine::provenance::{Audit, PolicyEvaluation, RedactionMap};
 use nvisy_ontology::entity::DetectionOutput;
 use nvisy_ontology::policy::RedactionSummary;
@@ -41,15 +46,8 @@ impl From<EngineOutput> for RunResult {
 
 /// Response body for `GET /api/v1/runs/{id}`.
 #[derive(Debug, Serialize, JsonSchema)]
-pub struct Run {
+pub struct RunDetail {
     /// Full run snapshot.
     #[serde(flatten)]
     pub run: RunSnapshot,
-}
-
-/// Response body for `GET /api/v1/runs`.
-#[derive(Debug, Serialize, JsonSchema)]
-pub struct RunList {
-    /// List of run summaries.
-    pub runs: Vec<RunSummary>,
 }

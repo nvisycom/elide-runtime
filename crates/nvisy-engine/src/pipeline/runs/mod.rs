@@ -1,17 +1,13 @@
-//! Pipeline run data types, state storage, and the [`EngineRuns`] trait.
+//! Pipeline run data types and state storage.
 //!
 //! Pure data definitions for run lifecycle tracking. All mutation and
-//! querying happens through the [`EngineRuns`] trait, implemented on
-//! [`DefaultEngine`].
+//! querying happens through inherent methods on [`Engine`].
 //!
-//! [`DefaultEngine`]: super::DefaultEngine
+//! [`Engine`]: super::Engine
 
 pub(crate) mod state;
 
-use std::future::Future;
-
 use jiff::Timestamp;
-use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -76,6 +72,10 @@ pub struct RunSnapshot {
     /// Timestamp when the run was created.
     #[schemars(with = "String")]
     pub created_at: Timestamp,
+    /// Timestamp when execution actually started, if applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub started_at: Option<Timestamp>,
     /// Timestamp when the run finished, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
@@ -96,6 +96,10 @@ pub struct RunSummary {
     /// Timestamp when the run was created.
     #[schemars(with = "String")]
     pub created_at: Timestamp,
+    /// Timestamp when execution actually started, if applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub started_at: Option<Timestamp>,
     /// Timestamp when the run finished, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
@@ -109,25 +113,4 @@ pub struct RunSummary {
 pub struct RunFilter {
     /// If set, only return runs with this status.
     pub status: Option<RunStatus>,
-    /// If set, only return runs belonging to this actor.
-    pub actor_id: Option<Uuid>,
-}
-
-/// Read-only access to pipeline run state.
-///
-/// Runs are created internally by [`Engine::run()`].
-///
-/// [`Engine::run()`]: super::Engine::run
-/// External callers can inspect and cancel runs through this trait.
-pub trait EngineRuns: Send + Sync {
-    /// Get a full snapshot of a single run.
-    fn get_run(&self, id: Uuid) -> impl Future<Output = Option<RunSnapshot>> + Send;
-
-    /// List runs matching the given filter.
-    fn list_runs(&self, filter: RunFilter) -> impl Future<Output = Vec<RunSummary>> + Send;
-
-    /// Request cancellation of an in-progress run.
-    ///
-    /// Returns `Err` if the run was not found or has already finished.
-    fn cancel_run(&self, id: Uuid) -> impl Future<Output = Result<(), Error>> + Send;
 }

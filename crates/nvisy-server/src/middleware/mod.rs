@@ -41,9 +41,9 @@
 //! }
 //! ```
 
-mod constants;
+pub(crate) mod constants;
 mod observability;
-mod recovery;
+pub(crate) mod recovery;
 mod security;
 mod specification;
 

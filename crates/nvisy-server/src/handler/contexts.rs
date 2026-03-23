@@ -10,17 +10,24 @@
 //! | `DELETE` | `/api/v1/contexts/{id}`    | Delete a single context               |
 //! | `DELETE` | `/api/v1/contexts`         | Delete all contexts                   |
 
+use std::time::Duration;
+
 use aide::axum::ApiRouter;
 use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
-use axum::extract::State;
+use axum::error_handling::HandleErrorLayer;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_registry::Registry;
+use nvisy_engine::pipeline::Engine;
+use tower::ServiceBuilder;
+use tower::timeout::TimeoutLayer;
 
 use super::error::Result;
-use super::request::{ContextPath, NewContext};
+use super::request::{ContextPath, NewContext, Pagination};
 use super::response::{Context, ContextId, ContextList};
 use crate::extract::{ActorId, Json, Path};
+use crate::middleware::constants::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS};
+use crate::middleware::recovery::handle_error;
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::contexts";
@@ -32,12 +39,11 @@ const TARGET: &str = "nvisy_server::contexts";
     fields(%actor_id),
 )]
 async fn upload_context(
-    State(registry): State<Registry>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewContext>,
 ) -> Result<(StatusCode, Json<ContextId>)> {
-    let handle = registry.register_context(actor_id, req.context).await?;
-    let id = handle.source().as_uuid();
+    let id = engine.upload_context(actor_id, req.context).await?;
 
     tracing::info!(target: TARGET, %id, "context uploaded");
 
@@ -61,12 +67,14 @@ fn upload_context_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id),
 )]
 async fn list_contexts(
-    State(registry): State<Registry>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
+    Query(pagination): Query<Pagination>,
 ) -> Result<Json<ContextList>> {
-    let contexts = registry.list_contexts(actor_id).await?;
-    tracing::debug!(target: TARGET, count = contexts.len(), "contexts listed");
-    Ok(Json(ContextList { contexts }))
+    let contexts = engine.list_contexts(actor_id).await?;
+    let page = pagination.paginate(contexts);
+    tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "contexts listed");
+    Ok(Json(page))
 }
 
 fn list_contexts_docs(op: TransformOperation) -> TransformOperation {
@@ -83,12 +91,11 @@ fn list_contexts_docs(op: TransformOperation) -> TransformOperation {
     fields(%id, %actor_id),
 )]
 async fn download_context(
-    State(registry): State<Registry>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(ContextPath { id }): Path<ContextPath>,
 ) -> Result<Json<Context>> {
-    let handle = registry.read_context(actor_id, id).await?;
-    let context = handle.context().await?;
+    let context = engine.download_context(actor_id, id).await?;
     tracing::debug!(target: TARGET, "context downloaded");
     Ok(Json(Context { id, context }))
 }
@@ -107,11 +114,11 @@ fn download_context_docs(op: TransformOperation) -> TransformOperation {
     fields(%id, %actor_id),
 )]
 async fn delete_context(
-    State(registry): State<Registry>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(ContextPath { id }): Path<ContextPath>,
 ) -> Result<StatusCode> {
-    registry.unregister_context(actor_id, id).await?;
+    engine.delete_context(actor_id, id).await?;
     tracing::info!(target: TARGET, "context deleted");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -130,10 +137,10 @@ fn delete_context_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id),
 )]
 async fn delete_all_contexts(
-    State(registry): State<Registry>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
-    let deleted = registry.unregister_all_contexts(actor_id).await?;
+    let deleted = engine.delete_all_contexts(actor_id).await?;
     tracing::info!(target: TARGET, deleted, "all contexts deleted");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -147,16 +154,40 @@ fn delete_all_contexts_docs(op: TransformOperation) -> TransformOperation {
 
 /// Context routes.
 pub fn routes() -> ApiRouter<ServiceState> {
-    ApiRouter::new()
+    let read_routes = ApiRouter::new()
+        .api_route(
+            "/api/v1/contexts",
+            get_with(list_contexts, list_contexts_docs),
+        )
+        .api_route(
+            "/api/v1/contexts/{id}",
+            get_with(download_context, download_context_docs),
+        )
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(handle_error))
+                .layer(TimeoutLayer::new(Duration::from_secs(
+                    DEFAULT_READ_TIMEOUT_SECS,
+                ))),
+        );
+
+    let write_routes = ApiRouter::new()
         .api_route(
             "/api/v1/contexts",
             post_with(upload_context, upload_context_docs)
-                .get_with(list_contexts, list_contexts_docs)
                 .delete_with(delete_all_contexts, delete_all_contexts_docs),
         )
         .api_route(
             "/api/v1/contexts/{id}",
-            get_with(download_context, download_context_docs)
-                .delete_with(delete_context, delete_context_docs),
+            aide::axum::routing::delete_with(delete_context, delete_context_docs),
         )
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(handle_error))
+                .layer(TimeoutLayer::new(Duration::from_secs(
+                    DEFAULT_WRITE_TIMEOUT_SECS,
+                ))),
+        );
+
+    read_routes.merge(write_routes)
 }

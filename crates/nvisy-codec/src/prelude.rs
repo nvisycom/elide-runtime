@@ -5,8 +5,8 @@ pub use crate::handler::{
     BoxedTextHandler, CsvData, CsvHandler, CsvLoader, CsvParams, CsvSpan, Handler, ImageData,
     ImageHandler, ImageSpanId, JpegHandler, JpegLoader, JpegParams, JsonData, JsonHandler,
     JsonIndent, JsonLoader, JsonParams, JsonPath, Loader, Mp3Handler, Mp3Loader, Mp3Params,
-    PngHandler, PngLoader, PngParams, TextData, TextHandler, TxtHandler, TxtLoader, TxtParams,
-    TxtSpan, WavHandler, WavLoader, WavParams,
+    PngHandler, PngLoader, PngParams, TextData, TextHandler, TextSpanId, TxtHandler, TxtLoader,
+    TxtParams, TxtSpan, WavHandler, WavLoader, WavParams,
 };
 #[cfg(feature = "docx")]
 pub use crate::handler::{DocxLoader, DocxParams};

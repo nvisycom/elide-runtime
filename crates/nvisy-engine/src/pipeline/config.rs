@@ -100,6 +100,18 @@ pub struct EngineSection {
     pub timeout: Option<TimeoutPolicy>,
     /// HTTP client configuration for downstream calls.
     pub http: Option<HttpConfig>,
+    /// Maximum number of completed runs to retain (oldest evicted first).
+    #[serde(default)]
+    pub max_completed_runs: Option<usize>,
+    /// Maximum number of nodes executing concurrently within a single run.
+    #[serde(default)]
+    pub max_concurrent_nodes: Option<usize>,
+    /// Maximum wall-clock time (in milliseconds) for a single pipeline run.
+    #[serde(default)]
+    pub run_timeout_ms: Option<u64>,
+    /// Buffer size for bounded MPSC channels between nodes.
+    #[serde(default)]
+    pub channel_buffer: Option<usize>,
 }
 
 /// Pipeline subsystem configuration.
@@ -108,8 +120,15 @@ pub struct EngineSection {
 /// and HTTP. Deserialized from the non-`[server]` sections of the TOML file.
 /// The CLI layer owns the full TOML shape (including `[server]`) and passes
 /// this struct downstream.
+fn default_config_version() -> u32 {
+    1
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RuntimeConfig {
+    /// Configuration schema version.
+    #[serde(default = "default_config_version")]
+    pub version: u32,
     /// Engine-level policies and HTTP client.
     pub engine: Option<EngineSection>,
     /// OCR subsystem configuration.
@@ -130,6 +149,7 @@ impl RuntimeConfig {
     #[must_use]
     pub fn merge(&self, overrides: &RuntimeConfig) -> RuntimeConfig {
         RuntimeConfig {
+            version: overrides.version,
             engine: overrides.engine.clone().or_else(|| self.engine.clone()),
             ocr: overrides.ocr.clone().or_else(|| self.ocr.clone()),
             llm: overrides.llm.clone().or_else(|| self.llm.clone()),
@@ -146,6 +166,7 @@ mod tests {
     #[test]
     fn empty_toml_parses_to_defaults() {
         let config: RuntimeConfig = toml::from_str("").unwrap();
+        assert_eq!(config.version, 1);
         assert!(config.engine.is_none());
         assert!(config.ocr.is_none());
         assert!(config.llm.is_none());

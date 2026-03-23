@@ -4,17 +4,56 @@
 //! [`compile()`]. It contains topologically-sorted [`ResolvedNode`]s and
 //! pre-computed [`ResolvedEdge`]s with channel configuration.
 
-mod edge;
-mod node;
-
 use nvisy_core::{Error, Result};
 use petgraph::algo::toposort;
 use petgraph::graph::{DiGraph, NodeIndex};
 use uuid::Uuid;
 
-pub use self::edge::{EdgeConfig, ResolvedEdge};
-pub use self::node::ResolvedNode;
 use crate::graph::{Graph, GraphEdge, GraphNode, RetryPolicy, TimeoutPolicy};
+
+/// Default buffer size for bounded MPSC channels between nodes.
+const DEFAULT_CHANNEL_BUFFER: usize = 256;
+
+/// Channel configuration for a resolved edge.
+#[derive(Debug, Clone)]
+pub struct EdgeConfig {
+    /// Buffer size for the bounded MPSC channel on this edge.
+    pub channel_buffer: usize,
+}
+
+impl Default for EdgeConfig {
+    fn default() -> Self {
+        Self {
+            channel_buffer: DEFAULT_CHANNEL_BUFFER,
+        }
+    }
+}
+
+/// A directed edge with pre-computed channel configuration.
+#[derive(Debug, Clone)]
+pub struct ResolvedEdge {
+    /// ID of the upstream node.
+    pub source: Uuid,
+    /// ID of the downstream node.
+    pub target: Uuid,
+    /// Channel configuration for this edge.
+    pub config: EdgeConfig,
+}
+
+/// A graph node enriched with adjacency information and compiled policies.
+///
+/// Order is implicit in the position within [`ExecutionPlan::nodes`].
+#[derive(Debug, Clone)]
+pub struct ResolvedNode {
+    /// The original graph node definition.
+    pub node: GraphNode,
+    /// IDs of nodes that feed data into this node.
+    pub upstream_ids: Vec<Uuid>,
+    /// Retry policy for this node, if configured.
+    pub retry: Option<RetryPolicy>,
+    /// Timeout policy for this node, if configured.
+    pub timeout: Option<TimeoutPolicy>,
+}
 
 /// Compiles a [`Graph`] into an [`ExecutionPlan`].
 ///
@@ -22,12 +61,11 @@ use crate::graph::{Graph, GraphEdge, GraphNode, RetryPolicy, TimeoutPolicy};
 /// their own, builds a petgraph representation, checks for cycles, and
 /// produces a topologically-sorted plan.
 pub(crate) fn compile(
-    graph: &Graph,
+    mut graph: Graph,
     default_retry: Option<&RetryPolicy>,
     default_timeout: Option<&TimeoutPolicy>,
+    channel_buffer: Option<usize>,
 ) -> Result<ExecutionPlan> {
-    let mut graph = graph.clone();
-
     for node in &mut graph.nodes {
         if node.retry.is_none() {
             node.retry = default_retry.cloned();
@@ -44,7 +82,11 @@ pub(crate) fn compile(
     let topo =
         toposort(&pg, None).map_err(|_| Error::validation("graph contains a cycle", "compiler"))?;
 
-    Ok(ExecutionPlan::from_graph(&pg, &topo))
+    Ok(ExecutionPlan::from_graph(
+        &pg,
+        &topo,
+        channel_buffer.unwrap_or(DEFAULT_CHANNEL_BUFFER),
+    ))
 }
 
 /// Builds a petgraph `DiGraph` from a validated [`Graph`].
@@ -58,8 +100,12 @@ fn build_petgraph(graph: &Graph) -> DiGraph<GraphNode, GraphEdge> {
     }
 
     for edge in &graph.edges {
-        let from = index_map[&edge.source];
-        let to = index_map[&edge.target];
+        let from = *index_map
+            .get(&edge.source)
+            .expect("edge source must reference a node present in the graph");
+        let to = *index_map
+            .get(&edge.target)
+            .expect("edge target must reference a node present in the graph");
         pg.add_edge(from, to, edge.clone());
     }
 
@@ -77,7 +123,11 @@ pub struct ExecutionPlan {
 
 impl ExecutionPlan {
     /// Builds an execution plan from a petgraph and its topological ordering.
-    fn from_graph(pg: &DiGraph<GraphNode, GraphEdge>, topo: &[NodeIndex]) -> Self {
+    fn from_graph(
+        pg: &DiGraph<GraphNode, GraphEdge>,
+        topo: &[NodeIndex],
+        channel_buffer: usize,
+    ) -> Self {
         let mut nodes = Vec::with_capacity(topo.len());
 
         for &idx in topo {
@@ -101,11 +151,13 @@ impl ExecutionPlan {
         let edges: Vec<ResolvedEdge> = pg
             .edge_indices()
             .map(|ei| {
-                let (src_idx, tgt_idx) = pg.edge_endpoints(ei).unwrap();
+                let (src_idx, tgt_idx) = pg
+                    .edge_endpoints(ei)
+                    .expect("edge index obtained from edge_indices() must be valid");
                 ResolvedEdge {
                     source: pg[src_idx].id,
                     target: pg[tgt_idx].id,
-                    config: EdgeConfig::default(),
+                    config: EdgeConfig { channel_buffer },
                 }
             })
             .collect();

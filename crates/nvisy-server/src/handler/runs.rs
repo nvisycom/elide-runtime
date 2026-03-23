@@ -1,41 +1,35 @@
-//! Pipeline run creation, inspection, and cancellation handlers.
+//! Pipeline run creation, inspection, cancellation, and deletion handlers.
 //!
 //! # Endpoints
 //!
-//! | Method | Path                       | Description                          |
-//! |--------|----------------------------|--------------------------------------|
-//! | `POST` | `/api/v1/runs`             | Run the full pipeline                |
-//! | `POST` | `/api/v1/runs/scan`        | Run a read-only scan (no redaction)  |
-//! | `GET`  | `/api/v1/runs`             | List runs with optional filters      |
-//! | `GET`  | `/api/v1/runs/{id}`        | Get a full run snapshot              |
-//! | `POST` | `/api/v1/runs/{id}/cancel` | Cancel an in-progress run            |
+//! | Method   | Path                       | Description                          |
+//! |----------|----------------------------|--------------------------------------|
+//! | `POST`   | `/api/v1/runs`             | Run the full pipeline                |
+//! | `GET`    | `/api/v1/runs`             | List runs with optional filters      |
+//! | `GET`    | `/api/v1/runs/{id}`        | Get a full run snapshot              |
+//! | `POST`   | `/api/v1/runs/{id}/cancel` | Cancel an in-progress run            |
+//! | `DELETE` | `/api/v1/runs/{id}`        | Delete a single finished run         |
+//! | `DELETE` | `/api/v1/runs`             | Delete all finished runs             |
+
+use std::time::Duration;
 
 use aide::axum::ApiRouter;
 use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
+use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{
-    DefaultEngine, Engine, EngineInput, EngineOutput, EngineRuns, RunFilter,
-};
+use nvisy_engine::pipeline::{Engine, EngineInput, RunFilter};
+use tower::ServiceBuilder;
+use tower::timeout::TimeoutLayer;
 
 use super::error::{ErrorKind, Result};
-use super::request::{NewRun, RunPath};
-use super::response::{Run, RunList, RunResult};
+use super::request::{NewRun, RunPath, RunQuery};
+use super::response::{RunDetail, RunList, RunResult};
 use crate::extract::{ActorId, Json, Path};
+use crate::middleware::constants::{DEFAULT_PIPELINE_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS};
+use crate::middleware::recovery::handle_error;
 use crate::service::ServiceState;
-
-/// Optional query parameters for listing runs.
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RunQuery {
-    /// Filter by run status (e.g. `running`, `succeeded`).
-    #[serde(default)]
-    pub status: Option<nvisy_engine::pipeline::RunStatus>,
-    /// Filter by actor identity.
-    #[serde(default)]
-    pub actor_id: Option<uuid::Uuid>,
-}
 
 const TARGET: &str = "nvisy_server::runs";
 
@@ -49,11 +43,18 @@ const TARGET: &str = "nvisy_server::runs";
     fields(%actor_id),
 )]
 async fn create_run(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
 ) -> Result<(StatusCode, Json<RunResult>)> {
-    let output = execute_pipeline(&engine, actor_id, req).await?;
+    let input = EngineInput {
+        actor_id,
+        policies: req.policies,
+        graph: req.graph,
+        config: req.config,
+    };
+
+    let output = engine.run(input).await?;
 
     tracing::info!(
         target: TARGET,
@@ -75,59 +76,24 @@ fn create_run_docs(op: TransformOperation) -> TransformOperation {
         )
 }
 
-/// `POST /api/v1/runs/scan`: run a read-only scan on uploaded content.
-///
-/// Extracts text and detects entities without applying redactions.
-/// The pipeline behaviour is determined by the graph in the request body.
+/// `GET /api/v1/runs`: list runs with optional status filter, scoped to the caller.
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%actor_id, mode = "scan"),
-)]
-async fn scan_content(
-    State(engine): State<DefaultEngine>,
-    ActorId(actor_id): ActorId,
-    Json(req): Json<NewRun>,
-) -> Result<(StatusCode, Json<RunResult>)> {
-    let output = execute_pipeline(&engine, actor_id, req).await?;
-
-    tracing::info!(
-        target: TARGET,
-        run_id = %output.run_id,
-        entities = output.detection.entities.len(),
-        "scan complete",
-    );
-
-    Ok((StatusCode::CREATED, Json(output.into())))
-}
-
-fn scan_content_docs(op: TransformOperation) -> TransformOperation {
-    op.id("scanContent")
-        .tag("runs")
-        .summary("Run a read-only scan on uploaded content")
-        .description(
-            "Extracts text and detects entities without applying redactions. \
-             The pipeline behaviour is determined by the graph in the request body.",
-        )
-}
-
-/// `GET /api/v1/runs`: list runs with optional status/actor filters.
-#[tracing::instrument(
-    target = "nvisy_server::runs",
-    skip_all,
-    fields(?query.status, ?query.actor_id),
+    fields(%actor_id, ?query.status),
 )]
 async fn list_runs(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
+    ActorId(actor_id): ActorId,
     Query(query): Query<RunQuery>,
 ) -> Result<Json<RunList>> {
     let filter = RunFilter {
         status: query.status,
-        actor_id: query.actor_id,
     };
-    let runs = engine.list_runs(filter).await;
-    tracing::debug!(target: TARGET, count = runs.len(), "runs listed");
-    Ok(Json(RunList { runs }))
+    let runs = engine.list_runs(actor_id, filter).await;
+    let page = query.pagination.paginate(runs);
+    tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "runs listed");
+    Ok(Json(page))
 }
 
 fn list_runs_docs(op: TransformOperation) -> TransformOperation {
@@ -143,18 +109,19 @@ fn list_runs_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%id),
+    fields(%actor_id, %id),
 )]
 async fn get_run(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
+    ActorId(actor_id): ActorId,
     Path(RunPath { id }): Path<RunPath>,
-) -> Result<Json<Run>> {
+) -> Result<Json<RunDetail>> {
     let run = engine
-        .get_run(id)
+        .get_run(actor_id, id)
         .await
         .ok_or_else(|| ErrorKind::NotFound.with_resource("run"))?;
     tracing::debug!(target: TARGET, "run retrieved");
-    Ok(Json(Run { run }))
+    Ok(Json(RunDetail { run }))
 }
 
 fn get_run_docs(op: TransformOperation) -> TransformOperation {
@@ -168,13 +135,14 @@ fn get_run_docs(op: TransformOperation) -> TransformOperation {
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%id),
+    fields(%actor_id, %id),
 )]
 async fn cancel_run(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
+    ActorId(actor_id): ActorId,
     Path(RunPath { id }): Path<RunPath>,
 ) -> Result<StatusCode> {
-    engine.cancel_run(id).await?;
+    engine.cancel_run(actor_id, id).await?;
     tracing::info!(target: TARGET, "run cancelled");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -190,36 +158,85 @@ fn cancel_run_docs(op: TransformOperation) -> TransformOperation {
         )
 }
 
-/// Execute the pipeline for both `create_run` and `scan_content`.
-async fn execute_pipeline(
-    engine: &DefaultEngine,
-    actor_id: uuid::Uuid,
-    req: NewRun,
-) -> Result<EngineOutput> {
-    let input = EngineInput {
-        actor_id,
-        policies: req.policies,
-        graph: req.graph,
-        config: req.config,
-    };
+/// `DELETE /api/v1/runs/{id}`: delete a single finished run.
+#[tracing::instrument(
+    target = "nvisy_server::runs",
+    skip_all,
+    fields(%actor_id, %id),
+)]
+async fn delete_run(
+    State(engine): State<Engine>,
+    ActorId(actor_id): ActorId,
+    Path(RunPath { id }): Path<RunPath>,
+) -> Result<StatusCode> {
+    engine.delete_run(actor_id, id).await?;
+    tracing::info!(target: TARGET, "run deleted");
+    Ok(StatusCode::NO_CONTENT)
+}
 
-    Ok(engine.run(input).await?)
+fn delete_run_docs(op: TransformOperation) -> TransformOperation {
+    op.id("deleteRun")
+        .tag("runs")
+        .summary("Delete a finished run")
+        .description(
+            "Removes a single finished run identified by its UUID. \
+             Returns 400 if the run is still active.",
+        )
+}
+
+/// `DELETE /api/v1/runs`: delete all finished runs.
+#[tracing::instrument(target = "nvisy_server::runs", skip_all, fields(%actor_id))]
+async fn delete_all_runs(
+    State(engine): State<Engine>,
+    ActorId(actor_id): ActorId,
+) -> Result<StatusCode> {
+    let deleted = engine.delete_all_runs(actor_id).await;
+    tracing::info!(target: TARGET, deleted, "all finished runs deleted");
+    Ok(StatusCode::NO_CONTENT)
+}
+
+fn delete_all_runs_docs(op: TransformOperation) -> TransformOperation {
+    op.id("deleteAllRuns")
+        .tag("runs")
+        .summary("Delete all finished runs")
+        .description(
+            "Removes every finished run from the store. Active runs \
+             (pending or running) are preserved.",
+        )
 }
 
 /// Run routes.
 pub fn routes() -> ApiRouter<ServiceState> {
-    ApiRouter::new()
+    let pipeline_routes = ApiRouter::new()
+        .api_route("/api/v1/runs", post_with(create_run, create_run_docs))
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(handle_error))
+                .layer(TimeoutLayer::new(Duration::from_secs(
+                    DEFAULT_PIPELINE_TIMEOUT_SECS,
+                ))),
+        );
+
+    let read_routes = ApiRouter::new()
         .api_route(
             "/api/v1/runs",
-            post_with(create_run, create_run_docs).get_with(list_runs, list_runs_docs),
+            get_with(list_runs, list_runs_docs).delete_with(delete_all_runs, delete_all_runs_docs),
         )
         .api_route(
-            "/api/v1/runs/scan",
-            post_with(scan_content, scan_content_docs),
+            "/api/v1/runs/{id}",
+            get_with(get_run, get_run_docs).delete_with(delete_run, delete_run_docs),
         )
-        .api_route("/api/v1/runs/{id}", get_with(get_run, get_run_docs))
         .api_route(
             "/api/v1/runs/{id}/cancel",
             post_with(cancel_run, cancel_run_docs),
         )
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(handle_error))
+                .layer(TimeoutLayer::new(Duration::from_secs(
+                    DEFAULT_READ_TIMEOUT_SECS,
+                ))),
+        );
+
+    pipeline_routes.merge(read_routes)
 }

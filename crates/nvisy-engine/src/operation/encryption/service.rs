@@ -1,14 +1,12 @@
 //! AES-256-GCM encryption and decryption service.
 
-use std::sync::Arc;
-
 use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use bytes::Bytes;
 use nvisy_core::content::ContentData;
 use nvisy_core::{Error, Result};
 
-use super::provider::KeyProvider;
+use super::provider::{KeyProvider, SharedKeyProvider};
 use super::wire::{EncryptedContent, WireEnvelope};
 use crate::graph::EncryptionAlgorithm;
 
@@ -17,12 +15,12 @@ const TARGET: &str = "nvisy_engine::crypto";
 /// AES-256-GCM encryption and decryption service.
 pub struct CryptoService {
     key_id: String,
-    key_provider: Arc<dyn KeyProvider>,
+    key_provider: SharedKeyProvider,
 }
 
 impl CryptoService {
     /// Creates a new crypto service.
-    pub fn new(key_id: impl Into<String>, key_provider: Arc<dyn KeyProvider>) -> Self {
+    pub fn new(key_id: impl Into<String>, key_provider: SharedKeyProvider) -> Self {
         Self {
             key_id: key_id.into(),
             key_provider,
@@ -158,11 +156,11 @@ mod tests {
 
     use super::*;
     use crate::operation::DocumentEnvelope;
-    use crate::operation::encryption::StaticKeyProvider;
+    use crate::operation::encryption::{SharedKeyProvider, StaticKeyProvider};
 
-    fn test_key_provider() -> Arc<StaticKeyProvider> {
+    fn test_key_provider() -> SharedKeyProvider {
         let key = vec![0xAB; 32];
-        Arc::new(StaticKeyProvider::new([("test-key".to_string(), key)]))
+        SharedKeyProvider::new(StaticKeyProvider::new([("test-key".to_string(), key)]))
     }
 
     async fn test_envelope() -> DocumentEnvelope {
@@ -197,7 +195,7 @@ mod tests {
         let enc_svc = CryptoService::new("test-key", provider);
         let encrypted = enc_svc.encrypt(&envelope).await.expect("encrypt");
 
-        let wrong_provider = Arc::new(StaticKeyProvider::new([(
+        let wrong_provider = SharedKeyProvider::new(StaticKeyProvider::new([(
             "test-key".to_string(),
             vec![0xCD; 32],
         )]));
@@ -207,7 +205,7 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_key_id_fails() {
-        let empty_provider = Arc::new(StaticKeyProvider::new([]));
+        let empty_provider = SharedKeyProvider::new(StaticKeyProvider::new([]));
         let envelope = test_envelope().await;
 
         let svc = CryptoService::new("nonexistent", empty_provider);

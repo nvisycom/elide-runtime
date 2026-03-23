@@ -2502,7 +2502,7 @@ dependencies = [
  "ecb",
  "encoding_rs",
  "flate2",
- "getrandom 0.4.1",
+ "getrandom 0.4.2",
  "indexmap 2.13.0",
  "itoa",
  "jiff",

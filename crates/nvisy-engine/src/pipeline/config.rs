@@ -100,9 +100,6 @@ pub struct EngineSection {
     pub timeout: Option<TimeoutPolicy>,
     /// HTTP client configuration for downstream calls.
     pub http: Option<HttpConfig>,
-    /// Maximum number of completed runs to retain (oldest evicted first).
-    #[serde(default)]
-    pub max_completed_runs: Option<usize>,
     /// Maximum number of nodes executing concurrently within a single run.
     #[serde(default)]
     pub max_concurrent_nodes: Option<usize>,

@@ -118,14 +118,10 @@ impl Engine {
 
         let mut default_retry = None;
         let mut default_timeout = None;
-        let mut runs = RunState::new();
 
         if let Some(engine) = &config.engine {
             default_retry = engine.retry.clone();
             default_timeout = engine.timeout.clone();
-            if let Some(max) = engine.max_completed_runs {
-                runs = runs.with_max_completed_runs(max);
-            }
         }
 
         Ok(Self {
@@ -136,7 +132,7 @@ impl Engine {
                 http_client,
                 registry,
                 key_provider: None,
-                runs,
+                runs: RunState::new(),
             }),
         })
     }

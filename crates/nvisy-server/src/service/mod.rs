@@ -7,7 +7,6 @@
 use std::path::PathBuf;
 
 use nvisy_engine::pipeline::{Engine, RuntimeConfig};
-use nvisy_http::HttpClient;
 
 /// Shared application state threaded through all handlers.
 #[must_use = "state does nothing unless you use it"]
@@ -23,17 +22,7 @@ impl ServiceState {
     ///
     /// Returns an error if the registry database cannot be opened.
     pub fn new(config: RuntimeConfig, data_dir: PathBuf) -> nvisy_core::Result<Self> {
-        let http_config = config
-            .engine
-            .as_ref()
-            .and_then(|e| e.http.clone())
-            .unwrap_or_default();
-        let http_client = HttpClient::new(&http_config);
-
-        let engine = Engine::open(data_dir)?
-            .with_config(config)
-            .with_http_client(http_client);
-
+        let engine = Engine::open(data_dir, config)?;
         Ok(Self { engine })
     }
 

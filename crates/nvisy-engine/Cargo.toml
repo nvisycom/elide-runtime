@@ -20,6 +20,8 @@ documentation = { workspace = true }
 
 [features]
 default = []
+## Test utilities (Engine::temp, etc.).
+test-utils = ["dep:tempfile"]
 
 ## Enable all OpenAI providers (GPT, Whisper STT, TTS).
 openai = ["nvisy-rig/openai-gpt", "nvisy-rig/openai-whisper", "nvisy-rig/openai-tts"]
@@ -88,9 +90,11 @@ bytes = { workspace = true, features = [] }
 # Utilities
 validator = { workspace = true, features = [] }
 rand = { workspace = true, features = [] }
+tempfile = { workspace = true, features = [], optional = true }
 
 # Observability
 tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
-tempfile = { workspace = true }
+nvisy-engine = { path = ".", features = ["test-utils"] }
+tempfile = { workspace = true, features = [] }

@@ -41,7 +41,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 nvisy-engine = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
-nvisy-http = { workspace = true, features = [] }
 
 # Async runtime and parallelism
 futures = { workspace = true, features = [] }

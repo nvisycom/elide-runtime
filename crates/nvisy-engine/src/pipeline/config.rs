@@ -3,7 +3,7 @@ use nvisy_rig::agent::{AgentConfig, AgentProvider};
 use nvisy_rig::audio::{SttProvider, TtsProvider};
 use serde::{Deserialize, Serialize};
 
-use crate::graph::{RetryPolicy, TimeoutPolicy};
+use crate::graph::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
 
 /// OCR subsystem configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,9 +100,12 @@ pub struct EngineSection {
     pub timeout: Option<TimeoutPolicy>,
     /// HTTP client configuration for downstream calls.
     pub http: Option<HttpConfig>,
-    /// Maximum number of nodes executing concurrently within a single run.
+    /// Default concurrpiency limit for graph execution.
+    /// Overridden by [`Graph::concurrency`] if set.
+    ///
+    /// [`Graph::concurrency`]: crate::graph::Graph::concurrency
     #[serde(default)]
-    pub max_concurrent_nodes: Option<usize>,
+    pub concurrency: Option<ConcurrencyPolicy>,
     /// Maximum wall-clock time (in milliseconds) for a single pipeline run.
     #[serde(default)]
     pub run_timeout_ms: Option<u64>,
@@ -125,7 +128,7 @@ fn default_config_version() -> u32 {
 pub struct RuntimeConfig {
     /// Configuration schema version.
     #[serde(default = "default_config_version")]
-    pub version: u32,
+        pub version: u32,
     /// Engine-level policies and HTTP client.
     pub engine: Option<EngineSection>,
     /// OCR subsystem configuration.

@@ -212,6 +212,15 @@ impl Engine {
             .engine
             .as_ref()
             .and_then(|e| e.run_timeout_ms);
+        let concurrency = input
+            .graph
+            .concurrency
+            .or_else(|| {
+                effective_config
+                    .engine
+                    .as_ref()
+                    .and_then(|e| e.concurrency)
+            });
 
         let compiled = match plan::compile(
             input.graph,
@@ -321,17 +330,13 @@ impl Engine {
             shared = shared.with_key_provider(kp.clone());
         }
 
-        let max_concurrent_nodes = effective_config
-            .engine
-            .as_ref()
-            .and_then(|e| e.max_concurrent_nodes);
         let cancel_clone = cancel.clone();
         let ctx = RunContext {
             cancel,
             shared,
             config: effective_config,
             http_client: self.inner.http_client.clone(),
-            max_concurrent_nodes,
+            concurrency,
         };
 
         self.inner.runs.set_started_at(run_id).await;

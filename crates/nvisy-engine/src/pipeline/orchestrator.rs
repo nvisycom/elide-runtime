@@ -50,7 +50,7 @@ pub(super) struct RunContext {
     pub shared: SharedContext,
     pub config: RuntimeConfig,
     pub http_client: HttpClient,
-    pub max_concurrent_nodes: Option<usize>,
+    pub concurrency: Option<crate::graph::ConcurrencyPolicy>,
 }
 
 /// Execute a compiled [`ExecutionPlan`] by spawning concurrent tasks for
@@ -71,10 +71,10 @@ pub(super) async fn run_graph(
         shared,
         config,
         http_client,
-        max_concurrent_nodes,
+        concurrency,
     } = ctx;
 
-    let semaphore = max_concurrent_nodes.map(|n| Arc::new(tokio::sync::Semaphore::new(n)));
+    let semaphore = concurrency.map(|c| Arc::new(tokio::sync::Semaphore::new(c.max_nodes)));
 
     let mut senders: HashMap<Uuid, Vec<mpsc::Sender<Arc<DocumentEnvelope>>>> = HashMap::new();
     let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>> = HashMap::new();

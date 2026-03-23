@@ -2,6 +2,9 @@
 
 use uuid::Uuid;
 
+/// Default buffer size for bounded MPSC channels between nodes.
+pub(crate) const DEFAULT_CHANNEL_BUFFER: usize = 256;
+
 /// Channel configuration for a resolved edge.
 #[derive(Debug, Clone)]
 pub struct EdgeConfig {
@@ -12,7 +15,7 @@ pub struct EdgeConfig {
 impl Default for EdgeConfig {
     fn default() -> Self {
         Self {
-            channel_buffer: 256,
+            channel_buffer: DEFAULT_CHANNEL_BUFFER,
         }
     }
 }

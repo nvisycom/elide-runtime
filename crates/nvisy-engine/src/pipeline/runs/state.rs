@@ -20,6 +20,7 @@ use crate::pipeline::analytics::AnalyticsSnapshot;
 #[derive(Clone)]
 pub(crate) struct RunState {
     runs: Arc<RwLock<HashMap<Uuid, RunEntry>>>,
+    max_completed_runs: Option<usize>,
 }
 
 /// Private mutable state for a single run.
@@ -27,6 +28,7 @@ pub(crate) struct RunEntry {
     pub actor_id: Uuid,
     pub status: RunStatus,
     pub created_at: Timestamp,
+    pub started_at: Option<Timestamp>,
     pub completed_at: Option<Timestamp>,
     pub nodes: HashMap<Uuid, NodeSnapshot>,
     pub cancel: CancellationToken,
@@ -41,6 +43,7 @@ impl RunEntry {
             actor_id: self.actor_id,
             status: self.status,
             created_at: self.created_at,
+            started_at: self.started_at,
             completed_at: self.completed_at,
             nodes: self.nodes.values().cloned().collect(),
         }
@@ -52,6 +55,7 @@ impl RunEntry {
             actor_id: self.actor_id,
             status: self.status,
             created_at: self.created_at,
+            started_at: self.started_at,
             completed_at: self.completed_at,
             node_count: self.nodes.len(),
         }
@@ -62,7 +66,14 @@ impl RunState {
     pub fn new() -> Self {
         Self {
             runs: Arc::new(RwLock::new(HashMap::new())),
+            max_completed_runs: None,
         }
+    }
+
+    /// Set the maximum number of completed runs to retain.
+    pub fn with_max_completed_runs(mut self, max: usize) -> Self {
+        self.max_completed_runs = Some(max);
+        self
     }
 
     /// Insert a new run entry.
@@ -71,6 +82,8 @@ impl RunState {
     }
 
     /// Update a single node's snapshot within a run.
+    ///
+    /// Returns `true` if the node was found and updated, `false` otherwise.
     pub async fn update_node(
         &self,
         run_id: Uuid,
@@ -78,13 +91,26 @@ impl RunState {
         status: NodeStatus,
         items_processed: u64,
         error: Option<String>,
-    ) {
-        if let Some(entry) = self.runs.write().await.get_mut(&run_id)
-            && let Some(node) = entry.nodes.get_mut(&node_id)
-        {
-            node.status = status;
-            node.items_processed = items_processed;
-            node.error = error;
+    ) -> bool {
+        let mut runs = self.runs.write().await;
+        let Some(entry) = runs.get_mut(&run_id) else {
+            tracing::warn!(%run_id, %node_id, "update_node: run not found");
+            return false;
+        };
+        let Some(node) = entry.nodes.get_mut(&node_id) else {
+            tracing::warn!(%run_id, %node_id, "update_node: node not found in run");
+            return false;
+        };
+        node.status = status;
+        node.items_processed = items_processed;
+        node.error = error;
+        true
+    }
+
+    /// Record the moment a run begins executing.
+    pub async fn set_started_at(&self, run_id: Uuid) {
+        if let Some(entry) = self.runs.write().await.get_mut(&run_id) {
+            entry.started_at = Some(Timestamp::now());
         }
     }
 
@@ -96,11 +122,41 @@ impl RunState {
         entities_detected: u64,
         redactions_applied: u64,
     ) {
-        if let Some(entry) = self.runs.write().await.get_mut(&run_id) {
+        let mut runs_guard = self.runs.write().await;
+        if let Some(entry) = runs_guard.get_mut(&run_id) {
             entry.status = status;
             entry.completed_at = Some(Timestamp::now());
             entry.entities_detected = entities_detected;
             entry.redactions_applied = redactions_applied;
+
+            for node in entry.nodes.values_mut() {
+                match node.status {
+                    NodeStatus::Pending => {
+                        node.status = NodeStatus::Failed;
+                        node.error = Some("run completed before node was scheduled".to_string());
+                    }
+                    NodeStatus::Running => {
+                        node.status = NodeStatus::Failed;
+                        node.error = Some("run completed while node was still running".to_string());
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if let Some(max) = self.max_completed_runs {
+            let mut completed: Vec<(Uuid, Timestamp)> = runs_guard
+                .iter()
+                .filter(|(_, e)| !matches!(e.status, RunStatus::Pending | RunStatus::Running))
+                .map(|(&id, e)| (id, e.created_at))
+                .collect();
+            if completed.len() > max {
+                completed.sort_by_key(|(_, ts)| *ts);
+                let to_evict = completed.len() - max;
+                for (id, _) in completed.into_iter().take(to_evict) {
+                    runs_guard.remove(&id);
+                }
+            }
         }
     }
 
@@ -214,6 +270,7 @@ impl RunState {
         let mut total_entities = 0u64;
         let mut total_redactions = 0u64;
         let mut actors = std::collections::HashSet::new();
+        let mut durations_ms: Vec<u64> = Vec::new();
 
         for entry in runs.values() {
             match entry.status {
@@ -225,7 +282,25 @@ impl RunState {
             actors.insert(entry.actor_id);
             total_entities += entry.entities_detected;
             total_redactions += entry.redactions_applied;
+
+            if let Some(completed_at) = entry.completed_at {
+                let span = completed_at.since(entry.created_at);
+                if let Ok(ms) = span.and_then(|s| s.total(jiff::Unit::Millisecond)) {
+                    durations_ms.push(ms as u64);
+                }
+            }
         }
+
+        let (min_run_duration_ms, max_run_duration_ms, avg_run_duration_ms) =
+            if durations_ms.is_empty() {
+                (None, None, None)
+            } else {
+                let min = *durations_ms.iter().min().unwrap();
+                let max = *durations_ms.iter().max().unwrap();
+                let sum: u64 = durations_ms.iter().sum();
+                let avg = sum as f64 / durations_ms.len() as f64;
+                (Some(min), Some(max), Some(avg))
+            };
 
         AnalyticsSnapshot {
             timestamp: Timestamp::now(),
@@ -237,6 +312,9 @@ impl RunState {
             total_entities_detected: total_entities,
             total_redactions_applied: total_redactions,
             distinct_actors: actors.len() as u64,
+            min_run_duration_ms,
+            max_run_duration_ms,
+            avg_run_duration_ms,
         }
     }
 }

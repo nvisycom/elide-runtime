@@ -35,6 +35,15 @@ pub struct AnalyticsSnapshot {
     pub total_redactions_applied: u64,
     /// Number of distinct actors that have triggered runs.
     pub distinct_actors: u64,
+    /// Shortest completed run duration in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_run_duration_ms: Option<u64>,
+    /// Longest completed run duration in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_run_duration_ms: Option<u64>,
+    /// Average completed run duration in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avg_run_duration_ms: Option<f64>,
 }
 
 /// Read-only access to aggregate pipeline analytics.

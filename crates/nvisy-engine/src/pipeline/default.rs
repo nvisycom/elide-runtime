@@ -90,7 +90,8 @@ impl DefaultEngine {
     /// Set the base runtime configuration.
     ///
     /// Automatically extracts default retry and timeout policies from the
-    /// `[engine]` section, if present.
+    /// `[engine]` section, if present. Also wires `max_completed_runs`
+    /// into the run state eviction policy.
     pub fn with_config(mut self, config: RuntimeConfig) -> Self {
         let cfg = Arc::make_mut(&mut self.cfg);
         if let Some(engine) = &config.engine {
@@ -99,6 +100,10 @@ impl DefaultEngine {
             }
             if cfg.default_timeout.is_none() {
                 cfg.default_timeout = engine.timeout.clone();
+            }
+            if let Some(max) = engine.max_completed_runs {
+                self.runs =
+                    std::mem::replace(&mut self.runs, RunState::new()).with_max_completed_runs(max);
             }
         }
         cfg.config = config;
@@ -155,8 +160,30 @@ impl Engine for DefaultEngine {
             None => self.cfg.config.clone(),
         };
 
+        let mut context_ids: Vec<Uuid> = input
+            .graph
+            .nodes
+            .iter()
+            .filter_map(|node| match &node.kind {
+                GraphNodeKind::LoadContext(cfg) => Some(cfg.context_ids.clone()),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        context_ids.sort_unstable();
+        context_ids.dedup();
+
+        let channel_buffer = effective_config
+            .engine
+            .as_ref()
+            .and_then(|e| e.channel_buffer);
+        let run_timeout_ms = effective_config
+            .engine
+            .as_ref()
+            .and_then(|e| e.run_timeout_ms);
+
         let compiled = match plan::compile(
-            &input.graph,
+            input.graph,
             effective_config
                 .engine
                 .as_ref()
@@ -167,6 +194,7 @@ impl Engine for DefaultEngine {
                 .as_ref()
                 .and_then(|e| e.timeout.as_ref())
                 .or(self.cfg.default_timeout.as_ref()),
+            channel_buffer,
         ) {
             Ok(plan) => plan,
             Err(e) => {
@@ -177,6 +205,7 @@ impl Engine for DefaultEngine {
                             actor_id: input.actor_id,
                             status: RunStatus::Failed,
                             created_at: jiff::Timestamp::now(),
+                            started_at: None,
                             completed_at: Some(jiff::Timestamp::now()),
                             nodes: HashMap::new(),
                             cancel: cancel.clone(),
@@ -212,6 +241,7 @@ impl Engine for DefaultEngine {
                     actor_id: input.actor_id,
                     status: RunStatus::Running,
                     created_at: jiff::Timestamp::now(),
+                    started_at: None,
                     completed_at: None,
                     nodes: initial_nodes,
                     cancel: cancel.clone(),
@@ -221,20 +251,9 @@ impl Engine for DefaultEngine {
             )
             .await;
 
-        let mut context_ids: Vec<Uuid> = input
-            .graph
-            .nodes
-            .iter()
-            .filter_map(|node| match &node.kind {
-                GraphNodeKind::LoadContext(cfg) => Some(cfg.context_ids.clone()),
-                _ => None,
-            })
-            .flatten()
-            .collect();
-        context_ids.sort_unstable();
-        context_ids.dedup();
-
         let mut context_map = ContextMap::new();
+        let mut read_failures = 0u64;
+        let mut deserialize_failures = 0u64;
         for id in &context_ids {
             match self.cfg.registry.read_context(input.actor_id, *id).await {
                 Ok(handle) => match handle.context().await {
@@ -242,13 +261,23 @@ impl Engine for DefaultEngine {
                         context_map.insert(context);
                     }
                     Err(e) => {
-                        tracing::warn!(%id, error = %e, "failed to load context, skipping");
+                        deserialize_failures += 1;
+                        tracing::warn!(%id, error = %e, "failed to deserialize context, skipping");
                     }
                 },
                 Err(e) => {
-                    tracing::warn!(%id, error = %e, "failed to load context, skipping");
+                    read_failures += 1;
+                    tracing::warn!(%id, error = %e, "failed to read context, skipping");
                 }
             }
+        }
+        let total_failures = read_failures + deserialize_failures;
+        if total_failures > 0 {
+            tracing::info!(
+                read_failures,
+                deserialize_failures,
+                "context loading completed with {total_failures} failure(s)"
+            );
         }
         tracing::debug!(loaded = context_map.len(), "pre-loaded contexts");
 
@@ -259,21 +288,48 @@ impl Engine for DefaultEngine {
             shared = shared.with_key_provider(kp.clone());
         }
 
+        let max_concurrent_nodes = effective_config
+            .engine
+            .as_ref()
+            .and_then(|e| e.max_concurrent_nodes);
+        let cancel_clone = cancel.clone();
         let ctx = RunContext {
             cancel,
             shared,
             config: effective_config,
             http_client: self.cfg.http_client.clone(),
+            max_concurrent_nodes,
         };
 
-        let run_output =
+        self.runs.set_started_at(run_id).await;
+
+        let run_output = if let Some(ms) = run_timeout_ms {
+            match tokio::time::timeout(
+                std::time::Duration::from_millis(ms),
+                orchestrator::run_graph(&compiled, run_id, self.runs.clone(), ctx),
+            )
+            .await
+            {
+                Ok(Ok(output)) => output,
+                Ok(Err(e)) => {
+                    self.runs.fail(run_id).await;
+                    return Err(e);
+                }
+                Err(_) => {
+                    cancel_clone.cancel();
+                    self.runs.fail(run_id).await;
+                    return Err(Error::timeout("pipeline run exceeded time limit"));
+                }
+            }
+        } else {
             match orchestrator::run_graph(&compiled, run_id, self.runs.clone(), ctx).await {
                 Ok(output) => output,
                 Err(e) => {
                     self.runs.fail(run_id).await;
                     return Err(e);
                 }
-            };
+            }
+        };
 
         let (output, entities_detected, redactions_applied) =
             collect_output(run_id, &input.policies, &run_output);

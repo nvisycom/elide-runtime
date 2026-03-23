@@ -76,6 +76,10 @@ pub struct RunSnapshot {
     /// Timestamp when the run was created.
     #[schemars(with = "String")]
     pub created_at: Timestamp,
+    /// Timestamp when execution actually started, if applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub started_at: Option<Timestamp>,
     /// Timestamp when the run finished, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
@@ -96,6 +100,10 @@ pub struct RunSummary {
     /// Timestamp when the run was created.
     #[schemars(with = "String")]
     pub created_at: Timestamp,
+    /// Timestamp when execution actually started, if applicable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub started_at: Option<Timestamp>,
     /// Timestamp when the run finished, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]

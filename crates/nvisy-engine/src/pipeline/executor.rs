@@ -1,12 +1,12 @@
-//! Node-level execution: dispatch and envelope flow.
+//! Node-level execution: operation dispatch and envelope flow.
 //!
-//! [`NodeExecutor`] is responsible for running a single [`ResolvedNode`]
-//! within a pipeline. It matches on [`GraphNodeKind`], constructs the
-//! appropriate [`Operation`], then runs the envelope processing loop:
+//! [`NodeExecutor`] runs a single [`ResolvedNode`] within a pipeline.
+//! It matches on [`GraphNodeKind`], constructs the appropriate
+//! [`Operation`], and drives the envelope processing loop:
 //!
 //! 1. **Receive** — pull `Arc<DocumentEnvelope>` from upstream MPSC channels.
 //! 2. **Extract** — unwrap ownership (cloning via encode/decode when the
-//!    `Arc` refcount > 1, which happens during fan-out).
+//!    `Arc` refcount > 1, i.e. during fan-out).
 //! 3. **Call** — invoke the operation with typed inputs.
 //! 4. **Apply** — merge operation outputs back into the envelope.
 //! 5. **Send** — forward the envelope to all downstream channels.
@@ -15,7 +15,8 @@
 //! typed inputs and produce typed outputs via the [`Operation`] trait.
 //!
 //! [`NodeOutput`] and [`RunOutput`] carry per-node and per-run results
-//! back to the orchestrator and engine for finalization.
+//! back to the [orchestrator](super::orchestrator) and
+//! [`Engine`](super::Engine) for finalization.
 
 use std::sync::Arc;
 
@@ -29,12 +30,13 @@ use tokio_util::sync::CancellationToken;
 
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
+use super::runs::RunStatus;
 use crate::graph::{self, GraphNodeKind, RetryPolicy, TimeoutBehavior};
 use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
 use crate::operation::{
-    AudioInput, DocumentEnvelope, EntityRecognition, ExportFile, Fusion, GenerateContext,
-    ImportFile, LoadContext, Operation, PatternRecognition, Redaction, SaveContext, Validation,
-    ValidationInput, VerifyInput, VisualExtraction,
+    AudialExtraction, AudioInput, DocumentEnvelope, EntityRecognition, ExportFile, Fusion,
+    GenerateContext, ImportFile, LoadContext, Operation, PatternRecognition, Redaction,
+    SaveContext, Validation, ValidationInput, VerifyInput, VisualExtraction,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::executor";
@@ -59,13 +61,13 @@ pub(super) struct RunOutput {
 
 impl RunOutput {
     /// Determine overall run status from node results.
-    pub fn run_status(&self) -> super::runs::RunStatus {
+    pub fn run_status(&self) -> RunStatus {
         let any_ok = self.node_results.iter().any(|r| r.error.is_none());
         let any_err = self.node_results.iter().any(|r| r.error.is_some());
         match (any_ok, any_err) {
-            (_, false) => super::runs::RunStatus::Succeeded,
-            (true, true) => super::runs::RunStatus::PartialFailure,
-            _ => super::runs::RunStatus::Failed,
+            (_, false) => RunStatus::Succeeded,
+            (true, true) => RunStatus::PartialFailure,
+            _ => RunStatus::Failed,
         }
     }
 }
@@ -187,6 +189,7 @@ impl NodeExecutor {
         }
     }
 
+    /// Run OCR on image spans, optionally verifying detected entities.
     async fn execute_visual_extraction(
         &self,
         cfg: &graph::VisualExtraction,
@@ -243,6 +246,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Transcribe audio documents via STT and replace the document with text.
     async fn execute_audial_extraction(
         &self,
         cfg: &graph::AudialExtraction,
@@ -250,7 +254,7 @@ impl NodeExecutor {
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.shared;
-        let op = crate::operation::AudialExtraction::new(cfg, &self.config, &self.http_client)?;
+        let op = AudialExtraction::new(cfg, &self.config, &self.http_client)?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -292,6 +296,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Run named entity recognition on text spans via the LLM agent.
     async fn execute_ner(
         &self,
         cfg: &graph::NamedEntityRecognition,
@@ -319,6 +324,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Run regex-based pattern recognition on text spans.
     async fn execute_pattern_recognition(
         &self,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
@@ -343,6 +349,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Merge overlapping or adjacent entities from multiple detection sources.
     async fn execute_fusion(
         &self,
         cfg: &graph::Fusion,
@@ -367,6 +374,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Evaluate redaction policies against detected entities.
     async fn execute_redaction(
         &self,
         cfg: &graph::Redaction,
@@ -391,6 +399,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Validate redaction decisions against the final document state.
     async fn execute_validation(
         &self,
         cfg: &graph::Validation,
@@ -430,6 +439,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Attach pre-loaded context references to each envelope.
     async fn execute_load_context(
         &self,
         cfg: &graph::LoadContext,
@@ -453,6 +463,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Persist envelope contexts back to the registry.
     async fn execute_save_context(
         &self,
         cfg: &graph::SaveContext,
@@ -475,6 +486,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Generate new context entries (currently a passthrough).
     async fn execute_generate_context(
         &self,
         cfg: &graph::GenerateContext,
@@ -497,6 +509,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Load content from the registry, decode it, and send envelopes downstream.
     async fn execute_import(
         &self,
         cfg: &graph::ImportFile,
@@ -554,6 +567,7 @@ impl NodeExecutor {
         })
     }
 
+    /// Collect processed envelopes and write them to the configured output.
     async fn execute_export(
         &self,
         cfg: &graph::ExportFile,

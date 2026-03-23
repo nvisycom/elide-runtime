@@ -1,13 +1,12 @@
-//! Pipeline runtime configuration.
+//! Pipeline runtime configuration, typically deserialized from TOML.
 //!
-//! [`RuntimeConfig`] is the top-level configuration object for the engine,
-//! typically deserialized from a TOML file. It contains optional sections
-//! for each subsystem — [`EngineSection`], [`OcrSection`], [`LlmSection`],
-//! [`SttSection`], and [`TtsSection`].
+//! [`RuntimeConfig`] is the top-level configuration object containing
+//! optional sections for each subsystem — [`EngineSection`],
+//! [`OcrSection`], [`LlmSection`], [`SttSection`], and [`TtsSection`].
 //!
-//! Per-request overrides are supported via [`RuntimeConfig::merge`], which
-//! replaces entire sections (not individual fields) when the override
-//! provides a non-`None` value.
+//! Per-request overrides are supported via [`RuntimeConfig::merge`],
+//! which replaces entire sections (not individual fields) when the
+//! override provides a non-`None` value.
 
 use nvisy_http::HttpConfig;
 use nvisy_rig::agent::{AgentConfig, AgentProvider};
@@ -16,13 +15,85 @@ use serde::{Deserialize, Serialize};
 
 use crate::graph::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
 
+/// Engine-level execution policies, networking, and resource limits.
+///
+/// Controls default behavior for all pipeline runs unless overridden
+/// by per-request or per-graph configuration.
+///
+/// # Field groups
+///
+/// **Execution policies** — applied to graph nodes that lack their own:
+/// - [`retry`](Self::retry) — automatic retry on transient failures.
+/// - [`timeout`](Self::timeout) — per-node wall-clock deadline.
+/// - [`concurrency`](Self::concurrency) — limits parallel node execution.
+///
+/// **Networking:**
+/// - [`http`](Self::http) — shared HTTP client settings (timeouts, retries,
+///   connection pooling) for all downstream API calls (OCR, LLM, STT, etc.).
+///
+/// **Resource limits:**
+/// - [`run_timeout_ms`](Self::run_timeout_ms) — hard ceiling on total
+///   pipeline run duration.
+/// - [`channel_buffer`](Self::channel_buffer) — buffer size for bounded
+///   MPSC channels between nodes (default: 256).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct EngineSection {
+    /// Default retry policy applied to nodes without an explicit one.
+    ///
+    /// Controls max retries, delay, and backoff strategy for transient
+    /// failures. Overridden by [`GraphNode::retry`](crate::graph::GraphNode::retry)
+    /// when set on an individual node. See [`RetryPolicy`] for details.
+    pub retry: Option<RetryPolicy>,
+
+    /// Default timeout policy applied to nodes without an explicit one.
+    ///
+    /// Sets a per-node wall-clock deadline and behavior on expiry
+    /// (fail or skip). Overridden by [`GraphNode::timeout`](crate::graph::GraphNode::timeout)
+    /// when set on an individual node. See [`TimeoutPolicy`] for details.
+    pub timeout: Option<TimeoutPolicy>,
+
+    /// Default concurrency limit for graph execution.
+    ///
+    /// Caps the number of graph nodes that may execute in parallel via
+    /// a [`tokio::sync::Semaphore`]. Overridden by
+    /// [`Graph::concurrency`](crate::graph::Graph::concurrency)
+    /// when set on the graph itself.
+    #[serde(default)]
+    pub concurrency: Option<ConcurrencyPolicy>,
+
+    /// Shared HTTP client configuration for all downstream API calls.
+    ///
+    /// Applies to OCR providers, LLM agents, STT/TTS services, and any
+    /// other external HTTP dependencies. Controls timeouts, retries,
+    /// and connection pooling.
+    pub http: Option<HttpConfig>,
+
+    /// Hard ceiling on total pipeline run duration, in milliseconds.
+    ///
+    /// If a run exceeds this limit, the cancellation token is triggered
+    /// and the run is marked as timed out. Individual node timeouts
+    /// (via [`TimeoutPolicy`]) are independent of this limit.
+    #[serde(default)]
+    pub run_timeout_ms: Option<u64>,
+
+    /// Buffer size for bounded MPSC channels between pipeline nodes.
+    ///
+    /// Controls backpressure: a larger buffer allows faster producers
+    /// to run ahead of slower consumers. Defaults to 256 if unset.
+    #[serde(default)]
+    pub channel_buffer: Option<usize>,
+}
+
 /// OCR subsystem configuration.
+///
+/// Controls the optical character recognition provider and its runtime
+/// parameters (confidence thresholds, language hints, etc.).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OcrSection {
-    /// Whether the OCR subsystem is active (default: true).
+    /// Whether the OCR subsystem is active (default: `true`).
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// OCR provider selection + connection settings.
+    /// OCR provider selection and connection settings.
     pub provider: Option<nvisy_ocr::OcrProvider>,
     /// OCR runtime parameters (confidence thresholds, etc.).
     pub policy: Option<nvisy_ocr::RunParams>,
@@ -39,12 +110,15 @@ impl Default for OcrSection {
 }
 
 /// LLM subsystem configuration.
+///
+/// Controls the language model provider used for NER, OCR verification,
+/// and other inference tasks.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmSection {
-    /// Whether the LLM subsystem is active (default: true).
+    /// Whether the LLM subsystem is active (default: `true`).
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// LLM provider selection + connection settings.
+    /// LLM provider selection and connection settings.
     pub provider: Option<AgentProvider>,
     /// LLM sampling and retry parameters.
     pub policy: Option<AgentConfig>,
@@ -61,12 +135,15 @@ impl Default for LlmSection {
 }
 
 /// Speech-to-text subsystem configuration.
+///
+/// Controls the STT provider used by [`AudialExtraction`](crate::graph::AudialExtraction)
+/// nodes for audio transcription.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SttSection {
-    /// Whether the STT subsystem is active (default: true).
+    /// Whether the STT subsystem is active (default: `true`).
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// STT provider selection + connection settings.
+    /// STT provider selection and connection settings.
     pub provider: Option<SttProvider>,
 }
 
@@ -80,12 +157,14 @@ impl Default for SttSection {
 }
 
 /// Text-to-speech subsystem configuration.
+///
+/// Controls the TTS provider for audio generation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TtsSection {
-    /// Whether the TTS subsystem is active (default: true).
+    /// Whether the TTS subsystem is active (default: `true`).
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// TTS provider selection + connection settings.
+    /// TTS provider selection and connection settings.
     pub provider: Option<TtsProvider>,
 }
 
@@ -102,52 +181,36 @@ fn default_true() -> bool {
     true
 }
 
-/// Engine-level policies (retry, timeout) and HTTP client settings.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct EngineSection {
-    /// Default retry policy for graph nodes.
-    pub retry: Option<RetryPolicy>,
-    /// Default timeout policy for graph nodes.
-    pub timeout: Option<TimeoutPolicy>,
-    /// HTTP client configuration for downstream calls.
-    pub http: Option<HttpConfig>,
-    /// Default concurrency limit for graph execution.
-    /// Overridden by [`Graph::concurrency`] if set.
-    ///
-    /// [`Graph::concurrency`]: crate::graph::Graph::concurrency
-    #[serde(default)]
-    pub concurrency: Option<ConcurrencyPolicy>,
-    /// Maximum wall-clock time (in milliseconds) for a single pipeline run.
-    #[serde(default)]
-    pub run_timeout_ms: Option<u64>,
-    /// Buffer size for bounded MPSC channels between nodes.
-    #[serde(default)]
-    pub channel_buffer: Option<usize>,
-}
-
 fn default_config_version() -> u32 {
     1
 }
 
 /// Top-level pipeline configuration, typically deserialized from TOML.
 ///
-/// Contains optional subsystem sections for engine policies, OCR, LLM,
-/// STT, and TTS. The CLI layer owns the full TOML shape (including
-/// `[server]`) and passes this struct downstream to the engine.
+/// Contains optional subsystem sections. The CLI layer owns the full
+/// TOML shape (including `[server]`) and passes this struct downstream
+/// to the engine.
+///
+/// # Merge semantics
+///
+/// [`RuntimeConfig::merge`] replaces entire sections — if the override
+/// provides a non-`None` section, it wins completely. Fields within a
+/// section are not merged individually.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RuntimeConfig {
-    /// Configuration schema version.
+    /// Configuration schema version (default: 1).
     #[serde(default = "default_config_version")]
     pub version: u32,
-    /// Engine-level policies and HTTP client.
+
+    /// Engine-level execution policies, networking, and resource limits.
     pub engine: Option<EngineSection>,
-    /// OCR subsystem configuration.
+    /// OCR subsystem (optical character recognition).
     pub ocr: Option<OcrSection>,
-    /// LLM subsystem configuration.
+    /// LLM subsystem (language model inference).
     pub llm: Option<LlmSection>,
-    /// Speech-to-text subsystem configuration.
+    /// STT subsystem (speech-to-text transcription).
     pub stt: Option<SttSection>,
-    /// Text-to-speech subsystem configuration.
+    /// TTS subsystem (text-to-speech generation).
     pub tts: Option<TtsSection>,
 }
 

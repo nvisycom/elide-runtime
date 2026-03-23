@@ -1,12 +1,12 @@
-//! Compilation of a [`Graph`] into an [`ExecutionPlan`].
+//! Graph compilation into an [`ExecutionPlan`].
 //!
-//! [`compile()`] is the bridge between the user-facing [`Graph`] definition
-//! and the runtime execution model. It performs the following steps:
+//! [`compile()`] bridges the user-facing [`Graph`] definition and the
+//! runtime execution model. It performs these steps:
 //!
 //! 1. **Policy defaults** — nodes without explicit retry/timeout policies
 //!    inherit the engine-level defaults.
 //! 2. **Validation** — the graph is checked for structural correctness
-//!    (via [`Graph::validate`]).
+//!    via [`Graph::validate`].
 //! 3. **petgraph construction** — nodes and edges are inserted into a
 //!    [`DiGraph`](petgraph::graph::DiGraph) for cycle detection and
 //!    topological sorting.

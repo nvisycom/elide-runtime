@@ -3,19 +3,20 @@
 //! [`run_graph`] takes a compiled [`ExecutionPlan`] and spawns one tokio
 //! task per node into a [`JoinSet`](tokio::task::JoinSet). Each task:
 //!
-//! 1. Waits for all upstream dependencies to complete via `watch::Receiver`
-//!    channels (each initialized to `false`, flipped to `true` on completion).
-//! 2. Acquires a permit from the optional concurrency [`Semaphore`](tokio::sync::Semaphore)
-//!    (configured via [`ConcurrencyPolicy`](crate::graph::ConcurrencyPolicy)).
-//! 3. Delegates to [`NodeExecutor::execute`] for the actual operation dispatch.
+//! 1. Waits for upstream dependencies via `watch::Receiver` channels
+//!    (initialized to `false`, flipped to `true` on completion).
+//! 2. Acquires a permit from the optional concurrency
+//!    [`Semaphore`](tokio::sync::Semaphore) (configured via
+//!    [`ConcurrencyPolicy`](crate::graph::ConcurrencyPolicy)).
+//! 3. Delegates to [`NodeExecutor::execute`] for operation dispatch.
 //! 4. Reports node status updates to the shared [`RunState`] for live
 //!    progress visibility.
 //!
-//! [`CompletionGuard`] ensures the watch-channel signal is sent even if
-//! the task panics, preventing downstream tasks from deadlocking.
+//! [`CompletionGuard`] ensures the watch-channel signal fires even if
+//! the task panics, preventing downstream deadlocks.
 //!
-//! Data flows between nodes through bounded MPSC channels allocated from
-//! the [`ResolvedEdge`](super::plan::ResolvedEdge) configuration.
+//! Data flows between nodes through bounded MPSC channels sized per
+//! [`ResolvedEdge`](super::plan::ResolvedEdge).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -32,6 +33,7 @@ use super::executor::{NodeExecutor, NodeOutput, RunOutput};
 use super::plan::ExecutionPlan;
 use super::runs::NodeStatus;
 use super::runs::state::RunState;
+use crate::graph::ConcurrencyPolicy;
 use crate::operation::DocumentEnvelope;
 use crate::operation::context::SharedContext;
 
@@ -71,7 +73,7 @@ pub(super) struct RunContext {
     /// Shared HTTP client for downstream API calls.
     pub http_client: HttpClient,
     /// Optional limit on how many nodes may execute concurrently.
-    pub concurrency: Option<crate::graph::ConcurrencyPolicy>,
+    pub concurrency: Option<ConcurrencyPolicy>,
 }
 
 /// Execute a compiled [`ExecutionPlan`] by spawning concurrent tasks for

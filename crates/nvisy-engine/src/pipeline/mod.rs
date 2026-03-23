@@ -1,4 +1,4 @@
-//! Pipeline engine: configuration, execution, and run tracking.
+//! Pipeline engine: configuration, compilation, execution, and run tracking.
 //!
 //! The pipeline processes content through a directed acyclic graph (DAG)
 //! of operations — typically import → detect → evaluate → redact → export.
@@ -8,17 +8,17 @@
 //! DAG orchestrator, and returns an [`EngineOutput`] with detection results,
 //! policy evaluations, and audit records.
 //!
-//! Key internal modules:
+//! # Submodules
 //!
 //! - [`config`] — [`RuntimeConfig`] and per-subsystem sections (OCR, LLM, STT, TTS).
 //! - [`plan`] — compiles a [`Graph`](crate::graph::Graph) into a topologically-sorted
 //!   [`ExecutionPlan`](plan::ExecutionPlan).
-//! - [`orchestrator`] — spawns concurrent tokio tasks per node, gated by
-//!   watch-channel dependency signals and an optional concurrency semaphore.
+//! - [`orchestrator`] — spawns one tokio task per node, gated by watch-channel
+//!   dependency signals and an optional concurrency semaphore.
 //! - [`executor`] — dispatches each node to its [`Operation`](crate::operation::Operation),
-//!   managing the envelope recv → extract → call → apply → send loop.
+//!   running the envelope receive → extract → call → apply → send loop.
 //! - [`runs`] — in-memory run lifecycle tracking ([`RunSnapshot`], [`RunSummary`]).
-//! - [`analytics`] — aggregate metrics across all runs.
+//! - [`analytics`] — point-in-time aggregate metrics across all tracked runs.
 
 mod analytics;
 mod config;

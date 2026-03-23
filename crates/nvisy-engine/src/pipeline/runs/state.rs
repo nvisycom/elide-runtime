@@ -1,21 +1,22 @@
-//! In-memory run state storage.
+//! Volatile, in-memory run state storage.
 //!
 //! [`RunState`] wraps an `Arc<RwLock<HashMap<Uuid, RunEntry>>>` providing
 //! concurrent read/write access to run records. It is cheaply clonable
-//! (Arc bump) and shared between the [`Engine`](super::super::Engine)
+//! (single `Arc` bump) and shared between the [`Engine`](super::super::Engine)
 //! and the [orchestrator](super::super::orchestrator).
 //!
 //! All queries are scoped by `actor_id` — an actor can only see and
 //! mutate their own runs. Finalization forces any still-pending or
-//! still-running nodes into `Failed` status to maintain consistent
-//! terminal state.
+//! still-running nodes into `Failed` status to ensure every node reaches
+//! a terminal state.
 //!
-//! This is a volatile, in-memory store; all runs are lost on restart.
+//! All data is lost on process restart.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use jiff::Timestamp;
+use nvisy_core::{Error, ErrorKind};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -87,13 +88,14 @@ impl RunEntry {
 }
 
 impl RunState {
+    /// Create an empty run store.
     pub fn new() -> Self {
         Self {
             inner: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    /// Insert a new run entry.
+    /// Insert a new run entry, keyed by its unique run ID.
     pub async fn insert(&self, run_id: Uuid, entry: RunEntry) {
         self.inner.write().await.insert(run_id, entry);
     }
@@ -200,14 +202,12 @@ impl RunState {
     ///
     /// Returns a `NotFound` error if the run does not exist or belongs
     /// to a different actor.
-    pub async fn cancel_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), nvisy_core::Error> {
+    pub async fn cancel_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
         let mut guard = self.inner.write().await;
         let entry = guard
             .get_mut(&id)
             .filter(|e| e.actor_id == actor_id)
-            .ok_or_else(|| {
-                nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
-            })?;
+            .ok_or_else(|| Error::new(ErrorKind::NotFound, "run not found"))?;
 
         match entry.status {
             RunStatus::Pending | RunStatus::Running => {
@@ -216,11 +216,9 @@ impl RunState {
                 entry.completed_at = Some(Timestamp::now());
                 Ok(())
             }
-            _ => Err(nvisy_core::Error::new(
-                nvisy_core::ErrorKind::Validation,
-                "run has already finished",
-            )
-            .with_component("run")),
+            _ => Err(
+                Error::new(ErrorKind::Validation, "run has already finished").with_component("run"),
+            ),
         }
     }
 
@@ -228,22 +226,19 @@ impl RunState {
     ///
     /// Returns `Err` if the run does not exist, belongs to a different
     /// actor, or is still active (pending/running).
-    pub async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), nvisy_core::Error> {
+    pub async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
         let mut guard = self.inner.write().await;
         let entry = guard
             .get(&id)
             .filter(|e| e.actor_id == actor_id)
-            .ok_or_else(|| {
-                nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
-            })?;
+            .ok_or_else(|| Error::new(ErrorKind::NotFound, "run not found"))?;
 
         match entry.status {
             RunStatus::Pending | RunStatus::Running => {
-                return Err(nvisy_core::Error::new(
-                    nvisy_core::ErrorKind::Validation,
-                    "cannot delete an active run",
-                )
-                .with_component("run"));
+                return Err(
+                    Error::new(ErrorKind::Validation, "cannot delete an active run")
+                        .with_component("run"),
+                );
             }
             _ => {}
         }
@@ -275,7 +270,7 @@ impl RunState {
         let mut cancelled = 0u64;
         let mut total_entities = 0u64;
         let mut total_redactions = 0u64;
-        let mut actors = std::collections::HashSet::new();
+        let mut actors = HashSet::new();
         let mut durations_ms: Vec<u64> = Vec::new();
 
         for entry in guard.values() {

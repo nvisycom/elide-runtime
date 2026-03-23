@@ -1,10 +1,9 @@
-//! Aggregate pipeline analytics.
+//! Point-in-time aggregate metrics across all tracked pipeline runs.
 //!
-//! [`AnalyticsSnapshot`] captures point-in-time metrics across all tracked
-//! pipeline runs — counts by status, entity/redaction totals, distinct
-//! actors, and min/max/avg run durations. The snapshot is computed on
-//! demand from the in-memory [`RunState`](super::runs::state::RunState)
-//! and is exposed via [`Engine::snapshot`](super::Engine::snapshot).
+//! [`AnalyticsSnapshot`] captures counts by status, entity/redaction totals,
+//! distinct actors, and min/max/avg run durations. The snapshot is computed
+//! on demand from the in-memory [`RunState`](super::runs::state::RunState)
+//! and exposed via [`Engine::snapshot`](super::Engine::snapshot).
 
 use jiff::Timestamp;
 use schemars::JsonSchema;

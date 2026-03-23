@@ -4,18 +4,56 @@
 //! [`compile()`]. It contains topologically-sorted [`ResolvedNode`]s and
 //! pre-computed [`ResolvedEdge`]s with channel configuration.
 
-mod edge;
-mod node;
-
 use nvisy_core::{Error, Result};
 use petgraph::algo::toposort;
 use petgraph::graph::{DiGraph, NodeIndex};
 use uuid::Uuid;
 
-use self::edge::DEFAULT_CHANNEL_BUFFER;
-pub use self::edge::{EdgeConfig, ResolvedEdge};
-pub use self::node::ResolvedNode;
 use crate::graph::{Graph, GraphEdge, GraphNode, RetryPolicy, TimeoutPolicy};
+
+/// Default buffer size for bounded MPSC channels between nodes.
+const DEFAULT_CHANNEL_BUFFER: usize = 256;
+
+/// Channel configuration for a resolved edge.
+#[derive(Debug, Clone)]
+pub struct EdgeConfig {
+    /// Buffer size for the bounded MPSC channel on this edge.
+    pub channel_buffer: usize,
+}
+
+impl Default for EdgeConfig {
+    fn default() -> Self {
+        Self {
+            channel_buffer: DEFAULT_CHANNEL_BUFFER,
+        }
+    }
+}
+
+/// A directed edge with pre-computed channel configuration.
+#[derive(Debug, Clone)]
+pub struct ResolvedEdge {
+    /// ID of the upstream node.
+    pub source: Uuid,
+    /// ID of the downstream node.
+    pub target: Uuid,
+    /// Channel configuration for this edge.
+    pub config: EdgeConfig,
+}
+
+/// A graph node enriched with adjacency information and compiled policies.
+///
+/// Order is implicit in the position within [`ExecutionPlan::nodes`].
+#[derive(Debug, Clone)]
+pub struct ResolvedNode {
+    /// The original graph node definition.
+    pub node: GraphNode,
+    /// IDs of nodes that feed data into this node.
+    pub upstream_ids: Vec<Uuid>,
+    /// Retry policy for this node, if configured.
+    pub retry: Option<RetryPolicy>,
+    /// Timeout policy for this node, if configured.
+    pub timeout: Option<TimeoutPolicy>,
+}
 
 /// Compiles a [`Graph`] into an [`ExecutionPlan`].
 ///

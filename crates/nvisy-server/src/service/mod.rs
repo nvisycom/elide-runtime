@@ -1,19 +1,19 @@
 //! Application state and dependency injection.
 //!
-//! [`ServiceState`] holds the [`DefaultEngine`] which owns all shared
+//! [`ServiceState`] holds the [`Engine`] which owns all shared
 //! dependencies (registry, HTTP client, policies). Individual handlers
 //! extract the engine via a `FromRef` implementation.
 
 use std::path::PathBuf;
 
-use nvisy_engine::pipeline::{DefaultEngine, EngineStorage, RuntimeConfig};
+use nvisy_engine::pipeline::{Engine, RuntimeConfig};
 use nvisy_http::HttpClient;
 
 /// Shared application state threaded through all handlers.
 #[must_use = "state does nothing unless you use it"]
 #[derive(Clone)]
 pub struct ServiceState {
-    engine: DefaultEngine,
+    engine: Engine,
 }
 
 impl ServiceState {
@@ -30,7 +30,7 @@ impl ServiceState {
             .unwrap_or_default();
         let http_client = HttpClient::new(&http_config);
 
-        let engine = DefaultEngine::open(data_dir)?
+        let engine = Engine::open(data_dir)?
             .with_config(config)
             .with_http_client(http_client);
 
@@ -43,8 +43,16 @@ impl ServiceState {
     }
 }
 
-impl axum::extract::FromRef<ServiceState> for DefaultEngine {
-    fn from_ref(state: &ServiceState) -> Self {
-        state.engine.clone()
-    }
+macro_rules! impl_di {
+    ($($extract:expr => $t:ty),+ $(,)?) => {$(
+        impl axum::extract::FromRef<ServiceState> for $t {
+            fn from_ref(state: &ServiceState) -> Self {
+                $extract(state)
+            }
+        }
+    )+};
 }
+
+impl_di!(
+    |s: &ServiceState| s.engine.clone() => Engine,
+);

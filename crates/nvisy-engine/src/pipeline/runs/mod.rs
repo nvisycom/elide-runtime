@@ -1,17 +1,13 @@
-//! Pipeline run data types, state storage, and the [`EngineRuns`] trait.
+//! Pipeline run data types and state storage.
 //!
 //! Pure data definitions for run lifecycle tracking. All mutation and
-//! querying happens through the [`EngineRuns`] trait, implemented on
-//! [`DefaultEngine`].
+//! querying happens through inherent methods on [`Engine`].
 //!
-//! [`DefaultEngine`]: super::DefaultEngine
+//! [`Engine`]: super::Engine
 
 pub(crate) mod state;
 
-use std::future::Future;
-
 use jiff::Timestamp;
-use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -117,44 +113,4 @@ pub struct RunSummary {
 pub struct RunFilter {
     /// If set, only return runs with this status.
     pub status: Option<RunStatus>,
-}
-
-/// Read-only access to pipeline run state.
-///
-/// Runs are created internally by [`Engine::run()`].
-///
-/// [`Engine::run()`]: super::Engine::run
-/// External callers can inspect and cancel runs through this trait.
-pub trait EngineRuns: Send + Sync {
-    /// Get a full snapshot of a single run.
-    fn get_run(&self, actor_id: Uuid, id: Uuid)
-    -> impl Future<Output = Option<RunSnapshot>> + Send;
-
-    /// List runs matching the given filter.
-    fn list_runs(
-        &self,
-        actor_id: Uuid,
-        filter: RunFilter,
-    ) -> impl Future<Output = Vec<RunSummary>> + Send;
-
-    /// Request cancellation of an in-progress run.
-    ///
-    /// Returns `Err` if the run was not found or has already finished.
-    fn cancel_run(
-        &self,
-        actor_id: Uuid,
-        id: Uuid,
-    ) -> impl Future<Output = Result<(), Error>> + Send;
-
-    /// Delete a single finished run.
-    ///
-    /// Returns `Err` if the run does not exist or is still active.
-    fn delete_run(
-        &self,
-        actor_id: Uuid,
-        id: Uuid,
-    ) -> impl Future<Output = Result<(), Error>> + Send;
-
-    /// Delete all finished runs. Returns the number of removed entries.
-    fn delete_all_runs(&self, actor_id: Uuid) -> impl Future<Output = usize> + Send;
 }

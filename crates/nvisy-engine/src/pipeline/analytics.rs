@@ -1,12 +1,9 @@
-//! Aggregate pipeline analytics types and the [`EngineAnalytics`] trait.
+//! Aggregate pipeline analytics types.
 //!
 //! Pure data definitions for pipeline-wide metrics. Querying happens
-//! through the [`EngineAnalytics`] trait, implemented on
-//! [`DefaultEngine`].
+//! through inherent methods on [`Engine`].
 //!
-//! [`DefaultEngine`]: super::DefaultEngine
-
-use std::future::Future;
+//! [`Engine`]: super::Engine
 
 use jiff::Timestamp;
 use schemars::JsonSchema;
@@ -44,10 +41,4 @@ pub struct AnalyticsSnapshot {
     /// Average completed run duration in milliseconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub avg_run_duration_ms: Option<f64>,
-}
-
-/// Read-only access to aggregate pipeline analytics.
-pub trait EngineAnalytics: Send + Sync {
-    /// Collect a point-in-time analytics snapshot.
-    fn snapshot(&self) -> impl Future<Output = AnalyticsSnapshot> + Send;
 }

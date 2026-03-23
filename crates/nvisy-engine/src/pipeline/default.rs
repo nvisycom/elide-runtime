@@ -1,10 +1,10 @@
-//! Default engine implementation.
+//! Engine implementation.
 //!
-//! [`DefaultEngine`] ties together configuration, run state, and the
-//! DAG orchestrator. It implements [`Engine`], [`EngineAnalytics`], and
-//! [`EngineRuns`].
+//! [`Engine`] ties together configuration, run state, and the
+//! DAG orchestrator.
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 
 use nvisy_core::Error;
@@ -14,14 +14,12 @@ use nvisy_ontology::context::{Context, ContextMap};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::analytics::{AnalyticsSnapshot, EngineAnalytics};
+use super::analytics::AnalyticsSnapshot;
 use super::config::RuntimeConfig;
 use super::orchestrator::{self, RunContext};
 use super::runs::state::{RunEntry, RunState};
-use super::runs::{
-    EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
-};
-use super::{Engine, EngineInput, EngineOutput, EngineStorage, plan};
+use super::runs::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
+use super::{EngineInput, EngineOutput, plan};
 use crate::graph::{GraphNodeKind, RetryPolicy, TimeoutPolicy};
 use crate::operation::context::SharedContext;
 use crate::operation::encryption::SharedKeyProvider;
@@ -39,20 +37,20 @@ struct EngineConfig {
     key_provider: Option<SharedKeyProvider>,
 }
 
-/// Default [`Engine`] implementation.
+/// The redaction pipeline engine.
 ///
 /// Immutable configuration lives in `Arc<EngineConfig>` (set during
 /// construction). Mutable run state lives in [`RunState`] and is
 /// shared across all clones.
 #[derive(Clone)]
-pub struct DefaultEngine {
+pub struct Engine {
     cfg: Arc<EngineConfig>,
     runs: RunState,
 }
 
-impl std::fmt::Debug for DefaultEngine {
+impl std::fmt::Debug for Engine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DefaultEngine")
+        f.debug_struct("Engine")
             .field("config", &self.cfg.config)
             .field("default_retry", &self.cfg.default_retry)
             .field("default_timeout", &self.cfg.default_timeout)
@@ -61,7 +59,7 @@ impl std::fmt::Debug for DefaultEngine {
     }
 }
 
-impl DefaultEngine {
+impl Engine {
     /// Open a new engine backed by a registry at the given data directory.
     ///
     /// # Errors
@@ -148,10 +146,9 @@ impl DefaultEngine {
     pub fn registry(&self) -> &Registry {
         &self.cfg.registry
     }
-}
 
-impl Engine for DefaultEngine {
-    async fn run(&self, input: EngineInput) -> Result<EngineOutput, Error> {
+    /// Execute a full redaction pipeline.
+    pub async fn run(&self, input: EngineInput) -> Result<EngineOutput, Error> {
         let run_id = uuid::Uuid::new_v4();
         let cancel = CancellationToken::new();
 
@@ -341,6 +338,123 @@ impl Engine for DefaultEngine {
 
         Ok(output)
     }
+
+    /// Collect a point-in-time analytics snapshot.
+    pub async fn snapshot(&self) -> AnalyticsSnapshot {
+        self.runs.snapshot().await
+    }
+
+    /// Get a full snapshot of a single run.
+    pub async fn get_run(&self, actor_id: Uuid, id: Uuid) -> Option<RunSnapshot> {
+        self.runs.get_run(actor_id, id).await
+    }
+
+    /// List runs matching the given filter.
+    pub async fn list_runs(&self, actor_id: Uuid, filter: RunFilter) -> Vec<RunSummary> {
+        self.runs.list_runs(actor_id, &filter).await
+    }
+
+    /// Request cancellation of an in-progress run.
+    ///
+    /// Returns `Err` if the run was not found or has already finished.
+    pub async fn cancel_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
+        self.runs.cancel_run(actor_id, id).await
+    }
+
+    /// Delete a single finished run.
+    ///
+    /// Returns `Err` if the run does not exist or is still active.
+    pub async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
+        self.runs.delete_run(actor_id, id).await
+    }
+
+    /// Delete all finished runs. Returns the number of removed entries.
+    pub async fn delete_all_runs(&self, actor_id: Uuid) -> usize {
+        self.runs.delete_all_runs(actor_id).await
+    }
+
+    /// Store content and return the assigned identifier.
+    pub async fn upload_content(&self, actor_id: Uuid, content: Content) -> Result<Uuid, Error> {
+        let handle = self
+            .cfg
+            .registry
+            .register_content(actor_id, content)
+            .await?;
+        Ok(handle.content_source().as_uuid())
+    }
+
+    /// Retrieve stored content data and metadata.
+    pub async fn download_content(
+        &self,
+        actor_id: Uuid,
+        content_id: Uuid,
+    ) -> Result<Content, Error> {
+        let handle = self.cfg.registry.read_content(actor_id, content_id).await?;
+        let data = handle.content_data().await?;
+        let metadata = handle.metadata().await?;
+        Ok(Content::with_metadata(data, metadata))
+    }
+
+    /// List all content identifiers for an actor.
+    pub async fn list_content(&self, actor_id: Uuid) -> Result<Vec<Uuid>, Error> {
+        self.cfg.registry.list_content(actor_id).await
+    }
+
+    /// Delete a single content entry.
+    pub async fn delete_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<(), Error> {
+        self.cfg
+            .registry
+            .unregister_content(actor_id, content_id)
+            .await
+    }
+
+    /// Delete all content for an actor. Returns the number of entries removed.
+    pub async fn delete_all_content(&self, actor_id: Uuid) -> Result<usize, Error> {
+        self.cfg.registry.unregister_all_content(actor_id).await
+    }
+
+    /// Store a context and return the assigned identifier.
+    pub async fn upload_context(&self, actor_id: Uuid, context: Context) -> Result<Uuid, Error> {
+        let handle = self
+            .cfg
+            .registry
+            .register_context(actor_id, context)
+            .await?;
+        Ok(handle.source().as_uuid())
+    }
+
+    /// Retrieve a stored context.
+    pub async fn download_context(
+        &self,
+        actor_id: Uuid,
+        context_id: Uuid,
+    ) -> Result<Context, Error> {
+        let handle = self.cfg.registry.read_context(actor_id, context_id).await?;
+        handle.context().await
+    }
+
+    /// List all context identifiers for an actor.
+    pub async fn list_contexts(&self, actor_id: Uuid) -> Result<Vec<Uuid>, Error> {
+        self.cfg.registry.list_contexts(actor_id).await
+    }
+
+    /// Delete a single context entry.
+    pub async fn delete_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<(), Error> {
+        self.cfg
+            .registry
+            .unregister_context(actor_id, context_id)
+            .await
+    }
+
+    /// Delete all contexts for an actor. Returns the number of entries removed.
+    pub async fn delete_all_contexts(&self, actor_id: Uuid) -> Result<usize, Error> {
+        self.cfg.registry.unregister_all_contexts(actor_id).await
+    }
+
+    /// Returns the base data directory path.
+    pub fn data_dir(&self) -> &Path {
+        self.cfg.registry.base_dir()
+    }
 }
 
 /// Collect [`EngineOutput`] from completed node results.
@@ -392,98 +506,4 @@ fn collect_output(
     };
 
     (output, entities_detected, redactions_applied)
-}
-
-impl EngineAnalytics for DefaultEngine {
-    async fn snapshot(&self) -> AnalyticsSnapshot {
-        self.runs.snapshot().await
-    }
-}
-
-impl EngineRuns for DefaultEngine {
-    async fn get_run(&self, actor_id: Uuid, id: Uuid) -> Option<RunSnapshot> {
-        self.runs.get_run(actor_id, id).await
-    }
-
-    async fn list_runs(&self, actor_id: Uuid, filter: RunFilter) -> Vec<RunSummary> {
-        self.runs.list_runs(actor_id, &filter).await
-    }
-
-    async fn cancel_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
-        self.runs.cancel_run(actor_id, id).await
-    }
-
-    async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
-        self.runs.delete_run(actor_id, id).await
-    }
-
-    async fn delete_all_runs(&self, actor_id: Uuid) -> usize {
-        self.runs.delete_all_runs(actor_id).await
-    }
-}
-
-impl EngineStorage for DefaultEngine {
-    async fn upload_content(&self, actor_id: Uuid, content: Content) -> Result<Uuid, Error> {
-        let handle = self
-            .cfg
-            .registry
-            .register_content(actor_id, content)
-            .await?;
-        Ok(handle.content_source().as_uuid())
-    }
-
-    async fn download_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<Content, Error> {
-        let handle = self.cfg.registry.read_content(actor_id, content_id).await?;
-        let data = handle.content_data().await?;
-        let metadata = handle.metadata().await?;
-        Ok(Content::with_metadata(data, metadata))
-    }
-
-    async fn list_content(&self, actor_id: Uuid) -> Result<Vec<Uuid>, Error> {
-        self.cfg.registry.list_content(actor_id).await
-    }
-
-    async fn delete_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<(), Error> {
-        self.cfg
-            .registry
-            .unregister_content(actor_id, content_id)
-            .await
-    }
-
-    async fn delete_all_content(&self, actor_id: Uuid) -> Result<usize, Error> {
-        self.cfg.registry.unregister_all_content(actor_id).await
-    }
-
-    async fn upload_context(&self, actor_id: Uuid, context: Context) -> Result<Uuid, Error> {
-        let handle = self
-            .cfg
-            .registry
-            .register_context(actor_id, context)
-            .await?;
-        Ok(handle.source().as_uuid())
-    }
-
-    async fn download_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<Context, Error> {
-        let handle = self.cfg.registry.read_context(actor_id, context_id).await?;
-        handle.context().await
-    }
-
-    async fn list_contexts(&self, actor_id: Uuid) -> Result<Vec<Uuid>, Error> {
-        self.cfg.registry.list_contexts(actor_id).await
-    }
-
-    async fn delete_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<(), Error> {
-        self.cfg
-            .registry
-            .unregister_context(actor_id, context_id)
-            .await
-    }
-
-    async fn delete_all_contexts(&self, actor_id: Uuid) -> Result<usize, Error> {
-        self.cfg.registry.unregister_all_contexts(actor_id).await
-    }
-
-    fn data_dir(&self) -> &std::path::Path {
-        self.cfg.registry.base_dir()
-    }
 }

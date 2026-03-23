@@ -14,7 +14,7 @@ use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::State;
-use nvisy_engine::pipeline::{DefaultEngine, EngineAnalytics, EngineStorage};
+use nvisy_engine::pipeline::Engine;
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 
@@ -31,7 +31,7 @@ const TARGET: &str = "nvisy_server::infra";
 /// Verifies the data directory and registry are accessible, returns
 /// component-level checks alongside an overall service status.
 #[tracing::instrument(target = "nvisy_server::infra", skip_all)]
-async fn health_check(State(engine): State<DefaultEngine>) -> Json<Health> {
+async fn health_check(State(engine): State<Engine>) -> Json<Health> {
     let mut checks = vec![];
 
     let fs_ok = engine.data_dir().is_dir();
@@ -87,7 +87,7 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
 
 /// `GET /api/v1/analytics`: retrieve aggregate pipeline analytics.
 #[tracing::instrument(target = "nvisy_server::infra", skip_all)]
-async fn get_analytics(State(engine): State<DefaultEngine>) -> Json<Analytics> {
+async fn get_analytics(State(engine): State<Engine>) -> Json<Analytics> {
     let snapshot = engine.snapshot().await;
     Json(Analytics {
         timestamp: snapshot.timestamp,

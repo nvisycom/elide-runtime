@@ -19,7 +19,7 @@ use aide::transform::TransformOperation;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{DefaultEngine, Engine, EngineInput, EngineRuns, RunFilter};
+use nvisy_engine::pipeline::{Engine, EngineInput, RunFilter};
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 
@@ -43,7 +43,7 @@ const TARGET: &str = "nvisy_server::runs";
     fields(%actor_id),
 )]
 async fn create_run(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
 ) -> Result<(StatusCode, Json<RunResult>)> {
@@ -83,7 +83,7 @@ fn create_run_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id, ?query.status),
 )]
 async fn list_runs(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Query(query): Query<RunQuery>,
 ) -> Result<Json<RunList>> {
@@ -112,7 +112,7 @@ fn list_runs_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id, %id),
 )]
 async fn get_run(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(RunPath { id }): Path<RunPath>,
 ) -> Result<Json<RunDetail>> {
@@ -138,7 +138,7 @@ fn get_run_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id, %id),
 )]
 async fn cancel_run(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(RunPath { id }): Path<RunPath>,
 ) -> Result<StatusCode> {
@@ -165,7 +165,7 @@ fn cancel_run_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id, %id),
 )]
 async fn delete_run(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(RunPath { id }): Path<RunPath>,
 ) -> Result<StatusCode> {
@@ -187,7 +187,7 @@ fn delete_run_docs(op: TransformOperation) -> TransformOperation {
 /// `DELETE /api/v1/runs`: delete all finished runs.
 #[tracing::instrument(target = "nvisy_server::runs", skip_all, fields(%actor_id))]
 async fn delete_all_runs(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
     let deleted = engine.delete_all_runs(actor_id).await;

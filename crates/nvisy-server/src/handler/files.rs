@@ -19,7 +19,7 @@ use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_core::content::{Content, ContentData, ContentMetadata};
-use nvisy_engine::pipeline::{DefaultEngine, EngineStorage};
+use nvisy_engine::pipeline::Engine;
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 
@@ -41,7 +41,7 @@ const TARGET: &str = "nvisy_server::files";
     fields(%actor_id, filename = req.filename.as_deref()),
 )]
 async fn upload_file(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewFile>,
 ) -> Result<(StatusCode, Json<FileId>)> {
@@ -95,7 +95,7 @@ fn upload_file_docs(op: TransformOperation) -> TransformOperation {
     fields(%id, %actor_id),
 )]
 async fn download_file(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(ContentPath { id }): Path<ContentPath>,
 ) -> Result<Json<File>> {
@@ -129,7 +129,7 @@ fn download_file_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id),
 )]
 async fn list_files(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<FileList>> {
@@ -153,7 +153,7 @@ fn list_files_docs(op: TransformOperation) -> TransformOperation {
     fields(%id, %actor_id),
 )]
 async fn delete_file(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(ContentPath { id }): Path<ContentPath>,
 ) -> Result<StatusCode> {
@@ -176,7 +176,7 @@ fn delete_file_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id),
 )]
 async fn delete_all_files(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
     let deleted = engine.delete_all_content(actor_id).await?;

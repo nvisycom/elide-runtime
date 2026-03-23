@@ -18,7 +18,7 @@ use aide::transform::TransformOperation;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{DefaultEngine, EngineStorage};
+use nvisy_engine::pipeline::Engine;
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 
@@ -39,7 +39,7 @@ const TARGET: &str = "nvisy_server::contexts";
     fields(%actor_id),
 )]
 async fn upload_context(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewContext>,
 ) -> Result<(StatusCode, Json<ContextId>)> {
@@ -67,7 +67,7 @@ fn upload_context_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id),
 )]
 async fn list_contexts(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<ContextList>> {
@@ -91,7 +91,7 @@ fn list_contexts_docs(op: TransformOperation) -> TransformOperation {
     fields(%id, %actor_id),
 )]
 async fn download_context(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(ContextPath { id }): Path<ContextPath>,
 ) -> Result<Json<Context>> {
@@ -114,7 +114,7 @@ fn download_context_docs(op: TransformOperation) -> TransformOperation {
     fields(%id, %actor_id),
 )]
 async fn delete_context(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(ContextPath { id }): Path<ContextPath>,
 ) -> Result<StatusCode> {
@@ -137,7 +137,7 @@ fn delete_context_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id),
 )]
 async fn delete_all_contexts(
-    State(engine): State<DefaultEngine>,
+    State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
     let deleted = engine.delete_all_contexts(actor_id).await?;

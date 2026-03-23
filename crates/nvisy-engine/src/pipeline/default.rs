@@ -11,7 +11,6 @@ use nvisy_core::Error;
 use nvisy_core::content::{Content, ContentSource};
 use nvisy_http::HttpClient;
 use nvisy_ontology::context::{Context, ContextMap};
-use nvisy_registry::Registry;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -27,6 +26,7 @@ use crate::graph::{GraphNodeKind, RetryPolicy, TimeoutPolicy};
 use crate::operation::context::SharedContext;
 use crate::operation::encryption::SharedKeyProvider;
 use crate::provenance::PolicyEvaluation;
+use crate::registry::Registry;
 
 /// Immutable configuration created during engine construction.
 #[derive(Clone)]

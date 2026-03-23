@@ -2983,6 +2983,7 @@ dependencies = [
  "bytes",
  "derive_builder",
  "derive_more",
+ "fjall",
  "futures",
  "jiff",
  "nvisy-codec",
@@ -2991,7 +2992,6 @@ dependencies = [
  "nvisy-ocr",
  "nvisy-ontology",
  "nvisy-pattern",
- "nvisy-registry",
  "nvisy-rig",
  "petgraph",
  "rand 0.10.0",
@@ -3086,22 +3086,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "nvisy-registry"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "fjall",
- "nvisy-core",
- "nvisy-ontology",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "uuid",
 ]
 
 [[package]]

@@ -106,7 +106,7 @@ mod tests {
     #[tokio::test]
     async fn unknown_format_errors() {
         let dir = tempfile::tempdir().unwrap();
-        let registry = nvisy_registry::Registry::open(dir.path()).unwrap();
+        let registry = crate::registry::Registry::open(dir.path()).unwrap();
         let shared = SharedContext::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
         let content = ContentData::from("plain text has no magic bytes");
         let input = ParallelContext::new(content, shared);

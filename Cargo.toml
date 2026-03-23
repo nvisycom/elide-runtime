@@ -12,7 +12,6 @@ members = [
     "./crates/nvisy-ocr",
     "./crates/nvisy-pattern",
     "./crates/nvisy-python",
-    "./crates/nvisy-registry",
     "./crates/nvisy-rig",
     "./crates/nvisy-server",
 ]
@@ -44,7 +43,6 @@ nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
-nvisy-registry = { path = "./crates/nvisy-registry", version = "0.1.0" }
 nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 

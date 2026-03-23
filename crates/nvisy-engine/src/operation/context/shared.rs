@@ -10,10 +10,10 @@ use std::sync::Arc;
 use derive_more::Deref;
 use nvisy_ontology::context::ContextMap;
 use nvisy_ontology::policy::{Policies, Policy};
-use nvisy_registry::Registry;
 use uuid::Uuid;
 
 use crate::operation::encryption::SharedKeyProvider;
+use crate::registry::Registry;
 
 /// Immutable run-wide state behind an [`Arc`].
 ///

@@ -111,7 +111,7 @@ pdfium-render = { version = "0.8", features = [] }
 # Document parsing
 scraper = { version = "0.25", features = [] }
 calamine = { version = "0.34", features = [] }
-zip = { version = "8.2", features = [] }
+zip = { version = "8.3", features = [] }
 quick-xml = { version = "0.39", features = [] }
 
 # Image processing
@@ -128,7 +128,7 @@ clap = { version = "4.6", features = [] }
 
 # HTTP server
 axum = { version = "0.8", features = [] }
-aide = { version = "0.16.0-alpha.2", features = [] }
+aide = { version = "0.16.0-alpha.3", features = [] }
 tower = { version = "0.5", features = [] }
 tower-http = { version = "0.6", features = [] }
 

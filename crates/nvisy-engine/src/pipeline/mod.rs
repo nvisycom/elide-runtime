@@ -101,10 +101,8 @@ pub trait EngineStorage: Send + Sync {
     ) -> impl Future<Output = Result<Content, Error>> + Send;
 
     /// List all content identifiers for an actor.
-    fn list_content(
-        &self,
-        actor_id: Uuid,
-    ) -> impl Future<Output = Result<Vec<Uuid>, Error>> + Send;
+    fn list_content(&self, actor_id: Uuid)
+    -> impl Future<Output = Result<Vec<Uuid>, Error>> + Send;
 
     /// Delete a single content entry.
     fn delete_content(

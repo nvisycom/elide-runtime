@@ -8,17 +8,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_core::content::ContentSource;
+use nvisy_core::content::{Content, ContentSource};
 use nvisy_http::HttpClient;
-use nvisy_ontology::context::ContextMap;
+use nvisy_ontology::context::{Context, ContextMap};
 use nvisy_registry::Registry;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use nvisy_core::content::Content;
-use nvisy_ontology::context::Context;
-
-use super::EngineStorage;
 use super::analytics::{AnalyticsSnapshot, EngineAnalytics};
 use super::config::RuntimeConfig;
 use super::orchestrator::{self, RunContext};
@@ -26,7 +22,7 @@ use super::runs::state::{RunEntry, RunState};
 use super::runs::{
     EngineRuns, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
 };
-use super::{Engine, EngineInput, EngineOutput, plan};
+use super::{Engine, EngineInput, EngineOutput, EngineStorage, plan};
 use crate::graph::{GraphNodeKind, RetryPolicy, TimeoutPolicy};
 use crate::operation::context::SharedContext;
 use crate::operation::encryption::SharedKeyProvider;
@@ -372,15 +368,15 @@ impl EngineRuns for DefaultEngine {
 
 impl EngineStorage for DefaultEngine {
     async fn upload_content(&self, actor_id: Uuid, content: Content) -> Result<Uuid, Error> {
-        let handle = self.cfg.registry.register_content(actor_id, content).await?;
+        let handle = self
+            .cfg
+            .registry
+            .register_content(actor_id, content)
+            .await?;
         Ok(handle.content_source().as_uuid())
     }
 
-    async fn download_content(
-        &self,
-        actor_id: Uuid,
-        content_id: Uuid,
-    ) -> Result<Content, Error> {
+    async fn download_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<Content, Error> {
         let handle = self.cfg.registry.read_content(actor_id, content_id).await?;
         let data = handle.content_data().await?;
         let metadata = handle.metadata().await?;
@@ -392,7 +388,10 @@ impl EngineStorage for DefaultEngine {
     }
 
     async fn delete_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<(), Error> {
-        self.cfg.registry.unregister_content(actor_id, content_id).await
+        self.cfg
+            .registry
+            .unregister_content(actor_id, content_id)
+            .await
     }
 
     async fn delete_all_content(&self, actor_id: Uuid) -> Result<usize, Error> {
@@ -400,7 +399,11 @@ impl EngineStorage for DefaultEngine {
     }
 
     async fn upload_context(&self, actor_id: Uuid, context: Context) -> Result<Uuid, Error> {
-        let handle = self.cfg.registry.register_context(actor_id, context).await?;
+        let handle = self
+            .cfg
+            .registry
+            .register_context(actor_id, context)
+            .await?;
         Ok(handle.source().as_uuid())
     }
 
@@ -414,7 +417,10 @@ impl EngineStorage for DefaultEngine {
     }
 
     async fn delete_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<(), Error> {
-        self.cfg.registry.unregister_context(actor_id, context_id).await
+        self.cfg
+            .registry
+            .unregister_context(actor_id, context_id)
+            .await
     }
 
     async fn delete_all_contexts(&self, actor_id: Uuid) -> Result<usize, Error> {

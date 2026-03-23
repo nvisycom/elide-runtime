@@ -216,8 +216,8 @@ impl Engine {
     /// Execute a full redaction pipeline.
     ///
     /// Compiles the graph, pre-loads contexts, runs the DAG orchestrator,
-    /// and collects results. See the [module docs](super::default) for the
-    /// full phase breakdown.
+    /// and collects results. See the module-level docs for the full
+    /// phase breakdown.
     ///
     /// # Errors
     ///

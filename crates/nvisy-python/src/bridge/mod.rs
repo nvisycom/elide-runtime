@@ -52,7 +52,7 @@ impl PythonBridge {
     /// the module cannot be imported.
     #[tracing::instrument(target = TARGET, name = "bridge.init", skip(self), fields(module = %self.module_name))]
     pub fn init(&self) -> Result<(), Error> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             py.import(&*self.module_name).map_err(from_pyerr)?;
             tracing::debug!(target: TARGET, "python module imported");
             Ok(())
@@ -66,7 +66,7 @@ impl PythonBridge {
     }
 
     /// Calls a **synchronous** Python method on the bridge module inside
-    /// `spawn_blocking` + `Python::with_gil`.
+    /// `spawn_blocking` + `Python::attach`.
     ///
     /// `build_kwargs` receives a GIL token and must return a [`PyDict`]
     /// of keyword arguments. The method is invoked as
@@ -93,7 +93,7 @@ impl PythonBridge {
         tracing::Span::current().record("method", &method);
 
         tokio::task::spawn_blocking(move || {
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 let module = py.import(&*module_name).map_err(from_pyerr)?;
                 let kwargs = build_kwargs(py)?;
 
@@ -142,8 +142,8 @@ impl PythonBridge {
 
         tracing::Span::current().record("method", method);
 
-        let future: Pin<Box<dyn Future<Output = PyResult<PyObject>> + Send>> =
-            Python::with_gil(|py| -> Result<_, Error> {
+        let future: Pin<Box<dyn Future<Output = PyResult<Py<PyAny>>> + Send>> =
+            Python::attach(|py| -> Result<_, Error> {
                 let module = py.import(&*self.module_name).map_err(from_pyerr)?;
                 let kwargs = build_kwargs(py)?;
 
@@ -158,7 +158,7 @@ impl PythonBridge {
 
         let py_result = future.await.map_err(from_pyerr)?;
 
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             pythonize::depythonize::<Vec<Value>>(py_result.bind(py)).map_err(|e| {
                 Error::runtime(
                     format!("failed to deserialize {method} result: {e}"),

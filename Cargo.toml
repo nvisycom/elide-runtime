@@ -117,9 +117,9 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 imageproc = { version = "0.26", features = [] }
 
 # Python interop
-pyo3 = { version = "0.24", features = [] }
-pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
-pythonize = { version = "0.24", features = [] }
+pyo3 = { version = "0.28", features = [] }
+pyo3-async-runtimes = { version = "0.28", features = ["tokio-runtime"] }
+pythonize = { version = "0.28", features = [] }
 
 # CLI
 clap = { version = "4.6", features = [] }

@@ -4,8 +4,6 @@ mod fixtures;
 
 use nvisy_engine::pipeline::{Engine, EngineSection, ResourceLimits, RuntimeConfig};
 
-
-
 #[test]
 fn temp_engine_points_to_temp_dir() {
     let (engine, dir) = fixtures::engine();

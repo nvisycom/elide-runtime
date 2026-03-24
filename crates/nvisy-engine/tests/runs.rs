@@ -43,12 +43,22 @@ async fn filter_runs_by_status() -> anyhow::Result<()> {
     engine.run(fixtures::engine_input(actor, graph)).await?;
 
     let succeeded = engine
-        .list_runs(actor, RunFilter { status: Some(RunStatus::Succeeded) })
+        .list_runs(
+            actor,
+            RunFilter {
+                status: Some(RunStatus::Succeeded),
+            },
+        )
         .await;
     assert_eq!(succeeded.len(), 1);
 
     let failed = engine
-        .list_runs(actor, RunFilter { status: Some(RunStatus::Failed) })
+        .list_runs(
+            actor,
+            RunFilter {
+                status: Some(RunStatus::Failed),
+            },
+        )
         .await;
     assert!(failed.is_empty());
     Ok(())

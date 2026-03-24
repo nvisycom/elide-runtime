@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::ContentSource;
-use super::content_bytes::ContentBytes;
 use crate::error::{Error, ErrorKind, Result};
 
 /// Raw content bytes with source identity.
@@ -27,7 +26,7 @@ pub struct ContentData {
     /// Unique identifier for the content source.
     pub content_source: ContentSource,
     /// The actual content bytes.
-    data: ContentBytes,
+    data: Bytes,
 }
 
 impl ContentData {
@@ -35,7 +34,7 @@ impl ContentData {
     pub fn new(content_source: ContentSource, data: Bytes) -> Self {
         Self {
             content_source,
-            data: ContentBytes::from(data),
+            data,
         }
     }
 
@@ -43,15 +42,7 @@ impl ContentData {
     pub fn from_text(content_source: ContentSource, text: impl Into<String>) -> Self {
         Self {
             content_source,
-            data: ContentBytes::from(text.into()),
-        }
-    }
-
-    /// Creates content data with explicit `ContentBytes`.
-    pub fn with_content_bytes(content_source: ContentSource, data: ContentBytes) -> Self {
-        Self {
-            content_source,
-            data,
+            data: Bytes::from(text.into().into_bytes()),
         }
     }
 
@@ -77,40 +68,33 @@ impl ContentData {
     /// Returns the content data as a byte slice.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
-        self.data.as_bytes()
-    }
-
-    /// Returns a reference to the underlying `ContentBytes`.
-    #[must_use]
-    pub fn content_bytes(&self) -> &ContentBytes {
         &self.data
     }
 
     /// Converts the content data to `Bytes`.
     #[must_use]
     pub fn to_bytes(&self) -> Bytes {
-        Bytes::copy_from_slice(self.data.as_bytes())
+        self.data.clone()
     }
 
     /// Consumes and converts into `Bytes`.
     #[must_use]
     pub fn into_bytes(self) -> Bytes {
-        self.data.into_inner()
+        self.data
     }
 
     /// Returns `true` if the content appears to be text.
+    ///
+    /// Checks that the content is valid UTF-8 and contains no control
+    /// characters other than common whitespace (tab, newline, carriage
+    /// return).
     #[must_use]
     pub fn is_likely_text(&self) -> bool {
-        self.data.is_likely_text()
-    }
-
-    /// Tries to convert the content data to a UTF-8 string.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the content data contains invalid UTF-8 sequences.
-    pub fn as_string(&self) -> Result<String> {
-        self.data.as_hipstr().map(|s| s.to_string())
+        let Ok(s) = std::str::from_utf8(&self.data) else {
+            return false;
+        };
+        s.chars()
+            .all(|c| !c.is_control() || matches!(c, '\t' | '\n' | '\r'))
     }
 
     /// Tries to convert the content data to a UTF-8 string slice.
@@ -119,8 +103,17 @@ impl ContentData {
     ///
     /// Returns an error if the content data contains invalid UTF-8 sequences.
     pub fn as_str(&self) -> Result<&str> {
-        std::str::from_utf8(self.data.as_bytes())
+        std::str::from_utf8(&self.data)
             .map_err(|e| Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}")))
+    }
+
+    /// Tries to convert the content data to an owned string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the content data contains invalid UTF-8 sequences.
+    pub fn as_string(&self) -> Result<String> {
+        self.as_str().map(String::from)
     }
 
     /// Converts to a `HipStr` if the content is valid UTF-8.
@@ -129,14 +122,16 @@ impl ContentData {
     ///
     /// Returns an error if the content is not valid UTF-8.
     pub fn as_hipstr(&self) -> Result<HipStr<'static>> {
-        self.data.as_hipstr()
+        let s = std::str::from_utf8(&self.data)
+            .map_err(|e| Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}")))?;
+        Ok(HipStr::from(s))
     }
 
     /// Computes and returns the SHA256 hash of the content.
     #[must_use]
     pub fn sha256(&self) -> Bytes {
         let mut hasher = Sha256::new();
-        hasher.update(self.data.as_bytes());
+        hasher.update(&self.data);
         Bytes::from(hasher.finalize().to_vec())
     }
 
@@ -176,7 +171,7 @@ impl ContentData {
     /// Returns an error if the end index is beyond the content length
     /// or if start is greater than end.
     pub fn slice(&self, start: usize, end: usize) -> Result<Bytes> {
-        let bytes = self.data.as_bytes();
+        let bytes = &self.data;
         if end > bytes.len() {
             return Err(Error::new(
                 ErrorKind::Validation,
@@ -205,7 +200,7 @@ impl ContentData {
     /// [`ContentMetadata::detected_content_type`](super::ContentMetadata::detected_content_type).
     #[must_use]
     pub fn detect_mime(&self) -> Option<String> {
-        infer::get(self.data.as_bytes()).map(|t| t.mime_type().to_owned())
+        infer::get(&self.data).map(|t| t.mime_type().to_owned())
     }
 }
 
@@ -307,5 +302,13 @@ mod tests {
     fn detect_mime_unknown() {
         let data = ContentData::from("hello world");
         assert_eq!(data.detect_mime(), None);
+    }
+
+    #[test]
+    fn is_likely_text() {
+        assert!(ContentData::from("ascii text").is_likely_text());
+        assert!(ContentData::from("").is_likely_text());
+        assert!(ContentData::from("café").is_likely_text());
+        assert!(!ContentData::from(vec![0x00]).is_likely_text());
     }
 }

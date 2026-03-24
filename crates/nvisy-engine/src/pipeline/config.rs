@@ -15,6 +15,45 @@ use serde::{Deserialize, Serialize};
 
 use crate::graph::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
 
+/// Hard limits on pipeline resource consumption.
+///
+/// These values cap the overall duration and internal buffer sizes
+/// for a single pipeline run. They are read once during
+/// [`Engine::run`](super::Engine::run) and cannot be changed mid-run.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct ResourceLimits {
+    /// Hard ceiling on total pipeline run duration, in milliseconds.
+    ///
+    /// If a run exceeds this limit, the cancellation token is triggered
+    /// and the run is marked as timed out. Individual node timeouts
+    /// (via [`TimeoutPolicy`]) are independent of this limit.
+    /// `None` means no run-level timeout.
+    #[serde(default)]
+    pub run_timeout_ms: Option<u64>,
+
+    /// Buffer size for bounded MPSC channels between pipeline nodes.
+    ///
+    /// Controls backpressure: a larger buffer allows faster producers
+    /// to run ahead of slower consumers. Defaults to 256.
+    #[serde(default = "ResourceLimits::default_channel_buffer")]
+    pub channel_buffer: usize,
+}
+
+impl ResourceLimits {
+    const fn default_channel_buffer() -> usize {
+        256
+    }
+}
+
+impl Default for ResourceLimits {
+    fn default() -> Self {
+        Self {
+            run_timeout_ms: None,
+            channel_buffer: Self::default_channel_buffer(),
+        }
+    }
+}
+
 /// Engine-level execution policies, networking, and resource limits.
 ///
 /// Controls default behavior for all pipeline runs unless overridden
@@ -32,10 +71,7 @@ use crate::graph::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
 ///   connection pooling) for all downstream API calls (OCR, LLM, STT, etc.).
 ///
 /// **Resource limits:**
-/// - [`run_timeout_ms`](Self::run_timeout_ms) — hard ceiling on total
-///   pipeline run duration.
-/// - [`channel_buffer`](Self::channel_buffer) — buffer size for bounded
-///   MPSC channels between nodes (default: 256).
+/// - [`limits`](Self::limits) — run timeout and channel buffer size.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct EngineSection {
     /// Default retry policy applied to nodes without an explicit one.
@@ -68,20 +104,9 @@ pub struct EngineSection {
     /// and connection pooling.
     pub http: Option<HttpConfig>,
 
-    /// Hard ceiling on total pipeline run duration, in milliseconds.
-    ///
-    /// If a run exceeds this limit, the cancellation token is triggered
-    /// and the run is marked as timed out. Individual node timeouts
-    /// (via [`TimeoutPolicy`]) are independent of this limit.
-    #[serde(default)]
-    pub run_timeout_ms: Option<u64>,
-
-    /// Buffer size for bounded MPSC channels between pipeline nodes.
-    ///
-    /// Controls backpressure: a larger buffer allows faster producers
-    /// to run ahead of slower consumers. Defaults to 256 if unset.
-    #[serde(default)]
-    pub channel_buffer: Option<usize>,
+    /// Run-level resource limits (timeout, channel buffer size).
+    #[serde(flatten)]
+    pub limits: ResourceLimits,
 }
 
 /// OCR subsystem configuration.

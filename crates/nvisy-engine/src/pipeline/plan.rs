@@ -26,6 +26,8 @@ use uuid::Uuid;
 use crate::graph::{Graph, GraphEdge, GraphNode, RetryPolicy, TimeoutPolicy};
 
 /// Default buffer size for bounded MPSC channels between nodes.
+///
+/// Matches [`ResourceLimits::default()`](super::config::ResourceLimits).
 const DEFAULT_CHANNEL_BUFFER: usize = 256;
 
 /// Channel configuration for a resolved edge.
@@ -79,7 +81,7 @@ pub(crate) fn compile(
     mut graph: Graph,
     default_retry: Option<&RetryPolicy>,
     default_timeout: Option<&TimeoutPolicy>,
-    channel_buffer: Option<usize>,
+    channel_buffer: usize,
 ) -> Result<ExecutionPlan> {
     graph.validate()?;
 
@@ -97,11 +99,7 @@ pub(crate) fn compile(
     let topo =
         toposort(&pg, None).map_err(|_| Error::validation("graph contains a cycle", "compiler"))?;
 
-    Ok(ExecutionPlan::from_graph(
-        &pg,
-        &topo,
-        channel_buffer.unwrap_or(DEFAULT_CHANNEL_BUFFER),
-    ))
+    Ok(ExecutionPlan::from_graph(&pg, &topo, channel_buffer))
 }
 
 /// Build a petgraph `DiGraph` from a validated [`Graph`], mapping node

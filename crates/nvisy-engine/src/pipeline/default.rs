@@ -245,14 +245,11 @@ impl Engine {
         context_ids.sort_unstable();
         context_ids.dedup();
 
-        let channel_buffer = effective_config
+        let limits = effective_config
             .engine
             .as_ref()
-            .and_then(|e| e.channel_buffer);
-        let run_timeout_ms = effective_config
-            .engine
-            .as_ref()
-            .and_then(|e| e.run_timeout_ms);
+            .map(|e| e.limits)
+            .unwrap_or_default();
         let concurrency = input
             .graph
             .concurrency
@@ -274,7 +271,7 @@ impl Engine {
                 .as_ref()
                 .and_then(|e| e.timeout.as_ref())
                 .or(self.inner.default_timeout.as_ref()),
-            channel_buffer,
+            limits.channel_buffer,
         ) {
             Ok(plan) => plan,
             Err(e) => {
@@ -381,7 +378,7 @@ impl Engine {
 
         self.inner.runs.set_started_at(run_id).await;
 
-        let run_output = if let Some(ms) = run_timeout_ms {
+        let run_output = if let Some(ms) = limits.run_timeout_ms {
             match tokio::time::timeout(
                 std::time::Duration::from_millis(ms),
                 orchestrator::run_graph(&compiled, run_id, self.inner.runs.clone(), ctx),

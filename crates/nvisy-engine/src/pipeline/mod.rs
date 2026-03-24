@@ -30,7 +30,7 @@ mod runs;
 
 pub use self::analytics::AnalyticsSnapshot;
 pub use self::config::{
-    EngineSection, LlmSection, OcrSection, RuntimeConfig, SttSection, TtsSection,
+    EngineSection, LlmSection, OcrSection, ResourceLimits, RuntimeConfig, SttSection, TtsSection,
 };
 pub use self::default::{Engine, EngineInput, EngineOutput};
 pub use self::runs::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};

@@ -105,7 +105,9 @@ pub struct EngineSection {
     pub http: Option<HttpConfig>,
 
     /// Run-level resource limits (timeout, channel buffer size).
-    #[serde(flatten)]
+    ///
+    /// Nested under `[engine.limits]` in TOML.
+    #[serde(default)]
     pub limits: ResourceLimits,
 }
 

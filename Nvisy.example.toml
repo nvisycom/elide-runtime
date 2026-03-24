@@ -27,6 +27,12 @@ cors = { allowed_origins = ["*"], max_age_secs = 3600 }
 [engine]
 retry = { max_retries = 3, delay_ms = 500, backoff = "fixed" }
 timeout = { duration_ms = 30000, on_timeout = "fail" }
+# concurrency = { max_nodes = 4 }
+
+# Run-level resource limits.
+[engine.limits]
+# run_timeout_ms = 60000       # hard ceiling on total run duration
+channel_buffer = 256            # MPSC buffer size between nodes
 
 # Shared HTTP client for all downstream provider calls.
 [engine.http]

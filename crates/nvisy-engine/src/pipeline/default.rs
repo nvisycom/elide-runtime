@@ -40,7 +40,7 @@ use super::orchestrator::{self, RunContext};
 use super::plan;
 use super::runs::state::{RunEntry, RunState};
 use super::runs::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
-use crate::graph::{Graph, GraphNodeKind, RetryPolicy, TimeoutPolicy};
+use crate::graph::{Graph, GraphNodeKind};
 use crate::operation::context::SharedContext;
 use crate::operation::encryption::SharedKeyProvider;
 use crate::provenance::{Audit, PolicyEvaluation, RedactionMap};
@@ -92,11 +92,7 @@ pub struct EngineOutput {
 /// which uses internal `RwLock` synchronization.
 struct EngineInner {
     /// Base configuration, merged with per-request overrides at runtime.
-    config: RuntimeConfig,
-    /// Engine-level default retry policy for nodes that lack their own.
-    default_retry: Option<RetryPolicy>,
-    /// Engine-level default timeout policy for nodes that lack their own.
-    default_timeout: Option<TimeoutPolicy>,
+    runtime_config: RuntimeConfig,
     /// Shared HTTP client for all downstream API calls.
     http_client: HttpClient,
     /// Content and context storage backend.
@@ -120,9 +116,7 @@ pub struct Engine {
 impl std::fmt::Debug for Engine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Engine")
-            .field("config", &self.inner.config)
-            .field("default_retry", &self.inner.default_retry)
-            .field("default_timeout", &self.inner.default_timeout)
+            .field("runtime_config", &self.inner.runtime_config)
             .field("http_client", &self.inner.http_client)
             .finish()
     }
@@ -148,19 +142,9 @@ impl Engine {
             .unwrap_or_default();
         let http_client = HttpClient::new(&http_config);
 
-        let mut default_retry = None;
-        let mut default_timeout = None;
-
-        if let Some(engine) = &config.engine {
-            default_retry = engine.retry.clone();
-            default_timeout = engine.timeout.clone();
-        }
-
         Ok(Self {
             inner: Arc::new(EngineInner {
-                config,
-                default_retry,
-                default_timeout,
+                runtime_config: config,
                 http_client,
                 registry,
                 key_provider: None,
@@ -200,7 +184,7 @@ impl Engine {
 
     /// Returns the base runtime configuration before per-request overrides.
     pub fn config(&self) -> &RuntimeConfig {
-        &self.inner.config
+        &self.inner.runtime_config
     }
 
     /// Returns the shared HTTP client.
@@ -228,8 +212,8 @@ impl Engine {
         let cancel = CancellationToken::new();
 
         let effective_config = match &input.config {
-            Some(overrides) => self.inner.config.merge(overrides),
-            None => self.inner.config.clone(),
+            Some(overrides) => self.inner.runtime_config.merge(overrides),
+            None => self.inner.runtime_config.clone(),
         };
 
         let mut context_ids: Vec<Uuid> = input
@@ -259,20 +243,7 @@ impl Engine {
             c.validate()?;
         }
 
-        let compiled = match plan::compile(
-            input.graph,
-            effective_config
-                .engine
-                .as_ref()
-                .and_then(|e| e.retry.as_ref())
-                .or(self.inner.default_retry.as_ref()),
-            effective_config
-                .engine
-                .as_ref()
-                .and_then(|e| e.timeout.as_ref())
-                .or(self.inner.default_timeout.as_ref()),
-            limits.channel_buffer,
-        ) {
+        let compiled = match plan::compile(&input.graph, limits.channel_buffer) {
             Ok(plan) => plan,
             Err(e) => {
                 self.inner

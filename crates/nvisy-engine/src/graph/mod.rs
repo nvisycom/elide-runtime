@@ -194,6 +194,32 @@ impl Graph {
             concurrency: None,
         }
     }
+
+    /// Build a petgraph `DiGraph` from this graph, mapping node IDs to
+    /// indices for edge wiring.
+    ///
+    /// Assumes the graph has already been validated (no dangling edges).
+    pub(crate) fn to_petgraph(&self) -> petgraph::graph::DiGraph<GraphNode, GraphEdge> {
+        use std::collections::HashMap;
+
+        use petgraph::graph::DiGraph;
+
+        let mut pg = DiGraph::with_capacity(self.nodes.len(), self.edges.len());
+        let mut index_map = HashMap::with_capacity(self.nodes.len());
+
+        for node in &self.nodes {
+            let idx = pg.add_node(node.clone());
+            index_map.insert(node.id, idx);
+        }
+
+        for edge in &self.edges {
+            let from = index_map[&edge.source];
+            let to = index_map[&edge.target];
+            pg.add_edge(from, to, edge.clone());
+        }
+
+        pg
+    }
 }
 
 fn validate_struct(v: &impl Validate) -> Result<(), Error> {

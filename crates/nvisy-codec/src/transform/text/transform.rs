@@ -25,7 +25,7 @@ pub trait TextTransform: TextHandler {
     /// Apply a batch of text redactions, mutating in place.
     ///
     /// Each [`TextRedaction`] identifies a span and an intra-span byte
-    /// range together with a [`TextOutput`] whose replacement
+    /// range together with a `TextOutput` whose replacement
     /// value is written into the content.  Replacements within each span
     /// are applied right-to-left so that byte offsets remain valid.
     async fn redact_text(

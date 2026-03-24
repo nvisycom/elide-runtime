@@ -56,7 +56,7 @@ pub trait CvProvider: Send + Sync {
 ///
 /// 1. Caller passes raw image bytes to [`detect`](Self::detect).
 /// 2. The agent base64-encodes the image and builds a user prompt via
-///    [`CvPromptBuilder`].
+///    `CvPromptBuilder`.
 /// 3. The VLM is instructed to call the `cv_detect_objects` tool (backed
 ///    by the [`CvProvider`]) and then classify each detection into an
 ///    entity category and type.

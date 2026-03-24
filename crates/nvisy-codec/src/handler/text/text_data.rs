@@ -6,7 +6,7 @@ use hipstr::HipStr;
 /// Opaque wrapper around a text span's content.
 ///
 /// Mirrors [`ImageData`](crate::handler::ImageData) for text-bearing
-/// handlers, providing a consistent type boundary at the [`Handler`]
+/// handlers, providing a consistent type boundary at the `Handler`
 /// trait level.
 ///
 /// Internally backed by [`HipStr`] for cheap cloning.

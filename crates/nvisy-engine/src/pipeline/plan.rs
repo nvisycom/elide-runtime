@@ -1,8 +1,22 @@
-//! Compiled execution plan types and the `compile()` entry point.
+//! Graph compilation into an [`ExecutionPlan`].
 //!
-//! An [`ExecutionPlan`] is the central orchestration artifact produced by
-//! [`compile()`]. It contains topologically-sorted [`ResolvedNode`]s and
-//! pre-computed [`ResolvedEdge`]s with channel configuration.
+//! [`compile()`] bridges the user-facing [`Graph`] definition and the
+//! runtime execution model. It performs these steps:
+//!
+//! 1. **Policy defaults** — nodes without explicit retry/timeout policies
+//!    inherit the engine-level defaults.
+//! 2. **Validation** — the graph is checked for structural correctness
+//!    via [`Graph::validate`].
+//! 3. **petgraph construction** — nodes and edges are inserted into a
+//!    [`DiGraph`](petgraph::graph::DiGraph) for cycle detection and
+//!    topological sorting.
+//! 4. **Topological sort** — produces the node execution order, ensuring
+//!    every node runs after its dependencies.
+//! 5. **Edge resolution** — each edge is paired with an [`EdgeConfig`]
+//!    controlling the bounded MPSC channel buffer size.
+//!
+//! The resulting [`ExecutionPlan`] is consumed by the
+//! [orchestrator](super::orchestrator) to spawn concurrent tasks.
 
 use nvisy_core::{Error, Result};
 use petgraph::algo::toposort;
@@ -12,6 +26,8 @@ use uuid::Uuid;
 use crate::graph::{Graph, GraphEdge, GraphNode, RetryPolicy, TimeoutPolicy};
 
 /// Default buffer size for bounded MPSC channels between nodes.
+///
+/// Matches [`ResourceLimits::default()`](super::config::ResourceLimits).
 const DEFAULT_CHANNEL_BUFFER: usize = 256;
 
 /// Channel configuration for a resolved edge.
@@ -57,15 +73,18 @@ pub struct ResolvedNode {
 
 /// Compiles a [`Graph`] into an [`ExecutionPlan`].
 ///
-/// Validates the graph, applies default policies to nodes that don't specify
+/// Validates the graph first (so errors reflect user input, not injected
+/// defaults), then applies default policies to nodes that don't specify
 /// their own, builds a petgraph representation, checks for cycles, and
 /// produces a topologically-sorted plan.
 pub(crate) fn compile(
     mut graph: Graph,
     default_retry: Option<&RetryPolicy>,
     default_timeout: Option<&TimeoutPolicy>,
-    channel_buffer: Option<usize>,
+    channel_buffer: usize,
 ) -> Result<ExecutionPlan> {
+    graph.validate()?;
+
     for node in &mut graph.nodes {
         if node.retry.is_none() {
             node.retry = default_retry.cloned();
@@ -75,21 +94,16 @@ pub(crate) fn compile(
         }
     }
 
-    graph.validate()?;
-
     let pg = build_petgraph(&graph);
 
     let topo =
         toposort(&pg, None).map_err(|_| Error::validation("graph contains a cycle", "compiler"))?;
 
-    Ok(ExecutionPlan::from_graph(
-        &pg,
-        &topo,
-        channel_buffer.unwrap_or(DEFAULT_CHANNEL_BUFFER),
-    ))
+    Ok(ExecutionPlan::from_graph(&pg, &topo, channel_buffer))
 }
 
-/// Builds a petgraph `DiGraph` from a validated [`Graph`].
+/// Build a petgraph `DiGraph` from a validated [`Graph`], mapping node
+/// IDs to indices for edge wiring.
 fn build_petgraph(graph: &Graph) -> DiGraph<GraphNode, GraphEdge> {
     let mut pg = DiGraph::with_capacity(graph.nodes.len(), graph.edges.len());
     let mut index_map = std::collections::HashMap::with_capacity(graph.nodes.len());

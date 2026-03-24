@@ -77,7 +77,7 @@ impl ErrorKind {
         self.response().status
     }
 
-    /// Returns the base [`ErrorResponse`] for this error kind.
+    /// Returns the base `ErrorResponse` for this error kind.
     #[inline]
     pub fn response(self) -> ErrorResponse<'static> {
         match self {

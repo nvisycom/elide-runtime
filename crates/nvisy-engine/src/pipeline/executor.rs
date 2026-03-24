@@ -1,9 +1,22 @@
-//! Node-level execution: dispatch and envelope flow.
+//! Node-level execution: operation dispatch and envelope flow.
 //!
-//! The executor matches on [`GraphNodeKind`], constructs the appropriate
-//! operation, then runs the standard recv → extract → call → apply → send
-//! loop. Operations never see the [`DocumentEnvelope`] — they receive
+//! [`NodeExecutor`] runs a single [`ResolvedNode`] within a pipeline.
+//! It matches on [`GraphNodeKind`], constructs the appropriate
+//! [`Operation`], and drives the envelope processing loop:
+//!
+//! 1. **Receive** — pull `Arc<DocumentEnvelope>` from upstream MPSC channels.
+//! 2. **Extract** — unwrap ownership (cloning via encode/decode when the
+//!    `Arc` refcount > 1, i.e. during fan-out).
+//! 3. **Call** — invoke the operation with typed inputs.
+//! 4. **Apply** — merge operation outputs back into the envelope.
+//! 5. **Send** — forward the envelope to all downstream channels.
+//!
+//! Operations never see the [`DocumentEnvelope`] directly — they receive
 //! typed inputs and produce typed outputs via the [`Operation`] trait.
+//!
+//! [`NodeOutput`] and [`RunOutput`] carry per-node and per-run results
+//! back to the [orchestrator](super::orchestrator) and
+//! [`Engine`](super::Engine) for finalization.
 
 use std::sync::Arc;
 
@@ -17,12 +30,13 @@ use tokio_util::sync::CancellationToken;
 
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
+use super::runs::RunStatus;
 use crate::graph::{self, GraphNodeKind, RetryPolicy, TimeoutBehavior};
 use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
 use crate::operation::{
-    AudioInput, DocumentEnvelope, EntityRecognition, ExportFile, Fusion, GenerateContext,
-    ImportFile, LoadContext, Operation, PatternRecognition, Redaction, SaveContext, Validation,
-    ValidationInput, VerifyInput, VisualExtraction,
+    AudialExtraction, AudioInput, DocumentEnvelope, EntityRecognition, ExportFile, Fusion,
+    GenerateContext, ImportFile, LoadContext, Operation, PatternRecognition, Redaction,
+    SaveContext, Validation, ValidationInput, VerifyInput, VisualExtraction,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::executor";
@@ -30,35 +44,60 @@ const TARGET: &str = "nvisy_engine::pipeline::executor";
 /// Outcome of executing a single node.
 #[derive(Debug)]
 pub(super) struct NodeOutput {
+    /// Number of envelopes processed by this node.
     pub items_processed: u64,
+    /// Error message if the node failed, `None` on success.
     pub error: Option<String>,
+    /// Completed envelopes (populated only by export nodes for output collection).
     pub envelopes: Vec<Arc<DocumentEnvelope>>,
 }
 
-/// Aggregate outcome of executing the full graph.
+/// Aggregate outcome of executing the full DAG.
 #[derive(Debug)]
 pub(super) struct RunOutput {
+    /// Results from all executed nodes (order is non-deterministic).
     pub node_results: Vec<NodeOutput>,
 }
 
 impl RunOutput {
     /// Determine overall run status from node results.
-    pub fn run_status(&self) -> super::runs::RunStatus {
+    ///
+    /// If all errors are cancellation errors, returns `Cancelled`.
+    /// Otherwise uses the standard ok/err breakdown.
+    pub fn run_status(&self) -> RunStatus {
         let any_ok = self.node_results.iter().any(|r| r.error.is_none());
-        let any_err = self.node_results.iter().any(|r| r.error.is_some());
-        match (any_ok, any_err) {
-            (_, false) => super::runs::RunStatus::Succeeded,
-            (true, true) => super::runs::RunStatus::PartialFailure,
-            _ => super::runs::RunStatus::Failed,
+        let errors: Vec<_> = self
+            .node_results
+            .iter()
+            .filter_map(|r| r.error.as_deref())
+            .collect();
+
+        if errors.is_empty() {
+            return RunStatus::Succeeded;
+        }
+
+        let all_cancelled = errors.iter().all(|e| e.contains("cancelled"));
+        if all_cancelled {
+            return RunStatus::Cancelled;
+        }
+
+        if any_ok {
+            RunStatus::PartialFailure
+        } else {
+            RunStatus::Failed
         }
     }
 }
 
-/// Executes a single resolved node within a pipeline run.
+/// Executes a single [`ResolvedNode`] within a pipeline run.
+///
+/// Owns clones of the run-scoped context, cancellation token, and
+/// shared references to config and HTTP client. The orchestrator
+/// creates one executor per node task.
 pub(super) struct NodeExecutor {
     shared: SharedContext,
     cancel: CancellationToken,
-    config: RuntimeConfig,
+    config: Arc<RuntimeConfig>,
     http_client: HttpClient,
 }
 
@@ -66,7 +105,7 @@ impl NodeExecutor {
     pub fn new(
         shared: SharedContext,
         cancel: CancellationToken,
-        config: RuntimeConfig,
+        config: Arc<RuntimeConfig>,
         http_client: HttpClient,
     ) -> Self {
         Self {
@@ -77,7 +116,11 @@ impl NodeExecutor {
         }
     }
 
-    /// Execute a resolved node, applying timeout and cancellation.
+    /// Execute a resolved node, applying timeout and cancellation policies.
+    ///
+    /// If the node has a [`TimeoutPolicy`](crate::graph::TimeoutPolicy)
+    /// with [`TimeoutBehavior::Skip`](crate::graph::TimeoutBehavior::Skip),
+    /// a timeout produces an empty success rather than an error.
     pub async fn execute(
         &self,
         resolved: &ResolvedNode,
@@ -120,6 +163,7 @@ impl NodeExecutor {
         }
     }
 
+    /// Route a node to its operation-specific handler based on [`GraphNodeKind`].
     async fn dispatch(
         &self,
         kind: &GraphNodeKind,
@@ -163,6 +207,7 @@ impl NodeExecutor {
         }
     }
 
+    /// Run OCR on image spans, optionally verifying detected entities.
     async fn execute_visual_extraction(
         &self,
         cfg: &graph::VisualExtraction,
@@ -219,6 +264,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Transcribe audio documents via STT and replace the document with text.
     async fn execute_audial_extraction(
         &self,
         cfg: &graph::AudialExtraction,
@@ -226,7 +272,7 @@ impl NodeExecutor {
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.shared;
-        let op = crate::operation::AudialExtraction::new(cfg, &self.config, &self.http_client)?;
+        let op = AudialExtraction::new(cfg, &self.config, &self.http_client)?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -268,6 +314,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Run named entity recognition on text spans via the LLM agent.
     async fn execute_ner(
         &self,
         cfg: &graph::NamedEntityRecognition,
@@ -295,6 +342,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Run regex-based pattern recognition on text spans.
     async fn execute_pattern_recognition(
         &self,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
@@ -319,6 +367,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Merge overlapping or adjacent entities from multiple detection sources.
     async fn execute_fusion(
         &self,
         cfg: &graph::Fusion,
@@ -343,6 +392,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Evaluate redaction policies against detected entities.
     async fn execute_redaction(
         &self,
         cfg: &graph::Redaction,
@@ -367,6 +417,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Validate redaction decisions against the final document state.
     async fn execute_validation(
         &self,
         cfg: &graph::Validation,
@@ -406,6 +457,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Attach pre-loaded context references to each envelope.
     async fn execute_load_context(
         &self,
         cfg: &graph::LoadContext,
@@ -429,6 +481,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Persist envelope contexts back to the registry.
     async fn execute_save_context(
         &self,
         cfg: &graph::SaveContext,
@@ -451,6 +504,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Generate new context entries (currently a passthrough).
     async fn execute_generate_context(
         &self,
         cfg: &graph::GenerateContext,
@@ -473,6 +527,7 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
+    /// Load content from the registry, decode it, and send envelopes downstream.
     async fn execute_import(
         &self,
         cfg: &graph::ImportFile,
@@ -502,24 +557,7 @@ impl NodeExecutor {
                 None => do_import().await?,
             };
 
-            let envelope = Arc::new(envelope);
-            if senders.len() == 1 {
-                senders[0]
-                    .send(envelope)
-                    .await
-                    .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
-            } else {
-                for tx in &senders[..senders.len() - 1] {
-                    tx.send(Arc::clone(&envelope)).await.map_err(|_| {
-                        Error::runtime("downstream channel closed", "executor", false)
-                    })?;
-                }
-                if let Some(tx) = senders.last() {
-                    tx.send(envelope).await.map_err(|_| {
-                        Error::runtime("downstream channel closed", "executor", false)
-                    })?;
-                }
-            }
+            fan_out(senders, envelope).await?;
             count += 1;
         }
 
@@ -530,6 +568,7 @@ impl NodeExecutor {
         })
     }
 
+    /// Collect processed envelopes and write them to the configured output.
     async fn execute_export(
         &self,
         cfg: &graph::ExportFile,
@@ -562,6 +601,7 @@ impl NodeExecutor {
     }
 }
 
+/// Build a successful [`NodeOutput`] with no retained envelopes.
 fn node_output(items_processed: u64) -> NodeOutput {
     NodeOutput {
         items_processed,
@@ -570,7 +610,11 @@ fn node_output(items_processed: u64) -> NodeOutput {
     }
 }
 
-/// Receive envelopes from upstream, transform, send downstream.
+/// Core envelope processing loop shared by most node types.
+///
+/// Merges all upstream receivers concurrently (true fan-in), applies
+/// `transform` to each envelope, and fans out the result to all
+/// downstream senders. Returns the total number of envelopes processed.
 async fn process_envelopes<F, Fut>(
     senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
     receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
@@ -581,37 +625,75 @@ where
     Fut: std::future::Future<Output = Result<DocumentEnvelope, Error>>,
 {
     let mut count = 0u64;
-    for rx in receivers.iter_mut() {
-        while let Some(item) = rx.recv().await {
-            let envelope = unwrap_envelope(item).await?;
-            let envelope = transform(envelope).await?;
 
-            count += 1;
-            let envelope = Arc::new(envelope);
-            if senders.len() == 1 {
-                senders[0]
-                    .send(envelope)
-                    .await
-                    .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
-            } else {
-                for tx in &senders[..senders.len() - 1] {
-                    tx.send(Arc::clone(&envelope)).await.map_err(|_| {
-                        Error::runtime("downstream channel closed", "executor", false)
-                    })?;
-                }
-                if let Some(tx) = senders.last() {
-                    tx.send(envelope).await.map_err(|_| {
-                        Error::runtime("downstream channel closed", "executor", false)
-                    })?;
-                }
+    if receivers.len() <= 1 {
+        // Fast path: single receiver, no merging needed.
+        if let Some(rx) = receivers.first_mut() {
+            while let Some(item) = rx.recv().await {
+                let envelope = unwrap_envelope(item).await?;
+                let envelope = transform(envelope).await?;
+                count += 1;
+                fan_out(senders, envelope).await?;
             }
         }
+    } else {
+        // Concurrent fan-in: merge all receivers into a single stream
+        // so slow upstreams don't block fast ones.
+        let streams: Vec<_> = receivers
+            .iter_mut()
+            .map(|rx| {
+                let (_, mut dummy) = mpsc::channel(1);
+                std::mem::swap(rx, &mut dummy);
+                Box::pin(futures::stream::unfold(dummy, |mut rx| async move {
+                    rx.recv().await.map(|item| (item, rx))
+                }))
+                    as std::pin::Pin<Box<dyn futures::Stream<Item = Arc<DocumentEnvelope>> + Send>>
+            })
+            .collect();
+        let mut merged = futures::stream::select_all(streams);
+
+        while let Some(item) = StreamExt::next(&mut merged).await {
+            let envelope = unwrap_envelope(item).await?;
+            let envelope = transform(envelope).await?;
+            count += 1;
+            fan_out(senders, envelope).await?;
+        }
     }
+
     Ok(count)
 }
 
-/// Take ownership of an envelope from an `Arc`, cloning via
-/// encode/decode when the reference count is > 1 (fan-out).
+/// Send an envelope to all downstream senders.
+///
+/// Clones the `Arc` for all senders except the last, which receives
+/// ownership to avoid an unnecessary refcount bump.
+async fn fan_out(
+    senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
+    envelope: DocumentEnvelope,
+) -> Result<(), Error> {
+    if senders.is_empty() {
+        return Ok(());
+    }
+    let envelope = Arc::new(envelope);
+    for tx in &senders[..senders.len() - 1] {
+        tx.send(Arc::clone(&envelope))
+            .await
+            .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
+    }
+    if let Some(tx) = senders.last() {
+        tx.send(envelope)
+            .await
+            .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
+    }
+    Ok(())
+}
+
+/// Take ownership of an envelope from an `Arc`.
+///
+/// When the refcount is 1, this is a zero-cost unwrap. During fan-out
+/// (refcount > 1), the document is cloned via encode/decode to produce
+/// an independent copy while entity, context, and audit data are cloned
+/// directly.
 async fn unwrap_envelope(arc: Arc<DocumentEnvelope>) -> Result<DocumentEnvelope, Error> {
     match Arc::try_unwrap(arc) {
         Ok(envelope) => Ok(envelope),

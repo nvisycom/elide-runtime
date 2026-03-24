@@ -1,14 +1,22 @@
-//! In-memory run state storage.
+//! Volatile, in-memory run state storage.
 //!
-//! [`RunState`] wraps a concurrent map of [`RunEntry`] records,
-//! providing the read/write operations needed by the engine and
-//! orchestrator. All runs are lost on restart — this is an in-memory
-//! implementation.
+//! [`RunState`] wraps an `Arc<RwLock<HashMap<Uuid, RunEntry>>>` providing
+//! concurrent read/write access to run records. It is cheaply clonable
+//! (single `Arc` bump) and shared between the [`Engine`](super::super::Engine)
+//! and the [orchestrator](super::super::orchestrator).
+//!
+//! All queries are scoped by `actor_id` — an actor can only see and
+//! mutate their own runs. Finalization forces any still-pending or
+//! still-running nodes into `Failed` status to ensure every node reaches
+//! a terminal state.
+//!
+//! All data is lost on process restart.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use jiff::Timestamp;
+use nvisy_core::{Error, ErrorKind};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -16,32 +24,43 @@ use uuid::Uuid;
 use super::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
 use crate::pipeline::analytics::AnalyticsSnapshot;
 
-/// Mutable interior shared across all clones of [`RunState`].
-struct RunStateInner {
-    runs: HashMap<Uuid, RunEntry>,
-    max_completed_runs: Option<usize>,
-}
-
-/// In-memory run state shared across engine clones.
+/// In-memory run state backed by `Arc<RwLock<HashMap>>`.
+///
+/// Cheaply clonable (Arc bump). All clones share the same underlying
+/// data. The orchestrator and engine both hold clones to read/write
+/// run progress concurrently.
 #[derive(Clone)]
 pub(crate) struct RunState {
-    inner: Arc<RwLock<RunStateInner>>,
+    inner: Arc<RwLock<HashMap<Uuid, RunEntry>>>,
 }
 
-/// Private mutable state for a single run.
+/// Mutable state for a single pipeline run.
+///
+/// Tracks lifecycle timestamps, per-node snapshots, aggregate counters,
+/// and a [`CancellationToken`] for cooperative cancellation.
 pub(crate) struct RunEntry {
+    /// Identity of the actor who initiated this run.
     pub actor_id: Uuid,
+    /// Current lifecycle status.
     pub status: RunStatus,
+    /// When the run was first created (before compilation).
     pub created_at: Timestamp,
+    /// When DAG execution actually began (after compilation + context loading).
     pub started_at: Option<Timestamp>,
+    /// When the run reached a terminal state.
     pub completed_at: Option<Timestamp>,
+    /// Per-node progress snapshots, keyed by node ID.
     pub nodes: HashMap<Uuid, NodeSnapshot>,
+    /// Token shared with all node tasks for cooperative cancellation.
     pub cancel: CancellationToken,
+    /// Running total of entities detected across all nodes.
     pub entities_detected: u64,
+    /// Running total of redactions applied across all nodes.
     pub redactions_applied: u64,
 }
 
 impl RunEntry {
+    /// Project this entry into a full [`RunSnapshot`] for API responses.
     fn to_snapshot(&self, id: Uuid) -> RunSnapshot {
         RunSnapshot {
             id,
@@ -54,6 +73,7 @@ impl RunEntry {
         }
     }
 
+    /// Project this entry into a lightweight [`RunSummary`] for listing.
     fn to_summary(&self, id: Uuid) -> RunSummary {
         RunSummary {
             id,
@@ -68,30 +88,16 @@ impl RunEntry {
 }
 
 impl RunState {
+    /// Create an empty run store.
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(RwLock::new(RunStateInner {
-                runs: HashMap::new(),
-                max_completed_runs: None,
-            })),
+            inner: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    /// Set the maximum number of completed runs to retain.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the `RunState` has already been cloned (Arc is shared).
-    pub fn with_max_completed_runs(mut self, max: usize) -> Self {
-        let inner = Arc::get_mut(&mut self.inner)
-            .expect("RunState must not be shared during configuration");
-        inner.get_mut().max_completed_runs = Some(max);
-        self
-    }
-
-    /// Insert a new run entry.
+    /// Insert a new run entry, keyed by its unique run ID.
     pub async fn insert(&self, run_id: Uuid, entry: RunEntry) {
-        self.inner.write().await.runs.insert(run_id, entry);
+        self.inner.write().await.insert(run_id, entry);
     }
 
     /// Update a single node's snapshot within a run.
@@ -106,7 +112,7 @@ impl RunState {
         error: Option<String>,
     ) -> bool {
         let mut guard = self.inner.write().await;
-        let Some(entry) = guard.runs.get_mut(&run_id) else {
+        let Some(entry) = guard.get_mut(&run_id) else {
             tracing::warn!(%run_id, %node_id, "update_node: run not found");
             return false;
         };
@@ -122,12 +128,20 @@ impl RunState {
 
     /// Record the moment a run begins executing.
     pub async fn set_started_at(&self, run_id: Uuid) {
-        if let Some(entry) = self.inner.write().await.runs.get_mut(&run_id) {
+        if let Some(entry) = self.inner.write().await.get_mut(&run_id) {
             entry.started_at = Some(Timestamp::now());
         }
     }
 
-    /// Transition a run to its final status.
+    /// Transition a run to its final status and record aggregate counters.
+    ///
+    /// If the run was already cancelled (via [`cancel_run`](Self::cancel_run)),
+    /// the `Cancelled` status is preserved rather than being overwritten by
+    /// the orchestrator's computed status.
+    ///
+    /// Any nodes still in `Pending` or `Running` state are forced to
+    /// `Failed` with an explanatory error message, ensuring all nodes
+    /// reach a terminal status.
     pub async fn finalize(
         &self,
         run_id: Uuid,
@@ -136,8 +150,10 @@ impl RunState {
         redactions_applied: u64,
     ) {
         let mut guard = self.inner.write().await;
-        if let Some(entry) = guard.runs.get_mut(&run_id) {
-            entry.status = status;
+        if let Some(entry) = guard.get_mut(&run_id) {
+            if entry.status != RunStatus::Cancelled {
+                entry.status = status;
+            }
             entry.completed_at = Some(Timestamp::now());
             entry.entities_detected = entities_detected;
             entry.redactions_applied = redactions_applied;
@@ -156,25 +172,9 @@ impl RunState {
                 }
             }
         }
-
-        if let Some(max) = guard.max_completed_runs {
-            let mut completed: Vec<(Uuid, Timestamp)> = guard
-                .runs
-                .iter()
-                .filter(|(_, e)| !matches!(e.status, RunStatus::Pending | RunStatus::Running))
-                .map(|(&id, e)| (id, e.created_at))
-                .collect();
-            if completed.len() > max {
-                completed.sort_by_key(|(_, ts)| *ts);
-                let to_evict = completed.len() - max;
-                for (id, _) in completed.into_iter().take(to_evict) {
-                    guard.runs.remove(&id);
-                }
-            }
-        }
     }
 
-    /// Mark a run as failed without entity/redaction counts.
+    /// Shorthand to mark a run as [`RunStatus::Failed`] with zero counters.
     pub async fn fail(&self, run_id: Uuid) {
         self.finalize(run_id, RunStatus::Failed, 0, 0).await;
     }
@@ -186,7 +186,6 @@ impl RunState {
         self.inner
             .read()
             .await
-            .runs
             .get(&id)
             .filter(|entry| entry.actor_id == actor_id)
             .map(|entry| entry.to_snapshot(id))
@@ -197,7 +196,6 @@ impl RunState {
         self.inner
             .read()
             .await
-            .runs
             .iter()
             .filter(|(_, entry)| {
                 entry.actor_id == actor_id && filter.status.is_none_or(|s| entry.status == s)
@@ -210,15 +208,12 @@ impl RunState {
     ///
     /// Returns a `NotFound` error if the run does not exist or belongs
     /// to a different actor.
-    pub async fn cancel_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), nvisy_core::Error> {
+    pub async fn cancel_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
         let mut guard = self.inner.write().await;
         let entry = guard
-            .runs
             .get_mut(&id)
             .filter(|e| e.actor_id == actor_id)
-            .ok_or_else(|| {
-                nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
-            })?;
+            .ok_or_else(|| Error::new(ErrorKind::NotFound, "run not found"))?;
 
         match entry.status {
             RunStatus::Pending | RunStatus::Running => {
@@ -227,40 +222,34 @@ impl RunState {
                 entry.completed_at = Some(Timestamp::now());
                 Ok(())
             }
-            _ => Err(nvisy_core::Error::new(
-                nvisy_core::ErrorKind::Validation,
-                "run has already finished",
-            )
-            .with_component("run")),
+            _ => Err(
+                Error::new(ErrorKind::Validation, "run has already finished").with_component("run"),
+            ),
         }
     }
 
-    /// Remove a single run from the store.
+    /// Remove a single finished run from the store.
     ///
     /// Returns `Err` if the run does not exist, belongs to a different
-    /// actor, or is still active.
-    pub async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), nvisy_core::Error> {
+    /// actor, or is still active (pending/running).
+    pub async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
         let mut guard = self.inner.write().await;
         let entry = guard
-            .runs
             .get(&id)
             .filter(|e| e.actor_id == actor_id)
-            .ok_or_else(|| {
-                nvisy_core::Error::new(nvisy_core::ErrorKind::NotFound, "run not found")
-            })?;
+            .ok_or_else(|| Error::new(ErrorKind::NotFound, "run not found"))?;
 
         match entry.status {
             RunStatus::Pending | RunStatus::Running => {
-                return Err(nvisy_core::Error::new(
-                    nvisy_core::ErrorKind::Validation,
-                    "cannot delete an active run",
-                )
-                .with_component("run"));
+                return Err(
+                    Error::new(ErrorKind::Validation, "cannot delete an active run")
+                        .with_component("run"),
+                );
             }
             _ => {}
         }
 
-        guard.runs.remove(&id);
+        guard.remove(&id);
         Ok(())
     }
 
@@ -270,15 +259,15 @@ impl RunState {
     /// number of removed entries.
     pub async fn delete_all_runs(&self, actor_id: Uuid) -> usize {
         let mut guard = self.inner.write().await;
-        let before = guard.runs.len();
-        guard.runs.retain(|_, entry| {
+        let before = guard.len();
+        guard.retain(|_, entry| {
             entry.actor_id != actor_id
                 || matches!(entry.status, RunStatus::Pending | RunStatus::Running)
         });
-        before - guard.runs.len()
+        before - guard.len()
     }
 
-    /// Collect a point-in-time analytics snapshot.
+    /// Compute a point-in-time [`AnalyticsSnapshot`] from all tracked runs.
     pub async fn snapshot(&self) -> AnalyticsSnapshot {
         let guard = self.inner.read().await;
         let mut active = 0u64;
@@ -287,10 +276,10 @@ impl RunState {
         let mut cancelled = 0u64;
         let mut total_entities = 0u64;
         let mut total_redactions = 0u64;
-        let mut actors = std::collections::HashSet::new();
+        let mut actors = HashSet::new();
         let mut durations_ms: Vec<u64> = Vec::new();
 
-        for entry in guard.runs.values() {
+        for entry in guard.values() {
             match entry.status {
                 RunStatus::Pending | RunStatus::Running => active += 1,
                 RunStatus::Succeeded => succeeded += 1,
@@ -322,7 +311,7 @@ impl RunState {
 
         AnalyticsSnapshot {
             timestamp: Timestamp::now(),
-            total_runs: guard.runs.len() as u64,
+            total_runs: guard.len() as u64,
             active_runs: active,
             succeeded_runs: succeeded,
             failed_runs: failed,

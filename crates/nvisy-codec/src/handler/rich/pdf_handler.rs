@@ -42,7 +42,7 @@ pub struct RichTextSpan(pub u32);
 ///
 /// Both PDF and DOCX documents share this representation: per-page
 /// extracted text alongside the raw document bytes. Rendering is
-/// dispatched to a dedicated single-thread pool via [`PdfRenderer`].
+/// dispatched to a dedicated single-thread pool via `PdfRenderer`.
 #[derive(Debug)]
 pub struct RichTextHandler {
     /// Content source for lineage tracking.
@@ -141,7 +141,7 @@ impl RichTextHandler {
 
     /// Render all pages of the PDF to images at the given DPI.
     ///
-    /// Delegates to [`PdfRenderer::parallel_render`].
+    /// Delegates to `PdfRenderer::parallel_render`.
     pub fn render_pages(&self, dpi: Dpi) -> Result<Vec<ImageData>, Error> {
         PdfRenderer::parallel_render(&self.raw, dpi)
     }

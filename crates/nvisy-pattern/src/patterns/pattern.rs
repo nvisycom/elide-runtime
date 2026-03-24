@@ -170,7 +170,7 @@ pub trait Pattern: Send + Sync {
     /// How this pattern matches text: regex or dictionary lookup.
     ///
     /// Confidence scores are embedded in the match source itself:
-    /// [`RegexPattern::confidence`] for regex, [`DictionaryPattern::confidence`]
+    /// `RegexPattern::confidence` for regex, `DictionaryPattern::confidence`
     /// for dictionaries.
     fn match_source(&self) -> &MatchSource;
 

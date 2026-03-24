@@ -1,8 +1,22 @@
-//! DAG orchestrator: spawns concurrent node tasks and collects results.
+//! DAG orchestrator: concurrent task scheduling for compiled execution plans.
 //!
 //! [`run_graph`] takes a compiled [`ExecutionPlan`] and spawns one tokio
-//! task per node. Tasks wait for upstream completion via watch channels
-//! before executing, and report progress to the shared [`RunState`].
+//! task per node into a [`JoinSet`](tokio::task::JoinSet). Each task:
+//!
+//! 1. Waits for upstream dependencies via `watch::Receiver` channels
+//!    (initialized to `false`, flipped to `true` on completion).
+//! 2. Acquires a permit from the optional concurrency
+//!    [`Semaphore`](tokio::sync::Semaphore) (configured via
+//!    [`ConcurrencyPolicy`](crate::graph::ConcurrencyPolicy)).
+//! 3. Delegates to [`NodeExecutor::execute`] for operation dispatch.
+//! 4. Reports node status updates to the shared [`RunState`] for live
+//!    progress visibility.
+//!
+//! [`CompletionGuard`] ensures the watch-channel signal fires even if
+//! the task panics, preventing downstream deadlocks.
+//!
+//! Data flows between nodes through bounded MPSC channels sized per
+//! [`ResolvedEdge`](super::plan::ResolvedEdge).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,13 +33,16 @@ use super::executor::{NodeExecutor, NodeOutput, RunOutput};
 use super::plan::ExecutionPlan;
 use super::runs::NodeStatus;
 use super::runs::state::RunState;
+use crate::graph::ConcurrencyPolicy;
 use crate::operation::DocumentEnvelope;
 use crate::operation::context::SharedContext;
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
-/// Guard that sends the completion signal when dropped, ensuring the
-/// signal is sent even if the task panics.
+/// RAII guard that sends a `true` on its `watch::Sender` when dropped.
+///
+/// This ensures downstream tasks are unblocked even if the owning task
+/// panics, preventing deadlocks in the DAG.
 struct CompletionGuard {
     tx: Option<watch::Sender<bool>>,
 }
@@ -44,13 +61,19 @@ impl Drop for CompletionGuard {
     }
 }
 
-/// Per-run execution context.
+/// Per-run execution context passed from [`Engine::run`](super::Engine::run)
+/// to the orchestrator.
 pub(super) struct RunContext {
+    /// Token to signal cancellation to all node tasks.
     pub cancel: CancellationToken,
+    /// Shared operation context (run ID, actor, registry, policies, key provider).
     pub shared: SharedContext,
-    pub config: RuntimeConfig,
+    /// Effective configuration after merging per-request overrides.
+    pub config: Arc<RuntimeConfig>,
+    /// Shared HTTP client for downstream API calls.
     pub http_client: HttpClient,
-    pub max_concurrent_nodes: Option<usize>,
+    /// Optional limit on how many nodes may execute concurrently.
+    pub concurrency: Option<ConcurrencyPolicy>,
 }
 
 /// Execute a compiled [`ExecutionPlan`] by spawning concurrent tasks for
@@ -71,10 +94,10 @@ pub(super) async fn run_graph(
         shared,
         config,
         http_client,
-        max_concurrent_nodes,
+        concurrency,
     } = ctx;
 
-    let semaphore = max_concurrent_nodes.map(|n| Arc::new(tokio::sync::Semaphore::new(n)));
+    let semaphore = concurrency.map(|c| Arc::new(tokio::sync::Semaphore::new(c.max_nodes)));
 
     let mut senders: HashMap<Uuid, Vec<mpsc::Sender<Arc<DocumentEnvelope>>>> = HashMap::new();
     let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>> = HashMap::new();
@@ -104,7 +127,7 @@ pub(super) async fn run_graph(
         let executor = NodeExecutor::new(
             shared.clone(),
             cancel.clone(),
-            config.clone(),
+            Arc::clone(&config),
             http_client.clone(),
         );
 
@@ -118,6 +141,7 @@ pub(super) async fn run_graph(
         let node_senders = senders.remove(&node_id).unwrap_or_default();
         let node_receivers = receivers.remove(&node_id).unwrap_or_default();
         let sem = semaphore.clone();
+        let fail_fast_cancel = cancel.clone();
 
         join_set.spawn(async move {
             let _guard = CompletionGuard::new(completion_tx);
@@ -153,6 +177,7 @@ pub(super) async fn run_graph(
             let status = if output.error.is_none() {
                 NodeStatus::Succeeded
             } else {
+                fail_fast_cancel.cancel();
                 NodeStatus::Failed
             };
             tracing::debug!(target: TARGET, %node_id, ?status, items = output.items_processed, "node completed");

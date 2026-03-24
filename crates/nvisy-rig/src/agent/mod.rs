@@ -1,7 +1,7 @@
 //! Specialized detection agents: NER (text), CV (vision), OCR (image-to-text),
 //! and text generation (synthetic replacement values).
 //!
-//! Each agent composes a [`BaseAgent`](base::BaseAgent) with domain-specific
+//! Each agent composes a `BaseAgent` with domain-specific
 //! prompts and optional tools. Public types are re-exported from [`crate`] —
 //! consumer code should not reach into submodules.
 

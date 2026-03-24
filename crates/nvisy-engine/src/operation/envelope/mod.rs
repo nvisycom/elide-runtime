@@ -39,20 +39,14 @@ use crate::provenance::Audit;
 
 /// Per-document state that flows through the entire pipeline.
 ///
-/// Created by [`Import`] from a decoded [`Document`], then
-/// progressively enriched by detection, policy, and redaction
-/// operations. The orchestrator passes the envelope (wrapped in a
-/// [`ParallelContext`] or [`SequentialContext`]) between stages.
-///
-/// [`Import`]: crate::operation::lifecycle::Import
-/// [`ParallelContext`]: super::ParallelContext
-/// [`SequentialContext`]: super::SequentialContext
+/// Created by import from a decoded [`Document`], then progressively
+/// enriched by detection, policy, and redaction operations. The
+/// orchestrator passes the envelope (wrapped in a `ParallelContext`
+/// or `SequentialContext`) between stages.
 pub struct DocumentEnvelope {
     /// The decoded document content (text, image, audio, or rich).
     ///
-    /// Modified in-place during the [`Redaction`] stage.
-    ///
-    /// [`Redaction`]: crate::operation::processing::Redaction
+    /// Modified in-place during the redaction stage.
     pub document: Document,
 
     /// Entities detected by inference and processing operations.

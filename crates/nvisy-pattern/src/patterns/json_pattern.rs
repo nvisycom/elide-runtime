@@ -34,7 +34,7 @@ pub enum JsonPatternWarning {
 /// A detection pattern deserialized from a JSON definition file.
 ///
 /// Implements the [`Pattern`] trait and is the only concrete implementation
-/// shipped with this crate. Construct via [`from_bytes`](Self::from_bytes).
+/// shipped with this crate. Construct via `from_bytes`.
 #[derive(Debug, Clone)]
 pub struct JsonPattern {
     name: String,

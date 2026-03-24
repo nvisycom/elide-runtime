@@ -25,7 +25,9 @@ pub use self::extraction::{AudialExtraction, VisualExtraction};
 pub use self::ingest::{
     CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig, ExportFile, ImportFile,
 };
-pub use self::policy::{BackoffStrategy, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
+pub use self::policy::{
+    BackoffStrategy, ConcurrencyPolicy, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
+};
 pub use self::refinement::{Fusion, FusionStrategy, Redaction, Validation};
 
 /// The set of strongly-typed actions a pipeline node can perform.
@@ -179,11 +181,18 @@ pub struct GraphEdge {
 pub struct Graph {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
+    /// Optional concurrency limit for parallel node execution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub concurrency: Option<ConcurrencyPolicy>,
 }
 
 impl Graph {
     pub fn new(nodes: Vec<GraphNode>, edges: Vec<GraphEdge>) -> Self {
-        Self { nodes, edges }
+        Self {
+            nodes,
+            edges,
+            concurrency: None,
+        }
     }
 }
 

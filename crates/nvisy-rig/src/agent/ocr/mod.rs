@@ -30,7 +30,7 @@ const TARGET: &str = "nvisy_rig::ocr";
 /// 1. Caller passes raw image bytes and proposed entities to
 ///    [`verify`](Self::verify).
 /// 2. The agent base64-encodes the image and builds a user prompt via
-///    [`OcrPromptBuilder`] listing each entity with its index.
+///    `OcrPromptBuilder` listing each entity with its index.
 /// 3. The VLM reviews entities against the image and returns only those
 ///    needing correction or rejection.
 /// 4. Structured output is parsed into [`VerificationOutput`].

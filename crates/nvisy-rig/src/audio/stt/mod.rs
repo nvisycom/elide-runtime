@@ -2,7 +2,7 @@
 //!
 //! Not an LLM agent — directly calls the provider's transcription API (OpenAI
 //! Whisper). Follows the same provider-dispatch enum pattern as
-//! [`BaseAgent`](crate::agent::BaseAgent).
+//! `BaseAgent`.
 
 mod provider;
 

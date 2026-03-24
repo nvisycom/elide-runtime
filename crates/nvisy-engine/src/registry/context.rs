@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::store::composite_key;
 
-const COMPONENT: &str = "registry::context";
+const TARGET: &str = "nvisy_engine::registry::context";
 
 /// Lightweight handle to a context entry stored in the registry.
 ///
@@ -68,7 +68,7 @@ impl ContextHandle {
     /// [`spawn_blocking`](tokio::task::spawn_blocking) to avoid
     /// blocking the async runtime on fjall I/O.
     #[tracing::instrument(
-        target = COMPONENT,
+        target = TARGET,
         name = "context.read",
         skip(self),
         fields(actor_id = %self.actor_id, source_id = %self.source.as_uuid()),
@@ -80,24 +80,24 @@ impl ContextHandle {
         tokio::task::spawn_blocking(move || -> Result<Context> {
             let value = ks.get(key).map_err(|err| {
                 Error::new(ErrorKind::Internal, "failed to read context")
-                    .with_component(COMPONENT)
+                    .with_component(TARGET)
                     .with_source(err)
             })?;
 
             let guard = value.ok_or_else(|| {
-                Error::new(ErrorKind::NotFound, "context data not found").with_component(COMPONENT)
+                Error::new(ErrorKind::NotFound, "context data not found").with_component(TARGET)
             })?;
 
             serde_json::from_slice(&guard).map_err(|err| {
                 Error::new(ErrorKind::Serialization, "failed to deserialize context")
-                    .with_component(COMPONENT)
+                    .with_component(TARGET)
                     .with_source(err)
             })
         })
         .await
         .map_err(|err| {
             Error::new(ErrorKind::Internal, "blocking task panicked")
-                .with_component(COMPONENT)
+                .with_component(TARGET)
                 .with_source(err)
         })?
     }

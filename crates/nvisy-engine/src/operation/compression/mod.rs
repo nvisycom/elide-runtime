@@ -11,7 +11,7 @@ use nvisy_core::{Error, Result};
 
 use crate::graph::CompressionAlgorithm;
 
-const TARGET: &str = "nvisy_engine::compression";
+const TARGET: &str = "nvisy_engine::op::compression";
 
 /// Compression and decompression service.
 ///

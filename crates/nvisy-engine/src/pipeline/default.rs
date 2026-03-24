@@ -46,6 +46,8 @@ use crate::operation::encryption::SharedKeyProvider;
 use crate::provenance::{Audit, PolicyEvaluation, RedactionMap};
 use crate::registry::Registry;
 
+const TARGET: &str = "nvisy_engine::pipeline::engine";
+
 /// Input required to execute a redaction pipeline.
 ///
 /// Bundles the actor identity, redaction policies, execution graph, and
@@ -312,24 +314,25 @@ impl Engine {
                     }
                     Err(e) => {
                         deserialize_failures += 1;
-                        tracing::warn!(%id, error = %e, "failed to deserialize context, skipping");
+                        tracing::warn!(target: TARGET, %id, error = %e, "failed to deserialize context, skipping");
                     }
                 },
                 Err(e) => {
                     read_failures += 1;
-                    tracing::warn!(%id, error = %e, "failed to read context, skipping");
+                    tracing::warn!(target: TARGET, %id, error = %e, "failed to read context, skipping");
                 }
             }
         }
         let total_failures = read_failures + deserialize_failures;
         if total_failures > 0 {
             tracing::info!(
+                target: TARGET,
                 read_failures,
                 deserialize_failures,
                 "context loading completed with {total_failures} failure(s)"
             );
         }
-        tracing::debug!(loaded = context_map.len(), "pre-loaded contexts");
+        tracing::debug!(target: TARGET, loaded = context_map.len(), "pre-loaded contexts");
 
         let mut shared = SharedContext::new(run_id, input.actor_id, self.inner.registry.clone())
             .with_policies(input.policies.clone())

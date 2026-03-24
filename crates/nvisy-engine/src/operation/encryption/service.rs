@@ -10,7 +10,7 @@ use super::provider::{KeyProvider, SharedKeyProvider};
 use super::wire::{EncryptedContent, WireEnvelope};
 use crate::graph::EncryptionAlgorithm;
 
-const TARGET: &str = "nvisy_engine::crypto";
+const TARGET: &str = "nvisy_engine::op::encryption";
 
 /// AES-256-GCM encryption and decryption service.
 pub struct CryptoService {

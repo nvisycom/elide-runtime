@@ -113,11 +113,10 @@ fn resolve_ocr_provider_key(provider: &mut Option<nvisy_ocr::OcrProvider>, env_v
 /// If `key` is empty, try to populate it from the environment variable.
 #[allow(dead_code)]
 pub(super) fn fill_key_from_env(key: &mut String, env_var: &str) {
-    if key.is_empty() {
-        if let Ok(val) = std::env::var(env_var) {
-            if !val.is_empty() {
-                *key = val;
-            }
-        }
+    if key.is_empty()
+        && let Ok(val) = std::env::var(env_var)
+        && !val.is_empty()
+    {
+        *key = val;
     }
 }

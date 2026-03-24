@@ -1,10 +1,11 @@
-//! Content data structure for storing and managing content with metadata
+//! Raw content bytes with source identity.
 //!
-//! This module provides the [`ContentData`] struct for storing content data
-//! along with its metadata and source information.
+//! [`ContentData`] is the pure data half of the content model. It holds
+//! the raw bytes and a [`ContentSource`] identifier. All descriptive
+//! attributes (MIME type, filename, arbitrary metadata) live on
+//! [`ContentMetadata`](super::ContentMetadata).
 
 use std::fmt;
-use std::path::PathBuf;
 
 use bytes::Bytes;
 use hipstr::HipStr;
@@ -14,169 +15,43 @@ use sha2::{Digest, Sha256};
 use super::ContentSource;
 use super::content_bytes::ContentBytes;
 use crate::error::{Error, ErrorKind, Result};
-use crate::media::DocumentType;
 
-/// Content data with metadata and computed hashes.
+/// Raw content bytes with source identity.
 ///
-/// This struct wraps [`ContentBytes`] and stores content data along with
-/// metadata about its source.
-/// It's designed to be cheap to clone using reference-counted types.
+/// This is the data-only half of the content model — it does not carry
+/// MIME type, filename, or other descriptive metadata. Pair with
+/// [`ContentMetadata`](super::ContentMetadata) via
+/// [`Content`](super::Content) for a complete representation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentData {
     /// Unique identifier for the content source.
     pub content_source: ContentSource,
-    /// The actual content data.
+    /// The actual content bytes.
     data: ContentBytes,
-    /// Original filename (e.g. from upload, file path, or Content-Disposition).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub filename: Option<PathBuf>,
-    /// Caller-supplied MIME type (e.g. from HTTP Content-Type header).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub supplied_mime: Option<String>,
-    /// MIME type detected from magic bytes (computed eagerly on construction).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub detected_mime: Option<String>,
 }
 
 impl ContentData {
-    /// Creates new content data from bytes.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use nvisy_core::content::{ContentData, ContentSource};
-    /// use bytes::Bytes;
-    ///
-    /// let source = ContentSource::new();
-    /// let data = Bytes::from("Hello, world!");
-    /// let content = ContentData::new(source, data);
-    ///
-    /// assert_eq!(content.size(), 13);
-    /// ```
+    /// Creates content data from raw bytes.
     pub fn new(content_source: ContentSource, data: Bytes) -> Self {
-        let detected_mime = infer::get(&data).map(|t| t.mime_type().to_owned());
         Self {
             content_source,
             data: ContentBytes::from(data),
-
-            filename: None,
-            supplied_mime: None,
-            detected_mime,
         }
     }
 
-    /// Creates new content data from text.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use nvisy_core::content::{ContentData, ContentSource};
-    ///
-    /// let source = ContentSource::new();
-    /// let content = ContentData::from_text(source, "Hello, world!");
-    ///
-    /// assert_eq!(content.as_str().unwrap(), "Hello, world!");
-    /// ```
+    /// Creates content data from a text string.
     pub fn from_text(content_source: ContentSource, text: impl Into<String>) -> Self {
-        let data = ContentBytes::from(text.into());
-        let detected_mime = infer::get(data.as_bytes()).map(|t| t.mime_type().to_owned());
         Self {
             content_source,
-            data,
-
-            filename: None,
-            supplied_mime: None,
-            detected_mime,
+            data: ContentBytes::from(text.into()),
         }
     }
 
     /// Creates content data with explicit `ContentBytes`.
     pub fn with_content_bytes(content_source: ContentSource, data: ContentBytes) -> Self {
-        let detected_mime = infer::get(data.as_bytes()).map(|t| t.mime_type().to_owned());
         Self {
             content_source,
             data,
-
-            filename: None,
-            supplied_mime: None,
-            detected_mime,
-        }
-    }
-
-    /// Set the original filename (builder pattern).
-    #[must_use]
-    pub fn with_filename(mut self, filename: impl Into<PathBuf>) -> Self {
-        self.filename = Some(filename.into());
-        self
-    }
-
-    /// Set the caller-provided MIME type (builder pattern).
-    #[must_use]
-    pub fn with_content_type(mut self, mime: impl Into<String>) -> Self {
-        self.supplied_mime = Some(mime.into());
-        self
-    }
-
-    /// Get the best-available MIME type (supplied takes precedence over detected).
-    #[must_use]
-    pub fn content_type(&self) -> Option<&str> {
-        self.supplied_mime
-            .as_deref()
-            .or(self.detected_mime.as_deref())
-    }
-
-    /// Infer the [`DocumentType`] using three strategies:
-    ///
-    /// 1. **Caller-supplied MIME** — highest priority.
-    /// 2. **Magic-byte detection** — for binary formats.
-    /// 3. **Filename extension** — refines ambiguous results (e.g.
-    ///    distinguishes `.log` from `.txt` when MIME is `text/plain`).
-    ///
-    /// All three are always evaluated. If the MIME and magic-byte
-    /// results disagree, a warning is logged and the MIME wins.
-    /// The filename extension is used to refine the winning result
-    /// when the extension provides a more specific type within the
-    /// same family (e.g. `text/plain` + `.log` → `TextFormat::Log`).
-    #[must_use]
-    pub fn infer_document_type(&self) -> Option<DocumentType> {
-        let from_supplied = self
-            .supplied_mime
-            .as_deref()
-            .and_then(DocumentType::from_mime);
-        let from_detected = self
-            .detected_mime
-            .as_deref()
-            .and_then(DocumentType::from_mime);
-        let from_ext = self
-            .filename
-            .as_ref()
-            .and_then(|f| f.extension())
-            .and_then(DocumentType::from_extension);
-
-        tracing::trace!(
-            supplied = from_supplied.map(|t| t.to_string()).as_deref(),
-            detected = from_detected.map(|t| t.to_string()).as_deref(),
-            ext = from_ext.map(|t| t.to_string()).as_deref(),
-            "document type inference",
-        );
-
-        if let (Some(supplied), Some(detected)) = (from_supplied, from_detected)
-            && supplied != detected
-        {
-            tracing::warn!(
-                supplied = %supplied,
-                detected = %detected,
-                "supplied MIME does not match magic-byte detection; using supplied",
-            );
-        }
-
-        let result = from_supplied.or(from_detected);
-
-        // Refine with filename extension when it provides a more
-        // specific variant within the same format family.
-        match (result, from_ext) {
-            (Some(DocumentType::Text(_)), Some(refined @ DocumentType::Text(_))) => Some(refined),
-            _ => result.or(from_ext),
         }
     }
 
@@ -224,9 +99,6 @@ impl ContentData {
     }
 
     /// Returns `true` if the content appears to be text.
-    ///
-    /// Uses a simple heuristic: checks if all bytes are ASCII printable
-    /// or whitespace characters.
     #[must_use]
     pub fn is_likely_text(&self) -> bool {
         self.data.is_likely_text()
@@ -325,47 +197,51 @@ impl ContentData {
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
+
+    /// Detect MIME type from the raw bytes using magic-byte signatures.
+    ///
+    /// Returns `None` for content with no recognizable magic bytes
+    /// (e.g. plain text). Use this to populate
+    /// [`ContentMetadata::detected_content_type`](super::ContentMetadata::detected_content_type).
+    #[must_use]
+    pub fn detect_mime(&self) -> Option<String> {
+        infer::get(self.data.as_bytes()).map(|t| t.mime_type().to_owned())
+    }
 }
 
 impl From<&str> for ContentData {
     fn from(s: &str) -> Self {
-        let source = ContentSource::new();
-        Self::from_text(source, s)
+        Self::from_text(ContentSource::new(), s)
     }
 }
 
 impl From<String> for ContentData {
     fn from(s: String) -> Self {
-        let source = ContentSource::new();
-        Self::from_text(source, s)
+        Self::from_text(ContentSource::new(), s)
     }
 }
 
 impl From<&[u8]> for ContentData {
     fn from(bytes: &[u8]) -> Self {
-        let source = ContentSource::new();
-        Self::new(source, Bytes::copy_from_slice(bytes))
+        Self::new(ContentSource::new(), Bytes::copy_from_slice(bytes))
     }
 }
 
 impl From<Vec<u8>> for ContentData {
     fn from(vec: Vec<u8>) -> Self {
-        let source = ContentSource::new();
-        Self::new(source, Bytes::from(vec))
+        Self::new(ContentSource::new(), Bytes::from(vec))
     }
 }
 
 impl From<Bytes> for ContentData {
     fn from(bytes: Bytes) -> Self {
-        let source = ContentSource::new();
-        Self::new(source, bytes)
+        Self::new(ContentSource::new(), bytes)
     }
 }
 
 impl From<HipStr<'static>> for ContentData {
     fn from(text: HipStr<'static>) -> Self {
-        let source = ContentSource::new();
-        Self::from_text(source, text.to_string())
+        Self::from_text(ContentSource::new(), text.to_string())
     }
 }
 
@@ -384,144 +260,52 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sha256_computation() {
+    fn sha256_computation() {
         let content = ContentData::from("Hello, world!");
         let hash = content.sha256();
-
         assert_eq!(hash.len(), 32);
-
-        let hash2 = content.sha256();
-        assert_eq!(hash, hash2);
+        assert_eq!(hash, content.sha256());
     }
 
     #[test]
-    fn test_sha256_verification() {
+    fn sha256_verification() {
         let content = ContentData::from("Hello, world!");
         let hash = content.sha256().clone();
-
         assert!(content.verify_sha256(&hash).is_ok());
-
-        let wrong_hash = vec![0u8; 32];
-        assert!(content.verify_sha256(&wrong_hash).is_err());
+        assert!(content.verify_sha256(&[0u8; 32]).is_err());
     }
 
     #[test]
-    fn test_as_hipstr() {
+    fn as_hipstr() {
         let content = ContentData::from("Hello, HipStr!");
-        let hipstr = content.as_hipstr().unwrap();
-        assert_eq!(hipstr.as_str(), "Hello, HipStr!");
+        assert_eq!(content.as_hipstr().unwrap().as_str(), "Hello, HipStr!");
 
-        let binary_content = ContentData::from(vec![0xFF, 0xFE]);
-        assert!(binary_content.as_hipstr().is_err());
+        let binary = ContentData::from(vec![0xFF, 0xFE]);
+        assert!(binary.as_hipstr().is_err());
     }
 
     #[test]
-    fn test_slice() {
+    fn slice_operations() {
         let content = ContentData::from("Hello, world!");
-
-        let slice = content.slice(0, 5).unwrap();
-        assert_eq!(slice, Bytes::from("Hello"));
-
-        let slice = content.slice(7, 12).unwrap();
-        assert_eq!(slice, Bytes::from("world"));
-
+        assert_eq!(content.slice(0, 5).unwrap(), Bytes::from("Hello"));
+        assert_eq!(content.slice(7, 12).unwrap(), Bytes::from("world"));
         assert!(content.slice(0, 100).is_err());
         assert!(content.slice(10, 5).is_err());
     }
 
     #[test]
-    fn test_detected_mime_png() {
-        let png = vec![
-            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
-            0x00, 0x00, 0x00, 0x0D, // IHDR length
-            0x49, 0x48, 0x44, 0x52, // IHDR
-        ];
-        let content = ContentData::from(png);
-        assert_eq!(content.detected_mime.as_deref(), Some("image/png"));
-    }
-
-    #[test]
-    fn test_detected_mime_unknown() {
-        let content = ContentData::from("hello world");
-        assert_eq!(content.detected_mime, None);
-    }
-
-    #[test]
-    fn test_content_type_precedence() {
+    fn detect_mime_png() {
         let png = vec![
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
             0x44, 0x52,
         ];
-        let content = ContentData::from(png).with_content_type("image/jpeg");
-        // Supplied MIME takes precedence over detected.
-        assert_eq!(content.content_type(), Some("image/jpeg"));
+        let data = ContentData::from(png);
+        assert_eq!(data.detect_mime().as_deref(), Some("image/png"));
     }
 
     #[test]
-    fn test_infer_document_type_formats() {
-        use crate::media::{AudioFormat, ImageFormat};
-
-        let jpeg = ContentData::from(vec![0xFF, 0xD8, 0xFF, 0xE0]);
-        assert_eq!(
-            jpeg.infer_document_type(),
-            Some(DocumentType::Image(ImageFormat::Jpeg)),
-        );
-
-        let mut wav = [0u8; 12];
-        wav[..4].copy_from_slice(b"RIFF");
-        wav[8..12].copy_from_slice(b"WAVE");
-        let wav = ContentData::from(wav.to_vec());
-        assert_eq!(
-            wav.infer_document_type(),
-            Some(DocumentType::Audio(AudioFormat::Wav)),
-        );
-
-        let mp3 = ContentData::from(vec![0x49, 0x44, 0x33]);
-        assert_eq!(
-            mp3.infer_document_type(),
-            Some(DocumentType::Audio(AudioFormat::Mp3)),
-        );
-
-        let pdf = ContentData::from(b"%PDF-1.4".to_vec());
-        assert_eq!(pdf.infer_document_type(), Some(DocumentType::Pdf));
-    }
-
-    #[test]
-    fn test_infer_document_type_unknown() {
-        assert_eq!(ContentData::from("hello world").infer_document_type(), None);
-        assert_eq!(ContentData::from("").infer_document_type(), None);
-    }
-
-    #[test]
-    fn test_infer_document_type_respects_explicit_mime() {
-        let content = ContentData::from("not really json").with_content_type("application/json");
-        assert_eq!(
-            content.infer_document_type(),
-            Some(DocumentType::Text(crate::media::TextFormat::Json)),
-        );
-    }
-
-    #[test]
-    fn test_infer_document_type_extension_refines_text() {
-        use crate::media::TextFormat;
-
-        let content = ContentData::from("some log lines")
-            .with_content_type("text/plain")
-            .with_filename("app.log");
-        assert_eq!(
-            content.infer_document_type(),
-            Some(DocumentType::Text(TextFormat::Log)),
-        );
-    }
-
-    #[test]
-    fn test_infer_document_type_extension_fallback() {
-        use crate::media::TextFormat;
-
-        let content = ContentData::from("plain text").with_filename("notes.txt");
-        assert_eq!(
-            content.infer_document_type(),
-            Some(DocumentType::Text(TextFormat::Txt)),
-        );
+    fn detect_mime_unknown() {
+        let data = ContentData::from("hello world");
+        assert_eq!(data.detect_mime(), None);
     }
 }

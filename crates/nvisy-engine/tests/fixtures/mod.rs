@@ -1,9 +1,7 @@
 //! Shared test helpers and factories for integration tests.
 
-use nvisy_core::content::{Content, ContentData, ContentSource};
-use nvisy_engine::graph::{
-    ExportFile, Graph, GraphEdge, GraphNode, GraphNodeKind, ImportFile,
-};
+use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
+use nvisy_engine::graph::{ExportFile, Graph, GraphEdge, GraphNode, GraphNodeKind, ImportFile};
 use nvisy_engine::pipeline::{Engine, EngineInput};
 use nvisy_ontology::policy::Policies;
 use uuid::Uuid;
@@ -24,10 +22,11 @@ pub fn actor() -> Uuid {
 ///
 /// Returns the content ID.
 pub async fn upload_text(engine: &Engine, actor_id: Uuid, text: &str) -> Uuid {
-    let data = ContentData::from_text(ContentSource::new(), text)
-        .with_content_type("text/plain");
+    let data = ContentData::from_text(ContentSource::new(), text);
+    let metadata = ContentMetadata::new().with_content_type("text/plain");
+    let content = Content::with_metadata(data, metadata);
     engine
-        .upload_content(actor_id, Content::new(data))
+        .upload_content(actor_id, content)
         .await
         .expect("upload_text failed")
 }

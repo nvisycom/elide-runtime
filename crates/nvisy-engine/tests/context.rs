@@ -5,10 +5,10 @@ mod fixtures;
 use nvisy_ontology::context::Context;
 use uuid::Uuid;
 
-type Result = std::result::Result<(), Box<dyn std::error::Error>>;
+
 
 #[tokio::test]
-async fn upload_download_roundtrip() -> Result {
+async fn upload_download_roundtrip() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -21,7 +21,7 @@ async fn upload_download_roundtrip() -> Result {
 }
 
 #[tokio::test]
-async fn list_reflects_uploads() -> Result {
+async fn list_reflects_uploads() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -35,7 +35,7 @@ async fn list_reflects_uploads() -> Result {
 }
 
 #[tokio::test]
-async fn delete_removes_entry() -> Result {
+async fn delete_removes_entry() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -50,7 +50,7 @@ async fn delete_removes_entry() -> Result {
 }
 
 #[tokio::test]
-async fn delete_all_removes_everything() -> Result {
+async fn delete_all_removes_everything() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -67,7 +67,7 @@ async fn delete_all_removes_everything() -> Result {
 }
 
 #[tokio::test]
-async fn download_nonexistent_returns_error() -> Result {
+async fn download_nonexistent_returns_error() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -77,7 +77,7 @@ async fn download_nonexistent_returns_error() -> Result {
 }
 
 #[tokio::test]
-async fn actors_cannot_see_each_others_contexts() -> Result {
+async fn actors_cannot_see_each_others_contexts() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor_a = fixtures::actor();
     let actor_b = fixtures::actor();
@@ -92,7 +92,7 @@ async fn actors_cannot_see_each_others_contexts() -> Result {
 }
 
 #[tokio::test]
-async fn actors_cannot_download_each_others_contexts() -> Result {
+async fn actors_cannot_download_each_others_contexts() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor_a = fixtures::actor();
     let actor_b = fixtures::actor();

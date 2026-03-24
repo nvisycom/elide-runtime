@@ -73,10 +73,7 @@ fn resolve_agent_provider_key(
 }
 
 #[allow(unused_variables, unused_imports)]
-fn resolve_stt_provider_key(
-    provider: &mut Option<nvisy_rig::audio::SttProvider>,
-    env_var: &str,
-) {
+fn resolve_stt_provider_key(provider: &mut Option<nvisy_rig::audio::SttProvider>, env_var: &str) {
     use nvisy_rig::audio::SttProvider;
 
     let Some(p) = provider else { return };
@@ -88,10 +85,7 @@ fn resolve_stt_provider_key(
 }
 
 #[allow(unused_variables, unused_imports)]
-fn resolve_tts_provider_key(
-    provider: &mut Option<nvisy_rig::audio::TtsProvider>,
-    env_var: &str,
-) {
+fn resolve_tts_provider_key(provider: &mut Option<nvisy_rig::audio::TtsProvider>, env_var: &str) {
     use nvisy_rig::audio::TtsProvider;
 
     let Some(p) = provider else { return };
@@ -103,10 +97,7 @@ fn resolve_tts_provider_key(
 }
 
 #[allow(unused_variables, unused_imports)]
-fn resolve_ocr_provider_key(
-    provider: &mut Option<nvisy_ocr::OcrProvider>,
-    env_var: &str,
-) {
+fn resolve_ocr_provider_key(provider: &mut Option<nvisy_ocr::OcrProvider>, env_var: &str) {
     use nvisy_ocr::OcrProvider;
 
     let Some(p) = provider else { return };

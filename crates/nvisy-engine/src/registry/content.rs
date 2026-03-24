@@ -4,7 +4,7 @@ use std::fmt;
 
 use bytes::Bytes;
 use fjall::Keyspace;
-use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
+use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 use nvisy_core::{Error, ErrorKind, Result};
 use uuid::Uuid;
 
@@ -150,5 +150,15 @@ impl ContentHandle {
                 .with_component(COMPONENT)
                 .with_source(err)
         })?
+    }
+
+    /// Reads both content data and metadata, returning a full [`Content`].
+    ///
+    /// This is the preferred way to retrieve content for pipeline
+    /// operations, since the metadata carries the MIME type and filename
+    /// needed for format detection.
+    pub async fn content(&self) -> Result<Content> {
+        let (data, metadata) = tokio::try_join!(self.content_data(), self.metadata())?;
+        Ok(Content::with_metadata(data, metadata))
     }
 }

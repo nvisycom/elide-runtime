@@ -140,16 +140,22 @@ impl Registry {
         let key = composite_key(actor_id, content_source.as_uuid());
         let data = content.as_bytes().to_vec();
 
-        let (_, content_metadata) = content.into_parts();
-        let meta_bytes =
-            serde_json::to_vec(&content_metadata.unwrap_or_default()).map_err(|err| {
-                Error::new(
-                    ErrorKind::Serialization,
-                    "failed to serialize content metadata",
-                )
-                .with_component(COMPONENT)
-                .with_source(err)
-            })?;
+        let (content_data, content_metadata) = content.into_parts();
+        let mut meta = content_metadata.unwrap_or_default();
+
+        // Auto-detect MIME from magic bytes if not already set.
+        if meta.detected_content_type.is_none() {
+            meta.detected_content_type = content_data.detect_mime();
+        }
+
+        let meta_bytes = serde_json::to_vec(&meta).map_err(|err| {
+            Error::new(
+                ErrorKind::Serialization,
+                "failed to serialize content metadata",
+            )
+            .with_component(COMPONENT)
+            .with_source(err)
+        })?;
 
         let content_ks = self.content_ks.clone();
         let meta_ks = self.content_meta_ks.clone();

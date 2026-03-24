@@ -4,7 +4,7 @@ mod fixtures;
 
 use nvisy_engine::pipeline::{Engine, EngineSection, ResourceLimits, RuntimeConfig};
 
-type Result = std::result::Result<(), Box<dyn std::error::Error>>;
+
 
 #[test]
 fn temp_engine_points_to_temp_dir() {
@@ -13,7 +13,7 @@ fn temp_engine_points_to_temp_dir() {
 }
 
 #[test]
-fn open_with_default_config() -> Result {
+fn open_with_default_config() -> anyhow::Result<()> {
     let dir = tempfile::tempdir()?;
     let engine = Engine::open(dir.path(), RuntimeConfig::default())?;
     assert_eq!(engine.data_dir(), dir.path());
@@ -21,7 +21,7 @@ fn open_with_default_config() -> Result {
 }
 
 #[test]
-fn open_with_custom_limits() -> Result {
+fn open_with_custom_limits() -> anyhow::Result<()> {
     let dir = tempfile::tempdir()?;
     let config = RuntimeConfig {
         engine: Some(EngineSection {
@@ -35,7 +35,13 @@ fn open_with_custom_limits() -> Result {
     };
     let engine = Engine::open(dir.path(), config)?;
     assert_eq!(
-        engine.config().engine.as_ref().unwrap().limits.channel_buffer,
+        engine
+            .config()
+            .engine
+            .as_ref()
+            .unwrap()
+            .limits
+            .channel_buffer,
         64
     );
     Ok(())

@@ -1,48 +1,27 @@
-//! Content representation combining data with metadata
-//!
-//! This module provides the [`Content`] struct that combines [`ContentData`]
-//! with optional [`ContentMetadata`] for complete content representation.
+//! [`Content`]: data bytes paired with descriptive metadata.
+
+use std::path::Path;
 
 use derive_more::{AsRef, Deref};
 use serde::{Deserialize, Serialize};
 
 use super::{ContentData, ContentMetadata, ContentSource};
 use crate::error::Result;
+use crate::media::DocumentType;
 
-/// Complete content representation with data and metadata
+/// Complete content representation: raw bytes + metadata.
 ///
-/// This struct combines [`ContentData`] (the actual content bytes) with
-/// optional [`ContentMetadata`] (path, extension info, etc.) to provide
-/// a complete content representation.
-///
-/// # Examples
-///
-/// ```rust
-/// use nvisy_core::content::{Content, ContentData};
-/// use nvisy_core::content::ContentMetadata;
-///
-/// // Create content from data
-/// let data = ContentData::from("Hello, world!");
-/// let content = Content::new(data);
-///
-/// assert_eq!(content.size(), 13);
-/// assert!(content.is_likely_text());
-///
-/// // Create content with metadata
-/// let data = ContentData::from("Sample text");
-/// let metadata = ContentMetadata::with_path("document.txt");
-/// let content = Content::with_metadata(data, metadata);
-///
-/// assert_eq!(content.metadata().and_then(|m| m.filename()), Some("document.txt"));
-/// ```
+/// [`ContentData`] holds the bytes and source identity.
+/// [`ContentMetadata`] holds MIME type, filename, and arbitrary
+/// key-value pairs. Together they form a `Content`.
 #[derive(Debug, Clone, PartialEq)]
 #[derive(AsRef, Deref, Serialize, Deserialize)]
 pub struct Content {
-    /// The actual content data
+    /// Raw content bytes.
     #[deref]
     #[as_ref]
     data: ContentData,
-    /// Optional metadata about the content
+    /// Descriptive metadata (MIME type, filename, etc.).
     metadata: Option<ContentMetadata>,
 }
 
@@ -53,7 +32,7 @@ impl From<ContentData> for Content {
 }
 
 impl Content {
-    /// Create new content from data without metadata
+    /// Create content from data without metadata.
     pub fn new(data: ContentData) -> Self {
         Self {
             data,
@@ -61,7 +40,7 @@ impl Content {
         }
     }
 
-    /// Create new content with metadata
+    /// Create content with metadata.
     pub fn with_metadata(data: ContentData, metadata: ContentMetadata) -> Self {
         Self {
             data,
@@ -69,22 +48,28 @@ impl Content {
         }
     }
 
-    /// Get the content data
+    /// Returns the raw content data.
     pub fn data(&self) -> &ContentData {
         &self.data
     }
 
-    /// Get the content metadata if available
+    /// Returns the metadata, if present.
     pub fn metadata(&self) -> Option<&ContentMetadata> {
         self.metadata.as_ref()
     }
 
-    /// Get the content source
+    /// Returns a mutable reference to the metadata, creating a default
+    /// instance if none exists.
+    pub fn metadata_mut(&mut self) -> &mut ContentMetadata {
+        self.metadata.get_or_insert_with(ContentMetadata::default)
+    }
+
+    /// Returns the content source identifier.
     pub fn content_source(&self) -> ContentSource {
         self.data.content_source
     }
 
-    /// Get the content as bytes
+    /// Returns the raw bytes.
     pub fn as_bytes(&self) -> &[u8] {
         self.data.as_bytes()
     }
@@ -103,22 +88,47 @@ impl Content {
         self.data.as_str()
     }
 
-    /// Get the file extension from metadata if available
+    /// Best-available MIME type from metadata.
+    pub fn content_type(&self) -> Option<&str> {
+        self.metadata.as_ref().and_then(|m| m.content_type())
+    }
+
+    /// Original filename from metadata.
+    pub fn filename(&self) -> Option<&Path> {
+        self.metadata.as_ref().and_then(|m| m.filename.as_deref())
+    }
+
+    /// File extension from the source path in metadata.
     pub fn file_extension(&self) -> Option<&str> {
         self.metadata.as_ref().and_then(|m| m.file_extension())
     }
 
-    /// Get the filename from metadata if available
-    pub fn filename(&self) -> Option<&str> {
-        self.metadata.as_ref().and_then(|m| m.filename())
+    /// Infer the [`DocumentType`] from metadata (MIME, filename) with
+    /// fallback to magic-byte detection on the raw bytes.
+    ///
+    /// Delegates to [`ContentMetadata::infer_document_type`] when
+    /// metadata is present, otherwise attempts magic-byte detection.
+    #[must_use]
+    pub fn infer_document_type(&self) -> Option<DocumentType> {
+        if let Some(ref meta) = self.metadata {
+            let result = meta.infer_document_type();
+            if result.is_some() {
+                return result;
+            }
+        }
+        // Last resort: magic-byte detection on raw bytes.
+        self.data
+            .detect_mime()
+            .as_deref()
+            .and_then(DocumentType::from_mime)
     }
 
-    /// Set the metadata
+    /// Set the metadata.
     pub fn set_metadata(&mut self, metadata: ContentMetadata) {
         self.metadata = Some(metadata);
     }
 
-    /// Remove the metadata
+    /// Remove the metadata.
     pub fn clear_metadata(&mut self) {
         self.metadata = None;
     }
@@ -128,7 +138,7 @@ impl Content {
         self.data
     }
 
-    /// Consume and return both data and metadata
+    /// Consume and return both data and metadata.
     pub fn into_parts(self) -> (ContentData, Option<ContentMetadata>) {
         (self.data, self.metadata)
     }
@@ -139,27 +149,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_content_with_metadata() {
-        let source = ContentSource::new();
-        let data = ContentData::from_text(source, "Test content");
+    fn content_with_metadata() {
+        let data = ContentData::from_text(ContentSource::new(), "Test content");
         let metadata = ContentMetadata::with_path("test.txt");
         let content = Content::with_metadata(data, metadata);
 
         assert!(content.metadata().is_some());
         assert_eq!(content.file_extension(), Some("txt"));
-        assert_eq!(content.filename(), Some("test.txt"));
     }
 
     #[test]
-    fn test_metadata_operations() {
+    fn metadata_operations() {
         let data = ContentData::from("Test");
         let mut content = Content::new(data);
 
         assert!(content.metadata().is_none());
 
-        let metadata = ContentMetadata::with_path("file.pdf");
-        content.set_metadata(metadata);
-
+        content.set_metadata(ContentMetadata::with_path("file.pdf"));
         assert!(content.metadata().is_some());
         assert_eq!(content.file_extension(), Some("pdf"));
 
@@ -168,14 +174,48 @@ mod tests {
     }
 
     #[test]
-    fn test_into_parts() {
-        let source = ContentSource::new();
-        let data = ContentData::from_text(source, "Test");
+    fn into_parts_roundtrip() {
+        let data = ContentData::from_text(ContentSource::new(), "Test");
         let metadata = ContentMetadata::with_path("test.txt");
         let content = Content::with_metadata(data.clone(), metadata.clone());
 
         let (recovered_data, recovered_metadata) = content.into_parts();
         assert_eq!(recovered_data, data);
         assert_eq!(recovered_metadata, Some(metadata));
+    }
+
+    #[test]
+    fn infer_document_type_from_metadata() {
+        use crate::media::TextFormat;
+
+        let data = ContentData::from("plain text");
+        let metadata = ContentMetadata::new().with_content_type("text/plain");
+        let content = Content::with_metadata(data, metadata);
+
+        assert_eq!(
+            content.infer_document_type(),
+            Some(DocumentType::Text(TextFormat::Txt)),
+        );
+    }
+
+    #[test]
+    fn infer_document_type_from_magic_bytes() {
+        use crate::media::ImageFormat;
+
+        let png = vec![
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
+            0x44, 0x52,
+        ];
+        let content = Content::new(ContentData::from(png));
+        assert_eq!(
+            content.infer_document_type(),
+            Some(DocumentType::Image(ImageFormat::Png)),
+        );
+    }
+
+    #[test]
+    fn infer_document_type_none_for_unknown() {
+        let content = Content::new(ContentData::from("hello world"));
+        assert_eq!(content.infer_document_type(), None);
     }
 }

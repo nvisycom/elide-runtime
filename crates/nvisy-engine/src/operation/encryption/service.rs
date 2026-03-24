@@ -39,7 +39,6 @@ impl CryptoService {
 
         let content_data = envelope.document.encode()?;
         let source = content_data.content_source;
-        let filename = content_data.filename.clone();
         let plaintext = content_data.as_bytes();
 
         let raw_key = self.key_provider.resolve(&self.key_id)?;
@@ -82,7 +81,6 @@ impl CryptoService {
             ciphertext: wire,
             key_id: self.key_id.clone(),
             algorithm: EncryptionAlgorithm::Aes256Gcm,
-            filename,
         })
     }
 
@@ -138,11 +136,7 @@ impl CryptoService {
             "decrypted content",
         );
 
-        let mut content = ContentData::new(encrypted.source, Bytes::from(plaintext));
-        if let Some(filename) = encrypted.filename {
-            content = content.with_filename(filename);
-        }
-
+        let content = ContentData::new(encrypted.source, Bytes::from(plaintext));
         Ok(content)
     }
 }
@@ -152,7 +146,7 @@ mod tests {
     use std::sync::Arc;
 
     use nvisy_codec::Document;
-    use nvisy_core::content::{ContentData, ContentSource};
+    use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 
     use super::*;
     use crate::operation::DocumentEnvelope;
@@ -164,10 +158,11 @@ mod tests {
     }
 
     async fn test_envelope() -> DocumentEnvelope {
-        let content = ContentData::from_text(ContentSource::new(), "Hello, world!")
-            .with_content_type("text/plain");
+        let data = ContentData::from_text(ContentSource::new(), "Hello, world!");
+        let meta = ContentMetadata::new().with_content_type("text/plain");
+        let content = Content::with_metadata(data, meta);
         let doc = Document::decode(&content).await.expect("decode text");
-        DocumentEnvelope::new(doc)
+        DocumentEnvelope::new(doc, ContentMetadata::new().with_content_type("text/plain"))
     }
 
     #[tokio::test]

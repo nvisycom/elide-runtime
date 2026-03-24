@@ -2,11 +2,77 @@
 
 mod fixtures;
 
-use nvisy_engine::pipeline::RunFilter;
+use nvisy_engine::pipeline::{RunFilter, RunStatus};
 use uuid::Uuid;
 
 #[tokio::test]
-async fn list_runs_empty() -> Result<(), Box<dyn std::error::Error>> {
+async fn successful_run_has_succeeded_status() -> anyhow::Result<()> {
+    let (engine, _dir) = fixtures::engine();
+    let actor = fixtures::actor();
+    let content_id = fixtures::upload_text(&engine, actor, "run test").await;
+
+    let graph = fixtures::import_export_graph(content_id);
+    let output = engine.run(fixtures::engine_input(actor, graph)).await?;
+
+    let snapshot = engine.get_run(actor, output.run_id).await.unwrap();
+    assert_eq!(snapshot.status, RunStatus::Succeeded);
+    Ok(())
+}
+
+#[tokio::test]
+async fn successful_run_appears_in_listing() -> anyhow::Result<()> {
+    let (engine, _dir) = fixtures::engine();
+    let actor = fixtures::actor();
+    let content_id = fixtures::upload_text(&engine, actor, "listing test").await;
+
+    let graph = fixtures::import_export_graph(content_id);
+    let output = engine.run(fixtures::engine_input(actor, graph)).await?;
+
+    let runs = engine.list_runs(actor, RunFilter { status: None }).await;
+    assert!(runs.iter().any(|r| r.id == output.run_id));
+    Ok(())
+}
+
+#[tokio::test]
+async fn filter_runs_by_status() -> anyhow::Result<()> {
+    let (engine, _dir) = fixtures::engine();
+    let actor = fixtures::actor();
+    let content_id = fixtures::upload_text(&engine, actor, "filter test").await;
+
+    let graph = fixtures::import_export_graph(content_id);
+    engine.run(fixtures::engine_input(actor, graph)).await?;
+
+    let succeeded = engine
+        .list_runs(actor, RunFilter { status: Some(RunStatus::Succeeded) })
+        .await;
+    assert_eq!(succeeded.len(), 1);
+
+    let failed = engine
+        .list_runs(actor, RunFilter { status: Some(RunStatus::Failed) })
+        .await;
+    assert!(failed.is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+async fn analytics_reflects_successful_run() -> anyhow::Result<()> {
+    let (engine, _dir) = fixtures::engine();
+    let actor = fixtures::actor();
+    let content_id = fixtures::upload_text(&engine, actor, "analytics test").await;
+
+    let graph = fixtures::import_export_graph(content_id);
+    engine.run(fixtures::engine_input(actor, graph)).await?;
+
+    let snap = engine.snapshot().await;
+    assert_eq!(snap.total_runs, 1);
+    assert_eq!(snap.succeeded_runs, 1);
+    assert_eq!(snap.distinct_actors, 1);
+    assert!(snap.min_run_duration_ms.is_some());
+    Ok(())
+}
+
+#[tokio::test]
+async fn list_runs_empty() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -16,7 +82,7 @@ async fn list_runs_empty() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-async fn get_nonexistent_run_returns_none() -> Result<(), Box<dyn std::error::Error>> {
+async fn get_nonexistent_run_returns_none() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -26,7 +92,7 @@ async fn get_nonexistent_run_returns_none() -> Result<(), Box<dyn std::error::Er
 }
 
 #[tokio::test]
-async fn delete_nonexistent_run_returns_error() -> Result<(), Box<dyn std::error::Error>> {
+async fn delete_nonexistent_run_returns_error() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -36,7 +102,7 @@ async fn delete_nonexistent_run_returns_error() -> Result<(), Box<dyn std::error
 }
 
 #[tokio::test]
-async fn cancel_nonexistent_run_returns_error() -> Result<(), Box<dyn std::error::Error>> {
+async fn cancel_nonexistent_run_returns_error() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -46,7 +112,7 @@ async fn cancel_nonexistent_run_returns_error() -> Result<(), Box<dyn std::error
 }
 
 #[tokio::test]
-async fn analytics_empty_engine() -> Result<(), Box<dyn std::error::Error>> {
+async fn analytics_empty_engine() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
 
     let snap = engine.snapshot().await;
@@ -61,7 +127,7 @@ async fn analytics_empty_engine() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-async fn failed_run_appears_in_listing() -> Result<(), Box<dyn std::error::Error>> {
+async fn failed_run_appears_in_listing() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -74,15 +140,12 @@ async fn failed_run_appears_in_listing() -> Result<(), Box<dyn std::error::Error
     // The failed run should still appear in the listing.
     let runs = engine.list_runs(actor, RunFilter { status: None }).await;
     assert_eq!(runs.len(), 1);
-    assert_eq!(
-        runs[0].status,
-        nvisy_engine::pipeline::RunStatus::Failed
-    );
+    assert_eq!(runs[0].status, nvisy_engine::pipeline::RunStatus::Failed);
     Ok(())
 }
 
 #[tokio::test]
-async fn failed_run_can_be_deleted() -> Result<(), Box<dyn std::error::Error>> {
+async fn failed_run_can_be_deleted() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -100,7 +163,7 @@ async fn failed_run_can_be_deleted() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-async fn delete_all_runs_clears_finished() -> Result<(), Box<dyn std::error::Error>> {
+async fn delete_all_runs_clears_finished() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -111,12 +174,17 @@ async fn delete_all_runs_clears_finished() -> Result<(), Box<dyn std::error::Err
 
     let removed = engine.delete_all_runs(actor).await;
     assert_eq!(removed, 2);
-    assert!(engine.list_runs(actor, RunFilter { status: None }).await.is_empty());
+    assert!(
+        engine
+            .list_runs(actor, RunFilter { status: None })
+            .await
+            .is_empty()
+    );
     Ok(())
 }
 
 #[tokio::test]
-async fn runs_isolated_between_actors() -> Result<(), Box<dyn std::error::Error>> {
+async fn runs_isolated_between_actors() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor_a = fixtures::actor();
     let actor_b = fixtures::actor();
@@ -132,7 +200,7 @@ async fn runs_isolated_between_actors() -> Result<(), Box<dyn std::error::Error>
 }
 
 #[tokio::test]
-async fn analytics_reflects_failed_run() -> Result<(), Box<dyn std::error::Error>> {
+async fn analytics_reflects_failed_run() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 

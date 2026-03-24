@@ -24,6 +24,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_codec::{Document, Span};
+use nvisy_core::content::Content;
 use nvisy_core::{Error, ErrorKind};
 use nvisy_http::HttpClient;
 use tokio::sync::mpsc;
@@ -299,12 +300,12 @@ impl NodeExecutor {
                 if let Document::Audio(ref handler) = envelope.document {
                     tracing::debug!(target: TARGET, "extracting audio for transcription");
                     let audio_data = Handler::encode(handler)?;
-                    let filename: String = audio_data
+                    let filename = envelope
+                        .metadata
                         .filename
                         .as_deref()
                         .map(|p| p.to_string_lossy().to_string())
                         .unwrap_or_else(|| "audio.wav".to_string());
-
                     let input = ParallelContext::new(
                         AudioInput {
                             audio_data: audio_data.as_bytes().to_vec(),
@@ -565,8 +566,8 @@ impl NodeExecutor {
             let do_import = || async {
                 tracing::debug!(target: TARGET, %content_id, "importing content");
                 let handle = registry.read_content(actor_id, content_id).await?;
-                let content_data = handle.content_data().await?;
-                let input = ParallelContext::new(content_data, self.shared.clone());
+                let content = handle.content().await?;
+                let input = ParallelContext::new(content, self.shared.clone());
                 let output = import_ref.call(input).await?;
                 Ok(output.into_inner())
             };
@@ -718,9 +719,11 @@ async fn unwrap_envelope(arc: Arc<DocumentEnvelope>) -> Result<DocumentEnvelope,
         Ok(envelope) => Ok(envelope),
         Err(arc) => {
             let content_data = arc.document.encode()?;
-            let document = Document::decode(&content_data).await?;
+            let content = Content::from(content_data);
+            let document = Document::decode(&content).await?;
             Ok(DocumentEnvelope {
                 document,
+                metadata: arc.metadata.clone(),
                 entities: arc.entities.clone(),
                 contexts: arc.contexts.clone(),
                 audit: arc.audit.clone(),

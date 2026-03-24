@@ -5,7 +5,7 @@ mod fixtures;
 use nvisy_engine::graph::*;
 use uuid::Uuid;
 
-type Result = std::result::Result<(), Box<dyn std::error::Error>>;
+
 
 fn import_node(content_id: Uuid) -> GraphNode {
     GraphNode::new(
@@ -30,7 +30,7 @@ fn export_node() -> GraphNode {
 }
 
 #[tokio::test]
-async fn valid_import_export_graph_accepted() -> Result {
+async fn valid_import_export_graph_accepted() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "compile test").await;
@@ -45,7 +45,7 @@ async fn valid_import_export_graph_accepted() -> Result {
 }
 
 #[tokio::test]
-async fn empty_graph_rejected() -> Result {
+async fn empty_graph_rejected() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
@@ -58,7 +58,7 @@ async fn empty_graph_rejected() -> Result {
 }
 
 #[tokio::test]
-async fn duplicate_node_ids_rejected() -> Result {
+async fn duplicate_node_ids_rejected() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "dup test").await;
@@ -94,7 +94,7 @@ async fn duplicate_node_ids_rejected() -> Result {
 }
 
 #[tokio::test]
-async fn dangling_edge_rejected() -> Result {
+async fn dangling_edge_rejected() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "dangle test").await;
@@ -116,7 +116,7 @@ async fn dangling_edge_rejected() -> Result {
 }
 
 #[tokio::test]
-async fn self_loop_rejected() -> Result {
+async fn self_loop_rejected() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "loop test").await;
@@ -137,7 +137,7 @@ async fn self_loop_rejected() -> Result {
 }
 
 #[tokio::test]
-async fn backward_edge_rejected() -> Result {
+async fn backward_edge_rejected() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "backward test").await;

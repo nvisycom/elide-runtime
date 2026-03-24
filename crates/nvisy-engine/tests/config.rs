@@ -13,8 +13,8 @@ fn example_toml_parses() {
     // then extract the engine section which is always feature-independent.
     // Subsystem provider sections (llm, stt, tts) use cfg-gated enum
     // variants that may not be available in the test binary.
-    let table: toml::Table = toml::from_str(contents)
-        .expect("Nvisy.example.toml should be valid TOML");
+    let table: toml::Table =
+        toml::from_str(contents).expect("Nvisy.example.toml should be valid TOML");
 
     assert!(table.contains_key("version"), "example should have version");
     assert!(table.contains_key("engine"), "example should have [engine]");
@@ -22,9 +22,10 @@ fn example_toml_parses() {
 
     // Verify the engine section parses into our struct.
     let engine_toml = toml::to_string(table.get("engine").unwrap()).unwrap();
-    let engine: EngineSection = toml::from_str(&engine_toml)
-        .expect("[engine] section should parse into EngineSection");
-    engine.validate()
+    let engine: EngineSection =
+        toml::from_str(&engine_toml).expect("[engine] section should parse into EngineSection");
+    engine
+        .validate()
         .expect("[engine] section should pass validation");
 }
 

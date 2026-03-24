@@ -28,6 +28,7 @@ mod detection;
 mod policy;
 
 use nvisy_codec::Document;
+use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::Entities;
 
@@ -48,6 +49,12 @@ pub struct DocumentEnvelope {
     ///
     /// Modified in-place during the redaction stage.
     pub document: Document,
+
+    /// Content metadata (MIME type, filename, etc.) from the original upload.
+    ///
+    /// Preserved through the pipeline so operations can access the
+    /// original filename, MIME type, and other descriptive attributes.
+    pub metadata: ContentMetadata,
 
     /// Entities detected by inference and processing operations.
     ///
@@ -71,10 +78,11 @@ pub struct DocumentEnvelope {
 
 impl DocumentEnvelope {
     /// Create a new envelope from a freshly decoded document.
-    pub fn new(document: Document) -> Self {
+    pub fn new(document: Document, metadata: ContentMetadata) -> Self {
         let audit = Audit::new(document.source());
         Self {
             document,
+            metadata,
             entities: Entities::new(),
             contexts: Contexts::new(),
             audit,

@@ -11,6 +11,8 @@ use tracing::instrument;
 pub use self::params::OcrProvider;
 use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
+const TARGET: &str = "nvisy_ocr::engine";
+
 /// Type-erased OCR engine wrapping any [`Backend`] implementation.
 ///
 /// Owns an `Arc<dyn Backend>` and forwards OCR requests to it, providing
@@ -57,7 +59,7 @@ impl OcrEngine {
     ))]
     pub async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
         let output = self.backend.run(image, params).await?;
-        tracing::debug!(words = output.word_count(), "ocr complete");
+        tracing::debug!(target: TARGET, words = output.word_count(), "ocr complete");
         Ok(output)
     }
 
@@ -70,7 +72,7 @@ impl OcrEngine {
     ) -> Result<Vec<ImageOutput>, Error> {
         let outputs = self.backend.run_batch(images, params).await?;
         let words: usize = outputs.iter().map(|o| o.word_count()).sum();
-        tracing::debug!(words, "batch ocr complete");
+        tracing::debug!(target: TARGET, words, "batch ocr complete");
         Ok(outputs)
     }
 }

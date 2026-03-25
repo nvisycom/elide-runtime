@@ -5,6 +5,8 @@ use nvisy_core::Error;
 use super::instruction::AudioRedaction;
 use crate::handler::AudioHandler;
 
+const TARGET: &str = "nvisy_codec::transform::audio";
+
 /// Extension trait for handlers that support audio redaction.
 ///
 /// Extends [`AudioHandler`] with [`redact_audio`](Self::redact_audio)
@@ -19,6 +21,7 @@ pub trait AudioTransform: AudioHandler {
 impl<H: AudioHandler> AudioTransform for H {
     async fn redact_audio(&mut self, redactions: &[AudioRedaction]) -> Result<(), Error> {
         tracing::debug!(
+            target: TARGET,
             redaction_count = redactions.len(),
             "applying audio redactions"
         );
@@ -27,7 +30,7 @@ impl<H: AudioHandler> AudioTransform for H {
         }
 
         // TODO: implement audio redaction (silence/remove time ranges)
-        tracing::warn!("audio redaction is not yet implemented");
+        tracing::warn!(target: TARGET, "audio redaction is not yet implemented");
         Ok(())
     }
 }

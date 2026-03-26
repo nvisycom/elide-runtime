@@ -14,12 +14,15 @@
 //! The [`state`] submodule contains the volatile in-memory storage
 //! ([`RunState`](state::RunState)) backing all run queries and mutations.
 
+mod analytics;
 pub(crate) mod state;
 
 use jiff::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+pub use self::analytics::AnalyticsSnapshot;
 
 /// Lifecycle status of a pipeline run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

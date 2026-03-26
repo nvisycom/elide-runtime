@@ -21,8 +21,9 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
-use crate::pipeline::analytics::AnalyticsSnapshot;
+use super::{
+    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
+};
 
 const TARGET: &str = "nvisy_engine::pipeline::runs";
 
@@ -272,25 +273,21 @@ impl RunState {
     /// Compute a point-in-time [`AnalyticsSnapshot`] from all tracked runs.
     pub async fn snapshot(&self) -> AnalyticsSnapshot {
         let guard = self.inner.read().await;
-        let mut active = 0u64;
+        let mut current = 0u64;
         let mut succeeded = 0u64;
         let mut failed = 0u64;
         let mut cancelled = 0u64;
-        let mut total_entities = 0u64;
-        let mut total_redactions = 0u64;
         let mut actors = HashSet::new();
         let mut durations_ms: Vec<u64> = Vec::new();
 
         for entry in guard.values() {
             match entry.status {
-                RunStatus::Pending | RunStatus::Running => active += 1,
+                RunStatus::Pending | RunStatus::Running => current += 1,
                 RunStatus::Succeeded => succeeded += 1,
                 RunStatus::Failed | RunStatus::PartialFailure => failed += 1,
                 RunStatus::Cancelled => cancelled += 1,
             }
             actors.insert(entry.actor_id);
-            total_entities += entry.entities_detected;
-            total_redactions += entry.redactions_applied;
 
             if let Some(completed_at) = entry.completed_at {
                 let span = completed_at.since(entry.created_at);
@@ -300,28 +297,22 @@ impl RunState {
             }
         }
 
-        let (min_run_duration_ms, max_run_duration_ms, avg_run_duration_ms) =
-            if durations_ms.is_empty() {
-                (None, None, None)
-            } else {
-                let min = *durations_ms.iter().min().unwrap();
-                let max = *durations_ms.iter().max().unwrap();
-                let sum: u64 = durations_ms.iter().sum();
-                let avg = sum as f64 / durations_ms.len() as f64;
-                (Some(min), Some(max), Some(avg))
-            };
+        let (max_run_duration_ms, avg_run_duration_ms) = if durations_ms.is_empty() {
+            (None, None)
+        } else {
+            let max = *durations_ms.iter().max().unwrap();
+            let sum: u64 = durations_ms.iter().sum();
+            let avg = sum as f64 / durations_ms.len() as f64;
+            (Some(max), Some(avg))
+        };
 
         AnalyticsSnapshot {
             timestamp: Timestamp::now(),
-            total_runs: guard.len() as u64,
-            active_runs: active,
+            current_runs: current,
             succeeded_runs: succeeded,
             failed_runs: failed,
             cancelled_runs: cancelled,
-            total_entities_detected: total_entities,
-            total_redactions_applied: total_redactions,
             distinct_actors: actors.len() as u64,
-            min_run_duration_ms,
             max_run_duration_ms,
             avg_run_duration_ms,
         }

@@ -20,7 +20,6 @@
 //! - `runs` — in-memory run lifecycle tracking ([`RunSnapshot`], [`RunSummary`]).
 //! - `analytics` — point-in-time aggregate metrics across all tracked runs.
 
-mod analytics;
 mod config;
 mod default;
 mod executor;
@@ -28,9 +27,10 @@ mod orchestrator;
 mod plan;
 mod runs;
 
-pub use self::analytics::AnalyticsSnapshot;
 pub use self::config::{
     EngineSection, LlmSection, OcrSection, ResourceLimits, RuntimeConfig, SttSection, TtsSection,
 };
 pub use self::default::{Engine, EngineInput, EngineOutput};
-pub use self::runs::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
+pub use self::runs::{
+    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
+};

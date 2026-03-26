@@ -14,11 +14,11 @@ use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::State;
-use nvisy_engine::pipeline::Engine;
+use nvisy_engine::pipeline::{AnalyticsSnapshot, Engine};
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 
-use super::response::{Analytics, ComponentCheck, Health, ServiceStatus};
+use super::response::{ComponentCheck, Health, ServiceStatus};
 use crate::extract::Json;
 use crate::middleware::constants::{DEFAULT_HEALTH_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS};
 use crate::middleware::recovery::handle_error;
@@ -87,19 +87,8 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
 
 /// `GET /api/v1/analytics`: retrieve aggregate pipeline analytics.
 #[tracing::instrument(target = "nvisy_server::infra", skip_all)]
-async fn get_analytics(State(engine): State<Engine>) -> Json<Analytics> {
-    let snapshot = engine.snapshot().await;
-    Json(Analytics {
-        timestamp: snapshot.timestamp,
-        total_runs: snapshot.total_runs,
-        active_runs: snapshot.active_runs,
-        succeeded_runs: snapshot.succeeded_runs,
-        failed_runs: snapshot.failed_runs,
-        cancelled_runs: snapshot.cancelled_runs,
-        total_entities_detected: snapshot.total_entities_detected,
-        total_redactions_applied: snapshot.total_redactions_applied,
-        distinct_actors: snapshot.distinct_actors,
-    })
+async fn get_analytics(State(engine): State<Engine>) -> Json<AnalyticsSnapshot> {
+    Json(engine.snapshot().await)
 }
 
 fn analytics_docs(op: TransformOperation) -> TransformOperation {

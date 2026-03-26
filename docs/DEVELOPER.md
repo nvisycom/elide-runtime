@@ -40,26 +40,44 @@ Terraform modules (or equivalent) should be provided for provisioning and config
 
 A library of sample redaction policies and a synthetic data generator should be available to accelerate development and testing. Developers should be able to exercise the full pipeline against realistic but non-sensitive data without access to production content.
 
-## 4. Advanced Capabilities
+## 4. Configuration
+
+### 4.1 Runtime Configuration
+
+The engine accepts a TOML-based runtime configuration that controls subsystem behavior — LLM provider selection, OCR settings, speech-to-text parameters, and engine-level tuning (channel buffer sizes, parallelism limits). Configuration is structured into discrete sections for each subsystem, with clear separation between engine-level settings and provider-specific settings.
+
+### 4.2 Configuration Validation
+
+Before a pipeline executes, the runtime configuration is validated to catch structural errors early — empty API keys, invalid buffer sizes, and other constraint violations. Validation errors are surfaced as structured error messages identifying the specific field and constraint that was violated.
+
+### 4.3 Environment Variable Resolution
+
+API keys and other secrets can be injected from environment variables rather than stored in configuration files. When a configuration field is empty, the engine checks a corresponding environment variable before rejecting the configuration. This supports deployment patterns where secrets are managed through infrastructure (Kubernetes secrets, CI/CD variables) rather than config files.
+
+### 4.4 Per-Request Overrides
+
+Each pipeline execution can include configuration overrides that are merged with the base runtime configuration. Overrides replace entire sections — they do not partially merge individual fields within a section. This allows callers to adjust provider selection, model parameters, or feature flags on a per-request basis without modifying the persistent configuration.
+
+## 5. Advanced Capabilities
 
 The following capabilities extend the platform beyond standard redaction into a category-defining position. Each represents an opportunity to increase the platform's value density — reducing the distance between raw ingestion and actionable, compliant output.
 
-### 4.1 Risk Scoring
+### 5.1 Risk Scoring
 
 Documents and datasets should be scored by aggregate privacy exposure level, enabling organizations to prioritize review effort and allocate resources toward the highest-risk content.
 
-### 4.2 Smart Redaction Suggestion
+### 5.2 Smart Redaction Suggestion
 
 Rather than applying maximal redaction, the platform should be capable of suggesting the minimal set of redactions required to satisfy a given regulatory standard. This preserves data utility while meeting compliance obligations.
 
-### 4.3 Data Lineage Visualization
+### 5.3 Data Lineage Visualization
 
 A visual representation of the processing pipeline — from ingestion through detection, redaction, and export — should be available for each piece of content. Data lineage supports debugging, audit preparation, and stakeholder communication.
 
-### 4.4 Semantic Redaction
+### 5.4 Semantic Redaction
 
 Beyond named entity redaction, the platform should support redaction of semantic categories — for example, references to rare diseases, specific legal proceedings, or proprietary methodologies — that carry sensitivity not through the presence of a specific identifier but through their meaning in context.
 
-### 4.5 Synthetic Data Replacement
+### 5.5 Synthetic Data Replacement
 
 Rather than replacing sensitive content with black bars or placeholder tokens, the platform should support replacement with realistic synthetic alternatives — generated names, addresses, dates, and other values that preserve the statistical and structural properties of the original data while eliminating re-identification risk.

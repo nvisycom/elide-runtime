@@ -50,7 +50,7 @@ Audit logs must be append-only and tamper-evident. Once a record is written, it 
 
 ### 4.2 Chain of Custody
 
-The audit system must maintain a complete chain of custody for every piece of content: from ingestion, through detection and redaction, to export. Every access event — who viewed the content and when — must be recorded.
+The audit system must maintain a complete chain of custody for every piece of content: from ingestion, through detection and redaction, to export. Every access event — who viewed the content and when — must be recorded. The content metadata captured at ingestion (MIME type, filename, source path, and any custom key-value pairs) is preserved alongside the audit trail, providing full context for each processing decision without relying on the continued availability of the original content.
 
 ### 4.3 Reporting
 

@@ -17,7 +17,7 @@ The platform must distinguish between occurrences of the same entity across diff
 Redaction rules must support conditional logic:
 
 - **Role-based rules**: Redact all references to minors while preserving references to adults.
-- **Document-type conditions**: Apply medical redaction policies only when the document type is classified as a health record.
+- **Document-type conditions**: Apply medical redaction policies only when the document type is classified as a health record. The pipeline envelope carries the original content metadata (MIME type, filename, custom key-value pairs) through every stage, making these signals available to redaction rules without re-reading the original content.
 - **Temporal conditions**: Redact specific time segments in audio content.
 
 ### 2.3 Relationship-Aware Redaction

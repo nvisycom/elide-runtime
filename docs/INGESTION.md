@@ -72,18 +72,45 @@ Multiple masking strategies should be available, selected according to the use c
 - **Reversible masking**: Vault-based masking where original values can be recovered by authorized parties through a secure key exchange.
 - **De-identification with re-linking key**: Removal of direct identifiers with a separately stored mapping that enables re-identification under controlled conditions.
 
-## 5. Validation and Error Handling
+## 5. Content Model
+
+The internal content representation separates raw data from descriptive metadata. This separation is fundamental to reliable format detection and pipeline execution.
+
+### 5.1 Content Data and Metadata
+
+Each piece of ingested content is represented as a `Content` bundle consisting of two parts:
+
+- **Content data**: The raw bytes and a unique source identifier. Content data carries no descriptive information — it is opaque binary or text.
+- **Content metadata**: All descriptive attributes that accompany the content — the caller-supplied MIME type, the auto-detected MIME type (from magic-byte signatures), the original filename, the source path, and an extensible key-value map for arbitrary metadata.
+
+This separation ensures that descriptive information is never lost during storage and retrieval. The registry persists data and metadata in separate storage keyspaces; when content is reconstructed for pipeline execution, both halves are reunited into a complete bundle.
+
+### 5.2 Format Detection
+
+Format detection determines the document type (text, image, audio, PDF, spreadsheet, etc.) and drives decoder selection. Detection evaluates multiple signals in priority order:
+
+1. **Caller-supplied MIME type** — highest priority. Set explicitly at upload time (e.g. from an HTTP `Content-Type` header). This is the only way to identify text formats that have no magic bytes.
+2. **Magic-byte detection** — automatic detection from binary signatures in the raw content. Reliable for binary formats (PNG, JPEG, WAV, PDF) but returns nothing for plain text.
+3. **Filename extension** — lowest priority. Used as a fallback when MIME type and magic bytes are inconclusive. When the MIME type identifies a broad category (e.g. `text/plain`) and the extension provides a more specific variant (e.g. `.log`), the extension refines the result.
+
+Format detection occurs at decode time, not at upload. Metadata is persisted at upload so that all detection signals are available when the content is later processed.
+
+### 5.3 Metadata Through the Pipeline
+
+Once content is decoded into a document, the original metadata is preserved on the pipeline envelope and flows through every processing stage — detection, fusion, policy evaluation, redaction, and export. This enables operations to make context-aware decisions based on the original filename, MIME type, or custom metadata without re-reading the raw content.
+
+## 6. Validation and Error Handling
 
 Ingestion must account for real-world content that is malformed, incomplete, or unsupported.
 
-### 5.1 Input Validation
+### 6.1 Input Validation
 
 Before processing begins, the platform must validate that submitted content meets minimum requirements: supported file format, non-zero size, and absence of corruption indicators. Invalid submissions must be rejected with actionable error messages that identify the specific validation failure.
 
-### 5.2 Partial Extraction
+### 6.2 Partial Extraction
 
 When a document is partially parseable — a multi-page PDF with a corrupt page, an audio file with a damaged segment, or an image with an unreadable region — the platform should extract what it can and flag the remainder as incomplete. Partial extraction results must be clearly annotated so that downstream detection operates only on successfully extracted content.
 
-### 5.3 Error Reporting
+### 6.3 Error Reporting
 
 Every ingestion failure must produce a structured error record that includes the content identifier, the failure type (unsupported format, corrupt data, extraction timeout, codec unavailable), and the processing stage at which the failure occurred. These records must be available through the same audit infrastructure described in [COMPLIANCE.md](COMPLIANCE.md).

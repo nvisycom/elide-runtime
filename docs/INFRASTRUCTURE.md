@@ -39,6 +39,14 @@ Horizontal scaling must be supported, allowing compute capacity to expand propor
 
 The platform should optimize processing cost by routing content through the appropriate detection tier. Simple deterministic pattern matches should not incur the computational cost of ML inference. A tiered processing architecture — regex first, ML models only when deterministic methods are insufficient — reduces cost without sacrificing detection coverage.
 
+### 3.4 Content Storage
+
+The platform stores content in a registry backed by an embedded key-value store. Raw content bytes and descriptive metadata are persisted in separate storage keyspaces, enabling independent access patterns — metadata lookups do not require reading the full content payload, and content retrieval includes metadata reconstruction automatically.
+
+When content is registered, the registry eagerly detects the MIME type from magic-byte signatures and persists it as part of the metadata. This ensures that format detection signals survive the storage round-trip, even for content where magic bytes are the only available detection method.
+
+Content is addressed by a composite key of actor identity and content source identifier, providing natural tenant isolation at the storage layer.
+
 ## 4. Security
 
 ### 4.1 Data Protection
@@ -75,6 +83,8 @@ The platform must expose operational metrics covering ingestion throughput, dete
 ### 6.2 Distributed Tracing
 
 Each piece of content should carry a trace identifier through every stage of the pipeline — ingestion, detection, redaction, review, and export. Distributed tracing enables operators to diagnose latency bottlenecks, identify failed processing stages, and correlate events across services.
+
+All tracing events use explicit, hierarchical target names following the convention `<crate>::<module>::<submodule>` (e.g. `nvisy_engine::op::import_file`, `nvisy_codec::transform::text`). This enables precise per-module log filtering in production without relying on log levels alone.
 
 ### 6.3 Alerting
 

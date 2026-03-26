@@ -70,18 +70,24 @@ Files submitted for processing may carry annotations — either provided by the 
 
 The detection engine must consume annotations as first-class inputs alongside its own detection results, merging user-provided and machine-generated findings into a unified annotation set before redaction.
 
-## 8. Detection Orchestration
+## 8. Pipeline State and Metadata
+
+Each document entering the detection pipeline is wrapped in an envelope that carries both the decoded document content and the original content metadata (MIME type, filename, source path, and arbitrary key-value pairs). This metadata is preserved from ingestion through every detection and redaction stage.
+
+Metadata availability during detection enables format-aware and context-aware decisions. For example, a detection rule might apply different confidence thresholds to `.csv` files than to freeform text, or a custom metadata tag attached at upload (e.g., `"department": "legal"`) might activate additional detection policies. Detection operations access this metadata directly from the pipeline envelope without re-reading the original content from storage.
+
+## 9. Detection Orchestration
 
 Individual detection strategies — deterministic, ML-based, vision, and audio — must be composed into a coherent pipeline rather than operating in isolation.
 
-### 8.1 Tiered Execution
+### 9.1 Tiered Execution
 
 Detection should proceed in tiers ordered by cost and specificity. Deterministic patterns (regex, checksums) execute first, providing high-precision results at minimal computational cost. ML and vision models execute subsequently, targeting content that deterministic methods cannot address. This tiered architecture avoids unnecessary GPU inference for content that can be resolved through pattern matching alone.
 
-### 8.2 Result Merging
+### 9.2 Result Merging
 
 When multiple detection strategies identify overlapping or adjacent sensitive regions within the same content, the platform must merge results into a unified set of detection annotations. Overlapping detections should be consolidated rather than duplicated. Each merged annotation must retain provenance — which strategies contributed to the detection and at what confidence level.
 
-### 8.3 Conflict Resolution
+### 9.3 Conflict Resolution
 
 When detection strategies disagree — for example, a regex match identifies a number as a credit card while an NER model classifies the surrounding context as non-sensitive — the platform must apply configurable conflict resolution rules. Default behavior should favor the higher-confidence or higher-sensitivity classification, but administrators must be able to override this through policy.

@@ -16,9 +16,10 @@ pub use self::stream::SpanStream;
 use crate::handler::{
     AudioData, AudioHandler, AudioSpanId, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
     BoxedTextHandler, CsvLoader, CsvParams, Handler, HtmlLoader, HtmlParams, ImageData,
-    ImageHandler, ImageSpanId, JpegLoader, JpegParams, JsonLoader, JsonParams, Loader, Mp3Loader,
-    Mp3Params, PngLoader, PngParams, TextData, TextHandler, TextSpanId, TxtLoader, TxtParams,
-    WavLoader, WavParams, XlsxLoader, XlsxParams,
+    ImageHandler, ImageSpanId, JpegLoader, JpegParams, JsonLoader, JsonParams, Loader,
+    MarkdownLoader, MarkdownParams, Mp3Loader, Mp3Params, PngLoader, PngParams, TextData,
+    TextHandler, TextSpanId, TiffLoader, TiffParams, TxtLoader, TxtParams, WavLoader, WavParams,
+    XlsxLoader, XlsxParams,
 };
 
 /// A fully type-erased document that can hold any supported format.
@@ -147,52 +148,96 @@ impl Document {
                 "Document::decode",
             )
         })?;
-        let content = content.data();
+        let data = content.data();
 
         match doc_type {
-            // Text formats (require explicit MIME — no magic bytes)
-            DocumentType::Text(TextFormat::Txt | TextFormat::Log) => {
-                let handler = TxtLoader.decode(content, &TxtParams::default()).await?;
-                Ok(Self::from(BoxedTextHandler::from(handler)))
+            DocumentType::Text(_) | DocumentType::Html | DocumentType::Spreadsheet(_) => {
+                Self::decode_text(doc_type, data).await
             }
-            DocumentType::Text(TextFormat::Json) => {
-                let handler = JsonLoader.decode(content, &JsonParams::default()).await?;
-                Ok(Self::from(BoxedTextHandler::from(handler)))
+            DocumentType::Image(_) => Self::decode_image(doc_type, data).await,
+            DocumentType::Audio(_) => Self::decode_audio(doc_type, data).await,
+            DocumentType::Pdf | DocumentType::Word(_) | DocumentType::Presentation(_) => {
+                Self::decode_rich(doc_type, data).await
             }
-            DocumentType::Html => {
-                let handler = HtmlLoader.decode(content, &HtmlParams::default()).await?;
-                Ok(Self::from(BoxedTextHandler::from(handler)))
-            }
-            DocumentType::Spreadsheet(SpreadsheetFormat::Csv) => {
-                let handler = CsvLoader.decode(content, &CsvParams::default()).await?;
-                Ok(Self::from(BoxedTextHandler::from(handler)))
-            }
-            DocumentType::Spreadsheet(SpreadsheetFormat::Xlsx) => {
-                let handler = XlsxLoader.decode(content, &XlsxParams).await?;
-                Ok(Self::from(BoxedTextHandler::from(handler)))
-            }
+        }
+    }
 
-            // Image formats (magic-byte detected)
+    async fn decode_text(doc_type: DocumentType, content: &ContentData) -> Result<Self, Error> {
+        let handler: BoxedTextHandler = match doc_type {
+            DocumentType::Text(TextFormat::Txt | TextFormat::Log) => TxtLoader
+                .decode(content, &TxtParams::default())
+                .await?
+                .into(),
+            DocumentType::Text(TextFormat::Json) => JsonLoader
+                .decode(content, &JsonParams::default())
+                .await?
+                .into(),
+            DocumentType::Text(TextFormat::Markdown) => MarkdownLoader
+                .decode(content, &MarkdownParams::default())
+                .await?
+                .into(),
+            DocumentType::Html => HtmlLoader
+                .decode(content, &HtmlParams::default())
+                .await?
+                .into(),
+            DocumentType::Spreadsheet(SpreadsheetFormat::Csv) => CsvLoader
+                .decode(content, &CsvParams::default())
+                .await?
+                .into(),
+            DocumentType::Spreadsheet(SpreadsheetFormat::Xlsx) => {
+                XlsxLoader.decode(content, &XlsxParams).await?.into()
+            }
+            _ => {
+                return Err(Error::validation(
+                    format!("no text loader for: {doc_type}"),
+                    "Document::decode_text",
+                ));
+            }
+        };
+        Ok(Self::from(handler))
+    }
+
+    async fn decode_image(doc_type: DocumentType, content: &ContentData) -> Result<Self, Error> {
+        let handler: BoxedImageHandler = match doc_type {
             DocumentType::Image(ImageFormat::Png) => {
-                let handler = PngLoader.decode(content, &PngParams).await?;
-                Ok(Self::from(BoxedImageHandler::from(handler)))
+                PngLoader.decode(content, &PngParams).await?.into()
             }
             DocumentType::Image(ImageFormat::Jpeg) => {
-                let handler = JpegLoader.decode(content, &JpegParams).await?;
-                Ok(Self::from(BoxedImageHandler::from(handler)))
+                JpegLoader.decode(content, &JpegParams).await?.into()
             }
+            DocumentType::Image(ImageFormat::Tiff) => {
+                TiffLoader.decode(content, &TiffParams).await?.into()
+            }
+            _ => {
+                return Err(Error::validation(
+                    format!("no image loader for: {doc_type}"),
+                    "Document::decode_image",
+                ));
+            }
+        };
+        Ok(Self::from(handler))
+    }
 
-            // Audio formats (magic-byte detected)
+    async fn decode_audio(doc_type: DocumentType, content: &ContentData) -> Result<Self, Error> {
+        let handler: BoxedAudioHandler = match doc_type {
             DocumentType::Audio(AudioFormat::Wav) => {
-                let handler = WavLoader.decode(content, &WavParams).await?;
-                Ok(Self::from(BoxedAudioHandler::from(handler)))
+                WavLoader.decode(content, &WavParams).await?.into()
             }
             DocumentType::Audio(AudioFormat::Mp3) => {
-                let handler = Mp3Loader.decode(content, &Mp3Params).await?;
-                Ok(Self::from(BoxedAudioHandler::from(handler)))
+                Mp3Loader.decode(content, &Mp3Params).await?.into()
             }
+            _ => {
+                return Err(Error::validation(
+                    format!("no audio loader for: {doc_type}"),
+                    "Document::decode_audio",
+                ));
+            }
+        };
+        Ok(Self::from(handler))
+    }
 
-            // Rich formats (magic-byte detected)
+    async fn decode_rich(doc_type: DocumentType, content: &ContentData) -> Result<Self, Error> {
+        match doc_type {
             DocumentType::Pdf => {
                 #[cfg(feature = "pdf")]
                 {
@@ -204,7 +249,7 @@ impl Document {
                 {
                     Err(Error::validation(
                         "PDF support requires the \"pdf\" feature",
-                        "Document::decode",
+                        "Document::decode_rich",
                     ))
                 }
             }
@@ -219,14 +264,13 @@ impl Document {
                 {
                     Err(Error::validation(
                         "DOCX support requires the \"docx\" feature",
-                        "Document::decode",
+                        "Document::decode_rich",
                     ))
                 }
             }
-
             _ => Err(Error::validation(
-                format!("no loader available for detected type: {doc_type}"),
-                "Document::decode",
+                format!("no rich loader for: {doc_type}"),
+                "Document::decode_rich",
             )),
         }
     }

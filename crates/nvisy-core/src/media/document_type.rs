@@ -207,6 +207,7 @@ pub enum TextFormat {
     Txt,
     Log,
     Json,
+    Markdown,
 }
 
 impl TextFormat {
@@ -215,6 +216,7 @@ impl TextFormat {
         match self {
             Self::Txt | Self::Log => "text/plain",
             Self::Json => "application/json",
+            Self::Markdown => "text/markdown",
         }
     }
 
@@ -223,23 +225,15 @@ impl TextFormat {
         match mime {
             "text/plain" => Some(Self::Txt),
             "application/json" => Some(Self::Json),
+            "text/markdown" => Some(Self::Markdown),
             _ => None,
         }
     }
 }
 
 /// Document format that content can be classified as.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DocumentType {
     Text(TextFormat),
@@ -295,6 +289,7 @@ impl DocumentType {
             "txt" => Some(Self::Text(TextFormat::Txt)),
             "log" => Some(Self::Text(TextFormat::Log)),
             "json" => Some(Self::Text(TextFormat::Json)),
+            "md" | "markdown" => Some(Self::Text(TextFormat::Markdown)),
             "csv" => Some(Self::Spreadsheet(SpreadsheetFormat::Csv)),
             "html" | "htm" => Some(Self::Html),
             "png" => Some(Self::Image(ImageFormat::Png)),

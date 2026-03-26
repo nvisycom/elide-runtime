@@ -2,23 +2,31 @@ name: Security
 
 on:
   push:
-    branches: [main]
+    branches:
+      - "main"
+      - "release"
     paths:
       - "crates/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "deny.toml"
       - ".github/workflows/security.yml"
   pull_request:
-    branches: [main]
+    branches:
+      - "main"
+      - "release"
     paths:
       - "crates/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "deny.toml"
       - ".github/workflows/security.yml"
   schedule:
-    # Monday at 06:00 UTC
     - cron: "0 6 * * 1"
   workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -28,22 +36,19 @@ permissions:
   contents: read
 
 jobs:
-  audit:
-    name: Audit
+  deny:
+    name: Deny
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Cache cargo-audit binary
-        uses: actions/cache@v5
-        with:
-          path: ~/.cargo/bin/cargo-audit
-          key: cargo-audit-${{ runner.os }}
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
 
-      - name: Install cargo-audit
-        run: command -v cargo-audit || cargo install cargo-audit --locked
+      - name: Install cargo-deny
+        run: cargo binstall cargo-deny --no-confirm --no-symlinks
 
-      - name: Run cargo audit
-        run: cargo audit
+      - name: Run deny
+        run: cargo deny check all

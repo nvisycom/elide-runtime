@@ -16,9 +16,10 @@ pub use self::stream::SpanStream;
 use crate::handler::{
     AudioData, AudioHandler, AudioSpanId, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
     BoxedTextHandler, CsvLoader, CsvParams, Handler, HtmlLoader, HtmlParams, ImageData,
-    ImageHandler, ImageSpanId, JpegLoader, JpegParams, JsonLoader, JsonParams, Loader, Mp3Loader,
-    Mp3Params, PngLoader, PngParams, TextData, TextHandler, TextSpanId, TxtLoader, TxtParams,
-    WavLoader, WavParams, XlsxLoader, XlsxParams,
+    ImageHandler, ImageSpanId, JpegLoader, JpegParams, JsonLoader, JsonParams, Loader,
+    MarkdownLoader, MarkdownParams, Mp3Loader, Mp3Params, PngLoader, PngParams, TextData,
+    TextHandler, TextSpanId, TiffLoader, TiffParams, TxtLoader, TxtParams, WavLoader, WavParams,
+    XlsxLoader, XlsxParams,
 };
 
 /// A fully type-erased document that can hold any supported format.
@@ -159,6 +160,10 @@ impl Document {
                 let handler = JsonLoader.decode(content, &JsonParams::default()).await?;
                 Ok(Self::from(BoxedTextHandler::from(handler)))
             }
+            DocumentType::Text(TextFormat::Markdown) => {
+                let handler = MarkdownLoader.decode(content, &MarkdownParams::default()).await?;
+                Ok(Self::from(BoxedTextHandler::from(handler)))
+            }
             DocumentType::Html => {
                 let handler = HtmlLoader.decode(content, &HtmlParams::default()).await?;
                 Ok(Self::from(BoxedTextHandler::from(handler)))
@@ -179,6 +184,10 @@ impl Document {
             }
             DocumentType::Image(ImageFormat::Jpeg) => {
                 let handler = JpegLoader.decode(content, &JpegParams).await?;
+                Ok(Self::from(BoxedImageHandler::from(handler)))
+            }
+            DocumentType::Image(ImageFormat::Tiff) => {
+                let handler = TiffLoader.decode(content, &TiffParams).await?;
                 Ok(Self::from(BoxedImageHandler::from(handler)))
             }
 

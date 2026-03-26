@@ -207,6 +207,7 @@ pub enum TextFormat {
     Txt,
     Log,
     Json,
+    Markdown,
 }
 
 impl TextFormat {
@@ -215,6 +216,7 @@ impl TextFormat {
         match self {
             Self::Txt | Self::Log => "text/plain",
             Self::Json => "application/json",
+            Self::Markdown => "text/markdown",
         }
     }
 
@@ -223,6 +225,7 @@ impl TextFormat {
         match mime {
             "text/plain" => Some(Self::Txt),
             "application/json" => Some(Self::Json),
+            "text/markdown" => Some(Self::Markdown),
             _ => None,
         }
     }
@@ -295,6 +298,7 @@ impl DocumentType {
             "txt" => Some(Self::Text(TextFormat::Txt)),
             "log" => Some(Self::Text(TextFormat::Log)),
             "json" => Some(Self::Text(TextFormat::Json)),
+            "md" | "markdown" => Some(Self::Text(TextFormat::Markdown)),
             "csv" => Some(Self::Spreadsheet(SpreadsheetFormat::Csv)),
             "html" | "htm" => Some(Self::Html),
             "png" => Some(Self::Image(ImageFormat::Png)),

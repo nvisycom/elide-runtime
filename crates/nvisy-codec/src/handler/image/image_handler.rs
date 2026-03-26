@@ -4,7 +4,7 @@ use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
 
-use super::{ImageData, ImageSpanId, JpegHandler, PngHandler};
+use super::{ImageData, ImageSpanId, JpegHandler, PngHandler, TiffHandler};
 use crate::document::SpanStream;
 use crate::handler::{Handler, ImageHandler};
 
@@ -38,6 +38,12 @@ impl From<PngHandler> for BoxedImageHandler {
 
 impl From<JpegHandler> for BoxedImageHandler {
     fn from(h: JpegHandler) -> Self {
+        Self::new(h)
+    }
+}
+
+impl From<TiffHandler> for BoxedImageHandler {
+    fn from(h: TiffHandler) -> Self {
         Self::new(h)
     }
 }

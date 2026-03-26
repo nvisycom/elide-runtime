@@ -65,6 +65,11 @@ pub struct EngineInput {
     /// Per-request configuration overrides, merged with engine defaults
     /// via [`RuntimeConfig::merge`] at the start of each run.
     pub config: Option<RuntimeConfig>,
+    /// When `true`, the pipeline evaluates detection and policy rules
+    /// but skips validation and export. The returned [`EngineOutput`]
+    /// contains the redaction plan (decisions and records) without
+    /// modifying or exporting any content.
+    pub dry_run: bool,
 }
 
 /// Complete result of a pipeline run.
@@ -348,6 +353,7 @@ impl Engine {
             config: Arc::new(effective_config),
             http_client: self.inner.http_client.clone(),
             concurrency,
+            dry_run: input.dry_run,
         };
 
         self.inner.runs.set_started_at(run_id).await;

@@ -6,6 +6,24 @@ use nvisy_engine::pipeline::{RunFilter, RunStatus};
 use uuid::Uuid;
 
 #[tokio::test]
+async fn dry_run_returns_without_exporting() -> anyhow::Result<()> {
+    let (engine, _dir) = fixtures::engine();
+    let actor = fixtures::actor();
+    let content_id = fixtures::upload_text(&engine, actor, "dry run test").await;
+
+    let graph = fixtures::import_export_graph(content_id);
+    let output = engine.run(fixtures::dry_run_input(actor, graph)).await?;
+
+    // Dry run should succeed and return a valid run_id.
+    let snapshot = engine.get_run(actor, output.run_id).await.unwrap();
+    assert_eq!(snapshot.status, RunStatus::Succeeded);
+
+    // Export should have been skipped, so no exported content.
+    assert!(output.summaries.is_empty());
+    Ok(())
+}
+
+#[tokio::test]
 async fn successful_run_has_succeeded_status() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();

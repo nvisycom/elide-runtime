@@ -113,6 +113,17 @@ impl GraphNodeKind {
         }
     }
 
+    /// Returns `true` for nodes that run after policy evaluation:
+    /// validation, export, and save-context. These are skipped in
+    /// dry-run mode.
+    #[must_use]
+    pub fn is_post_redaction(&self) -> bool {
+        matches!(
+            self,
+            Self::Validation(_) | Self::ExportFile(_) | Self::SaveContext(_)
+        )
+    }
+
     /// Validates action-specific configuration.
     pub fn validate(&self) -> Result<(), Error> {
         match self {

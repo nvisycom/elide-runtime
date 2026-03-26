@@ -52,6 +52,7 @@ async fn create_run(
         policies: req.policies,
         graph: req.graph,
         config: req.config,
+        dry_run: req.dry_run,
     };
 
     let output = engine.run(input).await?;

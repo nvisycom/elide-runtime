@@ -253,7 +253,7 @@ impl NodeExecutor {
             let shared = shared.clone();
             async move {
                 tracing::debug!(target: TARGET, "extracting image spans for OCR");
-                let image_spans: Vec<_> = envelope.document.image_spans().await.collect().await;
+                let image_spans: Vec<_> = envelope.document.collect_image_spans().await;
                 if !image_spans.is_empty() {
                     let ocr_spans: Vec<Span<(), _>> = image_spans
                         .into_iter()
@@ -359,7 +359,7 @@ impl NodeExecutor {
             let op = &op;
             let shared = shared.clone();
             async move {
-                let spans: Vec<_> = envelope.document.text_spans().await.collect().await;
+                let spans: Vec<_> = envelope.document.collect_text_spans().await;
                 if !spans.is_empty() {
                     tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
                     let input = SequentialContext::new(spans, shared);
@@ -386,7 +386,7 @@ impl NodeExecutor {
             let op = &op;
             let shared = shared.clone();
             async move {
-                let spans: Vec<_> = envelope.document.text_spans().await.collect().await;
+                let spans: Vec<_> = envelope.document.collect_text_spans().await;
                 if !spans.is_empty() {
                     tracing::debug!(target: TARGET, span_count = spans.len(), "running pattern detection");
                     let input = ParallelContext::new(spans, shared);
@@ -462,7 +462,7 @@ impl NodeExecutor {
             let op = &op;
             let shared = shared.clone();
             async move {
-                let text_spans: Vec<_> = envelope.document.text_spans().await.collect().await;
+                let text_spans: Vec<_> = envelope.document.collect_text_spans().await;
                 let redacted_text = if text_spans.is_empty() {
                     None
                 } else {

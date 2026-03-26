@@ -4,13 +4,13 @@ use std::fmt;
 
 use bytes::Bytes;
 use fjall::Keyspace;
-use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
+use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 use nvisy_core::{Error, ErrorKind, Result};
 use uuid::Uuid;
 
 use super::store::composite_key;
 
-const COMPONENT: &str = "registry::content";
+const TARGET: &str = "nvisy_engine::registry::content";
 
 /// Lightweight handle to a content entry stored in the registry.
 ///
@@ -76,7 +76,7 @@ impl ContentHandle {
     /// [`spawn_blocking`](tokio::task::spawn_blocking) to avoid
     /// blocking the async runtime on fjall I/O.
     #[tracing::instrument(
-        target = COMPONENT,
+        target = TARGET,
         name = "content.read_data",
         skip(self),
         fields(actor_id = %self.actor_id, source_id = %self.content_source.as_uuid()),
@@ -89,7 +89,7 @@ impl ContentHandle {
         tokio::task::spawn_blocking(move || -> Result<ContentData> {
             let value = ks.get(key).map_err(|err| {
                 Error::new(ErrorKind::Internal, "failed to read content data")
-                    .with_component(COMPONENT)
+                    .with_component(TARGET)
                     .with_source(err)
             })?;
 
@@ -98,7 +98,7 @@ impl ContentHandle {
                     ErrorKind::NotFound,
                     format!("content data not found: {}", source.as_uuid()),
                 )
-                .with_component(COMPONENT)
+                .with_component(TARGET)
             })?;
 
             Ok(ContentData::new(source, Bytes::copy_from_slice(&guard)))
@@ -106,7 +106,7 @@ impl ContentHandle {
         .await
         .map_err(|err| {
             Error::new(ErrorKind::Internal, "blocking task panicked")
-                .with_component(COMPONENT)
+                .with_component(TARGET)
                 .with_source(err)
         })?
     }
@@ -116,7 +116,7 @@ impl ContentHandle {
     /// Returns [`ContentMetadata::default()`] when the metadata key
     /// exists but has no value (e.g. content registered without metadata).
     #[tracing::instrument(
-        target = COMPONENT,
+        target = TARGET,
         name = "content.read_metadata",
         skip(self),
         fields(actor_id = %self.actor_id, source_id = %self.content_source.as_uuid()),
@@ -128,7 +128,7 @@ impl ContentHandle {
         tokio::task::spawn_blocking(move || -> Result<ContentMetadata> {
             let value = ks.get(key).map_err(|err| {
                 Error::new(ErrorKind::Internal, "failed to read content metadata")
-                    .with_component(COMPONENT)
+                    .with_component(TARGET)
                     .with_source(err)
             })?;
 
@@ -138,7 +138,7 @@ impl ContentHandle {
                         ErrorKind::Serialization,
                         "failed to deserialize content metadata",
                     )
-                    .with_component(COMPONENT)
+                    .with_component(TARGET)
                     .with_source(err)
                 }),
                 None => Ok(ContentMetadata::default()),
@@ -147,8 +147,18 @@ impl ContentHandle {
         .await
         .map_err(|err| {
             Error::new(ErrorKind::Internal, "blocking task panicked")
-                .with_component(COMPONENT)
+                .with_component(TARGET)
                 .with_source(err)
         })?
+    }
+
+    /// Reads both content data and metadata, returning a full [`Content`].
+    ///
+    /// This is the preferred way to retrieve content for pipeline
+    /// operations, since the metadata carries the MIME type and filename
+    /// needed for format detection.
+    pub async fn content(&self) -> Result<Content> {
+        let (data, metadata) = tokio::try_join!(self.content_data(), self.metadata())?;
+        Ok(Content::with_metadata(data, metadata))
     }
 }

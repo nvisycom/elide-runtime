@@ -70,7 +70,7 @@ futures = { workspace = true, features = [] }
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
-semver = { workspace = true, features = [] }
+semver = { workspace = true, features = ["serde"] }
 
 # Graph data structures
 petgraph = { workspace = true, features = [] }

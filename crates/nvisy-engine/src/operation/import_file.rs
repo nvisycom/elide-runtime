@@ -17,7 +17,7 @@
 
 use nvisy_codec::Document;
 use nvisy_core::Result;
-use nvisy_core::content::ContentData;
+use nvisy_core::content::{Content, ContentData};
 
 use crate::graph::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 use crate::operation::compression::CompressionService;
@@ -53,43 +53,47 @@ impl ImportFile {
         self
     }
 
-    async fn import(
-        &self,
-        content: ContentData,
-        shared: &SharedContext,
-    ) -> Result<DocumentEnvelope> {
-        let mut data = content;
+    async fn import(&self, content: Content, shared: &SharedContext) -> Result<DocumentEnvelope> {
+        let mut content = content;
 
         if let Some(algorithm) = self.decompression {
             tracing::debug!(target: TARGET, ?algorithm, "decompressing content");
-            let decompressed = CompressionService::new(algorithm).decompress(data.as_bytes())?;
-            let mut new_data = ContentData::new(data.content_source, decompressed);
-            new_data.filename = data.filename;
-            new_data.supplied_mime = data.supplied_mime;
-            data = new_data;
+            let decompressed = CompressionService::new(algorithm).decompress(content.as_bytes())?;
+            let source = content.content_source();
+            let metadata = content.into_parts().1;
+            let data = ContentData::new(source, decompressed);
+            content = match metadata {
+                Some(meta) => Content::with_metadata(data, meta),
+                None => Content::new(data),
+            };
         }
 
         if let Some(ref enc_cfg) = self.decryption {
             tracing::debug!(target: TARGET, key_id = %enc_cfg.key_id, "decrypting content");
             let crypto = CryptoService::new(&enc_cfg.key_id, shared.key_provider.clone());
             let encrypted = EncryptedContent {
-                source: data.content_source,
-                ciphertext: bytes::Bytes::copy_from_slice(data.as_bytes()),
+                source: content.content_source(),
+                ciphertext: bytes::Bytes::copy_from_slice(content.as_bytes()),
                 key_id: enc_cfg.key_id.clone(),
                 algorithm: EncryptionAlgorithm::Aes256Gcm,
-                filename: data.filename.clone(),
             };
-            data = crypto.decrypt(encrypted).await?;
+            let decrypted_data = crypto.decrypt(encrypted).await?;
+            let metadata = content.into_parts().1;
+            content = match metadata {
+                Some(meta) => Content::with_metadata(decrypted_data, meta),
+                None => Content::new(decrypted_data),
+            };
         }
 
-        let doc = Document::decode(&data).await?;
+        let doc = Document::decode(&content).await?;
         tracing::debug!(target: TARGET, doc_type = %doc.document_type(), "decoded document");
-        Ok(DocumentEnvelope::new(doc))
+        let metadata = content.into_parts().1.unwrap_or_default();
+        Ok(DocumentEnvelope::new(doc, metadata))
     }
 }
 
 impl Operation for ImportFile {
-    type Input = ParallelContext<ContentData>;
+    type Input = ParallelContext<Content>;
     type Output = ParallelContext<DocumentEnvelope>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
@@ -108,7 +112,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let registry = crate::registry::Registry::open(dir.path()).unwrap();
         let shared = SharedContext::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
-        let content = ContentData::from("plain text has no magic bytes");
+        let content = Content::new(ContentData::from("plain text has no magic bytes"));
         let input = ParallelContext::new(content, shared);
         assert!(ImportFile::new().call(input).await.is_err());
     }

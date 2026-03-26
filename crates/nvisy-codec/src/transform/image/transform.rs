@@ -9,6 +9,8 @@ use super::ops::ImageOps;
 use crate::document::{Span, SpanStream};
 use crate::handler::{ImageData, ImageHandler};
 
+const TARGET: &str = "nvisy_codec::transform::image";
+
 /// Extension trait for handlers that support image redaction.
 ///
 /// Extends [`ImageHandler`] with [`redact_images`](Self::redact_images)
@@ -23,6 +25,7 @@ pub trait ImageTransform: ImageHandler {
 impl<H: ImageHandler> ImageTransform for H {
     async fn redact_images(&mut self, redactions: &[ImageRedaction]) -> Result<(), Error> {
         tracing::debug!(
+            target: TARGET,
             redaction_count = redactions.len(),
             "applying image redactions"
         );
@@ -57,6 +60,7 @@ impl<H: ImageHandler> ImageTransform for H {
                         Ok(r) => r,
                         Err(e) => {
                             tracing::warn!(
+                                target: TARGET,
                                 region = ?region,
                                 error = %e,
                                 "failed to decode replacement image data, skipping region"
@@ -79,7 +83,7 @@ impl<H: ImageHandler> ImageTransform for H {
         ))))
         .await?;
 
-        tracing::debug!("image redactions applied");
+        tracing::debug!(target: TARGET, "image redactions applied");
         Ok(())
     }
 }

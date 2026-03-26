@@ -65,7 +65,11 @@ impl Cli {
         let toml = file::FileConfig::from_file(&self.config)?;
         let resolved = self.server.resolve(&toml.server);
         let mw_section = toml.server.as_ref().and_then(|s| s.middleware.clone());
-        let config = toml.inner;
+        let mut config = toml.inner;
+        config.resolve_env();
+        config
+            .validate()
+            .map_err(|e| anyhow::anyhow!("invalid configuration: {}", e.message))?;
         Ok((resolved, config, mw_section))
     }
 

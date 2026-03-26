@@ -1,7 +1,5 @@
 //! Self-describing wire envelope for encrypted content.
 
-use std::path::PathBuf;
-
 use bytes::Bytes;
 use nvisy_core::content::ContentSource;
 use nvisy_core::{Error, Result};
@@ -28,8 +26,6 @@ pub struct EncryptedContent {
     pub key_id: String,
     /// Algorithm used for encryption.
     pub algorithm: EncryptionAlgorithm,
-    /// Original filename, if any.
-    pub filename: Option<PathBuf>,
 }
 
 /// Self-describing wire envelope.

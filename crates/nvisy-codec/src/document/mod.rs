@@ -5,7 +5,7 @@ mod stream;
 
 use derive_more::{From, IsVariant, TryInto};
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::content::{Content, ContentData, ContentSource};
 use nvisy_core::media::{
     AudioFormat, DocumentType, ImageFormat, SpreadsheetFormat, TextFormat, WordFormat,
 };
@@ -100,27 +100,27 @@ impl Document {
         }
     }
 
-    /// Decode [`ContentData`] into a `Document` using default parameters.
+    /// Decode [`Content`] into a `Document` using default parameters.
     ///
-    /// Format detection is delegated to
-    /// [`ContentData::infer_document_type`], which evaluates three
-    /// strategies (supplied MIME, magic bytes, filename extension).
-    /// See its documentation for details.
+    /// Format detection uses [`Content::infer_document_type`], which
+    /// evaluates metadata (supplied MIME, detected MIME, filename
+    /// extension) with fallback to magic-byte detection on the raw bytes.
     ///
     /// # Errors
     ///
     /// Returns an error if:
-    /// - The content type cannot be determined by either strategy.
+    /// - The content type cannot be determined.
     /// - The detected format has no corresponding loader.
     /// - The loader itself fails to decode the content.
-    pub async fn decode(content: &ContentData) -> Result<Self, Error> {
+    pub async fn decode(content: &Content) -> Result<Self, Error> {
         let doc_type = content.infer_document_type().ok_or_else(|| {
             Error::validation(
                 "unable to detect document type from content; \
-                 set a MIME type via ContentData::with_content_type for text formats",
+                 set a MIME type via ContentMetadata::with_content_type",
                 "Document::decode",
             )
         })?;
+        let content = content.data();
 
         match doc_type {
             // Text formats (require explicit MIME — no magic bytes)

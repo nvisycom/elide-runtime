@@ -24,6 +24,8 @@ use uuid::Uuid;
 use super::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
 use crate::pipeline::analytics::AnalyticsSnapshot;
 
+const TARGET: &str = "nvisy_engine::pipeline::runs";
+
 /// In-memory run state backed by `Arc<RwLock<HashMap>>`.
 ///
 /// Cheaply clonable (Arc bump). All clones share the same underlying
@@ -113,11 +115,11 @@ impl RunState {
     ) -> bool {
         let mut guard = self.inner.write().await;
         let Some(entry) = guard.get_mut(&run_id) else {
-            tracing::warn!(%run_id, %node_id, "update_node: run not found");
+            tracing::warn!(target: TARGET, %run_id, %node_id, "update_node: run not found");
             return false;
         };
         let Some(node) = entry.nodes.get_mut(&node_id) else {
-            tracing::warn!(%run_id, %node_id, "update_node: node not found in run");
+            tracing::warn!(target: TARGET, %run_id, %node_id, "update_node: node not found in run");
             return false;
         };
         node.status = status;

@@ -5,6 +5,12 @@
 #
 # All sections are optional — omitted sections use runtime defaults.
 # Per-request overrides (in the JSON request body) replace entire sections.
+#
+# Provider api_key fields can be set via environment variables instead
+# of hardcoding them here: NVISY_LLM_API_KEY, NVISY_STT_API_KEY,
+# NVISY_TTS_API_KEY, NVISY_OCR_API_KEY.
+
+version = "0.1.0"
 
 # Server binding and storage.
 # CLI flags (--host, --port, --data-dir) override these.
@@ -27,6 +33,12 @@ cors = { allowed_origins = ["*"], max_age_secs = 3600 }
 [engine]
 retry = { max_retries = 3, delay_ms = 500, backoff = "fixed" }
 timeout = { duration_ms = 30000, on_timeout = "fail" }
+# concurrency = { max_nodes = 4 }
+
+# Run-level resource limits.
+[engine.limits]
+# run_timeout_ms = 60000       # hard ceiling on total run duration
+channel_buffer = 256            # MPSC buffer size between nodes
 
 # Shared HTTP client for all downstream provider calls.
 [engine.http]
@@ -36,10 +48,7 @@ connect_timeout_secs = 10
 idle_timeout_secs = 90
 
 # OCR text extraction.
-# kind: surya | doctr | paddle-x | aws-textract | azure-docai | google-vision
-[ocr]
-enabled = true
-
+# kind: surya | paddle-x | aws-textract | azure-docai | google-vision
 [ocr.provider]
 kind = "paddle-x"
 base_url = "http://localhost:8003"
@@ -49,12 +58,10 @@ confidence_threshold = 0.5
 
 # LLM for entity detection and classification.
 # kind: open-ai | anthropic | gemini | ollama
-[llm]
-enabled = true
-
+# api_key: set here or via NVISY_LLM_API_KEY env var.
 [llm.provider]
 kind = "open-ai"
-api_key = "sk-..."
+api_key = ""
 model = "gpt-4o"
 
 [llm.policy]
@@ -64,20 +71,16 @@ max_retries = 3
 
 # Speech-to-text transcription.
 # kind: open-ai | local
-[stt]
-enabled = true
-
+# api_key: set here or via NVISY_STT_API_KEY env var.
 [stt.provider]
 kind = "open-ai"
-api_key = "sk-..."
+api_key = ""
 model = "whisper-1"
 
 # Text-to-speech synthesis.
 # kind: open-ai | local
-[tts]
-enabled = true
-
+# api_key: set here or via NVISY_TTS_API_KEY env var.
 [tts.provider]
 kind = "open-ai"
-api_key = "sk-..."
+api_key = ""
 model = "tts-1"

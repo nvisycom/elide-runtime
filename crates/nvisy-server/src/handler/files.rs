@@ -48,20 +48,17 @@ async fn upload_file(
     let bytes = req.content.decode()?;
     let size = bytes.len();
 
-    let mut content_data = ContentData::from(bytes);
-    if let Some(ref mime) = req.content_type {
-        content_data = content_data.with_content_type(mime.clone());
-    }
-    if let Some(ref name) = req.filename {
-        content_data = content_data.with_filename(name.as_str());
-    }
+    let content_data = ContentData::from(bytes);
 
     let mut metadata = match req.filename {
         Some(ref name) => ContentMetadata::with_path(name),
         None => ContentMetadata::new(),
     };
     if let Some(ref mime) = req.content_type {
-        metadata.set_extra("content_type", serde_json::Value::String(mime.clone()));
+        metadata.content_type = Some(mime.clone());
+    }
+    if let Some(ref name) = req.filename {
+        metadata.filename = Some(std::path::PathBuf::from(name));
     }
 
     let content = Content::with_metadata(content_data, metadata);
@@ -111,7 +108,7 @@ async fn download_file(
             .and_then(|m| m.get_extra("content_type"))
             .and_then(|v| v.as_str())
             .map(String::from),
-        filename: content.filename().map(String::from),
+        filename: content.filename().map(|p| p.to_string_lossy().to_string()),
     }))
 }
 

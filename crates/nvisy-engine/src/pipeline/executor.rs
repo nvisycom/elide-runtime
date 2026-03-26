@@ -18,11 +18,13 @@
 //! back to the [orchestrator](super::orchestrator) and
 //! [`Engine`](super::Engine) for finalization.
 
+use std::future::Future;
 use std::sync::Arc;
 
 use futures::StreamExt;
 use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_codec::{Document, Span};
+use nvisy_core::content::Content;
 use nvisy_core::{Error, ErrorKind};
 use nvisy_http::HttpClient;
 use tokio::sync::mpsc;
@@ -31,7 +33,7 @@ use tokio_util::sync::CancellationToken;
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
 use super::runs::RunStatus;
-use crate::graph::{self, GraphNodeKind, RetryPolicy, TimeoutBehavior};
+use crate::graph::{self, GraphNode, GraphNodeKind, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
 use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
 use crate::operation::{
     AudialExtraction, AudioInput, DocumentEnvelope, EntityRecognition, ExportFile, Fusion,
@@ -116,6 +118,22 @@ impl NodeExecutor {
         }
     }
 
+    /// Resolve the effective retry policy for a node: node-level wins,
+    /// then engine default, then none.
+    fn effective_retry(&self, node: &GraphNode) -> Option<RetryPolicy> {
+        node.retry()
+            .cloned()
+            .or_else(|| self.config.engine.as_ref().and_then(|e| e.retry.clone()))
+    }
+
+    /// Resolve the effective timeout policy for a node: node-level wins,
+    /// then engine default, then none.
+    fn effective_timeout(&self, node: &GraphNode) -> Option<TimeoutPolicy> {
+        node.timeout()
+            .cloned()
+            .or_else(|| self.config.engine.as_ref().and_then(|e| e.timeout.clone()))
+    }
+
     /// Execute a resolved node, applying timeout and cancellation policies.
     ///
     /// If the node has a [`TimeoutPolicy`](crate::graph::TimeoutPolicy)
@@ -131,6 +149,8 @@ impl NodeExecutor {
             return Err(Error::cancellation("run cancelled"));
         }
 
+        let retry = self.effective_retry(&resolved.node);
+        let timeout = self.effective_timeout(&resolved.node);
         let cancel = self.cancel.clone();
 
         let run = async {
@@ -138,17 +158,17 @@ impl NodeExecutor {
                 _ = cancel.cancelled() => Err(Error::cancellation("run cancelled")),
                 result = self.dispatch(
                     &resolved.node.kind,
-                    resolved.retry.clone(),
+                    retry,
                     &senders,
                     &mut receivers,
                 ) => result,
             }
         };
 
-        match &resolved.timeout {
-            Some(timeout) => {
-                let result: Result<NodeOutput, Error> = timeout.with_timeout(run).await;
-                match (&result, &timeout.on_timeout) {
+        match &timeout {
+            Some(tp) => {
+                let result: Result<NodeOutput, Error> = tp.with_timeout(run).await;
+                match (&result, &tp.on_timeout) {
                     (Err(e), TimeoutBehavior::Skip) if e.kind == ErrorKind::Timeout => {
                         Ok(NodeOutput {
                             items_processed: 0,
@@ -280,12 +300,12 @@ impl NodeExecutor {
                 if let Document::Audio(ref handler) = envelope.document {
                     tracing::debug!(target: TARGET, "extracting audio for transcription");
                     let audio_data = Handler::encode(handler)?;
-                    let filename: String = audio_data
+                    let filename = envelope
+                        .metadata
                         .filename
                         .as_deref()
                         .map(|p| p.to_string_lossy().to_string())
                         .unwrap_or_else(|| "audio.wav".to_string());
-
                     let input = ParallelContext::new(
                         AudioInput {
                             audio_data: audio_data.as_bytes().to_vec(),
@@ -546,8 +566,8 @@ impl NodeExecutor {
             let do_import = || async {
                 tracing::debug!(target: TARGET, %content_id, "importing content");
                 let handle = registry.read_content(actor_id, content_id).await?;
-                let content_data = handle.content_data().await?;
-                let input = ParallelContext::new(content_data, self.shared.clone());
+                let content = handle.content().await?;
+                let input = ParallelContext::new(content, self.shared.clone());
                 let output = import_ref.call(input).await?;
                 Ok(output.into_inner())
             };
@@ -622,7 +642,7 @@ async fn process_envelopes<F, Fut>(
 ) -> Result<u64, Error>
 where
     F: FnMut(DocumentEnvelope) -> Fut,
-    Fut: std::future::Future<Output = Result<DocumentEnvelope, Error>>,
+    Fut: Future<Output = Result<DocumentEnvelope, Error>>,
 {
     let mut count = 0u64;
 
@@ -699,9 +719,11 @@ async fn unwrap_envelope(arc: Arc<DocumentEnvelope>) -> Result<DocumentEnvelope,
         Ok(envelope) => Ok(envelope),
         Err(arc) => {
             let content_data = arc.document.encode()?;
-            let document = Document::decode(&content_data).await?;
+            let content = Content::from(content_data);
+            let document = Document::decode(&content).await?;
             Ok(DocumentEnvelope {
                 document,
+                metadata: arc.metadata.clone(),
                 entities: arc.entities.clone(),
                 contexts: arc.contexts.clone(),
                 audit: arc.audit.clone(),

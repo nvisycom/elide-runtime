@@ -1,7 +1,7 @@
 //! [`ExifModule`]: EXIF extraction via the Python bridge.
 
 use nvisy_core::Error;
-use nvisy_core::content::ContentData;
+use nvisy_core::content::Content;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde_json::Value;
@@ -57,7 +57,7 @@ impl ExifModule {
         skip(self, content),
         fields(data_len = content.size()),
     )]
-    pub async fn extract(&self, content: ContentData) -> Result<Vec<Value>, Error> {
+    pub async fn extract(&self, content: Content) -> Result<Vec<Value>, Error> {
         let request = ExifRequest::new(content, self.params);
 
         self.bridge
@@ -82,7 +82,7 @@ impl ExifModule {
         skip(self, content),
         fields(data_len = content.size()),
     )]
-    pub async fn extract_async(&self, content: ContentData) -> Result<Vec<Value>, Error> {
+    pub async fn extract_async(&self, content: Content) -> Result<Vec<Value>, Error> {
         let request = ExifRequest::new(content, self.params);
 
         self.bridge
@@ -93,19 +93,17 @@ impl ExifModule {
 
 /// Owned snapshot of a single EXIF extraction request.
 ///
-/// Wraps [`ContentData`] and [`ExifParams`] so they can be moved into
-/// a `Send + 'static` closure for the bridge call. No extra allocations:
-/// `ContentData` is internally arc-backed.
+/// Wraps [`Content`] and [`ExifParams`] so they can be moved into
+/// a `Send + 'static` closure for the bridge call.
 struct ExifRequest {
     /// Content to extract EXIF metadata from.
-    content: ContentData,
+    content: Content,
     /// Extraction parameters.
     params: ExifParams,
 }
 
 impl ExifRequest {
-    /// Creates a new request from content data and parameters.
-    fn new(content: ContentData, params: ExifParams) -> Self {
+    fn new(content: Content, params: ExifParams) -> Self {
         Self { content, params }
     }
 

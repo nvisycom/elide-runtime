@@ -16,6 +16,8 @@ use super::instruction::TextRedaction;
 use crate::document::{Span, SpanStream};
 use crate::handler::{TextData, TextHandler};
 
+const TARGET: &str = "nvisy_codec::transform::text";
+
 /// Extension trait for handlers that support text redaction.
 ///
 /// Extends [`TextHandler`] with [`redact_text`](Self::redact_text) which
@@ -44,6 +46,7 @@ where
         redactions: &[TextRedaction<Self::TextId>],
     ) -> Result<(), Error> {
         tracing::debug!(
+            target: TARGET,
             redaction_count = redactions.len(),
             "applying text redactions"
         );
@@ -103,7 +106,7 @@ where
                 .await?;
         }
 
-        tracing::debug!(edit_count, "text redactions applied");
+        tracing::debug!(target: TARGET, edit_count, "text redactions applied");
         Ok(())
     }
 }

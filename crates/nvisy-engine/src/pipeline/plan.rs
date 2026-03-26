@@ -3,15 +3,14 @@
 //! [`compile()`] bridges the user-facing [`Graph`] definition and the
 //! runtime execution model. It performs these steps:
 //!
-//! 1. **Policy defaults** — nodes without explicit retry/timeout policies
-//!    inherit the engine-level defaults.
-//! 2. **Validation** — the graph is checked for structural correctness
+//! 1. **Validation** — the graph is checked for structural correctness
 //!    via [`Graph::validate`].
-//! 3. **petgraph construction** — nodes and edges are inserted into a
-//!    [`DiGraph`](petgraph::graph::DiGraph) for cycle detection and
-//!    topological sorting.
-//! 4. **Topological sort** — produces the node execution order, ensuring
+//! 2. **petgraph construction** — nodes and edges are inserted into a
+//!    [`DiGraph`](petgraph::graph::DiGraph) for topological sorting.
+//! 3. **Topological sort** — produces the node execution order, ensuring
 //!    every node runs after its dependencies.
+//! 4. **Policy resolution** — nodes without explicit retry/timeout
+//!    policies inherit the engine-level defaults.
 //! 5. **Edge resolution** — each edge is paired with an [`EdgeConfig`]
 //!    controlling the bounded MPSC channel buffer size.
 //!
@@ -23,26 +22,13 @@ use petgraph::algo::toposort;
 use petgraph::graph::{DiGraph, NodeIndex};
 use uuid::Uuid;
 
-use crate::graph::{Graph, GraphEdge, GraphNode, RetryPolicy, TimeoutPolicy};
-
-/// Default buffer size for bounded MPSC channels between nodes.
-///
-/// Matches [`ResourceLimits::default()`](super::config::ResourceLimits).
-const DEFAULT_CHANNEL_BUFFER: usize = 256;
+use crate::graph::{Graph, GraphEdge, GraphNode};
 
 /// Channel configuration for a resolved edge.
 #[derive(Debug, Clone)]
 pub struct EdgeConfig {
     /// Buffer size for the bounded MPSC channel on this edge.
     pub channel_buffer: usize,
-}
-
-impl Default for EdgeConfig {
-    fn default() -> Self {
-        Self {
-            channel_buffer: DEFAULT_CHANNEL_BUFFER,
-        }
-    }
 }
 
 /// A directed edge with pre-computed channel configuration.
@@ -56,74 +42,37 @@ pub struct ResolvedEdge {
     pub config: EdgeConfig,
 }
 
-/// A graph node enriched with adjacency information and compiled policies.
+/// A graph node enriched with adjacency information.
+///
+/// The original [`GraphNode`] is preserved unchanged. Retry and timeout
+/// policies are resolved at execution time by the [`NodeExecutor`]
+/// (node-level policy falls back to engine defaults).
 ///
 /// Order is implicit in the position within [`ExecutionPlan::nodes`].
+///
+/// [`NodeExecutor`]: super::executor::NodeExecutor
 #[derive(Debug, Clone)]
 pub struct ResolvedNode {
     /// The original graph node definition.
     pub node: GraphNode,
     /// IDs of nodes that feed data into this node.
     pub upstream_ids: Vec<Uuid>,
-    /// Retry policy for this node, if configured.
-    pub retry: Option<RetryPolicy>,
-    /// Timeout policy for this node, if configured.
-    pub timeout: Option<TimeoutPolicy>,
 }
 
 /// Compiles a [`Graph`] into an [`ExecutionPlan`].
 ///
-/// Validates the graph first (so errors reflect user input, not injected
-/// defaults), then applies default policies to nodes that don't specify
-/// their own, builds a petgraph representation, checks for cycles, and
-/// produces a topologically-sorted plan.
-pub(crate) fn compile(
-    mut graph: Graph,
-    default_retry: Option<&RetryPolicy>,
-    default_timeout: Option<&TimeoutPolicy>,
-    channel_buffer: usize,
-) -> Result<ExecutionPlan> {
+/// Validates the graph, builds a petgraph representation, and
+/// topologically sorts it. The graph is not mutated. Policy resolution
+/// (retry/timeout defaults) happens later at execution time.
+pub(crate) fn compile(graph: &Graph, channel_buffer: usize) -> Result<ExecutionPlan> {
     graph.validate()?;
 
-    for node in &mut graph.nodes {
-        if node.retry.is_none() {
-            node.retry = default_retry.cloned();
-        }
-        if node.timeout.is_none() {
-            node.timeout = default_timeout.cloned();
-        }
-    }
-
-    let pg = build_petgraph(&graph);
+    let pg = graph.to_petgraph();
 
     let topo =
         toposort(&pg, None).map_err(|_| Error::validation("graph contains a cycle", "compiler"))?;
 
     Ok(ExecutionPlan::from_graph(&pg, &topo, channel_buffer))
-}
-
-/// Build a petgraph `DiGraph` from a validated [`Graph`], mapping node
-/// IDs to indices for edge wiring.
-fn build_petgraph(graph: &Graph) -> DiGraph<GraphNode, GraphEdge> {
-    let mut pg = DiGraph::with_capacity(graph.nodes.len(), graph.edges.len());
-    let mut index_map = std::collections::HashMap::with_capacity(graph.nodes.len());
-
-    for node in &graph.nodes {
-        let idx = pg.add_node(node.clone());
-        index_map.insert(node.id, idx);
-    }
-
-    for edge in &graph.edges {
-        let from = *index_map
-            .get(&edge.source)
-            .expect("edge source must reference a node present in the graph");
-        let to = *index_map
-            .get(&edge.target)
-            .expect("edge target must reference a node present in the graph");
-        pg.add_edge(from, to, edge.clone());
-    }
-
-    pg
 }
 
 /// A compiled execution plan ready for the executor.
@@ -151,14 +100,9 @@ impl ExecutionPlan {
                 .map(|n| pg[n].id)
                 .collect();
 
-            let retry = graph_node.retry().cloned();
-            let timeout = graph_node.timeout().cloned();
-
             nodes.push(ResolvedNode {
                 node: graph_node.clone(),
                 upstream_ids,
-                retry,
-                timeout,
             });
         }
 

@@ -9,6 +9,8 @@ use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
 
 use crate::handler::{CsvData, CsvHandler, Loader};
 
+const TARGET: &str = "nvisy_codec::handler::csv";
+
 /// Parameters for [`CsvLoader`].
 #[derive(Debug)]
 pub struct CsvParams {
@@ -124,7 +126,7 @@ fn detect_delimiter(text: &str) -> u8 {
     }
 
     if best_byte != b',' {
-        tracing::debug!(delimiter = %char::from(best_byte), "detected non-comma CSV delimiter");
+        tracing::debug!(target: TARGET, delimiter = %char::from(best_byte), "detected non-comma CSV delimiter");
     }
     best_byte
 }

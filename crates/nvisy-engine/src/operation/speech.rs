@@ -13,7 +13,7 @@ use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
 use crate::pipeline::RuntimeConfig;
 
-const TARGET: &str = "nvisy_engine::op::audial_extraction";
+const TARGET: &str = "nvisy_engine::op::speech";
 
 /// Audial extraction: transcribes audio documents via STT.
 pub struct AudialExtraction {

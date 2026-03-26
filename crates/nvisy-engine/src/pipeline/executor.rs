@@ -118,20 +118,16 @@ impl NodeExecutor {
         Self { ctx, dry_run }
     }
 
-    /// Resolve the effective retry policy for a node: node-level wins,
-    /// then engine default, then none.
+    /// Resolve the effective retry policy: node-level wins, then engine default.
     fn effective_retry(&self, node: &GraphNode) -> Option<RetryPolicy> {
-        node.retry()
-            .cloned()
-            .or_else(|| self.ctx.config.engine.as_ref().and_then(|e| e.retry.clone()))
+        node.retry().or(self.ctx.config.default_retry()).cloned()
     }
 
-    /// Resolve the effective timeout policy for a node: node-level wins,
-    /// then engine default, then none.
+    /// Resolve the effective timeout policy: node-level wins, then engine default.
     fn effective_timeout(&self, node: &GraphNode) -> Option<TimeoutPolicy> {
         node.timeout()
+            .or(self.ctx.config.default_timeout())
             .cloned()
-            .or_else(|| self.ctx.config.engine.as_ref().and_then(|e| e.timeout.clone()))
     }
 
     /// Execute a resolved node, applying timeout and cancellation policies.

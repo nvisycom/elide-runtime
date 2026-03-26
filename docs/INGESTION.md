@@ -15,24 +15,23 @@ The platform must support ingestion across multiple modalities. Formats are orga
 These formats represent the most common inputs in regulated enterprise environments and must be supported at general availability:
 
 - **PDF**: Native (digitally authored) and scanned, including multi-page documents with mixed content (text, images, tables, forms).
-- **Images**: JPG, PNG, TIFF — the dominant formats for scanned documents, photographs, and screenshots.
+- **Images**: JPG, PNG, and TIFF: the dominant formats for scanned documents, photographs, and screenshots.
 - **Plain text and markup**: TXT, HTML, and Markdown.
 - **Structured data**: CSV and JSON.
+- **Office documents**: DOCX, XLSX, PPTX.
+- **Audio**: WAV, MP3, and other common audio formats.
 
 ### Tier 2: Extended (near-term)
 
 These formats are frequently encountered in enterprise workflows and should be supported shortly after launch:
 
-- **Office documents**: DOCX, XLSX, PPTX.
-- **Audio**: WAV, MP3, and other common audio formats.
 - **Email**: EML and MSG formats, including inline content and attachments (recursively ingested).
+- **Communications**: Chat log exports from Slack, Teams, and WhatsApp.
 
 ### Tier 3: Specialized (roadmap)
 
 These formats address long-tail use cases in specific verticals or operational contexts:
 
-- **Communications**: Chat log exports from Slack, Teams, and WhatsApp.
-- **Database connectors**: Direct ingestion from relational databases and message queues.
 - **Archival and compound formats**: ZIP, TAR, and other container formats with recursive extraction of enclosed files.
 - **Domain-specific**: DICOM (medical imaging), GeoTIFF (geospatial), and other vertical-specific formats as demand dictates.
 
@@ -42,8 +41,8 @@ Each modality requires specialized extraction techniques:
 
 - **Optical character recognition (OCR)**: Layout-aware OCR that preserves spatial relationships between text regions, table cells, headers, and form fields.
 - **Speech-to-text**: Transcription with speaker diarization, enabling attribution of spoken content to individual speakers.
-- **Entity identification in images**: Detection and localization of entities within images — faces, persons, objects, text regions, documents, and other identifiable elements — producing bounding boxes or segmentation masks that downstream detection and redaction stages can operate on.
-- **Document structure parsing**: Identification of semantic document elements — headings, paragraphs, tables, lists, and form fields — beyond raw text extraction.
+- **Entity identification in images**: Detection and localization of entities within images: faces, persons, objects, text regions, documents, and other identifiable elements, producing bounding boxes or segmentation masks that downstream detection and redaction stages can operate on.
+- **Document structure parsing**: Identification of semantic document elements: headings, paragraphs, tables, lists, and form fields, beyond raw text extraction.
 - **Metadata extraction**: Capture of authorship, timestamps, geolocation, and other embedded metadata that may itself constitute sensitive information.
 
 ## 4. Transformation & Output
@@ -60,7 +59,7 @@ The primary output of the transformation layer is a redacted file in the same fo
 
 In addition to the format-preserving primary output, the platform should produce supplementary outputs that serve downstream workflows:
 
-- **Redaction metadata (JSON)**: A structured manifest describing every redaction applied — entity type, location, triggering rule, confidence score, and reviewer disposition. This metadata enables programmatic consumption of redaction results by audit systems, analytics pipelines, and downstream integrations.
+- **Redaction metadata (JSON)**: A structured manifest describing every redaction applied: entity type, location, triggering rule, confidence score, and reviewer disposition. This metadata enables programmatic consumption of redaction results by audit systems, analytics pipelines, and downstream integrations.
 - **Masked structured data (CSV/JSON)**: For tabular or structured inputs, a masked variant in which sensitive cell values are replaced according to the active masking strategy, suitable for analytics or data science consumption.
 - **Anonymized datasets**: Fully de-identified exports intended for secondary use (model training, statistical analysis) where no re-identification pathway should exist.
 
@@ -80,8 +79,8 @@ The internal content representation separates raw data from descriptive metadata
 
 Each piece of ingested content is represented as a `Content` bundle consisting of two parts:
 
-- **Content data**: The raw bytes and a unique source identifier. Content data carries no descriptive information — it is opaque binary or text.
-- **Content metadata**: All descriptive attributes that accompany the content — the caller-supplied MIME type, the auto-detected MIME type (from magic-byte signatures), the original filename, the source path, and an extensible key-value map for arbitrary metadata.
+- **Content data**: The raw bytes and a unique source identifier. Content data carries no descriptive information: it is opaque binary or text.
+- **Content metadata**: All descriptive attributes that accompany the content: the caller-supplied MIME type, the auto-detected MIME type (from magic-byte signatures), the original filename, the source path, and an extensible key-value map for arbitrary metadata.
 
 This separation ensures that descriptive information is never lost during storage and retrieval. The registry persists data and metadata in separate storage keyspaces; when content is reconstructed for pipeline execution, both halves are reunited into a complete bundle.
 

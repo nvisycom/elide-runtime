@@ -13,7 +13,7 @@ targets = [
 [advisories]
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-unmaintained = "warn"
+unmaintained = "workspace"
 yanked = "deny"
 ignore = []
 
@@ -30,6 +30,7 @@ allow = [
     "BSD-2-Clause",
     "BSD-3-Clause",
     "ISC",
+    "MPL-2.0",
     "Unicode-3.0",
     "Unlicense",
     "BSL-1.0",
@@ -56,6 +57,8 @@ deny = [
 
 skip = []
 skip-tree = []
+# Self-referential dev-dependency for test feature activation is not a real wildcard.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"

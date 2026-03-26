@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::engine::{EngineSection, ResourceLimits};
 pub use self::subsystem::{LlmSection, OcrSection, SttSection, TtsSection};
+use crate::graph::{RetryPolicy, TimeoutPolicy};
 
 fn default_config_version() -> Version {
     Version::new(0, 1, 0)
@@ -72,6 +73,18 @@ impl Default for RuntimeConfig {
 }
 
 impl RuntimeConfig {
+    /// Default retry policy from the engine section, if configured.
+    #[must_use]
+    pub fn default_retry(&self) -> Option<&RetryPolicy> {
+        self.engine.as_ref().and_then(|e| e.retry.as_ref())
+    }
+
+    /// Default timeout policy from the engine section, if configured.
+    #[must_use]
+    pub fn default_timeout(&self) -> Option<&TimeoutPolicy> {
+        self.engine.as_ref().and_then(|e| e.timeout.as_ref())
+    }
+
     /// Merge with per-request overrides.
     ///
     /// Non-`None` sections in `overrides` replace the corresponding section

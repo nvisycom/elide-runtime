@@ -25,6 +25,11 @@ pub struct NewRun {
     #[serde(default)]
     #[schemars(skip)]
     pub config: Option<RuntimeConfig>,
+    /// When `true`, evaluate detection and policy rules but skip
+    /// validation and export. Returns the redaction plan without
+    /// modifying or exporting content.
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 /// Query parameters for listing runs.

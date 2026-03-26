@@ -29,7 +29,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::config::RuntimeConfig;
-use super::executor::{NodeExecutor, NodeOutput, RunOutput};
+use super::executor::{NodeContext, NodeExecutor, NodeOutput, RunOutput};
 use super::plan::ExecutionPlan;
 use super::runs::NodeStatus;
 use super::runs::state::RunState;
@@ -74,6 +74,8 @@ pub(super) struct RunContext {
     pub http_client: HttpClient,
     /// Optional limit on how many nodes may execute concurrently.
     pub concurrency: Option<ConcurrencyPolicy>,
+    /// When `true`, skip validation and export phases (dry-run mode).
+    pub dry_run: bool,
 }
 
 /// Execute a compiled [`ExecutionPlan`] by spawning concurrent tasks for
@@ -95,6 +97,7 @@ pub(super) async fn run_graph(
         config,
         http_client,
         concurrency,
+        dry_run,
     } = ctx;
 
     let semaphore = concurrency.map(|c| Arc::new(tokio::sync::Semaphore::new(c.max_nodes)));
@@ -125,10 +128,13 @@ pub(super) async fn run_graph(
         let runs = runs.clone();
 
         let executor = NodeExecutor::new(
-            shared.clone(),
-            cancel.clone(),
-            Arc::clone(&config),
-            http_client.clone(),
+            NodeContext {
+                shared: shared.clone(),
+                cancel: cancel.clone(),
+                config: Arc::clone(&config),
+                http_client: http_client.clone(),
+            },
+            dry_run,
         );
 
         let upstream_watches: Vec<watch::Receiver<bool>> = resolved

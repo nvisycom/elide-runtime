@@ -113,6 +113,40 @@ impl GraphNodeKind {
         }
     }
 
+    /// Returns `true` for nodes that run before policy evaluation:
+    /// import, context loading, extraction, detection, and fusion.
+    #[must_use]
+    pub fn is_pre_redaction(&self) -> bool {
+        matches!(
+            self,
+            Self::ImportFile(_)
+                | Self::LoadContext(_)
+                | Self::VisualExtraction(_)
+                | Self::AudialExtraction(_)
+                | Self::NamedEntityRecognition(_)
+                | Self::PatternRecognition(_)
+                | Self::Fusion(_)
+        )
+    }
+
+    /// Returns `true` for the policy evaluation phase:
+    /// redaction and context generation.
+    #[must_use]
+    pub fn is_redaction(&self) -> bool {
+        matches!(self, Self::Redaction(_) | Self::GenerateContext(_))
+    }
+
+    /// Returns `true` for nodes that run after policy evaluation:
+    /// validation, export, and save-context. These are skipped in
+    /// dry-run mode.
+    #[must_use]
+    pub fn is_post_redaction(&self) -> bool {
+        matches!(
+            self,
+            Self::Validation(_) | Self::ExportFile(_) | Self::SaveContext(_)
+        )
+    }
+
     /// Validates action-specific configuration.
     pub fn validate(&self) -> Result<(), Error> {
         match self {

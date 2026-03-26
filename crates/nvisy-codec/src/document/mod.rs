@@ -4,6 +4,7 @@ mod span;
 mod stream;
 
 use derive_more::{From, IsVariant, TryInto};
+use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::content::{Content, ContentData, ContentSource};
 use nvisy_core::media::{
@@ -13,10 +14,11 @@ use nvisy_core::media::{
 pub use self::span::Span;
 pub use self::stream::SpanStream;
 use crate::handler::{
-    BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler, BoxedTextHandler, CsvLoader, CsvParams,
-    Handler, HtmlLoader, HtmlParams, ImageData, ImageHandler, ImageSpanId, JpegLoader, JpegParams,
-    JsonLoader, JsonParams, Loader, Mp3Loader, Mp3Params, PngLoader, PngParams, TextData,
-    TextHandler, TextSpanId, TxtLoader, TxtParams, WavLoader, WavParams, XlsxLoader, XlsxParams,
+    AudioData, AudioHandler, AudioSpanId, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
+    BoxedTextHandler, CsvLoader, CsvParams, Handler, HtmlLoader, HtmlParams, ImageData,
+    ImageHandler, ImageSpanId, JpegLoader, JpegParams, JsonLoader, JsonParams, Loader, Mp3Loader,
+    Mp3Params, PngLoader, PngParams, TextData, TextHandler, TextSpanId, TxtLoader, TxtParams,
+    WavLoader, WavParams, XlsxLoader, XlsxParams,
 };
 
 /// A fully type-erased document that can hold any supported format.
@@ -98,6 +100,31 @@ impl Document {
             Self::Image(h) => h.image_spans().await,
             _ => SpanStream::new(futures::stream::empty()),
         }
+    }
+
+    /// Stream audio spans from audio documents.
+    ///
+    /// Returns an empty stream for text, image, and rich documents.
+    pub async fn audio_spans(&self) -> SpanStream<'_, AudioSpanId, AudioData> {
+        match self {
+            Self::Audio(h) => h.audio_spans().await,
+            _ => SpanStream::new(futures::stream::empty()),
+        }
+    }
+
+    /// Collect all text spans into a `Vec`.
+    pub async fn collect_text_spans(&self) -> Vec<Span<TextSpanId, TextData>> {
+        self.text_spans().await.collect().await
+    }
+
+    /// Collect all image spans into a `Vec`.
+    pub async fn collect_image_spans(&self) -> Vec<Span<ImageSpanId, ImageData>> {
+        self.image_spans().await.collect().await
+    }
+
+    /// Collect all audio spans into a `Vec`.
+    pub async fn collect_audio_spans(&self) -> Vec<Span<AudioSpanId, AudioData>> {
+        self.audio_spans().await.collect().await
     }
 
     /// Decode [`Content`] into a `Document` using default parameters.

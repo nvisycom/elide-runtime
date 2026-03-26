@@ -91,47 +91,43 @@ impl RunOutput {
     }
 }
 
+/// Per-node execution context extracted from the run-level
+/// [`RunContext`](super::orchestrator::RunContext).
+pub(super) struct NodeContext {
+    /// Shared operation context (run ID, actor, registry, policies, key provider).
+    pub shared: SharedContext,
+    /// Token to signal cancellation to this node.
+    pub cancel: CancellationToken,
+    /// Effective configuration after merging per-request overrides.
+    pub config: Arc<RuntimeConfig>,
+    /// Shared HTTP client for downstream API calls.
+    pub http_client: HttpClient,
+}
+
 /// Executes a single [`ResolvedNode`] within a pipeline run.
 ///
-/// Owns clones of the run-scoped context, cancellation token, and
-/// shared references to config and HTTP client. The orchestrator
-/// creates one executor per node task.
+/// The orchestrator creates one executor per node task.
 pub(super) struct NodeExecutor {
-    shared: SharedContext,
-    cancel: CancellationToken,
-    config: Arc<RuntimeConfig>,
-    http_client: HttpClient,
+    ctx: NodeContext,
+    /// When `true`, skip post-redaction phases (validation, export).
+    dry_run: bool,
 }
 
 impl NodeExecutor {
-    pub fn new(
-        shared: SharedContext,
-        cancel: CancellationToken,
-        config: Arc<RuntimeConfig>,
-        http_client: HttpClient,
-    ) -> Self {
-        Self {
-            shared,
-            cancel,
-            config,
-            http_client,
-        }
+    pub fn new(ctx: NodeContext, dry_run: bool) -> Self {
+        Self { ctx, dry_run }
     }
 
-    /// Resolve the effective retry policy for a node: node-level wins,
-    /// then engine default, then none.
+    /// Resolve the effective retry policy: node-level wins, then engine default.
     fn effective_retry(&self, node: &GraphNode) -> Option<RetryPolicy> {
-        node.retry()
-            .cloned()
-            .or_else(|| self.config.engine.as_ref().and_then(|e| e.retry.clone()))
+        node.retry().or(self.ctx.config.default_retry()).cloned()
     }
 
-    /// Resolve the effective timeout policy for a node: node-level wins,
-    /// then engine default, then none.
+    /// Resolve the effective timeout policy: node-level wins, then engine default.
     fn effective_timeout(&self, node: &GraphNode) -> Option<TimeoutPolicy> {
         node.timeout()
+            .or(self.ctx.config.default_timeout())
             .cloned()
-            .or_else(|| self.config.engine.as_ref().and_then(|e| e.timeout.clone()))
     }
 
     /// Execute a resolved node, applying timeout and cancellation policies.
@@ -145,13 +141,29 @@ impl NodeExecutor {
         senders: Vec<mpsc::Sender<Arc<DocumentEnvelope>>>,
         mut receivers: Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>,
     ) -> Result<NodeOutput, Error> {
-        if self.cancel.is_cancelled() {
+        if self.ctx.cancel.is_cancelled() {
             return Err(Error::cancellation("run cancelled"));
+        }
+
+        // In dry-run mode, skip validation and export phases.
+        // Forward envelopes so downstream nodes (if any) still unblock.
+        if self.dry_run && resolved.node.kind.is_post_redaction() {
+            tracing::debug!(
+                target: TARGET,
+                node = %resolved.node.kind,
+                "skipping node (dry-run mode)",
+            );
+            let count = forward_envelopes(&senders, &mut receivers).await?;
+            return Ok(NodeOutput {
+                items_processed: count,
+                error: None,
+                envelopes: Vec::new(),
+            });
         }
 
         let retry = self.effective_retry(&resolved.node);
         let timeout = self.effective_timeout(&resolved.node);
-        let cancel = self.cancel.clone();
+        let cancel = self.ctx.cancel.clone();
 
         let run = async {
             tokio::select! {
@@ -234,14 +246,14 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.shared;
-        let op = VisualExtraction::new(cfg, &self.config, &self.http_client)?;
+        let shared = &self.ctx.shared;
+        let op = VisualExtraction::new(cfg, &self.ctx.config, &self.ctx.http_client)?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
             async move {
                 tracing::debug!(target: TARGET, "extracting image spans for OCR");
-                let image_spans: Vec<_> = envelope.document.image_spans().await.collect().await;
+                let image_spans: Vec<_> = envelope.document.collect_image_spans().await;
                 if !image_spans.is_empty() {
                     let ocr_spans: Vec<Span<(), _>> = image_spans
                         .into_iter()
@@ -291,8 +303,8 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.shared;
-        let op = AudialExtraction::new(cfg, &self.config, &self.http_client)?;
+        let shared = &self.ctx.shared;
+        let op = AudialExtraction::new(cfg, &self.ctx.config, &self.ctx.http_client)?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -341,13 +353,13 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.shared;
-        let op = EntityRecognition::new(cfg, &self.config, &self.http_client).await?;
+        let shared = &self.ctx.shared;
+        let op = EntityRecognition::new(cfg, &self.ctx.config, &self.ctx.http_client).await?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
             async move {
-                let spans: Vec<_> = envelope.document.text_spans().await.collect().await;
+                let spans: Vec<_> = envelope.document.collect_text_spans().await;
                 if !spans.is_empty() {
                     tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
                     let input = SequentialContext::new(spans, shared);
@@ -368,13 +380,13 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.shared;
+        let shared = &self.ctx.shared;
         let op = PatternRecognition::new().await?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
             async move {
-                let spans: Vec<_> = envelope.document.text_spans().await.collect().await;
+                let spans: Vec<_> = envelope.document.collect_text_spans().await;
                 if !spans.is_empty() {
                     tracing::debug!(target: TARGET, span_count = spans.len(), "running pattern detection");
                     let input = ParallelContext::new(spans, shared);
@@ -394,7 +406,7 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.shared;
+        let shared = &self.ctx.shared;
         let op = Fusion::new(cfg);
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
@@ -419,7 +431,7 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.shared;
+        let shared = &self.ctx.shared;
         let op = Redaction::new(cfg, shared).await?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
@@ -444,13 +456,13 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.shared;
+        let shared = &self.ctx.shared;
         let op = Validation::new(cfg);
         let count = process_envelopes(senders, receivers, |envelope| {
             let op = &op;
             let shared = shared.clone();
             async move {
-                let text_spans: Vec<_> = envelope.document.text_spans().await.collect().await;
+                let text_spans: Vec<_> = envelope.document.collect_text_spans().await;
                 let redacted_text = if text_spans.is_empty() {
                     None
                 } else {
@@ -484,7 +496,7 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.shared;
+        let shared = &self.ctx.shared;
         let op = LoadContext::new(cfg);
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
@@ -508,7 +520,7 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.shared;
+        let shared = &self.ctx.shared;
         let op = SaveContext::new(cfg);
         let count = process_envelopes(senders, receivers, |envelope| {
             let op = &op;
@@ -531,7 +543,7 @@ impl NodeExecutor {
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.shared;
+        let shared = &self.ctx.shared;
         let op = GenerateContext::new(cfg);
         let count = process_envelopes(senders, receivers, |envelope| {
             let op = &op;
@@ -560,14 +572,14 @@ impl NodeExecutor {
 
         let mut count = 0u64;
         for &content_id in &cfg.content_ids {
-            let registry = &self.shared.registry;
-            let actor_id = self.shared.actor_id;
+            let registry = &self.ctx.shared.registry;
+            let actor_id = self.ctx.shared.actor_id;
             let import_ref = &import;
             let do_import = || async {
                 tracing::debug!(target: TARGET, %content_id, "importing content");
                 let handle = registry.read_content(actor_id, content_id).await?;
                 let content = handle.content().await?;
-                let input = ParallelContext::new(content, self.shared.clone());
+                let input = ParallelContext::new(content, self.ctx.shared.clone());
                 let output = import_ref.call(input).await?;
                 Ok(output.into_inner())
             };
@@ -604,7 +616,7 @@ impl NodeExecutor {
         for rx in receivers.iter_mut() {
             while let Some(envelope) = rx.recv().await {
                 let owned = unwrap_envelope(envelope).await?;
-                let input = ParallelContext::new(owned, self.shared.clone());
+                let input = ParallelContext::new(owned, self.ctx.shared.clone());
                 let output = export.call(input).await?;
                 count += 1;
                 envelopes.push(Arc::new(output.into_inner()));
@@ -706,6 +718,28 @@ async fn fan_out(
             .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
     }
     Ok(())
+}
+
+/// Drain all receivers and forward envelopes to all senders unchanged.
+///
+/// Used in dry-run mode to pass envelopes through skipped nodes so
+/// downstream watch channels still unblock.
+async fn forward_envelopes(
+    senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
+    receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
+) -> Result<u64, Error> {
+    let mut count = 0u64;
+    for rx in receivers.iter_mut() {
+        while let Some(envelope) = rx.recv().await {
+            for tx in senders {
+                tx.send(Arc::clone(&envelope))
+                    .await
+                    .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
+            }
+            count += 1;
+        }
+    }
+    Ok(count)
 }
 
 /// Take ownership of an envelope from an `Arc`.

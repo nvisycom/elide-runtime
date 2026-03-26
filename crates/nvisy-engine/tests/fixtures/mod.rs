@@ -69,5 +69,17 @@ pub fn engine_input(actor_id: Uuid, graph: Graph) -> EngineInput {
         policies: Policies::default(),
         graph,
         config: None,
+        dry_run: false,
+    }
+}
+
+/// Builds a dry-run [`EngineInput`] with the given graph and empty policies.
+pub fn dry_run_input(actor_id: Uuid, graph: Graph) -> EngineInput {
+    EngineInput {
+        actor_id,
+        policies: Policies::default(),
+        graph,
+        config: None,
+        dry_run: true,
     }
 }

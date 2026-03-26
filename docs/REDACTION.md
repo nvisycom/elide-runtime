@@ -1,10 +1,8 @@
-# Redaction & Review
+# Redaction
 
 ## 1. Overview
 
-Detection identifies what is sensitive; redaction determines what to do about it. The distinction between a basic redaction tool and a production-grade platform lies in the ability to apply redaction with contextual awareness — understanding not just that a name appears in a document, but whose name it is, why it matters, and whether the surrounding regulatory and organizational policy requires its removal.
-
-Equally important is the human-in-the-loop review process. Automated redaction at scale demands human oversight to maintain trust, catch edge cases, and provide a feedback signal for continuous model improvement.
+Detection identifies what is sensitive; redaction determines what to do about it. The distinction between a basic redaction tool and a production-grade platform lies in the ability to apply redaction with contextual awareness: understanding not just that a name appears in a document, but whose name it is, why it matters, and whether the surrounding regulatory and organizational policy requires its removal.
 
 ## 2. Context-Aware Redaction
 
@@ -12,50 +10,55 @@ Equally important is the human-in-the-loop review process. Automated redaction a
 
 The platform must distinguish between occurrences of the same entity across different contexts. Redacting "John Smith" in one document should not require redacting every occurrence of the name across an entire corpus. Redaction decisions must be scoped to the relevant instance, document, or case.
 
-### 2.2 Role-Based and Conditional Redaction
+### 2.2 Conditional Redaction
 
 Redaction rules must support conditional logic:
 
-- **Role-based rules**: Redact all references to minors while preserving references to adults.
 - **Document-type conditions**: Apply medical redaction policies only when the document type is classified as a health record. The pipeline envelope carries the original content metadata (MIME type, filename, custom key-value pairs) through every stage, making these signals available to redaction rules without re-reading the original content.
 - **Temporal conditions**: Redact specific time segments in audio content.
+- **Metadata conditions**: Activate or suppress rules based on custom metadata attached at upload (e.g., department, classification level, jurisdiction).
 
 ### 2.3 Relationship-Aware Redaction
 
-Advanced redaction scenarios require reasoning over relationships between entities. For example, redacting all names associated with a specific case identifier, or redacting all communications involving a particular individual across a document set.
+Advanced redaction scenarios require reasoning over relationships between entities: redacting all names associated with a specific case identifier, or redacting all communications involving a particular individual across a document set.
 
-### 2.4 Policy Templates
+### 2.4 Confidence-Driven Redaction
 
-Predefined redaction templates aligned to regulatory frameworks (HIPAA, GDPR, CCPA) enable rapid deployment and reduce the burden of manual policy configuration.
+Each detection carries a confidence score from the underlying model or pattern matcher. Redaction rules should be able to set confidence thresholds: entities above the threshold are redacted automatically, while entities below it are flagged for review or skipped. This enables a tunable precision/recall tradeoff per entity type.
 
-## 3. Human-in-the-Loop Review
+## 3. Regulatory Policy Templates
 
-### 3.1 Review Interface
+Predefined policy templates aligned to common regulatory frameworks provide a starting point for organizations deploying the platform. Each template is a JSON definition of entity types, pattern identifiers, and redaction actions that collectively satisfy the requirements of a specific regulation.
 
-The platform must provide a review interface that enables human reviewers to inspect, approve, reject, or modify automated redaction decisions. This interface should present the original and redacted content side by side, with clear visual indicators of each redaction and its triggering rule or model.
+Templates included in the repository:
 
-### 3.2 Confidence Scoring
+- **HIPAA**: Protected health information in medical records, communications, and claims.
+- **GDPR**: Personal data of EU residents across all modalities.
+- **PCI-DSS**: Payment card data in documents, images, and structured records.
+- **CCPA**: Personal information of California residents.
 
-Each automated redaction decision should carry a confidence score derived from the underlying detection model. Reviewers can then prioritize their attention on low-confidence decisions, improving throughput without sacrificing accuracy.
+Templates are not enforced by default. Organizations select and extend templates through the policy configuration, adding organization-specific rules or narrowing thresholds as needed.
 
-### 3.3 Bulk Operations
+## 4. Review Integration
 
-For large document sets, the review interface must support bulk approval, rejection, and modification of redaction decisions, filtered by confidence threshold, entity type, or document category.
+The runtime does not provide a review interface, but it accepts review decisions as an optional input to the pipeline. A review decision is a list of actions (accept, reject, or modify) applied to individual redaction entries before export.
 
-### 3.4 Access Control
+When review input is provided:
 
-Reviewer permissions must be configurable through role-based access control. Not all reviewers should have access to all document types or sensitivity levels.
+- **Accepted** redactions proceed to export unchanged.
+- **Rejected** redactions are removed: the original content is restored for those regions.
+- **Modified** redactions replace the automated output with a reviewer-specified alternative (different mask text, adjusted bounding box, narrower time range).
 
-### 3.5 Active Learning
+When no review input is provided, all automated redaction decisions are applied as-is. This keeps the engine stateless with respect to review workflow: the external review service is responsible for presenting decisions to reviewers, collecting responses, and passing the result back to the runtime for a final export pass.
 
-Reviewer corrections — accepted, rejected, or modified redactions — should feed back into the detection models as training signal. Over time, this active learning loop reduces the volume of decisions requiring human review and improves model accuracy on organization-specific content.
+Each review action should carry the reviewer identity and a timestamp so that the audit trail records who approved or modified each decision.
 
-## 4. Redaction Versioning and Rollback
+## 5. Redaction Versioning and Rollback
 
-### 4.1 Versioned Redaction State
+### 5.1 Versioned Redaction State
 
-The platform must maintain versioned snapshots of redaction state for each piece of content. Each modification — whether automated or manual — produces a new version. Prior versions must remain accessible for comparison, audit, and rollback.
+The platform must maintain versioned snapshots of redaction state for each piece of content. Each modification, whether automated or manual, produces a new version. Prior versions must remain accessible for comparison, audit, and rollback.
 
-### 4.2 Rollback
+### 5.2 Rollback
 
-Before export, any redaction decision must be reversible. Reviewers must be able to roll back individual redactions or restore an entire document to a previous redaction state. After export, rollback is no longer available — the exported artifact is final, and any corrections require re-processing from the original content.
+Before export, any redaction decision must be reversible. The engine must support rolling back individual redactions or restoring an entire document to a previous redaction state. After export, rollback is no longer available: the exported artifact is final, and any corrections require re-processing from the original content.

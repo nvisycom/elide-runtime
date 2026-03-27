@@ -13,5 +13,5 @@ mod runs;
 pub use self::check::{ComponentCheck, Health, ServiceStatus};
 pub use self::contexts::{Context, ContextId, ContextList};
 pub use self::error::ErrorResponse;
-pub use self::files::{File, FileId, FileList, FileSummary};
+pub use self::files::{File, FileId, FileList, FileEntry};
 pub use self::runs::{RunDetail, RunList, RunResult};

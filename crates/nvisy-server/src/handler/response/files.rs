@@ -8,12 +8,12 @@ use crate::handler::request::Page;
 use crate::handler::utility::Base64;
 
 /// Response body for `GET /api/v1/files`.
-pub type FileList = Page<FileSummary>;
+pub type FileList = Page<FileEntry>;
 
 /// Summary of a stored file for listing endpoints.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct FileSummary {
+pub struct FileEntry {
     /// Identifier of the file.
     pub id: Uuid,
     /// Original filename, if provided at upload.

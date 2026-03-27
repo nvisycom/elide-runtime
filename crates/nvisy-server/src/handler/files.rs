@@ -25,7 +25,7 @@ use tower::timeout::TimeoutLayer;
 
 use super::error::Result;
 use super::request::{ContentPath, NewFile, Pagination};
-use super::response::{File, FileId, FileList, FileSummary};
+use super::response::{File, FileId, FileList, FileEntry};
 use super::utility::Base64;
 use crate::extract::{ActorId, Json, Path};
 use crate::middleware::constants::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS};
@@ -130,9 +130,9 @@ async fn list_files(
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<FileList>> {
     let entries = engine.list_content_with_metadata(actor_id).await?;
-    let summaries: Vec<FileSummary> = entries
+    let summaries: Vec<FileEntry> = entries
         .into_iter()
-        .map(|(id, meta)| FileSummary {
+        .map(|(id, meta)| FileEntry {
             id,
             content_type: meta.content_type().map(String::from),
             filename: meta.filename.map(|p| p.to_string_lossy().to_string()),

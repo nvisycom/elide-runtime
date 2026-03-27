@@ -25,7 +25,7 @@ use tower::timeout::TimeoutLayer;
 
 use super::error::Result;
 use super::request::{ContentPath, NewFile, Pagination};
-use super::response::{File, FileId, FileList};
+use super::response::{File, FileId, FileList, FileSummary};
 use super::utility::Base64;
 use crate::extract::{ActorId, Json, Path};
 use crate::middleware::constants::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS};
@@ -100,15 +100,14 @@ async fn download_file(
 
     tracing::debug!(target: TARGET, size = content.size(), "file downloaded");
 
+    let meta = content.metadata();
     Ok(Json(File {
         id,
         content: Base64::encode(content.as_bytes()),
-        content_type: content
-            .metadata()
-            .and_then(|m| m.get_extra("content_type"))
-            .and_then(|v| v.as_str())
-            .map(String::from),
+        content_type: meta.and_then(|m| m.content_type()).map(String::from),
         filename: content.filename().map(|p| p.to_string_lossy().to_string()),
+        size: content.size() as u64,
+        sha256: content.data().sha256_hex(),
     }))
 }
 
@@ -130,8 +129,18 @@ async fn list_files(
     ActorId(actor_id): ActorId,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<FileList>> {
-    let files = engine.list_content(actor_id).await?;
-    let page = pagination.paginate(files);
+    let entries = engine.list_content_with_metadata(actor_id).await?;
+    let summaries: Vec<FileSummary> = entries
+        .into_iter()
+        .map(|(id, meta)| FileSummary {
+            id,
+            content_type: meta.content_type().map(String::from),
+            filename: meta.filename.map(|p| p.to_string_lossy().to_string()),
+            size: meta.size,
+            sha256: meta.sha256,
+        })
+        .collect();
+    let page = pagination.paginate(summaries);
     tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "files listed");
     Ok(Json(page))
 }

@@ -25,7 +25,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_core::content::{Content, ContentSource};
+use nvisy_core::content::{Content, ContentMetadata, ContentSource};
 use nvisy_http::HttpClient;
 use nvisy_ontology::context::{Context, ContextMap};
 use nvisy_ontology::entity::{DetectionOutput, Entities};
@@ -483,6 +483,17 @@ impl Engine {
     /// List all content identifiers stored for the given actor.
     pub async fn list_content(&self, actor_id: Uuid) -> Result<Vec<Uuid>, Error> {
         self.inner.registry.list_content(actor_id).await
+    }
+
+    /// List all content identifiers with metadata for the given actor.
+    pub async fn list_content_with_metadata(
+        &self,
+        actor_id: Uuid,
+    ) -> Result<Vec<(Uuid, ContentMetadata)>, Error> {
+        self.inner
+            .registry
+            .list_content_with_metadata(actor_id)
+            .await
     }
 
     /// Delete a single content entry from the registry.

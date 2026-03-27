@@ -34,6 +34,12 @@ pub struct ContentMetadata {
     /// `TextFormat::Log`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filename: Option<PathBuf>,
+    /// Content size in bytes, persisted at upload.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    /// SHA-256 hex digest, persisted at upload.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
     /// Arbitrary key-value metadata associated with this content.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Map<String, serde_json::Value>>,
@@ -48,6 +54,8 @@ impl ContentMetadata {
             content_type: None,
             detected_content_type: None,
             filename: None,
+            size: None,
+            sha256: None,
             metadata: None,
         }
     }
@@ -59,6 +67,8 @@ impl ContentMetadata {
             content_type: None,
             detected_content_type: None,
             filename: None,
+            size: None,
+            sha256: None,
             metadata: None,
         }
     }

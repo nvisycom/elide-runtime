@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions, KvSeparationOptions};
-use nvisy_core::content::{Content, ContentSource};
+use nvisy_core::content::{Content, ContentMetadata, ContentSource};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::context::Context;
 use uuid::Uuid;
@@ -146,6 +146,14 @@ impl Registry {
         // Auto-detect MIME from magic bytes if not already set.
         if meta.detected_content_type.is_none() {
             meta.detected_content_type = content_data.detect_mime();
+        }
+
+        // Persist size and hash so they're available without reading bytes.
+        if meta.size.is_none() {
+            meta.size = Some(content_data.size() as u64);
+        }
+        if meta.sha256.is_none() {
+            meta.sha256 = Some(content_data.sha256_hex());
         }
 
         let meta_bytes = serde_json::to_vec(&meta).map_err(|err| {
@@ -374,6 +382,50 @@ impl Registry {
                     .with_component(COMPONENT)
                     .with_source(err)
             })?
+    }
+
+    /// Lists all content IDs with their metadata for an actor.
+    #[tracing::instrument(
+        target = TARGET,
+        name = "registry.list_content_with_metadata",
+        skip(self),
+        fields(actor_id = %actor_id),
+    )]
+    pub async fn list_content_with_metadata(
+        &self,
+        actor_id: Uuid,
+    ) -> Result<Vec<(Uuid, ContentMetadata)>> {
+        let prefix = actor_id.as_bytes().to_vec();
+        let meta_ks = self.content_meta_ks.clone();
+
+        tokio::task::spawn_blocking(move || {
+            let ids = extract_resource_ids(&meta_ks, &prefix)?;
+            let mut results = Vec::with_capacity(ids.len());
+            for id in ids {
+                let key = composite_key(actor_id, id);
+                let value = meta_ks.get(key).map_err(|err| {
+                    Error::new(ErrorKind::Internal, "failed to read metadata entry")
+                        .with_component(COMPONENT)
+                        .with_source(err)
+                })?;
+                let meta: ContentMetadata = match value {
+                    Some(guard) => serde_json::from_slice(&guard).map_err(|err| {
+                        Error::new(ErrorKind::Serialization, "failed to deserialize metadata")
+                            .with_component(COMPONENT)
+                            .with_source(err)
+                    })?,
+                    None => ContentMetadata::default(),
+                };
+                results.push((id, meta));
+            }
+            Ok(results)
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "blocking task panicked")
+                .with_component(COMPONENT)
+                .with_source(err)
+        })?
     }
 
     /// Registers a context, serializing it as JSON.

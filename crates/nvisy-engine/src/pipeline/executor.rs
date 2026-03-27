@@ -33,7 +33,10 @@ use tokio_util::sync::CancellationToken;
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
 use super::runs::RunStatus;
-use crate::graph::{self, GraphNode, GraphNodeKind, RetryPolicy, TimeoutBehavior, TimeoutPolicy};
+use crate::graph::{
+    self, GraphNode, GraphNodeKind, RetryExt, RetryPolicy, TimeoutBehavior, TimeoutExt,
+    TimeoutPolicy,
+};
 use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
 use crate::operation::{
     AudialExtraction, AudioInput, DocumentEnvelope, EntityRecognition, ExportFile, Fusion,

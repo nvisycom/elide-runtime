@@ -36,14 +36,14 @@ pub enum EncryptionAlgorithm {
 
 impl EncryptionAlgorithm {
     /// Encode as a single-byte wire tag.
-    pub(crate) fn wire_tag(self) -> u8 {
+    pub fn wire_tag(self) -> u8 {
         match self {
             Self::Aes256Gcm => 0x01,
         }
     }
 
     /// Decode from a single-byte wire tag.
-    pub(crate) fn from_wire_tag(tag: u8) -> Result<Self, nvisy_core::Error> {
+    pub fn from_wire_tag(tag: u8) -> Result<Self, nvisy_core::Error> {
         match tag {
             0x01 => Ok(Self::Aes256Gcm),
             _ => Err(nvisy_core::Error::validation(

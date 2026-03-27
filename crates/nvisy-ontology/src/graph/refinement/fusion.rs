@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{Entities, Entity, Overlap, RecognitionMethod, RefinementMethod};
+use crate::entity::{Entities, Entity, Overlap, RecognitionMethod, RefinementMethod};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

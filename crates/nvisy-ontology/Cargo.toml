@@ -36,6 +36,8 @@ schemars = { workspace = true, features = [] }
 derive_builder = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into_iterator"] }
 strum = { workspace = true, features = [] }
+validator = { workspace = true, features = [] }
+rand = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }

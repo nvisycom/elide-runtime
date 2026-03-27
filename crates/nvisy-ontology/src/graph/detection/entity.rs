@@ -5,7 +5,7 @@
 //! extracted text, optionally filtering by entity kind and confidence score.
 
 use nvisy_core::Error;
-use nvisy_ontology::entity::EntityKind;
+use crate::entity::EntityKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

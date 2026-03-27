@@ -22,6 +22,8 @@ use petgraph::algo::toposort;
 use petgraph::graph::{DiGraph, NodeIndex};
 use uuid::Uuid;
 
+use crate::graph::GraphExt;
+
 use crate::graph::{Graph, GraphEdge, GraphNode};
 
 /// Channel configuration for a resolved edge.

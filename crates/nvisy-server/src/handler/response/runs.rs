@@ -1,14 +1,14 @@
 //! Run response types.
 
-use nvisy_engine::pipeline::{EngineOutput, RunSnapshot, RunSummary};
+use nvisy_engine::pipeline::{
+    DetectionOutput, EngineOutput, RedactionSummary, RunSnapshot, RunSummary,
+};
+use nvisy_engine::provenance::{Audit, PolicyEvaluation, RedactionMap};
 
 use crate::handler::request::Page;
 
 /// Response body for `GET /api/v1/runs`.
 pub type RunList = Page<RunSummary>;
-use nvisy_engine::provenance::{Audit, PolicyEvaluation, RedactionMap};
-use nvisy_ontology::entity::DetectionOutput;
-use nvisy_ontology::policy::RedactionSummary;
 use schemars::JsonSchema;
 use serde::Serialize;
 use uuid::Uuid;

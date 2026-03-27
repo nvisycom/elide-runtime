@@ -27,6 +27,11 @@ mod orchestrator;
 mod plan;
 mod runs;
 
+// Re-export ontology types used by the server layer.
+pub use nvisy_ontology::context::Context;
+pub use nvisy_ontology::entity::DetectionOutput;
+pub use nvisy_ontology::policy::{Policies, RedactionSummary};
+
 pub use self::config::{
     EngineSection, LlmSection, OcrSection, ResourceLimits, RuntimeConfig, SttSection, TtsSection,
 };

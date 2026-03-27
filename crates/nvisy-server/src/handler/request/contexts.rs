@@ -1,6 +1,6 @@
 //! Context request types.
 
-use nvisy_ontology::context::Context;
+use nvisy_engine::pipeline::Context;
 use schemars::JsonSchema;
 use serde::Deserialize;
 

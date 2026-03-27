@@ -14,4 +14,4 @@ pub use self::check::{ComponentCheck, Health, ServiceStatus};
 pub use self::contexts::{ContextEntry, ContextId, ContextList};
 pub use self::error::ErrorResponse;
 pub use self::files::{File, FileEntry, FileId, FileList};
-pub use self::runs::{RunDetail, RunList, RunResult};
+pub use self::runs::RunList;

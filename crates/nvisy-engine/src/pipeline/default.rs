@@ -26,13 +26,13 @@ use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_core::content::{Content, ContentMetadata, ContentSource};
-use schemars::JsonSchema;
-use serde::Serialize;
 use nvisy_http::HttpClient;
 use nvisy_ontology::context::{Context, ContextMap};
 use nvisy_ontology::entity::{DetectionOutput, Entities};
-use nvisy_ontology::policy::{Policies, RedactionSummary};
+use nvisy_ontology::policy::{Policies, RedactionEntry};
 use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
+use schemars::JsonSchema;
+use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -40,9 +40,9 @@ use super::config::RuntimeConfig;
 use super::executor::RunOutput;
 use super::orchestrator::{self, RunContext};
 use super::plan;
-use super::runs::state::{RunEntry, RunState};
+use super::runs::state::{RunRecord, RunState};
 use super::runs::{
-    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
+    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunSnapshot, RunStatus,
 };
 use crate::graph::{Graph, GraphNodeKind};
 use crate::operation::context::SharedContext;
@@ -91,7 +91,7 @@ pub struct EngineOutput {
     /// blocks, alerts).
     pub evaluation: PolicyEvaluation,
     /// Per-source redaction summaries.
-    pub summaries: Vec<RedactionSummary>,
+    pub summaries: Vec<RedactionEntry>,
     /// Per-file audit logs recording processing steps.
     pub audits: Vec<Audit>,
     /// Redaction mapping artifacts for downstream consumers.
@@ -262,7 +262,7 @@ impl Engine {
                     .runs
                     .insert(
                         run_id,
-                        RunEntry {
+                        RunRecord {
                             actor_id: input.actor_id,
                             status: RunStatus::Failed,
                             created_at: jiff::Timestamp::now(),
@@ -299,7 +299,7 @@ impl Engine {
             .runs
             .insert(
                 run_id,
-                RunEntry {
+                RunRecord {
                     actor_id: input.actor_id,
                     status: RunStatus::Running,
                     created_at: jiff::Timestamp::now(),
@@ -416,7 +416,7 @@ impl Engine {
     }
 
     /// List runs matching the given filter, scoped to the actor.
-    pub async fn list_runs(&self, actor_id: Uuid, filter: RunFilter) -> Vec<RunSummary> {
+    pub async fn list_runs(&self, actor_id: Uuid, filter: RunFilter) -> Vec<RunEntry> {
         self.inner.runs.list_runs(actor_id, &filter).await
     }
 

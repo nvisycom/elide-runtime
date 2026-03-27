@@ -17,7 +17,7 @@
 //!   dependency signals and an optional concurrency semaphore.
 //! - `executor` — dispatches each node to its [`Operation`](crate::operation::Operation),
 //!   running the envelope receive → extract → call → apply → send loop.
-//! - `runs` — in-memory run lifecycle tracking ([`RunSnapshot`], [`RunSummary`]).
+//! - `runs` — in-memory run lifecycle tracking ([`RunSnapshot`], [`RunEntry`]).
 //! - `analytics` — point-in-time aggregate metrics across all tracked runs.
 
 mod config;
@@ -30,7 +30,7 @@ mod runs;
 // Re-export ontology types used by the server layer.
 pub use nvisy_ontology::context::Context;
 pub use nvisy_ontology::entity::DetectionOutput;
-pub use nvisy_ontology::policy::{Policies, RedactionSummary};
+pub use nvisy_ontology::policy::{Policies, RedactionEntry};
 pub use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
 
 pub use self::config::{
@@ -38,5 +38,5 @@ pub use self::config::{
 };
 pub use self::default::{Engine, EngineInput, EngineOutput};
 pub use self::runs::{
-    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary,
+    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunSnapshot, RunStatus,
 };

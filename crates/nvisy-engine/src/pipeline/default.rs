@@ -44,7 +44,7 @@ use super::runs::{
 use crate::graph::{Graph, GraphNodeKind};
 use crate::operation::context::SharedContext;
 use crate::operation::encryption::SharedKeyProvider;
-use crate::provenance::{Audit, PolicyEvaluation, RedactionMap};
+use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::engine";

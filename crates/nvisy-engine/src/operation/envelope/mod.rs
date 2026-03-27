@@ -36,7 +36,7 @@ pub use self::apply::ApplyPatch;
 pub use self::audit::OperationEntry;
 pub use self::detection::{DetectedEntities, RefinedEntities};
 pub use self::policy::PolicyOutcome;
-use crate::provenance::Audit;
+use nvisy_ontology::provenance::Audit;
 
 /// Per-document state that flows through the entire pipeline.
 ///

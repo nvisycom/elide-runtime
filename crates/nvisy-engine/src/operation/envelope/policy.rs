@@ -2,7 +2,7 @@
 
 use super::DocumentEnvelope;
 use super::apply::ApplyPatch;
-use crate::provenance::{RedactionDecision, RedactionRecord};
+use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
 
 /// Redaction decisions and audit records produced by policy evaluation.
 pub struct PolicyOutcome {

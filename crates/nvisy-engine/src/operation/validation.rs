@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
-use crate::provenance::RedactionDecision;
+use nvisy_ontology::provenance::RedactionDecision;
 
 const TARGET: &str = "nvisy_engine::op::validation";
 

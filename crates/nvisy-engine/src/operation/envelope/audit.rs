@@ -2,7 +2,7 @@
 
 use super::DocumentEnvelope;
 use super::apply::ApplyPatch;
-use crate::provenance::AuditEntry;
+use nvisy_ontology::provenance::AuditEntry;
 
 /// A single audit log entry recording what an operation did.
 pub struct OperationEntry(pub AuditEntry);

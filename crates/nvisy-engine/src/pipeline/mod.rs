@@ -31,6 +31,7 @@ mod runs;
 pub use nvisy_ontology::context::Context;
 pub use nvisy_ontology::entity::DetectionOutput;
 pub use nvisy_ontology::policy::{Policies, RedactionSummary};
+pub use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
 
 pub use self::config::{
     EngineSection, LlmSection, OcrSection, ResourceLimits, RuntimeConfig, SttSection, TtsSection,

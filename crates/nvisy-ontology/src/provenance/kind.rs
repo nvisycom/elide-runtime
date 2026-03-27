@@ -1,6 +1,6 @@
 //! Two-level tagged enum discriminating audit entry categories.
 
-use nvisy_ontology::entity::ExtractionMethod;
+use crate::entity::ExtractionMethod;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

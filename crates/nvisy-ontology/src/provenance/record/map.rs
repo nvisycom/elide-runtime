@@ -7,7 +7,7 @@
 //! when authorized.
 
 use nvisy_core::content::ContentSource;
-use nvisy_ontology::entity::Location;
+use crate::entity::Location;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -13,7 +13,7 @@ use crate::graph::Redaction as RedactionCfg;
 use crate::operation::Operation;
 use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::envelope::PolicyOutcome;
-use crate::provenance::{RedactionDecision, RedactionRecord};
+use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
 
 const TARGET: &str = "nvisy_engine::op::redaction";
 

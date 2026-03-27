@@ -1,7 +1,7 @@
 //! Data for AI-model inference operations.
 
 use derive_builder::Builder;
-use nvisy_ontology::entity::ModelInfo;
+use crate::entity::ModelInfo;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

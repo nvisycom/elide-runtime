@@ -4,7 +4,7 @@
 //! This module adds the tokio-dependent execution methods via traits.
 
 use nvisy_core::Error;
-use nvisy_ontology::graph::{RetryPolicy, TimeoutPolicy};
+use nvisy_ontology::workflow::{RetryPolicy, TimeoutPolicy};
 
 /// Async retry execution for [`RetryPolicy`].
 pub(crate) trait RetryExt {

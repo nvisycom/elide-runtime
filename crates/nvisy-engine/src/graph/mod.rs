@@ -8,12 +8,12 @@
 
 mod policy_ext;
 
-pub use nvisy_ontology::graph::*;
-pub(crate) use self::policy_ext::{RetryExt, TimeoutExt};
-
 use std::collections::HashMap;
 
+pub use nvisy_ontology::workflow::*;
 use petgraph::graph::DiGraph;
+
+pub(crate) use self::policy_ext::{RetryExt, TimeoutExt};
 
 /// Extension trait adding petgraph conversion to [`Graph`].
 pub(crate) trait GraphExt {

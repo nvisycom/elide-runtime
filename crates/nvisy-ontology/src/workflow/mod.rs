@@ -228,7 +228,6 @@ impl Graph {
             concurrency: None,
         }
     }
-
 }
 
 fn validate_struct(v: &impl Validate) -> Result<(), Error> {

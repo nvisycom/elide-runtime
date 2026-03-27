@@ -8,12 +8,12 @@
 use nvisy_core::Result;
 use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
+use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
 
 use crate::graph::Redaction as RedactionCfg;
 use crate::operation::Operation;
 use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::envelope::PolicyOutcome;
-use crate::provenance::{RedactionDecision, RedactionRecord};
 
 const TARGET: &str = "nvisy_engine::op::redaction";
 

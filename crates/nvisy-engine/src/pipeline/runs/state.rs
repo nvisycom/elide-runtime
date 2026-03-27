@@ -1,6 +1,6 @@
 //! Volatile, in-memory run state storage.
 //!
-//! [`RunState`] wraps an `Arc<RwLock<HashMap<Uuid, RunEntry>>>` providing
+//! [`RunState`] wraps an `Arc<RwLock<HashMap<Uuid, RunRecord>>>` providing
 //! concurrent read/write access to run records. It is cheaply clonable
 //! (single `Arc` bump) and shared between the [`Engine`](super::super::Engine)
 //! and the [orchestrator](super::super::orchestrator).
@@ -21,8 +21,9 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::{NodeSnapshot, NodeStatus, RunFilter, RunSnapshot, RunStatus, RunSummary};
-use crate::pipeline::analytics::AnalyticsSnapshot;
+use super::{
+    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunSnapshot, RunStatus,
+};
 
 const TARGET: &str = "nvisy_engine::pipeline::runs";
 
@@ -33,14 +34,14 @@ const TARGET: &str = "nvisy_engine::pipeline::runs";
 /// run progress concurrently.
 #[derive(Clone)]
 pub(crate) struct RunState {
-    inner: Arc<RwLock<HashMap<Uuid, RunEntry>>>,
+    inner: Arc<RwLock<HashMap<Uuid, RunRecord>>>,
 }
 
 /// Mutable state for a single pipeline run.
 ///
 /// Tracks lifecycle timestamps, per-node snapshots, aggregate counters,
 /// and a [`CancellationToken`] for cooperative cancellation.
-pub(crate) struct RunEntry {
+pub(crate) struct RunRecord {
     /// Identity of the actor who initiated this run.
     pub actor_id: Uuid,
     /// Current lifecycle status.
@@ -61,7 +62,7 @@ pub(crate) struct RunEntry {
     pub redactions_applied: u64,
 }
 
-impl RunEntry {
+impl RunRecord {
     /// Project this entry into a full [`RunSnapshot`] for API responses.
     fn to_snapshot(&self, id: Uuid) -> RunSnapshot {
         RunSnapshot {
@@ -75,9 +76,9 @@ impl RunEntry {
         }
     }
 
-    /// Project this entry into a lightweight [`RunSummary`] for listing.
-    fn to_summary(&self, id: Uuid) -> RunSummary {
-        RunSummary {
+    /// Project this entry into a lightweight [`RunEntry`] for listing.
+    fn to_summary(&self, id: Uuid) -> RunEntry {
+        RunEntry {
             id,
             actor_id: self.actor_id,
             status: self.status,
@@ -98,7 +99,7 @@ impl RunState {
     }
 
     /// Insert a new run entry, keyed by its unique run ID.
-    pub async fn insert(&self, run_id: Uuid, entry: RunEntry) {
+    pub async fn insert(&self, run_id: Uuid, entry: RunRecord) {
         self.inner.write().await.insert(run_id, entry);
     }
 
@@ -194,7 +195,7 @@ impl RunState {
     }
 
     /// List runs matching the given filter, scoped to the given actor.
-    pub async fn list_runs(&self, actor_id: Uuid, filter: &RunFilter) -> Vec<RunSummary> {
+    pub async fn list_runs(&self, actor_id: Uuid, filter: &RunFilter) -> Vec<RunEntry> {
         self.inner
             .read()
             .await
@@ -272,25 +273,21 @@ impl RunState {
     /// Compute a point-in-time [`AnalyticsSnapshot`] from all tracked runs.
     pub async fn snapshot(&self) -> AnalyticsSnapshot {
         let guard = self.inner.read().await;
-        let mut active = 0u64;
+        let mut current = 0u64;
         let mut succeeded = 0u64;
         let mut failed = 0u64;
         let mut cancelled = 0u64;
-        let mut total_entities = 0u64;
-        let mut total_redactions = 0u64;
         let mut actors = HashSet::new();
         let mut durations_ms: Vec<u64> = Vec::new();
 
         for entry in guard.values() {
             match entry.status {
-                RunStatus::Pending | RunStatus::Running => active += 1,
+                RunStatus::Pending | RunStatus::Running => current += 1,
                 RunStatus::Succeeded => succeeded += 1,
                 RunStatus::Failed | RunStatus::PartialFailure => failed += 1,
                 RunStatus::Cancelled => cancelled += 1,
             }
             actors.insert(entry.actor_id);
-            total_entities += entry.entities_detected;
-            total_redactions += entry.redactions_applied;
 
             if let Some(completed_at) = entry.completed_at {
                 let span = completed_at.since(entry.created_at);
@@ -300,28 +297,22 @@ impl RunState {
             }
         }
 
-        let (min_run_duration_ms, max_run_duration_ms, avg_run_duration_ms) =
-            if durations_ms.is_empty() {
-                (None, None, None)
-            } else {
-                let min = *durations_ms.iter().min().unwrap();
-                let max = *durations_ms.iter().max().unwrap();
-                let sum: u64 = durations_ms.iter().sum();
-                let avg = sum as f64 / durations_ms.len() as f64;
-                (Some(min), Some(max), Some(avg))
-            };
+        let (max_run_duration_ms, avg_run_duration_ms) = if durations_ms.is_empty() {
+            (None, None)
+        } else {
+            let max = *durations_ms.iter().max().unwrap();
+            let sum: u64 = durations_ms.iter().sum();
+            let avg = sum as f64 / durations_ms.len() as f64;
+            (Some(max), Some(avg))
+        };
 
         AnalyticsSnapshot {
             timestamp: Timestamp::now(),
-            total_runs: guard.len() as u64,
-            active_runs: active,
+            current_runs: current,
             succeeded_runs: succeeded,
             failed_runs: failed,
             cancelled_runs: cancelled,
-            total_entities_detected: total_entities,
-            total_redactions_applied: total_redactions,
             distinct_actors: actors.len() as u64,
-            min_run_duration_ms,
             max_run_duration_ms,
             avg_run_duration_ms,
         }

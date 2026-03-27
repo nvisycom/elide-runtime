@@ -2,9 +2,10 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{Entities, Entity, Overlap, RecognitionMethod, RefinementMethod};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::entity::{Entities, Entity, Overlap, RecognitionMethod, RefinementMethod};
 
 /// Strategy for combining confidence scores from multiple detectors.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]

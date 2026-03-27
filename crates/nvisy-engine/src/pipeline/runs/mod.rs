@@ -8,18 +8,21 @@
 //!
 //! - [`RunSnapshot`] — full detail including per-node snapshots
 //!   (`GET /runs/{id}`).
-//! - [`RunSummary`] — lightweight with node count only, no per-node
+//! - [`RunEntry`] — lightweight with node count only, no per-node
 //!   detail (`GET /runs`).
 //!
 //! The [`state`] submodule contains the volatile in-memory storage
 //! ([`RunState`](state::RunState)) backing all run queries and mutations.
 
+mod analytics;
 pub(crate) mod state;
 
 use jiff::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+pub use self::analytics::AnalyticsSnapshot;
 
 /// Lifecycle status of a pipeline run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +98,7 @@ pub struct RunSnapshot {
 
 /// Lightweight summary of a run for listing endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct RunSummary {
+pub struct RunEntry {
     /// Unique run identifier.
     pub id: Uuid,
     /// Identity of the actor who initiated the run.

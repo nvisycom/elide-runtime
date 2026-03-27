@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 /// Summary of redactions applied to a single content source.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct RedactionSummary {
+pub struct RedactionEntry {
     /// The content source these counts apply to.
     pub source: ContentSource,
     /// Identifier of the policy that produced this summary.

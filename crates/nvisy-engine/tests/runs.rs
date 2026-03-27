@@ -92,10 +92,9 @@ async fn analytics_reflects_successful_run() -> anyhow::Result<()> {
     engine.run(fixtures::engine_input(actor, graph)).await?;
 
     let snap = engine.snapshot().await;
-    assert_eq!(snap.total_runs, 1);
     assert_eq!(snap.succeeded_runs, 1);
     assert_eq!(snap.distinct_actors, 1);
-    assert!(snap.min_run_duration_ms.is_some());
+    assert!(snap.max_run_duration_ms.is_some());
     Ok(())
 }
 
@@ -144,13 +143,12 @@ async fn analytics_empty_engine() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
 
     let snap = engine.snapshot().await;
-    assert_eq!(snap.total_runs, 0);
-    assert_eq!(snap.active_runs, 0);
+    assert_eq!(snap.current_runs, 0);
     assert_eq!(snap.succeeded_runs, 0);
     assert_eq!(snap.failed_runs, 0);
     assert_eq!(snap.cancelled_runs, 0);
     assert_eq!(snap.distinct_actors, 0);
-    assert!(snap.min_run_duration_ms.is_none());
+    assert!(snap.max_run_duration_ms.is_none());
     Ok(())
 }
 
@@ -236,7 +234,6 @@ async fn analytics_reflects_failed_run() -> anyhow::Result<()> {
     let _ = engine.run(fixtures::engine_input(actor, graph)).await;
 
     let snap = engine.snapshot().await;
-    assert_eq!(snap.total_runs, 1);
     assert_eq!(snap.failed_runs, 1);
     assert_eq!(snap.distinct_actors, 1);
     Ok(())

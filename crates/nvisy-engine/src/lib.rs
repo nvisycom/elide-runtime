@@ -5,5 +5,4 @@
 pub mod graph;
 pub mod operation;
 pub mod pipeline;
-pub mod provenance;
 pub mod registry;

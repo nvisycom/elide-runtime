@@ -19,13 +19,13 @@ use aide::transform::TransformOperation;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{Engine, EngineInput, RunFilter};
+use nvisy_engine::pipeline::{Engine, EngineInput, EngineOutput, RunFilter, RunSnapshot};
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 
 use super::error::{ErrorKind, Result};
 use super::request::{NewRun, RunPath, RunQuery};
-use super::response::{RunDetail, RunList, RunResult};
+use super::response::RunList;
 use crate::extract::{ActorId, Json, Path};
 use crate::middleware::constants::{DEFAULT_PIPELINE_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS};
 use crate::middleware::recovery::handle_error;
@@ -46,7 +46,7 @@ async fn create_run(
     State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
-) -> Result<(StatusCode, Json<RunResult>)> {
+) -> Result<(StatusCode, Json<EngineOutput>)> {
     let input = EngineInput {
         actor_id,
         policies: req.policies,
@@ -64,7 +64,7 @@ async fn create_run(
         "pipeline complete",
     );
 
-    Ok((StatusCode::CREATED, Json(output.into())))
+    Ok((StatusCode::CREATED, Json(output)))
 }
 
 fn create_run_docs(op: TransformOperation) -> TransformOperation {
@@ -116,13 +116,13 @@ async fn get_run(
     State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Path(RunPath { id }): Path<RunPath>,
-) -> Result<Json<RunDetail>> {
-    let run = engine
+) -> Result<Json<RunSnapshot>> {
+    let snapshot = engine
         .get_run(actor_id, id)
         .await
         .ok_or_else(|| ErrorKind::NotFound.with_resource("run"))?;
     tracing::debug!(target: TARGET, "run retrieved");
-    Ok(Json(RunDetail { run }))
+    Ok(Json(snapshot))
 }
 
 fn get_run_docs(op: TransformOperation) -> TransformOperation {

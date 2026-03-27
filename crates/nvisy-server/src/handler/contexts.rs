@@ -18,13 +18,13 @@ use aide::transform::TransformOperation;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::Engine;
+use nvisy_engine::pipeline::{Context, Engine};
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 
 use super::error::Result;
 use super::request::{ContextPath, NewContext, Pagination};
-use super::response::{Context, ContextId, ContextList};
+use super::response::{ContextEntry, ContextId, ContextList};
 use crate::extract::{ActorId, Json, Path};
 use crate::middleware::constants::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS};
 use crate::middleware::recovery::handle_error;
@@ -71,8 +71,18 @@ async fn list_contexts(
     ActorId(actor_id): ActorId,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<ContextList>> {
-    let contexts = engine.list_contexts(actor_id).await?;
-    let page = pagination.paginate(contexts);
+    let ids = engine.list_contexts(actor_id).await?;
+    let mut entries = Vec::with_capacity(ids.len());
+    for id in ids {
+        if let Ok(ctx) = engine.download_context(actor_id, id).await {
+            entries.push(ContextEntry {
+                id,
+                name: ctx.name,
+                entries: ctx.entries.len(),
+            });
+        }
+    }
+    let page = pagination.paginate(entries);
     tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "contexts listed");
     Ok(Json(page))
 }
@@ -97,7 +107,7 @@ async fn download_context(
 ) -> Result<Json<Context>> {
     let context = engine.download_context(actor_id, id).await?;
     tracing::debug!(target: TARGET, "context downloaded");
-    Ok(Json(Context { id, context }))
+    Ok(Json(context))
 }
 
 fn download_context_docs(op: TransformOperation) -> TransformOperation {

@@ -1,9 +1,10 @@
 //! Data for AI-model inference operations.
 
 use derive_builder::Builder;
-use crate::entity::ModelInfo;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::entity::ModelInfo;
 
 /// Data specific to AI-model operations (OCR, NER, transcription, etc.).
 ///

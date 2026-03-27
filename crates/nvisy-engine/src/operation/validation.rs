@@ -7,11 +7,11 @@
 //! [`Redaction`]: crate::operation::Redaction
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
+use nvisy_ontology::provenance::RedactionDecision;
 use uuid::Uuid;
 
 use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
-use nvisy_ontology::provenance::RedactionDecision;
 
 const TARGET: &str = "nvisy_engine::op::validation";
 

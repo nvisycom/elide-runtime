@@ -1,10 +1,10 @@
 //! Two-level tagged enum discriminating audit entry categories.
 
-use crate::entity::ExtractionMethod;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::action::{InferenceAction, LifecycleAction, ProcessingAction};
+use crate::entity::ExtractionMethod;
 
 /// Inference operation variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

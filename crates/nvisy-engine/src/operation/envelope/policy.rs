@@ -1,8 +1,9 @@
 //! Policy evaluation patches.
 
+use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
+
 use super::DocumentEnvelope;
 use super::apply::ApplyPatch;
-use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
 
 /// Redaction decisions and audit records produced by policy evaluation.
 pub struct PolicyOutcome {

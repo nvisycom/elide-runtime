@@ -30,6 +30,7 @@ use nvisy_http::HttpClient;
 use nvisy_ontology::context::{Context, ContextMap};
 use nvisy_ontology::entity::{DetectionOutput, Entities};
 use nvisy_ontology::policy::{Policies, RedactionSummary};
+use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -44,7 +45,6 @@ use super::runs::{
 use crate::graph::{Graph, GraphNodeKind};
 use crate::operation::context::SharedContext;
 use crate::operation::encryption::SharedKeyProvider;
-use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::engine";

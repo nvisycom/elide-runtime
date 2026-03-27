@@ -1,8 +1,9 @@
 //! Audit entry patches.
 
+use nvisy_ontology::provenance::AuditEntry;
+
 use super::DocumentEnvelope;
 use super::apply::ApplyPatch;
-use nvisy_ontology::provenance::AuditEntry;
 
 /// A single audit log entry recording what an operation did.
 pub struct OperationEntry(pub AuditEntry);

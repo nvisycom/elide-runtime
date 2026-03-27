@@ -31,12 +31,12 @@ use nvisy_codec::Document;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::Entities;
+use nvisy_ontology::provenance::Audit;
 
 pub use self::apply::ApplyPatch;
 pub use self::audit::OperationEntry;
 pub use self::detection::{DetectedEntities, RefinedEntities};
 pub use self::policy::PolicyOutcome;
-use nvisy_ontology::provenance::Audit;
 
 /// Per-document state that flows through the entire pipeline.
 ///

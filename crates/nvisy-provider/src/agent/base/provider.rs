@@ -18,7 +18,7 @@ use super::UnauthenticatedProvider;
 /// # Example
 /// ```rust,ignore
 /// let provider = AgentProvider::openai("sk-...", "gpt-4o");
-/// let agent = NerAgent::new(&provider, config);
+/// let agent = NerAgent::new(&provider, config, None);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]

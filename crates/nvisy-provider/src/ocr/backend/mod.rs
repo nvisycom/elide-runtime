@@ -46,17 +46,20 @@ pub struct RunParams {
 impl RunParams {
     /// Create params with the given confidence threshold.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if `confidence_threshold` is not in `0.0..=1.0`.
-    pub fn new(confidence_threshold: f64) -> Self {
-        assert!(
-            (0.0..=1.0).contains(&confidence_threshold),
-            "confidence_threshold must be in 0.0..=1.0, got {confidence_threshold}"
-        );
-        Self {
-            confidence_threshold,
+    /// Returns [`Error::Validation`] if `confidence_threshold` is not in
+    /// `0.0..=1.0` (including `NaN`).
+    pub fn new(confidence_threshold: f64) -> Result<Self, Error> {
+        if !(0.0..=1.0).contains(&confidence_threshold) {
+            return Err(Error::validation(
+                format!("confidence_threshold must be in 0.0..=1.0, got {confidence_threshold}"),
+                "ocr",
+            ));
         }
+        Ok(Self {
+            confidence_threshold,
+        })
     }
 }
 
@@ -76,18 +79,17 @@ pub trait Backend: Send + Sync + 'static {
 
     /// Run OCR on multiple images, returning results in the same order.
     ///
-    /// The default implementation calls [`run`](Self::run) sequentially.
-    /// Backends that support batch APIs can override for better throughput.
+    /// The default implementation runs all images concurrently. Backends
+    /// that need sequential processing or have native batch APIs can
+    /// override.
     async fn run_batch(
         &self,
         images: &[ImageInput],
         params: &RunParams,
     ) -> Result<Vec<ImageOutput>, Error> {
-        let mut results = Vec::with_capacity(images.len());
-        for image in images {
-            results.push(self.run(image, params).await?);
-        }
-        Ok(results)
+        let futures: Vec<_> = images.iter().map(|img| self.run(img, params)).collect();
+        let results: Vec<Result<ImageOutput, Error>> = futures::future::join_all(futures).await;
+        results.into_iter().collect()
     }
 }
 
@@ -96,20 +98,24 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "confidence_threshold must be in 0.0..=1.0")]
+    fn run_params_accepts_valid_range() {
+        assert!(RunParams::new(0.0).is_ok());
+        assert!(RunParams::new(0.5).is_ok());
+        assert!(RunParams::new(1.0).is_ok());
+    }
+
+    #[test]
     fn run_params_rejects_above_one() {
-        RunParams::new(1.01);
+        assert!(RunParams::new(1.01).is_err());
     }
 
     #[test]
-    #[should_panic(expected = "confidence_threshold must be in 0.0..=1.0")]
     fn run_params_rejects_negative() {
-        RunParams::new(-0.1);
+        assert!(RunParams::new(-0.1).is_err());
     }
 
     #[test]
-    #[should_panic(expected = "confidence_threshold must be in 0.0..=1.0")]
     fn run_params_rejects_nan() {
-        RunParams::new(f64::NAN);
+        assert!(RunParams::new(f64::NAN).is_err());
     }
 }

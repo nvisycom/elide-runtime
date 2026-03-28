@@ -68,6 +68,9 @@ impl OcrAgent {
     }
 
     /// Run OCR on a single image.
+    ///
+    /// Uses the params provided at construction. To override, use
+    /// [`run_with_params`](Self::run_with_params).
     #[tracing::instrument(
         target = TARGET,
         skip_all,
@@ -77,10 +80,37 @@ impl OcrAgent {
         self.engine.run(image, &self.params).await
     }
 
+    /// Run OCR on a single image with custom params.
+    #[tracing::instrument(
+        target = TARGET,
+        skip_all,
+        fields(source = %image.source, image_bytes = image.len()),
+    )]
+    pub async fn run_with_params(
+        &self,
+        image: &ImageInput,
+        params: &RunParams,
+    ) -> Result<ImageOutput> {
+        self.engine.run(image, params).await
+    }
+
     /// Run OCR on multiple images.
+    ///
+    /// Uses the params provided at construction. To override, use
+    /// [`run_batch_with_params`](Self::run_batch_with_params).
     #[tracing::instrument(target = TARGET, skip_all, fields(count = images.len()))]
     pub async fn run_batch(&self, images: &[ImageInput]) -> Result<Vec<ImageOutput>> {
         self.engine.run_batch(images, &self.params).await
+    }
+
+    /// Run OCR on multiple images with custom params.
+    #[tracing::instrument(target = TARGET, skip_all, fields(count = images.len()))]
+    pub async fn run_batch_with_params(
+        &self,
+        images: &[ImageInput],
+        params: &RunParams,
+    ) -> Result<Vec<ImageOutput>> {
+        self.engine.run_batch(images, params).await
     }
 
     /// Verify proposed entities against the original image using the LLM.
@@ -113,7 +143,7 @@ impl OcrAgent {
 
         let prompt = OcrPromptBuilder::new(entities).build(&image_b64);
         let output: VerificationOutput = verifier
-            .prompt_structured(&prompt)
+            .prompt_structured_raw(&prompt)
             .await
             .map_err(crate::error::convert)?;
 

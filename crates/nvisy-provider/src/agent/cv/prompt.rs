@@ -6,7 +6,7 @@
 use crate::agent::DetectionConfig;
 
 /// Fallback when no specific entity types are requested.
-const ALL_TYPES_HINT: &str = "all detectable object types";
+const ALL_CV_TYPES_HINT: &str = "all detectable object types";
 
 /// Builds user prompts for CV-based object detection.
 ///
@@ -25,7 +25,7 @@ impl<'a> CvPromptBuilder<'a> {
     /// Build the user prompt for the given base64-encoded image.
     pub fn build(&self, image_b64: &str) -> String {
         let entity_hint = if self.config.entity_kinds.is_empty() {
-            ALL_TYPES_HINT.to_string()
+            ALL_CV_TYPES_HINT.to_string()
         } else {
             self.config
                 .entity_kinds

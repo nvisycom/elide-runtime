@@ -6,9 +6,10 @@
 
 /// Token budget manager for a single model context window.
 ///
-/// All arithmetic is based on a rough **4 characters ≈ 1 token** heuristic.
-/// This is intentionally conservative: over-splitting is harmless while
-/// exceeding the real limit causes provider errors.
+/// Token estimation uses a script-aware heuristic: ~4 Latin/ASCII characters
+/// per token, ~1 token per CJK/emoji character. This is intentionally
+/// conservative: over-splitting is harmless while exceeding the real limit
+/// causes provider errors.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ContextWindow {
     /// Maximum tokens the model supports.
@@ -25,9 +26,23 @@ impl ContextWindow {
         }
     }
 
-    /// Rough token count (~4 chars per token for English text).
+    /// Rough token count.
+    ///
+    /// Uses character count (not byte length) so that CJK, Arabic, emoji,
+    /// and other multi-byte scripts are estimated more accurately. The
+    /// heuristic assumes ~4 characters per token for Latin text; CJK and
+    /// other ideographic characters are counted as ~1 token each.
     pub fn estimate_tokens(text: &str) -> usize {
-        text.len().div_ceil(4)
+        let mut latin_chars = 0usize;
+        let mut wide_chars = 0usize;
+        for ch in text.chars() {
+            if ch.is_ascii() || ch.len_utf8() <= 2 {
+                latin_chars += 1;
+            } else {
+                wide_chars += 1;
+            }
+        }
+        latin_chars.div_ceil(4) + wide_chars
     }
 
     /// Input token budget (`max_tokens − reserve_output`).

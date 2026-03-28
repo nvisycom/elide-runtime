@@ -5,7 +5,6 @@
 //! an agent or an agent prompt builder.
 
 use nvisy_ontology::entity::EntityKind;
-use serde_json::Value;
 
 /// Fallback hint used in prompts when no specific entity types are requested.
 pub(crate) const ALL_TYPES_HINT: &str = "all entity types";
@@ -27,11 +26,4 @@ pub struct DetectionConfig {
 pub struct DetectionRequest {
     pub text: String,
     pub config: DetectionConfig,
-}
-
-/// Response from the detection service.
-#[derive(Debug, Clone)]
-pub struct DetectionResponse {
-    pub entities: Vec<Value>,
-    pub usage: Option<rig::completion::Usage>,
 }

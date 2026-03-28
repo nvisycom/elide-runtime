@@ -44,41 +44,29 @@ impl Default for TtsConfig {
 pub struct TtsService {
     id: Uuid,
     inner: TtsModels,
+    #[allow(dead_code)]
     config: TtsConfig,
 }
 
 impl TtsService {
     /// Create a new TTS service for the given provider.
     ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Request`] if client construction fails.
-    pub fn new(provider: &TtsProvider, config: TtsConfig) -> Result<Self> {
-        let inner = TtsModels::from_provider(provider, &config.model, config.max_retries, None)
-            .map_err(crate::error::convert)?;
-
-        Ok(Self {
-            id: Uuid::now_v7(),
-            inner,
-            config,
-        })
-    }
-
-    /// Create a new TTS service using a pre-built HTTP client.
+    /// Pass an [`HttpClient`] to share a connection pool with other
+    /// services; otherwise a new client is created from the config.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Request`] if client construction fails.
-    pub fn with_http_client(
+    pub fn new(
         provider: &TtsProvider,
         config: TtsConfig,
-        client: HttpClient,
+        http_client: Option<HttpClient>,
     ) -> Result<Self> {
         let inner = TtsModels::from_provider(
             provider,
             &config.model,
             config.max_retries,
-            Some(client.into_inner()),
+            http_client.map(HttpClient::into_inner),
         )
         .map_err(crate::error::convert)?;
 
@@ -101,7 +89,6 @@ impl TtsService {
         fields(service_id = %self.id, text_len = text.len()),
     )]
     pub async fn generate(&self, text: &str) -> Result<Vec<u8>> {
-        let _ = &self.config;
         match &self.inner {
             #[cfg(feature = "openai-tts")]
             TtsModels::OpenAi(model) => {

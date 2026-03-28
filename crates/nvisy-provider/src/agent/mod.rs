@@ -14,7 +14,7 @@ mod ocr;
 pub(crate) use self::base::{ALL_TYPES_HINT, BaseAgent};
 pub use self::base::{
     AgentConfig, AgentProvider, AuthenticatedProvider, ContextWindow, DetectionConfig,
-    DetectionRequest, DetectionResponse, UnauthenticatedProvider, UsageStats, UsageTracker,
+    DetectionRequest, UnauthenticatedProvider, UsageStats, UsageTracker,
 };
 pub use self::cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
 pub use self::generate::{GenAgent, GenOutput, GenRequest, GeneratedEntity};

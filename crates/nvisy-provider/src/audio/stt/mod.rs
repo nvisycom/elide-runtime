@@ -60,41 +60,29 @@ pub struct SttOutput {
 pub struct SttService {
     id: Uuid,
     inner: SttModels,
+    #[allow(dead_code)]
     config: SttConfig,
 }
 
 impl SttService {
     /// Create a new speech-to-text service for the given provider.
     ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Request`] if client construction fails.
-    pub fn new(provider: &SttProvider, config: SttConfig) -> Result<Self> {
-        let inner = SttModels::from_provider(provider, &config.model, config.max_retries, None)
-            .map_err(crate::error::convert)?;
-
-        Ok(Self {
-            id: Uuid::now_v7(),
-            inner,
-            config,
-        })
-    }
-
-    /// Create a new speech-to-text service using a pre-built HTTP client.
+    /// Pass an [`HttpClient`] to share a connection pool with other
+    /// services; otherwise a new client is created from the config.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Request`] if client construction fails.
-    pub fn with_http_client(
+    pub fn new(
         provider: &SttProvider,
         config: SttConfig,
-        client: HttpClient,
+        http_client: Option<HttpClient>,
     ) -> Result<Self> {
         let inner = SttModels::from_provider(
             provider,
             &config.model,
             config.max_retries,
-            Some(client.into_inner()),
+            http_client.map(HttpClient::into_inner),
         )
         .map_err(crate::error::convert)?;
 
@@ -122,7 +110,6 @@ impl SttService {
         fields(service_id = %self.id, data_len = audio_data.len(), filename),
     )]
     pub async fn transcribe(&self, audio_data: &[u8], filename: &str) -> Result<SttOutput> {
-        let _ = (&self.config, filename);
         match &self.inner {
             #[cfg(feature = "openai-whisper")]
             SttModels::OpenAi(model) => {

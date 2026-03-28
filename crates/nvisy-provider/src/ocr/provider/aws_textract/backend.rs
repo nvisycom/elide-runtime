@@ -6,13 +6,13 @@ use std::collections::HashMap;
 use std::fmt;
 
 use hmac::{Hmac, Mac};
-use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
+use nvisy_core::{Error, Result};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use super::AwsTextractParams;
-use crate::http::HttpClient;
+use crate::http::{HttpClient, HttpConfig};
 use crate::ocr::backend::{
     Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word, check_response,
 };
@@ -42,8 +42,15 @@ impl fmt::Debug for AwsTextractBackend {
 
 impl AwsTextractBackend {
     /// Create a new backend with default HTTP configuration.
-    pub fn new(params: AwsTextractParams) -> Self {
-        Self::with_client(HttpClient::default(), params)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP client cannot be built.
+    pub fn new(params: AwsTextractParams) -> Result<Self> {
+        Ok(Self::with_client(
+            HttpClient::new(&HttpConfig::default())?,
+            params,
+        ))
     }
 
     /// Create a new backend with a pre-configured HTTP client.

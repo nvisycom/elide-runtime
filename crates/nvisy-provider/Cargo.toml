@@ -52,6 +52,7 @@ rig-core = { workspace = true, features = ["derive", "reqwest-middleware", "audi
 
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }
+futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "time"] }
 
 # HTTP client and middleware

@@ -115,7 +115,7 @@ impl CvAgent {
 
         let result: CvEntities = self
             .base
-            .prompt_structured(&prompt)
+            .prompt_structured_raw(&prompt)
             .await
             .map_err(crate::error::convert)?;
 

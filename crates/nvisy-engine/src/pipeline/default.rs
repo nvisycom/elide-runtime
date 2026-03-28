@@ -152,7 +152,7 @@ impl Engine {
             .as_ref()
             .and_then(|e| e.http.clone())
             .unwrap_or_default();
-        let http_client = HttpClient::new(&http_config);
+        let http_client = HttpClient::new(&http_config)?;
 
         Ok(Self {
             inner: Arc::new(EngineInner {

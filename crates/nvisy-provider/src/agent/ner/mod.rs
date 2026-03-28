@@ -35,29 +35,22 @@ pub struct NerAgent {
 
 impl NerAgent {
     /// Create a new NER agent.
-    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self> {
-        config
-            .preamble
-            .get_or_insert_with(|| NER_SYSTEM_PROMPT.into());
-        let base = BaseAgent::builder(provider, config)
-            .build()
-            .map_err(crate::error::convert)?;
-        Ok(Self { base })
-    }
-
-    /// Create a new NER agent using a pre-built HTTP client.
-    pub fn with_http_client(
+    ///
+    /// Pass an [`HttpClient`] to share a connection pool with other
+    /// services; otherwise a new client is created from the agent config.
+    pub fn new(
         provider: &AgentProvider,
         mut config: AgentConfig,
-        client: HttpClient,
+        http_client: Option<HttpClient>,
     ) -> Result<Self> {
         config
             .preamble
             .get_or_insert_with(|| NER_SYSTEM_PROMPT.into());
-        let base = BaseAgent::builder(provider, config)
-            .http_client(client)
-            .build()
-            .map_err(crate::error::convert)?;
+        let mut builder = BaseAgent::builder(provider, config);
+        if let Some(client) = http_client {
+            builder = builder.http_client(client);
+        }
+        let base = builder.build().map_err(crate::error::convert)?;
         Ok(Self { base })
     }
 

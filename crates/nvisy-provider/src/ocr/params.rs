@@ -1,3 +1,4 @@
+use nvisy_core::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::http::HttpClient;
@@ -37,17 +38,21 @@ pub enum OcrProvider {
 
 impl OcrProvider {
     /// Build an `OcrEngine` from these parameters.
-    pub fn into_engine(self) -> super::OcrEngine {
-        match self {
-            Self::Surya(p) => super::OcrEngine::new(SuryaBackend::new(p)),
-            Self::PaddleX(p) => super::OcrEngine::new(PaddleXBackend::new(p)),
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the default HTTP client cannot be built.
+    pub fn into_engine(self) -> Result<super::OcrEngine> {
+        Ok(match self {
+            Self::Surya(p) => super::OcrEngine::new(SuryaBackend::new(p)?),
+            Self::PaddleX(p) => super::OcrEngine::new(PaddleXBackend::new(p)?),
             #[cfg(feature = "aws-textract")]
-            Self::AwsTextract(p) => super::OcrEngine::new(AwsTextractBackend::new(p)),
+            Self::AwsTextract(p) => super::OcrEngine::new(AwsTextractBackend::new(p)?),
             #[cfg(feature = "azure-docai")]
-            Self::AzureDocai(p) => super::OcrEngine::new(AzureDocaiBackend::new(p)),
+            Self::AzureDocai(p) => super::OcrEngine::new(AzureDocaiBackend::new(p)?),
             #[cfg(feature = "google-vision")]
-            Self::GoogleVision(p) => super::OcrEngine::new(GoogleVisionBackend::new(p)),
-        }
+            Self::GoogleVision(p) => super::OcrEngine::new(GoogleVisionBackend::new(p)?),
+        })
     }
 
     /// Build an `OcrEngine` from these parameters using a pre-built HTTP client.

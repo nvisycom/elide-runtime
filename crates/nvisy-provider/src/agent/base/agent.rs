@@ -110,8 +110,7 @@ impl BaseAgent {
             None => return Ok(Cow::Borrowed(prompt)),
         };
 
-        // Rough token estimate: 1 token ≈ 4 characters.
-        if prompt.len() / 4 <= budget {
+        if ContextWindow::estimate_tokens(prompt) <= budget {
             return Ok(Cow::Borrowed(prompt));
         }
 
@@ -171,11 +170,23 @@ impl BaseAgent {
         T: DeserializeOwned + Default + JsonSchema + Serialize + Send + Sync,
     {
         let prompt = self.maybe_compact(prompt).await?;
+        self.prompt_structured_raw::<T>(&prompt).await
+    }
+
+    /// Structured-output prompt that skips context-window compaction.
+    ///
+    /// Use this for prompts containing binary/encoded data (e.g. base64
+    /// images) where LLM-based summarization would be nonsensical.
+    #[tracing::instrument(target = "nvisy_provider::agent::base", skip_all, fields(agent_id = %self.id, mode = "structured_raw"))]
+    pub async fn prompt_structured_raw<T>(&self, prompt: &str) -> Result<T, Error>
+    where
+        T: DeserializeOwned + Default + JsonSchema + Serialize + Send + Sync,
+    {
         let schema = schemars::schema_for!(T);
 
         let (text, usage) = dispatch!(&self.inner, |agent| {
             let builder = agent
-                .completion(&*prompt, vec![])
+                .completion(prompt, vec![])
                 .await
                 .map_err(Error::from)?
                 .output_schema(schema);
@@ -187,7 +198,6 @@ impl BaseAgent {
 
         self.tracker.record(&usage, 0);
 
-        let parser = ResponseParser::from_text(&text);
         match serde_json::from_str::<T>(&text) {
             Ok(value) => {
                 tracing::debug!(target: TARGET, "structured output succeeded");
@@ -199,7 +209,7 @@ impl BaseAgent {
                     error = %structured_err,
                     "structured JSON parse failed, falling back to text-based parsing"
                 );
-                parser.parse_json()
+                ResponseParser::from_text(&text).parse_json()
             }
         }
     }

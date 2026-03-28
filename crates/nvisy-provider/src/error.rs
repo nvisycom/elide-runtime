@@ -93,7 +93,6 @@ impl From<TranscriptionError> for Error {
 
 impl From<AudioGenerationError> for Error {
     fn from(err: AudioGenerationError) -> Self {
-        use rig::audio_generation::AudioGenerationError;
         match err {
             AudioGenerationError::HttpError(e) => Self::Http(e),
             AudioGenerationError::JsonError(e) => Self::Json(e),
@@ -131,6 +130,11 @@ impl From<Error> for nvisy_core::Error {
 }
 
 /// Check if a provider error message indicates a retryable condition.
+///
+/// This uses substring matching against known error patterns from OpenAI,
+/// Anthropic, and Google. If upstream providers change their error
+/// message format this may need updating — the test suite below
+/// validates all known patterns.
 fn is_retryable_provider_error(msg: &str) -> bool {
     let lower = msg.to_lowercase();
     lower.contains("rate_limit")
@@ -140,4 +144,51 @@ fn is_retryable_provider_error(msg: &str) -> bool {
         || lower.contains("429")
         || lower.contains("503")
         || lower.contains("529")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retryable_patterns() {
+        // OpenAI
+        assert!(is_retryable_provider_error("Rate limit reached for gpt-4o"));
+        assert!(is_retryable_provider_error(
+            "Error code: 429 - You exceeded your current quota"
+        ));
+
+        // Anthropic
+        assert!(is_retryable_provider_error("overloaded_error: Overloaded"));
+        assert!(is_retryable_provider_error(
+            "rate_limit_error: Rate limited"
+        ));
+        assert!(is_retryable_provider_error("Error code: 529 - Overloaded"));
+
+        // Google
+        assert!(is_retryable_provider_error("503 Service Unavailable"));
+        assert!(is_retryable_provider_error("Request timeout"));
+    }
+
+    #[test]
+    fn non_retryable_patterns() {
+        assert!(!is_retryable_provider_error("invalid_api_key"));
+        assert!(!is_retryable_provider_error("model not found"));
+        assert!(!is_retryable_provider_error("content policy violation"));
+        assert!(!is_retryable_provider_error(""));
+    }
+
+    #[test]
+    fn provider_error_conversion_is_retryable() {
+        let err = Error::Provider("Rate limit exceeded".to_string());
+        let core_err: nvisy_core::Error = err.into();
+        assert!(core_err.retryable);
+    }
+
+    #[test]
+    fn provider_error_conversion_is_not_retryable() {
+        let err = Error::Provider("invalid model".to_string());
+        let core_err: nvisy_core::Error = err.into();
+        assert!(!core_err.retryable);
+    }
 }

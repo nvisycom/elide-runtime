@@ -22,7 +22,12 @@ impl HttpClient {
     ///
     /// The returned client has exponential-backoff retry and OpenTelemetry
     /// tracing middleware pre-installed.
-    pub fn new(config: &HttpConfig) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying `reqwest::Client` cannot be built
+    /// (e.g. TLS backend initialisation failure).
+    pub fn new(config: &HttpConfig) -> nvisy_core::Result<Self> {
         tracing::debug!(
             target: TARGET,
             max_retries = config.max_retries,
@@ -39,25 +44,25 @@ impl HttpClient {
             .connect_timeout(Duration::from_secs(config.connect_timeout_secs))
             .pool_idle_timeout(Duration::from_secs(config.idle_timeout_secs))
             .build()
-            .expect("failed to build reqwest client");
+            .map_err(|e| {
+                nvisy_core::Error::runtime(
+                    format!("failed to build HTTP client: {e}"),
+                    "http",
+                    false,
+                )
+            })?;
 
-        Self(
+        Ok(Self(
             ClientBuilder::new(client)
                 .with(mw_tracing::layer())
                 .with(retry::layer(retry_policy))
                 .build(),
-        )
+        ))
     }
 
     /// Consume the wrapper and return the inner middleware client.
     pub fn into_inner(self) -> ClientWithMiddleware {
         self.0
-    }
-}
-
-impl Default for HttpClient {
-    fn default() -> Self {
-        Self::new(&HttpConfig::default())
     }
 }
 

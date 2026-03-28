@@ -37,8 +37,11 @@ impl AudialExtraction {
                 )
             })?;
 
-        let stt =
-            SttService::with_http_client(&stt_provider, SttConfig::default(), http_client.clone())?;
+        let stt = SttService::new(
+            &stt_provider,
+            SttConfig::default(),
+            Some(http_client.clone()),
+        )?;
 
         if cfg.diarization {
             tracing::warn!(target: TARGET, "diarization not yet supported, skipping");

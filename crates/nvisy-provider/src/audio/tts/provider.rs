@@ -87,13 +87,15 @@ impl TtsModels {
         match provider {
             #[cfg(feature = "openai-tts")]
             TtsProvider::OpenAi(p) => {
-                let http = client.unwrap_or_else(|| {
-                    HttpClient::new(&HttpConfig {
+                let http = match client {
+                    Some(c) => c,
+                    None => HttpClient::new(&HttpConfig {
                         max_retries,
                         ..HttpConfig::default()
                     })
-                    .into_inner()
-                });
+                    .map_err(|e| Error::Request(e.to_string()))?
+                    .into_inner(),
+                };
                 let client = p.openai_client(http)?;
                 let model = openai::audio_generation::AudioGenerationModel::new(client, model);
                 Ok(Self::OpenAi(model))

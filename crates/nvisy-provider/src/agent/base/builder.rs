@@ -55,12 +55,14 @@ impl BaseAgentBuilder {
             http_client: existing_client,
         } = self;
 
-        let http_client = existing_client.unwrap_or_else(|| {
-            HttpClient::new(&HttpConfig {
+        let http_client = match existing_client {
+            Some(c) => c,
+            None => HttpClient::new(&HttpConfig {
                 max_retries: config.max_retries,
                 ..HttpConfig::default()
             })
-        });
+            .map_err(|e| Error::Request(e.to_string()))?,
+        };
         let preamble = config.preamble.as_deref();
 
         let raw_client = http_client.into_inner();

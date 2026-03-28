@@ -36,12 +36,8 @@ impl EntityRecognition {
         config: AgentConfig,
         http_client: Option<HttpClient>,
     ) -> Result<NerAgent> {
-        let agent = if let Some(client) = http_client {
-            NerAgent::with_http_client(provider, config, client)
-        } else {
-            NerAgent::new(provider, config)
-        }
-        .map_err(|e| Error::validation(e.to_string(), "ner-agent"))?;
+        let agent = NerAgent::new(provider, config, http_client)
+            .map_err(|e| Error::validation(e.to_string(), "ner-agent"))?;
         Ok(agent)
     }
 

@@ -3035,6 +3035,7 @@ dependencies = [
  "async-trait",
  "base64",
  "bytes",
+ "futures",
  "hmac",
  "nvisy-core",
  "nvisy-ontology",

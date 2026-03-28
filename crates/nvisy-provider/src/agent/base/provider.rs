@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
     feature = "anthropic-claude",
     feature = "google-gemini"
 ))]
-use crate::llm::AuthenticatedProvider;
-use crate::llm::UnauthenticatedProvider;
+use super::AuthenticatedProvider;
+use super::UnauthenticatedProvider;
 
 /// Supported LLM providers for agent-based tasks (NER, CV, OCR, text generation).
 ///

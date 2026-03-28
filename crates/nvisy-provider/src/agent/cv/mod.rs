@@ -18,9 +18,9 @@ use uuid::Uuid;
 pub use self::output::{CvEntities, CvEntity};
 use self::prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use self::tool::CvRigTool;
+use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
 use crate::error::Error;
-use crate::llm::UsageTracker;
 
 const TARGET: &str = "nvisy_provider::agent::cv";
 

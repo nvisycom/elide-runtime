@@ -17,9 +17,9 @@ use uuid::Uuid;
 pub use self::input::ProposedEntity;
 pub use self::output::{VerificationOutput, VerificationStatus, VerifiedEntity};
 use self::prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
+use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent};
 use crate::error::Error;
-use crate::llm::UsageTracker;
 
 const TARGET: &str = "nvisy_provider::agent::ocr";
 

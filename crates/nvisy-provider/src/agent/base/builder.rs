@@ -8,10 +8,9 @@ use rig::providers::gemini;
 use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
-use super::{AgentConfig, AgentProvider, Agents, BaseAgent};
+use super::{AgentConfig, AgentProvider, Agents, BaseAgent, UsageTracker};
 use crate::error::Error;
 use crate::http::{HttpClient, HttpConfig};
-use crate::llm::UsageTracker;
 
 /// Builder for [`BaseAgent`].
 ///

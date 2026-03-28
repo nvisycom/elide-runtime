@@ -17,9 +17,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{AgentProvider, BaseAgentBuilder, ContextWindow, ResponseParser};
+use super::{AgentProvider, BaseAgentBuilder, ContextWindow, ResponseParser, UsageTracker};
 use crate::error::Error;
-use crate::llm::UsageTracker;
 
 const TARGET: &str = "nvisy_provider::agent::base";
 

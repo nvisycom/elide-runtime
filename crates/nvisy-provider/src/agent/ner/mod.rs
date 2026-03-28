@@ -13,10 +13,10 @@ use uuid::Uuid;
 pub use self::context::NerContext;
 pub use self::output::{KnownNerEntity, NerEntities, NerEntity, ResolvedOffsets};
 use self::prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
+use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
 use crate::error::Error;
 use crate::http::HttpClient;
-use crate::llm::UsageTracker;
 
 const TARGET: &str = "nvisy_provider::agent::ner";
 

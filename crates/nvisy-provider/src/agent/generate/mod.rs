@@ -12,9 +12,9 @@ use uuid::Uuid;
 
 pub use self::output::{GenOutput, GeneratedEntity};
 use self::prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
+use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent};
 use crate::error::Error;
-use crate::llm::UsageTracker;
 
 const TARGET: &str = "nvisy_provider::agent::generate";
 

@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-
-//! External service providers: HTTP client, OCR, LLM agents, STT, TTS.
+#![doc = include_str!("../README.md")]
 
 pub mod agent;
 pub mod audio;

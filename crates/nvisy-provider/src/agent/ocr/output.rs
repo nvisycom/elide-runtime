@@ -2,11 +2,11 @@
 
 use std::collections::HashMap;
 
-use nvisy_core::math::BoundingBox;
 use nvisy_ontology::entity::{
     Entity, EntityCategory, EntityKind, ExtractionMethod, ImageLocation, RecognitionMethod,
     RefinementMethod,
 };
+use nvisy_ontology::math::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

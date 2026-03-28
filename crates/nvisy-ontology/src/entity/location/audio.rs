@@ -1,11 +1,11 @@
 //! Audio-modality entity location.
 
-use nvisy_core::math::TimeSpan;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::Overlap;
+use crate::math::TimeSpan;
 
 /// Location of an entity within an audio stream.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

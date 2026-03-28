@@ -2917,6 +2917,7 @@ dependencies = [
  "imageproc",
  "lopdf",
  "nvisy-core",
+ "nvisy-ontology",
  "pdfium-render",
  "quick-xml",
  "rayon",

@@ -1,6 +1,6 @@
 //! Image redaction instruction types.
 
-use nvisy_core::math::BoundingBox;
+use nvisy_ontology::math::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

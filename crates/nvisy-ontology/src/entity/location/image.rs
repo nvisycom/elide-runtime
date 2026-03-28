@@ -1,11 +1,11 @@
 //! Image-modality entity location.
 
-use nvisy_core::math::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::Overlap;
+use crate::math::BoundingBox;
 
 /// Location of an entity within an image.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

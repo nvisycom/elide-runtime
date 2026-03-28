@@ -1,7 +1,7 @@
 //! OCR output types.
 
 use nvisy_core::content::ContentSource;
-use nvisy_core::math::{BoundingBox, Polygon};
+use nvisy_ontology::math::{BoundingBox, Polygon};
 use serde::{Deserialize, Serialize};
 
 /// A single word detected by OCR.

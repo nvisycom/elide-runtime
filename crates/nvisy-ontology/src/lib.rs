@@ -4,6 +4,7 @@
 
 pub mod context;
 pub mod entity;
+pub mod math;
 pub mod policy;
 pub mod provenance;
 pub mod workflow;

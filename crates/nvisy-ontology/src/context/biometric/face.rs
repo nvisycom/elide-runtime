@@ -1,9 +1,10 @@
 //! Face biometric reference data.
 
 use nvisy_core::content::ContentSource;
-use nvisy_core::math::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::math::BoundingBox;
 
 /// Reference face data for identity matching.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

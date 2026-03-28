@@ -34,7 +34,7 @@ schemars = { workspace = true, features = [] }
 
 # Derive macros and error handling
 derive_builder = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["deref", "deref_mut", "from", "into_iterator"] }
+derive_more = { workspace = true, features = ["deref", "deref_mut", "display", "from", "into", "into_iterator"] }
 strum = { workspace = true, features = [] }
 validator = { workspace = true, features = [] }
 rand = { workspace = true, features = [] }

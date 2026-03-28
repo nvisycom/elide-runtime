@@ -40,7 +40,7 @@ infer = { workspace = true, features = [] }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["display", "deref", "as_ref", "from", "into"] }
+derive_more = { workspace = true, features = ["as_ref", "deref", "display"] }
 strum = { workspace = true, features = [] }
 
 # Encoding and hashing

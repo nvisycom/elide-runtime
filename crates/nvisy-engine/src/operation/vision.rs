@@ -6,11 +6,11 @@
 
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
-use nvisy_core::math::BoundingBox;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::{
     Entities, Entity, ExtractionMethod, ImageLocation, RecognitionMethod,
 };
+use nvisy_ontology::math::BoundingBox;
 use nvisy_provider::agent::{CvEntity, ImageFormat, ImageInput, ImageOutput, OcrAgent};
 use nvisy_provider::http::HttpClient;
 

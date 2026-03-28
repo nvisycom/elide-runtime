@@ -1,8 +1,9 @@
 //! Geographic coordinate primitives.
 
-use nvisy_core::math::Vertex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::math::Vertex;
 
 /// A geographic coordinate (latitude/longitude).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]

@@ -7,11 +7,11 @@
 use nvisy_codec::Span;
 use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_http::HttpClient;
 use nvisy_ontology::entity::{Entity, EntityCategory, RecognitionMethod, TextLocation};
-use nvisy_rig::agent::{
+use nvisy_provider::agent::{
     AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
 };
+use nvisy_provider::http::HttpClient;
 use tokio::sync::Mutex;
 
 use crate::graph::NamedEntityRecognition as NamedEntityRecognitionCfg;
@@ -36,12 +36,8 @@ impl EntityRecognition {
         config: AgentConfig,
         http_client: Option<HttpClient>,
     ) -> Result<NerAgent> {
-        let agent = if let Some(client) = http_client {
-            NerAgent::with_http_client(provider, config, client)
-        } else {
-            NerAgent::new(provider, config)
-        }
-        .map_err(|e| Error::validation(e.to_string(), "ner-agent"))?;
+        let agent = NerAgent::new(provider, config, http_client)
+            .map_err(|e| Error::validation(e.to_string(), "ner-agent"))?;
         Ok(agent)
     }
 

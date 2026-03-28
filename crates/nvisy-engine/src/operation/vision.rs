@@ -8,12 +8,11 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::math::BoundingBox;
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_http::HttpClient;
-use nvisy_ocr::{ImageFormat, ImageInput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{
     Entities, Entity, ExtractionMethod, ImageLocation, RecognitionMethod,
 };
-use nvisy_rig::agent::{CvEntity, OcrAgent};
+use nvisy_provider::agent::{CvEntity, ImageFormat, ImageInput, ImageOutput, OcrAgent};
+use nvisy_provider::http::HttpClient;
 
 use crate::graph::VisualExtraction as VisualExtractionCfg;
 use crate::operation::Operation;
@@ -25,28 +24,10 @@ const TARGET: &str = "nvisy_engine::op::visual_extraction";
 
 /// Visual extraction operation: OCR + optional verification + optional CV.
 pub struct VisualExtraction {
-    ocr: OcrOp,
-    verifier: Option<VerifyOp>,
+    agent: OcrAgent,
 }
 
 impl VisualExtraction {
-    fn build_ocr_agent(config: &RuntimeConfig) -> Result<OcrAgent> {
-        let llm = config.llm.as_ref().ok_or_else(|| {
-            Error::new(
-                ErrorKind::Validation,
-                "OCR verification requires an LLM provider",
-            )
-        })?;
-        let provider = llm.provider.as_ref().ok_or_else(|| {
-            Error::new(
-                ErrorKind::Validation,
-                "OCR verification requires an LLM provider",
-            )
-        })?;
-        OcrAgent::new(provider, llm.policy.clone().unwrap_or_default())
-            .map_err(|e| Error::runtime(e.to_string(), "ocr-agent", false))
-    }
-
     #[allow(dead_code)]
     fn map_cv_entity(cv: &CvEntity, image_id: Option<uuid::Uuid>) -> Entity {
         let mut entity = Entity::new(
@@ -95,53 +76,55 @@ impl VisualExtraction {
         let ocr_params = ocr_section
             .and_then(|s| s.policy.clone())
             .unwrap_or_default();
-        let ocr_engine = ocr_provider.into_engine_with_client(http_client.clone());
-        let ocr = OcrOp::new(ocr_engine, ocr_params);
 
-        let verifier = if cfg.verification {
-            match Self::build_ocr_agent(config) {
-                Ok(agent) => Some(VerifyOp::new(agent)),
-                Err(e) => {
-                    tracing::warn!(target: TARGET, error = %e, "OCR verification unavailable, skipping");
-                    None
+        let mut agent = OcrAgent::new(ocr_provider, ocr_params, http_client);
+
+        if cfg.verification {
+            let llm = config.llm.as_ref();
+            let llm_provider = llm.and_then(|s| s.provider.as_ref());
+            let llm_config = llm.and_then(|s| s.policy.clone()).unwrap_or_default();
+
+            match llm_provider {
+                Some(provider) => {
+                    agent = agent
+                        .with_verification(provider, llm_config)
+                        .map_err(|e| Error::runtime(e.to_string(), "ocr-agent", false))?;
+                }
+                None => {
+                    tracing::warn!(
+                        target: TARGET,
+                        "OCR verification requires an LLM provider, skipping"
+                    );
                 }
             }
-        } else {
-            None
-        };
-
-        if cfg.entity_detection {
-            tracing::warn!(target: TARGET, "CV entity detection not yet configurable, skipping");
         }
 
-        Ok(Self { ocr, verifier })
+        if cfg.entity_detection {
+            tracing::warn!(
+                target: TARGET,
+                "CV entity detection not yet configurable, skipping"
+            );
+        }
+
+        Ok(Self { agent })
     }
 
-    /// Access the inner OCR operation for direct dispatch.
-    pub(crate) fn ocr(&self) -> &OcrOp {
-        &self.ocr
-    }
-
-    /// Access the optional verification operation for direct dispatch.
-    pub(crate) fn verifier(&self) -> Option<&VerifyOp> {
-        self.verifier.as_ref()
+    /// Access the OCR agent for direct dispatch.
+    pub(crate) fn agent(&self) -> &OcrAgent {
+        &self.agent
     }
 }
 
-pub(crate) struct OcrOp {
-    engine: OcrEngine,
-    params: RunParams,
+pub(crate) struct OcrOp<'a> {
+    agent: &'a OcrAgent,
 }
 
-impl OcrOp {
-    fn new(engine: OcrEngine, params: RunParams) -> Self {
-        Self { engine, params }
+impl<'a> OcrOp<'a> {
+    pub fn new(agent: &'a OcrAgent) -> Self {
+        Self { agent }
     }
 
-    async fn extract(
-        &self,
-        spans: Vec<Span<(), ImageData>>,
-    ) -> Result<Vec<nvisy_ocr::ImageOutput>> {
+    async fn extract(&self, spans: Vec<Span<(), ImageData>>) -> Result<Vec<ImageOutput>> {
         if spans.is_empty() {
             return Ok(Vec::new());
         }
@@ -156,13 +139,13 @@ impl OcrOp {
                 ))
             })
             .collect::<Result<Vec<_>>>()?;
-        self.engine.run_batch(&images, &self.params).await
+        self.agent.run_batch(&images).await
     }
 }
 
-impl Operation for OcrOp {
+impl Operation for OcrOp<'_> {
     type Input = ParallelContext<Vec<Span<(), ImageData>>>;
-    type Output = ParallelContext<Vec<nvisy_ocr::ImageOutput>>;
+    type Output = ParallelContext<Vec<ImageOutput>>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|spans| self.extract(spans)).await
@@ -183,12 +166,12 @@ impl Clone for VerifyInput {
     }
 }
 
-pub(crate) struct VerifyOp {
-    agent: OcrAgent,
+pub(crate) struct VerifyOp<'a> {
+    agent: &'a OcrAgent,
 }
 
-impl VerifyOp {
-    fn new(agent: OcrAgent) -> Self {
+impl<'a> VerifyOp<'a> {
+    pub fn new(agent: &'a OcrAgent) -> Self {
         Self { agent }
     }
 
@@ -198,10 +181,11 @@ impl VerifyOp {
         }
         let mut verified = data.entities.into_inner();
         for span in &data.image_spans {
-            let image_bytes = span.data.encode_png()?;
+            let png_bytes = span.data.encode_png()?;
+            let image = ImageInput::with_source(span.source, png_bytes, ImageFormat::Png);
             verified = self
                 .agent
-                .verify_entities(&image_bytes, verified)
+                .verify_entities(&image, verified)
                 .await
                 .map_err(|e| Error::runtime(e.to_string(), "ocr-verification", e.is_retryable()))?;
         }
@@ -209,7 +193,7 @@ impl VerifyOp {
     }
 }
 
-impl Operation for VerifyOp {
+impl Operation for VerifyOp<'_> {
     type Input = ParallelContext<VerifyInput>;
     type Output = ParallelContext<DetectedEntities>;
 

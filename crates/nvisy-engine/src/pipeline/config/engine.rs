@@ -1,6 +1,6 @@
 //! Engine-level execution policies, networking, and resource limits.
 
-use nvisy_http::HttpConfig;
+use nvisy_provider::http::HttpConfig;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 

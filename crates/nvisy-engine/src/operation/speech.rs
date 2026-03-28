@@ -5,8 +5,8 @@
 //! text using automatic speech recognition.
 
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_http::HttpClient;
-use nvisy_rig::audio::stt::{SttConfig, SttOutput, SttService};
+use nvisy_provider::audio::stt::{SttConfig, SttOutput, SttService};
+use nvisy_provider::http::HttpClient;
 
 use crate::graph::AudialExtraction as AudialExtractionCfg;
 use crate::operation::Operation;
@@ -37,11 +37,11 @@ impl AudialExtraction {
                 )
             })?;
 
-        let stt =
-            SttService::with_http_client(&stt_provider, SttConfig::default(), http_client.clone())
-                .map_err(|e: nvisy_rig::error::Error| {
-                    Error::runtime(e.to_string(), "stt-service", false)
-                })?;
+        let stt = SttService::new(
+            &stt_provider,
+            SttConfig::default(),
+            Some(http_client.clone()),
+        )?;
 
         if cfg.diarization {
             tracing::warn!(target: TARGET, "diarization not yet supported, skipping");
@@ -66,12 +66,7 @@ impl Operation for AudialExtraction {
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input
             .parallel_map(|data| async move {
-                self.stt
-                    .transcribe(&data.audio_data, &data.filename)
-                    .await
-                    .map_err(|e: nvisy_rig::error::Error| {
-                        Error::runtime(e.to_string(), "stt-transcribe", e.is_retryable())
-                    })
+                self.stt.transcribe(&data.audio_data, &data.filename).await
             })
             .await
     }

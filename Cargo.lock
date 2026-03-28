@@ -2970,11 +2970,9 @@ dependencies = [
  "nvisy-codec",
  "nvisy-core",
  "nvisy-engine",
- "nvisy-http",
- "nvisy-ocr",
  "nvisy-ontology",
  "nvisy-pattern",
- "nvisy-rig",
+ "nvisy-provider",
  "petgraph",
  "rand 0.10.0",
  "schemars 1.2.1",
@@ -2992,35 +2990,6 @@ dependencies = [
  "tracing",
  "uuid",
  "validator",
-]
-
-[[package]]
-name = "nvisy-http"
-version = "0.1.0"
-dependencies = [
- "reqwest-middleware",
- "reqwest-retry",
- "reqwest-tracing",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "nvisy-ocr"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64",
- "bytes",
- "hmac",
- "nvisy-core",
- "nvisy-http",
- "reqwest-middleware",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -3060,6 +3029,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-provider"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64",
+ "bytes",
+ "futures",
+ "hmac",
+ "nvisy-core",
+ "nvisy-ontology",
+ "reqwest-middleware",
+ "reqwest-retry",
+ "reqwest-tracing",
+ "rig-core",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "nvisy-python"
 version = "0.1.0"
 dependencies = [
@@ -3071,26 +3065,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "nvisy-rig"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64",
- "nvisy-core",
- "nvisy-http",
- "nvisy-ontology",
- "reqwest-middleware",
- "rig-core",
- "schemars 1.2.1",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "uuid",
 ]
 
 [[package]]

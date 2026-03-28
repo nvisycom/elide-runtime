@@ -55,10 +55,10 @@ impl RuntimeConfig {
 
 #[allow(unused_variables, unused_imports)]
 fn resolve_agent_provider_key(
-    provider: &mut Option<nvisy_rig::agent::AgentProvider>,
+    provider: &mut Option<nvisy_provider::agent::AgentProvider>,
     env_var: &str,
 ) {
-    use nvisy_rig::agent::AgentProvider;
+    use nvisy_provider::agent::AgentProvider;
 
     let Some(p) = provider else { return };
     match p {
@@ -73,8 +73,11 @@ fn resolve_agent_provider_key(
 }
 
 #[allow(unused_variables, unused_imports)]
-fn resolve_stt_provider_key(provider: &mut Option<nvisy_rig::audio::SttProvider>, env_var: &str) {
-    use nvisy_rig::audio::SttProvider;
+fn resolve_stt_provider_key(
+    provider: &mut Option<nvisy_provider::audio::SttProvider>,
+    env_var: &str,
+) {
+    use nvisy_provider::audio::SttProvider;
 
     let Some(p) = provider else { return };
     match p {
@@ -85,8 +88,11 @@ fn resolve_stt_provider_key(provider: &mut Option<nvisy_rig::audio::SttProvider>
 }
 
 #[allow(unused_variables, unused_imports)]
-fn resolve_tts_provider_key(provider: &mut Option<nvisy_rig::audio::TtsProvider>, env_var: &str) {
-    use nvisy_rig::audio::TtsProvider;
+fn resolve_tts_provider_key(
+    provider: &mut Option<nvisy_provider::audio::TtsProvider>,
+    env_var: &str,
+) {
+    use nvisy_provider::audio::TtsProvider;
 
     let Some(p) = provider else { return };
     match p {
@@ -97,8 +103,11 @@ fn resolve_tts_provider_key(provider: &mut Option<nvisy_rig::audio::TtsProvider>
 }
 
 #[allow(unused_variables, unused_imports)]
-fn resolve_ocr_provider_key(provider: &mut Option<nvisy_ocr::OcrProvider>, env_var: &str) {
-    use nvisy_ocr::OcrProvider;
+fn resolve_ocr_provider_key(
+    provider: &mut Option<nvisy_provider::agent::OcrProvider>,
+    env_var: &str,
+) {
+    use nvisy_provider::agent::OcrProvider;
 
     let Some(p) = provider else { return };
     match p {

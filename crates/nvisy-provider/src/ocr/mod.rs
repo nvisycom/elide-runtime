@@ -26,8 +26,8 @@ const TARGET: &str = "nvisy_provider::ocr";
 /// # Examples
 ///
 /// ```ignore
-/// use nvisy_ocr::{OcrEngine, ImageInput, ImageFormat, RunParams};
-/// use nvisy_ocr::provider::{SuryaBackend, SuryaParams};
+/// use nvisy_provider::ocr::{OcrEngine, ImageInput, ImageFormat, RunParams};
+/// use nvisy_provider::ocr::provider::{SuryaBackend, SuryaParams};
 ///
 /// let backend = SuryaBackend::new(SuryaParams { base_url: "http://localhost:8000".into() });
 /// let engine = OcrEngine::new(backend);

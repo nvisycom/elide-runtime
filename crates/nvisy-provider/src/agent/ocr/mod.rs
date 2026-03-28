@@ -18,10 +18,10 @@ pub use self::input::ProposedEntity;
 pub use self::output::{VerificationOutput, VerificationStatus, VerifiedEntity};
 use self::prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use super::{AgentConfig, AgentProvider, BaseAgent};
-use crate::llm::UsageTracker;
 use crate::error::Error;
+use crate::llm::UsageTracker;
 
-const TARGET: &str = "nvisy_provider::ocr";
+const TARGET: &str = "nvisy_provider::agent::ocr";
 
 /// VLM agent that verifies NER-detected entities against the original image.
 ///
@@ -63,7 +63,7 @@ impl OcrAgent {
     /// Returns only entities that were corrected or rejected. Entities
     /// absent from the output are implicitly confirmed.
     #[tracing::instrument(
-        target = "nvisy_provider::ocr",
+        target = "nvisy_provider::agent::ocr",
         skip_all,
         fields(image_bytes = image_data.len(), entity_count = entities.len()),
     )]
@@ -96,7 +96,7 @@ impl OcrAgent {
     /// entities pass through unchanged, corrected entities are updated,
     /// and rejected entities are dropped.
     #[tracing::instrument(
-        target = "nvisy_provider::ocr",
+        target = "nvisy_provider::agent::ocr",
         skip_all,
         fields(image_bytes = image_data.len(), entity_count = entities.len()),
     )]

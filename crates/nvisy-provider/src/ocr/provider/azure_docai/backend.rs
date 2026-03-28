@@ -6,11 +6,11 @@ use std::fmt;
 
 use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use crate::http::HttpClient;
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use super::AzureDocaiParams;
+use crate::http::HttpClient;
 use crate::ocr::backend::{
     Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word, check_response,
 };

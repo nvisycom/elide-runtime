@@ -26,11 +26,11 @@ use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_core::content::{Content, ContentMetadata, ContentSource};
-use nvisy_provider::http::HttpClient;
 use nvisy_ontology::context::{Context, ContextMap};
 use nvisy_ontology::entity::{DetectionOutput, Entities};
 use nvisy_ontology::policy::{Policies, RedactionEntry};
 use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
+use nvisy_provider::http::HttpClient;
 use schemars::JsonSchema;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;

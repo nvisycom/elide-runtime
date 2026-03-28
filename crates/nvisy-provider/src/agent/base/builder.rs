@@ -1,6 +1,5 @@
 //! Builder for [`BaseAgent`](super::BaseAgent).
 
-use crate::http::{HttpClient, HttpConfig};
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
 use rig::completion::CompletionModel;
@@ -10,8 +9,9 @@ use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
 use super::{AgentConfig, AgentProvider, Agents, BaseAgent};
-use crate::llm::UsageTracker;
 use crate::error::Error;
+use crate::http::{HttpClient, HttpConfig};
+use crate::llm::UsageTracker;
 
 /// Builder for [`BaseAgent`].
 ///

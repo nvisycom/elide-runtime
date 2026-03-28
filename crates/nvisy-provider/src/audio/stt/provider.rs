@@ -1,16 +1,16 @@
 //! Provider dispatch for speech-to-text models.
 
-#[cfg(feature = "openai-whisper")]
-use crate::http::{HttpClient, HttpConfig};
 use reqwest_middleware::ClientWithMiddleware;
 #[cfg(feature = "openai-whisper")]
 use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
+use crate::error::Error;
+#[cfg(feature = "openai-whisper")]
+use crate::http::{HttpClient, HttpConfig};
 #[cfg(feature = "openai-whisper")]
 use crate::llm::AuthenticatedProvider;
 use crate::llm::UnauthenticatedProvider;
-use crate::error::Error;
 
 /// Supported providers for speech-to-text transcription.
 #[derive(Debug, Clone, Serialize, Deserialize)]

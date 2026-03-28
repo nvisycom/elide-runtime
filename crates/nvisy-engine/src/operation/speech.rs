@@ -5,8 +5,8 @@
 //! text using automatic speech recognition.
 
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_provider::http::HttpClient;
 use nvisy_provider::audio::stt::{SttConfig, SttOutput, SttService};
+use nvisy_provider::http::HttpClient;
 
 use crate::graph::AudialExtraction as AudialExtractionCfg;
 use crate::operation::Operation;

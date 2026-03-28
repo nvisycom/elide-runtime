@@ -19,10 +19,10 @@ pub use self::output::{CvEntities, CvEntity};
 use self::prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use self::tool::CvRigTool;
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
-use crate::llm::UsageTracker;
 use crate::error::Error;
+use crate::llm::UsageTracker;
 
-const TARGET: &str = "nvisy_provider::cv";
+const TARGET: &str = "nvisy_provider::agent::cv";
 
 /// A single computer-vision detection result returned by a [`CvProvider`].
 ///
@@ -93,7 +93,7 @@ impl CvAgent {
 
     /// Detect privacy-sensitive objects in an image.
     #[tracing::instrument(
-        target = "nvisy_provider::cv",
+        target = "nvisy_provider::agent::cv",
         skip_all,
         fields(image_bytes = image_data.len()),
     )]

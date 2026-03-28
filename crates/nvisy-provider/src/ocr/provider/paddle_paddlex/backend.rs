@@ -4,11 +4,11 @@
 
 use nvisy_core::Error;
 use nvisy_core::math::{BoundingBox, Polygon, Vertex};
-use crate::http::HttpClient;
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::PaddleXParams;
+use crate::http::HttpClient;
 use crate::ocr::backend::{
     Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
     check_response, image_part,

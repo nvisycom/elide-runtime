@@ -8,17 +8,17 @@ mod context;
 mod output;
 mod prompt;
 
-use crate::http::HttpClient;
 use uuid::Uuid;
 
 pub use self::context::NerContext;
 pub use self::output::{KnownNerEntity, NerEntities, NerEntity, ResolvedOffsets};
 use self::prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
-use crate::llm::UsageTracker;
 use crate::error::Error;
+use crate::http::HttpClient;
+use crate::llm::UsageTracker;
 
-const TARGET: &str = "nvisy_provider::ner";
+const TARGET: &str = "nvisy_provider::agent::ner";
 
 /// Agent for textual PII/entity detection using LLM-based NER.
 ///
@@ -74,7 +74,7 @@ impl NerAgent {
     /// instructed to reuse their `entity_id` values for coreferent
     /// mentions, enabling cross-chunk coreference resolution.
     #[tracing::instrument(
-        target = "nvisy_provider::ner",
+        target = "nvisy_provider::agent::ner",
         skip_all,
         fields(text_len = ctx.text.len()),
     )]

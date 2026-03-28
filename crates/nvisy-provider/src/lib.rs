@@ -6,4 +6,4 @@ pub mod agent;
 pub mod audio;
 pub mod error;
 pub mod http;
-pub mod ocr;
+pub(crate) mod ocr;

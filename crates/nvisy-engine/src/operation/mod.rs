@@ -38,7 +38,7 @@ pub(crate) use self::redaction::Redaction;
 pub(crate) use self::save_context::SaveContext;
 pub(crate) use self::speech::{AudialExtraction, AudioInput};
 pub(crate) use self::validation::{Validation, ValidationInput};
-pub(crate) use self::vision::{VerifyInput, VisualExtraction};
+pub(crate) use self::vision::{OcrOp, VerifyInput, VerifyOp, VisualExtraction};
 
 /// A single unit of work in the redaction pipeline.
 ///

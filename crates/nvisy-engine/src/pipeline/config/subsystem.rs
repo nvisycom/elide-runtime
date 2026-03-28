@@ -11,9 +11,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OcrSection {
     /// OCR provider selection and connection settings.
-    pub provider: Option<nvisy_provider::ocr::OcrProvider>,
+    pub provider: Option<nvisy_provider::agent::OcrProvider>,
     /// OCR runtime parameters (confidence thresholds, etc.).
-    pub policy: Option<nvisy_provider::ocr::RunParams>,
+    pub policy: Option<nvisy_provider::agent::RunParams>,
 }
 
 /// LLM subsystem configuration.

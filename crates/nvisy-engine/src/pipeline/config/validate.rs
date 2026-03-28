@@ -104,10 +104,10 @@ fn resolve_tts_provider_key(
 
 #[allow(unused_variables, unused_imports)]
 fn resolve_ocr_provider_key(
-    provider: &mut Option<nvisy_provider::ocr::OcrProvider>,
+    provider: &mut Option<nvisy_provider::agent::OcrProvider>,
     env_var: &str,
 ) {
-    use nvisy_provider::ocr::OcrProvider;
+    use nvisy_provider::agent::OcrProvider;
 
     let Some(p) = provider else { return };
     match p {

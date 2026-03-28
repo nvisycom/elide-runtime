@@ -40,8 +40,8 @@ use crate::graph::{
 use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
 use crate::operation::{
     AudialExtraction, AudioInput, DocumentEnvelope, EntityRecognition, ExportFile, Fusion,
-    GenerateContext, ImportFile, LoadContext, Operation, PatternRecognition, Redaction,
-    SaveContext, Validation, ValidationInput, VerifyInput, VisualExtraction,
+    GenerateContext, ImportFile, LoadContext, OcrOp, Operation, PatternRecognition, Redaction,
+    SaveContext, Validation, ValidationInput, VerifyInput, VerifyOp, VisualExtraction,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::executor";
@@ -250,9 +250,9 @@ impl NodeExecutor {
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = VisualExtraction::new(cfg, &self.ctx.config, &self.ctx.http_client)?;
+        let vis = VisualExtraction::new(cfg, &self.ctx.config, &self.ctx.http_client)?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
-            let op = &op;
+            let agent = vis.agent();
             let shared = shared.clone();
             async move {
                 tracing::debug!(target: TARGET, "extracting image spans for OCR");
@@ -263,17 +263,14 @@ impl NodeExecutor {
                         .map(|s| Span::new((), s.data).with_source(s.source))
                         .collect();
 
+                    let ocr_op = OcrOp::new(agent);
                     let input = ParallelContext::new(ocr_spans, shared.clone());
-                    let _ocr_output = op.ocr().call(input).await?;
+                    let _ocr_output = ocr_op.call(input).await?;
 
-                    if let Some(verifier) = op.verifier()
-                        && !envelope.entities.is_empty()
-                    {
+                    if agent.has_verifier() && !envelope.entities.is_empty() {
                         let verify_spans: Vec<_> = envelope
                             .document
-                            .image_spans()
-                            .await
-                            .collect::<Vec<_>>()
+                            .collect_image_spans()
                             .await
                             .into_iter()
                             .map(|s| Span::new((), s.data).with_source(s.source))
@@ -282,8 +279,9 @@ impl NodeExecutor {
                             image_spans: verify_spans,
                             entities: envelope.entities.clone(),
                         };
+                        let verify_op = VerifyOp::new(agent);
                         let input = ParallelContext::new(verify_input, shared.clone());
-                        match verifier.call(input).await {
+                        match verify_op.call(input).await {
                             Ok(output) => envelope.apply(output.into_inner()),
                             Err(e) => tracing::warn!(
                                 target: TARGET, error = %e,

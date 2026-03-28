@@ -22,5 +22,7 @@ pub use self::ner::{
     KnownNerEntity, NerAgent, NerContext, NerEntities, NerEntity, ResolvedOffsets,
 };
 pub use self::ocr::{
-    OcrAgent, ProposedEntity, VerificationOutput, VerificationStatus, VerifiedEntity,
+    Backend, Block, BlockKind, ImageFormat, Line, OcrAgent, OcrProvider, Page, ProposedEntity,
+    VerificationOutput, VerificationStatus, VerifiedEntity, Word,
 };
+pub use crate::ocr::{ImageInput, ImageOutput, RunParams};

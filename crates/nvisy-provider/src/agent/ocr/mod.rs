@@ -1,9 +1,8 @@
-//! OCR verification agent for reviewing NER-detected entities against images.
+//! Unified OCR agent: extraction + optional LLM-based verification.
 //!
-//! [`OcrAgent`] wraps a [`BaseAgent`](crate::backend::BaseAgent) with
-//! verification-specific prompts. It is a pure LLM agent (no tools) that
-//! reviews proposed entities against the original image and returns only
-//! those that need correction or rejection.
+//! [`OcrAgent`] wraps an [`OcrEngine`](crate::ocr::OcrEngine) with an
+//! optional LLM verifier. It is the single public entry point for all
+//! OCR operations.
 
 mod input;
 mod output;
@@ -11,68 +10,96 @@ mod prompt;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use nvisy_core::Error;
 use nvisy_ontology::entity::Entity;
 use uuid::Uuid;
 
 pub use self::input::ProposedEntity;
 pub use self::output::{VerificationOutput, VerificationStatus, VerifiedEntity};
 use self::prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
-use super::base::UsageTracker;
-use super::{AgentConfig, AgentProvider, BaseAgent};
-use crate::error::Error;
+use crate::agent::base::UsageTracker;
+use crate::agent::{AgentConfig, AgentProvider, BaseAgent};
+use crate::http::HttpClient;
+pub use crate::ocr::{Backend, Block, BlockKind, ImageFormat, Line, OcrProvider, Page, Word};
+use crate::ocr::{ImageInput, ImageOutput, OcrEngine, RunParams};
 
 const TARGET: &str = "nvisy_provider::agent::ocr";
 
-/// VLM agent that verifies NER-detected entities against the original image.
-///
-/// # Workflow
-///
-/// 1. Caller passes raw image bytes and proposed entities to
-///    [`verify`](Self::verify).
-/// 2. The agent base64-encodes the image and builds a user prompt via
-///    `OcrPromptBuilder` listing each entity with its index.
-/// 3. The VLM reviews entities against the image and returns only those
-///    needing correction or rejection.
-/// 4. Structured output is parsed into [`VerificationOutput`].
+/// Unified OCR agent: extraction via backend providers + optional
+/// LLM-based verification of detected entities.
 pub struct OcrAgent {
-    base: BaseAgent,
+    engine: OcrEngine,
+    params: RunParams,
+    verifier: Option<BaseAgent>,
 }
 
 impl OcrAgent {
-    /// Create a new OCR verification agent.
-    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self, Error> {
+    /// Create an OCR agent with extraction only (no verification).
+    pub fn new(ocr_provider: OcrProvider, params: RunParams, http_client: &HttpClient) -> Self {
+        let engine = ocr_provider.into_engine_with_client(http_client.clone());
+        Self {
+            engine,
+            params,
+            verifier: None,
+        }
+    }
+
+    /// Add LLM-based verification to this agent.
+    pub fn with_verification(
+        mut self,
+        llm_provider: &AgentProvider,
+        llm_config: AgentConfig,
+    ) -> Result<Self, crate::error::Error> {
+        let mut config = llm_config;
         config
             .preamble
             .get_or_insert_with(|| OCR_SYSTEM_PROMPT.into());
-        let base = BaseAgent::builder(provider, config).build()?;
-        Ok(Self { base })
+        self.verifier = Some(BaseAgent::builder(llm_provider, config).build()?);
+        Ok(self)
     }
 
-    /// Unique identifier for this agent instance (UUIDv7).
-    pub fn id(&self) -> Uuid {
-        self.base.id()
+    /// Returns `true` if LLM verification is available.
+    pub fn has_verifier(&self) -> bool {
+        self.verifier.is_some()
     }
 
-    /// Access the usage tracker for this agent's LLM calls.
-    pub fn tracker(&self) -> &UsageTracker {
-        self.base.tracker()
+    /// Run OCR on a single image.
+    #[tracing::instrument(
+        target = TARGET,
+        skip_all,
+        fields(source = %image.source, image_bytes = image.len()),
+    )]
+    pub async fn run(&self, image: &ImageInput) -> Result<ImageOutput, Error> {
+        self.engine.run(image, &self.params).await
     }
 
-    /// Verify proposed entities against the original image.
+    /// Run OCR on multiple images.
+    #[tracing::instrument(target = TARGET, skip_all, fields(count = images.len()))]
+    pub async fn run_batch(&self, images: &[ImageInput]) -> Result<Vec<ImageOutput>, Error> {
+        self.engine.run_batch(images, &self.params).await
+    }
+
+    /// Verify proposed entities against the original image using the LLM.
     ///
     /// Returns only entities that were corrected or rejected. Entities
     /// absent from the output are implicitly confirmed.
+    ///
+    /// Returns `Err` if no verifier is configured.
     #[tracing::instrument(
-        target = "nvisy_provider::agent::ocr",
+        target = TARGET,
         skip_all,
-        fields(image_bytes = image_data.len(), entity_count = entities.len()),
+        fields(image_bytes = image.len(), entity_count = entities.len()),
     )]
     pub async fn verify(
         &self,
-        image_data: &[u8],
+        image: &ImageInput,
         entities: &[ProposedEntity],
-    ) -> Result<VerificationOutput, Error> {
-        let image_b64 = STANDARD.encode(image_data);
+    ) -> Result<VerificationOutput, crate::error::Error> {
+        let verifier = self.verifier.as_ref().ok_or_else(|| {
+            crate::error::Error::Provider("OCR verification requires an LLM verifier".into())
+        })?;
+
+        let image_b64 = STANDARD.encode(&image.data);
         tracing::debug!(
             target: TARGET,
             b64_len = image_b64.len(),
@@ -81,30 +108,33 @@ impl OcrAgent {
         );
 
         let prompt = OcrPromptBuilder::new(entities).build(&image_b64);
+        let output: VerificationOutput = verifier.prompt_structured(&prompt).await?;
 
-        let output: VerificationOutput = self.base.prompt_structured(&prompt).await?;
-
-        tracing::info!(target: TARGET, changed = output.entities.len(), "ocr verification complete");
+        tracing::info!(
+            target: TARGET,
+            changed = output.entities.len(),
+            "ocr verification complete"
+        );
 
         Ok(output)
     }
 
     /// Verify entities against the original image, returning the merged result.
     ///
-    /// Converts each [`Entity`] into a [`ProposedEntity`], calls
-    /// [`verify`](Self::verify), then merges verdicts back: confirmed
-    /// entities pass through unchanged, corrected entities are updated,
-    /// and rejected entities are dropped.
+    /// Confirmed entities pass through unchanged, corrected entities are
+    /// updated, and rejected entities are dropped.
+    ///
+    /// Returns `Err` if no verifier is configured.
     #[tracing::instrument(
-        target = "nvisy_provider::agent::ocr",
+        target = TARGET,
         skip_all,
-        fields(image_bytes = image_data.len(), entity_count = entities.len()),
+        fields(image_bytes = image.len(), entity_count = entities.len()),
     )]
     pub async fn verify_entities(
         &self,
-        image_data: &[u8],
+        image: &ImageInput,
         entities: Vec<Entity>,
-    ) -> Result<Vec<Entity>, Error> {
+    ) -> Result<Vec<Entity>, crate::error::Error> {
         if entities.is_empty() {
             return Ok(Vec::new());
         }
@@ -115,8 +145,17 @@ impl OcrAgent {
             .map(|(i, e)| ProposedEntity::from_entity(i, e))
             .collect();
 
-        let output = self.verify(image_data, &proposed).await?;
-
+        let output = self.verify(image, &proposed).await?;
         Ok(output.merge(entities))
+    }
+
+    /// Access the usage tracker for the LLM verifier, if configured.
+    pub fn tracker(&self) -> Option<&UsageTracker> {
+        self.verifier.as_ref().map(|v| v.tracker())
+    }
+
+    /// Unique identifier for the verifier agent instance.
+    pub fn verifier_id(&self) -> Option<Uuid> {
+        self.verifier.as_ref().map(|v| v.id())
     }
 }

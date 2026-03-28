@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 pub(crate) use self::provider::TtsModels;
 pub use self::provider::TtsProvider;
-use crate::error::Error;
+use nvisy_core::{Error, Result};
 use crate::http::HttpClient;
 
 #[cfg(feature = "openai-tts")]
@@ -53,8 +53,9 @@ impl TtsService {
     /// # Errors
     ///
     /// Returns [`Error::Request`] if client construction fails.
-    pub fn new(provider: &TtsProvider, config: TtsConfig) -> Result<Self, Error> {
-        let inner = TtsModels::from_provider(provider, &config.model, config.max_retries, None)?;
+    pub fn new(provider: &TtsProvider, config: TtsConfig) -> Result<Self> {
+        let inner = TtsModels::from_provider(provider, &config.model, config.max_retries, None)
+            .map_err(crate::error::convert)?;
 
         Ok(Self {
             id: Uuid::now_v7(),
@@ -72,13 +73,14 @@ impl TtsService {
         provider: &TtsProvider,
         config: TtsConfig,
         client: HttpClient,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         let inner = TtsModels::from_provider(
             provider,
             &config.model,
             config.max_retries,
             Some(client.into_inner()),
-        )?;
+        )
+        .map_err(crate::error::convert)?;
 
         Ok(Self {
             id: Uuid::now_v7(),
@@ -98,7 +100,7 @@ impl TtsService {
         skip_all,
         fields(service_id = %self.id, text_len = text.len()),
     )]
-    pub async fn generate(&self, text: &str) -> Result<Vec<u8>, Error> {
+    pub async fn generate(&self, text: &str) -> Result<Vec<u8>> {
         let _ = &self.config;
         match &self.inner {
             #[cfg(feature = "openai-tts")]
@@ -109,12 +111,15 @@ impl TtsService {
                     .voice(&self.config.voice)
                     .speed(self.config.speed)
                     .send()
-                    .await?;
+                    .await
+                    .map_err(crate::error::convert)?;
                 tracing::info!(target: TARGET, audio_len = response.audio.len(), "audio generation complete");
                 Ok(response.audio)
             }
-            TtsModels::Local => Err(Error::Runtime(
-                "local text-to-speech provider is not yet implemented".to_owned(),
+            TtsModels::Local => Err(Error::runtime(
+                "local text-to-speech provider is not yet implemented",
+                "provider",
+                false,
             )),
         }
     }

@@ -38,10 +38,7 @@ impl AudialExtraction {
             })?;
 
         let stt =
-            SttService::with_http_client(&stt_provider, SttConfig::default(), http_client.clone())
-                .map_err(|e: nvisy_provider::error::Error| {
-                    Error::runtime(e.to_string(), "stt-service", false)
-                })?;
+            SttService::with_http_client(&stt_provider, SttConfig::default(), http_client.clone())?;
 
         if cfg.diarization {
             tracing::warn!(target: TARGET, "diarization not yet supported, skipping");
@@ -69,9 +66,6 @@ impl Operation for AudialExtraction {
                 self.stt
                     .transcribe(&data.audio_data, &data.filename)
                     .await
-                    .map_err(|e: nvisy_provider::error::Error| {
-                        Error::runtime(e.to_string(), "stt-transcribe", e.is_retryable())
-                    })
             })
             .await
     }

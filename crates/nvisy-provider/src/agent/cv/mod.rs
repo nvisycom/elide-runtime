@@ -20,7 +20,7 @@ use self::prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use self::tool::CvRigTool;
 use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
-use crate::error::Error;
+use nvisy_core::Result;
 
 const TARGET: &str = "nvisy_provider::agent::cv";
 
@@ -47,7 +47,7 @@ pub struct CvDetection {
 #[async_trait]
 pub trait CvProvider: Send + Sync {
     /// Detect objects in raw image bytes (PNG, JPEG, etc.).
-    async fn detect_objects(&self, image_data: &[u8]) -> Result<Vec<CvDetection>, Error>;
+    async fn detect_objects(&self, image_data: &[u8]) -> Result<Vec<CvDetection>>;
 }
 
 /// VLM agent that detects privacy-sensitive objects in images.
@@ -71,13 +71,14 @@ impl CvAgent {
         provider: &AgentProvider,
         mut config: AgentConfig,
         cv: impl CvProvider + 'static,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         config
             .preamble
             .get_or_insert_with(|| CV_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config)
             .tool(CvRigTool::new(cv))
-            .build()?;
+            .build()
+            .map_err(crate::error::convert)?;
         Ok(Self { base })
     }
 
@@ -101,7 +102,7 @@ impl CvAgent {
         &self,
         image_data: &[u8],
         config: &DetectionConfig,
-    ) -> Result<Vec<CvEntity>, Error> {
+    ) -> Result<Vec<CvEntity>> {
         let image_b64 = STANDARD.encode(image_data);
         tracing::debug!(
             target: TARGET,
@@ -112,7 +113,11 @@ impl CvAgent {
 
         let prompt = CvPromptBuilder::new(config).build(&image_b64);
 
-        let result: CvEntities = self.base.prompt_structured(&prompt).await?;
+        let result: CvEntities = self
+            .base
+            .prompt_structured(&prompt)
+            .await
+            .map_err(crate::error::convert)?;
 
         tracing::info!(
             target: TARGET,

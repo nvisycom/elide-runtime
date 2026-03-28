@@ -14,7 +14,7 @@ pub use self::output::{GenOutput, GeneratedEntity};
 use self::prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
 use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent};
-use crate::error::Error;
+use nvisy_core::Result;
 
 const TARGET: &str = "nvisy_provider::agent::generate";
 
@@ -45,11 +45,13 @@ pub struct GenAgent {
 
 impl GenAgent {
     /// Create a new generation agent.
-    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self, Error> {
+    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self> {
         config
             .preamble
             .get_or_insert_with(|| GEN_SYSTEM_PROMPT.into());
-        let base = BaseAgent::builder(provider, config).build()?;
+        let base = BaseAgent::builder(provider, config)
+            .build()
+            .map_err(crate::error::convert)?;
         Ok(Self { base })
     }
 
@@ -69,12 +71,16 @@ impl GenAgent {
         skip_all,
         fields(batch_size = requests.len()),
     )]
-    pub async fn generate(&self, requests: &[GenRequest]) -> Result<Vec<GeneratedEntity>, Error> {
+    pub async fn generate(&self, requests: &[GenRequest]) -> Result<Vec<GeneratedEntity>> {
         let prompt = GenPromptBuilder::build(requests);
 
         tracing::debug!(target: TARGET, prompt_len = prompt.len(), "built gen prompt");
 
-        let result: GenOutput = self.base.prompt_structured(&prompt).await?;
+        let result: GenOutput = self
+            .base
+            .prompt_structured(&prompt)
+            .await
+            .map_err(crate::error::convert)?;
 
         tracing::info!(
             target: TARGET,
@@ -94,9 +100,13 @@ impl GenAgent {
         skip_all,
         fields(entity_type = %request.entity_type),
     )]
-    pub async fn generate_one(&self, request: &GenRequest) -> Result<GeneratedEntity, Error> {
+    pub async fn generate_one(&self, request: &GenRequest) -> Result<GeneratedEntity> {
         let prompt = GenPromptBuilder::build_one(request);
-        let synthetic_value = self.base.prompt_text(&prompt).await?;
+        let synthetic_value = self
+            .base
+            .prompt_text(&prompt)
+            .await
+            .map_err(crate::error::convert)?;
 
         Ok(GeneratedEntity {
             entity_type: request.entity_type,

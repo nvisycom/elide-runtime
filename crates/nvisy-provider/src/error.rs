@@ -4,15 +4,15 @@ use rig::audio_generation::AudioGenerationError;
 use rig::completion::{CompletionError, PromptError, StructuredOutputError};
 use rig::transcription::TranscriptionError;
 
-/// Error type for all LLM interactions.
+/// Internal error type for LLM provider interactions.
 ///
-/// Use [`is_retryable`](Self::is_retryable) to decide whether a failed
-/// request should be retried.
+/// Converted to [`nvisy_core::Error`] at public API boundaries via
+/// the [`convert`] helper.
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
+pub(crate) enum Error {
     /// An HTTP / network error from the LLM provider.
     #[error("HTTP error: {0}")]
-    Http(String),
+    Http(rig::http_client::Error),
 
     /// A JSON (de)serialization error.
     #[error("JSON error: {0}")]
@@ -33,27 +33,12 @@ pub enum Error {
     /// A runtime error (tool failure, agent limits, generation errors, etc.).
     #[error("{0}")]
     Runtime(String),
-
-    /// Wraps `nvisy_core::Error` from provider implementations.
-    #[error(transparent)]
-    Core(#[from] nvisy_core::Error),
-}
-
-impl Error {
-    /// Whether this error is likely transient and safe to retry.
-    pub fn is_retryable(&self) -> bool {
-        match self {
-            Self::Http(_) => true,
-            Self::Provider(msg) => is_retryable_provider_error(msg),
-            _ => false,
-        }
-    }
 }
 
 impl From<CompletionError> for Error {
     fn from(err: CompletionError) -> Self {
         match err {
-            CompletionError::HttpError(e) => Self::Http(e.to_string()),
+            CompletionError::HttpError(e) => Self::Http(e),
             CompletionError::JsonError(e) => Self::Json(e),
             CompletionError::ProviderError(msg) => Self::Provider(msg),
             CompletionError::ResponseError(msg) => Self::Response(msg),
@@ -96,7 +81,7 @@ impl From<StructuredOutputError> for Error {
 impl From<TranscriptionError> for Error {
     fn from(err: TranscriptionError) -> Self {
         match err {
-            TranscriptionError::HttpError(e) => Self::Http(e.to_string()),
+            TranscriptionError::HttpError(e) => Self::Http(e),
             TranscriptionError::JsonError(e) => Self::Json(e),
             TranscriptionError::ProviderError(msg) => Self::Provider(msg),
             TranscriptionError::ResponseError(msg) => Self::Response(msg),
@@ -110,7 +95,7 @@ impl From<AudioGenerationError> for Error {
     fn from(err: AudioGenerationError) -> Self {
         use rig::audio_generation::AudioGenerationError;
         match err {
-            AudioGenerationError::HttpError(e) => Self::Http(e.to_string()),
+            AudioGenerationError::HttpError(e) => Self::Http(e),
             AudioGenerationError::JsonError(e) => Self::Json(e),
             AudioGenerationError::ProviderError(msg) => Self::Provider(msg),
             AudioGenerationError::ResponseError(msg) => Self::Response(msg),
@@ -119,15 +104,15 @@ impl From<AudioGenerationError> for Error {
     }
 }
 
+/// Convert any error that can be turned into a provider [`Error`] into a
+/// [`nvisy_core::Error`]. Intended for `.map_err(crate::error::convert)` at
+/// public API boundaries.
+pub(crate) fn convert<E: Into<Error>>(e: E) -> nvisy_core::Error {
+    nvisy_core::Error::from(e.into())
+}
+
 impl From<Error> for nvisy_core::Error {
     fn from(err: Error) -> Self {
-        if matches!(&err, Error::Core(_)) {
-            return match err {
-                Error::Core(inner) => inner,
-                _ => unreachable!(),
-            };
-        }
-
         match &err {
             Error::Http(_) => nvisy_core::Error::connection(err.to_string(), "rig", true),
             Error::Json(_) => {
@@ -141,7 +126,6 @@ impl From<Error> for nvisy_core::Error {
             Error::Response(_) => nvisy_core::Error::runtime(err.to_string(), "rig", false),
             Error::Request(_) => nvisy_core::Error::validation(err.to_string(), "rig"),
             Error::Runtime(_) => nvisy_core::Error::runtime(err.to_string(), "rig", false),
-            Error::Core(_) => unreachable!(),
         }
     }
 }

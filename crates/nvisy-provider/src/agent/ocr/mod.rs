@@ -10,7 +10,7 @@ mod prompt;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use nvisy_core::Error;
+use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entity;
 use uuid::Uuid;
 
@@ -49,12 +49,16 @@ impl OcrAgent {
         mut self,
         llm_provider: &AgentProvider,
         llm_config: AgentConfig,
-    ) -> Result<Self, crate::error::Error> {
+    ) -> Result<Self> {
         let mut config = llm_config;
         config
             .preamble
             .get_or_insert_with(|| OCR_SYSTEM_PROMPT.into());
-        self.verifier = Some(BaseAgent::builder(llm_provider, config).build()?);
+        self.verifier = Some(
+            BaseAgent::builder(llm_provider, config)
+                .build()
+                .map_err(crate::error::convert)?,
+        );
         Ok(self)
     }
 
@@ -69,13 +73,13 @@ impl OcrAgent {
         skip_all,
         fields(source = %image.source, image_bytes = image.len()),
     )]
-    pub async fn run(&self, image: &ImageInput) -> Result<ImageOutput, Error> {
+    pub async fn run(&self, image: &ImageInput) -> Result<ImageOutput> {
         self.engine.run(image, &self.params).await
     }
 
     /// Run OCR on multiple images.
     #[tracing::instrument(target = TARGET, skip_all, fields(count = images.len()))]
-    pub async fn run_batch(&self, images: &[ImageInput]) -> Result<Vec<ImageOutput>, Error> {
+    pub async fn run_batch(&self, images: &[ImageInput]) -> Result<Vec<ImageOutput>> {
         self.engine.run_batch(images, &self.params).await
     }
 
@@ -94,9 +98,9 @@ impl OcrAgent {
         &self,
         image: &ImageInput,
         entities: &[ProposedEntity],
-    ) -> Result<VerificationOutput, crate::error::Error> {
+    ) -> Result<VerificationOutput> {
         let verifier = self.verifier.as_ref().ok_or_else(|| {
-            crate::error::Error::Provider("OCR verification requires an LLM verifier".into())
+            Error::validation("OCR verification requires an LLM verifier", "provider")
         })?;
 
         let image_b64 = STANDARD.encode(&image.data);
@@ -108,7 +112,10 @@ impl OcrAgent {
         );
 
         let prompt = OcrPromptBuilder::new(entities).build(&image_b64);
-        let output: VerificationOutput = verifier.prompt_structured(&prompt).await?;
+        let output: VerificationOutput = verifier
+            .prompt_structured(&prompt)
+            .await
+            .map_err(crate::error::convert)?;
 
         tracing::info!(
             target: TARGET,
@@ -134,7 +141,7 @@ impl OcrAgent {
         &self,
         image: &ImageInput,
         entities: Vec<Entity>,
-    ) -> Result<Vec<Entity>, crate::error::Error> {
+    ) -> Result<Vec<Entity>> {
         if entities.is_empty() {
             return Ok(Vec::new());
         }

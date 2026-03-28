@@ -15,7 +15,7 @@ pub use self::output::{KnownNerEntity, NerEntities, NerEntity, ResolvedOffsets};
 use self::prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
-use crate::error::Error;
+use nvisy_core::Result;
 use crate::http::HttpClient;
 
 const TARGET: &str = "nvisy_provider::agent::ner";
@@ -35,11 +35,13 @@ pub struct NerAgent {
 
 impl NerAgent {
     /// Create a new NER agent.
-    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self, Error> {
+    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self> {
         config
             .preamble
             .get_or_insert_with(|| NER_SYSTEM_PROMPT.into());
-        let base = BaseAgent::builder(provider, config).build()?;
+        let base = BaseAgent::builder(provider, config)
+            .build()
+            .map_err(crate::error::convert)?;
         Ok(Self { base })
     }
 
@@ -48,13 +50,14 @@ impl NerAgent {
         provider: &AgentProvider,
         mut config: AgentConfig,
         client: HttpClient,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         config
             .preamble
             .get_or_insert_with(|| NER_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config)
             .http_client(client)
-            .build()?;
+            .build()
+            .map_err(crate::error::convert)?;
         Ok(Self { base })
     }
 
@@ -82,7 +85,7 @@ impl NerAgent {
         &self,
         ctx: &NerContext<'_>,
         config: &DetectionConfig,
-    ) -> Result<Vec<NerEntity>, Error> {
+    ) -> Result<Vec<NerEntity>> {
         let prompt = NerPromptBuilder::new(config, &ctx.known_entities).build(ctx.text);
 
         tracing::debug!(
@@ -93,7 +96,11 @@ impl NerAgent {
             "built ner prompt"
         );
 
-        let result: NerEntities = self.base.prompt_structured(&prompt).await?;
+        let result: NerEntities = self
+            .base
+            .prompt_structured(&prompt)
+            .await
+            .map_err(crate::error::convert)?;
 
         tracing::info!(
             target: TARGET,

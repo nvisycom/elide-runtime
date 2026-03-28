@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 pub(crate) use self::provider::SttModels;
 pub use self::provider::SttProvider;
-use crate::error::Error;
+use nvisy_core::{Error, Result};
 use crate::http::HttpClient;
 
 #[cfg(feature = "openai-whisper")]
@@ -69,8 +69,9 @@ impl SttService {
     /// # Errors
     ///
     /// Returns [`Error::Request`] if client construction fails.
-    pub fn new(provider: &SttProvider, config: SttConfig) -> Result<Self, Error> {
-        let inner = SttModels::from_provider(provider, &config.model, config.max_retries, None)?;
+    pub fn new(provider: &SttProvider, config: SttConfig) -> Result<Self> {
+        let inner = SttModels::from_provider(provider, &config.model, config.max_retries, None)
+            .map_err(crate::error::convert)?;
 
         Ok(Self {
             id: Uuid::now_v7(),
@@ -88,13 +89,14 @@ impl SttService {
         provider: &SttProvider,
         config: SttConfig,
         client: HttpClient,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         let inner = SttModels::from_provider(
             provider,
             &config.model,
             config.max_retries,
             Some(client.into_inner()),
-        )?;
+        )
+        .map_err(crate::error::convert)?;
 
         Ok(Self {
             id: Uuid::now_v7(),
@@ -119,7 +121,7 @@ impl SttService {
         skip_all,
         fields(service_id = %self.id, data_len = audio_data.len(), filename),
     )]
-    pub async fn transcribe(&self, audio_data: &[u8], filename: &str) -> Result<SttOutput, Error> {
+    pub async fn transcribe(&self, audio_data: &[u8], filename: &str) -> Result<SttOutput> {
         let _ = (&self.config, filename);
         match &self.inner {
             #[cfg(feature = "openai-whisper")]
@@ -139,12 +141,14 @@ impl SttService {
                     builder = builder.prompt(prompt.clone());
                 }
 
-                let text = builder.send().await?.text;
+                let text = builder.send().await.map_err(crate::error::convert)?.text;
                 tracing::info!(target: TARGET, text_len = text.len(), "transcription complete");
                 Ok(SttOutput { text })
             }
-            SttModels::Local => Err(Error::Runtime(
-                "local speech-to-text provider is not yet implemented".to_owned(),
+            SttModels::Local => Err(Error::runtime(
+                "local speech-to-text provider is not yet implemented",
+                "provider",
+                false,
             )),
         }
     }

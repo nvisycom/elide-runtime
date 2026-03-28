@@ -5,8 +5,8 @@
 //! text using automatic speech recognition.
 
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_http::HttpClient;
-use nvisy_rig::audio::stt::{SttConfig, SttOutput, SttService};
+use nvisy_provider::http::HttpClient;
+use nvisy_provider::audio::stt::{SttConfig, SttOutput, SttService};
 
 use crate::graph::AudialExtraction as AudialExtractionCfg;
 use crate::operation::Operation;
@@ -39,7 +39,7 @@ impl AudialExtraction {
 
         let stt =
             SttService::with_http_client(&stt_provider, SttConfig::default(), http_client.clone())
-                .map_err(|e: nvisy_rig::error::Error| {
+                .map_err(|e: nvisy_provider::error::Error| {
                     Error::runtime(e.to_string(), "stt-service", false)
                 })?;
 
@@ -69,7 +69,7 @@ impl Operation for AudialExtraction {
                 self.stt
                     .transcribe(&data.audio_data, &data.filename)
                     .await
-                    .map_err(|e: nvisy_rig::error::Error| {
+                    .map_err(|e: nvisy_provider::error::Error| {
                         Error::runtime(e.to_string(), "stt-transcribe", e.is_retryable())
                     })
             })

@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_http::HttpClient;
+use nvisy_provider::http::HttpClient;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;

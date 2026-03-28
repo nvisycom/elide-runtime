@@ -8,12 +8,12 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::math::BoundingBox;
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_http::HttpClient;
-use nvisy_ocr::{ImageFormat, ImageInput, OcrEngine, RunParams};
+use nvisy_provider::http::HttpClient;
+use nvisy_provider::ocr::{ImageFormat, ImageInput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{
     Entities, Entity, ExtractionMethod, ImageLocation, RecognitionMethod,
 };
-use nvisy_rig::agent::{CvEntity, OcrAgent};
+use nvisy_provider::agent::{CvEntity, OcrAgent};
 
 use crate::graph::VisualExtraction as VisualExtractionCfg;
 use crate::operation::Operation;
@@ -141,7 +141,7 @@ impl OcrOp {
     async fn extract(
         &self,
         spans: Vec<Span<(), ImageData>>,
-    ) -> Result<Vec<nvisy_ocr::ImageOutput>> {
+    ) -> Result<Vec<nvisy_provider::ocr::ImageOutput>> {
         if spans.is_empty() {
             return Ok(Vec::new());
         }
@@ -162,7 +162,7 @@ impl OcrOp {
 
 impl Operation for OcrOp {
     type Input = ParallelContext<Vec<Span<(), ImageData>>>;
-    type Output = ParallelContext<Vec<nvisy_ocr::ImageOutput>>;
+    type Output = ParallelContext<Vec<nvisy_provider::ocr::ImageOutput>>;
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input.parallel_map(|spans| self.extract(spans)).await

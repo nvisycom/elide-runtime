@@ -26,7 +26,7 @@ use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_codec::{Document, Span};
 use nvisy_core::content::Content;
 use nvisy_core::{Error, ErrorKind};
-use nvisy_http::HttpClient;
+use nvisy_provider::http::HttpClient;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 

@@ -7,9 +7,9 @@
 use nvisy_codec::Span;
 use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_http::HttpClient;
+use nvisy_provider::http::HttpClient;
 use nvisy_ontology::entity::{Entity, EntityCategory, RecognitionMethod, TextLocation};
-use nvisy_rig::agent::{
+use nvisy_provider::agent::{
     AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
 };
 use tokio::sync::Mutex;

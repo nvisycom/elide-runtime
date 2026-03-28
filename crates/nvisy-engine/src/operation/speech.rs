@@ -63,9 +63,7 @@ impl Operation for AudialExtraction {
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input
             .parallel_map(|data| async move {
-                self.stt
-                    .transcribe(&data.audio_data, &data.filename)
-                    .await
+                self.stt.transcribe(&data.audio_data, &data.filename).await
             })
             .await
     }

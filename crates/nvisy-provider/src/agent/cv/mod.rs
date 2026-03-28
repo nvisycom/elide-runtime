@@ -12,6 +12,7 @@ mod tool;
 use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use nvisy_core::Result;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -20,7 +21,6 @@ use self::prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use self::tool::CvRigTool;
 use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
-use nvisy_core::Result;
 
 const TARGET: &str = "nvisy_provider::agent::cv";
 

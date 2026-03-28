@@ -8,6 +8,7 @@ mod context;
 mod output;
 mod prompt;
 
+use nvisy_core::Result;
 use uuid::Uuid;
 
 pub use self::context::NerContext;
@@ -15,7 +16,6 @@ pub use self::output::{KnownNerEntity, NerEntities, NerEntity, ResolvedOffsets};
 use self::prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
-use nvisy_core::Result;
 use crate::http::HttpClient;
 
 const TARGET: &str = "nvisy_provider::agent::ner";

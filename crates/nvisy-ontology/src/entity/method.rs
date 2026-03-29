@@ -18,6 +18,7 @@ use strum::{Display, EnumString};
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum ExtractionMethod {
     // Text
     /// Structural parsing of document formats (PDF, DOCX, HTML)
@@ -69,6 +70,7 @@ pub enum ExtractionMethod {
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum RecognitionMethod {
     // Pattern
     /// Regular expression matching against known PII formats.
@@ -118,6 +120,7 @@ pub enum RecognitionMethod {
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum RefinementMethod {
     /// Cross-detector deduplication: merges overlapping entities
     /// from independent detectors, combining their confidence and

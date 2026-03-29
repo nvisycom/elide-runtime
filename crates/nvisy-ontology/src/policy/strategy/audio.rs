@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum AudioStrategy {
     /// Replace with silence.
     Silence,

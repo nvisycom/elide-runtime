@@ -239,6 +239,11 @@ impl NodeExecutor {
             GraphNodeKind::GenerateContext(cfg) => {
                 self.execute_generate_context(cfg, senders, receivers).await
             }
+            _ => Err(Error::runtime(
+                format!("unsupported graph node kind: {kind}"),
+                "executor",
+                false,
+            )),
         }
     }
 

@@ -28,6 +28,7 @@ impl TimeoutPolicy {
 #[derive(Debug, Clone, Copy, Default)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum TimeoutBehavior {
     /// Return an error and propagate the failure.
     #[default]

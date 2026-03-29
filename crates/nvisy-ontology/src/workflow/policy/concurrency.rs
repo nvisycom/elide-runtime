@@ -8,8 +8,9 @@ use validator::Validate;
 ///
 /// `max_nodes` must be at least 1; a value of 0 would deadlock the
 /// pipeline since no node could ever acquire a semaphore permit.
-#[derive(Debug, Clone, Copy, Validate, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Validate)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ConcurrencyPolicy {
     /// Maximum number of nodes executing in parallel (must be >= 1).
     #[validate(range(min = 1))]

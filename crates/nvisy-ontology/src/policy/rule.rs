@@ -22,6 +22,7 @@ pub struct RuleCondition {
 /// The action a policy rule performs when it matches an entity.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum RuleAction {
     /// Apply a redaction to the matched entity.
     Redact {

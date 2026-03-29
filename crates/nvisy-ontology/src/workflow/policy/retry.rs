@@ -55,6 +55,7 @@ fn default_delay_ms() -> u64 {
 #[derive(Debug, Clone, Copy, Default)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BackoffStrategy {
     /// Constant delay equal to `delay_ms` on every attempt.
     #[default]

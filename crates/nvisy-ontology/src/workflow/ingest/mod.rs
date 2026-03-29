@@ -19,6 +19,7 @@ use crate::Error;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum CompressionAlgorithm {
     /// Gzip (.gz).
     Gzip,
@@ -30,6 +31,7 @@ pub enum CompressionAlgorithm {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum EncryptionAlgorithm {
     /// AES-256 in Galois/Counter Mode.
     Aes256Gcm,
@@ -48,7 +50,7 @@ impl EncryptionAlgorithm {
         match tag {
             0x01 => Ok(Self::Aes256Gcm),
             _ => Err(Error::new(format!(
-                "unknown encryption algorithm tag: 0x{tag:02x}"
+                "unknown encryption algorithm tag: 0x{tag:02x} (valid: 0x01 = aes256gcm)"
             ))),
         }
     }

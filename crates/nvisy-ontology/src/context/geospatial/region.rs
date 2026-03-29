@@ -37,6 +37,7 @@ impl GeoBounds {
 /// Shape of a geospatial region.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "shape", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum GeoShape {
     /// Axis-aligned bounding rectangle.
     Bounds(GeoBounds),

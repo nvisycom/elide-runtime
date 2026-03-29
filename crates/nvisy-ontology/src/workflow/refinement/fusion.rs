@@ -1,6 +1,6 @@
 //! Fusion node configuration and strategy.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,7 @@ use crate::entity::{Entities, Entity, Overlap, RecognitionMethod, RefinementMeth
 /// Strategy for combining confidence scores from multiple detectors.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum FusionStrategy {
     /// Take the maximum confidence across all detectors.
     #[default]
@@ -88,10 +89,11 @@ impl FusionStrategy {
             }
         };
 
+        let mut seen = HashSet::new();
         let mut merged_methods = Vec::new();
         for e in &group {
             for m in &e.recognition_methods {
-                if !merged_methods.contains(m) {
+                if seen.insert(*m) {
                     merged_methods.push(*m);
                 }
             }

@@ -12,6 +12,7 @@ pub use self::pattern::PatternData;
 /// Analytic computation variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum AnalyticVariant {
     /// Pre-computed embedding vector for similarity search.
     Embedding(EmbeddingData),

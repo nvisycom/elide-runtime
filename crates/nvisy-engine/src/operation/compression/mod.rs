@@ -45,6 +45,11 @@ impl CompressionService {
                 "compression",
                 false,
             )),
+            _ => Err(Error::runtime(
+                format!("unsupported compression algorithm: {:?}", self.algorithm),
+                "compression",
+                false,
+            )),
         }
     }
 
@@ -64,6 +69,11 @@ impl CompressionService {
             )),
             CompressionAlgorithm::Zstd => Err(Error::runtime(
                 "zstd decompression not yet implemented",
+                "compression",
+                false,
+            )),
+            _ => Err(Error::runtime(
+                format!("unsupported decompression algorithm: {:?}", self.algorithm),
                 "compression",
                 false,
             )),

@@ -9,6 +9,7 @@ use crate::entity::ExtractionMethod;
 /// Inference operation variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum InferenceKind {
     /// OCR text extraction.
     Ocr(InferenceAction),
@@ -46,6 +47,7 @@ impl InferenceKind {
 /// Deterministic processing variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ProcessingKind {
     /// Regex or dictionary matching.
     PatternMatch(ProcessingAction),
@@ -60,6 +62,7 @@ pub enum ProcessingKind {
 /// I/O lifecycle variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum LifecycleKind {
     /// File import or load.
     Import(LifecycleAction),
@@ -76,6 +79,7 @@ pub enum LifecycleKind {
 /// [`AuditEntry`]: super::AuditEntry
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "category", content = "action", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum AuditEntryKind {
     /// AI-model inference operations.
     Inference(InferenceKind),

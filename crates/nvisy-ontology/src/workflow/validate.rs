@@ -35,10 +35,7 @@ impl Graph {
         let mut node_map = HashMap::with_capacity(self.nodes.len());
         for node in &self.nodes {
             if node_map.insert(node.id, node).is_some() {
-                return Err(Error::new(format!(
-                    "duplicate node id: {}",
-                    node.id
-                )));
+                return Err(Error::new(format!("duplicate node id: {}", node.id)));
             }
         }
 
@@ -73,10 +70,7 @@ impl Graph {
 
         for edge in &self.edges {
             if edge.source == edge.target {
-                return Err(Error::new(format!(
-                    "self-loop on node {}",
-                    edge.source
-                )));
+                return Err(Error::new(format!("self-loop on node {}", edge.source)));
             }
 
             if !seen_edges.insert((edge.source, edge.target)) {

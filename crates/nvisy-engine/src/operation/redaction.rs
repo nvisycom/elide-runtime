@@ -83,7 +83,8 @@ impl PolicyEvaluator {
                     action @ (RuleAction::Review
                     | RuleAction::Alert
                     | RuleAction::Block
-                    | RuleAction::Suppress) => {
+                    | RuleAction::Suppress
+                    | _) => {
                         tracing::debug!(
                             target: TARGET,
                             entity_id = %entity.source.as_uuid(),
@@ -160,8 +161,9 @@ impl PolicyEvaluator {
                 TextStrategy::Generalize { .. } => {
                     format!("[GENERALIZE:{}]", entity.entity_kind)
                 }
+                _ => format!("[REDACTED:{}]", entity.entity_kind),
             },
-            Strategy::Image(_) | Strategy::Audio(_) => String::new(),
+            Strategy::Image(_) | Strategy::Audio(_) | _ => String::new(),
         }
     }
 }

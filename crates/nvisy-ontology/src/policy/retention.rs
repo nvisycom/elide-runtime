@@ -11,6 +11,7 @@ use strum::{Display, EnumString};
 #[derive(EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum RetentionScope {
     /// Original ingested content before redaction.
     OriginalContent,
@@ -23,6 +24,7 @@ pub enum RetentionScope {
 /// How long data is retained.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "mode", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Retention {
     /// Delete data immediately after processing.
     ZeroRetention,

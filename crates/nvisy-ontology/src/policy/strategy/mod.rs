@@ -24,6 +24,7 @@ pub use self::text::TextStrategy;
 #[derive(Debug, Clone, PartialEq)]
 #[derive(From, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Strategy {
     /// Text/tabular redaction strategy.
     Text(TextStrategy),

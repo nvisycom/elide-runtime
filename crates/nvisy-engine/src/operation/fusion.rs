@@ -4,6 +4,8 @@
 //! (merge exact duplicates) and the ensemble pass (fuse multi-detector
 //! confidence scores) into a single operation.
 
+use std::collections::HashSet;
+
 use nvisy_core::Result;
 use nvisy_ontology::entity::{Entities, Entity, Overlap, RefinementMethod};
 use nvisy_ontology::workflow::{Fusion, FusionStrategy};
@@ -13,6 +15,99 @@ use crate::operation::context::ParallelContext;
 use crate::operation::envelope::RefinedEntities;
 
 const TARGET: &str = "nvisy_engine::op::fusion";
+
+/// Execution behavior for [`FusionStrategy`].
+trait FusionStrategyExt {
+    /// Group entities by `(kind, value, overlapping location)` then fuse
+    /// each group into a single entity using this strategy.
+    fn fuse(&self, entities: Entities) -> Entities;
+
+    /// Fuse a group of matching entities into a single entity.
+    fn fuse_group(&self, group: Vec<Entity>) -> Entity;
+}
+
+impl FusionStrategyExt for FusionStrategy {
+    fn fuse(&self, entities: Entities) -> Entities {
+        if entities.len() <= 1 {
+            return entities;
+        }
+
+        let mut groups: Vec<Vec<Entity>> = Vec::new();
+
+        for entity in entities {
+            let group = groups.iter_mut().find(|group| {
+                let rep = &group[0];
+                rep.entity_kind == entity.entity_kind
+                    && rep.value == entity.value
+                    && rep.location.overlaps(&entity.location)
+            });
+
+            match group {
+                Some(g) => g.push(entity),
+                None => groups.push(vec![entity]),
+            }
+        }
+
+        groups
+            .into_iter()
+            .map(|group| self.fuse_group(group))
+            .collect()
+    }
+
+    fn fuse_group(&self, group: Vec<Entity>) -> Entity {
+        debug_assert!(!group.is_empty());
+
+        if group.len() == 1 {
+            return group.into_iter().next().unwrap();
+        }
+
+        let fused_confidence = match self {
+            Self::MaxConfidence => group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max),
+            Self::WeightedAverage { weights } => {
+                let mut total_weight = 0.0;
+                let mut weighted_sum = 0.0;
+                for e in &group {
+                    let w = e
+                        .recognition_methods
+                        .first()
+                        .and_then(|m| weights.get(m))
+                        .copied()
+                        .unwrap_or(1.0);
+                    weighted_sum += e.confidence * w;
+                    total_weight += w;
+                }
+                if total_weight > 0.0 {
+                    weighted_sum / total_weight
+                } else {
+                    0.0
+                }
+            }
+            Self::NoisyOr => {
+                let product: f64 = group.iter().map(|e| 1.0 - e.confidence).product();
+                1.0 - product
+            }
+            _ => group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max),
+        };
+
+        let mut seen = HashSet::new();
+        let mut merged_methods = Vec::new();
+        for e in &group {
+            for m in &e.recognition_methods {
+                if seen.insert(*m) {
+                    merged_methods.push(*m);
+                }
+            }
+        }
+
+        let mut result = group.into_iter().next().unwrap();
+        result.confidence = fused_confidence;
+        result.recognition_methods = merged_methods;
+        result
+            .refinement_methods
+            .push(RefinementMethod::EnsembleFusion);
+        result
+    }
+}
 
 /// Combined deduplication + ensemble fusion operation.
 pub struct FusionOp {
@@ -212,7 +307,7 @@ mod tests {
 
     #[tokio::test]
     async fn full_pipeline_dedup_then_fuse() {
-        let cfg = nvisy_ontology::workflow::Fusion {
+        let cfg = Fusion {
             entity_deduplication: true,
             strategy: FusionStrategy::MaxConfidence,
             ..Default::default()

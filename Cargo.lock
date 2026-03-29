@@ -3001,7 +3001,6 @@ dependencies = [
  "derive_more",
  "jiff",
  "nvisy-core",
- "rand 0.10.0",
  "schemars 1.2.1",
  "semver",
  "serde",

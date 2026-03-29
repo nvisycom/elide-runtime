@@ -1,28 +1,53 @@
 //! Async execution extensions for [`RetryPolicy`] and [`TimeoutPolicy`].
 //!
-//! The policy structs are pure data defined in [`nvisy_ontology::graph`].
+//! The policy structs are pure data defined in [`nvisy_ontology::workflow`].
 //! This module adds the tokio-dependent execution methods via traits.
 
+use std::future::Future;
+use std::time::Duration;
+
 use nvisy_core::Error;
-use nvisy_ontology::workflow::{RetryPolicy, TimeoutPolicy};
+use nvisy_ontology::workflow::{BackoffStrategy, RetryPolicy, TimeoutPolicy};
 
 /// Async retry execution for [`RetryPolicy`].
 pub(crate) trait RetryExt {
+    /// Base delay as a [`Duration`].
+    fn base_delay(&self) -> Duration;
+
+    /// Computes the sleep duration for a given zero-based attempt number.
+    fn compute_delay(&self, attempt: u32) -> Duration;
+
     /// Executes a fallible async closure with automatic retry.
-    fn with_retry<F, Fut, T: Send>(
-        &self,
-        f: F,
-    ) -> impl std::future::Future<Output = Result<T, Error>> + Send
+    fn with_retry<F, Fut, T: Send>(&self, f: F) -> impl Future<Output = Result<T, Error>> + Send
     where
         F: FnMut() -> Fut + Send,
-        Fut: std::future::Future<Output = Result<T, Error>> + Send;
+        Fut: Future<Output = Result<T, Error>> + Send;
 }
 
 impl RetryExt for RetryPolicy {
+    fn base_delay(&self) -> Duration {
+        Duration::from_millis(self.delay_ms)
+    }
+
+    fn compute_delay(&self, attempt: u32) -> Duration {
+        let base = self.base_delay();
+        match self.backoff {
+            BackoffStrategy::Fixed => base,
+            BackoffStrategy::Exponential => base * 2u32.saturating_pow(attempt),
+            BackoffStrategy::Jitter => {
+                let exp = base * 2u32.saturating_pow(attempt);
+                let jitter_range = exp.as_millis() as u64 + 1;
+                let jitter = Duration::from_millis(rand::random_range(0..jitter_range));
+                exp + jitter
+            }
+            _ => base,
+        }
+    }
+
     async fn with_retry<F, Fut, T: Send>(&self, mut f: F) -> Result<T, Error>
     where
         F: FnMut() -> Fut + Send,
-        Fut: std::future::Future<Output = Result<T, Error>> + Send,
+        Fut: Future<Output = Result<T, Error>> + Send,
     {
         let mut last_err = None;
         for attempt in 0..=self.max_retries {
@@ -45,20 +70,17 @@ impl RetryExt for RetryPolicy {
 /// Async timeout execution for [`TimeoutPolicy`].
 pub(crate) trait TimeoutExt {
     /// Wraps a future with a deadline.
-    fn with_timeout<F, T: Send>(
-        &self,
-        f: F,
-    ) -> impl std::future::Future<Output = Result<T, Error>> + Send
+    fn with_timeout<F, T: Send>(&self, f: F) -> impl Future<Output = Result<T, Error>> + Send
     where
-        F: std::future::Future<Output = Result<T, Error>> + Send;
+        F: Future<Output = Result<T, Error>> + Send;
 }
 
 impl TimeoutExt for TimeoutPolicy {
     async fn with_timeout<F, T: Send>(&self, f: F) -> Result<T, Error>
     where
-        F: std::future::Future<Output = Result<T, Error>> + Send,
+        F: Future<Output = Result<T, Error>> + Send,
     {
-        match tokio::time::timeout(self.duration(), f).await {
+        match tokio::time::timeout(Duration::from_millis(self.duration_ms), f).await {
             Ok(result) => result,
             Err(_) => Err(Error::timeout(format!(
                 "Operation timed out after {}ms",

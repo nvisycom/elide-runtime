@@ -33,7 +33,7 @@ use super::executor::{NodeContext, NodeExecutor, NodeOutput, RunOutput};
 use super::plan::ExecutionPlan;
 use super::runs::NodeStatus;
 use super::runs::state::RunState;
-use crate::graph::ConcurrencyPolicy;
+use crate::graph::{ConcurrencyExt, ConcurrencyPolicy};
 use crate::operation::DocumentEnvelope;
 use crate::operation::context::SharedContext;
 
@@ -100,7 +100,7 @@ pub(super) async fn run_graph(
         dry_run,
     } = ctx;
 
-    let semaphore = concurrency.map(|c| Arc::new(tokio::sync::Semaphore::new(c.max_nodes)));
+    let semaphore = concurrency.map(|c| c.to_semaphore());
 
     let mut senders: HashMap<Uuid, Vec<mpsc::Sender<Arc<DocumentEnvelope>>>> = HashMap::new();
     let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>> = HashMap::new();

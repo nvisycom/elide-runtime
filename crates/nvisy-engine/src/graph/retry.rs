@@ -1,13 +1,10 @@
-//! Async execution extensions for [`RetryPolicy`] and [`TimeoutPolicy`].
-//!
-//! The policy structs are pure data defined in [`nvisy_ontology::workflow`].
-//! This module adds the tokio-dependent execution methods via traits.
+//! Async retry execution for [`RetryPolicy`].
 
 use std::future::Future;
 use std::time::Duration;
 
 use nvisy_core::Error;
-use nvisy_ontology::workflow::{BackoffStrategy, RetryPolicy, TimeoutPolicy};
+use nvisy_ontology::workflow::{BackoffStrategy, RetryPolicy};
 
 /// Async retry execution for [`RetryPolicy`].
 pub(crate) trait RetryExt {
@@ -64,28 +61,5 @@ impl RetryExt for RetryPolicy {
             }
         }
         Err(last_err.unwrap_or_else(|| Error::runtime("Retry exhausted", "policy", false)))
-    }
-}
-
-/// Async timeout execution for [`TimeoutPolicy`].
-pub(crate) trait TimeoutExt {
-    /// Wraps a future with a deadline.
-    fn with_timeout<F, T: Send>(&self, f: F) -> impl Future<Output = Result<T, Error>> + Send
-    where
-        F: Future<Output = Result<T, Error>> + Send;
-}
-
-impl TimeoutExt for TimeoutPolicy {
-    async fn with_timeout<F, T: Send>(&self, f: F) -> Result<T, Error>
-    where
-        F: Future<Output = Result<T, Error>> + Send,
-    {
-        match tokio::time::timeout(Duration::from_millis(self.duration_ms), f).await {
-            Ok(result) => result,
-            Err(_) => Err(Error::timeout(format!(
-                "Operation timed out after {}ms",
-                self.duration_ms,
-            ))),
-        }
     }
 }

@@ -6,14 +6,18 @@
 //! via extension traits, plus a petgraph conversion helper for the
 //! plan compiler.
 
-mod policy_ext;
+mod concurrency;
+mod retry;
+mod timeout;
 
 use std::collections::HashMap;
 
 pub use nvisy_ontology::workflow::*;
 use petgraph::graph::DiGraph;
 
-pub(crate) use self::policy_ext::{RetryExt, TimeoutExt};
+pub(crate) use self::concurrency::ConcurrencyExt;
+pub(crate) use self::retry::RetryExt;
+pub(crate) use self::timeout::TimeoutExt;
 
 /// Extension trait adding petgraph conversion to [`Graph`].
 pub(crate) trait GraphExt {

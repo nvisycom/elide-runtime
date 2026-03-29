@@ -11,6 +11,3 @@ pub use self::error::ValidationError;
 pub mod policy;
 pub mod provenance;
 pub mod workflow;
-
-#[doc(hidden)]
-pub mod prelude;

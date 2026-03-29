@@ -10,6 +10,3 @@ pub(crate) mod validators;
 pub use self::engine::{
     AllowList, DenyList, DenyRule, PatternEngine, PatternEngineBuilder, RawMatch, ScanContext,
 };
-
-#[doc(hidden)]
-pub mod prelude;

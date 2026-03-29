@@ -3008,6 +3008,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "strum",
+ "thiserror 2.0.18",
  "uuid",
  "validator",
 ]

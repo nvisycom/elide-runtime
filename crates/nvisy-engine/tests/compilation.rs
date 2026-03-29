@@ -4,6 +4,7 @@ mod fixtures;
 
 use nvisy_engine::graph::*;
 use uuid::Uuid;
+use validator::Validate;
 
 fn import_node(content_id: Uuid) -> GraphNode {
     GraphNode::new(

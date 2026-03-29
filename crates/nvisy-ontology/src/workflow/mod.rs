@@ -13,7 +13,6 @@ mod policy;
 mod refinement;
 mod validate;
 
-use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -29,6 +28,7 @@ pub use self::policy::{
     BackoffStrategy, ConcurrencyPolicy, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
 };
 pub use self::refinement::{Fusion, FusionStrategy, Redaction, Validation};
+use crate::ValidationError;
 
 /// The set of strongly-typed actions a pipeline node can perform.
 ///
@@ -148,7 +148,7 @@ impl GraphNodeKind {
     }
 
     /// Validates action-specific configuration.
-    pub fn validate(&self) -> Result<(), Error> {
+    pub fn validate(&self) -> Result<(), ValidationError> {
         match self {
             Self::ImportFile(cfg) => validate_struct(cfg),
             Self::LoadContext(cfg) => validate_struct(cfg),
@@ -230,7 +230,7 @@ impl Graph {
     }
 }
 
-fn validate_struct(v: &impl Validate) -> Result<(), Error> {
+fn validate_struct(v: &impl Validate) -> Result<(), ValidationError> {
     v.validate()
-        .map_err(|e| Error::validation(e.to_string(), "compiler"))
+        .map_err(|e| ValidationError::new(e.to_string()))
 }

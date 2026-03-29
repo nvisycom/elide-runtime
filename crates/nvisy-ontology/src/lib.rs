@@ -5,6 +5,9 @@
 pub mod context;
 pub mod entity;
 pub mod math;
+
+mod error;
+pub use self::error::ValidationError;
 pub mod policy;
 pub mod provenance;
 pub mod workflow;

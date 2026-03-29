@@ -35,6 +35,7 @@ use schemars::JsonSchema;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
+use validator::Validate;
 
 use super::config::RuntimeConfig;
 use super::executor::RunOutput;
@@ -252,29 +253,26 @@ impl Engine {
             .or_else(|| effective_config.engine.as_ref().and_then(|e| e.concurrency));
 
         if let Some(ref c) = concurrency {
-            c.validate()?;
+            c.validate()
+                .map_err(|e| Error::validation(e.to_string(), "concurrency"))?;
         }
+
+        let record = RunRecord {
+            actor_id: input.actor_id,
+            status: RunStatus::Failed,
+            created_at: jiff::Timestamp::now(),
+            started_at: None,
+            completed_at: Some(jiff::Timestamp::now()),
+            nodes: HashMap::new(),
+            cancel: cancel.clone(),
+            entities_detected: 0,
+            redactions_applied: 0,
+        };
 
         let compiled = match plan::compile(&input.graph, limits.channel_buffer) {
             Ok(plan) => plan,
             Err(e) => {
-                self.inner
-                    .runs
-                    .insert(
-                        run_id,
-                        RunRecord {
-                            actor_id: input.actor_id,
-                            status: RunStatus::Failed,
-                            created_at: jiff::Timestamp::now(),
-                            started_at: None,
-                            completed_at: Some(jiff::Timestamp::now()),
-                            nodes: HashMap::new(),
-                            cancel: cancel.clone(),
-                            entities_detected: 0,
-                            redactions_applied: 0,
-                        },
-                    )
-                    .await;
+                self.inner.runs.insert(run_id, record).await;
                 return Err(e);
             }
         };

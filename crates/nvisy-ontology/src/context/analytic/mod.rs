@@ -6,7 +6,7 @@ mod pattern;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::embedding::EmbeddingData;
+pub use self::embedding::{DistanceMetric, EmbeddingData};
 pub use self::pattern::PatternData;
 
 /// Analytic computation variants.

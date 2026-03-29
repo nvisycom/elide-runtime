@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::export::ExportFile;
 pub use self::import::ImportFile;
+use crate::ValidationError;
 
 /// Supported compression algorithms for import/export.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,13 +44,12 @@ impl EncryptionAlgorithm {
     }
 
     /// Decode from a single-byte wire tag.
-    pub fn from_wire_tag(tag: u8) -> Result<Self, nvisy_core::Error> {
+    pub fn from_wire_tag(tag: u8) -> Result<Self, ValidationError> {
         match tag {
             0x01 => Ok(Self::Aes256Gcm),
-            _ => Err(nvisy_core::Error::validation(
-                format!("unknown encryption algorithm tag: 0x{tag:02x}"),
-                "EncryptionAlgorithm::from_wire_tag",
-            )),
+            _ => Err(ValidationError::new(format!(
+                "unknown encryption algorithm tag: 0x{tag:02x}"
+            ))),
         }
     }
 }

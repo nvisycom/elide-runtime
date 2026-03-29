@@ -11,10 +11,10 @@ use nvisy_ontology::entity::{
     Entities, Entity, ExtractionMethod, ImageLocation, RecognitionMethod,
 };
 use nvisy_ontology::math::BoundingBox;
+use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
 use nvisy_provider::agent::{CvEntity, ImageFormat, ImageInput, ImageOutput, OcrAgent};
 use nvisy_provider::http::HttpClient;
 
-use crate::graph::VisualExtraction as VisualExtractionCfg;
 use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
 use crate::operation::envelope::DetectedEntities;

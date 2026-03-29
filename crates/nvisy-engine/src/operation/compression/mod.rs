@@ -8,8 +8,7 @@
 
 use bytes::Bytes;
 use nvisy_core::{Error, Result};
-
-use crate::graph::CompressionAlgorithm;
+use nvisy_ontology::workflow::CompressionAlgorithm;
 
 const TARGET: &str = "nvisy_engine::op::compression";
 

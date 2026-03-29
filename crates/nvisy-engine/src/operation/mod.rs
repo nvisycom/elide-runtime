@@ -3,7 +3,7 @@
 //! Each operation file corresponds to a [`GraphNodeKind`] variant and
 //! implements the [`Operation`] trait with typed inputs and outputs.
 //!
-//! [`GraphNodeKind`]: crate::graph::GraphNodeKind
+//! [`GraphNodeKind`]: nvisy_ontology::workflow::GraphNodeKind
 
 pub(crate) mod compression;
 pub mod context;

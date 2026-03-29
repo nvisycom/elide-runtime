@@ -68,7 +68,7 @@ pub struct DocumentEnvelope {
     /// Populated as envelopes pass through `LoadContext` nodes and
     /// available to downstream operations that need contextual data.
     ///
-    /// [`LoadContext`]: crate::graph::LoadContext
+    /// [`LoadContext`]: nvisy_ontology::workflow::LoadContext
     pub contexts: Contexts,
 
     /// Per-document audit trail: execution log, redaction decisions,

@@ -6,8 +6,8 @@
 //! [`Redaction`]: crate::operation::Redaction
 
 use nvisy_core::Result;
+use nvisy_ontology::workflow::GenerateContext as GenerateContextCfg;
 
-use crate::graph::GenerateContext as GenerateContextCfg;
 use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
 

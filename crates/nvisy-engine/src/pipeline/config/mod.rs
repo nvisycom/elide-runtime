@@ -19,12 +19,12 @@ mod engine;
 mod subsystem;
 mod validate;
 
+use nvisy_ontology::workflow::{RetryPolicy, TimeoutPolicy};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
 pub use self::engine::{EngineSection, ResourceLimits};
 pub use self::subsystem::{LlmSection, OcrSection, SttSection, TtsSection};
-use crate::graph::{RetryPolicy, TimeoutPolicy};
 
 fn default_config_version() -> Version {
     Version::new(0, 1, 0)

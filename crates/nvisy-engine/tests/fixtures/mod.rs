@@ -1,9 +1,11 @@
 //! Shared test helpers and factories for integration tests.
 
 use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
-use nvisy_engine::graph::{ExportFile, Graph, GraphEdge, GraphNode, GraphNodeKind, ImportFile};
 use nvisy_engine::pipeline::{Engine, EngineInput};
 use nvisy_ontology::policy::Policies;
+use nvisy_ontology::workflow::{
+    ExportFile, Graph, GraphEdge, GraphNode, GraphNodeKind, ImportFile,
+};
 use uuid::Uuid;
 
 /// Creates a temporary engine and returns it with the temp directory guard.

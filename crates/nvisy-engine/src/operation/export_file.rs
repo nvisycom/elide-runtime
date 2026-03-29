@@ -12,9 +12,9 @@
 //! 2. **Compression** — compress for storage or transfer (if format specified)
 
 use nvisy_core::Result;
+use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionConfig};
 use uuid::Uuid;
 
-use crate::graph::{CompressionAlgorithm, EncryptionConfig};
 use crate::operation::compression::CompressionService;
 use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::encryption::CryptoService;

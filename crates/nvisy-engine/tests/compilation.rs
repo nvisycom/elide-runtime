@@ -2,7 +2,7 @@
 
 mod fixtures;
 
-use nvisy_engine::graph::*;
+use nvisy_ontology::workflow::*;
 use uuid::Uuid;
 use validator::Validate;
 

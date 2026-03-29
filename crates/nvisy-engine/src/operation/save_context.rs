@@ -7,9 +7,9 @@
 
 use nvisy_core::Result;
 use nvisy_ontology::context::Contexts;
+use nvisy_ontology::workflow::SaveContext as SaveContextCfg;
 use uuid::Uuid;
 
-use crate::graph::SaveContext as SaveContextCfg;
 use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
 

@@ -8,13 +8,13 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::{Entity, EntityCategory, RecognitionMethod, TextLocation};
+use nvisy_ontology::workflow::NamedEntityRecognition as NamedEntityRecognitionCfg;
 use nvisy_provider::agent::{
     AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
 };
 use nvisy_provider::http::HttpClient;
 use tokio::sync::Mutex;
 
-use crate::graph::NamedEntityRecognition as NamedEntityRecognitionCfg;
 use crate::operation::Operation;
 use crate::operation::context::SequentialContext;
 use crate::operation::envelope::DetectedEntities;

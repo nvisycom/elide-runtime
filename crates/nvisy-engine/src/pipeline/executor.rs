@@ -26,6 +26,13 @@ use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_codec::{Document, Span};
 use nvisy_core::content::Content;
 use nvisy_core::{Error, ErrorKind};
+use nvisy_ontology::workflow::{
+    AudialExtraction as AudialExtractionCfg, ExportFile as ExportFileCfg, Fusion as FusionCfg,
+    GenerateContext as GenerateContextCfg, GraphNode, GraphNodeKind, ImportFile as ImportFileCfg,
+    LoadContext as LoadContextCfg, NamedEntityRecognition as NamedEntityRecognitionCfg,
+    Redaction as RedactionCfg, RetryPolicy, SaveContext as SaveContextCfg, TimeoutBehavior,
+    TimeoutPolicy, Validation as ValidationCfg, VisualExtraction as VisualExtractionCfg,
+};
 use nvisy_provider::http::HttpClient;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -33,10 +40,7 @@ use tokio_util::sync::CancellationToken;
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
 use super::runs::RunStatus;
-use crate::graph::{
-    self, GraphNode, GraphNodeKind, RetryExt, RetryPolicy, TimeoutBehavior, TimeoutExt,
-    TimeoutPolicy,
-};
+use crate::graph::{RetryExt, TimeoutExt};
 use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
 use crate::operation::{
     AudialExtraction, AudioInput, DocumentEnvelope, EntityRecognition, ExportFile, Fusion,
@@ -135,8 +139,8 @@ impl NodeExecutor {
 
     /// Execute a resolved node, applying timeout and cancellation policies.
     ///
-    /// If the node has a [`TimeoutPolicy`](crate::graph::TimeoutPolicy)
-    /// with [`TimeoutBehavior::Skip`](crate::graph::TimeoutBehavior::Skip),
+    /// If the node has a [`TimeoutPolicy`](nvisy_ontology::workflow::TimeoutPolicy)
+    /// with [`TimeoutBehavior::Skip`](nvisy_ontology::workflow::TimeoutBehavior::Skip),
     /// a timeout produces an empty success rather than an error.
     pub async fn execute(
         &self,
@@ -250,7 +254,7 @@ impl NodeExecutor {
     /// Run OCR on image spans, optionally verifying detected entities.
     async fn execute_visual_extraction(
         &self,
-        cfg: &graph::VisualExtraction,
+        cfg: &VisualExtractionCfg,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -305,7 +309,7 @@ impl NodeExecutor {
     /// Transcribe audio documents via STT and replace the document with text.
     async fn execute_audial_extraction(
         &self,
-        cfg: &graph::AudialExtraction,
+        cfg: &AudialExtractionCfg,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -355,7 +359,7 @@ impl NodeExecutor {
     /// Run named entity recognition on text spans via the LLM agent.
     async fn execute_ner(
         &self,
-        cfg: &graph::NamedEntityRecognition,
+        cfg: &NamedEntityRecognitionCfg,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -408,7 +412,7 @@ impl NodeExecutor {
     /// Merge overlapping or adjacent entities from multiple detection sources.
     async fn execute_fusion(
         &self,
-        cfg: &graph::Fusion,
+        cfg: &FusionCfg,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -433,7 +437,7 @@ impl NodeExecutor {
     /// Evaluate redaction policies against detected entities.
     async fn execute_redaction(
         &self,
-        cfg: &graph::Redaction,
+        cfg: &RedactionCfg,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -458,7 +462,7 @@ impl NodeExecutor {
     /// Validate redaction decisions against the final document state.
     async fn execute_validation(
         &self,
-        cfg: &graph::Validation,
+        cfg: &ValidationCfg,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -498,7 +502,7 @@ impl NodeExecutor {
     /// Attach pre-loaded context references to each envelope.
     async fn execute_load_context(
         &self,
-        cfg: &graph::LoadContext,
+        cfg: &LoadContextCfg,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -522,7 +526,7 @@ impl NodeExecutor {
     /// Persist envelope contexts back to the registry.
     async fn execute_save_context(
         &self,
-        cfg: &graph::SaveContext,
+        cfg: &SaveContextCfg,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -545,7 +549,7 @@ impl NodeExecutor {
     /// Generate new context entries (currently a passthrough).
     async fn execute_generate_context(
         &self,
-        cfg: &graph::GenerateContext,
+        cfg: &GenerateContextCfg,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -568,7 +572,7 @@ impl NodeExecutor {
     /// Load content from the registry, decode it, and send envelopes downstream.
     async fn execute_import(
         &self,
-        cfg: &graph::ImportFile,
+        cfg: &ImportFileCfg,
         retry: Option<&RetryPolicy>,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -609,7 +613,7 @@ impl NodeExecutor {
     /// Collect processed envelopes and write them to the configured output.
     async fn execute_export(
         &self,
-        cfg: &graph::ExportFile,
+        cfg: &ExportFileCfg,
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let export = ExportFile::new()

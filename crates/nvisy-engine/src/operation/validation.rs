@@ -8,6 +8,7 @@
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::RedactionDecision;
+use nvisy_ontology::workflow::Validation as ValidationCfg;
 use uuid::Uuid;
 
 use crate::operation::Operation;
@@ -46,7 +47,7 @@ pub struct Validation {
 
 impl Validation {
     /// Create from graph config.
-    pub fn new(cfg: &crate::graph::Validation) -> Self {
+    pub fn new(cfg: &ValidationCfg) -> Self {
         Self {
             fail_on_leak: cfg.fail_on_leak,
         }

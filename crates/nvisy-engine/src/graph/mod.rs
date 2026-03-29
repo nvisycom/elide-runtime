@@ -1,10 +1,9 @@
-//! Graph data model and execution policy implementations.
+//! Execution extensions for ontology graph types.
 //!
 //! The graph data types (nodes, edges, kinds, policies) are defined in
-//! [`nvisy_ontology::graph`] and re-exported here. This module adds
-//! async execution behavior for [`RetryPolicy`] and [`TimeoutPolicy`]
-//! via extension traits, plus a petgraph conversion helper for the
-//! plan compiler.
+//! [`nvisy_ontology::workflow`]. This module adds async execution
+//! behavior via extension traits, plus a petgraph conversion helper
+//! for the plan compiler.
 
 mod concurrency;
 mod retry;
@@ -12,7 +11,7 @@ mod timeout;
 
 use std::collections::HashMap;
 
-pub use nvisy_ontology::workflow::*;
+use nvisy_ontology::workflow::{Graph, GraphEdge, GraphNode};
 use petgraph::graph::DiGraph;
 
 pub(crate) use self::concurrency::ConcurrencyExt;

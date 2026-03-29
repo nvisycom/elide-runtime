@@ -18,8 +18,8 @@
 use nvisy_codec::Document;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData};
+use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 
-use crate::graph::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 use crate::operation::compression::CompressionService;
 use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::encryption::{CryptoService, EncryptedContent};

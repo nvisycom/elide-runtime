@@ -10,9 +10,9 @@
 
 use nvisy_core::Result;
 use nvisy_ontology::context::Contexts;
+use nvisy_ontology::workflow::LoadContext as LoadContextCfg;
 use uuid::Uuid;
 
-use crate::graph::LoadContext as LoadContextCfg;
 use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
 

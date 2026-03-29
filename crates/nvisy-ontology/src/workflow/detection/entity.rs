@@ -7,7 +7,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::ValidationError;
+use crate::Error;
 use crate::entity::EntityKind;
 
 /// Configuration for the [`NamedEntityRecognition`] graph node.
@@ -29,11 +29,11 @@ pub struct NamedEntityRecognition {
 
 impl NamedEntityRecognition {
     /// Validates that the confidence threshold, if set, is within `0.0..=1.0`.
-    pub fn validate(&self) -> Result<(), ValidationError> {
+    pub fn validate(&self) -> Result<(), Error> {
         if let Some(t) = self.confidence_threshold
             && !(0.0..=1.0).contains(&t)
         {
-            return Err(ValidationError::new(format!(
+            return Err(Error::new(format!(
                 "confidence_threshold must be between 0.0 and 1.0, got {t}"
             )));
         }

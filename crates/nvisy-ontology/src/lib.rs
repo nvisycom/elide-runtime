@@ -7,7 +7,7 @@ pub mod entity;
 pub mod math;
 
 mod error;
-pub use self::error::ValidationError;
+pub use self::error::{Error, Result};
 pub mod policy;
 pub mod provenance;
 pub mod workflow;

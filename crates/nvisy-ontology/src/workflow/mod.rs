@@ -28,7 +28,7 @@ pub use self::policy::{
     BackoffStrategy, ConcurrencyPolicy, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
 };
 pub use self::refinement::{Fusion, FusionStrategy, Redaction, Validation};
-use crate::ValidationError;
+use crate::Error;
 
 /// The set of strongly-typed actions a pipeline node can perform.
 ///
@@ -148,7 +148,7 @@ impl GraphNodeKind {
     }
 
     /// Validates action-specific configuration.
-    pub fn validate(&self) -> Result<(), ValidationError> {
+    pub fn validate(&self) -> Result<(), Error> {
         match self {
             Self::ImportFile(cfg) => validate_struct(cfg),
             Self::LoadContext(cfg) => validate_struct(cfg),
@@ -230,7 +230,7 @@ impl Graph {
     }
 }
 
-fn validate_struct(v: &impl Validate) -> Result<(), ValidationError> {
+fn validate_struct(v: &impl Validate) -> Result<(), Error> {
     v.validate()
-        .map_err(|e| ValidationError::new(e.to_string()))
+        .map_err(|e| Error::new(e.to_string()))
 }

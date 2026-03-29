@@ -33,12 +33,12 @@ const TARGET: &str = "nvisy_engine::op::import_file";
 /// Key provider is read from the [`SharedContext`] at call time —
 /// only graph-config fields are stored on the struct.
 #[derive(Default)]
-pub struct ImportFile {
+pub struct ImportFileOp {
     decompression: Option<CompressionAlgorithm>,
     decryption: Option<EncryptionConfig>,
 }
 
-impl ImportFile {
+impl ImportFileOp {
     pub fn new() -> Self {
         Self::default()
     }
@@ -92,7 +92,7 @@ impl ImportFile {
     }
 }
 
-impl Operation for ImportFile {
+impl Operation for ImportFileOp {
     type Input = ParallelContext<Content>;
     type Output = ParallelContext<DocumentEnvelope>;
 
@@ -114,6 +114,6 @@ mod tests {
         let shared = SharedContext::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
         let content = Content::new(ContentData::from("plain text has no magic bytes"));
         let input = ParallelContext::new(content, shared);
-        assert!(ImportFile::new().call(input).await.is_err());
+        assert!(ImportFileOp::new().call(input).await.is_err());
     }
 }

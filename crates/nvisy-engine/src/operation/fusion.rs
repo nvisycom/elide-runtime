@@ -6,7 +6,7 @@
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::{Entities, Entity, Overlap, RefinementMethod};
-use nvisy_ontology::workflow::{Fusion as FusionCfg, FusionStrategy};
+use nvisy_ontology::workflow::{Fusion, FusionStrategy};
 
 use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
@@ -15,14 +15,14 @@ use crate::operation::envelope::RefinedEntities;
 const TARGET: &str = "nvisy_engine::op::fusion";
 
 /// Combined deduplication + ensemble fusion operation.
-pub struct Fusion {
+pub struct FusionOp {
     deduplicate: bool,
     strategy: FusionStrategy,
 }
 
-impl Fusion {
+impl FusionOp {
     /// Create from graph config.
-    pub fn new(cfg: &FusionCfg) -> Self {
+    pub fn new(cfg: &Fusion) -> Self {
         if cfg.confidence_calibration {
             tracing::warn!(target: TARGET, "confidence_calibration not yet implemented, skipping");
         }
@@ -105,7 +105,7 @@ impl Fusion {
     }
 }
 
-impl Operation for Fusion {
+impl Operation for FusionOp {
     type Input = ParallelContext<Entities>;
     type Output = ParallelContext<RefinedEntities>;
 
@@ -154,7 +154,7 @@ mod tests {
             text_entity("John", RecognitionMethod::Regex, 0.9, 0, 4),
         ]
         .into();
-        let result = Fusion::deduplicate(entities);
+        let result = FusionOp::deduplicate(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
     }
@@ -166,7 +166,7 @@ mod tests {
             text_entity("John", RecognitionMethod::Regex, 0.9, 10, 14),
         ]
         .into();
-        let result = Fusion::deduplicate(entities);
+        let result = FusionOp::deduplicate(entities);
         assert_eq!(result.len(), 2);
     }
 
@@ -212,10 +212,12 @@ mod tests {
 
     #[tokio::test]
     async fn full_pipeline_dedup_then_fuse() {
-        let fusion = Fusion {
-            deduplicate: true,
+        let cfg = nvisy_ontology::workflow::Fusion {
+            entity_deduplication: true,
             strategy: FusionStrategy::MaxConfidence,
+            ..Default::default()
         };
+        let fusion = FusionOp::new(&cfg);
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::Regex, 0.7, 0, 4),
             text_entity("John", RecognitionMethod::Regex, 0.8, 0, 4),
@@ -230,7 +232,7 @@ mod tests {
 
     #[test]
     fn empty_input() {
-        let result = Fusion::deduplicate(Entities::new());
+        let result = FusionOp::deduplicate(Entities::new());
         assert!(result.is_empty());
     }
 }

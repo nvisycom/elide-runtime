@@ -8,7 +8,7 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::{Entity, EntityCategory, RecognitionMethod, TextLocation};
-use nvisy_ontology::workflow::NamedEntityRecognition as NamedEntityRecognitionCfg;
+use nvisy_ontology::workflow::NamedEntityRecognition;
 use nvisy_provider::agent::{
     AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
 };
@@ -43,7 +43,7 @@ impl EntityRecognition {
 
     /// Build from graph config and runtime dependencies.
     pub async fn new(
-        cfg: &NamedEntityRecognitionCfg,
+        cfg: &NamedEntityRecognition,
         runtime: &RuntimeConfig,
         http_client: &HttpClient,
     ) -> Result<Self> {

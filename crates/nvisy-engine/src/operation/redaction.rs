@@ -9,7 +9,7 @@ use nvisy_core::Result;
 use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
-use nvisy_ontology::workflow::Redaction as RedactionCfg;
+use nvisy_ontology::workflow::Redaction;
 
 use crate::operation::Operation;
 use crate::operation::context::{ParallelContext, SharedContext};
@@ -18,13 +18,13 @@ use crate::operation::envelope::PolicyOutcome;
 const TARGET: &str = "nvisy_engine::op::redaction";
 
 /// Redaction operation: evaluates policies and applies redaction decisions.
-pub struct Redaction {
+pub struct RedactionOp {
     evaluator: PolicyEvaluator,
 }
 
-impl Redaction {
+impl RedactionOp {
     /// Build from graph config and shared context.
-    pub async fn new(cfg: &RedactionCfg, shared: &SharedContext) -> Result<Self> {
+    pub async fn new(cfg: &Redaction, shared: &SharedContext) -> Result<Self> {
         let rules = shared
             .policies
             .policies
@@ -42,7 +42,7 @@ impl Redaction {
     }
 }
 
-impl Operation for Redaction {
+impl Operation for RedactionOp {
     type Input = ParallelContext<Entities>;
     type Output = ParallelContext<PolicyOutcome>;
 

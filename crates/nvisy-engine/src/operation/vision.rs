@@ -7,60 +7,25 @@
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_ontology::entity::{
-    Entities, Entity, ExtractionMethod, ImageLocation, RecognitionMethod,
-};
-use nvisy_ontology::math::BoundingBox;
-use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
-use nvisy_provider::agent::{CvEntity, ImageFormat, ImageInput, ImageOutput, OcrAgent};
+use nvisy_ontology::entity::Entities;
+use nvisy_ontology::workflow::VisualExtraction;
+use nvisy_provider::agent::{ImageFormat, ImageInput, ImageOutput, OcrAgent};
 use nvisy_provider::http::HttpClient;
 
-use crate::operation::Operation;
-use crate::operation::context::ParallelContext;
 use crate::operation::envelope::DetectedEntities;
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::visual_extraction";
 
 /// Visual extraction operation: OCR + optional verification + optional CV.
-pub struct VisualExtraction {
+pub struct VisualExtractionOp {
     agent: OcrAgent,
 }
 
-impl VisualExtraction {
-    #[allow(dead_code)]
-    fn map_cv_entity(cv: &CvEntity, image_id: Option<uuid::Uuid>) -> Entity {
-        let mut entity = Entity::new(
-            cv.category,
-            cv.entity_type,
-            &cv.label,
-            RecognitionMethod::Classification,
-            cv.confidence,
-        );
-        entity.extraction_methods = vec![ExtractionMethod::ObjectDetection];
-        let bbox = if cv.bbox.len() >= 4 {
-            BoundingBox {
-                x: cv.bbox[0],
-                y: cv.bbox[1],
-                width: cv.bbox[2],
-                height: cv.bbox[3],
-            }
-        } else {
-            BoundingBox::default()
-        };
-        entity.with_location(
-            ImageLocation {
-                bounding_box: bbox,
-                image_id,
-                page_number: None,
-            }
-            .into(),
-        )
-    }
-
+impl VisualExtractionOp {
     /// Build from graph config and runtime dependencies.
     pub fn new(
-        cfg: &VisualExtractionCfg,
+        cfg: &VisualExtraction,
         config: &RuntimeConfig,
         http_client: &HttpClient,
     ) -> Result<Self> {
@@ -113,18 +78,12 @@ impl VisualExtraction {
     pub(crate) fn agent(&self) -> &OcrAgent {
         &self.agent
     }
-}
 
-pub(crate) struct OcrOp<'a> {
-    agent: &'a OcrAgent,
-}
-
-impl<'a> OcrOp<'a> {
-    pub fn new(agent: &'a OcrAgent) -> Self {
-        Self { agent }
-    }
-
-    async fn extract(&self, spans: Vec<Span<(), ImageData>>) -> Result<Vec<ImageOutput>> {
+    /// Run OCR extraction on a batch of image spans.
+    pub(crate) async fn extract(
+        &self,
+        spans: Vec<Span<(), ImageData>>,
+    ) -> Result<Vec<ImageOutput>> {
         if spans.is_empty() {
             return Ok(Vec::new());
         }
@@ -141,46 +100,18 @@ impl<'a> OcrOp<'a> {
             .collect::<Result<Vec<_>>>()?;
         self.agent.run_batch(&images).await
     }
-}
 
-impl Operation for OcrOp<'_> {
-    type Input = ParallelContext<Vec<Span<(), ImageData>>>;
-    type Output = ParallelContext<Vec<ImageOutput>>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input.parallel_map(|spans| self.extract(spans)).await
-    }
-}
-
-pub(crate) struct VerifyInput {
-    pub(crate) image_spans: Vec<Span<(), ImageData>>,
-    pub(crate) entities: Entities,
-}
-
-impl Clone for VerifyInput {
-    fn clone(&self) -> Self {
-        Self {
-            image_spans: self.image_spans.clone(),
-            entities: self.entities.clone(),
+    /// Verify detected entities against the source images.
+    pub(crate) async fn verify(
+        &self,
+        image_spans: &[Span<(), ImageData>],
+        entities: Entities,
+    ) -> Result<DetectedEntities> {
+        if entities.is_empty() || image_spans.is_empty() {
+            return Ok(DetectedEntities(entities));
         }
-    }
-}
-
-pub(crate) struct VerifyOp<'a> {
-    agent: &'a OcrAgent,
-}
-
-impl<'a> VerifyOp<'a> {
-    pub fn new(agent: &'a OcrAgent) -> Self {
-        Self { agent }
-    }
-
-    async fn verify(&self, data: VerifyInput) -> Result<DetectedEntities> {
-        if data.entities.is_empty() || data.image_spans.is_empty() {
-            return Ok(DetectedEntities(data.entities));
-        }
-        let mut verified = data.entities.into_inner();
-        for span in &data.image_spans {
+        let mut verified = entities.into_inner();
+        for span in image_spans {
             let png_bytes = span.data.encode_png()?;
             let image = ImageInput::with_source(span.source, png_bytes, ImageFormat::Png);
             verified = self
@@ -190,14 +121,5 @@ impl<'a> VerifyOp<'a> {
                 .map_err(|e| Error::runtime(e.to_string(), "ocr-verification", e.is_retryable()))?;
         }
         Ok(DetectedEntities(verified.into()))
-    }
-}
-
-impl Operation for VerifyOp<'_> {
-    type Input = ParallelContext<VerifyInput>;
-    type Output = ParallelContext<DetectedEntities>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input.parallel_map(|data| self.verify(data)).await
     }
 }

@@ -5,7 +5,7 @@
 //! text using automatic speech recognition.
 
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_ontology::workflow::AudialExtraction as AudialExtractionCfg;
+use nvisy_ontology::workflow::AudialExtraction;
 use nvisy_provider::audio::stt::{SttConfig, SttOutput, SttService};
 use nvisy_provider::http::HttpClient;
 
@@ -16,13 +16,13 @@ use crate::pipeline::RuntimeConfig;
 const TARGET: &str = "nvisy_engine::op::speech";
 
 /// Audial extraction: transcribes audio documents via STT.
-pub struct AudialExtraction {
+pub struct AudialExtractionOp {
     stt: SttService,
 }
 
-impl AudialExtraction {
+impl AudialExtractionOp {
     pub fn new(
-        cfg: &AudialExtractionCfg,
+        cfg: &AudialExtraction,
         config: &RuntimeConfig,
         http_client: &HttpClient,
     ) -> Result<Self> {
@@ -59,7 +59,7 @@ pub struct AudioInput {
     pub filename: String,
 }
 
-impl Operation for AudialExtraction {
+impl Operation for AudialExtractionOp {
     type Input = ParallelContext<AudioInput>;
     type Output = ParallelContext<SttOutput>;
 

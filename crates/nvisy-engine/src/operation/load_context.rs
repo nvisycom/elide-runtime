@@ -10,7 +10,7 @@
 
 use nvisy_core::Result;
 use nvisy_ontology::context::Contexts;
-use nvisy_ontology::workflow::LoadContext as LoadContextCfg;
+use nvisy_ontology::workflow::LoadContext;
 use uuid::Uuid;
 
 use crate::operation::Operation;
@@ -26,13 +26,13 @@ const TARGET: &str = "nvisy_engine::op::load_context";
 ///
 /// [`ContextMap`]: nvisy_ontology::context::ContextMap
 /// [`SharedContext`]: crate::operation::context::SharedContext
-pub struct LoadContext {
+pub struct LoadContextOp {
     context_ids: Vec<Uuid>,
 }
 
-impl LoadContext {
+impl LoadContextOp {
     /// Create from graph config.
-    pub fn new(cfg: &LoadContextCfg) -> Self {
+    pub fn new(cfg: &LoadContext) -> Self {
         tracing::debug!(target: TARGET, count = cfg.context_ids.len(), "load context references");
         Self {
             context_ids: cfg.context_ids.clone(),
@@ -40,7 +40,7 @@ impl LoadContext {
     }
 }
 
-impl Operation for LoadContext {
+impl Operation for LoadContextOp {
     type Input = ParallelContext<Contexts>;
     type Output = ParallelContext<Contexts>;
 

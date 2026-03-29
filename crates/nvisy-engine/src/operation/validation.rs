@@ -8,7 +8,7 @@
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::RedactionDecision;
-use nvisy_ontology::workflow::Validation as ValidationCfg;
+use nvisy_ontology::workflow::Validation;
 use uuid::Uuid;
 
 use crate::operation::Operation;
@@ -41,13 +41,13 @@ pub struct ValidationInput {
 }
 
 /// Post-redaction validator that checks for leaked sensitive values.
-pub struct Validation {
+pub struct ValidationOp {
     fail_on_leak: bool,
 }
 
-impl Validation {
+impl ValidationOp {
     /// Create from graph config.
-    pub fn new(cfg: &ValidationCfg) -> Self {
+    pub fn new(cfg: &Validation) -> Self {
         Self {
             fail_on_leak: cfg.fail_on_leak,
         }
@@ -92,7 +92,7 @@ impl Validation {
     }
 }
 
-impl Operation for Validation {
+impl Operation for ValidationOp {
     type Input = ParallelContext<ValidationInput>;
     type Output = ParallelContext<ValidationResult>;
 

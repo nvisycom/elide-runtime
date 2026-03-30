@@ -4,11 +4,12 @@ use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMeth
 
 use crate::patterns::ContextRule;
 
-/// A single match produced by [`PatternEngine::scan_text`](super::PatternEngine::scan_text).
+/// A single match produced by the pattern engine's internal scan phases.
 #[derive(Debug, Clone)]
-pub struct RawMatch {
+pub(crate) struct RawMatch {
     /// Name of the pattern that produced this match, or `None` for
-    /// deny-list–injected matches.
+    /// deny-list injected matches. Read in tests for match identification.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub pattern_name: Option<String>,
     /// Entity category of the match.
     pub category: EntityCategory,
@@ -27,6 +28,8 @@ pub struct RawMatch {
     /// match was confirmed by a validator).
     pub recognition_methods: Vec<RecognitionMethod>,
     /// Optional context rule for span-level co-occurrence scoring.
+    /// Read in tests for context rule validation.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub context: Option<ContextRule>,
 }
 

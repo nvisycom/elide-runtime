@@ -21,7 +21,6 @@ const TARGET: &str = "nvisy_engine::op::pattern_recognition";
 /// Pattern-based entity recognition using regex and dictionary matching.
 pub struct PatternRecognition {
     engine: &'static nvisy_pattern::PatternEngine,
-    contextual_analysis: bool,
 }
 
 impl PatternRecognition {
@@ -54,14 +53,10 @@ impl PatternRecognition {
             target: TARGET,
             custom = needs_custom,
             patterns = cfg.patterns.len(),
-            contextual = cfg.contextual_analysis,
             "created pattern recognition operation",
         );
 
-        Self {
-            engine,
-            contextual_analysis: cfg.contextual_analysis,
-        }
+        Self { engine }
     }
 
     fn scan(&self, spans: &[Span<TextSpanId, TextData>]) -> Vec<Entity> {

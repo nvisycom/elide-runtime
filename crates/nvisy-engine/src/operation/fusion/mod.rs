@@ -1,12 +1,19 @@
 //! Entity fusion operation.
 //!
-//! Runs at **phase 3**, after detection. Combines calibration,
-//! deduplication, and ensemble fusion into a single operation.
+//! Runs at **phase 3**, after detection. Combines multiple detection
+//! passes into a single, deduplicated set of entities with combined
+//! confidence scores.
 //!
-//! The pipeline is:
-//! 1. **Calibrate** — scale raw confidence per recognition method.
-//! 2. **Deduplicate** — merge exact overlapping duplicates (always on).
-//! 3. **Fuse** — combine multi-detector groups via the configured strategy.
+//! The fusion pipeline:
+//!
+//! 1. **Calibrate**: scale raw confidence scores using per-method
+//!    multipliers from [`CalibrationMap`].
+//! 2. **Group + fuse**: partition entities by kind, value, and
+//!    location overlap (per [`GroupingCriteria`]), then combine each
+//!    group into one entity using the [`FusionStrategy`].
+//!
+//! Deduplication is implicit: entities that land in the same group
+//! are always merged, so exact duplicates are naturally eliminated.
 
 mod calibration;
 mod grouping;
@@ -24,7 +31,11 @@ use crate::operation::envelope::RefinedEntities;
 
 const TARGET: &str = "nvisy_engine::op::fusion";
 
-/// Combined calibration + deduplication + ensemble fusion operation.
+/// Combined calibration and ensemble fusion operation.
+///
+/// Created from the [`Fusion`] graph node configuration via
+/// [`FusionOp::new`]. The heavy lifting is delegated to the
+/// [`calibration`], [`grouping`], and [`strategy`] sub-modules.
 pub struct FusionOp {
     grouping: GroupingCriteria,
     strategy: FusionStrategy,
@@ -32,8 +43,15 @@ pub struct FusionOp {
 }
 
 impl FusionOp {
-    /// Create from graph config.
+    /// Create from a [`Fusion`] graph node config.
     pub fn new(cfg: &Fusion) -> Self {
+        tracing::debug!(
+            target: TARGET,
+            grouping = ?cfg.grouping,
+            strategy = ?cfg.strategy,
+            calibration_methods = cfg.calibration.len(),
+            "creating fusion operation",
+        );
         Self {
             grouping: cfg.grouping,
             strategy: cfg.strategy.clone(),
@@ -41,6 +59,7 @@ impl FusionOp {
         }
     }
 
+    /// Run the full fusion pipeline: calibrate, group, fuse.
     pub(crate) fn execute(&self, mut entities: Entities) -> RefinedEntities {
         if entities.is_empty() {
             return RefinedEntities(entities);
@@ -51,20 +70,16 @@ impl FusionOp {
         // Phase 1: calibrate raw confidence scores.
         if !self.calibration.is_empty() {
             calibrate(&mut entities, &self.calibration);
-            tracing::debug!(
-                target: TARGET,
-                methods = self.calibration.len(),
-                "applied confidence calibration",
-            );
         }
 
-        // Phase 2: deduplicate + fuse.
+        // Phase 2: group + fuse.
         let result = self.strategy.fuse(entities, self.grouping);
 
-        tracing::debug!(
+        tracing::info!(
             target: TARGET,
             before,
-            after_fusion = result.len(),
+            after = result.len(),
+            reduced = before.saturating_sub(result.len()),
             "fusion complete",
         );
 
@@ -95,6 +110,7 @@ mod tests {
 
     use super::*;
 
+    /// Build a text entity at the given byte offsets for testing.
     fn text_entity(
         value: &str,
         method: RecognitionMethod,
@@ -227,33 +243,6 @@ mod tests {
     }
 
     #[test]
-    fn full_pipeline() {
-        let cfg = Fusion {
-            strategy: FusionStrategy::MaxConfidence,
-            ..Default::default()
-        };
-        let fusion = FusionOp::new(&cfg);
-        let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::Regex, 0.7, 0, 4),
-            text_entity("John", RecognitionMethod::Regex, 0.8, 0, 4),
-            text_entity("John", RecognitionMethod::Ner, 0.85, 0, 4),
-        ]
-        .into();
-
-        let result = fusion.execute(entities);
-        assert_eq!(result.0.len(), 1);
-        assert!((result.0[0].confidence - 0.85).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn empty_input() {
-        let cfg = Fusion::default();
-        let fusion = FusionOp::new(&cfg);
-        let result = fusion.execute(Entities::new());
-        assert!(result.0.is_empty());
-    }
-
-    #[test]
     fn calibration_scales_confidence() {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethod::Regex, 0.5);
@@ -302,13 +291,39 @@ mod tests {
     #[test]
     fn fuse_fills_missing_language() {
         let mut e1 = text_entity("John", RecognitionMethod::Regex, 0.9, 0, 4);
-        let e2 = text_entity("John", RecognitionMethod::Ner, 0.7, 0, 4);
+        let mut e2 = text_entity("John", RecognitionMethod::Ner, 0.7, 0, 4);
         e1.language = None;
-        let mut e2 = e2;
         e2.language = Some("en".into());
 
         let entities: Entities = vec![e1, e2].into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
         assert_eq!(result[0].language.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn full_pipeline() {
+        let cfg = Fusion {
+            strategy: FusionStrategy::MaxConfidence,
+            ..Default::default()
+        };
+        let fusion = FusionOp::new(&cfg);
+        let entities: Entities = vec![
+            text_entity("John", RecognitionMethod::Regex, 0.7, 0, 4),
+            text_entity("John", RecognitionMethod::Regex, 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::Ner, 0.85, 0, 4),
+        ]
+        .into();
+
+        let result = fusion.execute(entities);
+        assert_eq!(result.0.len(), 1);
+        assert!((result.0[0].confidence - 0.85).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn empty_input() {
+        let cfg = Fusion::default();
+        let fusion = FusionOp::new(&cfg);
+        let result = fusion.execute(Entities::new());
+        assert!(result.0.is_empty());
     }
 }

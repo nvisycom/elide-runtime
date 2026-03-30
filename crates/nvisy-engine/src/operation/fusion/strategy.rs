@@ -1,4 +1,8 @@
-//! Execution behavior for [`FusionStrategy`].
+//! Execution behaviour for [`FusionStrategy`].
+//!
+//! Implements the actual confidence-combination algorithms and entity
+//! field merging. The strategy determines *how* confidences are combined;
+//! the grouping module determines *which* entities are candidates.
 
 use std::collections::HashSet;
 
@@ -7,15 +11,26 @@ use nvisy_ontology::workflow::{FusionStrategy, GroupingCriteria};
 
 use super::grouping::GroupEntities;
 
-/// Execution behavior for [`FusionStrategy`].
+const TARGET: &str = "nvisy_engine::op::fusion::strategy";
+
+/// Adds fusion execution to [`FusionStrategy`].
 pub(super) trait FusionStrategyExt {
-    /// Group entities then fuse each group into a single entity.
+    /// Group entities by the given criteria, then fuse each group into a
+    /// single entity.
     fn fuse(&self, entities: Entities, criteria: GroupingCriteria) -> Entities;
 
-    /// Fuse a group of matching entities into a single entity.
+    /// Fuse a group of co-referent entities into one.
+    ///
+    /// Field merging rules:
+    /// - **base**: highest-confidence entity (most trusted metadata)
+    /// - **value**: longest value wins (more specific match)
+    /// - **location**: follows the selected value
+    /// - **recognition/extraction methods**: order-preserving union
+    /// - **language/model**: first non-`None` across the group
+    /// - **confidence**: computed by the strategy
     fn fuse_group(&self, group: Vec<Entity>) -> Entity;
 
-    /// Compute fused confidence for a group of entities.
+    /// Compute the fused confidence for a group of entities.
     fn compute_confidence(&self, group: &[Entity]) -> f64;
 }
 
@@ -25,8 +40,16 @@ impl FusionStrategyExt for FusionStrategy {
             return entities;
         }
 
-        entities
-            .group(criteria)
+        let groups = entities.group(criteria);
+
+        tracing::debug!(
+            target: TARGET,
+            strategy = ?self,
+            groups = groups.len(),
+            "fusing entity groups",
+        );
+
+        groups
             .into_iter()
             .map(|group| self.fuse_group(group))
             .collect()
@@ -41,7 +64,8 @@ impl FusionStrategyExt for FusionStrategy {
 
         let fused_confidence = self.compute_confidence(&group);
 
-        // Pick the highest-confidence entity as the base.
+        // Sort by descending confidence: highest-confidence entity
+        // becomes the base since it carries the most trusted metadata.
         group.sort_by(|a, b| {
             b.confidence
                 .partial_cmp(&a.confidence)
@@ -50,7 +74,10 @@ impl FusionStrategyExt for FusionStrategy {
         let mut result = group.remove(0);
         let rest = group;
 
-        // Use the longest value (more specific match).
+        // Prefer the longest value: it is the more specific match
+        // (e.g. "John Smith" over "John"). When the value changes,
+        // adopt the location from the entity that produced it so the
+        // span stays consistent.
         for e in &rest {
             if e.value.len() > result.value.len() {
                 result.value.clone_from(&e.value);
@@ -58,7 +85,7 @@ impl FusionStrategyExt for FusionStrategy {
             }
         }
 
-        // Merge recognition methods (order-preserving dedup).
+        // Merge recognition methods (order-preserving union).
         let mut seen_rec: HashSet<_> = result.recognition_methods.iter().copied().collect();
         for e in &rest {
             for m in &e.recognition_methods {
@@ -68,7 +95,7 @@ impl FusionStrategyExt for FusionStrategy {
             }
         }
 
-        // Merge extraction methods.
+        // Merge extraction methods (order-preserving union).
         let mut seen_ext: HashSet<_> = result.extraction_methods.iter().copied().collect();
         for e in &rest {
             for m in &e.extraction_methods {
@@ -78,7 +105,7 @@ impl FusionStrategyExt for FusionStrategy {
             }
         }
 
-        // Fill in missing optional fields from other entities.
+        // Fill in missing optional fields from lower-confidence entities.
         if result.language.is_none() {
             result.language = rest.iter().find_map(|e| e.language.clone());
         }
@@ -90,6 +117,16 @@ impl FusionStrategyExt for FusionStrategy {
         result
             .refinement_methods
             .push(RefinementMethod::EnsembleFusion);
+
+        tracing::trace!(
+            target: TARGET,
+            entity_id = %result.id(),
+            fused_from = rest.len() + 1,
+            confidence = fused_confidence,
+            value = %result.value,
+            "fused entity group",
+        );
+
         result
     }
 
@@ -97,6 +134,9 @@ impl FusionStrategyExt for FusionStrategy {
         match self {
             Self::MaxConfidence => group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max),
             Self::WeightedAverage { weights } => {
+                // For each entity, use the max weight across all its
+                // recognition methods. Methods absent from the weight
+                // map default to 1.0.
                 let mut total_weight = 0.0;
                 let mut weighted_sum = 0.0;
                 for e in group {
@@ -115,9 +155,12 @@ impl FusionStrategyExt for FusionStrategy {
                 }
             }
             Self::NoisyOr => {
+                // Independent-detector combination:
+                // P(any) = 1 - ∏(1 - pᵢ)
                 let product: f64 = group.iter().map(|e| 1.0 - e.confidence).product();
                 1.0 - product
             }
+            // Fallback for future variants: treat as MaxConfidence.
             _ => group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max),
         }
     }

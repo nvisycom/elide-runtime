@@ -26,6 +26,39 @@ pub enum GroupingCriteria {
     Widening,
 }
 
+impl GroupingCriteria {
+    /// Whether two values match under this criteria.
+    pub fn values_match(self, a: &str, b: &str) -> bool {
+        match self {
+            Self::Strict => a == b,
+            Self::Normalized => a.trim().eq_ignore_ascii_case(b.trim()),
+            Self::Narrowing | Self::Widening => {
+                let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+                long.contains(short)
+            }
+            _ => a == b,
+        }
+    }
+
+    /// Whether this criteria requires overlapping locations for grouping.
+    pub fn requires_location_overlap(self) -> bool {
+        !matches!(self, Self::Widening)
+    }
+
+    /// Whether this criteria uses substring containment for value matching.
+    pub fn is_substring(self) -> bool {
+        matches!(self, Self::Narrowing | Self::Widening)
+    }
+
+    /// Normalise a value for HashMap bucketing under this criteria.
+    pub fn bucket_value(self, value: &str) -> String {
+        match self {
+            Self::Normalized => value.trim().to_lowercase(),
+            _ => value.to_owned(),
+        }
+    }
+}
+
 /// Strategy for combining confidence scores from multiple detectors.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]

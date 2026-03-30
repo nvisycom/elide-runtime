@@ -4,6 +4,3 @@
 
 pub mod bridge;
 pub mod exif;
-
-#[doc(hidden)]
-pub mod prelude;

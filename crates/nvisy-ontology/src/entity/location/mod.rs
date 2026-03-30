@@ -35,6 +35,7 @@ impl<T: Overlap> Overlap for Option<T> {
 /// an entity exists in a single modality.
 #[derive(Debug, Clone, PartialEq, From, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Location {
     /// Entity found in text content.
     Text(TextLocation),

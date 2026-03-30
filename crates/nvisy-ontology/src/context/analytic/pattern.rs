@@ -3,18 +3,33 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// A pattern expression with its type.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum PatternExpression {
+    /// Regular expression pattern.
+    Regex {
+        /// The regex expression.
+        expression: String,
+    },
+    /// Shell-style glob pattern.
+    Glob {
+        /// The glob expression.
+        expression: String,
+    },
+}
+
 /// A named pattern for detection matching.
 ///
-/// `label` describes the intent (for humans/LLMs); `expression` is the
-/// regex or glob used at detection time.
+/// `label` describes the intent (for humans/LLMs); `pattern` carries
+/// the expression and its type.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternData {
     /// Human-readable label describing what this pattern matches.
     pub label: String,
-    /// The regex or glob expression.
-    pub expression: String,
-    /// Whether this is a regex (`true`) or a glob/literal (`false`).
-    #[serde(default)]
-    pub is_regex: bool,
+    /// The pattern expression and its type.
+    #[serde(flatten)]
+    pub pattern: PatternExpression,
 }

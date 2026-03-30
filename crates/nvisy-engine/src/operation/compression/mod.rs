@@ -8,8 +8,7 @@
 
 use bytes::Bytes;
 use nvisy_core::{Error, Result};
-
-use crate::graph::CompressionAlgorithm;
+use nvisy_ontology::workflow::CompressionAlgorithm;
 
 const TARGET: &str = "nvisy_engine::op::compression";
 
@@ -45,6 +44,11 @@ impl CompressionService {
                 "compression",
                 false,
             )),
+            _ => Err(Error::runtime(
+                format!("unsupported compression algorithm: {:?}", self.algorithm),
+                "compression",
+                false,
+            )),
         }
     }
 
@@ -64,6 +68,11 @@ impl CompressionService {
             )),
             CompressionAlgorithm::Zstd => Err(Error::runtime(
                 "zstd decompression not yet implemented",
+                "compression",
+                false,
+            )),
+            _ => Err(Error::runtime(
+                format!("unsupported decompression algorithm: {:?}", self.algorithm),
                 "compression",
                 false,
             )),

@@ -4,7 +4,7 @@
 //!
 //! 1. **Config merge** — per-request [`RuntimeConfig`] overrides are merged
 //!    with the engine's base config (section-level replacement).
-//! 2. **Context pre-loading** — [`LoadContext`](crate::graph::LoadContext)
+//! 2. **Context pre-loading** — [`LoadContext`](nvisy_ontology::workflow::LoadContext)
 //!    nodes are scanned and their context IDs are bulk-loaded from the
 //!    [`Registry`] into a [`ContextMap`](nvisy_ontology::context::ContextMap)
 //!    before execution begins.
@@ -30,11 +30,13 @@ use nvisy_ontology::context::{Context, ContextMap};
 use nvisy_ontology::entity::{DetectionOutput, Entities};
 use nvisy_ontology::policy::{Policies, RedactionEntry};
 use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
+use nvisy_ontology::workflow::{Graph, GraphNodeKind};
 use nvisy_provider::http::HttpClient;
 use schemars::JsonSchema;
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
+use validator::Validate;
 
 use super::config::RuntimeConfig;
 use super::executor::RunOutput;
@@ -44,7 +46,6 @@ use super::runs::state::{RunRecord, RunState};
 use super::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunSnapshot, RunStatus,
 };
-use crate::graph::{Graph, GraphNodeKind};
 use crate::operation::context::SharedContext;
 use crate::operation::encryption::SharedKeyProvider;
 use crate::registry::Registry;
@@ -62,7 +63,7 @@ pub struct EngineInput {
     pub policies: Policies,
     /// Execution graph defining the pipeline DAG.
     ///
-    /// Content identifiers live on [`ImportFile`](crate::graph::ImportFile)
+    /// Content identifiers live on [`ImportFile`](nvisy_ontology::workflow::ImportFile)
     /// nodes within the graph, not as a top-level field.
     pub graph: Graph,
     /// Per-request configuration overrides, merged with engine defaults
@@ -252,29 +253,26 @@ impl Engine {
             .or_else(|| effective_config.engine.as_ref().and_then(|e| e.concurrency));
 
         if let Some(ref c) = concurrency {
-            c.validate()?;
+            c.validate()
+                .map_err(|e| Error::validation(e.to_string(), "concurrency"))?;
         }
+
+        let record = RunRecord {
+            actor_id: input.actor_id,
+            status: RunStatus::Failed,
+            created_at: jiff::Timestamp::now(),
+            started_at: None,
+            completed_at: Some(jiff::Timestamp::now()),
+            nodes: HashMap::new(),
+            cancel: cancel.clone(),
+            entities_detected: 0,
+            redactions_applied: 0,
+        };
 
         let compiled = match plan::compile(&input.graph, limits.channel_buffer) {
             Ok(plan) => plan,
             Err(e) => {
-                self.inner
-                    .runs
-                    .insert(
-                        run_id,
-                        RunRecord {
-                            actor_id: input.actor_id,
-                            status: RunStatus::Failed,
-                            created_at: jiff::Timestamp::now(),
-                            started_at: None,
-                            completed_at: Some(jiff::Timestamp::now()),
-                            nodes: HashMap::new(),
-                            cancel: cancel.clone(),
-                            entities_detected: 0,
-                            redactions_applied: 0,
-                        },
-                    )
-                    .await;
+                self.inner.runs.insert(run_id, record).await;
                 return Err(e);
             }
         };

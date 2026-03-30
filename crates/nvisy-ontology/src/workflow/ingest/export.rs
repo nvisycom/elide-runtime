@@ -10,6 +10,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use validator::Validate;
 
 use super::{CompressionAlgorithm, EncryptionConfig};
 
@@ -19,7 +20,7 @@ use super::{CompressionAlgorithm, EncryptionConfig};
 /// steps that must be applied before the bytes are written out.
 ///
 /// [`ExportFile`]: crate::graph::GraphNodeKind::ExportFile
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ExportFile {
     /// Identifiers of content destinations to export to.

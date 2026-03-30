@@ -12,9 +12,9 @@ mod method;
 mod model;
 mod output;
 mod sensitivity;
+mod source;
 
 use derive_more::{Deref, DerefMut, From, IntoIterator};
-use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -31,6 +31,7 @@ pub use self::method::{ExtractionMethod, RecognitionMethod, RefinementMethod};
 pub use self::model::{ModelInfo, ModelKind};
 pub use self::output::DetectionOutput;
 pub use self::sensitivity::EntitySensitivity;
+pub use self::source::ContentSource;
 
 /// A detected sensitive data occurrence within a document.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

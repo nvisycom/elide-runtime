@@ -59,8 +59,5 @@ jobs:
           key: ${{ runner.os }}-cargo-publish-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-publish-
 
-      - name: Publish nvisy-core
-        run: cargo publish -p nvisy-core --token ${{ secrets.CARGO_TOKEN }}
-
       - name: Publish nvisy-ontology
         run: cargo publish -p nvisy-ontology --token ${{ secrets.CARGO_TOKEN }}

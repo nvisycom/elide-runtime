@@ -12,6 +12,7 @@ pub use self::voice::VoiceData;
 /// Biometric identity verification variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BiometricVariant {
     /// Reference face for identity matching.
     Face(FaceData),

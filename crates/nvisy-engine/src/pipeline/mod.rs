@@ -2,7 +2,7 @@
 //!
 //! The pipeline processes content through a directed acyclic graph (DAG)
 //! of operations — typically import → detect → evaluate → redact → export.
-//! Callers submit an [`EngineInput`] containing a [`Graph`](crate::graph::Graph),
+//! Callers submit an [`EngineInput`] containing a [`Graph`](nvisy_ontology::workflow::Graph),
 //! policies, and optional config overrides. The [`Engine`] compiles the graph
 //! into an execution plan, schedules nodes via the DAG orchestrator, and
 //! returns an [`EngineOutput`] with detection results, policy evaluations,
@@ -11,7 +11,7 @@
 //! # Submodules
 //!
 //! - `config` — [`RuntimeConfig`] and per-subsystem sections (OCR, LLM, STT, TTS).
-//! - `plan` — compiles a [`Graph`](crate::graph::Graph) into a topologically-sorted
+//! - `plan` — compiles a [`Graph`](nvisy_ontology::workflow::Graph) into a topologically-sorted
 //!   execution plan.
 //! - `orchestrator` — spawns one tokio task per node, gated by watch-channel
 //!   dependency signals and an optional concurrency semaphore.
@@ -26,12 +26,6 @@ mod executor;
 mod orchestrator;
 mod plan;
 mod runs;
-
-// Re-export ontology types used by the server layer.
-pub use nvisy_ontology::context::Context;
-pub use nvisy_ontology::entity::DetectionOutput;
-pub use nvisy_ontology::policy::{Policies, RedactionEntry};
-pub use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
 
 pub use self::config::{
     EngineSection, LlmSection, OcrSection, ResourceLimits, RuntimeConfig, SttSection, TtsSection,

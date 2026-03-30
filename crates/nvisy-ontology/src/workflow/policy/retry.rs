@@ -1,7 +1,5 @@
 //! User-facing retry policy configuration.
 
-use std::time::Duration;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -22,28 +20,6 @@ pub struct RetryPolicy {
     pub backoff: BackoffStrategy,
 }
 
-impl RetryPolicy {
-    /// Base delay as a [`Duration`].
-    pub fn base_delay(&self) -> Duration {
-        Duration::from_millis(self.delay_ms)
-    }
-
-    /// Computes the sleep duration for a given zero-based attempt number.
-    pub fn compute_delay(&self, attempt: u32) -> Duration {
-        let base = self.base_delay();
-        match self.backoff {
-            BackoffStrategy::Fixed => base,
-            BackoffStrategy::Exponential => base * 2u32.saturating_pow(attempt),
-            BackoffStrategy::Jitter => {
-                let exp = base * 2u32.saturating_pow(attempt);
-                let jitter_range = exp.as_millis() as u64 + 1;
-                let jitter = Duration::from_millis(rand::random_range(0..jitter_range));
-                exp + jitter
-            }
-        }
-    }
-}
-
 fn default_max_retries() -> u32 {
     3
 }
@@ -55,6 +31,7 @@ fn default_delay_ms() -> u64 {
 #[derive(Debug, Clone, Copy, Default)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum BackoffStrategy {
     /// Constant delay equal to `delay_ms` on every attempt.
     #[default]

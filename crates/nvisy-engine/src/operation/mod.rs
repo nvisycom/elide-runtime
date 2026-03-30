@@ -3,7 +3,7 @@
 //! Each operation file corresponds to a [`GraphNodeKind`] variant and
 //! implements the [`Operation`] trait with typed inputs and outputs.
 //!
-//! [`GraphNodeKind`]: crate::graph::GraphNodeKind
+//! [`GraphNodeKind`]: nvisy_ontology::workflow::GraphNodeKind
 
 pub(crate) mod compression;
 pub mod context;
@@ -28,17 +28,17 @@ use nvisy_core::Result;
 
 pub(crate) use self::entity_recognition::EntityRecognition;
 pub use self::envelope::DocumentEnvelope;
-pub(crate) use self::export_file::ExportFile;
-pub(crate) use self::fusion::Fusion;
-pub(crate) use self::generate_context::GenerateContext;
-pub(crate) use self::import_file::ImportFile;
-pub(crate) use self::load_context::LoadContext;
+pub(crate) use self::export_file::ExportFileOp;
+pub(crate) use self::fusion::FusionOp;
+pub(crate) use self::generate_context::GenerateContextOp;
+pub(crate) use self::import_file::ImportFileOp;
+pub(crate) use self::load_context::LoadContextOp;
 pub(crate) use self::pattern_recognition::PatternRecognition;
-pub(crate) use self::redaction::Redaction;
-pub(crate) use self::save_context::SaveContext;
-pub(crate) use self::speech::{AudialExtraction, AudioInput};
-pub(crate) use self::validation::{Validation, ValidationInput};
-pub(crate) use self::vision::{OcrOp, VerifyInput, VerifyOp, VisualExtraction};
+pub(crate) use self::redaction::RedactionOp;
+pub(crate) use self::save_context::SaveContextOp;
+pub(crate) use self::speech::{AudialExtractionOp, AudioInput};
+pub(crate) use self::validation::{ValidationInput, ValidationOp};
+pub(crate) use self::vision::VisualExtractionOp;
 
 /// A single unit of work in the redaction pipeline.
 ///

@@ -12,9 +12,9 @@
 //! 2. **Compression** — compress for storage or transfer (if format specified)
 
 use nvisy_core::Result;
+use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionConfig};
 use uuid::Uuid;
 
-use crate::graph::{CompressionAlgorithm, EncryptionConfig};
 use crate::operation::compression::CompressionService;
 use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::encryption::CryptoService;
@@ -29,13 +29,13 @@ const TARGET: &str = "nvisy_engine::op::export_file";
 /// [`SharedContext`] at call time — only graph-config fields
 /// (encryption, compression, content_ids) are stored on the struct.
 #[derive(Default)]
-pub struct ExportFile {
+pub struct ExportFileOp {
     encryption: Option<EncryptionConfig>,
     compression: Option<CompressionAlgorithm>,
     content_ids: Vec<Uuid>,
 }
 
-impl ExportFile {
+impl ExportFileOp {
     pub fn new() -> Self {
         Self::default()
     }
@@ -97,7 +97,7 @@ impl ExportFile {
     }
 }
 
-impl Operation for ExportFile {
+impl Operation for ExportFileOp {
     type Input = ParallelContext<DocumentEnvelope>;
     type Output = ParallelContext<DocumentEnvelope>;
 

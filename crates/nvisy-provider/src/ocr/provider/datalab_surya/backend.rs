@@ -2,8 +2,8 @@
 //!
 //! [`Backend`]: crate::Backend
 
-use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_core::{Error, Result};
+use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 

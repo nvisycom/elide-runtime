@@ -20,6 +20,7 @@ use super::sensitivity::EntitySensitivity;
 #[derive(EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum EntityKind {
     // Personal identity
     /// Person name (full, first, or last).

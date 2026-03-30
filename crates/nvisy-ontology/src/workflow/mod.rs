@@ -13,7 +13,6 @@ mod policy;
 mod refinement;
 mod validate;
 
-use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -29,6 +28,7 @@ pub use self::policy::{
     BackoffStrategy, ConcurrencyPolicy, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
 };
 pub use self::refinement::{Fusion, FusionStrategy, Redaction, Validation};
+use crate::Error;
 
 /// The set of strongly-typed actions a pipeline node can perform.
 ///
@@ -38,6 +38,7 @@ pub use self::refinement::{Fusion, FusionStrategy, Redaction, Validation};
 /// [`Operation`]: crate::operation::Operation
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum GraphNodeKind {
     /// Loads reference-data contexts required by downstream actions.
     LoadContext(LoadContext),
@@ -153,9 +154,9 @@ impl GraphNodeKind {
             Self::ImportFile(cfg) => validate_struct(cfg),
             Self::LoadContext(cfg) => validate_struct(cfg),
             Self::SaveContext(cfg) => validate_struct(cfg),
-            Self::NamedEntityRecognition(cfg) => cfg.validate(),
-            Self::ExportFile(_)
-            | Self::VisualExtraction(_)
+            Self::NamedEntityRecognition(cfg) => validate_struct(cfg),
+            Self::ExportFile(cfg) => validate_struct(cfg),
+            Self::VisualExtraction(_)
             | Self::AudialExtraction(_)
             | Self::PatternRecognition(_)
             | Self::Fusion(_)
@@ -231,6 +232,5 @@ impl Graph {
 }
 
 fn validate_struct(v: &impl Validate) -> Result<(), Error> {
-    v.validate()
-        .map_err(|e| Error::validation(e.to_string(), "compiler"))
+    v.validate().map_err(|e| Error::new(e.to_string()))
 }

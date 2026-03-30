@@ -11,6 +11,7 @@ use uuid::Uuid;
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum ReviewStatus {
     /// Awaiting human review.
     Pending,

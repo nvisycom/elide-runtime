@@ -16,6 +16,7 @@ pub use self::text::{TextData, TextEntry};
 /// Direct comparison reference variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ReferenceVariant {
     /// Names, identifiers, or phrases to match.
     Text(TextData),

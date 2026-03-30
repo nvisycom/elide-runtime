@@ -9,6 +9,7 @@ use strum::{Display, EnumString};
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum ModelKind {
     /// Open-source model (e.g. spaCy, Hugging Face community models).
     OpenSource,

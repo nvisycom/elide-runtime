@@ -18,11 +18,12 @@
 //! [orchestrator](super::orchestrator) to spawn concurrent tasks.
 
 use nvisy_core::{Error, Result};
+use nvisy_ontology::workflow::{Graph, GraphEdge, GraphNode};
 use petgraph::algo::toposort;
 use petgraph::graph::{DiGraph, NodeIndex};
 use uuid::Uuid;
 
-use crate::graph::{Graph, GraphEdge, GraphExt, GraphNode};
+use crate::graph::GraphExt;
 
 /// Channel configuration for a resolved edge.
 #[derive(Debug, Clone)]

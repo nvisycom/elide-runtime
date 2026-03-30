@@ -6,12 +6,11 @@
 //! or not, enabling reconstruction of the original from the redacted output
 //! when authorized.
 
-use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::entity::Location;
+use crate::entity::{ContentSource, Location};
 
 /// A single entry in a [`RedactionMap`], linking an entity and its redaction
 /// to a modality-specific location.

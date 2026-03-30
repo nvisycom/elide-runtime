@@ -11,6 +11,7 @@ use super::{Entities, Entity, EntityCategory, EntityKind, Location, RecognitionM
 #[derive(EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum AnnotationKind {
     /// Pre-identified sensitive region that should be treated as a detection.
     Inclusion,
@@ -25,6 +26,7 @@ pub enum AnnotationKind {
 #[derive(EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum AnnotationScope {
     /// Label applies to the entire document.
     Document,

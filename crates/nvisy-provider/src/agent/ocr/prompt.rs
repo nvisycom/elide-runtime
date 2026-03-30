@@ -68,8 +68,8 @@ whichever fields changed: category, entity_type, value, bbox.";
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::math::BoundingBox;
     use nvisy_ontology::entity::{EntityCategory, EntityKind};
+    use nvisy_ontology::math::BoundingBox;
 
     use super::*;
 

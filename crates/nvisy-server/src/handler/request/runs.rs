@@ -1,7 +1,8 @@
 //! Run request types.
 
-use nvisy_engine::graph::Graph;
-use nvisy_engine::pipeline::{Policies, RunStatus, RuntimeConfig};
+use nvisy_engine::pipeline::{RunStatus, RuntimeConfig};
+use nvisy_ontology::policy::Policies;
+use nvisy_ontology::workflow::Graph;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -12,7 +13,7 @@ use super::Pagination;
 /// Content identifiers are specified on [`Import`] nodes within the
 /// graph, not as a top-level field.
 ///
-/// [`Import`]: nvisy_engine::graph::Import
+/// [`Import`]: nvisy_ontology::workflow::ImportFile
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewRun {

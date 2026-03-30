@@ -4,8 +4,8 @@
 
 use std::fmt;
 
-use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_core::{Error, Result};
+use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 

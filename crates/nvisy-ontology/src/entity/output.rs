@@ -2,13 +2,13 @@
 
 use std::time::Duration;
 
-use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DurationMicroSeconds, serde_as};
 use uuid::Uuid;
 
 use super::Entities;
+use crate::entity::ContentSource;
 
 /// The output of a detection pass over a single content source.
 #[serde_as]

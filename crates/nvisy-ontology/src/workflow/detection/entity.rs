@@ -4,9 +4,9 @@
 //! language-model inference to identify and classify named entities within the
 //! extracted text, optionally filtering by entity kind and confidence score.
 
-use nvisy_core::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::entity::EntityKind;
 
@@ -16,7 +16,8 @@ use crate::entity::EntityKind;
 /// threshold below which detections are discarded.
 ///
 /// [`NamedEntityRecognition`]: crate::graph::GraphNodeKind::NamedEntityRecognition
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Validate)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct NamedEntityRecognition {
     /// Entity kinds to detect. An empty list means all known kinds.
     #[serde(default)]
@@ -24,20 +25,6 @@ pub struct NamedEntityRecognition {
     /// Minimum confidence threshold for detections (0.0 to 1.0).
     /// When `None`, confidence filtering is disabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[validate(range(min = 0.0, max = 1.0))]
     pub confidence_threshold: Option<f64>,
-}
-
-impl NamedEntityRecognition {
-    /// Validates that the confidence threshold, if set, is within `0.0..=1.0`.
-    pub fn validate(&self) -> Result<(), Error> {
-        if let Some(t) = self.confidence_threshold
-            && !(0.0..=1.0).contains(&t)
-        {
-            return Err(Error::validation(
-                format!("confidence_threshold must be between 0.0 and 1.0, got {t}"),
-                "compiler",
-            ));
-        }
-        Ok(())
-    }
 }

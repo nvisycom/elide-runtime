@@ -10,6 +10,7 @@ pub use self::date::DateData;
 /// Temporal matching variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum TemporalVariant {
     /// Date or date-range to match.
     Date(DateData),

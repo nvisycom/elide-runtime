@@ -18,6 +18,7 @@ use super::temporal::TemporalVariant;
 /// keeping modality and semantic purpose cleanly separated.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "domain", content = "data", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum ContextEntryData {
     /// Identity verification via biological traits.
     Biometric(BiometricVariant),

@@ -1,10 +1,10 @@
 //! Pipeline-facing redaction decision.
 
-use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::entity::ContentSource;
 use crate::policy::Strategy;
 
 /// A pipeline-facing decision recording how a specific entity should be redacted.

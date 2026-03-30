@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use std::fmt;
 
 use hmac::{Hmac, Mac};
-use nvisy_core::math::{BoundingBox, Polygon, Vertex};
 use nvisy_core::{Error, Result};
+use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 

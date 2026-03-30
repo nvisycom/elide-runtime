@@ -18,7 +18,8 @@ use aide::transform::TransformOperation;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{Context, Engine};
+use nvisy_engine::pipeline::Engine;
+use nvisy_ontology::context::Context;
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 

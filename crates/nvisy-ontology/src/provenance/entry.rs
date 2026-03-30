@@ -17,6 +17,7 @@ use super::AuditEntryKind;
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum AuditEntryStatus {
     /// Operation completed successfully.
     Success,

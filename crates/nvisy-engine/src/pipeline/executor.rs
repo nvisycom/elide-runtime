@@ -26,6 +26,11 @@ use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_codec::{Document, Span};
 use nvisy_core::content::Content;
 use nvisy_core::{Error, ErrorKind};
+use nvisy_ontology::workflow::{
+    AudialExtraction, ExportFile, Fusion, GenerateContext, GraphNode, GraphNodeKind, ImportFile,
+    LoadContext, NamedEntityRecognition, Redaction, RetryPolicy, SaveContext, TimeoutBehavior,
+    TimeoutPolicy, Validation, VisualExtraction,
+};
 use nvisy_provider::http::HttpClient;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -33,15 +38,12 @@ use tokio_util::sync::CancellationToken;
 use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
 use super::runs::RunStatus;
-use crate::graph::{
-    self, GraphNode, GraphNodeKind, RetryExt, RetryPolicy, TimeoutBehavior, TimeoutExt,
-    TimeoutPolicy,
-};
+use crate::graph::{RetryExt, TimeoutExt};
 use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
 use crate::operation::{
-    AudialExtraction, AudioInput, DocumentEnvelope, EntityRecognition, ExportFile, Fusion,
-    GenerateContext, ImportFile, LoadContext, OcrOp, Operation, PatternRecognition, Redaction,
-    SaveContext, Validation, ValidationInput, VerifyInput, VerifyOp, VisualExtraction,
+    AudialExtractionOp, AudioInput, DocumentEnvelope, EntityRecognition, ExportFileOp, FusionOp,
+    GenerateContextOp, ImportFileOp, LoadContextOp, Operation, PatternRecognition, RedactionOp,
+    SaveContextOp, ValidationInput, ValidationOp, VisualExtractionOp,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::executor";
@@ -135,8 +137,8 @@ impl NodeExecutor {
 
     /// Execute a resolved node, applying timeout and cancellation policies.
     ///
-    /// If the node has a [`TimeoutPolicy`](crate::graph::TimeoutPolicy)
-    /// with [`TimeoutBehavior::Skip`](crate::graph::TimeoutBehavior::Skip),
+    /// If the node has a [`TimeoutPolicy`](nvisy_ontology::workflow::TimeoutPolicy)
+    /// with [`TimeoutBehavior::Skip`](nvisy_ontology::workflow::TimeoutBehavior::Skip),
     /// a timeout produces an empty success rather than an error.
     pub async fn execute(
         &self,
@@ -239,21 +241,24 @@ impl NodeExecutor {
             GraphNodeKind::GenerateContext(cfg) => {
                 self.execute_generate_context(cfg, senders, receivers).await
             }
+            _ => Err(Error::runtime(
+                format!("unsupported graph node kind: {kind}"),
+                "executor",
+                false,
+            )),
         }
     }
 
     /// Run OCR on image spans, optionally verifying detected entities.
     async fn execute_visual_extraction(
         &self,
-        cfg: &graph::VisualExtraction,
+        cfg: &VisualExtraction,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let shared = &self.ctx.shared;
-        let vis = VisualExtraction::new(cfg, &self.ctx.config, &self.ctx.http_client)?;
+        let vis = VisualExtractionOp::new(cfg, &self.ctx.config, &self.ctx.http_client)?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
-            let agent = vis.agent();
-            let shared = shared.clone();
+            let vis = &vis;
             async move {
                 tracing::debug!(target: TARGET, "extracting image spans for OCR");
                 let image_spans: Vec<_> = envelope.document.collect_image_spans().await;
@@ -263,11 +268,9 @@ impl NodeExecutor {
                         .map(|s| Span::new((), s.data).with_source(s.source))
                         .collect();
 
-                    let ocr_op = OcrOp::new(agent);
-                    let input = ParallelContext::new(ocr_spans, shared.clone());
-                    let _ocr_output = ocr_op.call(input).await?;
+                    let _ocr_output = vis.extract(ocr_spans).await?;
 
-                    if agent.has_verifier() && !envelope.entities.is_empty() {
+                    if vis.agent().has_verifier() && !envelope.entities.is_empty() {
                         let verify_spans: Vec<_> = envelope
                             .document
                             .collect_image_spans()
@@ -275,14 +278,8 @@ impl NodeExecutor {
                             .into_iter()
                             .map(|s| Span::new((), s.data).with_source(s.source))
                             .collect();
-                        let verify_input = VerifyInput {
-                            image_spans: verify_spans,
-                            entities: envelope.entities.clone(),
-                        };
-                        let verify_op = VerifyOp::new(agent);
-                        let input = ParallelContext::new(verify_input, shared.clone());
-                        match verify_op.call(input).await {
-                            Ok(output) => envelope.apply(output.into_inner()),
+                        match vis.verify(&verify_spans, envelope.entities.clone()).await {
+                            Ok(output) => envelope.apply(output),
                             Err(e) => tracing::warn!(
                                 target: TARGET, error = %e,
                                 "OCR verification failed, keeping unverified entities"
@@ -300,12 +297,12 @@ impl NodeExecutor {
     /// Transcribe audio documents via STT and replace the document with text.
     async fn execute_audial_extraction(
         &self,
-        cfg: &graph::AudialExtraction,
+        cfg: &AudialExtraction,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = AudialExtraction::new(cfg, &self.ctx.config, &self.ctx.http_client)?;
+        let op = AudialExtractionOp::new(cfg, &self.ctx.config, &self.ctx.http_client)?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -350,7 +347,7 @@ impl NodeExecutor {
     /// Run named entity recognition on text spans via the LLM agent.
     async fn execute_ner(
         &self,
-        cfg: &graph::NamedEntityRecognition,
+        cfg: &NamedEntityRecognition,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
@@ -403,12 +400,12 @@ impl NodeExecutor {
     /// Merge overlapping or adjacent entities from multiple detection sources.
     async fn execute_fusion(
         &self,
-        cfg: &graph::Fusion,
+        cfg: &Fusion,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = Fusion::new(cfg);
+        let op = FusionOp::new(cfg);
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -428,12 +425,12 @@ impl NodeExecutor {
     /// Evaluate redaction policies against detected entities.
     async fn execute_redaction(
         &self,
-        cfg: &graph::Redaction,
+        cfg: &Redaction,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = Redaction::new(cfg, shared).await?;
+        let op = RedactionOp::new(cfg, shared).await?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -453,12 +450,12 @@ impl NodeExecutor {
     /// Validate redaction decisions against the final document state.
     async fn execute_validation(
         &self,
-        cfg: &graph::Validation,
+        cfg: &Validation,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = Validation::new(cfg);
+        let op = ValidationOp::new(cfg);
         let count = process_envelopes(senders, receivers, |envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -493,12 +490,12 @@ impl NodeExecutor {
     /// Attach pre-loaded context references to each envelope.
     async fn execute_load_context(
         &self,
-        cfg: &graph::LoadContext,
+        cfg: &LoadContext,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = LoadContext::new(cfg);
+        let op = LoadContextOp::new(cfg);
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -517,12 +514,12 @@ impl NodeExecutor {
     /// Persist envelope contexts back to the registry.
     async fn execute_save_context(
         &self,
-        cfg: &graph::SaveContext,
+        cfg: &SaveContext,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = SaveContext::new(cfg);
+        let op = SaveContextOp::new(cfg);
         let count = process_envelopes(senders, receivers, |envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -540,12 +537,12 @@ impl NodeExecutor {
     /// Generate new context entries (currently a passthrough).
     async fn execute_generate_context(
         &self,
-        cfg: &graph::GenerateContext,
+        cfg: &GenerateContext,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = GenerateContext::new(cfg);
+        let op = GenerateContextOp::new(cfg);
         let count = process_envelopes(senders, receivers, |envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -563,11 +560,11 @@ impl NodeExecutor {
     /// Load content from the registry, decode it, and send envelopes downstream.
     async fn execute_import(
         &self,
-        cfg: &graph::ImportFile,
+        cfg: &ImportFile,
         retry: Option<&RetryPolicy>,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let import = ImportFile::new()
+        let import = ImportFileOp::new()
             .with_decompression(cfg.decompression)
             .with_decryption(cfg.decryption.clone());
 
@@ -604,10 +601,10 @@ impl NodeExecutor {
     /// Collect processed envelopes and write them to the configured output.
     async fn execute_export(
         &self,
-        cfg: &graph::ExportFile,
+        cfg: &ExportFile,
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
-        let export = ExportFile::new()
+        let export = ExportFileOp::new()
             .with_encryption(cfg.encryption.clone())
             .with_compression(cfg.compression)
             .with_content_ids(cfg.content_ids.clone());

@@ -7,9 +7,9 @@
 
 use nvisy_core::Result;
 use nvisy_ontology::context::Contexts;
+use nvisy_ontology::workflow::SaveContext;
 use uuid::Uuid;
 
-use crate::graph::SaveContext as SaveContextCfg;
 use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
 
@@ -22,20 +22,20 @@ const TARGET: &str = "nvisy_engine::op::save_context";
 /// are stored on the struct.
 ///
 /// [`SharedContext`]: crate::operation::context::SharedContext
-pub struct SaveContext {
+pub struct SaveContextOp {
     context_ids: Vec<Uuid>,
 }
 
-impl SaveContext {
+impl SaveContextOp {
     /// Create from graph config.
-    pub fn new(cfg: &SaveContextCfg) -> Self {
+    pub fn new(cfg: &SaveContext) -> Self {
         Self {
             context_ids: cfg.context_ids.clone(),
         }
     }
 }
 
-impl Operation for SaveContext {
+impl Operation for SaveContextOp {
     type Input = ParallelContext<Contexts>;
     type Output = ParallelContext<()>;
 

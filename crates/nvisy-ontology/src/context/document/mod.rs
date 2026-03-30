@@ -12,6 +12,7 @@ pub use self::template::TemplateData;
 /// Document-related reference variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum DocumentVariant {
     /// Reference document template for layout classification.
     Template(TemplateData),

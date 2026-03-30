@@ -7,7 +7,7 @@
 //!    (initialized to `false`, flipped to `true` on completion).
 //! 2. Acquires a permit from the optional concurrency
 //!    [`Semaphore`](tokio::sync::Semaphore) (configured via
-//!    [`ConcurrencyPolicy`](crate::graph::ConcurrencyPolicy)).
+//!    [`ConcurrencyPolicy`](nvisy_ontology::workflow::ConcurrencyPolicy)).
 //! 3. Delegates to [`NodeExecutor::execute`] for operation dispatch.
 //! 4. Reports node status updates to the shared [`RunState`] for live
 //!    progress visibility.
@@ -22,6 +22,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
+use nvisy_ontology::workflow::ConcurrencyPolicy;
 use nvisy_provider::http::HttpClient;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinSet;
@@ -33,7 +34,7 @@ use super::executor::{NodeContext, NodeExecutor, NodeOutput, RunOutput};
 use super::plan::ExecutionPlan;
 use super::runs::NodeStatus;
 use super::runs::state::RunState;
-use crate::graph::ConcurrencyPolicy;
+use crate::graph::ConcurrencyExt;
 use crate::operation::DocumentEnvelope;
 use crate::operation::context::SharedContext;
 
@@ -100,7 +101,7 @@ pub(super) async fn run_graph(
         dry_run,
     } = ctx;
 
-    let semaphore = concurrency.map(|c| Arc::new(tokio::sync::Semaphore::new(c.max_nodes)));
+    let semaphore = concurrency.map(|c| c.to_semaphore());
 
     let mut senders: HashMap<Uuid, Vec<mpsc::Sender<Arc<DocumentEnvelope>>>> = HashMap::new();
     let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>> = HashMap::new();

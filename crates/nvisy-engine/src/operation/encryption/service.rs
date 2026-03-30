@@ -5,10 +5,10 @@ use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use bytes::Bytes;
 use nvisy_core::content::ContentData;
 use nvisy_core::{Error, Result};
+use nvisy_ontology::workflow::EncryptionAlgorithm;
 
 use super::provider::{KeyProvider, SharedKeyProvider};
 use super::wire::{EncryptedContent, WireEnvelope};
-use crate::graph::EncryptionAlgorithm;
 
 const TARGET: &str = "nvisy_engine::op::encryption";
 

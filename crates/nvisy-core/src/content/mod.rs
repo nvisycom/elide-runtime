@@ -11,11 +11,11 @@ mod content_data;
 mod content_metadata;
 mod data_reference;
 mod encoding;
-mod source;
+
+pub use nvisy_ontology::entity::ContentSource;
 
 pub use self::bundle::Content;
 pub use self::content_data::ContentData;
 pub use self::content_metadata::ContentMetadata;
 pub use self::data_reference::DataReference;
 pub use self::encoding::TextEncoding;
-pub use self::source::ContentSource;

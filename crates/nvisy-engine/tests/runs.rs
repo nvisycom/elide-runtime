@@ -158,7 +158,7 @@ async fn failed_run_appears_in_listing() -> anyhow::Result<()> {
     let actor = fixtures::actor();
 
     // An empty graph will fail compilation, creating a Failed run entry.
-    let graph = nvisy_engine::graph::Graph::new(vec![], vec![]);
+    let graph = nvisy_ontology::workflow::Graph::new(vec![], vec![]);
     let input = fixtures::engine_input(actor, graph);
     let result = engine.run(input).await;
     assert!(result.is_err());
@@ -175,7 +175,7 @@ async fn failed_run_can_be_deleted() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
-    let graph = nvisy_engine::graph::Graph::new(vec![], vec![]);
+    let graph = nvisy_ontology::workflow::Graph::new(vec![], vec![]);
     let input = fixtures::engine_input(actor, graph);
     let _ = engine.run(input).await;
 
@@ -194,7 +194,7 @@ async fn delete_all_runs_clears_finished() -> anyhow::Result<()> {
     let actor = fixtures::actor();
 
     for _ in 0..2 {
-        let graph = nvisy_engine::graph::Graph::new(vec![], vec![]);
+        let graph = nvisy_ontology::workflow::Graph::new(vec![], vec![]);
         let _ = engine.run(fixtures::engine_input(actor, graph)).await;
     }
 
@@ -215,7 +215,7 @@ async fn runs_isolated_between_actors() -> anyhow::Result<()> {
     let actor_a = fixtures::actor();
     let actor_b = fixtures::actor();
 
-    let graph = nvisy_engine::graph::Graph::new(vec![], vec![]);
+    let graph = nvisy_ontology::workflow::Graph::new(vec![], vec![]);
     let _ = engine.run(fixtures::engine_input(actor_a, graph)).await;
 
     let a_runs = engine.list_runs(actor_a, RunFilter { status: None }).await;
@@ -230,7 +230,7 @@ async fn analytics_reflects_failed_run() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
-    let graph = nvisy_engine::graph::Graph::new(vec![], vec![]);
+    let graph = nvisy_ontology::workflow::Graph::new(vec![], vec![]);
     let _ = engine.run(fixtures::engine_input(actor, graph)).await;
 
     let snap = engine.snapshot().await;

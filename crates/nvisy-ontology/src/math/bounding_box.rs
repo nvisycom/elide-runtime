@@ -1,4 +1,4 @@
-//! Axis-aligned bounding box types.
+//! Axis-aligned bounding box type.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 /// Axis-aligned bounding box for image-based entity locations.
 ///
 /// Coordinates are `f64` to support both pixel and normalized (0.0–1.0)
-/// values from detection models. Use [`BoundingBoxPixel`] (or [`Into`])
-/// when integer pixel coordinates are needed for rendering.
+/// values from detection models.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct BoundingBox {
@@ -111,42 +110,13 @@ impl BoundingBox {
     }
 
     /// Convert to integer pixel coordinates by rounding each field.
-    pub fn to_pixel(&self) -> BoundingBoxPixel {
-        BoundingBoxPixel {
+    pub fn to_pixel(&self) -> super::BoundingBoxPixel {
+        super::BoundingBoxPixel {
             x: self.x.round() as u32,
             y: self.y.round() as u32,
             width: self.width.round() as u32,
             height: self.height.round() as u32,
         }
-    }
-}
-
-/// Integer pixel-coordinate bounding box for rendering operations.
-///
-/// Converted from [`BoundingBox`] by rounding each field to the nearest
-/// integer. Use this at the rendering boundary where pixel-exact
-/// coordinates are required.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BoundingBoxPixel {
-    /// Horizontal offset of the top-left corner in pixels.
-    pub x: u32,
-    /// Vertical offset of the top-left corner in pixels.
-    pub y: u32,
-    /// Width in pixels.
-    pub width: u32,
-    /// Height in pixels.
-    pub height: u32,
-}
-
-impl From<&BoundingBox> for BoundingBoxPixel {
-    fn from(bb: &BoundingBox) -> Self {
-        bb.to_pixel()
-    }
-}
-
-impl From<BoundingBox> for BoundingBoxPixel {
-    fn from(bb: BoundingBox) -> Self {
-        Self::from(&bb)
     }
 }
 
@@ -218,15 +188,5 @@ mod tests {
 
         let c = BoundingBox::new(20.0, 20.0, 10.0, 10.0);
         assert!(a.iou(&c).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn to_pixel_rounds() {
-        let bb = BoundingBox::new(1.4, 2.6, 3.5, 4.4);
-        let u = bb.to_pixel();
-        assert_eq!(u.x, 1);
-        assert_eq!(u.y, 3);
-        assert_eq!(u.width, 4);
-        assert_eq!(u.height, 4);
     }
 }

@@ -1,7 +1,5 @@
 //! User-facing timeout policy configuration.
 
-use std::time::Duration;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -17,17 +15,11 @@ pub struct TimeoutPolicy {
     pub on_timeout: TimeoutBehavior,
 }
 
-impl TimeoutPolicy {
-    /// Returns the timeout duration.
-    pub fn duration(&self) -> Duration {
-        Duration::from_millis(self.duration_ms)
-    }
-}
-
 /// Behaviour when a node exceeds its [`TimeoutPolicy`] deadline.
 #[derive(Debug, Clone, Copy, Default)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum TimeoutBehavior {
     /// Return an error and propagate the failure.
     #[default]

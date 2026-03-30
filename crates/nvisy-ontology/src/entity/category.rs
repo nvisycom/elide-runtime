@@ -17,6 +17,7 @@ use strum::{Display, EnumString};
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum EntityCategory {
     /// Personal identity: names, government IDs, dates of birth, and
     /// other attributes that directly identify a natural person.

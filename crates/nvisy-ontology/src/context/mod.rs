@@ -14,12 +14,12 @@ pub mod temporal;
 
 use std::collections::HashMap;
 
-use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use self::entry::{ContextEntry, ContextEntryData};
+use crate::entity::ContentSource;
 
 /// A collection of [`Context`]s keyed by their source UUID.
 ///

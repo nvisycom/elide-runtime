@@ -338,7 +338,8 @@ mod tests {
     use std::collections::HashMap;
 
     use nvisy_ontology::entity::{
-        EntityCategory, EntityKind, ExtractionMethod, RecognitionMethod, TextLocation,
+        EntityBuilder, EntityCategory, EntityKind, ExtractionMethod, Location,
+        RecognitionMethod, TextLocation,
     };
     use nvisy_ontology::workflow::FusionStrategy::*;
 
@@ -351,21 +352,19 @@ mod tests {
         start: usize,
         end: usize,
     ) -> Entity {
-        Entity::new(
-            EntityCategory::PersonalIdentity,
-            EntityKind::PersonName,
-            value,
-            method,
-            confidence,
-        )
-        .with_location(
-            TextLocation {
+        EntityBuilder::default()
+            .with_category(EntityCategory::PersonalIdentity)
+            .with_entity_kind(EntityKind::PersonName)
+            .with_value(value)
+            .with_recognition_methods(vec![method])
+            .with_confidence(confidence)
+            .with_location(Location::from(TextLocation {
                 start_offset: start,
                 end_offset: end,
                 ..Default::default()
-            }
-            .into(),
-        )
+            }))
+            .build()
+            .unwrap()
     }
 
     #[test]

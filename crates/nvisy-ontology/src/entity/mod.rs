@@ -14,6 +14,7 @@ mod output;
 mod sensitivity;
 mod source;
 
+use derive_builder::Builder;
 use derive_more::{Deref, DerefMut, From, IntoIterator};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -34,10 +35,17 @@ pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;
 
 /// A detected sensitive data occurrence within a document.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Builder)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[builder(
+    name = "EntityBuilder",
+    pattern = "owned",
+    setter(into, strip_option, prefix = "with")
+)]
 #[serde(rename_all = "camelCase")]
 pub struct Entity {
     /// Content source identity and lineage.
+    #[builder(default)]
     pub source: ContentSource,
     /// Broad classification of the sensitive data.
     pub category: EntityCategory,
@@ -47,36 +55,43 @@ pub struct Entity {
     /// The matched text or value.
     pub value: String,
     /// How content was extracted from its source modality, ordered by application time.
+    #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extraction_methods: Vec<ExtractionMethod>,
     /// Techniques used to identify this entity, ordered by application time.
     pub recognition_methods: Vec<RecognitionMethod>,
     /// Post-detection refinements applied to this entity, ordered by application time.
+    #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refinement_methods: Vec<RefinementMethod>,
     /// Detection confidence score in the range `[0.0, 1.0]`.
     pub confidence: f64,
     /// Modality-specific location of the entity.
+    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<Location>,
     /// BCP-47 language tag of the detected content.
+    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
     /// Detection model that produced this entity.
+    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelInfo>,
 }
 
 impl Entity {
-    /// The unique identifier for this entity (delegates to `source.as_uuid()`).
+    /// Create a new [`EntityBuilder`].
+    pub fn builder() -> EntityBuilder {
+        EntityBuilder::default()
+    }
+
+    /// The unique identifier for this entity.
     pub fn id(&self) -> Uuid {
         self.source.as_uuid()
     }
 
     /// Create a new entity with the given recognition method and confidence.
-    ///
-    /// The `category` is derived from `entity_kind` via
-    /// [`EntityKind::category()`] when not supplied explicitly.
     pub fn new(
         category: EntityCategory,
         entity_kind: EntityKind,
@@ -84,19 +99,14 @@ impl Entity {
         recognition_method: RecognitionMethod,
         confidence: f64,
     ) -> Self {
-        Self {
-            source: ContentSource::new(),
-            category,
-            entity_kind,
-            value: value.into(),
-            extraction_methods: Vec::new(),
-            recognition_methods: vec![recognition_method],
-            refinement_methods: Vec::new(),
-            confidence,
-            location: None,
-            language: None,
-            model: None,
-        }
+        EntityBuilder::default()
+            .with_category(category)
+            .with_entity_kind(entity_kind)
+            .with_value(value.into())
+            .with_recognition_methods(vec![recognition_method])
+            .with_confidence(confidence)
+            .build()
+            .expect("required fields provided")
     }
 
     /// Create a new entity, deriving the category from the entity kind.
@@ -124,24 +134,6 @@ impl Entity {
     /// Set the parent source for lineage tracking.
     pub fn with_parent(mut self, parent: &ContentSource) -> Self {
         self.source = self.source.with_parent(parent);
-        self
-    }
-
-    /// Set the BCP-47 language tag.
-    pub fn with_language(mut self, language: impl Into<String>) -> Self {
-        self.language = Some(language.into());
-        self
-    }
-
-    /// Set the detection model.
-    pub fn with_model(mut self, model: ModelInfo) -> Self {
-        self.model = Some(model);
-        self
-    }
-
-    /// Copy the location from another entity.
-    pub fn copy_location_from(mut self, other: &Self) -> Self {
-        self.location = other.location.clone();
         self
     }
 }

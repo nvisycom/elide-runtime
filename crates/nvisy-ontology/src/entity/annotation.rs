@@ -166,10 +166,16 @@ impl Annotations {
                 None => continue,
             };
             let value = ann.value.clone().unwrap_or_default();
-            let mut entity =
-                Entity::new(category, entity_kind, value, RecognitionMethod::Manual, 1.0);
-            entity.location = ann.location.clone();
-            entities.push(entity);
+            let mut builder = Entity::builder()
+                .with_category(category)
+                .with_entity_kind(entity_kind)
+                .with_value(value)
+                .with_recognition_methods(vec![RecognitionMethod::Manual])
+                .with_confidence(1.0);
+            if let Some(ref loc) = ann.location {
+                builder = builder.with_location(loc.clone());
+            }
+            entities.push(builder.build().expect("required fields provided"));
         }
     }
 }

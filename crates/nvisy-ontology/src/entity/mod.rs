@@ -91,46 +91,6 @@ impl Entity {
         self.source.as_uuid()
     }
 
-    /// Create a new entity with the given recognition method and confidence.
-    pub fn new(
-        category: EntityCategory,
-        entity_kind: EntityKind,
-        value: impl Into<String>,
-        recognition_method: RecognitionMethod,
-        confidence: f64,
-    ) -> Self {
-        EntityBuilder::default()
-            .with_category(category)
-            .with_entity_kind(entity_kind)
-            .with_value(value.into())
-            .with_recognition_methods(vec![recognition_method])
-            .with_confidence(confidence)
-            .build()
-            .expect("required fields provided")
-    }
-
-    /// Create a new entity, deriving the category from the entity kind.
-    pub fn from_kind(
-        entity_kind: EntityKind,
-        value: impl Into<String>,
-        recognition_method: RecognitionMethod,
-        confidence: f64,
-    ) -> Self {
-        Self::new(
-            entity_kind.category(),
-            entity_kind,
-            value,
-            recognition_method,
-            confidence,
-        )
-    }
-
-    /// Set the modality-specific location on this entity.
-    pub fn with_location(mut self, location: Location) -> Self {
-        self.location = Some(location);
-        self
-    }
-
     /// Set the parent source for lineage tracking.
     pub fn with_parent(mut self, parent: &ContentSource) -> Self {
         self.source = self.source.with_parent(parent);

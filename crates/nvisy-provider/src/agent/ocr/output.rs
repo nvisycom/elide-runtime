@@ -57,31 +57,41 @@ impl VerifiedEntity {
         match self.status {
             VerificationStatus::Rejected => None,
             VerificationStatus::Corrected => {
-                let mut corrected = Entity::new(
-                    self.category.unwrap_or(entity.category),
-                    self.entity_type.unwrap_or(entity.entity_kind),
-                    self.value.as_deref().unwrap_or(&entity.value),
-                    RecognitionMethod::Ner,
-                    self.confidence,
-                );
-                corrected.extraction_methods = vec![ExtractionMethod::OpticalCharacterRecognition];
-                corrected
-                    .refinement_methods
-                    .push(RefinementMethod::ModelVerification);
-                corrected.source = entity.source;
-
-                if let Some(bbox) = self.bbox {
-                    corrected = corrected.with_location(
+                let location = if let Some(bbox) = self.bbox {
+                    Some(
                         ImageLocation {
                             bounding_box: bbox,
                             image_id: None,
                             page_number: None,
                         }
                         .into(),
-                    );
-                } else if let Some(loc) = entity.location {
-                    corrected.location = Some(loc);
+                    )
+                } else {
+                    entity.location
+                };
+
+                let mut builder = Entity::builder()
+                    .with_source(entity.source)
+                    .with_category(self.category.unwrap_or(entity.category))
+                    .with_entity_kind(self.entity_type.unwrap_or(entity.entity_kind))
+                    .with_value(
+                        self.value
+                            .as_deref()
+                            .unwrap_or(&entity.value)
+                            .to_owned(),
+                    )
+                    .with_recognition_methods(vec![RecognitionMethod::Ner])
+                    .with_extraction_methods(vec![
+                        ExtractionMethod::OpticalCharacterRecognition,
+                    ])
+                    .with_refinement_methods(vec![RefinementMethod::ModelVerification])
+                    .with_confidence(self.confidence);
+
+                if let Some(loc) = location {
+                    builder = builder.with_location(loc);
                 }
+
+                let corrected = builder.build().expect("required fields provided");
 
                 Some(corrected)
             }

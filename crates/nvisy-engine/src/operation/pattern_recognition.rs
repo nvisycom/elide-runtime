@@ -34,23 +34,24 @@ impl PatternRecognition {
         for span in spans {
             let matches = engine.scan_text(span.data.as_str(), &scan_ctx);
             for m in matches {
-                let entity = Entity::new(
-                    m.category,
-                    m.entity_kind,
-                    &m.value,
-                    RecognitionMethod::Regex,
-                    m.confidence,
-                )
-                .with_location(
-                    TextLocation {
-                        start_offset: m.start,
-                        end_offset: m.end,
-                        element_id: Some(span.id.to_string()),
-                        ..Default::default()
-                    }
-                    .into(),
-                )
-                .with_parent(&span.source);
+                let entity = Entity::builder()
+                    .with_category(m.category)
+                    .with_entity_kind(m.entity_kind)
+                    .with_value(&m.value)
+                    .with_recognition_methods(vec![RecognitionMethod::Regex])
+                    .with_confidence(m.confidence)
+                    .with_location(
+                        TextLocation {
+                            start_offset: m.start,
+                            end_offset: m.end,
+                            element_id: Some(span.id.to_string()),
+                            ..Default::default()
+                        }
+                        .into(),
+                    )
+                    .build()
+                    .expect("required fields provided")
+                    .with_parent(&span.source);
                 entities.push(entity);
             }
         }

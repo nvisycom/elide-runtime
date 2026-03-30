@@ -36,7 +36,6 @@ impl GroupingCriteria {
                 let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
                 long.contains(short)
             }
-            _ => a == b,
         }
     }
 

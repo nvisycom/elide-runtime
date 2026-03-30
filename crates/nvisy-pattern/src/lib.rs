@@ -8,5 +8,5 @@ pub mod patterns;
 pub(crate) mod validators;
 
 pub use self::engine::{
-    AllowList, DenyList, DenyRule, PatternEngine, PatternEngineBuilder, RawMatch, ScanContext,
+    AllowList, DenyList, DenyRule, PatternEngine, PatternEngineBuilder, ScanContext,
 };

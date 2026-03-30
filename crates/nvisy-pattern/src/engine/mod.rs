@@ -24,13 +24,13 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use aho_corasick::AhoCorasick;
-use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
+use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod, TextLocation};
 use regex::{Regex, RegexSet};
 
 pub use self::allow_list::AllowList;
 pub use self::builder::PatternEngineBuilder;
 pub use self::deny_list::{DenyList, DenyRule};
-pub use self::pattern_match::RawMatch;
+pub(crate) use self::pattern_match::RawMatch;
 pub use self::scan_context::ScanContext;
 use crate::patterns::{ContextRule, DictionaryConfidence};
 use crate::validators::ValidatorResolver;
@@ -126,15 +126,44 @@ impl PatternEngine {
     /// Matches whose value appears in the allow list are suppressed.
     /// Deny-list values found in the text are injected as synthetic matches
     /// with confidence `1.0` when not already matched.
-    #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), matches = tracing::field::Empty))]
-    pub fn scan_text(&self, text: &str, ctx: &ScanContext) -> Vec<RawMatch> {
+    /// Scan `text` and return detected entities with [`TextLocation`]s.
+    ///
+    /// Each entity carries a [`TextLocation`] with `start_offset` and
+    /// `end_offset` set from the match. The caller is responsible for
+    /// attaching `element_id` and parent source from the span context.
+    #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), entities = tracing::field::Empty))]
+    pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
+        let raw = self.scan_raw(text, ctx);
+        let entities: Vec<Entity> = raw
+            .into_iter()
+            .map(|m| {
+                let start = m.start;
+                let end = m.end;
+                let mut entity = m.into_entity();
+                entity.location = Some(
+                    TextLocation {
+                        start_offset: start,
+                        end_offset: end,
+                        ..Default::default()
+                    }
+                    .into(),
+                );
+                entity
+            })
+            .collect();
+        tracing::Span::current().record("entities", entities.len());
+        entities
+    }
+
+    /// Internal: scan and return raw matches (used by [`scan_entities`]
+    /// and tests).
+    fn scan_raw(&self, text: &str, ctx: &ScanContext) -> Vec<RawMatch> {
         let mut results = Vec::new();
 
         self.scan_regex(text, &ctx.allow, &mut results);
         self.scan_dict(text, &ctx.allow, &mut results);
         self.scan_deny_list(text, &ctx.deny, &mut results);
 
-        tracing::Span::current().record("matches", results.len());
         results
     }
 
@@ -269,7 +298,7 @@ mod tests {
     #[test]
     fn scan_text_finds_ssn() {
         let engine = PatternEngine::instance();
-        let matches = engine.scan_text("My SSN is 123-45-6789.", &empty_ctx());
+        let matches = engine.scan_raw("My SSN is 123-45-6789.", &empty_ctx());
         assert!(
             matches
                 .iter()
@@ -282,7 +311,7 @@ mod tests {
     #[test]
     fn scan_text_finds_email() {
         let engine = PatternEngine::instance();
-        let matches = engine.scan_text("Contact: alice@example.com", &empty_ctx());
+        let matches = engine.scan_raw("Contact: alice@example.com", &empty_ctx());
         assert!(
             matches
                 .iter()
@@ -298,7 +327,7 @@ mod tests {
             .with_confidence_threshold(0.99)
             .build()
             .unwrap();
-        let matches = engine.scan_text("My SSN is 123-45-6789.", &empty_ctx());
+        let matches = engine.scan_raw("My SSN is 123-45-6789.", &empty_ctx());
         assert!(
             !matches
                 .iter()
@@ -321,7 +350,7 @@ mod tests {
     fn scan_text_returns_correct_offsets() {
         let engine = PatternEngine::instance();
         let text = "SSN: 123-45-6789";
-        let matches = engine.scan_text(text, &empty_ctx());
+        let matches = engine.scan_raw(text, &empty_ctx());
         let ssn_match = matches
             .iter()
             .find(|m| m.pattern_name.as_deref() == Some("ssn"))
@@ -332,7 +361,7 @@ mod tests {
     #[test]
     fn dictionary_matches_are_found() {
         let engine = PatternEngine::instance();
-        let matches = engine.scan_text("She is American and speaks English.", &empty_ctx());
+        let matches = engine.scan_raw("She is American and speaks English.", &empty_ctx());
         assert!(
             matches.iter().any(|m| m
                 .recognition_methods
@@ -352,7 +381,7 @@ mod tests {
             .build()
             .unwrap();
         let ctx = ScanContext::new().with_allow(AllowList::new().with("123-45-6789"));
-        let matches = engine.scan_text("SSN: 123-45-6789", &ctx);
+        let matches = engine.scan_raw("SSN: 123-45-6789", &ctx);
         assert!(
             !matches
                 .iter()
@@ -376,7 +405,7 @@ mod tests {
             .build()
             .unwrap();
         let ctx = ScanContext::new().with_deny(deny);
-        let matches = engine.scan_text("The secret-value-42 should be detected.", &ctx);
+        let matches = engine.scan_raw("The secret-value-42 should be detected.", &ctx);
         let deny_match = matches
             .iter()
             .find(|m| m.pattern_name.is_none())
@@ -402,7 +431,7 @@ mod tests {
             .build()
             .unwrap();
         let ctx = ScanContext::new().with_deny(deny);
-        let matches = engine.scan_text("Nothing special here.", &ctx);
+        let matches = engine.scan_raw("Nothing special here.", &ctx);
         assert!(
             !matches.iter().any(|m| m.pattern_name.is_none()),
             "deny list value not in text should not be injected"
@@ -448,7 +477,7 @@ mod tests {
     fn column_confidence_applies_to_csv_dictionaries() {
         let engine = PatternEngine::instance();
         // "US Dollar" is column 0 (full name), "USD" is column 1 (code).
-        let matches = engine.scan_text("I paid in US Dollar and also in USD.", &empty_ctx());
+        let matches = engine.scan_raw("I paid in US Dollar and also in USD.", &empty_ctx());
         let full_name = matches.iter().find(|m| m.value == "US Dollar");
         let code = matches.iter().find(|m| m.value == "USD");
         assert!(full_name.is_some(), "should match 'US Dollar'");
@@ -467,7 +496,7 @@ mod tests {
             .with_patterns(&["ssn"])
             .build()
             .unwrap();
-        let matches = engine.scan_text("SSN: 123-45-6789", &empty_ctx());
+        let matches = engine.scan_raw("SSN: 123-45-6789", &empty_ctx());
         let ssn_match = matches
             .iter()
             .find(|m| m.pattern_name.as_deref() == Some("ssn"))

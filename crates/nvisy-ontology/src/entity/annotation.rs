@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use super::{Entities, Entity, EntityCategory, EntityKind, Location, RecognitionMethod};
+use crate::entity::Overlap;
 
 /// The kind of annotation applied to a content region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]

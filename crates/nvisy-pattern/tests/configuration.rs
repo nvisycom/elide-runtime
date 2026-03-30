@@ -67,9 +67,11 @@ fn pattern_selection_restricts_results() {
         all_entities.len(),
         ssn_entities.len(),
     );
-    assert!(ssn_entities
-        .iter()
-        .all(|e| e.entity_kind == EntityKind::GovernmentId));
+    assert!(
+        ssn_entities
+            .iter()
+            .all(|e| e.entity_kind == EntityKind::GovernmentId)
+    );
 }
 
 #[test]

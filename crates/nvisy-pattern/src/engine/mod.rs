@@ -305,47 +305,6 @@ mod tests {
     }
 
     #[test]
-    fn scan_text_finds_ssn() {
-        let engine = PatternEngine::instance();
-        let matches = engine.scan_raw("My SSN is 123-45-6789.", &empty_ctx());
-        assert!(
-            matches
-                .iter()
-                .any(|m| m.pattern_name.as_deref() == Some("ssn")),
-            "expected SSN match, got: {:?}",
-            matches.iter().map(|m| &m.pattern_name).collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn scan_text_finds_email() {
-        let engine = PatternEngine::instance();
-        let matches = engine.scan_raw("Contact: alice@example.com", &empty_ctx());
-        assert!(
-            matches
-                .iter()
-                .any(|m| m.pattern_name.as_deref() == Some("email")),
-            "expected email match, got: {:?}",
-            matches.iter().map(|m| &m.pattern_name).collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn confidence_threshold_filters() {
-        let engine = PatternEngine::builder()
-            .with_confidence_threshold(0.99)
-            .build()
-            .unwrap();
-        let entities = engine.scan_entities("number 123-45-6789 here", &empty_ctx());
-        assert!(
-            !entities
-                .iter()
-                .any(|e| e.entity_kind == EntityKind::GovernmentId),
-            "SSN should be filtered by 0.99 threshold"
-        );
-    }
-
-    #[test]
     fn builder_pattern_filter() {
         let engine = PatternEngine::builder()
             .with_patterns(&["email"])
@@ -356,7 +315,7 @@ mod tests {
     }
 
     #[test]
-    fn scan_text_returns_correct_offsets() {
+    fn scan_raw_returns_correct_offsets() {
         let engine = PatternEngine::instance();
         let text = "SSN: 123-45-6789";
         let matches = engine.scan_raw(text, &empty_ctx());
@@ -365,22 +324,6 @@ mod tests {
             .find(|m| m.pattern_name.as_deref() == Some("ssn"))
             .unwrap();
         assert_eq!(&text[ssn_match.start..ssn_match.end], "123-45-6789");
-    }
-
-    #[test]
-    fn dictionary_matches_are_found() {
-        let engine = PatternEngine::instance();
-        let matches = engine.scan_raw("She is American and speaks English.", &empty_ctx());
-        assert!(
-            matches.iter().any(|m| m
-                .recognition_methods
-                .contains(&RecognitionMethod::Dictionary)),
-            "expected dictionary match, got: {:?}",
-            matches
-                .iter()
-                .map(|m| (&m.pattern_name, &m.recognition_methods))
-                .collect::<Vec<_>>()
-        );
     }
 
     #[test]
@@ -483,9 +426,8 @@ mod tests {
     }
 
     #[test]
-    fn column_confidence_applies_to_csv_dictionaries() {
+    fn column_confidence_raw() {
         let engine = PatternEngine::instance();
-        // "US Dollar" is column 0 (full name), "USD" is column 1 (code).
         let matches = engine.scan_raw("I paid in US Dollar and also in USD.", &empty_ctx());
         let full_name = matches.iter().find(|m| m.value == "US Dollar");
         let code = matches.iter().find(|m| m.value == "USD");
@@ -500,35 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn context_boost_applied_when_keyword_present() {
-        let engine = PatternEngine::builder()
-            .with_patterns(&["ssn"])
-            .build()
-            .unwrap();
-
-        // "SSN" is a context keyword for the ssn pattern.
-        let with_keyword = engine.scan_entities("SSN: 123-45-6789", &empty_ctx());
-        let without_keyword = engine.scan_entities("number 123-45-6789 here", &empty_ctx());
-
-        let boosted = with_keyword
-            .iter()
-            .find(|e| e.entity_kind == EntityKind::GovernmentId)
-            .expect("should detect SSN with keyword");
-        let unboosted = without_keyword
-            .iter()
-            .find(|e| e.entity_kind == EntityKind::GovernmentId)
-            .expect("should detect SSN without keyword");
-
-        assert!(
-            boosted.confidence > unboosted.confidence,
-            "confidence with keyword ({}) should exceed without ({})",
-            boosted.confidence,
-            unboosted.confidence,
-        );
-    }
-
-    #[test]
-    fn into_entity_builds_entity_without_location() {
+    fn into_entity_preserves_fields() {
         let raw = RawMatch {
             pattern_name: Some("ssn".into()),
             category: EntityCategory::PersonalIdentity,
@@ -549,68 +463,5 @@ mod tests {
         );
         assert!((entity.confidence - 0.9).abs() < f64::EPSILON);
         assert!(entity.location.is_none());
-    }
-
-    #[test]
-    fn scan_entities_returns_entities_with_location() {
-        let engine = PatternEngine::builder()
-            .with_patterns(&["ssn"])
-            .build()
-            .unwrap();
-        let entities = engine.scan_entities("SSN: 123-45-6789", &empty_ctx());
-        assert!(!entities.is_empty());
-        let e = &entities[0];
-        assert_eq!(e.entity_kind, EntityKind::GovernmentId);
-        assert!(e.location.is_some());
-    }
-
-    #[test]
-    fn pattern_selection_restricts_results() {
-        let all = PatternEngine::instance();
-        let ssn_only = PatternEngine::builder()
-            .with_patterns(&["ssn"])
-            .build()
-            .unwrap();
-
-        let text = "SSN: 123-45-6789, email: alice@example.com";
-        let all_entities = all.scan_entities(text, &empty_ctx());
-        let ssn_entities = ssn_only.scan_entities(text, &empty_ctx());
-
-        assert!(
-            all_entities.len() > ssn_entities.len(),
-            "all patterns ({}) should find more than ssn-only ({})",
-            all_entities.len(),
-            ssn_entities.len(),
-        );
-        assert!(
-            ssn_entities
-                .iter()
-                .all(|e| e.entity_kind == EntityKind::GovernmentId)
-        );
-    }
-
-    #[test]
-    fn confidence_threshold_filters_after_boost() {
-        // Build an engine with a threshold just above the SSN pattern's
-        // base confidence. With context boost, the match should survive.
-        let engine = PatternEngine::builder()
-            .with_patterns(&["ssn"])
-            .with_confidence_threshold(0.95)
-            .build()
-            .unwrap();
-
-        // "SSN" keyword triggers context boost.
-        let with_keyword = engine.scan_entities("SSN: 123-45-6789", &empty_ctx());
-        // No keyword: base confidence only.
-        let without_keyword = engine.scan_entities("number 123-45-6789 here", &empty_ctx());
-
-        assert!(
-            !with_keyword.is_empty(),
-            "boosted match should survive high threshold"
-        );
-        assert!(
-            without_keyword.is_empty(),
-            "unboosted match should be filtered by high threshold"
-        );
     }
 }

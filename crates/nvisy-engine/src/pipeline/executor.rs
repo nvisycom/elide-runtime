@@ -28,8 +28,8 @@ use nvisy_core::content::Content;
 use nvisy_core::{Error, ErrorKind};
 use nvisy_ontology::workflow::{
     AudialExtraction, ExportFile, Fusion, GenerateContext, GraphNode, GraphNodeKind, ImportFile,
-    LoadContext, NamedEntityRecognition, Redaction, RetryPolicy, SaveContext, TimeoutBehavior,
-    TimeoutPolicy, Validation, VisualExtraction,
+    LoadContext, NamedEntityRecognition, PatternRecognition, Redaction, RetryPolicy, SaveContext,
+    TimeoutBehavior, TimeoutPolicy, Validation, VisualExtraction,
 };
 use nvisy_provider::http::HttpClient;
 use tokio::sync::mpsc;
@@ -41,8 +41,8 @@ use super::runs::RunStatus;
 use crate::graph::{RetryExt, TimeoutExt};
 use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
 use crate::operation::{
-    AudialExtractionOp, AudioInput, DocumentEnvelope, EntityRecognition, ExportFileOp, FusionOp,
-    GenerateContextOp, ImportFileOp, LoadContextOp, Operation, PatternRecognition, RedactionOp,
+    AudialExtractionOp, AudioInput, DocumentEnvelope, EntityRecognitionOp, ExportFileOp, FusionOp,
+    GenerateContextOp, ImportFileOp, LoadContextOp, Operation, PatternRecognitionOp, RedactionOp,
     SaveContextOp, ValidationInput, ValidationOp, VisualExtractionOp,
 };
 
@@ -353,7 +353,7 @@ impl NodeExecutor {
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = EntityRecognition::new(cfg, &self.ctx.config, &self.ctx.http_client).await?;
+        let op = EntityRecognitionOp::new(cfg, &self.ctx.config, &self.ctx.http_client).await?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -376,12 +376,12 @@ impl NodeExecutor {
     /// Run regex and dictionary pattern recognition on text spans.
     async fn execute_pattern_recognition(
         &self,
-        cfg: &nvisy_ontology::workflow::PatternRecognition,
+        cfg: &PatternRecognition,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = PatternRecognition::new(cfg);
+        let op = PatternRecognitionOp::new(cfg);
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();

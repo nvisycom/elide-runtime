@@ -24,13 +24,13 @@ const TARGET: &str = "nvisy_engine::op::entity_recognition";
 
 /// NER-based entity recognition. Wraps an [`NerAgent`] and carries
 /// coreference state between spans via [`SequentialContext`].
-pub struct EntityRecognition {
+pub struct EntityRecognitionOp {
     agent: NerAgent,
     config: DetectionConfig,
     state: Mutex<Vec<KnownNerEntity>>,
 }
 
-impl EntityRecognition {
+impl EntityRecognitionOp {
     fn build_agent(
         provider: &AgentProvider,
         config: AgentConfig,
@@ -139,7 +139,7 @@ impl EntityRecognition {
     }
 }
 
-impl Operation for EntityRecognition {
+impl Operation for EntityRecognitionOp {
     type Input = SequentialContext<Vec<Span<TextSpanId, TextData>>>;
     type Output = SequentialContext<DetectedEntities>;
 

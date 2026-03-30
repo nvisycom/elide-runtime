@@ -10,7 +10,7 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::workflow::PatternRecognition as PatternRecognitionCfg;
+use nvisy_ontology::workflow::PatternRecognition;
 
 use crate::operation::Operation;
 use crate::operation::context::ParallelContext;
@@ -19,16 +19,16 @@ use crate::operation::envelope::DetectedEntities;
 const TARGET: &str = "nvisy_engine::op::pattern_recognition";
 
 /// Pattern-based entity recognition using regex and dictionary matching.
-pub struct PatternRecognition {
+pub struct PatternRecognitionOp {
     engine: &'static nvisy_pattern::PatternEngine,
 }
 
-impl PatternRecognition {
+impl PatternRecognitionOp {
     /// Create from graph config.
     ///
     /// When the config specifies pattern names or a confidence threshold,
     /// a custom engine is built. Otherwise the default singleton is used.
-    pub fn new(cfg: &PatternRecognitionCfg) -> Self {
+    pub fn new(cfg: &PatternRecognition) -> Self {
         let needs_custom = !cfg.patterns.is_empty() || cfg.confidence_threshold.is_some();
 
         let engine = if needs_custom {
@@ -82,7 +82,7 @@ impl PatternRecognition {
     }
 }
 
-impl Operation for PatternRecognition {
+impl Operation for PatternRecognitionOp {
     type Input = ParallelContext<Vec<Span<TextSpanId, TextData>>>;
     type Output = ParallelContext<DetectedEntities>;
 

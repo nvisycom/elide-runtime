@@ -115,7 +115,7 @@ fn group_entities(entities: Entities, criteria: GroupingCriteria) -> Vec<Vec<Ent
     // Phase 2b: for substring criteria, merge groups within the same kind
     // whose values have a containment relationship.
     if is_substring {
-        for (_kind, indices) in &kind_groups {
+        for indices in kind_groups.values() {
             let mut merged_into: HashSet<usize> = HashSet::new();
             for i in 0..indices.len() {
                 if merged_into.contains(&indices[i]) {

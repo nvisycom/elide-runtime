@@ -17,6 +17,7 @@ const TARGET: &str = "nvisy_engine::op::fusion::strategy";
 pub(super) trait FusionStrategyExt {
     /// Group entities by the given criteria, then fuse each group into a
     /// single entity.
+    #[must_use]
     fn fuse(&self, entities: Entities, criteria: GroupingCriteria) -> Entities;
 
     /// Fuse a group of co-referent entities into one.
@@ -28,9 +29,11 @@ pub(super) trait FusionStrategyExt {
     /// - **recognition/extraction methods**: order-preserving union
     /// - **language/model**: first non-`None` across the group
     /// - **confidence**: computed by the strategy
+    #[must_use]
     fn fuse_group(&self, group: Vec<Entity>) -> Entity;
 
     /// Compute the fused confidence for a group of entities.
+    #[must_use]
     fn compute_confidence(&self, group: &[Entity]) -> f64;
 }
 

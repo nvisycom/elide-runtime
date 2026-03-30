@@ -82,9 +82,10 @@ impl GroupEntities for Entities {
             let mut sub_groups: Vec<Vec<Entity>> = Vec::new();
 
             for entity in bucket {
-                let target = sub_groups
-                    .iter_mut()
-                    .find(|g| !check_overlap || g[0].location.overlaps(&entity.location));
+                let target = sub_groups.iter_mut().find(|g| {
+                    !check_overlap
+                        || g.iter().any(|member| member.location.overlaps(&entity.location))
+                });
                 match target {
                     Some(g) => g.push(entity),
                     None => sub_groups.push(vec![entity]),
@@ -114,13 +115,18 @@ impl GroupEntities for Entities {
                         if merged_into.contains(&indices[j]) {
                             continue;
                         }
-                        let val_a = &groups[indices[i]][0].value;
-                        let val_b = &groups[indices[j]][0].value;
+                        let any_value_match = groups[indices[i]].iter().any(|a| {
+                            groups[indices[j]]
+                                .iter()
+                                .any(|b| criteria.values_match(&a.value, &b.value))
+                        });
                         let location_ok = !check_overlap
-                            || groups[indices[i]][0]
-                                .location
-                                .overlaps(&groups[indices[j]][0].location);
-                        if location_ok && criteria.values_match(val_a, val_b) {
+                            || groups[indices[i]].iter().any(|a| {
+                                groups[indices[j]]
+                                    .iter()
+                                    .any(|b| a.location.overlaps(&b.location))
+                            });
+                        if location_ok && any_value_match {
                             let donor = std::mem::take(&mut groups[indices[j]]);
                             groups[indices[i]].extend(donor);
                             merged_into.insert(indices[j]);

@@ -326,4 +326,51 @@ mod tests {
         let result = fusion.execute(Entities::new());
         assert!(result.0.is_empty());
     }
+
+    #[test]
+    fn calibration_uses_max_across_multiple_methods() {
+        let mut calibration = CalibrationMap::new();
+        calibration.insert(RecognitionMethod::Regex, 0.5);
+        calibration.insert(RecognitionMethod::Ner, 0.8);
+
+        let entity = Entity::builder()
+            .with_category(EntityCategory::PersonalIdentity)
+            .with_entity_kind(EntityKind::PersonName)
+            .with_value("John")
+            .with_recognition_methods(vec![RecognitionMethod::Regex, RecognitionMethod::Ner])
+            .with_confidence(1.0)
+            .build()
+            .unwrap();
+
+        let mut entities: Entities = vec![entity].into();
+        calibrate(&mut entities, &calibration);
+        // max(0.5, 0.8) = 0.8; 1.0 * 0.8 = 0.8
+        assert!((entities[0].confidence - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn single_entity_passes_through_unchanged() {
+        let entity = text_entity("John", RecognitionMethod::Regex, 0.75, 10, 14);
+        let entities: Entities = vec![entity.clone()].into();
+        let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].value, "John");
+        assert!((result[0].confidence - 0.75).abs() < f64::EPSILON);
+        assert_eq!(result[0].recognition_methods, vec![RecognitionMethod::Regex]);
+    }
+
+    #[test]
+    fn transitive_overlap_groups_correctly() {
+        // A overlaps B, B overlaps C, but A does not overlap C.
+        // All three should end up in the same group.
+        let entities: Entities = vec![
+            text_entity("John", RecognitionMethod::Regex, 0.7, 0, 6),
+            text_entity("John", RecognitionMethod::Ner, 0.8, 4, 10),
+            text_entity("John", RecognitionMethod::Ner, 0.9, 8, 14),
+        ]
+        .into();
+        let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);
+        assert_eq!(result.len(), 1);
+        assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
+    }
 }

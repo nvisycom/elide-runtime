@@ -27,4 +27,8 @@ pub struct NamedEntityRecognition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[validate(range(min = 0.0, max = 1.0))]
     pub confidence_threshold: Option<f64>,
+    /// Run a second LLM pass to adjust confidence based on surrounding
+    /// document context. Requires an LLM provider to be configured.
+    #[serde(default)]
+    pub contextual_adjustment: bool,
 }

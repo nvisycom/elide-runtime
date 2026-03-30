@@ -27,7 +27,9 @@ pub use self::ingest::{
 pub use self::policy::{
     BackoffStrategy, ConcurrencyPolicy, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
 };
-pub use self::refinement::{Fusion, FusionStrategy, Redaction, Validation};
+pub use self::refinement::{
+    CalibrationMap, Fusion, FusionStrategy, GroupingCriteria, Redaction, Validation,
+};
 use crate::Error;
 
 /// The set of strongly-typed actions a pipeline node can perform.

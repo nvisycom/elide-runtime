@@ -338,8 +338,8 @@ mod tests {
     use std::collections::HashMap;
 
     use nvisy_ontology::entity::{
-        EntityBuilder, EntityCategory, EntityKind, ExtractionMethod, Location,
-        RecognitionMethod, TextLocation,
+        Entity, EntityCategory, EntityKind, ExtractionMethod, Location, RecognitionMethod,
+        TextLocation,
     };
     use nvisy_ontology::workflow::FusionStrategy::*;
 
@@ -352,7 +352,7 @@ mod tests {
         start: usize,
         end: usize,
     ) -> Entity {
-        EntityBuilder::default()
+        Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
             .with_value(value)

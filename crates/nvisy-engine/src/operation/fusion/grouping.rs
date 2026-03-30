@@ -84,7 +84,8 @@ impl GroupEntities for Entities {
             for entity in bucket {
                 let target = sub_groups.iter_mut().find(|g| {
                     !check_overlap
-                        || g.iter().any(|member| member.location.overlaps(&entity.location))
+                        || g.iter()
+                            .any(|member| member.location.overlaps(&entity.location))
                 });
                 match target {
                     Some(g) => g.push(entity),

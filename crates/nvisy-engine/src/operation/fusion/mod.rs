@@ -356,7 +356,10 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].value, "John");
         assert!((result[0].confidence - 0.75).abs() < f64::EPSILON);
-        assert_eq!(result[0].recognition_methods, vec![RecognitionMethod::Regex]);
+        assert_eq!(
+            result[0].recognition_methods,
+            vec![RecognitionMethod::Regex]
+        );
     }
 
     #[test]

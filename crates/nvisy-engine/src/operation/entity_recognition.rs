@@ -98,13 +98,6 @@ impl EntityRecognition {
                     continue;
                 }
 
-                let mut entity = Entity::new(
-                    category,
-                    entity_kind,
-                    &ne.value,
-                    RecognitionMethod::Ner,
-                    confidence,
-                );
                 let loc = if let Some(offsets) = ne.resolve_offsets(&ctx) {
                     TextLocation {
                         start_offset: offsets.start,
@@ -118,8 +111,17 @@ impl EntityRecognition {
                         ..Default::default()
                     }
                 };
-                entity = entity.with_location(loc.into());
-                entities.push(entity.with_parent(&span.source));
+                let entity = Entity::builder()
+                    .with_category(category)
+                    .with_entity_kind(entity_kind)
+                    .with_value(&ne.value)
+                    .with_recognition_methods(vec![RecognitionMethod::Ner])
+                    .with_confidence(confidence)
+                    .with_location(loc.into())
+                    .build()
+                    .expect("required fields provided")
+                    .with_parent(&span.source);
+                entities.push(entity);
             }
 
             let mut state = self.state.lock().await;

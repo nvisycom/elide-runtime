@@ -46,14 +46,13 @@ impl RawMatch {
             !self.recognition_methods.is_empty(),
             "RawMatch::into_entity requires at least one recognition method"
         );
-        let mut entity = Entity::new(
-            self.category,
-            self.entity_kind,
-            self.value,
-            self.recognition_methods[0],
-            self.confidence,
-        );
-        entity.recognition_methods = self.recognition_methods;
-        entity
+        Entity::builder()
+            .with_category(self.category)
+            .with_entity_kind(self.entity_kind)
+            .with_value(self.value)
+            .with_recognition_methods(self.recognition_methods)
+            .with_confidence(self.confidence)
+            .build()
+            .expect("required fields provided")
     }
 }

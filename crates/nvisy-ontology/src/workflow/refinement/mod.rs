@@ -10,6 +10,6 @@ mod fusion;
 mod redaction;
 mod validation;
 
-pub use self::fusion::{Fusion, FusionStrategy};
+pub use self::fusion::{CalibrationMap, Fusion, FusionStrategy, GroupingCriteria};
 pub use self::redaction::Redaction;
 pub use self::validation::Validation;

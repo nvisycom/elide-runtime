@@ -8,7 +8,7 @@
   },
   "context": {
     "keywords": ["birth", "born", "dob", "birthday", "date of birth"],
-    "window": 2,
+    "window": 100,
     "boost": 0.1
   }
 }

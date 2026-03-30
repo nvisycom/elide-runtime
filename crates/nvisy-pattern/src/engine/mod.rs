@@ -133,24 +133,37 @@ impl PatternEngine {
     /// attaching `element_id` and parent source from the span context.
     #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), entities = tracing::field::Empty))]
     pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
-        let raw = self.scan_raw(text, ctx);
+        let mut raw = self.scan_raw(text, ctx);
+
+        // Apply context-based confidence boosting.
+        for m in &mut raw {
+            m.apply_context_boost(text);
+        }
+
         let entities: Vec<Entity> = raw
             .into_iter()
             .map(|m| {
-                let start = m.start;
-                let end = m.end;
-                let mut entity = m.into_entity();
-                entity.location = Some(
-                    TextLocation {
-                        start_offset: start,
-                        end_offset: end,
-                        ..Default::default()
-                    }
-                    .into(),
+                tracing::trace!(
+                    target: TARGET,
+                    pattern = m.pattern_name.as_deref().unwrap_or("deny_list"),
+                    kind = %m.entity_kind,
+                    confidence = m.confidence,
+                    start = m.start,
+                    end = m.end,
+                    "matched entity",
                 );
+
+                let location = TextLocation {
+                    start_offset: m.start,
+                    end_offset: m.end,
+                    ..Default::default()
+                };
+                let mut entity = m.into_entity();
+                entity.location = Some(location.into());
                 entity
             })
             .collect();
+
         tracing::Span::current().record("entities", entities.len());
         entities
     }
@@ -491,24 +504,31 @@ mod tests {
     }
 
     #[test]
-    fn context_rule_passthrough() {
+    fn context_boost_applied_when_keyword_present() {
         let engine = PatternEngine::builder()
             .with_patterns(&["ssn"])
             .build()
             .unwrap();
-        let matches = engine.scan_raw("SSN: 123-45-6789", &empty_ctx());
-        let ssn_match = matches
+
+        // "SSN" is a context keyword for the ssn pattern.
+        let with_keyword = engine.scan_entities("SSN: 123-45-6789", &empty_ctx());
+        let without_keyword = engine.scan_entities("number 123-45-6789 here", &empty_ctx());
+
+        let boosted = with_keyword
             .iter()
-            .find(|m| m.pattern_name.as_deref() == Some("ssn"))
-            .unwrap();
+            .find(|e| e.entity_kind == EntityKind::GovernmentId)
+            .expect("should detect SSN with keyword");
+        let unboosted = without_keyword
+            .iter()
+            .find(|e| e.entity_kind == EntityKind::GovernmentId)
+            .expect("should detect SSN without keyword");
+
         assert!(
-            ssn_match.context.is_some(),
-            "SSN pattern should carry context rule through to RawMatch"
+            boosted.confidence > unboosted.confidence,
+            "confidence with keyword ({}) should exceed without ({})",
+            boosted.confidence,
+            unboosted.confidence,
         );
-        let ctx = ssn_match.context.as_ref().unwrap();
-        assert!(!ctx.keywords.is_empty());
-        assert!(ctx.window > 0);
-        assert!(ctx.boost > 0.0);
     }
 
     #[test]

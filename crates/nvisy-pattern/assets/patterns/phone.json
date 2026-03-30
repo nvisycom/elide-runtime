@@ -8,7 +8,7 @@
   },
   "context": {
     "keywords": ["phone", "call", "mobile", "tel", "fax", "contact"],
-    "window": 2,
+    "window": 100,
     "boost": 0.05
   }
 }

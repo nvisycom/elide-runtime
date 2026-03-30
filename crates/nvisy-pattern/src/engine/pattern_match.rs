@@ -1,15 +1,17 @@
-//! [`RawMatch`]: output type from pattern scanning.
+//! [`RawMatch`]: internal output type from pattern scan phases.
 
 use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
 
 use crate::patterns::ContextRule;
 
 /// A single match produced by the pattern engine's internal scan phases.
+///
+/// Carries metadata needed for context boosting and tracing before
+/// conversion to [`Entity`].
 #[derive(Debug, Clone)]
 pub(crate) struct RawMatch {
     /// Name of the pattern that produced this match, or `None` for
-    /// deny-list injected matches. Read in tests for match identification.
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// deny-list injected matches.
     pub pattern_name: Option<String>,
     /// Entity category of the match.
     pub category: EntityCategory,
@@ -23,27 +25,49 @@ pub(crate) struct RawMatch {
     pub end: usize,
     /// Confidence score assigned by the pattern definition.
     pub confidence: f64,
-    /// Recognition methods that produced this match, ordered by
-    /// application time (e.g. `[Regex, Checksum]` when a regex
-    /// match was confirmed by a validator).
+    /// Recognition methods that produced this match.
     pub recognition_methods: Vec<RecognitionMethod>,
-    /// Optional context rule for span-level co-occurrence scoring.
-    /// Read in tests for context rule validation.
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// Optional context rule for co-occurrence confidence boosting.
     pub context: Option<ContextRule>,
 }
 
 impl RawMatch {
+    /// Apply context-based confidence boosting.
+    ///
+    /// Searches the surrounding text (within `window` characters of the
+    /// match boundaries) for any of the context rule's keywords. If at
+    /// least one is found, boosts confidence by the rule's `boost` value,
+    /// clamped to `[0.0, 1.0]`.
+    pub fn apply_context_boost(&mut self, text: &str) {
+        let rule = match &self.context {
+            Some(r) => r,
+            None => return,
+        };
+
+        let search_start = self.start.saturating_sub(rule.window);
+        let search_end = (self.end + rule.window).min(text.len());
+        let window_text = &text[search_start..search_end];
+
+        let found = if rule.case_sensitive {
+            rule.keywords
+                .iter()
+                .any(|kw| window_text.contains(kw.as_str()))
+        } else {
+            let lower = window_text.to_lowercase();
+            rule.keywords
+                .iter()
+                .any(|kw| lower.contains(&kw.to_lowercase()))
+        };
+
+        if found {
+            self.confidence = (self.confidence + rule.boost).clamp(0.0, 1.0);
+        }
+    }
+
     /// Build an [`Entity`] from this match.
     ///
     /// The returned entity has no location or parent set: the caller
-    /// should attach those from the span context via
-    /// [`Entity::with_location`] and [`Entity::with_parent`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if `recognition_methods` is empty. All engine-produced
-    /// matches always carry at least one method.
+    /// should attach those from the span context.
     pub fn into_entity(self) -> Entity {
         debug_assert!(
             !self.recognition_methods.is_empty(),

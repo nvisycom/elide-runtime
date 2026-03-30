@@ -109,6 +109,7 @@ impl SttService {
         skip_all,
         fields(service_id = %self.id, data_len = audio_data.len(), filename),
     )]
+    #[allow(unused_variables)]
     pub async fn transcribe(&self, audio_data: &[u8], filename: &str) -> Result<SttOutput> {
         match &self.inner {
             #[cfg(feature = "openai-whisper")]

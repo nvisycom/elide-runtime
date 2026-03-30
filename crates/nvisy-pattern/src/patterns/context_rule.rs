@@ -2,17 +2,18 @@
 
 use serde::Deserialize;
 
-/// Co-occurrence context rule for span-level confidence boosting.
+/// Co-occurrence context rule for confidence boosting.
 ///
-/// When a pattern match is found, nearby spans are searched for any of the
-/// `keywords`. If at least one keyword is present within `window` spans,
-/// the match confidence is increased by `boost` (clamped to `[0.0, 1.0]`).
+/// When a pattern match is found, the surrounding text within `window`
+/// characters is searched for any of the `keywords`. If at least one
+/// keyword is found, the match confidence is increased by `boost`
+/// (clamped to `[0.0, 1.0]`).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(try_from = "RawContextRule")]
 pub struct ContextRule {
-    /// Keywords to look for in nearby spans.
+    /// Keywords to look for in surrounding text.
     pub keywords: Vec<String>,
-    /// Number of spans before and after the match span to search.
+    /// Number of characters before and after the match to search.
     pub window: usize,
     /// Confidence adjustment when at least one keyword is found.
     /// Must be in the range `[0.0, 1.0]`.
@@ -55,7 +56,7 @@ impl TryFrom<RawContextRule> for ContextRule {
 }
 
 fn default_window() -> usize {
-    3
+    200
 }
 
 fn default_boost() -> f64 {

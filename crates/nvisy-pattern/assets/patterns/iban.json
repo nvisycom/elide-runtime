@@ -9,7 +9,7 @@
   },
   "context": {
     "keywords": ["iban", "bank", "account", "transfer", "swift"],
-    "window": 3,
+    "window": 150,
     "boost": 0.1
   }
 }

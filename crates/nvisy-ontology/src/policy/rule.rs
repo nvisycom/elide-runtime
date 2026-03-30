@@ -1,6 +1,5 @@
 //! Policy rule types.
 
-use nvisy_core::media::DocumentType;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -11,9 +10,6 @@ use super::strategy::Strategy;
 /// Conditions that must be met for a [`PolicyRule`] to apply.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct RuleCondition {
-    /// Document formats this rule applies to. Empty means all formats.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub document_types: Vec<DocumentType>,
     /// Labels that must be present on the document.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_labels: Vec<String>,

@@ -11,7 +11,7 @@ version = { workspace = true }
 rust-version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
-publish = true
+publish = { workspace = true }
 
 authors = { workspace = true }
 repository = { workspace = true }
@@ -23,6 +23,9 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+# Internal crates
+nvisy-ontology = { workspace = true, features = [] }
+
 # (De)serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }

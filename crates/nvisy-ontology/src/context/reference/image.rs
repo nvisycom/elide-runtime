@@ -1,9 +1,9 @@
 //! Image reference data for object matching.
 
-use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::entity::ContentSource;
 use crate::math::BoundingBox;
 
 /// Reference image for object/scene matching.

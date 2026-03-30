@@ -1,9 +1,10 @@
 //! Per-source redaction summary.
 
-use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::entity::ContentSource;
 
 /// Summary of redactions applied to a single content source.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

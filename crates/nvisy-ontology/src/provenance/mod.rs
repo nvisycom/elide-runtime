@@ -19,7 +19,6 @@ mod action;
 mod record;
 
 use derive_builder::Builder;
-use nvisy_core::content::ContentSource;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -34,6 +33,7 @@ pub use self::record::{
     PolicyEvaluation, RedactionDecision, RedactionMap, RedactionMapEntry, RedactionRecord,
     ReviewDecision, ReviewStatus,
 };
+use crate::entity::ContentSource;
 
 /// A per-document audit trail combining execution logs with redaction records.
 ///

@@ -136,5 +136,11 @@ impl From<std::io::Error> for Error {
     }
 }
 
+impl From<nvisy_ontology::Error> for Error {
+    fn from(err: nvisy_ontology::Error) -> Self {
+        Self::validation(err.message, "ontology")
+    }
+}
+
 /// Convenience type alias for results using the Nvisy error type.
 pub type Result<T, E = Error> = std::result::Result<T, E>;

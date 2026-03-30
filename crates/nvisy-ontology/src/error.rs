@@ -25,9 +25,3 @@ impl From<validator::ValidationErrors> for Error {
         Self::new(err.to_string())
     }
 }
-
-impl From<Error> for nvisy_core::Error {
-    fn from(err: Error) -> Self {
-        nvisy_core::Error::validation(err.message, "ontology")
-    }
-}

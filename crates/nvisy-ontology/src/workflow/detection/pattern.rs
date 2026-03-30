@@ -3,6 +3,8 @@
 //! [`PatternRecognition`] runs at **phase 2**, alongside
 //! [`NamedEntityRecognition`]. It detects entities using deterministic
 //! rules: regular expressions, checksums, and dictionary lookups.
+//! Context-based confidence boosting is always applied when patterns
+//! define co-occurrence keywords.
 //!
 //! [`NamedEntityRecognition`]: super::NamedEntityRecognition
 
@@ -12,8 +14,7 @@ use validator::Validate;
 
 /// Configuration for the [`PatternRecognition`] graph node.
 ///
-/// Controls which patterns run, what confidence threshold applies, and
-/// whether co-occurrence context boosting is enabled.
+/// Controls which patterns run and what confidence threshold applies.
 ///
 /// [`PatternRecognition`]: crate::workflow::GraphNodeKind::PatternRecognition
 #[derive(Debug, Clone, Default, PartialEq, Validate)]
@@ -28,13 +29,4 @@ pub struct PatternRecognition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[validate(range(min = 0.0, max = 1.0))]
     pub confidence_threshold: Option<f64>,
-    /// Enable co-occurrence keyword analysis for contextual confidence
-    /// boosting. When enabled, patterns with context rules receive a
-    /// confidence boost if their keywords appear nearby.
-    #[serde(default = "default_true")]
-    pub contextual_analysis: bool,
-}
-
-fn default_true() -> bool {
-    true
 }

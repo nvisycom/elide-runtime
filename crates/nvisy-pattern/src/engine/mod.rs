@@ -135,13 +135,17 @@ impl PatternEngine {
     pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
         let mut raw = self.scan_raw(text, ctx);
 
-        // Apply context-based confidence boosting.
+        // Apply context-based confidence boosting before threshold
+        // filtering so that a match just below threshold can be
+        // promoted by keyword co-occurrence.
         for m in &mut raw {
             m.apply_context_boost(text);
         }
 
+        let threshold = self.confidence_threshold;
         let entities: Vec<Entity> = raw
             .into_iter()
+            .filter(|m| m.confidence >= threshold)
             .map(|m| {
                 tracing::trace!(
                     target: TARGET,
@@ -187,10 +191,6 @@ impl PatternEngine {
         for idx in set_matches.iter() {
             let entry = &self.regex_entries[idx];
 
-            if entry.confidence < self.confidence_threshold {
-                continue;
-            }
-
             for mat in entry.regex.find_iter(text) {
                 let value = mat.as_str();
 
@@ -232,10 +232,6 @@ impl PatternEngine {
                 let value = &entry.values[pat_idx];
 
                 let confidence = entry.resolve_confidence(pat_idx);
-
-                if confidence < self.confidence_threshold {
-                    continue;
-                }
 
                 if allow.contains(value.as_str()) {
                     continue;
@@ -340,11 +336,11 @@ mod tests {
             .with_confidence_threshold(0.99)
             .build()
             .unwrap();
-        let matches = engine.scan_raw("My SSN is 123-45-6789.", &empty_ctx());
+        let entities = engine.scan_entities("number 123-45-6789 here", &empty_ctx());
         assert!(
-            !matches
+            !entities
                 .iter()
-                .any(|m| m.pattern_name.as_deref() == Some("ssn")),
+                .any(|e| e.entity_kind == EntityKind::GovernmentId),
             "SSN should be filtered by 0.99 threshold"
         );
     }
@@ -553,5 +549,68 @@ mod tests {
         );
         assert!((entity.confidence - 0.9).abs() < f64::EPSILON);
         assert!(entity.location.is_none());
+    }
+
+    #[test]
+    fn scan_entities_returns_entities_with_location() {
+        let engine = PatternEngine::builder()
+            .with_patterns(&["ssn"])
+            .build()
+            .unwrap();
+        let entities = engine.scan_entities("SSN: 123-45-6789", &empty_ctx());
+        assert!(!entities.is_empty());
+        let e = &entities[0];
+        assert_eq!(e.entity_kind, EntityKind::GovernmentId);
+        assert!(e.location.is_some());
+    }
+
+    #[test]
+    fn pattern_selection_restricts_results() {
+        let all = PatternEngine::instance();
+        let ssn_only = PatternEngine::builder()
+            .with_patterns(&["ssn"])
+            .build()
+            .unwrap();
+
+        let text = "SSN: 123-45-6789, email: alice@example.com";
+        let all_entities = all.scan_entities(text, &empty_ctx());
+        let ssn_entities = ssn_only.scan_entities(text, &empty_ctx());
+
+        assert!(
+            all_entities.len() > ssn_entities.len(),
+            "all patterns ({}) should find more than ssn-only ({})",
+            all_entities.len(),
+            ssn_entities.len(),
+        );
+        assert!(
+            ssn_entities
+                .iter()
+                .all(|e| e.entity_kind == EntityKind::GovernmentId)
+        );
+    }
+
+    #[test]
+    fn confidence_threshold_filters_after_boost() {
+        // Build an engine with a threshold just above the SSN pattern's
+        // base confidence. With context boost, the match should survive.
+        let engine = PatternEngine::builder()
+            .with_patterns(&["ssn"])
+            .with_confidence_threshold(0.95)
+            .build()
+            .unwrap();
+
+        // "SSN" keyword triggers context boost.
+        let with_keyword = engine.scan_entities("SSN: 123-45-6789", &empty_ctx());
+        // No keyword: base confidence only.
+        let without_keyword = engine.scan_entities("number 123-45-6789 here", &empty_ctx());
+
+        assert!(
+            !with_keyword.is_empty(),
+            "boosted match should survive high threshold"
+        );
+        assert!(
+            without_keyword.is_empty(),
+            "unboosted match should be filtered by high threshold"
+        );
     }
 }

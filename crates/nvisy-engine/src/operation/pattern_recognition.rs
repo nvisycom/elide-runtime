@@ -1,10 +1,10 @@
 //! Pattern recognition operation.
 //!
-//! Runs at **phase 2** alongside [`EntityRecognition`]. Detects entities
+//! Runs at **phase 2** alongside [`EntityRecognitionOp`]. Detects entities
 //! using deterministic rules: regular expressions, checksums, and
 //! dictionary lookups.
 //!
-//! [`EntityRecognition`]: crate::operation::EntityRecognition
+//! [`EntityRecognitionOp`]: crate::operation::EntityRecognitionOp
 
 use nvisy_codec::Span;
 use nvisy_codec::handler::{TextData, TextSpanId};
@@ -18,9 +18,27 @@ use crate::operation::envelope::DetectedEntities;
 
 const TARGET: &str = "nvisy_engine::op::pattern_recognition";
 
+/// Holds either a borrowed reference to the global singleton or an
+/// owned engine built from custom config.
+enum EngineRef {
+    Shared(&'static nvisy_pattern::PatternEngine),
+    Owned(nvisy_pattern::PatternEngine),
+}
+
+impl std::ops::Deref for EngineRef {
+    type Target = nvisy_pattern::PatternEngine;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Shared(e) => e,
+            Self::Owned(e) => e,
+        }
+    }
+}
+
 /// Pattern-based entity recognition using regex and dictionary matching.
 pub struct PatternRecognitionOp {
-    engine: &'static nvisy_pattern::PatternEngine,
+    engine: EngineRef,
 }
 
 impl PatternRecognitionOp {
@@ -32,9 +50,6 @@ impl PatternRecognitionOp {
         let needs_custom = !cfg.patterns.is_empty() || cfg.confidence_threshold.is_some();
 
         let engine = if needs_custom {
-            // A custom engine lives in a leaked Box so it has 'static
-            // lifetime matching the singleton path. This is acceptable
-            // because engine instances are created once per pipeline run.
             let mut builder = nvisy_pattern::PatternEngine::builder();
             if !cfg.patterns.is_empty() {
                 let names: Vec<&str> = cfg.patterns.iter().map(String::as_str).collect();
@@ -43,10 +58,9 @@ impl PatternRecognitionOp {
             if let Some(threshold) = cfg.confidence_threshold {
                 builder = builder.with_confidence_threshold(threshold);
             }
-            let engine = builder.build().expect("pattern engine must compile");
-            Box::leak(Box::new(engine))
+            EngineRef::Owned(builder.build().expect("pattern engine must compile"))
         } else {
-            nvisy_pattern::PatternEngine::instance()
+            EngineRef::Shared(nvisy_pattern::PatternEngine::instance())
         };
 
         tracing::debug!(
@@ -69,14 +83,21 @@ impl PatternRecognitionOp {
             for mut entity in detected {
                 entity = entity.with_parent(&span.source);
 
-                // Fill in span-level element_id on the location.
-                if let Some(nvisy_ontology::entity::Location::Text(ref mut loc)) = entity.location {
+                if let Some(nvisy_ontology::entity::Location::Text(ref mut loc)) = entity.location
+                {
                     loc.element_id = Some(span.id.to_string());
                 }
 
                 entities.push(entity);
             }
         }
+
+        tracing::info!(
+            target: TARGET,
+            detected = entities.len(),
+            spans = spans.len(),
+            "pattern scan complete",
+        );
 
         entities
     }
@@ -88,16 +109,7 @@ impl Operation for PatternRecognitionOp {
 
     async fn call(&self, input: Self::Input) -> Result<Self::Output> {
         input
-            .parallel_map(|spans| async move {
-                let entities = self.scan(&spans);
-                tracing::info!(
-                    target: TARGET,
-                    detected = entities.len(),
-                    spans = spans.len(),
-                    "pattern scan complete",
-                );
-                Ok(DetectedEntities(entities.into()))
-            })
+            .parallel_map(|spans| async move { Ok(DetectedEntities(self.scan(&spans).into())) })
             .await
     }
 }

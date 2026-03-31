@@ -2,9 +2,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{
-    Entity, EntityCategory, EntityKind, ImageLocation, RefinementMethod,
-};
+use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, ImageLocation, RefinementMethod};
 use nvisy_ontology::math::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -76,12 +74,7 @@ impl VerifiedEntity {
                     .with_source(entity.source)
                     .with_category(self.category.unwrap_or(entity.category))
                     .with_entity_kind(self.entity_type.unwrap_or(entity.entity_kind))
-                    .with_value(
-                        self.value
-                            .as_deref()
-                            .unwrap_or(&entity.value)
-                            .to_owned(),
-                    )
+                    .with_value(self.value.as_deref().unwrap_or(&entity.value).to_owned())
                     .with_recognition_methods(entity.recognition_methods)
                     .with_extraction_methods(entity.extraction_methods)
                     .with_refinement_methods(refinements)

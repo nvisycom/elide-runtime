@@ -6,18 +6,24 @@
 //! writes `replaced_value` into audit records, and applies instructions
 //! to the document.
 
+use std::collections::HashMap;
+
 use nvisy_codec::handler::{AudioSpanId, ImageSpanId, TextSpanId};
 use nvisy_codec::transform::{
     AudioOutput, AudioRedaction, ImageOutput, ImageRedaction, TextOutput, TextRedaction,
 };
 use nvisy_ontology::entity::{Entity, EntityKind, Location};
 use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
-use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
+use nvisy_ontology::provenance::RedactionRecord;
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 use crate::operation::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::redaction::apply";
+
+const IMAGE_REDACTED: &str = "[IMAGE_REDACTED]";
+const AUDIO_REDACTED: &str = "[AUDIO_REDACTED]";
 
 /// Builds and applies redaction instructions across all modalities.
 ///
@@ -59,12 +65,16 @@ impl<'a> RedactionApplicator<'a> {
     }
 
     fn build_text_redactions(&mut self) -> Vec<TextRedaction<TextSpanId>> {
+        let entity_map = Self::entity_map(&self.envelope.entities);
         let mut redactions = Vec::new();
 
+        // Index-based iteration: borrowing self.envelope.audit.decisions
+        // via for-in would conflict with the mutable access to
+        // self.envelope.audit.records in set_replaced_value.
         for i in 0..self.envelope.audit.decisions.len() {
             let decision = &self.envelope.audit.decisions[i];
-            let entity = match Self::find_entity(&self.envelope.entities, decision) {
-                Some(e) => e,
+            let entity = match entity_map.get(&decision.entity_id) {
+                Some(e) => *e,
                 None => continue,
             };
 
@@ -110,12 +120,13 @@ impl<'a> RedactionApplicator<'a> {
     }
 
     fn build_image_redactions(&mut self) -> Vec<ImageRedaction<ImageSpanId>> {
+        let entity_map = Self::entity_map(&self.envelope.entities);
         let mut redactions = Vec::new();
 
         for i in 0..self.envelope.audit.decisions.len() {
             let decision = &self.envelope.audit.decisions[i];
-            let entity = match Self::find_entity(&self.envelope.entities, decision) {
-                Some(e) => e,
+            let entity = match entity_map.get(&decision.entity_id) {
+                Some(e) => *e,
                 None => continue,
             };
 
@@ -141,7 +152,7 @@ impl<'a> RedactionApplicator<'a> {
             Self::set_replaced_value(
                 &mut self.envelope.audit.records,
                 entity_id,
-                Some("[IMAGE_REDACTED]".into()),
+                Some(IMAGE_REDACTED.into()),
             );
 
             tracing::trace!(
@@ -161,12 +172,13 @@ impl<'a> RedactionApplicator<'a> {
     }
 
     fn build_audio_redactions(&mut self) -> Vec<AudioRedaction<AudioSpanId>> {
+        let entity_map = Self::entity_map(&self.envelope.entities);
         let mut redactions = Vec::new();
 
         for i in 0..self.envelope.audit.decisions.len() {
             let decision = &self.envelope.audit.decisions[i];
-            let entity = match Self::find_entity(&self.envelope.entities, decision) {
-                Some(e) => e,
+            let entity = match entity_map.get(&decision.entity_id) {
+                Some(e) => *e,
                 None => continue,
             };
 
@@ -188,7 +200,7 @@ impl<'a> RedactionApplicator<'a> {
             Self::set_replaced_value(
                 &mut self.envelope.audit.records,
                 entity_id,
-                Some("[AUDIO_REDACTED]".into()),
+                Some(AUDIO_REDACTED.into()),
             );
 
             tracing::trace!(
@@ -209,20 +221,12 @@ impl<'a> RedactionApplicator<'a> {
         redactions
     }
 
-    fn find_entity<'b>(
-        entities: &'b nvisy_ontology::entity::Entities,
-        decision: &RedactionDecision,
-    ) -> Option<&'b Entity> {
-        entities
-            .iter()
-            .find(|e| e.source.as_uuid() == decision.entity_id)
+    /// Build a lookup map from entity UUID to entity reference.
+    fn entity_map(entities: &nvisy_ontology::entity::Entities) -> HashMap<Uuid, &Entity> {
+        entities.iter().map(|e| (e.source.as_uuid(), e)).collect()
     }
 
-    fn set_replaced_value(
-        records: &mut [RedactionRecord],
-        entity_id: uuid::Uuid,
-        value: Option<String>,
-    ) {
+    fn set_replaced_value(records: &mut [RedactionRecord], entity_id: Uuid, value: Option<String>) {
         if let Some(record) = records.iter_mut().find(|r| r.entity_id == entity_id) {
             record.replaced_value = value;
         }
@@ -392,5 +396,21 @@ mod tests {
             .apply()
             .await
             .unwrap();
+    }
+
+    #[test]
+    fn hash_replacement_is_deterministic() {
+        let a = RedactionApplicator::hash_value("John Smith");
+        let b = RedactionApplicator::hash_value("John Smith");
+        assert_eq!(a, b);
+        assert!(!a.is_empty());
+    }
+
+    #[test]
+    fn pseudonymize_is_deterministic() {
+        let a = RedactionApplicator::pseudonymize(&EntityKind::PersonName, "John Smith");
+        let b = RedactionApplicator::pseudonymize(&EntityKind::PersonName, "John Smith");
+        assert_eq!(a, b);
+        assert!(a.contains('_'));
     }
 }

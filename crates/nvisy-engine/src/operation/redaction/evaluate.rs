@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Entities, Entity};
+use nvisy_ontology::entity::{Entities, Entity, Location};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
 use nvisy_ontology::workflow::Redaction;
@@ -35,6 +35,9 @@ impl RedactionOp {
             .iter()
             .flat_map(|p| p.rules.clone())
             .collect();
+        // Lower priority value = higher precedence. First match wins
+        // in find_matching_rule, so sorting ascending means the
+        // highest-precedence rule is checked first.
         rules.sort_by_key(|r| r.priority);
 
         let evaluator = PolicyEvaluator {
@@ -59,7 +62,7 @@ impl Operation for RedactionOp {
             "evaluating redaction policies",
         );
 
-        let (decisions, records) = self.evaluator.evaluate(&envelope.entities)?;
+        let (decisions, records) = self.evaluator.evaluate(&envelope.entities);
         envelope.audit.decisions.extend(decisions);
         envelope.audit.records.extend(records);
 
@@ -76,10 +79,7 @@ struct PolicyEvaluator {
 }
 
 impl PolicyEvaluator {
-    fn evaluate(
-        &self,
-        entities: &Entities,
-    ) -> Result<(Vec<RedactionDecision>, Vec<RedactionRecord>)> {
+    fn evaluate(&self, entities: &Entities) -> (Vec<RedactionDecision>, Vec<RedactionRecord>) {
         tracing::debug!(
             target: TARGET,
             entity_count = entities.len(),
@@ -95,16 +95,12 @@ impl PolicyEvaluator {
             let spec = match rule {
                 Some(r) => match &r.action {
                     RuleAction::Redact { strategy } => strategy.clone(),
-                    action @ (RuleAction::Review
-                    | RuleAction::Alert
-                    | RuleAction::Block
-                    | RuleAction::Suppress
-                    | _) => {
+                    _ => {
                         tracing::debug!(
                             target: TARGET,
                             entity_id = %entity.source.as_uuid(),
                             rule_id = %r.id,
-                            action = ?action,
+                            action = ?r.action,
                             "non-redact policy action",
                         );
                         continue;
@@ -114,27 +110,31 @@ impl PolicyEvaluator {
                     if entity.confidence < self.default_threshold {
                         continue;
                     }
+                    // Default strategy only applies to text entities.
+                    // Non-text entities without a matching rule are skipped.
+                    if !matches!(entity.location, Some(Location::Text(_))) {
+                        continue;
+                    }
                     self.default_spec.clone()
                 }
             };
 
             let entity_id = entity.source.as_uuid();
+            let policy_rule_id = rule.map(|r| r.id);
 
             let mut decision = RedactionDecision::new(entity_id, spec, entity.confidence);
-            if let Some(r) = rule {
-                decision = decision.with_policy_rule_id(r.id);
+            let mut record = RedactionRecord::new(entity_id, &entity.value, entity.confidence);
+
+            if let Some(rule_id) = policy_rule_id {
+                decision = decision.with_policy_rule_id(rule_id);
+                record = record.with_policy_rule_id(rule_id);
             }
             decision.source.set_parent_id(Some(entity_id));
-
-            let mut record = RedactionRecord::new(entity_id, &entity.value, entity.confidence);
-            if let Some(r) = rule {
-                record = record.with_policy_rule_id(r.id);
-            }
             record.source.set_parent_id(Some(entity_id));
 
             tracing::trace!(
                 target: TARGET,
-                entity_id = %entity_id,
+                %entity_id,
                 strategy = ?decision.spec,
                 "produced redaction decision",
             );
@@ -150,7 +150,7 @@ impl PolicyEvaluator {
             "policy evaluation complete",
         );
 
-        Ok((decisions, records))
+        (decisions, records)
     }
 
     fn find_matching_rule(&self, entity: &Entity) -> Option<&PolicyRule> {
@@ -163,17 +163,25 @@ impl PolicyEvaluator {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
+    use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, Location, RecognitionMethod};
 
     use super::*;
 
     fn test_entity(value: &str, confidence: f64) -> Entity {
+        use nvisy_ontology::entity::TextLocation;
+
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
             .with_value(value)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(confidence)
+            .with_location(Location::from(TextLocation {
+                start_offset: 0,
+                end_offset: value.len(),
+                span_index: Some(0),
+                ..Default::default()
+            }))
             .build()
             .unwrap()
     }
@@ -186,7 +194,7 @@ mod tests {
             default_threshold: 0.8,
         };
         let entities: Entities = vec![test_entity("John", 0.5)].into();
-        let (decisions, _) = evaluator.evaluate(&entities).unwrap();
+        let (decisions, _) = evaluator.evaluate(&entities);
         assert!(decisions.is_empty());
     }
 
@@ -198,7 +206,7 @@ mod tests {
             default_threshold: 0.5,
         };
         let entities: Entities = vec![test_entity("John", 0.9)].into();
-        let (decisions, records) = evaluator.evaluate(&entities).unwrap();
+        let (decisions, records) = evaluator.evaluate(&entities);
         assert_eq!(decisions.len(), 1);
         assert_eq!(records.len(), 1);
         assert!(!decisions[0].applied);
@@ -212,7 +220,7 @@ mod tests {
             default_threshold: 0.0,
         };
         let entities: Entities = vec![test_entity("secret", 0.9)].into();
-        let (decisions, _) = evaluator.evaluate(&entities).unwrap();
+        let (decisions, _) = evaluator.evaluate(&entities);
         assert_eq!(decisions[0].spec, Strategy::Text(TextStrategy::Remove));
     }
 
@@ -224,7 +232,7 @@ mod tests {
             default_threshold: 0.0,
         };
         let entities: Entities = vec![test_entity("secret-value", 0.9)].into();
-        let (_, records) = evaluator.evaluate(&entities).unwrap();
+        let (_, records) = evaluator.evaluate(&entities);
         assert_eq!(records[0].original_value, "secret-value");
     }
 }

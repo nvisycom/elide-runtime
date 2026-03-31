@@ -68,6 +68,10 @@ pub struct PatternProvenance {
     /// Name of the validator that confirmed the match (e.g. "luhn", "iban").
     #[serde(skip_serializing_if = "Option::is_none")]
     pub validator: Option<String>,
+    /// Whether contextual analysis (keyword co-occurrence) adjusted
+    /// the confidence score for this match.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub contextual_analysis: bool,
 }
 
 /// Provenance for a model-based detection.
@@ -98,28 +102,27 @@ pub struct ManualProvenance {
 #[serde(tag = "method", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum RecognitionMethod {
+    // Pattern-based
     /// Regular expression matching against known PII formats.
     Regex(PatternProvenance),
     /// Exact-match lookup in a curated value list.
     Dictionary(PatternProvenance),
-    /// Co-occurrence analysis: keywords near a candidate raise or
-    /// lower confidence.
-    ContextualAnalysis,
-    /// Format heuristics: entropy, character distribution, or
-    /// structural cues.
-    Heuristic,
+    /// Matching extracted values against an external identity or
+    /// record database.
+    CrossReference(PatternProvenance),
+
+    // Model-based
     /// Named-entity recognition via language model.
     Ner(ModelProvenance),
     /// Document or field-level classification.
     Classification(ModelProvenance),
     /// Semantic similarity search via vector embeddings.
     Embedding(ModelProvenance),
-    /// Matching extracted values against an external identity or
-    /// record database.
-    CrossReference,
     /// Biometric identification: face recognition, voiceprint
     /// matching, or other physiological/behavioral trait analysis.
-    Biometric,
+    Biometric(ModelProvenance),
+
+    // Human
     /// User-provided annotation.
     Manual(ManualProvenance),
 }
@@ -130,6 +133,7 @@ impl RecognitionMethod {
         Self::Regex(PatternProvenance {
             pattern: Some(pattern.into()),
             validator: None,
+            contextual_analysis: false,
         })
     }
 
@@ -138,14 +142,7 @@ impl RecognitionMethod {
         Self::Regex(PatternProvenance {
             pattern: Some(pattern.into()),
             validator: Some(validator.into()),
-        })
-    }
-
-    /// Create a `Regex` method with no provenance.
-    pub fn regex_anonymous() -> Self {
-        Self::Regex(PatternProvenance {
-            pattern: None,
-            validator: None,
+            contextual_analysis: false,
         })
     }
 
@@ -154,6 +151,16 @@ impl RecognitionMethod {
         Self::Dictionary(PatternProvenance {
             pattern: Some(pattern.into()),
             validator: None,
+            contextual_analysis: false,
+        })
+    }
+
+    /// Create a `CrossReference` method with the given source name.
+    pub fn cross_reference(pattern: impl Into<String>) -> Self {
+        Self::CrossReference(PatternProvenance {
+            pattern: Some(pattern.into()),
+            validator: None,
+            contextual_analysis: false,
         })
     }
 
@@ -162,9 +169,14 @@ impl RecognitionMethod {
         Self::Ner(ModelProvenance { model: Some(model) })
     }
 
-    /// Create a `Ner` method with no model info.
-    pub fn ner_anonymous() -> Self {
-        Self::Ner(ModelProvenance { model: None })
+    /// Create a `Classification` method with the given model info.
+    pub fn classification(model: ModelInfo) -> Self {
+        Self::Classification(ModelProvenance { model: Some(model) })
+    }
+
+    /// Create a `Biometric` method with the given model info.
+    pub fn biometric(model: ModelInfo) -> Self {
+        Self::Biometric(ModelProvenance { model: Some(model) })
     }
 
     /// Create a `Manual` method with the given annotator ID.
@@ -174,14 +186,6 @@ impl RecognitionMethod {
         })
     }
 
-    /// Create a `Manual` method with no annotator.
-    pub fn manual_anonymous() -> Self {
-        Self::Manual(ManualProvenance { annotator: None })
-    }
-
-    /// Returns the discriminant kind, stripping provenance data.
-    /// Useful as a HashMap key when provenance details don't matter
-    /// (e.g. calibration maps, weight tables).
     /// Returns the discriminant kind, stripping provenance data.
     /// Useful as a HashMap key when provenance details don't matter
     /// (e.g. calibration maps, weight tables).
@@ -189,15 +193,13 @@ impl RecognitionMethod {
         match self {
             Self::Regex(_) => RecognitionMethodKind::Regex,
             Self::Dictionary(_) => RecognitionMethodKind::Dictionary,
-            Self::ContextualAnalysis => RecognitionMethodKind::ContextualAnalysis,
-            Self::Heuristic => RecognitionMethodKind::Heuristic,
+            Self::CrossReference(_) => RecognitionMethodKind::CrossReference,
             Self::Ner(_) => RecognitionMethodKind::Ner,
             Self::Classification(_) => RecognitionMethodKind::Classification,
             Self::Embedding(_) => RecognitionMethodKind::Embedding,
-            Self::CrossReference => RecognitionMethodKind::CrossReference,
-            Self::Biometric => RecognitionMethodKind::Biometric,
+            Self::Biometric(_) => RecognitionMethodKind::Biometric,
             Self::Manual(_) => RecognitionMethodKind::Manual,
-            _ => RecognitionMethodKind::Heuristic,
+            _ => RecognitionMethodKind::Regex,
         }
     }
 }
@@ -214,8 +216,6 @@ impl RecognitionMethod {
 pub enum RecognitionMethodKind {
     Regex,
     Dictionary,
-    ContextualAnalysis,
-    Heuristic,
     Ner,
     Classification,
     Embedding,

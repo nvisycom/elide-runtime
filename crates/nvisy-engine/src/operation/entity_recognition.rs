@@ -7,7 +7,9 @@
 use nvisy_codec::Span;
 use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_ontology::entity::{Entity, EntityCategory, RecognitionMethod, TextLocation};
+use nvisy_ontology::entity::{
+    Entity, EntityCategory, ModelInfo, ModelKind, RecognitionMethod, TextLocation,
+};
 use nvisy_ontology::workflow::NamedEntityRecognition;
 use nvisy_provider::agent::{
     AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
@@ -115,7 +117,9 @@ impl EntityRecognitionOp {
                     .with_category(category)
                     .with_entity_kind(entity_kind)
                     .with_value(&ne.value)
-                    .with_recognition_methods(vec![RecognitionMethod::ner_anonymous()])
+                    .with_recognition_methods(vec![RecognitionMethod::ner(
+                        ModelInfo::new(self.agent.model_name(), ModelKind::Gateway),
+                    )])
                     .with_confidence(confidence)
                     .with_location(loc.into())
                     .build()

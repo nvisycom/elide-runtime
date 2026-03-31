@@ -171,7 +171,7 @@ impl Annotations {
                 .with_category(category)
                 .with_entity_kind(entity_kind)
                 .with_value(value)
-                .with_recognition_methods(vec![RecognitionMethod::manual_anonymous()])
+                .with_recognition_methods(vec![RecognitionMethod::manual("annotation")])
                 .with_confidence(1.0);
             if let Some(ref loc) = ann.location {
                 builder = builder.with_location(loc.clone());

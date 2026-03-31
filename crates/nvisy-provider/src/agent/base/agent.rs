@@ -87,6 +87,7 @@ pub(crate) struct BaseAgent {
     pub(super) inner: Agents,
     pub(super) context_window: Option<ContextWindow>,
     pub(super) tracker: UsageTracker,
+    pub(super) model_name: String,
 }
 
 impl BaseAgent {
@@ -96,6 +97,10 @@ impl BaseAgent {
 
     pub fn id(&self) -> Uuid {
         self.id
+    }
+
+    pub fn model_name(&self) -> &str {
+        &self.model_name
     }
 
     pub fn tracker(&self) -> &UsageTracker {

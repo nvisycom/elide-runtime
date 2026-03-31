@@ -64,6 +64,11 @@ impl NerAgent {
         self.base.tracker()
     }
 
+    /// The model name used by this agent.
+    pub fn model_name(&self) -> &str {
+        self.base.model_name()
+    }
+
     /// Detect entities in text using structured output with text-based fallback.
     ///
     /// When [`NerContext::known_entities`] is non-empty the LLM is

@@ -60,10 +60,27 @@ impl RawMatch {
                 .any(|kw| lower.contains(&kw.to_lowercase()))
         };
 
-        if found {
+        let adjusted = if found {
             self.confidence = (self.confidence + rule.boost).clamp(0.0, 1.0);
+            true
         } else if rule.penalty > 0.0 {
             self.confidence = (self.confidence - rule.penalty).clamp(0.0, 1.0);
+            true
+        } else {
+            false
+        };
+
+        if adjusted {
+            for m in &mut self.recognition_methods {
+                match m {
+                    RecognitionMethod::Regex(p)
+                    | RecognitionMethod::Dictionary(p)
+                    | RecognitionMethod::CrossReference(p) => {
+                        p.contextual_analysis = true;
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 

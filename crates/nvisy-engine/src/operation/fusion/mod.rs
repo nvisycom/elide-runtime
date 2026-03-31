@@ -103,8 +103,8 @@ mod tests {
     use std::collections::HashMap;
 
     use nvisy_ontology::entity::{
-        Entity, EntityCategory, EntityKind, ExtractionMethod, Location, RecognitionMethod,
-        RecognitionMethodKind, TextLocation,
+        Entity, EntityCategory, EntityKind, ExtractionMethod, Location, ModelInfo, ModelKind,
+        RecognitionMethod, RecognitionMethodKind, TextLocation,
     };
     use nvisy_ontology::workflow::FusionStrategy::*;
 
@@ -136,8 +136,8 @@ mod tests {
     #[test]
     fn strict_groups_exact_overlap() {
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4),
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.9, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4),
         ]
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);
@@ -148,8 +148,8 @@ mod tests {
     #[test]
     fn strict_preserves_non_overlapping() {
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4),
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.9, 10, 14),
+            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.9, 10, 14),
         ]
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);
@@ -159,8 +159,14 @@ mod tests {
     #[test]
     fn normalized_groups_case_insensitive() {
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4),
-            text_entity("john", RecognitionMethod::ner_anonymous(), 0.9, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
+            text_entity(
+                "john",
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                0.9,
+                0,
+                4,
+            ),
         ]
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Normalized);
@@ -170,8 +176,14 @@ mod tests {
     #[test]
     fn narrowing_groups_substring_with_overlap() {
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4),
-            text_entity("John Smith", RecognitionMethod::ner_anonymous(), 0.9, 0, 10),
+            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
+            text_entity(
+                "John Smith",
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                0.9,
+                0,
+                10,
+            ),
         ]
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Narrowing);
@@ -182,10 +194,10 @@ mod tests {
     #[test]
     fn narrowing_preserves_non_overlapping_substrings() {
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
                 "John Smith",
-                RecognitionMethod::ner_anonymous(),
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
                 0.9,
                 100,
                 110,
@@ -199,10 +211,10 @@ mod tests {
     #[test]
     fn widening_groups_across_locations() {
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
                 "John Smith",
-                RecognitionMethod::ner_anonymous(),
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
                 0.9,
                 100,
                 110,
@@ -217,8 +229,14 @@ mod tests {
     #[test]
     fn max_confidence_strategy() {
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.7, 0, 4),
-            text_entity("John", RecognitionMethod::ner_anonymous(), 0.85, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
+            text_entity(
+                "John",
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                0.85,
+                0,
+                4,
+            ),
         ]
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
@@ -229,8 +247,14 @@ mod tests {
     #[test]
     fn noisy_or_strategy() {
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.7, 0, 4),
-            text_entity("John", RecognitionMethod::ner_anonymous(), 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
+            text_entity(
+                "John",
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                0.8,
+                0,
+                4,
+            ),
         ]
         .into();
         let result = NoisyOr.fuse(entities, GroupingCriteria::default());
@@ -245,8 +269,14 @@ mod tests {
         weights.insert(RecognitionMethodKind::Ner, 2.0);
 
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.6, 0, 4),
-            text_entity("John", RecognitionMethod::ner_anonymous(), 0.9, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.6, 0, 4),
+            text_entity(
+                "John",
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                0.9,
+                0,
+                4,
+            ),
         ]
         .into();
         let result = WeightedAverage { weights }.fuse(entities, GroupingCriteria::default());
@@ -261,7 +291,7 @@ mod tests {
 
         let mut entities: Entities = vec![text_entity(
             "John",
-            RecognitionMethod::regex_anonymous(),
+            RecognitionMethod::regex("test"),
             0.8,
             0,
             4,
@@ -278,7 +308,7 @@ mod tests {
 
         let mut entities: Entities = vec![text_entity(
             "John",
-            RecognitionMethod::regex_anonymous(),
+            RecognitionMethod::regex("test"),
             0.8,
             0,
             4,
@@ -291,8 +321,14 @@ mod tests {
     #[test]
     fn fuse_picks_longest_value() {
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.9, 0, 4),
-            text_entity("John Smith", RecognitionMethod::ner_anonymous(), 0.7, 0, 10),
+            text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4),
+            text_entity(
+                "John Smith",
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                0.7,
+                0,
+                10,
+            ),
         ]
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Widening);
@@ -302,9 +338,15 @@ mod tests {
 
     #[test]
     fn fuse_merges_extraction_methods() {
-        let mut e1 = text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4);
+        let mut e1 = text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4);
         e1.extraction_methods = vec![ExtractionMethod::DocumentParsing];
-        let mut e2 = text_entity("John", RecognitionMethod::ner_anonymous(), 0.9, 0, 4);
+        let mut e2 = text_entity(
+            "John",
+            RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+            0.9,
+            0,
+            4,
+        );
         e2.extraction_methods = vec![ExtractionMethod::OpticalCharacterRecognition];
 
         let entities: Entities = vec![e1, e2].into();
@@ -314,8 +356,14 @@ mod tests {
 
     #[test]
     fn fuse_fills_missing_language() {
-        let mut e1 = text_entity("John", RecognitionMethod::regex_anonymous(), 0.9, 0, 4);
-        let mut e2 = text_entity("John", RecognitionMethod::ner_anonymous(), 0.7, 0, 4);
+        let mut e1 = text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4);
+        let mut e2 = text_entity(
+            "John",
+            RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+            0.7,
+            0,
+            4,
+        );
         e1.language = None;
         e2.language = Some("en".into());
 
@@ -332,9 +380,15 @@ mod tests {
         };
         let fusion = FusionOp::new(&cfg);
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.7, 0, 4),
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4),
-            text_entity("John", RecognitionMethod::ner_anonymous(), 0.85, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
+            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
+            text_entity(
+                "John",
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                0.85,
+                0,
+                4,
+            ),
         ]
         .into();
 
@@ -362,8 +416,8 @@ mod tests {
             .with_entity_kind(EntityKind::PersonName)
             .with_value("John")
             .with_recognition_methods(vec![
-                RecognitionMethod::regex_anonymous(),
-                RecognitionMethod::ner_anonymous(),
+                RecognitionMethod::regex("test"),
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
             ])
             .with_confidence(1.0)
             .build()
@@ -377,7 +431,7 @@ mod tests {
 
     #[test]
     fn single_entity_passes_through_unchanged() {
-        let entity = text_entity("John", RecognitionMethod::regex_anonymous(), 0.75, 10, 14);
+        let entity = text_entity("John", RecognitionMethod::regex("test"), 0.75, 10, 14);
         let entities: Entities = vec![entity.clone()].into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);
         assert_eq!(result.len(), 1);
@@ -385,7 +439,7 @@ mod tests {
         assert!((result[0].confidence - 0.75).abs() < f64::EPSILON);
         assert_eq!(
             result[0].recognition_methods,
-            vec![RecognitionMethod::regex_anonymous()]
+            vec![RecognitionMethod::regex("test")]
         );
     }
 
@@ -394,9 +448,21 @@ mod tests {
         // A overlaps B, B overlaps C, but A does not overlap C.
         // All three should end up in the same group.
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex_anonymous(), 0.7, 0, 6),
-            text_entity("John", RecognitionMethod::ner_anonymous(), 0.8, 4, 10),
-            text_entity("John", RecognitionMethod::ner_anonymous(), 0.9, 8, 14),
+            text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 6),
+            text_entity(
+                "John",
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                0.8,
+                4,
+                10,
+            ),
+            text_entity(
+                "John",
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                0.9,
+                8,
+                14,
+            ),
         ]
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);

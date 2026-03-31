@@ -330,6 +330,8 @@ static DEFAULT_ENGINE: LazyLock<PatternEngine> = LazyLock::new(|| {
 
 #[cfg(test)]
 mod tests {
+    use nvisy_ontology::entity::{ModelInfo, ModelKind};
+
     use super::*;
 
     fn empty_ctx() -> ScanContext {
@@ -387,7 +389,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::ner_anonymous(),
+                method: RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
             },
         );
         let engine = PatternEngine::builder()
@@ -405,7 +407,10 @@ mod tests {
         assert_eq!(deny_match.entity_kind, EntityKind::PersonName);
         assert_eq!(
             deny_match.recognition_methods,
-            vec![RecognitionMethod::ner_anonymous()]
+            vec![RecognitionMethod::ner(ModelInfo::new(
+                "test",
+                ModelKind::SelfHosted
+            ))]
         );
     }
 
@@ -416,7 +421,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::manual_anonymous(),
+                method: RecognitionMethod::manual("test"),
             },
         );
         let engine = PatternEngine::builder()
@@ -448,7 +453,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::ner_anonymous(),
+                method: RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
             },
         );
         deny.insert(
@@ -456,14 +461,14 @@ mod tests {
             DenyRule {
                 category: EntityCategory::Financial,
                 entity_kind: EntityKind::PaymentCard,
-                method: RecognitionMethod::manual_anonymous(),
+                method: RecognitionMethod::manual("test"),
             },
         );
         assert_eq!(deny.len(), 2);
         assert!(deny.contains("secret"));
         let rule = deny.get("other").unwrap();
         assert_eq!(rule.category, EntityCategory::Financial);
-        assert_eq!(rule.method, RecognitionMethod::manual_anonymous());
+        assert_eq!(rule.method, RecognitionMethod::manual("test"));
     }
 
     #[test]

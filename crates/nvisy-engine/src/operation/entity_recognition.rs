@@ -7,7 +7,7 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::workflow::NamedEntityRecognition;
-use nvisy_provider::agent::{AgentConfig, AgentProvider, DetectionConfig, NerAgent};
+use nvisy_provider::agent::{DetectionConfig, NerAgent};
 use nvisy_provider::http::HttpClient;
 
 use crate::operation::Operation;

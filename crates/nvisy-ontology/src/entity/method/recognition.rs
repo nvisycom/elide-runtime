@@ -113,7 +113,6 @@ impl RecognitionMethod {
             Self::Embedding(_) => RecognitionMethodKind::Embedding,
             Self::Biometric(_) => RecognitionMethodKind::Biometric,
             Self::Manual(_) => RecognitionMethodKind::Manual,
-            _ => RecognitionMethodKind::Regex,
         }
     }
 }

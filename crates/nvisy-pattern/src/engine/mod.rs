@@ -235,10 +235,9 @@ impl PatternEngine {
 
                 if let Some(ref vname) = entry.validator_name
                     && let Some(validate) = self.validators.resolve(vname)
+                    && !validate(value)
                 {
-                    if !validate(value) {
-                        continue;
-                    }
+                    continue;
                 }
 
                 let method = if let Some(ref vname) = entry.validator_name {

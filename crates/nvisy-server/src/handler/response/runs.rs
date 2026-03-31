@@ -4,5 +4,5 @@ use nvisy_engine::pipeline::RunEntry;
 
 use crate::handler::request::Page;
 
-/// Response body for `GET /api/v1/runs`.
+/// Response body for `GET /runs`.
 pub type RunList = Page<RunEntry>;

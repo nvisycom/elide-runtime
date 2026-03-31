@@ -4,11 +4,14 @@
 //!
 //! | Method   | Path                        | Description                         |
 //! |----------|-----------------------------|-------------------------------------|
-//! | `POST`   | `/api/v1/files`             | Upload file (base64 JSON)           |
-//! | `GET`    | `/api/v1/files`             | List all uploaded file IDs          |
-//! | `GET`    | `/api/v1/files/{id}`        | Download previously uploaded file   |
-//! | `DELETE` | `/api/v1/files/{id}`        | Delete a single file                |
-//! | `DELETE` | `/api/v1/files`             | Delete all files                    |
+//! | `POST`   | `/files`             | Upload file (base64 JSON)           |
+//! | `GET`    | `/files`             | List all uploaded file IDs          |
+//! | `GET`    | `/files/{id}`        | Download previously uploaded file   |
+//! | `DELETE` | `/files/{id}`        | Delete a single file                |
+//! | `DELETE` | `/files`             | Delete all files                    |
+//!
+//! Paths are relative — the version prefix (e.g. `/api/v1`) is applied
+//! by the version module.
 
 use std::time::Duration;
 
@@ -34,7 +37,7 @@ use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::files";
 
-/// `POST /api/v1/files`: upload a file as base64-encoded JSON.
+/// `POST /files`: upload a file as base64-encoded JSON.
 #[tracing::instrument(
     target = "nvisy_server::files",
     skip_all,
@@ -85,7 +88,7 @@ fn upload_file_docs(op: TransformOperation) -> TransformOperation {
         )
 }
 
-/// `GET /api/v1/files/{id}`: download previously uploaded content.
+/// `GET /files/{id}`: download previously uploaded content.
 #[tracing::instrument(
     target = "nvisy_server::files",
     skip_all,
@@ -118,7 +121,7 @@ fn download_file_docs(op: TransformOperation) -> TransformOperation {
         .description("Retrieves file content by its UUID, returning base64-encoded bytes.")
 }
 
-/// `GET /api/v1/files`: list all uploaded file IDs.
+/// `GET /files`: list all uploaded file IDs.
 #[tracing::instrument(
     target = "nvisy_server::files",
     skip_all,
@@ -152,7 +155,7 @@ fn list_files_docs(op: TransformOperation) -> TransformOperation {
         .description("Returns a list of UUIDs for all files currently stored in the registry.")
 }
 
-/// `DELETE /api/v1/files/{id}`: delete a single uploaded file.
+/// `DELETE /files/{id}`: delete a single uploaded file.
 #[tracing::instrument(
     target = "nvisy_server::files",
     skip_all,
@@ -175,7 +178,7 @@ fn delete_file_docs(op: TransformOperation) -> TransformOperation {
         .description("Removes a single file identified by its UUID.")
 }
 
-/// `DELETE /api/v1/files`: delete all uploaded files.
+/// `DELETE /files`: delete all uploaded files.
 #[tracing::instrument(
     target = "nvisy_server::files",
     skip_all,
@@ -200,9 +203,9 @@ fn delete_all_files_docs(op: TransformOperation) -> TransformOperation {
 /// File routes.
 pub fn routes() -> ApiRouter<ServiceState> {
     let read_routes = ApiRouter::new()
-        .api_route("/api/v1/files", get_with(list_files, list_files_docs))
+        .api_route("/files", get_with(list_files, list_files_docs))
         .api_route(
-            "/api/v1/files/{id}",
+            "/files/{id}",
             get_with(download_file, download_file_docs),
         )
         .layer(
@@ -215,12 +218,12 @@ pub fn routes() -> ApiRouter<ServiceState> {
 
     let write_routes = ApiRouter::new()
         .api_route(
-            "/api/v1/files",
+            "/files",
             post_with(upload_file, upload_file_docs)
                 .delete_with(delete_all_files, delete_all_files_docs),
         )
         .api_route(
-            "/api/v1/files/{id}",
+            "/files/{id}",
             aide::axum::routing::delete_with(delete_file, delete_file_docs),
         )
         .layer(

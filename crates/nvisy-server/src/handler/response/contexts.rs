@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::handler::request::Page;
 
-/// Response body for `GET /api/v1/contexts`.
+/// Response body for `GET /contexts`.
 pub type ContextList = Page<ContextEntry>;
 
 /// Summary of a stored context for listing endpoints.
@@ -21,7 +21,7 @@ pub struct ContextEntry {
     pub entries: usize,
 }
 
-/// Response body for `POST /api/v1/contexts`.
+/// Response body for `POST /contexts`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextId {

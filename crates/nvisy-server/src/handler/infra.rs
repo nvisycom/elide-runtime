@@ -2,10 +2,13 @@
 //!
 //! # Endpoints
 //!
-//! | Method | Path                  | Description                          |
-//! |--------|-----------------------|--------------------------------------|
-//! | `GET`  | `/health`             | Liveness probe                       |
-//! | `GET`  | `/api/v1/analytics`   | Aggregate pipeline metrics           |
+//! | Method | Path          | Description                          |
+//! |--------|---------------|--------------------------------------|
+//! | `GET`  | `/health`     | Liveness probe (unversioned)         |
+//! | `GET`  | `/analytics`  | Aggregate pipeline metrics           |
+//!
+//! `/health` is served at the root (unversioned). `/analytics` is
+//! relative and nested under the version prefix by the version module.
 
 use std::time::Duration;
 
@@ -26,10 +29,7 @@ use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::infra";
 
-/// `GET /health`: liveness probe.
-///
-/// Verifies the data directory and registry are accessible, returns
-/// component-level checks alongside an overall service status.
+/// `GET /health`
 #[tracing::instrument(target = "nvisy_server::infra", skip_all)]
 async fn health_check(State(engine): State<Engine>) -> Json<Health> {
     let mut checks = vec![];
@@ -85,7 +85,7 @@ fn health_docs(op: TransformOperation) -> TransformOperation {
         )
 }
 
-/// `GET /api/v1/analytics`: retrieve aggregate pipeline analytics.
+/// `GET /analytics`
 #[tracing::instrument(target = "nvisy_server::infra", skip_all)]
 async fn get_analytics(State(engine): State<Engine>) -> Json<AnalyticsSnapshot> {
     Json(engine.snapshot().await)
@@ -98,9 +98,9 @@ fn analytics_docs(op: TransformOperation) -> TransformOperation {
         .description("Returns aggregate metrics across all pipeline runs.")
 }
 
-/// Infra routes.
-pub fn routes() -> ApiRouter<ServiceState> {
-    let health = ApiRouter::new()
+/// Health route (unversioned, served at `/health`).
+pub fn health_routes() -> ApiRouter<ServiceState> {
+    ApiRouter::new()
         .api_route("/health", get_with(health_check, health_docs))
         .layer(
             ServiceBuilder::new()
@@ -108,17 +108,18 @@ pub fn routes() -> ApiRouter<ServiceState> {
                 .layer(TimeoutLayer::new(Duration::from_secs(
                     DEFAULT_HEALTH_TIMEOUT_SECS,
                 ))),
-        );
+        )
+}
 
-    let analytics = ApiRouter::new()
-        .api_route("/api/v1/analytics", get_with(get_analytics, analytics_docs))
+/// Analytics route (relative path, versioned).
+pub fn analytics_routes() -> ApiRouter<ServiceState> {
+    ApiRouter::new()
+        .api_route("/analytics", get_with(get_analytics, analytics_docs))
         .layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(handle_error))
                 .layer(TimeoutLayer::new(Duration::from_secs(
                     DEFAULT_READ_TIMEOUT_SECS,
                 ))),
-        );
-
-    health.merge(analytics)
+        )
 }

@@ -2,13 +2,16 @@
 //!
 //! # Endpoints
 //!
-//! | Method   | Path                       | Description                           |
-//! |----------|----------------------------|---------------------------------------|
-//! | `POST`   | `/api/v1/contexts`         | Upload a typed context                |
-//! | `GET`    | `/api/v1/contexts`         | List all context identifiers          |
-//! | `GET`    | `/api/v1/contexts/{id}`    | Download a previously uploaded context|
-//! | `DELETE` | `/api/v1/contexts/{id}`    | Delete a single context               |
-//! | `DELETE` | `/api/v1/contexts`         | Delete all contexts                   |
+//! | Method   | Path              | Description                           |
+//! |----------|-------------------|---------------------------------------|
+//! | `POST`   | `/contexts`       | Upload a typed context                |
+//! | `GET`    | `/contexts`       | List all context identifiers          |
+//! | `GET`    | `/contexts/{id}`  | Download a previously uploaded context|
+//! | `DELETE` | `/contexts/{id}`  | Delete a single context               |
+//! | `DELETE` | `/contexts`       | Delete all contexts                   |
+//!
+//! Paths are relative — the version prefix (e.g. `/api/v1`) is applied
+//! by the version module.
 
 use std::time::Duration;
 
@@ -33,7 +36,7 @@ use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::contexts";
 
-/// `POST /api/v1/contexts`: upload a typed context.
+/// `POST /contexts`
 #[tracing::instrument(
     target = "nvisy_server::contexts",
     skip_all,
@@ -61,7 +64,7 @@ fn upload_context_docs(op: TransformOperation) -> TransformOperation {
         )
 }
 
-/// `GET /api/v1/contexts`: list all context identifiers.
+/// `GET /contexts`
 #[tracing::instrument(
     target = "nvisy_server::contexts",
     skip_all,
@@ -95,7 +98,7 @@ fn list_contexts_docs(op: TransformOperation) -> TransformOperation {
         .description("Returns the identifiers of every context currently stored.")
 }
 
-/// `GET /api/v1/contexts/{id}`: download a previously uploaded context.
+/// `GET /contexts/{id}`
 #[tracing::instrument(
     target = "nvisy_server::contexts",
     skip_all,
@@ -118,7 +121,7 @@ fn download_context_docs(op: TransformOperation) -> TransformOperation {
         .description("Retrieves a context by its UUID, returning the typed Context JSON.")
 }
 
-/// `DELETE /api/v1/contexts/{id}`: delete a single context.
+/// `DELETE /contexts/{id}`
 #[tracing::instrument(
     target = "nvisy_server::contexts",
     skip_all,
@@ -141,7 +144,7 @@ fn delete_context_docs(op: TransformOperation) -> TransformOperation {
         .description("Removes a single context identified by its UUID.")
 }
 
-/// `DELETE /api/v1/contexts`: delete all contexts.
+/// `DELETE /contexts`
 #[tracing::instrument(
     target = "nvisy_server::contexts",
     skip_all,
@@ -163,15 +166,12 @@ fn delete_all_contexts_docs(op: TransformOperation) -> TransformOperation {
         .description("Removes every context currently stored.")
 }
 
-/// Context routes.
+/// Context routes (relative paths).
 pub fn routes() -> ApiRouter<ServiceState> {
     let read_routes = ApiRouter::new()
+        .api_route("/contexts", get_with(list_contexts, list_contexts_docs))
         .api_route(
-            "/api/v1/contexts",
-            get_with(list_contexts, list_contexts_docs),
-        )
-        .api_route(
-            "/api/v1/contexts/{id}",
+            "/contexts/{id}",
             get_with(download_context, download_context_docs),
         )
         .layer(
@@ -184,12 +184,12 @@ pub fn routes() -> ApiRouter<ServiceState> {
 
     let write_routes = ApiRouter::new()
         .api_route(
-            "/api/v1/contexts",
+            "/contexts",
             post_with(upload_context, upload_context_docs)
                 .delete_with(delete_all_contexts, delete_all_contexts_docs),
         )
         .api_route(
-            "/api/v1/contexts/{id}",
+            "/contexts/{id}",
             aide::axum::routing::delete_with(delete_context, delete_context_docs),
         )
         .layer(

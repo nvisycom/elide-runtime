@@ -18,7 +18,7 @@ const TARGET: &str = "nvisy_engine::op::save_context";
 /// Registry, actor identity, and context map are read from the
 /// envelope's [`SharedData`] at execution time.
 ///
-/// [`SharedData`]: crate::operation::context::SharedData
+/// [`SharedData`]: crate::operation::envelope::SharedData
 pub struct SaveContextOp {
     context_ids: Vec<Uuid>,
 }
@@ -38,17 +38,24 @@ impl Operation for SaveContextOp {
         let shared = &envelope.shared;
         let mut saved = 0usize;
         for &id in &self.context_ids {
-            if envelope.contexts.contains(&id)
-                && let Some(context) = shared.context_map.get(&id)
-            {
-                shared
-                    .registry
-                    .register_context(shared.actor_id, context.clone())
-                    .await?;
-                saved += 1;
+            if !envelope.contexts.contains(&id) {
+                tracing::trace!(target: TARGET, %id, "context not referenced by envelope, skipping");
+                continue;
+            }
+            match shared.context_map.get(&id) {
+                Some(context) => {
+                    shared
+                        .registry
+                        .register_context(shared.actor_id, context.clone())
+                        .await?;
+                    saved += 1;
+                }
+                None => {
+                    tracing::trace!(target: TARGET, %id, "context not found in shared map, skipping");
+                }
             }
         }
-        tracing::debug!(target: TARGET, saved, "persisted contexts");
+        tracing::debug!(target: TARGET, saved, total = self.context_ids.len(), "persisted contexts");
         Ok(())
     }
 }

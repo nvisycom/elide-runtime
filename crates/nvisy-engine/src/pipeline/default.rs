@@ -46,8 +46,8 @@ use super::runs::state::{RunRecord, RunState};
 use super::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunSnapshot, RunStatus,
 };
-use crate::operation::context::SharedData;
 use crate::operation::encryption::SharedKeyProvider;
+use crate::operation::envelope::SharedData;
 use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::engine";

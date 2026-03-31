@@ -23,8 +23,8 @@ use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionAlgorithm, Encryp
 
 use crate::operation::DocumentEnvelope;
 use crate::operation::compression::CompressionService;
-use crate::operation::context::SharedData;
 use crate::operation::encryption::{CryptoService, EncryptedContent};
+use crate::operation::envelope::SharedData;
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 
@@ -67,12 +67,7 @@ impl ImportFileOp {
             tracing::debug!(target: TARGET, ?algorithm, "decompressing content");
             let decompressed = CompressionService::new(algorithm).decompress(content.as_bytes())?;
             let source = content.content_source();
-            let metadata = content.into_parts().1;
-            let data = ContentData::new(source, decompressed);
-            content = match metadata {
-                Some(meta) => Content::with_metadata(data, meta),
-                None => Content::new(data),
-            };
+            content = replace_data(content, ContentData::new(source, decompressed));
         }
 
         if let Some(ref enc_cfg) = self.decryption {
@@ -85,11 +80,7 @@ impl ImportFileOp {
                 algorithm: EncryptionAlgorithm::Aes256Gcm,
             };
             let decrypted_data = crypto.decrypt(encrypted).await?;
-            let metadata = content.into_parts().1;
-            content = match metadata {
-                Some(meta) => Content::with_metadata(decrypted_data, meta),
-                None => Content::new(decrypted_data),
-            };
+            content = replace_data(content, decrypted_data);
         }
 
         let doc = Document::decode(&content).await?;
@@ -99,12 +90,20 @@ impl ImportFileOp {
     }
 }
 
+/// Replace the data payload of a [`Content`] while preserving its metadata.
+fn replace_data(content: Content, data: ContentData) -> Content {
+    match content.into_parts().1 {
+        Some(meta) => Content::with_metadata(data, meta),
+        None => Content::new(data),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvisy_core::content::{Content, ContentData};
 
     use super::*;
-    use crate::operation::context::SharedData;
+    use crate::operation::envelope::SharedData;
 
     #[tokio::test]
     async fn unknown_format_errors() {

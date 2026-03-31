@@ -32,7 +32,9 @@ use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::Audit;
 
-use super::context::SharedData;
+mod shared;
+
+pub use self::shared::SharedData;
 
 /// Per-document state that flows through the entire pipeline.
 ///

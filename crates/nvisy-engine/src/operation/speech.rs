@@ -68,7 +68,9 @@ impl Operation for AudialExtractionOp {
                 .transcribe(audio_data.as_bytes(), &filename)
                 .await?;
 
-            if !stt_result.text.is_empty() {
+            if stt_result.text.is_empty() {
+                tracing::debug!(target: TARGET, "transcription returned empty text, keeping original audio");
+            } else {
                 let lines: Vec<String> = stt_result.text.lines().map(String::from).collect();
                 let trailing = stt_result.text.ends_with('\n');
                 let source = envelope.document.source();

@@ -15,7 +15,7 @@ use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
 use nvisy_ontology::workflow::Redaction;
 
 use super::apply::build_text_redactions;
-use crate::operation::context::SharedData;
+use crate::operation::envelope::SharedData;
 use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::redaction";

@@ -3,7 +3,7 @@
 //! Runs at **phase 5**, after [`Redaction`]. Re-scans redacted content
 //! to verify that no originally detected values remain visible.
 //!
-//! [`Redaction`]: crate::operation::Redaction
+//! [`Redaction`]: crate::operation::RedactionOp
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;

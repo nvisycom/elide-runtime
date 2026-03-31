@@ -6,7 +6,7 @@
 //!
 //! [`ImportFile`]: crate::operation::ImportFileOp
 //! [`ContextMap`]: nvisy_ontology::context::ContextMap
-//! [`SharedData`]: crate::operation::context::SharedData
+//! [`SharedData`]: crate::operation::envelope::SharedData
 
 use nvisy_core::Result;
 use nvisy_ontology::workflow::LoadContext;
@@ -23,7 +23,7 @@ const TARGET: &str = "nvisy_engine::op::load_context";
 /// records which context IDs this node contributes.
 ///
 /// [`ContextMap`]: nvisy_ontology::context::ContextMap
-/// [`SharedData`]: crate::operation::context::SharedData
+/// [`SharedData`]: crate::operation::envelope::SharedData
 pub struct LoadContextOp {
     context_ids: Vec<Uuid>,
 }
@@ -40,10 +40,15 @@ impl LoadContextOp {
 
 impl Operation for LoadContextOp {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
-        tracing::debug!(target: TARGET, "adding context references to envelope");
         for &id in &self.context_ids {
             envelope.contexts.push(id);
         }
+        tracing::debug!(
+            target: TARGET,
+            added = self.context_ids.len(),
+            total = envelope.contexts.len(),
+            "loaded context references",
+        );
         Ok(())
     }
 }

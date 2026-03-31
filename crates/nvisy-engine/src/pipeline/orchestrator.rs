@@ -36,7 +36,7 @@ use super::runs::NodeStatus;
 use super::runs::state::RunState;
 use crate::graph::ConcurrencyExt;
 use crate::operation::DocumentEnvelope;
-use crate::operation::context::SharedData;
+use crate::operation::envelope::SharedData;
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 

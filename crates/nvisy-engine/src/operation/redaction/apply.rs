@@ -19,7 +19,7 @@ const TARGET: &str = "nvisy_engine::op::redaction::apply";
 ///
 /// Decisions targeting image or audio entities are skipped (those
 /// need separate codec transforms).
-pub(crate) fn build_text_redactions(
+pub(super) fn build_text_redactions(
     decisions: &[RedactionDecision],
     entities: &Entities,
 ) -> Vec<TextRedaction<TextSpanId>> {

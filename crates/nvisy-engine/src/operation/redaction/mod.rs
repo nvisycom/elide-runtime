@@ -7,7 +7,7 @@
 //! 2. **Apply**: compute replacement text from each decision's strategy
 //!    and build codec [`TextRedaction`] instructions (in [`apply`]).
 
-pub(crate) mod apply;
+mod apply;
 mod evaluate;
 
 pub use self::evaluate::RedactionOp;

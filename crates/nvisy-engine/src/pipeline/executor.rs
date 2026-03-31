@@ -30,7 +30,7 @@ use super::config::RuntimeConfig;
 use super::plan::ResolvedNode;
 use super::runs::RunStatus;
 use crate::graph::{RetryExt, TimeoutExt};
-use crate::operation::context::SharedData;
+use crate::operation::envelope::SharedData;
 use crate::operation::{
     AudialExtractionOp, DocumentEnvelope, EntityRecognitionOp, ExportFileOp, FusionOp,
     GenerateContextOp, ImportFileOp, LoadContextOp, Operation, PatternRecognitionOp, RedactionOp,
@@ -393,9 +393,13 @@ where
         let streams: Vec<_> = receivers
             .iter_mut()
             .map(|rx| {
-                let (_, mut dummy) = mpsc::channel(1);
-                std::mem::swap(rx, &mut dummy);
-                Box::pin(futures::stream::unfold(dummy, |mut rx| async move {
+                // Take ownership by swapping in a dummy closed receiver.
+                let owned = {
+                    let (_, mut placeholder) = mpsc::channel(1);
+                    std::mem::swap(rx, &mut placeholder);
+                    placeholder
+                };
+                Box::pin(futures::stream::unfold(owned, |mut rx| async move {
                     rx.recv().await.map(|item| (item, rx))
                 }))
                     as std::pin::Pin<Box<dyn futures::Stream<Item = DocumentEnvelope> + Send>>

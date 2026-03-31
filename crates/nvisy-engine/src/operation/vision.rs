@@ -136,6 +136,9 @@ impl Operation for VisualExtractionOp {
                     .into_iter()
                     .map(|s| Span::new((), s.data).with_source(s.source))
                     .collect();
+                // Verification is best-effort: a transient LLM failure should
+                // not discard entities that were already detected. Log and
+                // continue with the unverified set.
                 match self.verify(&verify_spans, envelope.entities.clone()).await {
                     Ok(verified) => envelope.entities = verified,
                     Err(e) => tracing::warn!(

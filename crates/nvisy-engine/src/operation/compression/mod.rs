@@ -1,10 +1,13 @@
 //! Content compression and decompression.
 //!
-//! Used as pre/post-processing steps within [`ImportFile`] and
-//! [`ExportFile`] operations, not as standalone pipeline operations.
+//! Used as pre/post-processing steps within [`ImportFileOp`] and
+//! [`ExportFileOp`] operations, not as standalone pipeline operations.
 //!
-//! [`ImportFile`]: crate::operation::ImportFile
-//! [`ExportFile`]: crate::operation::ExportFile
+//! Gzip and Zstd are recognized but not yet implemented — selecting
+//! them returns a runtime error.
+//!
+//! [`ImportFileOp`]: crate::operation::ImportFileOp
+//! [`ExportFileOp`]: crate::operation::ExportFileOp
 
 use bytes::Bytes;
 use nvisy_core::{Error, Result};

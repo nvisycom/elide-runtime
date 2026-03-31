@@ -7,7 +7,6 @@
 //! [`GraphNodeKind`]: nvisy_ontology::workflow::GraphNodeKind
 
 pub(crate) mod compression;
-pub mod context;
 pub mod encryption;
 mod entity_recognition;
 pub mod envelope;

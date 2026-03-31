@@ -115,7 +115,7 @@ impl EntityRecognitionOp {
                     .with_category(category)
                     .with_entity_kind(entity_kind)
                     .with_value(&ne.value)
-                    .with_recognition_methods(vec![RecognitionMethod::Ner])
+                    .with_recognition_methods(vec![RecognitionMethod::ner_anonymous()])
                     .with_confidence(confidence)
                     .with_location(loc.into())
                     .build()

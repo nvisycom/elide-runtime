@@ -75,7 +75,7 @@ impl VerifiedEntity {
                     .with_category(self.category.unwrap_or(entity.category))
                     .with_entity_kind(self.entity_type.unwrap_or(entity.entity_kind))
                     .with_value(self.value.as_deref().unwrap_or(&entity.value).to_owned())
-                    .with_recognition_methods(vec![RecognitionMethod::Ner])
+                    .with_recognition_methods(vec![RecognitionMethod::ner_anonymous()])
                     .with_extraction_methods(vec![ExtractionMethod::OpticalCharacterRecognition])
                     .with_refinement_methods(vec![RefinementMethod::ModelVerification])
                     .with_confidence(self.confidence);

@@ -28,7 +28,10 @@ pub use self::kind::EntityKind;
 pub use self::location::{
     AudioLocation, ImageLocation, Location, Overlap, TabularLocation, TextLocation,
 };
-pub use self::method::{ExtractionMethod, RecognitionMethod, RefinementMethod};
+pub use self::method::{
+    ExtractionMethod, ManualProvenance, RecognitionMethodKind, ModelProvenance, PatternProvenance,
+    RecognitionMethod, RefinementMethod,
+};
 pub use self::model::{ModelInfo, ModelKind};
 pub use self::output::DetectionOutput;
 pub use self::sensitivity::EntitySensitivity;

@@ -158,9 +158,11 @@ impl PatternEngine {
         // sort by (kind, start, descending confidence) then keep only
         // the highest-confidence match per overlapping span.
         raw.sort_by(|a, b| {
-            a.start
-                .cmp(&b.start)
-                .then(b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal))
+            a.start.cmp(&b.start).then(
+                b.confidence
+                    .partial_cmp(&a.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
         });
         let mut deduped: Vec<RawMatch> = Vec::with_capacity(raw.len());
         for m in raw {
@@ -231,16 +233,19 @@ impl PatternEngine {
                     continue;
                 }
 
-                let mut methods = vec![RecognitionMethod::Regex];
-
                 if let Some(ref vname) = entry.validator_name
                     && let Some(validate) = self.validators.resolve(vname)
                 {
                     if !validate(value) {
                         continue;
                     }
-                    methods.push(RecognitionMethod::Checksum);
                 }
+
+                let method = if let Some(ref vname) = entry.validator_name {
+                    RecognitionMethod::regex_validated(&entry.pattern_name, vname)
+                } else {
+                    RecognitionMethod::regex(&entry.pattern_name)
+                };
 
                 results.push(RawMatch {
                     pattern_name: Some(entry.pattern_name.clone()),
@@ -250,7 +255,7 @@ impl PatternEngine {
                     start: mat.start(),
                     end: mat.end(),
                     confidence: entry.confidence,
-                    recognition_methods: methods,
+                    recognition_methods: vec![method],
                     context: entry.context.clone(),
                 });
             }
@@ -278,7 +283,7 @@ impl PatternEngine {
                     start: mat.start(),
                     end: mat.end(),
                     confidence,
-                    recognition_methods: vec![RecognitionMethod::Dictionary],
+                    recognition_methods: vec![RecognitionMethod::dictionary(&entry.pattern_name)],
                     context: entry.context.clone(),
                 });
             }
@@ -307,7 +312,7 @@ impl PatternEngine {
                     start: abs_start,
                     end: abs_end,
                     confidence: 1.0,
-                    recognition_methods: vec![deny_rule.method],
+                    recognition_methods: vec![deny_rule.method.clone()],
                     context: None,
                 });
                 search_start = abs_end;
@@ -382,7 +387,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::Ner,
+                method: RecognitionMethod::ner_anonymous(),
             },
         );
         let engine = PatternEngine::builder()
@@ -398,7 +403,7 @@ mod tests {
         assert_eq!(deny_match.value, "secret-value-42");
         assert_eq!(deny_match.confidence, 1.0);
         assert_eq!(deny_match.entity_kind, EntityKind::PersonName);
-        assert_eq!(deny_match.recognition_methods, vec![RecognitionMethod::Ner]);
+        assert_eq!(deny_match.recognition_methods, vec![RecognitionMethod::ner_anonymous()]);
     }
 
     #[test]
@@ -408,7 +413,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::Manual,
+                method: RecognitionMethod::manual_anonymous(),
             },
         );
         let engine = PatternEngine::builder()
@@ -440,7 +445,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::Ner,
+                method: RecognitionMethod::ner_anonymous(),
             },
         );
         deny.insert(
@@ -448,14 +453,14 @@ mod tests {
             DenyRule {
                 category: EntityCategory::Financial,
                 entity_kind: EntityKind::PaymentCard,
-                method: RecognitionMethod::Manual,
+                method: RecognitionMethod::manual_anonymous(),
             },
         );
         assert_eq!(deny.len(), 2);
         assert!(deny.contains("secret"));
         let rule = deny.get("other").unwrap();
         assert_eq!(rule.category, EntityCategory::Financial);
-        assert_eq!(rule.method, RecognitionMethod::Manual);
+        assert_eq!(rule.method, RecognitionMethod::manual_anonymous());
     }
 
     #[test]
@@ -484,7 +489,7 @@ mod tests {
             start: 5,
             end: 16,
             confidence: 0.9,
-            recognition_methods: vec![RecognitionMethod::Regex, RecognitionMethod::Checksum],
+            recognition_methods: vec![RecognitionMethod::regex_validated("ssn", "ssn")],
             context: None,
         };
         let entity = raw.into_entity();
@@ -492,7 +497,7 @@ mod tests {
         assert_eq!(entity.entity_kind, EntityKind::GovernmentId);
         assert_eq!(
             entity.recognition_methods,
-            vec![RecognitionMethod::Regex, RecognitionMethod::Checksum]
+            vec![RecognitionMethod::regex_validated("ssn", "ssn")]
         );
         assert!((entity.confidence - 0.9).abs() < f64::EPSILON);
         assert!(entity.location.is_none());

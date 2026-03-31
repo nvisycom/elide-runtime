@@ -22,7 +22,7 @@ pub enum ModelKind {
 }
 
 /// Identity and version of the model used for detection.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelInfo {
     /// Model name (e.g. `"spacy-en-core-web-lg"`, `"gpt-4"`).

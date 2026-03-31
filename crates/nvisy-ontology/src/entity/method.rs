@@ -9,6 +9,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
+use super::model::ModelInfo;
+
 /// How content was extracted from its source modality into analyzable form.
 ///
 /// Each variant names the technique that transformed raw content
@@ -20,15 +22,12 @@ use strum::{Display, EnumString};
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum ExtractionMethod {
-    // Text
     /// Structural parsing of document formats (PDF, DOCX, HTML)
     /// into text and layout primitives.
     DocumentParsing,
     /// Inference of field semantics from column names, types, or
     /// positional conventions in tabular data.
     SchemaInference,
-
-    // Image / Video
     /// Optical character recognition: converts raster text
     /// (printed or handwritten) into machine-readable characters.
     OpticalCharacterRecognition,
@@ -52,8 +51,6 @@ pub enum ExtractionMethod {
     /// Frame extraction: samples individual frames from video
     /// streams for downstream image analysis.
     FrameExtraction,
-
-    // Audio / Video
     /// Speech-to-text transcription: converts audio into text.
     Transcription,
     /// Speaker diarization: segments audio by speaker identity
@@ -61,52 +58,169 @@ pub enum ExtractionMethod {
     Diarization,
 }
 
+/// Provenance for a pattern-based detection (regex, dictionary, checksum).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct PatternProvenance {
+    /// Name of the pattern that matched (e.g. "ssn", "email").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    /// Name of the validator that confirmed the match (e.g. "luhn", "iban").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validator: Option<String>,
+}
+
+/// Provenance for a model-based detection.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct ModelProvenance {
+    /// The model that produced the detection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelInfo>,
+}
+
+/// Provenance for a manual annotation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct ManualProvenance {
+    /// Identifier of the annotator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotator: Option<String>,
+}
+
 /// Technique used to identify a sensitive entity within extracted content.
 ///
-/// Each variant names a self-contained recognition strategy.
-/// An entity's `recognition_methods` vector records every technique
-/// that contributed to its identification, ordered by application time.
+/// Each variant names a self-contained recognition strategy and carries
+/// optional provenance metadata about the specific tool that produced
+/// the detection.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "method", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum RecognitionMethod {
+    /// Regular expression matching against known PII formats.
+    Regex(PatternProvenance),
+    /// Exact-match lookup in a curated value list.
+    Dictionary(PatternProvenance),
+    /// Co-occurrence analysis: keywords near a candidate raise or
+    /// lower confidence.
+    ContextualAnalysis,
+    /// Format heuristics: entropy, character distribution, or
+    /// structural cues.
+    Heuristic,
+    /// Named-entity recognition via language model.
+    Ner(ModelProvenance),
+    /// Document or field-level classification.
+    Classification(ModelProvenance),
+    /// Semantic similarity search via vector embeddings.
+    Embedding(ModelProvenance),
+    /// Matching extracted values against an external identity or
+    /// record database.
+    CrossReference,
+    /// Biometric identification: face recognition, voiceprint
+    /// matching, or other physiological/behavioral trait analysis.
+    Biometric,
+    /// User-provided annotation.
+    Manual(ManualProvenance),
+}
+
+impl RecognitionMethod {
+    /// Create a `Regex` method with the given pattern name.
+    pub fn regex(pattern: impl Into<String>) -> Self {
+        Self::Regex(PatternProvenance {
+            pattern: Some(pattern.into()),
+            validator: None,
+        })
+    }
+
+    /// Create a `Regex` method with pattern name and validator.
+    pub fn regex_validated(pattern: impl Into<String>, validator: impl Into<String>) -> Self {
+        Self::Regex(PatternProvenance {
+            pattern: Some(pattern.into()),
+            validator: Some(validator.into()),
+        })
+    }
+
+    /// Create a `Regex` method with no provenance.
+    pub fn regex_anonymous() -> Self {
+        Self::Regex(PatternProvenance {
+            pattern: None,
+            validator: None,
+        })
+    }
+
+    /// Create a `Dictionary` method with the given dictionary name.
+    pub fn dictionary(pattern: impl Into<String>) -> Self {
+        Self::Dictionary(PatternProvenance {
+            pattern: Some(pattern.into()),
+            validator: None,
+        })
+    }
+
+    /// Create a `Ner` method with the given model info.
+    pub fn ner(model: ModelInfo) -> Self {
+        Self::Ner(ModelProvenance { model: Some(model) })
+    }
+
+    /// Create a `Ner` method with no model info.
+    pub fn ner_anonymous() -> Self {
+        Self::Ner(ModelProvenance { model: None })
+    }
+
+    /// Create a `Manual` method with the given annotator ID.
+    pub fn manual(annotator: impl Into<String>) -> Self {
+        Self::Manual(ManualProvenance {
+            annotator: Some(annotator.into()),
+        })
+    }
+
+    /// Create a `Manual` method with no annotator.
+    pub fn manual_anonymous() -> Self {
+        Self::Manual(ManualProvenance { annotator: None })
+    }
+
+    /// Returns the discriminant kind, stripping provenance data.
+    /// Useful as a HashMap key when provenance details don't matter
+    /// (e.g. calibration maps, weight tables).
+    /// Returns the discriminant kind, stripping provenance data.
+    /// Useful as a HashMap key when provenance details don't matter
+    /// (e.g. calibration maps, weight tables).
+    pub fn kind(&self) -> RecognitionMethodKind {
+        match self {
+            Self::Regex(_) => RecognitionMethodKind::Regex,
+            Self::Dictionary(_) => RecognitionMethodKind::Dictionary,
+            Self::ContextualAnalysis => RecognitionMethodKind::ContextualAnalysis,
+            Self::Heuristic => RecognitionMethodKind::Heuristic,
+            Self::Ner(_) => RecognitionMethodKind::Ner,
+            Self::Classification(_) => RecognitionMethodKind::Classification,
+            Self::Embedding(_) => RecognitionMethodKind::Embedding,
+            Self::CrossReference => RecognitionMethodKind::CrossReference,
+            Self::Biometric => RecognitionMethodKind::Biometric,
+            Self::Manual(_) => RecognitionMethodKind::Manual,
+            _ => RecognitionMethodKind::Heuristic,
+        }
+    }
+}
+
+/// Discriminant of [`RecognitionMethod`] without provenance data.
+///
+/// Used as a lightweight key for calibration maps and weight tables
+/// where the specific pattern/model identity doesn't matter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
-pub enum RecognitionMethod {
-    // Pattern
-    /// Regular expression matching against known PII formats.
+pub enum RecognitionMethodKind {
     Regex,
-    /// Mathematical validation of a candidate value
-    /// (Luhn, IBAN mod-97, SSN area rules).
-    Checksum,
-    /// Exact-match lookup in a curated value list.
     Dictionary,
-    /// Co-occurrence analysis: keywords near a candidate raise or
-    /// lower confidence (e.g. "SSN" adjacent to a 9-digit number).
     ContextualAnalysis,
-    /// Format heuristics: entropy, character distribution, or
-    /// structural cues that suggest a value is sensitive without
-    /// an explicit regex.
     Heuristic,
-
-    // Model
-    /// Named-entity recognition via language model.
     Ner,
-    /// Document or field-level classification
-    /// (e.g. "this column contains SSNs").
     Classification,
-    /// Semantic similarity search via vector embeddings.
     Embedding,
-    /// Matching extracted values against an external identity or
-    /// record database.
     CrossReference,
-
-    // Biometric
-    /// Biometric identification: face recognition, voiceprint
-    /// matching, or other physiological/behavioral trait analysis.
     Biometric,
-
-    // Human
-    /// User-provided annotation.
     Manual,
 }
 
@@ -114,36 +228,24 @@ pub enum RecognitionMethod {
 ///
 /// Refinement methods do not discover new entities: they adjust
 /// confidence, merge duplicates, or verify existing detections.
-/// Recorded on the entity to explain why its final state may differ
-/// from the initial detection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum RefinementMethod {
-    /// Cross-detector deduplication: merges overlapping entities
-    /// from independent detectors, combining their confidence and
-    /// attribution.
+    /// Cross-detector deduplication.
     Deduplication,
-    /// Ensemble fusion: combines confidence scores from multiple
-    /// detectors using a voting or averaging strategy.
+    /// Ensemble fusion: combines confidence scores from multiple detectors.
     EnsembleFusion,
-    /// Model-based verification: a secondary model (typically VLM)
-    /// reviews detections against source content to confirm, correct,
-    /// or reject.
+    /// Model-based verification: a secondary model reviews detections.
     ModelVerification,
-    /// Policy evaluation: applies business rules, thresholds, or
-    /// per-category overrides to filter or re-score detections.
+    /// Policy evaluation: applies business rules or thresholds.
     PolicyEvaluation,
-    /// Human review: a reviewer confirmed, corrected, or rejected
-    /// the detection.
+    /// Human review.
     HumanReview,
-    /// Confidence calibration: adjusts raw model scores to align
-    /// with empirical precision targets.
+    /// Confidence calibration.
     ConfidenceCalibration,
-    /// Contextual promotion/demotion: surrounding document context
-    /// upgrades or downgrades an entity's confidence after initial
-    /// detection.
+    /// Contextual promotion/demotion.
     ContextualAdjustment,
 }

@@ -1,10 +1,10 @@
-//! Compute replacement values and apply redaction decisions to
+//! Compute replacement values and apply redaction records to
 //! document content via codec transforms.
 //!
-//! [`RedactionApplicator`] holds a mutable reference to the envelope
-//! and reads decisions/entities, builds per-modality codec instructions,
-//! writes `replaced_value` into audit records, and applies instructions
-//! to the document.
+//! [`RedactionApplicator`] holds a mutable reference to the envelope,
+//! iterates `audit.records`, builds per-modality codec instructions,
+//! writes `replaced_value` inline, and applies instructions to the
+//! document.
 
 use std::collections::HashMap;
 
@@ -14,7 +14,6 @@ use nvisy_codec::transform::{
 };
 use nvisy_ontology::entity::{Entity, EntityKind, Location};
 use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
-use nvisy_ontology::provenance::RedactionRecord;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -27,9 +26,9 @@ const AUDIO_REDACTED: &str = "[AUDIO_REDACTED]";
 
 /// Builds and applies redaction instructions across all modalities.
 ///
-/// Holds `&mut DocumentEnvelope` and accesses its fields directly:
-/// reads `audit.decisions` and `entities`, writes `audit.records`,
-/// and mutates `document`.
+/// Holds `&mut DocumentEnvelope` and iterates `audit.records` to build
+/// codec instructions. Writes `replaced_value` directly into each
+/// record during the build phase.
 pub(super) struct RedactionApplicator<'a> {
     envelope: &'a mut DocumentEnvelope,
 }
@@ -65,15 +64,12 @@ impl<'a> RedactionApplicator<'a> {
     }
 
     fn build_text_redactions(&mut self) -> Vec<TextRedaction<TextSpanId>> {
-        let entity_map = Self::entity_map(&self.envelope.entities);
+        let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Vec::new();
 
-        // Index-based iteration: borrowing self.envelope.audit.decisions
-        // via for-in would conflict with the mutable access to
-        // self.envelope.audit.records in set_replaced_value.
-        for i in 0..self.envelope.audit.decisions.len() {
-            let decision = &self.envelope.audit.decisions[i];
-            let entity = match entity_map.get(&decision.entity_id) {
+        for i in 0..self.envelope.audit.records.len() {
+            let record = &self.envelope.audit.records[i];
+            let entity = match entity_map.get(&record.entity_id) {
                 Some(e) => *e,
                 None => continue,
             };
@@ -82,7 +78,7 @@ impl<'a> RedactionApplicator<'a> {
                 continue;
             };
 
-            let output = match &decision.spec {
+            let output = match &record.redaction.strategy {
                 Strategy::Text(text) => Self::text_output(entity, text),
                 _ => continue,
             };
@@ -91,13 +87,10 @@ impl<'a> RedactionApplicator<'a> {
                 continue;
             };
             let span_id = TextSpanId(index);
-            let entity_id = decision.entity_id;
+            let entity_id = record.entity_id;
 
-            Self::set_replaced_value(
-                &mut self.envelope.audit.records,
-                entity_id,
-                output.replacement_value().map(String::from),
-            );
+            self.envelope.audit.records[i].value.replacement =
+                output.replacement_value().map(String::from);
 
             tracing::trace!(
                 target: TARGET,
@@ -120,12 +113,12 @@ impl<'a> RedactionApplicator<'a> {
     }
 
     fn build_image_redactions(&mut self) -> Vec<ImageRedaction<ImageSpanId>> {
-        let entity_map = Self::entity_map(&self.envelope.entities);
+        let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Vec::new();
 
-        for i in 0..self.envelope.audit.decisions.len() {
-            let decision = &self.envelope.audit.decisions[i];
-            let entity = match entity_map.get(&decision.entity_id) {
+        for i in 0..self.envelope.audit.records.len() {
+            let record = &self.envelope.audit.records[i];
+            let entity = match entity_map.get(&record.entity_id) {
                 Some(e) => *e,
                 None => continue,
             };
@@ -134,26 +127,24 @@ impl<'a> RedactionApplicator<'a> {
                 continue;
             };
 
-            let output = match &decision.spec {
+            let output = match &record.redaction.strategy {
                 Strategy::Image(img) => match img {
                     ImageStrategy::Blur { sigma } => ImageOutput::Blur { sigma: *sigma },
                     ImageStrategy::Block { color } => ImageOutput::Block { color: *color },
-                    ImageStrategy::Pixelate { block_size } => ImageOutput::Pixelate {
-                        block_size: *block_size,
-                    },
+                    ImageStrategy::Pixelate { block_size } => {
+                        ImageOutput::Pixelate {
+                            block_size: *block_size,
+                        }
+                    }
                     _ => continue,
                 },
                 _ => continue,
             };
 
             let span_id = ImageSpanId(loc.page_number);
-            let entity_id = decision.entity_id;
+            let entity_id = record.entity_id;
 
-            Self::set_replaced_value(
-                &mut self.envelope.audit.records,
-                entity_id,
-                Some(IMAGE_REDACTED.into()),
-            );
+            self.envelope.audit.records[i].value.replacement = Some(IMAGE_REDACTED.into());
 
             tracing::trace!(
                 target: TARGET,
@@ -172,12 +163,12 @@ impl<'a> RedactionApplicator<'a> {
     }
 
     fn build_audio_redactions(&mut self) -> Vec<AudioRedaction<AudioSpanId>> {
-        let entity_map = Self::entity_map(&self.envelope.entities);
+        let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Vec::new();
 
-        for i in 0..self.envelope.audit.decisions.len() {
-            let decision = &self.envelope.audit.decisions[i];
-            let entity = match entity_map.get(&decision.entity_id) {
+        for i in 0..self.envelope.audit.records.len() {
+            let record = &self.envelope.audit.records[i];
+            let entity = match entity_map.get(&record.entity_id) {
                 Some(e) => *e,
                 None => continue,
             };
@@ -186,7 +177,7 @@ impl<'a> RedactionApplicator<'a> {
                 continue;
             };
 
-            let output = match &decision.spec {
+            let output = match &record.redaction.strategy {
                 Strategy::Audio(audio) => match audio {
                     AudioStrategy::Silence => AudioOutput::Silence,
                     AudioStrategy::Remove => AudioOutput::Remove,
@@ -195,13 +186,9 @@ impl<'a> RedactionApplicator<'a> {
                 _ => continue,
             };
 
-            let entity_id = decision.entity_id;
+            let entity_id = record.entity_id;
 
-            Self::set_replaced_value(
-                &mut self.envelope.audit.records,
-                entity_id,
-                Some(AUDIO_REDACTED.into()),
-            );
+            self.envelope.audit.records[i].value.replacement = Some(AUDIO_REDACTED.into());
 
             tracing::trace!(
                 target: TARGET,
@@ -224,12 +211,6 @@ impl<'a> RedactionApplicator<'a> {
     /// Build a lookup map from entity UUID to entity reference.
     fn entity_map(entities: &nvisy_ontology::entity::Entities) -> HashMap<Uuid, &Entity> {
         entities.iter().map(|e| (e.source.as_uuid(), e)).collect()
-    }
-
-    fn set_replaced_value(records: &mut [RedactionRecord], entity_id: Uuid, value: Option<String>) {
-        if let Some(record) = records.iter_mut().find(|r| r.entity_id == entity_id) {
-            record.replaced_value = value;
-        }
     }
 
     fn text_output(entity: &Entity, strategy: &TextStrategy) -> TextOutput {
@@ -297,7 +278,7 @@ mod tests {
         Entities, Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
     };
     use nvisy_ontology::policy::ImageStrategy;
-    use nvisy_ontology::provenance::RedactionDecision;
+    use nvisy_ontology::provenance::RedactionRecord;
 
     use super::*;
     use crate::operation::envelope::SharedData;
@@ -328,24 +309,29 @@ mod tests {
         let registry = crate::registry::Registry::open(dir.path()).unwrap();
         let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
         let mut envelope = DocumentEnvelope::new(doc, ContentMetadata::default(), shared);
-        envelope.entities = entities;
+        envelope.audit.entities = entities;
         envelope
+    }
+
+    fn test_record(entity_id: Uuid, strategy: Strategy, original: &str) -> RedactionRecord {
+        RedactionRecord::builder()
+            .for_entity(entity_id, strategy, original, 0.9)
+            .build()
+            .unwrap()
     }
 
     #[tokio::test]
     async fn mask_applies_and_records_replacement() {
         let entity = text_entity("John", 0, 6, 10);
         let entity_id = entity.source.as_uuid();
-        let decision = RedactionDecision::new(
+        let record = test_record(
             entity_id,
             Strategy::Text(TextStrategy::Mask { mask_char: '*' }),
-            0.9,
+            "John",
         );
-        let record = RedactionRecord::new(entity_id, "John", 0.9);
 
         let entities: Entities = vec![entity].into();
         let mut envelope = test_envelope(entities).await;
-        envelope.audit.decisions.push(decision);
         envelope.audit.records.push(record);
 
         RedactionApplicator::new(&mut envelope)
@@ -354,21 +340,23 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            envelope.audit.records[0].replaced_value.as_deref(),
+            envelope.audit.records[0].value.replacement.as_deref(),
             Some("****"),
         );
     }
 
     #[tokio::test]
-    async fn remove_leaves_replaced_value_none() {
+    async fn remove_leaves_replacement_none() {
         let entity = text_entity("John", 0, 6, 10);
         let entity_id = entity.source.as_uuid();
-        let decision = RedactionDecision::new(entity_id, Strategy::Text(TextStrategy::Remove), 0.9);
-        let record = RedactionRecord::new(entity_id, "John", 0.9);
+        let record = test_record(
+            entity_id,
+            Strategy::Text(TextStrategy::Remove),
+            "John",
+        );
 
         let entities: Entities = vec![entity].into();
         let mut envelope = test_envelope(entities).await;
-        envelope.audit.decisions.push(decision);
         envelope.audit.records.push(record);
 
         RedactionApplicator::new(&mut envelope)
@@ -376,21 +364,21 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(envelope.audit.records[0].replaced_value.is_none());
+        assert!(envelope.audit.records[0].value.replacement.is_none());
     }
 
     #[tokio::test]
     async fn skips_image_strategy_for_text_entity() {
         let entity = text_entity("face", 0, 0, 4);
-        let decision = RedactionDecision::new(
+        let record = test_record(
             entity.source.as_uuid(),
             Strategy::Image(ImageStrategy::Blur { sigma: 15.0 }),
-            0.9,
+            "face",
         );
 
         let entities: Entities = vec![entity].into();
         let mut envelope = test_envelope(entities).await;
-        envelope.audit.decisions.push(decision);
+        envelope.audit.records.push(record);
 
         RedactionApplicator::new(&mut envelope)
             .apply()

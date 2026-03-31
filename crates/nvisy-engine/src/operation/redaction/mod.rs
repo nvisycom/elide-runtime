@@ -3,7 +3,7 @@
 //! Phase 4 of the pipeline. Two steps:
 //!
 //! 1. **Evaluate**: match entities against policy rules to produce
-//!    [`RedactionDecision`]s and [`RedactionRecord`]s (in [`evaluate`]).
+//!    [`RedactionRecord`]s (in [`evaluate`]).
 //! 2. **Apply**: build per-modality codec instructions (text, image,
 //!    audio) from decisions and apply them to the document, writing
 //!    replacement values into audit records (in [`apply`]).

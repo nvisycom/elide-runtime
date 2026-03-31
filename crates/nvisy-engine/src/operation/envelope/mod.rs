@@ -2,21 +2,20 @@
 //!
 //! A [`DocumentEnvelope`] is created at import and travels through
 //! every operation in the pipeline. Each stage reads from and writes to
-//! the envelope, progressively enriching it with entities and audit
-//! records until the document is fully redacted.
+//! the envelope until the document is fully redacted.
 //!
 //! ```text
 //! ContentData
 //!   ↓ Import
-//! DocumentEnvelope { document, … }
+//! DocumentEnvelope { document, audit, … }
 //!   ↓ OCR / NER / CV / PatternMatch
-//! DocumentEnvelope { document, entities, … }
+//! DocumentEnvelope { document, audit { entities, … } }
 //!   ↓ Deduplication / Ensemble
-//! DocumentEnvelope { document, entities (merged), … }
+//! DocumentEnvelope { document, audit { entities (merged), … } }
 //!   ↓ PolicyEvaluation
-//! DocumentEnvelope { document, entities, audit { decisions, records }, … }
+//! DocumentEnvelope { document, audit { entities, records, … } }
 //!   ↓ Redaction
-//! DocumentEnvelope { document (redacted), entities, audit { … } }
+//! DocumentEnvelope { document (redacted), audit { … } }
 //! ```
 //!
 //! Each operation receives `&mut DocumentEnvelope` and reads/writes
@@ -29,7 +28,6 @@ use std::sync::Arc;
 use nvisy_codec::Document;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::context::Contexts;
-use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::Audit;
 
 mod shared;
@@ -42,6 +40,9 @@ pub use self::shared::SharedData;
 /// enriched by detection, policy, and redaction operations. Operations
 /// receive `&mut DocumentEnvelope` and access run-wide shared state
 /// via the [`shared`](DocumentEnvelope::shared) field.
+///
+/// Detected entities live on [`audit.entities`](Audit::entities),
+/// not as a top-level field.
 pub struct DocumentEnvelope {
     /// The decoded document content (text, image, audio, or rich).
     ///
@@ -49,28 +50,15 @@ pub struct DocumentEnvelope {
     pub document: Document,
 
     /// Content metadata (MIME type, filename, etc.) from the original upload.
-    ///
-    /// Preserved through the pipeline so operations can access the
-    /// original filename, MIME type, and other descriptive attributes.
     pub metadata: ContentMetadata,
 
-    /// Entities detected by inference and processing operations.
-    ///
-    /// Populated by OCR, NER, computer vision, pattern matching,
-    /// and manual annotation. Refined by deduplication and ensemble
-    /// fusion before policy evaluation.
-    pub entities: Entities,
-
     /// Reference-data contexts loaded by [`LoadContext`] nodes.
-    ///
-    /// Populated as envelopes pass through `LoadContext` nodes and
-    /// available to downstream operations that need contextual data.
     ///
     /// [`LoadContext`]: nvisy_ontology::workflow::LoadContext
     pub contexts: Contexts,
 
-    /// Per-document audit trail: execution log, redaction decisions,
-    /// and redaction records.
+    /// Per-document audit trail: entities, processing log, and
+    /// redaction records.
     pub audit: Audit,
 
     /// Run-wide shared state (policies, registry, key provider, etc.).
@@ -87,7 +75,6 @@ impl DocumentEnvelope {
         Self {
             document,
             metadata,
-            entities: Entities::new(),
             contexts: Contexts::new(),
             audit,
             shared,
@@ -96,7 +83,7 @@ impl DocumentEnvelope {
 
     /// Number of detected entities.
     pub fn entity_count(&self) -> usize {
-        self.entities.len()
+        self.audit.entities.len()
     }
 }
 
@@ -105,10 +92,9 @@ impl std::fmt::Debug for DocumentEnvelope {
         f.debug_struct("DocumentEnvelope")
             .field("document_type", &self.document.document_type())
             .field("source", &self.document.source())
-            .field("entities", &self.entities.len())
+            .field("entities", &self.audit.entities.len())
             .field("contexts", &self.contexts.len())
             .field("audit_entries", &self.audit.len())
-            .field("decisions", &self.audit.decisions.len())
             .field("records", &self.audit.records.len())
             .finish()
     }

@@ -3,12 +3,11 @@
 //! This module is the single source of truth for all pipeline audit and
 //! decision types. It combines two concerns:
 //!
-//! - **Execution logs** ([`Audit`], [`AuditEntry`]) — when operations
+//! - **Execution logs** ([`Audit`], [`AuditEntry`]): when operations
 //!   ran, how long they took, what models were used, token counts, etc.
 //!
-//! - **Redaction records** ([`RedactionDecision`], [`RedactionRecord`],
-//!   [`PolicyEvaluation`], [`RedactionMap`]) — what was redacted, why, and
-//!   human-review status.
+//! - **Redaction records** ([`RedactionRecord`], [`PolicyEvaluation`],
+//!   [`RedactionRecord`]): what was redacted, why, and human-review status.
 //!
 //! Together these form a complete audit trail for compliance and review.
 
@@ -30,17 +29,17 @@ pub use self::action::{
 pub use self::entry::{AuditEntry, AuditEntryBuilder, AuditEntryBuilderError, AuditEntryStatus};
 pub use self::kind::{AuditEntryKind, InferenceKind, LifecycleKind, ProcessingKind};
 pub use self::record::{
-    PolicyEvaluation, RedactionDecision, RedactionMap, RedactionMapEntry, RedactionRecord,
-    ReviewDecision, ReviewStatus,
+    PolicyEvaluation, RedactionLifecycle, RedactionRecord, RedactionRecordBuilder, RedactionSpec,
+    RedactionValue, ReviewDecision, ReviewStatus,
 };
-use crate::entity::ContentSource;
+use crate::entity::{ContentSource, Entities};
 
 /// A per-document audit trail combining execution logs with redaction records.
 ///
 /// `Audit` is the single compliance artifact for a document. It tracks:
-/// - **What operations ran** — via [`entries`](Self::entries)
-/// - **What was redacted and how** — via [`decisions`](Self::decisions)
-/// - **The original values** — via [`records`](Self::records)
+/// - **What was found**: via [`entities`](Self::entities)
+/// - **What operations ran**: via [`entries`](Self::entries)
+/// - **What was redacted and how**: via [`records`](Self::records)
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "AuditBuilder",
@@ -59,14 +58,14 @@ pub struct Audit {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actor_id: Option<Uuid>,
+    /// Entities detected during the pipeline run.
+    #[builder(default)]
+    #[serde(default)]
+    pub entities: Entities,
     /// Ordered list of processing entries.
     #[builder(default)]
     pub entries: Vec<AuditEntry>,
-    /// Pipeline-facing redaction decisions (how each entity should be redacted).
-    #[builder(default)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub decisions: Vec<RedactionDecision>,
-    /// Audit-facing redaction records (original values, review status).
+    /// Redaction records: strategy, original value, replacement, review status.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub records: Vec<RedactionRecord>,
@@ -79,8 +78,8 @@ impl Audit {
             source,
             run_id: None,
             actor_id: None,
+            entities: Entities::new(),
             entries: Vec::new(),
-            decisions: Vec::new(),
             records: Vec::new(),
         }
     }
@@ -88,11 +87,6 @@ impl Audit {
     /// Append a processing entry.
     pub fn push_entry(&mut self, entry: AuditEntry) {
         self.entries.push(entry);
-    }
-
-    /// Append a redaction decision.
-    pub fn push_decision(&mut self, decision: RedactionDecision) {
-        self.decisions.push(decision);
     }
 
     /// Append a redaction record.

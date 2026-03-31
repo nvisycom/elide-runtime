@@ -61,7 +61,7 @@ async fn create_run(
         target: TARGET,
         run_id = %output.run_id,
         entities = output.detection.entities.len(),
-        decisions = output.evaluation.decisions.len(),
+        records = output.evaluation.records.len(),
         "pipeline run complete",
     );
 

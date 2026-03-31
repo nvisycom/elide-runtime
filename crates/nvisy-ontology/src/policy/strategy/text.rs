@@ -23,7 +23,7 @@ pub enum TextStrategy {
     },
     /// Substitute with a fixed placeholder string.
     Replace {
-        /// Template for the replacement (supports `{entityType}`, `{category}`, `{value}`).
+        /// Template for the replacement (supports `{entityType}`, `{category}`).
         #[serde(default)]
         placeholder: String,
     },
@@ -45,13 +45,5 @@ pub enum TextStrategy {
         /// Identifier of the token vault.
         #[serde(default)]
         vault_id: Option<String>,
-    },
-    /// Aggregate into a range or bucket.
-    Aggregate,
-    /// Generalize to a less precise value.
-    Generalize {
-        /// Generalization level (1 = city, 2 = state, etc.).
-        #[serde(default)]
-        level: Option<u32>,
     },
 }

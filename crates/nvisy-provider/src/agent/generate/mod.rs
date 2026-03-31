@@ -11,6 +11,8 @@ use nvisy_core::Result;
 use nvisy_ontology::entity::EntityKind;
 use uuid::Uuid;
 
+use crate::http::HttpClient;
+
 pub use self::output::{GenOutput, GeneratedEntity};
 use self::prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
 use super::base::UsageTracker;
@@ -27,8 +29,6 @@ pub struct GenRequest {
     pub original_value: String,
     /// Optional surrounding text for context.
     pub context: Option<String>,
-    /// Optional locale hint (e.g. `"en-US"`).
-    pub locale: Option<String>,
 }
 
 /// Agent for generating synthetic replacement values using an LLM.
@@ -45,13 +45,22 @@ pub struct GenAgent {
 
 impl GenAgent {
     /// Create a new generation agent.
-    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self> {
+    ///
+    /// Pass an [`HttpClient`] to share a connection pool with other
+    /// services; otherwise a new client is created from the agent config.
+    pub fn new(
+        provider: &AgentProvider,
+        mut config: AgentConfig,
+        http_client: Option<HttpClient>,
+    ) -> Result<Self> {
         config
             .preamble
             .get_or_insert_with(|| GEN_SYSTEM_PROMPT.into());
-        let base = BaseAgent::builder(provider, config)
-            .build()
-            .map_err(crate::error::convert)?;
+        let mut builder = BaseAgent::builder(provider, config);
+        if let Some(client) = http_client {
+            builder = builder.http_client(client);
+        }
+        let base = builder.build().map_err(crate::error::convert)?;
         Ok(Self { base })
     }
 

@@ -432,7 +432,7 @@ impl NodeExecutor {
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = RedactionOp::new(cfg, shared).await?;
+        let op = RedactionOp::new(cfg, shared, &self.ctx.config, &self.ctx.http_client).await?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();

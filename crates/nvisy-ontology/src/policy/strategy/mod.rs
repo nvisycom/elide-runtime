@@ -33,3 +33,19 @@ pub enum Strategy {
     /// Audio redaction strategy.
     Audio(AudioStrategy),
 }
+
+impl Strategy {
+    /// Whether the redaction is reversible (the original value can be
+    /// recovered from the redacted output).
+    ///
+    /// Only [`TextStrategy::Encrypt`] and [`TextStrategy::Tokenize`]
+    /// are reversible: Encrypt uses key-based decryption, Tokenize
+    /// uses vault-based detokenization. All other strategies are
+    /// destructive.
+    pub fn is_reversible(&self) -> bool {
+        matches!(
+            self,
+            Self::Text(TextStrategy::Encrypt { .. } | TextStrategy::Tokenize { .. })
+        )
+    }
+}

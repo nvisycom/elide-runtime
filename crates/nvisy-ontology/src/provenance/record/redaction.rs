@@ -73,19 +73,23 @@ pub struct RedactionValue {
 }
 
 /// Versioning and human review lifecycle.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionLifecycle {
     /// Version of this record (starts at 1, incremented on modification).
-    #[serde(default = "default_version")]
     pub version: u32,
     /// Human review decision, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review: Option<ReviewDecision>,
 }
 
-fn default_version() -> u32 {
-    1
+impl Default for RedactionLifecycle {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            review: None,
+        }
+    }
 }
 
 impl RedactionRecord {
@@ -105,6 +109,8 @@ impl RedactionRecordBuilder {
     ///
     /// This is the most common construction pattern: the policy evaluator
     /// knows the entity, the strategy it matched, and the original value.
+    /// `reversible` is derived from the strategy, and `location` defaults
+    /// to `None` (set separately via [`with_location`](Self::with_location)).
     pub fn for_entity(
         self,
         entity_id: Uuid,
@@ -112,17 +118,36 @@ impl RedactionRecordBuilder {
         original: impl Into<String>,
         confidence: f64,
     ) -> Self {
+        let reversible = strategy.is_reversible();
         self.with_entity_id(entity_id)
             .with_redaction(RedactionSpec {
                 strategy,
                 location: None,
                 is_applied: false,
-                reversible: false,
+                reversible,
             })
             .with_value(RedactionValue {
                 original: original.into(),
                 replacement: None,
                 confidence,
             })
+    }
+
+    /// Set the modality-specific location on the redaction spec.
+    ///
+    /// Must be called after [`for_entity`](Self::for_entity).
+    pub fn with_location(mut self, location: Location) -> Self {
+        if let Some(ref mut spec) = self.redaction {
+            spec.location = Some(location);
+        }
+        self
+    }
+
+    /// Set the parent content source for lineage tracking.
+    pub fn with_parent_id(mut self, parent_id: Uuid) -> Self {
+        if let Some(ref mut source) = self.source {
+            source.set_parent_id(Some(parent_id));
+        }
+        self
     }
 }

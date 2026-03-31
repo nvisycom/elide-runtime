@@ -6,8 +6,8 @@
 //! - **Execution logs** ([`Audit`], [`AuditEntry`]): when operations
 //!   ran, how long they took, what models were used, token counts, etc.
 //!
-//! - **Redaction records** ([`RedactionRecord`], [`PolicyEvaluation`],
-//!   [`RedactionRecord`]): what was redacted, why, and human-review status.
+//! - **Redaction records** ([`RedactionRecord`], [`PolicyEvaluation`]):
+//!   what was redacted, why, and human-review status.
 //!
 //! Together these form a complete audit trail for compliance and review.
 
@@ -33,6 +33,10 @@ pub use self::record::{
     RedactionValue, ReviewDecision, ReviewStatus,
 };
 use crate::entity::{ContentSource, Entities};
+
+fn entities_empty(entities: &Entities) -> bool {
+    entities.is_empty()
+}
 
 /// A per-document audit trail combining execution logs with redaction records.
 ///
@@ -60,7 +64,7 @@ pub struct Audit {
     pub actor_id: Option<Uuid>,
     /// Entities detected during the pipeline run.
     #[builder(default)]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "entities_empty")]
     pub entities: Entities,
     /// Ordered list of processing entries.
     #[builder(default)]

@@ -139,7 +139,10 @@ impl Operation for VisualExtractionOp {
                 // Verification is best-effort: a transient LLM failure should
                 // not discard entities that were already detected. Log and
                 // continue with the unverified set.
-                match self.verify(&verify_spans, envelope.audit.entities.clone()).await {
+                match self
+                    .verify(&verify_spans, envelope.audit.entities.clone())
+                    .await
+                {
                     Ok(verified) => envelope.audit.entities = verified,
                     Err(e) => tracing::warn!(
                         target: TARGET, error = %e,

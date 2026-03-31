@@ -131,11 +131,9 @@ impl<'a> RedactionApplicator<'a> {
                 Strategy::Image(img) => match img {
                     ImageStrategy::Blur { sigma } => ImageOutput::Blur { sigma: *sigma },
                     ImageStrategy::Block { color } => ImageOutput::Block { color: *color },
-                    ImageStrategy::Pixelate { block_size } => {
-                        ImageOutput::Pixelate {
-                            block_size: *block_size,
-                        }
-                    }
+                    ImageStrategy::Pixelate { block_size } => ImageOutput::Pixelate {
+                        block_size: *block_size,
+                    },
                     _ => continue,
                 },
                 _ => continue,
@@ -349,11 +347,7 @@ mod tests {
     async fn remove_leaves_replacement_none() {
         let entity = text_entity("John", 0, 6, 10);
         let entity_id = entity.source.as_uuid();
-        let record = test_record(
-            entity_id,
-            Strategy::Text(TextStrategy::Remove),
-            "John",
-        );
+        let record = test_record(entity_id, Strategy::Text(TextStrategy::Remove), "John");
 
         let entities: Entities = vec![entity].into();
         let mut envelope = test_envelope(entities).await;

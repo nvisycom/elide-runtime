@@ -121,15 +121,15 @@ impl PolicyEvaluator {
             let policy_rule_id = rule.map(|r| r.id);
 
             let mut builder = RedactionRecord::builder()
-                .for_entity(entity_id, spec, &entity.value, entity.confidence);
+                .for_entity(entity_id, spec, &entity.value, entity.confidence)
+                .with_parent_id(entity_id);
             if let Some(rule_id) = policy_rule_id {
                 builder = builder.with_policy_id(rule_id);
             }
-            let mut record = builder.build().expect("all required fields set");
-            record.source.set_parent_id(Some(entity_id));
             if let Some(ref loc) = entity.location {
-                record.redaction.location = Some(loc.clone());
+                builder = builder.with_location(loc.clone());
             }
+            let record = builder.build().expect("all required fields set");
 
             tracing::trace!(
                 target: TARGET,

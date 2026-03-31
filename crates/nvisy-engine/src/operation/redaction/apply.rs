@@ -1,143 +1,308 @@
-//! Compute replacement text from a strategy and apply redaction
-//! decisions to document content via codec transforms.
+//! Compute replacement values and apply redaction decisions to
+//! document content via codec transforms.
+//!
+//! [`RedactionApplicator`] holds a mutable reference to the envelope
+//! and reads decisions/entities, builds per-modality codec instructions,
+//! writes `replaced_value` into audit records, and applies instructions
+//! to the document.
 
-use nvisy_codec::handler::TextSpanId;
-use nvisy_codec::transform::{TextOutput, TextRedaction};
-use nvisy_ontology::entity::{Entities, Entity, EntityKind, Location};
-use nvisy_ontology::policy::{Strategy, TextStrategy};
-use nvisy_ontology::provenance::RedactionDecision;
+use std::collections::HashMap;
+
+use nvisy_codec::handler::{AudioSpanId, ImageSpanId, TextSpanId};
+use nvisy_codec::transform::{
+    AudioOutput, AudioRedaction, ImageOutput, ImageRedaction, TextOutput, TextRedaction,
+};
+use nvisy_ontology::entity::{Entity, EntityKind, Location};
+use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
+use nvisy_ontology::provenance::RedactionRecord;
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
+
+use crate::operation::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::redaction::apply";
 
-/// Build codec [`TextRedaction`] instructions from redaction decisions
-/// and the entities they reference.
+const IMAGE_REDACTED: &str = "[IMAGE_REDACTED]";
+const AUDIO_REDACTED: &str = "[AUDIO_REDACTED]";
+
+/// Builds and applies redaction instructions across all modalities.
 ///
-/// For each decision that targets a text entity with a text strategy,
-/// computes the replacement string and emits a `TextRedaction` with
-/// the span ID and byte offsets from the entity's [`TextLocation`].
-///
-/// Decisions targeting image or audio entities are skipped (those
-/// need separate codec transforms).
-pub(super) fn build_text_redactions(
-    decisions: &[RedactionDecision],
-    entities: &Entities,
-) -> Vec<TextRedaction<TextSpanId>> {
-    let mut redactions = Vec::new();
-
-    for decision in decisions {
-        let entity = match entities
-            .iter()
-            .find(|e| e.source.as_uuid() == decision.entity_id)
-        {
-            Some(e) => e,
-            None => continue,
-        };
-
-        let Some(Location::Text(ref loc)) = entity.location else {
-            continue;
-        };
-
-        let replacement = match &decision.spec {
-            Strategy::Text(text) => build_text_replacement(entity, text),
-            _ => continue,
-        };
-
-        let span_id = match &loc.element_id {
-            Some(id) => match id.parse::<usize>() {
-                Ok(n) => TextSpanId(n),
-                Err(_) => continue,
-            },
-            None => continue,
-        };
-
-        let output = if replacement.is_empty() {
-            TextOutput::Remove
-        } else {
-            TextOutput::Replace { replacement }
-        };
-
-        tracing::trace!(
-            target: TARGET,
-            entity_id = %decision.entity_id,
-            span = span_id.0,
-            start = loc.start_offset,
-            end = loc.end_offset,
-            "built text redaction instruction",
-        );
-
-        redactions.push(TextRedaction {
-            span_id,
-            start: loc.start_offset,
-            end: loc.end_offset,
-            output,
-        });
-    }
-
-    tracing::debug!(
-        target: TARGET,
-        decisions = decisions.len(),
-        text_redactions = redactions.len(),
-        "built codec instructions",
-    );
-
-    redactions
+/// Holds `&mut DocumentEnvelope` and accesses its fields directly:
+/// reads `audit.decisions` and `entities`, writes `audit.records`,
+/// and mutates `document`.
+pub(super) struct RedactionApplicator<'a> {
+    envelope: &'a mut DocumentEnvelope,
 }
 
-/// Compute replacement text for a single entity and text strategy.
-fn build_text_replacement(entity: &Entity, strategy: &TextStrategy) -> String {
-    match strategy {
-        TextStrategy::Mask { mask_char } => mask_char.to_string().repeat(entity.value.len()),
+impl<'a> RedactionApplicator<'a> {
+    pub fn new(envelope: &'a mut DocumentEnvelope) -> Self {
+        Self { envelope }
+    }
 
-        TextStrategy::Replace { placeholder } => {
-            if placeholder.is_empty() {
-                format!("[{}]", entity.entity_kind.to_string().to_uppercase())
-            } else {
-                placeholder
-                    .replace("{entityType}", &entity.entity_kind.to_string())
-                    .replace("{category}", &entity.category.to_string())
-            }
+    /// Build and apply all redaction instructions.
+    pub async fn apply(mut self) -> nvisy_core::Result<()> {
+        let text = self.build_text_redactions();
+        let image = self.build_image_redactions();
+        let audio = self.build_audio_redactions();
+
+        if !text.is_empty() {
+            self.envelope.document.apply_text_redactions(&text).await?;
+        }
+        if !image.is_empty() {
+            self.envelope
+                .document
+                .apply_image_redactions(&image)
+                .await?;
+        }
+        if !audio.is_empty() {
+            self.envelope
+                .document
+                .apply_audio_redactions(&audio)
+                .await?;
         }
 
-        TextStrategy::Remove => String::new(),
-
-        TextStrategy::Hash => hash_value(&entity.value),
-
-        TextStrategy::Pseudonymize => pseudonymize(&entity.entity_kind, &entity.value),
-
-        TextStrategy::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
-        TextStrategy::Generate => format!("[GEN:{}]", entity.entity_kind),
-        TextStrategy::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
-        _ => format!("[REDACTED:{}]", entity.entity_kind),
+        Ok(())
     }
-}
 
-fn hash_value(value: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(value.as_bytes());
-    let hash = hasher.finalize();
-    hash.iter().take(8).map(|b| format!("{b:02x}")).collect()
-}
+    fn build_text_redactions(&mut self) -> Vec<TextRedaction<TextSpanId>> {
+        let entity_map = Self::entity_map(&self.envelope.entities);
+        let mut redactions = Vec::new();
 
-fn pseudonymize(entity_kind: &EntityKind, value: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(entity_kind.to_string().as_bytes());
-    hasher.update(b":");
-    hasher.update(value.as_bytes());
-    let hash = hasher.finalize();
-    let id: u32 = u32::from_le_bytes([hash[0], hash[1], hash[2], hash[3]]);
-    format!("{entity_kind}_{id}")
+        // Index-based iteration: borrowing self.envelope.audit.decisions
+        // via for-in would conflict with the mutable access to
+        // self.envelope.audit.records in set_replaced_value.
+        for i in 0..self.envelope.audit.decisions.len() {
+            let decision = &self.envelope.audit.decisions[i];
+            let entity = match entity_map.get(&decision.entity_id) {
+                Some(e) => *e,
+                None => continue,
+            };
+
+            let Some(Location::Text(ref loc)) = entity.location else {
+                continue;
+            };
+
+            let output = match &decision.spec {
+                Strategy::Text(text) => Self::text_output(entity, text),
+                _ => continue,
+            };
+
+            let Some(index) = loc.span_index else {
+                continue;
+            };
+            let span_id = TextSpanId(index);
+            let entity_id = decision.entity_id;
+
+            Self::set_replaced_value(
+                &mut self.envelope.audit.records,
+                entity_id,
+                output.replacement_value().map(String::from),
+            );
+
+            tracing::trace!(
+                target: TARGET,
+                %entity_id,
+                span = span_id.0,
+                start = loc.start_offset,
+                end = loc.end_offset,
+                "built text redaction instruction",
+            );
+
+            redactions.push(TextRedaction {
+                span_id,
+                start: loc.start_offset,
+                end: loc.end_offset,
+                output,
+            });
+        }
+
+        redactions
+    }
+
+    fn build_image_redactions(&mut self) -> Vec<ImageRedaction<ImageSpanId>> {
+        let entity_map = Self::entity_map(&self.envelope.entities);
+        let mut redactions = Vec::new();
+
+        for i in 0..self.envelope.audit.decisions.len() {
+            let decision = &self.envelope.audit.decisions[i];
+            let entity = match entity_map.get(&decision.entity_id) {
+                Some(e) => *e,
+                None => continue,
+            };
+
+            let Some(Location::Image(ref loc)) = entity.location else {
+                continue;
+            };
+
+            let output = match &decision.spec {
+                Strategy::Image(img) => match img {
+                    ImageStrategy::Blur { sigma } => ImageOutput::Blur { sigma: *sigma },
+                    ImageStrategy::Block { color } => ImageOutput::Block { color: *color },
+                    ImageStrategy::Pixelate { block_size } => ImageOutput::Pixelate {
+                        block_size: *block_size,
+                    },
+                    _ => continue,
+                },
+                _ => continue,
+            };
+
+            let span_id = ImageSpanId(loc.page_number);
+            let entity_id = decision.entity_id;
+
+            Self::set_replaced_value(
+                &mut self.envelope.audit.records,
+                entity_id,
+                Some(IMAGE_REDACTED.into()),
+            );
+
+            tracing::trace!(
+                target: TARGET,
+                %entity_id,
+                "built image redaction instruction",
+            );
+
+            redactions.push(ImageRedaction {
+                span_id,
+                bounding_box: loc.bounding_box,
+                output,
+            });
+        }
+
+        redactions
+    }
+
+    fn build_audio_redactions(&mut self) -> Vec<AudioRedaction<AudioSpanId>> {
+        let entity_map = Self::entity_map(&self.envelope.entities);
+        let mut redactions = Vec::new();
+
+        for i in 0..self.envelope.audit.decisions.len() {
+            let decision = &self.envelope.audit.decisions[i];
+            let entity = match entity_map.get(&decision.entity_id) {
+                Some(e) => *e,
+                None => continue,
+            };
+
+            let Some(Location::Audio(ref loc)) = entity.location else {
+                continue;
+            };
+
+            let output = match &decision.spec {
+                Strategy::Audio(audio) => match audio {
+                    AudioStrategy::Silence => AudioOutput::Silence,
+                    AudioStrategy::Remove => AudioOutput::Remove,
+                    _ => continue,
+                },
+                _ => continue,
+            };
+
+            let entity_id = decision.entity_id;
+
+            Self::set_replaced_value(
+                &mut self.envelope.audit.records,
+                entity_id,
+                Some(AUDIO_REDACTED.into()),
+            );
+
+            tracing::trace!(
+                target: TARGET,
+                %entity_id,
+                start = loc.time_span.start_secs,
+                end = loc.time_span.end_secs,
+                "built audio redaction instruction",
+            );
+
+            redactions.push(AudioRedaction {
+                span_id: AudioSpanId::default(),
+                time_span: loc.time_span,
+                output,
+            });
+        }
+
+        redactions
+    }
+
+    /// Build a lookup map from entity UUID to entity reference.
+    fn entity_map(entities: &nvisy_ontology::entity::Entities) -> HashMap<Uuid, &Entity> {
+        entities.iter().map(|e| (e.source.as_uuid(), e)).collect()
+    }
+
+    fn set_replaced_value(records: &mut [RedactionRecord], entity_id: Uuid, value: Option<String>) {
+        if let Some(record) = records.iter_mut().find(|r| r.entity_id == entity_id) {
+            record.replaced_value = value;
+        }
+    }
+
+    fn text_output(entity: &Entity, strategy: &TextStrategy) -> TextOutput {
+        match strategy {
+            TextStrategy::Mask { mask_char } => {
+                TextOutput::replace(mask_char.to_string().repeat(entity.value.len()))
+            }
+
+            TextStrategy::Replace { placeholder } => {
+                if placeholder.is_empty() {
+                    TextOutput::replace(format!(
+                        "[{}]",
+                        entity.entity_kind.to_string().to_uppercase()
+                    ))
+                } else {
+                    TextOutput::replace(
+                        placeholder
+                            .replace("{entityType}", &entity.entity_kind.to_string())
+                            .replace("{category}", &entity.category.to_string()),
+                    )
+                }
+            }
+
+            TextStrategy::Remove => TextOutput::Remove,
+
+            TextStrategy::Hash => TextOutput::replace(Self::hash_value(&entity.value)),
+
+            TextStrategy::Pseudonymize => {
+                TextOutput::replace(Self::pseudonymize(&entity.entity_kind, &entity.value))
+            }
+
+            TextStrategy::Encrypt { .. } => {
+                TextOutput::replace(format!("[ENC:{}]", entity.entity_kind))
+            }
+            TextStrategy::Tokenize { .. } => {
+                TextOutput::replace(format!("[TOKEN:{}]", entity.entity_kind))
+            }
+            _ => TextOutput::replace(format!("[REDACTED:{}]", entity.entity_kind)),
+        }
+    }
+
+    fn hash_value(value: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(value.as_bytes());
+        let hash = hasher.finalize();
+        hash.iter().take(8).map(|b| format!("{b:02x}")).collect()
+    }
+
+    fn pseudonymize(entity_kind: &EntityKind, value: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(entity_kind.to_string().as_bytes());
+        hasher.update(b":");
+        hasher.update(value.as_bytes());
+        let hash = hasher.finalize();
+        let id: u32 = u32::from_le_bytes([hash[0], hash[1], hash[2], hash[3]]);
+        format!("{entity_kind}_{id}")
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use nvisy_codec::Document;
+    use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
     use nvisy_ontology::entity::{
-        Entity, EntityCategory, EntityKind, RecognitionMethod, TextLocation,
+        Entities, Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
     };
+    use nvisy_ontology::policy::ImageStrategy;
+    use nvisy_ontology::provenance::RedactionDecision;
 
     use super::*;
+    use crate::operation::envelope::SharedData;
 
-    fn text_entity(value: &str, span_id: usize, start: usize, end: usize) -> Entity {
+    fn text_entity(value: &str, span_index: usize, start: usize, end: usize) -> Entity {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
@@ -147,93 +312,105 @@ mod tests {
             .with_location(Location::from(TextLocation {
                 start_offset: start,
                 end_offset: end,
-                element_id: Some(span_id.to_string()),
+                span_index: Some(span_index),
                 ..Default::default()
             }))
             .build()
             .unwrap()
     }
 
-    #[test]
-    fn mask_builds_text_redaction() {
-        let entity = text_entity("John", 0, 5, 9);
+    async fn test_envelope(entities: Entities) -> DocumentEnvelope {
+        let data = ContentData::from_text(ContentSource::new(), "Hello John world");
+        let content =
+            Content::with_metadata(data, ContentMetadata::new().with_content_type("text/plain"));
+        let doc = Document::decode(&content).await.unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let registry = crate::registry::Registry::open(dir.path()).unwrap();
+        let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
+        let mut envelope = DocumentEnvelope::new(doc, ContentMetadata::default(), shared);
+        envelope.entities = entities;
+        envelope
+    }
+
+    #[tokio::test]
+    async fn mask_applies_and_records_replacement() {
+        let entity = text_entity("John", 0, 6, 10);
+        let entity_id = entity.source.as_uuid();
         let decision = RedactionDecision::new(
-            entity.source.as_uuid(),
+            entity_id,
             Strategy::Text(TextStrategy::Mask { mask_char: '*' }),
             0.9,
         );
-        let entities: Entities = vec![entity].into();
-        let redactions = build_text_redactions(&[decision], &entities);
-        assert_eq!(redactions.len(), 1);
-        assert_eq!(redactions[0].span_id, TextSpanId(0));
-        assert_eq!(redactions[0].start, 5);
-        assert_eq!(redactions[0].end, 9);
-        assert_eq!(redactions[0].output.replacement_value(), Some("****"));
-    }
+        let record = RedactionRecord::new(entity_id, "John", 0.9);
 
-    #[test]
-    fn remove_builds_remove_output() {
-        let entity = text_entity("secret", 0, 0, 6);
-        let decision = RedactionDecision::new(
-            entity.source.as_uuid(),
-            Strategy::Text(TextStrategy::Remove),
-            0.9,
+        let entities: Entities = vec![entity].into();
+        let mut envelope = test_envelope(entities).await;
+        envelope.audit.decisions.push(decision);
+        envelope.audit.records.push(record);
+
+        RedactionApplicator::new(&mut envelope)
+            .apply()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            envelope.audit.records[0].replaced_value.as_deref(),
+            Some("****"),
         );
-        let entities: Entities = vec![entity].into();
-        let redactions = build_text_redactions(&[decision], &entities);
-        assert_eq!(redactions.len(), 1);
-        assert!(redactions[0].output.replacement_value().is_none());
     }
 
-    #[test]
-    fn skips_image_strategy() {
-        use nvisy_ontology::policy::ImageStrategy;
+    #[tokio::test]
+    async fn remove_leaves_replaced_value_none() {
+        let entity = text_entity("John", 0, 6, 10);
+        let entity_id = entity.source.as_uuid();
+        let decision = RedactionDecision::new(entity_id, Strategy::Text(TextStrategy::Remove), 0.9);
+        let record = RedactionRecord::new(entity_id, "John", 0.9);
 
+        let entities: Entities = vec![entity].into();
+        let mut envelope = test_envelope(entities).await;
+        envelope.audit.decisions.push(decision);
+        envelope.audit.records.push(record);
+
+        RedactionApplicator::new(&mut envelope)
+            .apply()
+            .await
+            .unwrap();
+
+        assert!(envelope.audit.records[0].replaced_value.is_none());
+    }
+
+    #[tokio::test]
+    async fn skips_image_strategy_for_text_entity() {
         let entity = text_entity("face", 0, 0, 4);
         let decision = RedactionDecision::new(
             entity.source.as_uuid(),
             Strategy::Image(ImageStrategy::Blur { sigma: 15.0 }),
             0.9,
         );
-        let entities: Entities = vec![entity].into();
-        let redactions = build_text_redactions(&[decision], &entities);
-        assert!(redactions.is_empty());
-    }
 
-    #[test]
-    fn skips_entity_without_location() {
-        let entity = Entity::builder()
-            .with_category(EntityCategory::PersonalIdentity)
-            .with_entity_kind(EntityKind::PersonName)
-            .with_value("John")
-            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(0.9)
-            .build()
-            .unwrap();
-        let decision = RedactionDecision::new(
-            entity.source.as_uuid(),
-            Strategy::Text(TextStrategy::Hash),
-            0.9,
-        );
         let entities: Entities = vec![entity].into();
-        let redactions = build_text_redactions(&[decision], &entities);
-        assert!(redactions.is_empty());
+        let mut envelope = test_envelope(entities).await;
+        envelope.audit.decisions.push(decision);
+
+        RedactionApplicator::new(&mut envelope)
+            .apply()
+            .await
+            .unwrap();
     }
 
     #[test]
     fn hash_replacement_is_deterministic() {
-        let entity = text_entity("John Smith", 0, 0, 10);
-        let d1 = RedactionDecision::new(
-            entity.source.as_uuid(),
-            Strategy::Text(TextStrategy::Hash),
-            0.9,
-        );
-        let entities: Entities = vec![entity].into();
-        let r1 = build_text_redactions(&[d1.clone()], &entities);
-        let r2 = build_text_redactions(&[d1], &entities);
-        assert_eq!(
-            r1[0].output.replacement_value(),
-            r2[0].output.replacement_value()
-        );
+        let a = RedactionApplicator::hash_value("John Smith");
+        let b = RedactionApplicator::hash_value("John Smith");
+        assert_eq!(a, b);
+        assert!(!a.is_empty());
+    }
+
+    #[test]
+    fn pseudonymize_is_deterministic() {
+        let a = RedactionApplicator::pseudonymize(&EntityKind::PersonName, "John Smith");
+        let b = RedactionApplicator::pseudonymize(&EntityKind::PersonName, "John Smith");
+        assert_eq!(a, b);
+        assert!(a.contains('_'));
     }
 }

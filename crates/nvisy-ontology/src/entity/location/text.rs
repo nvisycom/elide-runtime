@@ -20,9 +20,9 @@ pub struct TextLocation {
     /// End offset of the surrounding context window for redaction.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_end_offset: Option<usize>,
-    /// Identifier of the document element containing this entity.
+    /// Positional index of the text span containing this entity.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub element_id: Option<String>,
+    pub span_index: Option<usize>,
     /// 1-based page number where the entity was found.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_number: Option<u32>,

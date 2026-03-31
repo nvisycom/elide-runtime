@@ -142,7 +142,7 @@ impl PatternEngine {
     ///
     /// Each entity carries a [`TextLocation`] with `start_offset` and
     /// `end_offset` set from the match. The caller is responsible for
-    /// attaching `element_id` and parent source from the span context.
+    /// attaching `span_index` and parent source from the span context.
     #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), entities = tracing::field::Empty))]
     pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
         let mut raw = self.scan_raw(text, ctx);

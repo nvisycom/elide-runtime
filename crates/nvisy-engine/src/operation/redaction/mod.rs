@@ -1,11 +1,12 @@
-//! Redaction operation: policy evaluation + application.
+//! Redaction operation: policy evaluation + multimodal application.
 //!
 //! Phase 4 of the pipeline. Two steps:
 //!
 //! 1. **Evaluate**: match entities against policy rules to produce
-//!    [`RedactionDecision`]s (in [`evaluate`]).
-//! 2. **Apply**: compute replacement text from each decision's strategy
-//!    and build codec [`TextRedaction`] instructions (in [`apply`]).
+//!    [`RedactionDecision`]s and [`RedactionRecord`]s (in [`evaluate`]).
+//! 2. **Apply**: build per-modality codec instructions (text, image,
+//!    audio) from decisions and apply them to the document, writing
+//!    replacement values into audit records (in [`apply`]).
 
 mod apply;
 mod evaluate;

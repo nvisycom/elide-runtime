@@ -3,7 +3,7 @@
 use nvisy_core::Error;
 
 use super::instruction::AudioRedaction;
-use crate::handler::AudioHandler;
+use crate::handler::{AudioHandler, AudioSpanId};
 
 const TARGET: &str = "nvisy_codec::transform::audio";
 
@@ -14,12 +14,18 @@ const TARGET: &str = "nvisy_codec::transform::audio";
 #[async_trait::async_trait]
 pub trait AudioTransform: AudioHandler {
     /// Apply a batch of audio redactions, mutating in place.
-    async fn redact_audio(&mut self, redactions: &[AudioRedaction]) -> Result<(), Error>;
+    async fn redact_audio(
+        &mut self,
+        redactions: &[AudioRedaction<AudioSpanId>],
+    ) -> Result<(), Error>;
 }
 
 #[async_trait::async_trait]
 impl<H: AudioHandler> AudioTransform for H {
-    async fn redact_audio(&mut self, redactions: &[AudioRedaction]) -> Result<(), Error> {
+    async fn redact_audio(
+        &mut self,
+        redactions: &[AudioRedaction<AudioSpanId>],
+    ) -> Result<(), Error> {
         tracing::debug!(
             target: TARGET,
             redaction_count = redactions.len(),

@@ -7,7 +7,7 @@ use nvisy_core::Error;
 use super::instruction::{ImageOutput, ImageRedaction};
 use super::ops::ImageOps;
 use crate::document::{Span, SpanStream};
-use crate::handler::{ImageData, ImageHandler};
+use crate::handler::{ImageData, ImageHandler, ImageSpanId};
 
 const TARGET: &str = "nvisy_codec::transform::image";
 
@@ -18,12 +18,18 @@ const TARGET: &str = "nvisy_codec::transform::image";
 #[async_trait::async_trait]
 pub trait ImageTransform: ImageHandler {
     /// Apply a batch of image redactions, mutating in place.
-    async fn redact_images(&mut self, redactions: &[ImageRedaction]) -> Result<(), Error>;
+    async fn redact_images(
+        &mut self,
+        redactions: &[ImageRedaction<ImageSpanId>],
+    ) -> Result<(), Error>;
 }
 
 #[async_trait::async_trait]
 impl<H: ImageHandler> ImageTransform for H {
-    async fn redact_images(&mut self, redactions: &[ImageRedaction]) -> Result<(), Error> {
+    async fn redact_images(
+        &mut self,
+        redactions: &[ImageRedaction<ImageSpanId>],
+    ) -> Result<(), Error> {
         tracing::debug!(
             target: TARGET,
             redaction_count = redactions.len(),

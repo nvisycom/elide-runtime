@@ -89,17 +89,17 @@ impl FusionStrategyExt for FusionStrategy {
         }
 
         // Merge recognition methods (order-preserving union).
-        let mut seen_rec: HashSet<_> = result.recognition_methods.iter().copied().collect();
+        let mut seen_rec: HashSet<_> = result.recognition_methods.iter().cloned().collect();
         for e in &rest {
             for m in &e.recognition_methods {
-                if seen_rec.insert(*m) {
-                    result.recognition_methods.push(*m);
+                if seen_rec.insert(m.clone()) {
+                    result.recognition_methods.push(m.clone());
                 }
             }
         }
 
         // Merge extraction methods (order-preserving union).
-        let mut seen_ext: HashSet<_> = result.extraction_methods.iter().copied().collect();
+        let mut seen_ext: HashSet<_> = result.extraction_methods.iter().cloned().collect();
         for e in &rest {
             for m in &e.extraction_methods {
                 if seen_ext.insert(*m) {
@@ -146,7 +146,7 @@ impl FusionStrategyExt for FusionStrategy {
                     let w = e
                         .recognition_methods
                         .iter()
-                        .filter_map(|m| weights.get(m).copied())
+                        .filter_map(|m| weights.get(&m.kind()).copied())
                         .fold(1.0_f64, f64::max);
                     weighted_sum += e.confidence * w;
                     total_weight += w;

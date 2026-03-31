@@ -9,7 +9,7 @@
   },
   "context": {
     "keywords": ["social security", "ssn", "tax id", "taxpayer identification"],
-    "window": 3,
+    "window": 150,
     "boost": 0.1
   }
 }

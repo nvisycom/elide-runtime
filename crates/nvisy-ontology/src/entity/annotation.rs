@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use super::{Entities, Entity, EntityCategory, EntityKind, Location, RecognitionMethod};
+use crate::entity::Overlap;
 
 /// The kind of annotation applied to a content region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
@@ -170,7 +171,7 @@ impl Annotations {
                 .with_category(category)
                 .with_entity_kind(entity_kind)
                 .with_value(value)
-                .with_recognition_methods(vec![RecognitionMethod::Manual])
+                .with_recognition_methods(vec![RecognitionMethod::manual("annotation")])
                 .with_confidence(1.0);
             if let Some(ref loc) = ann.location {
                 builder = builder.with_location(loc.clone());

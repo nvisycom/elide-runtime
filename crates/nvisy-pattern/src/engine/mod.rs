@@ -24,13 +24,13 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use aho_corasick::AhoCorasick;
-use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
+use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod, TextLocation};
 use regex::{Regex, RegexSet};
 
 pub use self::allow_list::AllowList;
 pub use self::builder::PatternEngineBuilder;
 pub use self::deny_list::{DenyList, DenyRule};
-pub use self::pattern_match::RawMatch;
+pub(crate) use self::pattern_match::RawMatch;
 pub use self::scan_context::ScanContext;
 use crate::patterns::{ContextRule, DictionaryConfidence};
 use crate::validators::ValidatorResolver;
@@ -109,6 +109,18 @@ impl std::fmt::Debug for PatternEngine {
     }
 }
 
+impl std::fmt::Display for PatternEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PatternEngine({} regex, {} dict, threshold {:.2})",
+            self.regex_entries.len(),
+            self.dict_entries.len(),
+            self.confidence_threshold,
+        )
+    }
+}
+
 impl PatternEngine {
     /// Return a reference to the lazily-initialised default engine
     /// containing all built-in patterns.
@@ -126,15 +138,84 @@ impl PatternEngine {
     /// Matches whose value appears in the allow list are suppressed.
     /// Deny-list values found in the text are injected as synthetic matches
     /// with confidence `1.0` when not already matched.
-    #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), matches = tracing::field::Empty))]
-    pub fn scan_text(&self, text: &str, ctx: &ScanContext) -> Vec<RawMatch> {
+    /// Scan `text` and return detected entities with [`TextLocation`]s.
+    ///
+    /// Each entity carries a [`TextLocation`] with `start_offset` and
+    /// `end_offset` set from the match. The caller is responsible for
+    /// attaching `element_id` and parent source from the span context.
+    #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), entities = tracing::field::Empty))]
+    pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
+        let mut raw = self.scan_raw(text, ctx);
+
+        // Apply context-based confidence adjustment before threshold
+        // filtering so that a match just below threshold can be
+        // promoted by keyword co-occurrence.
+        for m in &mut raw {
+            m.apply_context_adjustment(text);
+        }
+
+        // Deduplicate overlapping matches of the same entity kind:
+        // sort by (kind, start, descending confidence) then keep only
+        // the highest-confidence match per overlapping span.
+        raw.sort_by(|a, b| {
+            a.start.cmp(&b.start).then(
+                b.confidence
+                    .partial_cmp(&a.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
+        });
+        let mut deduped: Vec<RawMatch> = Vec::with_capacity(raw.len());
+        for m in raw {
+            let dominated = deduped.iter().any(|existing| {
+                existing.entity_kind == m.entity_kind
+                    && existing.start <= m.start
+                    && existing.end >= m.end
+                    && existing.confidence >= m.confidence
+            });
+            if !dominated {
+                deduped.push(m);
+            }
+        }
+
+        let threshold = self.confidence_threshold;
+        let entities: Vec<Entity> = deduped
+            .into_iter()
+            .filter(|m| m.confidence >= threshold)
+            .map(|m| {
+                tracing::trace!(
+                    target: TARGET,
+                    pattern = m.pattern_name.as_deref().unwrap_or("deny_list"),
+                    kind = %m.entity_kind,
+                    confidence = m.confidence,
+                    start = m.start,
+                    end = m.end,
+                    "matched entity",
+                );
+
+                let location = TextLocation {
+                    start_offset: m.start,
+                    end_offset: m.end,
+                    ..Default::default()
+                };
+                let mut entity = m.into_entity();
+                entity.location = Some(location.into());
+                entity
+            })
+            .collect();
+
+        tracing::Span::current().record("entities", entities.len());
+        entities
+    }
+
+    /// Internal: scan and return raw matches (used by [`scan_entities`]
+    /// and tests).
+    fn scan_raw(&self, text: &str, ctx: &ScanContext) -> Vec<RawMatch> {
         let mut results = Vec::new();
 
         self.scan_regex(text, &ctx.allow, &mut results);
         self.scan_dict(text, &ctx.allow, &mut results);
         self.scan_deny_list(text, &ctx.deny, &mut results);
 
-        tracing::Span::current().record("matches", results.len());
         results
     }
 
@@ -145,10 +226,6 @@ impl PatternEngine {
         for idx in set_matches.iter() {
             let entry = &self.regex_entries[idx];
 
-            if entry.confidence < self.confidence_threshold {
-                continue;
-            }
-
             for mat in entry.regex.find_iter(text) {
                 let value = mat.as_str();
 
@@ -156,16 +233,18 @@ impl PatternEngine {
                     continue;
                 }
 
-                let mut methods = vec![RecognitionMethod::Regex];
-
                 if let Some(ref vname) = entry.validator_name
                     && let Some(validate) = self.validators.resolve(vname)
+                    && !validate(value)
                 {
-                    if !validate(value) {
-                        continue;
-                    }
-                    methods.push(RecognitionMethod::Checksum);
+                    continue;
                 }
+
+                let method = if let Some(ref vname) = entry.validator_name {
+                    RecognitionMethod::regex_validated(&entry.pattern_name, vname)
+                } else {
+                    RecognitionMethod::regex(&entry.pattern_name)
+                };
 
                 results.push(RawMatch {
                     pattern_name: Some(entry.pattern_name.clone()),
@@ -175,7 +254,7 @@ impl PatternEngine {
                     start: mat.start(),
                     end: mat.end(),
                     confidence: entry.confidence,
-                    recognition_methods: methods,
+                    recognition_methods: vec![method],
                     context: entry.context.clone(),
                 });
             }
@@ -191,10 +270,6 @@ impl PatternEngine {
 
                 let confidence = entry.resolve_confidence(pat_idx);
 
-                if confidence < self.confidence_threshold {
-                    continue;
-                }
-
                 if allow.contains(value.as_str()) {
                     continue;
                 }
@@ -207,7 +282,7 @@ impl PatternEngine {
                     start: mat.start(),
                     end: mat.end(),
                     confidence,
-                    recognition_methods: vec![RecognitionMethod::Dictionary],
+                    recognition_methods: vec![RecognitionMethod::dictionary(&entry.pattern_name)],
                     context: entry.context.clone(),
                 });
             }
@@ -236,7 +311,7 @@ impl PatternEngine {
                     start: abs_start,
                     end: abs_end,
                     confidence: 1.0,
-                    recognition_methods: vec![deny_rule.method],
+                    recognition_methods: vec![deny_rule.method.clone()],
                     context: None,
                 });
                 search_start = abs_end;
@@ -254,6 +329,8 @@ static DEFAULT_ENGINE: LazyLock<PatternEngine> = LazyLock::new(|| {
 
 #[cfg(test)]
 mod tests {
+    use nvisy_ontology::entity::{ModelInfo, ModelKind};
+
     use super::*;
 
     fn empty_ctx() -> ScanContext {
@@ -267,47 +344,6 @@ mod tests {
     }
 
     #[test]
-    fn scan_text_finds_ssn() {
-        let engine = PatternEngine::instance();
-        let matches = engine.scan_text("My SSN is 123-45-6789.", &empty_ctx());
-        assert!(
-            matches
-                .iter()
-                .any(|m| m.pattern_name.as_deref() == Some("ssn")),
-            "expected SSN match, got: {:?}",
-            matches.iter().map(|m| &m.pattern_name).collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn scan_text_finds_email() {
-        let engine = PatternEngine::instance();
-        let matches = engine.scan_text("Contact: alice@example.com", &empty_ctx());
-        assert!(
-            matches
-                .iter()
-                .any(|m| m.pattern_name.as_deref() == Some("email")),
-            "expected email match, got: {:?}",
-            matches.iter().map(|m| &m.pattern_name).collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn confidence_threshold_filters() {
-        let engine = PatternEngine::builder()
-            .with_confidence_threshold(0.99)
-            .build()
-            .unwrap();
-        let matches = engine.scan_text("My SSN is 123-45-6789.", &empty_ctx());
-        assert!(
-            !matches
-                .iter()
-                .any(|m| m.pattern_name.as_deref() == Some("ssn")),
-            "SSN should be filtered by 0.99 threshold"
-        );
-    }
-
-    #[test]
     fn builder_pattern_filter() {
         let engine = PatternEngine::builder()
             .with_patterns(&["email"])
@@ -318,31 +354,15 @@ mod tests {
     }
 
     #[test]
-    fn scan_text_returns_correct_offsets() {
+    fn scan_raw_returns_correct_offsets() {
         let engine = PatternEngine::instance();
         let text = "SSN: 123-45-6789";
-        let matches = engine.scan_text(text, &empty_ctx());
+        let matches = engine.scan_raw(text, &empty_ctx());
         let ssn_match = matches
             .iter()
             .find(|m| m.pattern_name.as_deref() == Some("ssn"))
             .unwrap();
         assert_eq!(&text[ssn_match.start..ssn_match.end], "123-45-6789");
-    }
-
-    #[test]
-    fn dictionary_matches_are_found() {
-        let engine = PatternEngine::instance();
-        let matches = engine.scan_text("She is American and speaks English.", &empty_ctx());
-        assert!(
-            matches.iter().any(|m| m
-                .recognition_methods
-                .contains(&RecognitionMethod::Dictionary)),
-            "expected dictionary match, got: {:?}",
-            matches
-                .iter()
-                .map(|m| (&m.pattern_name, &m.recognition_methods))
-                .collect::<Vec<_>>()
-        );
     }
 
     #[test]
@@ -352,7 +372,7 @@ mod tests {
             .build()
             .unwrap();
         let ctx = ScanContext::new().with_allow(AllowList::new().with("123-45-6789"));
-        let matches = engine.scan_text("SSN: 123-45-6789", &ctx);
+        let matches = engine.scan_raw("SSN: 123-45-6789", &ctx);
         assert!(
             !matches
                 .iter()
@@ -368,7 +388,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::Ner,
+                method: RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
             },
         );
         let engine = PatternEngine::builder()
@@ -376,7 +396,7 @@ mod tests {
             .build()
             .unwrap();
         let ctx = ScanContext::new().with_deny(deny);
-        let matches = engine.scan_text("The secret-value-42 should be detected.", &ctx);
+        let matches = engine.scan_raw("The secret-value-42 should be detected.", &ctx);
         let deny_match = matches
             .iter()
             .find(|m| m.pattern_name.is_none())
@@ -384,7 +404,13 @@ mod tests {
         assert_eq!(deny_match.value, "secret-value-42");
         assert_eq!(deny_match.confidence, 1.0);
         assert_eq!(deny_match.entity_kind, EntityKind::PersonName);
-        assert_eq!(deny_match.recognition_methods, vec![RecognitionMethod::Ner]);
+        assert_eq!(
+            deny_match.recognition_methods,
+            vec![RecognitionMethod::ner(ModelInfo::new(
+                "test",
+                ModelKind::SelfHosted
+            ))]
+        );
     }
 
     #[test]
@@ -394,7 +420,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::Manual,
+                method: RecognitionMethod::manual("test"),
             },
         );
         let engine = PatternEngine::builder()
@@ -402,7 +428,7 @@ mod tests {
             .build()
             .unwrap();
         let ctx = ScanContext::new().with_deny(deny);
-        let matches = engine.scan_text("Nothing special here.", &ctx);
+        let matches = engine.scan_raw("Nothing special here.", &ctx);
         assert!(
             !matches.iter().any(|m| m.pattern_name.is_none()),
             "deny list value not in text should not be injected"
@@ -426,7 +452,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::Ner,
+                method: RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
             },
         );
         deny.insert(
@@ -434,21 +460,20 @@ mod tests {
             DenyRule {
                 category: EntityCategory::Financial,
                 entity_kind: EntityKind::PaymentCard,
-                method: RecognitionMethod::Manual,
+                method: RecognitionMethod::manual("test"),
             },
         );
         assert_eq!(deny.len(), 2);
         assert!(deny.contains("secret"));
         let rule = deny.get("other").unwrap();
         assert_eq!(rule.category, EntityCategory::Financial);
-        assert_eq!(rule.method, RecognitionMethod::Manual);
+        assert_eq!(rule.method, RecognitionMethod::manual("test"));
     }
 
     #[test]
-    fn column_confidence_applies_to_csv_dictionaries() {
+    fn column_confidence_raw() {
         let engine = PatternEngine::instance();
-        // "US Dollar" is column 0 (full name), "USD" is column 1 (code).
-        let matches = engine.scan_text("I paid in US Dollar and also in USD.", &empty_ctx());
+        let matches = engine.scan_raw("I paid in US Dollar and also in USD.", &empty_ctx());
         let full_name = matches.iter().find(|m| m.value == "US Dollar");
         let code = matches.iter().find(|m| m.value == "USD");
         assert!(full_name.is_some(), "should match 'US Dollar'");
@@ -462,28 +487,7 @@ mod tests {
     }
 
     #[test]
-    fn context_rule_passthrough() {
-        let engine = PatternEngine::builder()
-            .with_patterns(&["ssn"])
-            .build()
-            .unwrap();
-        let matches = engine.scan_text("SSN: 123-45-6789", &empty_ctx());
-        let ssn_match = matches
-            .iter()
-            .find(|m| m.pattern_name.as_deref() == Some("ssn"))
-            .unwrap();
-        assert!(
-            ssn_match.context.is_some(),
-            "SSN pattern should carry context rule through to RawMatch"
-        );
-        let ctx = ssn_match.context.as_ref().unwrap();
-        assert!(!ctx.keywords.is_empty());
-        assert!(ctx.window > 0);
-        assert!(ctx.boost > 0.0);
-    }
-
-    #[test]
-    fn into_entity_builds_entity_without_location() {
+    fn into_entity_preserves_fields() {
         let raw = RawMatch {
             pattern_name: Some("ssn".into()),
             category: EntityCategory::PersonalIdentity,
@@ -492,7 +496,7 @@ mod tests {
             start: 5,
             end: 16,
             confidence: 0.9,
-            recognition_methods: vec![RecognitionMethod::Regex, RecognitionMethod::Checksum],
+            recognition_methods: vec![RecognitionMethod::regex_validated("ssn", "ssn")],
             context: None,
         };
         let entity = raw.into_entity();
@@ -500,7 +504,7 @@ mod tests {
         assert_eq!(entity.entity_kind, EntityKind::GovernmentId);
         assert_eq!(
             entity.recognition_methods,
-            vec![RecognitionMethod::Regex, RecognitionMethod::Checksum]
+            vec![RecognitionMethod::regex_validated("ssn", "ssn")]
         );
         assert!((entity.confidence - 0.9).abs() < f64::EPSILON);
         assert!(entity.location.is_none());

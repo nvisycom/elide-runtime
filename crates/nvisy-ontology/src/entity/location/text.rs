@@ -6,16 +6,8 @@ use serde::{Deserialize, Serialize};
 use super::Overlap;
 
 /// Location of an entity within text content.
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TextLocation {
     /// Byte or character offset where the entity starts.
@@ -39,15 +31,8 @@ pub struct TextLocation {
     pub line_number: Option<u32>,
 }
 
-impl TextLocation {
-    /// Returns `true` if this text location overlaps with `other`.
-    pub fn overlaps(&self, other: &TextLocation) -> bool {
-        self.start_offset < other.end_offset && other.start_offset < self.end_offset
-    }
-}
-
 impl Overlap for TextLocation {
     fn overlaps(&self, other: &Self) -> bool {
-        self.overlaps(other)
+        self.start_offset < other.end_offset && other.start_offset < self.end_offset
     }
 }

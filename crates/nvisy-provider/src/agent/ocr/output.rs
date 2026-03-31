@@ -2,10 +2,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{
-    Entity, EntityCategory, EntityKind, ExtractionMethod, ImageLocation, RecognitionMethod,
-    RefinementMethod,
-};
+use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, ImageLocation, RefinementMethod};
 use nvisy_ontology::math::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -70,14 +67,17 @@ impl VerifiedEntity {
                     entity.location
                 };
 
+                let mut refinements = entity.refinement_methods;
+                refinements.push(RefinementMethod::ModelVerification);
+
                 let mut builder = Entity::builder()
                     .with_source(entity.source)
                     .with_category(self.category.unwrap_or(entity.category))
                     .with_entity_kind(self.entity_type.unwrap_or(entity.entity_kind))
                     .with_value(self.value.as_deref().unwrap_or(&entity.value).to_owned())
-                    .with_recognition_methods(vec![RecognitionMethod::Ner])
-                    .with_extraction_methods(vec![ExtractionMethod::OpticalCharacterRecognition])
-                    .with_refinement_methods(vec![RefinementMethod::ModelVerification])
+                    .with_recognition_methods(entity.recognition_methods)
+                    .with_extraction_methods(entity.extraction_methods)
+                    .with_refinement_methods(refinements)
                     .with_confidence(self.confidence);
 
                 if let Some(loc) = location {

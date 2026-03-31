@@ -28,8 +28,8 @@ use nvisy_core::content::Content;
 use nvisy_core::{Error, ErrorKind};
 use nvisy_ontology::workflow::{
     AudialExtraction, ExportFile, Fusion, GenerateContext, GraphNode, GraphNodeKind, ImportFile,
-    LoadContext, NamedEntityRecognition, Redaction, RetryPolicy, SaveContext, TimeoutBehavior,
-    TimeoutPolicy, Validation, VisualExtraction,
+    LoadContext, NamedEntityRecognition, PatternRecognition, Redaction, RetryPolicy, SaveContext,
+    TimeoutBehavior, TimeoutPolicy, Validation, VisualExtraction,
 };
 use nvisy_provider::http::HttpClient;
 use tokio::sync::mpsc;
@@ -41,8 +41,8 @@ use super::runs::RunStatus;
 use crate::graph::{RetryExt, TimeoutExt};
 use crate::operation::context::{ParallelContext, SequentialContext, SharedContext};
 use crate::operation::{
-    AudialExtractionOp, AudioInput, DocumentEnvelope, EntityRecognition, ExportFileOp, FusionOp,
-    GenerateContextOp, ImportFileOp, LoadContextOp, Operation, PatternRecognition, RedactionOp,
+    AudialExtractionOp, AudioInput, DocumentEnvelope, EntityRecognitionOp, ExportFileOp, FusionOp,
+    GenerateContextOp, ImportFileOp, LoadContextOp, Operation, PatternRecognitionOp, RedactionOp,
     SaveContextOp, ValidationInput, ValidationOp, VisualExtractionOp,
 };
 
@@ -224,8 +224,9 @@ impl NodeExecutor {
             GraphNodeKind::NamedEntityRecognition(cfg) => {
                 self.execute_ner(cfg, senders, receivers).await
             }
-            GraphNodeKind::PatternRecognition(_) => {
-                self.execute_pattern_recognition(senders, receivers).await
+            GraphNodeKind::PatternRecognition(cfg) => {
+                self.execute_pattern_recognition(cfg, senders, receivers)
+                    .await
             }
             GraphNodeKind::Fusion(cfg) => self.execute_fusion(cfg, senders, receivers).await,
             GraphNodeKind::Redaction(cfg) => self.execute_redaction(cfg, senders, receivers).await,
@@ -352,7 +353,7 @@ impl NodeExecutor {
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = EntityRecognition::new(cfg, &self.ctx.config, &self.ctx.http_client).await?;
+        let op = EntityRecognitionOp::new(cfg, &self.ctx.config, &self.ctx.http_client).await?;
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
@@ -372,28 +373,29 @@ impl NodeExecutor {
         Ok(node_output(count))
     }
 
-    /// Run regex-based pattern recognition on text spans.
+    /// Run regex and dictionary pattern recognition on text spans.
     async fn execute_pattern_recognition(
         &self,
+        cfg: &PatternRecognition,
         senders: &[mpsc::Sender<Arc<DocumentEnvelope>>],
         receivers: &mut [mpsc::Receiver<Arc<DocumentEnvelope>>],
     ) -> Result<NodeOutput, Error> {
         let shared = &self.ctx.shared;
-        let op = PatternRecognition::new().await?;
+        let op = PatternRecognitionOp::new(cfg);
         let count = process_envelopes(senders, receivers, |mut envelope| {
             let op = &op;
             let shared = shared.clone();
             async move {
                 let spans: Vec<_> = envelope.document.collect_text_spans().await;
                 if !spans.is_empty() {
-                    tracing::debug!(target: TARGET, span_count = spans.len(), "running pattern detection");
                     let input = ParallelContext::new(spans, shared);
                     let output = op.call(input).await?;
                     envelope.apply(output.into_inner());
                 }
                 Ok(envelope)
             }
-        }).await?;
+        })
+        .await?;
         Ok(node_output(count))
     }
 

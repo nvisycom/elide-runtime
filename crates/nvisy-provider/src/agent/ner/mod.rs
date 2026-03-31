@@ -9,6 +9,10 @@ mod output;
 mod prompt;
 
 use nvisy_core::Result;
+use nvisy_ontology::entity::{
+    Entity, EntityCategory, ModelInfo, ModelKind, RecognitionMethod, TextLocation,
+};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 pub use self::context::NerContext;
@@ -31,6 +35,7 @@ const TARGET: &str = "nvisy_provider::agent::ner";
 /// 3. Structured output is parsed into `Vec<NerEntity>`.
 pub struct NerAgent {
     base: BaseAgent,
+    state: Mutex<Vec<KnownNerEntity>>,
 }
 
 impl NerAgent {
@@ -51,7 +56,10 @@ impl NerAgent {
             builder = builder.http_client(client);
         }
         let base = builder.build().map_err(crate::error::convert)?;
-        Ok(Self { base })
+        Ok(Self {
+            base,
+            state: Mutex::new(Vec::new()),
+        })
     }
 
     /// Unique identifier for this agent instance (UUIDv7).
@@ -62,6 +70,11 @@ impl NerAgent {
     /// Access the usage tracker for this agent's LLM calls.
     pub fn tracker(&self) -> &UsageTracker {
         self.base.tracker()
+    }
+
+    /// The model name used by this agent.
+    pub fn model_name(&self) -> &str {
+        self.base.model_name()
     }
 
     /// Detect entities in text using structured output with text-based fallback.
@@ -102,5 +115,82 @@ impl NerAgent {
         );
 
         Ok(result.entities)
+    }
+
+    /// Detect entities in text, returning [`Entity`] values with
+    /// [`TextLocation`] offsets.
+    ///
+    /// Manages coreference state internally: previously detected entities
+    /// are carried forward so the LLM can assign consistent `entity_id`
+    /// values across successive calls. Call [`reset`](Self::reset) to
+    /// clear the state between documents.
+    ///
+    /// The caller is responsible for attaching span-level metadata
+    /// (`element_id`, parent source) after this call.
+    #[tracing::instrument(
+        target = "nvisy_provider::agent::ner",
+        skip_all,
+        fields(text_len = text.len()),
+    )]
+    pub async fn detect_entities(
+        &self,
+        text: &str,
+        config: &DetectionConfig,
+    ) -> Result<Vec<Entity>> {
+        let known = self.state.lock().await.clone();
+        let ctx = NerContext::with_known(text, known);
+
+        let ner_entities = self.detect(&ctx, config).await?;
+        let model_info = ModelInfo::new(self.model_name(), ModelKind::Gateway);
+        let mut entities = Vec::new();
+
+        for ne in &ner_entities {
+            let category: EntityCategory = match ne.category {
+                Some(c) => c,
+                None => continue,
+            };
+            let entity_kind = match ne.entity_type {
+                Some(ek) => ek,
+                None => continue,
+            };
+            let confidence = ne.confidence.unwrap_or(0.0);
+            if confidence < config.confidence_threshold {
+                continue;
+            }
+
+            let loc = if let Some(offsets) = ne.resolve_offsets(&ctx) {
+                TextLocation {
+                    start_offset: offsets.start,
+                    end_offset: offsets.end,
+                    ..Default::default()
+                }
+            } else {
+                TextLocation::default()
+            };
+
+            let entity = Entity::builder()
+                .with_category(category)
+                .with_entity_kind(entity_kind)
+                .with_value(&ne.value)
+                .with_recognition_methods(vec![RecognitionMethod::ner(model_info.clone())])
+                .with_confidence(confidence)
+                .with_location(loc.into())
+                .build()
+                .expect("required fields provided");
+            entities.push(entity);
+        }
+
+        // Update coreference state for the next call.
+        let mut state = self.state.lock().await;
+        let mut merge_ctx = NerContext::with_known(text, std::mem::take(&mut *state));
+        merge_ctx.merge(ner_entities);
+        *state = merge_ctx.known_entities;
+
+        Ok(entities)
+    }
+
+    /// Clear coreference state. Call between documents.
+    pub async fn reset(&self) {
+        self.state.lock().await.clear();
     }
 }

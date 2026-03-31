@@ -22,18 +22,14 @@ mod speech;
 mod validation;
 mod vision;
 
-use std::future::Future;
-
-use nvisy_core::Result;
-
-pub(crate) use self::entity_recognition::EntityRecognition;
+pub(crate) use self::entity_recognition::EntityRecognitionOp;
 pub use self::envelope::DocumentEnvelope;
 pub(crate) use self::export_file::ExportFileOp;
 pub(crate) use self::fusion::FusionOp;
 pub(crate) use self::generate_context::GenerateContextOp;
 pub(crate) use self::import_file::ImportFileOp;
 pub(crate) use self::load_context::LoadContextOp;
-pub(crate) use self::pattern_recognition::PatternRecognition;
+pub(crate) use self::pattern_recognition::PatternRecognitionOp;
 pub(crate) use self::redaction::RedactionOp;
 pub(crate) use self::save_context::SaveContextOp;
 pub(crate) use self::speech::{AudialExtractionOp, AudioInput};
@@ -55,5 +51,8 @@ pub trait Operation {
     type Output: context::OperationContext;
 
     /// Execute the operation.
-    fn call(&self, input: Self::Input) -> impl Future<Output = Result<Self::Output>> + Send;
+    fn call(
+        &self,
+        input: Self::Input,
+    ) -> impl Future<Output = nvisy_core::Result<Self::Output>> + Send;
 }

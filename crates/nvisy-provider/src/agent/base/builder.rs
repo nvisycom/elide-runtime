@@ -100,6 +100,7 @@ impl BaseAgentBuilder {
             inner,
             context_window: config.context_window,
             tracker: UsageTracker::new(),
+            model_name: provider.model().to_owned(),
         })
     }
 }

@@ -25,7 +25,7 @@ pub(super) fn calibrate(entities: &mut Entities, calibration: &CalibrationMap) {
         let multiplier = entity
             .recognition_methods
             .iter()
-            .filter_map(|m| calibration.get(m).copied())
+            .filter_map(|m| calibration.get(&m.kind()).copied())
             .reduce(f64::max);
 
         if let Some(m) = multiplier {

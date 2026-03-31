@@ -158,9 +158,9 @@ impl GraphNodeKind {
             Self::SaveContext(cfg) => validate_struct(cfg),
             Self::NamedEntityRecognition(cfg) => validate_struct(cfg),
             Self::ExportFile(cfg) => validate_struct(cfg),
+            Self::PatternRecognition(cfg) => validate_struct(cfg),
             Self::VisualExtraction(_)
             | Self::AudialExtraction(_)
-            | Self::PatternRecognition(_)
             | Self::Fusion(_)
             | Self::Redaction(_)
             | Self::Validation(_)

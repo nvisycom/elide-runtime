@@ -8,14 +8,19 @@
 //! the [Deprecation header draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-deprecation-header/).
 
 use std::collections::HashMap;
+use std::num::NonZeroU16;
+use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::Extension;
 use axum::http::{HeaderValue, Request};
 use axum::middleware::Next;
 use axum::response::Response;
+use jiff::civil::Date;
 
-/// Per-version sunset entry: when the version sunsets and where to go.
+use crate::extract::ApiVersion;
+
+/// Per-version sunset entry: precomputed header values.
 #[derive(Clone)]
 struct SunsetEntry {
     sunset_date: HeaderValue,
@@ -24,17 +29,21 @@ struct SunsetEntry {
 
 /// Configuration for the sunset deprecation middleware.
 ///
-/// Maps API version prefixes (e.g. `"/api/v1"`) to their sunset date
-/// and successor version. Only versions present in the map receive
-/// deprecation headers; active versions pass through unmodified.
+/// Maps API version numbers to their sunset date. The successor
+/// version is automatically set to `version + 1`. Only versions
+/// present in the map receive deprecation headers; active versions
+/// pass through unmodified.
+///
+/// Cloning is cheap: the inner map is behind an `Arc`.
 ///
 /// # Example
 ///
 /// ```rust,ignore
 /// use axum::middleware;
+/// use jiff::civil::date;
 ///
 /// let config = SunsetConfig::new()
-///     .add_version("/api/v1", "Sat, 01 Nov 2025 00:00:00 GMT", "/api/v2");
+///     .deprecate(1, date(2025, 11, 1));
 ///
 /// let app = Router::new()
 ///     .nest("/api/v1", v1_routes())
@@ -44,7 +53,7 @@ struct SunsetEntry {
 /// ```
 #[derive(Clone, Default)]
 pub struct SunsetConfig {
-    versions: HashMap<String, SunsetEntry>,
+    versions: Arc<HashMap<NonZeroU16, SunsetEntry>>,
 }
 
 impl SunsetConfig {
@@ -53,32 +62,31 @@ impl SunsetConfig {
         Self::default()
     }
 
-    /// Register a deprecated version.
+    /// Register a deprecated API version.
     ///
-    /// - `prefix`: the URI prefix to match (e.g. `"/api/v1"`)
-    /// - `sunset_date`: HTTP-date when the version will be removed
-    ///   (e.g. `"Sat, 01 Nov 2025 00:00:00 GMT"`)
-    /// - `successor_path`: base path of the replacement version
-    ///   (e.g. `"/api/v2"`)
+    /// - `version`: the version number (e.g. `1` for `/api/v1`)
+    /// - `sunset_date`: the date after which the version may be removed
     ///
+    /// The successor is automatically set to `version + 1`.
     /// # Panics
     ///
-    /// Panics if `sunset_date` or `successor_path` contain invalid header characters.
-    pub fn add_version(
-        mut self,
-        prefix: &str,
-        sunset_date: &str,
-        successor_path: &str,
-    ) -> Self {
-        self.versions.insert(
-            prefix.to_owned(),
+    /// Panics if `version` is 0.
+    pub fn deprecate(mut self, version: u16, sunset_date: Date) -> Self {
+        let version = NonZeroU16::new(version).expect("API version must be non-zero");
+        let http_date = sunset_date
+            .strftime("%a, %d %b %Y 00:00:00 GMT")
+            .to_string();
+        let successor = version.get() + 1;
+
+        Arc::make_mut(&mut self.versions).insert(
+            version,
             SunsetEntry {
-                sunset_date: HeaderValue::from_str(sunset_date)
-                    .expect("sunset_date must be a valid header value"),
+                sunset_date: HeaderValue::from_str(&http_date)
+                    .expect("formatted date must be a valid header value"),
                 successor_link: HeaderValue::from_str(&format!(
-                    "<{successor_path}>; rel=\"successor-version\""
+                    "</api/v{successor}>; rel=\"successor-version\""
                 ))
-                .expect("successor_path must produce a valid header value"),
+                .expect("successor link must be a valid header value"),
             },
         );
         self
@@ -88,23 +96,55 @@ impl SunsetConfig {
 /// Axum middleware function that adds sunset deprecation headers to
 /// responses for deprecated API versions.
 ///
-/// Matches the request URI against the configured version prefixes.
-/// Requests that don't match any deprecated version pass through
-/// without modification.
+/// Extracts the version number from the request path (`/api/v{n}/...`)
+/// and checks it against the configured deprecated versions. Requests
+/// that don't match any deprecated version pass through unmodified.
 pub async fn sunset_headers(
-    config: Extension<SunsetConfig>,
+    Extension(config): Extension<SunsetConfig>,
+    ApiVersion(version): ApiVersion,
     req: Request<Body>,
     next: Next,
 ) -> Response {
-    let path = req.uri().path().to_owned();
     let mut response = next.run(req).await;
 
-    if let Some(entry) = config.versions.iter().find(|(prefix, _)| path.starts_with(prefix.as_str())) {
+    if let Some(entry) = version.and_then(|v| config.versions.get(&v)) {
         let headers = response.headers_mut();
-        headers.insert("sunset", entry.1.sunset_date.clone());
+        headers.insert("sunset", entry.sunset_date.clone());
         headers.insert("deprecation", HeaderValue::from_static("true"));
-        headers.append("link", entry.1.successor_link.clone());
+        headers.append("link", entry.successor_link.clone());
     }
 
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn nz(n: u16) -> NonZeroU16 {
+        NonZeroU16::new(n).unwrap()
+    }
+
+    #[test]
+    fn deprecate_builds_headers() {
+        let config = SunsetConfig::new().deprecate(1, Date::new(2025, 11, 1).unwrap());
+        assert!(config.versions.contains_key(&nz(1)));
+        assert!(!config.versions.contains_key(&nz(2)));
+    }
+
+    #[test]
+    fn successor_is_version_plus_one() {
+        let config = SunsetConfig::new().deprecate(3, Date::new(2026, 6, 15).unwrap());
+        let entry = &config.versions[&nz(3)];
+        assert_eq!(
+            entry.successor_link,
+            HeaderValue::from_static("</api/v4>; rel=\"successor-version\""),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "non-zero")]
+    fn deprecate_zero_panics() {
+        SunsetConfig::new().deprecate(0, Date::new(2025, 1, 1).unwrap());
+    }
 }

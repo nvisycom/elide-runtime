@@ -1,9 +1,8 @@
 //! HTTP handler functions and route wiring.
 //!
-//! Each submodule corresponds to an API resource and exposes a `routes()`
-//! function that returns relative-path `ApiRouter` fragments.
-//! Version modules (e.g. [`v1`]) nest these fragments under their
-//! respective `/api/v{n}` prefix.
+//! Each submodule corresponds to an API resource and exposes a
+//! `routes_v1()` function that returns relative-path `ApiRouter`
+//! fragments. These are nested under `/api/v1` by [`routes`].
 //!
 //! The top-level [`routes()`] function assembles all versions plus
 //! unversioned routes (health, docs) into a single router.
@@ -54,10 +53,10 @@ pub fn routes() -> ApiRouter<ServiceState> {
 /// function can compose a different set of handlers under `/api/v2`.
 fn v1_routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
-        .merge(infra::analytics_routes())
-        .merge(contexts::routes())
-        .merge(files::routes())
-        .merge(runs::routes())
+        .merge(infra::routes_v1())
+        .merge(contexts::routes_v1())
+        .merge(files::routes_v1())
+        .merge(runs::routes_v1())
 }
 
 /// Catch-all for unmatched paths.

@@ -120,7 +120,10 @@ async fn get_run(
     ActorId(actor_id): ActorId,
     Path(RunPath { id }): Path<RunPath>,
 ) -> Result<Json<RunSnapshot>> {
-    let snapshot = engine.get_run(actor_id, id).await.ok_or(ErrorKind::NotFound)?;
+    let snapshot = engine
+        .get_run(actor_id, id)
+        .await
+        .ok_or(ErrorKind::NotFound)?;
     tracing::debug!(target: TARGET, "run snapshot retrieved");
     Ok(Json(snapshot))
 }
@@ -206,8 +209,8 @@ fn delete_all_runs_docs(op: TransformOperation) -> TransformOperation {
         )
 }
 
-/// Run routes (relative paths).
-pub fn routes() -> ApiRouter<ServiceState> {
+/// Run routes for API v1 (relative paths).
+pub fn routes_v1() -> ApiRouter<ServiceState> {
     let pipeline_routes = ApiRouter::new()
         .api_route("/runs", post_with(create_run, create_run_docs))
         .layer(

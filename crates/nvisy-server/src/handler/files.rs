@@ -200,14 +200,11 @@ fn delete_all_files_docs(op: TransformOperation) -> TransformOperation {
         .description("Removes every file currently stored in the registry.")
 }
 
-/// File routes.
-pub fn routes() -> ApiRouter<ServiceState> {
+/// File routes for API v1 (relative paths).
+pub fn routes_v1() -> ApiRouter<ServiceState> {
     let read_routes = ApiRouter::new()
         .api_route("/files", get_with(list_files, list_files_docs))
-        .api_route(
-            "/files/{id}",
-            get_with(download_file, download_file_docs),
-        )
+        .api_route("/files/{id}", get_with(download_file, download_file_docs))
         .layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(handle_error))

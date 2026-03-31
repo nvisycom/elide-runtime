@@ -111,8 +111,8 @@ pub fn health_routes() -> ApiRouter<ServiceState> {
         )
 }
 
-/// Analytics route (relative path, versioned).
-pub fn analytics_routes() -> ApiRouter<ServiceState> {
+/// Analytics route for API v1 (relative path).
+pub fn routes_v1() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .api_route("/analytics", get_with(get_analytics, analytics_docs))
         .layer(

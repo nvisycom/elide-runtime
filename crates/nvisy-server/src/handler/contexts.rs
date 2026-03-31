@@ -166,8 +166,8 @@ fn delete_all_contexts_docs(op: TransformOperation) -> TransformOperation {
         .description("Removes every context currently stored.")
 }
 
-/// Context routes (relative paths).
-pub fn routes() -> ApiRouter<ServiceState> {
+/// Context routes for API v1 (relative paths).
+pub fn routes_v1() -> ApiRouter<ServiceState> {
     let read_routes = ApiRouter::new()
         .api_route("/contexts", get_with(list_contexts, list_contexts_docs))
         .api_route(

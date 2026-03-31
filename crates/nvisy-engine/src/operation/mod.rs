@@ -1,12 +1,12 @@
 //! Operations: the building blocks of the redaction pipeline.
 //!
 //! Each operation file corresponds to a [`GraphNodeKind`] variant and
-//! implements the [`Operation`] trait with typed inputs and outputs.
+//! implements the [`Operation`] trait, receiving and mutating a
+//! [`DocumentEnvelope`] directly.
 //!
 //! [`GraphNodeKind`]: nvisy_ontology::workflow::GraphNodeKind
 
 pub(crate) mod compression;
-pub mod context;
 pub mod encryption;
 mod entity_recognition;
 pub mod envelope;
@@ -16,7 +16,7 @@ mod generate_context;
 mod import_file;
 mod load_context;
 mod pattern_recognition;
-mod redaction;
+pub(crate) mod redaction;
 mod save_context;
 mod speech;
 mod validation;
@@ -32,27 +32,19 @@ pub(crate) use self::load_context::LoadContextOp;
 pub(crate) use self::pattern_recognition::PatternRecognitionOp;
 pub(crate) use self::redaction::RedactionOp;
 pub(crate) use self::save_context::SaveContextOp;
-pub(crate) use self::speech::{AudialExtractionOp, AudioInput};
-pub(crate) use self::validation::{ValidationInput, ValidationOp};
+pub(crate) use self::speech::AudialExtractionOp;
+pub(crate) use self::validation::ValidationOp;
 pub(crate) use self::vision::VisualExtractionOp;
 
 /// A single unit of work in the redaction pipeline.
 ///
-/// Operations are stateless and composable. The engine calls [`Operation::call`]
-/// with an input value and the operation produces a typed output or an error.
-///
-/// Both `Input` and `Output` must implement [`OperationContext`](context::OperationContext),
-/// encoding the processing strategy (e.g. `ParallelContext<Entities>` or
-/// `SequentialContext<Vec<Span>>`) directly in the type.
+/// Operations receive a mutable reference to the [`DocumentEnvelope`]
+/// and read/write its fields directly. Run-wide shared state (policies,
+/// registry, key provider) is accessible via `envelope.shared`.
 pub trait Operation {
-    /// Data consumed by this operation: wraps the payload in a context marker.
-    type Input: context::OperationContext;
-    /// Data produced by this operation: wraps the payload in a context marker.
-    type Output: context::OperationContext;
-
-    /// Execute the operation.
-    fn call(
+    /// Execute the operation, mutating the envelope in place.
+    fn execute(
         &self,
-        input: Self::Input,
-    ) -> impl Future<Output = nvisy_core::Result<Self::Output>> + Send;
+        envelope: &mut DocumentEnvelope,
+    ) -> impl Future<Output = nvisy_core::Result<()>> + Send;
 }

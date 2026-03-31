@@ -25,9 +25,7 @@ use nvisy_ontology::workflow::{CalibrationMap, Fusion, FusionStrategy, GroupingC
 
 use self::calibration::calibrate;
 use self::strategy::FusionStrategyExt;
-use crate::operation::Operation;
-use crate::operation::context::ParallelContext;
-use crate::operation::envelope::RefinedEntities;
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::fusion";
 
@@ -60,9 +58,9 @@ impl FusionOp {
     }
 
     /// Run the full fusion pipeline: calibrate, group, fuse.
-    pub(crate) fn execute(&self, mut entities: Entities) -> RefinedEntities {
+    pub(crate) fn fuse(&self, mut entities: Entities) -> Entities {
         if entities.is_empty() {
-            return RefinedEntities(entities);
+            return entities;
         }
 
         let before = entities.len();
@@ -83,18 +81,22 @@ impl FusionOp {
             "fusion complete",
         );
 
-        RefinedEntities(result)
+        result
     }
 }
 
 impl Operation for FusionOp {
-    type Input = ParallelContext<Entities>;
-    type Output = ParallelContext<RefinedEntities>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input
-            .parallel_map(|data| async move { Ok(self.execute(data)) })
-            .await
+    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+        if !envelope.entities.is_empty() {
+            tracing::debug!(
+                target: TARGET,
+                entities = envelope.entities.len(),
+                "running fusion",
+            );
+            let entities = std::mem::take(&mut envelope.entities);
+            envelope.entities = self.fuse(entities);
+        }
+        Ok(())
     }
 }
 
@@ -392,17 +394,17 @@ mod tests {
         ]
         .into();
 
-        let result = fusion.execute(entities);
-        assert_eq!(result.0.len(), 1);
-        assert!((result.0[0].confidence - 0.85).abs() < f64::EPSILON);
+        let result = fusion.fuse(entities);
+        assert_eq!(result.len(), 1);
+        assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
     }
 
     #[test]
     fn empty_input() {
         let cfg = Fusion::default();
         let fusion = FusionOp::new(&cfg);
-        let result = fusion.execute(Entities::new());
-        assert!(result.0.is_empty());
+        let result = fusion.fuse(Entities::new());
+        assert!(result.is_empty());
     }
 
     #[test]

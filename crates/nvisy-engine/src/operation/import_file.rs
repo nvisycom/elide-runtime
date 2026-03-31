@@ -1,11 +1,10 @@
 //! File import operation.
 //!
-//!
 //! Runs at **phase 0** alongside [`LoadContext`]. Decodes raw content
 //! into a [`DocumentEnvelope`], optionally applying decompression and
 //! decryption.
 //!
-//! [`LoadContext`]: crate::operation::LoadContext
+//! [`LoadContext`]: crate::operation::LoadContextOp
 
 //! The import pipeline applies optional pre-processing steps in order:
 //!
@@ -15,23 +14,27 @@
 //!
 //! [`Document`]: nvisy_codec::Document
 
+use std::sync::Arc;
+
 use nvisy_codec::Document;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData};
 use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 
+use crate::operation::DocumentEnvelope;
 use crate::operation::compression::CompressionService;
-use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::encryption::{CryptoService, EncryptedContent};
-use crate::operation::{DocumentEnvelope, Operation};
+use crate::operation::envelope::SharedData;
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 
 /// Decodes raw content into a [`DocumentEnvelope`], optionally applying
 /// decompression and decryption beforehand.
 ///
-/// Key provider is read from the [`SharedContext`] at call time —
-/// only graph-config fields are stored on the struct.
+/// Not an [`Operation`] — import *creates* envelopes rather than
+/// mutating them.
+///
+/// [`Operation`]: crate::operation::Operation
 #[derive(Default)]
 pub struct ImportFileOp {
     decompression: Option<CompressionAlgorithm>,
@@ -53,19 +56,18 @@ impl ImportFileOp {
         self
     }
 
-    async fn import(&self, content: Content, shared: &SharedContext) -> Result<DocumentEnvelope> {
+    pub async fn import(
+        &self,
+        content: Content,
+        shared: &Arc<SharedData>,
+    ) -> Result<DocumentEnvelope> {
         let mut content = content;
 
         if let Some(algorithm) = self.decompression {
             tracing::debug!(target: TARGET, ?algorithm, "decompressing content");
             let decompressed = CompressionService::new(algorithm).decompress(content.as_bytes())?;
             let source = content.content_source();
-            let metadata = content.into_parts().1;
-            let data = ContentData::new(source, decompressed);
-            content = match metadata {
-                Some(meta) => Content::with_metadata(data, meta),
-                None => Content::new(data),
-            };
+            content = replace_data(content, ContentData::new(source, decompressed));
         }
 
         if let Some(ref enc_cfg) = self.decryption {
@@ -78,42 +80,37 @@ impl ImportFileOp {
                 algorithm: EncryptionAlgorithm::Aes256Gcm,
             };
             let decrypted_data = crypto.decrypt(encrypted).await?;
-            let metadata = content.into_parts().1;
-            content = match metadata {
-                Some(meta) => Content::with_metadata(decrypted_data, meta),
-                None => Content::new(decrypted_data),
-            };
+            content = replace_data(content, decrypted_data);
         }
 
         let doc = Document::decode(&content).await?;
         tracing::debug!(target: TARGET, doc_type = %doc.document_type(), "decoded document");
         let metadata = content.into_parts().1.unwrap_or_default();
-        Ok(DocumentEnvelope::new(doc, metadata))
+        Ok(DocumentEnvelope::new(doc, metadata, Arc::clone(shared)))
     }
 }
 
-impl Operation for ImportFileOp {
-    type Input = ParallelContext<Content>;
-    type Output = ParallelContext<DocumentEnvelope>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        let shared = input.shared.clone();
-        input.parallel_map(|data| self.import(data, &shared)).await
+/// Replace the data payload of a [`Content`] while preserving its metadata.
+fn replace_data(content: Content, data: ContentData) -> Content {
+    match content.into_parts().1 {
+        Some(meta) => Content::with_metadata(data, meta),
+        None => Content::new(data),
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use nvisy_core::content::{Content, ContentData};
+
     use super::*;
-    use crate::operation::context::SharedContext;
+    use crate::operation::envelope::SharedData;
 
     #[tokio::test]
     async fn unknown_format_errors() {
         let dir = tempfile::tempdir().unwrap();
         let registry = crate::registry::Registry::open(dir.path()).unwrap();
-        let shared = SharedContext::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
+        let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
         let content = Content::new(ContentData::from("plain text has no magic bytes"));
-        let input = ParallelContext::new(content, shared);
-        assert!(ImportFileOp::new().call(input).await.is_err());
+        assert!(ImportFileOp::new().import(content, &shared).await.is_err());
     }
 }

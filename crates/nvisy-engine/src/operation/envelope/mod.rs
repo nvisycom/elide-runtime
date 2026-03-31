@@ -9,23 +9,22 @@
 //! ContentData
 //!   ↓ Import
 //! DocumentEnvelope { document, … }
-//!   ↓ OCR / NER / CV / PatternMatch  →  DetectedEntities
+//!   ↓ OCR / NER / CV / PatternMatch
 //! DocumentEnvelope { document, entities, … }
-//!   ↓ Deduplication / Ensemble        →  RefinedEntities
+//!   ↓ Deduplication / Ensemble
 //! DocumentEnvelope { document, entities (merged), … }
-//!   ↓ PolicyEvaluation                →  PolicyOutcome
+//!   ↓ PolicyEvaluation
 //! DocumentEnvelope { document, entities, audit { decisions, records }, … }
 //!   ↓ Redaction
 //! DocumentEnvelope { document (redacted), entities, audit { … } }
 //! ```
 //!
-//! Operations produce typed patch values that implement [`ApplyPatch`].
-//! The orchestrator merges each patch via [`DocumentEnvelope::apply`].
+//! Each operation receives `&mut DocumentEnvelope` and reads/writes
+//! fields directly. Run-wide shared state (policies, registry, key
+//! provider) is available via the [`shared`](DocumentEnvelope::shared)
+//! field.
 
-mod apply;
-mod audit;
-mod detection;
-mod policy;
+use std::sync::Arc;
 
 use nvisy_codec::Document;
 use nvisy_core::content::ContentMetadata;
@@ -33,17 +32,16 @@ use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::Audit;
 
-pub use self::apply::ApplyPatch;
-pub use self::audit::OperationEntry;
-pub use self::detection::{DetectedEntities, RefinedEntities};
-pub use self::policy::PolicyOutcome;
+mod shared;
+
+pub use self::shared::SharedData;
 
 /// Per-document state that flows through the entire pipeline.
 ///
 /// Created by import from a decoded [`Document`], then progressively
-/// enriched by detection, policy, and redaction operations. The
-/// orchestrator passes the envelope (wrapped in a `ParallelContext`
-/// or `SequentialContext`) between stages.
+/// enriched by detection, policy, and redaction operations. Operations
+/// receive `&mut DocumentEnvelope` and access run-wide shared state
+/// via the [`shared`](DocumentEnvelope::shared) field.
 pub struct DocumentEnvelope {
     /// The decoded document content (text, image, audio, or rich).
     ///
@@ -74,11 +72,17 @@ pub struct DocumentEnvelope {
     /// Per-document audit trail: execution log, redaction decisions,
     /// and redaction records.
     pub audit: Audit,
+
+    /// Run-wide shared state (policies, registry, key provider, etc.).
+    ///
+    /// Cheaply cloneable (`Arc`): all envelopes in a run share the
+    /// same underlying data.
+    pub shared: Arc<SharedData>,
 }
 
 impl DocumentEnvelope {
     /// Create a new envelope from a freshly decoded document.
-    pub fn new(document: Document, metadata: ContentMetadata) -> Self {
+    pub fn new(document: Document, metadata: ContentMetadata, shared: Arc<SharedData>) -> Self {
         let audit = Audit::new(document.source());
         Self {
             document,
@@ -86,17 +90,13 @@ impl DocumentEnvelope {
             entities: Entities::new(),
             contexts: Contexts::new(),
             audit,
+            shared,
         }
     }
 
     /// Number of detected entities.
     pub fn entity_count(&self) -> usize {
         self.entities.len()
-    }
-
-    /// Merge an operation's output into this envelope.
-    pub fn apply(&mut self, patch: impl ApplyPatch) {
-        patch.apply(self);
     }
 }
 

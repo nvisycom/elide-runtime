@@ -143,8 +143,6 @@ impl CryptoService {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use nvisy_codec::Document;
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 
@@ -162,7 +160,18 @@ mod tests {
         let meta = ContentMetadata::new().with_content_type("text/plain");
         let content = Content::with_metadata(data, meta);
         let doc = Document::decode(&content).await.expect("decode text");
-        DocumentEnvelope::new(doc, ContentMetadata::new().with_content_type("text/plain"))
+        let dir = tempfile::tempdir().unwrap();
+        let registry = crate::registry::Registry::open(dir.path()).unwrap();
+        let shared = crate::operation::envelope::SharedData::new(
+            uuid::Uuid::new_v4(),
+            uuid::Uuid::new_v4(),
+            registry,
+        );
+        DocumentEnvelope::new(
+            doc,
+            ContentMetadata::new().with_content_type("text/plain"),
+            shared,
+        )
     }
 
     #[tokio::test]

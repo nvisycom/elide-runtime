@@ -72,6 +72,52 @@ impl PdfRenderer {
         })
     }
 
+    /// Extract all embedded images from a PDF.
+    ///
+    /// Iterates over all page objects across every page, collecting
+    /// image objects via [`PdfPageImageObject::get_raw_image`]. Each
+    /// image is paired with its 0-based sequential index.
+    pub fn extract_images(pdf_bytes: &[u8]) -> Result<Vec<ImageData>, Error> {
+        let bytes = pdf_bytes.to_vec();
+
+        PDF_POOL.install(|| {
+            RENDERER.with_borrow_mut(|slot| {
+                if slot.is_none() {
+                    *slot = Some(PdfRenderer::new()?);
+                }
+                slot.as_ref().unwrap().extract(&bytes)
+            })
+        })
+    }
+
+    /// Extract embedded images using the bound PDFium instance.
+    fn extract(&self, pdf_bytes: &[u8]) -> Result<Vec<ImageData>, Error> {
+        let document = self
+            .pdfium
+            .load_pdf_from_byte_slice(pdf_bytes, None)
+            .map_err(|e| Error::runtime(format!("failed to load PDF: {e}"), "pdf_render", false))?;
+
+        let mut images = Vec::new();
+        for page in document.pages().iter() {
+            for object in page.objects().iter() {
+                if let Some(image_object) = object.as_image_object() {
+                    match image_object.get_raw_image() {
+                        Ok(img) => images.push(ImageData::from(img)),
+                        Err(e) => {
+                            tracing::warn!(
+                                target: "nvisy_codec::pdf_render",
+                                error = %e,
+                                "failed to extract embedded image, skipping",
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(images)
+    }
+
     /// Render all pages using the bound PDFium instance.
     fn render(&self, pdf_bytes: &[u8], dpi: Dpi) -> Result<Vec<ImageData>, Error> {
         let document = self

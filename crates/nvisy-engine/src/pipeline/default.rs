@@ -4,17 +4,17 @@
 //!
 //! 1. **Config merge** — per-request [`RuntimeConfig`] overrides are merged
 //!    with the engine's base config (section-level replacement).
-//! 2. **Context pre-loading** — [`LoadContext`](nvisy_ontology::workflow::LoadContext)
-//!    nodes are scanned and their context IDs are bulk-loaded from the
-//!    [`Registry`] into a [`ContextMap`](nvisy_ontology::context::ContextMap)
-//!    before execution begins.
+//! 2. **Context acquisition** — [`LoadContext`](nvisy_ontology::workflow::LoadContext)
+//!    nodes are scanned and their context IDs are acquired from the
+//!    engine's [`ContextCache`](super::cache::ContextCache) (loaded from the
+//!    registry on first access, deduplicated across concurrent runs).
 //! 3. **Compile** — the [`Graph`] is compiled into an
 //!    [`ExecutionPlan`](super::plan::ExecutionPlan) via [`plan::compile`].
 //! 4. **Schedule & execute** — the [orchestrator](super::orchestrator)
 //!    spawns one task per node and collects results.
 //! 5. **Finalize** — entity and redaction counts are computed from node
-//!    results, the run status is recorded, and an [`EngineOutput`] is
-//!    returned to the caller.
+//!    results, the run status is recorded, acquired contexts are released
+//!    from the cache, and an [`EngineOutput`] is returned to the caller.
 //!
 //! All mutable state lives in [`EngineInner`] behind an `Arc`. Builder
 //! methods (e.g. [`Engine::with_key_provider`]) require exclusive access
@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_core::content::{Content, ContentMetadata, ContentSource};
-use nvisy_ontology::context::{Context, ContextMap};
+use nvisy_ontology::context::Context;
 use nvisy_ontology::entity::{DetectionOutput, Entities};
 use nvisy_ontology::policy::{Policies, RedactionEntry};
 use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
@@ -38,6 +38,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use validator::Validate;
 
+use super::cache::ContextCache;
 use super::config::RuntimeConfig;
 use super::executor::RunOutput;
 use super::orchestrator::{self, RunContext};
@@ -46,11 +47,9 @@ use super::runs::state::{RunRecord, RunState};
 use super::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunSnapshot, RunStatus,
 };
-use crate::operation::context::SharedContext;
 use crate::operation::encryption::SharedKeyProvider;
+use crate::operation::envelope::SharedData;
 use crate::registry::Registry;
-
-const TARGET: &str = "nvisy_engine::pipeline::engine";
 
 /// Input required to execute a redaction pipeline.
 ///
@@ -112,6 +111,8 @@ struct EngineInner {
     registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
     key_provider: Option<SharedKeyProvider>,
+    /// Ref-counted context cache shared across concurrent runs.
+    context_cache: ContextCache,
     /// In-memory run lifecycle tracker (volatile — lost on restart).
     runs: RunState,
 }
@@ -161,6 +162,7 @@ impl Engine {
                 http_client,
                 registry,
                 key_provider: None,
+                context_cache: ContextCache::new(),
                 runs: RunState::new(),
             }),
         })
@@ -311,48 +313,31 @@ impl Engine {
             )
             .await;
 
-        let mut context_map = ContextMap::new();
-        let mut read_failures = 0u64;
-        let mut deserialize_failures = 0u64;
-        for id in &context_ids {
-            match self.inner.registry.read_context(input.actor_id, *id).await {
-                Ok(handle) => match handle.context().await {
-                    Ok(context) => {
-                        context_map.insert(context);
-                    }
-                    Err(e) => {
-                        deserialize_failures += 1;
-                        tracing::warn!(target: TARGET, %id, error = %e, "failed to deserialize context, skipping");
-                    }
-                },
-                Err(e) => {
-                    read_failures += 1;
-                    tracing::warn!(target: TARGET, %id, error = %e, "failed to read context, skipping");
-                }
-            }
-        }
-        let total_failures = read_failures + deserialize_failures;
-        if total_failures > 0 {
-            tracing::info!(
-                target: TARGET,
-                read_failures,
-                deserialize_failures,
-                "context loading completed with {total_failures} failure(s)"
-            );
-        }
-        tracing::debug!(target: TARGET, loaded = context_map.len(), "pre-loaded contexts");
+        // Acquire contexts into the shared cache. The returned guard
+        // releases them (decrementing ref counts) when dropped — even
+        // if this function panics.
+        let _context_guard = self
+            .inner
+            .context_cache
+            .acquire(input.actor_id, &context_ids, &self.inner.registry)
+            .await;
 
-        let mut shared = SharedContext::new(run_id, input.actor_id, self.inner.registry.clone())
-            .with_policies(input.policies.clone())
-            .with_context_map(context_map);
+        let mut shared_data = SharedData {
+            run_id,
+            actor_id: input.actor_id,
+            policies: input.policies.clone(),
+            registry: self.inner.registry.clone(),
+            key_provider: SharedKeyProvider::default(),
+            context_cache: self.inner.context_cache.clone(),
+        };
         if let Some(ref kp) = self.inner.key_provider {
-            shared = shared.with_key_provider(kp.clone());
+            shared_data.key_provider = kp.clone();
         }
 
         let cancel_clone = cancel.clone();
         let ctx = RunContext {
             cancel,
-            shared,
+            shared: Arc::new(shared_data),
             config: Arc::new(effective_config),
             http_client: self.inner.http_client.clone(),
             concurrency,

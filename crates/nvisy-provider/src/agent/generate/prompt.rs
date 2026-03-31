@@ -43,9 +43,6 @@ impl GenPromptBuilder {
         if let Some(ref ctx) = req.context {
             prompt.push_str(&format!(", context=\"{ctx}\""));
         }
-        if let Some(ref locale) = req.locale {
-            prompt.push_str(&format!(", locale=\"{locale}\""));
-        }
     }
 }
 

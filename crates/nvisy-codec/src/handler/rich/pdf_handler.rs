@@ -30,9 +30,9 @@ use nvisy_ontology::math::Dpi;
 
 use super::pdf_render::PdfRenderer;
 use crate::document::{Span, SpanStream};
-use crate::handler::image::ImageData;
+use crate::handler::image::{ImageData, ImageSpanId};
 use crate::handler::text::TextData;
-use crate::handler::{Handler, TextHandler};
+use crate::handler::{Handler, ImageHandler, TextHandler};
 
 /// 0-based page index for text spans within a rich document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -229,6 +229,40 @@ impl TextHandler for RichTextHandler {
             }
         }
 
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl ImageHandler for RichTextHandler {
+    async fn image_spans(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
+        let images = match PdfRenderer::extract_images(&self.raw) {
+            Ok(imgs) => imgs,
+            Err(e) => {
+                tracing::warn!(
+                    target: "nvisy_codec::rich",
+                    error = %e,
+                    "failed to extract embedded images",
+                );
+                return SpanStream::new(futures::stream::empty());
+            }
+        };
+        SpanStream::new(futures::stream::iter(
+            images
+                .into_iter()
+                .enumerate()
+                .map(|(i, data)| Span::new(ImageSpanId::new(i as u32), data)),
+        ))
+    }
+
+    async fn edit_images(
+        &mut self,
+        _edits: SpanStream<'_, ImageSpanId, ImageData>,
+    ) -> Result<(), Error> {
+        // Replacing individual embedded images in a PDF requires
+        // re-encoding and re-embedding them into the document structure.
+        // This is not yet implemented — image redactions on rich
+        // documents are currently read-only (detect but not mutate).
         Ok(())
     }
 }

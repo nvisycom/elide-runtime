@@ -6,13 +6,12 @@
 use nvisy_codec::Span;
 use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::{Error, ErrorKind, Result};
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::workflow::NamedEntityRecognition;
 use nvisy_provider::agent::{DetectionConfig, NerAgent};
 use nvisy_provider::http::HttpClient;
 
-use crate::operation::Operation;
-use crate::operation::context::SequentialContext;
-use crate::operation::envelope::DetectedEntities;
+use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::entity_recognition";
@@ -48,14 +47,11 @@ impl EntityRecognitionOp {
         Ok(Self { agent, config })
     }
 
-    pub(crate) async fn detect(
-        &self,
-        spans: Vec<Span<TextSpanId, TextData>>,
-    ) -> Result<DetectedEntities> {
+    async fn detect(&self, spans: &[Span<TextSpanId, TextData>]) -> Result<Vec<Entity>> {
         tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
         let mut entities = Vec::new();
 
-        for span in &spans {
+        for span in spans {
             let detected = self
                 .agent
                 .detect_entities(span.data.as_str(), &self.config)
@@ -73,20 +69,23 @@ impl EntityRecognitionOp {
             }
         }
 
-        Ok(DetectedEntities(entities.into()))
-    }
-
-    /// Clear the agent's coreference state. Call between documents.
-    pub(crate) async fn reset(&self) {
-        self.agent.reset().await;
+        Ok(entities)
     }
 }
 
 impl Operation for EntityRecognitionOp {
-    type Input = SequentialContext<Vec<Span<TextSpanId, TextData>>>;
-    type Output = SequentialContext<DetectedEntities>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input.sequential_map(|spans| self.detect(spans)).await
+    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+        let spans: Vec<_> = envelope.document.collect_text_spans().await;
+        if !spans.is_empty() {
+            let detected = self.detect(&spans).await?;
+            tracing::debug!(
+                target: TARGET,
+                detected = detected.len(),
+                "appending NER entities",
+            );
+            envelope.entities.extend(detected);
+        }
+        self.agent.reset().await;
+        Ok(())
     }
 }

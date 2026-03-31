@@ -1,31 +1,31 @@
 //! Load context operation.
 //!
-//! Runs at **phase 0** alongside [`ImportFile`]. Produces context
-//! references (UUIDs) that point into the run-wide [`ContextMap`]
-//! pre-loaded on [`SharedContext`].
+//! Runs at **phase 0** alongside [`ImportFile`]. Records which context
+//! IDs this node contributes to the envelope. The actual context data
+//! is loaded into the engine's [`ContextCache`] at run start and
+//! accessed on demand via `envelope.shared.context_cache`.
 //!
-//! [`ImportFile`]: crate::operation::ImportFile
-//! [`ContextMap`]: nvisy_ontology::context::ContextMap
-//! [`SharedContext`]: crate::operation::context::SharedContext
+//! [`ImportFile`]: crate::operation::ImportFileOp
+//! [`ContextCache`]: crate::pipeline::cache::ContextCache
 
 use nvisy_core::Result;
-use nvisy_ontology::context::Contexts;
 use nvisy_ontology::workflow::LoadContext;
 use uuid::Uuid;
 
-use crate::operation::Operation;
-use crate::operation::context::ParallelContext;
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::load_context";
 
-/// Produces context references for downstream operations.
+/// Records context references on the envelope for downstream operations.
 ///
-/// The actual context data is pre-loaded into the run-wide
-/// [`ContextMap`] on [`SharedContext`]. This operation simply
-/// records which context IDs this node contributes.
+/// The actual context data lives in the engine's [`ContextCache`],
+/// accessed via `envelope.shared.context_cache`. This operation
+/// records which context IDs this node contributes so that
+/// downstream nodes (e.g. [`GenerateContextOp`]) know which
+/// contexts are available.
 ///
-/// [`ContextMap`]: nvisy_ontology::context::ContextMap
-/// [`SharedContext`]: crate::operation::context::SharedContext
+/// [`ContextCache`]: crate::pipeline::cache::ContextCache
+/// [`GenerateContextOp`]: crate::operation::GenerateContextOp
 pub struct LoadContextOp {
     context_ids: Vec<Uuid>,
 }
@@ -41,17 +41,16 @@ impl LoadContextOp {
 }
 
 impl Operation for LoadContextOp {
-    type Input = ParallelContext<Contexts>;
-    type Output = ParallelContext<Contexts>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input
-            .parallel_map(|mut contexts| async {
-                for &id in &self.context_ids {
-                    contexts.push(id);
-                }
-                Ok(contexts)
-            })
-            .await
+    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+        for &id in &self.context_ids {
+            envelope.contexts.push(id);
+        }
+        tracing::debug!(
+            target: TARGET,
+            added = self.context_ids.len(),
+            total = envelope.contexts.len(),
+            "loaded context references",
+        );
+        Ok(())
     }
 }

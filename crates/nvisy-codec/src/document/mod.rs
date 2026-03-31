@@ -165,6 +165,24 @@ impl Document {
         }
     }
 
+    /// Apply a batch of audio redactions to the document.
+    ///
+    /// Delegates to [`AudioTransform::redact_audio`] on the underlying
+    /// audio handler. Returns `Ok(())` for text, image, and rich
+    /// documents (no audio to redact).
+    ///
+    /// [`AudioTransform::redact_audio`]: crate::transform::AudioTransform::redact_audio
+    pub async fn apply_audio_redactions(
+        &mut self,
+        redactions: &[crate::transform::AudioRedaction],
+    ) -> Result<(), Error> {
+        use crate::transform::AudioTransform;
+        match self {
+            Self::Audio(h) => h.redact_audio(redactions).await,
+            Self::Text(_) | Self::Image(_) | Self::Rich(_) => Ok(()),
+        }
+    }
+
     /// Decode [`Content`] into a `Document` using default parameters.
     ///
     /// Format detection uses [`Content::infer_document_type`], which

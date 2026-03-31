@@ -2,7 +2,8 @@
 //!
 //! Runs at **phase 4** alongside [`GenerateContextOp`]. Evaluates policy
 //! rules against detected entities to produce redaction decisions, then
-//! builds and applies text redaction instructions to the document.
+//! builds and applies redaction instructions across all modalities
+//! (text, image, audio) via [`RedactionApplicator`].
 //!
 //! [`GenerateContextOp`]: crate::operation::GenerateContextOp
 
@@ -14,7 +15,7 @@ use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
 use nvisy_ontology::workflow::Redaction;
 
-use super::apply::build_text_redactions;
+use super::apply::RedactionApplicator;
 use crate::operation::envelope::SharedData;
 use crate::operation::{DocumentEnvelope, Operation};
 
@@ -60,12 +61,29 @@ impl Operation for RedactionOp {
 
         let (decisions, records) = self.evaluator.evaluate(&envelope.entities)?;
 
-        // Build and apply text redaction instructions.
-        let text_redactions = build_text_redactions(&decisions, &envelope.entities);
+        // Build and apply redaction instructions across all modalities.
+        let applicator = RedactionApplicator::new(&decisions, &envelope.entities);
+        let text_redactions = applicator.build_text_redactions();
+        let image_redactions = applicator.build_image_redactions();
+        let audio_redactions = applicator.build_audio_redactions();
+        drop(applicator);
+
         if !text_redactions.is_empty() {
             envelope
                 .document
                 .apply_text_redactions(&text_redactions)
+                .await?;
+        }
+        if !image_redactions.is_empty() {
+            envelope
+                .document
+                .apply_image_redactions(&image_redactions)
+                .await?;
+        }
+        if !audio_redactions.is_empty() {
+            envelope
+                .document
+                .apply_audio_redactions(&audio_redactions)
                 .await?;
         }
 

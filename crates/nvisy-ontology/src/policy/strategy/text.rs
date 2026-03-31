@@ -36,8 +36,6 @@ pub enum TextStrategy {
     },
     /// Remove the value entirely.
     Remove,
-    /// Replace with a realistically generated value.
-    Generate,
     /// Replace with a consistent pseudonym.
     Pseudonymize,
     /// Replace with a vault-backed reversible token.

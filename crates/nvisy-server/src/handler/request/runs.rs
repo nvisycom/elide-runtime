@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use super::Pagination;
 
-/// Request body for `POST /api/v1/runs`.
+/// Request body for `POST /runs`.
 ///
 /// Content identifiers are specified on [`Import`] nodes within the
 /// graph, not as a top-level field.

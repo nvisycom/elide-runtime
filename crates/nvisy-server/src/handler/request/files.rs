@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::handler::utility::Base64;
 
-/// JSON request body for base64-encoded file upload.
+/// Request body for `POST /files`: base64-encoded file upload.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewFile {

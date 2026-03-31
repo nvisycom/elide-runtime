@@ -4,7 +4,7 @@ use nvisy_ontology::context::Context;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-/// JSON request body for typed context upload.
+/// Request body for `POST /contexts`: typed context upload.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewContext {

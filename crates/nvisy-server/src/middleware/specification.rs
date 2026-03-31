@@ -79,7 +79,7 @@ where
     }
 }
 
-/// `GET /api/v1/openapi.json`: serve the generated OpenAPI spec.
+/// Serve the generated OpenAPI spec.
 async fn serve_spec(Extension(api): Extension<OpenApi>) -> Json<OpenApi> {
     Json(api)
 }

@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::handler::request::Page;
 use crate::handler::utility::Base64;
 
-/// Response body for `GET /api/v1/files`.
+/// Response body for `GET /files`.
 pub type FileList = Page<FileEntry>;
 
 /// Summary of a stored file for listing endpoints.
@@ -30,7 +30,7 @@ pub struct FileEntry {
     pub sha256: Option<String>,
 }
 
-/// Response body for `POST /api/v1/files`.
+/// Response body for `POST /files`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FileId {
@@ -38,7 +38,7 @@ pub struct FileId {
     pub id: Uuid,
 }
 
-/// Response body for `GET /api/v1/files/{id}`.
+/// Response body for `GET /files/{id}`.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct File {

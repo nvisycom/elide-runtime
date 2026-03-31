@@ -2,14 +2,17 @@
 //!
 //! # Endpoints
 //!
-//! | Method   | Path                       | Description                          |
-//! |----------|----------------------------|--------------------------------------|
-//! | `POST`   | `/api/v1/runs`             | Run the full pipeline                |
-//! | `GET`    | `/api/v1/runs`             | List runs with optional filters      |
-//! | `GET`    | `/api/v1/runs/{id}`        | Get a full run snapshot              |
-//! | `POST`   | `/api/v1/runs/{id}/cancel` | Cancel an in-progress run            |
-//! | `DELETE` | `/api/v1/runs/{id}`        | Delete a single finished run         |
-//! | `DELETE` | `/api/v1/runs`             | Delete all finished runs             |
+//! | Method   | Path                 | Description                          |
+//! |----------|----------------------|--------------------------------------|
+//! | `POST`   | `/runs`              | Run the full pipeline                |
+//! | `GET`    | `/runs`              | List runs with optional filters      |
+//! | `GET`    | `/runs/{id}`         | Get a full run snapshot              |
+//! | `POST`   | `/runs/{id}/cancel`  | Cancel an in-progress run            |
+//! | `DELETE` | `/runs/{id}`         | Delete a single finished run         |
+//! | `DELETE` | `/runs`              | Delete all finished runs             |
+//!
+//! Paths are relative — the version prefix (e.g. `/api/v1`) is applied
+//! by the version module.
 
 use std::time::Duration;
 
@@ -33,10 +36,7 @@ use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::runs";
 
-/// `POST /api/v1/runs`: run the full pipeline on uploaded content.
-///
-/// Performs extraction, detection, policy evaluation, and redaction
-/// on previously uploaded content identified by the graph's Import nodes.
+/// `POST /runs`
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
@@ -61,7 +61,8 @@ async fn create_run(
         target: TARGET,
         run_id = %output.run_id,
         entities = output.detection.entities.len(),
-        "pipeline complete",
+        decisions = output.evaluation.decisions.len(),
+        "pipeline run complete",
     );
 
     Ok((StatusCode::CREATED, Json(output)))
@@ -70,18 +71,19 @@ async fn create_run(
 fn create_run_docs(op: TransformOperation) -> TransformOperation {
     op.id("createRun")
         .tag("runs")
-        .summary("Run the full pipeline on uploaded content")
+        .summary("Execute a redaction pipeline")
         .description(
-            "Runs the complete pipeline (extraction \u{2192} detection \u{2192} policy \
-             evaluation \u{2192} redaction) on previously uploaded content.",
+            "Submits content for the full pipeline: import → detect → evaluate → redact → export. \
+             The caller must have previously uploaded content and specify its IDs \
+             in the graph's Import nodes.",
         )
 }
 
-/// `GET /api/v1/runs`: list runs with optional status filter, scoped to the caller.
+/// `GET /runs`
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%actor_id, ?query.status),
+    fields(%actor_id),
 )]
 async fn list_runs(
     State(engine): State<Engine>,
@@ -91,8 +93,8 @@ async fn list_runs(
     let filter = RunFilter {
         status: query.status,
     };
-    let runs = engine.list_runs(actor_id, filter).await;
-    let page = query.pagination.paginate(runs);
+    let entries = engine.list_runs(actor_id, filter).await;
+    let page = query.pagination.paginate(entries);
     tracing::debug!(target: TARGET, total = page.total, count = page.items.len(), "runs listed");
     Ok(Json(page))
 }
@@ -102,15 +104,16 @@ fn list_runs_docs(op: TransformOperation) -> TransformOperation {
         .tag("runs")
         .summary("List pipeline runs")
         .description(
-            "Returns a list of run summaries, optionally filtered by status or actor identity.",
+            "Returns pipeline runs for the caller, optionally filtered by status. \
+             Supports pagination via `offset` and `limit` query parameters.",
         )
 }
 
-/// `GET /api/v1/runs/{id}`: get a full run snapshot.
+/// `GET /runs/{id}`
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%actor_id, %id),
+    fields(%id, %actor_id),
 )]
 async fn get_run(
     State(engine): State<Engine>,
@@ -120,8 +123,8 @@ async fn get_run(
     let snapshot = engine
         .get_run(actor_id, id)
         .await
-        .ok_or_else(|| ErrorKind::NotFound.with_resource("run"))?;
-    tracing::debug!(target: TARGET, "run retrieved");
+        .ok_or(ErrorKind::NotFound)?;
+    tracing::debug!(target: TARGET, "run snapshot retrieved");
     Ok(Json(snapshot))
 }
 
@@ -129,14 +132,14 @@ fn get_run_docs(op: TransformOperation) -> TransformOperation {
     op.id("getRun")
         .tag("runs")
         .summary("Get a pipeline run")
-        .description("Returns the full snapshot of a single run including per-node status.")
+        .description("Returns the full run snapshot including per-node status.")
 }
 
-/// `POST /api/v1/runs/{id}/cancel`: cancel an in-progress run.
+/// `POST /runs/{id}/cancel`
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%actor_id, %id),
+    fields(%id, %actor_id),
 )]
 async fn cancel_run(
     State(engine): State<Engine>,
@@ -145,25 +148,24 @@ async fn cancel_run(
 ) -> Result<StatusCode> {
     engine.cancel_run(actor_id, id).await?;
     tracing::info!(target: TARGET, "run cancelled");
-    Ok(StatusCode::NO_CONTENT)
+    Ok(StatusCode::ACCEPTED)
 }
 
 fn cancel_run_docs(op: TransformOperation) -> TransformOperation {
     op.id("cancelRun")
         .tag("runs")
-        .summary("Cancel a pipeline run")
+        .summary("Cancel an in-progress run")
         .description(
-            "Requests cancellation of a pending or running pipeline run. \
-             Returns 204 on success, 404 if the run does not exist, \
-             or 409 if the run has already finished.",
+            "Triggers cooperative cancellation. The run will abort at the next \
+             yield point and transition to `Cancelled` status.",
         )
 }
 
-/// `DELETE /api/v1/runs/{id}`: delete a single finished run.
+/// `DELETE /runs/{id}`
 #[tracing::instrument(
     target = "nvisy_server::runs",
     skip_all,
-    fields(%actor_id, %id),
+    fields(%id, %actor_id),
 )]
 async fn delete_run(
     State(engine): State<Engine>,
@@ -179,14 +181,15 @@ fn delete_run_docs(op: TransformOperation) -> TransformOperation {
     op.id("deleteRun")
         .tag("runs")
         .summary("Delete a finished run")
-        .description(
-            "Removes a single finished run identified by its UUID. \
-             Returns 400 if the run is still active.",
-        )
+        .description("Removes a single completed or failed run from the store.")
 }
 
-/// `DELETE /api/v1/runs`: delete all finished runs.
-#[tracing::instrument(target = "nvisy_server::runs", skip_all, fields(%actor_id))]
+/// `DELETE /runs`
+#[tracing::instrument(
+    target = "nvisy_server::runs",
+    skip_all,
+    fields(%actor_id),
+)]
 async fn delete_all_runs(
     State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
@@ -201,15 +204,15 @@ fn delete_all_runs_docs(op: TransformOperation) -> TransformOperation {
         .tag("runs")
         .summary("Delete all finished runs")
         .description(
-            "Removes every finished run from the store. Active runs \
+            "Removes every completed, failed, or cancelled run. Active runs \
              (pending or running) are preserved.",
         )
 }
 
-/// Run routes.
-pub fn routes() -> ApiRouter<ServiceState> {
+/// Run routes for API v1 (relative paths).
+pub fn routes_v1() -> ApiRouter<ServiceState> {
     let pipeline_routes = ApiRouter::new()
-        .api_route("/api/v1/runs", post_with(create_run, create_run_docs))
+        .api_route("/runs", post_with(create_run, create_run_docs))
         .layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(handle_error))
@@ -220,17 +223,14 @@ pub fn routes() -> ApiRouter<ServiceState> {
 
     let read_routes = ApiRouter::new()
         .api_route(
-            "/api/v1/runs",
+            "/runs",
             get_with(list_runs, list_runs_docs).delete_with(delete_all_runs, delete_all_runs_docs),
         )
         .api_route(
-            "/api/v1/runs/{id}",
+            "/runs/{id}",
             get_with(get_run, get_run_docs).delete_with(delete_run, delete_run_docs),
         )
-        .api_route(
-            "/api/v1/runs/{id}/cancel",
-            post_with(cancel_run, cancel_run_docs),
-        )
+        .api_route("/runs/{id}/cancel", post_with(cancel_run, cancel_run_docs))
         .layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(handle_error))

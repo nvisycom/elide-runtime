@@ -6,7 +6,7 @@ use crate::patterns::ContextRule;
 
 /// A single match produced by the pattern engine's internal scan phases.
 ///
-/// Carries metadata needed for context boosting and tracing before
+/// Carries metadata needed for context adjustment and tracing before
 /// conversion to [`Entity`].
 #[derive(Debug, Clone)]
 pub(crate) struct RawMatch {
@@ -27,18 +27,19 @@ pub(crate) struct RawMatch {
     pub confidence: f64,
     /// Recognition methods that produced this match.
     pub recognition_methods: Vec<RecognitionMethod>,
-    /// Optional context rule for co-occurrence confidence boosting.
+    /// Optional context rule for co-occurrence confidence adjustment.
     pub context: Option<ContextRule>,
 }
 
 impl RawMatch {
-    /// Apply context-based confidence boosting.
+    /// Apply context-based confidence adjustment.
     ///
     /// Searches the surrounding text (within `window` characters of the
     /// match boundaries) for any of the context rule's keywords. If at
-    /// least one is found, boosts confidence by the rule's `boost` value,
-    /// clamped to `[0.0, 1.0]`.
-    pub fn apply_context_boost(&mut self, text: &str) {
+    /// least one is found, boosts confidence by `boost`. If none are
+    /// found, reduces confidence by `penalty`. Both are clamped to
+    /// `[0.0, 1.0]`.
+    pub fn apply_context_adjustment(&mut self, text: &str) {
         let rule = match &self.context {
             Some(r) => r,
             None => return,
@@ -61,6 +62,8 @@ impl RawMatch {
 
         if found {
             self.confidence = (self.confidence + rule.boost).clamp(0.0, 1.0);
+        } else if rule.penalty > 0.0 {
+            self.confidence = (self.confidence - rule.penalty).clamp(0.0, 1.0);
         }
     }
 

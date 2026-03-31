@@ -4,14 +4,18 @@
 //! to reduce false positives. At detection time the name is resolved to a
 //! [`ValidatorFn`] via [`ValidatorResolver`].
 
+mod date;
 mod iban;
 mod luhn;
+mod phone;
 mod ssn;
 
 use std::collections::HashMap;
 
+pub use self::date::validate_date;
 pub use self::iban::validate_iban;
 pub use self::luhn::luhn_check;
+pub use self::phone::validate_phone;
 pub use self::ssn::validate_ssn;
 
 /// Validation function signature: takes matched text, returns `true` if
@@ -37,6 +41,8 @@ impl ValidatorResolver {
         r.register("ssn", validate_ssn);
         r.register("luhn", luhn_check);
         r.register("iban", validate_iban);
+        r.register("phone", validate_phone);
+        r.register("date", validate_date);
         r
     }
 

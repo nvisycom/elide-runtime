@@ -109,6 +109,18 @@ impl std::fmt::Debug for PatternEngine {
     }
 }
 
+impl std::fmt::Display for PatternEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PatternEngine({} regex, {} dict, threshold {:.2})",
+            self.regex_entries.len(),
+            self.dict_entries.len(),
+            self.confidence_threshold,
+        )
+    }
+}
+
 impl PatternEngine {
     /// Return a reference to the lazily-initialised default engine
     /// containing all built-in patterns.
@@ -135,15 +147,36 @@ impl PatternEngine {
     pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
         let mut raw = self.scan_raw(text, ctx);
 
-        // Apply context-based confidence boosting before threshold
+        // Apply context-based confidence adjustment before threshold
         // filtering so that a match just below threshold can be
         // promoted by keyword co-occurrence.
         for m in &mut raw {
-            m.apply_context_boost(text);
+            m.apply_context_adjustment(text);
+        }
+
+        // Deduplicate overlapping matches of the same entity kind:
+        // sort by (kind, start, descending confidence) then keep only
+        // the highest-confidence match per overlapping span.
+        raw.sort_by(|a, b| {
+            a.start
+                .cmp(&b.start)
+                .then(b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal))
+        });
+        let mut deduped: Vec<RawMatch> = Vec::with_capacity(raw.len());
+        for m in raw {
+            let dominated = deduped.iter().any(|existing| {
+                existing.entity_kind == m.entity_kind
+                    && existing.start <= m.start
+                    && existing.end >= m.end
+                    && existing.confidence >= m.confidence
+            });
+            if !dominated {
+                deduped.push(m);
+            }
         }
 
         let threshold = self.confidence_threshold;
-        let entities: Vec<Entity> = raw
+        let entities: Vec<Entity> = deduped
             .into_iter()
             .filter(|m| m.confidence >= threshold)
             .map(|m| {

@@ -1,14 +1,16 @@
 {
-  "name": "date-of-birth",
+  "name": "date_of_birth",
   "category": "personal_identity",
   "entity_type": "date_of_birth",
   "pattern": {
-    "regex": "\\b(?:0[1-9]|1[0-2])[/\\-](?:0[1-9]|[12]\\d|3[01])[/\\-](?:19|20)\\d{2}\\b",
-    "confidence": 0.6
+    "regex": "\\b(?:(?:0[1-9]|1[0-2]|[1-9])[/\\-](?:0[1-9]|[12]\\d|3[01]|[1-9])[/\\-](?:19|20)\\d{2}|(?:19|20)\\d{2}[/\\-](?:0[1-9]|1[0-2])[/\\-](?:0[1-9]|[12]\\d|3[01]))\\b",
+    "confidence": 0.6,
+    "validator": "date"
   },
   "context": {
-    "keywords": ["birth", "born", "dob", "birthday", "date of birth"],
+    "keywords": ["birth", "born", "dob", "birthday"],
     "window": 100,
-    "boost": 0.1
+    "boost": 0.15,
+    "penalty": 0.1
   }
 }

@@ -4,11 +4,20 @@
   "entity_type": "phone_number",
   "pattern": {
     "regex": "(?:\\+\\d{1,3}[\\s.\\-]?)?\\(?\\d{2,4}\\)?[\\s.\\-]?\\d{3,4}[\\s.\\-]?\\d{4}\\b",
-    "confidence": 0.8
+    "confidence": 0.8,
+    "validator": "phone"
   },
   "context": {
-    "keywords": ["phone", "call", "mobile", "tel", "fax", "contact"],
+    "keywords": [
+      "phone",
+      "call",
+      "mobile",
+      "tel",
+      "fax",
+      "contact"
+    ],
     "window": 100,
-    "boost": 0.05
+    "boost": 0.05,
+    "penalty": 0.15
   }
 }

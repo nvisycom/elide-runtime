@@ -20,6 +20,7 @@
 //! - `runs` — in-memory run lifecycle tracking ([`RunSnapshot`], [`RunEntry`]).
 //! - `analytics` — point-in-time aggregate metrics across all tracked runs.
 
+pub(crate) mod cache;
 mod config;
 mod default;
 mod executor;

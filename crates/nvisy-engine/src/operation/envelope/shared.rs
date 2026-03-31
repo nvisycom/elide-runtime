@@ -2,15 +2,15 @@
 //!
 //! [`SharedData`] holds immutable run-wide state behind an `Arc` so
 //! that every envelope and operation can cheaply access the same actor
-//! identity, policies, and reference-data contexts.
+//! identity, policies, and context cache.
 
 use std::sync::Arc;
 
-use nvisy_ontology::context::ContextMap;
 use nvisy_ontology::policy::{Policies, Policy};
 use uuid::Uuid;
 
 use crate::operation::encryption::SharedKeyProvider;
+use crate::pipeline::cache::ContextCache;
 use crate::registry::Registry;
 
 /// Immutable run-wide state shared across all envelopes via `Arc`.
@@ -29,8 +29,8 @@ pub struct SharedData {
     pub registry: Registry,
     /// Key provider for encryption/decryption.
     pub key_provider: SharedKeyProvider,
-    /// Pre-loaded contexts for this pipeline run.
-    pub context_map: ContextMap,
+    /// Ref-counted context cache shared across runs.
+    pub context_cache: ContextCache,
 }
 
 impl SharedData {
@@ -42,7 +42,7 @@ impl SharedData {
             policies: Policies::default(),
             registry,
             key_provider: SharedKeyProvider::default(),
-            context_map: ContextMap::new(),
+            context_cache: ContextCache::new(),
         })
     }
 
@@ -55,12 +55,6 @@ impl SharedData {
     /// Attach policies to this shared data.
     pub fn with_policies(mut self, policies: Policies) -> Self {
         self.policies = policies;
-        self
-    }
-
-    /// Attach a pre-loaded context map.
-    pub fn with_context_map(mut self, map: ContextMap) -> Self {
-        self.context_map = map;
         self
     }
 

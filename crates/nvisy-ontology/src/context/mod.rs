@@ -12,8 +12,6 @@ pub mod geospatial;
 pub mod reference;
 pub mod temporal;
 
-use std::collections::HashMap;
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -21,68 +19,9 @@ use uuid::Uuid;
 pub use self::entry::{ContextEntry, ContextEntryData};
 use crate::entity::ContentSource;
 
-/// A collection of [`Context`]s keyed by their source UUID.
+/// Lightweight set of context references carried by each document envelope.
 ///
-/// This is the run-wide store: every context loaded during a pipeline
-/// run is held here. Individual [`DocumentEnvelope`]s carry a
-/// lightweight [`Contexts`] reference set instead.
-///
-/// [`DocumentEnvelope`]: https://docs.rs/nvisy-engine
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
-pub struct ContextMap {
-    /// The contexts, keyed by source UUID.
-    #[serde(flatten)]
-    contexts: HashMap<Uuid, Context>,
-}
-
-impl ContextMap {
-    /// Create an empty collection.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Get a context by its source UUID.
-    pub fn get(&self, id: &Uuid) -> Option<&Context> {
-        self.contexts.get(id)
-    }
-
-    /// Insert a context, keyed by its source UUID. Replaces any existing
-    /// context with the same ID.
-    pub fn insert(&mut self, context: Context) {
-        self.contexts.insert(context.source.as_uuid(), context);
-    }
-
-    /// Number of contexts in the collection.
-    pub fn len(&self) -> usize {
-        self.contexts.len()
-    }
-
-    /// Returns `true` if the collection is empty.
-    pub fn is_empty(&self) -> bool {
-        self.contexts.is_empty()
-    }
-
-    /// Returns `true` if a context with the given ID exists.
-    pub fn contains(&self, id: &Uuid) -> bool {
-        self.contexts.contains_key(id)
-    }
-
-    /// Iterate over all contexts.
-    pub fn iter(&self) -> impl Iterator<Item = (&Uuid, &Context)> {
-        self.contexts.iter()
-    }
-
-    /// Iterate over all context values.
-    pub fn values(&self) -> impl Iterator<Item = &Context> {
-        self.contexts.values()
-    }
-}
-
-/// Lightweight set of context references carried by each [`DocumentEnvelope`].
-///
-/// Each UUID points to a [`Context`] in the run-wide [`ContextMap`].
-///
-/// [`DocumentEnvelope`]: https://docs.rs/nvisy-engine
+/// Each UUID points to a [`Context`] in the engine's context cache.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct Contexts(Vec<Uuid>);
 
@@ -115,11 +54,6 @@ impl Contexts {
 
     pub fn contains(&self, id: &Uuid) -> bool {
         self.0.contains(id)
-    }
-
-    /// Resolve all references against a [`ContextMap`], returning matching contexts.
-    pub fn resolve<'a>(&'a self, map: &'a ContextMap) -> Vec<&'a Context> {
-        self.0.iter().filter_map(|id| map.get(id)).collect()
     }
 }
 

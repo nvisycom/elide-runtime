@@ -10,8 +10,6 @@ use nvisy_ontology::workflow::GenerateContext;
 
 use crate::operation::{DocumentEnvelope, Operation};
 
-const TARGET: &str = "nvisy_engine::op::generate_context";
-
 /// Generates contexts from detection results and content data.
 ///
 /// Currently a passthrough stub.
@@ -21,13 +19,13 @@ impl GenerateContextOp {
     /// Create from graph config.
     pub fn new(cfg: &GenerateContext) -> Self {
         if cfg.summarization {
-            tracing::warn!(target: TARGET, "summarization not yet implemented, skipping");
+            tracing::warn!("summarization not yet implemented, skipping");
         }
         if cfg.translation {
-            tracing::warn!(target: TARGET, "translation not yet implemented, skipping");
+            tracing::warn!("translation not yet implemented, skipping");
         }
         if cfg.audit {
-            tracing::debug!(target: TARGET, "audit records already accumulated on envelope");
+            tracing::debug!("audit records already accumulated on envelope");
         }
         Self
     }

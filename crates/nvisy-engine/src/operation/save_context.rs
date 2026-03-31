@@ -1,9 +1,11 @@
 //! Save context operation.
 //!
 //! Runs at **phase 6** alongside [`ExportFile`]. Persists selected
-//! contexts from the run-wide context map to the registry.
+//! contexts from the cache to the registry.
 //!
 //! [`ExportFile`]: crate::operation::ExportFileOp
+
+use std::sync::Arc;
 
 use nvisy_core::Result;
 use nvisy_ontology::workflow::SaveContext;
@@ -13,9 +15,9 @@ use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::save_context";
 
-/// Persists selected contexts from the run-wide context map to the registry.
+/// Persists selected contexts from the cache to the registry.
 ///
-/// Registry, actor identity, and context map are read from the
+/// Registry, actor identity, and context cache are read from the
 /// envelope's [`SharedData`] at execution time.
 ///
 /// [`SharedData`]: crate::operation::envelope::SharedData
@@ -42,16 +44,16 @@ impl Operation for SaveContextOp {
                 tracing::trace!(target: TARGET, %id, "context not referenced by envelope, skipping");
                 continue;
             }
-            match shared.context_map.get(&id) {
+            match shared.context_cache.get(&id).await {
                 Some(context) => {
                     shared
                         .registry
-                        .register_context(shared.actor_id, context.clone())
+                        .register_context(shared.actor_id, Arc::unwrap_or_clone(context))
                         .await?;
                     saved += 1;
                 }
                 None => {
-                    tracing::trace!(target: TARGET, %id, "context not found in shared map, skipping");
+                    tracing::trace!(target: TARGET, %id, "context not found in cache, skipping");
                 }
             }
         }

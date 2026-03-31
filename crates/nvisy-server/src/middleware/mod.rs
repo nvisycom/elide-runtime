@@ -55,4 +55,4 @@ pub use self::observability::RouterObservabilityExt;
 pub use self::recovery::{RecoveryConfig, RouterRecoveryExt};
 pub use self::security::{RouterSecurityExt, SecurityConfig};
 pub use self::specification::{OpenApiConfig, RouterOpenApiExt};
-pub use self::sunset::{sunset_headers, SunsetConfig};
+pub use self::sunset::{SunsetConfig, sunset_headers};

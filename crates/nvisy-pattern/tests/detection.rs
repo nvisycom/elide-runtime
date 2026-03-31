@@ -38,9 +38,10 @@ fn dictionary_matches_are_found() {
     let engine = PatternEngine::instance();
     let entities = engine.scan_entities("She is American and speaks English.", &empty_ctx());
     assert!(
-        entities
+        entities.iter().any(|e| e
+            .recognition_methods
             .iter()
-            .any(|e| e.recognition_methods.iter().any(|m| matches!(m, RecognitionMethod::Dictionary(_)))),
+            .any(|m| matches!(m, RecognitionMethod::Dictionary(_)))),
         "expected dictionary match, got: {:?}",
         entities
             .iter()

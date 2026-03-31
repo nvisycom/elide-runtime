@@ -403,7 +403,10 @@ mod tests {
         assert_eq!(deny_match.value, "secret-value-42");
         assert_eq!(deny_match.confidence, 1.0);
         assert_eq!(deny_match.entity_kind, EntityKind::PersonName);
-        assert_eq!(deny_match.recognition_methods, vec![RecognitionMethod::ner_anonymous()]);
+        assert_eq!(
+            deny_match.recognition_methods,
+            vec![RecognitionMethod::ner_anonymous()]
+        );
     }
 
     #[test]

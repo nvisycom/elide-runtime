@@ -103,8 +103,8 @@ mod tests {
     use std::collections::HashMap;
 
     use nvisy_ontology::entity::{
-        Entity, EntityCategory, EntityKind, ExtractionMethod, Location, RecognitionMethodKind,
-        RecognitionMethod, TextLocation,
+        Entity, EntityCategory, EntityKind, ExtractionMethod, Location, RecognitionMethod,
+        RecognitionMethodKind, TextLocation,
     };
     use nvisy_ontology::workflow::FusionStrategy::*;
 
@@ -183,7 +183,13 @@ mod tests {
     fn narrowing_preserves_non_overlapping_substrings() {
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4),
-            text_entity("John Smith", RecognitionMethod::ner_anonymous(), 0.9, 100, 110),
+            text_entity(
+                "John Smith",
+                RecognitionMethod::ner_anonymous(),
+                0.9,
+                100,
+                110,
+            ),
         ]
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Narrowing);
@@ -194,7 +200,13 @@ mod tests {
     fn widening_groups_across_locations() {
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4),
-            text_entity("John Smith", RecognitionMethod::ner_anonymous(), 0.9, 100, 110),
+            text_entity(
+                "John Smith",
+                RecognitionMethod::ner_anonymous(),
+                0.9,
+                100,
+                110,
+            ),
         ]
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Widening);
@@ -247,8 +259,14 @@ mod tests {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Regex, 0.5);
 
-        let mut entities: Entities =
-            vec![text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4)].into();
+        let mut entities: Entities = vec![text_entity(
+            "John",
+            RecognitionMethod::regex_anonymous(),
+            0.8,
+            0,
+            4,
+        )]
+        .into();
         calibrate(&mut entities, &calibration);
         assert!((entities[0].confidence - 0.4).abs() < f64::EPSILON);
     }
@@ -258,8 +276,14 @@ mod tests {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Regex, 2.0);
 
-        let mut entities: Entities =
-            vec![text_entity("John", RecognitionMethod::regex_anonymous(), 0.8, 0, 4)].into();
+        let mut entities: Entities = vec![text_entity(
+            "John",
+            RecognitionMethod::regex_anonymous(),
+            0.8,
+            0,
+            4,
+        )]
+        .into();
         calibrate(&mut entities, &calibration);
         assert!((entities[0].confidence - 1.0).abs() < f64::EPSILON);
     }
@@ -337,7 +361,10 @@ mod tests {
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
             .with_value("John")
-            .with_recognition_methods(vec![RecognitionMethod::regex_anonymous(), RecognitionMethod::ner_anonymous()])
+            .with_recognition_methods(vec![
+                RecognitionMethod::regex_anonymous(),
+                RecognitionMethod::ner_anonymous(),
+            ])
             .with_confidence(1.0)
             .build()
             .unwrap();

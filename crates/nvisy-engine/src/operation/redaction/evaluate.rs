@@ -61,12 +61,16 @@ impl Operation for RedactionOp {
 
         let (decisions, records) = self.evaluator.evaluate(&envelope.entities)?;
 
-        // Build and apply redaction instructions across all modalities.
-        let applicator = RedactionApplicator::new(&decisions, &envelope.entities);
-        let text_redactions = applicator.build_text_redactions();
-        let image_redactions = applicator.build_image_redactions();
-        let audio_redactions = applicator.build_audio_redactions();
-        drop(applicator);
+        // Build redaction instructions in a scoped borrow, then apply
+        // them to the document afterward (separate borrow scopes).
+        let (text_redactions, image_redactions, audio_redactions) = {
+            let applicator = RedactionApplicator::new(&decisions, &envelope.entities);
+            (
+                applicator.build_text_redactions(),
+                applicator.build_image_redactions(),
+                applicator.build_audio_redactions(),
+            )
+        };
 
         if !text_redactions.is_empty() {
             envelope

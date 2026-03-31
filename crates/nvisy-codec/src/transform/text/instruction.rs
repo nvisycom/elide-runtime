@@ -28,6 +28,13 @@ pub enum TextOutput {
 }
 
 impl TextOutput {
+    /// Create a [`Replace`](Self::Replace) output with the given string.
+    pub fn replace(replacement: impl Into<String>) -> Self {
+        Self::Replace {
+            replacement: replacement.into(),
+        }
+    }
+
     /// Returns the text replacement string, regardless of specific method.
     ///
     /// Returns `None` for [`Remove`](Self::Remove) — the caller should

@@ -82,7 +82,7 @@ impl PatternRecognitionOp {
                 entity = entity.with_parent(&span.source);
 
                 if let Some(nvisy_ontology::entity::Location::Text(ref mut loc)) = entity.location {
-                    loc.element_id = Some(span.id.to_string());
+                    loc.span_index = Some(span.id.0);
                 }
 
                 entities.push(entity);

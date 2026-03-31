@@ -4,10 +4,12 @@ use nvisy_ontology::math::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// A located image redaction: pairs a bounding box with
-/// an [`ImageOutput`] that carries the method-specific parameters.
-pub struct ImageRedaction {
-    /// Bounding box of the region to redact.
+/// A located image redaction: pairs a span identifier, bounding box,
+/// and an [`ImageOutput`] that carries the method-specific parameters.
+pub struct ImageRedaction<S> {
+    /// Which image span this redaction targets.
+    pub span_id: S,
+    /// Bounding box of the region to redact within the span.
     pub bounding_box: BoundingBox,
     /// The redaction output that determines the rendering method.
     pub output: ImageOutput,

@@ -155,7 +155,7 @@ impl Document {
     /// [`ImageTransform::redact_images`]: crate::transform::ImageTransform::redact_images
     pub async fn apply_image_redactions(
         &mut self,
-        redactions: &[crate::transform::ImageRedaction],
+        redactions: &[crate::transform::ImageRedaction<ImageSpanId>],
     ) -> Result<(), Error> {
         use crate::transform::ImageTransform;
         match self {
@@ -174,7 +174,7 @@ impl Document {
     /// [`AudioTransform::redact_audio`]: crate::transform::AudioTransform::redact_audio
     pub async fn apply_audio_redactions(
         &mut self,
-        redactions: &[crate::transform::AudioRedaction],
+        redactions: &[crate::transform::AudioRedaction<AudioSpanId>],
     ) -> Result<(), Error> {
         use crate::transform::AudioTransform;
         match self {

@@ -6,10 +6,12 @@
 //! caller applies them to the document separately (avoiding borrow
 //! conflicts with the envelope).
 
-use nvisy_codec::handler::TextSpanId;
-use nvisy_codec::transform::{TextOutput, TextRedaction};
+use nvisy_codec::handler::{AudioSpanId, ImageSpanId, TextSpanId};
+use nvisy_codec::transform::{
+    AudioOutput, AudioRedaction, ImageOutput, ImageRedaction, TextOutput, TextRedaction,
+};
 use nvisy_ontology::entity::{Entities, Entity, EntityKind, Location};
-use nvisy_ontology::policy::{Strategy, TextStrategy};
+use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
 use nvisy_ontology::provenance::RedactionDecision;
 use sha2::{Digest, Sha256};
 
@@ -49,24 +51,15 @@ impl<'a> RedactionApplicator<'a> {
                 continue;
             };
 
-            let replacement = match &decision.spec {
-                Strategy::Text(text) => self.text_replacement(entity, text),
+            let output = match &decision.spec {
+                Strategy::Text(text) => Self::text_output(entity, text),
                 _ => continue,
             };
 
-            let span_id = match &loc.element_id {
-                Some(id) => match id.parse::<usize>() {
-                    Ok(n) => TextSpanId(n),
-                    Err(_) => continue,
-                },
-                None => continue,
+            let Some(index) = loc.span_index else {
+                continue;
             };
-
-            let output = if replacement.is_empty() {
-                TextOutput::Remove
-            } else {
-                TextOutput::Replace { replacement }
-            };
+            let span_id = TextSpanId(index);
 
             tracing::trace!(
                 target: TARGET,
@@ -90,10 +83,7 @@ impl<'a> RedactionApplicator<'a> {
 
     /// Build image redaction instructions from decisions targeting
     /// image entities with image strategies.
-    pub fn build_image_redactions(&self) -> Vec<nvisy_codec::transform::ImageRedaction> {
-        use nvisy_codec::transform::{ImageOutput, ImageRedaction};
-        use nvisy_ontology::policy::ImageStrategy;
-
+    pub fn build_image_redactions(&self) -> Vec<ImageRedaction<ImageSpanId>> {
         let mut redactions = Vec::new();
 
         for decision in self.decisions {
@@ -110,13 +100,17 @@ impl<'a> RedactionApplicator<'a> {
                 Strategy::Image(img) => match img {
                     ImageStrategy::Blur { sigma } => ImageOutput::Blur { sigma: *sigma },
                     ImageStrategy::Block { color } => ImageOutput::Block { color: *color },
-                    ImageStrategy::Pixelate { block_size } => ImageOutput::Pixelate {
-                        block_size: *block_size,
-                    },
+                    ImageStrategy::Pixelate { block_size } => {
+                        ImageOutput::Pixelate {
+                            block_size: *block_size,
+                        }
+                    }
                     _ => continue,
                 },
                 _ => continue,
             };
+
+            let span_id = ImageSpanId(loc.page_number);
 
             tracing::trace!(
                 target: TARGET,
@@ -125,6 +119,7 @@ impl<'a> RedactionApplicator<'a> {
             );
 
             redactions.push(ImageRedaction {
+                span_id,
                 bounding_box: loc.bounding_box,
                 output,
             });
@@ -135,10 +130,7 @@ impl<'a> RedactionApplicator<'a> {
 
     /// Build audio redaction instructions from decisions targeting
     /// audio entities with audio strategies.
-    pub fn build_audio_redactions(&self) -> Vec<nvisy_codec::transform::AudioRedaction> {
-        use nvisy_codec::transform::{AudioOutput, AudioRedaction};
-        use nvisy_ontology::policy::AudioStrategy;
-
+    pub fn build_audio_redactions(&self) -> Vec<AudioRedaction<AudioSpanId>> {
         let mut redactions = Vec::new();
 
         for decision in self.decisions {
@@ -169,8 +161,8 @@ impl<'a> RedactionApplicator<'a> {
             );
 
             redactions.push(AudioRedaction {
-                start_secs: loc.time_span.start_secs,
-                end_secs: loc.time_span.end_secs,
+                span_id: AudioSpanId::default(),
+                time_span: loc.time_span,
                 output,
             });
         }
@@ -184,30 +176,43 @@ impl<'a> RedactionApplicator<'a> {
             .find(|e| e.source.as_uuid() == decision.entity_id)
     }
 
-    /// Compute replacement text for a single entity and text strategy.
-    fn text_replacement(&self, entity: &Entity, strategy: &TextStrategy) -> String {
+    /// Compute the [`TextOutput`] for a single entity and text strategy.
+    fn text_output(entity: &Entity, strategy: &TextStrategy) -> TextOutput {
         match strategy {
-            TextStrategy::Mask { mask_char } => mask_char.to_string().repeat(entity.value.len()),
+            TextStrategy::Mask { mask_char } => {
+                TextOutput::replace(mask_char.to_string().repeat(entity.value.len()))
+            }
 
             TextStrategy::Replace { placeholder } => {
                 if placeholder.is_empty() {
-                    format!("[{}]", entity.entity_kind.to_string().to_uppercase())
+                    TextOutput::replace(format!(
+                        "[{}]",
+                        entity.entity_kind.to_string().to_uppercase()
+                    ))
                 } else {
-                    placeholder
-                        .replace("{entityType}", &entity.entity_kind.to_string())
-                        .replace("{category}", &entity.category.to_string())
+                    TextOutput::replace(
+                        placeholder
+                            .replace("{entityType}", &entity.entity_kind.to_string())
+                            .replace("{category}", &entity.category.to_string()),
+                    )
                 }
             }
 
-            TextStrategy::Remove => String::new(),
+            TextStrategy::Remove => TextOutput::Remove,
 
-            TextStrategy::Hash => Self::hash_value(&entity.value),
+            TextStrategy::Hash => TextOutput::replace(Self::hash_value(&entity.value)),
 
-            TextStrategy::Pseudonymize => Self::pseudonymize(&entity.entity_kind, &entity.value),
+            TextStrategy::Pseudonymize => {
+                TextOutput::replace(Self::pseudonymize(&entity.entity_kind, &entity.value))
+            }
 
-            TextStrategy::Encrypt { .. } => format!("[ENC:{}]", entity.entity_kind),
-            TextStrategy::Tokenize { .. } => format!("[TOKEN:{}]", entity.entity_kind),
-            _ => format!("[REDACTED:{}]", entity.entity_kind),
+            TextStrategy::Encrypt { .. } => {
+                TextOutput::replace(format!("[ENC:{}]", entity.entity_kind))
+            }
+            TextStrategy::Tokenize { .. } => {
+                TextOutput::replace(format!("[TOKEN:{}]", entity.entity_kind))
+            }
+            _ => TextOutput::replace(format!("[REDACTED:{}]", entity.entity_kind)),
         }
     }
 
@@ -237,7 +242,7 @@ mod tests {
 
     use super::*;
 
-    fn text_entity(value: &str, span_id: usize, start: usize, end: usize) -> Entity {
+    fn text_entity(value: &str, span_index: usize, start: usize, end: usize) -> Entity {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
@@ -247,7 +252,7 @@ mod tests {
             .with_location(Location::from(TextLocation {
                 start_offset: start,
                 end_offset: end,
-                element_id: Some(span_id.to_string()),
+                span_index: Some(span_index),
                 ..Default::default()
             }))
             .build()
@@ -289,13 +294,11 @@ mod tests {
         let entities: Entities = vec![entity].into();
         let redactions = applicator(&[decision], &entities).build_text_redactions();
         assert_eq!(redactions.len(), 1);
-        assert!(redactions[0].output.replacement_value().is_none());
+        assert_eq!(redactions[0].output, TextOutput::Remove);
     }
 
     #[test]
-    fn skips_image_strategy() {
-        use nvisy_ontology::policy::ImageStrategy;
-
+    fn skips_image_strategy_for_text_entity() {
         let entity = text_entity("face", 0, 0, 4);
         let decision = RedactionDecision::new(
             entity.source.as_uuid(),

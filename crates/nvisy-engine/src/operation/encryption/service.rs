@@ -9,6 +9,7 @@ use nvisy_ontology::workflow::EncryptionAlgorithm;
 
 use super::provider::{KeyProvider, SharedKeyProvider};
 use super::wire::{EncryptedContent, WireEnvelope};
+use crate::operation::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::encryption";
 
@@ -28,10 +29,7 @@ impl CryptoService {
     }
 
     /// Encrypt a [`DocumentEnvelope`] into an [`EncryptedContent`] blob.
-    pub async fn encrypt(
-        &self,
-        envelope: &crate::operation::DocumentEnvelope,
-    ) -> Result<EncryptedContent> {
+    pub async fn encrypt(&self, envelope: &DocumentEnvelope) -> Result<EncryptedContent> {
         use nvisy_core::ErrorKind;
         use rand::RngExt;
 

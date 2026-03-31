@@ -126,7 +126,7 @@ impl NerAgent {
     /// clear the state between documents.
     ///
     /// The caller is responsible for attaching span-level metadata
-    /// (`element_id`, parent source) after this call.
+    /// (`span_index`, parent source) after this call.
     #[tracing::instrument(
         target = "nvisy_provider::agent::ner",
         skip_all,

@@ -12,9 +12,7 @@ use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::workflow::PatternRecognition;
 
-use crate::operation::Operation;
-use crate::operation::context::ParallelContext;
-use crate::operation::envelope::DetectedEntities;
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::pattern_recognition";
 
@@ -103,12 +101,17 @@ impl PatternRecognitionOp {
 }
 
 impl Operation for PatternRecognitionOp {
-    type Input = ParallelContext<Vec<Span<TextSpanId, TextData>>>;
-    type Output = ParallelContext<DetectedEntities>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input
-            .parallel_map(|spans| async move { Ok(DetectedEntities(self.scan(&spans).into())) })
-            .await
+    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+        let spans: Vec<_> = envelope.document.collect_text_spans().await;
+        if !spans.is_empty() {
+            let detected = self.scan(&spans);
+            tracing::debug!(
+                target: TARGET,
+                detected = detected.len(),
+                "appending pattern entities",
+            );
+            envelope.entities.extend(detected);
+        }
+        Ok(())
     }
 }

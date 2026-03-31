@@ -7,8 +7,9 @@ use nvisy_core::media::DocumentType;
 #[cfg(feature = "pdf")]
 use super::RichTextHandler;
 use crate::document::SpanStream;
+use crate::handler::image::{ImageData, ImageSpanId};
 use crate::handler::text::{TextData, TextSpanId, forward_edits, reindex_stream};
-use crate::handler::{Handler, TextHandler};
+use crate::handler::{Handler, ImageHandler, TextHandler};
 
 /// A type-erased rich-document handler backed by a boxed trait object.
 ///
@@ -67,6 +68,20 @@ impl TextHandler for BoxedRichHandler {
     }
 }
 
+#[async_trait::async_trait]
+impl ImageHandler for BoxedRichHandler {
+    async fn image_spans(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
+        self.0.image_spans_rich().await
+    }
+
+    async fn edit_images(
+        &mut self,
+        edits: SpanStream<'_, ImageSpanId, ImageData>,
+    ) -> Result<(), Error> {
+        self.0.edit_images_rich(edits).await
+    }
+}
+
 /// Object-safe private supertrait that bridges [`Handler`] and
 /// [`TextHandler`] for dynamic dispatch.
 ///
@@ -88,6 +103,15 @@ trait DynRichHandler: Handler {
         &mut self,
         edits: SpanStream<'_, TextSpanId, TextData>,
     ) -> Result<(), Error>;
+
+    /// Return image spans from the underlying rich handler.
+    async fn image_spans_rich(&self) -> SpanStream<'_, ImageSpanId, ImageData>;
+
+    /// Apply image edits from an async stream back to the handler.
+    async fn edit_images_rich(
+        &mut self,
+        edits: SpanStream<'_, ImageSpanId, ImageData>,
+    ) -> Result<(), Error>;
 }
 
 macro_rules! impl_dyn_rich {
@@ -105,6 +129,17 @@ macro_rules! impl_dyn_rich {
                 use futures::StreamExt;
                 let edits: Vec<_> = edits.collect().await;
                 forward_edits(self, edits).await
+            }
+
+            async fn image_spans_rich(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
+                ImageHandler::image_spans(self).await
+            }
+
+            async fn edit_images_rich(
+                &mut self,
+                edits: SpanStream<'_, ImageSpanId, ImageData>,
+            ) -> Result<(), Error> {
+                ImageHandler::edit_images(self, edits).await
             }
         }
     };

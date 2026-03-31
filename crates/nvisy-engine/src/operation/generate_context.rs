@@ -3,13 +3,12 @@
 //! Runs at **phase 4** alongside [`Redaction`]. Will eventually support
 //! summarization, translation, and audit context generation.
 //!
-//! [`Redaction`]: crate::operation::Redaction
+//! [`Redaction`]: crate::operation::RedactionOp
 
 use nvisy_core::Result;
 use nvisy_ontology::workflow::GenerateContext;
 
-use crate::operation::Operation;
-use crate::operation::context::ParallelContext;
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::generate_context";
 
@@ -41,10 +40,7 @@ impl Default for GenerateContextOp {
 }
 
 impl Operation for GenerateContextOp {
-    type Input = ParallelContext;
-    type Output = ParallelContext;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input.parallel_map(|_| async { Ok(()) }).await
+    async fn execute(&self, _envelope: &mut DocumentEnvelope) -> Result<()> {
+        Ok(())
     }
 }

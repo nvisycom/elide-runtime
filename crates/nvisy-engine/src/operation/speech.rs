@@ -1,16 +1,16 @@
 //! Audial extraction operation.
-
 //!
 //! Runs at **phase 1**, after ingestion. Transcribes speech audio into
 //! text using automatic speech recognition.
 
+use nvisy_codec::Document;
+use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::workflow::AudialExtraction;
-use nvisy_provider::audio::stt::{SttConfig, SttOutput, SttService};
+use nvisy_provider::audio::stt::{SttConfig, SttService};
 use nvisy_provider::http::HttpClient;
 
-use crate::operation::Operation;
-use crate::operation::context::ParallelContext;
+use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::speech";
@@ -51,23 +51,32 @@ impl AudialExtractionOp {
     }
 }
 
-/// Typed input for the [`Operation`] impl: raw audio bytes + filename.
-pub struct AudioInput {
-    /// Raw audio bytes (WAV, MP3, etc.).
-    pub audio_data: Vec<u8>,
-    /// Original filename for MIME-type detection.
-    pub filename: String,
-}
-
 impl Operation for AudialExtractionOp {
-    type Input = ParallelContext<AudioInput>;
-    type Output = ParallelContext<SttOutput>;
+    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+        if let Document::Audio(ref handler) = envelope.document {
+            tracing::debug!(target: TARGET, "extracting audio for transcription");
+            let audio_data = Handler::encode(handler)?;
+            let filename = envelope
+                .metadata
+                .filename
+                .as_deref()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|| "audio.wav".to_string());
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input
-            .parallel_map(|data| async move {
-                self.stt.transcribe(&data.audio_data, &data.filename).await
-            })
-            .await
+            let stt_result = self
+                .stt
+                .transcribe(audio_data.as_bytes(), &filename)
+                .await?;
+
+            if !stt_result.text.is_empty() {
+                let lines: Vec<String> = stt_result.text.lines().map(String::from).collect();
+                let trailing = stt_result.text.ends_with('\n');
+                let source = envelope.document.source();
+                let handler = TxtHandler::new(lines, trailing).with_source(source);
+                envelope.document = Document::from(BoxedTextHandler::from(handler));
+                tracing::debug!(target: TARGET, "replaced audio document with transcript text");
+            }
+        }
+        Ok(())
     }
 }

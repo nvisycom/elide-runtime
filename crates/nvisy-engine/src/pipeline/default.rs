@@ -46,7 +46,7 @@ use super::runs::state::{RunRecord, RunState};
 use super::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunSnapshot, RunStatus,
 };
-use crate::operation::context::SharedContext;
+use crate::operation::context::SharedData;
 use crate::operation::encryption::SharedKeyProvider;
 use crate::registry::Registry;
 
@@ -342,17 +342,22 @@ impl Engine {
         }
         tracing::debug!(target: TARGET, loaded = context_map.len(), "pre-loaded contexts");
 
-        let mut shared = SharedContext::new(run_id, input.actor_id, self.inner.registry.clone())
-            .with_policies(input.policies.clone())
-            .with_context_map(context_map);
+        let mut shared_data = SharedData {
+            run_id,
+            actor_id: input.actor_id,
+            policies: input.policies.clone(),
+            registry: self.inner.registry.clone(),
+            key_provider: SharedKeyProvider::default(),
+            context_map,
+        };
         if let Some(ref kp) = self.inner.key_provider {
-            shared = shared.with_key_provider(kp.clone());
+            shared_data.key_provider = kp.clone();
         }
 
         let cancel_clone = cancel.clone();
         let ctx = RunContext {
             cancel,
-            shared,
+            shared: Arc::new(shared_data),
             config: Arc::new(effective_config),
             http_client: self.inner.http_client.clone(),
             concurrency,

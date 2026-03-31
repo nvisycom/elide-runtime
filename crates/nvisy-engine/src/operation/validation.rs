@@ -1,18 +1,17 @@
 //! Post-redaction validation operation.
-
 //!
 //! Runs at **phase 5**, after [`Redaction`]. Re-scans redacted content
 //! to verify that no originally detected values remain visible.
 //!
 //! [`Redaction`]: crate::operation::Redaction
+
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::RedactionDecision;
 use nvisy_ontology::workflow::Validation;
 use uuid::Uuid;
 
-use crate::operation::Operation;
-use crate::operation::context::ParallelContext;
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::validation";
 
@@ -27,17 +26,6 @@ pub struct LeakedValue {
 pub struct ValidationResult {
     pub passed: usize,
     pub leaked: Vec<LeakedValue>,
-}
-
-/// Input for the typed [`Operation`] impl.
-#[derive(Clone)]
-pub struct ValidationInput {
-    /// Entities that were detected.
-    pub entities: Entities,
-    /// Redaction decisions that should have been applied.
-    pub decisions: Vec<RedactionDecision>,
-    /// The redacted document content as text (for text-based checks).
-    pub redacted_text: Option<String>,
 }
 
 /// Post-redaction validator that checks for leaked sensitive values.
@@ -93,46 +81,53 @@ impl ValidationOp {
 }
 
 impl Operation for ValidationOp {
-    type Input = ParallelContext<ValidationInput>;
-    type Output = ParallelContext<ValidationResult>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
+    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         tracing::debug!(target: TARGET, "running post-redaction validation");
-        let fail_on_leak = self.fail_on_leak;
-        input
-            .parallel_map(|data| async move {
-                let result = Self::check(
-                    &data.entities,
-                    &data.decisions,
-                    data.redacted_text.as_deref(),
-                );
-                if result.leaked.is_empty() {
-                    tracing::debug!(target: TARGET, passed = result.passed, "validation passed");
-                } else {
-                    tracing::warn!(
-                        target: TARGET,
-                        leaked = result.leaked.len(),
-                        passed = result.passed,
-                        "validation found leaked values",
-                    );
-                    if fail_on_leak {
-                        let details: Vec<String> = result
-                            .leaked
-                            .iter()
-                            .map(|l| format!("{}({})", l.value, l.entity_id))
-                            .collect();
-                        return Err(Error::validation(
-                            format!(
-                                "{} redacted value(s) leaked in output: {}",
-                                result.leaked.len(),
-                                details.join(", "),
-                            ),
-                            "validation",
-                        ));
-                    }
-                }
-                Ok(result)
-            })
-            .await
+
+        let text_spans: Vec<_> = envelope.document.collect_text_spans().await;
+        let redacted_text = if text_spans.is_empty() {
+            None
+        } else {
+            Some(
+                text_spans
+                    .iter()
+                    .map(|s| s.data.as_str())
+                    .collect::<String>(),
+            )
+        };
+
+        let result = Self::check(
+            &envelope.entities,
+            &envelope.audit.decisions,
+            redacted_text.as_deref(),
+        );
+
+        if result.leaked.is_empty() {
+            tracing::debug!(target: TARGET, passed = result.passed, "validation passed");
+        } else {
+            tracing::warn!(
+                target: TARGET,
+                leaked = result.leaked.len(),
+                passed = result.passed,
+                "validation found leaked values",
+            );
+            if self.fail_on_leak {
+                let details: Vec<String> = result
+                    .leaked
+                    .iter()
+                    .map(|l| format!("{}({})", l.value, l.entity_id))
+                    .collect();
+                return Err(Error::validation(
+                    format!(
+                        "{} redacted value(s) leaked in output: {}",
+                        result.leaked.len(),
+                        details.join(", "),
+                    ),
+                    "validation",
+                ));
+            }
+        }
+
+        Ok(())
     }
 }

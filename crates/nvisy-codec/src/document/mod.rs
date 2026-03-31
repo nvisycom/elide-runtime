@@ -91,15 +91,14 @@ impl Document {
         }
     }
 
-    /// Stream image spans from image documents.
+    /// Stream image spans from image or rich documents.
     ///
-    /// Returns an empty stream for text, audio, and rich documents.
-    /// Rich document image support will be added when `RichHandler`
-    /// implements `ImageHandler`.
+    /// Returns an empty stream for text and audio documents.
     pub async fn image_spans(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
         match self {
             Self::Image(h) => h.image_spans().await,
-            _ => SpanStream::new(futures::stream::empty()),
+            Self::Rich(h) => h.image_spans().await,
+            Self::Text(_) | Self::Audio(_) => SpanStream::new(futures::stream::empty()),
         }
     }
 
@@ -126,6 +125,44 @@ impl Document {
     /// Collect all audio spans into a `Vec`.
     pub async fn collect_audio_spans(&self) -> Vec<Span<AudioSpanId, AudioData>> {
         self.audio_spans().await.collect().await
+    }
+
+    /// Apply a batch of text redactions to the document.
+    ///
+    /// Delegates to [`TextTransform::redact_text`] on the underlying
+    /// text or rich handler. Returns `Ok(())` for image and audio
+    /// documents (no text to redact).
+    ///
+    /// [`TextTransform::redact_text`]: crate::transform::TextTransform::redact_text
+    pub async fn apply_text_redactions(
+        &mut self,
+        redactions: &[crate::transform::TextRedaction<TextSpanId>],
+    ) -> Result<(), Error> {
+        use crate::transform::TextTransform;
+        match self {
+            Self::Text(h) => h.redact_text(redactions).await,
+            Self::Rich(h) => h.redact_text(redactions).await,
+            Self::Image(_) | Self::Audio(_) => Ok(()),
+        }
+    }
+
+    /// Apply a batch of image redactions to the document.
+    ///
+    /// Delegates to [`ImageTransform::redact_images`] on the underlying
+    /// image or rich handler. Returns `Ok(())` for text and audio
+    /// documents (no images to redact).
+    ///
+    /// [`ImageTransform::redact_images`]: crate::transform::ImageTransform::redact_images
+    pub async fn apply_image_redactions(
+        &mut self,
+        redactions: &[crate::transform::ImageRedaction],
+    ) -> Result<(), Error> {
+        use crate::transform::ImageTransform;
+        match self {
+            Self::Image(h) => h.redact_images(redactions).await,
+            Self::Rich(h) => h.redact_images(redactions).await,
+            Self::Text(_) | Self::Audio(_) => Ok(()),
+        }
     }
 
     /// Decode [`Content`] into a `Document` using default parameters.

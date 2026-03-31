@@ -1,11 +1,12 @@
 //! Redaction operation.
 //!
 //! Runs at **phase 4** alongside [`GenerateContextOp`]. Evaluates policy
-//! rules against detected entities to produce redaction decisions.
-//! The actual replacement text or codec instructions are computed at
-//! application time by the executor, not here.
+//! rules against detected entities to produce redaction decisions, then
+//! builds and applies text redaction instructions to the document.
 //!
 //! [`GenerateContextOp`]: crate::operation::GenerateContextOp
+
+use std::sync::Arc;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::{Entities, Entity};
@@ -13,20 +14,20 @@ use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
 use nvisy_ontology::provenance::{RedactionDecision, RedactionRecord};
 use nvisy_ontology::workflow::Redaction;
 
-use crate::operation::Operation;
-use crate::operation::context::{ParallelContext, SharedContext};
-use crate::operation::envelope::PolicyOutcome;
+use super::apply::build_text_redactions;
+use crate::operation::context::SharedData;
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::redaction";
 
-/// Redaction operation: evaluates policies and produces redaction decisions.
+/// Redaction operation: evaluates policies and applies redaction instructions.
 pub struct RedactionOp {
     evaluator: PolicyEvaluator,
 }
 
 impl RedactionOp {
     /// Build from graph config and shared context.
-    pub async fn new(cfg: &Redaction, shared: &SharedContext) -> Result<Self> {
+    pub fn new(cfg: &Redaction, shared: &Arc<SharedData>) -> Self {
         let mut rules: Vec<PolicyRule> = shared
             .policies
             .policies
@@ -41,18 +42,37 @@ impl RedactionOp {
             default_threshold: cfg.confidence_threshold.unwrap_or(0.5),
         };
 
-        Ok(Self { evaluator })
+        Self { evaluator }
     }
 }
 
 impl Operation for RedactionOp {
-    type Input = ParallelContext<Entities>;
-    type Output = ParallelContext<PolicyOutcome>;
+    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+        if envelope.entities.is_empty() {
+            return Ok(());
+        }
 
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input
-            .parallel_map(|data| async { self.evaluator.evaluate(data) })
-            .await
+        tracing::debug!(
+            target: TARGET,
+            entities = envelope.entities.len(),
+            "evaluating redaction policies",
+        );
+
+        let (decisions, records) = self.evaluator.evaluate(&envelope.entities)?;
+
+        // Build and apply text redaction instructions.
+        let text_redactions = build_text_redactions(&decisions, &envelope.entities);
+        if !text_redactions.is_empty() {
+            envelope
+                .document
+                .apply_text_redactions(&text_redactions)
+                .await?;
+        }
+
+        envelope.audit.decisions.extend(decisions);
+        envelope.audit.records.extend(records);
+
+        Ok(())
     }
 }
 
@@ -63,7 +83,10 @@ struct PolicyEvaluator {
 }
 
 impl PolicyEvaluator {
-    fn evaluate(&self, entities: Entities) -> Result<PolicyOutcome> {
+    fn evaluate(
+        &self,
+        entities: &Entities,
+    ) -> Result<(Vec<RedactionDecision>, Vec<RedactionRecord>)> {
         tracing::debug!(
             target: TARGET,
             entity_count = entities.len(),
@@ -73,7 +96,7 @@ impl PolicyEvaluator {
         let mut decisions = Vec::new();
         let mut records = Vec::new();
 
-        for entity in &entities {
+        for entity in entities {
             let rule = self.find_matching_rule(entity);
 
             let spec = match rule {
@@ -134,7 +157,7 @@ impl PolicyEvaluator {
             "policy evaluation complete",
         );
 
-        Ok(PolicyOutcome { decisions, records })
+        Ok((decisions, records))
     }
 
     fn find_matching_rule(&self, entity: &Entity) -> Option<&PolicyRule> {
@@ -170,8 +193,8 @@ mod tests {
             default_threshold: 0.8,
         };
         let entities: Entities = vec![test_entity("John", 0.5)].into();
-        let result = evaluator.evaluate(entities).unwrap();
-        assert!(result.decisions.is_empty());
+        let (decisions, _) = evaluator.evaluate(&entities).unwrap();
+        assert!(decisions.is_empty());
     }
 
     #[test]
@@ -182,10 +205,10 @@ mod tests {
             default_threshold: 0.5,
         };
         let entities: Entities = vec![test_entity("John", 0.9)].into();
-        let result = evaluator.evaluate(entities).unwrap();
-        assert_eq!(result.decisions.len(), 1);
-        assert_eq!(result.records.len(), 1);
-        assert!(!result.decisions[0].applied);
+        let (decisions, records) = evaluator.evaluate(&entities).unwrap();
+        assert_eq!(decisions.len(), 1);
+        assert_eq!(records.len(), 1);
+        assert!(!decisions[0].applied);
     }
 
     #[test]
@@ -196,11 +219,8 @@ mod tests {
             default_threshold: 0.0,
         };
         let entities: Entities = vec![test_entity("secret", 0.9)].into();
-        let result = evaluator.evaluate(entities).unwrap();
-        assert_eq!(
-            result.decisions[0].spec,
-            Strategy::Text(TextStrategy::Remove)
-        );
+        let (decisions, _) = evaluator.evaluate(&entities).unwrap();
+        assert_eq!(decisions[0].spec, Strategy::Text(TextStrategy::Remove));
     }
 
     #[test]
@@ -211,7 +231,7 @@ mod tests {
             default_threshold: 0.0,
         };
         let entities: Entities = vec![test_entity("secret-value", 0.9)].into();
-        let result = evaluator.evaluate(entities).unwrap();
-        assert_eq!(result.records[0].original_value, "secret-value");
+        let (_, records) = evaluator.evaluate(&entities).unwrap();
+        assert_eq!(records[0].original_value, "secret-value");
     }
 }

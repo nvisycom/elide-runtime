@@ -1,10 +1,9 @@
 //! File export operation.
 //!
-//!
 //! Runs at **phase 6** alongside [`SaveContext`]. Delivers processed
 //! content, optionally applying encryption and compression.
 //!
-//! [`SaveContext`]: crate::operation::SaveContext
+//! [`SaveContext`]: crate::operation::SaveContextOp
 
 //! The export pipeline applies optional post-processing steps in order:
 //!
@@ -15,19 +14,19 @@ use nvisy_core::Result;
 use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionConfig};
 use uuid::Uuid;
 
+use crate::operation::DocumentEnvelope;
 use crate::operation::compression::CompressionService;
-use crate::operation::context::{ParallelContext, SharedContext};
 use crate::operation::encryption::CryptoService;
-use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::export_file";
 
 /// Exports processed content, optionally applying encryption and
 /// compression afterward.
 ///
-/// Registry, actor identity, and key provider are read from the
-/// [`SharedContext`] at call time — only graph-config fields
-/// (encryption, compression, content_ids) are stored on the struct.
+/// Not an [`Operation`] — export *consumes* envelopes to produce
+/// registry artifacts rather than mutating them in place.
+///
+/// [`Operation`]: crate::operation::Operation
 #[derive(Default)]
 pub struct ExportFileOp {
     encryption: Option<EncryptionConfig>,
@@ -55,18 +54,15 @@ impl ExportFileOp {
         self
     }
 
-    async fn export(
-        &self,
-        envelope: DocumentEnvelope,
-        shared: &SharedContext,
-    ) -> Result<DocumentEnvelope> {
+    pub async fn export(&self, envelope: &DocumentEnvelope) -> Result<()> {
+        let shared = &envelope.shared;
         let content_data = envelope.document.encode()?;
         let mut output_bytes = bytes::Bytes::copy_from_slice(content_data.as_bytes());
 
         if let Some(ref enc_cfg) = self.encryption {
             tracing::debug!(target: TARGET, key_id = %enc_cfg.key_id, "encrypting export content");
             let crypto = CryptoService::new(&enc_cfg.key_id, shared.key_provider.clone());
-            let encrypted = crypto.encrypt(&envelope).await?;
+            let encrypted = crypto.encrypt(envelope).await?;
             tracing::debug!(
                 target: TARGET,
                 ciphertext_len = encrypted.ciphertext.len(),
@@ -93,16 +89,6 @@ impl ExportFileOp {
         }
 
         tracing::debug!(target: TARGET, "export complete");
-        Ok(envelope)
-    }
-}
-
-impl Operation for ExportFileOp {
-    type Input = ParallelContext<DocumentEnvelope>;
-    type Output = ParallelContext<DocumentEnvelope>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        let shared = input.shared.clone();
-        input.parallel_map(|data| self.export(data, &shared)).await
+        Ok(())
     }
 }

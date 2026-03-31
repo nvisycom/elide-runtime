@@ -12,7 +12,7 @@ use nvisy_ontology::workflow::VisualExtraction;
 use nvisy_provider::agent::{ImageFormat, ImageInput, ImageOutput, OcrAgent};
 use nvisy_provider::http::HttpClient;
 
-use crate::operation::envelope::DetectedEntities;
+use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
 
 const TARGET: &str = "nvisy_engine::op::visual_extraction";
@@ -74,16 +74,8 @@ impl VisualExtractionOp {
         Ok(Self { agent })
     }
 
-    /// Access the OCR agent for direct dispatch.
-    pub(crate) fn agent(&self) -> &OcrAgent {
-        &self.agent
-    }
-
     /// Run OCR extraction on a batch of image spans.
-    pub(crate) async fn extract(
-        &self,
-        spans: Vec<Span<(), ImageData>>,
-    ) -> Result<Vec<ImageOutput>> {
+    async fn extract(&self, spans: Vec<Span<(), ImageData>>) -> Result<Vec<ImageOutput>> {
         if spans.is_empty() {
             return Ok(Vec::new());
         }
@@ -102,13 +94,13 @@ impl VisualExtractionOp {
     }
 
     /// Verify detected entities against the source images.
-    pub(crate) async fn verify(
+    async fn verify(
         &self,
         image_spans: &[Span<(), ImageData>],
         entities: Entities,
-    ) -> Result<DetectedEntities> {
+    ) -> Result<Entities> {
         if entities.is_empty() || image_spans.is_empty() {
-            return Ok(DetectedEntities(entities));
+            return Ok(entities);
         }
         let mut verified = entities.into_inner();
         for span in image_spans {
@@ -120,6 +112,39 @@ impl VisualExtractionOp {
                 .await
                 .map_err(|e| Error::runtime(e.to_string(), "ocr-verification", e.is_retryable()))?;
         }
-        Ok(DetectedEntities(verified.into()))
+        Ok(verified.into())
+    }
+}
+
+impl Operation for VisualExtractionOp {
+    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+        tracing::debug!(target: TARGET, "extracting image spans for OCR");
+        let image_spans: Vec<_> = envelope.document.collect_image_spans().await;
+        if !image_spans.is_empty() {
+            let ocr_spans: Vec<Span<(), _>> = image_spans
+                .into_iter()
+                .map(|s| Span::new((), s.data).with_source(s.source))
+                .collect();
+
+            let _ocr_output = self.extract(ocr_spans).await?;
+
+            if self.agent.has_verifier() && !envelope.entities.is_empty() {
+                let verify_spans: Vec<_> = envelope
+                    .document
+                    .collect_image_spans()
+                    .await
+                    .into_iter()
+                    .map(|s| Span::new((), s.data).with_source(s.source))
+                    .collect();
+                match self.verify(&verify_spans, envelope.entities.clone()).await {
+                    Ok(verified) => envelope.entities = verified,
+                    Err(e) => tracing::warn!(
+                        target: TARGET, error = %e,
+                        "OCR verification failed, keeping unverified entities"
+                    ),
+                }
+            }
+        }
+        Ok(())
     }
 }

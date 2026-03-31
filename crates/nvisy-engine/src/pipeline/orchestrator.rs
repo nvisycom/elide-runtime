@@ -36,7 +36,7 @@ use super::runs::NodeStatus;
 use super::runs::state::RunState;
 use crate::graph::ConcurrencyExt;
 use crate::operation::DocumentEnvelope;
-use crate::operation::context::SharedContext;
+use crate::operation::context::SharedData;
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
@@ -67,8 +67,8 @@ impl Drop for CompletionGuard {
 pub(super) struct RunContext {
     /// Token to signal cancellation to all node tasks.
     pub cancel: CancellationToken,
-    /// Shared operation context (run ID, actor, registry, policies, key provider).
-    pub shared: SharedContext,
+    /// Shared run-wide state (run ID, actor, registry, policies, key provider).
+    pub shared: Arc<SharedData>,
     /// Effective configuration after merging per-request overrides.
     pub config: Arc<RuntimeConfig>,
     /// Shared HTTP client for downstream API calls.
@@ -103,8 +103,8 @@ pub(super) async fn run_graph(
 
     let semaphore = concurrency.map(|c| c.to_semaphore());
 
-    let mut senders: HashMap<Uuid, Vec<mpsc::Sender<Arc<DocumentEnvelope>>>> = HashMap::new();
-    let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<Arc<DocumentEnvelope>>>> = HashMap::new();
+    let mut senders: HashMap<Uuid, Vec<mpsc::Sender<DocumentEnvelope>>> = HashMap::new();
+    let mut receivers: HashMap<Uuid, Vec<mpsc::Receiver<DocumentEnvelope>>> = HashMap::new();
 
     for edge in plan.edges() {
         let (tx, rx) = mpsc::channel(edge.config.channel_buffer);
@@ -130,7 +130,7 @@ pub(super) async fn run_graph(
 
         let executor = NodeExecutor::new(
             NodeContext {
-                shared: shared.clone(),
+                shared: Arc::clone(&shared),
                 cancel: cancel.clone(),
                 config: Arc::clone(&config),
                 http_client: http_client.clone(),

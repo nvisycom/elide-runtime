@@ -2,30 +2,28 @@
 //!
 //! Runs at **phase 0** alongside [`ImportFile`]. Produces context
 //! references (UUIDs) that point into the run-wide [`ContextMap`]
-//! pre-loaded on [`SharedContext`].
+//! pre-loaded on [`SharedData`].
 //!
-//! [`ImportFile`]: crate::operation::ImportFile
+//! [`ImportFile`]: crate::operation::ImportFileOp
 //! [`ContextMap`]: nvisy_ontology::context::ContextMap
-//! [`SharedContext`]: crate::operation::context::SharedContext
+//! [`SharedData`]: crate::operation::context::SharedData
 
 use nvisy_core::Result;
-use nvisy_ontology::context::Contexts;
 use nvisy_ontology::workflow::LoadContext;
 use uuid::Uuid;
 
-use crate::operation::Operation;
-use crate::operation::context::ParallelContext;
+use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::load_context";
 
 /// Produces context references for downstream operations.
 ///
 /// The actual context data is pre-loaded into the run-wide
-/// [`ContextMap`] on [`SharedContext`]. This operation simply
+/// [`ContextMap`] on [`SharedData`]. This operation simply
 /// records which context IDs this node contributes.
 ///
 /// [`ContextMap`]: nvisy_ontology::context::ContextMap
-/// [`SharedContext`]: crate::operation::context::SharedContext
+/// [`SharedData`]: crate::operation::context::SharedData
 pub struct LoadContextOp {
     context_ids: Vec<Uuid>,
 }
@@ -41,17 +39,11 @@ impl LoadContextOp {
 }
 
 impl Operation for LoadContextOp {
-    type Input = ParallelContext<Contexts>;
-    type Output = ParallelContext<Contexts>;
-
-    async fn call(&self, input: Self::Input) -> Result<Self::Output> {
-        input
-            .parallel_map(|mut contexts| async {
-                for &id in &self.context_ids {
-                    contexts.push(id);
-                }
-                Ok(contexts)
-            })
-            .await
+    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+        tracing::debug!(target: TARGET, "adding context references to envelope");
+        for &id in &self.context_ids {
+            envelope.contexts.push(id);
+        }
+        Ok(())
     }
 }

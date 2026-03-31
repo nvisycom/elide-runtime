@@ -19,7 +19,6 @@ mod contexts;
 mod files;
 mod infra;
 mod runs;
-mod v1;
 
 mod request;
 mod response;
@@ -45,8 +44,20 @@ use crate::service::ServiceState;
 pub fn routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .merge(infra::health_routes())
-        .nest("/api/v1", v1::routes())
+        .nest("/api/v1", v1_routes())
         .fallback(api_version_fallback)
+}
+
+/// All v1 API routes (nested under `/api/v1` by [`routes`]).
+///
+/// When a new API version is introduced, a parallel `v2_routes()`
+/// function can compose a different set of handlers under `/api/v2`.
+fn v1_routes() -> ApiRouter<ServiceState> {
+    ApiRouter::new()
+        .merge(infra::analytics_routes())
+        .merge(contexts::routes())
+        .merge(files::routes())
+        .merge(runs::routes())
 }
 
 /// Catch-all for unmatched paths.

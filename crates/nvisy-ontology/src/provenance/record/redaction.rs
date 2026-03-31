@@ -23,6 +23,14 @@ pub struct RedactionRecord {
     pub entity_id: Uuid,
     /// The original sensitive value, retained for audit purposes.
     pub original_value: String,
+    /// The replacement value after redaction was applied.
+    ///
+    /// `None` until the redaction is applied, or when the strategy
+    /// removes the value entirely (e.g. [`TextStrategy::Remove`]).
+    ///
+    /// [`TextStrategy::Remove`]: crate::policy::TextStrategy::Remove
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replaced_value: Option<String>,
     /// Detection confidence that led to this redaction.
     pub confidence: f64,
     /// Identifier of the policy rule that triggered this redaction.
@@ -42,6 +50,7 @@ impl RedactionRecord {
             source: ContentSource::new(),
             entity_id,
             original_value: original_value.into(),
+            replaced_value: None,
             confidence,
             policy_rule_id: None,
             version: 1,

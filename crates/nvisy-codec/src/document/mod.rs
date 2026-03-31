@@ -21,6 +21,7 @@ use crate::handler::{
     TextHandler, TextSpanId, TiffLoader, TiffParams, TxtLoader, TxtParams, WavLoader, WavParams,
     XlsxLoader, XlsxParams,
 };
+use crate::transform::{AudioRedaction, ImageRedaction, TextRedaction};
 
 /// A fully type-erased document that can hold any supported format.
 ///
@@ -136,7 +137,7 @@ impl Document {
     /// [`TextTransform::redact_text`]: crate::transform::TextTransform::redact_text
     pub async fn apply_text_redactions(
         &mut self,
-        redactions: &[crate::transform::TextRedaction<TextSpanId>],
+        redactions: &[TextRedaction<TextSpanId>],
     ) -> Result<(), Error> {
         use crate::transform::TextTransform;
         match self {
@@ -155,7 +156,7 @@ impl Document {
     /// [`ImageTransform::redact_images`]: crate::transform::ImageTransform::redact_images
     pub async fn apply_image_redactions(
         &mut self,
-        redactions: &[crate::transform::ImageRedaction<ImageSpanId>],
+        redactions: &[ImageRedaction<ImageSpanId>],
     ) -> Result<(), Error> {
         use crate::transform::ImageTransform;
         match self {
@@ -174,7 +175,7 @@ impl Document {
     /// [`AudioTransform::redact_audio`]: crate::transform::AudioTransform::redact_audio
     pub async fn apply_audio_redactions(
         &mut self,
-        redactions: &[crate::transform::AudioRedaction<AudioSpanId>],
+        redactions: &[AudioRedaction<AudioSpanId>],
     ) -> Result<(), Error> {
         use crate::transform::AudioTransform;
         match self {

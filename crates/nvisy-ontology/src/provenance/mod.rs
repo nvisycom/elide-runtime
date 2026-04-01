@@ -5,11 +5,9 @@
 //!
 //! - [`AuditEntry`]: per-entity redaction record with strategy,
 //!   original/replacement values, and optional review.
-//! - [`PolicyEvaluation`]: aggregate outcome of evaluating a policy.
 //! - [`Audit`]: per-document container for entities and audit entries.
 
 mod entry;
-mod evaluation;
 mod review;
 
 use derive_builder::Builder;
@@ -20,13 +18,8 @@ use uuid::Uuid;
 pub use self::entry::{
     AuditEntry, AuditEntryBuilder, AuditEntryStatus, RedactionSpec, RedactionValue,
 };
-pub use self::evaluation::PolicyEvaluation;
 pub use self::review::{ReviewDecision, ReviewStatus};
 use crate::entity::{ContentSource, Entities};
-
-fn entities_empty(entities: &Entities) -> bool {
-    entities.is_empty()
-}
 
 /// A per-document audit trail: detected entities and redaction entries.
 ///
@@ -53,7 +46,7 @@ pub struct Audit {
     pub actor_id: Option<Uuid>,
     /// Entities detected during the pipeline run.
     #[builder(default)]
-    #[serde(default, skip_serializing_if = "entities_empty")]
+    #[serde(default, skip_serializing_if = "Entities::is_empty")]
     pub entities: Entities,
     /// Per-entity redaction audit entries.
     #[builder(default)]

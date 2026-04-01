@@ -54,9 +54,7 @@ impl ValidationOp {
         if let Some(text) = redacted_text {
             let lower_text = text.to_lowercase();
             for record in &applied {
-                let entity = entities
-                    .iter()
-                    .find(|e| e.id == record.entity_id);
+                let entity = entities.iter().find(|e| e.id == record.entity_id);
 
                 if let Some(entity) = entity {
                     let lower_value = entity.value.to_lowercase();

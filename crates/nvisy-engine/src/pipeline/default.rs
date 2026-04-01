@@ -365,8 +365,7 @@ impl Engine {
             }
         };
 
-        let (output, entities_detected, redactions_applied) =
-            collect_output(run_id, &run_output);
+        let (output, entities_detected, redactions_applied) = collect_output(run_id, &run_output);
 
         let status = run_output.run_status();
         self.inner

@@ -10,7 +10,6 @@ mod kind;
 mod location;
 mod method;
 mod model;
-mod output;
 mod sensitivity;
 mod source;
 
@@ -33,7 +32,6 @@ pub use self::method::{
     RecognitionMethodKind, RefinementMethod,
 };
 pub use self::model::{ModelInfo, ModelKind};
-pub use self::output::DetectionOutput;
 pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;
 
@@ -102,6 +100,16 @@ impl Entities {
     /// Create an empty collection.
     pub fn new() -> Self {
         Self(Vec::new())
+    }
+
+    /// Returns `true` if the collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Number of entities in the collection.
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     /// Append an entity.

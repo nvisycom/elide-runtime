@@ -44,9 +44,6 @@ pub enum AuditEntryStatus {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct AuditEntry {
-    /// Unique identifier for this entry (UUIDv7).
-    #[builder(default = "Uuid::now_v7()")]
-    pub id: Uuid,
     /// Identifier of the entity being redacted.
     pub entity_id: Uuid,
     /// Identifier of the policy that triggered this redaction.

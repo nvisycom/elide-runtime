@@ -38,7 +38,7 @@ impl RedactionOp {
         // Lower priority value = higher precedence. First match wins
         // in find_matching_rule, so sorting ascending means the
         // highest-precedence rule is checked first.
-        rules.sort_by_key(|r| r.priority);
+        rules.sort_by_key(|r| r.priority());
 
         let evaluator = PolicyEvaluator {
             rules,
@@ -120,8 +120,7 @@ impl PolicyEvaluator {
             let entity_id = entity.id;
             let policy_rule_id = rule.map(|r| r.id);
 
-            let mut builder = AuditEntry::builder()
-                .for_entity(entity_id, spec, &entity.value);
+            let mut builder = AuditEntry::builder().for_entity(entity_id, spec, &entity.value);
             if let Some(rule_id) = policy_rule_id {
                 builder = builder.with_policy_id(rule_id);
             }

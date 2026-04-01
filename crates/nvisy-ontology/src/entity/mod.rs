@@ -74,6 +74,10 @@ pub struct Entity {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    /// Sensitivity classification of this entity.
+    #[builder(default, setter(into = false))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sensitivity: Option<EntitySensitivity>,
 }
 
 impl Entity {

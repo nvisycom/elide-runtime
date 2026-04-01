@@ -28,7 +28,7 @@ pub use self::location::{
     AudioLocation, ImageLocation, Location, Overlap, TabularLocation, TextLocation,
 };
 pub use self::method::{
-    ExtractionMethod, ManualProvenance, ModelProvenance, PatternProvenance, RecognitionMethod,
+    AnnotationProvenance, ExtractionMethod, ModelProvenance, PatternProvenance, RecognitionMethod,
     RecognitionMethodKind, RefinementMethod,
 };
 pub use self::model::{ModelInfo, ModelKind};

@@ -306,10 +306,18 @@ impl NodeExecutor {
                 import_ref.import(content, shared).await
             };
 
-            let envelope = match retry {
+            let mut envelope = match retry {
                 Some(policy) => policy.with_retry(do_import).await?,
                 None => do_import().await?,
             };
+
+            // Apply upload-time annotations: convert inclusions to
+            // entities, store annotations for exclusion filtering.
+            if !cfg.annotations.is_empty() {
+                cfg.annotations
+                    .apply_inclusions(&mut envelope.audit.entities);
+                envelope.annotations = cfg.annotations.clone();
+            }
 
             fan_out(senders, envelope).await?;
             count += 1;
@@ -479,6 +487,7 @@ async fn clone_envelope(envelope: &DocumentEnvelope) -> Result<DocumentEnvelope,
     Ok(DocumentEnvelope {
         document,
         metadata: envelope.metadata.clone(),
+        annotations: envelope.annotations.clone(),
         contexts: envelope.contexts.clone(),
         audit: envelope.audit.clone(),
         shared: Arc::clone(&envelope.shared),

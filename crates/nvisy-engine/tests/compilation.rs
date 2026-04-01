@@ -11,8 +11,7 @@ fn import_node(content_id: Uuid) -> GraphNode {
         Uuid::new_v4(),
         GraphNodeKind::ImportFile(ImportFile {
             content_ids: vec![content_id],
-            decompression: None,
-            decryption: None,
+            ..Default::default()
         }),
     )
 }
@@ -67,8 +66,7 @@ async fn duplicate_node_ids_rejected() -> anyhow::Result<()> {
         shared_id,
         GraphNodeKind::ImportFile(ImportFile {
             content_ids: vec![content_id],
-            decompression: None,
-            decryption: None,
+            ..Default::default()
         }),
     );
     let node_b = GraphNode::new(

@@ -81,7 +81,7 @@ impl Operation for EntityRecognitionOp {
                 detected = detected.len(),
                 "appending NER entities",
             );
-            envelope.audit.entities.extend(detected);
+            envelope.add_entities(detected);
         }
         self.agent.reset().await;
         Ok(())

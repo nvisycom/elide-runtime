@@ -13,6 +13,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 use super::{CompressionAlgorithm, EncryptionConfig};
+use crate::entity::Annotations;
 
 /// Configuration for the [`ImportFile`] graph node.
 ///
@@ -20,7 +21,7 @@ use super::{CompressionAlgorithm, EncryptionConfig};
 /// that must be applied before the bytes are passed to extraction nodes.
 ///
 /// [`ImportFile`]: crate::graph::GraphNodeKind::ImportFile
-#[derive(Debug, Clone, Default, PartialEq, Eq, Validate)]
+#[derive(Debug, Clone, Default, PartialEq, Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ImportFile {
     /// Identifiers of previously uploaded content to import. Must contain at least one.
@@ -33,4 +34,11 @@ pub struct ImportFile {
     /// Decrypt the content before decoding.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decryption: Option<EncryptionConfig>,
+    /// Pre-identified regions and classification labels for this content.
+    ///
+    /// Inclusion annotations are converted to entities during import.
+    /// Exclusion annotations filter out detected entities in downstream
+    /// operations.
+    #[serde(default, skip_serializing_if = "Annotations::is_empty")]
+    pub annotations: Annotations,
 }

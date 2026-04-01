@@ -26,6 +26,7 @@ use std::sync::Arc;
 use nvisy_codec::Document;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::context::Contexts;
+use nvisy_ontology::entity::{Annotations, Entity};
 use nvisy_ontology::provenance::Audit;
 
 mod shared;
@@ -50,6 +51,10 @@ pub struct DocumentEnvelope {
     /// Content metadata (MIME type, filename, etc.) from the original upload.
     pub metadata: ContentMetadata,
 
+    /// User-supplied annotations (inclusions, exclusions, labels)
+    /// attached at upload time.
+    pub annotations: Annotations,
+
     /// Reference-data contexts loaded by [`LoadContext`] nodes.
     ///
     /// [`LoadContext`]: nvisy_ontology::workflow::LoadContext
@@ -73,6 +78,7 @@ impl DocumentEnvelope {
         Self {
             document,
             metadata,
+            annotations: Annotations::new(),
             contexts: Contexts::new(),
             audit,
             shared,
@@ -82,6 +88,20 @@ impl DocumentEnvelope {
     /// Number of detected entities.
     pub fn entity_count(&self) -> usize {
         self.audit.entities.len()
+    }
+
+    /// Add detected entities, filtering out any that fall within
+    /// exclusion annotations.
+    pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity>) {
+        if self.annotations.is_empty() {
+            self.audit.entities.extend(entities);
+        } else {
+            for entity in entities {
+                if !self.annotations.is_excluded(&entity) {
+                    self.audit.entities.push(entity);
+                }
+            }
+        }
     }
 }
 

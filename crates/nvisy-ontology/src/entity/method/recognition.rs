@@ -39,6 +39,8 @@ pub enum RecognitionMethod {
     // Human
     /// User-provided annotation.
     Manual(ManualProvenance),
+    /// Pre-identified region supplied alongside the uploaded file.
+    Annotation(ManualProvenance),
 }
 
 impl RecognitionMethod {
@@ -100,6 +102,11 @@ impl RecognitionMethod {
         })
     }
 
+    /// Create an `Annotation` method with an optional annotator ID.
+    pub fn annotation(annotator: Option<String>) -> Self {
+        Self::Annotation(ManualProvenance { annotator })
+    }
+
     /// Returns the discriminant kind, stripping provenance data.
     /// Useful as a HashMap key when provenance details don't matter
     /// (e.g. calibration maps, weight tables).
@@ -113,6 +120,7 @@ impl RecognitionMethod {
             Self::Embedding(_) => RecognitionMethodKind::Embedding,
             Self::Biometric(_) => RecognitionMethodKind::Biometric,
             Self::Manual(_) => RecognitionMethodKind::Manual,
+            Self::Annotation(_) => RecognitionMethodKind::Annotation,
         }
     }
 }
@@ -135,4 +143,5 @@ pub enum RecognitionMethodKind {
     CrossReference,
     Biometric,
     Manual,
+    Annotation,
 }

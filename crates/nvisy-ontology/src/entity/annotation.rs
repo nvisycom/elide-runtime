@@ -38,7 +38,7 @@ pub enum AnnotationScope {
 }
 
 /// A classification label attached to a document or region.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnnotationLabel {
     /// Label name (e.g. `"contains-phi"`, `"gdpr-request"`).
@@ -75,7 +75,7 @@ impl AnnotationLabel {
 }
 
 /// A user-provided or upstream annotation on a content region.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Annotation {
     /// What kind of annotation this is.
@@ -84,7 +84,7 @@ pub struct Annotation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<EntityCategory>,
     /// Entity kind, if applicable.
-    #[serde(rename = "entity_type", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub entity_kind: Option<EntityKind>,
     /// The annotated text or value.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -98,7 +98,7 @@ pub struct Annotation {
 }
 
 /// A collection of [`Annotation`]s.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Annotations(Vec<Annotation>);
 
 impl Annotations {
@@ -171,7 +171,7 @@ impl Annotations {
                 .with_category(category)
                 .with_entity_kind(entity_kind)
                 .with_value(value)
-                .with_recognition_methods(vec![RecognitionMethod::manual("annotation")])
+                .with_recognition_methods(vec![RecognitionMethod::annotation(None)])
                 .with_confidence(1.0);
             if let Some(ref loc) = ann.location {
                 builder = builder.with_location(loc.clone());

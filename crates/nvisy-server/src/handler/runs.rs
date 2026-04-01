@@ -57,11 +57,13 @@ async fn create_run(
 
     let output = engine.run(input).await?;
 
+    let total_entities: usize = output.audits.iter().map(|a| a.entities.len()).sum();
+    let total_entries: usize = output.audits.iter().map(|a| a.entries.len()).sum();
     tracing::info!(
         target: TARGET,
         run_id = %output.run_id,
-        entities = output.detection.entities.len(),
-        records = output.evaluation.records.len(),
+        entities = total_entities,
+        entries = total_entries,
         "pipeline run complete",
     );
 

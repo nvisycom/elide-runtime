@@ -71,7 +71,7 @@ impl VerifiedEntity {
                 refinements.push(RefinementMethod::ModelVerification);
 
                 let mut builder = Entity::builder()
-                    .with_source(entity.source)
+                    .with_id(entity.id)
                     .with_category(self.category.unwrap_or(entity.category))
                     .with_entity_kind(self.entity_type.unwrap_or(entity.entity_kind))
                     .with_value(self.value.as_deref().unwrap_or(&entity.value).to_owned())

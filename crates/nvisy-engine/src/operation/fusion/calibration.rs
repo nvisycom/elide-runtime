@@ -35,7 +35,7 @@ pub(super) fn calibrate(entities: &mut Entities, calibration: &CalibrationMap) {
 
             tracing::trace!(
                 target: TARGET,
-                entity_id = %entity.id(),
+                entity_id = %entity.id,
                 multiplier = m,
                 before,
                 after = entity.confidence,

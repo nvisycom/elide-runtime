@@ -79,8 +79,6 @@ impl PatternRecognitionOp {
             let detected = self.engine.scan_entities(span.data.as_str(), &scan_ctx);
 
             for mut entity in detected {
-                entity = entity.with_parent(&span.source);
-
                 if let Some(nvisy_ontology::entity::Location::Text(ref mut loc)) = entity.location {
                     loc.span_index = Some(span.id.0);
                 }

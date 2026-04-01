@@ -112,10 +112,6 @@ impl FusionStrategyExt for FusionStrategy {
         if result.language.is_none() {
             result.language = rest.iter().find_map(|e| e.language.clone());
         }
-        if result.model.is_none() {
-            result.model = rest.iter().find_map(|e| e.model.clone());
-        }
-
         result.confidence = fused_confidence;
         result
             .refinement_methods
@@ -123,7 +119,7 @@ impl FusionStrategyExt for FusionStrategy {
 
         tracing::trace!(
             target: TARGET,
-            entity_id = %result.id(),
+            entity_id = %result.id,
             fused_from = rest.len() + 1,
             confidence = fused_confidence,
             value = %result.value,

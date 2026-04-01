@@ -56,7 +56,7 @@ impl ValidationOp {
             for record in &applied {
                 let entity = entities
                     .iter()
-                    .find(|e| e.source.as_uuid() == record.entity_id);
+                    .find(|e| e.id == record.entity_id);
 
                 if let Some(entity) = entity {
                     let lower_value = entity.value.to_lowercase();

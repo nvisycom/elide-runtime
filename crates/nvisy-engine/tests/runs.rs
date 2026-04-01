@@ -18,8 +18,8 @@ async fn dry_run_returns_without_exporting() -> anyhow::Result<()> {
     let snapshot = engine.get_run(actor, output.run_id).await.unwrap();
     assert_eq!(snapshot.status, RunStatus::Succeeded);
 
-    // Export should have been skipped, so no exported content.
-    assert!(output.summaries.is_empty());
+    // Dry run produces audits but no applied redactions.
+    assert!(output.audits.iter().all(|a| a.entries.is_empty()));
     Ok(())
 }
 

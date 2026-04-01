@@ -96,7 +96,7 @@ impl PolicyEvaluator {
                     _ => {
                         tracing::debug!(
                             target: TARGET,
-                            entity_id = %entity.source.as_uuid(),
+                            entity_id = %entity.id,
                             rule_id = %r.id,
                             action = ?r.action,
                             "non-redact policy action",
@@ -117,12 +117,11 @@ impl PolicyEvaluator {
                 }
             };
 
-            let entity_id = entity.source.as_uuid();
+            let entity_id = entity.id;
             let policy_rule_id = rule.map(|r| r.id);
 
             let mut builder = AuditEntry::builder()
-                .for_entity(entity_id, spec, &entity.value)
-                .with_parent_id(entity_id);
+                .for_entity(entity_id, spec, &entity.value);
             if let Some(rule_id) = policy_rule_id {
                 builder = builder.with_policy_id(rule_id);
             }

@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::provenance::{ManualProvenance, ModelProvenance, PatternProvenance};
+use super::provenance::{AnnotationProvenance, ModelProvenance, PatternProvenance};
 use crate::entity::model::ModelInfo;
 
 /// Technique used to identify a sensitive entity within extracted content.
@@ -37,8 +37,8 @@ pub enum RecognitionMethod {
     Biometric(ModelProvenance),
 
     // Human
-    /// User-provided annotation.
-    Manual(ManualProvenance),
+    /// Pre-identified region supplied alongside the uploaded file.
+    Annotation(AnnotationProvenance),
 }
 
 impl RecognitionMethod {
@@ -93,11 +93,9 @@ impl RecognitionMethod {
         Self::Biometric(ModelProvenance { model: Some(model) })
     }
 
-    /// Create a `Manual` method with the given annotator ID.
-    pub fn manual(annotator: impl Into<String>) -> Self {
-        Self::Manual(ManualProvenance {
-            annotator: Some(annotator.into()),
-        })
+    /// Create an `Annotation` method with an optional annotator ID.
+    pub fn annotation(annotator: Option<String>) -> Self {
+        Self::Annotation(AnnotationProvenance { annotator })
     }
 
     /// Returns the discriminant kind, stripping provenance data.
@@ -112,7 +110,7 @@ impl RecognitionMethod {
             Self::Classification(_) => RecognitionMethodKind::Classification,
             Self::Embedding(_) => RecognitionMethodKind::Embedding,
             Self::Biometric(_) => RecognitionMethodKind::Biometric,
-            Self::Manual(_) => RecognitionMethodKind::Manual,
+            Self::Annotation(_) => RecognitionMethodKind::Annotation,
         }
     }
 }
@@ -134,5 +132,5 @@ pub enum RecognitionMethodKind {
     Embedding,
     CrossReference,
     Biometric,
-    Manual,
+    Annotation,
 }

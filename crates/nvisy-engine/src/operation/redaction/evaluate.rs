@@ -62,7 +62,10 @@ impl Operation for RedactionOp {
             "evaluating redaction policies",
         );
 
-        let records = self.evaluator.evaluate(&envelope.audit.entities);
+        let document_labels = envelope.annotations.document_labels();
+        let records = self
+            .evaluator
+            .evaluate(&envelope.audit.entities, &document_labels);
         envelope.audit.entries.extend(records);
 
         RedactionApplicator::new(envelope).apply().await?;
@@ -78,17 +81,18 @@ struct PolicyEvaluator {
 }
 
 impl PolicyEvaluator {
-    fn evaluate(&self, entities: &Entities) -> Vec<AuditEntry> {
+    fn evaluate(&self, entities: &Entities, document_labels: &[&str]) -> Vec<AuditEntry> {
         tracing::debug!(
             target: TARGET,
             entity_count = entities.len(),
             rules = self.rules.len(),
+            labels = document_labels.len(),
             "evaluating policies",
         );
         let mut records = Vec::new();
 
         for entity in entities {
-            let rule = self.find_matching_rule(entity);
+            let rule = self.find_matching_rule(entity, document_labels);
 
             let spec = match rule {
                 Some(r) => match &r.action {
@@ -145,10 +149,25 @@ impl PolicyEvaluator {
         records
     }
 
-    fn find_matching_rule(&self, entity: &Entity) -> Option<&PolicyRule> {
+    fn find_matching_rule(&self, entity: &Entity, document_labels: &[&str]) -> Option<&PolicyRule> {
         self.rules.iter().find(|rule| {
-            rule.selector
+            // Check entity selector match.
+            if !rule
+                .selector
                 .matches(&entity.category, entity.entity_kind, entity.confidence)
+            {
+                return false;
+            }
+            // Check rule conditions (required document labels).
+            if let Some(ref conditions) = rule.conditions
+                && !conditions
+                    .required_labels
+                    .iter()
+                    .all(|required| document_labels.contains(&required.as_str()))
+            {
+                return false;
+            }
+            true
         })
     }
 }
@@ -186,7 +205,7 @@ mod tests {
             default_threshold: 0.8,
         };
         let entities: Entities = vec![test_entity("John", 0.5)].into();
-        let records = evaluator.evaluate(&entities);
+        let records = evaluator.evaluate(&entities, &[]);
         assert!(records.is_empty());
     }
 
@@ -198,7 +217,7 @@ mod tests {
             default_threshold: 0.5,
         };
         let entities: Entities = vec![test_entity("John", 0.9)].into();
-        let records = evaluator.evaluate(&entities);
+        let records = evaluator.evaluate(&entities, &[]);
         assert_eq!(records.len(), 1);
         assert!(!records[0].redaction.is_applied);
     }
@@ -211,7 +230,7 @@ mod tests {
             default_threshold: 0.0,
         };
         let entities: Entities = vec![test_entity("secret", 0.9)].into();
-        let records = evaluator.evaluate(&entities);
+        let records = evaluator.evaluate(&entities, &[]);
         assert_eq!(
             records[0].redaction.strategy,
             Strategy::Text(TextStrategy::Remove)
@@ -226,7 +245,7 @@ mod tests {
             default_threshold: 0.0,
         };
         let entities: Entities = vec![test_entity("secret-value", 0.9)].into();
-        let records = evaluator.evaluate(&entities);
+        let records = evaluator.evaluate(&entities, &[]);
         assert_eq!(records[0].value.original, "secret-value");
     }
 }

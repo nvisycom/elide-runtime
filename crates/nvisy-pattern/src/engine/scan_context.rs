@@ -20,7 +20,7 @@ use super::deny_list::DenyList;
 ///     .with_deny(DenyList::new().with("secret", DenyRule {
 ///         category: EntityCategory::PersonalIdentity,
 ///         entity_kind: EntityKind::PersonName,
-///         method: RecognitionMethod::manual("test"),
+///         method: RecognitionMethod::annotation(Some("test".into())),
 ///     }));
 /// let matches = PatternEngine::instance().scan_text("text", &ctx);
 /// ```

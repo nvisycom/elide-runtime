@@ -420,7 +420,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::manual("test"),
+                method: RecognitionMethod::annotation(Some("test".into())),
             },
         );
         let engine = PatternEngine::builder()
@@ -460,14 +460,17 @@ mod tests {
             DenyRule {
                 category: EntityCategory::Financial,
                 entity_kind: EntityKind::PaymentCard,
-                method: RecognitionMethod::manual("test"),
+                method: RecognitionMethod::annotation(Some("test".into())),
             },
         );
         assert_eq!(deny.len(), 2);
         assert!(deny.contains("secret"));
         let rule = deny.get("other").unwrap();
         assert_eq!(rule.category, EntityCategory::Financial);
-        assert_eq!(rule.method, RecognitionMethod::manual("test"));
+        assert_eq!(
+            rule.method,
+            RecognitionMethod::annotation(Some("test".into()))
+        );
     }
 
     #[test]

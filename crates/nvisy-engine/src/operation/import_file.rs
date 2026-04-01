@@ -85,8 +85,17 @@ impl ImportFileOp {
 
         let doc = Document::decode(&content).await?;
         tracing::debug!(target: TARGET, doc_type = %doc.document_type(), "decoded document");
-        let metadata = content.into_parts().1.unwrap_or_default();
-        Ok(DocumentEnvelope::new(doc, metadata, Arc::clone(shared)))
+        let mut metadata = content.into_parts().1.unwrap_or_default();
+
+        // Move persisted annotations from metadata to the envelope
+        // and apply inclusions as entities.
+        let annotations = std::mem::take(&mut metadata.annotations);
+        let mut envelope = DocumentEnvelope::new(doc, metadata, Arc::clone(shared));
+        if !annotations.is_empty() {
+            annotations.apply_inclusions(&mut envelope.audit.entities);
+            envelope.annotations = annotations;
+        }
+        Ok(envelope)
     }
 }
 

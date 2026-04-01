@@ -44,8 +44,7 @@ pub fn import_export_graph(content_id: Uuid) -> Graph {
                 import_id,
                 GraphNodeKind::ImportFile(ImportFile {
                     content_ids: vec![content_id],
-                    decompression: None,
-                    decryption: None,
+                    ..Default::default()
                 }),
             ),
             GraphNode::new(

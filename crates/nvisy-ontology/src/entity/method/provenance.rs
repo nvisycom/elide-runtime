@@ -30,11 +30,11 @@ pub struct ModelProvenance {
     pub model: Option<ModelInfo>,
 }
 
-/// Provenance for a manual annotation.
+/// Provenance for an annotation (pre-identified region from upload).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct ManualProvenance {
-    /// Identifier of the annotator.
+pub struct AnnotationProvenance {
+    /// Identifier of the annotator (human or service account).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub annotator: Option<String>,
 }

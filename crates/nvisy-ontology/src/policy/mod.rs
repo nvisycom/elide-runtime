@@ -43,6 +43,11 @@ pub struct Policy {
     /// Ordered list of rules.
     #[builder(default)]
     pub rules: Vec<PolicyRule>,
+    /// Data retention policies governing how long each class of data
+    /// (original content, redacted output, audit logs) is kept.
+    #[builder(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retention: Vec<RetentionPolicy>,
 }
 
 impl Policy {

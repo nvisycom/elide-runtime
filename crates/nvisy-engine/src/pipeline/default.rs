@@ -27,7 +27,7 @@ use std::sync::Arc;
 use nvisy_core::Error;
 use nvisy_core::content::{Content, ContentMetadata};
 use nvisy_ontology::context::Context;
-use nvisy_ontology::policy::Policies;
+use nvisy_ontology::policy::{Policies, Retention, RetentionScope};
 use nvisy_ontology::provenance::Audit;
 use nvisy_ontology::workflow::{Graph, GraphNodeKind};
 use nvisy_provider::http::HttpClient;
@@ -365,7 +365,12 @@ impl Engine {
             }
         };
 
-        let (output, entities_detected, redactions_applied) = collect_output(run_id, &run_output);
+        let (mut output, entities_detected, redactions_applied) =
+            collect_output(run_id, &run_output);
+
+        // Enforce retention policies from all submitted policies.
+        self.apply_retention(input.actor_id, &input.policies, &input.graph, &mut output)
+            .await;
 
         let status = run_output.run_status();
         self.inner
@@ -374,6 +379,96 @@ impl Engine {
             .await;
 
         Ok(output)
+    }
+
+    /// Enforce retention policies after a pipeline run.
+    ///
+    /// Iterates all retention policies across all submitted policies.
+    /// For `ZeroRetention`, applies immediately:
+    /// - `OriginalContent`: deletes imported content from the registry
+    /// - `RedactedOutput`: deletes exported content from the registry
+    /// - `AuditLogs`: clears audits from the output
+    ///
+    /// `Duration` and `Indefinite` retention are recorded as metadata
+    /// but not enforced here (requires a background cleanup process).
+    async fn apply_retention(
+        &self,
+        actor_id: Uuid,
+        policies: &Policies,
+        graph: &Graph,
+        output: &mut EngineOutput,
+    ) {
+        let retention_policies: Vec<_> = policies
+            .policies
+            .iter()
+            .flat_map(|p| p.retention.iter())
+            .collect();
+
+        if retention_policies.is_empty() {
+            return;
+        }
+
+        for rp in &retention_policies {
+            if !matches!(rp.retention, Retention::ZeroRetention) {
+                continue;
+            }
+            match rp.scope {
+                RetentionScope::OriginalContent => {
+                    let content_ids: Vec<Uuid> = graph
+                        .nodes
+                        .iter()
+                        .filter_map(|node| match &node.kind {
+                            GraphNodeKind::ImportFile(cfg) => Some(cfg.content_ids.clone()),
+                            _ => None,
+                        })
+                        .flatten()
+                        .collect();
+                    for id in content_ids {
+                        if let Err(e) = self
+                            .inner
+                            .registry
+                            .unregister_content(actor_id, id)
+                            .await
+                        {
+                            tracing::warn!(
+                                %id,
+                                error = %e,
+                                "failed to delete content for zero-retention",
+                            );
+                        }
+                    }
+                }
+                RetentionScope::RedactedOutput => {
+                    let content_ids: Vec<Uuid> = graph
+                        .nodes
+                        .iter()
+                        .filter_map(|node| match &node.kind {
+                            GraphNodeKind::ExportFile(cfg) => Some(cfg.content_ids.clone()),
+                            _ => None,
+                        })
+                        .flatten()
+                        .collect();
+                    for id in content_ids {
+                        if let Err(e) = self
+                            .inner
+                            .registry
+                            .unregister_content(actor_id, id)
+                            .await
+                        {
+                            tracing::warn!(
+                                %id,
+                                error = %e,
+                                "failed to delete exported content for zero-retention",
+                            );
+                        }
+                    }
+                }
+                RetentionScope::AuditLogs => {
+                    output.audits.clear();
+                }
+                _ => {}
+            }
+        }
     }
 
     /// Compute a point-in-time [`AnalyticsSnapshot`] from all tracked runs.

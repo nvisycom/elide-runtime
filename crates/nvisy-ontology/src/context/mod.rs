@@ -12,6 +12,7 @@ pub mod geospatial;
 pub mod reference;
 pub mod temporal;
 
+use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -58,21 +59,34 @@ impl Contexts {
 }
 
 /// A persistent, reusable collection of reference data for detection.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
+#[builder(
+    name = "ContextBuilder",
+    pattern = "owned",
+    setter(into, strip_option, prefix = "with")
+)]
 #[serde(rename_all = "camelCase")]
 pub struct Context {
     /// Content source identity and lineage.
+    #[builder(default)]
     pub source: ContentSource,
     /// Human-readable label for this context.
     pub name: String,
     /// Optional longer description.
+    #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Reference-data entries.
+    #[builder(default)]
     pub entries: Vec<ContextEntry>,
 }
 
 impl Context {
+    /// Start building a new context.
+    pub fn builder() -> ContextBuilder {
+        ContextBuilder::default()
+    }
+
     /// Create a new context with the given name and entries.
     pub fn new(name: impl Into<String>, entries: Vec<ContextEntry>) -> Self {
         Self {
@@ -81,11 +95,5 @@ impl Context {
             description: None,
             entries,
         }
-    }
-
-    /// Set a description on this context.
-    pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
-        self
     }
 }

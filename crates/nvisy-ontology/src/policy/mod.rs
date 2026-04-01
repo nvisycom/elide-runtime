@@ -4,8 +4,8 @@ mod retention;
 mod rule;
 mod selector;
 mod strategy;
-mod summary;
 
+use derive_builder::Builder;
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -15,12 +15,17 @@ pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
 pub use self::rule::{PolicyRule, RuleAction, RuleCondition};
 pub use self::selector::EntitySelector;
 pub use self::strategy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
-pub use self::summary::RedactionEntry;
 
 /// A named redaction policy containing an ordered set of rules.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
+#[builder(
+    name = "PolicyBuilder",
+    pattern = "owned",
+    setter(into, strip_option, prefix = "with")
+)]
 pub struct Policy {
     /// Unique identifier for this policy.
+    #[builder(default = "Uuid::now_v7()")]
     pub id: Uuid,
     /// Human-readable policy name.
     pub name: String,
@@ -28,13 +33,23 @@ pub struct Policy {
     #[schemars(with = "String")]
     pub version: Version,
     /// Description of the policy's purpose.
+    #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Parent policy identifier for inheritance.
+    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extends: Option<Uuid>,
     /// Ordered list of rules.
+    #[builder(default)]
     pub rules: Vec<PolicyRule>,
+}
+
+impl Policy {
+    /// Start building a new policy.
+    pub fn builder() -> PolicyBuilder {
+        PolicyBuilder::default()
+    }
 }
 
 /// A collection of policies to apply during a pipeline run.

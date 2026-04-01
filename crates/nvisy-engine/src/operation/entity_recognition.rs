@@ -59,8 +59,6 @@ impl EntityRecognitionOp {
                 .map_err(|e| Error::runtime(e.to_string(), "ner-agent", e.is_retryable()))?;
 
             for mut entity in detected {
-                entity = entity.with_parent(&span.source);
-
                 if let Some(nvisy_ontology::entity::Location::Text(ref mut loc)) = entity.location {
                     loc.span_index = Some(span.id.0);
                 }

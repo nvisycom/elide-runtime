@@ -8,7 +8,6 @@ use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use super::review::ReviewDecision;
-use crate::entity::ContentSource;
 use crate::policy::Strategy;
 
 /// Outcome status of a redaction operation.
@@ -45,9 +44,6 @@ pub enum AuditEntryStatus {
 )]
 #[serde(rename_all = "camelCase")]
 pub struct AuditEntry {
-    /// Content source identity and lineage.
-    #[builder(default)]
-    pub source: ContentSource,
     /// Identifier of the entity being redacted.
     pub entity_id: Uuid,
     /// Identifier of the policy that triggered this redaction.
@@ -109,11 +105,6 @@ impl AuditEntry {
     pub fn builder() -> AuditEntryBuilder {
         AuditEntryBuilder::default()
     }
-
-    /// The unique identifier for this entry.
-    pub fn id(&self) -> Uuid {
-        self.source.as_uuid()
-    }
 }
 
 impl AuditEntryBuilder {
@@ -137,13 +128,5 @@ impl AuditEntryBuilder {
                 original: original.into(),
                 replacement: None,
             })
-    }
-
-    /// Set the parent content source for lineage tracking.
-    pub fn with_parent_id(mut self, parent_id: Uuid) -> Self {
-        if let Some(ref mut source) = self.source {
-            source.set_parent_id(Some(parent_id));
-        }
-        self
     }
 }

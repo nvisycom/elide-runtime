@@ -12,10 +12,8 @@
 //! DocumentEnvelope { document, audit { entities, … } }
 //!   ↓ Deduplication / Ensemble
 //! DocumentEnvelope { document, audit { entities (merged), … } }
-//!   ↓ PolicyEvaluation
-//! DocumentEnvelope { document, audit { entities, records, … } }
-//!   ↓ Redaction
-//! DocumentEnvelope { document (redacted), audit { … } }
+//!   ↓ Policy Evaluation + Redaction
+//! DocumentEnvelope { document (redacted), audit { entities, entries, … } }
 //! ```
 //!
 //! Each operation receives `&mut DocumentEnvelope` and reads/writes

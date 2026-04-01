@@ -208,7 +208,7 @@ impl<'a> RedactionApplicator<'a> {
 
     /// Build a lookup map from entity UUID to entity reference.
     fn entity_map(entities: &nvisy_ontology::entity::Entities) -> HashMap<Uuid, &Entity> {
-        entities.iter().map(|e| (e.source.as_uuid(), e)).collect()
+        entities.iter().map(|e| (e.id, e)).collect()
     }
 
     fn text_output(entity: &Entity, strategy: &TextStrategy) -> TextOutput {
@@ -321,7 +321,7 @@ mod tests {
     #[tokio::test]
     async fn mask_applies_and_records_replacement() {
         let entity = text_entity("John", 0, 6, 10);
-        let entity_id = entity.source.as_uuid();
+        let entity_id = entity.id;
         let record = test_record(
             entity_id,
             Strategy::Text(TextStrategy::Mask { mask_char: '*' }),
@@ -346,7 +346,7 @@ mod tests {
     #[tokio::test]
     async fn remove_leaves_replacement_none() {
         let entity = text_entity("John", 0, 6, 10);
-        let entity_id = entity.source.as_uuid();
+        let entity_id = entity.id;
         let record = test_record(entity_id, Strategy::Text(TextStrategy::Remove), "John");
 
         let entities: Entities = vec![entity].into();
@@ -365,7 +365,7 @@ mod tests {
     async fn skips_image_strategy_for_text_entity() {
         let entity = text_entity("face", 0, 0, 4);
         let record = test_record(
-            entity.source.as_uuid(),
+            entity.id,
             Strategy::Image(ImageStrategy::Blur { sigma: 15.0 }),
             "face",
         );

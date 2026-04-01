@@ -10,7 +10,6 @@ mod kind;
 mod location;
 mod method;
 mod model;
-mod output;
 mod sensitivity;
 mod source;
 
@@ -33,7 +32,6 @@ pub use self::method::{
     RecognitionMethodKind, RefinementMethod,
 };
 pub use self::model::{ModelInfo, ModelKind};
-pub use self::output::DetectionOutput;
 pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;
 
@@ -47,13 +45,12 @@ pub use self::source::ContentSource;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct Entity {
-    /// Content source identity and lineage.
-    #[builder(default)]
-    pub source: ContentSource,
+    /// Unique identifier for this entity (UUIDv7).
+    #[builder(default = "Uuid::now_v7()")]
+    pub id: Uuid,
     /// Broad classification of the sensitive data.
     pub category: EntityCategory,
     /// Specific entity kind (e.g. `GovernmentId`, `EmailAddress`, `PaymentCard`).
-    #[serde(rename = "entity_type")]
     pub entity_kind: EntityKind,
     /// The matched text or value.
     pub value: String,
@@ -77,27 +74,16 @@ pub struct Entity {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
-    /// Detection model that produced this entity.
+    /// Sensitivity classification of this entity.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<ModelInfo>,
+    pub sensitivity: Option<EntitySensitivity>,
 }
 
 impl Entity {
     /// Create a new [`EntityBuilder`].
     pub fn builder() -> EntityBuilder {
         EntityBuilder::default()
-    }
-
-    /// The unique identifier for this entity.
-    pub fn id(&self) -> Uuid {
-        self.source.as_uuid()
-    }
-
-    /// Set the parent source for lineage tracking.
-    pub fn with_parent(mut self, parent: &ContentSource) -> Self {
-        self.source = self.source.with_parent(parent);
-        self
     }
 }
 
@@ -120,6 +106,16 @@ impl Entities {
         Self(Vec::new())
     }
 
+    /// Returns `true` if the collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Number of entities in the collection.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     /// Append an entity.
     pub fn push(&mut self, entity: Entity) {
         self.0.push(entity);
@@ -135,33 +131,6 @@ impl Entities {
         self.0
             .iter()
             .filter(|e| e.confidence >= threshold)
-            .cloned()
-            .collect()
-    }
-
-    /// Retain only entities that were recognised (at least partly) by the given method.
-    pub fn by_recognition_method(&self, method: RecognitionMethod) -> Self {
-        self.0
-            .iter()
-            .filter(|e| e.recognition_methods.contains(&method))
-            .cloned()
-            .collect()
-    }
-
-    /// Retain only entities whose content was extracted by the given method.
-    pub fn by_extraction_method(&self, method: ExtractionMethod) -> Self {
-        self.0
-            .iter()
-            .filter(|e| e.extraction_methods.contains(&method))
-            .cloned()
-            .collect()
-    }
-
-    /// Retain only entities matching the given category.
-    pub fn by_category(&self, category: EntityCategory) -> Self {
-        self.0
-            .iter()
-            .filter(|e| e.category == category)
             .cloned()
             .collect()
     }

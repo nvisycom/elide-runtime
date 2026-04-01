@@ -1,5 +1,6 @@
 //! Policy rule types.
 
+use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -36,17 +37,38 @@ pub enum RuleAction {
 }
 
 /// A single rule within a policy.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
+#[builder(
+    name = "PolicyRuleBuilder",
+    pattern = "owned",
+    setter(into, strip_option, prefix = "with")
+)]
 pub struct PolicyRule {
     /// Unique identifier for this rule.
+    #[builder(default = "Uuid::now_v7()")]
     pub id: Uuid,
     /// Which entities this rule applies to.
     pub selector: EntitySelector,
     /// What this rule does when it matches.
     pub action: RuleAction,
     /// Evaluation priority (lower numbers are evaluated first).
-    pub priority: i32,
+    #[builder(default, setter(into = false))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub priority: Option<i32>,
     /// Additional conditions for this rule to apply.
+    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conditions: Option<RuleCondition>,
+}
+
+impl PolicyRule {
+    /// Start building a new policy rule.
+    pub fn builder() -> PolicyRuleBuilder {
+        PolicyRuleBuilder::default()
+    }
+
+    /// Evaluation priority (lower = higher precedence, default 0).
+    pub fn priority(&self) -> i32 {
+        self.priority.unwrap_or(0)
+    }
 }

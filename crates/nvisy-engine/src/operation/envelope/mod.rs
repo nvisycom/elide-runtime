@@ -52,8 +52,8 @@ pub struct DocumentEnvelope {
     pub metadata: ContentMetadata,
 
     /// User-supplied annotations (inclusions, exclusions, labels)
-    /// attached at upload time.
-    pub annotations: Annotations,
+    /// attached at upload time. Set during import from content metadata.
+    pub(crate) annotations: Annotations,
 
     /// Reference-data contexts loaded by [`LoadContext`] nodes.
     ///

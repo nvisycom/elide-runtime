@@ -467,7 +467,10 @@ mod tests {
         assert!(deny.contains("secret"));
         let rule = deny.get("other").unwrap();
         assert_eq!(rule.category, EntityCategory::Financial);
-        assert_eq!(rule.method, RecognitionMethod::annotation(Some("test".into())));
+        assert_eq!(
+            rule.method,
+            RecognitionMethod::annotation(Some("test".into()))
+        );
     }
 
     #[test]

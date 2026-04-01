@@ -28,6 +28,9 @@ pub enum AnnotationKind {
         entity_kind: EntityKind,
         /// What this inclusion targets.
         target: AnnotationTarget,
+        /// Confidence in the range `[0.0, 1.0]` (default 1.0).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        confidence: Option<f64>,
     },
     /// Known-safe region that detection should skip.
     Exclusion {
@@ -45,13 +48,12 @@ pub enum AnnotationKind {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Annotation {
+    /// Optional human-readable name for this annotation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     /// What kind of annotation and its variant-specific data.
     #[serde(flatten)]
     pub kind: AnnotationKind,
-    /// Confidence of the annotation in the range `[0.0, 1.0]`.
-    /// Defaults to 1.0 for inclusions when not specified.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<f64>,
 }
 
 /// A collection of [`Annotation`]s.
@@ -100,25 +102,18 @@ impl Annotations {
     /// An entity is excluded if an exclusion targets a matching value
     /// (exact) or an overlapping location (any modality).
     pub fn is_excluded(&self, entity: &Entity) -> bool {
-        for ann in &self.0 {
+        self.0.iter().any(|ann| {
             let AnnotationKind::Exclusion { target } = &ann.kind else {
-                continue;
+                return false;
             };
             match target {
-                AnnotationTarget::Value(value) if *value == entity.value => return true,
-                AnnotationTarget::Location(location) => {
-                    if entity
-                        .location
-                        .as_ref()
-                        .is_some_and(|loc| loc.overlaps(location))
-                    {
-                        return true;
-                    }
-                }
-                _ => {}
+                AnnotationTarget::Value(value) => *value == entity.value,
+                AnnotationTarget::Location(location) => entity
+                    .location
+                    .as_ref()
+                    .is_some_and(|loc| loc.overlaps(location)),
             }
-        }
-        false
+        })
     }
 
     /// Convert inclusion annotations into entities and add them to the collection.
@@ -128,30 +123,28 @@ impl Annotations {
                 category,
                 entity_kind,
                 target,
+                confidence,
             } = &ann.kind
             else {
                 continue;
             };
 
             let (value, location) = match target {
-                AnnotationTarget::Value(value) => {
-                    if value.is_empty() {
+                AnnotationTarget::Value(v) => {
+                    if v.is_empty() {
                         continue;
                     }
-                    (value.clone(), None)
+                    (v.clone(), None)
                 }
-                AnnotationTarget::Location(location) => {
-                    (String::new(), Some(location.clone()))
-                }
+                AnnotationTarget::Location(loc) => (String::new(), Some(loc.clone())),
             };
 
-            let confidence = ann.confidence.unwrap_or(1.0);
             let mut builder = Entity::builder()
                 .with_category(*category)
                 .with_entity_kind(*entity_kind)
                 .with_value(value)
-                .with_recognition_methods(vec![RecognitionMethod::annotation(None)])
-                .with_confidence(confidence);
+                .with_recognition_methods(vec![RecognitionMethod::annotation(ann.name.clone())])
+                .with_confidence(confidence.unwrap_or(1.0));
             if let Some(loc) = location {
                 builder = builder.with_location(loc);
             }
@@ -163,5 +156,171 @@ impl Annotations {
 impl From<Vec<Annotation>> for Annotations {
     fn from(v: Vec<Annotation>) -> Self {
         Self(v)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::entity::TextLocation;
+
+    use super::*;
+
+    fn inclusion(value: &str) -> Annotation {
+        Annotation {
+            name: None,
+            kind: AnnotationKind::Inclusion {
+                category: EntityCategory::PersonalIdentity,
+                entity_kind: EntityKind::PersonName,
+                target: AnnotationTarget::Value(value.into()),
+                confidence: None,
+            },
+        }
+    }
+
+    fn exclusion_value(value: &str) -> Annotation {
+        Annotation {
+            name: None,
+            kind: AnnotationKind::Exclusion {
+                target: AnnotationTarget::Value(value.into()),
+            },
+        }
+    }
+
+    fn exclusion_location(start: usize, end: usize) -> Annotation {
+        Annotation {
+            name: None,
+            kind: AnnotationKind::Exclusion {
+                target: AnnotationTarget::Location(Location::from(TextLocation {
+                    start_offset: start,
+                    end_offset: end,
+                    ..Default::default()
+                })),
+            },
+        }
+    }
+
+    fn label(name: &str) -> Annotation {
+        Annotation {
+            name: None,
+            kind: AnnotationKind::Label { label: name.into() },
+        }
+    }
+
+    fn test_entity(value: &str, start: usize, end: usize) -> Entity {
+        Entity::builder()
+            .with_category(EntityCategory::PersonalIdentity)
+            .with_entity_kind(EntityKind::PersonName)
+            .with_value(value)
+            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
+            .with_confidence(0.9)
+            .with_location(Location::from(TextLocation {
+                start_offset: start,
+                end_offset: end,
+                ..Default::default()
+            }))
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn apply_inclusions_creates_entities() {
+        let annotations =
+            Annotations::from(vec![inclusion("John Smith"), inclusion("jane@example.com")]);
+        let mut entities = Entities::new();
+        annotations.apply_inclusions(&mut entities);
+        assert_eq!(entities.len(), 2);
+        assert_eq!(entities[0].value, "John Smith");
+        assert_eq!(entities[1].value, "jane@example.com");
+        assert!((entities[0].confidence - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn apply_inclusions_skips_empty_value() {
+        let annotations = Annotations::from(vec![inclusion("")]);
+        let mut entities = Entities::new();
+        annotations.apply_inclusions(&mut entities);
+        assert!(entities.is_empty());
+    }
+
+    #[test]
+    fn apply_inclusions_uses_annotation_confidence() {
+        let ann = Annotation {
+            name: None,
+            kind: AnnotationKind::Inclusion {
+                category: EntityCategory::PersonalIdentity,
+                entity_kind: EntityKind::PersonName,
+                target: AnnotationTarget::Value("test".into()),
+                confidence: Some(0.7),
+            },
+        };
+        let mut entities = Entities::new();
+        Annotations::from(vec![ann]).apply_inclusions(&mut entities);
+        assert!((entities[0].confidence - 0.7).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn apply_inclusions_records_annotation_name() {
+        let ann = Annotation {
+            name: Some("hr-list".into()),
+            kind: AnnotationKind::Inclusion {
+                category: EntityCategory::PersonalIdentity,
+                entity_kind: EntityKind::PersonName,
+                target: AnnotationTarget::Value("test".into()),
+                confidence: None,
+            },
+        };
+        let mut entities = Entities::new();
+        Annotations::from(vec![ann]).apply_inclusions(&mut entities);
+        assert_eq!(
+            entities[0].recognition_methods[0],
+            RecognitionMethod::annotation(Some("hr-list".into()))
+        );
+    }
+
+    #[test]
+    fn exclusion_by_value() {
+        let annotations = Annotations::from(vec![exclusion_value("safe-value")]);
+        let entity = test_entity("safe-value", 0, 10);
+        assert!(annotations.is_excluded(&entity));
+    }
+
+    #[test]
+    fn exclusion_by_value_no_match() {
+        let annotations = Annotations::from(vec![exclusion_value("other")]);
+        let entity = test_entity("sensitive", 0, 9);
+        assert!(!annotations.is_excluded(&entity));
+    }
+
+    #[test]
+    fn exclusion_by_location_overlap() {
+        let annotations = Annotations::from(vec![exclusion_location(5, 15)]);
+        let entity = test_entity("test", 10, 20);
+        assert!(annotations.is_excluded(&entity));
+    }
+
+    #[test]
+    fn exclusion_by_location_no_overlap() {
+        let annotations = Annotations::from(vec![exclusion_location(0, 5)]);
+        let entity = test_entity("test", 10, 20);
+        assert!(!annotations.is_excluded(&entity));
+    }
+
+    #[test]
+    fn document_labels_extracts_label_annotations() {
+        let annotations = Annotations::from(vec![
+            label("medical"),
+            inclusion("test"),
+            label("gdpr"),
+            exclusion_value("safe"),
+        ]);
+        let labels = annotations.document_labels();
+        assert_eq!(labels, vec!["medical", "gdpr"]);
+    }
+
+    #[test]
+    fn empty_annotations_exclude_nothing() {
+        let annotations = Annotations::new();
+        let entity = test_entity("anything", 0, 8);
+        assert!(!annotations.is_excluded(&entity));
     }
 }

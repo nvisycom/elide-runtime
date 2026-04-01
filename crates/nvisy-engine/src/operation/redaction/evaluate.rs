@@ -63,7 +63,9 @@ impl Operation for RedactionOp {
         );
 
         let document_labels = envelope.annotations.document_labels();
-        let records = self.evaluator.evaluate(&envelope.audit.entities, &document_labels);
+        let records = self
+            .evaluator
+            .evaluate(&envelope.audit.entities, &document_labels);
         envelope.audit.entries.extend(records);
 
         RedactionApplicator::new(envelope).apply().await?;
@@ -147,11 +149,7 @@ impl PolicyEvaluator {
         records
     }
 
-    fn find_matching_rule(
-        &self,
-        entity: &Entity,
-        document_labels: &[&str],
-    ) -> Option<&PolicyRule> {
+    fn find_matching_rule(&self, entity: &Entity, document_labels: &[&str]) -> Option<&PolicyRule> {
         self.rules.iter().find(|rule| {
             // Check entity selector match.
             if !rule
@@ -207,7 +205,7 @@ mod tests {
             default_threshold: 0.8,
         };
         let entities: Entities = vec![test_entity("John", 0.5)].into();
-        let records = evaluator.evaluate(&entities);
+        let records = evaluator.evaluate(&entities, &[]);
         assert!(records.is_empty());
     }
 
@@ -219,7 +217,7 @@ mod tests {
             default_threshold: 0.5,
         };
         let entities: Entities = vec![test_entity("John", 0.9)].into();
-        let records = evaluator.evaluate(&entities);
+        let records = evaluator.evaluate(&entities, &[]);
         assert_eq!(records.len(), 1);
         assert!(!records[0].redaction.is_applied);
     }
@@ -232,7 +230,7 @@ mod tests {
             default_threshold: 0.0,
         };
         let entities: Entities = vec![test_entity("secret", 0.9)].into();
-        let records = evaluator.evaluate(&entities);
+        let records = evaluator.evaluate(&entities, &[]);
         assert_eq!(
             records[0].redaction.strategy,
             Strategy::Text(TextStrategy::Remove)
@@ -247,7 +245,7 @@ mod tests {
             default_threshold: 0.0,
         };
         let entities: Entities = vec![test_entity("secret-value", 0.9)].into();
-        let records = evaluator.evaluate(&entities);
+        let records = evaluator.evaluate(&entities, &[]);
         assert_eq!(records[0].value.original, "secret-value");
     }
 }

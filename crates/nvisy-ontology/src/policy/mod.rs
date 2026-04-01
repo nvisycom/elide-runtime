@@ -72,11 +72,8 @@ pub struct Policies {
 impl Policies {
     /// All rules across all policies, sorted by priority (lower = higher precedence).
     pub fn all_rules(&self) -> Vec<&PolicyRule> {
-        let mut rules: Vec<&PolicyRule> = self
-            .policies
-            .iter()
-            .flat_map(|p| p.rules.iter())
-            .collect();
+        let mut rules: Vec<&PolicyRule> =
+            self.policies.iter().flat_map(|p| p.rules.iter()).collect();
         rules.sort_by_key(|r| r.priority());
         rules
     }

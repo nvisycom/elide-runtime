@@ -420,12 +420,7 @@ impl Engine {
                         .flatten()
                         .collect();
                     for id in content_ids {
-                        if let Err(e) = self
-                            .inner
-                            .registry
-                            .unregister_content(actor_id, id)
-                            .await
-                        {
+                        if let Err(e) = self.inner.registry.unregister_content(actor_id, id).await {
                             tracing::warn!(
                                 %id,
                                 error = %e,
@@ -445,12 +440,7 @@ impl Engine {
                         .flatten()
                         .collect();
                     for id in content_ids {
-                        if let Err(e) = self
-                            .inner
-                            .registry
-                            .unregister_content(actor_id, id)
-                            .await
-                        {
+                        if let Err(e) = self.inner.registry.unregister_content(actor_id, id).await {
                             tracing::warn!(
                                 %id,
                                 error = %e,

@@ -233,7 +233,7 @@ impl NodeExecutor {
                     .await
             }
             GraphNodeKind::Redaction(cfg) => {
-                self.execute_op(RedactionOp::new(cfg, &self.ctx.shared), senders, receivers)
+                self.execute_op(RedactionOp::new(cfg), senders, receivers)
                     .await
             }
             GraphNodeKind::Validation(cfg) => {

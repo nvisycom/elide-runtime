@@ -306,19 +306,10 @@ impl NodeExecutor {
                 import_ref.import(content, shared).await
             };
 
-            let mut envelope = match retry {
+            let envelope = match retry {
                 Some(policy) => policy.with_retry(do_import).await?,
                 None => do_import().await?,
             };
-
-            // Apply annotations stored on the content metadata:
-            // convert inclusions to entities, keep exclusions for
-            // filtering during detection.
-            if !envelope.annotations.is_empty() {
-                envelope
-                    .annotations
-                    .apply_inclusions(&mut envelope.audit.entities);
-            }
 
             fan_out(senders, envelope).await?;
             count += 1;

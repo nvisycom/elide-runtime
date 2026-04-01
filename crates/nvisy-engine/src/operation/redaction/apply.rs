@@ -191,8 +191,8 @@ impl<'a> RedactionApplicator<'a> {
             tracing::trace!(
                 target: TARGET,
                 %entity_id,
-                start = loc.time_span.start_secs,
-                end = loc.time_span.end_secs,
+                start_us = loc.time_span.start_us,
+                end_us = loc.time_span.end_us,
                 "built audio redaction instruction",
             );
 

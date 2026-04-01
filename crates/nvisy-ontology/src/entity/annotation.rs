@@ -161,9 +161,8 @@ impl From<Vec<Annotation>> for Annotations {
 
 #[cfg(test)]
 mod tests {
-    use crate::entity::TextLocation;
-
     use super::*;
+    use crate::entity::TextLocation;
 
     fn inclusion(value: &str) -> Annotation {
         Annotation {

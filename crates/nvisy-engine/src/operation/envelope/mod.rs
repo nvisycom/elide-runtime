@@ -94,8 +94,7 @@ impl std::fmt::Debug for DocumentEnvelope {
             .field("source", &self.document.source())
             .field("entities", &self.audit.entities.len())
             .field("contexts", &self.contexts.len())
-            .field("audit_entries", &self.audit.len())
-            .field("records", &self.audit.records.len())
+            .field("entries", &self.audit.entries.len())
             .finish()
     }
 }

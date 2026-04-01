@@ -7,7 +7,7 @@
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
-use nvisy_ontology::provenance::RedactionRecord;
+use nvisy_ontology::provenance::AuditEntry;
 use nvisy_ontology::workflow::Validation;
 use uuid::Uuid;
 
@@ -43,7 +43,7 @@ impl ValidationOp {
 
     fn check(
         entities: &Entities,
-        records: &[RedactionRecord],
+        records: &[AuditEntry],
         redacted_text: Option<&str>,
     ) -> ValidationResult {
         let mut passed = 0usize;
@@ -98,7 +98,7 @@ impl Operation for ValidationOp {
 
         let result = Self::check(
             &envelope.audit.entities,
-            &envelope.audit.records,
+            &envelope.audit.entries,
             redacted_text.as_deref(),
         );
 

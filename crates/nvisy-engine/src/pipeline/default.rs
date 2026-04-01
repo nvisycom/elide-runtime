@@ -568,10 +568,10 @@ fn collect_output(
     for nr in &run_output.node_results {
         for envelope in &nr.envelopes {
             all_entities.extend(envelope.audit.entities.iter().cloned());
-            all_records.extend(envelope.audit.records.iter().cloned());
+            all_records.extend(envelope.audit.entries.iter().cloned());
             redactions_applied += envelope
                 .audit
-                .records
+                .entries
                 .iter()
                 .filter(|r| r.redaction.is_applied)
                 .count() as u64;

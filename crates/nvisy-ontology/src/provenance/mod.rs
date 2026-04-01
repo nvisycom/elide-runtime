@@ -1,49 +1,38 @@
-//! Provenance: audit trails, redaction records, and per-file processing logs.
+//! Provenance: audit trails and per-file processing logs.
 //!
-//! This module is the single source of truth for all pipeline audit and
-//! decision types. It combines two concerns:
+//! This module is the single source of truth for all pipeline audit
+//! types:
 //!
-//! - **Execution logs** ([`Audit`], [`AuditEntry`]): when operations
-//!   ran, how long they took, what models were used, token counts, etc.
-//!
-//! - **Redaction records** ([`RedactionRecord`], [`PolicyEvaluation`]):
-//!   what was redacted, why, and human-review status.
-//!
-//! Together these form a complete audit trail for compliance and review.
+//! - [`AuditEntry`]: per-entity redaction record with strategy,
+//!   original/replacement values, and optional review.
+//! - [`PolicyEvaluation`]: aggregate outcome of evaluating a policy.
+//! - [`Audit`]: per-document container for entities and audit entries.
 
 mod entry;
-mod kind;
-
-mod action;
-mod record;
+mod evaluation;
+mod review;
 
 use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::action::{
-    InferenceAction, InferenceActionBuilder, LifecycleAction, LifecycleActionBuilder,
-    ProcessingAction, ProcessingActionBuilder,
+pub use self::entry::{
+    AuditEntry, AuditEntryBuilder, AuditEntryStatus, RedactionSpec, RedactionValue,
 };
-pub use self::entry::{AuditEntry, AuditEntryBuilder, AuditEntryBuilderError, AuditEntryStatus};
-pub use self::kind::{AuditEntryKind, InferenceKind, LifecycleKind, ProcessingKind};
-pub use self::record::{
-    PolicyEvaluation, RedactionLifecycle, RedactionRecord, RedactionRecordBuilder, RedactionSpec,
-    RedactionValue, ReviewDecision, ReviewStatus,
-};
+pub use self::evaluation::PolicyEvaluation;
+pub use self::review::{ReviewDecision, ReviewStatus};
 use crate::entity::{ContentSource, Entities};
 
 fn entities_empty(entities: &Entities) -> bool {
     entities.is_empty()
 }
 
-/// A per-document audit trail combining execution logs with redaction records.
+/// A per-document audit trail: detected entities and redaction entries.
 ///
 /// `Audit` is the single compliance artifact for a document. It tracks:
 /// - **What was found**: via [`entities`](Self::entities)
-/// - **What operations ran**: via [`entries`](Self::entries)
-/// - **What was redacted and how**: via [`records`](Self::records)
+/// - **What was redacted and how**: via [`entries`](Self::entries)
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "AuditBuilder",
@@ -66,13 +55,10 @@ pub struct Audit {
     #[builder(default)]
     #[serde(default, skip_serializing_if = "entities_empty")]
     pub entities: Entities,
-    /// Ordered list of processing entries.
-    #[builder(default)]
-    pub entries: Vec<AuditEntry>,
-    /// Redaction records: strategy, original value, replacement, review status.
+    /// Per-entity redaction audit entries.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub records: Vec<RedactionRecord>,
+    pub entries: Vec<AuditEntry>,
 }
 
 impl Audit {
@@ -84,26 +70,20 @@ impl Audit {
             actor_id: None,
             entities: Entities::new(),
             entries: Vec::new(),
-            records: Vec::new(),
         }
     }
 
-    /// Append a processing entry.
+    /// Append an audit entry.
     pub fn push_entry(&mut self, entry: AuditEntry) {
         self.entries.push(entry);
     }
 
-    /// Append a redaction record.
-    pub fn push_record(&mut self, record: RedactionRecord) {
-        self.records.push(record);
-    }
-
-    /// Number of processing entries recorded.
+    /// Number of audit entries recorded.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    /// Returns `true` if no processing entries have been recorded.
+    /// Returns `true` if no audit entries have been recorded.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

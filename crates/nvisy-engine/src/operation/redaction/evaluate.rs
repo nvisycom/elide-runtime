@@ -12,7 +12,7 @@ use std::sync::Arc;
 use nvisy_core::Result;
 use nvisy_ontology::entity::{Entities, Entity, Location};
 use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
-use nvisy_ontology::provenance::RedactionRecord;
+use nvisy_ontology::provenance::AuditEntry;
 use nvisy_ontology::workflow::Redaction;
 
 use super::apply::RedactionApplicator;
@@ -63,7 +63,7 @@ impl Operation for RedactionOp {
         );
 
         let records = self.evaluator.evaluate(&envelope.audit.entities);
-        envelope.audit.records.extend(records);
+        envelope.audit.entries.extend(records);
 
         RedactionApplicator::new(envelope).apply().await?;
 
@@ -78,7 +78,7 @@ struct PolicyEvaluator {
 }
 
 impl PolicyEvaluator {
-    fn evaluate(&self, entities: &Entities) -> Vec<RedactionRecord> {
+    fn evaluate(&self, entities: &Entities) -> Vec<AuditEntry> {
         tracing::debug!(
             target: TARGET,
             entity_count = entities.len(),
@@ -120,7 +120,7 @@ impl PolicyEvaluator {
             let entity_id = entity.source.as_uuid();
             let policy_rule_id = rule.map(|r| r.id);
 
-            let mut builder = RedactionRecord::builder()
+            let mut builder = AuditEntry::builder()
                 .for_entity(entity_id, spec, &entity.value, entity.confidence)
                 .with_parent_id(entity_id);
             if let Some(rule_id) = policy_rule_id {

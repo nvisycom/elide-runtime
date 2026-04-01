@@ -29,7 +29,7 @@ use nvisy_core::content::{Content, ContentMetadata, ContentSource};
 use nvisy_ontology::context::Context;
 use nvisy_ontology::entity::{DetectionOutput, Entities};
 use nvisy_ontology::policy::{Policies, RedactionEntry};
-use nvisy_ontology::provenance::{Audit, PolicyEvaluation, RedactionMap};
+use nvisy_ontology::provenance::{Audit, PolicyEvaluation};
 use nvisy_ontology::workflow::{Graph, GraphNodeKind};
 use nvisy_provider::http::HttpClient;
 use schemars::JsonSchema;
@@ -94,8 +94,6 @@ pub struct EngineOutput {
     pub summaries: Vec<RedactionEntry>,
     /// Per-file audit logs recording processing steps.
     pub audits: Vec<Audit>,
-    /// Redaction mapping artifacts for downstream consumers.
-    pub redaction_maps: Vec<RedactionMap>,
 }
 
 /// Shared inner state for the engine, held behind an `Arc`.
@@ -552,8 +550,8 @@ impl Engine {
     }
 }
 
-/// Aggregate entity detections, policy decisions, and audit records from
-/// all node results into a single [`EngineOutput`].
+/// Aggregate entities, redaction records, and audits from all node
+/// results into a single [`EngineOutput`].
 ///
 /// Returns `(output, entities_detected, redactions_applied)` so the
 /// caller can update the [`RunState`] counters during finalization.
@@ -563,21 +561,19 @@ fn collect_output(
     run_output: &RunOutput,
 ) -> (EngineOutput, u64, u64) {
     let mut all_entities = Entities::new();
-    let mut all_decisions = Vec::new();
     let mut all_records = Vec::new();
     let mut audits = Vec::new();
     let mut redactions_applied = 0u64;
 
     for nr in &run_output.node_results {
         for envelope in &nr.envelopes {
-            all_entities.extend(envelope.entities.iter().cloned());
-            all_decisions.extend(envelope.audit.decisions.iter().cloned());
-            all_records.extend(envelope.audit.records.iter().cloned());
+            all_entities.extend(envelope.audit.entities.iter().cloned());
+            all_records.extend(envelope.audit.entries.iter().cloned());
             redactions_applied += envelope
                 .audit
-                .decisions
+                .entries
                 .iter()
-                .filter(|d| d.applied)
+                .filter(|r| r.redaction.is_applied)
                 .count() as u64;
             audits.push(envelope.audit.clone());
         }
@@ -592,7 +588,6 @@ fn collect_output(
         .unwrap_or(Uuid::nil());
 
     let mut evaluation = PolicyEvaluation::new(policy_id);
-    evaluation.decisions = all_decisions;
     evaluation.records = all_records;
 
     let output = EngineOutput {
@@ -601,7 +596,6 @@ fn collect_output(
         evaluation,
         summaries: Vec::new(),
         audits,
-        redaction_maps: Vec::new(),
     };
 
     (output, entities_detected, redactions_applied)

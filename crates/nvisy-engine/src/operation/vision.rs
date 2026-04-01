@@ -128,7 +128,7 @@ impl Operation for VisualExtractionOp {
 
             let _ocr_output = self.extract(ocr_spans).await?;
 
-            if self.agent.has_verifier() && !envelope.entities.is_empty() {
+            if self.agent.has_verifier() && !envelope.audit.entities.is_empty() {
                 let verify_spans: Vec<_> = envelope
                     .document
                     .collect_image_spans()
@@ -139,8 +139,11 @@ impl Operation for VisualExtractionOp {
                 // Verification is best-effort: a transient LLM failure should
                 // not discard entities that were already detected. Log and
                 // continue with the unverified set.
-                match self.verify(&verify_spans, envelope.entities.clone()).await {
-                    Ok(verified) => envelope.entities = verified,
+                match self
+                    .verify(&verify_spans, envelope.audit.entities.clone())
+                    .await
+                {
+                    Ok(verified) => envelope.audit.entities = verified,
                     Err(e) => tracing::warn!(
                         target: TARGET, error = %e,
                         "OCR verification failed, keeping unverified entities"

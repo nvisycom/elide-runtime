@@ -7,7 +7,7 @@
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
-use nvisy_ontology::provenance::RedactionDecision;
+use nvisy_ontology::provenance::AuditEntry;
 use nvisy_ontology::workflow::Validation;
 use uuid::Uuid;
 
@@ -43,27 +43,27 @@ impl ValidationOp {
 
     fn check(
         entities: &Entities,
-        decisions: &[RedactionDecision],
+        records: &[AuditEntry],
         redacted_text: Option<&str>,
     ) -> ValidationResult {
         let mut passed = 0usize;
         let mut leaked = Vec::new();
 
-        let applied: Vec<_> = decisions.iter().filter(|d| d.applied).collect();
+        let applied: Vec<_> = records.iter().filter(|r| r.redaction.is_applied).collect();
 
         if let Some(text) = redacted_text {
             let lower_text = text.to_lowercase();
-            for decision in &applied {
+            for record in &applied {
                 let entity = entities
                     .iter()
-                    .find(|e| e.source.as_uuid() == decision.entity_id);
+                    .find(|e| e.source.as_uuid() == record.entity_id);
 
                 if let Some(entity) = entity {
                     let lower_value = entity.value.to_lowercase();
                     if !entity.value.is_empty() && lower_text.contains(&lower_value) {
                         leaked.push(LeakedValue {
                             value: entity.value.clone(),
-                            entity_id: decision.entity_id,
+                            entity_id: record.entity_id,
                         });
                     } else {
                         passed += 1;
@@ -97,8 +97,8 @@ impl Operation for ValidationOp {
         };
 
         let result = Self::check(
-            &envelope.entities,
-            &envelope.audit.decisions,
+            &envelope.audit.entities,
+            &envelope.audit.entries,
             redacted_text.as_deref(),
         );
 

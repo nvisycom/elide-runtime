@@ -1,46 +1,38 @@
-//! Provenance: audit trails, redaction records, and per-file processing logs.
+//! Provenance: audit trails and per-file processing logs.
 //!
-//! This module is the single source of truth for all pipeline audit and
-//! decision types. It combines two concerns:
+//! This module is the single source of truth for all pipeline audit
+//! types:
 //!
-//! - **Execution logs** ([`Audit`], [`AuditEntry`]) — when operations
-//!   ran, how long they took, what models were used, token counts, etc.
-//!
-//! - **Redaction records** ([`RedactionDecision`], [`RedactionRecord`],
-//!   [`PolicyEvaluation`], [`RedactionMap`]) — what was redacted, why, and
-//!   human-review status.
-//!
-//! Together these form a complete audit trail for compliance and review.
+//! - [`AuditEntry`]: per-entity redaction record with strategy,
+//!   original/replacement values, and optional review.
+//! - [`PolicyEvaluation`]: aggregate outcome of evaluating a policy.
+//! - [`Audit`]: per-document container for entities and audit entries.
 
 mod entry;
-mod kind;
-
-mod action;
-mod record;
+mod evaluation;
+mod review;
 
 use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::action::{
-    InferenceAction, InferenceActionBuilder, LifecycleAction, LifecycleActionBuilder,
-    ProcessingAction, ProcessingActionBuilder,
+pub use self::entry::{
+    AuditEntry, AuditEntryBuilder, AuditEntryStatus, RedactionSpec, RedactionValue,
 };
-pub use self::entry::{AuditEntry, AuditEntryBuilder, AuditEntryBuilderError, AuditEntryStatus};
-pub use self::kind::{AuditEntryKind, InferenceKind, LifecycleKind, ProcessingKind};
-pub use self::record::{
-    PolicyEvaluation, RedactionDecision, RedactionMap, RedactionMapEntry, RedactionRecord,
-    ReviewDecision, ReviewStatus,
-};
-use crate::entity::ContentSource;
+pub use self::evaluation::PolicyEvaluation;
+pub use self::review::{ReviewDecision, ReviewStatus};
+use crate::entity::{ContentSource, Entities};
 
-/// A per-document audit trail combining execution logs with redaction records.
+fn entities_empty(entities: &Entities) -> bool {
+    entities.is_empty()
+}
+
+/// A per-document audit trail: detected entities and redaction entries.
 ///
 /// `Audit` is the single compliance artifact for a document. It tracks:
-/// - **What operations ran** — via [`entries`](Self::entries)
-/// - **What was redacted and how** — via [`decisions`](Self::decisions)
-/// - **The original values** — via [`records`](Self::records)
+/// - **What was found**: via [`entities`](Self::entities)
+/// - **What was redacted and how**: via [`entries`](Self::entries)
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "AuditBuilder",
@@ -59,17 +51,14 @@ pub struct Audit {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actor_id: Option<Uuid>,
-    /// Ordered list of processing entries.
+    /// Entities detected during the pipeline run.
     #[builder(default)]
+    #[serde(default, skip_serializing_if = "entities_empty")]
+    pub entities: Entities,
+    /// Per-entity redaction audit entries.
+    #[builder(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub entries: Vec<AuditEntry>,
-    /// Pipeline-facing redaction decisions (how each entity should be redacted).
-    #[builder(default)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub decisions: Vec<RedactionDecision>,
-    /// Audit-facing redaction records (original values, review status).
-    #[builder(default)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub records: Vec<RedactionRecord>,
 }
 
 impl Audit {
@@ -79,33 +68,22 @@ impl Audit {
             source,
             run_id: None,
             actor_id: None,
+            entities: Entities::new(),
             entries: Vec::new(),
-            decisions: Vec::new(),
-            records: Vec::new(),
         }
     }
 
-    /// Append a processing entry.
+    /// Append an audit entry.
     pub fn push_entry(&mut self, entry: AuditEntry) {
         self.entries.push(entry);
     }
 
-    /// Append a redaction decision.
-    pub fn push_decision(&mut self, decision: RedactionDecision) {
-        self.decisions.push(decision);
-    }
-
-    /// Append a redaction record.
-    pub fn push_record(&mut self, record: RedactionRecord) {
-        self.records.push(record);
-    }
-
-    /// Number of processing entries recorded.
+    /// Number of audit entries recorded.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    /// Returns `true` if no processing entries have been recorded.
+    /// Returns `true` if no audit entries have been recorded.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

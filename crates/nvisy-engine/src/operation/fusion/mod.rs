@@ -87,14 +87,14 @@ impl FusionOp {
 
 impl Operation for FusionOp {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
-        if !envelope.entities.is_empty() {
+        if !envelope.audit.entities.is_empty() {
             tracing::debug!(
                 target: TARGET,
-                entities = envelope.entities.len(),
+                entities = envelope.audit.entities.len(),
                 "running fusion",
             );
-            let entities = std::mem::take(&mut envelope.entities);
-            envelope.entities = self.fuse(entities);
+            let entities = std::mem::take(&mut envelope.audit.entities);
+            envelope.audit.entities = self.fuse(entities);
         }
         Ok(())
     }

@@ -479,7 +479,6 @@ async fn clone_envelope(envelope: &DocumentEnvelope) -> Result<DocumentEnvelope,
     Ok(DocumentEnvelope {
         document,
         metadata: envelope.metadata.clone(),
-        entities: envelope.entities.clone(),
         contexts: envelope.contexts.clone(),
         audit: envelope.audit.clone(),
         shared: Arc::clone(&envelope.shared),

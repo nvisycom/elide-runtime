@@ -36,10 +36,12 @@ pub struct Policy {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// Parent policy identifier for inheritance.
+    /// Default redaction strategy for entities that match no rule but
+    /// exceed the confidence threshold. If `None`, unmatched entities
+    /// are left unredacted.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub extends: Option<Uuid>,
+    pub default_strategy: Option<Strategy>,
     /// Ordered list of rules.
     #[builder(default)]
     pub rules: Vec<PolicyRule>,
@@ -58,8 +60,51 @@ impl Policy {
 }
 
 /// A collection of policies to apply during a pipeline run.
+///
+/// Provides convenience methods for accessing flattened rules and
+/// retention policies across all contained policies.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct Policies {
     /// The policies to evaluate, in order.
     pub policies: Vec<Policy>,
+}
+
+impl Policies {
+    /// All rules across all policies, sorted by priority (lower = higher precedence).
+    pub fn all_rules(&self) -> Vec<&PolicyRule> {
+        let mut rules: Vec<&PolicyRule> = self
+            .policies
+            .iter()
+            .flat_map(|p| p.rules.iter())
+            .collect();
+        rules.sort_by_key(|r| r.priority());
+        rules
+    }
+
+    /// All retention policies across all policies.
+    pub fn all_retention(&self) -> Vec<&RetentionPolicy> {
+        self.policies
+            .iter()
+            .flat_map(|p| p.retention.iter())
+            .collect()
+    }
+
+    /// The first default strategy found across policies, if any.
+    pub fn default_strategy(&self) -> Option<&Strategy> {
+        self.policies
+            .iter()
+            .find_map(|p| p.default_strategy.as_ref())
+    }
+
+    /// Look up the effective retention for a given scope.
+    ///
+    /// Returns the first matching retention policy found. If no policy
+    /// specifies retention for the scope, returns `None` (meaning
+    /// indefinite retention).
+    pub fn retention_for(&self, scope: RetentionScope) -> Option<&Retention> {
+        self.all_retention()
+            .into_iter()
+            .find(|rp| rp.scope == scope)
+            .map(|rp| &rp.retention)
+    }
 }

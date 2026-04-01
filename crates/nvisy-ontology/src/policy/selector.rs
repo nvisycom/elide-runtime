@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::entity::{EntityCategory, EntityKind};
+use crate::entity::{EntityCategory, EntityKind, EntitySensitivity};
 
 /// Criteria for selecting which entities a policy rule applies to.
 ///
@@ -19,6 +19,9 @@ pub struct EntitySelector {
     /// Specific entity kinds this selector matches. Empty means all kinds.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub entity_kinds: Vec<EntityKind>,
+    /// Sensitivity levels this selector matches. Empty means all levels.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sensitivities: Vec<EntitySensitivity>,
     /// Minimum detection confidence required. Entities below this threshold
     /// are not matched.
     #[serde(default = "default_confidence_threshold")]
@@ -34,6 +37,7 @@ impl Default for EntitySelector {
         Self {
             entity_categories: Vec::new(),
             entity_kinds: Vec::new(),
+            sensitivities: Vec::new(),
             confidence_threshold: default_confidence_threshold(),
         }
     }
@@ -51,6 +55,7 @@ impl EntitySelector {
         category: &EntityCategory,
         entity_kind: EntityKind,
         confidence: f64,
+        sensitivity: Option<EntitySensitivity>,
     ) -> bool {
         if confidence < self.confidence_threshold {
             return false;
@@ -60,6 +65,12 @@ impl EntitySelector {
         }
         if !self.entity_kinds.is_empty() && !self.entity_kinds.contains(&entity_kind) {
             return false;
+        }
+        if !self.sensitivities.is_empty() {
+            match sensitivity {
+                Some(s) if self.sensitivities.contains(&s) => {}
+                _ => return false,
+            }
         }
         true
     }

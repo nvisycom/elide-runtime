@@ -29,20 +29,17 @@ pub struct RedactionOp {
 impl RedactionOp {
     /// Build from graph config and shared context.
     pub fn new(cfg: &Redaction, shared: &Arc<SharedData>) -> Self {
-        let mut rules: Vec<PolicyRule> = shared
+        let rules: Vec<PolicyRule> = shared.policies.all_rules().into_iter().cloned().collect();
+
+        let default_spec = shared
             .policies
-            .policies
-            .iter()
-            .flat_map(|p| p.rules.clone())
-            .collect();
-        // Lower priority value = higher precedence. First match wins
-        // in find_matching_rule, so sorting ascending means the
-        // highest-precedence rule is checked first.
-        rules.sort_by_key(|r| r.priority());
+            .default_strategy()
+            .cloned()
+            .unwrap_or(Strategy::Text(TextStrategy::Mask { mask_char: '*' }));
 
         let evaluator = PolicyEvaluator {
             rules,
-            default_spec: Strategy::Text(TextStrategy::Mask { mask_char: '*' }),
+            default_spec,
             default_threshold: cfg.confidence_threshold.unwrap_or(0.5),
         };
 
@@ -149,16 +146,23 @@ impl PolicyEvaluator {
         records
     }
 
-    fn find_matching_rule(&self, entity: &Entity, document_labels: &[&str]) -> Option<&PolicyRule> {
+    fn find_matching_rule(
+        &self,
+        entity: &Entity,
+        document_labels: &[&str],
+    ) -> Option<&PolicyRule> {
         self.rules.iter().find(|rule| {
-            // Check entity selector match.
-            if !rule
-                .selector
-                .matches(&entity.category, entity.entity_kind, entity.confidence)
-            {
+            if !rule.enabled {
                 return false;
             }
-            // Check rule conditions (required document labels).
+            if !rule.selector.matches(
+                &entity.category,
+                entity.entity_kind,
+                entity.confidence,
+                entity.sensitivity,
+            ) {
+                return false;
+            }
             if let Some(ref conditions) = rule.conditions
                 && !conditions
                     .required_labels

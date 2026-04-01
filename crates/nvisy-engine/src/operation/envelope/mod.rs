@@ -90,16 +90,16 @@ impl DocumentEnvelope {
         self.audit.entities.len()
     }
 
-    /// Add detected entities, filtering out any that fall within
-    /// exclusion annotations.
+    /// Add detected entities, assigning sensitivity from entity kind
+    /// and filtering out any that fall within exclusion annotations.
     pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity>) {
-        if self.annotations.is_empty() {
-            self.audit.entities.extend(entities);
-        } else {
-            for entity in entities {
-                if !self.annotations.is_excluded(&entity) {
-                    self.audit.entities.push(entity);
-                }
+        for mut entity in entities {
+            // Assign sensitivity if not already set.
+            if entity.sensitivity.is_none() {
+                entity.sensitivity = Some(entity.entity_kind.sensitivity());
+            }
+            if self.annotations.is_empty() || !self.annotations.is_excluded(&entity) {
+                self.audit.entities.push(entity);
             }
         }
     }

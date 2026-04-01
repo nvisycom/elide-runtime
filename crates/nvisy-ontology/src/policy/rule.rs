@@ -59,6 +59,15 @@ pub struct PolicyRule {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conditions: Option<RuleCondition>,
+    /// Whether this rule is active. Disabled rules are skipped during
+    /// evaluation without needing to remove them from the policy.
+    #[builder(default = "true")]
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+}
+
+fn default_enabled() -> bool {
+    true
 }
 
 impl PolicyRule {

@@ -398,17 +398,13 @@ impl Engine {
         graph: &Graph,
         output: &mut EngineOutput,
     ) {
-        let retention_policies: Vec<_> = policies
-            .policies
-            .iter()
-            .flat_map(|p| p.retention.iter())
-            .collect();
+        let retention_policies = policies.all_retention();
 
         if retention_policies.is_empty() {
             return;
         }
 
-        for rp in &retention_policies {
+        for rp in retention_policies {
             if !matches!(rp.retention, Retention::ZeroRetention) {
                 continue;
             }

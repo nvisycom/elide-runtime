@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use nvisy_core::{Error, Result};
 use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;

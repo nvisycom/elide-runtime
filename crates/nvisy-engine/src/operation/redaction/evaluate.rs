@@ -121,13 +121,10 @@ impl PolicyEvaluator {
             let policy_rule_id = rule.map(|r| r.id);
 
             let mut builder = AuditEntry::builder()
-                .for_entity(entity_id, spec, &entity.value, entity.confidence)
+                .for_entity(entity_id, spec, &entity.value)
                 .with_parent_id(entity_id);
             if let Some(rule_id) = policy_rule_id {
                 builder = builder.with_policy_id(rule_id);
-            }
-            if let Some(ref loc) = entity.location {
-                builder = builder.with_location(loc.clone());
             }
             let record = builder.build().expect("all required fields set");
 

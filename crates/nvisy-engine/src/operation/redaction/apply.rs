@@ -313,7 +313,7 @@ mod tests {
 
     fn test_record(entity_id: Uuid, strategy: Strategy, original: &str) -> AuditEntry {
         AuditEntry::builder()
-            .for_entity(entity_id, strategy, original, 0.9)
+            .for_entity(entity_id, strategy, original)
             .build()
             .unwrap()
     }

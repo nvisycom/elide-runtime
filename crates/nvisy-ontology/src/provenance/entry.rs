@@ -8,7 +8,7 @@ use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use super::review::ReviewDecision;
-use crate::entity::{ContentSource, Location};
+use crate::entity::ContentSource;
 use crate::policy::Strategy;
 
 /// Outcome status of a redaction operation.
@@ -28,11 +28,15 @@ pub enum AuditEntryStatus {
     Pending,
 }
 
-/// A per-entity audit entry: what strategy was chosen, where it applies,
-/// what the original and replacement values are, and optional review.
+/// A per-entity audit entry: what strategy was chosen, what the
+/// original and replacement values are, and optional review.
 ///
 /// Created by the policy evaluator via the builder, then enriched by
 /// the applicator with the replacement value and `is_applied` flag.
+///
+/// Location and confidence are not stored here: they live on the
+/// corresponding [`Entity`](crate::entity::Entity) in
+/// [`Audit::entities`](super::Audit::entities), linked by `entity_id`.
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "AuditEntryBuilder",
@@ -61,9 +65,9 @@ pub struct AuditEntry {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub correlation_id: Option<Uuid>,
-    /// What to do and where: strategy, location, and application state.
+    /// What to do: strategy and application state.
     pub redaction: RedactionSpec,
-    /// Original and replacement values with detection confidence.
+    /// Original and replacement values.
     pub value: RedactionValue,
     /// Human review decision, if any.
     #[builder(default, setter(into = false))]
@@ -71,26 +75,26 @@ pub struct AuditEntry {
     pub review: Option<ReviewDecision>,
 }
 
-/// Strategy, location, and application state for a redaction.
+/// Strategy and application state for a redaction.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionSpec {
     /// Redaction strategy to apply.
     pub strategy: Strategy,
-    /// Modality-specific location of the entity being redacted.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub location: Option<Location>,
     /// Whether the redaction has been applied to the output content.
     pub is_applied: bool,
     /// Whether the original can be reconstructed from this redaction.
     pub reversible: bool,
 }
 
-/// Original and replacement values with detection confidence.
+/// Original and replacement values for a redaction.
+///
+/// `original` is the portion of the entity value that was redacted,
+/// which may differ from the full entity value depending on the policy.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionValue {
-    /// The original sensitive value.
+    /// The original sensitive value that was redacted.
     pub original: String,
     /// The replacement value after redaction was applied.
     ///
@@ -98,8 +102,6 @@ pub struct RedactionValue {
     /// removes the value entirely.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub replacement: Option<String>,
-    /// Detection confidence that led to this redaction.
-    pub confidence: f64,
 }
 
 impl AuditEntry {
@@ -115,42 +117,26 @@ impl AuditEntry {
 }
 
 impl AuditEntryBuilder {
-    /// Set the entity ID, strategy, original value, and confidence in one call.
+    /// Set the entity ID, strategy, and original value in one call.
     ///
-    /// This is the most common construction pattern: the policy evaluator
-    /// knows the entity, the strategy it matched, and the original value.
-    /// `reversible` is derived from the strategy, and `location` defaults
-    /// to `None` (set separately via [`with_location`](Self::with_location)).
+    /// `reversible` is derived from the strategy.
     pub fn for_entity(
         self,
         entity_id: Uuid,
         strategy: Strategy,
         original: impl Into<String>,
-        confidence: f64,
     ) -> Self {
         let reversible = strategy.is_reversible();
         self.with_entity_id(entity_id)
             .with_redaction(RedactionSpec {
                 strategy,
-                location: None,
                 is_applied: false,
                 reversible,
             })
             .with_value(RedactionValue {
                 original: original.into(),
                 replacement: None,
-                confidence,
             })
-    }
-
-    /// Set the modality-specific location on the redaction spec.
-    ///
-    /// Must be called after [`for_entity`](Self::for_entity).
-    pub fn with_location(mut self, location: Location) -> Self {
-        if let Some(ref mut spec) = self.redaction {
-            spec.location = Some(location);
-        }
-        self
     }
 
     /// Set the parent content source for lineage tracking.

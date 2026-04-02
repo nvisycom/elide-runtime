@@ -10,7 +10,12 @@ async fn upload_download_roundtrip() -> anyhow::Result<()> {
     let actor = fixtures::actor();
 
     let id = fixtures::upload_text(&engine, actor, "hello world").await;
-    let content = engine.download_content(actor, id).await?;
+    let content = engine
+        .registry()
+        .read_content(actor, id)
+        .await?
+        .content()
+        .await?;
     assert_eq!(content.as_str().unwrap(), "hello world");
     Ok(())
 }
@@ -21,7 +26,7 @@ async fn list_reflects_uploads() -> anyhow::Result<()> {
     let actor = fixtures::actor();
 
     let id = fixtures::upload_text(&engine, actor, "test").await;
-    let ids = engine.list_content(actor).await?;
+    let ids = engine.registry().list_content(actor).await?;
     assert!(ids.contains(&id));
     Ok(())
 }
@@ -32,9 +37,9 @@ async fn delete_removes_entry() -> anyhow::Result<()> {
     let actor = fixtures::actor();
 
     let id = fixtures::upload_text(&engine, actor, "to delete").await;
-    engine.delete_content(actor, id).await?;
+    engine.registry().unregister_content(actor, id).await?;
 
-    let ids = engine.list_content(actor).await?;
+    let ids = engine.registry().list_content(actor).await?;
     assert!(!ids.contains(&id));
     Ok(())
 }
@@ -48,9 +53,9 @@ async fn delete_all_removes_everything() -> anyhow::Result<()> {
         fixtures::upload_text(&engine, actor, &format!("doc {i}")).await;
     }
 
-    let removed = engine.delete_all_content(actor).await?;
+    let removed = engine.registry().unregister_all_content(actor).await?;
     assert_eq!(removed, 3);
-    assert!(engine.list_content(actor).await?.is_empty());
+    assert!(engine.registry().list_content(actor).await?.is_empty());
     Ok(())
 }
 
@@ -59,7 +64,7 @@ async fn download_nonexistent_returns_error() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
-    let result = engine.download_content(actor, Uuid::new_v4()).await;
+    let result = engine.registry().read_content(actor, Uuid::new_v4()).await;
     assert!(result.is_err());
     Ok(())
 }
@@ -69,7 +74,10 @@ async fn delete_nonexistent_returns_error() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
-    let result = engine.delete_content(actor, Uuid::new_v4()).await;
+    let result = engine
+        .registry()
+        .unregister_content(actor, Uuid::new_v4())
+        .await;
     assert!(result.is_err());
     Ok(())
 }
@@ -78,12 +86,12 @@ async fn delete_nonexistent_returns_error() -> anyhow::Result<()> {
 async fn actors_cannot_see_each_others_content() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor_a = fixtures::actor();
-    let actor_b = fixtures::actor();
+    let actor_b = fixtures::other_actor();
 
     let id = fixtures::upload_text(&engine, actor_a, "secret").await;
 
-    assert!(engine.list_content(actor_a).await?.contains(&id));
-    assert!(!engine.list_content(actor_b).await?.contains(&id));
+    assert!(engine.registry().list_content(actor_a).await?.contains(&id));
+    assert!(!engine.registry().list_content(actor_b).await?.contains(&id));
     Ok(())
 }
 
@@ -91,10 +99,10 @@ async fn actors_cannot_see_each_others_content() -> anyhow::Result<()> {
 async fn actors_cannot_download_each_others_content() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor_a = fixtures::actor();
-    let actor_b = fixtures::actor();
+    let actor_b = fixtures::other_actor();
 
     let id = fixtures::upload_text(&engine, actor_a, "private").await;
-    let result = engine.download_content(actor_b, id).await;
+    let result = engine.registry().read_content(actor_b, id).await;
     assert!(result.is_err());
     Ok(())
 }

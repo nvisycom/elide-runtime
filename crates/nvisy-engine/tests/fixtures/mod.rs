@@ -17,12 +17,18 @@ pub fn actor() -> Uuid {
     Uuid::parse_str("00000000-0000-7000-8000-000000000001").unwrap()
 }
 
+/// Returns a second fixed actor UUID for isolation tests.
+pub fn other_actor() -> Uuid {
+    Uuid::parse_str("00000000-0000-7000-8000-000000000002").unwrap()
+}
+
 /// Uploads text content and returns its content ID.
 pub async fn upload_text(engine: &Engine, actor_id: Uuid, text: &str) -> Uuid {
     let data = ContentData::from_text(ContentSource::new(), text);
     let meta = ContentMetadata::new().with_content_type("text/plain");
     let content = Content::with_metadata(data, meta);
-    engine.upload_content(actor_id, content).await.unwrap()
+    let content = engine.registry().register_content(actor_id, content).await;
+    content.unwrap().content_source().as_uuid()
 }
 
 /// Builds a simple import→export graph for the given content ID.
@@ -47,8 +53,11 @@ pub fn import_export_graph(content_id: Uuid) -> Graph {
                 }),
             ),
         ],
-        edges: vec![GraphEdge::new(import_id, export_id)],
-        ..Default::default()
+        edges: vec![GraphEdge {
+            source: import_id,
+            target: export_id,
+        }],
+        concurrency: None,
     }
 }
 

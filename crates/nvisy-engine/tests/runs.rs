@@ -213,7 +213,7 @@ async fn delete_all_runs_clears_finished() -> anyhow::Result<()> {
 async fn runs_isolated_between_actors() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor_a = fixtures::actor();
-    let actor_b = fixtures::actor();
+    let actor_b = fixtures::other_actor();
 
     let graph = nvisy_ontology::workflow::Graph::new(vec![], vec![]);
     let _ = engine.run(fixtures::engine_input(actor_a, graph)).await;

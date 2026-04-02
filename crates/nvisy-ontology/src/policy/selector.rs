@@ -3,14 +3,14 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::entity::{EntityCategory, EntityKind, EntitySensitivity};
+use crate::entity::{Entity, EntityCategory, EntityKind, EntitySensitivity};
 
 /// Criteria for selecting which entities a policy rule applies to.
 ///
 /// All fields use "empty means all" semantics: an empty `categories` list
 /// matches every category, an empty `entity_types` list matches every type,
 /// and so on. When multiple fields are set, they are combined with AND logic.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EntitySelector {
     /// Entity categories this selector matches. Empty means all categories.
@@ -23,24 +23,9 @@ pub struct EntitySelector {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sensitivities: Vec<EntitySensitivity>,
     /// Minimum detection confidence required. Entities below this threshold
-    /// are not matched.
-    #[serde(default = "default_confidence_threshold")]
-    pub confidence_threshold: f64,
-}
-
-fn default_confidence_threshold() -> f64 {
-    0.0
-}
-
-impl Default for EntitySelector {
-    fn default() -> Self {
-        Self {
-            entity_categories: Vec::new(),
-            entity_kinds: Vec::new(),
-            sensitivities: Vec::new(),
-            confidence_threshold: default_confidence_threshold(),
-        }
-    }
+    /// are not matched. `None` means no threshold (matches any confidence).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confidence_threshold: Option<f64>,
 }
 
 impl EntitySelector {
@@ -49,29 +34,27 @@ impl EntitySelector {
         Self::default()
     }
 
-    /// Returns `true` if the given entity properties match this selector.
-    pub fn matches(
-        &self,
-        category: &EntityCategory,
-        entity_kind: EntityKind,
-        confidence: f64,
-        sensitivity: Option<EntitySensitivity>,
-    ) -> bool {
-        if confidence < self.confidence_threshold {
+    /// Returns `true` if the given entity matches this selector.
+    pub fn matches(&self, entity: &Entity) -> bool {
+        if let Some(threshold) = self.confidence_threshold
+            && entity.confidence < threshold
+        {
             return false;
         }
-        if !self.entity_categories.is_empty() && !self.entity_categories.contains(category) {
+        if !self.entity_categories.is_empty() && !self.entity_categories.contains(&entity.category)
+        {
             return false;
         }
-        if !self.entity_kinds.is_empty() && !self.entity_kinds.contains(&entity_kind) {
+        if !self.entity_kinds.is_empty() && !self.entity_kinds.contains(&entity.entity_kind) {
             return false;
         }
         if !self.sensitivities.is_empty() {
-            match sensitivity {
+            match entity.sensitivity {
                 Some(s) if self.sensitivities.contains(&s) => {}
                 _ => return false,
             }
         }
+
         true
     }
 }

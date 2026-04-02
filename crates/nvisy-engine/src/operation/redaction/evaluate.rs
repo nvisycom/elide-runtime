@@ -8,10 +8,11 @@
 //! [`GenerateContextOp`]: crate::operation::GenerateContextOp
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Entities, Entity, Location};
-use nvisy_ontology::policy::{PolicyRule, RuleAction, Strategy, TextStrategy};
+use nvisy_ontology::entity::{Entities, Entity};
+use nvisy_ontology::policy::{RuleAction, RuleCondition, Strategy, StrategyPolicy, TextStrategy};
 use nvisy_ontology::provenance::AuditEntry;
 use nvisy_ontology::workflow::Redaction;
+use uuid::Uuid;
 
 use super::apply::RedactionApplicator;
 use crate::operation::{DocumentEnvelope, Operation};
@@ -19,9 +20,6 @@ use crate::operation::{DocumentEnvelope, Operation};
 const TARGET: &str = "nvisy_engine::op::redaction";
 
 /// Redaction operation: evaluates policies and applies redaction instructions.
-///
-/// Stores only the per-node config (confidence threshold). Policies are
-/// read from the envelope's shared state at execution time — no cloning.
 pub struct RedactionOp {
     default_threshold: f64,
 }
@@ -42,7 +40,7 @@ impl Operation for RedactionOp {
         }
 
         let policies = &envelope.shared.policies;
-        let rules = policies.all_rules();
+        let strategies = policies.all_strategies();
         let default_spec = policies
             .default_strategy()
             .cloned()
@@ -51,19 +49,19 @@ impl Operation for RedactionOp {
         tracing::debug!(
             target: TARGET,
             entities = envelope.audit.entities.len(),
-            rules = rules.len(),
+            strategies = strategies.len(),
             "evaluating redaction policies",
         );
 
         let document_labels = envelope.annotations.document_labels();
-        let records = evaluate(
+        let entries = evaluate(
             &envelope.audit.entities,
-            &rules,
+            &strategies,
             &default_spec,
             self.default_threshold,
             &document_labels,
         );
-        envelope.audit.entries.extend(records);
+        envelope.audit.entries.extend(entries);
 
         RedactionApplicator::new(envelope).apply().await?;
 
@@ -71,28 +69,28 @@ impl Operation for RedactionOp {
     }
 }
 
-/// Evaluate policy rules against entities, producing audit entries.
+/// Evaluate strategy policies against entities, producing audit entries.
 fn evaluate(
     entities: &Entities,
-    rules: &[&PolicyRule],
+    strategies: &[(Uuid, &StrategyPolicy)],
     default_spec: &Strategy,
     default_threshold: f64,
     document_labels: &[&str],
 ) -> Vec<AuditEntry> {
-    let mut records = Vec::new();
+    let mut entries = Vec::new();
 
     for entity in entities {
-        let rule = find_matching_rule(rules, entity, document_labels);
+        let matched = find_matching_strategy(strategies, entity, document_labels);
 
-        let spec = match rule {
-            Some(r) => match &r.action {
-                RuleAction::Redact { strategy } => strategy.clone(),
+        let (spec, policy_id) = match matched {
+            Some((policy_id, strategy)) => match &strategy.action {
+                RuleAction::Redact { strategy } => (strategy.clone(), Some(policy_id)),
                 _ => {
                     tracing::debug!(
                         target: TARGET,
                         entity_id = %entity.id,
-                        rule_id = %r.id,
-                        action = ?r.action,
+                        %policy_id,
+                        action = ?strategy.action,
                         "non-redact policy action",
                     );
                     continue;
@@ -102,73 +100,62 @@ fn evaluate(
                 if entity.confidence < default_threshold {
                     continue;
                 }
-                // Default strategy only applies to text entities.
-                // Non-text entities without a matching rule are skipped.
-                if !matches!(entity.location, Some(Location::Text(_))) {
-                    continue;
-                }
-                default_spec.clone()
+                (default_spec.clone(), None)
             }
         };
 
         let entity_id = entity.id;
-        let policy_rule_id = rule.map(|r| r.id);
-
         let mut builder = AuditEntry::builder().for_entity(entity_id, spec, &entity.value);
-        if let Some(rule_id) = policy_rule_id {
-            builder = builder.with_policy_id(rule_id);
+        if let Some(id) = policy_id {
+            builder = builder.with_policy_id(id);
         }
-        let record = builder.build().expect("all required fields set");
+        let entry = builder.build().expect("all required fields set");
 
         tracing::trace!(
             target: TARGET,
             %entity_id,
-            strategy = ?record.redaction.strategy,
-            "produced redaction record",
+            strategy = ?entry.redaction.strategy,
+            "produced audit entry",
         );
 
-        records.push(record);
+        entries.push(entry);
     }
 
     tracing::info!(
         target: TARGET,
-        records = records.len(),
+        entries = entries.len(),
         "policy evaluation complete",
     );
 
-    records
+    entries
 }
 
-fn find_matching_rule<'a>(
-    rules: &[&'a PolicyRule],
+fn find_matching_strategy<'a>(
+    strategies: &[(Uuid, &'a StrategyPolicy)],
     entity: &Entity,
     document_labels: &[&str],
-) -> Option<&'a PolicyRule> {
-    rules
+) -> Option<(Uuid, &'a StrategyPolicy)> {
+    strategies
         .iter()
-        .find(|rule| {
-            if !rule.enabled {
+        .find(|(_, strategy)| {
+            if !strategy.enabled {
                 return false;
             }
-            if !rule.selector.matches(
-                &entity.category,
-                entity.entity_kind,
-                entity.confidence,
-                entity.sensitivity,
-            ) {
+            if !strategy.selector.matches(entity) {
                 return false;
             }
-            if let Some(ref conditions) = rule.conditions
-                && !conditions
-                    .required_labels
-                    .iter()
-                    .all(|required| document_labels.contains(&required.as_str()))
-            {
-                return false;
+            for condition in &strategy.conditions {
+                if let RuleCondition::Labels { labels } = condition
+                    && !labels
+                        .iter()
+                        .all(|label| document_labels.contains(&label.as_str()))
+                {
+                    return false;
+                }
             }
             true
         })
-        .copied()
+        .map(|&(id, s)| (id, s))
 }
 
 #[cfg(test)]
@@ -201,35 +188,35 @@ mod tests {
     }
 
     #[test]
-    fn evaluator_skips_below_threshold() {
+    fn skips_below_threshold() {
         let entities: Entities = vec![test_entity("John", 0.5)].into();
-        let records = evaluate(&entities, &[], &default_spec(), 0.8, &[]);
-        assert!(records.is_empty());
+        let entries = evaluate(&entities, &[], &default_spec(), 0.8, &[]);
+        assert!(entries.is_empty());
     }
 
     #[test]
-    fn evaluator_produces_record_above_threshold() {
+    fn produces_entry_above_threshold() {
         let entities: Entities = vec![test_entity("John", 0.9)].into();
-        let records = evaluate(&entities, &[], &default_spec(), 0.5, &[]);
-        assert_eq!(records.len(), 1);
-        assert!(!records[0].redaction.is_applied);
+        let entries = evaluate(&entities, &[], &default_spec(), 0.5, &[]);
+        assert_eq!(entries.len(), 1);
+        assert!(!entries[0].redaction.is_applied);
     }
 
     #[test]
-    fn evaluator_uses_default_strategy_when_no_rules() {
+    fn uses_default_strategy_when_no_rules() {
         let spec = Strategy::Text(TextStrategy::Remove);
         let entities: Entities = vec![test_entity("secret", 0.9)].into();
-        let records = evaluate(&entities, &[], &spec, 0.0, &[]);
+        let entries = evaluate(&entities, &[], &spec, 0.0, &[]);
         assert_eq!(
-            records[0].redaction.strategy,
+            entries[0].redaction.strategy,
             Strategy::Text(TextStrategy::Remove)
         );
     }
 
     #[test]
-    fn record_captures_original_value() {
+    fn captures_original_value() {
         let entities: Entities = vec![test_entity("secret-value", 0.9)].into();
-        let records = evaluate(&entities, &[], &default_spec(), 0.0, &[]);
-        assert_eq!(records[0].value.original, "secret-value");
+        let entries = evaluate(&entities, &[], &default_spec(), 0.0, &[]);
+        assert_eq!(entries[0].value.original, "secret-value");
     }
 }

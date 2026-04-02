@@ -3,15 +3,13 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::math::Color;
+
 const DEFAULT_BLUR_SIGMA: f32 = 15.0;
-const DEFAULT_BLOCK_COLOR: [u8; 4] = [0, 0, 0, 255];
 const DEFAULT_PIXELATE_BLOCK_SIZE: u32 = 10;
 
 fn default_sigma() -> f32 {
     DEFAULT_BLUR_SIGMA
-}
-fn default_block_color() -> [u8; 4] {
-    DEFAULT_BLOCK_COLOR
 }
 fn default_block_size() -> u32 {
     DEFAULT_PIXELATE_BLOCK_SIZE
@@ -31,9 +29,9 @@ pub enum ImageStrategy {
     },
     /// Overlay an opaque block.
     Block {
-        /// RGBA color for the block.
-        #[serde(default = "default_block_color")]
-        color: [u8; 4],
+        /// Color for the block.
+        #[serde(default)]
+        color: Color,
     },
     /// Apply pixelation (mosaic).
     Pixelate {

@@ -50,14 +50,11 @@ impl Retention {
     }
 }
 
-/// A retention policy governing how long a class of data is kept.
+/// A single retention rule: scope + duration.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RetentionPolicy {
-    /// What class of data this policy applies to.
+    /// What class of data this applies to.
     pub scope: RetentionScope,
     /// How long to retain data.
     pub retention: Retention,
-    /// Description of the retention policy.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
 }

@@ -328,7 +328,7 @@ impl Engine {
         }
 
         // Keep a clone for retention enforcement after the run.
-        let retention_policies = policies
+        let retention_rules = policies
             .all_retention()
             .into_iter()
             .cloned()
@@ -407,13 +407,8 @@ impl Engine {
         let mut output = EngineOutput { run_id, audits };
 
         // Enforce retention policies from all submitted policies.
-        self.apply_retention(
-            input.actor_id,
-            &retention_policies,
-            &input.graph,
-            &mut output,
-        )
-        .await;
+        self.apply_retention(input.actor_id, &retention_rules, &input.graph, &mut output)
+            .await;
 
         let status = run_output.run_status();
         self.inner
@@ -437,15 +432,15 @@ impl Engine {
     async fn apply_retention(
         &self,
         actor_id: Uuid,
-        retention_policies: &[RetentionPolicy],
+        retention_rules: &[RetentionPolicy],
         graph: &Graph,
         output: &mut EngineOutput,
     ) {
-        if retention_policies.is_empty() {
+        if retention_rules.is_empty() {
             return;
         }
 
-        for rp in retention_policies {
+        for rp in retention_rules {
             if !matches!(rp.retention, Retention::ZeroRetention) {
                 continue;
             }

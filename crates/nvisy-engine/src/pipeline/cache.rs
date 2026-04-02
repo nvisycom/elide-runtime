@@ -55,7 +55,7 @@ impl ContextCache {
     /// logged and skipped.
     ///
     /// The write lock is only held for the brief insert/increment
-    /// phase — registry I/O happens outside the lock.
+    /// phase: registry I/O happens outside the lock.
     pub async fn acquire(
         &self,
         actor_id: Uuid,
@@ -203,7 +203,7 @@ impl Drop for ContextGuard {
         }
         let cache = self.cache.clone();
         let ids = std::mem::take(&mut self.ids);
-        // Spawn a task to release asynchronously — Drop is synchronous.
+        // Spawn a task to release asynchronously: Drop is synchronous.
         tokio::spawn(async move {
             cache.release(&ids).await;
         });

@@ -4,9 +4,9 @@
 //! It matches on [`GraphNodeKind`], constructs the appropriate
 //! [`Operation`], and drives the envelope processing loop:
 //!
-//! 1. **Receive** — pull `DocumentEnvelope` from upstream MPSC channels.
-//! 2. **Call** — invoke `operation.execute(&mut envelope)`.
-//! 3. **Send** — forward the envelope to all downstream channels.
+//! 1. **Receive**: pull `DocumentEnvelope` from upstream MPSC channels.
+//! 2. **Call**: invoke `operation.execute(&mut envelope)`.
+//! 3. **Send**: forward the envelope to all downstream channels.
 //!
 //! [`NodeOutput`] and [`RunOutput`] carry per-node and per-run results
 //! back to the [orchestrator](super::orchestrator) and
@@ -22,15 +22,12 @@ use nvisy_core::{Error, ErrorKind};
 use nvisy_ontology::workflow::{
     ExportFile, GraphNode, GraphNodeKind, ImportFile, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
 };
-use nvisy_provider::http::HttpClient;
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 
-use super::config::RuntimeConfig;
+use super::orchestrator::RunContext;
 use super::plan::ResolvedNode;
 use super::runs::RunStatus;
 use crate::graph::{RetryExt, TimeoutExt};
-use crate::operation::envelope::SharedData;
 use crate::operation::{
     AudialExtractionOp, DocumentEnvelope, EntityRecognitionOp, ExportFileOp, FusionOp,
     GenerateContextOp, ImportFileOp, LoadContextOp, Operation, PatternRecognitionOp, RedactionOp,
@@ -87,31 +84,17 @@ impl RunOutput {
     }
 }
 
-/// Per-node execution context extracted from the run-level
-/// [`RunContext`](super::orchestrator::RunContext).
-pub(super) struct NodeContext {
-    /// Shared run-wide state (run ID, actor, registry, policies, key provider).
-    pub shared: Arc<SharedData>,
-    /// Token to signal cancellation to this node.
-    pub cancel: CancellationToken,
-    /// Effective configuration after merging per-request overrides.
-    pub config: Arc<RuntimeConfig>,
-    /// Shared HTTP client for downstream API calls.
-    pub http_client: HttpClient,
-}
-
 /// Executes a single [`ResolvedNode`] within a pipeline run.
 ///
-/// The orchestrator creates one executor per node task.
+/// Holds a shared reference to the run context. The orchestrator
+/// creates one executor per node task.
 pub(super) struct NodeExecutor {
-    ctx: NodeContext,
-    /// When `true`, skip post-redaction phases (validation, export).
-    dry_run: bool,
+    ctx: Arc<RunContext>,
 }
 
 impl NodeExecutor {
-    pub fn new(ctx: NodeContext, dry_run: bool) -> Self {
-        Self { ctx, dry_run }
+    pub fn new(ctx: Arc<RunContext>) -> Self {
+        Self { ctx }
     }
 
     /// Resolve the effective retry policy: node-level wins, then engine default.
@@ -139,7 +122,7 @@ impl NodeExecutor {
 
         // In dry-run mode, skip validation and export phases.
         // Forward envelopes so downstream nodes (if any) still unblock.
-        if self.dry_run && resolved.node.kind.is_post_redaction() {
+        if self.ctx.dry_run && resolved.node.kind.is_post_redaction() {
             tracing::debug!(
                 target: TARGET,
                 node = %resolved.node.kind,

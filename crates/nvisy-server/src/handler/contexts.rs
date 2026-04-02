@@ -21,7 +21,7 @@ use aide::transform::TransformOperation;
 use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::Engine;
+use nvisy_engine::registry::Registry;
 use nvisy_ontology::context::Context;
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
@@ -43,11 +43,15 @@ const TARGET: &str = "nvisy_server::contexts";
     fields(%actor_id),
 )]
 async fn upload_context(
-    State(engine): State<Engine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewContext>,
 ) -> Result<(StatusCode, Json<ContextId>)> {
-    let id = engine.upload_context(actor_id, req.context).await?;
+    let id = registry
+        .register_context(actor_id, req.context)
+        .await?
+        .source()
+        .as_uuid();
 
     tracing::info!(target: TARGET, %id, "context uploaded");
 
@@ -71,14 +75,16 @@ fn upload_context_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id),
 )]
 async fn list_contexts(
-    State(engine): State<Engine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<ContextList>> {
-    let ids = engine.list_contexts(actor_id).await?;
+    let ids = registry.list_contexts(actor_id).await?;
     let mut entries = Vec::with_capacity(ids.len());
     for id in ids {
-        if let Ok(ctx) = engine.download_context(actor_id, id).await {
+        if let Ok(handle) = registry.read_context(actor_id, id).await
+            && let Ok(ctx) = handle.context().await
+        {
             entries.push(ContextEntry {
                 id,
                 name: ctx.name,
@@ -105,11 +111,11 @@ fn list_contexts_docs(op: TransformOperation) -> TransformOperation {
     fields(%id, %actor_id),
 )]
 async fn download_context(
-    State(engine): State<Engine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Path(ContextPath { id }): Path<ContextPath>,
 ) -> Result<Json<Context>> {
-    let context = engine.download_context(actor_id, id).await?;
+    let context = registry.read_context(actor_id, id).await?.context().await?;
     tracing::debug!(target: TARGET, "context downloaded");
     Ok(Json(context))
 }
@@ -128,11 +134,11 @@ fn download_context_docs(op: TransformOperation) -> TransformOperation {
     fields(%id, %actor_id),
 )]
 async fn delete_context(
-    State(engine): State<Engine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Path(ContextPath { id }): Path<ContextPath>,
 ) -> Result<StatusCode> {
-    engine.delete_context(actor_id, id).await?;
+    registry.unregister_context(actor_id, id).await?;
     tracing::info!(target: TARGET, "context deleted");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -151,10 +157,10 @@ fn delete_context_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id),
 )]
 async fn delete_all_contexts(
-    State(engine): State<Engine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
-    let deleted = engine.delete_all_contexts(actor_id).await?;
+    let deleted = registry.unregister_all_contexts(actor_id).await?;
     tracing::info!(target: TARGET, deleted, "all contexts deleted");
     Ok(StatusCode::NO_CONTENT)
 }

@@ -22,7 +22,7 @@ use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_core::content::{Content, ContentData, ContentMetadata};
-use nvisy_engine::pipeline::Engine;
+use nvisy_engine::registry::Registry;
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 
@@ -44,7 +44,7 @@ const TARGET: &str = "nvisy_server::files";
     fields(%actor_id, filename = req.filename.as_deref()),
 )]
 async fn upload_file(
-    State(engine): State<Engine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewFile>,
 ) -> Result<(StatusCode, Json<FileId>)> {
@@ -65,7 +65,11 @@ async fn upload_file(
     }
 
     let content = Content::with_metadata(content_data, metadata);
-    let id = engine.upload_content(actor_id, content).await?;
+    let id = registry
+        .register_content(actor_id, content)
+        .await?
+        .content_source()
+        .as_uuid();
 
     tracing::info!(
         target: TARGET,
@@ -95,11 +99,14 @@ fn upload_file_docs(op: TransformOperation) -> TransformOperation {
     fields(%id, %actor_id),
 )]
 async fn download_file(
-    State(engine): State<Engine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Path(ContentPath { id }): Path<ContentPath>,
 ) -> Result<Json<File>> {
-    let content = engine.download_content(actor_id, id).await?;
+    let handle = registry.read_content(actor_id, id).await?;
+    let data = handle.content_data().await?;
+    let metadata = handle.metadata().await?;
+    let content = Content::with_metadata(data, metadata);
 
     tracing::debug!(target: TARGET, size = content.size(), "file downloaded");
 
@@ -128,11 +135,11 @@ fn download_file_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id),
 )]
 async fn list_files(
-    State(engine): State<Engine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<FileList>> {
-    let entries = engine.list_content_with_metadata(actor_id).await?;
+    let entries = registry.list_content_with_metadata(actor_id).await?;
     let summaries: Vec<FileEntry> = entries
         .into_iter()
         .map(|(id, meta)| FileEntry {
@@ -162,11 +169,11 @@ fn list_files_docs(op: TransformOperation) -> TransformOperation {
     fields(%id, %actor_id),
 )]
 async fn delete_file(
-    State(engine): State<Engine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Path(ContentPath { id }): Path<ContentPath>,
 ) -> Result<StatusCode> {
-    engine.delete_content(actor_id, id).await?;
+    registry.unregister_content(actor_id, id).await?;
     tracing::info!(target: TARGET, "file deleted");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -185,10 +192,10 @@ fn delete_file_docs(op: TransformOperation) -> TransformOperation {
     fields(%actor_id),
 )]
 async fn delete_all_files(
-    State(engine): State<Engine>,
+    State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
 ) -> Result<StatusCode> {
-    let deleted = engine.delete_all_content(actor_id).await?;
+    let deleted = registry.unregister_all_content(actor_id).await?;
     tracing::info!(target: TARGET, deleted, "all files deleted");
     Ok(StatusCode::NO_CONTENT)
 }

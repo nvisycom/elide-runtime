@@ -1,11 +1,13 @@
 //! [`Registry`]: actor-scoped content and context store backed by fjall.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions, KvSeparationOptions};
 use nvisy_core::content::{Content, ContentMetadata, ContentSource};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::context::Context;
+use nvisy_ontology::policy::Policy;
 use uuid::Uuid;
 
 use super::content::ContentHandle;
@@ -25,33 +27,28 @@ pub(crate) fn composite_key(actor_id: Uuid, resource_id: Uuid) -> [u8; 32] {
     key
 }
 
-/// Actor-scoped content and context store backed by fjall.
+/// Actor-scoped content, context, and policy store backed by fjall.
 ///
-/// Stores content data, content metadata, and contexts in three keyspaces.
-/// Every key is a 32-byte composite of `[actor_id][resource_id]`, so all
-/// operations are inherently scoped to a single actor.
-///
-/// All handles are internally `Arc`-wrapped, making `Registry` cheap to
-/// clone and safe to share across threads.
+/// Cheaply cloneable (`Arc` internally). All operations are scoped to
+/// a single actor via 32-byte composite keys `[actor_id][resource_id]`.
 #[derive(Clone)]
 pub struct Registry {
-    /// Filesystem path where the fjall database is stored.
+    inner: Arc<RegistryInner>,
+}
+
+struct RegistryInner {
     base_dir: PathBuf,
-    /// Underlying fjall database handle.
     db: Database,
-    /// Keyspace for raw content bytes (blob-separated).
     content_ks: Keyspace,
-    /// Keyspace for serialized content metadata.
     content_meta_ks: Keyspace,
-    /// Keyspace for serialized detection contexts.
     contexts_ks: Keyspace,
+    policies_ks: Keyspace,
 }
 
 impl std::fmt::Debug for Registry {
-    /// Formats the registry for debugging, showing only the base directory.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Registry")
-            .field("base_dir", &self.base_dir)
+            .field("base_dir", &self.inner.base_dir)
             .finish_non_exhaustive()
     }
 }
@@ -107,14 +104,25 @@ impl Registry {
                     .with_source(err)
             })?;
 
+        let policies_ks = db
+            .keyspace("policies", KeyspaceCreateOptions::default)
+            .map_err(|err| {
+                Error::new(ErrorKind::Internal, "failed to open policies keyspace")
+                    .with_component(COMPONENT)
+                    .with_source(err)
+            })?;
+
         tracing::debug!(target: TARGET, "registry opened");
 
         Ok(Self {
-            base_dir,
-            db,
-            content_ks,
-            content_meta_ks,
-            contexts_ks,
+            inner: Arc::new(RegistryInner {
+                base_dir,
+                db,
+                content_ks,
+                content_meta_ks,
+                contexts_ks,
+                policies_ks,
+            }),
         })
     }
 
@@ -165,9 +173,9 @@ impl Registry {
             .with_source(err)
         })?;
 
-        let content_ks = self.content_ks.clone();
-        let meta_ks = self.content_meta_ks.clone();
-        let db = self.db.clone();
+        let content_ks = self.inner.content_ks.clone();
+        let meta_ks = self.inner.content_meta_ks.clone();
+        let db = self.inner.db.clone();
 
         tokio::task::spawn_blocking(move || -> Result<()> {
             content_ks.insert(key, &data).map_err(|err| {
@@ -203,8 +211,8 @@ impl Registry {
         Ok(ContentHandle::new(
             actor_id,
             content_source,
-            self.content_ks.clone(),
-            self.content_meta_ks.clone(),
+            self.inner.content_ks.clone(),
+            self.inner.content_meta_ks.clone(),
         ))
     }
 
@@ -221,7 +229,7 @@ impl Registry {
     )]
     pub async fn read_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<ContentHandle> {
         let key = composite_key(actor_id, content_id);
-        let ks = self.content_ks.clone();
+        let ks = self.inner.content_ks.clone();
 
         let exists = tokio::task::spawn_blocking(move || -> Result<bool> {
             ks.contains_key(key).map_err(|err| {
@@ -249,8 +257,8 @@ impl Registry {
         Ok(ContentHandle::new(
             actor_id,
             source,
-            self.content_ks.clone(),
-            self.content_meta_ks.clone(),
+            self.inner.content_ks.clone(),
+            self.inner.content_meta_ks.clone(),
         ))
     }
 
@@ -267,9 +275,9 @@ impl Registry {
     )]
     pub async fn unregister_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<()> {
         let key = composite_key(actor_id, content_id);
-        let content_ks = self.content_ks.clone();
-        let meta_ks = self.content_meta_ks.clone();
-        let db = self.db.clone();
+        let content_ks = self.inner.content_ks.clone();
+        let meta_ks = self.inner.content_meta_ks.clone();
+        let db = self.inner.db.clone();
 
         tokio::task::spawn_blocking(move || -> Result<()> {
             let exists = content_ks.contains_key(key).map_err(|err| {
@@ -322,9 +330,9 @@ impl Registry {
     )]
     pub async fn unregister_all_content(&self, actor_id: Uuid) -> Result<usize> {
         let prefix = actor_id.as_bytes().to_vec();
-        let content_ks = self.content_ks.clone();
-        let meta_ks = self.content_meta_ks.clone();
-        let db = self.db.clone();
+        let content_ks = self.inner.content_ks.clone();
+        let meta_ks = self.inner.content_meta_ks.clone();
+        let db = self.inner.db.clone();
 
         let count = tokio::task::spawn_blocking(move || -> Result<usize> {
             let keys = collect_prefix_keys(&content_ks, &prefix)?;
@@ -373,7 +381,7 @@ impl Registry {
     )]
     pub async fn list_content(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
         let prefix = actor_id.as_bytes().to_vec();
-        let ks = self.content_ks.clone();
+        let ks = self.inner.content_ks.clone();
 
         tokio::task::spawn_blocking(move || extract_resource_ids(&ks, &prefix))
             .await
@@ -396,7 +404,7 @@ impl Registry {
         actor_id: Uuid,
     ) -> Result<Vec<(Uuid, ContentMetadata)>> {
         let prefix = actor_id.as_bytes().to_vec();
-        let meta_ks = self.content_meta_ks.clone();
+        let meta_ks = self.inner.content_meta_ks.clone();
 
         tokio::task::spawn_blocking(move || {
             let ids = extract_resource_ids(&meta_ks, &prefix)?;
@@ -455,8 +463,8 @@ impl Registry {
                 .with_source(err)
         })?;
 
-        let ks = self.contexts_ks.clone();
-        let db = self.db.clone();
+        let ks = self.inner.contexts_ks.clone();
+        let db = self.inner.db.clone();
 
         tokio::task::spawn_blocking(move || -> Result<()> {
             ks.insert(key, &json_bytes).map_err(|err| {
@@ -487,7 +495,7 @@ impl Registry {
         Ok(ContextHandle::new(
             actor_id,
             source,
-            self.contexts_ks.clone(),
+            self.inner.contexts_ks.clone(),
         ))
     }
 
@@ -504,7 +512,7 @@ impl Registry {
     )]
     pub async fn read_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<ContextHandle> {
         let key = composite_key(actor_id, context_id);
-        let ks = self.contexts_ks.clone();
+        let ks = self.inner.contexts_ks.clone();
 
         let exists = tokio::task::spawn_blocking(move || -> Result<bool> {
             ks.contains_key(key).map_err(|err| {
@@ -532,7 +540,7 @@ impl Registry {
         Ok(ContextHandle::new(
             actor_id,
             source,
-            self.contexts_ks.clone(),
+            self.inner.contexts_ks.clone(),
         ))
     }
 
@@ -549,8 +557,8 @@ impl Registry {
     )]
     pub async fn unregister_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<()> {
         let key = composite_key(actor_id, context_id);
-        let ks = self.contexts_ks.clone();
-        let db = self.db.clone();
+        let ks = self.inner.contexts_ks.clone();
+        let db = self.inner.db.clone();
 
         tokio::task::spawn_blocking(move || -> Result<()> {
             let exists = ks.contains_key(key).map_err(|err| {
@@ -598,8 +606,8 @@ impl Registry {
     )]
     pub async fn unregister_all_contexts(&self, actor_id: Uuid) -> Result<usize> {
         let prefix = actor_id.as_bytes().to_vec();
-        let ks = self.contexts_ks.clone();
-        let db = self.db.clone();
+        let ks = self.inner.contexts_ks.clone();
+        let db = self.inner.db.clone();
 
         let count = tokio::task::spawn_blocking(move || -> Result<usize> {
             let keys = collect_prefix_keys(&ks, &prefix)?;
@@ -643,7 +651,150 @@ impl Registry {
     )]
     pub async fn list_contexts(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
         let prefix = actor_id.as_bytes().to_vec();
-        let ks = self.contexts_ks.clone();
+        let ks = self.inner.contexts_ks.clone();
+
+        tokio::task::spawn_blocking(move || extract_resource_ids(&ks, &prefix))
+            .await
+            .map_err(|err| {
+                Error::new(ErrorKind::Internal, "blocking task panicked")
+                    .with_component(COMPONENT)
+                    .with_source(err)
+            })?
+    }
+
+    // ── Policies ──────────────────────────────────────────────────────
+
+    /// Stores a policy, returning its UUID.
+    #[tracing::instrument(
+        target = TARGET,
+        name = "registry.register_policy",
+        skip(self, policy),
+        fields(actor_id = %actor_id),
+    )]
+    pub async fn register_policy(&self, actor_id: Uuid, policy: Policy) -> Result<Uuid> {
+        let policy_id = policy.id;
+        let key = composite_key(actor_id, policy_id);
+
+        let json_bytes = serde_json::to_vec(&policy).map_err(|err| {
+            Error::new(ErrorKind::Serialization, "failed to serialize policy")
+                .with_component(COMPONENT)
+                .with_source(err)
+        })?;
+
+        let ks = self.inner.policies_ks.clone();
+        let db = self.inner.db.clone();
+
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            ks.insert(key, &json_bytes).map_err(|err| {
+                Error::new(ErrorKind::Internal, "failed to write policy")
+                    .with_component(COMPONENT)
+                    .with_source(err)
+            })?;
+            db.persist(fjall::PersistMode::SyncAll).map_err(|err| {
+                Error::new(ErrorKind::Internal, "failed to persist database")
+                    .with_component(COMPONENT)
+                    .with_source(err)
+            })?;
+            Ok(())
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "blocking task panicked")
+                .with_component(COMPONENT)
+                .with_source(err)
+        })??;
+
+        tracing::trace!(target: TARGET, %policy_id, "policy registered");
+        Ok(policy_id)
+    }
+
+    /// Reads a previously registered policy.
+    #[tracing::instrument(
+        target = TARGET,
+        name = "registry.read_policy",
+        skip(self),
+        fields(actor_id = %actor_id, policy_id = %policy_id),
+    )]
+    pub async fn read_policy(&self, actor_id: Uuid, policy_id: Uuid) -> Result<Policy> {
+        let key = composite_key(actor_id, policy_id);
+        let ks = self.inner.policies_ks.clone();
+
+        let bytes = tokio::task::spawn_blocking(move || -> Result<Vec<u8>> {
+            ks.get(key)
+                .map_err(|err| {
+                    Error::new(ErrorKind::Internal, "failed to read policy")
+                        .with_component(COMPONENT)
+                        .with_source(err)
+                })?
+                .map(|v| v.to_vec())
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::NotFound,
+                        format!("policy not found: {policy_id}"),
+                    )
+                    .with_component(COMPONENT)
+                })
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "blocking task panicked")
+                .with_component(COMPONENT)
+                .with_source(err)
+        })??;
+
+        serde_json::from_slice(&bytes).map_err(|err| {
+            Error::new(ErrorKind::Serialization, "failed to deserialize policy")
+                .with_component(COMPONENT)
+                .with_source(err)
+        })
+    }
+
+    /// Deletes a single policy.
+    #[tracing::instrument(
+        target = TARGET,
+        name = "registry.unregister_policy",
+        skip(self),
+        fields(actor_id = %actor_id, policy_id = %policy_id),
+    )]
+    pub async fn unregister_policy(&self, actor_id: Uuid, policy_id: Uuid) -> Result<()> {
+        let key = composite_key(actor_id, policy_id);
+        let ks = self.inner.policies_ks.clone();
+        let db = self.inner.db.clone();
+
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            ks.remove(key).map_err(|err| {
+                Error::new(ErrorKind::Internal, "failed to delete policy")
+                    .with_component(COMPONENT)
+                    .with_source(err)
+            })?;
+            db.persist(fjall::PersistMode::SyncAll).map_err(|err| {
+                Error::new(ErrorKind::Internal, "failed to persist database")
+                    .with_component(COMPONENT)
+                    .with_source(err)
+            })?;
+            Ok(())
+        })
+        .await
+        .map_err(|err| {
+            Error::new(ErrorKind::Internal, "blocking task panicked")
+                .with_component(COMPONENT)
+                .with_source(err)
+        })??;
+
+        tracing::trace!(target: TARGET, %policy_id, "policy unregistered");
+        Ok(())
+    }
+
+    /// Lists all policy UUIDs for the given actor.
+    #[tracing::instrument(
+        target = TARGET,
+        name = "registry.list_policies",
+        skip(self),
+        fields(actor_id = %actor_id),
+    )]
+    pub async fn list_policies(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
+        let prefix = actor_id.as_bytes().to_vec();
+        let ks = self.inner.policies_ks.clone();
 
         tokio::task::spawn_blocking(move || extract_resource_ids(&ks, &prefix))
             .await
@@ -657,7 +808,7 @@ impl Registry {
     /// Returns the base directory path where the database is stored.
     #[must_use]
     pub fn base_dir(&self) -> &Path {
-        &self.base_dir
+        &self.inner.base_dir
     }
 }
 

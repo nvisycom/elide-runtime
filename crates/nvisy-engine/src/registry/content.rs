@@ -8,7 +8,8 @@ use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 use uuid::Uuid;
 
-use super::fjall_ext::{CompositeKey, FjallKeyspaceExt, blocking};
+use super::fjall_ext::{FjallKeyspaceExt, blocking, not_found};
+use super::key::CompositeKey;
 
 /// Lightweight handle to a content entry stored in the registry.
 ///
@@ -59,9 +60,9 @@ impl ContentHandle {
         let ks = self.content_ks.clone();
 
         blocking(move || {
-            let bytes = ks.get_bytes(key)?.ok_or_else(|| {
-                super::fjall_ext::not_found("content", Uuid::nil(), source.as_uuid())
-            })?;
+            let bytes = ks
+                .get_bytes(key)?
+                .ok_or_else(|| not_found("content", Uuid::nil(), source.as_uuid()))?;
             Ok(ContentData::new(source, Bytes::from(bytes)))
         })
         .await

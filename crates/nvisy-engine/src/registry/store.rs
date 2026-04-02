@@ -1,4 +1,4 @@
-//! [`Registry`]: actor-scoped content, context, and policy store backed by fjall.
+//! [`Registry`]: actor-scoped content, context, and policy store.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -12,9 +12,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::content::ContentHandle;
-use super::fjall_ext::{
-    CompositeKey, FjallDatabaseExt, FjallKeyspaceExt, blocking, list_ids, not_found, remove_all,
-};
+use super::fjall_ext::{FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found};
+use super::key::CompositeKey;
 
 const TARGET: &str = "nvisy_engine::registry";
 
@@ -44,7 +43,7 @@ impl std::fmt::Debug for Registry {
 }
 
 impl Registry {
-    /// Opens (or creates) the fjall database at `path`.
+    /// Opens (or creates) the database at `path`.
     #[tracing::instrument(target = TARGET, name = "registry.open", fields(path = %path.as_ref().display()))]
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let base_dir = path.as_ref().to_path_buf();
@@ -55,7 +54,6 @@ impl Registry {
         let policies_ks = db.open_keyspace("policies")?;
 
         tracing::debug!(target: TARGET, "registry opened");
-
         Ok(Self {
             inner: Arc::new(RegistryInner {
                 base_dir,
@@ -160,11 +158,9 @@ impl Registry {
         let content_ks = self.inner.content_ks.clone();
         let meta_ks = self.inner.content_meta_ks.clone();
         let db = self.inner.db.clone();
-        let prefix = actor_id.as_bytes().to_vec();
 
         blocking(move || {
-            use super::fjall_ext::collect_prefix_keys;
-            let keys = collect_prefix_keys(&content_ks, &prefix)?;
+            let keys = content_ks.prefix_keys(actor_id.as_bytes())?;
             let count = keys.len();
             for key in &keys {
                 content_ks.delete(*key)?;
@@ -181,7 +177,8 @@ impl Registry {
     /// Lists all content IDs for the given actor.
     #[tracing::instrument(target = TARGET, name = "registry.list_content", skip(self), fields(%actor_id))]
     pub async fn list_content(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
-        list_ids(&self.inner.content_ks, actor_id).await
+        let ks = self.inner.content_ks.clone();
+        blocking(move || ks.resource_ids(actor_id)).await
     }
 
     /// Lists all content IDs with metadata for the given actor.
@@ -190,13 +187,11 @@ impl Registry {
         &self,
         actor_id: Uuid,
     ) -> Result<Vec<(Uuid, ContentMetadata)>> {
-        let prefix = actor_id.as_bytes().to_vec();
         let content_ks = self.inner.content_ks.clone();
         let meta_ks = self.inner.content_meta_ks.clone();
 
         blocking(move || {
-            use super::fjall_ext::extract_resource_ids;
-            let ids = extract_resource_ids(&content_ks, &prefix)?;
+            let ids = content_ks.resource_ids(actor_id)?;
             let mut result = Vec::with_capacity(ids.len());
             for id in ids {
                 let key = CompositeKey::new(actor_id, id);
@@ -211,14 +206,13 @@ impl Registry {
         .await
     }
 
+    /// Stores a JSON-serializable value in a keyspace.
     async fn store_json<T: Serialize + Send + 'static>(
         &self,
         ks: &Keyspace,
-        actor_id: Uuid,
-        resource_id: Uuid,
+        key: CompositeKey,
         value: &T,
     ) -> Result<()> {
-        let key = CompositeKey::new(actor_id, resource_id);
         let bytes = serde_json::to_vec(value)?;
         let ks = ks.clone();
         let db = self.inner.db.clone();
@@ -229,14 +223,15 @@ impl Registry {
         .await
     }
 
+    /// Loads a JSON-deserializable value from a keyspace.
     async fn load_json<T: for<'de> Deserialize<'de> + Send + 'static>(
         &self,
         ks: &Keyspace,
-        actor_id: Uuid,
-        resource_id: Uuid,
+        key: CompositeKey,
         kind: &'static str,
     ) -> Result<T> {
-        let key = CompositeKey::new(actor_id, resource_id);
+        let actor_id = Uuid::from_bytes(key.as_ref()[..16].try_into().unwrap());
+        let resource_id = key.resource_id();
         let ks = ks.clone();
         blocking(move || {
             let bytes = ks
@@ -247,14 +242,15 @@ impl Registry {
         .await
     }
 
+    /// Removes a single entry from a keyspace.
     async fn remove_entry(
         &self,
         ks: &Keyspace,
-        actor_id: Uuid,
-        resource_id: Uuid,
+        key: CompositeKey,
         kind: &'static str,
     ) -> Result<()> {
-        let key = CompositeKey::new(actor_id, resource_id);
+        let actor_id = Uuid::from_bytes(key.as_ref()[..16].try_into().unwrap());
+        let resource_id = key.resource_id();
         let ks = ks.clone();
         let db = self.inner.db.clone();
         blocking(move || {
@@ -267,10 +263,35 @@ impl Registry {
         .await
     }
 
+    /// Removes all entries in a keyspace for an actor. Returns count.
+    async fn remove_all_entries(&self, ks: &Keyspace, actor_id: Uuid) -> Result<usize> {
+        let ks = ks.clone();
+        let db = self.inner.db.clone();
+        blocking(move || {
+            let keys = ks.prefix_keys(actor_id.as_bytes())?;
+            let count = keys.len();
+            for key in &keys {
+                ks.delete(*key)?;
+            }
+            if count > 0 {
+                db.sync()?;
+            }
+            Ok(count)
+        })
+        .await
+    }
+
+    /// Lists resource IDs in a keyspace for the given actor.
+    async fn list_resource_ids(&self, ks: &Keyspace, actor_id: Uuid) -> Result<Vec<Uuid>> {
+        let ks = ks.clone();
+        blocking(move || ks.resource_ids(actor_id)).await
+    }
+
     #[tracing::instrument(target = TARGET, name = "registry.register_context", skip(self, context), fields(%actor_id))]
     pub async fn register_context(&self, actor_id: Uuid, context: Context) -> Result<Uuid> {
         let id = context.source.as_uuid();
-        self.store_json(&self.inner.contexts_ks, actor_id, id, &context)
+        let key = CompositeKey::new(actor_id, id);
+        self.store_json(&self.inner.contexts_ks, key, &context)
             .await?;
         tracing::trace!(target: TARGET, %id, "context registered");
         Ok(id)
@@ -278,30 +299,35 @@ impl Registry {
 
     #[tracing::instrument(target = TARGET, name = "registry.read_context", skip(self), fields(%actor_id, %context_id))]
     pub async fn read_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<Context> {
-        self.load_json(&self.inner.contexts_ks, actor_id, context_id, "context")
+        let key = CompositeKey::new(actor_id, context_id);
+        self.load_json(&self.inner.contexts_ks, key, "context")
             .await
     }
 
     #[tracing::instrument(target = TARGET, name = "registry.unregister_context", skip(self), fields(%actor_id, %context_id))]
     pub async fn unregister_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<()> {
-        self.remove_entry(&self.inner.contexts_ks, actor_id, context_id, "context")
+        let key = CompositeKey::new(actor_id, context_id);
+        self.remove_entry(&self.inner.contexts_ks, key, "context")
             .await
     }
 
     #[tracing::instrument(target = TARGET, name = "registry.unregister_all_contexts", skip(self), fields(%actor_id))]
     pub async fn unregister_all_contexts(&self, actor_id: Uuid) -> Result<usize> {
-        remove_all(&self.inner.contexts_ks, &self.inner.db, actor_id).await
+        self.remove_all_entries(&self.inner.contexts_ks, actor_id)
+            .await
     }
 
     #[tracing::instrument(target = TARGET, name = "registry.list_contexts", skip(self), fields(%actor_id))]
     pub async fn list_contexts(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
-        list_ids(&self.inner.contexts_ks, actor_id).await
+        self.list_resource_ids(&self.inner.contexts_ks, actor_id)
+            .await
     }
 
     #[tracing::instrument(target = TARGET, name = "registry.register_policy", skip(self, policy), fields(%actor_id))]
     pub async fn register_policy(&self, actor_id: Uuid, policy: Policy) -> Result<Uuid> {
         let id = policy.id;
-        self.store_json(&self.inner.policies_ks, actor_id, id, &policy)
+        let key = CompositeKey::new(actor_id, id);
+        self.store_json(&self.inner.policies_ks, key, &policy)
             .await?;
         tracing::trace!(target: TARGET, %id, "policy registered");
         Ok(id)
@@ -309,19 +335,21 @@ impl Registry {
 
     #[tracing::instrument(target = TARGET, name = "registry.read_policy", skip(self), fields(%actor_id, %policy_id))]
     pub async fn read_policy(&self, actor_id: Uuid, policy_id: Uuid) -> Result<Policy> {
-        self.load_json(&self.inner.policies_ks, actor_id, policy_id, "policy")
-            .await
+        let key = CompositeKey::new(actor_id, policy_id);
+        self.load_json(&self.inner.policies_ks, key, "policy").await
     }
 
     #[tracing::instrument(target = TARGET, name = "registry.unregister_policy", skip(self), fields(%actor_id, %policy_id))]
     pub async fn unregister_policy(&self, actor_id: Uuid, policy_id: Uuid) -> Result<()> {
-        self.remove_entry(&self.inner.policies_ks, actor_id, policy_id, "policy")
+        let key = CompositeKey::new(actor_id, policy_id);
+        self.remove_entry(&self.inner.policies_ks, key, "policy")
             .await
     }
 
     #[tracing::instrument(target = TARGET, name = "registry.list_policies", skip(self), fields(%actor_id))]
     pub async fn list_policies(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
-        list_ids(&self.inner.policies_ks, actor_id).await
+        self.list_resource_ids(&self.inner.policies_ks, actor_id)
+            .await
     }
 }
 

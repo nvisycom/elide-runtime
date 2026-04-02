@@ -2,6 +2,7 @@
 
 mod content;
 mod fjall_ext;
+mod key;
 mod store;
 
 pub use self::content::ContentHandle;

@@ -70,6 +70,11 @@ pub struct Policies {
 }
 
 impl Policies {
+    /// Append a policy.
+    pub fn push(&mut self, policy: Policy) {
+        self.policies.push(policy);
+    }
+
     /// All rules across all policies, sorted by priority (lower = higher precedence).
     pub fn all_rules(&self) -> Vec<&PolicyRule> {
         let mut rules: Vec<&PolicyRule> =

@@ -142,5 +142,11 @@ impl From<nvisy_ontology::Error> for Error {
     }
 }
 
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Self::new(ErrorKind::Serialization, err.to_string()).with_source(err)
+    }
+}
+
 /// Convenience type alias for results using the Nvisy error type.
 pub type Result<T, E = Error> = std::result::Result<T, E>;

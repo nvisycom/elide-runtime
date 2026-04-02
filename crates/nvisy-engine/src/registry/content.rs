@@ -4,33 +4,25 @@ use std::fmt;
 
 use bytes::Bytes;
 use fjall::Keyspace;
+use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
-use nvisy_core::{Error, ErrorKind, Result};
 use uuid::Uuid;
 
-use super::store::composite_key;
-
-const TARGET: &str = "nvisy_engine::registry::content";
+use super::fjall_ext::{CompositeKey, FjallKeyspaceExt, blocking};
 
 /// Lightweight handle to a content entry stored in the registry.
 ///
 /// Holds references to the fjall keyspaces so it can read content data
-/// and metadata on demand. Cloning is cheap: fjall handles are
-/// internally `Arc`-wrapped.
+/// and metadata on demand.
 #[derive(Clone)]
 pub struct ContentHandle {
-    /// Actor identity that owns this content entry.
     actor_id: Uuid,
-    /// Source identifier for the stored content.
     content_source: ContentSource,
-    /// Keyspace storing raw content bytes.
     content_ks: Keyspace,
-    /// Keyspace storing serialized content metadata.
     content_meta_ks: Keyspace,
 }
 
 impl fmt::Debug for ContentHandle {
-    /// Formats the handle for debugging, omitting keyspace internals.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ContentHandle")
             .field("actor_id", &self.actor_id)
@@ -40,10 +32,6 @@ impl fmt::Debug for ContentHandle {
 }
 
 impl ContentHandle {
-    /// Creates a new handle from pre-resolved keyspaces.
-    ///
-    /// This is `pub(crate)` because only [`Registry`](crate::registry::Registry)
-    /// should construct handles after verifying the entry exists.
     pub(crate) fn new(
         actor_id: Uuid,
         content_source: ContentSource,
@@ -64,99 +52,34 @@ impl ContentHandle {
         self.content_source
     }
 
-    /// Returns the actor ID that owns this content.
-    #[must_use]
-    pub fn actor_id(&self) -> Uuid {
-        self.actor_id
-    }
-
     /// Reads the content bytes from the store.
-    ///
-    /// The read is dispatched to a blocking thread via
-    /// [`spawn_blocking`](tokio::task::spawn_blocking) to avoid
-    /// blocking the async runtime on fjall I/O.
-    #[tracing::instrument(
-        target = TARGET,
-        name = "content.read_data",
-        skip(self),
-        fields(actor_id = %self.actor_id, source_id = %self.content_source.as_uuid()),
-    )]
     pub async fn content_data(&self) -> Result<ContentData> {
-        let key = composite_key(self.actor_id, self.content_source.as_uuid());
+        let key = CompositeKey::new(self.actor_id, self.content_source.as_uuid());
         let source = self.content_source;
         let ks = self.content_ks.clone();
 
-        tokio::task::spawn_blocking(move || -> Result<ContentData> {
-            let value = ks.get(key).map_err(|err| {
-                Error::new(ErrorKind::Internal, "failed to read content data")
-                    .with_component(TARGET)
-                    .with_source(err)
+        blocking(move || {
+            let bytes = ks.get_bytes(key)?.ok_or_else(|| {
+                super::fjall_ext::not_found("content", Uuid::nil(), source.as_uuid())
             })?;
-
-            let guard = value.ok_or_else(|| {
-                Error::new(
-                    ErrorKind::NotFound,
-                    format!("content data not found: {}", source.as_uuid()),
-                )
-                .with_component(TARGET)
-            })?;
-
-            Ok(ContentData::new(source, Bytes::copy_from_slice(&guard)))
+            Ok(ContentData::new(source, Bytes::from(bytes)))
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "blocking task panicked")
-                .with_component(TARGET)
-                .with_source(err)
-        })?
     }
 
     /// Reads the content metadata from the store.
-    ///
-    /// Returns [`ContentMetadata::default()`] when the metadata key
-    /// exists but has no value (e.g. content registered without metadata).
-    #[tracing::instrument(
-        target = TARGET,
-        name = "content.read_metadata",
-        skip(self),
-        fields(actor_id = %self.actor_id, source_id = %self.content_source.as_uuid()),
-    )]
     pub async fn metadata(&self) -> Result<ContentMetadata> {
-        let key = composite_key(self.actor_id, self.content_source.as_uuid());
+        let key = CompositeKey::new(self.actor_id, self.content_source.as_uuid());
         let ks = self.content_meta_ks.clone();
 
-        tokio::task::spawn_blocking(move || -> Result<ContentMetadata> {
-            let value = ks.get(key).map_err(|err| {
-                Error::new(ErrorKind::Internal, "failed to read content metadata")
-                    .with_component(TARGET)
-                    .with_source(err)
-            })?;
-
-            match value {
-                Some(guard) => serde_json::from_slice(&guard).map_err(|err| {
-                    Error::new(
-                        ErrorKind::Serialization,
-                        "failed to deserialize content metadata",
-                    )
-                    .with_component(TARGET)
-                    .with_source(err)
-                }),
-                None => Ok(ContentMetadata::default()),
-            }
+        blocking(move || match ks.get_bytes(key)? {
+            Some(bytes) => Ok(serde_json::from_slice(&bytes)?),
+            None => Ok(ContentMetadata::default()),
         })
         .await
-        .map_err(|err| {
-            Error::new(ErrorKind::Internal, "blocking task panicked")
-                .with_component(TARGET)
-                .with_source(err)
-        })?
     }
 
     /// Reads both content data and metadata, returning a full [`Content`].
-    ///
-    /// This is the preferred way to retrieve content for pipeline
-    /// operations, since the metadata carries the MIME type and filename
-    /// needed for format detection.
     pub async fn content(&self) -> Result<Content> {
         let (data, metadata) = tokio::try_join!(self.content_data(), self.metadata())?;
         Ok(Content::with_metadata(data, metadata))

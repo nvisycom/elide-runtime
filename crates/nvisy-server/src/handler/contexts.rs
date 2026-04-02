@@ -47,11 +47,7 @@ async fn upload_context(
     ActorId(actor_id): ActorId,
     Json(req): Json<NewContext>,
 ) -> Result<(StatusCode, Json<ContextId>)> {
-    let id = registry
-        .register_context(actor_id, req.context)
-        .await?
-        .source()
-        .as_uuid();
+    let id = registry.register_context(actor_id, req.context).await?;
 
     tracing::info!(target: TARGET, %id, "context uploaded");
 
@@ -82,9 +78,7 @@ async fn list_contexts(
     let ids = registry.list_contexts(actor_id).await?;
     let mut entries = Vec::with_capacity(ids.len());
     for id in ids {
-        if let Ok(handle) = registry.read_context(actor_id, id).await
-            && let Ok(ctx) = handle.context().await
-        {
+        if let Ok(ctx) = registry.read_context(actor_id, id).await {
             entries.push(ContextEntry {
                 id,
                 name: ctx.name,
@@ -115,7 +109,7 @@ async fn download_context(
     ActorId(actor_id): ActorId,
     Path(ContextPath { id }): Path<ContextPath>,
 ) -> Result<Json<Context>> {
-    let context = registry.read_context(actor_id, id).await?.context().await?;
+    let context = registry.read_context(actor_id, id).await?;
     tracing::debug!(target: TARGET, "context downloaded");
     Ok(Json(context))
 }

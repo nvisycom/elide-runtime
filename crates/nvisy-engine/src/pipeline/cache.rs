@@ -213,15 +213,9 @@ impl Drop for ContextGuard {
 /// Load a single context from the registry, returning `None` on failure.
 async fn load_context(actor_id: Uuid, id: Uuid, registry: &Registry) -> Option<Context> {
     match registry.read_context(actor_id, id).await {
-        Ok(handle) => match handle.context().await {
-            Ok(context) => Some(context),
-            Err(e) => {
-                tracing::warn!(target: TARGET, %id, error = %e, "failed to deserialize context");
-                None
-            }
-        },
+        Ok(context) => Some(context),
         Err(e) => {
-            tracing::warn!(target: TARGET, %id, error = %e, "failed to read context from registry");
+            tracing::warn!(target: TARGET, %id, error = %e, "failed to load context");
             None
         }
     }

@@ -17,7 +17,7 @@ use std::sync::Arc;
 use nvisy_core::Error;
 use nvisy_ontology::workflow::ConcurrencyPolicy;
 use nvisy_provider::http::HttpClient;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{Semaphore, mpsc, watch};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -75,7 +75,7 @@ pub(super) struct Orchestrator {
     ctx: Arc<RunContext>,
     run_id: Uuid,
     runs: RunState,
-    semaphore: Option<Arc<tokio::sync::Semaphore>>,
+    semaphore: Option<Arc<Semaphore>>,
 }
 
 impl Orchestrator {

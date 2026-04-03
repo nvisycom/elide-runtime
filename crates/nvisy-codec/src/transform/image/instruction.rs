@@ -1,6 +1,6 @@
 //! Image redaction instruction types.
 
-use nvisy_ontology::math::BoundingBox;
+use nvisy_ontology::math::{BoundingBox, Color};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -15,14 +15,14 @@ pub struct ImageRedaction<S> {
     pub output: ImageOutput,
 }
 
-/// Image redaction output — records the method used and its parameters.
+/// Image redaction output: records the method used and its parameters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
 pub enum ImageOutput {
     /// Gaussian blur applied to the region.
     Blur { sigma: f32 },
     /// Opaque block overlay on the region.
-    Block { color: [u8; 4] },
+    Block { color: Color },
     /// Pixelation (mosaic) applied to the region.
     Pixelate { block_size: u32 },
     /// Region replaced with provided image data.

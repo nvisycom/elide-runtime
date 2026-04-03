@@ -17,6 +17,7 @@ pub mod utility;
 mod contexts;
 mod files;
 mod infra;
+mod policies;
 mod runs;
 
 mod request;
@@ -36,6 +37,7 @@ use crate::service::ServiceState;
 /// /api/v1/analytics
 /// /api/v1/contexts[/{id}]
 /// /api/v1/files[/{id}]
+/// /api/v1/policies[/{id}]
 /// /api/v1/runs[/{id}[/cancel]]
 /// /api/v1/openapi.json         (added by OpenAPI middleware)
 /// /docs                        (added by OpenAPI middleware)
@@ -56,6 +58,7 @@ fn v1_routes() -> ApiRouter<ServiceState> {
         .merge(infra::routes_v1())
         .merge(contexts::routes_v1())
         .merge(files::routes_v1())
+        .merge(policies::routes_v1())
         .merge(runs::routes_v1())
 }
 

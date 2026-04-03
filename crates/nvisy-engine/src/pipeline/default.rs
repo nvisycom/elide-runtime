@@ -1,20 +1,19 @@
-//! [`Engine`] — the main entry point for running redaction pipelines.
+//! [`Engine`]: the main entry point for running redaction pipelines.
 //!
-//! A pipeline run progresses through five phases:
+//! A pipeline run progresses through these phases:
 //!
-//! 1. **Config merge** — per-request [`RuntimeConfig`] overrides are merged
-//!    with the engine's base config (section-level replacement).
-//! 2. **Context acquisition** — [`LoadContext`](nvisy_ontology::workflow::LoadContext)
-//!    nodes are scanned and their context IDs are acquired from the
-//!    engine's [`ContextCache`](super::cache::ContextCache) (loaded from the
-//!    registry on first access, deduplicated across concurrent runs).
-//! 3. **Compile** — the [`Graph`] is compiled into an
-//!    [`ExecutionPlan`](super::plan::ExecutionPlan) via [`plan::compile`].
-//! 4. **Schedule & execute** — the [orchestrator](super::orchestrator)
+//! 1. **Config merge**: per-request [`RuntimeConfig`] overrides are merged
+//!    with the engine's base config.
+//! 2. **Context acquisition**: context IDs from [`LoadContext`] nodes are
+//!    acquired from the engine's [`ContextCache`](super::cache::ContextCache).
+//! 3. **Policy loading**: policies are loaded from the registry by the
+//!    IDs specified in [`EngineInput::policy_ids`].
+//! 4. **Compile**: the [`Graph`] is compiled into an
+//!    [`ExecutionPlan`](super::plan::ExecutionPlan).
+//! 5. **Schedule & execute**: the [orchestrator](super::orchestrator)
 //!    spawns one task per node and collects results.
-//! 5. **Finalize** — entity and redaction counts are computed from node
-//!    results, the run status is recorded, acquired contexts are released
-//!    from the cache, and an [`EngineOutput`] is returned to the caller.
+//! 6. **Finalize**: retention policies are enforced, counters are computed,
+//!    and an [`EngineOutput`] is returned.
 //!
 //! All mutable state lives in [`EngineInner`] behind an `Arc`. Builder
 //! methods (e.g. [`Engine::with_key_provider`]) require exclusive access
@@ -25,9 +24,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_core::content::{Content, ContentMetadata};
-use nvisy_ontology::context::Context;
-use nvisy_ontology::policy::Policies;
+use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
 use nvisy_ontology::provenance::Audit;
 use nvisy_ontology::workflow::{Graph, GraphNodeKind};
 use nvisy_provider::http::HttpClient;
@@ -39,8 +36,7 @@ use validator::Validate;
 
 use super::cache::ContextCache;
 use super::config::RuntimeConfig;
-use super::executor::RunOutput;
-use super::orchestrator::{self, RunContext};
+use super::orchestrator::{Orchestrator, RunContext};
 use super::plan;
 use super::runs::state::{RunRecord, RunState};
 use super::runs::{
@@ -57,8 +53,8 @@ use crate::registry::Registry;
 pub struct EngineInput {
     /// Identity of the human or service account initiating the run.
     pub actor_id: Uuid,
-    /// Redaction policies to apply (at least one required).
-    pub policies: Policies,
+    /// Previously uploaded policy IDs to apply.
+    pub policy_ids: Vec<Uuid>,
     /// Execution graph defining the pipeline DAG.
     ///
     /// Content identifiers live on [`ImportFile`](nvisy_ontology::workflow::ImportFile)
@@ -69,16 +65,14 @@ pub struct EngineInput {
     pub config: Option<RuntimeConfig>,
     /// When `true`, the pipeline evaluates detection and policy rules
     /// but skips validation and export. The returned [`EngineOutput`]
-    /// contains the redaction plan (decisions and records) without
-    /// modifying or exporting any content.
+    /// contains the audit trail without modifying or exporting content.
     pub dry_run: bool,
 }
 
 /// Complete result of a pipeline run.
 ///
-/// Contains a per-phase breakdown — detection results, policy evaluation
-/// decisions, per-source redaction summaries, and audit records — along
-/// with the run identifier for correlation.
+/// Contains the run identifier and per-document audit trails with
+/// detected entities and redaction entries.
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineOutput {
@@ -104,7 +98,7 @@ struct EngineInner {
     key_provider: Option<SharedKeyProvider>,
     /// Ref-counted context cache shared across concurrent runs.
     context_cache: ContextCache,
-    /// In-memory run lifecycle tracker (volatile — lost on restart).
+    /// In-memory run lifecycle tracker (volatile: lost on restart).
     runs: RunState,
 }
 
@@ -162,7 +156,7 @@ impl Engine {
     /// Create a temporary engine backed by a [`tempfile`] directory.
     ///
     /// Uses default configuration. The directory is deleted when the
-    /// returned [`TempDir`](tempfile::TempDir) is dropped — keep it
+    /// returned [`TempDir`](tempfile::TempDir) is dropped: keep it
     /// alive for the duration of the test.
     ///
     /// # Panics
@@ -305,7 +299,7 @@ impl Engine {
             .await;
 
         // Acquire contexts into the shared cache. The returned guard
-        // releases them (decrementing ref counts) when dropped — even
+        // releases them (decrementing ref counts) when dropped: even
         // if this function panics.
         let _context_guard = self
             .inner
@@ -313,10 +307,37 @@ impl Engine {
             .acquire(input.actor_id, &context_ids, &self.inner.registry)
             .await;
 
+        // Load policies from the registry.
+        let mut policies = Policies::default();
+        for &policy_id in &input.policy_ids {
+            match self
+                .inner
+                .registry
+                .read_policy(input.actor_id, policy_id)
+                .await
+            {
+                Ok(policy) => policies.push(policy),
+                Err(e) => {
+                    tracing::warn!(
+                        %policy_id,
+                        error = %e,
+                        "failed to load policy, skipping",
+                    );
+                }
+            }
+        }
+
+        // Keep a copy for retention enforcement after the run.
+        let retention_rules = policies
+            .all_retention()
+            .into_iter()
+            .copied()
+            .collect::<Vec<_>>();
+
         let mut shared_data = SharedData {
             run_id,
             actor_id: input.actor_id,
-            policies: input.policies.clone(),
+            policies,
             registry: self.inner.registry.clone(),
             key_provider: SharedKeyProvider::default(),
             context_cache: self.inner.context_cache.clone(),
@@ -337,10 +358,11 @@ impl Engine {
 
         self.inner.runs.set_started_at(run_id).await;
 
+        let orchestrator = Orchestrator::new(run_id, self.inner.runs.clone(), ctx);
         let run_output = if let Some(ms) = limits.run_timeout_ms {
             match tokio::time::timeout(
                 std::time::Duration::from_millis(ms),
-                orchestrator::run_graph(&compiled, run_id, self.inner.runs.clone(), ctx),
+                orchestrator.run(&compiled),
             )
             .await
             {
@@ -356,7 +378,7 @@ impl Engine {
                 }
             }
         } else {
-            match orchestrator::run_graph(&compiled, run_id, self.inner.runs.clone(), ctx).await {
+            match orchestrator.run(&compiled).await {
                 Ok(output) => output,
                 Err(e) => {
                     self.inner.runs.fail(run_id).await;
@@ -365,7 +387,28 @@ impl Engine {
             }
         };
 
-        let (output, entities_detected, redactions_applied) = collect_output(run_id, &run_output);
+        // Collect audits and counters from node results.
+        let mut audits = Vec::new();
+        let mut entities_detected = 0u64;
+        let mut redactions_applied = 0u64;
+        for nr in &run_output.node_results {
+            for envelope in &nr.envelopes {
+                entities_detected += envelope.audit.entities.len() as u64;
+                redactions_applied += envelope
+                    .audit
+                    .entries
+                    .iter()
+                    .filter(|e| e.redaction.is_applied)
+                    .count() as u64;
+                audits.push(envelope.audit.clone());
+            }
+        }
+
+        let mut output = EngineOutput { run_id, audits };
+
+        // Enforce retention policies from all submitted policies.
+        self.apply_retention(input.actor_id, &retention_rules, &input.graph, &mut output)
+            .await;
 
         let status = run_output.run_status();
         self.inner
@@ -374,6 +417,80 @@ impl Engine {
             .await;
 
         Ok(output)
+    }
+
+    /// Enforce retention policies after a pipeline run.
+    ///
+    /// Iterates all retention policies across all submitted policies.
+    /// For `ZeroRetention`, applies immediately:
+    /// - `OriginalContent`: deletes imported content from the registry
+    /// - `RedactedOutput`: deletes exported content from the registry
+    /// - `AuditLogs`: clears audits from the output
+    ///
+    /// `Duration` and `Indefinite` retention are recorded as metadata
+    /// but not enforced here (requires a background cleanup process).
+    async fn apply_retention(
+        &self,
+        actor_id: Uuid,
+        retention_rules: &[RetentionPolicy],
+        graph: &Graph,
+        output: &mut EngineOutput,
+    ) {
+        if retention_rules.is_empty() {
+            return;
+        }
+
+        for rp in retention_rules {
+            if !matches!(rp.retention, Retention::ZeroRetention) {
+                continue;
+            }
+            match rp.scope {
+                RetentionScope::OriginalContent => {
+                    let content_ids: Vec<Uuid> = graph
+                        .nodes
+                        .iter()
+                        .filter_map(|node| match &node.kind {
+                            GraphNodeKind::ImportFile(cfg) => Some(cfg.content_ids.clone()),
+                            _ => None,
+                        })
+                        .flatten()
+                        .collect();
+                    for id in content_ids {
+                        if let Err(e) = self.inner.registry.unregister_content(actor_id, id).await {
+                            tracing::warn!(
+                                %id,
+                                error = %e,
+                                "failed to delete content for zero-retention",
+                            );
+                        }
+                    }
+                }
+                RetentionScope::RedactedOutput => {
+                    let content_ids: Vec<Uuid> = graph
+                        .nodes
+                        .iter()
+                        .filter_map(|node| match &node.kind {
+                            GraphNodeKind::ExportFile(cfg) => Some(cfg.content_ids.clone()),
+                            _ => None,
+                        })
+                        .flatten()
+                        .collect();
+                    for id in content_ids {
+                        if let Err(e) = self.inner.registry.unregister_content(actor_id, id).await {
+                            tracing::warn!(
+                                %id,
+                                error = %e,
+                                "failed to delete exported content for zero-retention",
+                            );
+                        }
+                    }
+                }
+                RetentionScope::AuditLogs => {
+                    output.audits.clear();
+                }
+                _ => {}
+            }
+        }
     }
 
     /// Compute a point-in-time [`AnalyticsSnapshot`] from all tracked runs.
@@ -423,149 +540,8 @@ impl Engine {
         self.inner.runs.delete_all_runs(actor_id).await
     }
 
-    /// Store content in the registry and return the assigned identifier.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the registry write fails.
-    pub async fn upload_content(&self, actor_id: Uuid, content: Content) -> Result<Uuid, Error> {
-        let handle = self
-            .inner
-            .registry
-            .register_content(actor_id, content)
-            .await?;
-        Ok(handle.content_source().as_uuid())
-    }
-
-    /// Retrieve stored content data and metadata from the registry.
-    ///
-    /// # Errors
-    ///
-    /// Returns `NotFound` if the content does not exist.
-    pub async fn download_content(
-        &self,
-        actor_id: Uuid,
-        content_id: Uuid,
-    ) -> Result<Content, Error> {
-        let handle = self
-            .inner
-            .registry
-            .read_content(actor_id, content_id)
-            .await?;
-        let data = handle.content_data().await?;
-        let metadata = handle.metadata().await?;
-        Ok(Content::with_metadata(data, metadata))
-    }
-
-    /// List all content identifiers stored for the given actor.
-    pub async fn list_content(&self, actor_id: Uuid) -> Result<Vec<Uuid>, Error> {
-        self.inner.registry.list_content(actor_id).await
-    }
-
-    /// List all content identifiers with metadata for the given actor.
-    pub async fn list_content_with_metadata(
-        &self,
-        actor_id: Uuid,
-    ) -> Result<Vec<(Uuid, ContentMetadata)>, Error> {
-        self.inner
-            .registry
-            .list_content_with_metadata(actor_id)
-            .await
-    }
-
-    /// Delete a single content entry from the registry.
-    pub async fn delete_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<(), Error> {
-        self.inner
-            .registry
-            .unregister_content(actor_id, content_id)
-            .await
-    }
-
-    /// Delete all content for the actor. Returns the number of entries removed.
-    pub async fn delete_all_content(&self, actor_id: Uuid) -> Result<usize, Error> {
-        self.inner.registry.unregister_all_content(actor_id).await
-    }
-
-    /// Store a context in the registry and return the assigned identifier.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the registry write fails.
-    pub async fn upload_context(&self, actor_id: Uuid, context: Context) -> Result<Uuid, Error> {
-        let handle = self
-            .inner
-            .registry
-            .register_context(actor_id, context)
-            .await?;
-        Ok(handle.source().as_uuid())
-    }
-
-    /// Retrieve a stored context from the registry.
-    ///
-    /// # Errors
-    ///
-    /// Returns `NotFound` if the context does not exist.
-    pub async fn download_context(
-        &self,
-        actor_id: Uuid,
-        context_id: Uuid,
-    ) -> Result<Context, Error> {
-        let handle = self
-            .inner
-            .registry
-            .read_context(actor_id, context_id)
-            .await?;
-        handle.context().await
-    }
-
-    /// List all context identifiers stored for the given actor.
-    pub async fn list_contexts(&self, actor_id: Uuid) -> Result<Vec<Uuid>, Error> {
-        self.inner.registry.list_contexts(actor_id).await
-    }
-
-    /// Delete a single context entry from the registry.
-    pub async fn delete_context(&self, actor_id: Uuid, context_id: Uuid) -> Result<(), Error> {
-        self.inner
-            .registry
-            .unregister_context(actor_id, context_id)
-            .await
-    }
-
-    /// Delete all contexts for the actor. Returns the number of entries removed.
-    pub async fn delete_all_contexts(&self, actor_id: Uuid) -> Result<usize, Error> {
-        self.inner.registry.unregister_all_contexts(actor_id).await
-    }
-
     /// Returns the base data directory path backing the registry.
     pub fn data_dir(&self) -> &Path {
         self.inner.registry.base_dir()
     }
-}
-
-/// Aggregate entities, redaction records, and audits from all node
-/// results into a single [`EngineOutput`].
-///
-/// Returns `(output, entities_detected, redactions_applied)` so the
-/// caller can update the [`RunState`] counters during finalization.
-fn collect_output(run_id: Uuid, run_output: &RunOutput) -> (EngineOutput, u64, u64) {
-    let mut audits = Vec::new();
-    let mut entities_detected = 0u64;
-    let mut redactions_applied = 0u64;
-
-    for nr in &run_output.node_results {
-        for envelope in &nr.envelopes {
-            entities_detected += envelope.audit.entities.len() as u64;
-            redactions_applied += envelope
-                .audit
-                .entries
-                .iter()
-                .filter(|r| r.redaction.is_applied)
-                .count() as u64;
-            audits.push(envelope.audit.clone());
-        }
-    }
-
-    let output = EngineOutput { run_id, audits };
-
-    (output, entities_detected, redactions_applied)
 }

@@ -55,7 +55,7 @@ impl ContextCache {
     /// logged and skipped.
     ///
     /// The write lock is only held for the brief insert/increment
-    /// phase — registry I/O happens outside the lock.
+    /// phase: registry I/O happens outside the lock.
     pub async fn acquire(
         &self,
         actor_id: Uuid,
@@ -203,7 +203,7 @@ impl Drop for ContextGuard {
         }
         let cache = self.cache.clone();
         let ids = std::mem::take(&mut self.ids);
-        // Spawn a task to release asynchronously — Drop is synchronous.
+        // Spawn a task to release asynchronously: Drop is synchronous.
         tokio::spawn(async move {
             cache.release(&ids).await;
         });
@@ -213,15 +213,9 @@ impl Drop for ContextGuard {
 /// Load a single context from the registry, returning `None` on failure.
 async fn load_context(actor_id: Uuid, id: Uuid, registry: &Registry) -> Option<Context> {
     match registry.read_context(actor_id, id).await {
-        Ok(handle) => match handle.context().await {
-            Ok(context) => Some(context),
-            Err(e) => {
-                tracing::warn!(target: TARGET, %id, error = %e, "failed to deserialize context");
-                None
-            }
-        },
+        Ok(context) => Some(context),
         Err(e) => {
-            tracing::warn!(target: TARGET, %id, error = %e, "failed to read context from registry");
+            tracing::warn!(target: TARGET, %id, error = %e, "failed to load context");
             None
         }
     }

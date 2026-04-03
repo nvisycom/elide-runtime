@@ -56,11 +56,7 @@ A policy is a named, versioned collection of rules. Each rule specifies:
 - **Redaction action**: The redaction method to apply when the rule matches (mask, blur, replace, or suppress).
 - **Additional context**: Free-form or structured metadata attached to a rule that provides guidance to downstream stages: a justification string, a regulatory citation, or instructions for human reviewers.
 
-### 7.2 Policy Composition
-
-Policies may extend other policies. A child policy inherits all rules from its parent and may add new rules, override inherited rules, or narrow inherited thresholds. This composition model enables organizations to maintain a base compliance policy (e.g., "HIPAA") and extend it with organization-specific additions without duplicating the base rule set.
-
-### 7.3 Annotations
+### 7.2 Annotations
 
 Files submitted for processing may carry annotations: either provided by the user at submission time or attached as part of a broader context (e.g., a case management system that tags documents with classification labels). Annotations can include:
 

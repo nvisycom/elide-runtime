@@ -1,7 +1,11 @@
 //! Policy types, rules, and governance structures.
+//!
+//! A [`Policy`] is a named, versioned governance artifact containing
+//! strategy rules for entity redaction and retention rules for data
+//! lifecycle management.
 
+mod condition;
 mod retention;
-mod rule;
 mod selector;
 mod strategy;
 
@@ -11,18 +15,21 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub use self::condition::Condition;
 pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
-pub use self::rule::{PolicyRule, RuleAction, RuleCondition};
 pub use self::selector::EntitySelector;
-pub use self::strategy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
+pub use self::strategy::{
+    Action, AudioStrategy, DefaultStrategy, ImageStrategy, Strategy, StrategyPolicy, TextStrategy,
+};
 
-/// A named redaction policy containing an ordered set of rules.
+/// A named, versioned governance policy.
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "PolicyBuilder",
     pattern = "owned",
     setter(into, strip_option, prefix = "with")
 )]
+#[serde(rename_all = "camelCase")]
 pub struct Policy {
     /// Unique identifier for this policy.
     #[builder(default = "Uuid::now_v7()")]
@@ -36,13 +43,18 @@ pub struct Policy {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// Parent policy identifier for inheritance.
+    /// Per-modality fallback strategies for unmatched entities.
     #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub extends: Option<Uuid>,
-    /// Ordered list of rules.
+    #[serde(default, skip_serializing_if = "DefaultStrategy::is_empty")]
+    pub default_strategy: DefaultStrategy,
+    /// Entity redaction strategies.
     #[builder(default)]
-    pub rules: Vec<PolicyRule>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub strategies: Vec<StrategyPolicy>,
+    /// Data retention lifecycle rules.
+    #[builder(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retention: Vec<RetentionPolicy>,
 }
 
 impl Policy {
@@ -57,4 +69,54 @@ impl Policy {
 pub struct Policies {
     /// The policies to evaluate, in order.
     pub policies: Vec<Policy>,
+}
+
+impl Policies {
+    /// Append a policy.
+    pub fn push(&mut self, policy: Policy) {
+        self.policies.push(policy);
+    }
+
+    /// All strategy policies across all policies, sorted by priority.
+    ///
+    /// Returns tuples of `(policy_id, strategy)` so callers can trace
+    /// which policy a matched strategy belongs to.
+    pub fn all_strategies(&self) -> Vec<(Uuid, &StrategyPolicy)> {
+        let mut result: Vec<_> = self
+            .policies
+            .iter()
+            .flat_map(|p| p.strategies.iter().map(move |s| (p.id, s)))
+            .collect();
+        result.sort_by_key(|(_, s)| s.priority());
+        result
+    }
+
+    /// All retention policies across all policies.
+    pub fn all_retention(&self) -> Vec<&RetentionPolicy> {
+        self.policies
+            .iter()
+            .flat_map(|p| p.retention.iter())
+            .collect()
+    }
+
+    /// Merged default strategy across all policies.
+    ///
+    /// Earlier policies take precedence per-modality: if policy A sets
+    /// a text default and policy B sets text + image defaults, the result
+    /// uses A's text and B's image.
+    pub fn default_strategy(&self) -> DefaultStrategy {
+        let mut merged = DefaultStrategy::default();
+        for policy in &self.policies {
+            merged.merge(&policy.default_strategy);
+        }
+        merged
+    }
+
+    /// Look up the effective retention for a given scope.
+    pub fn retention_for(&self, scope: RetentionScope) -> Option<Retention> {
+        self.all_retention()
+            .into_iter()
+            .find(|rp| rp.scope == scope)
+            .map(|rp| rp.retention)
+    }
 }

@@ -2,44 +2,42 @@
 
 use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 use nvisy_engine::pipeline::{Engine, EngineInput};
-use nvisy_ontology::policy::Policies;
 use nvisy_ontology::workflow::{
     ExportFile, Graph, GraphEdge, GraphNode, GraphNodeKind, ImportFile,
 };
 use uuid::Uuid;
 
-/// Creates a temporary engine and returns it with the temp directory guard.
-///
-/// The directory is cleaned up when the guard is dropped.
+/// Creates a temporary [`Engine`] for testing.
 pub fn engine() -> (Engine, tempfile::TempDir) {
     Engine::temp()
 }
 
-/// Returns a random actor ID.
+/// Returns a fixed actor UUID.
 pub fn actor() -> Uuid {
-    Uuid::new_v4()
+    Uuid::parse_str("00000000-0000-7000-8000-000000000001").unwrap()
 }
 
-/// Creates a text content entry and uploads it to the engine.
-///
-/// Returns the content ID.
+/// Returns a second fixed actor UUID for isolation tests.
+pub fn other_actor() -> Uuid {
+    Uuid::parse_str("00000000-0000-7000-8000-000000000002").unwrap()
+}
+
+/// Uploads text content and returns its content ID.
 pub async fn upload_text(engine: &Engine, actor_id: Uuid, text: &str) -> Uuid {
     let data = ContentData::from_text(ContentSource::new(), text);
-    let metadata = ContentMetadata::new().with_content_type("text/plain");
-    let content = Content::with_metadata(data, metadata);
-    engine
-        .upload_content(actor_id, content)
-        .await
-        .expect("upload_text failed")
+    let meta = ContentMetadata::new().with_content_type("text/plain");
+    let content = Content::with_metadata(data, meta);
+    let content = engine.registry().register_content(actor_id, content).await;
+    content.unwrap().content_source().as_uuid()
 }
 
-/// Builds a minimal import → export graph for the given content ID.
+/// Builds a simple import→export graph for the given content ID.
 pub fn import_export_graph(content_id: Uuid) -> Graph {
     let import_id = Uuid::new_v4();
     let export_id = Uuid::new_v4();
 
-    Graph::new(
-        vec![
+    Graph {
+        nodes: vec![
             GraphNode::new(
                 import_id,
                 GraphNodeKind::ImportFile(ImportFile {
@@ -50,35 +48,35 @@ pub fn import_export_graph(content_id: Uuid) -> Graph {
             GraphNode::new(
                 export_id,
                 GraphNodeKind::ExportFile(ExportFile {
-                    content_ids: vec![],
-                    encryption: None,
-                    compression: None,
+                    content_ids: vec![Uuid::new_v4()],
+                    ..Default::default()
                 }),
             ),
         ],
-        vec![GraphEdge {
+        edges: vec![GraphEdge {
             source: import_id,
             target: export_id,
         }],
-    )
+        concurrency: None,
+    }
 }
 
-/// Builds an [`EngineInput`] with the given graph and empty policies.
+/// Builds an [`EngineInput`] with the given graph and no policies.
 pub fn engine_input(actor_id: Uuid, graph: Graph) -> EngineInput {
     EngineInput {
         actor_id,
-        policies: Policies::default(),
+        policy_ids: Vec::new(),
         graph,
         config: None,
         dry_run: false,
     }
 }
 
-/// Builds a dry-run [`EngineInput`] with the given graph and empty policies.
+/// Builds a dry-run [`EngineInput`] with the given graph and no policies.
 pub fn dry_run_input(actor_id: Uuid, graph: Graph) -> EngineInput {
     EngineInput {
         actor_id,
-        policies: Policies::default(),
+        policy_ids: Vec::new(),
         graph,
         config: None,
         dry_run: true,

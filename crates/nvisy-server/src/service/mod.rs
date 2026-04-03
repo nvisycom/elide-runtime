@@ -7,12 +7,14 @@
 use std::path::PathBuf;
 
 use nvisy_engine::pipeline::{Engine, RuntimeConfig};
+use nvisy_engine::registry::Registry;
 
 /// Shared application state threaded through all handlers.
 #[must_use = "state does nothing unless you use it"]
 #[derive(Clone)]
 pub struct ServiceState {
     engine: Engine,
+    registry: Registry,
 }
 
 impl ServiceState {
@@ -23,7 +25,8 @@ impl ServiceState {
     /// Returns an error if the registry database cannot be opened.
     pub fn new(config: RuntimeConfig, data_dir: PathBuf) -> nvisy_core::Result<Self> {
         let engine = Engine::open(data_dir, config)?;
-        Ok(Self { engine })
+        let registry = engine.registry().clone();
+        Ok(Self { engine, registry })
     }
 
     /// Returns the data directory path.
@@ -44,4 +47,5 @@ macro_rules! impl_di {
 
 impl_di!(
     |s: &ServiceState| s.engine.clone() => Engine,
+    |s: &ServiceState| s.registry.clone() => Registry,
 );

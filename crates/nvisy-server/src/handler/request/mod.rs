@@ -13,5 +13,5 @@ mod runs;
 pub use self::contexts::NewContext;
 pub use self::files::NewFile;
 pub use self::pagination::{Page, Pagination};
-pub use self::path::{ContentPath, ContextPath, RunPath};
+pub use self::path::{ContentPath, ContextPath, PolicyPath, RunPath};
 pub use self::runs::{NewRun, RunQuery};

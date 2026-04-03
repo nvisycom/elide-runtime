@@ -60,7 +60,7 @@ impl SharedData {
 
     /// Append a single policy.
     pub fn with_policy(mut self, policy: Policy) -> Self {
-        self.policies.policies.push(policy);
+        self.policies.push(policy);
         self
     }
 }

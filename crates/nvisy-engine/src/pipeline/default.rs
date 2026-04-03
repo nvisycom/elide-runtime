@@ -327,11 +327,11 @@ impl Engine {
             }
         }
 
-        // Keep a clone for retention enforcement after the run.
+        // Keep a copy for retention enforcement after the run.
         let retention_rules = policies
             .all_retention()
             .into_iter()
-            .cloned()
+            .copied()
             .collect::<Vec<_>>();
 
         let mut shared_data = SharedData {

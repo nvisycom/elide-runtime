@@ -4,8 +4,8 @@
 //! strategy rules for entity redaction and retention rules for data
 //! lifecycle management.
 
+mod condition;
 mod retention;
-mod rule;
 mod selector;
 mod strategy;
 
@@ -15,10 +15,12 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub use self::condition::Condition;
 pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
-pub use self::rule::{RuleAction, RuleCondition, StrategyPolicy};
 pub use self::selector::EntitySelector;
-pub use self::strategy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
+pub use self::strategy::{
+    Action, AudioStrategy, DefaultStrategy, ImageStrategy, Strategy, StrategyPolicy, TextStrategy,
+};
 
 /// A named, versioned governance policy.
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
@@ -41,11 +43,10 @@ pub struct Policy {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// Fallback redaction strategy for entities that match no strategy
-    /// rule but exceed the confidence threshold.
+    /// Per-modality fallback strategies for unmatched entities.
     #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_strategy: Option<Strategy>,
+    #[serde(default, skip_serializing_if = "DefaultStrategy::is_empty")]
+    pub default_strategy: DefaultStrategy,
     /// Entity redaction strategies.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -98,18 +99,24 @@ impl Policies {
             .collect()
     }
 
-    /// The first default strategy found across policies, if any.
-    pub fn default_strategy(&self) -> Option<&Strategy> {
-        self.policies
-            .iter()
-            .find_map(|p| p.default_strategy.as_ref())
+    /// Merged default strategy across all policies.
+    ///
+    /// Earlier policies take precedence per-modality: if policy A sets
+    /// a text default and policy B sets text + image defaults, the result
+    /// uses A's text and B's image.
+    pub fn default_strategy(&self) -> DefaultStrategy {
+        let mut merged = DefaultStrategy::default();
+        for policy in &self.policies {
+            merged.merge(&policy.default_strategy);
+        }
+        merged
     }
 
     /// Look up the effective retention for a given scope.
-    pub fn retention_for(&self, scope: RetentionScope) -> Option<&Retention> {
+    pub fn retention_for(&self, scope: RetentionScope) -> Option<Retention> {
         self.all_retention()
             .into_iter()
             .find(|rp| rp.scope == scope)
-            .map(|rp| &rp.retention)
+            .map(|rp| rp.retention)
     }
 }

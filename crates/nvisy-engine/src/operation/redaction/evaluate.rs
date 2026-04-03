@@ -8,8 +8,9 @@
 //! [`GenerateContextOp`]: crate::operation::GenerateContextOp
 
 use nvisy_core::Result;
+use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::entity::{Entities, Entity};
-use nvisy_ontology::policy::{RuleAction, RuleCondition, Strategy, StrategyPolicy, TextStrategy};
+use nvisy_ontology::policy::{Action, Condition, DefaultStrategy, StrategyPolicy};
 use nvisy_ontology::provenance::AuditEntry;
 use nvisy_ontology::workflow::Redaction;
 use uuid::Uuid;
@@ -41,10 +42,7 @@ impl Operation for RedactionOp {
 
         let policies = &envelope.shared.policies;
         let strategies = policies.all_strategies();
-        let default_spec = policies
-            .default_strategy()
-            .cloned()
-            .unwrap_or(Strategy::Text(TextStrategy::Mask { mask_char: '*' }));
+        let defaults = policies.default_strategy();
 
         tracing::debug!(
             target: TARGET,
@@ -57,9 +55,10 @@ impl Operation for RedactionOp {
         let entries = evaluate(
             &envelope.audit.entities,
             &strategies,
-            &default_spec,
+            &defaults,
             self.default_threshold,
             &document_labels,
+            &envelope.metadata,
         );
         envelope.audit.entries.extend(entries);
 
@@ -73,18 +72,19 @@ impl Operation for RedactionOp {
 fn evaluate(
     entities: &Entities,
     strategies: &[(Uuid, &StrategyPolicy)],
-    default_spec: &Strategy,
+    defaults: &DefaultStrategy,
     default_threshold: f64,
     document_labels: &[&str],
+    metadata: &ContentMetadata,
 ) -> Vec<AuditEntry> {
     let mut entries = Vec::new();
 
     for entity in entities {
-        let matched = find_matching_strategy(strategies, entity, document_labels);
+        let matched = find_matching_strategy(strategies, entity, document_labels, metadata);
 
         let (spec, policy_id) = match matched {
             Some((policy_id, strategy)) => match &strategy.action {
-                RuleAction::Redact { strategy } => (strategy.clone(), Some(policy_id)),
+                Action::Redact { strategy } => (strategy.clone(), Some(policy_id)),
                 _ => {
                     tracing::debug!(
                         target: TARGET,
@@ -100,7 +100,13 @@ fn evaluate(
                 if entity.confidence < default_threshold {
                     continue;
                 }
-                (default_spec.clone(), None)
+                let Some(location) = &entity.location else {
+                    continue;
+                };
+                let Some(spec) = defaults.for_location(location) else {
+                    continue;
+                };
+                (spec, None)
             }
         };
 
@@ -134,6 +140,7 @@ fn find_matching_strategy<'a>(
     strategies: &[(Uuid, &'a StrategyPolicy)],
     entity: &Entity,
     document_labels: &[&str],
+    metadata: &ContentMetadata,
 ) -> Option<(Uuid, &'a StrategyPolicy)> {
     strategies
         .iter()
@@ -145,11 +152,7 @@ fn find_matching_strategy<'a>(
                 return false;
             }
             for condition in &strategy.conditions {
-                if let RuleCondition::Labels { labels } = condition
-                    && !labels
-                        .iter()
-                        .all(|label| document_labels.contains(&label.as_str()))
-                {
+                if !condition.matches(document_labels, metadata) {
                     return false;
                 }
             }
@@ -158,9 +161,36 @@ fn find_matching_strategy<'a>(
         .map(|&(id, s)| (id, s))
 }
 
+/// Extension trait for evaluating [`Condition`]s against document context.
+trait ConditionExt {
+    /// Returns `true` if this condition is satisfied by the given context.
+    fn matches(&self, document_labels: &[&str], metadata: &ContentMetadata) -> bool;
+}
+
+impl ConditionExt for Condition {
+    fn matches(&self, document_labels: &[&str], metadata: &ContentMetadata) -> bool {
+        match self {
+            Condition::Labels { labels } => labels.iter().all(|label| {
+                document_labels
+                    .iter()
+                    .any(|doc| doc.eq_ignore_ascii_case(label))
+            }),
+            Condition::Metadata { key, value } => match metadata.get_extra(key) {
+                Some(actual) => match value {
+                    Some(expected) => actual.as_str().is_some_and(|s| s == expected),
+                    None => true,
+                },
+                None => false,
+            },
+            _ => true,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, Location, RecognitionMethod};
+    use nvisy_ontology::policy::{Strategy, TextStrategy};
 
     use super::*;
 
@@ -183,30 +213,50 @@ mod tests {
             .unwrap()
     }
 
-    fn default_spec() -> Strategy {
-        Strategy::Text(TextStrategy::Mask { mask_char: '*' })
+    fn defaults() -> DefaultStrategy {
+        DefaultStrategy {
+            text: Some(TextStrategy::Mask { mask_char: '*' }),
+            ..Default::default()
+        }
     }
 
     #[test]
     fn skips_below_threshold() {
         let entities: Entities = vec![test_entity("John", 0.5)].into();
-        let entries = evaluate(&entities, &[], &default_spec(), 0.8, &[]);
+        let entries = evaluate(
+            &entities,
+            &[],
+            &defaults(),
+            0.8,
+            &[],
+            &ContentMetadata::new(),
+        );
         assert!(entries.is_empty());
     }
 
     #[test]
     fn produces_entry_above_threshold() {
         let entities: Entities = vec![test_entity("John", 0.9)].into();
-        let entries = evaluate(&entities, &[], &default_spec(), 0.5, &[]);
+        let entries = evaluate(
+            &entities,
+            &[],
+            &defaults(),
+            0.5,
+            &[],
+            &ContentMetadata::new(),
+        );
         assert_eq!(entries.len(), 1);
         assert!(!entries[0].redaction.is_applied);
     }
 
     #[test]
     fn uses_default_strategy_when_no_rules() {
-        let spec = Strategy::Text(TextStrategy::Remove);
+        let defaults = DefaultStrategy {
+            text: Some(TextStrategy::Remove),
+            ..Default::default()
+        };
         let entities: Entities = vec![test_entity("secret", 0.9)].into();
-        let entries = evaluate(&entities, &[], &spec, 0.0, &[]);
+        let entries = evaluate(&entities, &[], &defaults, 0.0, &[], &ContentMetadata::new());
         assert_eq!(
             entries[0].redaction.strategy,
             Strategy::Text(TextStrategy::Remove)
@@ -214,9 +264,27 @@ mod tests {
     }
 
     #[test]
+    fn skips_entity_without_matching_modality_default() {
+        let defaults = DefaultStrategy {
+            image: Some(nvisy_ontology::policy::ImageStrategy::Blur { sigma: 15.0 }),
+            ..Default::default()
+        };
+        let entities: Entities = vec![test_entity("text-entity", 0.9)].into();
+        let entries = evaluate(&entities, &[], &defaults, 0.0, &[], &ContentMetadata::new());
+        assert!(entries.is_empty());
+    }
+
+    #[test]
     fn captures_original_value() {
         let entities: Entities = vec![test_entity("secret-value", 0.9)].into();
-        let entries = evaluate(&entities, &[], &default_spec(), 0.0, &[]);
+        let entries = evaluate(
+            &entities,
+            &[],
+            &defaults(),
+            0.0,
+            &[],
+            &ContentMetadata::new(),
+        );
         assert_eq!(entries[0].value.original, "secret-value");
     }
 }

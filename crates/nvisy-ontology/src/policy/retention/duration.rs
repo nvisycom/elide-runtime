@@ -1,28 +1,12 @@
-//! Data retention policy types.
+//! Data retention duration types.
 
 use std::time::Duration;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
-
-/// What class of data a retention policy applies to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
-#[derive(EnumString, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[strum(serialize_all = "snake_case")]
-#[non_exhaustive]
-pub enum RetentionScope {
-    /// Original ingested content before redaction.
-    OriginalContent,
-    /// Redacted output artifacts.
-    RedactedOutput,
-    /// Audit log entries.
-    AuditLogs,
-}
 
 /// How long data is retained.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "mode", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Retention {
@@ -48,13 +32,4 @@ impl Retention {
             Self::Indefinite => None,
         }
     }
-}
-
-/// A single retention rule: scope + duration.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct RetentionPolicy {
-    /// What class of data this applies to.
-    pub scope: RetentionScope,
-    /// How long to retain data.
-    pub retention: Retention,
 }

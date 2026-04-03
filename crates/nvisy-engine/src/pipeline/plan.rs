@@ -1,145 +1,199 @@
 //! Graph compilation into an [`ExecutionPlan`].
 //!
 //! [`compile()`] bridges the user-facing [`Graph`] definition and the
-//! runtime execution model. It performs these steps:
+//! runtime execution model. It validates the graph, then walks the
+//! nodes to build a typed, phase-ordered execution plan.
 //!
-//! 1. **Validation** — the graph is checked for structural correctness
-//!    via [`Graph::validate`].
-//! 2. **petgraph construction** — nodes and edges are inserted into a
-//!    [`DiGraph`](petgraph::graph::DiGraph) for topological sorting.
-//! 3. **Topological sort** — produces the node execution order, ensuring
-//!    every node runs after its dependencies.
-//! 4. **Policy resolution** — nodes without explicit retry/timeout
-//!    policies inherit the engine-level defaults.
-//! 5. **Edge resolution** — each edge is paired with an [`EdgeConfig`]
-//!    controlling the bounded MPSC channel buffer size.
+//! All pipeline phases always run with default settings. User-provided
+//! graph nodes customize *how* each phase runs, not *whether* it runs.
+//! The plan is consumed by the [orchestrator] to drive per-document
+//! execution.
 //!
-//! The resulting [`ExecutionPlan`] is consumed by the
-//! [orchestrator](super::orchestrator) to spawn concurrent tasks.
+//! [`Graph`]: nvisy_ontology::workflow::Graph
+//! [orchestrator]: super::orchestrator
 
 use nvisy_core::{Error, Result};
-use nvisy_ontology::workflow::{Graph, GraphEdge, GraphNode};
-use petgraph::algo::toposort;
-use petgraph::graph::{DiGraph, NodeIndex};
+use nvisy_ontology::workflow::{
+    Detection, ExportFile, Extraction, Fusion, Graph, GraphNodeKind, ImportFile, Redaction,
+    RetryPolicy, TimeoutPolicy, Validation,
+};
 use uuid::Uuid;
 
-use crate::graph::GraphExt;
-
-/// Channel configuration for a resolved edge.
+/// Import step — source node that creates envelopes.
 #[derive(Debug, Clone)]
-pub struct EdgeConfig {
-    /// Buffer size for the bounded MPSC channel on this edge.
-    pub channel_buffer: usize,
+#[allow(dead_code)]
+pub struct ImportStep {
+    /// Import configuration (content IDs, decompression, decryption).
+    pub config: ImportFile,
+    /// Per-node retry policy override.
+    pub retry: Option<RetryPolicy>,
+    /// Per-node timeout policy override.
+    pub timeout: Option<TimeoutPolicy>,
 }
 
-/// A directed edge with pre-computed channel configuration.
+/// Export step — sink node that writes envelopes.
 #[derive(Debug, Clone)]
-pub struct ResolvedEdge {
-    /// ID of the upstream node.
-    pub source: Uuid,
-    /// ID of the downstream node.
-    pub target: Uuid,
-    /// Channel configuration for this edge.
-    pub config: EdgeConfig,
+#[allow(dead_code)]
+pub struct ExportStep {
+    /// Export configuration (content IDs, encryption, compression).
+    pub config: ExportFile,
+    /// Per-node retry policy override.
+    pub retry: Option<RetryPolicy>,
+    /// Per-node timeout policy override.
+    pub timeout: Option<TimeoutPolicy>,
 }
 
-/// A graph node enriched with adjacency information.
+/// Type-safe compiled execution plan.
 ///
-/// The original [`GraphNode`] is preserved unchanged. Retry and timeout
-/// policies are resolved at execution time by the [`NodeExecutor`]
-/// (node-level policy falls back to engine defaults).
-///
-/// Order is implicit in the position within [`ExecutionPlan::nodes`].
-///
-/// [`NodeExecutor`]: super::executor::NodeExecutor
+/// All phases are present (non-optional) because they always run.
+/// User-provided settings are merged in; defaults fill the gaps.
+/// Redaction and post-redaction phases are skipped at runtime when
+/// `dry_run` is true — the plan itself is always complete.
 #[derive(Debug, Clone)]
-pub struct ResolvedNode {
-    /// The original graph node definition.
-    pub node: GraphNode,
-    /// IDs of nodes that feed data into this node.
-    pub upstream_ids: Vec<Uuid>,
+pub struct ExecutionPlan {
+    /// Content imports (phase 0).
+    pub imports: Vec<ImportStep>,
+    /// Context IDs to load into the cache (phase 0).
+    pub context_ids: Vec<Uuid>,
+    /// Extraction settings per modality (phase 1).
+    pub extraction: Extraction,
+    /// Detection settings — NER + Pattern (phase 2, concurrent).
+    pub detection: Detection,
+    /// Fusion settings (phase 3).
+    pub fusion: Fusion,
+    /// Redaction settings (phase 4, skipped in dry-run).
+    pub redaction: Redaction,
+    /// Whether to generate context (phase 4).
+    pub generate_context: bool,
+    /// Validation settings (phase 5, skipped in dry-run).
+    pub validation: Validation,
+    /// Content exports (phase 6, skipped in dry-run).
+    pub exports: Vec<ExportStep>,
+    /// Context IDs to save (phase 6, skipped in dry-run).
+    pub save_context_ids: Vec<Uuid>,
 }
 
 /// Compiles a [`Graph`] into an [`ExecutionPlan`].
 ///
-/// Validates the graph, builds a petgraph representation, and
-/// topologically sorts it. The graph is not mutated. Policy resolution
-/// (retry/timeout defaults) happens later at execution time.
-pub(crate) fn compile(graph: &Graph, channel_buffer: usize) -> Result<ExecutionPlan> {
+/// Validates the graph, then walks nodes to build a typed plan.
+/// The graph's DAG structure is validated for correctness but the
+/// plan itself is a flat, phase-ordered structure — edges are not
+/// preserved at runtime.
+pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
     graph.validate()?;
 
-    let pg = graph.to_petgraph();
+    let mut imports = Vec::new();
+    let mut exports = Vec::new();
+    let mut context_ids = Vec::new();
+    let mut save_context_ids = Vec::new();
+    let mut generate_context = false;
+    let mut extraction = Extraction::default();
+    let mut detection = Detection::default();
+    let mut fusion = Fusion::default();
+    let mut redaction = Redaction::default();
+    let mut validation = Validation::default();
 
-    let topo =
-        toposort(&pg, None).map_err(|_| Error::validation("graph contains a cycle", "compiler"))?;
+    let mut has_extraction = false;
+    let mut has_detection = false;
+    let mut has_fusion = false;
+    let mut has_redaction = false;
+    let mut has_validation = false;
 
-    Ok(ExecutionPlan::from_graph(&pg, &topo, channel_buffer))
-}
-
-/// A compiled execution plan ready for the executor.
-///
-/// Contains all nodes in topological order and edges with channel
-/// configuration. Constructed only via [`compile()`].
-pub struct ExecutionPlan {
-    nodes: Vec<ResolvedNode>,
-    edges: Vec<ResolvedEdge>,
-}
-
-impl ExecutionPlan {
-    /// Builds an execution plan from a petgraph and its topological ordering.
-    fn from_graph(
-        pg: &DiGraph<GraphNode, GraphEdge>,
-        topo: &[NodeIndex],
-        channel_buffer: usize,
-    ) -> Self {
-        let mut nodes = Vec::with_capacity(topo.len());
-
-        for &idx in topo {
-            let graph_node = &pg[idx];
-            let upstream_ids: Vec<Uuid> = pg
-                .neighbors_directed(idx, petgraph::Direction::Incoming)
-                .map(|n| pg[n].id)
-                .collect();
-
-            nodes.push(ResolvedNode {
-                node: graph_node.clone(),
-                upstream_ids,
-            });
-        }
-
-        let edges: Vec<ResolvedEdge> = pg
-            .edge_indices()
-            .map(|ei| {
-                let (src_idx, tgt_idx) = pg
-                    .edge_endpoints(ei)
-                    .expect("edge index obtained from edge_indices() must be valid");
-                ResolvedEdge {
-                    source: pg[src_idx].id,
-                    target: pg[tgt_idx].id,
-                    config: EdgeConfig { channel_buffer },
+    for node in &graph.nodes {
+        match &node.kind {
+            GraphNodeKind::ImportFile(cfg) => {
+                imports.push(ImportStep {
+                    config: cfg.clone(),
+                    retry: node.retry.clone(),
+                    timeout: node.timeout.clone(),
+                });
+            }
+            GraphNodeKind::ExportFile(cfg) => {
+                exports.push(ExportStep {
+                    config: cfg.clone(),
+                    retry: node.retry.clone(),
+                    timeout: node.timeout.clone(),
+                });
+            }
+            GraphNodeKind::LoadContext(cfg) => {
+                context_ids.extend_from_slice(&cfg.context_ids);
+            }
+            GraphNodeKind::SaveContext(cfg) => {
+                save_context_ids.extend_from_slice(&cfg.context_ids);
+            }
+            GraphNodeKind::GenerateContext(_) => {
+                generate_context = true;
+            }
+            GraphNodeKind::Extraction(cfg) => {
+                if has_extraction {
+                    return Err(Error::validation(
+                        "graph may contain at most one Extraction node",
+                        "compiler",
+                    ));
                 }
-            })
-            .collect();
-
-        Self { nodes, edges }
+                extraction = cfg.clone();
+                has_extraction = true;
+            }
+            GraphNodeKind::Detection(cfg) => {
+                if has_detection {
+                    return Err(Error::validation(
+                        "graph may contain at most one Detection node",
+                        "compiler",
+                    ));
+                }
+                detection = cfg.clone();
+                has_detection = true;
+            }
+            GraphNodeKind::Fusion(cfg) => {
+                if has_fusion {
+                    return Err(Error::validation(
+                        "graph may contain at most one Fusion node",
+                        "compiler",
+                    ));
+                }
+                fusion = cfg.clone();
+                has_fusion = true;
+            }
+            GraphNodeKind::Redaction(cfg) => {
+                if has_redaction {
+                    return Err(Error::validation(
+                        "graph may contain at most one Redaction node",
+                        "compiler",
+                    ));
+                }
+                redaction = cfg.clone();
+                has_redaction = true;
+            }
+            GraphNodeKind::Validation(cfg) => {
+                if has_validation {
+                    return Err(Error::validation(
+                        "graph may contain at most one Validation node",
+                        "compiler",
+                    ));
+                }
+                validation = cfg.clone();
+                has_validation = true;
+            }
+            _ => {}
+        }
     }
 
-    /// All nodes in topological order.
-    pub fn nodes(&self) -> &[ResolvedNode] {
-        &self.nodes
-    }
+    // Deduplicate context IDs.
+    context_ids.sort_unstable();
+    context_ids.dedup();
+    save_context_ids.sort_unstable();
+    save_context_ids.dedup();
 
-    /// All edges with their channel configuration.
-    pub fn edges(&self) -> &[ResolvedEdge] {
-        &self.edges
-    }
-}
-
-impl std::fmt::Debug for ExecutionPlan {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ExecutionPlan")
-            .field("nodes", &self.nodes.len())
-            .field("edges", &self.edges.len())
-            .finish()
-    }
+    Ok(ExecutionPlan {
+        imports,
+        context_ids,
+        extraction,
+        detection,
+        fusion,
+        redaction,
+        generate_context,
+        validation,
+        exports,
+        save_context_ids,
+    })
 }

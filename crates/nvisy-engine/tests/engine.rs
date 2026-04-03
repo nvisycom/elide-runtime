@@ -25,7 +25,6 @@ fn open_with_custom_limits() -> anyhow::Result<()> {
         engine: Some(EngineSection {
             limits: ResourceLimits {
                 run_timeout_ms: Some(5000),
-                channel_buffer: 64,
                 ..Default::default()
             },
             ..Default::default()
@@ -40,8 +39,8 @@ fn open_with_custom_limits() -> anyhow::Result<()> {
             .as_ref()
             .unwrap()
             .limits
-            .channel_buffer,
-        64
+            .run_timeout_ms,
+        Some(5000)
     );
     Ok(())
 }

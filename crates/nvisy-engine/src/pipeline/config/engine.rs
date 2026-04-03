@@ -12,7 +12,7 @@ use validator::Validate;
 /// [`Engine::run`] and cannot be changed mid-run.
 ///
 /// [`Engine::run`]: super::super::Engine::run
-#[derive(Debug, Clone, Copy, Validate, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, Validate, Serialize, Deserialize)]
 pub struct ResourceLimits {
     /// Hard ceiling on total pipeline run duration, in milliseconds.
     ///
@@ -22,14 +22,6 @@ pub struct ResourceLimits {
     /// `None` means no run-level timeout.
     #[serde(default)]
     pub run_timeout_ms: Option<u64>,
-
-    /// Buffer size for bounded MPSC channels between pipeline nodes.
-    ///
-    /// Controls backpressure: a larger buffer allows faster producers
-    /// to run ahead of slower consumers. Defaults to 256.
-    #[validate(range(min = 1, message = "channel_buffer must be at least 1"))]
-    #[serde(default = "ResourceLimits::default_channel_buffer")]
-    pub channel_buffer: usize,
 
     /// Maximum number of nodes allowed in an execution graph.
     ///
@@ -54,23 +46,6 @@ pub struct ResourceLimits {
     pub max_envelope_size_bytes: Option<u64>,
 }
 
-impl ResourceLimits {
-    pub(crate) const fn default_channel_buffer() -> usize {
-        256
-    }
-}
-
-impl Default for ResourceLimits {
-    fn default() -> Self {
-        Self {
-            run_timeout_ms: None,
-            channel_buffer: Self::default_channel_buffer(),
-            max_nodes: None,
-            max_content_ids_per_import: None,
-            max_envelope_size_bytes: None,
-        }
-    }
-}
 
 /// Cache tuning parameters.
 ///

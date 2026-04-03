@@ -142,6 +142,7 @@ impl RunState {
     /// Update a single node's snapshot within a run.
     ///
     /// Returns `true` if the node was found and updated, `false` otherwise.
+    #[allow(dead_code)]
     pub async fn update_node(
         &self,
         run_id: Uuid,

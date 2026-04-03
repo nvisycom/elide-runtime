@@ -1,15 +1,10 @@
 //! Single pipeline run lifecycle.
 //!
 //! [`Pipeline`] encapsulates the full lifecycle of one pipeline run:
-//! validation, compilation, resource acquisition, DAG execution,
+//! validation, compilation, resource acquisition, execution,
 //! retention enforcement, and finalization. It is created per-run by
 //! [`Engine::run`] or [`Engine::submit`] and is not reusable.
 //!
-//! Separating the per-run lifecycle from [`Engine`] keeps the engine
-//! as a thin facade (construction, CRUD, shutdown) while the pipeline
-//! owns all execution state.
-//!
-//! [`Engine`]: super::Engine
 //! [`Engine::run`]: super::Engine::run
 //! [`Engine::submit`]: super::Engine::submit
 
@@ -18,33 +13,22 @@ use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
-use nvisy_ontology::workflow::{ConcurrencyPolicy, GraphNodeKind};
+use nvisy_ontology::workflow::GraphNodeKind;
 use nvisy_provider::http::HttpClient;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-use validator::Validate;
 
-use super::config::{ResourceLimits, RuntimeConfig};
+use super::config::RuntimeConfig;
 use super::default::{EngineInput, EngineOutput};
-use super::orchestrator::{Orchestrator, RunContext, StatusUpdate};
-use super::plan;
+use super::orchestrator::{Orchestrator, RunContext};
+use super::plan::{self, ExecutionPlan};
 use super::runs::state::{RunRecord, RunState};
-use super::runs::{NodeSnapshot, NodeStatus, RunStatus};
+use super::runs::RunStatus;
 use crate::operation::encryption::SharedKeyProvider;
 use crate::operation::envelope::SharedData;
-use crate::registry::{Registry, ResourceGuard};
+use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
-
-/// Per-run state produced by [`Pipeline::prepare`] and consumed by
-/// [`Pipeline::execute`].
-pub(super) struct PreparedRun {
-    cancel: CancellationToken,
-    effective_config: RuntimeConfig,
-    context_ids: Vec<Uuid>,
-    limits: ResourceLimits,
-    concurrency: Option<ConcurrencyPolicy>,
-}
 
 /// A single pipeline run lifecycle.
 ///
@@ -90,51 +74,16 @@ impl Pipeline {
     ///
     /// [`Engine::run`]: super::Engine::run
     pub async fn run(self, input: EngineInput) -> Result<EngineOutput, Error> {
-        let (compiled, prepared) = self.prepare(&input).await?;
-        self.execute(input, compiled, prepared).await
+        let compiled = self.prepare(&input).await?;
+        self.execute(input, compiled).await
     }
 
     /// Validate input, compile the graph, and insert the initial run record.
     ///
-    /// On success, returns the compiled plan and prepared state needed
-    /// by [`execute`]. On compilation failure, inserts a failed run
-    /// record and returns the error.
-    pub async fn prepare(
-        &self,
-        input: &EngineInput,
-    ) -> Result<(plan::ExecutionPlan, PreparedRun), Error> {
-        let cancel = CancellationToken::new();
-
-        let effective_config = match &input.config {
-            Some(overrides) => self.base_config.merge(overrides),
-            None => self.base_config.clone(),
-        };
-
-        let mut context_ids: Vec<Uuid> = input
-            .graph
-            .nodes
-            .iter()
-            .filter_map(|node| match &node.kind {
-                GraphNodeKind::LoadContext(cfg) => Some(cfg.context_ids.clone()),
-                _ => None,
-            })
-            .flatten()
-            .collect();
-        context_ids.sort_unstable();
-        context_ids.dedup();
-
-        let limits = effective_config.effective_limits();
-        let concurrency = input
-            .graph
-            .concurrency
-            .or_else(|| effective_config.effective_concurrency());
-
-        if let Some(ref c) = concurrency {
-            c.validate()
-                .map_err(|e| Error::validation(e.to_string(), "concurrency"))?;
-        }
-
-        let compiled = match plan::compile(&input.graph, limits.channel_buffer) {
+    /// On success, returns the compiled plan. On compilation failure,
+    /// inserts a failed run record and returns the error.
+    pub async fn prepare(&self, input: &EngineInput) -> Result<ExecutionPlan, Error> {
+        let compiled = match plan::compile(&input.graph) {
             Ok(plan) => plan,
             Err(e) => {
                 let now = jiff::Timestamp::now();
@@ -148,7 +97,7 @@ impl Pipeline {
                             started_at: None,
                             completed_at: Some(now),
                             nodes: HashMap::new(),
-                            cancel: cancel.clone(),
+                            cancel: CancellationToken::new(),
                             entities_detected: 0,
                             redactions_applied: 0,
                             error: Some(e.to_string()),
@@ -159,22 +108,7 @@ impl Pipeline {
             }
         };
 
-        let initial_nodes: HashMap<Uuid, NodeSnapshot> = compiled
-            .nodes()
-            .iter()
-            .map(|n| {
-                (
-                    n.node.id,
-                    NodeSnapshot {
-                        node_id: n.node.id,
-                        status: NodeStatus::Pending,
-                        items_processed: 0,
-                        error: None,
-                    },
-                )
-            })
-            .collect();
-
+        // Insert initial run record as Pending.
         self.runs
             .insert(
                 self.run_id,
@@ -184,8 +118,8 @@ impl Pipeline {
                     created_at: jiff::Timestamp::now(),
                     started_at: None,
                     completed_at: None,
-                    nodes: initial_nodes,
-                    cancel: cancel.clone(),
+                    nodes: HashMap::new(),
+                    cancel: CancellationToken::new(),
                     entities_detected: 0,
                     redactions_applied: 0,
                     error: None,
@@ -193,36 +127,26 @@ impl Pipeline {
             )
             .await;
 
-        let prepared = PreparedRun {
-            cancel,
-            effective_config,
-            context_ids,
-            limits,
-            concurrency,
-        };
-
-        Ok((compiled, prepared))
+        Ok(compiled)
     }
 
     /// Run the compiled plan to completion.
     pub async fn execute(
         &self,
         input: EngineInput,
-        compiled: plan::ExecutionPlan,
-        prepared: PreparedRun,
+        compiled: ExecutionPlan,
     ) -> Result<EngineOutput, Error> {
-        let PreparedRun {
-            cancel,
-            effective_config,
-            context_ids,
-            limits,
-            concurrency,
-        } = prepared;
+        let effective_config = match &input.config {
+            Some(overrides) => self.base_config.merge(overrides),
+            None => self.base_config.clone(),
+        };
 
         let actor_id = input.actor_id;
-        let (_context_guard, _policy_guard) =
-            self.acquire_resources(actor_id, &context_ids, &input.policy_ids)
-                .await;
+
+        // Acquire contexts and policies into the registry caches.
+        let (_context_guard, _policy_guard) = self
+            .acquire_resources(actor_id, &compiled.context_ids, &input.policy_ids)
+            .await;
 
         let cached_policies = self
             .registry
@@ -240,6 +164,11 @@ impl Pipeline {
             .copied()
             .collect::<Vec<_>>();
 
+        let concurrency = input
+            .graph
+            .concurrency
+            .or_else(|| effective_config.effective_concurrency());
+
         let mut shared_data = SharedData {
             run_id: self.run_id,
             actor_id,
@@ -251,6 +180,7 @@ impl Pipeline {
             shared_data.key_provider = kp.clone();
         }
 
+        let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
         let ctx = RunContext {
             cancel,
@@ -263,8 +193,8 @@ impl Pipeline {
 
         self.runs.set_started_at(self.run_id).await;
 
-        let on_status = self.status_callback();
-        let orchestrator = Orchestrator::new(ctx, on_status);
+        let limits = self.base_config.effective_limits();
+        let orchestrator = Orchestrator::new(ctx);
         let run_output = if let Some(ms) = limits.run_timeout_ms {
             match tokio::time::timeout(
                 std::time::Duration::from_millis(ms),
@@ -295,12 +225,20 @@ impl Pipeline {
             }
         };
 
-        // Collect audits and counters from node results.
+        // Collect audits and counters from document results.
         let mut audits = Vec::new();
         let mut entities_detected = 0u64;
         let mut redactions_applied = 0u64;
-        for nr in &run_output.node_results {
-            for envelope in &nr.envelopes {
+        let mut any_failed = false;
+        let mut any_ok = false;
+
+        for result in &run_output.results {
+            if result.error.is_some() {
+                any_failed = true;
+                continue;
+            }
+            any_ok = true;
+            if let Some(ref envelope) = result.envelope {
                 entities_detected += envelope.audit.entities.len() as u64;
                 redactions_applied += envelope
                     .audit
@@ -317,10 +255,18 @@ impl Pipeline {
             audits,
         };
 
+        // Enforce retention policies.
         self.apply_retention(actor_id, &retention_rules, &input.graph, &mut output)
             .await;
 
-        let status = run_output.run_status();
+        let status = if !any_failed {
+            RunStatus::Succeeded
+        } else if any_ok {
+            RunStatus::PartialFailure
+        } else {
+            RunStatus::Failed
+        };
+
         self.runs
             .finalize(self.run_id, status, entities_detected, redactions_applied)
             .await;
@@ -337,31 +283,15 @@ impl Pipeline {
         Ok(output)
     }
 
-    /// Build a status callback that bridges orchestrator node status
-    /// updates to the in-memory [`RunState`].
-    fn status_callback(&self) -> StatusUpdate {
-        let runs = self.runs.clone();
-        let run_id = self.run_id;
-        Arc::new(move |node_id, status, items_processed, error| {
-            let runs = runs.clone();
-            Box::pin(async move {
-                runs.update_node(run_id, node_id, status, items_processed, error)
-                    .await;
-            })
-        })
-    }
-
     /// Acquire contexts and policies into the registry caches.
-    ///
-    /// Returns RAII guards that release resources when dropped.
     async fn acquire_resources(
         &self,
         actor_id: Uuid,
         context_ids: &[Uuid],
         policy_ids: &[Uuid],
     ) -> (
-        ResourceGuard<nvisy_ontology::context::Context>,
-        ResourceGuard<nvisy_ontology::policy::Policy>,
+        crate::registry::ResourceGuard<nvisy_ontology::context::Context>,
+        crate::registry::ResourceGuard<nvisy_ontology::policy::Policy>,
     ) {
         let registry = &self.registry;
 
@@ -395,21 +325,6 @@ impl Pipeline {
     }
 
     /// Enforce retention policies after a pipeline run.
-    ///
-    /// For [`ZeroRetention`], applies immediately:
-    /// - [`OriginalContent`]: deletes imported content from the registry
-    /// - [`RedactedOutput`]: deletes exported content from the registry
-    /// - [`AuditLogs`]: clears audits from the output and registry
-    ///
-    /// [`Duration`] and [`Indefinite`] retention are recorded as metadata
-    /// but not enforced here (requires a background cleanup process).
-    ///
-    /// [`ZeroRetention`]: Retention::ZeroRetention
-    /// [`OriginalContent`]: RetentionScope::OriginalContent
-    /// [`RedactedOutput`]: RetentionScope::RedactedOutput
-    /// [`AuditLogs`]: RetentionScope::AuditLogs
-    /// [`Duration`]: Retention::Duration
-    /// [`Indefinite`]: Retention::Indefinite
     async fn apply_retention(
         &self,
         actor_id: Uuid,

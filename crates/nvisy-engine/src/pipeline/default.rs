@@ -22,9 +22,7 @@ use uuid::Uuid;
 use super::config::RuntimeConfig;
 use super::run::Pipeline;
 use super::runs::state::RunState;
-use super::runs::{
-    AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot,
-};
+use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
 use crate::operation::encryption::SharedKeyProvider;
 use crate::registry::Registry;
 
@@ -240,17 +238,14 @@ impl Engine {
         let actor_id = input.actor_id;
 
         // Prepare synchronously — fail fast on bad input.
-        let (compiled, prepared) = pipeline.prepare(&input).await?;
+        let compiled = pipeline.prepare(&input).await?;
 
         let registry = self.inner.registry.clone();
         let runs = self.inner.runs.clone();
         self.inner.background_tasks.lock().await.spawn(async move {
-            match pipeline.execute(input, compiled, prepared).await {
+            match pipeline.execute(input, compiled).await {
                 Ok(output) => {
-                    if let Err(e) = registry
-                        .store_audits(actor_id, run_id, output.audits)
-                        .await
-                    {
+                    if let Err(e) = registry.store_audits(actor_id, run_id, output.audits).await {
                         tracing::error!(%run_id, error = %e, "failed to persist run audits");
                         runs.fail(run_id, format!("failed to persist audits: {e}"))
                             .await;

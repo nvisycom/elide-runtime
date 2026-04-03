@@ -8,8 +8,8 @@ use super::RuntimeConfig;
 impl RuntimeConfig {
     /// Validate all configuration sections.
     ///
-    /// Checks structural constraints (e.g. `channel_buffer >= 1`,
-    /// retry/timeout ranges) using the `validator` crate. Should be
+    /// Checks structural constraints (e.g. retry/timeout ranges)
+    /// using the `validator` crate. Should be
     /// called once after deserialization and after any merge.
     ///
     /// # Errors

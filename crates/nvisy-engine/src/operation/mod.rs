@@ -14,6 +14,7 @@ mod export_file;
 mod fusion;
 mod generate_context;
 mod import_file;
+#[allow(dead_code)]
 mod load_context;
 mod pattern_recognition;
 pub(crate) mod redaction;
@@ -28,7 +29,6 @@ pub(crate) use self::export_file::ExportFileOp;
 pub(crate) use self::fusion::FusionOp;
 pub(crate) use self::generate_context::GenerateContextOp;
 pub(crate) use self::import_file::ImportFileOp;
-pub(crate) use self::load_context::LoadContextOp;
 pub(crate) use self::pattern_recognition::PatternRecognitionOp;
 pub(crate) use self::redaction::RedactionOp;
 pub(crate) use self::save_context::SaveContextOp;

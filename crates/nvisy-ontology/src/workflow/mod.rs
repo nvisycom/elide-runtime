@@ -20,9 +20,7 @@ use validator::Validate;
 
 pub use self::context::{GenerateContext, LoadContext, SaveContext};
 pub use self::detection::{Detection, NerDetection, PatternDetection};
-pub use self::extraction::{
-    AudialExtraction, Extraction, TextExtraction, VisualExtraction,
-};
+pub use self::extraction::{AudialExtraction, Extraction, TextExtraction, VisualExtraction};
 pub use self::ingest::{
     CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig, ExportFile, ImportFile,
 };
@@ -150,9 +148,7 @@ impl GraphNodeKind {
             Self::LoadContext(cfg) => validate_struct(cfg),
             Self::SaveContext(cfg) => validate_struct(cfg),
             Self::ExportFile(cfg) => validate_struct(cfg),
-            Self::Detection(cfg) => cfg
-                .validate()
-                .map_err(|e| Error::new(e.to_string())),
+            Self::Detection(cfg) => cfg.validate().map_err(|e| Error::new(e.to_string())),
             Self::Extraction(_)
             | Self::Fusion(_)
             | Self::Redaction(_)

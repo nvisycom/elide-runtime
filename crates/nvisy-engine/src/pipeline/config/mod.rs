@@ -98,10 +98,7 @@ impl RuntimeConfig {
     /// Resource limits from the engine section, or defaults.
     #[must_use]
     pub fn effective_limits(&self) -> ResourceLimits {
-        self.engine
-            .as_ref()
-            .map(|e| e.limits)
-            .unwrap_or_default()
+        self.engine.as_ref().map(|e| e.limits).unwrap_or_default()
     }
 
     /// Concurrency policy from the engine section, if configured.
@@ -273,21 +270,6 @@ mod tests {
         let overrides = RuntimeConfig::default();
         let merged = base.merge(&overrides);
         assert_eq!(merged.engine.unwrap().http.unwrap().max_retries, 3);
-    }
-
-    #[test]
-    fn validate_rejects_zero_channel_buffer() {
-        let config = RuntimeConfig {
-            engine: Some(EngineSection {
-                limits: ResourceLimits {
-                    channel_buffer: 0,
-                    ..Default::default()
-                },
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert!(config.validate().is_err());
     }
 
     #[test]

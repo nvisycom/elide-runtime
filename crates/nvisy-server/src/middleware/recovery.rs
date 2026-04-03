@@ -17,6 +17,7 @@ use std::any::Any;
 use std::future::ready;
 use std::time::Duration;
 
+use aide::axum::ApiRouter;
 use axum::Router;
 use axum::error_handling::HandleErrorLayer;
 use axum::response::{IntoResponse, Response};
@@ -86,6 +87,25 @@ where
             .layer(TimeoutLayer::new(config.request_timeout));
 
         self.layer(middlewares)
+    }
+}
+
+/// Extension trait for [`ApiRouter`] to apply a per-group timeout.
+pub trait RouterTimeoutExt<S> {
+    /// Layer a timeout with error recovery onto this router.
+    fn with_timeout(self, secs: u64) -> Self;
+}
+
+impl<S> RouterTimeoutExt<S> for ApiRouter<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
+    fn with_timeout(self, secs: u64) -> Self {
+        self.layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(handle_error))
+                .layer(TimeoutLayer::new(Duration::from_secs(secs))),
+        )
     }
 }
 

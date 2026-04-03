@@ -8,6 +8,7 @@ use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentMetadata, ContentSource};
 use nvisy_ontology::context::Context;
 use nvisy_ontology::policy::Policy;
+use nvisy_ontology::provenance::Audit;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -32,6 +33,7 @@ struct RegistryInner {
     content_meta_ks: Keyspace,
     contexts_ks: Keyspace,
     policies_ks: Keyspace,
+    audits_ks: Keyspace,
 }
 
 impl std::fmt::Debug for Registry {
@@ -52,6 +54,7 @@ impl Registry {
         let content_meta_ks = db.open_keyspace("content_meta")?;
         let contexts_ks = db.open_keyspace("contexts")?;
         let policies_ks = db.open_keyspace("policies")?;
+        let audits_ks = db.open_keyspace("run_outputs")?;
 
         tracing::debug!(target: TARGET, "registry opened");
         Ok(Self {
@@ -62,6 +65,7 @@ impl Registry {
                 content_meta_ks,
                 contexts_ks,
                 policies_ks,
+                audits_ks,
             }),
         })
     }
@@ -289,7 +293,7 @@ impl Registry {
 
     #[tracing::instrument(target = TARGET, name = "registry.register_context", skip(self, context), fields(%actor_id))]
     pub async fn register_context(&self, actor_id: Uuid, context: Context) -> Result<Uuid> {
-        let id = context.source.as_uuid();
+        let id = context.id;
         let key = CompositeKey::new(actor_id, id);
         self.store_json(&self.inner.contexts_ks, key, &context)
             .await?;
@@ -346,9 +350,45 @@ impl Registry {
             .await
     }
 
+    #[tracing::instrument(target = TARGET, name = "registry.unregister_all_policies", skip(self), fields(%actor_id))]
+    pub async fn unregister_all_policies(&self, actor_id: Uuid) -> Result<usize> {
+        self.remove_all_entries(&self.inner.policies_ks, actor_id)
+            .await
+    }
+
     #[tracing::instrument(target = TARGET, name = "registry.list_policies", skip(self), fields(%actor_id))]
     pub async fn list_policies(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
         self.list_resource_ids(&self.inner.policies_ks, actor_id)
+            .await
+    }
+
+    /// Persist audit trails for a completed pipeline run.
+    #[tracing::instrument(target = TARGET, name = "registry.store_audits", skip(self, audits), fields(%actor_id, %run_id))]
+    pub async fn store_audits(
+        &self,
+        actor_id: Uuid,
+        run_id: Uuid,
+        audits: Vec<Audit>,
+    ) -> Result<()> {
+        let key = CompositeKey::new(actor_id, run_id);
+        let count = audits.len();
+        self.store_json(&self.inner.audits_ks, key, &audits).await?;
+        tracing::trace!(target: TARGET, count, "audits stored");
+        Ok(())
+    }
+
+    /// Load persisted audit trails for a pipeline run.
+    #[tracing::instrument(target = TARGET, name = "registry.load_audits", skip(self), fields(%actor_id, %run_id))]
+    pub async fn load_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<Vec<Audit>> {
+        let key = CompositeKey::new(actor_id, run_id);
+        self.load_json(&self.inner.audits_ks, key, "audits").await
+    }
+
+    /// Remove persisted audit trails for a pipeline run.
+    #[tracing::instrument(target = TARGET, name = "registry.remove_audits", skip(self), fields(%actor_id, %run_id))]
+    pub async fn remove_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+        let key = CompositeKey::new(actor_id, run_id);
+        self.remove_entry(&self.inner.audits_ks, key, "audits")
             .await
     }
 }
@@ -360,6 +400,14 @@ mod tests {
     use nvisy_ontology::context::Context;
 
     use super::*;
+
+    fn test_context(name: &str) -> Context {
+        Context::builder()
+            .with_name(name)
+            .with_version(semver::Version::new(1, 0, 0))
+            .build()
+            .unwrap()
+    }
 
     fn temp_registry() -> anyhow::Result<(tempfile::TempDir, Registry)> {
         let temp = tempfile::tempdir()?;
@@ -450,7 +498,7 @@ mod tests {
         let (_temp, registry) = temp_registry()?;
         let actor = Uuid::now_v7();
         let id = registry
-            .register_context(actor, Context::new("test-ctx", vec![]))
+            .register_context(actor, test_context("test-ctx"))
             .await?;
         let ctx = registry.read_context(actor, id).await?;
         assert_eq!(ctx.name, "test-ctx");
@@ -463,7 +511,7 @@ mod tests {
         let actor_a = Uuid::now_v7();
         let actor_b = Uuid::now_v7();
         let id = registry
-            .register_context(actor_a, Context::new("private", vec![]))
+            .register_context(actor_a, test_context("private"))
             .await?;
         assert!(registry.read_context(actor_b, id).await.is_err());
         registry.read_context(actor_a, id).await?;
@@ -474,12 +522,8 @@ mod tests {
     async fn unregister_all_contexts() -> anyhow::Result<()> {
         let (_temp, registry) = temp_registry()?;
         let actor = Uuid::now_v7();
-        registry
-            .register_context(actor, Context::new("c1", vec![]))
-            .await?;
-        registry
-            .register_context(actor, Context::new("c2", vec![]))
-            .await?;
+        registry.register_context(actor, test_context("c1")).await?;
+        registry.register_context(actor, test_context("c2")).await?;
         assert_eq!(registry.unregister_all_contexts(actor).await?, 2);
         assert!(registry.list_contexts(actor).await?.is_empty());
         Ok(())

@@ -14,24 +14,20 @@
 //! Paths are relative — the version prefix (e.g. `/api/v1`) is applied
 //! by the version module.
 
-use std::time::Duration;
-
 use aide::axum::ApiRouter;
 use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
-use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{Engine, EngineInput, EngineOutput, RunFilter, RunSnapshot};
-use tower::ServiceBuilder;
-use tower::timeout::TimeoutLayer;
+use nvisy_engine::pipeline::{Engine, EngineInput, RunFilter, RunSnapshot};
 
 use super::error::{ErrorKind, Result};
 use super::request::{NewRun, RunPath, RunQuery};
-use super::response::RunList;
+use super::response::{RunId, RunList};
 use crate::extract::{ActorId, Json, Path};
-use crate::middleware::constants::{DEFAULT_PIPELINE_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS};
-use crate::middleware::recovery::handle_error;
+use crate::middleware::{
+    DEFAULT_PIPELINE_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS, RouterTimeoutExt,
+};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::runs";
@@ -46,7 +42,7 @@ async fn create_run(
     State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
-) -> Result<(StatusCode, Json<EngineOutput>)> {
+) -> Result<(StatusCode, Json<RunId>)> {
     let input = EngineInput {
         actor_id,
         policy_ids: req.policy_ids,
@@ -55,19 +51,10 @@ async fn create_run(
         dry_run: req.dry_run,
     };
 
-    let output = engine.run(input).await?;
+    let id = engine.submit(input).await?;
+    tracing::info!(target: TARGET, %id, "pipeline run submitted");
 
-    let total_entities: usize = output.audits.iter().map(|a| a.entities.len()).sum();
-    let total_entries: usize = output.audits.iter().map(|a| a.entries.len()).sum();
-    tracing::info!(
-        target: TARGET,
-        run_id = %output.run_id,
-        entities = total_entities,
-        entries = total_entries,
-        "pipeline run complete",
-    );
-
-    Ok((StatusCode::CREATED, Json(output)))
+    Ok((StatusCode::ACCEPTED, Json(RunId { id })))
 }
 
 fn create_run_docs(op: TransformOperation) -> TransformOperation {
@@ -215,13 +202,7 @@ fn delete_all_runs_docs(op: TransformOperation) -> TransformOperation {
 pub fn routes_v1() -> ApiRouter<ServiceState> {
     let pipeline_routes = ApiRouter::new()
         .api_route("/runs", post_with(create_run, create_run_docs))
-        .layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(handle_error))
-                .layer(TimeoutLayer::new(Duration::from_secs(
-                    DEFAULT_PIPELINE_TIMEOUT_SECS,
-                ))),
-        );
+        .with_timeout(DEFAULT_PIPELINE_TIMEOUT_SECS);
 
     let read_routes = ApiRouter::new()
         .api_route(
@@ -233,13 +214,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
             get_with(get_run, get_run_docs).delete_with(delete_run, delete_run_docs),
         )
         .api_route("/runs/{id}/cancel", post_with(cancel_run, cancel_run_docs))
-        .layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(handle_error))
-                .layer(TimeoutLayer::new(Duration::from_secs(
-                    DEFAULT_READ_TIMEOUT_SECS,
-                ))),
-        );
+        .with_timeout(DEFAULT_READ_TIMEOUT_SECS);
 
     pipeline_routes.merge(read_routes)
 }

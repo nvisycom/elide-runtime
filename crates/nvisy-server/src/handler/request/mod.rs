@@ -8,10 +8,12 @@ mod contexts;
 mod files;
 mod pagination;
 mod path;
+mod policies;
 mod runs;
 
 pub use self::contexts::NewContext;
 pub use self::files::NewFile;
 pub use self::pagination::{Page, Pagination};
 pub use self::path::{ContentPath, ContextPath, PolicyPath, RunPath};
+pub use self::policies::NewPolicy;
 pub use self::runs::{NewRun, RunQuery};

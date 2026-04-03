@@ -2,7 +2,7 @@
 
 mod fixtures;
 
-use nvisy_engine::pipeline::{RunFilter, RunStatus};
+use nvisy_engine::pipeline::{RunFilter, RunOutcome, RunStatus};
 use uuid::Uuid;
 
 #[tokio::test]
@@ -16,7 +16,7 @@ async fn dry_run_returns_without_exporting() -> anyhow::Result<()> {
 
     // Dry run should succeed and return a valid run_id.
     let snapshot = engine.get_run(actor, output.run_id).await.unwrap();
-    assert_eq!(snapshot.status, RunStatus::Succeeded);
+    assert!(matches!(snapshot.outcome, RunOutcome::Succeeded { .. }));
 
     // Dry run produces audits but no applied redactions.
     assert!(output.audits.iter().all(|a| a.entries.is_empty()));
@@ -33,7 +33,7 @@ async fn successful_run_has_succeeded_status() -> anyhow::Result<()> {
     let output = engine.run(fixtures::engine_input(actor, graph)).await?;
 
     let snapshot = engine.get_run(actor, output.run_id).await.unwrap();
-    assert_eq!(snapshot.status, RunStatus::Succeeded);
+    assert!(matches!(snapshot.outcome, RunOutcome::Succeeded { .. }));
     Ok(())
 }
 

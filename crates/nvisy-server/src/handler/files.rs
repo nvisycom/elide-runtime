@@ -13,26 +13,20 @@
 //! Paths are relative — the version prefix (e.g. `/api/v1`) is applied
 //! by the version module.
 
-use std::time::Duration;
-
 use aide::axum::ApiRouter;
 use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
-use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_core::content::{Content, ContentData, ContentMetadata};
 use nvisy_engine::registry::Registry;
-use tower::ServiceBuilder;
-use tower::timeout::TimeoutLayer;
 
 use super::error::Result;
 use super::request::{ContentPath, NewFile, Pagination};
 use super::response::{File, FileEntry, FileId, FileList};
 use super::utility::Base64;
 use crate::extract::{ActorId, Json, Path};
-use crate::middleware::constants::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS};
-use crate::middleware::recovery::handle_error;
+use crate::middleware::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::files";
@@ -212,13 +206,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
     let read_routes = ApiRouter::new()
         .api_route("/files", get_with(list_files, list_files_docs))
         .api_route("/files/{id}", get_with(download_file, download_file_docs))
-        .layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(handle_error))
-                .layer(TimeoutLayer::new(Duration::from_secs(
-                    DEFAULT_READ_TIMEOUT_SECS,
-                ))),
-        );
+        .with_timeout(DEFAULT_READ_TIMEOUT_SECS);
 
     let write_routes = ApiRouter::new()
         .api_route(
@@ -230,13 +218,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
             "/files/{id}",
             aide::axum::routing::delete_with(delete_file, delete_file_docs),
         )
-        .layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(handle_error))
-                .layer(TimeoutLayer::new(Duration::from_secs(
-                    DEFAULT_WRITE_TIMEOUT_SECS,
-                ))),
-        );
+        .with_timeout(DEFAULT_WRITE_TIMEOUT_SECS);
 
     read_routes.merge(write_routes)
 }

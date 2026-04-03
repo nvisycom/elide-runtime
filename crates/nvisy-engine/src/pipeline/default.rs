@@ -26,21 +26,24 @@ use std::sync::Arc;
 use nvisy_core::Error;
 use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
 use nvisy_ontology::provenance::Audit;
-use nvisy_ontology::workflow::{Graph, GraphNodeKind};
+use nvisy_ontology::workflow::{ConcurrencyPolicy, Graph, GraphNodeKind};
 use nvisy_provider::http::HttpClient;
 use schemars::JsonSchema;
 use serde::Serialize;
+use tokio::sync::Mutex;
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use validator::Validate;
 
 use super::cache::ContextCache;
-use super::config::RuntimeConfig;
+use super::config::{ResourceLimits, RuntimeConfig};
 use super::orchestrator::{Orchestrator, RunContext};
 use super::plan;
 use super::runs::state::{RunRecord, RunState};
 use super::runs::{
-    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunSnapshot, RunStatus,
+    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
+    RunStatus,
 };
 use crate::operation::encryption::SharedKeyProvider;
 use crate::operation::envelope::SharedData;
@@ -83,6 +86,16 @@ pub struct EngineOutput {
     pub audits: Vec<Audit>,
 }
 
+/// Intermediate state produced by [`Engine::prepare`] and consumed by
+/// [`Engine::execute`].
+struct PreparedRun {
+    cancel: CancellationToken,
+    effective_config: RuntimeConfig,
+    context_ids: Vec<Uuid>,
+    limits: ResourceLimits,
+    concurrency: Option<ConcurrencyPolicy>,
+}
+
 /// Shared inner state for the engine, held behind an `Arc`.
 ///
 /// All fields are immutable after construction except [`RunState`],
@@ -100,6 +113,8 @@ struct EngineInner {
     context_cache: ContextCache,
     /// In-memory run lifecycle tracker (volatile: lost on restart).
     runs: RunState,
+    /// Background pipeline tasks spawned by [`Engine::submit`].
+    background_tasks: Mutex<JoinSet<()>>,
 }
 
 /// The redaction pipeline engine.
@@ -149,6 +164,7 @@ impl Engine {
                 key_provider: None,
                 context_cache: ContextCache::new(),
                 runs: RunState::new(),
+                background_tasks: Mutex::new(JoinSet::new()),
             }),
         })
     }
@@ -197,18 +213,66 @@ impl Engine {
         &self.inner.registry
     }
 
-    /// Execute a full redaction pipeline.
+    /// Execute a full redaction pipeline synchronously (blocks until done).
     ///
     /// Compiles the graph, pre-loads contexts, runs the DAG orchestrator,
-    /// and collects results. See the module-level docs for the full
-    /// phase breakdown.
+    /// and collects results. Used directly in tests and the CLI.
     ///
     /// # Errors
     ///
     /// Returns an error if graph compilation fails, the run times out, or
     /// all nodes fail during execution.
     pub async fn run(&self, input: EngineInput) -> Result<EngineOutput, Error> {
-        let run_id = uuid::Uuid::new_v4();
+        let (run_id, compiled, prepared) = self.prepare(&input).await?;
+        self.execute(run_id, input, compiled, prepared).await
+    }
+
+    /// Submit a pipeline run for background execution.
+    ///
+    /// Compiles and validates the graph synchronously (fail-fast on bad
+    /// input), then spawns the actual execution on a background tokio
+    /// task. Returns the run ID immediately.
+    ///
+    /// Results are persisted to the registry and can be retrieved via
+    /// [`Engine::get_run`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if graph compilation or validation fails.
+    pub async fn submit(&self, input: EngineInput) -> Result<Uuid, Error> {
+        let (run_id, compiled, prepared) = self.prepare(&input).await?;
+        let actor_id = input.actor_id;
+        let engine = self.clone();
+        self.inner.background_tasks.lock().await.spawn(async move {
+            match engine.execute(run_id, input, compiled, prepared).await {
+                Ok(output) => {
+                    if let Err(e) = engine
+                        .inner
+                        .registry
+                        .store_audits(actor_id, run_id, output.audits)
+                        .await
+                    {
+                        tracing::error!(%run_id, error = %e, "failed to persist run audits");
+                        engine.inner.runs.fail(run_id).await;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(%run_id, error = %e, "background run failed");
+                }
+            }
+        });
+        Ok(run_id)
+    }
+
+    /// Validate input, compile the graph, and insert the initial run record.
+    ///
+    /// Returns the run ID, compiled execution plan, and prepared state
+    /// needed by [`execute`].
+    async fn prepare(
+        &self,
+        input: &EngineInput,
+    ) -> Result<(Uuid, plan::ExecutionPlan, PreparedRun), Error> {
+        let run_id = Uuid::now_v7();
         let cancel = CancellationToken::new();
 
         let effective_config = match &input.config {
@@ -244,7 +308,7 @@ impl Engine {
                 .map_err(|e| Error::validation(e.to_string(), "concurrency"))?;
         }
 
-        let record = RunRecord {
+        let failed_record = RunRecord {
             actor_id: input.actor_id,
             status: RunStatus::Failed,
             created_at: jiff::Timestamp::now(),
@@ -259,7 +323,7 @@ impl Engine {
         let compiled = match plan::compile(&input.graph, limits.channel_buffer) {
             Ok(plan) => plan,
             Err(e) => {
-                self.inner.runs.insert(run_id, record).await;
+                self.inner.runs.insert(run_id, failed_record).await;
                 return Err(e);
             }
         };
@@ -286,7 +350,7 @@ impl Engine {
                 run_id,
                 RunRecord {
                     actor_id: input.actor_id,
-                    status: RunStatus::Running,
+                    status: RunStatus::Pending,
                     created_at: jiff::Timestamp::now(),
                     started_at: None,
                     completed_at: None,
@@ -298,9 +362,35 @@ impl Engine {
             )
             .await;
 
+        let prepared = PreparedRun {
+            cancel,
+            effective_config,
+            context_ids,
+            limits,
+            concurrency,
+        };
+
+        Ok((run_id, compiled, prepared))
+    }
+
+    /// Run the compiled plan to completion.
+    async fn execute(
+        &self,
+        run_id: Uuid,
+        input: EngineInput,
+        compiled: plan::ExecutionPlan,
+        prepared: PreparedRun,
+    ) -> Result<EngineOutput, Error> {
+        let PreparedRun {
+            cancel,
+            effective_config,
+            context_ids,
+            limits,
+            concurrency,
+        } = prepared;
+
         // Acquire contexts into the shared cache. The returned guard
-        // releases them (decrementing ref counts) when dropped: even
-        // if this function panics.
+        // releases them (decrementing ref counts) when dropped.
         let _context_guard = self
             .inner
             .context_cache
@@ -419,6 +509,25 @@ impl Engine {
         Ok(output)
     }
 
+    /// Get a full [`RunSnapshot`] including per-node status for a single run.
+    ///
+    /// For completed runs (`Succeeded`/`PartialFailure`), audit trails are
+    /// loaded from the registry and included in the [`RunOutcome`].
+    ///
+    /// Returns `None` if the run does not exist or belongs to a different actor.
+    pub async fn get_run(&self, actor_id: Uuid, id: Uuid) -> Option<RunSnapshot> {
+        let mut snapshot = self.inner.runs.get_run(actor_id, id).await?;
+        match &mut snapshot.outcome {
+            RunOutcome::Succeeded { audits, .. } | RunOutcome::PartialFailure { audits, .. } => {
+                if let Ok(loaded) = self.inner.registry.load_audits(actor_id, id).await {
+                    *audits = loaded;
+                }
+            }
+            _ => {}
+        }
+        Some(snapshot)
+    }
+
     /// Enforce retention policies after a pipeline run.
     ///
     /// Iterates all retention policies across all submitted policies.
@@ -487,6 +596,18 @@ impl Engine {
                 }
                 RetentionScope::AuditLogs => {
                     output.audits.clear();
+                    if let Err(e) = self
+                        .inner
+                        .registry
+                        .remove_audits(actor_id, output.run_id)
+                        .await
+                    {
+                        tracing::warn!(
+                            run_id = %output.run_id,
+                            error = %e,
+                            "failed to delete persisted audits for zero-retention",
+                        );
+                    }
                 }
                 _ => {}
             }
@@ -496,13 +617,6 @@ impl Engine {
     /// Compute a point-in-time [`AnalyticsSnapshot`] from all tracked runs.
     pub async fn snapshot(&self) -> AnalyticsSnapshot {
         self.inner.runs.snapshot().await
-    }
-
-    /// Get a full [`RunSnapshot`] including per-node status for a single run.
-    ///
-    /// Returns `None` if the run does not exist or belongs to a different actor.
-    pub async fn get_run(&self, actor_id: Uuid, id: Uuid) -> Option<RunSnapshot> {
-        self.inner.runs.get_run(actor_id, id).await
     }
 
     /// List runs matching the given filter, scoped to the actor.
@@ -530,7 +644,9 @@ impl Engine {
     /// Returns `NotFound` if the run does not exist or belongs to a
     /// different actor, or `Validation` if the run is still active.
     pub async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
-        self.inner.runs.delete_run(actor_id, id).await
+        self.inner.runs.delete_run(actor_id, id).await?;
+        let _ = self.inner.registry.remove_audits(actor_id, id).await;
+        Ok(())
     }
 
     /// Delete all finished runs for the actor. Active runs are preserved.
@@ -543,5 +659,14 @@ impl Engine {
     /// Returns the base data directory path backing the registry.
     pub fn data_dir(&self) -> &Path {
         self.inner.registry.base_dir()
+    }
+
+    /// Wait for all background pipeline tasks to complete.
+    ///
+    /// Call during graceful shutdown to ensure in-flight runs finish
+    /// and persist their results before the process exits.
+    pub async fn shutdown(&self) {
+        let tasks = std::mem::take(&mut *self.inner.background_tasks.lock().await);
+        tasks.join_all().await;
     }
 }

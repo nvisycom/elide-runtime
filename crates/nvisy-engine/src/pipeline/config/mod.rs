@@ -19,11 +19,11 @@ mod engine;
 mod subsystem;
 mod validate;
 
-use nvisy_ontology::workflow::{RetryPolicy, TimeoutPolicy};
+use nvisy_ontology::workflow::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-pub use self::engine::{EngineSection, ResourceLimits};
+pub use self::engine::{CacheConfig, EngineSection, ResourceLimits};
 pub use self::subsystem::{LlmSection, OcrSection, SttSection, TtsSection};
 
 fn default_config_version() -> Version {
@@ -85,11 +85,36 @@ impl RuntimeConfig {
         self.engine.as_ref().and_then(|e| e.timeout.as_ref())
     }
 
+    /// Returns `true` if all optional sections are `None`.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        self.engine.is_none()
+            && self.ocr.is_none()
+            && self.llm.is_none()
+            && self.stt.is_none()
+            && self.tts.is_none()
+    }
+
+    /// Resource limits from the engine section, or defaults.
+    #[must_use]
+    pub fn effective_limits(&self) -> ResourceLimits {
+        self.engine
+            .as_ref()
+            .map(|e| e.limits)
+            .unwrap_or_default()
+    }
+
+    /// Concurrency policy from the engine section, if configured.
+    #[must_use]
+    pub fn effective_concurrency(&self) -> Option<ConcurrencyPolicy> {
+        self.engine.as_ref().and_then(|e| e.concurrency)
+    }
+
     /// Merge with per-request overrides.
     ///
-    /// Non-`None` sections in `overrides` replace the corresponding section
-    /// in `self`; `None` sections fall back to `self`. The version is taken
-    /// from the base config.
+    /// Non-`None` sections in `overrides` replace the corresponding
+    /// section in `self`; `None` sections fall back to `self`. The
+    /// version is taken from the base config.
     #[must_use]
     pub fn merge(&self, overrides: &RuntimeConfig) -> RuntimeConfig {
         RuntimeConfig {

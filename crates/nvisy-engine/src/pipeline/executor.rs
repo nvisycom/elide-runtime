@@ -4,29 +4,33 @@
 //! It matches on [`GraphNodeKind`], constructs the appropriate
 //! [`Operation`], and drives the envelope processing loop:
 //!
-//! 1. **Receive**: pull `DocumentEnvelope` from upstream MPSC channels.
+//! 1. **Receive**: pull [`DocumentEnvelope`] from upstream MPSC channels.
 //! 2. **Call**: invoke `operation.execute(&mut envelope)`.
 //! 3. **Send**: forward the envelope to all downstream channels.
 //!
+//! Envelope transport (fan-in, fan-out, cloning) lives in the
+//! [`transport`] module.
+//!
 //! [`NodeOutput`] and [`RunOutput`] carry per-node and per-run results
-//! back to the [orchestrator](super::orchestrator) and
-//! [`Engine`](super::Engine) for finalization.
+//! back to the [orchestrator] and [`Engine`] for finalization.
+//!
+//! [`transport`]: super::transport
+//! [`DocumentEnvelope`]: crate::operation::DocumentEnvelope
+//! [orchestrator]: super::orchestrator
+//! [`Engine`]: super::Engine
 
-use std::future::Future;
 use std::sync::Arc;
 
-use futures::StreamExt;
-use nvisy_codec::Document;
-use nvisy_core::content::Content;
 use nvisy_core::{Error, ErrorKind};
 use nvisy_ontology::workflow::{
-    ExportFile, GraphNode, GraphNodeKind, ImportFile, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
+    ExportFile, GraphNodeKind, ImportFile, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
 };
 use tokio::sync::mpsc;
 
 use super::orchestrator::RunContext;
 use super::plan::ResolvedNode;
 use super::runs::RunStatus;
+use super::transport::{fan_out, forward_envelopes, process_envelopes};
 use crate::graph::{RetryExt, TimeoutExt};
 use crate::operation::{
     AudialExtractionOp, DocumentEnvelope, EntityRecognitionOp, ExportFileOp, FusionOp,
@@ -57,8 +61,10 @@ pub(super) struct RunOutput {
 impl RunOutput {
     /// Determine overall run status from node results.
     ///
-    /// If all errors are cancellation errors, returns `Cancelled`.
+    /// If all errors are cancellation errors, returns [`Cancelled`].
     /// Otherwise uses the standard ok/err breakdown.
+    ///
+    /// [`Cancelled`]: RunStatus::Cancelled
     pub fn run_status(&self) -> RunStatus {
         let any_ok = self.node_results.iter().any(|r| r.error.is_none());
         let errors: Vec<_> = self
@@ -86,7 +92,7 @@ impl RunOutput {
 
 /// Executes a single [`ResolvedNode`] within a pipeline run.
 ///
-/// Holds a shared reference to the run context. The orchestrator
+/// Holds a shared reference to the [`RunContext`]. The orchestrator
 /// creates one executor per node task.
 pub(super) struct NodeExecutor {
     ctx: Arc<RunContext>,
@@ -98,12 +104,18 @@ impl NodeExecutor {
     }
 
     /// Resolve the effective retry policy: node-level wins, then engine default.
-    fn effective_retry(&self, node: &GraphNode) -> Option<RetryPolicy> {
+    fn effective_retry(
+        &self,
+        node: &nvisy_ontology::workflow::GraphNode,
+    ) -> Option<RetryPolicy> {
         node.retry().or(self.ctx.config.default_retry()).cloned()
     }
 
     /// Resolve the effective timeout policy: node-level wins, then engine default.
-    fn effective_timeout(&self, node: &GraphNode) -> Option<TimeoutPolicy> {
+    fn effective_timeout(
+        &self,
+        node: &nvisy_ontology::workflow::GraphNode,
+    ) -> Option<TimeoutPolicy> {
         node.timeout()
             .or(self.ctx.config.default_timeout())
             .cloned()
@@ -183,32 +195,35 @@ impl NodeExecutor {
                 self.execute_import(cfg, retry.as_ref(), senders).await
             }
             GraphNodeKind::ExportFile(cfg) => self.execute_export(cfg, receivers).await,
-            GraphNodeKind::VisualExtraction(cfg) => {
-                self.execute_op(
-                    VisualExtractionOp::new(cfg, &self.ctx.config, &self.ctx.http_client)?,
-                    senders,
-                    receivers,
-                )
-                .await
+            GraphNodeKind::Extraction(cfg) => {
+                // Run applicable modalities sequentially.
+                let visual_cfg = cfg.visual.clone().unwrap_or_default();
+                let audial_cfg = cfg.audial.clone().unwrap_or_default();
+                // Visual
+                if let Ok(op) =
+                    VisualExtractionOp::new(&visual_cfg, &self.ctx.config, &self.ctx.http_client)
+                {
+                    self.execute_op(op, senders, receivers).await?;
+                }
+                // Audial
+                if let Ok(op) =
+                    AudialExtractionOp::new(&audial_cfg, &self.ctx.config, &self.ctx.http_client)
+                {
+                    self.execute_op(op, senders, receivers).await?;
+                }
+                Ok(node_output(0))
             }
-            GraphNodeKind::AudialExtraction(cfg) => {
-                self.execute_op(
-                    AudialExtractionOp::new(cfg, &self.ctx.config, &self.ctx.http_client)?,
-                    senders,
-                    receivers,
-                )
-                .await
-            }
-            GraphNodeKind::NamedEntityRecognition(cfg) => {
-                self.execute_op(
-                    EntityRecognitionOp::new(cfg, &self.ctx.config, &self.ctx.http_client).await?,
-                    senders,
-                    receivers,
-                )
-                .await
-            }
-            GraphNodeKind::PatternRecognition(cfg) => {
-                self.execute_op(PatternRecognitionOp::new(cfg), senders, receivers)
+            GraphNodeKind::Detection(cfg) => {
+                // Run NER and Pattern sequentially (concurrent version comes in Part 4).
+                let ner_cfg = cfg.ner.clone().unwrap_or_default();
+                let pat_cfg = cfg.pattern.clone().unwrap_or_default();
+                if let Ok(op) =
+                    EntityRecognitionOp::new(&ner_cfg, &self.ctx.config, &self.ctx.http_client)
+                        .await
+                {
+                    self.execute_op(op, senders, receivers).await?;
+                }
+                self.execute_op(PatternRecognitionOp::new(&pat_cfg), senders, receivers)
                     .await
             }
             GraphNodeKind::Fusion(cfg) => {
@@ -343,128 +358,4 @@ fn node_output(items_processed: u64) -> NodeOutput {
         error: None,
         envelopes: Vec::new(),
     }
-}
-
-/// Core envelope processing loop shared by most node types.
-///
-/// Merges all upstream receivers concurrently (true fan-in), applies
-/// `transform` to each envelope, and fans out the result to all
-/// downstream senders. Returns the total number of envelopes processed.
-async fn process_envelopes<F, Fut>(
-    senders: &[mpsc::Sender<DocumentEnvelope>],
-    receivers: &mut [mpsc::Receiver<DocumentEnvelope>],
-    mut transform: F,
-) -> Result<u64, Error>
-where
-    F: FnMut(DocumentEnvelope) -> Fut,
-    Fut: Future<Output = Result<DocumentEnvelope, Error>>,
-{
-    let mut count = 0u64;
-
-    if receivers.len() <= 1 {
-        // Fast path: single receiver, no merging needed.
-        if let Some(rx) = receivers.first_mut() {
-            while let Some(envelope) = rx.recv().await {
-                let envelope = transform(envelope).await?;
-                count += 1;
-                fan_out(senders, envelope).await?;
-            }
-        }
-    } else {
-        // Concurrent fan-in: merge all receivers into a single stream
-        // so slow upstreams don't block fast ones.
-        let streams: Vec<_> = receivers
-            .iter_mut()
-            .map(|rx| {
-                // Take ownership by swapping in a dummy closed receiver.
-                let owned = {
-                    let (_, mut placeholder) = mpsc::channel(1);
-                    std::mem::swap(rx, &mut placeholder);
-                    placeholder
-                };
-                Box::pin(futures::stream::unfold(owned, |mut rx| async move {
-                    rx.recv().await.map(|item| (item, rx))
-                }))
-                    as std::pin::Pin<Box<dyn futures::Stream<Item = DocumentEnvelope> + Send>>
-            })
-            .collect();
-        let mut merged = futures::stream::select_all(streams);
-
-        while let Some(envelope) = StreamExt::next(&mut merged).await {
-            let envelope = transform(envelope).await?;
-            count += 1;
-            fan_out(senders, envelope).await?;
-        }
-    }
-
-    Ok(count)
-}
-
-/// Send an envelope to all downstream senders.
-///
-/// For fan-out (multiple senders), the envelope is cloned via
-/// encode/decode to produce independent copies.
-async fn fan_out(
-    senders: &[mpsc::Sender<DocumentEnvelope>],
-    envelope: DocumentEnvelope,
-) -> Result<(), Error> {
-    if senders.is_empty() {
-        return Ok(());
-    }
-
-    if senders.len() == 1 {
-        senders[0]
-            .send(envelope)
-            .await
-            .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
-        return Ok(());
-    }
-
-    // Fan-out: clone the envelope for each downstream except the last.
-    for tx in &senders[..senders.len() - 1] {
-        let cloned = clone_envelope(&envelope).await?;
-        tx.send(cloned)
-            .await
-            .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
-    }
-    if let Some(tx) = senders.last() {
-        tx.send(envelope)
-            .await
-            .map_err(|_| Error::runtime("downstream channel closed", "executor", false))?;
-    }
-    Ok(())
-}
-
-/// Drain all receivers and forward envelopes to all senders unchanged.
-///
-/// Used in dry-run mode to pass envelopes through skipped nodes so
-/// downstream watch channels still unblock.
-async fn forward_envelopes(
-    senders: &[mpsc::Sender<DocumentEnvelope>],
-    receivers: &mut [mpsc::Receiver<DocumentEnvelope>],
-) -> Result<u64, Error> {
-    let mut count = 0u64;
-    for rx in receivers.iter_mut() {
-        while let Some(envelope) = rx.recv().await {
-            fan_out(senders, envelope).await?;
-            count += 1;
-        }
-    }
-    Ok(count)
-}
-
-/// Clone an envelope by encoding/decoding the document and cloning
-/// the remaining fields.
-async fn clone_envelope(envelope: &DocumentEnvelope) -> Result<DocumentEnvelope, Error> {
-    let content_data = envelope.document.encode()?;
-    let content = Content::from(content_data);
-    let document = Document::decode(&content).await?;
-    Ok(DocumentEnvelope {
-        document,
-        metadata: envelope.metadata.clone(),
-        annotations: envelope.annotations.clone(),
-        contexts: envelope.contexts.clone(),
-        audit: envelope.audit.clone(),
-        shared: Arc::clone(&envelope.shared),
-    })
 }

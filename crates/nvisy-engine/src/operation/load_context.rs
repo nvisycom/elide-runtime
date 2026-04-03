@@ -2,11 +2,10 @@
 //!
 //! Runs at **phase 0** alongside [`ImportFile`]. Records which context
 //! IDs this node contributes to the envelope. The actual context data
-//! is loaded into the engine's [`ContextCache`] at run start and
-//! accessed on demand via `envelope.shared.context_cache`.
+//! is loaded into the registry's context cache at run start and
+//! accessed on demand via `envelope.shared.registry.context_cache()`.
 //!
 //! [`ImportFile`]: crate::operation::ImportFileOp
-//! [`ContextCache`]: crate::pipeline::cache::ContextCache
 
 use nvisy_core::Result;
 use nvisy_ontology::workflow::LoadContext;
@@ -18,13 +17,13 @@ const TARGET: &str = "nvisy_engine::op::load_context";
 
 /// Records context references on the envelope for downstream operations.
 ///
-/// The actual context data lives in the engine's [`ContextCache`],
-/// accessed via `envelope.shared.context_cache`. This operation
-/// records which context IDs this node contributes so that
-/// downstream nodes (e.g. [`GenerateContextOp`]) know which
-/// contexts are available.
+/// The actual context data lives in the registry's [context cache],
+/// accessed via `envelope.shared.registry.context_cache()`. This
+/// operation records which context IDs this node contributes so that
+/// downstream nodes (e.g. [`GenerateContextOp`]) know which contexts
+/// are available.
 ///
-/// [`ContextCache`]: crate::pipeline::cache::ContextCache
+/// [context cache]: crate::registry::ResourceCache
 /// [`GenerateContextOp`]: crate::operation::GenerateContextOp
 pub struct LoadContextOp {
     context_ids: Vec<Uuid>,

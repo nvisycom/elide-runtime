@@ -26,6 +26,7 @@ fn open_with_custom_limits() -> anyhow::Result<()> {
             limits: ResourceLimits {
                 run_timeout_ms: Some(5000),
                 channel_buffer: 64,
+                ..Default::default()
             },
             ..Default::default()
         }),

@@ -44,7 +44,7 @@ impl Operation for SaveContextOp {
                 tracing::trace!(target: TARGET, %id, "context not referenced by envelope, skipping");
                 continue;
             }
-            match shared.context_cache.get(&id).await {
+            match shared.registry.context_cache().get(&id).await {
                 Some(context) => {
                     shared
                         .registry

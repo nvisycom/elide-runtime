@@ -19,8 +19,10 @@ use uuid::Uuid;
 use validator::Validate;
 
 pub use self::context::{GenerateContext, LoadContext, SaveContext};
-pub use self::detection::{NamedEntityRecognition, PatternRecognition};
-pub use self::extraction::{AudialExtraction, VisualExtraction};
+pub use self::detection::{Detection, NerDetection, PatternDetection};
+pub use self::extraction::{
+    AudialExtraction, Extraction, TextExtraction, VisualExtraction,
+};
 pub use self::ingest::{
     CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig, ExportFile, ImportFile,
 };
@@ -49,15 +51,10 @@ pub enum GraphNodeKind {
     /// Generates a new context from detection results and content data.
     GenerateContext(GenerateContext),
 
-    /// Extracts text and entities from images and scanned documents.
-    VisualExtraction(VisualExtraction),
-    /// Extracts text from speech audio.
-    AudialExtraction(AudialExtraction),
-
-    /// Detects named entities via language model inference.
-    NamedEntityRecognition(NamedEntityRecognition),
-    /// Detects entities via regex, checksum, dictionary, and heuristic rules.
-    PatternRecognition(PatternRecognition),
+    /// Extracts structured text from content (visual, audial, text).
+    Extraction(Extraction),
+    /// Detects entities via NER and/or pattern matching.
+    Detection(Detection),
 
     /// Merges and scores entities from multiple detection sources.
     Fusion(Fusion),
@@ -78,10 +75,8 @@ impl std::fmt::Display for GraphNodeKind {
             Self::LoadContext(_) => f.write_str("load_context"),
             Self::SaveContext(_) => f.write_str("save_context"),
             Self::GenerateContext(_) => f.write_str("generate_context"),
-            Self::VisualExtraction(_) => f.write_str("visual_extraction"),
-            Self::AudialExtraction(_) => f.write_str("audial_extraction"),
-            Self::NamedEntityRecognition(_) => f.write_str("named_entity_recognition"),
-            Self::PatternRecognition(_) => f.write_str("pattern_recognition"),
+            Self::Extraction(_) => f.write_str("extraction"),
+            Self::Detection(_) => f.write_str("detection"),
             Self::Fusion(_) => f.write_str("fusion"),
             Self::Redaction(_) => f.write_str("redaction"),
             Self::Validation(_) => f.write_str("validation"),
@@ -94,21 +89,21 @@ impl std::fmt::Display for GraphNodeKind {
 impl GraphNodeKind {
     /// Returns the pipeline phase for this node kind.
     ///
-    /// | Phase | Actions                                           |
-    /// |-------|---------------------------------------------------|
-    /// | 0     | ImportFile, LoadContext                             |
-    /// | 1     | VisualExtraction, AudialExtraction                 |
-    /// | 2     | NamedEntityRecognition, PatternRecognition         |
-    /// | 3     | Fusion                                            |
-    /// | 4     | Redaction, GenerateContext                         |
-    /// | 5     | Validation                                        |
-    /// | 6     | ExportFile, SaveContext                            |
+    /// | Phase | Actions                                 |
+    /// |-------|-----------------------------------------|
+    /// | 0     | ImportFile, LoadContext                  |
+    /// | 1     | Extraction                              |
+    /// | 2     | Detection                               |
+    /// | 3     | Fusion                                  |
+    /// | 4     | Redaction, GenerateContext               |
+    /// | 5     | Validation                              |
+    /// | 6     | ExportFile, SaveContext                  |
     #[must_use]
     pub fn phase(&self) -> u8 {
         match self {
             Self::ImportFile(_) | Self::LoadContext(_) => 0,
-            Self::VisualExtraction(_) | Self::AudialExtraction(_) => 1,
-            Self::NamedEntityRecognition(_) | Self::PatternRecognition(_) => 2,
+            Self::Extraction(_) => 1,
+            Self::Detection(_) => 2,
             Self::Fusion(_) => 3,
             Self::Redaction(_) | Self::GenerateContext(_) => 4,
             Self::Validation(_) => 5,
@@ -124,10 +119,8 @@ impl GraphNodeKind {
             self,
             Self::ImportFile(_)
                 | Self::LoadContext(_)
-                | Self::VisualExtraction(_)
-                | Self::AudialExtraction(_)
-                | Self::NamedEntityRecognition(_)
-                | Self::PatternRecognition(_)
+                | Self::Extraction(_)
+                | Self::Detection(_)
                 | Self::Fusion(_)
         )
     }
@@ -156,11 +149,11 @@ impl GraphNodeKind {
             Self::ImportFile(cfg) => validate_struct(cfg),
             Self::LoadContext(cfg) => validate_struct(cfg),
             Self::SaveContext(cfg) => validate_struct(cfg),
-            Self::NamedEntityRecognition(cfg) => validate_struct(cfg),
             Self::ExportFile(cfg) => validate_struct(cfg),
-            Self::PatternRecognition(cfg) => validate_struct(cfg),
-            Self::VisualExtraction(_)
-            | Self::AudialExtraction(_)
+            Self::Detection(cfg) => cfg
+                .validate()
+                .map_err(|e| Error::new(e.to_string())),
+            Self::Extraction(_)
             | Self::Fusion(_)
             | Self::Redaction(_)
             | Self::Validation(_)
@@ -218,7 +211,7 @@ pub struct GraphEdge {
 pub struct Graph {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
-    /// Optional concurrency limit for parallel node execution.
+    /// Optional concurrency limit for parallel document execution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub concurrency: Option<ConcurrencyPolicy>,
 }

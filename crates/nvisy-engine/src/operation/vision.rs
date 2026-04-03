@@ -8,7 +8,7 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::Entities;
-use nvisy_ontology::workflow::VisualExtraction;
+use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
 use nvisy_provider::agent::{ImageFormat, ImageInput, ImageOutput, OcrAgent};
 use nvisy_provider::http::HttpClient;
 
@@ -25,7 +25,7 @@ pub struct VisualExtractionOp {
 impl VisualExtractionOp {
     /// Build from graph config and runtime dependencies.
     pub fn new(
-        cfg: &VisualExtraction,
+        cfg: &VisualExtractionCfg,
         config: &RuntimeConfig,
         http_client: &HttpClient,
     ) -> Result<Self> {

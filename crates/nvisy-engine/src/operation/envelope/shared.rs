@@ -10,7 +10,6 @@ use nvisy_ontology::policy::{Policies, Policy};
 use uuid::Uuid;
 
 use crate::operation::encryption::SharedKeyProvider;
-use crate::pipeline::cache::ContextCache;
 use crate::registry::Registry;
 
 /// Immutable run-wide state shared across all envelopes via `Arc`.
@@ -29,8 +28,6 @@ pub struct SharedData {
     pub registry: Registry,
     /// Key provider for encryption/decryption.
     pub key_provider: SharedKeyProvider,
-    /// Ref-counted context cache shared across runs.
-    pub context_cache: ContextCache,
 }
 
 impl SharedData {
@@ -42,7 +39,6 @@ impl SharedData {
             policies: Policies::default(),
             registry,
             key_provider: SharedKeyProvider::default(),
-            context_cache: ContextCache::new(),
         })
     }
 

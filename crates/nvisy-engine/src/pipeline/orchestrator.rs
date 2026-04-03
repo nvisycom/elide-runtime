@@ -6,10 +6,12 @@
 //! 1. Waits for upstream dependencies via `watch::Receiver` channels.
 //! 2. Acquires a permit from the optional concurrency semaphore.
 //! 3. Delegates to [`NodeExecutor::execute`] for operation dispatch.
-//! 4. Reports node status updates to the shared [`RunState`].
+//! 4. Reports node status via a caller-supplied [`StatusUpdate`] callback.
 //!
 //! [`CompletionGuard`] ensures the watch-channel signal fires even if
 //! the task panics, preventing downstream deadlocks.
+//!
+//! [`NodeExecutor::execute`]: super::executor::NodeExecutor::execute
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -26,7 +28,6 @@ use super::config::RuntimeConfig;
 use super::executor::{NodeExecutor, NodeOutput, RunOutput};
 use super::plan::ExecutionPlan;
 use super::runs::NodeStatus;
-use super::runs::state::RunState;
 use crate::graph::ConcurrencyExt;
 use crate::operation::DocumentEnvelope;
 use crate::operation::envelope::SharedData;
@@ -34,6 +35,16 @@ use crate::operation::envelope::SharedData;
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
 type ChannelMap<T> = HashMap<Uuid, Vec<T>>;
+
+/// Callback signature for node status updates.
+///
+/// The orchestrator invokes this for each node status transition,
+/// keeping it decoupled from the run storage implementation.
+pub(super) type StatusUpdate = Arc<
+    dyn Fn(Uuid, NodeStatus, u64, Option<String>) -> futures::future::BoxFuture<'static, ()>
+        + Send
+        + Sync,
+>;
 
 /// RAII guard that signals completion on drop, preventing deadlocks.
 struct CompletionGuard {
@@ -73,19 +84,21 @@ pub(super) struct RunContext {
 /// DAG orchestrator: spawns concurrent node tasks and collects results.
 pub(super) struct Orchestrator {
     ctx: Arc<RunContext>,
-    run_id: Uuid,
-    runs: RunState,
+    on_status: StatusUpdate,
     semaphore: Option<Arc<Semaphore>>,
 }
 
 impl Orchestrator {
     /// Create an orchestrator for the given run.
-    pub fn new(run_id: Uuid, runs: RunState, ctx: RunContext) -> Self {
+    ///
+    /// `on_status` is called for every node status transition. The
+    /// orchestrator does not own or know about run storage — the caller
+    /// provides the callback that bridges to whatever storage is used.
+    pub fn new(ctx: RunContext, on_status: StatusUpdate) -> Self {
         let semaphore = ctx.concurrency.map(|c| c.to_semaphore());
         Self {
             ctx: Arc::new(ctx),
-            run_id,
-            runs,
+            on_status,
             semaphore,
         }
     }
@@ -148,8 +161,7 @@ impl Orchestrator {
         for resolved in plan.nodes() {
             let resolved = resolved.clone();
             let node_id = resolved.node.id;
-            let runs = self.runs.clone();
-            let run_id = self.run_id;
+            let on_status = Arc::clone(&self.on_status);
             let cancel = self.ctx.cancel.clone();
             let executor = NodeExecutor::new(Arc::clone(&self.ctx));
             let sem = self.semaphore.clone();
@@ -177,8 +189,7 @@ impl Orchestrator {
                 };
 
                 tracing::debug!(target: TARGET, %node_id, "node starting");
-                runs.update_node(run_id, node_id, NodeStatus::Running, 0, None)
-                    .await;
+                on_status(node_id, NodeStatus::Running, 0, None).await;
 
                 let result = executor
                     .execute(&resolved, node_senders, node_receivers)
@@ -206,8 +217,7 @@ impl Orchestrator {
                     items = output.items_processed,
                     "node completed",
                 );
-                runs.update_node(
-                    run_id,
+                on_status(
                     node_id,
                     status,
                     output.items_processed,

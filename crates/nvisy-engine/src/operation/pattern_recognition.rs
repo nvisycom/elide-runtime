@@ -10,7 +10,7 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::{TextData, TextSpanId};
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::workflow::PatternRecognition;
+use nvisy_ontology::workflow::PatternDetection;
 
 use crate::operation::{DocumentEnvelope, Operation};
 
@@ -44,7 +44,7 @@ impl PatternRecognitionOp {
     ///
     /// When the config specifies pattern names or a confidence threshold,
     /// a custom engine is built. Otherwise the default singleton is used.
-    pub fn new(cfg: &PatternRecognition) -> Self {
+    pub fn new(cfg: &PatternDetection) -> Self {
         let needs_custom = !cfg.patterns.is_empty() || cfg.confidence_threshold.is_some();
 
         let engine = if needs_custom {

@@ -1,52 +1,31 @@
 //! [`Engine`]: the main entry point for running redaction pipelines.
 //!
-//! A pipeline run progresses through these phases:
+//! The engine is a thin facade over the pipeline subsystem. It owns
+//! shared infrastructure (registry, HTTP client, run state) and
+//! delegates actual execution to [`Pipeline`] (one per run).
 //!
-//! 1. **Config merge**: per-request [`RuntimeConfig`] overrides are merged
-//!    with the engine's base config.
-//! 2. **Context acquisition**: context IDs from [`LoadContext`] nodes are
-//!    acquired from the engine's [`ContextCache`](super::cache::ContextCache).
-//! 3. **Policy loading**: policies are loaded from the registry by the
-//!    IDs specified in [`EngineInput::policy_ids`].
-//! 4. **Compile**: the [`Graph`] is compiled into an
-//!    [`ExecutionPlan`](super::plan::ExecutionPlan).
-//! 5. **Schedule & execute**: the [orchestrator](super::orchestrator)
-//!    spawns one task per node and collects results.
-//! 6. **Finalize**: retention policies are enforced, counters are computed,
-//!    and an [`EngineOutput`] is returned.
-//!
-//! All mutable state lives in [`EngineInner`] behind an `Arc`. Builder
-//! methods (e.g. [`Engine::with_key_provider`]) require exclusive access
-//! via `Arc::get_mut` and must be called before the engine is cloned.
+//! [`Pipeline`]: super::run::Pipeline
 
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
 use nvisy_ontology::provenance::Audit;
-use nvisy_ontology::workflow::{ConcurrencyPolicy, Graph, GraphNodeKind};
+use nvisy_ontology::workflow::Graph;
 use nvisy_provider::http::HttpClient;
 use schemars::JsonSchema;
 use serde::Serialize;
 use tokio::sync::Mutex;
 use tokio::task::JoinSet;
-use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
-use validator::Validate;
 
-use super::cache::ContextCache;
-use super::config::{ResourceLimits, RuntimeConfig};
-use super::orchestrator::{Orchestrator, RunContext};
-use super::plan;
-use super::runs::state::{RunRecord, RunState};
+use super::config::RuntimeConfig;
+use super::run::Pipeline;
+use super::runs::state::RunState;
 use super::runs::{
-    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
-    RunStatus,
+    AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot,
 };
 use crate::operation::encryption::SharedKeyProvider;
-use crate::operation::envelope::SharedData;
 use crate::registry::Registry;
 
 /// Input required to execute a redaction pipeline.
@@ -60,8 +39,10 @@ pub struct EngineInput {
     pub policy_ids: Vec<Uuid>,
     /// Execution graph defining the pipeline DAG.
     ///
-    /// Content identifiers live on [`ImportFile`](nvisy_ontology::workflow::ImportFile)
-    /// nodes within the graph, not as a top-level field.
+    /// Content identifiers live on [`ImportFile`] nodes within the
+    /// graph, not as a top-level field.
+    ///
+    /// [`ImportFile`]: nvisy_ontology::workflow::ImportFile
     pub graph: Graph,
     /// Per-request configuration overrides, merged with engine defaults
     /// via [`RuntimeConfig::merge`] at the start of each run.
@@ -86,45 +67,39 @@ pub struct EngineOutput {
     pub audits: Vec<Audit>,
 }
 
-/// Intermediate state produced by [`Engine::prepare`] and consumed by
-/// [`Engine::execute`].
-struct PreparedRun {
-    cancel: CancellationToken,
-    effective_config: RuntimeConfig,
-    context_ids: Vec<Uuid>,
-    limits: ResourceLimits,
-    concurrency: Option<ConcurrencyPolicy>,
-}
-
 /// Shared inner state for the engine, held behind an `Arc`.
 ///
 /// All fields are immutable after construction except [`RunState`],
 /// which uses internal `RwLock` synchronization.
-struct EngineInner {
+pub(super) struct EngineInner {
     /// Base configuration, merged with per-request overrides at runtime.
-    runtime_config: RuntimeConfig,
+    pub runtime_config: RuntimeConfig,
     /// Shared HTTP client for all downstream API calls.
-    http_client: HttpClient,
+    pub http_client: HttpClient,
     /// Content and context storage backend.
-    registry: Registry,
+    pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
-    key_provider: Option<SharedKeyProvider>,
-    /// Ref-counted context cache shared across concurrent runs.
-    context_cache: ContextCache,
+    pub key_provider: Option<SharedKeyProvider>,
     /// In-memory run lifecycle tracker (volatile: lost on restart).
-    runs: RunState,
+    pub runs: RunState,
     /// Background pipeline tasks spawned by [`Engine::submit`].
     background_tasks: Mutex<JoinSet<()>>,
 }
 
 /// The redaction pipeline engine.
 ///
-/// All state lives in `Arc<EngineInner>` and is shared across clones.
-/// Builder methods (`with_config`, `with_retry`, etc.) use
-/// `Arc::get_mut` and must be called before the engine is cloned.
+/// Thin facade over shared infrastructure. Actual pipeline execution
+/// is delegated to [`Pipeline`] (one per run). All state lives in
+/// `Arc<EngineInner>` and is shared across clones.
+///
+/// Builder methods ([`with_key_provider`]) require exclusive access
+/// via `Arc::get_mut` and must be called before the engine is cloned.
+///
+/// [`Pipeline`]: super::run::Pipeline
+/// [`with_key_provider`]: Engine::with_key_provider
 #[derive(Clone)]
 pub struct Engine {
-    inner: Arc<EngineInner>,
+    pub(super) inner: Arc<EngineInner>,
 }
 
 impl std::fmt::Debug for Engine {
@@ -140,8 +115,7 @@ impl Engine {
     /// Open a new engine with the given configuration and data directory.
     ///
     /// Constructs the HTTP client, registry, and run state from the
-    /// provided config. Extracts default retry/timeout policies and
-    /// run eviction limits from the `[engine]` section, if present.
+    /// provided config.
     ///
     /// # Errors
     ///
@@ -162,7 +136,6 @@ impl Engine {
                 http_client,
                 registry,
                 key_provider: None,
-                context_cache: ContextCache::new(),
                 runs: RunState::new(),
                 background_tasks: Mutex::new(JoinSet::new()),
             }),
@@ -172,12 +145,14 @@ impl Engine {
     /// Create a temporary engine backed by a [`tempfile`] directory.
     ///
     /// Uses default configuration. The directory is deleted when the
-    /// returned [`TempDir`](tempfile::TempDir) is dropped: keep it
-    /// alive for the duration of the test.
+    /// returned [`TempDir`] is dropped: keep it alive for the duration
+    /// of the test.
     ///
     /// # Panics
     ///
     /// Panics if the temp directory or registry cannot be created.
+    ///
+    /// [`TempDir`]: tempfile::TempDir
     #[cfg(any(test, feature = "test-utils"))]
     pub fn temp() -> (Self, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("failed to create temp directory");
@@ -213,18 +188,38 @@ impl Engine {
         &self.inner.registry
     }
 
+    /// Returns the base data directory path backing the registry.
+    pub fn data_dir(&self) -> &Path {
+        self.inner.registry.base_dir()
+    }
+
+    // ------------------------------------------------------------------
+    // Pipeline execution
+    // ------------------------------------------------------------------
+
+    /// Create a new [`Pipeline`] bound to this engine's shared state.
+    fn pipeline(&self) -> Pipeline {
+        Pipeline::new(
+            self.inner.registry.clone(),
+            self.inner.http_client.clone(),
+            self.inner.key_provider.clone(),
+            self.inner.runs.clone(),
+            self.inner.runtime_config.clone(),
+        )
+    }
+
     /// Execute a full redaction pipeline synchronously (blocks until done).
     ///
-    /// Compiles the graph, pre-loads contexts, runs the DAG orchestrator,
-    /// and collects results. Used directly in tests and the CLI.
+    /// Compiles the graph, pre-loads contexts and policies, runs the DAG
+    /// orchestrator, and collects results. Used directly in tests and
+    /// the CLI.
     ///
     /// # Errors
     ///
-    /// Returns an error if graph compilation fails, the run times out, or
-    /// all nodes fail during execution.
+    /// Returns an error if graph compilation fails, the run times out,
+    /// or all nodes fail during execution.
     pub async fn run(&self, input: EngineInput) -> Result<EngineOutput, Error> {
-        let (run_id, compiled, prepared) = self.prepare(&input).await?;
-        self.execute(run_id, input, compiled, prepared).await
+        self.pipeline().run(input).await
     }
 
     /// Submit a pipeline run for background execution.
@@ -240,23 +235,24 @@ impl Engine {
     ///
     /// Returns an error if graph compilation or validation fails.
     pub async fn submit(&self, input: EngineInput) -> Result<Uuid, Error> {
-        let (run_id, compiled, prepared) = self.prepare(&input).await?;
+        let pipeline = self.pipeline();
+        let run_id = pipeline.id();
         let actor_id = input.actor_id;
-        let engine = self.clone();
+
+        // Prepare synchronously — fail fast on bad input.
+        let (compiled, prepared) = pipeline.prepare(&input).await?;
+
+        let registry = self.inner.registry.clone();
+        let runs = self.inner.runs.clone();
         self.inner.background_tasks.lock().await.spawn(async move {
-            match engine.execute(run_id, input, compiled, prepared).await {
+            match pipeline.execute(input, compiled, prepared).await {
                 Ok(output) => {
-                    if let Err(e) = engine
-                        .inner
-                        .registry
+                    if let Err(e) = registry
                         .store_audits(actor_id, run_id, output.audits)
                         .await
                     {
                         tracing::error!(%run_id, error = %e, "failed to persist run audits");
-                        engine
-                            .inner
-                            .runs
-                            .fail(run_id, format!("failed to persist audits: {e}"))
+                        runs.fail(run_id, format!("failed to persist audits: {e}"))
                             .await;
                     }
                 }
@@ -268,260 +264,9 @@ impl Engine {
         Ok(run_id)
     }
 
-    /// Validate input, compile the graph, and insert the initial run record.
-    ///
-    /// Returns the run ID, compiled execution plan, and prepared state
-    /// needed by [`execute`].
-    async fn prepare(
-        &self,
-        input: &EngineInput,
-    ) -> Result<(Uuid, plan::ExecutionPlan, PreparedRun), Error> {
-        let run_id = Uuid::now_v7();
-        let cancel = CancellationToken::new();
-
-        let effective_config = match &input.config {
-            Some(overrides) => self.inner.runtime_config.merge(overrides),
-            None => self.inner.runtime_config.clone(),
-        };
-
-        let mut context_ids: Vec<Uuid> = input
-            .graph
-            .nodes
-            .iter()
-            .filter_map(|node| match &node.kind {
-                GraphNodeKind::LoadContext(cfg) => Some(cfg.context_ids.clone()),
-                _ => None,
-            })
-            .flatten()
-            .collect();
-        context_ids.sort_unstable();
-        context_ids.dedup();
-
-        let limits = effective_config
-            .engine
-            .as_ref()
-            .map(|e| e.limits)
-            .unwrap_or_default();
-        let concurrency = input
-            .graph
-            .concurrency
-            .or_else(|| effective_config.engine.as_ref().and_then(|e| e.concurrency));
-
-        if let Some(ref c) = concurrency {
-            c.validate()
-                .map_err(|e| Error::validation(e.to_string(), "concurrency"))?;
-        }
-
-        let compiled = match plan::compile(&input.graph, limits.channel_buffer) {
-            Ok(plan) => plan,
-            Err(e) => {
-                let now = jiff::Timestamp::now();
-                self.inner
-                    .runs
-                    .insert(
-                        run_id,
-                        RunRecord {
-                            actor_id: input.actor_id,
-                            status: RunStatus::Failed,
-                            created_at: now,
-                            started_at: None,
-                            completed_at: Some(now),
-                            nodes: HashMap::new(),
-                            cancel: cancel.clone(),
-                            entities_detected: 0,
-                            redactions_applied: 0,
-                            error: Some(e.to_string()),
-                        },
-                    )
-                    .await;
-                return Err(e);
-            }
-        };
-
-        let initial_nodes: HashMap<Uuid, NodeSnapshot> = compiled
-            .nodes()
-            .iter()
-            .map(|n| {
-                (
-                    n.node.id,
-                    NodeSnapshot {
-                        node_id: n.node.id,
-                        status: NodeStatus::Pending,
-                        items_processed: 0,
-                        error: None,
-                    },
-                )
-            })
-            .collect();
-
-        self.inner
-            .runs
-            .insert(
-                run_id,
-                RunRecord {
-                    actor_id: input.actor_id,
-                    status: RunStatus::Pending,
-                    created_at: jiff::Timestamp::now(),
-                    started_at: None,
-                    completed_at: None,
-                    nodes: initial_nodes,
-                    cancel: cancel.clone(),
-                    entities_detected: 0,
-                    redactions_applied: 0,
-                    error: None,
-                },
-            )
-            .await;
-
-        let prepared = PreparedRun {
-            cancel,
-            effective_config,
-            context_ids,
-            limits,
-            concurrency,
-        };
-
-        Ok((run_id, compiled, prepared))
-    }
-
-    /// Run the compiled plan to completion.
-    async fn execute(
-        &self,
-        run_id: Uuid,
-        input: EngineInput,
-        compiled: plan::ExecutionPlan,
-        prepared: PreparedRun,
-    ) -> Result<EngineOutput, Error> {
-        let PreparedRun {
-            cancel,
-            effective_config,
-            context_ids,
-            limits,
-            concurrency,
-        } = prepared;
-
-        // Acquire contexts into the shared cache. The returned guard
-        // releases them (decrementing ref counts) when dropped.
-        let _context_guard = self
-            .inner
-            .context_cache
-            .acquire(input.actor_id, &context_ids, &self.inner.registry)
-            .await;
-
-        // Load policies from the registry.
-        let mut policies = Policies::default();
-        for &policy_id in &input.policy_ids {
-            match self
-                .inner
-                .registry
-                .read_policy(input.actor_id, policy_id)
-                .await
-            {
-                Ok(policy) => policies.push(policy),
-                Err(e) => {
-                    tracing::warn!(
-                        %policy_id,
-                        error = %e,
-                        "failed to load policy, skipping",
-                    );
-                }
-            }
-        }
-
-        // Keep a copy for retention enforcement after the run.
-        let retention_rules = policies
-            .all_retention()
-            .into_iter()
-            .copied()
-            .collect::<Vec<_>>();
-
-        let mut shared_data = SharedData {
-            run_id,
-            actor_id: input.actor_id,
-            policies,
-            registry: self.inner.registry.clone(),
-            key_provider: SharedKeyProvider::default(),
-            context_cache: self.inner.context_cache.clone(),
-        };
-        if let Some(ref kp) = self.inner.key_provider {
-            shared_data.key_provider = kp.clone();
-        }
-
-        let cancel_clone = cancel.clone();
-        let ctx = RunContext {
-            cancel,
-            shared: Arc::new(shared_data),
-            config: Arc::new(effective_config),
-            http_client: self.inner.http_client.clone(),
-            concurrency,
-            dry_run: input.dry_run,
-        };
-
-        self.inner.runs.set_started_at(run_id).await;
-
-        let orchestrator = Orchestrator::new(run_id, self.inner.runs.clone(), ctx);
-        let run_output = if let Some(ms) = limits.run_timeout_ms {
-            match tokio::time::timeout(
-                std::time::Duration::from_millis(ms),
-                orchestrator.run(&compiled),
-            )
-            .await
-            {
-                Ok(Ok(output)) => output,
-                Ok(Err(e)) => {
-                    self.inner.runs.fail(run_id, e.to_string()).await;
-                    return Err(e);
-                }
-                Err(_) => {
-                    cancel_clone.cancel();
-                    self.inner
-                        .runs
-                        .fail(run_id, "pipeline run exceeded time limit")
-                        .await;
-                    return Err(Error::timeout("pipeline run exceeded time limit"));
-                }
-            }
-        } else {
-            match orchestrator.run(&compiled).await {
-                Ok(output) => output,
-                Err(e) => {
-                    self.inner.runs.fail(run_id, e.to_string()).await;
-                    return Err(e);
-                }
-            }
-        };
-
-        // Collect audits and counters from node results.
-        let mut audits = Vec::new();
-        let mut entities_detected = 0u64;
-        let mut redactions_applied = 0u64;
-        for nr in &run_output.node_results {
-            for envelope in &nr.envelopes {
-                entities_detected += envelope.audit.entities.len() as u64;
-                redactions_applied += envelope
-                    .audit
-                    .entries
-                    .iter()
-                    .filter(|e| e.redaction.is_applied)
-                    .count() as u64;
-                audits.push(envelope.audit.clone());
-            }
-        }
-
-        let mut output = EngineOutput { run_id, audits };
-
-        // Enforce retention policies from all submitted policies.
-        self.apply_retention(input.actor_id, &retention_rules, &input.graph, &mut output)
-            .await;
-
-        let status = run_output.run_status();
-        self.inner
-            .runs
-            .finalize(run_id, status, entities_detected, redactions_applied)
-            .await;
-
-        Ok(output)
-    }
+    // ------------------------------------------------------------------
+    // Run management
+    // ------------------------------------------------------------------
 
     /// Get a full [`RunSnapshot`] including per-node status for a single run.
     ///
@@ -540,92 +285,6 @@ impl Engine {
         Some(snapshot)
     }
 
-    /// Enforce retention policies after a pipeline run.
-    ///
-    /// Iterates all retention policies across all submitted policies.
-    /// For `ZeroRetention`, applies immediately:
-    /// - `OriginalContent`: deletes imported content from the registry
-    /// - `RedactedOutput`: deletes exported content from the registry
-    /// - `AuditLogs`: clears audits from the output
-    ///
-    /// `Duration` and `Indefinite` retention are recorded as metadata
-    /// but not enforced here (requires a background cleanup process).
-    async fn apply_retention(
-        &self,
-        actor_id: Uuid,
-        retention_rules: &[RetentionPolicy],
-        graph: &Graph,
-        output: &mut EngineOutput,
-    ) {
-        if retention_rules.is_empty() {
-            return;
-        }
-
-        for rp in retention_rules {
-            if !matches!(rp.retention, Retention::ZeroRetention) {
-                continue;
-            }
-            match rp.scope {
-                RetentionScope::OriginalContent => {
-                    let content_ids: Vec<Uuid> = graph
-                        .nodes
-                        .iter()
-                        .filter_map(|node| match &node.kind {
-                            GraphNodeKind::ImportFile(cfg) => Some(cfg.content_ids.clone()),
-                            _ => None,
-                        })
-                        .flatten()
-                        .collect();
-                    for id in content_ids {
-                        if let Err(e) = self.inner.registry.unregister_content(actor_id, id).await {
-                            tracing::warn!(
-                                %id,
-                                error = %e,
-                                "failed to delete content for zero-retention",
-                            );
-                        }
-                    }
-                }
-                RetentionScope::RedactedOutput => {
-                    let content_ids: Vec<Uuid> = graph
-                        .nodes
-                        .iter()
-                        .filter_map(|node| match &node.kind {
-                            GraphNodeKind::ExportFile(cfg) => Some(cfg.content_ids.clone()),
-                            _ => None,
-                        })
-                        .flatten()
-                        .collect();
-                    for id in content_ids {
-                        if let Err(e) = self.inner.registry.unregister_content(actor_id, id).await {
-                            tracing::warn!(
-                                %id,
-                                error = %e,
-                                "failed to delete exported content for zero-retention",
-                            );
-                        }
-                    }
-                }
-                RetentionScope::AuditLogs => {
-                    output.audits.clear();
-                    if let Err(e) = self
-                        .inner
-                        .registry
-                        .remove_audits(actor_id, output.run_id)
-                        .await
-                    {
-                        tracing::warn!(
-                            run_id = %output.run_id,
-                            error = %e,
-                            "failed to delete persisted audits for zero-retention",
-                        );
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
     /// Compute a point-in-time [`AnalyticsSnapshot`] from all tracked runs.
     pub async fn snapshot(&self) -> AnalyticsSnapshot {
         self.inner.runs.snapshot().await
@@ -638,13 +297,15 @@ impl Engine {
 
     /// Request cooperative cancellation of an in-progress run.
     ///
-    /// Triggers the run's [`CancellationToken`](tokio_util::sync::CancellationToken),
-    /// causing node tasks to abort at their next yield point.
+    /// Triggers the run's [`CancellationToken`], causing node tasks to
+    /// abort at their next yield point.
     ///
     /// # Errors
     ///
     /// Returns `NotFound` if the run does not exist or belongs to a
     /// different actor, or `Validation` if the run has already finished.
+    ///
+    /// [`CancellationToken`]: tokio_util::sync::CancellationToken
     pub async fn cancel_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
         self.inner.runs.cancel_run(actor_id, id).await
     }
@@ -657,7 +318,7 @@ impl Engine {
     /// different actor, or `Validation` if the run is still active.
     pub async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
         self.inner.runs.delete_run(actor_id, id).await?;
-        let _ = self.inner.registry.remove_audits(actor_id, id).await;
+        let _ = self.inner.registry.unregister_audits(actor_id, id).await;
         Ok(())
     }
 
@@ -667,14 +328,9 @@ impl Engine {
     pub async fn delete_all_runs(&self, actor_id: Uuid) -> usize {
         let removed = self.inner.runs.delete_all_runs(actor_id).await;
         for id in &removed {
-            let _ = self.inner.registry.remove_audits(actor_id, *id).await;
+            let _ = self.inner.registry.unregister_audits(actor_id, *id).await;
         }
         removed.len()
-    }
-
-    /// Returns the base data directory path backing the registry.
-    pub fn data_dir(&self) -> &Path {
-        self.inner.registry.base_dir()
     }
 
     /// Wait for all background pipeline tasks to complete.

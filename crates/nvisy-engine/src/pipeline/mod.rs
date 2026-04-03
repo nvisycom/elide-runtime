@@ -2,34 +2,36 @@
 //!
 //! The pipeline processes content through a directed acyclic graph (DAG)
 //! of operations: typically import → detect → evaluate → redact → export.
-//! Callers submit an [`EngineInput`] containing a [`Graph`](nvisy_ontology::workflow::Graph),
-//! policies, and optional config overrides. The [`Engine`] compiles the graph
-//! into an execution plan, schedules nodes via the DAG orchestrator, and
-//! returns an [`EngineOutput`] with detection results, policy evaluations,
-//! and audit records.
+//! Callers submit an [`EngineInput`] containing a [`Graph`], policies,
+//! and optional config overrides. The [`Engine`] is a thin facade that
+//! delegates actual execution to [`Pipeline`] (one per run).
 //!
 //! # Submodules
 //!
-//! - `config`: [`RuntimeConfig`] and per-subsystem sections (OCR, LLM, STT, TTS).
-//! - `plan`: compiles a [`Graph`](nvisy_ontology::workflow::Graph) into a topologically-sorted
-//!   execution plan.
-//! - `orchestrator`: spawns one tokio task per node, gated by watch-channel
-//!   dependency signals and an optional concurrency semaphore.
-//! - `executor`: dispatches each node to its [`Operation`](crate::operation::Operation),
-//!   running the envelope receive → extract → call → apply → send loop.
-//! - `runs`: in-memory run lifecycle tracking ([`RunSnapshot`], [`RunEntry`]).
-//! - `analytics`: point-in-time aggregate metrics across all tracked runs.
+//! - [`config`]: [`RuntimeConfig`] and per-subsystem sections.
+//! - [`plan`]: compiles a [`Graph`] into a topologically-sorted plan.
+//! - [`run`]: per-run lifecycle ([`Pipeline`]).
+//! - [`orchestrator`]: spawns concurrent node tasks with dependency gating.
+//! - [`executor`]: dispatches each node to its [`Operation`].
+//! - [`transport`]: envelope fan-in, fan-out, and cloning between nodes.
+//! - [`runs`]: in-memory run lifecycle tracking.
+//!
+//! [`Graph`]: nvisy_ontology::workflow::Graph
+//! [`Pipeline`]: run::Pipeline
+//! [`Operation`]: crate::operation::Operation
 
-pub(crate) mod cache;
 mod config;
 mod default;
 mod executor;
 mod orchestrator;
 mod plan;
+mod run;
 mod runs;
+mod transport;
 
 pub use self::config::{
-    EngineSection, LlmSection, OcrSection, ResourceLimits, RuntimeConfig, SttSection, TtsSection,
+    CacheConfig, EngineSection, LlmSection, OcrSection, ResourceLimits, RuntimeConfig, SttSection,
+    TtsSection,
 };
 pub use self::default::{Engine, EngineInput, EngineOutput};
 pub use self::runs::{

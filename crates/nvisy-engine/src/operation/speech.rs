@@ -6,7 +6,7 @@
 use nvisy_codec::Document;
 use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_ontology::workflow::AudialExtraction;
+use nvisy_ontology::workflow::AudialExtraction as AudialExtractionCfg;
 use nvisy_provider::audio::stt::{SttConfig, SttService};
 use nvisy_provider::http::HttpClient;
 
@@ -22,7 +22,7 @@ pub struct AudialExtractionOp {
 
 impl AudialExtractionOp {
     pub fn new(
-        cfg: &AudialExtraction,
+        cfg: &AudialExtractionCfg,
         config: &RuntimeConfig,
         http_client: &HttpClient,
     ) -> Result<Self> {

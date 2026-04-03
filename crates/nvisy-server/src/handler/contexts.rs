@@ -76,6 +76,7 @@ async fn list_contexts(
             entries.push(ContextEntry {
                 id,
                 name: ctx.name,
+                version: ctx.version.to_string(),
                 entries: ctx.entries.len(),
             });
         }

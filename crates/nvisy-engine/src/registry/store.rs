@@ -293,7 +293,7 @@ impl Registry {
 
     #[tracing::instrument(target = TARGET, name = "registry.register_context", skip(self, context), fields(%actor_id))]
     pub async fn register_context(&self, actor_id: Uuid, context: Context) -> Result<Uuid> {
-        let id = context.source.as_uuid();
+        let id = context.id;
         let key = CompositeKey::new(actor_id, id);
         self.store_json(&self.inner.contexts_ks, key, &context)
             .await?;
@@ -401,6 +401,14 @@ mod tests {
 
     use super::*;
 
+    fn test_context(name: &str) -> Context {
+        Context::builder()
+            .with_name(name)
+            .with_version(semver::Version::new(1, 0, 0))
+            .build()
+            .unwrap()
+    }
+
     fn temp_registry() -> anyhow::Result<(tempfile::TempDir, Registry)> {
         let temp = tempfile::tempdir()?;
         let registry = Registry::open(temp.path().join("data"))?;
@@ -490,7 +498,7 @@ mod tests {
         let (_temp, registry) = temp_registry()?;
         let actor = Uuid::now_v7();
         let id = registry
-            .register_context(actor, Context::new("test-ctx", vec![]))
+            .register_context(actor, test_context("test-ctx"))
             .await?;
         let ctx = registry.read_context(actor, id).await?;
         assert_eq!(ctx.name, "test-ctx");
@@ -503,7 +511,7 @@ mod tests {
         let actor_a = Uuid::now_v7();
         let actor_b = Uuid::now_v7();
         let id = registry
-            .register_context(actor_a, Context::new("private", vec![]))
+            .register_context(actor_a, test_context("private"))
             .await?;
         assert!(registry.read_context(actor_b, id).await.is_err());
         registry.read_context(actor_a, id).await?;
@@ -514,12 +522,8 @@ mod tests {
     async fn unregister_all_contexts() -> anyhow::Result<()> {
         let (_temp, registry) = temp_registry()?;
         let actor = Uuid::now_v7();
-        registry
-            .register_context(actor, Context::new("c1", vec![]))
-            .await?;
-        registry
-            .register_context(actor, Context::new("c2", vec![]))
-            .await?;
+        registry.register_context(actor, test_context("c1")).await?;
+        registry.register_context(actor, test_context("c2")).await?;
         assert_eq!(registry.unregister_all_contexts(actor).await?, 2);
         assert!(registry.list_contexts(actor).await?.is_empty());
         Ok(())

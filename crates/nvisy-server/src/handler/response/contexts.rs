@@ -17,6 +17,8 @@ pub struct ContextEntry {
     pub id: Uuid,
     /// Human-readable label.
     pub name: String,
+    /// Context version string.
+    pub version: String,
     /// Number of reference-data entries in this context.
     pub entries: usize,
 }

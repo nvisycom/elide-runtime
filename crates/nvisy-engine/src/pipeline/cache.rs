@@ -228,12 +228,16 @@ mod tests {
     use super::*;
 
     fn test_context(name: &str) -> Context {
-        Context::new(name, vec![])
+        Context::builder()
+            .with_name(name)
+            .with_version(semver::Version::new(1, 0, 0))
+            .build()
+            .unwrap()
     }
 
     /// Insert a context directly into the cache for testing (bypasses registry).
     async fn insert(cache: &ContextCache, ctx: Context, ref_count: usize) -> Uuid {
-        let id = ctx.source.as_uuid();
+        let id = ctx.id;
         let mut inner = cache.inner.write().await;
         inner.insert(
             id,

@@ -92,6 +92,10 @@ pub enum RunOutcome {
         completed_at: Timestamp,
         /// Per-document audit trails.
         audits: Vec<Audit>,
+        /// Total entities detected across all nodes.
+        entities_detected: u64,
+        /// Total redactions applied across all nodes.
+        redactions_applied: u64,
     },
     /// Some nodes succeeded while others failed.
     PartialFailure {
@@ -100,6 +104,10 @@ pub enum RunOutcome {
         completed_at: Timestamp,
         /// Per-document audit trails from successful nodes.
         audits: Vec<Audit>,
+        /// Total entities detected across all nodes.
+        entities_detected: u64,
+        /// Total redactions applied across all nodes.
+        redactions_applied: u64,
     },
     /// All nodes failed.
     Failed {
@@ -162,6 +170,10 @@ pub struct RunEntry {
     pub completed_at: Option<Timestamp>,
     /// Number of nodes in the execution graph.
     pub node_count: usize,
+    /// Total entities detected across all nodes.
+    pub entities_detected: u64,
+    /// Total redactions applied across all nodes.
+    pub redactions_applied: u64,
 }
 
 /// Filter criteria for listing runs.

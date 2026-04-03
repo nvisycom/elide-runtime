@@ -253,7 +253,11 @@ impl Engine {
                         .await
                     {
                         tracing::error!(%run_id, error = %e, "failed to persist run audits");
-                        engine.inner.runs.fail(run_id).await;
+                        engine
+                            .inner
+                            .runs
+                            .fail(run_id, format!("failed to persist audits: {e}"))
+                            .await;
                     }
                 }
                 Err(e) => {
@@ -308,22 +312,28 @@ impl Engine {
                 .map_err(|e| Error::validation(e.to_string(), "concurrency"))?;
         }
 
-        let failed_record = RunRecord {
-            actor_id: input.actor_id,
-            status: RunStatus::Failed,
-            created_at: jiff::Timestamp::now(),
-            started_at: None,
-            completed_at: Some(jiff::Timestamp::now()),
-            nodes: HashMap::new(),
-            cancel: cancel.clone(),
-            entities_detected: 0,
-            redactions_applied: 0,
-        };
-
         let compiled = match plan::compile(&input.graph, limits.channel_buffer) {
             Ok(plan) => plan,
             Err(e) => {
-                self.inner.runs.insert(run_id, failed_record).await;
+                let now = jiff::Timestamp::now();
+                self.inner
+                    .runs
+                    .insert(
+                        run_id,
+                        RunRecord {
+                            actor_id: input.actor_id,
+                            status: RunStatus::Failed,
+                            created_at: now,
+                            started_at: None,
+                            completed_at: Some(now),
+                            nodes: HashMap::new(),
+                            cancel: cancel.clone(),
+                            entities_detected: 0,
+                            redactions_applied: 0,
+                            error: Some(e.to_string()),
+                        },
+                    )
+                    .await;
                 return Err(e);
             }
         };
@@ -358,6 +368,7 @@ impl Engine {
                     cancel: cancel.clone(),
                     entities_detected: 0,
                     redactions_applied: 0,
+                    error: None,
                 },
             )
             .await;
@@ -458,12 +469,15 @@ impl Engine {
             {
                 Ok(Ok(output)) => output,
                 Ok(Err(e)) => {
-                    self.inner.runs.fail(run_id).await;
+                    self.inner.runs.fail(run_id, e.to_string()).await;
                     return Err(e);
                 }
                 Err(_) => {
                     cancel_clone.cancel();
-                    self.inner.runs.fail(run_id).await;
+                    self.inner
+                        .runs
+                        .fail(run_id, "pipeline run exceeded time limit")
+                        .await;
                     return Err(Error::timeout("pipeline run exceeded time limit"));
                 }
             }
@@ -471,7 +485,7 @@ impl Engine {
             match orchestrator.run(&compiled).await {
                 Ok(output) => output,
                 Err(e) => {
-                    self.inner.runs.fail(run_id).await;
+                    self.inner.runs.fail(run_id, e.to_string()).await;
                     return Err(e);
                 }
             }
@@ -517,13 +531,11 @@ impl Engine {
     /// Returns `None` if the run does not exist or belongs to a different actor.
     pub async fn get_run(&self, actor_id: Uuid, id: Uuid) -> Option<RunSnapshot> {
         let mut snapshot = self.inner.runs.get_run(actor_id, id).await?;
-        match &mut snapshot.outcome {
-            RunOutcome::Succeeded { audits, .. } | RunOutcome::PartialFailure { audits, .. } => {
-                if let Ok(loaded) = self.inner.registry.load_audits(actor_id, id).await {
-                    *audits = loaded;
-                }
-            }
-            _ => {}
+        if let RunOutcome::Succeeded { audits, .. } | RunOutcome::PartialFailure { audits, .. } =
+            &mut snapshot.outcome
+            && let Ok(loaded) = self.inner.registry.load_audits(actor_id, id).await
+        {
+            *audits = loaded;
         }
         Some(snapshot)
     }
@@ -653,7 +665,11 @@ impl Engine {
     ///
     /// Returns the number of removed entries.
     pub async fn delete_all_runs(&self, actor_id: Uuid) -> usize {
-        self.inner.runs.delete_all_runs(actor_id).await
+        let removed = self.inner.runs.delete_all_runs(actor_id).await;
+        for id in &removed {
+            let _ = self.inner.registry.remove_audits(actor_id, *id).await;
+        }
+        removed.len()
     }
 
     /// Returns the base data directory path backing the registry.

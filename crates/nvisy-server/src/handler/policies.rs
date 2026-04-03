@@ -68,11 +68,7 @@ async fn list_policies(
     let mut entries = Vec::with_capacity(ids.len());
     for id in ids {
         if let Ok(policy) = registry.read_policy(actor_id, id).await {
-            entries.push(PolicyEntry {
-                id,
-                name: policy.name,
-                version: policy.version.to_string(),
-            });
+            entries.push(PolicyEntry::from(policy));
         }
     }
     let page = pagination.paginate(entries);

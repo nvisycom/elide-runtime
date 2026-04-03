@@ -1,6 +1,8 @@
 //! Context response types.
 
+use nvisy_ontology::context::Context;
 use schemars::JsonSchema;
+use semver::Version;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -17,10 +19,23 @@ pub struct ContextEntry {
     pub id: Uuid,
     /// Human-readable label.
     pub name: String,
-    /// Context version string.
-    pub version: String,
+    /// Context version.
+    #[schemars(with = "String")]
+    pub version: Version,
     /// Number of reference-data entries in this context.
     pub entries: usize,
+}
+
+impl From<Context> for ContextEntry {
+    fn from(ctx: Context) -> Self {
+        let entries = ctx.entries.len();
+        Self {
+            id: ctx.id,
+            name: ctx.name,
+            version: ctx.version,
+            entries,
+        }
+    }
 }
 
 /// Response body for `POST /contexts`.

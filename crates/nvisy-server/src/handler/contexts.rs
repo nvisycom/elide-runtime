@@ -73,12 +73,7 @@ async fn list_contexts(
     let mut entries = Vec::with_capacity(ids.len());
     for id in ids {
         if let Ok(ctx) = registry.read_context(actor_id, id).await {
-            entries.push(ContextEntry {
-                id,
-                name: ctx.name,
-                version: ctx.version.to_string(),
-                entries: ctx.entries.len(),
-            });
+            entries.push(ContextEntry::from(ctx));
         }
     }
     let page = pagination.paginate(entries);

@@ -1,6 +1,8 @@
 //! Policy response types.
 
+use nvisy_ontology::policy::Policy;
 use schemars::JsonSchema;
+use semver::Version;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -17,8 +19,19 @@ pub struct PolicyEntry {
     pub id: Uuid,
     /// Human-readable policy name.
     pub name: String,
-    /// Policy version string.
-    pub version: String,
+    /// Policy version.
+    #[schemars(with = "String")]
+    pub version: Version,
+}
+
+impl From<Policy> for PolicyEntry {
+    fn from(policy: Policy) -> Self {
+        Self {
+            id: policy.id,
+            name: policy.name,
+            version: policy.version,
+        }
+    }
 }
 
 /// Response body for `POST /policies`.

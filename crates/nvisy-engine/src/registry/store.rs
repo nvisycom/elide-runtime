@@ -8,6 +8,7 @@ use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentMetadata, ContentSource};
 use nvisy_ontology::context::Context;
 use nvisy_ontology::policy::Policy;
+use nvisy_ontology::provenance::Audit;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -32,6 +33,7 @@ struct RegistryInner {
     content_meta_ks: Keyspace,
     contexts_ks: Keyspace,
     policies_ks: Keyspace,
+    audits_ks: Keyspace,
 }
 
 impl std::fmt::Debug for Registry {
@@ -52,6 +54,7 @@ impl Registry {
         let content_meta_ks = db.open_keyspace("content_meta")?;
         let contexts_ks = db.open_keyspace("contexts")?;
         let policies_ks = db.open_keyspace("policies")?;
+        let audits_ks = db.open_keyspace("run_outputs")?;
 
         tracing::debug!(target: TARGET, "registry opened");
         Ok(Self {
@@ -62,6 +65,7 @@ impl Registry {
                 content_meta_ks,
                 contexts_ks,
                 policies_ks,
+                audits_ks,
             }),
         })
     }
@@ -355,6 +359,36 @@ impl Registry {
     #[tracing::instrument(target = TARGET, name = "registry.list_policies", skip(self), fields(%actor_id))]
     pub async fn list_policies(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
         self.list_resource_ids(&self.inner.policies_ks, actor_id)
+            .await
+    }
+
+    /// Persist audit trails for a completed pipeline run.
+    #[tracing::instrument(target = TARGET, name = "registry.store_audits", skip(self, audits), fields(%actor_id, %run_id))]
+    pub async fn store_audits(
+        &self,
+        actor_id: Uuid,
+        run_id: Uuid,
+        audits: Vec<Audit>,
+    ) -> Result<()> {
+        let key = CompositeKey::new(actor_id, run_id);
+        let count = audits.len();
+        self.store_json(&self.inner.audits_ks, key, &audits).await?;
+        tracing::trace!(target: TARGET, count, "audits stored");
+        Ok(())
+    }
+
+    /// Load persisted audit trails for a pipeline run.
+    #[tracing::instrument(target = TARGET, name = "registry.load_audits", skip(self), fields(%actor_id, %run_id))]
+    pub async fn load_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<Vec<Audit>> {
+        let key = CompositeKey::new(actor_id, run_id);
+        self.load_json(&self.inner.audits_ks, key, "audits").await
+    }
+
+    /// Remove persisted audit trails for a pipeline run.
+    #[tracing::instrument(target = TARGET, name = "registry.remove_audits", skip(self), fields(%actor_id, %run_id))]
+    pub async fn remove_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+        let key = CompositeKey::new(actor_id, run_id);
+        self.remove_entry(&self.inner.audits_ks, key, "audits")
             .await
     }
 }

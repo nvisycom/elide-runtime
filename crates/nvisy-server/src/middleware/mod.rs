@@ -48,11 +48,11 @@ mod security;
 mod specification;
 mod sunset;
 
+pub(crate) use self::constants::{DEFAULT_HEALTH_TIMEOUT_SECS, DEFAULT_PIPELINE_TIMEOUT_SECS};
 pub use self::constants::{
     DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE, DEFAULT_READ_TIMEOUT_SECS,
     DEFAULT_REQUEST_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS,
 };
-pub(crate) use self::constants::{DEFAULT_HEALTH_TIMEOUT_SECS, DEFAULT_PIPELINE_TIMEOUT_SECS};
 pub use self::observability::RouterObservabilityExt;
 pub use self::recovery::{RecoveryConfig, RouterRecoveryExt, RouterTimeoutExt};
 pub use self::security::{RouterSecurityExt, SecurityConfig};

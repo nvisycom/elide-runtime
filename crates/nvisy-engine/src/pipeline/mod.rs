@@ -33,5 +33,6 @@ pub use self::config::{
 };
 pub use self::default::{Engine, EngineInput, EngineOutput};
 pub use self::runs::{
-    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunSnapshot, RunStatus,
+    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
+    RunStatus,
 };

@@ -6,8 +6,8 @@
 //!
 //! Two projection types serve different API needs:
 //!
-//! - [`RunSnapshot`] — full detail including per-node snapshots
-//!   (`GET /runs/{id}`).
+//! - [`RunSnapshot`] — full detail including per-node snapshots and
+//!   a type-safe [`RunOutcome`] (`GET /runs/{id}`).
 //! - [`RunEntry`] — lightweight with node count only, no per-node
 //!   detail (`GET /runs`).
 //!
@@ -18,13 +18,14 @@ mod analytics;
 pub(crate) mod state;
 
 use jiff::Timestamp;
+use nvisy_ontology::provenance::Audit;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use self::analytics::AnalyticsSnapshot;
 
-/// Lifecycle status of a pipeline run.
+/// Lifecycle status of a pipeline run (internal tracking tag).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -72,15 +73,59 @@ pub struct NodeSnapshot {
     pub error: Option<String>,
 }
 
+/// Rich outcome of a pipeline run, carrying state-specific data.
+///
+/// `Succeeded` and `PartialFailure` include audit trails (populated
+/// from the registry by [`Engine::get_run`]). `Failed` carries an
+/// optional error message. `Pending` and `Running` have no extra data.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum RunOutcome {
+    /// The run has been created but not yet started.
+    Pending,
+    /// The run is actively executing nodes.
+    Running,
+    /// All nodes completed without error.
+    Succeeded {
+        /// When the run reached a terminal state.
+        #[schemars(with = "String")]
+        completed_at: Timestamp,
+        /// Per-document audit trails.
+        audits: Vec<Audit>,
+    },
+    /// Some nodes succeeded while others failed.
+    PartialFailure {
+        /// When the run reached a terminal state.
+        #[schemars(with = "String")]
+        completed_at: Timestamp,
+        /// Per-document audit trails from successful nodes.
+        audits: Vec<Audit>,
+    },
+    /// All nodes failed.
+    Failed {
+        /// When the run reached a terminal state.
+        #[schemars(with = "String")]
+        completed_at: Timestamp,
+        /// Error description, if available.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
+    /// The run was cancelled by the caller.
+    Cancelled {
+        /// When the run was cancelled.
+        #[schemars(with = "String")]
+        completed_at: Timestamp,
+    },
+}
+
 /// Full point-in-time snapshot of a pipeline run.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RunSnapshot {
     /// Unique run identifier.
     pub id: Uuid,
     /// Identity of the actor who initiated the run.
     pub actor_id: Uuid,
-    /// Current overall status.
-    pub status: RunStatus,
     /// Timestamp when the run was created.
     #[schemars(with = "String")]
     pub created_at: Timestamp,
@@ -88,16 +133,15 @@ pub struct RunSnapshot {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub started_at: Option<Timestamp>,
-    /// Timestamp when the run finished, if applicable.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<String>")]
-    pub completed_at: Option<Timestamp>,
     /// Per-node snapshots.
     pub nodes: Vec<NodeSnapshot>,
+    /// Run outcome with state-specific data.
+    pub outcome: RunOutcome,
 }
 
 /// Lightweight summary of a run for listing endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RunEntry {
     /// Unique run identifier.
     pub id: Uuid,

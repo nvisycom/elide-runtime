@@ -18,9 +18,7 @@ use nvisy_engine::pipeline::{AnalyticsSnapshot, Engine};
 
 use super::response::{ComponentCheck, Health, ServiceStatus};
 use crate::extract::Json;
-use crate::middleware::{
-    DEFAULT_HEALTH_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS, RouterTimeoutExt,
-};
+use crate::middleware::{DEFAULT_HEALTH_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::infra";

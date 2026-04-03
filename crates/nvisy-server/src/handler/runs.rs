@@ -23,9 +23,11 @@ use nvisy_engine::pipeline::{Engine, EngineInput, RunFilter, RunSnapshot};
 
 use super::error::{ErrorKind, Result};
 use super::request::{NewRun, RunPath, RunQuery};
-use super::response::{RunList, RunResult};
+use super::response::{RunId, RunList};
 use crate::extract::{ActorId, Json, Path};
-use crate::middleware::{DEFAULT_PIPELINE_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS, RouterTimeoutExt};
+use crate::middleware::{
+    DEFAULT_PIPELINE_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS, RouterTimeoutExt,
+};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::runs";
@@ -40,7 +42,7 @@ async fn create_run(
     State(engine): State<Engine>,
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
-) -> Result<(StatusCode, Json<RunResult>)> {
+) -> Result<(StatusCode, Json<RunId>)> {
     let input = EngineInput {
         actor_id,
         policy_ids: req.policy_ids,
@@ -49,17 +51,10 @@ async fn create_run(
         dry_run: req.dry_run,
     };
 
-    let result = RunResult::from(engine.run(input).await?);
+    let id = engine.submit(input).await?;
+    tracing::info!(target: TARGET, %id, "pipeline run submitted");
 
-    tracing::info!(
-        target: TARGET,
-        run_id = %result.run_id,
-        entities = result.total_entities,
-        entries = result.total_entries,
-        "pipeline run complete",
-    );
-
-    Ok((StatusCode::CREATED, Json(result)))
+    Ok((StatusCode::ACCEPTED, Json(RunId { id })))
 }
 
 fn create_run_docs(op: TransformOperation) -> TransformOperation {

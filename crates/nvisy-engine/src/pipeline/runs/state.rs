@@ -22,7 +22,8 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::{
-    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunSnapshot, RunStatus,
+    AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
+    RunStatus,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::runs";
@@ -64,15 +65,38 @@ pub(crate) struct RunRecord {
 
 impl RunRecord {
     /// Project this entry into a full [`RunSnapshot`] for API responses.
+    ///
+    /// Terminal outcomes (`Succeeded`, `PartialFailure`) are built with
+    /// empty audit vecs — [`Engine::get_run`] populates them from the
+    /// registry.
     fn to_snapshot(&self, id: Uuid) -> RunSnapshot {
+        let outcome = match self.status {
+            RunStatus::Pending => RunOutcome::Pending,
+            RunStatus::Running => RunOutcome::Running,
+            RunStatus::Succeeded => RunOutcome::Succeeded {
+                completed_at: self.completed_at.unwrap_or_else(Timestamp::now),
+                audits: vec![],
+            },
+            RunStatus::PartialFailure => RunOutcome::PartialFailure {
+                completed_at: self.completed_at.unwrap_or_else(Timestamp::now),
+                audits: vec![],
+            },
+            RunStatus::Failed => RunOutcome::Failed {
+                completed_at: self.completed_at.unwrap_or_else(Timestamp::now),
+                error: None,
+            },
+            RunStatus::Cancelled => RunOutcome::Cancelled {
+                completed_at: self.completed_at.unwrap_or_else(Timestamp::now),
+            },
+        };
+
         RunSnapshot {
             id,
             actor_id: self.actor_id,
-            status: self.status,
             created_at: self.created_at,
             started_at: self.started_at,
-            completed_at: self.completed_at,
             nodes: self.nodes.values().cloned().collect(),
+            outcome,
         }
     }
 

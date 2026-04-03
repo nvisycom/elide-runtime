@@ -13,25 +13,19 @@
 //! Paths are relative — the version prefix (e.g. `/api/v1`) is applied
 //! by the version module.
 
-use std::time::Duration;
-
 use aide::axum::ApiRouter;
 use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
-use axum::error_handling::HandleErrorLayer;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_engine::registry::Registry;
 use nvisy_ontology::context::Context;
-use tower::ServiceBuilder;
-use tower::timeout::TimeoutLayer;
 
 use super::error::Result;
 use super::request::{ContextPath, NewContext, Pagination};
 use super::response::{ContextEntry, ContextId, ContextList};
 use crate::extract::{ActorId, Json, Path};
-use crate::middleware::constants::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS};
-use crate::middleware::recovery::handle_error;
+use crate::middleware::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::contexts";
@@ -174,13 +168,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
             "/contexts/{id}",
             get_with(download_context, download_context_docs),
         )
-        .layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(handle_error))
-                .layer(TimeoutLayer::new(Duration::from_secs(
-                    DEFAULT_READ_TIMEOUT_SECS,
-                ))),
-        );
+        .with_timeout(DEFAULT_READ_TIMEOUT_SECS);
 
     let write_routes = ApiRouter::new()
         .api_route(
@@ -192,13 +180,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
             "/contexts/{id}",
             aide::axum::routing::delete_with(delete_context, delete_context_docs),
         )
-        .layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(handle_error))
-                .layer(TimeoutLayer::new(Duration::from_secs(
-                    DEFAULT_WRITE_TIMEOUT_SECS,
-                ))),
-        );
+        .with_timeout(DEFAULT_WRITE_TIMEOUT_SECS);
 
     read_routes.merge(write_routes)
 }

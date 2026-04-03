@@ -10,21 +10,17 @@
 //! `/health` is served at the root (unversioned). `/analytics` is
 //! relative and nested under the version prefix by the version module.
 
-use std::time::Duration;
-
 use aide::axum::ApiRouter;
 use aide::axum::routing::get_with;
 use aide::transform::TransformOperation;
-use axum::error_handling::HandleErrorLayer;
 use axum::extract::State;
 use nvisy_engine::pipeline::{AnalyticsSnapshot, Engine};
-use tower::ServiceBuilder;
-use tower::timeout::TimeoutLayer;
 
 use super::response::{ComponentCheck, Health, ServiceStatus};
 use crate::extract::Json;
-use crate::middleware::constants::{DEFAULT_HEALTH_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS};
-use crate::middleware::recovery::handle_error;
+use crate::middleware::{
+    DEFAULT_HEALTH_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS, RouterTimeoutExt,
+};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::infra";
@@ -102,24 +98,12 @@ fn analytics_docs(op: TransformOperation) -> TransformOperation {
 pub fn health_routes() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .api_route("/health", get_with(health_check, health_docs))
-        .layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(handle_error))
-                .layer(TimeoutLayer::new(Duration::from_secs(
-                    DEFAULT_HEALTH_TIMEOUT_SECS,
-                ))),
-        )
+        .with_timeout(DEFAULT_HEALTH_TIMEOUT_SECS)
 }
 
 /// Analytics route for API v1 (relative path).
 pub fn routes_v1() -> ApiRouter<ServiceState> {
     ApiRouter::new()
         .api_route("/analytics", get_with(get_analytics, analytics_docs))
-        .layer(
-            ServiceBuilder::new()
-                .layer(HandleErrorLayer::new(handle_error))
-                .layer(TimeoutLayer::new(Duration::from_secs(
-                    DEFAULT_READ_TIMEOUT_SECS,
-                ))),
-        )
+        .with_timeout(DEFAULT_READ_TIMEOUT_SECS)
 }

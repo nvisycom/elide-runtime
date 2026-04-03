@@ -346,6 +346,12 @@ impl Registry {
             .await
     }
 
+    #[tracing::instrument(target = TARGET, name = "registry.unregister_all_policies", skip(self), fields(%actor_id))]
+    pub async fn unregister_all_policies(&self, actor_id: Uuid) -> Result<usize> {
+        self.remove_all_entries(&self.inner.policies_ks, actor_id)
+            .await
+    }
+
     #[tracing::instrument(target = TARGET, name = "registry.list_policies", skip(self), fields(%actor_id))]
     pub async fn list_policies(&self, actor_id: Uuid) -> Result<Vec<Uuid>> {
         self.list_resource_ids(&self.inner.policies_ks, actor_id)

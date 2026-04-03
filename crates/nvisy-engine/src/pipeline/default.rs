@@ -30,6 +30,8 @@ use nvisy_ontology::workflow::{ConcurrencyPolicy, Graph, GraphNodeKind};
 use nvisy_provider::http::HttpClient;
 use schemars::JsonSchema;
 use serde::Serialize;
+use tokio::sync::Mutex;
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use validator::Validate;
@@ -111,6 +113,8 @@ struct EngineInner {
     context_cache: ContextCache,
     /// In-memory run lifecycle tracker (volatile: lost on restart).
     runs: RunState,
+    /// Background pipeline tasks spawned by [`Engine::submit`].
+    background_tasks: Mutex<JoinSet<()>>,
 }
 
 /// The redaction pipeline engine.
@@ -160,6 +164,7 @@ impl Engine {
                 key_provider: None,
                 context_cache: ContextCache::new(),
                 runs: RunState::new(),
+                background_tasks: Mutex::new(JoinSet::new()),
             }),
         })
     }
@@ -238,7 +243,7 @@ impl Engine {
         let (run_id, compiled, prepared) = self.prepare(&input).await?;
         let actor_id = input.actor_id;
         let engine = self.clone();
-        tokio::spawn(async move {
+        self.inner.background_tasks.lock().await.spawn(async move {
             match engine.execute(run_id, input, compiled, prepared).await {
                 Ok(output) => {
                     if let Err(e) = engine
@@ -248,6 +253,7 @@ impl Engine {
                         .await
                     {
                         tracing::error!(%run_id, error = %e, "failed to persist run audits");
+                        engine.inner.runs.fail(run_id).await;
                     }
                 }
                 Err(e) => {
@@ -638,7 +644,9 @@ impl Engine {
     /// Returns `NotFound` if the run does not exist or belongs to a
     /// different actor, or `Validation` if the run is still active.
     pub async fn delete_run(&self, actor_id: Uuid, id: Uuid) -> Result<(), Error> {
-        self.inner.runs.delete_run(actor_id, id).await
+        self.inner.runs.delete_run(actor_id, id).await?;
+        let _ = self.inner.registry.remove_audits(actor_id, id).await;
+        Ok(())
     }
 
     /// Delete all finished runs for the actor. Active runs are preserved.
@@ -651,5 +659,14 @@ impl Engine {
     /// Returns the base data directory path backing the registry.
     pub fn data_dir(&self) -> &Path {
         self.inner.registry.base_dir()
+    }
+
+    /// Wait for all background pipeline tasks to complete.
+    ///
+    /// Call during graceful shutdown to ensure in-flight runs finish
+    /// and persist their results before the process exits.
+    pub async fn shutdown(&self) {
+        let tasks = std::mem::take(&mut *self.inner.background_tasks.lock().await);
+        tasks.join_all().await;
     }
 }

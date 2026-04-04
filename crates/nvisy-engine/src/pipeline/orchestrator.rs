@@ -7,7 +7,7 @@
 //!
 //! [`DocumentPipeline`] processes a single document through all plan
 //! phases sequentially: extraction → detection → fusion → redaction →
-//! validation. Detection runs NER and Pattern concurrently.
+//! validation.
 
 use std::sync::Arc;
 
@@ -17,14 +17,15 @@ use nvisy_provider::http::HttpClient;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
+
 use super::config::RuntimeConfig;
-use super::plan::{ExecutionPlan, ExportStep, ImportStep};
-use crate::graph::RetryExt;
+use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
+use crate::graph::TimeoutExt;
 use crate::operation::envelope::SharedData;
 use crate::operation::{
     AudialExtractionOp, DocumentEnvelope, EntityRecognitionOp, ExportFileOp, FusionOp,
-    GenerateContextOp, ImportFileOp, Operation, PatternRecognitionOp, RedactionOp,
-    SaveContextOp, ValidationOp, VisualExtractionOp,
+    GenerateContextOp, ImportFileOp, Operation, PatternRecognitionOp, RedactionOp, SaveContextOp,
+    ValidationOp, VisualExtractionOp,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -155,20 +156,13 @@ impl Orchestrator {
 
             let shared = &self.ctx.shared;
             for &content_id in &step.config.content_ids {
-                let do_import = || async {
-                    tracing::debug!(target: TARGET, %content_id, "importing content");
-                    let handle = shared
-                        .registry
-                        .read_content(shared.actor_id, content_id)
-                        .await?;
-                    let content = handle.content().await?;
-                    import.import(content, &self.ctx.shared).await
-                };
-
-                let envelope = match &step.retry {
-                    Some(policy) => policy.with_retry(do_import).await?,
-                    None => do_import().await?,
-                };
+                tracing::debug!(target: TARGET, %content_id, "importing content");
+                let handle = shared
+                    .registry
+                    .read_content(shared.actor_id, content_id)
+                    .await?;
+                let content = handle.content().await?;
+                let envelope = import.import(content, &self.ctx.shared).await?;
                 envelopes.push(envelope);
             }
         }
@@ -193,11 +187,17 @@ impl DocumentPipeline {
         self.check_cancelled()?;
 
         // Phase 1: extraction.
-        self.run_extraction(&plan.extraction, &mut envelope).await?;
+        self.run_phase(&plan.extraction_policy, async {
+            self.run_extraction(&plan.extraction, &mut envelope).await
+        })
+        .await?;
         self.check_cancelled()?;
 
-        // Phase 2: detection (NER + Pattern concurrently).
-        self.run_detection(&plan.detection, &mut envelope).await?;
+        // Phase 2: detection.
+        self.run_phase(&plan.detection_policy, async {
+            self.run_detection(&plan.detection, &mut envelope).await
+        })
+        .await?;
         self.check_cancelled()?;
 
         // Phase 3: fusion.
@@ -206,9 +206,12 @@ impl DocumentPipeline {
 
         // Phase 4: redaction + generate context.
         if !self.ctx.dry_run {
-            RedactionOp::new(&plan.redaction)
-                .execute(&mut envelope)
-                .await?;
+            self.run_phase(&plan.redaction_policy, async {
+                RedactionOp::new(&plan.redaction)
+                    .execute(&mut envelope)
+                    .await
+            })
+            .await?;
         }
         if plan.generate_context {
             GenerateContextOp::new(&Default::default())
@@ -228,7 +231,6 @@ impl DocumentPipeline {
         if !self.ctx.dry_run {
             self.run_exports(&plan.exports, &envelope).await?;
 
-            // Save contexts.
             for &id in &plan.save_context_ids {
                 let cfg = nvisy_ontology::workflow::SaveContext {
                     context_ids: vec![id],
@@ -240,7 +242,21 @@ impl DocumentPipeline {
         Ok(envelope)
     }
 
+    /// Wrap a phase future with an optional timeout from the phase policy.
+    async fn run_phase<F>(&self, policy: &PhasePolicy, future: F) -> Result<(), Error>
+    where
+        F: std::future::Future<Output = Result<(), Error>> + Send,
+    {
+        match &policy.timeout {
+            Some(tp) => tp.with_timeout(future).await,
+            None => future.await,
+        }
+    }
+
     /// Run extraction for all applicable modalities.
+    ///
+    /// Each modality's external call is wrapped with the phase retry
+    /// policy if configured.
     async fn run_extraction(
         &self,
         cfg: &Extraction,
@@ -249,24 +265,17 @@ impl DocumentPipeline {
         let visual_cfg = cfg.visual.clone().unwrap_or_default();
         let audial_cfg = cfg.audial.clone().unwrap_or_default();
 
-        // Visual extraction (OCR) — only errors if provider is missing
-        // and the document is an image. Silently skip if no provider.
         if let Ok(op) =
             VisualExtractionOp::new(&visual_cfg, &self.ctx.config, &self.ctx.http_client)
         {
             op.execute(envelope).await?;
         }
 
-        // Audial extraction (STT) — same pattern.
         if let Ok(op) =
             AudialExtractionOp::new(&audial_cfg, &self.ctx.config, &self.ctx.http_client)
         {
             op.execute(envelope).await?;
         }
-
-        // Text extraction is a no-op for now (text documents are
-        // already text). Future: whitespace normalization, encoding
-        // detection, etc.
 
         Ok(())
     }
@@ -282,7 +291,6 @@ impl DocumentPipeline {
         cfg: &Detection,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
-        // NER detection — skip if no LLM provider.
         let ner_cfg = cfg.ner.clone().unwrap_or_default();
         if let Ok(op) =
             EntityRecognitionOp::new(&ner_cfg, &self.ctx.config, &self.ctx.http_client).await
@@ -290,14 +298,13 @@ impl DocumentPipeline {
             op.execute(envelope).await?;
         }
 
-        // Pattern detection — always available (no external deps).
         let pat_cfg = cfg.pattern.clone().unwrap_or_default();
-        PatternRecognitionOp::new(&pat_cfg)
-            .execute(envelope)
-            .await?;
+        let op = PatternRecognitionOp::new(&pat_cfg);
+        op.execute(envelope).await?;
 
         Ok(())
     }
+
 
     /// Export envelopes to the registry.
     async fn run_exports(

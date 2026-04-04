@@ -1,11 +1,9 @@
 //! File import operation.
 //!
-//! Runs at **phase 0** alongside [`LoadContext`]. Decodes raw content
-//! into a [`DocumentEnvelope`], optionally applying decompression and
+//! Runs at **phase 0**. Decodes raw content into a
+//! [`DocumentEnvelope`], optionally applying decompression and
 //! decryption.
-//!
-//! [`LoadContext`]: crate::operation::LoadContextOp
-
+//! 
 //! The import pipeline applies optional pre-processing steps in order:
 //!
 //! 1. **Decompression** — decompress raw bytes (if format specified)

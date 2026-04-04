@@ -26,8 +26,6 @@ use super::{
     RunStatus,
 };
 
-const TARGET: &str = "nvisy_engine::pipeline::runs";
-
 /// In-memory run state backed by `Arc<RwLock<HashMap>>`.
 ///
 /// Cheaply clonable (Arc bump). All clones share the same underlying
@@ -137,33 +135,6 @@ impl RunState {
     /// Insert a new run entry, keyed by its unique run ID.
     pub async fn insert(&self, run_id: Uuid, entry: RunRecord) {
         self.inner.write().await.insert(run_id, entry);
-    }
-
-    /// Update a single node's snapshot within a run.
-    ///
-    /// Returns `true` if the node was found and updated, `false` otherwise.
-    #[allow(dead_code)]
-    pub async fn update_node(
-        &self,
-        run_id: Uuid,
-        node_id: Uuid,
-        status: NodeStatus,
-        items_processed: u64,
-        error: Option<String>,
-    ) -> bool {
-        let mut guard = self.inner.write().await;
-        let Some(entry) = guard.get_mut(&run_id) else {
-            tracing::warn!(target: TARGET, %run_id, %node_id, "update_node: run not found");
-            return false;
-        };
-        let Some(node) = entry.nodes.get_mut(&node_id) else {
-            tracing::warn!(target: TARGET, %run_id, %node_id, "update_node: node not found in run");
-            return false;
-        };
-        node.status = status;
-        node.items_processed = items_processed;
-        node.error = error;
-        true
     }
 
     /// Record the moment a run begins executing.

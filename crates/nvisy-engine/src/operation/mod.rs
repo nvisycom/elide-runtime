@@ -14,8 +14,6 @@ mod export_file;
 mod fusion;
 mod generate_context;
 mod import_file;
-#[allow(dead_code)]
-mod load_context;
 mod pattern_recognition;
 pub(crate) mod redaction;
 mod save_context;

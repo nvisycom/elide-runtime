@@ -1,15 +1,18 @@
 //! Graph compilation into an [`ExecutionPlan`].
 //!
 //! [`compile()`] bridges the user-facing [`Graph`] definition and the
-//! runtime execution model. It validates the graph, then walks the
-//! nodes to build a typed, phase-ordered execution plan.
+//! runtime execution model. It validates the graph structure (via
+//! [`Graph::validate`]) and checks for cycles (via petgraph
+//! [`toposort`]), then walks the nodes to build a typed, phase-ordered
+//! execution plan.
 //!
 //! All pipeline phases always run with default settings. User-provided
 //! graph nodes customize *how* each phase runs, not *whether* it runs.
 //! The plan is consumed by the [orchestrator] to drive per-document
 //! execution.
 //!
-//! [`Graph`]: nvisy_ontology::workflow::Graph
+//! [`Graph::validate`]: nvisy_ontology::workflow::Graph::validate
+//! [`toposort`]: petgraph::algo::toposort
 //! [orchestrator]: super::orchestrator
 
 use nvisy_core::{Error, Result};
@@ -17,29 +20,37 @@ use nvisy_ontology::workflow::{
     Detection, ExportFile, Extraction, Fusion, Graph, GraphNodeKind, ImportFile, Redaction,
     RetryPolicy, TimeoutPolicy, Validation,
 };
+use petgraph::algo::toposort;
 use uuid::Uuid;
+
+use crate::graph::GraphExt;
 
 /// Import step — source node that creates envelopes.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ImportStep {
     /// Import configuration (content IDs, decompression, decryption).
     pub config: ImportFile,
-    /// Per-node retry policy override.
-    pub retry: Option<RetryPolicy>,
-    /// Per-node timeout policy override.
-    pub timeout: Option<TimeoutPolicy>,
 }
 
 /// Export step — sink node that writes envelopes.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct ExportStep {
     /// Export configuration (content IDs, encryption, compression).
     pub config: ExportFile,
-    /// Per-node retry policy override.
+}
+
+/// Per-phase retry and timeout policy overrides.
+///
+/// Carried on plan phases that involve external calls (extraction,
+/// detection, redaction). Resolved from the user's graph node if
+/// provided. Retry is applied to individual operation calls within
+/// the phase; timeout wraps the entire phase.
+#[derive(Debug, Clone, Default)]
+pub struct PhasePolicy {
+    /// Retry policy for individual operations within this phase.
+    #[allow(dead_code)] // wired when operations gain internal retry
     pub retry: Option<RetryPolicy>,
-    /// Per-node timeout policy override.
+    /// Timeout policy wrapping the entire phase.
     pub timeout: Option<TimeoutPolicy>,
 }
 
@@ -57,12 +68,18 @@ pub struct ExecutionPlan {
     pub context_ids: Vec<Uuid>,
     /// Extraction settings per modality (phase 1).
     pub extraction: Extraction,
-    /// Detection settings — NER + Pattern (phase 2, concurrent).
+    /// Retry/timeout for the extraction phase.
+    pub extraction_policy: PhasePolicy,
+    /// Detection settings — NER + Pattern (phase 2).
     pub detection: Detection,
+    /// Retry/timeout for the detection phase.
+    pub detection_policy: PhasePolicy,
     /// Fusion settings (phase 3).
     pub fusion: Fusion,
     /// Redaction settings (phase 4, skipped in dry-run).
     pub redaction: Redaction,
+    /// Retry/timeout for the redaction phase.
+    pub redaction_policy: PhasePolicy,
     /// Whether to generate context (phase 4).
     pub generate_context: bool,
     /// Validation settings (phase 5, skipped in dry-run).
@@ -75,12 +92,18 @@ pub struct ExecutionPlan {
 
 /// Compiles a [`Graph`] into an [`ExecutionPlan`].
 ///
-/// Validates the graph, then walks nodes to build a typed plan.
-/// The graph's DAG structure is validated for correctness but the
-/// plan itself is a flat, phase-ordered structure — edges are not
-/// preserved at runtime.
+/// Validates the graph structure and verifies it is a DAG (no cycles)
+/// via petgraph topological sort, then walks nodes to build a typed
+/// plan. Edges are consumed during validation and not preserved at
+/// runtime.
 pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
     graph.validate()?;
+
+    // Verify the graph is acyclic via petgraph (belt-and-suspenders
+    // with validate_dag in Graph::validate).
+    let pg = graph.to_petgraph();
+    toposort(&pg, None)
+        .map_err(|_| Error::validation("graph contains a cycle", "compiler"))?;
 
     let mut imports = Vec::new();
     let mut exports = Vec::new();
@@ -88,9 +111,12 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
     let mut save_context_ids = Vec::new();
     let mut generate_context = false;
     let mut extraction = Extraction::default();
+    let mut extraction_policy = PhasePolicy::default();
     let mut detection = Detection::default();
+    let mut detection_policy = PhasePolicy::default();
     let mut fusion = Fusion::default();
     let mut redaction = Redaction::default();
+    let mut redaction_policy = PhasePolicy::default();
     let mut validation = Validation::default();
 
     let mut has_extraction = false;
@@ -104,15 +130,11 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
             GraphNodeKind::ImportFile(cfg) => {
                 imports.push(ImportStep {
                     config: cfg.clone(),
-                    retry: node.retry.clone(),
-                    timeout: node.timeout.clone(),
                 });
             }
             GraphNodeKind::ExportFile(cfg) => {
                 exports.push(ExportStep {
                     config: cfg.clone(),
-                    retry: node.retry.clone(),
-                    timeout: node.timeout.clone(),
                 });
             }
             GraphNodeKind::LoadContext(cfg) => {
@@ -132,6 +154,10 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
                     ));
                 }
                 extraction = cfg.clone();
+                extraction_policy = PhasePolicy {
+                    retry: node.retry.clone(),
+                    timeout: node.timeout.clone(),
+                };
                 has_extraction = true;
             }
             GraphNodeKind::Detection(cfg) => {
@@ -142,6 +168,10 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
                     ));
                 }
                 detection = cfg.clone();
+                detection_policy = PhasePolicy {
+                    retry: node.retry.clone(),
+                    timeout: node.timeout.clone(),
+                };
                 has_detection = true;
             }
             GraphNodeKind::Fusion(cfg) => {
@@ -162,6 +192,10 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
                     ));
                 }
                 redaction = cfg.clone();
+                redaction_policy = PhasePolicy {
+                    retry: node.retry.clone(),
+                    timeout: node.timeout.clone(),
+                };
                 has_redaction = true;
             }
             GraphNodeKind::Validation(cfg) => {
@@ -178,7 +212,6 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
         }
     }
 
-    // Deduplicate context IDs.
     context_ids.sort_unstable();
     context_ids.dedup();
     save_context_ids.sort_unstable();
@@ -188,9 +221,12 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
         imports,
         context_ids,
         extraction,
+        extraction_policy,
         detection,
+        detection_policy,
         fusion,
         redaction,
+        redaction_policy,
         generate_context,
         validation,
         exports,

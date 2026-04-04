@@ -143,10 +143,7 @@ impl Orchestrator {
     }
 
     /// Execute import steps to produce envelopes.
-    async fn run_imports(
-        &self,
-        imports: &[ImportStep],
-    ) -> Result<Vec<DocumentEnvelope>, Error> {
+    async fn run_imports(&self, imports: &[ImportStep]) -> Result<Vec<DocumentEnvelope>, Error> {
         let mut envelopes = Vec::new();
 
         for step in imports {
@@ -304,7 +301,6 @@ impl DocumentPipeline {
 
         Ok(())
     }
-
 
     /// Export envelopes to the registry.
     async fn run_exports(

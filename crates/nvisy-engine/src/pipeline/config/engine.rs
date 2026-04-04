@@ -46,7 +46,6 @@ pub struct ResourceLimits {
     pub max_envelope_size_bytes: Option<u64>,
 }
 
-
 /// Cache tuning parameters.
 ///
 /// Controls resource cache behavior for contexts and policies held in

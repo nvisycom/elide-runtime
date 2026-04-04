@@ -102,8 +102,7 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
     // Verify the graph is acyclic via petgraph (belt-and-suspenders
     // with validate_dag in Graph::validate).
     let pg = graph.to_petgraph();
-    toposort(&pg, None)
-        .map_err(|_| Error::validation("graph contains a cycle", "compiler"))?;
+    toposort(&pg, None).map_err(|_| Error::validation("graph contains a cycle", "compiler"))?;
 
     let mut imports = Vec::new();
     let mut exports = Vec::new();

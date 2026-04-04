@@ -70,10 +70,7 @@ fn merge_overrides_present_sections() {
     };
 
     let merged = base.merge(&overrides);
-    assert_eq!(
-        merged.engine.unwrap().limits.run_timeout_ms,
-        Some(5_000)
-    );
+    assert_eq!(merged.engine.unwrap().limits.run_timeout_ms, Some(5_000));
 }
 
 #[test]
@@ -91,8 +88,5 @@ fn merge_falls_back_to_base() {
     let overrides = RuntimeConfig::default();
 
     let merged = base.merge(&overrides);
-    assert_eq!(
-        merged.engine.unwrap().limits.run_timeout_ms,
-        Some(60_000)
-    );
+    assert_eq!(merged.engine.unwrap().limits.run_timeout_ms, Some(60_000));
 }

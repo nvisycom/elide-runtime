@@ -16,7 +16,8 @@ use crate::handler::{Handler, TextHandler};
 pub struct BoxedTextHandler(Box<dyn TextHandler>);
 
 impl BoxedTextHandler {
-    /// Wrap any concrete text handler.
+    /// Wrap any concrete text handler. Prefer the `From` impls for
+    /// known handler types (e.g. `BoxedTextHandler::from(txt_handler)`).
     pub fn new(handler: impl TextHandler + 'static) -> Self {
         Self(Box::new(handler))
     }
@@ -75,7 +76,8 @@ macro_rules! impl_from_text_handler {
     };
 }
 
-use super::{CsvHandler, JsonHandler, TxtHandler};
+use super::{JsonHandler, TxtHandler};
+use crate::handler::tabular::CsvHandler;
 impl_from_text_handler!(TxtHandler, CsvHandler, JsonHandler);
 
 #[cfg(feature = "html")]
@@ -84,7 +86,7 @@ use super::HtmlHandler;
 impl_from_text_handler!(HtmlHandler);
 
 #[cfg(feature = "xlsx")]
-use super::XlsxHandler;
+use crate::handler::tabular::XlsxHandler;
 #[cfg(feature = "xlsx")]
 impl_from_text_handler!(XlsxHandler);
 

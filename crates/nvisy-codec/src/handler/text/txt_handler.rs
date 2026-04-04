@@ -151,7 +151,6 @@ impl TxtHandler {
             .map(|line| {
                 let start = offset;
                 let end = start + line.len();
-                // +1 for the newline separator between lines.
                 offset = end + 1;
                 (start, end)
             })
@@ -312,5 +311,37 @@ mod tests {
         let content = h.encode()?;
         assert_eq!(content.as_bytes(), b"no newline");
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn value_at_cross_line_returns_none() {
+        let h = handler("hello\nworld\n");
+        // Offsets spanning two lines should return None.
+        let loc = TextLocation {
+            start_offset: 3,
+            end_offset: 8,
+            ..Default::default()
+        };
+        assert_eq!(h.value_at(&loc).await, None);
+    }
+
+    #[tokio::test]
+    async fn edit_multiple_lines() -> Result<(), Error> {
+        let mut h = handler("aaa\nbbb\nccc\n");
+        let spans: Vec<_> = h.text_spans().await.collect().await;
+        h.edit_text(SpanStream::new(futures::stream::iter(vec![
+            Span::new(spans[0].id.clone(), "[X]".into()),
+            Span::new(spans[2].id.clone(), "[Y]".into()),
+        ])))
+        .await?;
+        assert_eq!(h.lines(), &["[X]", "bbb", "[Y]"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn empty_handler_spans() {
+        let h = TxtHandler::new(vec![], false);
+        let spans: Vec<_> = h.text_spans().await.collect().await;
+        assert!(spans.is_empty());
     }
 }

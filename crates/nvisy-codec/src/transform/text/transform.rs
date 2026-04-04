@@ -70,6 +70,21 @@ impl<H: TextHandler> TextTransform for H {
             // Sort right-to-left so earlier byte offsets stay valid.
             replacements.sort_by(|a, b| b.0.cmp(&a.0));
 
+            // Check for overlapping ranges (sorted descending by start).
+            for pair in replacements.windows(2) {
+                let (later_start, _, _) = &pair[0]; // higher start
+                let (earlier_start, earlier_end, _) = &pair[1]; // lower start
+                if *earlier_end > *later_start {
+                    return Err(Error::validation(
+                        format!(
+                            "overlapping redaction ranges: {}..{} and {}..{}",
+                            earlier_start, earlier_end, later_start, pair[0].1,
+                        ),
+                        "text-redact",
+                    ));
+                }
+            }
+
             let mut result = content.to_string();
             for (start, end, value) in replacements.iter() {
                 let s = (*start).min(result.len());

@@ -8,13 +8,16 @@
 //! # Span model
 //!
 //! The [`TextHandler`] implementation yields string-typed JSON leaves
-//! and object keys as text spans addressed by [`TextLocation`]. The
-//! byte offsets in the location correspond to the position of the
-//! string value within the serialized JSON.
+//! and object keys as text spans addressed by [`TextLocation`]. Byte
+//! offsets correspond to positions within the serialized JSON string
+//! and are computed via monotonic cursor advancement during tree
+//! traversal to avoid ambiguity from duplicate values.
 //!
-//! For full JSON value access (including non-string leaves), use the
-//! inherent [`JsonHandler::view_spans`] and [`JsonHandler::edit_spans`]
-//! methods that operate on `serde_json::Value` directly.
+//! # Offset semantics
+//!
+//! Offsets are into the **serialized** form of the JSON document,
+//! including quotes and escape sequences. The `value` field on
+//! [`TextLocation`] carries the unescaped string content.
 
 use std::num::NonZeroU32;
 
@@ -33,8 +36,7 @@ const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 
 /// [RFC 6901] JSON Pointer identifying a span within a JSON document.
 ///
-/// Used internally by `JsonHandler` for tree navigation. Not exposed
-/// in the `TextHandler` interface (which uses [`TextLocation`]).
+/// Used internally by `JsonHandler` for tree navigation.
 ///
 /// [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -108,44 +110,35 @@ pub struct JsonHandler {
     data: JsonData,
 }
 
-/// Internal span carrying a `JsonPath` and a `serde_json::Value`.
-struct JsonPathSpan {
+/// A located JSON span with its path and byte offset range.
+struct LocatedSpan {
     path: JsonPath,
-    source: ContentSource,
-    data: serde_json::Value,
+    text: String,
+    start: usize,
+    end: usize,
 }
 
 #[async_trait::async_trait]
 impl TextHandler for JsonHandler {
     async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
-        // Serialize once to compute byte offsets for string values.
-        let serialized = self.serialize_to_string();
-        let path_spans: Vec<JsonPathSpan> = JsonSpanIter::new(&self.data.value)
-            .map(|s| JsonPathSpan {
-                path: s.path,
-                source: self.source,
-                data: s.value,
+        let located = self.locate_spans();
+        let source = self.source;
+        let spans: Vec<_> = located
+            .into_iter()
+            .map(|ls| {
+                Span::new(
+                    TextLocation {
+                        value: ls.text.clone(),
+                        start_offset: ls.start,
+                        end_offset: ls.end,
+                        ..Default::default()
+                    },
+                    TextData::from(ls.text),
+                )
+                .with_source(source)
             })
             .collect();
-
-        let mut result = Vec::with_capacity(path_spans.len());
-        for ps in path_spans {
-            let text = match &ps.data {
-                serde_json::Value::String(s) => s.clone(),
-                other => other.to_string(),
-            };
-            // Find the string value in the serialized JSON to get byte offsets.
-            let (start, end) =
-                find_string_in_json(&serialized, &text, &ps.path).unwrap_or((0, text.len()));
-            let loc = TextLocation {
-                start_offset: start,
-                end_offset: end,
-                ..Default::default()
-            };
-            result.push(Span::new(loc, TextData::from(text)).with_source(ps.source));
-        }
-
-        SpanStream::new(futures::stream::iter(result))
+        SpanStream::new(futures::stream::iter(spans))
     }
 
     async fn edit_text(
@@ -153,21 +146,15 @@ impl TextHandler for JsonHandler {
         edits: SpanStream<'_, TextLocation, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
-        // Map TextLocation back to JsonPath via byte offset matching.
-        let serialized = self.serialize_to_string();
-        let path_map = self.build_offset_to_path_map(&serialized);
+        let located = self.locate_spans();
 
-        // Separate value edits and key edits.
         let mut value_edits = Vec::new();
         let mut key_edits = Vec::new();
 
         for edit in &edits {
-            let path = path_map
+            let ls = located
                 .iter()
-                .find(|(start, end, _)| {
-                    *start == edit.id.start_offset && *end == edit.id.end_offset
-                })
-                .map(|(_, _, p)| p.clone())
+                .find(|ls| ls.start == edit.id.start_offset && ls.end == edit.id.end_offset)
                 .ok_or_else(|| {
                     Error::validation(
                         format!(
@@ -178,14 +165,13 @@ impl TextHandler for JsonHandler {
                     )
                 })?;
 
-            if path.key_of {
-                key_edits.push((path, edit.data.clone()));
+            if ls.path.key_of {
+                key_edits.push((&ls.path, edit.data.clone()));
             } else {
-                value_edits.push((path, edit.data.clone()));
+                value_edits.push((&ls.path, edit.data.clone()));
             }
         }
 
-        // Apply value edits first so pointers remain valid.
         for (path, data) in &value_edits {
             let target = self.data.value.pointer_mut(&path.pointer).ok_or_else(|| {
                 Error::validation(
@@ -213,10 +199,13 @@ impl TextHandler for JsonHandler {
     }
 
     async fn value_at(&self, location: &TextLocation) -> Option<String> {
-        let serialized = self.serialize_to_string();
-        serialized
-            .get(location.start_offset..location.end_offset)
-            .map(String::from)
+        // Validate the offset range against known spans to ensure
+        // we return a structurally valid value.
+        let located = self.locate_spans();
+        located
+            .iter()
+            .find(|ls| ls.start == location.start_offset && ls.end == location.end_offset)
+            .map(|ls| ls.text.clone())
     }
 }
 
@@ -276,9 +265,49 @@ impl JsonHandler {
         self.data.trailing_newline
     }
 
+    /// Compute located spans by serializing and tracking byte positions
+    /// with a monotonic cursor to avoid duplicate-value ambiguity.
+    fn locate_spans(&self) -> Vec<LocatedSpan> {
+        let serialized = self.serialize_to_string();
+        let tree_spans: Vec<_> = JsonSpanIter::new(&self.data.value).collect();
+        let mut result = Vec::with_capacity(tree_spans.len());
+        let mut cursor = 0usize;
+
+        for ts in &tree_spans {
+            let text = match &ts.value {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            };
+
+            // Search for the quoted string or raw value starting from
+            // the cursor position. This ensures each match advances
+            // monotonically, resolving duplicate-value ambiguity.
+            let needle = if ts.value.is_string() {
+                format!("\"{}\"", json_escape(&text))
+            } else {
+                text.clone()
+            };
+
+            if let Some(rel) = serialized[cursor..].find(&needle) {
+                let start = cursor + rel;
+                let end = start + needle.len();
+                result.push(LocatedSpan {
+                    path: ts.path.clone(),
+                    text,
+                    start,
+                    end,
+                });
+                cursor = end;
+            }
+        }
+
+        result
+    }
+
     fn serialize_to_string(&self) -> String {
-        let bytes = self.serialize_to_bytes().unwrap_or_default();
-        String::from_utf8(bytes).unwrap_or_default()
+        self.serialize_to_bytes()
+            .map(|b| String::from_utf8(b).unwrap_or_default())
+            .unwrap_or_default()
     }
 
     fn serialize_to_bytes(&self) -> Result<Vec<u8>, Error> {
@@ -306,54 +335,9 @@ impl JsonHandler {
             }
         }
     }
-
-    /// Build a map of `(start_offset, end_offset, JsonPath)` for all
-    /// text spans, used to reverse-map `TextLocation` back to paths.
-    fn build_offset_to_path_map(&self, serialized: &str) -> Vec<(usize, usize, JsonPath)> {
-        let spans: Vec<_> = JsonSpanIter::new(&self.data.value).collect();
-        let mut map = Vec::with_capacity(spans.len());
-
-        for s in spans {
-            let text = match &s.value {
-                serde_json::Value::String(v) => v.clone(),
-                other => other.to_string(),
-            };
-            if let Some((start, end)) = find_string_in_json(serialized, &text, &s.path) {
-                map.push((start, end, s.path));
-            }
-        }
-
-        map
-    }
 }
 
-/// Find the byte offset of a string value within serialized JSON.
-///
-/// Uses the JSON pointer path to narrow the search to the right
-/// location in the document, avoiding false matches from duplicate
-/// values.
-fn find_string_in_json(serialized: &str, value: &str, path: &JsonPath) -> Option<(usize, usize)> {
-    // For string values, search for the quoted form "value".
-    // For non-string values, search for the raw form.
-    let needle = if path.key_of {
-        format!("\"{}\"", json_escape(value))
-    } else {
-        // Try quoted first (string values), then raw (numbers, bools).
-        let quoted = format!("\"{}\"", json_escape(value));
-        if serialized.contains(&quoted) {
-            quoted
-        } else {
-            value.to_string()
-        }
-    };
-
-    // Simple substring search. For duplicate values this may not be
-    // perfectly accurate, but it's sufficient for most documents.
-    let start = serialized.find(&needle)?;
-    Some((start, start + needle.len()))
-}
-
-/// Escape a string for JSON matching (minimal: just backslash and quote).
+/// Escape a string for JSON matching (backslash and quote).
 fn json_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -384,7 +368,6 @@ impl JsonSpanIter {
                     let escaped_key = key.replace('~', "~0").replace('/', "~1");
                     let child_ptr = format!("{pointer}/{escaped_key}");
 
-                    // Yield the key itself as a span.
                     stack.push(JsonTreeSpan {
                         path: JsonPath::key(&child_ptr),
                         value: serde_json::Value::String(key.clone()),
@@ -399,7 +382,6 @@ impl JsonSpanIter {
                     Self::push_value(stack, &child_ptr, val);
                 }
             }
-            // Leaf values.
             _ => {
                 stack.push(JsonTreeSpan {
                     path: JsonPath::value(pointer),
@@ -428,18 +410,14 @@ fn rename_key(
         .as_str()
         .ok_or_else(|| Error::validation("key rename value must be a string", "json-handler"))?;
 
-    // Split pointer into parent path and the key segment.
     let (parent_ptr, old_key_segment) = pointer.rsplit_once('/').ok_or_else(|| {
-        Error::validation(format!("cannot rename root: {pointer}"), "json-handler")
+        Error::validation(
+            format!("cannot rename root: {pointer}"),
+            "json-handler",
+        )
     })?;
 
     let old_key = old_key_segment.replace("~1", "/").replace("~0", "~");
-
-    let parent_ptr = if parent_ptr.is_empty() {
-        ""
-    } else {
-        parent_ptr
-    };
 
     let parent = if parent_ptr.is_empty() {
         root
@@ -491,13 +469,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn duplicate_values_get_distinct_offsets() {
+        let h = compact_handler(r#"{"a":"same","b":"same"}"#);
+        let spans: Vec<_> = h.text_spans().await.collect().await;
+        let same_spans: Vec<_> = spans
+            .iter()
+            .filter(|s| s.data.as_str() == "same")
+            .collect();
+        assert_eq!(same_spans.len(), 2);
+        assert_ne!(
+            same_spans[0].id.start_offset,
+            same_spans[1].id.start_offset,
+            "duplicate values must have distinct offsets"
+        );
+    }
+
+    #[tokio::test]
     async fn value_at_returns_string() {
         let h = compact_handler(r#"{"name":"Alice"}"#);
         let spans: Vec<_> = h.text_spans().await.collect().await;
         let alice_span = spans.iter().find(|s| s.data.as_str() == "Alice").unwrap();
-        let val = h.value_at(&alice_span.id).await;
-        assert!(val.is_some());
-        assert!(val.unwrap().contains("Alice"));
+        assert_eq!(h.value_at(&alice_span.id).await, Some("Alice".to_string()));
+    }
+
+    #[tokio::test]
+    async fn value_at_rejects_arbitrary_offsets() {
+        let h = compact_handler(r#"{"name":"Alice"}"#);
+        let bogus = TextLocation {
+            start_offset: 3,
+            end_offset: 7,
+            ..Default::default()
+        };
+        assert_eq!(h.value_at(&bogus).await, None);
+    }
+
+    #[tokio::test]
+    async fn nested_structure() {
+        let h = compact_handler(r#"{"user":{"name":"Bob","ids":[1,2]}}"#);
+        let spans: Vec<_> = h.text_spans().await.collect().await;
+        let texts: Vec<_> = spans.iter().map(|s| s.data.as_str()).collect();
+        assert!(texts.contains(&"Bob"));
+        assert!(texts.contains(&"1"));
+        assert!(texts.contains(&"2"));
     }
 
     #[test]

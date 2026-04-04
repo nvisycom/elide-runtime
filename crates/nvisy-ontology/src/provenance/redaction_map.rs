@@ -81,3 +81,55 @@ impl RedactionMap {
             .and_then(|e| e.replacement.as_deref())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entity::{Location, TextLocation};
+
+    fn mapping(id: Uuid, original: &str, replacement: Option<&str>) -> RedactionMapping {
+        RedactionMapping {
+            entity_id: id,
+            location: Location::from(TextLocation {
+                start_offset: 0,
+                end_offset: original.len(),
+                ..Default::default()
+            }),
+            original: original.to_string(),
+            replacement: replacement.map(String::from),
+        }
+    }
+
+    #[test]
+    fn empty_map() {
+        let map = RedactionMap::new();
+        assert!(map.is_empty());
+        assert_eq!(map.len(), 0);
+    }
+
+    #[test]
+    fn push_and_lookup() {
+        let id = Uuid::now_v7();
+        let mut map = RedactionMap::new();
+        map.push(mapping(id, "John", Some("[NAME]")));
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.original(id), Some("John"));
+        assert_eq!(map.replacement(id), Some("[NAME]"));
+    }
+
+    #[test]
+    fn lookup_missing() {
+        let map = RedactionMap::new();
+        assert_eq!(map.original(Uuid::now_v7()), None);
+        assert_eq!(map.replacement(Uuid::now_v7()), None);
+    }
+
+    #[test]
+    fn replacement_none_when_not_applied() {
+        let id = Uuid::now_v7();
+        let mut map = RedactionMap::new();
+        map.push(mapping(id, "secret", None));
+        assert_eq!(map.original(id), Some("secret"));
+        assert_eq!(map.replacement(id), None);
+    }
+}

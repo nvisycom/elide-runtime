@@ -156,3 +156,66 @@ impl FromIterator<Entity> for Entities {
         Self(iter.into_iter().collect())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entity(confidence: f64) -> Entity {
+        Entity::builder()
+            .with_category(EntityCategory::PersonalIdentity)
+            .with_entity_kind(EntityKind::PersonName)
+            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
+            .with_confidence(confidence)
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_start_offset(0usize)
+                    .with_end_offset(4usize)
+                    .build()
+                    .unwrap(),
+            ))
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn above_confidence_filters() {
+        let entities: Entities = vec![entity(0.9), entity(0.3), entity(0.7)].into();
+        let filtered = entities.above_confidence(0.5);
+        assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn above_confidence_empty() {
+        let entities = Entities::new();
+        assert!(entities.above_confidence(0.5).is_empty());
+    }
+
+    #[test]
+    fn text_value_from_location() {
+        let mut e = entity(0.9);
+        if let Location::Text(ref mut loc) = e.location {
+            loc.value = "hello".to_string();
+        }
+        assert_eq!(e.text_value(), Some("hello"));
+    }
+
+    #[test]
+    fn text_value_empty_string_returns_none() {
+        let e = entity(0.9);
+        assert_eq!(e.text_value(), None);
+    }
+
+    #[test]
+    fn entities_from_vec() {
+        let v = vec![entity(0.5), entity(0.8)];
+        let entities = Entities::from(v);
+        assert_eq!(entities.len(), 2);
+    }
+
+    #[test]
+    fn entities_collect() {
+        let entities: Entities = (0..3).map(|i| entity(i as f64 * 0.3)).collect();
+        assert_eq!(entities.len(), 3);
+    }
+}

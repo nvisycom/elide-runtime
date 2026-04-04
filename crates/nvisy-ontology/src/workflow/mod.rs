@@ -226,3 +226,114 @@ impl Graph {
 fn validate_struct(v: &impl Validate) -> Result<(), Error> {
     v.validate().map_err(|e| Error::new(e.to_string()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn import() -> GraphNodeKind {
+        GraphNodeKind::ImportFile(ImportFile::default())
+    }
+
+    fn extraction() -> GraphNodeKind {
+        GraphNodeKind::Extraction(Extraction::default())
+    }
+
+    fn detection() -> GraphNodeKind {
+        GraphNodeKind::Detection(Detection::default())
+    }
+
+    fn dedup() -> GraphNodeKind {
+        GraphNodeKind::Deduplication(Deduplication::default())
+    }
+
+    fn redaction() -> GraphNodeKind {
+        GraphNodeKind::Redaction(Redaction::default())
+    }
+
+    fn validation() -> GraphNodeKind {
+        GraphNodeKind::Validation(Validation::default())
+    }
+
+    fn export() -> GraphNodeKind {
+        GraphNodeKind::ExportFile(ExportFile::default())
+    }
+
+    #[test]
+    fn phases() {
+        assert_eq!(import().phase(), 0);
+        assert_eq!(
+            GraphNodeKind::LoadContext(LoadContext {
+                context_ids: vec![Uuid::nil()]
+            })
+            .phase(),
+            0
+        );
+        assert_eq!(extraction().phase(), 1);
+        assert_eq!(detection().phase(), 2);
+        assert_eq!(dedup().phase(), 3);
+        assert_eq!(redaction().phase(), 4);
+        assert_eq!(validation().phase(), 5);
+        assert_eq!(export().phase(), 6);
+        assert_eq!(
+            GraphNodeKind::SaveContext(SaveContext {
+                context_ids: vec![Uuid::nil()],
+            }).phase(),
+            6
+        );
+    }
+
+    #[test]
+    fn pre_redaction() {
+        assert!(import().is_pre_redaction());
+        assert!(extraction().is_pre_redaction());
+        assert!(detection().is_pre_redaction());
+        assert!(dedup().is_pre_redaction());
+        assert!(!redaction().is_pre_redaction());
+        assert!(!validation().is_pre_redaction());
+        assert!(!export().is_pre_redaction());
+    }
+
+    #[test]
+    fn is_redaction() {
+        assert!(!import().is_redaction());
+        assert!(redaction().is_redaction());
+        assert!(GraphNodeKind::GenerateContext(GenerateContext::default()).is_redaction());
+    }
+
+    #[test]
+    fn post_redaction() {
+        assert!(!import().is_post_redaction());
+        assert!(!redaction().is_post_redaction());
+        assert!(validation().is_post_redaction());
+        assert!(export().is_post_redaction());
+        assert!(GraphNodeKind::SaveContext(SaveContext {
+                context_ids: vec![Uuid::nil()],
+            }).is_post_redaction());
+    }
+
+    #[test]
+    fn display() {
+        assert_eq!(import().to_string(), "import");
+        assert_eq!(extraction().to_string(), "extraction");
+        assert_eq!(detection().to_string(), "detection");
+        assert_eq!(dedup().to_string(), "deduplication");
+        assert_eq!(redaction().to_string(), "redaction");
+        assert_eq!(validation().to_string(), "validation");
+        assert_eq!(export().to_string(), "export");
+    }
+
+    #[test]
+    fn validate_accepts_valid_configs() {
+        assert!(extraction().validate().is_ok());
+        assert!(detection().validate().is_ok());
+        assert!(dedup().validate().is_ok());
+        assert!(redaction().validate().is_ok());
+        assert!(validation().validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_empty_import() {
+        assert!(import().validate().is_err());
+    }
+}

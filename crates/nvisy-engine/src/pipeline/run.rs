@@ -24,9 +24,9 @@ use super::orchestrator::{Orchestrator, RunContext};
 use super::plan::{self, ExecutionPlan};
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
-use crate::operation::encryption::SharedKeyProvider;
 use crate::operation::envelope::SharedData;
 use crate::registry::Registry;
+use crate::utility::encryption::SharedKeyProvider;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
 
@@ -225,6 +225,12 @@ impl Pipeline {
             }
         };
 
+        // Save contexts from cache to registry (phase 6).
+        if !input.dry_run {
+            self.release_resources(actor_id, &compiled.save_context_ids)
+                .await;
+        }
+
         // Collect audits and counters from document results.
         let mut audits = Vec::new();
         let mut entities_detected = 0u64;
@@ -322,6 +328,38 @@ impl Pipeline {
             .await;
 
         (context_guard, policy_guard)
+    }
+
+    /// Persist contexts from the cache to the registry.
+    ///
+    /// Mirrors [`acquire_resources`] — contexts are loaded into the
+    /// cache before execution and saved back here after completion.
+    async fn release_resources(&self, actor_id: Uuid, save_context_ids: &[Uuid]) {
+        let registry = &self.registry;
+        for &id in save_context_ids {
+            let context = match registry.context_cache().get(&id).await {
+                Some(ctx) => ctx,
+                None => {
+                    tracing::warn!(
+                        target: TARGET,
+                        %id,
+                        "context not found in cache, skipping save",
+                    );
+                    continue;
+                }
+            };
+            if let Err(e) = registry
+                .register_context(actor_id, std::sync::Arc::unwrap_or_clone(context))
+                .await
+            {
+                tracing::warn!(
+                    target: TARGET,
+                    %id,
+                    error = %e,
+                    "failed to save context",
+                );
+            }
+        }
     }
 
     /// Enforce retention policies after a pipeline run.

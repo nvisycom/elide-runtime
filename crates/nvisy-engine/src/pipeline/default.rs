@@ -23,8 +23,8 @@ use super::config::RuntimeConfig;
 use super::run::Pipeline;
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
-use crate::operation::encryption::SharedKeyProvider;
 use crate::registry::Registry;
+use crate::utility::encryption::SharedKeyProvider;
 
 /// Input required to execute a redaction pipeline.
 ///

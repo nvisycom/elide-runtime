@@ -1,16 +1,16 @@
-//! Entity fusion operation.
+//! Entity deduplication operation.
 //!
 //! Runs at **phase 3**, after detection. Combines multiple detection
 //! passes into a single, deduplicated set of entities with combined
 //! confidence scores.
 //!
-//! The fusion pipeline:
+//! The deduplication pipeline:
 //!
 //! 1. **Calibrate**: scale raw confidence scores using per-method
 //!    multipliers from [`CalibrationMap`].
 //! 2. **Group + fuse**: partition entities by kind, value, and
 //!    location overlap (per [`GroupingCriteria`]), then combine each
-//!    group into one entity using the [`FusionStrategy`].
+//!    group into one entity using the [`DeduplicationStrategy`].
 //!
 //! Deduplication is implicit: entities that land in the same group
 //! are always merged, so exact duplicates are naturally eliminated.
@@ -21,34 +21,36 @@ mod strategy;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
-use nvisy_ontology::workflow::{CalibrationMap, Fusion, FusionStrategy, GroupingCriteria};
+use nvisy_ontology::workflow::{
+    CalibrationMap, Deduplication, DeduplicationStrategy, GroupingCriteria,
+};
 
 use self::calibration::calibrate;
-use self::strategy::FusionStrategyExt;
+use self::strategy::DeduplicationStrategyExt;
 use crate::operation::{DocumentEnvelope, Operation};
 
-const TARGET: &str = "nvisy_engine::op::fusion";
+const TARGET: &str = "nvisy_engine::op::deduplication";
 
-/// Combined calibration and ensemble fusion operation.
+/// Combined calibration and ensemble deduplication operation.
 ///
-/// Created from the [`Fusion`] graph node configuration via
-/// [`FusionOp::new`]. The heavy lifting is delegated to the
+/// Created from the [`Deduplication`] graph node configuration via
+/// [`DeduplicationOp::new`]. The heavy lifting is delegated to the
 /// [`calibration`], [`grouping`], and [`strategy`] sub-modules.
-pub struct FusionOp {
+pub struct DeduplicationOp {
     grouping: GroupingCriteria,
-    strategy: FusionStrategy,
+    strategy: DeduplicationStrategy,
     calibration: CalibrationMap,
 }
 
-impl FusionOp {
-    /// Create from a [`Fusion`] graph node config.
-    pub fn new(cfg: &Fusion) -> Self {
+impl DeduplicationOp {
+    /// Create from a [`Deduplication`] graph node config.
+    pub fn new(cfg: &Deduplication) -> Self {
         tracing::debug!(
             target: TARGET,
             grouping = ?cfg.grouping,
             strategy = ?cfg.strategy,
             calibration_methods = cfg.calibration.len(),
-            "creating fusion operation",
+            "creating deduplication operation",
         );
         Self {
             grouping: cfg.grouping,
@@ -57,7 +59,7 @@ impl FusionOp {
         }
     }
 
-    /// Run the full fusion pipeline: calibrate, group, fuse.
+    /// Run the full deduplication pipeline: calibrate, group, fuse.
     pub(crate) fn fuse(&self, mut entities: Entities) -> Entities {
         if entities.is_empty() {
             return entities;
@@ -78,20 +80,20 @@ impl FusionOp {
             before,
             after = result.len(),
             reduced = before.saturating_sub(result.len()),
-            "fusion complete",
+            "deduplication complete",
         );
 
         result
     }
 }
 
-impl Operation for FusionOp {
+impl Operation for DeduplicationOp {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         if !envelope.audit.entities.is_empty() {
             tracing::debug!(
                 target: TARGET,
                 entities = envelope.audit.entities.len(),
-                "running fusion",
+                "running deduplication",
             );
             let entities = std::mem::take(&mut envelope.audit.entities);
             envelope.audit.entities = self.fuse(entities);
@@ -108,7 +110,7 @@ mod tests {
         Entity, EntityCategory, EntityKind, ExtractionMethod, Location, ModelInfo, ModelKind,
         RecognitionMethod, RecognitionMethodKind, TextLocation,
     };
-    use nvisy_ontology::workflow::FusionStrategy::*;
+    use nvisy_ontology::workflow::DeduplicationStrategy::*;
 
     use super::*;
 
@@ -376,11 +378,11 @@ mod tests {
 
     #[test]
     fn full_pipeline() {
-        let cfg = Fusion {
-            strategy: FusionStrategy::MaxConfidence,
+        let cfg = Deduplication {
+            strategy: DeduplicationStrategy::MaxConfidence,
             ..Default::default()
         };
-        let fusion = FusionOp::new(&cfg);
+        let deduplication = DeduplicationOp::new(&cfg);
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
@@ -394,16 +396,16 @@ mod tests {
         ]
         .into();
 
-        let result = fusion.fuse(entities);
+        let result = deduplication.fuse(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
     }
 
     #[test]
     fn empty_input() {
-        let cfg = Fusion::default();
-        let fusion = FusionOp::new(&cfg);
-        let result = fusion.fuse(Entities::new());
+        let cfg = Deduplication::default();
+        let deduplication = DeduplicationOp::new(&cfg);
+        let result = deduplication.fuse(Entities::new());
         assert!(result.is_empty());
     }
 

@@ -6,7 +6,7 @@
 //! tasks (one per document), and collects the results.
 //!
 //! [`DocumentPipeline`] processes a single document through all plan
-//! phases sequentially: extraction → detection → fusion → redaction →
+//! phases sequentially: extraction → detection → deduplication → redaction →
 //! validation.
 
 use std::sync::Arc;
@@ -23,9 +23,9 @@ use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
 use crate::graph::TimeoutExt;
 use crate::operation::envelope::SharedData;
 use crate::operation::{
-    AudialExtractionOp, DocumentEnvelope, EntityRecognitionOp, ExportFileOp, FusionOp,
-    GenerateContextOp, ImportFileOp, Operation, PatternRecognitionOp, RedactionOp, SaveContextOp,
-    ValidationOp, VisualExtractionOp,
+    AudialExtractionOp, DeduplicationOp, DocumentEnvelope, EntityRecognitionOp, ExportFileOp,
+    GenerateContextOp, ImportFileOp, Operation, PatternRecognitionOp, RedactionOp, ValidationOp,
+    VisualExtractionOp,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -197,8 +197,10 @@ impl DocumentPipeline {
         .await?;
         self.check_cancelled()?;
 
-        // Phase 3: fusion.
-        FusionOp::new(&plan.fusion).execute(&mut envelope).await?;
+        // Phase 3: deduplication.
+        DeduplicationOp::new(&plan.deduplication)
+            .execute(&mut envelope)
+            .await?;
         self.check_cancelled()?;
 
         // Phase 4: redaction + generate context.
@@ -227,13 +229,6 @@ impl DocumentPipeline {
         // Phase 6: export (skipped in dry-run).
         if !self.ctx.dry_run {
             self.run_exports(&plan.exports, &envelope).await?;
-
-            for &id in &plan.save_context_ids {
-                let cfg = nvisy_ontology::workflow::SaveContext {
-                    context_ids: vec![id],
-                };
-                SaveContextOp::new(&cfg).execute(&mut envelope).await?;
-            }
         }
 
         Ok(envelope)

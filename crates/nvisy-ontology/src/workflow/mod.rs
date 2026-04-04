@@ -28,7 +28,7 @@ pub use self::policy::{
     BackoffStrategy, ConcurrencyPolicy, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
 };
 pub use self::refinement::{
-    CalibrationMap, Fusion, FusionStrategy, GroupingCriteria, Redaction, Validation,
+    CalibrationMap, Deduplication, DeduplicationStrategy, GroupingCriteria, Redaction, Validation,
 };
 use crate::Error;
 
@@ -55,7 +55,7 @@ pub enum GraphNodeKind {
     Detection(Detection),
 
     /// Merges and scores entities from multiple detection sources.
-    Fusion(Fusion),
+    Deduplication(Deduplication),
     /// Applies redaction instructions to produce output content.
     Redaction(Redaction),
     /// Verifies that redacted content does not leak original values.
@@ -75,7 +75,7 @@ impl std::fmt::Display for GraphNodeKind {
             Self::GenerateContext(_) => f.write_str("generate_context"),
             Self::Extraction(_) => f.write_str("extraction"),
             Self::Detection(_) => f.write_str("detection"),
-            Self::Fusion(_) => f.write_str("fusion"),
+            Self::Deduplication(_) => f.write_str("deduplication"),
             Self::Redaction(_) => f.write_str("redaction"),
             Self::Validation(_) => f.write_str("validation"),
             Self::ImportFile(_) => f.write_str("import"),
@@ -92,7 +92,7 @@ impl GraphNodeKind {
     /// | 0     | ImportFile, LoadContext                  |
     /// | 1     | Extraction                              |
     /// | 2     | Detection                               |
-    /// | 3     | Fusion                                  |
+    /// | 3     | Deduplication                            |
     /// | 4     | Redaction, GenerateContext               |
     /// | 5     | Validation                              |
     /// | 6     | ExportFile, SaveContext                  |
@@ -102,7 +102,7 @@ impl GraphNodeKind {
             Self::ImportFile(_) | Self::LoadContext(_) => 0,
             Self::Extraction(_) => 1,
             Self::Detection(_) => 2,
-            Self::Fusion(_) => 3,
+            Self::Deduplication(_) => 3,
             Self::Redaction(_) | Self::GenerateContext(_) => 4,
             Self::Validation(_) => 5,
             Self::ExportFile(_) | Self::SaveContext(_) => 6,
@@ -110,7 +110,7 @@ impl GraphNodeKind {
     }
 
     /// Returns `true` for nodes that run before policy evaluation:
-    /// import, context loading, extraction, detection, and fusion.
+    /// import, context loading, extraction, detection, and deduplication.
     #[must_use]
     pub fn is_pre_redaction(&self) -> bool {
         matches!(
@@ -119,7 +119,7 @@ impl GraphNodeKind {
                 | Self::LoadContext(_)
                 | Self::Extraction(_)
                 | Self::Detection(_)
-                | Self::Fusion(_)
+                | Self::Deduplication(_)
         )
     }
 
@@ -150,7 +150,7 @@ impl GraphNodeKind {
             Self::ExportFile(cfg) => validate_struct(cfg),
             Self::Detection(cfg) => cfg.validate().map_err(|e| Error::new(e.to_string())),
             Self::Extraction(_)
-            | Self::Fusion(_)
+            | Self::Deduplication(_)
             | Self::Redaction(_)
             | Self::Validation(_)
             | Self::GenerateContext(_) => Ok(()),

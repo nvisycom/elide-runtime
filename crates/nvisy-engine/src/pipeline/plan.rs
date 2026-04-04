@@ -17,7 +17,7 @@
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::workflow::{
-    Detection, ExportFile, Extraction, Fusion, Graph, GraphNodeKind, ImportFile, Redaction,
+    Deduplication, Detection, ExportFile, Extraction, Graph, GraphNodeKind, ImportFile, Redaction,
     RetryPolicy, TimeoutPolicy, Validation,
 };
 use petgraph::algo::toposort;
@@ -74,8 +74,8 @@ pub struct ExecutionPlan {
     pub detection: Detection,
     /// Retry/timeout for the detection phase.
     pub detection_policy: PhasePolicy,
-    /// Fusion settings (phase 3).
-    pub fusion: Fusion,
+    /// Deduplication settings (phase 3).
+    pub deduplication: Deduplication,
     /// Redaction settings (phase 4, skipped in dry-run).
     pub redaction: Redaction,
     /// Retry/timeout for the redaction phase.
@@ -113,14 +113,14 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
     let mut extraction_policy = PhasePolicy::default();
     let mut detection = Detection::default();
     let mut detection_policy = PhasePolicy::default();
-    let mut fusion = Fusion::default();
+    let mut deduplication = Deduplication::default();
     let mut redaction = Redaction::default();
     let mut redaction_policy = PhasePolicy::default();
     let mut validation = Validation::default();
 
     let mut has_extraction = false;
     let mut has_detection = false;
-    let mut has_fusion = false;
+    let mut has_deduplication = false;
     let mut has_redaction = false;
     let mut has_validation = false;
 
@@ -173,15 +173,15 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
                 };
                 has_detection = true;
             }
-            GraphNodeKind::Fusion(cfg) => {
-                if has_fusion {
+            GraphNodeKind::Deduplication(cfg) => {
+                if has_deduplication {
                     return Err(Error::validation(
-                        "graph may contain at most one Fusion node",
+                        "graph may contain at most one Deduplication node",
                         "compiler",
                     ));
                 }
-                fusion = cfg.clone();
-                has_fusion = true;
+                deduplication = cfg.clone();
+                has_deduplication = true;
             }
             GraphNodeKind::Redaction(cfg) => {
                 if has_redaction {
@@ -223,7 +223,7 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
         extraction_policy,
         detection,
         detection_policy,
-        fusion,
+        deduplication,
         redaction,
         redaction_policy,
         generate_context,

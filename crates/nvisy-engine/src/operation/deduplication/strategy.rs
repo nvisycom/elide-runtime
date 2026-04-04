@@ -1,4 +1,4 @@
-//! Execution behaviour for [`FusionStrategy`].
+//! Execution behaviour for [`DeduplicationStrategy`].
 //!
 //! Implements the actual confidence-combination algorithms and entity
 //! field merging. The strategy determines *how* confidences are combined;
@@ -7,14 +7,14 @@
 use std::collections::HashSet;
 
 use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
-use nvisy_ontology::workflow::{FusionStrategy, GroupingCriteria};
+use nvisy_ontology::workflow::{DeduplicationStrategy, GroupingCriteria};
 
 use super::grouping::GroupEntities;
 
-const TARGET: &str = "nvisy_engine::op::fusion::strategy";
+const TARGET: &str = "nvisy_engine::op::deduplication::strategy";
 
-/// Adds fusion execution to [`FusionStrategy`].
-pub(super) trait FusionStrategyExt {
+/// Adds deduplication execution to [`DeduplicationStrategy`].
+pub(super) trait DeduplicationStrategyExt {
     /// Group entities by the given criteria, then fuse each group into a
     /// single entity.
     #[must_use]
@@ -37,7 +37,7 @@ pub(super) trait FusionStrategyExt {
     fn compute_confidence(&self, group: &[Entity]) -> f64;
 }
 
-impl FusionStrategyExt for FusionStrategy {
+impl DeduplicationStrategyExt for DeduplicationStrategy {
     fn fuse(&self, entities: Entities, criteria: GroupingCriteria) -> Entities {
         if entities.len() <= 1 {
             return entities;

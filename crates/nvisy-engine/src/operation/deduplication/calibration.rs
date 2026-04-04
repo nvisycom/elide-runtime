@@ -1,7 +1,7 @@
 //! Per-method confidence calibration.
 //!
 //! Scales entity confidence scores using per-[`RecognitionMethod`]
-//! multipliers before fusion. This compensates for score distribution
+//! multipliers before deduplication. This compensates for score distribution
 //! differences between detectors: regex always returns 1.0 while NER
 //! returns 0.3:0.9, so a multiplier of 0.8 on regex brings them into
 //! alignment.
@@ -11,7 +11,7 @@
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::workflow::CalibrationMap;
 
-const TARGET: &str = "nvisy_engine::op::fusion::calibration";
+const TARGET: &str = "nvisy_engine::op::deduplication::calibration";
 
 /// Apply per-method calibration multipliers to entity confidences.
 ///

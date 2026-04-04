@@ -1,4 +1,4 @@
-//! Two-phase entity grouping for fusion.
+//! Two-phase entity grouping for deduplication.
 //!
 //! Groups entities that refer to the same real-world value so they
 //! can be fused into a single detection. The algorithm runs in two
@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use nvisy_ontology::entity::{Entities, Entity, EntityKind, Overlap};
 use nvisy_ontology::workflow::GroupingCriteria;
 
-const TARGET: &str = "nvisy_engine::op::fusion::grouping";
+const TARGET: &str = "nvisy_engine::op::deduplication::grouping";
 
 /// Hash key for the first grouping phase.
 ///
@@ -42,7 +42,7 @@ impl GroupKey {
     }
 }
 
-/// Extension trait that groups entities for fusion.
+/// Extension trait that groups entities for deduplication.
 pub(super) trait GroupEntities {
     /// Partition entities into groups of candidates that should be fused.
     ///

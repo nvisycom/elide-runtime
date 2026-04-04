@@ -3,12 +3,12 @@
 //! [`Detection`] runs at **phase 2**, after extraction has converted
 //! raw content into text. Both methods (NER and pattern) always run;
 //! the user controls *how* they run via optional settings. Their
-//! outputs are merged in the subsequent [`Fusion`] phase.
+//! outputs are merged in the subsequent [`Deduplication`] phase.
 //!
 //! NER and pattern detection are independent and can execute
 //! concurrently within the same phase.
 //!
-//! [`Fusion`]: crate::workflow::Fusion
+//! [`Deduplication`]: crate::workflow::Deduplication
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

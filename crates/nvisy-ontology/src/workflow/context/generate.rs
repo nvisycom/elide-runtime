@@ -1,7 +1,7 @@
 //! Generate context node configuration.
 //!
 //! [`GenerateContext`] runs at **phase 4**, alongside [`Redaction`], after
-//! detection and fusion are complete. It synthesises a new context entry from
+//! detection and deduplication are complete. It synthesises a new context entry from
 //! the detection results and the processed document envelope, optionally
 //! enriching it with summarisation, translation, and audit records.
 //!

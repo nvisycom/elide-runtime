@@ -1,4 +1,4 @@
-//! Fusion node configuration and strategy.
+//! Deduplication node configuration and strategy.
 
 use std::collections::HashMap;
 
@@ -22,7 +22,7 @@ pub enum GroupingCriteria {
     /// + overlapping location. Groups "John" with "John Smith".
     Narrowing,
     /// Same as narrowing but ignores location — groups the same entity
-    /// across non-overlapping regions (e.g. cross-chunk fusion).
+    /// across non-overlapping regions (e.g. cross-chunk deduplication).
     Widening,
 }
 
@@ -62,7 +62,7 @@ impl GroupingCriteria {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
-pub enum FusionStrategy {
+pub enum DeduplicationStrategy {
     /// Take the maximum confidence across all detectors.
     #[default]
     MaxConfidence,
@@ -75,23 +75,26 @@ pub enum FusionStrategy {
     NoisyOr,
 }
 
-/// Per-method confidence multiplier applied before fusion.
+/// Per-method confidence multiplier applied before deduplication.
 ///
-/// Maps a [`MethodKind`] to a scaling factor. Methods not present
-/// in the map are left unchanged (implicit multiplier of 1.0).
+/// Maps a [`RecognitionMethodKind`] to a scaling factor. Methods not
+/// present in the map are left unchanged (implicit multiplier of 1.0).
 pub type CalibrationMap = HashMap<RecognitionMethodKind, f64>;
 
-/// Configuration for the `Fusion` graph node.
+/// Configuration for the deduplication graph node.
+///
+/// Merges and scores entity candidates from multiple detection
+/// sources into a deduplicated, confidence-scored entity list.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct Fusion {
+pub struct Deduplication {
     /// How to match entity values and locations when grouping.
     #[serde(default)]
     pub grouping: GroupingCriteria,
     /// Strategy for combining confidence scores.
     #[serde(default)]
-    pub strategy: FusionStrategy,
-    /// Per-method confidence scaling applied before fusion.
+    pub strategy: DeduplicationStrategy,
+    /// Per-method confidence scaling applied before deduplication.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub calibration: CalibrationMap,
 }

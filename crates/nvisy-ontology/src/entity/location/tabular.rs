@@ -16,6 +16,8 @@ use super::Overlap;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct TabularLocation {
+    /// The cell value at this location.
+    pub value: String,
     /// Row index (0-based).
     pub row_index: usize,
     /// Column index (0-based).

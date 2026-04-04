@@ -503,6 +503,6 @@ mod tests {
             vec![RecognitionMethod::regex_validated("ssn", "ssn")]
         );
         assert!((entity.confidence - 0.9).abs() < f64::EPSILON);
-        assert!(entity.location.is_none());
+        assert!(entity.location.as_text().is_some());
     }
 }

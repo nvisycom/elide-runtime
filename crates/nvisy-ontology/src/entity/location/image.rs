@@ -20,6 +20,10 @@ use crate::math::BoundingBox;
 pub struct ImageLocation {
     /// Bounding box of the entity in the image.
     pub bounding_box: BoundingBox,
+    /// OCR-extracted text value at this location, if available.
+    #[builder(default, setter(into = false))]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
     /// Links this entity to a specific image document.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]

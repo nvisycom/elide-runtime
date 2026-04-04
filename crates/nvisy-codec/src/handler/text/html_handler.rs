@@ -249,8 +249,7 @@ mod tests {
 
     #[tokio::test]
     async fn view_spans_returns_text() {
-        let h =
-            handler_from_html("<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>");
+        let h = handler_from_html("<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>");
         let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans.len(), 2);
         assert_eq!(spans[0].data, "Alpha");

@@ -42,24 +42,29 @@ impl RichHandler for RichTextHandler {
     async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
         TextHandler::text_spans(self).await
     }
+
     async fn edit_text(
         &mut self,
         edits: SpanStream<'_, TextLocation, TextData>,
     ) -> Result<(), Error> {
         TextHandler::edit_text(self, edits).await
     }
+
     async fn text_value_at(&self, location: &TextLocation) -> Option<String> {
         TextHandler::value_at(self, location).await
     }
+
     async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData> {
         ImageHandler::image_spans(self).await
     }
+
     async fn edit_images(
         &mut self,
         edits: SpanStream<'_, ImageLocation, ImageData>,
     ) -> Result<(), Error> {
         ImageHandler::edit_images(self, edits).await
     }
+
     async fn image_value_at(&self, location: &ImageLocation) -> Option<ImageData> {
         ImageHandler::value_at(self, location).await
     }

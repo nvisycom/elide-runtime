@@ -264,8 +264,8 @@ impl ImageHandler for RichTextHandler {
                 return SpanStream::new(futures::stream::empty());
             }
         };
-        SpanStream::new(futures::stream::iter(
-            images.into_iter().enumerate().map(|(i, data)| {
+        SpanStream::new(futures::stream::iter(images.into_iter().enumerate().map(
+            |(i, data)| {
                 // Embedded image bounding box — exact position within
                 // the page requires PDF content stream parsing. For now,
                 // use a full-page placeholder that identifies the page.
@@ -276,8 +276,8 @@ impl ImageHandler for RichTextHandler {
                     page_number: Some((i + 1) as u32),
                 };
                 Span::new(location, data)
-            }),
-        ))
+            },
+        )))
     }
 
     async fn edit_images(

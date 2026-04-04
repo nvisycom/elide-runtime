@@ -11,7 +11,9 @@ use std::collections::HashMap;
 use nvisy_codec::transform::{
     AudioOutput, AudioRedaction, ImageOutput, ImageRedaction, TextOutput, TextRedaction,
 };
-use nvisy_ontology::entity::{AudioLocation, Entity, EntityKind, ImageLocation, Location, TextLocation};
+use nvisy_ontology::entity::{
+    AudioLocation, Entity, EntityKind, ImageLocation, Location, TextLocation,
+};
 use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;

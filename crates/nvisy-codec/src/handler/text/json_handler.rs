@@ -135,8 +135,8 @@ impl TextHandler for JsonHandler {
                 other => other.to_string(),
             };
             // Find the string value in the serialized JSON to get byte offsets.
-            let (start, end) = find_string_in_json(&serialized, &text, &ps.path)
-                .unwrap_or((0, text.len()));
+            let (start, end) =
+                find_string_in_json(&serialized, &text, &ps.path).unwrap_or((0, text.len()));
             let loc = TextLocation {
                 start_offset: start,
                 end_offset: end,
@@ -164,7 +164,9 @@ impl TextHandler for JsonHandler {
         for edit in &edits {
             let path = path_map
                 .iter()
-                .find(|(start, end, _)| *start == edit.id.start_offset && *end == edit.id.end_offset)
+                .find(|(start, end, _)| {
+                    *start == edit.id.start_offset && *end == edit.id.end_offset
+                })
                 .map(|(_, _, p)| p.clone())
                 .ok_or_else(|| {
                     Error::validation(
@@ -185,16 +187,12 @@ impl TextHandler for JsonHandler {
 
         // Apply value edits first so pointers remain valid.
         for (path, data) in &value_edits {
-            let target = self
-                .data
-                .value
-                .pointer_mut(&path.pointer)
-                .ok_or_else(|| {
-                    Error::validation(
-                        format!("JSON pointer not found: {}", path.pointer),
-                        "json-handler",
-                    )
-                })?;
+            let target = self.data.value.pointer_mut(&path.pointer).ok_or_else(|| {
+                Error::validation(
+                    format!("JSON pointer not found: {}", path.pointer),
+                    "json-handler",
+                )
+            })?;
             if target.is_string() {
                 *target = serde_json::Value::String(data.clone().into_inner());
             } else {
@@ -216,7 +214,9 @@ impl TextHandler for JsonHandler {
 
     async fn value_at(&self, location: &TextLocation) -> Option<String> {
         let serialized = self.serialize_to_string();
-        serialized.get(location.start_offset..location.end_offset).map(String::from)
+        serialized
+            .get(location.start_offset..location.end_offset)
+            .map(String::from)
     }
 }
 
@@ -430,15 +430,10 @@ fn rename_key(
 
     // Split pointer into parent path and the key segment.
     let (parent_ptr, old_key_segment) = pointer.rsplit_once('/').ok_or_else(|| {
-        Error::validation(
-            format!("cannot rename root: {pointer}"),
-            "json-handler",
-        )
+        Error::validation(format!("cannot rename root: {pointer}"), "json-handler")
     })?;
 
-    let old_key = old_key_segment
-        .replace("~1", "/")
-        .replace("~0", "~");
+    let old_key = old_key_segment.replace("~1", "/").replace("~0", "~");
 
     let parent_ptr = if parent_ptr.is_empty() {
         ""
@@ -457,9 +452,9 @@ fn rename_key(
         })?
     };
 
-    let obj = parent.as_object_mut().ok_or_else(|| {
-        Error::validation("parent is not an object", "json-handler")
-    })?;
+    let obj = parent
+        .as_object_mut()
+        .ok_or_else(|| Error::validation("parent is not an object", "json-handler"))?;
 
     if let Some(value) = obj.remove(&old_key) {
         obj.insert(new_key.to_string(), value);

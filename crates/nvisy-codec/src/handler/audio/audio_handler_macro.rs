@@ -39,7 +39,10 @@ macro_rules! impl_audio_handler {
                 // a placeholder. The actual time span is set by the
                 // STT extraction operation after transcription.
                 let location = nvisy_ontology::entity::AudioLocation {
-                    time_span: nvisy_ontology::math::TimeSpan { start_us: 0, end_us: 0 },
+                    time_span: nvisy_ontology::math::TimeSpan {
+                        start_us: 0,
+                        end_us: 0,
+                    },
                     value: None,
                     speaker_id: None,
                     audio_id: None,

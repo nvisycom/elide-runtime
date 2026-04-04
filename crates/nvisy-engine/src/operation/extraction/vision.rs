@@ -75,7 +75,10 @@ impl VisualExtractionOp {
     }
 
     /// Run OCR extraction on a batch of image spans.
-    async fn extract(&self, spans: &[Span<nvisy_ontology::entity::ImageLocation, ImageData>]) -> Result<Vec<ImageOutput>> {
+    async fn extract(
+        &self,
+        spans: &[Span<nvisy_ontology::entity::ImageLocation, ImageData>],
+    ) -> Result<Vec<ImageOutput>> {
         if spans.is_empty() {
             return Ok(Vec::new());
         }

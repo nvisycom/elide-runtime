@@ -80,10 +80,7 @@ impl TextHandler for TxtHandler {
                 .position(|&(start, _)| start == edit.id.start_offset)
                 .ok_or_else(|| {
                     Error::validation(
-                        format!(
-                            "no line starts at byte offset {}",
-                            edit.id.start_offset
-                        ),
+                        format!("no line starts at byte offset {}", edit.id.start_offset),
                         "txt-handler",
                     )
                 })?;
@@ -94,11 +91,9 @@ impl TextHandler for TxtHandler {
 
     async fn value_at(&self, location: &TextLocation) -> Option<String> {
         let offsets = self.line_offsets();
-        let line_idx = offsets
-            .iter()
-            .position(|&(start, end)| {
-                location.start_offset >= start && location.end_offset <= end
-            })?;
+        let line_idx = offsets.iter().position(|&(start, end)| {
+            location.start_offset >= start && location.end_offset <= end
+        })?;
         let line = self.lines.get(line_idx)?;
         let line_start = offsets[line_idx].0;
         let local_start = location.start_offset - line_start;

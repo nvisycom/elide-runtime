@@ -101,8 +101,7 @@ impl TextHandler for CsvHandler {
             let (is_header, row, col) = cell_map
                 .iter()
                 .find(|(_, _, _, loc)| {
-                    loc.start_offset == edit.id.start_offset
-                        && loc.end_offset == edit.id.end_offset
+                    loc.start_offset == edit.id.start_offset && loc.end_offset == edit.id.end_offset
                 })
                 .map(|&(h, r, c, _)| (h, r, c))
                 .ok_or_else(|| {
@@ -143,8 +142,7 @@ impl TextHandler for CsvHandler {
         cells
             .iter()
             .find(|(_, _, _, loc)| {
-                loc.start_offset == location.start_offset
-                    && loc.end_offset == location.end_offset
+                loc.start_offset == location.start_offset && loc.end_offset == location.end_offset
             })
             .and_then(|&(is_header, row, col, _)| {
                 if is_header {

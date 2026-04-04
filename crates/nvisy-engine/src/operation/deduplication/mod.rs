@@ -131,7 +131,7 @@ mod tests {
     use std::collections::HashMap;
 
     use nvisy_ontology::entity::{
-        Entity, EntityCategory, EntityKind, ExtractionMethod, Location, ModelInfo, ModelKind,
+        Entity, EntityCategory, EntityKind, ExtractionMethod, Location, ModelKind,
         RecognitionMethod, RecognitionMethodKind, RefinementMethod, TextLocation,
     };
     use nvisy_ontology::workflow::DeduplicationStrategy::*;
@@ -192,7 +192,7 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
                 "john",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.9,
                 0,
                 4,
@@ -209,7 +209,7 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
                 "John Smith",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.9,
                 0,
                 10,
@@ -227,7 +227,7 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
                 "John Smith",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.9,
                 100,
                 110,
@@ -244,7 +244,7 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
                 "John Smith",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.9,
                 100,
                 110,
@@ -262,7 +262,7 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
             text_entity(
                 "John",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.85,
                 0,
                 4,
@@ -280,7 +280,7 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
             text_entity(
                 "John",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.8,
                 0,
                 4,
@@ -302,7 +302,7 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.6, 0, 4),
             text_entity(
                 "John",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.9,
                 0,
                 4,
@@ -359,7 +359,7 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4),
             text_entity(
                 "John Smith",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.7,
                 0,
                 10,
@@ -377,7 +377,7 @@ mod tests {
         e1.extraction_methods = vec![ExtractionMethod::DocumentParsing];
         let mut e2 = text_entity(
             "John",
-            RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+            RecognitionMethod::ner("test", ModelKind::SelfHosted),
             0.9,
             0,
             4,
@@ -394,7 +394,7 @@ mod tests {
         let mut e1 = text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4);
         let mut e2 = text_entity(
             "John",
-            RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+            RecognitionMethod::ner("test", ModelKind::SelfHosted),
             0.7,
             0,
             4,
@@ -429,7 +429,7 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
                 "John",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.9,
                 0,
                 4,
@@ -474,7 +474,7 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
                 "John",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.85,
                 0,
                 4,
@@ -506,7 +506,7 @@ mod tests {
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![
                 RecognitionMethod::regex("test"),
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
             ])
             .with_confidence(1.0)
             .with_location(Location::from(
@@ -548,14 +548,14 @@ mod tests {
             text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 6),
             text_entity(
                 "John",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.8,
                 4,
                 10,
             ),
             text_entity(
                 "John",
-                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                RecognitionMethod::ner("test", ModelKind::SelfHosted),
                 0.9,
                 8,
                 14,

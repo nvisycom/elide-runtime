@@ -322,7 +322,7 @@ static DEFAULT_ENGINE: LazyLock<PatternEngine> = LazyLock::new(|| {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{ModelInfo, ModelKind};
+    use nvisy_ontology::entity::ModelKind;
 
     use super::*;
 
@@ -381,7 +381,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                method: RecognitionMethod::ner("test", ModelKind::SelfHosted),
             },
         );
         let engine = PatternEngine::builder()
@@ -445,7 +445,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                method: RecognitionMethod::ner("test", ModelKind::SelfHosted),
             },
         );
         deny.insert(

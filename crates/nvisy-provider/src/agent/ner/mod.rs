@@ -10,7 +10,7 @@ mod prompt;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::{
-    Entity, EntityCategory, Location, ModelInfo, ModelKind, RecognitionMethod, TextLocation,
+    Entity, EntityCategory, Location, ModelKind, ModelProvenance, RecognitionMethod, TextLocation,
 };
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -141,7 +141,7 @@ impl NerAgent {
         let ctx = NerContext::with_known(text, known);
 
         let ner_entities = self.detect(&ctx, config).await?;
-        let model_info = ModelInfo::new(self.model_name(), ModelKind::Gateway);
+        let model = ModelProvenance::new(self.model_name(), ModelKind::Gateway);
         let mut entities = Vec::new();
 
         for ne in &ner_entities {
@@ -174,7 +174,7 @@ impl NerAgent {
             let entity = Entity::builder()
                 .with_category(category)
                 .with_entity_kind(entity_kind)
-                .with_recognition_methods(vec![RecognitionMethod::ner(model_info.clone())])
+                .with_recognition_methods(vec![RecognitionMethod::Ner(model.clone())])
                 .with_confidence(confidence)
                 .with_location(Location::from(loc))
                 .build()

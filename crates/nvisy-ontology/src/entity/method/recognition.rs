@@ -3,8 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::provenance::{AnnotationProvenance, ModelProvenance, PatternProvenance};
-use crate::entity::model::ModelInfo;
+use super::provenance::{AnnotationProvenance, ModelKind, ModelProvenance, PatternProvenance};
 
 /// Technique used to identify a sensitive entity within extracted content.
 ///
@@ -78,19 +77,19 @@ impl RecognitionMethod {
         })
     }
 
-    /// Create a `Ner` method with the given model info.
-    pub fn ner(model: ModelInfo) -> Self {
-        Self::Ner(ModelProvenance { model: Some(model) })
+    /// Create a `Ner` method with the given model name and kind.
+    pub fn ner(name: impl Into<String>, kind: ModelKind) -> Self {
+        Self::Ner(ModelProvenance::new(name, kind))
     }
 
-    /// Create a `Classification` method with the given model info.
-    pub fn classification(model: ModelInfo) -> Self {
-        Self::Classification(ModelProvenance { model: Some(model) })
+    /// Create a `Classification` method with the given model name and kind.
+    pub fn classification(name: impl Into<String>, kind: ModelKind) -> Self {
+        Self::Classification(ModelProvenance::new(name, kind))
     }
 
-    /// Create a `Biometric` method with the given model info.
-    pub fn biometric(model: ModelInfo) -> Self {
-        Self::Biometric(ModelProvenance { model: Some(model) })
+    /// Create a `Biometric` method with the given model name and kind.
+    pub fn biometric(name: impl Into<String>, kind: ModelKind) -> Self {
+        Self::Biometric(ModelProvenance::new(name, kind))
     }
 
     /// Create an `Annotation` method with an optional annotator ID.

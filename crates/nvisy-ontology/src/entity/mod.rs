@@ -9,7 +9,6 @@ mod category;
 mod kind;
 mod location;
 mod method;
-mod model;
 mod sensitivity;
 mod source;
 
@@ -27,10 +26,9 @@ pub use self::location::{
     TabularLocation, TabularLocationBuilder, TextLocation, TextLocationBuilder,
 };
 pub use self::method::{
-    AnnotationProvenance, ExtractionMethod, ModelProvenance, PatternProvenance, RecognitionMethod,
-    RecognitionMethodKind, RefinementMethod,
+    AnnotationProvenance, ExtractionMethod, ModelKind, ModelProvenance, PatternProvenance,
+    RecognitionMethod, RecognitionMethodKind, RefinementMethod,
 };
-pub use self::model::{ModelInfo, ModelKind};
 pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;
 

@@ -54,7 +54,9 @@ fn dictionary_matches_are_found() {
 fn column_confidence_applies_to_csv_dictionaries() {
     let engine = PatternEngine::instance();
     let entities = engine.scan_entities("I paid in US Dollar and also in USD.", &empty_ctx());
-    let full_name = entities.iter().find(|e| e.text_value() == Some("US Dollar"));
+    let full_name = entities
+        .iter()
+        .find(|e| e.text_value() == Some("US Dollar"));
     let code = entities.iter().find(|e| e.text_value() == Some("USD"));
     assert!(full_name.is_some(), "should match 'US Dollar'");
     assert!(code.is_some(), "should match 'USD'");

@@ -67,6 +67,12 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
 
         let fused_confidence = self.compute_confidence(&group);
 
+        // Determine the refinement type: if all entities in the group
+        // share the same set of recognition method kinds, this is a
+        // deduplication (same detector produced duplicates). Otherwise
+        // it's an ensemble fusion (different detectors combined).
+        let refinement = classify_refinement(&group);
+
         // Sort by descending confidence: highest-confidence entity
         // becomes the base since it carries the most trusted metadata.
         group.sort_by(|a, b| {
@@ -113,15 +119,14 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
             result.language = rest.iter().find_map(|e| e.language.clone());
         }
         result.confidence = fused_confidence;
-        result
-            .refinement_methods
-            .push(RefinementMethod::EnsembleFusion);
+        result.refinement_methods.push(refinement);
 
         tracing::trace!(
             target: TARGET,
             entity_id = %result.id,
             fused_from = rest.len() + 1,
             confidence = fused_confidence,
+            ?refinement,
             value = %result.value,
             "fused entity group",
         );
@@ -162,5 +167,26 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
             // Fallback for future variants: treat as MaxConfidence.
             _ => group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max),
         }
+    }
+}
+
+/// Classify whether a group merge is a deduplication (same detector
+/// kinds) or an ensemble fusion (different detector kinds).
+fn classify_refinement(group: &[Entity]) -> RefinementMethod {
+    let first_kinds: HashSet<_> = group[0]
+        .recognition_methods
+        .iter()
+        .map(|m| m.kind())
+        .collect();
+
+    let all_same = group[1..].iter().all(|e| {
+        let kinds: HashSet<_> = e.recognition_methods.iter().map(|m| m.kind()).collect();
+        kinds == first_kinds
+    });
+
+    if all_same {
+        RefinementMethod::Deduplication
+    } else {
+        RefinementMethod::EnsembleFusion
     }
 }

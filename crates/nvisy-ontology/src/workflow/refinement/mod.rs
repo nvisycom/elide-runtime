@@ -11,7 +11,7 @@ mod redaction;
 mod validation;
 
 pub use self::deduplication::{
-    CalibrationMap, Deduplication, DeduplicationStrategy, GroupingCriteria,
+    CalibrationMap, ConflictResolution, Deduplication, DeduplicationStrategy, GroupingCriteria,
 };
 pub use self::redaction::Redaction;
 pub use self::validation::Validation;

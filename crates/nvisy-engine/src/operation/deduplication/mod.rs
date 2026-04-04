@@ -11,35 +11,44 @@
 //! 2. **Group + fuse**: partition entities by kind, value, and
 //!    location overlap (per [`GroupingCriteria`]), then combine each
 //!    group into one entity using the [`DeduplicationStrategy`].
+//! 3. **Conflict resolution**: resolve cross-kind span overlaps per
+//!    the configured [`ConflictResolution`] strategy.
+//! 4. **Threshold filter**: drop entities below the minimum
+//!    confidence threshold.
 //!
-//! Deduplication is implicit: entities that land in the same group
-//! are always merged, so exact duplicates are naturally eliminated.
+//! [`CalibrationMap`]: nvisy_ontology::workflow::CalibrationMap
+//! [`GroupingCriteria`]: nvisy_ontology::workflow::GroupingCriteria
+//! [`DeduplicationStrategy`]: nvisy_ontology::workflow::DeduplicationStrategy
+//! [`ConflictResolution`]: nvisy_ontology::workflow::ConflictResolution
 
 mod calibration;
+mod conflict;
 mod grouping;
 mod strategy;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::workflow::{
-    CalibrationMap, Deduplication, DeduplicationStrategy, GroupingCriteria,
+    CalibrationMap, ConflictResolution, Deduplication, DeduplicationStrategy, GroupingCriteria,
 };
 
-use self::calibration::calibrate;
+use self::calibration::CalibrationExt;
+use self::conflict::ConflictResolutionExt;
 use self::strategy::DeduplicationStrategyExt;
 use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::deduplication";
 
-/// Combined calibration and ensemble deduplication operation.
+/// Combined calibration, deduplication, conflict resolution, and
+/// threshold filtering operation.
 ///
-/// Created from the [`Deduplication`] graph node configuration via
-/// [`DeduplicationOp::new`]. The heavy lifting is delegated to the
-/// [`calibration`], [`grouping`], and [`strategy`] sub-modules.
+/// Created from the [`Deduplication`] graph node configuration.
 pub struct DeduplicationOp {
     grouping: GroupingCriteria,
     strategy: DeduplicationStrategy,
     calibration: CalibrationMap,
+    confidence_threshold: Option<f64>,
+    conflict_resolution: ConflictResolution,
 }
 
 impl DeduplicationOp {
@@ -50,36 +59,51 @@ impl DeduplicationOp {
             grouping = ?cfg.grouping,
             strategy = ?cfg.strategy,
             calibration_methods = cfg.calibration.len(),
+            confidence_threshold = ?cfg.confidence_threshold,
+            conflict_resolution = ?cfg.conflict_resolution,
             "creating deduplication operation",
         );
         Self {
             grouping: cfg.grouping,
             strategy: cfg.strategy.clone(),
             calibration: cfg.calibration.clone(),
+            confidence_threshold: cfg.confidence_threshold,
+            conflict_resolution: cfg.conflict_resolution,
         }
     }
 
-    /// Run the full deduplication pipeline: calibrate, group, fuse.
-    pub(crate) fn fuse(&self, mut entities: Entities) -> Entities {
+    /// Run the full deduplication pipeline.
+    pub(crate) fn deduplicate(&self, mut entities: Entities) -> Entities {
         if entities.is_empty() {
             return entities;
         }
 
         let before = entities.len();
 
-        // Phase 1: calibrate raw confidence scores.
-        if !self.calibration.is_empty() {
-            calibrate(&mut entities, &self.calibration);
-        }
+        // Step 1: calibrate raw confidence scores.
+        self.calibration.calibrate(&mut entities);
 
-        // Phase 2: group + fuse.
-        let result = self.strategy.fuse(entities, self.grouping);
+        // Step 2: group + fuse.
+        let mut result = self.strategy.fuse(entities, self.grouping);
+
+        // Step 3: resolve cross-kind span conflicts.
+        result = self.conflict_resolution.resolve(result);
+
+        // Step 4: filter by confidence threshold.
+        let dropped = if let Some(threshold) = self.confidence_threshold {
+            let before_filter = result.len();
+            result = result.above_confidence(threshold);
+            before_filter - result.len()
+        } else {
+            0
+        };
 
         tracing::info!(
             target: TARGET,
             before,
             after = result.len(),
             reduced = before.saturating_sub(result.len()),
+            dropped,
             "deduplication complete",
         );
 
@@ -96,7 +120,7 @@ impl Operation for DeduplicationOp {
                 "running deduplication",
             );
             let entities = std::mem::take(&mut envelope.audit.entities);
-            envelope.audit.entities = self.fuse(entities);
+            envelope.audit.entities = self.deduplicate(entities);
         }
         Ok(())
     }
@@ -108,7 +132,7 @@ mod tests {
 
     use nvisy_ontology::entity::{
         Entity, EntityCategory, EntityKind, ExtractionMethod, Location, ModelInfo, ModelKind,
-        RecognitionMethod, RecognitionMethodKind, TextLocation,
+        RecognitionMethod, RecognitionMethodKind, RefinementMethod, TextLocation,
     };
     use nvisy_ontology::workflow::DeduplicationStrategy::*;
 
@@ -301,8 +325,11 @@ mod tests {
             4,
         )]
         .into();
-        calibrate(&mut entities, &calibration);
+        calibration.calibrate(&mut entities);
         assert!((entities[0].confidence - 0.4).abs() < f64::EPSILON);
+        assert!(entities[0]
+            .refinement_methods
+            .contains(&RefinementMethod::ConfidenceCalibration));
     }
 
     #[test]
@@ -318,7 +345,7 @@ mod tests {
             4,
         )]
         .into();
-        calibrate(&mut entities, &calibration);
+        calibration.calibrate(&mut entities);
         assert!((entities[0].confidence - 1.0).abs() < f64::EPSILON);
     }
 
@@ -377,12 +404,63 @@ mod tests {
     }
 
     #[test]
+    fn same_detector_duplicates_tagged_as_deduplication() {
+        let entities: Entities = vec![
+            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
+            text_entity("John", RecognitionMethod::regex("other"), 0.9, 0, 4),
+        ]
+        .into();
+        let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
+        assert_eq!(result.len(), 1);
+        assert!(result[0]
+            .refinement_methods
+            .contains(&RefinementMethod::Deduplication));
+    }
+
+    #[test]
+    fn different_detector_tagged_as_ensemble_fusion() {
+        let entities: Entities = vec![
+            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
+            text_entity(
+                "John",
+                RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                0.9,
+                0,
+                4,
+            ),
+        ]
+        .into();
+        let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
+        assert_eq!(result.len(), 1);
+        assert!(result[0]
+            .refinement_methods
+            .contains(&RefinementMethod::EnsembleFusion));
+    }
+
+    #[test]
+    fn confidence_threshold_filters() {
+        let cfg = Deduplication {
+            confidence_threshold: Some(0.85),
+            ..Default::default()
+        };
+        let op = DeduplicationOp::new(&cfg);
+        let entities: Entities = vec![
+            text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4),
+            text_entity("Jane", RecognitionMethod::regex("test"), 0.5, 10, 14),
+        ]
+        .into();
+        let result = op.deduplicate(entities);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].value, "John");
+    }
+
+    #[test]
     fn full_pipeline() {
         let cfg = Deduplication {
             strategy: DeduplicationStrategy::MaxConfidence,
             ..Default::default()
         };
-        let deduplication = DeduplicationOp::new(&cfg);
+        let op = DeduplicationOp::new(&cfg);
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
@@ -396,7 +474,7 @@ mod tests {
         ]
         .into();
 
-        let result = deduplication.fuse(entities);
+        let result = op.deduplicate(entities);
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
     }
@@ -404,8 +482,8 @@ mod tests {
     #[test]
     fn empty_input() {
         let cfg = Deduplication::default();
-        let deduplication = DeduplicationOp::new(&cfg);
-        let result = deduplication.fuse(Entities::new());
+        let op = DeduplicationOp::new(&cfg);
+        let result = op.deduplicate(Entities::new());
         assert!(result.is_empty());
     }
 
@@ -428,7 +506,7 @@ mod tests {
             .unwrap();
 
         let mut entities: Entities = vec![entity].into();
-        calibrate(&mut entities, &calibration);
+        calibration.calibrate(&mut entities);
         // max(0.5, 0.8) = 0.8; 1.0 * 0.8 = 0.8
         assert!((entities[0].confidence - 0.8).abs() < f64::EPSILON);
     }

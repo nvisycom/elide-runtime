@@ -28,7 +28,8 @@ pub use self::policy::{
     BackoffStrategy, ConcurrencyPolicy, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
 };
 pub use self::refinement::{
-    CalibrationMap, Deduplication, DeduplicationStrategy, GroupingCriteria, Redaction, Validation,
+    CalibrationMap, ConflictResolution, Deduplication, DeduplicationStrategy, GroupingCriteria,
+    Redaction, Validation,
 };
 use crate::Error;
 

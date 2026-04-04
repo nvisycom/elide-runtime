@@ -75,6 +75,22 @@ pub enum DeduplicationStrategy {
     NoisyOr,
 }
 
+/// How to resolve conflicts when different entity kinds overlap the
+/// same text span.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum ConflictResolution {
+    /// Keep only the entity with the highest confidence score.
+    #[default]
+    HighestConfidence,
+    /// Keep only the entity with the highest sensitivity level.
+    HighestSensitivity,
+    /// Keep only the entity with the longest span (most specific match).
+    LongestSpan,
+}
+
 /// Per-method confidence multiplier applied before deduplication.
 ///
 /// Maps a [`RecognitionMethodKind`] to a scaling factor. Methods not
@@ -97,4 +113,13 @@ pub struct Deduplication {
     /// Per-method confidence scaling applied before deduplication.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub calibration: CalibrationMap,
+    /// Minimum confidence threshold after deduplication. Entities
+    /// below this threshold are dropped from the final list.
+    /// `None` means no filtering.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confidence_threshold: Option<f64>,
+    /// How to resolve conflicts when different entity kinds overlap
+    /// the same text span.
+    #[serde(default)]
+    pub conflict_resolution: ConflictResolution,
 }

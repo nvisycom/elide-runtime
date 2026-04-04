@@ -86,8 +86,17 @@ impl<'a> RedactionApplicator<'a> {
 
             let entity_id = record.entity_id;
 
-            self.envelope.audit.entries[i].value.replacement =
-                output.replacement_value().map(String::from);
+            let replacement = output.replacement_value().map(String::from);
+            self.envelope.audit.entries[i].value.replacement = replacement.clone();
+            if let Some(mapping) = self
+                .envelope
+                .redaction_map
+                .entries
+                .iter_mut()
+                .find(|m| m.entity_id == entity_id)
+            {
+                mapping.replacement = replacement;
+            }
 
             tracing::trace!(
                 target: TARGET,
@@ -139,8 +148,18 @@ impl<'a> RedactionApplicator<'a> {
             };
 
             let entity_id = record.entity_id;
+            let replacement = IMAGE_REDACTED.to_string();
 
-            self.envelope.audit.entries[i].value.replacement = Some(IMAGE_REDACTED.into());
+            self.envelope.audit.entries[i].value.replacement = Some(replacement.clone());
+            if let Some(mapping) = self
+                .envelope
+                .redaction_map
+                .entries
+                .iter_mut()
+                .find(|m| m.entity_id == entity_id)
+            {
+                mapping.replacement = Some(replacement);
+            }
 
             tracing::trace!(
                 target: TARGET,
@@ -183,8 +202,18 @@ impl<'a> RedactionApplicator<'a> {
             };
 
             let entity_id = record.entity_id;
+            let replacement = AUDIO_REDACTED.to_string();
 
-            self.envelope.audit.entries[i].value.replacement = Some(AUDIO_REDACTED.into());
+            self.envelope.audit.entries[i].value.replacement = Some(replacement.clone());
+            if let Some(mapping) = self
+                .envelope
+                .redaction_map
+                .entries
+                .iter_mut()
+                .find(|m| m.entity_id == entity_id)
+            {
+                mapping.replacement = Some(replacement);
+            }
 
             tracing::trace!(
                 target: TARGET,

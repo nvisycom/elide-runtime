@@ -24,7 +24,7 @@ pub(crate) use self::deduplication::DeduplicationOp;
 pub(crate) use self::detection::{EntityRecognitionOp, PatternRecognitionOp};
 pub use self::envelope::DocumentEnvelope;
 pub(crate) use self::export_file::ExportFileOp;
-pub(crate) use self::extraction::{AudialExtractionOp, VisualExtractionOp};
+pub(crate) use self::extraction::ExtractionOp;
 pub(crate) use self::generate_context::GenerateContextOp;
 pub(crate) use self::import_file::ImportFileOp;
 pub(crate) use self::redaction::RedactionOp;

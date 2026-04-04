@@ -32,5 +32,3 @@ pub use self::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
     RunStatus,
 };
-// Re-export encryption types for external key provider setup.
-pub use crate::utility::encryption::{KeyProvider, SharedKeyProvider, StaticKeyProvider};

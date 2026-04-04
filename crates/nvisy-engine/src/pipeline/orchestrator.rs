@@ -23,9 +23,8 @@ use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
 use crate::graph::TimeoutExt;
 use crate::operation::envelope::SharedData;
 use crate::operation::{
-    AudialExtractionOp, DeduplicationOp, DocumentEnvelope, EntityRecognitionOp, ExportFileOp,
+    DeduplicationOp, DocumentEnvelope, EntityRecognitionOp, ExportFileOp, ExtractionOp,
     GenerateContextOp, ImportFileOp, Operation, PatternRecognitionOp, RedactionOp, ValidationOp,
-    VisualExtractionOp,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -246,30 +245,14 @@ impl DocumentPipeline {
     }
 
     /// Run extraction for all applicable modalities.
-    ///
-    /// Each modality's external call is wrapped with the phase retry
-    /// policy if configured.
     async fn run_extraction(
         &self,
         cfg: &Extraction,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
-        let visual_cfg = cfg.visual.clone().unwrap_or_default();
-        let audial_cfg = cfg.audial.clone().unwrap_or_default();
-
-        if let Ok(op) =
-            VisualExtractionOp::new(&visual_cfg, &self.ctx.config, &self.ctx.http_client)
-        {
-            op.execute(envelope).await?;
-        }
-
-        if let Ok(op) =
-            AudialExtractionOp::new(&audial_cfg, &self.ctx.config, &self.ctx.http_client)
-        {
-            op.execute(envelope).await?;
-        }
-
-        Ok(())
+        ExtractionOp::new(cfg, &self.ctx.config, &self.ctx.http_client)
+            .execute(envelope)
+            .await
     }
 
     /// Run detection methods sequentially.

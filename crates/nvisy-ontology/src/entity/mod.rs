@@ -79,25 +79,11 @@ impl Entity {
         EntityBuilder::default()
     }
 
-    /// The detected value, if available for this entity's location.
+    /// The detected text value, if available for this entity's location.
     ///
-    /// - [`Text`]: always has a value (the matched text).
-    /// - [`Image`]: optional OCR-extracted text.
-    /// - [`Audio`]: optional transcribed text.
-    /// - [`Tabular`]: always has a value (the cell content).
-    ///
-    /// [`Text`]: Location::Text
-    /// [`Image`]: Location::Image
-    /// [`Audio`]: Location::Audio
-    /// [`Tabular`]: Location::Tabular
+    /// Delegates to [`Location::text_value`].
     pub fn text_value(&self) -> Option<&str> {
-        match &self.location {
-            Location::Text(loc) => Some(&loc.value),
-            Location::Image(loc) => loc.value.as_deref(),
-            Location::Audio(loc) => loc.value.as_deref(),
-            Location::Tabular(loc) => Some(&loc.value),
-            _ => None,
-        }
+        self.location.text_value()
     }
 }
 

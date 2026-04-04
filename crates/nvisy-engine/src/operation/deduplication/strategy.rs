@@ -83,14 +83,15 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
         let mut result = group.remove(0);
         let rest = group;
 
-        // Prefer the longest text value: it is the more specific match
-        // (e.g. "John Smith" over "John"). When the value changes,
-        // adopt the location from the entity that produced it so the
+        // Prefer the largest span: for text, the longer match is more
+        // specific (e.g. "John Smith" over "John"); for images, the
+        // larger bounding box. Adopt the winner's location so the
         // span stays consistent.
         for e in &rest {
-            let e_len = e.text_value().map_or(0, str::len);
-            let r_len = result.text_value().map_or(0, str::len);
-            if e_len > r_len {
+            if e.location
+                .is_at_least_as_large(&result.location)
+                .unwrap_or(false)
+            {
                 result.location.clone_from(&e.location);
             }
         }

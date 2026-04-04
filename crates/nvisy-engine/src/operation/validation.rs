@@ -41,6 +41,12 @@ impl ValidationOp {
         }
     }
 
+    /// Check whether any redacted values leaked in the output text.
+    ///
+    /// Only entities with a [`text_value`](nvisy_ontology::entity::Entity::text_value)
+    /// can be verified this way. Image/audio entities without text
+    /// values are counted as passed — visual and temporal redaction
+    /// verification is not yet implemented.
     fn check(
         entities: &Entities,
         records: &[AuditEntry],

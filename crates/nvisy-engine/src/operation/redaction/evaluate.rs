@@ -108,8 +108,11 @@ fn evaluate(
         };
 
         let entity_id = entity.id;
-        let text_value = entity.text_value().unwrap_or_default();
-        let mut builder = AuditEntry::builder().for_entity(entity_id, spec, text_value);
+        let original_value = entity
+            .text_value()
+            .map(String::from)
+            .unwrap_or_else(|| format!("[{}]", entity.location));
+        let mut builder = AuditEntry::builder().for_entity(entity_id, spec, original_value);
         if let Some(id) = policy_id {
             builder = builder.with_policy_id(id);
         }

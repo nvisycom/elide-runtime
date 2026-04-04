@@ -35,9 +35,16 @@ struct GroupKey {
 
 impl GroupKey {
     fn new(entity: &Entity, criteria: GroupingCriteria) -> Self {
+        // Entities without a text value (e.g. image bounding boxes)
+        // get a unique sentinel so they don't all bucket together.
+        // They will still be grouped by location overlap in phase 2.
+        let value = match entity.text_value() {
+            Some(v) => criteria.bucket_value(v),
+            None => entity.id.to_string(),
+        };
         Self {
             kind: entity.entity_kind,
-            value: criteria.bucket_value(entity.text_value().unwrap_or_default()),
+            value,
         }
     }
 }
@@ -118,10 +125,12 @@ impl GroupEntities for Entities {
                         }
                         let any_value_match = groups[indices[i]].iter().any(|a| {
                             groups[indices[j]].iter().any(|b| {
-                                criteria.values_match(
-                                    a.text_value().unwrap_or_default(),
-                                    b.text_value().unwrap_or_default(),
-                                )
+                                match (a.text_value(), b.text_value()) {
+                                    (Some(va), Some(vb)) => criteria.values_match(va, vb),
+                                    // Non-text entities: skip value match,
+                                    // rely on location overlap.
+                                    _ => false,
+                                }
                             })
                         });
                         let location_ok = !check_overlap

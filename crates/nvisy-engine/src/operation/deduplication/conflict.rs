@@ -88,11 +88,10 @@ impl ConflictResolutionExt for ConflictResolution {
                 (None, Some(_)) => false,
                 (None, None) => a.confidence >= b.confidence,
             },
-            Self::LongestSpan => {
-                let a_len = a.text_value().map_or(0, str::len);
-                let b_len = b.text_value().map_or(0, str::len);
-                a_len >= b_len
-            }
+            Self::LongestSpan => a
+                .location
+                .is_at_least_as_large(&b.location)
+                .unwrap_or(true),
             _ => true,
         }
     }

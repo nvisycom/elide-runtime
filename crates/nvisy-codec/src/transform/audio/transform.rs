@@ -1,22 +1,20 @@
 //! [`AudioTransform`] async trait and blanket implementation.
 
 use nvisy_core::Error;
+use nvisy_ontology::entity::AudioLocation;
 
 use super::instruction::AudioRedaction;
-use crate::handler::{AudioHandler, AudioSpanId};
+use crate::handler::AudioHandler;
 
 const TARGET: &str = "nvisy_codec::transform::audio";
 
 /// Extension trait for handlers that support audio redaction.
-///
-/// Extends [`AudioHandler`] with [`redact_audio`](Self::redact_audio)
-/// which applies a batch of time-range audio redactions.
 #[async_trait::async_trait]
 pub trait AudioTransform: AudioHandler {
     /// Apply a batch of audio redactions, mutating in place.
     async fn redact_audio(
         &mut self,
-        redactions: &[AudioRedaction<AudioSpanId>],
+        redactions: &[AudioRedaction<AudioLocation>],
     ) -> Result<(), Error>;
 }
 
@@ -24,7 +22,7 @@ pub trait AudioTransform: AudioHandler {
 impl<H: AudioHandler> AudioTransform for H {
     async fn redact_audio(
         &mut self,
-        redactions: &[AudioRedaction<AudioSpanId>],
+        redactions: &[AudioRedaction<AudioLocation>],
     ) -> Result<(), Error> {
         tracing::debug!(
             target: TARGET,

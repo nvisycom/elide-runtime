@@ -101,15 +101,20 @@ impl Annotations {
 
     /// Check whether the given entity falls within any exclusion annotation.
     ///
-    /// An entity is excluded if an exclusion targets a matching value
-    /// (exact) or an overlapping location (any modality).
+    /// An entity is excluded if an exclusion targets an overlapping
+    /// location or a matching text value. The `entity_value` parameter
+    /// is the text at the entity's location, extracted from the
+    /// document by the caller (since the annotation layer has no
+    /// document access).
     pub fn is_excluded(&self, entity: &Entity) -> bool {
         self.0.iter().any(|ann| {
             let AnnotationKind::Exclusion { target } = &ann.kind else {
                 return false;
             };
             match target {
-                AnnotationTarget::Value(value) => entity.text_value().is_some_and(|v| v == value),
+                AnnotationTarget::Value(value) => {
+                    entity.text_value().is_some_and(|v| v == value)
+                }
                 AnnotationTarget::Location(location) => entity.location.overlaps(location),
             }
         })
@@ -238,6 +243,7 @@ mod tests {
         let mut entities = Entities::new();
         annotations.apply_inclusions(&mut entities);
         assert_eq!(entities.len(), 2);
+        // Inclusion entities have TextLocation with start=0, end=value.len().
         assert_eq!(entities[0].text_value(), Some("John Smith"));
         assert_eq!(entities[1].text_value(), Some("jane@example.com"));
         assert!((entities[0].confidence - 1.0).abs() < f64::EPSILON);

@@ -8,6 +8,7 @@
 //! - [`Audit`]: per-document container for entities and audit entries.
 
 mod entry;
+mod redaction_map;
 mod review;
 
 use derive_builder::Builder;
@@ -18,6 +19,7 @@ use uuid::Uuid;
 pub use self::entry::{
     AuditEntry, AuditEntryBuilder, AuditEntryStatus, RedactionSpec, RedactionValue,
 };
+pub use self::redaction_map::{RedactionMap, RedactionMapping};
 pub use self::review::{ReviewDecision, ReviewStatus};
 use crate::entity::{ContentSource, Entities};
 

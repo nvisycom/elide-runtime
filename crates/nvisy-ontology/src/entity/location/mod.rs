@@ -74,21 +74,16 @@ impl Location {
 impl Location {
     /// The text value at this location, if available.
     ///
-    /// - [`Text`]: always has a value (the matched text).
-    /// - [`Image`]: optional OCR-extracted text.
-    /// - [`Audio`]: optional transcribed text.
-    /// - [`Tabular`]: always has a value (the cell content).
-    ///
-    /// [`Text`]: Location::Text
-    /// [`Image`]: Location::Image
-    /// [`Audio`]: Location::Audio
-    /// [`Tabular`]: Location::Tabular
+    /// Returns the internally stored value (not serialized in API
+    /// responses). Use [`Document::value_at`] to extract from the
+    /// source document instead.
     pub fn text_value(&self) -> Option<&str> {
         match self {
-            Self::Text(loc) => Some(&loc.value),
+            Self::Text(loc) if !loc.value.is_empty() => Some(&loc.value),
             Self::Image(loc) => loc.value.as_deref(),
             Self::Audio(loc) => loc.value.as_deref(),
-            Self::Tabular(loc) => Some(&loc.value),
+            Self::Tabular(loc) if !loc.value.is_empty() => Some(&loc.value),
+            _ => None,
         }
     }
 

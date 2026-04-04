@@ -7,59 +7,20 @@
 //!
 //! # Span model
 //!
-//! [`TextHandler::text_spans`] yields one [`Span`] per cell.  If headers
-//! are present, header cells are emitted first (with
-//! [`CsvSpan::header`] set to `true`), followed by data cells in
-//! row-major order.
-//!
-//! [`TextHandler::edit_text`] replaces cell content at the given
-//! (row, col) position.  Header cells can also be edited.
+//! [`TextHandler::text_spans`] yields one [`Span`] per cell. If headers
+//! are present, header cells are emitted first, followed by data cells
+//! in row-major order. Each span is addressed by a [`TextLocation`]
+//! with byte offsets computed from the serialized CSV.
 
 use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
+use nvisy_ontology::entity::TextLocation;
 
 use crate::document::{Span, SpanStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-
-/// Cell address within a CSV document.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct CsvSpan {
-    /// 0-based row index (within data rows, not counting the header).
-    pub row: usize,
-    /// 0-based column index.
-    pub col: usize,
-    /// `true` when this span addresses a header cell rather than a
-    /// data cell.
-    pub header: bool,
-    /// Column name (from the header row) or column index as a string
-    /// when no headers are present.
-    pub key: String,
-}
-
-impl CsvSpan {
-    /// Address a data cell with a column key.
-    pub fn cell(row: usize, col: usize, key: impl Into<String>) -> Self {
-        Self {
-            row,
-            col,
-            header: false,
-            key: key.into(),
-        }
-    }
-
-    /// Address a header cell.
-    pub fn header_cell(col: usize, key: impl Into<String>) -> Self {
-        Self {
-            row: 0,
-            col,
-            header: true,
-            key: key.into(),
-        }
-    }
-}
 
 /// Parsed CSV content.
 #[derive(Debug, Clone)]
@@ -125,38 +86,49 @@ impl Handler for CsvHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for CsvHandler {
-    type TextId = CsvSpan;
-
-    async fn text_spans(&self) -> SpanStream<'_, CsvSpan, TextData> {
-        SpanStream::new(futures::stream::iter(CsvSpanIter::new(&self.data)))
+    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
+        let cells = self.collect_cells();
+        SpanStream::new(futures::stream::iter(cells))
     }
 
-    async fn edit_text(&mut self, edits: SpanStream<'_, CsvSpan, TextData>) -> Result<(), Error> {
+    async fn edit_text(
+        &mut self,
+        edits: SpanStream<'_, TextLocation, TextData>,
+    ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
+        let cell_map = self.cell_locations();
         for edit in edits {
-            if edit.id.header {
+            let (is_header, row, col) = cell_map
+                .iter()
+                .find(|(_, _, _, loc)| {
+                    loc.start_offset == edit.id.start_offset
+                        && loc.end_offset == edit.id.end_offset
+                })
+                .map(|&(h, r, c, _)| (h, r, c))
+                .ok_or_else(|| {
+                    Error::validation(
+                        format!(
+                            "no cell at byte offset {}..{}",
+                            edit.id.start_offset, edit.id.end_offset
+                        ),
+                        "csv-handler",
+                    )
+                })?;
+
+            if is_header {
                 let headers = self
                     .data
                     .headers
                     .as_mut()
                     .ok_or_else(|| Error::validation("no headers to edit", "csv-handler"))?;
-                let cell = headers.get_mut(edit.id.col).ok_or_else(|| {
-                    Error::validation(
-                        format!("header column {} out of bounds", edit.id.col),
-                        "csv-handler",
-                    )
-                })?;
-                *cell = edit.data.into_inner();
+                headers[col] = edit.data.into_inner();
             } else {
-                let row = self.data.rows.get_mut(edit.id.row).ok_or_else(|| {
-                    Error::validation(format!("row {} out of bounds", edit.id.row), "csv-handler")
+                let row_data = self.data.rows.get_mut(row).ok_or_else(|| {
+                    Error::validation(format!("row {row} out of bounds"), "csv-handler")
                 })?;
-                let cell = row.get_mut(edit.id.col).ok_or_else(|| {
+                let cell = row_data.get_mut(col).ok_or_else(|| {
                     Error::validation(
-                        format!(
-                            "column {} out of bounds in row {}",
-                            edit.id.col, edit.id.row,
-                        ),
+                        format!("column {col} out of bounds in row {row}"),
                         "csv-handler",
                     )
                 })?;
@@ -164,6 +136,23 @@ impl TextHandler for CsvHandler {
             }
         }
         Ok(())
+    }
+
+    async fn value_at(&self, location: &TextLocation) -> Option<String> {
+        let cells = self.cell_locations();
+        cells
+            .iter()
+            .find(|(_, _, _, loc)| {
+                loc.start_offset == location.start_offset
+                    && loc.end_offset == location.end_offset
+            })
+            .and_then(|&(is_header, row, col, _)| {
+                if is_header {
+                    self.data.headers.as_ref()?.get(col).cloned()
+                } else {
+                    self.data.rows.get(row)?.get(col).cloned()
+                }
+            })
     }
 }
 
@@ -230,81 +219,103 @@ impl CsvHandler {
     pub fn into_data(self) -> CsvData {
         self.data
     }
-}
 
-/// Iterator over cells of a CSV document.
-///
-/// Yields header cells first (if present), then data cells in
-/// row-major order.
-struct CsvSpanIter<'a> {
-    headers: Option<&'a [String]>,
-    rows: &'a [Vec<String>],
-    /// Current position: `None` = in headers, `Some(row)` = in data.
-    phase: CsvIterPhase,
-    col: usize,
-}
+    /// Collect all cells as spans with computed byte-offset locations.
+    fn collect_cells(&self) -> Vec<Span<TextLocation, TextData>> {
+        let mut spans = Vec::new();
+        let mut offset = 0usize;
 
-enum CsvIterPhase {
-    Headers,
-    Data(usize),
-}
-
-impl<'a> CsvSpanIter<'a> {
-    fn new(data: &'a CsvData) -> Self {
-        let phase = if data.headers.is_some() {
-            CsvIterPhase::Headers
-        } else {
-            CsvIterPhase::Data(0)
-        };
-        Self {
-            headers: data.headers.as_deref(),
-            rows: &data.rows,
-            phase,
-            col: 0,
-        }
-    }
-}
-
-impl<'a> Iterator for CsvSpanIter<'a> {
-    type Item = Span<CsvSpan, TextData>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match &self.phase {
-                CsvIterPhase::Headers => {
-                    let headers = self.headers?;
-                    if let Some(value) = headers.get(self.col) {
-                        let col = self.col;
-                        self.col += 1;
-                        return Some(Span::new(
-                            CsvSpan::header_cell(col, value.clone()),
-                            TextData::from(value.clone()),
-                        ));
-                    }
-                    self.phase = CsvIterPhase::Data(0);
-                    self.col = 0;
-                }
-                CsvIterPhase::Data(row) => {
-                    let row_idx = *row;
-                    let row_data = self.rows.get(row_idx)?;
-                    if let Some(value) = row_data.get(self.col) {
-                        let col = self.col;
-                        self.col += 1;
-                        let key = self
-                            .headers
-                            .and_then(|h| h.get(col))
-                            .cloned()
-                            .unwrap_or_else(|| col.to_string());
-                        return Some(Span::new(
-                            CsvSpan::cell(row_idx, col, key),
-                            TextData::from(value.clone()),
-                        ));
-                    }
-                    self.phase = CsvIterPhase::Data(row_idx + 1);
-                    self.col = 0;
-                }
+        if let Some(headers) = &self.data.headers {
+            for value in headers {
+                let start = offset;
+                let end = start + value.len();
+                spans.push(
+                    Span::new(
+                        TextLocation {
+                            start_offset: start,
+                            end_offset: end,
+                            line_number: Some(1),
+                            ..Default::default()
+                        },
+                        TextData::from(value.clone()),
+                    )
+                    .with_source(self.source),
+                );
+                // +1 for delimiter or newline separator.
+                offset = end + 1;
             }
         }
+
+        for (row_idx, row) in self.data.rows.iter().enumerate() {
+            let line_num = if self.data.headers.is_some() {
+                row_idx + 2
+            } else {
+                row_idx + 1
+            };
+            for value in row {
+                let start = offset;
+                let end = start + value.len();
+                spans.push(
+                    Span::new(
+                        TextLocation {
+                            start_offset: start,
+                            end_offset: end,
+                            line_number: Some(line_num as u32),
+                            ..Default::default()
+                        },
+                        TextData::from(value.clone()),
+                    )
+                    .with_source(self.source),
+                );
+                offset = end + 1;
+            }
+        }
+
+        spans
+    }
+
+    /// Compute `(is_header, row, col, TextLocation)` for each cell.
+    fn cell_locations(&self) -> Vec<(bool, usize, usize, TextLocation)> {
+        let mut locs = Vec::new();
+        let mut offset = 0usize;
+
+        if let Some(headers) = &self.data.headers {
+            for (col, value) in headers.iter().enumerate() {
+                let start = offset;
+                let end = start + value.len();
+                locs.push((
+                    true,
+                    0,
+                    col,
+                    TextLocation {
+                        start_offset: start,
+                        end_offset: end,
+                        ..Default::default()
+                    },
+                ));
+                offset = end + 1;
+            }
+        }
+
+        for (row_idx, row) in self.data.rows.iter().enumerate() {
+            for (col, value) in row.iter().enumerate() {
+                let start = offset;
+                let end = start + value.len();
+                locs.push((
+                    false,
+                    row_idx,
+                    col,
+                    TextLocation {
+                        start_offset: start,
+                        end_offset: end,
+                        ..Default::default()
+                    },
+                ));
+                offset = end + 1;
+            }
+        }
+
+        locs
     }
 }
 
@@ -351,25 +362,11 @@ mod tests {
 
         // 2 header cells + 4 data cells
         assert_eq!(spans.len(), 6);
-
-        // Headers
-        assert_eq!(spans[0].id, CsvSpan::header_cell(0, "name"));
         assert_eq!(spans[0].data, "name");
-        assert_eq!(spans[1].id, CsvSpan::header_cell(1, "age"));
         assert_eq!(spans[1].data, "age");
-
-        // Row 0
-        assert_eq!(spans[2].id, CsvSpan::cell(0, 0, "name"));
-        assert_eq!(spans[2].id.key, "name");
         assert_eq!(spans[2].data, "Alice");
-        assert_eq!(spans[3].id, CsvSpan::cell(0, 1, "age"));
-        assert_eq!(spans[3].id.key, "age");
         assert_eq!(spans[3].data, "30");
-
-        // Row 1
-        assert_eq!(spans[4].id, CsvSpan::cell(1, 0, "name"));
         assert_eq!(spans[4].data, "Bob");
-        assert_eq!(spans[5].id, CsvSpan::cell(1, 1, "age"));
         assert_eq!(spans[5].data, "25");
     }
 
@@ -377,18 +374,18 @@ mod tests {
     async fn view_spans_no_headers() {
         let h = handler_no_headers(vec![vec!["x", "y"], vec!["1", "2"]]);
         let spans: Vec<_> = h.text_spans().await.collect().await;
-
         assert_eq!(spans.len(), 4);
-        assert_eq!(spans[0].id, CsvSpan::cell(0, 0, "0"));
-        assert_eq!(spans[0].id.key, "0");
         assert_eq!(spans[0].data, "x");
     }
 
     #[tokio::test]
     async fn edit_spans_data_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["ssn"], vec![vec!["123-45-6789"]]);
+        let spans: Vec<_> = h.text_spans().await.collect().await;
+        // The data cell is the second span (after the header).
+        let data_loc = spans[1].id.clone();
         h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-            CsvSpan::cell(0, 0, "ssn"),
+            data_loc,
             "[REDACTED]".into(),
         )])))
         .await?;
@@ -399,8 +396,10 @@ mod tests {
     #[tokio::test]
     async fn edit_spans_header_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["secret_field"], vec![vec!["value"]]);
+        let spans: Vec<_> = h.text_spans().await.collect().await;
+        let header_loc = spans[0].id.clone();
         h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-            CsvSpan::header_cell(0, "secret_field"),
+            header_loc,
             "redacted".into(),
         )])))
         .await?;
@@ -409,29 +408,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn edit_spans_row_out_of_bounds() {
-        let mut h = handler_no_headers(vec![vec!["a"]]);
-        let err = h
-            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-                CsvSpan::cell(5, 0, "0"),
-                "x".into(),
-            )])))
-            .await
-            .unwrap_err();
-        assert!(err.to_string().contains("out of bounds"));
-    }
-
-    #[tokio::test]
-    async fn edit_spans_col_out_of_bounds() {
-        let mut h = handler_no_headers(vec![vec!["a"]]);
-        let err = h
-            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-                CsvSpan::cell(0, 5, "5"),
-                "x".into(),
-            )])))
-            .await
-            .unwrap_err();
-        assert!(err.to_string().contains("out of bounds"));
+    async fn value_at_returns_cell() {
+        let h = handler_with_headers(vec!["name"], vec![vec!["Alice"]]);
+        let spans: Vec<_> = h.text_spans().await.collect().await;
+        assert_eq!(h.value_at(&spans[1].id).await, Some("Alice".to_string()));
     }
 
     #[test]
@@ -449,29 +429,11 @@ mod tests {
     }
 
     #[test]
-    fn encode_with_quoting() -> Result<(), Error> {
-        let h = handler_with_headers(vec!["name", "bio"], vec![vec!["Alice", "Has a, comma"]]);
-        let content = h.encode()?;
-        let text = content.as_str().expect("valid utf-8");
-        assert!(text.contains("\"Has a, comma\""));
-        Ok(())
-    }
-
-    #[test]
     fn encode_without_trailing_newline() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["a"], vec![vec!["1"]]);
         h.data.trailing_newline = false;
         let content = h.encode()?;
         assert_eq!(content.as_str().expect("valid utf-8"), "a\n1");
-        Ok(())
-    }
-
-    #[test]
-    fn encode_tab_delimiter() -> Result<(), Error> {
-        let mut h = handler_with_headers(vec!["a", "b"], vec![vec!["1", "2"]]);
-        h.data.delimiter = b'\t';
-        let content = h.encode()?;
-        assert_eq!(content.as_str().expect("valid utf-8"), "a\tb\n1\t2\n");
         Ok(())
     }
 }

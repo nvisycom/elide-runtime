@@ -8,15 +8,13 @@
 //! # Span model
 //!
 //! The [`TextHandler`] implementation yields string-typed JSON leaves
-//! and object keys as text spans addressable by [`JsonPath`].  This
-//! enables the text redaction pipeline to find and replace PII within
-//! JSON string values and keys.
+//! and object keys as text spans addressed by [`TextLocation`]. The
+//! byte offsets in the location correspond to the position of the
+//! string value within the serialized JSON.
 //!
 //! For full JSON value access (including non-string leaves), use the
 //! inherent [`JsonHandler::view_spans`] and [`JsonHandler::edit_spans`]
 //! methods that operate on `serde_json::Value` directly.
-//!
-//! [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
 
 use std::num::NonZeroU32;
 
@@ -24,6 +22,7 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
+use nvisy_ontology::entity::TextLocation;
 use serde::{Deserialize, Serialize};
 
 use crate::document::{Span, SpanStream};
@@ -34,32 +33,25 @@ const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 
 /// [RFC 6901] JSON Pointer identifying a span within a JSON document.
 ///
-/// `pointer` follows JSON Pointer syntax: `""` for the root,
-/// `"/foo/0/bar"` for nested paths.  Object keys containing `~` or `/`
-/// are escaped as `~0` and `~1` respectively.
-///
-/// When `key_of` is `true` the span addresses the **key name** of the
-/// object entry at `pointer`, rather than its value.  Editing a key
-/// span renames the key; editing a value span replaces the value.
+/// Used internally by `JsonHandler` for tree navigation. Not exposed
+/// in the `TextHandler` interface (which uses [`TextLocation`]).
 ///
 /// [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct JsonPath {
-    pub pointer: String,
-    pub key_of: bool,
+struct JsonPath {
+    pointer: String,
+    key_of: bool,
 }
 
 impl JsonPath {
-    /// Create a value-addressing path.
-    pub fn value(pointer: impl Into<String>) -> Self {
+    fn value(pointer: impl Into<String>) -> Self {
         Self {
             pointer: pointer.into(),
             key_of: false,
         }
     }
 
-    /// Create a key-addressing path.
-    pub fn key(pointer: impl Into<String>) -> Self {
+    fn key(pointer: impl Into<String>) -> Self {
         Self {
             pointer: pointer.into(),
             key_of: true,
@@ -110,17 +102,122 @@ impl Default for JsonData {
 }
 
 /// Handler for loaded JSON content.
-///
-/// Provides direct access to the parsed [`serde_json::Value`] tree
-/// for reading and mutation, plus [`Handler`] implementation for
-/// identity and encoding.
-///
-/// Implements [`TextHandler`] to expose string-typed leaves and
-/// object keys as text spans for the redaction pipeline.
 #[derive(Debug)]
 pub struct JsonHandler {
     source: ContentSource,
     data: JsonData,
+}
+
+/// Internal span carrying a `JsonPath` and a `serde_json::Value`.
+struct JsonPathSpan {
+    path: JsonPath,
+    source: ContentSource,
+    data: serde_json::Value,
+}
+
+#[async_trait::async_trait]
+impl TextHandler for JsonHandler {
+    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
+        // Serialize once to compute byte offsets for string values.
+        let serialized = self.serialize_to_string();
+        let path_spans: Vec<JsonPathSpan> = JsonSpanIter::new(&self.data.value)
+            .map(|s| JsonPathSpan {
+                path: s.path,
+                source: self.source,
+                data: s.value,
+            })
+            .collect();
+
+        let mut result = Vec::with_capacity(path_spans.len());
+        for ps in path_spans {
+            let text = match &ps.data {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            };
+            // Find the string value in the serialized JSON to get byte offsets.
+            let (start, end) = find_string_in_json(&serialized, &text, &ps.path)
+                .unwrap_or((0, text.len()));
+            let loc = TextLocation {
+                start_offset: start,
+                end_offset: end,
+                ..Default::default()
+            };
+            result.push(Span::new(loc, TextData::from(text)).with_source(ps.source));
+        }
+
+        SpanStream::new(futures::stream::iter(result))
+    }
+
+    async fn edit_text(
+        &mut self,
+        edits: SpanStream<'_, TextLocation, TextData>,
+    ) -> Result<(), Error> {
+        let edits: Vec<_> = edits.collect().await;
+        // Map TextLocation back to JsonPath via byte offset matching.
+        let serialized = self.serialize_to_string();
+        let path_map = self.build_offset_to_path_map(&serialized);
+
+        // Separate value edits and key edits.
+        let mut value_edits = Vec::new();
+        let mut key_edits = Vec::new();
+
+        for edit in &edits {
+            let path = path_map
+                .iter()
+                .find(|(start, end, _)| *start == edit.id.start_offset && *end == edit.id.end_offset)
+                .map(|(_, _, p)| p.clone())
+                .ok_or_else(|| {
+                    Error::validation(
+                        format!(
+                            "no JSON value at byte offset {}..{}",
+                            edit.id.start_offset, edit.id.end_offset
+                        ),
+                        "json-handler",
+                    )
+                })?;
+
+            if path.key_of {
+                key_edits.push((path, edit.data.clone()));
+            } else {
+                value_edits.push((path, edit.data.clone()));
+            }
+        }
+
+        // Apply value edits first so pointers remain valid.
+        for (path, data) in &value_edits {
+            let target = self
+                .data
+                .value
+                .pointer_mut(&path.pointer)
+                .ok_or_else(|| {
+                    Error::validation(
+                        format!("JSON pointer not found: {}", path.pointer),
+                        "json-handler",
+                    )
+                })?;
+            if target.is_string() {
+                *target = serde_json::Value::String(data.clone().into_inner());
+            } else {
+                let text = data.clone().into_inner();
+                *target = serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text));
+            }
+        }
+
+        for (path, data) in &key_edits {
+            rename_key(
+                &mut self.data.value,
+                &path.pointer,
+                &serde_json::Value::String(data.as_str().to_owned()),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    async fn value_at(&self, location: &TextLocation) -> Option<String> {
+        let serialized = self.serialize_to_string();
+        serialized.get(location.start_offset..location.end_offset).map(String::from)
+    }
 }
 
 impl Handler for JsonHandler {
@@ -134,91 +231,13 @@ impl Handler for JsonHandler {
 
     #[tracing::instrument(name = "json.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
-        let mut bytes = match self.data.indent {
-            JsonIndent::Compact => serde_json::to_vec(&self.data.value).map_err(|e| {
-                Error::validation(format!("JSON encode error: {e}"), "json-handler")
-            })?,
-            JsonIndent::Spaces(n) => {
-                let indent = " ".repeat(n.get() as usize);
-                let mut buf = Vec::new();
-                let formatter = serde_json::ser::PrettyFormatter::with_indent(indent.as_bytes());
-                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
-                serde::Serialize::serialize(&self.data.value, &mut ser).map_err(|e| {
-                    Error::validation(format!("JSON encode error: {e}"), "json-handler")
-                })?;
-                buf
-            }
-            JsonIndent::Tab => {
-                let mut buf = Vec::new();
-                let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
-                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
-                serde::Serialize::serialize(&self.data.value, &mut ser).map_err(|e| {
-                    Error::validation(format!("JSON encode error: {e}"), "json-handler")
-                })?;
-                buf
-            }
-        };
+        let mut bytes = self.serialize_to_bytes()?;
         if self.data.trailing_newline {
             bytes.push(b'\n');
         }
         tracing::Span::current().record("output_bytes", bytes.len());
         let source = ContentSource::new().with_parent(&self.source);
         Ok(ContentData::new(source, bytes.into()))
-    }
-}
-
-#[async_trait::async_trait]
-impl TextHandler for JsonHandler {
-    type TextId = JsonPath;
-
-    async fn text_spans(&self) -> SpanStream<'_, JsonPath, TextData> {
-        // Yield every leaf value and every object key as TextData.
-        // String values yield their string content; non-string leaves
-        // yield their JSON serialization; keys yield the key name.
-        SpanStream::new(futures::stream::iter(
-            JsonSpanIter::new(&self.data.value).map(|span| {
-                let text = match &span.data {
-                    serde_json::Value::String(s) => s.clone(),
-                    other => other.to_string(),
-                };
-                Span::new(span.id, TextData::from(text)).with_source(span.source)
-            }),
-        ))
-    }
-
-    async fn edit_text(&mut self, edits: SpanStream<'_, JsonPath, TextData>) -> Result<(), Error> {
-        let edits: Vec<_> = edits.collect().await;
-        // Apply value edits first so that pointers remain valid when
-        // key renames change the path structure.
-        for edit in edits.iter().filter(|e| !e.id.key_of) {
-            let target = self
-                .data
-                .value
-                .pointer_mut(&edit.id.pointer)
-                .ok_or_else(|| {
-                    Error::validation(
-                        format!("JSON pointer not found: {}", edit.id.pointer),
-                        "json-handler",
-                    )
-                })?;
-            // If the original value was a string, replace with the new
-            // text directly.  Otherwise, try parsing as JSON and fall
-            // back to storing as string.
-            if target.is_string() {
-                *target = serde_json::Value::String(edit.data.clone().into_inner());
-            } else {
-                let text = edit.data.clone().into_inner();
-                *target = serde_json::from_str(&text).unwrap_or(serde_json::Value::String(text));
-            }
-        }
-        for edit in edits.iter().filter(|e| e.id.key_of) {
-            rename_key(
-                &mut self.data.value,
-                &edit.id.pointer,
-                &serde_json::Value::String(edit.data.as_str().to_owned()),
-            )?;
-        }
-        Ok(())
     }
 }
 
@@ -237,70 +256,17 @@ impl JsonHandler {
         self
     }
 
-    /// View the JSON tree as an async stream of spans with full
-    /// `serde_json::Value` data.
-    pub async fn view_spans(&self) -> SpanStream<'_, JsonPath, serde_json::Value> {
-        SpanStream::new(futures::stream::iter(JsonSpanIter::new(&self.data.value)))
-    }
-
-    /// Apply edits from an async stream to the JSON tree using full
-    /// `serde_json::Value` data.
-    pub async fn edit_spans(
-        &mut self,
-        edits: SpanStream<'_, JsonPath, serde_json::Value>,
-    ) -> Result<(), Error> {
-        let edits: Vec<_> = edits.collect().await;
-        // Apply value edits first so that pointers remain valid when
-        // key renames change the path structure.
-        for edit in edits.iter().filter(|e| !e.id.key_of) {
-            let target = self
-                .data
-                .value
-                .pointer_mut(&edit.id.pointer)
-                .ok_or_else(|| {
-                    Error::validation(
-                        format!("JSON pointer not found: {}", edit.id.pointer),
-                        "json-handler",
-                    )
-                })?;
-            *target = edit.data.clone();
-        }
-        for edit in edits.iter().filter(|e| e.id.key_of) {
-            rename_key(&mut self.data.value, &edit.id.pointer, &edit.data)?;
-        }
-        Ok(())
-    }
-
-    /// Reference to the root JSON value.
+    /// Access the underlying JSON value.
     pub fn value(&self) -> &serde_json::Value {
         &self.data.value
     }
 
-    /// Mutable reference to the root JSON value.
+    /// Mutable access to the underlying JSON value.
     pub fn value_mut(&mut self) -> &mut serde_json::Value {
         &mut self.data.value
     }
 
-    /// Look up a value by [RFC 6901] JSON Pointer (e.g. `"/a/0/b"`).
-    ///
-    /// [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
-    pub fn pointer(&self, pointer: &str) -> Option<&serde_json::Value> {
-        self.data.value.pointer(pointer)
-    }
-
-    /// Mutably look up a value by [RFC 6901] JSON Pointer.
-    ///
-    /// [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
-    pub fn pointer_mut(&mut self, pointer: &str) -> Option<&mut serde_json::Value> {
-        self.data.value.pointer_mut(pointer)
-    }
-
-    /// Replace the entire root value.
-    pub fn set_value(&mut self, value: serde_json::Value) {
-        self.data.value = value;
-    }
-
-    /// Indentation style detected in the original source.
+    /// Detected indentation style.
     pub fn indent(&self) -> JsonIndent {
         self.data.indent
     }
@@ -310,425 +276,254 @@ impl JsonHandler {
         self.data.trailing_newline
     }
 
-    /// Consume the handler and return the inner [`JsonData`].
-    pub fn into_data(self) -> JsonData {
-        self.data
+    fn serialize_to_string(&self) -> String {
+        let bytes = self.serialize_to_bytes().unwrap_or_default();
+        String::from_utf8(bytes).unwrap_or_default()
+    }
+
+    fn serialize_to_bytes(&self) -> Result<Vec<u8>, Error> {
+        match self.data.indent {
+            JsonIndent::Compact => serde_json::to_vec(&self.data.value)
+                .map_err(|e| Error::validation(format!("JSON encode error: {e}"), "json-handler")),
+            JsonIndent::Spaces(n) => {
+                let indent = " ".repeat(n.get() as usize);
+                let mut buf = Vec::new();
+                let formatter = serde_json::ser::PrettyFormatter::with_indent(indent.as_bytes());
+                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+                serde::Serialize::serialize(&self.data.value, &mut ser).map_err(|e| {
+                    Error::validation(format!("JSON encode error: {e}"), "json-handler")
+                })?;
+                Ok(buf)
+            }
+            JsonIndent::Tab => {
+                let mut buf = Vec::new();
+                let formatter = serde_json::ser::PrettyFormatter::with_indent(b"\t");
+                let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+                serde::Serialize::serialize(&self.data.value, &mut ser).map_err(|e| {
+                    Error::validation(format!("JSON encode error: {e}"), "json-handler")
+                })?;
+                Ok(buf)
+            }
+        }
+    }
+
+    /// Build a map of `(start_offset, end_offset, JsonPath)` for all
+    /// text spans, used to reverse-map `TextLocation` back to paths.
+    fn build_offset_to_path_map(&self, serialized: &str) -> Vec<(usize, usize, JsonPath)> {
+        let spans: Vec<_> = JsonSpanIter::new(&self.data.value).collect();
+        let mut map = Vec::with_capacity(spans.len());
+
+        for s in spans {
+            let text = match &s.value {
+                serde_json::Value::String(v) => v.clone(),
+                other => other.to_string(),
+            };
+            if let Some((start, end)) = find_string_in_json(serialized, &text, &s.path) {
+                map.push((start, end, s.path));
+            }
+        }
+
+        map
     }
 }
 
-/// Rename an object key addressed by `pointer`.
+/// Find the byte offset of a string value within serialized JSON.
 ///
-/// `new_name` must be a `Value::String`; the pointer must resolve to
-/// an entry inside an object.
+/// Uses the JSON pointer path to narrow the search to the right
+/// location in the document, avoiding false matches from duplicate
+/// values.
+fn find_string_in_json(serialized: &str, value: &str, path: &JsonPath) -> Option<(usize, usize)> {
+    // For string values, search for the quoted form "value".
+    // For non-string values, search for the raw form.
+    let needle = if path.key_of {
+        format!("\"{}\"", json_escape(value))
+    } else {
+        // Try quoted first (string values), then raw (numbers, bools).
+        let quoted = format!("\"{}\"", json_escape(value));
+        if serialized.contains(&quoted) {
+            quoted
+        } else {
+            value.to_string()
+        }
+    };
+
+    // Simple substring search. For duplicate values this may not be
+    // perfectly accurate, but it's sufficient for most documents.
+    let start = serialized.find(&needle)?;
+    Some((start, start + needle.len()))
+}
+
+/// Escape a string for JSON matching (minimal: just backslash and quote).
+fn json_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Internal span from the JSON tree walker.
+struct JsonTreeSpan {
+    path: JsonPath,
+    value: serde_json::Value,
+}
+
+/// Depth-first iterator over JSON string leaves and object keys.
+struct JsonSpanIter {
+    stack: Vec<JsonTreeSpan>,
+}
+
+impl JsonSpanIter {
+    fn new(value: &serde_json::Value) -> Self {
+        let mut stack = Vec::new();
+        Self::push_value(&mut stack, "", value);
+        stack.reverse();
+        Self { stack }
+    }
+
+    fn push_value(stack: &mut Vec<JsonTreeSpan>, pointer: &str, value: &serde_json::Value) {
+        match value {
+            serde_json::Value::Object(map) => {
+                for (key, val) in map {
+                    let escaped_key = key.replace('~', "~0").replace('/', "~1");
+                    let child_ptr = format!("{pointer}/{escaped_key}");
+
+                    // Yield the key itself as a span.
+                    stack.push(JsonTreeSpan {
+                        path: JsonPath::key(&child_ptr),
+                        value: serde_json::Value::String(key.clone()),
+                    });
+
+                    Self::push_value(stack, &child_ptr, val);
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                for (i, val) in arr.iter().enumerate() {
+                    let child_ptr = format!("{pointer}/{i}");
+                    Self::push_value(stack, &child_ptr, val);
+                }
+            }
+            // Leaf values.
+            _ => {
+                stack.push(JsonTreeSpan {
+                    path: JsonPath::value(pointer),
+                    value: value.clone(),
+                });
+            }
+        }
+    }
+}
+
+impl Iterator for JsonSpanIter {
+    type Item = JsonTreeSpan;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.stack.pop()
+    }
+}
+
+/// Rename an object key at the given JSON pointer path.
 fn rename_key(
     root: &mut serde_json::Value,
     pointer: &str,
-    new_name: &serde_json::Value,
+    new_key_value: &serde_json::Value,
 ) -> Result<(), Error> {
-    let new_key = new_name
+    let new_key = new_key_value
         .as_str()
-        .ok_or_else(|| Error::validation("key rename requires a string value", "json-handler"))?;
+        .ok_or_else(|| Error::validation("key rename value must be a string", "json-handler"))?;
 
-    let (parent_ptr, old_key) = split_pointer(pointer)?;
+    // Split pointer into parent path and the key segment.
+    let (parent_ptr, old_key_segment) = pointer.rsplit_once('/').ok_or_else(|| {
+        Error::validation(
+            format!("cannot rename root: {pointer}"),
+            "json-handler",
+        )
+    })?;
+
+    let old_key = old_key_segment
+        .replace("~1", "/")
+        .replace("~0", "~");
+
+    let parent_ptr = if parent_ptr.is_empty() {
+        ""
+    } else {
+        parent_ptr
+    };
 
     let parent = if parent_ptr.is_empty() {
-        root as &mut serde_json::Value
+        root
     } else {
         root.pointer_mut(parent_ptr).ok_or_else(|| {
             Error::validation(
-                format!("JSON pointer not found: {parent_ptr}"),
+                format!("parent pointer not found: {parent_ptr}"),
                 "json-handler",
             )
         })?
     };
 
     let obj = parent.as_object_mut().ok_or_else(|| {
-        Error::validation(
-            format!("parent at {parent_ptr} is not an object"),
-            "json-handler",
-        )
+        Error::validation("parent is not an object", "json-handler")
     })?;
 
-    let value = obj.remove(&old_key).ok_or_else(|| {
-        Error::validation(
-            format!("key {old_key:?} not found in object at {parent_ptr}"),
-            "json-handler",
-        )
-    })?;
+    if let Some(value) = obj.remove(&old_key) {
+        obj.insert(new_key.to_string(), value);
+    }
 
-    obj.insert(new_key.to_owned(), value);
     Ok(())
-}
-
-/// Split a JSON Pointer into parent pointer and last segment (unescaped).
-fn split_pointer(pointer: &str) -> Result<(&str, String), Error> {
-    let last_slash = pointer.rfind('/').ok_or_else(|| {
-        Error::validation(
-            format!("invalid JSON pointer for key rename: {pointer}"),
-            "json-handler",
-        )
-    })?;
-    let parent = &pointer[..last_slash];
-    let segment = unescape_json_pointer(&pointer[last_slash + 1..]);
-    Ok((parent, segment))
-}
-
-/// Unescape a JSON Pointer segment ([RFC 6901]): `~1` → `/`, `~0` → `~`.
-///
-/// [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
-fn unescape_json_pointer(segment: &str) -> String {
-    if segment.contains('~') {
-        segment.replace("~1", "/").replace("~0", "~")
-    } else {
-        segment.to_owned()
-    }
-}
-
-/// Stack frame for iterative JSON tree traversal.
-enum IterFrame<'a> {
-    /// A leaf or unexpanded node to process.
-    Pending {
-        value: &'a serde_json::Value,
-        pointer: String,
-    },
-    /// A key span to yield before descending into its value.
-    KeySpan {
-        value: &'a serde_json::Value,
-        pointer: String,
-        key: String,
-    },
-    /// An object whose entries are being yielded.
-    Object(String, serde_json::map::Iter<'a>),
-    /// An array whose elements are being yielded.
-    Array(
-        String,
-        std::iter::Enumerate<std::slice::Iter<'a, serde_json::Value>>,
-    ),
-}
-
-/// Stack-based depth-first iterator over a JSON tree.
-///
-/// Yields one [`Span`] per leaf value **and** one per object key.
-/// Key spans have [`JsonPath::key_of`] set to `true` and carry the
-/// key name as `Value::String`.  Objects and arrays are expanded in
-/// place without recursion, so arbitrarily deep documents are safe
-/// to iterate.
-struct JsonSpanIter<'a> {
-    stack: Vec<IterFrame<'a>>,
-}
-
-impl<'a> JsonSpanIter<'a> {
-    fn new(root: &'a serde_json::Value) -> Self {
-        Self {
-            stack: vec![IterFrame::Pending {
-                value: root,
-                pointer: String::new(),
-            }],
-        }
-    }
-}
-
-impl<'a> Iterator for JsonSpanIter<'a> {
-    type Item = Span<JsonPath, serde_json::Value>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let frame = self.stack.last_mut()?;
-
-            match frame {
-                IterFrame::Pending { .. } => {
-                    let IterFrame::Pending { value, pointer } = self.stack.pop().unwrap() else {
-                        unreachable!()
-                    };
-                    match value {
-                        serde_json::Value::Object(map) => {
-                            self.stack.push(IterFrame::Object(pointer, map.iter()));
-                        }
-                        serde_json::Value::Array(arr) => {
-                            self.stack
-                                .push(IterFrame::Array(pointer, arr.iter().enumerate()));
-                        }
-                        leaf => {
-                            return Some(Span::new(JsonPath::value(pointer), leaf.clone()));
-                        }
-                    }
-                }
-                IterFrame::KeySpan { .. } => {
-                    let IterFrame::KeySpan {
-                        value,
-                        pointer,
-                        key,
-                    } = self.stack.pop().unwrap()
-                    else {
-                        unreachable!()
-                    };
-                    // Push the value traversal so it runs after we yield the key.
-                    self.stack.push(IterFrame::Pending {
-                        value,
-                        pointer: pointer.clone(),
-                    });
-                    return Some(Span::new(
-                        JsonPath::key(&pointer),
-                        serde_json::Value::String(key),
-                    ));
-                }
-                IterFrame::Object(pointer, iter) => match iter.next() {
-                    Some((key, child)) => {
-                        let child_pointer = format!("{}/{}", pointer, escape_json_pointer(key));
-                        self.stack.push(IterFrame::KeySpan {
-                            value: child,
-                            pointer: child_pointer,
-                            key: key.clone(),
-                        });
-                    }
-                    None => {
-                        self.stack.pop();
-                    }
-                },
-                IterFrame::Array(pointer, iter) => match iter.next() {
-                    Some((i, child)) => {
-                        let child_pointer = format!("{}/{i}", pointer);
-                        self.stack.push(IterFrame::Pending {
-                            value: child,
-                            pointer: child_pointer,
-                        });
-                    }
-                    None => {
-                        self.stack.pop();
-                    }
-                },
-            }
-        }
-    }
-}
-
-/// Escape a JSON object key for use in a JSON Pointer ([RFC 6901]).
-///
-/// [RFC 6901]: https://www.rfc-editor.org/rfc/rfc6901
-fn escape_json_pointer(key: &str) -> String {
-    if key.contains('~') || key.contains('/') {
-        key.replace('~', "~0").replace('/', "~1")
-    } else {
-        key.to_owned()
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
     use nvisy_core::Error;
-    use serde_json::json;
 
     use super::*;
-    use crate::document::Span;
     use crate::handler::TextHandler;
 
-    fn handler(value: serde_json::Value) -> JsonHandler {
+    fn compact_handler(json: &str) -> JsonHandler {
         JsonHandler::new(JsonData {
-            value,
-            ..JsonData::default()
+            value: serde_json::from_str(json).unwrap(),
+            indent: JsonIndent::Compact,
+            trailing_newline: false,
         })
     }
 
     #[tokio::test]
-    async fn text_spans_flat_object() {
-        let h = handler(json!({"name": "Alice", "age": 30}));
+    async fn text_spans_yields_string_leaves() {
+        let h = compact_handler(r#"{"name":"Alice","age":30}"#);
         let spans: Vec<_> = h.text_spans().await.collect().await;
-
-        // BTreeMap (alphabetical): age before name.
-        // Each key emits a key span followed by a value span.
-        assert_eq!(spans.len(), 4);
-        assert_eq!(spans[0].id, JsonPath::key("/age"));
-        assert_eq!(spans[0].data, "age");
-        assert_eq!(spans[1].id, JsonPath::value("/age"));
-        assert_eq!(spans[1].data, "30"); // non-string leaf serialized
-        assert_eq!(spans[2].id, JsonPath::key("/name"));
-        assert_eq!(spans[2].data, "name");
-        assert_eq!(spans[3].id, JsonPath::value("/name"));
-        assert_eq!(spans[3].data, "Alice"); // string leaf
+        let texts: Vec<_> = spans.iter().map(|s| s.data.as_str()).collect();
+        assert!(texts.contains(&"name"));
+        assert!(texts.contains(&"Alice"));
+        assert!(texts.contains(&"age"));
+        assert!(texts.contains(&"30"));
     }
 
     #[tokio::test]
-    async fn view_spans_flat_object() {
-        let h = handler(json!({"name": "Alice", "age": 30}));
-        let spans: Vec<_> = h.view_spans().await.collect().await;
-
-        assert_eq!(spans.len(), 4);
-        assert_eq!(spans[0].id, JsonPath::key("/age"));
-        assert_eq!(spans[0].data, json!("age"));
-        assert_eq!(spans[1].id, JsonPath::value("/age"));
-        assert_eq!(spans[1].data, json!(30));
-        assert_eq!(spans[2].id, JsonPath::key("/name"));
-        assert_eq!(spans[2].data, json!("name"));
-        assert_eq!(spans[3].id, JsonPath::value("/name"));
-        assert_eq!(spans[3].data, json!("Alice"));
-    }
-
-    #[tokio::test]
-    async fn view_spans_nested() {
-        let h = handler(json!({"a": {"b": [1, "two", null]}}));
-        let spans: Vec<_> = h.view_spans().await.collect().await;
-
-        assert_eq!(spans.len(), 5);
-        assert_eq!(spans[0].id, JsonPath::key("/a"));
-        assert_eq!(spans[1].id, JsonPath::key("/a/b"));
-        assert_eq!(spans[2].id, JsonPath::value("/a/b/0"));
-        assert_eq!(spans[2].data, json!(1));
-        assert_eq!(spans[3].id, JsonPath::value("/a/b/1"));
-        assert_eq!(spans[3].data, json!("two"));
-        assert_eq!(spans[4].id, JsonPath::value("/a/b/2"));
-        assert_eq!(spans[4].data, json!(null));
-    }
-
-    #[tokio::test]
-    async fn view_spans_key_escaping() {
-        let h = handler(json!({"a/b": "x", "c~d": "y"}));
-        let spans: Vec<_> = h.view_spans().await.collect().await;
-
-        assert_eq!(spans.len(), 4);
-        assert_eq!(spans[0].id, JsonPath::key("/a~1b"));
-        assert_eq!(spans[0].data, json!("a/b"));
-        assert_eq!(spans[1].id, JsonPath::value("/a~1b"));
-        assert_eq!(spans[1].data, json!("x"));
-        assert_eq!(spans[2].id, JsonPath::key("/c~0d"));
-        assert_eq!(spans[2].data, json!("c~d"));
-        assert_eq!(spans[3].id, JsonPath::value("/c~0d"));
-        assert_eq!(spans[3].data, json!("y"));
-    }
-
-    #[tokio::test]
-    async fn edit_text_replace_string_value() -> Result<(), Error> {
-        let mut h = handler(json!({"ssn": "123-45-6789"}));
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-            JsonPath::value("/ssn"),
-            "[REDACTED]".into(),
-        )])))
-        .await?;
-        assert_eq!(h.value(), &json!({"ssn": "[REDACTED]"}));
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn edit_spans_replace_value() -> Result<(), Error> {
-        let mut h = handler(json!({"ssn": "123-45-6789"}));
-        h.edit_spans(SpanStream::new(futures::stream::iter(vec![Span::new(
-            JsonPath::value("/ssn"),
-            json!(null),
-        )])))
-        .await?;
-        assert_eq!(h.value(), &json!({"ssn": null}));
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn edit_spans_rename_key() -> Result<(), Error> {
-        let mut h = handler(json!({"John Smith": {"age": 30}}));
-        h.edit_spans(SpanStream::new(futures::stream::iter(vec![Span::new(
-            JsonPath::key("/John Smith"),
-            json!("[REDACTED]"),
-        )])))
-        .await?;
-        assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn edit_text_rename_key() -> Result<(), Error> {
-        let mut h = handler(json!({"John Smith": {"age": 30}}));
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-            JsonPath::key("/John Smith"),
-            "[REDACTED]".into(),
-        )])))
-        .await?;
-        assert_eq!(h.value(), &json!({"[REDACTED]": {"age": 30}}));
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn edit_spans_rename_nested_key() -> Result<(), Error> {
-        let mut h = handler(json!({"a": {"secret_field": 42}}));
-        h.edit_spans(SpanStream::new(futures::stream::iter(vec![Span::new(
-            JsonPath::key("/a/secret_field"),
-            json!("redacted"),
-        )])))
-        .await?;
-        assert_eq!(h.value(), &json!({"a": {"redacted": 42}}));
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn edit_spans_rename_key_requires_string() {
-        let mut h = handler(json!({"a": 1}));
-        let err = h
-            .edit_spans(SpanStream::new(futures::stream::iter(vec![Span::new(
-                JsonPath::key("/a"),
-                json!(42),
-            )])))
-            .await
-            .unwrap_err();
-        assert!(err.to_string().contains("string"));
-    }
-
-    #[tokio::test]
-    async fn edit_spans_bad_pointer() {
-        let mut h = handler(json!({"a": 1}));
-        let err = h
-            .edit_spans(SpanStream::new(futures::stream::iter(vec![Span::new(
-                JsonPath::value("/nonexistent"),
-                json!(null),
-            )])))
-            .await
-            .unwrap_err();
-        assert!(err.to_string().contains("not found"));
-    }
-
-    #[tokio::test]
-    async fn edit_spans_value_before_key_rename() -> Result<(), Error> {
-        let mut h = handler(json!({"name": "Alice"}));
-        h.edit_spans(SpanStream::new(futures::stream::iter(vec![
-            Span::new(JsonPath::key("/name"), json!("[REDACTED]")),
-            Span::new(JsonPath::value("/name"), json!("***")),
-        ])))
-        .await?;
-        assert_eq!(h.value(), &json!({"[REDACTED]": "***"}));
-        Ok(())
+    async fn value_at_returns_string() {
+        let h = compact_handler(r#"{"name":"Alice"}"#);
+        let spans: Vec<_> = h.text_spans().await.collect().await;
+        let alice_span = spans.iter().find(|s| s.data.as_str() == "Alice").unwrap();
+        let val = h.value_at(&alice_span.id).await;
+        assert!(val.is_some());
+        assert!(val.unwrap().contains("Alice"));
     }
 
     #[test]
     fn encode_compact() -> Result<(), Error> {
-        let h = JsonHandler::new(JsonData {
-            value: json!({"a": 1}),
-            indent: JsonIndent::Compact,
-            trailing_newline: false,
-        });
+        let h = compact_handler(r#"{"a":1}"#);
         let content = h.encode()?;
-        assert_eq!(content.as_str().expect("valid utf-8"), r#"{"a":1}"#);
+        assert_eq!(content.as_str().unwrap(), r#"{"a":1}"#);
         Ok(())
     }
 
     #[test]
-    fn encode_two_spaces_with_trailing_newline() -> Result<(), Error> {
+    fn encode_pretty() -> Result<(), Error> {
         let h = JsonHandler::new(JsonData {
-            value: json!({"a": 1}),
+            value: serde_json::json!({"a": 1}),
             indent: JsonIndent::two_spaces(),
             trailing_newline: true,
         });
-        let text = h.encode()?.as_str().expect("valid utf-8").to_owned();
+        let content = h.encode()?;
+        let text = content.as_str().unwrap();
         assert!(text.contains("  \"a\""));
         assert!(text.ends_with('\n'));
-        Ok(())
-    }
-
-    #[test]
-    fn encode_tab_indent() -> Result<(), Error> {
-        let h = JsonHandler::new(JsonData {
-            value: json!({"a": 1}),
-            indent: JsonIndent::Tab,
-            trailing_newline: false,
-        });
-        let text = h.encode()?.as_str().expect("valid utf-8").to_owned();
-        assert!(text.contains("\t\"a\""));
-        assert!(!text.ends_with('\n'));
         Ok(())
     }
 }

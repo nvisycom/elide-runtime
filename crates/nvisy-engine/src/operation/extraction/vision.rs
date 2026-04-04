@@ -5,7 +5,7 @@
 //! and optionally running computer vision.
 
 use nvisy_codec::Span;
-use nvisy_codec::handler::{ImageData, ImageSpanId};
+use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
@@ -75,7 +75,7 @@ impl VisualExtractionOp {
     }
 
     /// Run OCR extraction on a batch of image spans.
-    async fn extract(&self, spans: &[Span<ImageSpanId, ImageData>]) -> Result<Vec<ImageOutput>> {
+    async fn extract(&self, spans: &[Span<nvisy_ontology::entity::ImageLocation, ImageData>]) -> Result<Vec<ImageOutput>> {
         if spans.is_empty() {
             return Ok(Vec::new());
         }
@@ -96,7 +96,7 @@ impl VisualExtractionOp {
     /// Verify detected entities against the source images.
     async fn verify(
         &self,
-        image_spans: &[Span<ImageSpanId, ImageData>],
+        image_spans: &[Span<nvisy_ontology::entity::ImageLocation, ImageData>],
         entities: Entities,
     ) -> Result<Entities> {
         if entities.is_empty() || image_spans.is_empty() {

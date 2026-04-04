@@ -30,12 +30,23 @@ macro_rules! impl_audio_handler {
                 &self,
             ) -> crate::document::SpanStream<
                 '_,
-                crate::handler::AudioSpanId,
+                nvisy_ontology::entity::AudioLocation,
                 crate::handler::AudioData,
             > {
+                // Single-track audio: the entire audio as one span
+                // with a time span covering the full duration.
+                // Duration is unknown without decoding — use 0..0 as
+                // a placeholder. The actual time span is set by the
+                // STT extraction operation after transcription.
+                let location = nvisy_ontology::entity::AudioLocation {
+                    time_span: nvisy_ontology::math::TimeSpan { start_us: 0, end_us: 0 },
+                    value: None,
+                    speaker_id: None,
+                    audio_id: None,
+                };
                 crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
                     crate::document::Span::new(
-                        crate::handler::AudioSpanId::default(),
+                        location,
                         crate::handler::AudioData::new(self.bytes.clone()),
                     ),
                 )))
@@ -45,7 +56,7 @@ macro_rules! impl_audio_handler {
                 &mut self,
                 edits: crate::document::SpanStream<
                     '_,
-                    crate::handler::AudioSpanId,
+                    nvisy_ontology::entity::AudioLocation,
                     crate::handler::AudioData,
                 >,
             ) -> Result<(), nvisy_core::Error> {
@@ -55,6 +66,15 @@ macro_rules! impl_audio_handler {
                     self.bytes = edit.data.into_inner();
                 }
                 Ok(())
+            }
+
+            async fn value_at(
+                &self,
+                _location: &nvisy_ontology::entity::AudioLocation,
+            ) -> Option<crate::handler::AudioData> {
+                // Full audio segment — extracting a sub-segment by
+                // time span requires decoding, which we don't do here.
+                Some(crate::handler::AudioData::new(self.bytes.clone()))
             }
         }
 

@@ -21,8 +21,9 @@ pub struct ImageLocation {
     /// Bounding box of the entity in the image.
     pub bounding_box: BoundingBox,
     /// OCR-extracted text value at this location, if available.
+    /// Skipped during serialization to prevent sensitive data leaks.
     #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing)]
     pub value: Option<String>,
     /// Links this entity to a specific image document.
     #[builder(default, setter(into = false))]

@@ -141,8 +141,7 @@ impl PatternEngine {
     /// Scan `text` and return detected entities with [`TextLocation`]s.
     ///
     /// Each entity carries a [`TextLocation`] with `start_offset` and
-    /// `end_offset` set from the match. The caller is responsible for
-    /// attaching `span_index` and parent source from the span context.
+    /// `end_offset` set from the match.
     #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), entities = tracing::field::Empty))]
     pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
         let mut raw = self.scan_raw(text, ctx);
@@ -399,10 +398,7 @@ mod tests {
         assert_eq!(deny_match.entity_kind, EntityKind::PersonName);
         assert_eq!(
             deny_match.recognition_methods,
-            vec![RecognitionMethod::ner(ModelInfo::new(
-                "test",
-                ModelKind::SelfHosted
-            ))]
+            vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)]
         );
     }
 

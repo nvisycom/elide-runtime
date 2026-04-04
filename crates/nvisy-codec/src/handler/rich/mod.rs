@@ -15,7 +15,7 @@ mod rich_handler;
 #[cfg(feature = "docx")]
 pub use self::docx_loader::{DocxLoader, DocxParams};
 #[cfg(feature = "pdf")]
-pub use self::pdf_handler::{RichTextHandler, RichTextSpan};
+pub use self::pdf_handler::RichTextHandler;
 #[cfg(feature = "pdf")]
 pub use self::pdf_loader::{PdfLoader, PdfParams};
 pub use self::rich_handler::BoxedRichHandler;

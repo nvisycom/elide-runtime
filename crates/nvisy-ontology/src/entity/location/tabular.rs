@@ -17,6 +17,9 @@ use super::Overlap;
 #[serde(rename_all = "camelCase")]
 pub struct TabularLocation {
     /// The cell value at this location.
+    /// Skipped during serialization to prevent sensitive data leaks.
+    #[builder(default)]
+    #[serde(skip_serializing)]
     pub value: String,
     /// Row index (0-based).
     pub row_index: usize,

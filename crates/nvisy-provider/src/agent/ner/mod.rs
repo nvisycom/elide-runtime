@@ -125,8 +125,8 @@ impl NerAgent {
     /// values across successive calls. Call [`reset`](Self::reset) to
     /// clear the state between documents.
     ///
-    /// The caller is responsible for attaching span-level metadata
-    /// (`span_index`, parent source) after this call.
+    /// The caller is responsible for adjusting byte offsets to be
+    /// document-relative after this call.
     #[tracing::instrument(
         target = "nvisy_provider::agent::ner",
         skip_all,
@@ -158,8 +158,8 @@ impl NerAgent {
                 continue;
             }
 
-            let mut loc_builder = TextLocation::builder();
-            loc_builder = loc_builder.with_value(ne.value.clone());
+            let mut loc_builder = TextLocation::builder()
+                .with_value(ne.value.clone());
             if let Some(offsets) = ne.resolve_offsets(&ctx) {
                 loc_builder = loc_builder
                     .with_start_offset(offsets.start)

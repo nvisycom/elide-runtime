@@ -3,24 +3,22 @@
 use futures::StreamExt;
 use image::DynamicImage;
 use nvisy_core::Error;
+use nvisy_ontology::entity::ImageLocation;
 
 use super::instruction::{ImageOutput, ImageRedaction};
 use super::ops::ImageOps;
 use crate::document::{Span, SpanStream};
-use crate::handler::{ImageData, ImageHandler, ImageSpanId};
+use crate::handler::{ImageData, ImageHandler};
 
 const TARGET: &str = "nvisy_codec::transform::image";
 
 /// Extension trait for handlers that support image redaction.
-///
-/// Extends [`ImageHandler`] with [`redact_images`](Self::redact_images)
-/// which applies a batch of bounding-box image redactions.
 #[async_trait::async_trait]
 pub trait ImageTransform: ImageHandler {
     /// Apply a batch of image redactions, mutating in place.
     async fn redact_images(
         &mut self,
-        redactions: &[ImageRedaction<ImageSpanId>],
+        redactions: &[ImageRedaction<ImageLocation>],
     ) -> Result<(), Error>;
 }
 
@@ -28,7 +26,7 @@ pub trait ImageTransform: ImageHandler {
 impl<H: ImageHandler> ImageTransform for H {
     async fn redact_images(
         &mut self,
-        redactions: &[ImageRedaction<ImageSpanId>],
+        redactions: &[ImageRedaction<ImageLocation>],
     ) -> Result<(), Error> {
         tracing::debug!(
             target: TARGET,
@@ -39,7 +37,6 @@ impl<H: ImageHandler> ImageTransform for H {
             return Ok(());
         }
 
-        // Get the current image from the single span.
         let spans: Vec<_> = self.image_spans().await.collect().await;
         let span = match spans.into_iter().next() {
             Some(s) => s,

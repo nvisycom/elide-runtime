@@ -7,7 +7,7 @@
 //! [`EntityRecognitionOp`]: crate::operation::EntityRecognitionOp
 
 use nvisy_codec::Span;
-use nvisy_codec::handler::{TextData, TextSpanId};
+use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::workflow::PatternDetection;
@@ -71,7 +71,7 @@ impl PatternRecognitionOp {
         Self { engine }
     }
 
-    fn scan(&self, spans: &[Span<TextSpanId, TextData>]) -> Vec<Entity> {
+    fn scan(&self, spans: &[Span<nvisy_ontology::entity::TextLocation, TextData>]) -> Vec<Entity> {
         let scan_ctx = nvisy_pattern::ScanContext::default();
         let mut entities = Vec::new();
 
@@ -79,8 +79,10 @@ impl PatternRecognitionOp {
             let detected = self.engine.scan_entities(span.data.as_str(), &scan_ctx);
 
             for mut entity in detected {
+                // Adjust offsets to be document-relative.
                 if let nvisy_ontology::entity::Location::Text(ref mut loc) = entity.location {
-                    loc.span_index = Some(span.id.0);
+                    loc.start_offset += span.id.start_offset;
+                    loc.end_offset += span.id.start_offset;
                 }
 
                 entities.push(entity);

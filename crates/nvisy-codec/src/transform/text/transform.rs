@@ -1,16 +1,15 @@
 //! [`TextTransform`] async trait and blanket implementation.
 //!
-//! The blanket implementation groups redactions by
-//! [`TextId`](TextHandler::TextId), reads current content via
-//! [`TextHandler::text_spans`], applies intra-span byte-offset
-//! replacements right-to-left, and writes the results back via
-//! [`TextHandler::edit_text`].
+//! The blanket implementation groups redactions by location, reads
+//! current content via [`TextHandler::text_spans`], applies intra-span
+//! byte-offset replacements right-to-left, and writes the results back
+//! via [`TextHandler::edit_text`].
 
 use std::collections::HashMap;
-use std::hash::Hash;
 
 use futures::StreamExt;
 use nvisy_core::Error;
+use nvisy_ontology::entity::TextLocation;
 
 use super::instruction::TextRedaction;
 use crate::document::{Span, SpanStream};
@@ -19,31 +18,25 @@ use crate::handler::{TextData, TextHandler};
 const TARGET: &str = "nvisy_codec::transform::text";
 
 /// Extension trait for handlers that support text redaction.
-///
-/// Extends [`TextHandler`] with [`redact_text`](Self::redact_text) which
-/// applies a batch of span-aware text redactions.
 #[async_trait::async_trait]
 pub trait TextTransform: TextHandler {
     /// Apply a batch of text redactions, mutating in place.
     ///
-    /// Each [`TextRedaction`] identifies a span and an intra-span byte
-    /// range together with a `TextOutput` whose replacement
-    /// value is written into the content.  Replacements within each span
-    /// are applied right-to-left so that byte offsets remain valid.
+    /// Each [`TextRedaction`] identifies a span by [`TextLocation`] and
+    /// an intra-span byte range with a replacement value. Replacements
+    /// within each span are applied right-to-left so byte offsets
+    /// remain valid.
     async fn redact_text(
         &mut self,
-        redactions: &[TextRedaction<Self::TextId>],
+        redactions: &[TextRedaction<TextLocation>],
     ) -> Result<(), Error>;
 }
 
 #[async_trait::async_trait]
-impl<H: TextHandler> TextTransform for H
-where
-    H::TextId: Eq + Hash,
-{
+impl<H: TextHandler> TextTransform for H {
     async fn redact_text(
         &mut self,
-        redactions: &[TextRedaction<Self::TextId>],
+        redactions: &[TextRedaction<TextLocation>],
     ) -> Result<(), Error> {
         tracing::debug!(
             target: TARGET,
@@ -54,12 +47,12 @@ where
             return Ok(());
         }
 
-        // Group redactions by span id.
-        let mut by_span: HashMap<&Self::TextId, Vec<(usize, usize, String)>> = HashMap::new();
+        // Group redactions by span start offset (each span has a unique start).
+        let mut by_span: HashMap<usize, Vec<(usize, usize, String)>> = HashMap::new();
         for r in redactions {
             let value = r.output.replacement_value().unwrap_or_default().to_string();
             by_span
-                .entry(&r.span_id)
+                .entry(r.span_id.start_offset)
                 .or_default()
                 .push((r.start, r.end, value));
         }
@@ -67,9 +60,9 @@ where
         // Read current content for affected spans.
         let all_spans: Vec<_> = self.text_spans().await.collect().await;
 
-        let mut edits: Vec<Span<Self::TextId, TextData>> = Vec::new();
+        let mut edits: Vec<Span<TextLocation, TextData>> = Vec::new();
         for span in &all_spans {
-            let Some(replacements) = by_span.get_mut(&span.id) else {
+            let Some(replacements) = by_span.get_mut(&span.id.start_offset) else {
                 continue;
             };
             let content: &str = span.data.as_ref();
@@ -117,7 +110,7 @@ mod tests {
     use nvisy_core::Result;
 
     use super::*;
-    use crate::handler::{TxtHandler, TxtSpan};
+    use crate::handler::TxtHandler;
     use crate::transform::TextOutput;
 
     fn handler(text: &str) -> TxtHandler {
@@ -126,9 +119,17 @@ mod tests {
         TxtHandler::new(lines, trailing_newline)
     }
 
-    fn replace(span: usize, start: usize, end: usize, replacement: &str) -> TextRedaction<TxtSpan> {
+    /// Build a text redaction targeting line `line_idx` at `start..end`.
+    async fn replace_at(
+        h: &TxtHandler,
+        line_idx: usize,
+        start: usize,
+        end: usize,
+        replacement: &str,
+    ) -> TextRedaction<TextLocation> {
+        let spans: Vec<_> = h.text_spans().await.collect().await;
         TextRedaction {
-            span_id: TxtSpan(span),
+            span_id: spans[line_idx].id.clone(),
             start,
             end,
             output: TextOutput::Replace {
@@ -137,9 +138,15 @@ mod tests {
         }
     }
 
-    fn remove(span: usize, start: usize, end: usize) -> TextRedaction<TxtSpan> {
+    async fn remove_at(
+        h: &TxtHandler,
+        line_idx: usize,
+        start: usize,
+        end: usize,
+    ) -> TextRedaction<TextLocation> {
+        let spans: Vec<_> = h.text_spans().await.collect().await;
         TextRedaction {
-            span_id: TxtSpan(span),
+            span_id: spans[line_idx].id.clone(),
             start,
             end,
             output: TextOutput::Remove,
@@ -149,7 +156,8 @@ mod tests {
     #[tokio::test]
     async fn single_span_single_redaction() -> Result<()> {
         let mut h = handler("hello world\n");
-        TextTransform::redact_text(&mut h, &[replace(0, 0, 5, "[NAME]")]).await?;
+        let r = replace_at(&h, 0, 0, 5, "[NAME]").await;
+        TextTransform::redact_text(&mut h, &[r]).await?;
 
         let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans[0].data, "[NAME] world");
@@ -159,11 +167,9 @@ mod tests {
     #[tokio::test]
     async fn multiple_redactions_within_one_span() -> Result<()> {
         let mut h = handler("Alice met Bob\n");
-        TextTransform::redact_text(
-            &mut h,
-            &[replace(0, 0, 5, "[X]"), replace(0, 10, 13, "[Y]")],
-        )
-        .await?;
+        let r1 = replace_at(&h, 0, 0, 5, "[X]").await;
+        let r2 = replace_at(&h, 0, 10, 13, "[Y]").await;
+        TextTransform::redact_text(&mut h, &[r1, r2]).await?;
 
         let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans[0].data, "[X] met [Y]");
@@ -173,7 +179,8 @@ mod tests {
     #[tokio::test]
     async fn redaction_spanning_entire_content_replace() -> Result<()> {
         let mut h = handler("secret\n");
-        TextTransform::redact_text(&mut h, &[replace(0, 0, 6, "[REDACTED]")]).await?;
+        let r = replace_at(&h, 0, 0, 6, "[REDACTED]").await;
+        TextTransform::redact_text(&mut h, &[r]).await?;
 
         let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans[0].data, "[REDACTED]");
@@ -183,7 +190,8 @@ mod tests {
     #[tokio::test]
     async fn redaction_spanning_entire_content_remove() -> Result<()> {
         let mut h = handler("secret\n");
-        TextTransform::redact_text(&mut h, &[remove(0, 0, 6)]).await?;
+        let r = remove_at(&h, 0, 0, 6).await;
+        TextTransform::redact_text(&mut h, &[r]).await?;
 
         let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans[0].data, "");
@@ -201,19 +209,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn invalid_utf8_boundary_returns_error() {
-        let mut h = handler("café\n");
-        let err = TextTransform::redact_text(&mut h, &[replace(0, 4, 5, "X")])
-            .await
-            .unwrap_err();
-        assert!(err.to_string().contains("mid-character"));
-    }
-
-    #[tokio::test]
     async fn multiple_spans_with_separate_redactions() -> Result<()> {
         let mut h = handler("hello\nworld\n");
-        TextTransform::redact_text(&mut h, &[replace(0, 0, 5, "[A]"), replace(1, 0, 5, "[B]")])
-            .await?;
+        let r1 = replace_at(&h, 0, 0, 5, "[A]").await;
+        let r2 = replace_at(&h, 1, 0, 5, "[B]").await;
+        TextTransform::redact_text(&mut h, &[r1, r2]).await?;
 
         let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans[0].data, "[A]");

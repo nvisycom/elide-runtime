@@ -16,7 +16,10 @@ use super::Overlap;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct TextLocation {
-    /// The matched text at this location.
+    /// The matched text at this location. Skipped during serialization
+    /// to prevent sensitive data from appearing in API responses.
+    #[builder(default)]
+    #[serde(skip_serializing)]
     pub value: String,
     /// Byte or character offset where the entity starts.
     pub start_offset: usize,
@@ -30,10 +33,6 @@ pub struct TextLocation {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_end_offset: Option<usize>,
-    /// Positional index of the text span containing this entity.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub span_index: Option<usize>,
     /// 1-based page number where the entity was found.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -81,7 +81,8 @@ impl Entity {
 
     /// The detected text value, if available for this entity's location.
     ///
-    /// Delegates to [`Location::text_value`].
+    /// Not serialized in API responses. Delegates to
+    /// [`Location::text_value`].
     pub fn text_value(&self) -> Option<&str> {
         self.location.text_value()
     }

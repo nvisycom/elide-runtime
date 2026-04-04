@@ -3,16 +3,13 @@
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
+use nvisy_ontology::entity::ImageLocation;
 
-use super::{ImageData, ImageSpanId, JpegHandler, PngHandler, TiffHandler};
+use super::{ImageData, JpegHandler, PngHandler, TiffHandler};
 use crate::document::SpanStream;
 use crate::handler::{Handler, ImageHandler};
 
 /// A type-erased image handler backed by a boxed trait object.
-///
-/// Since [`ImageHandler`] uses a concrete [`ImageSpanId`] (no associated
-/// type), the trait is directly object-safe and can be boxed without a
-/// private `Dyn*` indirection layer.
 pub struct BoxedImageHandler(Box<dyn ImageHandler>);
 
 impl BoxedImageHandler {
@@ -64,15 +61,19 @@ impl Handler for BoxedImageHandler {
 
 #[async_trait::async_trait]
 impl ImageHandler for BoxedImageHandler {
-    async fn image_spans(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
+    async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData> {
         self.0.image_spans().await
     }
 
     async fn edit_images(
         &mut self,
-        edits: SpanStream<'_, ImageSpanId, ImageData>,
+        edits: SpanStream<'_, ImageLocation, ImageData>,
     ) -> Result<(), Error> {
         self.0.edit_images(edits).await
+    }
+
+    async fn value_at(&self, location: &ImageLocation) -> Option<ImageData> {
+        self.0.value_at(location).await
     }
 }
 

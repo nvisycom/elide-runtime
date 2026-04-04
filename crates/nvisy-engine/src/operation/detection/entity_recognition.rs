@@ -4,7 +4,7 @@
 //! to identify and classify named entities within extracted text.
 
 use nvisy_codec::Span;
-use nvisy_codec::handler::{TextData, TextSpanId};
+use nvisy_codec::handler::TextData;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::workflow::NerDetection;
@@ -47,7 +47,10 @@ impl EntityRecognitionOp {
         Ok(Self { agent, config })
     }
 
-    async fn detect(&self, spans: &[Span<TextSpanId, TextData>]) -> Result<Vec<Entity>> {
+    async fn detect(
+        &self,
+        spans: &[Span<nvisy_ontology::entity::TextLocation, TextData>],
+    ) -> Result<Vec<Entity>> {
         tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
         let mut entities = Vec::new();
 
@@ -59,8 +62,12 @@ impl EntityRecognitionOp {
                 .map_err(|e| Error::runtime(e.to_string(), "ner-agent", e.is_retryable()))?;
 
             for mut entity in detected {
+                // Adjust entity's text location offsets to be relative
+                // to the document (not the span) by adding the span's
+                // start offset.
                 if let nvisy_ontology::entity::Location::Text(ref mut loc) = entity.location {
-                    loc.span_index = Some(span.id.0);
+                    loc.start_offset += span.id.start_offset;
+                    loc.end_offset += span.id.start_offset;
                 }
 
                 entities.push(entity);

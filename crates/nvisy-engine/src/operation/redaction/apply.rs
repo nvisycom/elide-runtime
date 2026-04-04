@@ -74,7 +74,7 @@ impl<'a> RedactionApplicator<'a> {
                 None => continue,
             };
 
-            let Some(Location::Text(ref loc)) = entity.location else {
+            let Location::Text(ref loc) = entity.location else {
                 continue;
             };
 
@@ -123,7 +123,7 @@ impl<'a> RedactionApplicator<'a> {
                 None => continue,
             };
 
-            let Some(Location::Image(ref loc)) = entity.location else {
+            let Location::Image(ref loc) = entity.location else {
                 continue;
             };
 
@@ -171,7 +171,7 @@ impl<'a> RedactionApplicator<'a> {
                 None => continue,
             };
 
-            let Some(Location::Audio(ref loc)) = entity.location else {
+            let Location::Audio(ref loc) = entity.location else {
                 continue;
             };
 
@@ -212,9 +212,10 @@ impl<'a> RedactionApplicator<'a> {
     }
 
     fn text_output(entity: &Entity, strategy: &TextStrategy) -> TextOutput {
+        let value = entity.text_value().unwrap_or_default();
         match strategy {
             TextStrategy::Mask { mask_char } => {
-                TextOutput::replace(mask_char.to_string().repeat(entity.value.len()))
+                TextOutput::replace(mask_char.to_string().repeat(value.len()))
             }
 
             TextStrategy::Replace { placeholder } => {
@@ -234,10 +235,10 @@ impl<'a> RedactionApplicator<'a> {
 
             TextStrategy::Remove => TextOutput::Remove,
 
-            TextStrategy::Hash => TextOutput::replace(Self::hash_value(&entity.value)),
+            TextStrategy::Hash => TextOutput::replace(Self::hash_value(value)),
 
             TextStrategy::Pseudonymize => {
-                TextOutput::replace(Self::pseudonymize(&entity.entity_kind, &entity.value))
+                TextOutput::replace(Self::pseudonymize(&entity.entity_kind, value))
             }
 
             TextStrategy::Encrypt { .. } => {
@@ -285,15 +286,17 @@ mod tests {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
-            .with_value(value)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(0.9)
-            .with_location(Location::from(TextLocation {
-                start_offset: start,
-                end_offset: end,
-                span_index: Some(span_index),
-                ..Default::default()
-            }))
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_value(value)
+                    .with_start_offset(start)
+                    .with_end_offset(end)
+                    .with_span_index(span_index)
+                    .build()
+                    .unwrap(),
+            ))
             .build()
             .unwrap()
     }

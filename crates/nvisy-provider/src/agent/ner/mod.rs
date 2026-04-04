@@ -10,7 +10,7 @@ mod prompt;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::{
-    Entity, EntityCategory, ModelInfo, ModelKind, RecognitionMethod, TextLocation,
+    Entity, EntityCategory, Location, ModelInfo, ModelKind, RecognitionMethod, TextLocation,
 };
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -158,23 +158,25 @@ impl NerAgent {
                 continue;
             }
 
-            let loc = if let Some(offsets) = ne.resolve_offsets(&ctx) {
-                TextLocation {
-                    start_offset: offsets.start,
-                    end_offset: offsets.end,
-                    ..Default::default()
-                }
+            let mut loc_builder = TextLocation::builder();
+            loc_builder = loc_builder.with_value(ne.value.clone());
+            if let Some(offsets) = ne.resolve_offsets(&ctx) {
+                loc_builder = loc_builder
+                    .with_start_offset(offsets.start)
+                    .with_end_offset(offsets.end);
             } else {
-                TextLocation::default()
-            };
+                loc_builder = loc_builder
+                    .with_start_offset(0usize)
+                    .with_end_offset(0usize);
+            }
+            let loc = loc_builder.build().expect("required fields provided");
 
             let entity = Entity::builder()
                 .with_category(category)
                 .with_entity_kind(entity_kind)
-                .with_value(&ne.value)
                 .with_recognition_methods(vec![RecognitionMethod::ner(model_info.clone())])
                 .with_confidence(confidence)
-                .with_location(loc.into())
+                .with_location(Location::from(loc))
                 .build()
                 .expect("required fields provided");
             entities.push(entity);

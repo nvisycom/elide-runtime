@@ -83,13 +83,14 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
         let mut result = group.remove(0);
         let rest = group;
 
-        // Prefer the longest value: it is the more specific match
+        // Prefer the longest text value: it is the more specific match
         // (e.g. "John Smith" over "John"). When the value changes,
         // adopt the location from the entity that produced it so the
         // span stays consistent.
         for e in &rest {
-            if e.value.len() > result.value.len() {
-                result.value.clone_from(&e.value);
+            let e_len = e.text_value().map_or(0, str::len);
+            let r_len = result.text_value().map_or(0, str::len);
+            if e_len > r_len {
                 result.location.clone_from(&e.location);
             }
         }
@@ -127,7 +128,7 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
             fused_from = rest.len() + 1,
             confidence = fused_confidence,
             ?refinement,
-            value = %result.value,
+            value = result.text_value().unwrap_or_default(),
             "fused entity group",
         );
 

@@ -23,7 +23,8 @@ pub use self::annotation::{Annotation, AnnotationKind, AnnotationTarget, Annotat
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;
 pub use self::location::{
-    AudioLocation, ImageLocation, Location, Overlap, TabularLocation, TextLocation,
+    AudioLocation, AudioLocationBuilder, ImageLocation, ImageLocationBuilder, Location, Overlap,
+    TabularLocation, TabularLocationBuilder, TextLocation, TextLocationBuilder,
 };
 pub use self::method::{
     AnnotationProvenance, ExtractionMethod, ModelProvenance, PatternProvenance, RecognitionMethod,
@@ -50,8 +51,6 @@ pub struct Entity {
     pub category: EntityCategory,
     /// Specific entity kind (e.g. `GovernmentId`, `EmailAddress`, `PaymentCard`).
     pub entity_kind: EntityKind,
-    /// The matched text or value.
-    pub value: String,
     /// How content was extracted from its source modality, ordered by application time.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -64,10 +63,8 @@ pub struct Entity {
     pub refinement_methods: Vec<RefinementMethod>,
     /// Detection confidence score in the range `[0.0, 1.0]`.
     pub confidence: f64,
-    /// Modality-specific location of the entity.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub location: Option<Location>,
+    /// Modality-specific location of the entity within the document.
+    pub location: Location,
     /// BCP-47 language tag of the detected content.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -82,6 +79,11 @@ impl Entity {
     /// Create a new [`EntityBuilder`].
     pub fn builder() -> EntityBuilder {
         EntityBuilder::default()
+    }
+
+    /// The matched text value, if this entity has a text location.
+    pub fn text_value(&self) -> Option<&str> {
+        self.location.as_text().map(|loc| loc.value.as_str())
     }
 }
 

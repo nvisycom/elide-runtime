@@ -1,6 +1,8 @@
 //! [`RawMatch`]: internal output type from pattern scan phases.
 
-use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
+use nvisy_ontology::entity::{
+    Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
+};
 
 use crate::patterns::ContextRule;
 
@@ -96,9 +98,16 @@ impl RawMatch {
         Entity::builder()
             .with_category(self.category)
             .with_entity_kind(self.entity_kind)
-            .with_value(self.value)
             .with_recognition_methods(self.recognition_methods)
             .with_confidence(self.confidence)
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_value(self.value)
+                    .with_start_offset(self.start)
+                    .with_end_offset(self.end)
+                    .build()
+                    .expect("required fields provided"),
+            ))
             .build()
             .expect("required fields provided")
     }

@@ -100,10 +100,7 @@ fn evaluate(
                 if entity.confidence < default_threshold {
                     continue;
                 }
-                let Some(location) = &entity.location else {
-                    continue;
-                };
-                let Some(spec) = defaults.for_location(location) else {
+                let Some(spec) = defaults.for_location(&entity.location) else {
                     continue;
                 };
                 (spec, None)
@@ -111,7 +108,8 @@ fn evaluate(
         };
 
         let entity_id = entity.id;
-        let mut builder = AuditEntry::builder().for_entity(entity_id, spec, &entity.value);
+        let text_value = entity.text_value().unwrap_or_default();
+        let mut builder = AuditEntry::builder().for_entity(entity_id, spec, text_value);
         if let Some(id) = policy_id {
             builder = builder.with_policy_id(id);
         }
@@ -200,15 +198,17 @@ mod tests {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
-            .with_value(value)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(confidence)
-            .with_location(Location::from(TextLocation {
-                start_offset: 0,
-                end_offset: value.len(),
-                span_index: Some(0),
-                ..Default::default()
-            }))
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_value(value)
+                    .with_start_offset(0usize)
+                    .with_end_offset(value.len())
+                    .with_span_index(0usize)
+                    .build()
+                    .unwrap(),
+            ))
             .build()
             .unwrap()
     }

@@ -125,12 +125,17 @@ impl RecognitionMethod {
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum RecognitionMethodKind {
+    // Pattern-based
     Regex,
     Dictionary,
+    CrossReference,
+
+    // Model-based
     Ner,
     Classification,
     Embedding,
-    CrossReference,
     Biometric,
+
+    // Human
     Annotation,
 }

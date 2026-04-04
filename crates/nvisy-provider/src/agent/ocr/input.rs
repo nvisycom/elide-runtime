@@ -26,14 +26,14 @@ impl ProposedEntity {
     /// Create a proposed entity from a detected [`Entity`] and its index.
     pub fn from_entity(id: usize, entity: &Entity) -> Self {
         let bbox = match &entity.location {
-            Some(Location::Image(loc)) => Some(loc.bounding_box),
+            Location::Image(loc) => Some(loc.bounding_box),
             _ => None,
         };
         Self {
             id,
             category: entity.category,
             entity_type: entity.entity_kind,
-            value: entity.value.clone(),
+            value: entity.text_value().unwrap_or_default().to_string(),
             confidence: entity.confidence,
             bbox,
         }

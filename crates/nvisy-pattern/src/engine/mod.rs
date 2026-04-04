@@ -24,7 +24,7 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use aho_corasick::AhoCorasick;
-use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod, TextLocation};
+use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
 use regex::{Regex, RegexSet};
 
 pub use self::allow_list::AllowList;
@@ -192,14 +192,7 @@ impl PatternEngine {
                     "matched entity",
                 );
 
-                let location = TextLocation {
-                    start_offset: m.start,
-                    end_offset: m.end,
-                    ..Default::default()
-                };
-                let mut entity = m.into_entity();
-                entity.location = Some(location.into());
-                entity
+                m.into_entity()
             })
             .collect();
 
@@ -503,7 +496,7 @@ mod tests {
             context: None,
         };
         let entity = raw.into_entity();
-        assert_eq!(entity.value, "123-45-6789");
+        assert_eq!(entity.text_value(), Some("123-45-6789"));
         assert_eq!(entity.entity_kind, EntityKind::GovernmentId);
         assert_eq!(
             entity.recognition_methods,

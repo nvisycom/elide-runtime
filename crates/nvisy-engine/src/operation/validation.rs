@@ -57,12 +57,16 @@ impl ValidationOp {
                 let entity = entities.iter().find(|e| e.id == record.entity_id);
 
                 if let Some(entity) = entity {
-                    let lower_value = entity.value.to_lowercase();
-                    if !entity.value.is_empty() && lower_text.contains(&lower_value) {
-                        leaked.push(LeakedValue {
-                            value: entity.value.clone(),
-                            entity_id: record.entity_id,
-                        });
+                    if let Some(value) = entity.text_value() {
+                        let lower_value = value.to_lowercase();
+                        if !value.is_empty() && lower_text.contains(&lower_value) {
+                            leaked.push(LeakedValue {
+                                value: value.to_string(),
+                                entity_id: record.entity_id,
+                            });
+                        } else {
+                            passed += 1;
+                        }
                     } else {
                         passed += 1;
                     }

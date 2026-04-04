@@ -149,14 +149,16 @@ mod tests {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
-            .with_value(value)
             .with_recognition_methods(vec![method])
             .with_confidence(confidence)
-            .with_location(Location::from(TextLocation {
-                start_offset: start,
-                end_offset: end,
-                ..Default::default()
-            }))
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_value(value)
+                    .with_start_offset(start)
+                    .with_end_offset(end)
+                    .build()
+                    .unwrap(),
+            ))
             .build()
             .unwrap()
     }
@@ -216,7 +218,7 @@ mod tests {
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Narrowing);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].value, "John Smith");
+        assert_eq!(result[0].text_value().unwrap(), "John Smith");
     }
 
     #[test]
@@ -251,7 +253,7 @@ mod tests {
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Widening);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].value, "John Smith");
+        assert_eq!(result[0].text_value().unwrap(), "John Smith");
     }
 
     #[test]
@@ -327,9 +329,11 @@ mod tests {
         .into();
         calibration.calibrate(&mut entities);
         assert!((entities[0].confidence - 0.4).abs() < f64::EPSILON);
-        assert!(entities[0]
-            .refinement_methods
-            .contains(&RefinementMethod::ConfidenceCalibration));
+        assert!(
+            entities[0]
+                .refinement_methods
+                .contains(&RefinementMethod::ConfidenceCalibration)
+        );
     }
 
     #[test]
@@ -364,7 +368,7 @@ mod tests {
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Widening);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].value, "John Smith");
+        assert_eq!(result[0].text_value().unwrap(), "John Smith");
     }
 
     #[test]
@@ -412,9 +416,11 @@ mod tests {
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
         assert_eq!(result.len(), 1);
-        assert!(result[0]
-            .refinement_methods
-            .contains(&RefinementMethod::Deduplication));
+        assert!(
+            result[0]
+                .refinement_methods
+                .contains(&RefinementMethod::Deduplication)
+        );
     }
 
     #[test]
@@ -432,9 +438,11 @@ mod tests {
         .into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
         assert_eq!(result.len(), 1);
-        assert!(result[0]
-            .refinement_methods
-            .contains(&RefinementMethod::EnsembleFusion));
+        assert!(
+            result[0]
+                .refinement_methods
+                .contains(&RefinementMethod::EnsembleFusion)
+        );
     }
 
     #[test]
@@ -451,7 +459,7 @@ mod tests {
         .into();
         let result = op.deduplicate(entities);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].value, "John");
+        assert_eq!(result[0].text_value().unwrap(), "John");
     }
 
     #[test]
@@ -496,12 +504,19 @@ mod tests {
         let entity = Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
-            .with_value("John")
             .with_recognition_methods(vec![
                 RecognitionMethod::regex("test"),
                 RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
             ])
             .with_confidence(1.0)
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_value("John")
+                    .with_start_offset(0usize)
+                    .with_end_offset(4usize)
+                    .build()
+                    .unwrap(),
+            ))
             .build()
             .unwrap();
 
@@ -517,7 +532,7 @@ mod tests {
         let entities: Entities = vec![entity.clone()].into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].value, "John");
+        assert_eq!(result[0].text_value().unwrap(), "John");
         assert!((result[0].confidence - 0.75).abs() < f64::EPSILON);
         assert_eq!(
             result[0].recognition_methods,

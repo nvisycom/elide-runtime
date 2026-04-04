@@ -88,7 +88,11 @@ impl ConflictResolutionExt for ConflictResolution {
                 (None, Some(_)) => false,
                 (None, None) => a.confidence >= b.confidence,
             },
-            Self::LongestSpan => a.value.len() >= b.value.len(),
+            Self::LongestSpan => {
+                let a_len = a.text_value().map_or(0, str::len);
+                let b_len = b.text_value().map_or(0, str::len);
+                a_len >= b_len
+            }
             _ => true,
         }
     }
@@ -102,24 +106,20 @@ mod tests {
 
     use super::*;
 
-    fn entity(
-        kind: EntityKind,
-        value: &str,
-        confidence: f64,
-        start: usize,
-        end: usize,
-    ) -> Entity {
+    fn entity(kind: EntityKind, value: &str, confidence: f64, start: usize, end: usize) -> Entity {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(kind)
-            .with_value(value)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(confidence)
-            .with_location(Location::from(TextLocation {
-                start_offset: start,
-                end_offset: end,
-                ..Default::default()
-            }))
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_value(value)
+                    .with_start_offset(start)
+                    .with_end_offset(end)
+                    .build()
+                    .unwrap(),
+            ))
             .build()
             .unwrap()
     }

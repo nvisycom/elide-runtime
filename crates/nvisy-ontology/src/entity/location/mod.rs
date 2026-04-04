@@ -9,24 +9,14 @@ use derive_more::From;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::audio::AudioLocation;
-pub use self::image::ImageLocation;
-pub use self::tabular::TabularLocation;
-pub use self::text::TextLocation;
+pub use self::audio::{AudioLocation, AudioLocationBuilder};
+pub use self::image::{ImageLocation, ImageLocationBuilder};
+pub use self::tabular::{TabularLocation, TabularLocationBuilder};
+pub use self::text::{TextLocation, TextLocationBuilder};
 
 /// Trait for checking whether two values overlap spatially or temporally.
 pub trait Overlap {
     fn overlaps(&self, other: &Self) -> bool;
-}
-
-impl<T: Overlap> Overlap for Option<T> {
-    /// Two `None`s are considered distinct (no overlap).
-    fn overlaps(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Some(a), Some(b)) => a.overlaps(b),
-            _ => false,
-        }
-    }
 }
 
 /// A modality-specific location for a detected entity.

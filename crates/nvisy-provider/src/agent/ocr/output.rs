@@ -55,36 +55,29 @@ impl VerifiedEntity {
             VerificationStatus::Rejected => None,
             VerificationStatus::Corrected => {
                 let location = if let Some(bbox) = self.bbox {
-                    Some(
-                        ImageLocation {
-                            bounding_box: bbox,
-                            image_id: None,
-                            page_number: None,
-                        }
-                        .into(),
-                    )
+                    ImageLocation {
+                        bounding_box: bbox,
+                        image_id: None,
+                        page_number: None,
+                    }
+                    .into()
                 } else {
                     entity.location
                 };
 
                 let mut refinements = entity.refinement_methods;
                 refinements.push(RefinementMethod::ModelVerification);
-
-                let mut builder = Entity::builder()
+                let corrected = Entity::builder()
                     .with_id(entity.id)
                     .with_category(self.category.unwrap_or(entity.category))
                     .with_entity_kind(self.entity_type.unwrap_or(entity.entity_kind))
-                    .with_value(self.value.as_deref().unwrap_or(&entity.value).to_owned())
                     .with_recognition_methods(entity.recognition_methods)
                     .with_extraction_methods(entity.extraction_methods)
                     .with_refinement_methods(refinements)
-                    .with_confidence(self.confidence);
-
-                if let Some(loc) = location {
-                    builder = builder.with_location(loc);
-                }
-
-                let corrected = builder.build().expect("required fields provided");
+                    .with_confidence(self.confidence)
+                    .with_location(location)
+                    .build()
+                    .expect("required fields provided");
 
                 Some(corrected)
             }

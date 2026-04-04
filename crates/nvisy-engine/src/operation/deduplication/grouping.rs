@@ -37,7 +37,7 @@ impl GroupKey {
     fn new(entity: &Entity, criteria: GroupingCriteria) -> Self {
         Self {
             kind: entity.entity_kind,
-            value: criteria.bucket_value(&entity.value),
+            value: criteria.bucket_value(entity.text_value().unwrap_or_default()),
         }
     }
 }
@@ -117,9 +117,12 @@ impl GroupEntities for Entities {
                             continue;
                         }
                         let any_value_match = groups[indices[i]].iter().any(|a| {
-                            groups[indices[j]]
-                                .iter()
-                                .any(|b| criteria.values_match(&a.value, &b.value))
+                            groups[indices[j]].iter().any(|b| {
+                                criteria.values_match(
+                                    a.text_value().unwrap_or_default(),
+                                    b.text_value().unwrap_or_default(),
+                                )
+                            })
                         });
                         let location_ok = !check_overlap
                             || groups[indices[i]].iter().any(|a| {

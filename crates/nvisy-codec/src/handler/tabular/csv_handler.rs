@@ -132,10 +132,7 @@ impl TextHandler for CsvHandler {
                 headers[cell.col] = edit.data.into_inner();
             } else {
                 let row = self.data.rows.get_mut(cell.row).ok_or_else(|| {
-                    Error::validation(
-                        format!("row {} out of bounds", cell.row),
-                        "csv-handler",
-                    )
+                    Error::validation(format!("row {} out of bounds", cell.row), "csv-handler")
                 })?;
                 let target = row.get_mut(cell.col).ok_or_else(|| {
                     Error::validation(
@@ -285,7 +282,11 @@ impl CsvHandler {
             let row_values = if is_header {
                 self.data.headers.as_deref().unwrap_or(&[])
             } else {
-                self.data.rows.get(data_row).map(|r| r.as_slice()).unwrap_or(&[])
+                self.data
+                    .rows
+                    .get(data_row)
+                    .map(|r| r.as_slice())
+                    .unwrap_or(&[])
             };
 
             for (col, value) in row_values.iter().enumerate() {

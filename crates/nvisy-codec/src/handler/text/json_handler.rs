@@ -411,10 +411,7 @@ fn rename_key(
         .ok_or_else(|| Error::validation("key rename value must be a string", "json-handler"))?;
 
     let (parent_ptr, old_key_segment) = pointer.rsplit_once('/').ok_or_else(|| {
-        Error::validation(
-            format!("cannot rename root: {pointer}"),
-            "json-handler",
-        )
+        Error::validation(format!("cannot rename root: {pointer}"), "json-handler")
     })?;
 
     let old_key = old_key_segment.replace("~1", "/").replace("~0", "~");
@@ -472,14 +469,10 @@ mod tests {
     async fn duplicate_values_get_distinct_offsets() {
         let h = compact_handler(r#"{"a":"same","b":"same"}"#);
         let spans: Vec<_> = h.text_spans().await.collect().await;
-        let same_spans: Vec<_> = spans
-            .iter()
-            .filter(|s| s.data.as_str() == "same")
-            .collect();
+        let same_spans: Vec<_> = spans.iter().filter(|s| s.data.as_str() == "same").collect();
         assert_eq!(same_spans.len(), 2);
         assert_ne!(
-            same_spans[0].id.start_offset,
-            same_spans[1].id.start_offset,
+            same_spans[0].id.start_offset, same_spans[1].id.start_offset,
             "duplicate values must have distinct offsets"
         );
     }

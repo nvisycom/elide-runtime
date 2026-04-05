@@ -278,7 +278,8 @@ mod tests {
         assert_eq!(
             GraphNodeKind::SaveContext(SaveContext {
                 context_ids: vec![Uuid::nil()],
-            }).phase(),
+            })
+            .phase(),
             6
         );
     }
@@ -307,9 +308,12 @@ mod tests {
         assert!(!redaction().is_post_redaction());
         assert!(validation().is_post_redaction());
         assert!(export().is_post_redaction());
-        assert!(GraphNodeKind::SaveContext(SaveContext {
+        assert!(
+            GraphNodeKind::SaveContext(SaveContext {
                 context_ids: vec![Uuid::nil()],
-            }).is_post_redaction());
+            })
+            .is_post_redaction()
+        );
     }
 
     #[test]

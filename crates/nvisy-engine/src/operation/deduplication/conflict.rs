@@ -8,6 +8,8 @@
 use nvisy_ontology::entity::{Entities, Entity, Overlap};
 use nvisy_ontology::workflow::ConflictResolution;
 
+use super::span_size::SpanSize;
+
 const TARGET: &str = "nvisy_engine::op::deduplication::conflict";
 
 /// Extension trait for [`ConflictResolution`].
@@ -88,7 +90,10 @@ impl ConflictResolutionExt for ConflictResolution {
                 (None, Some(_)) => false,
                 (None, None) => a.confidence >= b.confidence,
             },
-            Self::LongestSpan => a.location.is_at_least_as_large(&b.location).unwrap_or(true),
+            Self::LongestSpan => {
+                a.location.span_cmp(&b.location).unwrap_or(std::cmp::Ordering::Equal)
+                    != std::cmp::Ordering::Less
+            }
             _ => true,
         }
     }
@@ -110,7 +115,7 @@ mod tests {
             .with_confidence(confidence)
             .with_location(Location::from(
                 TextLocation::builder()
-                    .with_value(value)
+                    .with_text(value)
                     .with_start_offset(start)
                     .with_end_offset(end)
                     .build()

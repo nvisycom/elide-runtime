@@ -102,7 +102,7 @@ impl RawMatch {
             .with_confidence(self.confidence)
             .with_location(Location::from(
                 TextLocation::builder()
-                    .with_value(self.value)
+                    .with_text(self.value)
                     .with_start_offset(self.start)
                     .with_end_offset(self.end)
                     .build()

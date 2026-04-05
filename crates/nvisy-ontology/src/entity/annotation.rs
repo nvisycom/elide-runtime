@@ -138,7 +138,7 @@ impl Annotations {
                     }
                     Location::Text(
                         TextLocation::builder()
-                            .with_value(v.as_str())
+                            .with_text(v.as_str())
                             .with_start_offset(0usize)
                             .with_end_offset(v.len())
                             .build()
@@ -199,7 +199,7 @@ mod tests {
             kind: AnnotationKind::Exclusion {
                 target: AnnotationTarget::Location(Location::from(
                     TextLocation::builder()
-                        .with_value("")
+                        .with_text("")
                         .with_start_offset(start)
                         .with_end_offset(end)
                         .build()
@@ -224,7 +224,7 @@ mod tests {
             .with_confidence(0.9)
             .with_location(Location::from(
                 TextLocation::builder()
-                    .with_value(value)
+                    .with_text(value)
                     .with_start_offset(start)
                     .with_end_offset(end)
                     .build()

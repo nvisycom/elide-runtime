@@ -10,6 +10,7 @@ use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
 use nvisy_ontology::workflow::{DeduplicationStrategy, GroupingCriteria};
 
 use super::grouping::GroupEntities;
+use super::span_size::SpanSize;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::strategy";
 
@@ -88,9 +89,8 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
         // larger bounding box. Adopt the winner's location so the
         // span stays consistent.
         for e in &rest {
-            if e.location
-                .is_at_least_as_large(&result.location)
-                .unwrap_or(false)
+            if e.location.span_cmp(&result.location).unwrap_or(std::cmp::Ordering::Less)
+                == std::cmp::Ordering::Greater
             {
                 result.location.clone_from(&e.location);
             }

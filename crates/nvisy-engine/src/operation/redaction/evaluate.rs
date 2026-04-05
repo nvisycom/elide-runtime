@@ -216,7 +216,7 @@ mod tests {
             .with_confidence(confidence)
             .with_location(Location::from(
                 TextLocation::builder()
-                    .with_value(value)
+                    .with_text(value)
                     .with_start_offset(0usize)
                     .with_end_offset(value.len())
                     .build()

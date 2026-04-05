@@ -43,7 +43,7 @@ macro_rules! impl_image_handler {
                         width: w as f64,
                         height: h as f64,
                     },
-                    value: None,
+                    extracted_text: None,
                     image_id: None,
                     page_number: None,
                 };

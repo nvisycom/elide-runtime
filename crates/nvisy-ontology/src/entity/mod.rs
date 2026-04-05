@@ -195,7 +195,7 @@ mod tests {
     fn text_value_from_location() {
         let mut e = entity(0.9);
         if let Location::Text(ref mut loc) = e.location {
-            loc.value = "hello".to_string();
+            loc.text = "hello".to_string();
         }
         assert_eq!(e.text_value(), Some("hello"));
     }

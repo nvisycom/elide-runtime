@@ -317,7 +317,7 @@ mod tests {
             .with_confidence(0.9)
             .with_location(Location::from(
                 TextLocation::builder()
-                    .with_value(value)
+                    .with_text(value)
                     .with_start_offset(start)
                     .with_end_offset(end)
                     .build()

@@ -57,7 +57,7 @@ impl VerifiedEntity {
                 let location = if let Some(bbox) = self.bbox {
                     ImageLocation {
                         bounding_box: bbox,
-                        value: self.value.clone(),
+                        extracted_text: self.value.clone(),
                         image_id: None,
                         page_number: None,
                     }

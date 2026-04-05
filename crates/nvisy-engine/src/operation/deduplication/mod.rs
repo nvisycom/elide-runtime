@@ -24,6 +24,7 @@
 mod calibration;
 mod conflict;
 mod grouping;
+pub(crate) mod span_size;
 mod strategy;
 
 use nvisy_core::Result;
@@ -153,7 +154,7 @@ mod tests {
             .with_confidence(confidence)
             .with_location(Location::from(
                 TextLocation::builder()
-                    .with_value(value)
+                    .with_text(value)
                     .with_start_offset(start)
                     .with_end_offset(end)
                     .build()
@@ -511,7 +512,7 @@ mod tests {
             .with_confidence(1.0)
             .with_location(Location::from(
                 TextLocation::builder()
-                    .with_value("John")
+                    .with_text("John")
                     .with_start_offset(0usize)
                     .with_end_offset(4usize)
                     .build()

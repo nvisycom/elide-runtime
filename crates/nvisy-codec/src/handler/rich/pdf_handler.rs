@@ -271,7 +271,7 @@ impl ImageHandler for RichTextHandler {
                 // use a full-page placeholder that identifies the page.
                 let location = ImageLocation {
                     bounding_box: nvisy_ontology::math::BoundingBox::default(),
-                    value: None,
+                    extracted_text: None,
                     image_id: None,
                     page_number: Some((i + 1) as u32),
                 };

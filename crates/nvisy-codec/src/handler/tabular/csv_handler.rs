@@ -89,7 +89,7 @@ impl TextHandler for CsvHandler {
             .map(|c| {
                 Span::new(
                     TextLocation {
-                        value: c.value.clone(),
+                        text: c.value.clone(),
                         start_offset: c.start,
                         end_offset: c.end,
                         line_number: Some(c.line_number),

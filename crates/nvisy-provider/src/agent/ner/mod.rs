@@ -158,7 +158,7 @@ impl NerAgent {
                 continue;
             }
 
-            let mut loc_builder = TextLocation::builder().with_value(ne.value.clone());
+            let mut loc_builder = TextLocation::builder().with_text(ne.value.clone());
             if let Some(offsets) = ne.resolve_offsets(&ctx) {
                 loc_builder = loc_builder
                     .with_start_offset(offsets.start)

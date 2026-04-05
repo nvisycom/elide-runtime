@@ -13,7 +13,7 @@
 mod speech;
 mod vision;
 
-use nvisy_codec::Document;
+use nvisy_codec::ContentHandle;
 use nvisy_core::Result;
 use nvisy_ontology::workflow::Extraction;
 use nvisy_provider::http::HttpClient;
@@ -63,20 +63,20 @@ impl ExtractionOp {
 
 impl Operation for ExtractionOp {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
-        match &envelope.document {
-            Document::Image(_) | Document::Rich(_) => {
+        match &envelope.document.handle {
+            ContentHandle::Image(_) | ContentHandle::Rich(_) => {
                 if let Some(ref op) = self.visual {
                     tracing::debug!(target: TARGET, "running visual extraction");
                     op.execute(envelope).await?;
                 }
             }
-            Document::Audio(_) => {
+            ContentHandle::Audio(_) => {
                 if let Some(ref op) = self.audial {
                     tracing::debug!(target: TARGET, "running audial extraction");
                     op.execute(envelope).await?;
                 }
             }
-            Document::Text(_) => {
+            ContentHandle::Text(_) => {
                 // Text documents are already structured text — no
                 // extraction needed. Future: whitespace normalization.
                 tracing::debug!(target: TARGET, "text document, no extraction needed");

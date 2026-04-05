@@ -298,7 +298,7 @@ impl<'a> RedactionApplicator<'a> {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::Document;
+    use nvisy_codec::ContentHandle;
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
     use nvisy_ontology::entity::{
         Entities, Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
@@ -331,7 +331,7 @@ mod tests {
         let data = ContentData::from_text(ContentSource::new(), "Hello John world");
         let content =
             Content::with_metadata(data, ContentMetadata::new().with_content_type("text/plain"));
-        let doc = Document::decode(&content).await.unwrap();
+        let doc = ContentHandle::decode(&content).await.unwrap();
         let dir = tempfile::tempdir().unwrap();
         let registry = crate::registry::Registry::open(dir.path()).unwrap();
         let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);

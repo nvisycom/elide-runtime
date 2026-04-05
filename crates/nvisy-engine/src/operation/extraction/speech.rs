@@ -2,7 +2,7 @@
 //!
 //! Transcribes speech audio into text using automatic speech recognition.
 
-use nvisy_codec::Document;
+use nvisy_codec::ContentHandle;
 use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::workflow::AudialExtraction as AudialExtractionCfg;
@@ -52,10 +52,11 @@ impl AudialExtractionOp {
 
 impl Operation for AudialExtractionOp {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
-        if let Document::Audio(ref handler) = envelope.document {
+        if let ContentHandle::Audio(ref handler) = envelope.document.handle {
             tracing::debug!(target: TARGET, "transcribing audio");
             let audio_data = Handler::encode(handler)?;
             let filename = envelope
+                .document
                 .metadata
                 .filename
                 .as_deref()
@@ -74,7 +75,8 @@ impl Operation for AudialExtractionOp {
                 let trailing = stt_result.text.ends_with('\n');
                 let source = envelope.document.source();
                 let handler = TxtHandler::new(lines, trailing).with_source(source);
-                envelope.document = Document::from(BoxedTextHandler::from(handler));
+                envelope.document.handle =
+                    ContentHandle::from(BoxedTextHandler::from(handler));
                 tracing::debug!(target: TARGET, "replaced audio with transcript");
             }
         }

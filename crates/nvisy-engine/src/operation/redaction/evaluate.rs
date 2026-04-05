@@ -58,7 +58,7 @@ impl Operation for RedactionOp {
             &defaults,
             self.default_threshold,
             &document_labels,
-            &envelope.metadata,
+            &envelope.document.metadata,
         );
         envelope.audit.entries.extend(entries);
         envelope.redaction_map.entries.extend(mappings);

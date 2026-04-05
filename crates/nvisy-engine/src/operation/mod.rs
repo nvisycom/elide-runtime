@@ -1,40 +1,34 @@
 //! Operations: the building blocks of the redaction pipeline.
 //!
-//! Each operation file corresponds to a [`GraphNodeKind`] variant and
-//! implements the [`Operation`] trait, receiving and mutating a
-//! [`DocumentEnvelope`] directly.
+//! Each operation implements the [`Operation`] trait, receiving and
+//! mutating a [`DocumentEnvelope`] directly.
 //!
-//! [`GraphNodeKind`]: nvisy_ontology::workflow::GraphNodeKind
+//! # Submodules
+//!
+//! - [`extraction`]: visual (OCR), audial (STT), and text extraction.
+//! - [`detection`]: NER and pattern-based entity detection.
+//! - [`deduplication`]: entity deduplication and confidence scoring.
+//! - [`redaction`]: policy evaluation and content redaction.
 
-pub(crate) mod compression;
-pub mod encryption;
-mod entity_recognition;
+mod deduplication;
+mod detection;
 pub mod envelope;
 mod export_file;
-mod fusion;
+mod extraction;
 mod generate_context;
 mod import_file;
-mod load_context;
-mod pattern_recognition;
 pub(crate) mod redaction;
-mod save_context;
-mod speech;
 mod validation;
-mod vision;
 
-pub(crate) use self::entity_recognition::EntityRecognitionOp;
+pub(crate) use self::deduplication::DeduplicationOp;
+pub(crate) use self::detection::{EntityRecognitionOp, PatternRecognitionOp};
 pub use self::envelope::DocumentEnvelope;
 pub(crate) use self::export_file::ExportFileOp;
-pub(crate) use self::fusion::FusionOp;
+pub(crate) use self::extraction::ExtractionOp;
 pub(crate) use self::generate_context::GenerateContextOp;
 pub(crate) use self::import_file::ImportFileOp;
-pub(crate) use self::load_context::LoadContextOp;
-pub(crate) use self::pattern_recognition::PatternRecognitionOp;
 pub(crate) use self::redaction::RedactionOp;
-pub(crate) use self::save_context::SaveContextOp;
-pub(crate) use self::speech::AudialExtractionOp;
 pub(crate) use self::validation::ValidationOp;
-pub(crate) use self::vision::VisualExtractionOp;
 
 /// A single unit of work in the redaction pipeline.
 ///

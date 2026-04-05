@@ -38,7 +38,8 @@ timeout = { duration_ms = 30000, on_timeout = "fail" }
 # Run-level resource limits.
 [engine.limits]
 # run_timeout_ms = 60000       # hard ceiling on total run duration
-channel_buffer = 256            # MPSC buffer size between nodes
+# max_nodes = 50               # maximum graph nodes (reserved)
+# max_envelope_size_bytes = 104857600  # 100 MB (reserved)
 
 # Shared HTTP client for all downstream provider calls.
 [engine.http]

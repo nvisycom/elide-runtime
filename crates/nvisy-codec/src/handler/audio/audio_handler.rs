@@ -3,16 +3,13 @@
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
+use nvisy_ontology::entity::AudioLocation;
 
-use super::{AudioData, AudioSpanId, Mp3Handler, WavHandler};
+use super::{AudioData, Mp3Handler, WavHandler};
 use crate::document::SpanStream;
 use crate::handler::{AudioHandler, Handler};
 
 /// A type-erased audio handler backed by a boxed trait object.
-///
-/// Since [`AudioHandler`] uses a concrete [`AudioSpanId`] (no associated
-/// type), the trait is directly object-safe and can be boxed without a
-/// private `Dyn*` indirection layer.
 pub struct BoxedAudioHandler(Box<dyn AudioHandler>);
 
 impl BoxedAudioHandler {
@@ -58,15 +55,19 @@ impl Handler for BoxedAudioHandler {
 
 #[async_trait::async_trait]
 impl AudioHandler for BoxedAudioHandler {
-    async fn audio_spans(&self) -> SpanStream<'_, AudioSpanId, AudioData> {
+    async fn audio_spans(&self) -> SpanStream<'_, AudioLocation, AudioData> {
         self.0.audio_spans().await
     }
 
     async fn edit_audio(
         &mut self,
-        edits: SpanStream<'_, AudioSpanId, AudioData>,
+        edits: SpanStream<'_, AudioLocation, AudioData>,
     ) -> Result<(), Error> {
         self.0.edit_audio(edits).await
+    }
+
+    async fn value_at(&self, location: &AudioLocation) -> Option<AudioData> {
+        self.0.value_at(location).await
     }
 }
 

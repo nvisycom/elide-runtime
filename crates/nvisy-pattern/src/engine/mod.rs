@@ -24,7 +24,7 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use aho_corasick::AhoCorasick;
-use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod, TextLocation};
+use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
 use regex::{Regex, RegexSet};
 
 pub use self::allow_list::AllowList;
@@ -141,8 +141,7 @@ impl PatternEngine {
     /// Scan `text` and return detected entities with [`TextLocation`]s.
     ///
     /// Each entity carries a [`TextLocation`] with `start_offset` and
-    /// `end_offset` set from the match. The caller is responsible for
-    /// attaching `span_index` and parent source from the span context.
+    /// `end_offset` set from the match.
     #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), entities = tracing::field::Empty))]
     pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
         let mut raw = self.scan_raw(text, ctx);
@@ -192,14 +191,7 @@ impl PatternEngine {
                     "matched entity",
                 );
 
-                let location = TextLocation {
-                    start_offset: m.start,
-                    end_offset: m.end,
-                    ..Default::default()
-                };
-                let mut entity = m.into_entity();
-                entity.location = Some(location.into());
-                entity
+                m.into_entity()
             })
             .collect();
 
@@ -329,7 +321,7 @@ static DEFAULT_ENGINE: LazyLock<PatternEngine> = LazyLock::new(|| {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{ModelInfo, ModelKind};
+    use nvisy_ontology::entity::ModelKind;
 
     use super::*;
 
@@ -388,7 +380,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                method: RecognitionMethod::ner("test", ModelKind::SelfHosted),
             },
         );
         let engine = PatternEngine::builder()
@@ -406,10 +398,7 @@ mod tests {
         assert_eq!(deny_match.entity_kind, EntityKind::PersonName);
         assert_eq!(
             deny_match.recognition_methods,
-            vec![RecognitionMethod::ner(ModelInfo::new(
-                "test",
-                ModelKind::SelfHosted
-            ))]
+            vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)]
         );
     }
 
@@ -452,7 +441,7 @@ mod tests {
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
                 entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+                method: RecognitionMethod::ner("test", ModelKind::SelfHosted),
             },
         );
         deny.insert(
@@ -503,13 +492,13 @@ mod tests {
             context: None,
         };
         let entity = raw.into_entity();
-        assert_eq!(entity.value, "123-45-6789");
+        assert_eq!(entity.text_value(), Some("123-45-6789"));
         assert_eq!(entity.entity_kind, EntityKind::GovernmentId);
         assert_eq!(
             entity.recognition_methods,
             vec![RecognitionMethod::regex_validated("ssn", "ssn")]
         );
         assert!((entity.confidence - 0.9).abs() < f64::EPSILON);
-        assert!(entity.location.is_none());
+        assert!(entity.location.as_text().is_some());
     }
 }

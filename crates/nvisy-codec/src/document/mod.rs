@@ -10,16 +10,16 @@ use nvisy_core::content::{Content, ContentData, ContentSource};
 use nvisy_core::media::{
     AudioFormat, DocumentType, ImageFormat, SpreadsheetFormat, TextFormat, WordFormat,
 };
+use nvisy_ontology::entity::{AudioLocation, ImageLocation, Location, TextLocation};
 
 pub use self::span::Span;
 pub use self::stream::SpanStream;
 use crate::handler::{
-    AudioData, AudioHandler, AudioSpanId, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
-    BoxedTextHandler, CsvLoader, CsvParams, Handler, HtmlLoader, HtmlParams, ImageData,
-    ImageHandler, ImageSpanId, JpegLoader, JpegParams, JsonLoader, JsonParams, Loader,
-    MarkdownLoader, MarkdownParams, Mp3Loader, Mp3Params, PngLoader, PngParams, TextData,
-    TextHandler, TextSpanId, TiffLoader, TiffParams, TxtLoader, TxtParams, WavLoader, WavParams,
-    XlsxLoader, XlsxParams,
+    AudioData, AudioHandler, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
+    BoxedTextHandler, CsvLoader, CsvParams, Handler, ImageData, ImageHandler, JpegLoader,
+    JpegParams, JsonLoader, JsonParams, Loader, MarkdownLoader, MarkdownParams, Mp3Loader,
+    Mp3Params, PngLoader, PngParams, TextData, TextHandler, TiffLoader, TiffParams, TxtLoader,
+    TxtParams, WavLoader, WavParams, XlsxLoader, XlsxParams,
 };
 use crate::transform::{AudioRedaction, ImageRedaction, TextRedaction};
 
@@ -30,10 +30,6 @@ use crate::transform::{AudioRedaction, ImageRedaction, TextRedaction};
 /// - **Image**: PNG, JPEG
 /// - **Audio**: WAV, MP3
 /// - **Rich**: PDF, DOCX (multi-modal documents with text + images)
-///
-/// Use [`From`] conversions to wrap concrete handlers or boxed wrappers.
-/// Use [`IsVariant`]-generated `is_*` methods or [`TryInto`] to
-/// extract the inner handler.
 #[derive(From, IsVariant, TryInto)]
 pub enum Document {
     Text(BoxedTextHandler),
@@ -82,9 +78,7 @@ impl Document {
     }
 
     /// Stream text spans from text or rich documents.
-    ///
-    /// Returns an empty stream for image and audio documents.
-    pub async fn text_spans(&self) -> SpanStream<'_, TextSpanId, TextData> {
+    pub async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
         match self {
             Self::Text(h) => h.text_spans().await,
             Self::Rich(h) => h.text_spans().await,
@@ -93,9 +87,7 @@ impl Document {
     }
 
     /// Stream image spans from image or rich documents.
-    ///
-    /// Returns an empty stream for text and audio documents.
-    pub async fn image_spans(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
+    pub async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData> {
         match self {
             Self::Image(h) => h.image_spans().await,
             Self::Rich(h) => h.image_spans().await,
@@ -104,9 +96,7 @@ impl Document {
     }
 
     /// Stream audio spans from audio documents.
-    ///
-    /// Returns an empty stream for text, image, and rich documents.
-    pub async fn audio_spans(&self) -> SpanStream<'_, AudioSpanId, AudioData> {
+    pub async fn audio_spans(&self) -> SpanStream<'_, AudioLocation, AudioData> {
         match self {
             Self::Audio(h) => h.audio_spans().await,
             _ => SpanStream::new(futures::stream::empty()),
@@ -114,30 +104,35 @@ impl Document {
     }
 
     /// Collect all text spans into a `Vec`.
-    pub async fn collect_text_spans(&self) -> Vec<Span<TextSpanId, TextData>> {
+    pub async fn collect_text_spans(&self) -> Vec<Span<TextLocation, TextData>> {
         self.text_spans().await.collect().await
     }
 
     /// Collect all image spans into a `Vec`.
-    pub async fn collect_image_spans(&self) -> Vec<Span<ImageSpanId, ImageData>> {
+    pub async fn collect_image_spans(&self) -> Vec<Span<ImageLocation, ImageData>> {
         self.image_spans().await.collect().await
     }
 
     /// Collect all audio spans into a `Vec`.
-    pub async fn collect_audio_spans(&self) -> Vec<Span<AudioSpanId, AudioData>> {
+    pub async fn collect_audio_spans(&self) -> Vec<Span<AudioLocation, AudioData>> {
         self.audio_spans().await.collect().await
     }
 
+    /// Extract the value at the given location, dispatching by modality.
+    ///
+    /// Returns the text/data at the location if available.
+    pub async fn value_at(&self, location: &Location) -> Option<String> {
+        match (self, location) {
+            (Self::Text(h), Location::Text(loc)) => h.value_at(loc).await,
+            (Self::Rich(h), Location::Text(loc)) => TextHandler::value_at(h, loc).await,
+            _ => None,
+        }
+    }
+
     /// Apply a batch of text redactions to the document.
-    ///
-    /// Delegates to [`TextTransform::redact_text`] on the underlying
-    /// text or rich handler. Returns `Ok(())` for image and audio
-    /// documents (no text to redact).
-    ///
-    /// [`TextTransform::redact_text`]: crate::transform::TextTransform::redact_text
     pub async fn apply_text_redactions(
         &mut self,
-        redactions: &[TextRedaction<TextSpanId>],
+        redactions: &[TextRedaction<TextLocation>],
     ) -> Result<(), Error> {
         use crate::transform::TextTransform;
         match self {
@@ -148,15 +143,9 @@ impl Document {
     }
 
     /// Apply a batch of image redactions to the document.
-    ///
-    /// Delegates to [`ImageTransform::redact_images`] on the underlying
-    /// image or rich handler. Returns `Ok(())` for text and audio
-    /// documents (no images to redact).
-    ///
-    /// [`ImageTransform::redact_images`]: crate::transform::ImageTransform::redact_images
     pub async fn apply_image_redactions(
         &mut self,
-        redactions: &[ImageRedaction<ImageSpanId>],
+        redactions: &[ImageRedaction<ImageLocation>],
     ) -> Result<(), Error> {
         use crate::transform::ImageTransform;
         match self {
@@ -167,15 +156,9 @@ impl Document {
     }
 
     /// Apply a batch of audio redactions to the document.
-    ///
-    /// Delegates to [`AudioTransform::redact_audio`] on the underlying
-    /// audio handler. Returns `Ok(())` for text, image, and rich
-    /// documents (no audio to redact).
-    ///
-    /// [`AudioTransform::redact_audio`]: crate::transform::AudioTransform::redact_audio
     pub async fn apply_audio_redactions(
         &mut self,
-        redactions: &[AudioRedaction<AudioSpanId>],
+        redactions: &[AudioRedaction<AudioLocation>],
     ) -> Result<(), Error> {
         use crate::transform::AudioTransform;
         match self {
@@ -185,17 +168,6 @@ impl Document {
     }
 
     /// Decode [`Content`] into a `Document` using default parameters.
-    ///
-    /// Format detection uses [`Content::infer_document_type`], which
-    /// evaluates metadata (supplied MIME, detected MIME, filename
-    /// extension) with fallback to magic-byte detection on the raw bytes.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The content type cannot be determined.
-    /// - The detected format has no corresponding loader.
-    /// - The loader itself fails to decode the content.
     pub async fn decode(content: &Content) -> Result<Self, Error> {
         let doc_type = content.infer_document_type().ok_or_else(|| {
             Error::validation(
@@ -232,14 +204,19 @@ impl Document {
                 .decode(content, &MarkdownParams::default())
                 .await?
                 .into(),
-            DocumentType::Html => HtmlLoader
-                .decode(content, &HtmlParams::default())
-                .await?
-                .into(),
+            #[cfg(feature = "html")]
+            DocumentType::Html => {
+                use crate::handler::{HtmlLoader, HtmlParams};
+                HtmlLoader
+                    .decode(content, &HtmlParams::default())
+                    .await?
+                    .into()
+            }
             DocumentType::Spreadsheet(SpreadsheetFormat::Csv) => CsvLoader
                 .decode(content, &CsvParams::default())
                 .await?
                 .into(),
+            #[cfg(feature = "xlsx")]
             DocumentType::Spreadsheet(SpreadsheetFormat::Xlsx) => {
                 XlsxLoader.decode(content, &XlsxParams).await?.into()
             }

@@ -27,7 +27,7 @@ use nvisy_codec::Document;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::{Annotations, Entity};
-use nvisy_ontology::provenance::Audit;
+use nvisy_ontology::provenance::{Audit, RedactionMap};
 
 mod shared;
 
@@ -64,6 +64,11 @@ pub struct DocumentEnvelope {
     /// redaction records.
     pub audit: Audit,
 
+    /// Mapping of entity IDs to original and replacement values.
+    /// Populated during redaction (phase 4). Not included in the
+    /// public audit response, stored separately under access control.
+    pub redaction_map: RedactionMap,
+
     /// Run-wide shared state (policies, registry, key provider, etc.).
     ///
     /// Cheaply cloneable (`Arc`): all envelopes in a run share the
@@ -81,6 +86,7 @@ impl DocumentEnvelope {
             annotations: Annotations::new(),
             contexts: Contexts::new(),
             audit,
+            redaction_map: RedactionMap::new(),
             shared,
         }
     }

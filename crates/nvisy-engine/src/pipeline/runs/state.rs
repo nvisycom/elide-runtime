@@ -26,8 +26,6 @@ use super::{
     RunStatus,
 };
 
-const TARGET: &str = "nvisy_engine::pipeline::runs";
-
 /// In-memory run state backed by `Arc<RwLock<HashMap>>`.
 ///
 /// Cheaply clonable (Arc bump). All clones share the same underlying
@@ -61,6 +59,8 @@ pub(crate) struct RunRecord {
     pub entities_detected: u64,
     /// Running total of redactions applied across all nodes.
     pub redactions_applied: u64,
+    /// Error message for failed runs.
+    pub error: Option<String>,
 }
 
 impl RunRecord {
@@ -76,14 +76,18 @@ impl RunRecord {
             RunStatus::Succeeded => RunOutcome::Succeeded {
                 completed_at: self.completed_at.unwrap_or_else(Timestamp::now),
                 audits: vec![],
+                entities_detected: self.entities_detected,
+                redactions_applied: self.redactions_applied,
             },
             RunStatus::PartialFailure => RunOutcome::PartialFailure {
                 completed_at: self.completed_at.unwrap_or_else(Timestamp::now),
                 audits: vec![],
+                entities_detected: self.entities_detected,
+                redactions_applied: self.redactions_applied,
             },
             RunStatus::Failed => RunOutcome::Failed {
                 completed_at: self.completed_at.unwrap_or_else(Timestamp::now),
-                error: None,
+                error: self.error.clone(),
             },
             RunStatus::Cancelled => RunOutcome::Cancelled {
                 completed_at: self.completed_at.unwrap_or_else(Timestamp::now),
@@ -95,7 +99,11 @@ impl RunRecord {
             actor_id: self.actor_id,
             created_at: self.created_at,
             started_at: self.started_at,
-            nodes: self.nodes.values().cloned().collect(),
+            nodes: {
+                let mut nodes: Vec<_> = self.nodes.values().cloned().collect();
+                nodes.sort_by_key(|n| n.node_id);
+                nodes
+            },
             outcome,
         }
     }
@@ -110,6 +118,8 @@ impl RunRecord {
             started_at: self.started_at,
             completed_at: self.completed_at,
             node_count: self.nodes.len(),
+            entities_detected: self.entities_detected,
+            redactions_applied: self.redactions_applied,
         }
     }
 }
@@ -125,32 +135,6 @@ impl RunState {
     /// Insert a new run entry, keyed by its unique run ID.
     pub async fn insert(&self, run_id: Uuid, entry: RunRecord) {
         self.inner.write().await.insert(run_id, entry);
-    }
-
-    /// Update a single node's snapshot within a run.
-    ///
-    /// Returns `true` if the node was found and updated, `false` otherwise.
-    pub async fn update_node(
-        &self,
-        run_id: Uuid,
-        node_id: Uuid,
-        status: NodeStatus,
-        items_processed: u64,
-        error: Option<String>,
-    ) -> bool {
-        let mut guard = self.inner.write().await;
-        let Some(entry) = guard.get_mut(&run_id) else {
-            tracing::warn!(target: TARGET, %run_id, %node_id, "update_node: run not found");
-            return false;
-        };
-        let Some(node) = entry.nodes.get_mut(&node_id) else {
-            tracing::warn!(target: TARGET, %run_id, %node_id, "update_node: node not found in run");
-            return false;
-        };
-        node.status = status;
-        node.items_processed = items_processed;
-        node.error = error;
-        true
     }
 
     /// Record the moment a run begins executing.
@@ -202,7 +186,13 @@ impl RunState {
     }
 
     /// Shorthand to mark a run as [`RunStatus::Failed`] with zero counters.
-    pub async fn fail(&self, run_id: Uuid) {
+    pub async fn fail(&self, run_id: Uuid, error: impl Into<String>) {
+        let error = error.into();
+        let mut guard = self.inner.write().await;
+        if let Some(entry) = guard.get_mut(&run_id) {
+            entry.error = Some(error);
+        }
+        drop(guard);
         self.finalize(run_id, RunStatus::Failed, 0, 0).await;
     }
 
@@ -283,15 +273,21 @@ impl RunState {
     /// Remove all finished runs belonging to the given actor.
     ///
     /// Active runs (pending or running) are preserved. Returns the
-    /// number of removed entries.
-    pub async fn delete_all_runs(&self, actor_id: Uuid) -> usize {
+    /// IDs of removed entries.
+    pub async fn delete_all_runs(&self, actor_id: Uuid) -> Vec<Uuid> {
         let mut guard = self.inner.write().await;
-        let before = guard.len();
-        guard.retain(|_, entry| {
-            entry.actor_id != actor_id
-                || matches!(entry.status, RunStatus::Pending | RunStatus::Running)
-        });
-        before - guard.len()
+        let to_remove: Vec<Uuid> = guard
+            .iter()
+            .filter(|(_, entry)| {
+                entry.actor_id == actor_id
+                    && !matches!(entry.status, RunStatus::Pending | RunStatus::Running)
+            })
+            .map(|(&id, _)| id)
+            .collect();
+        for id in &to_remove {
+            guard.remove(id);
+        }
+        to_remove
     }
 
     /// Compute a point-in-time [`AnalyticsSnapshot`] from all tracked runs.

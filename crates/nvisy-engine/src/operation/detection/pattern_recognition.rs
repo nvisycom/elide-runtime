@@ -7,10 +7,10 @@
 //! [`EntityRecognitionOp`]: crate::operation::EntityRecognitionOp
 
 use nvisy_codec::Span;
-use nvisy_codec::handler::{TextData, TextSpanId};
+use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::workflow::PatternRecognition;
+use nvisy_ontology::workflow::PatternDetection;
 
 use crate::operation::{DocumentEnvelope, Operation};
 
@@ -44,7 +44,7 @@ impl PatternRecognitionOp {
     ///
     /// When the config specifies pattern names or a confidence threshold,
     /// a custom engine is built. Otherwise the default singleton is used.
-    pub fn new(cfg: &PatternRecognition) -> Self {
+    pub fn new(cfg: &PatternDetection) -> Self {
         let needs_custom = !cfg.patterns.is_empty() || cfg.confidence_threshold.is_some();
 
         let engine = if needs_custom {
@@ -71,7 +71,7 @@ impl PatternRecognitionOp {
         Self { engine }
     }
 
-    fn scan(&self, spans: &[Span<TextSpanId, TextData>]) -> Vec<Entity> {
+    fn scan(&self, spans: &[Span<nvisy_ontology::entity::TextLocation, TextData>]) -> Vec<Entity> {
         let scan_ctx = nvisy_pattern::ScanContext::default();
         let mut entities = Vec::new();
 
@@ -79,8 +79,10 @@ impl PatternRecognitionOp {
             let detected = self.engine.scan_entities(span.data.as_str(), &scan_ctx);
 
             for mut entity in detected {
-                if let Some(nvisy_ontology::entity::Location::Text(ref mut loc)) = entity.location {
-                    loc.span_index = Some(span.id.0);
+                // Adjust offsets to be document-relative.
+                if let nvisy_ontology::entity::Location::Text(ref mut loc) = entity.location {
+                    loc.start_offset += span.id.start_offset;
+                    loc.end_offset += span.id.start_offset;
                 }
 
                 entities.push(entity);

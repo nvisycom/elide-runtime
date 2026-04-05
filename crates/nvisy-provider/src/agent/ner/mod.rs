@@ -10,7 +10,7 @@ mod prompt;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::{
-    Entity, EntityCategory, ModelInfo, ModelKind, RecognitionMethod, TextLocation,
+    Entity, EntityCategory, Location, ModelKind, ModelProvenance, RecognitionMethod, TextLocation,
 };
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -125,8 +125,8 @@ impl NerAgent {
     /// values across successive calls. Call [`reset`](Self::reset) to
     /// clear the state between documents.
     ///
-    /// The caller is responsible for attaching span-level metadata
-    /// (`span_index`, parent source) after this call.
+    /// The caller is responsible for adjusting byte offsets to be
+    /// document-relative after this call.
     #[tracing::instrument(
         target = "nvisy_provider::agent::ner",
         skip_all,
@@ -141,7 +141,7 @@ impl NerAgent {
         let ctx = NerContext::with_known(text, known);
 
         let ner_entities = self.detect(&ctx, config).await?;
-        let model_info = ModelInfo::new(self.model_name(), ModelKind::Gateway);
+        let model = ModelProvenance::new(self.model_name(), ModelKind::Gateway);
         let mut entities = Vec::new();
 
         for ne in &ner_entities {
@@ -158,23 +158,24 @@ impl NerAgent {
                 continue;
             }
 
-            let loc = if let Some(offsets) = ne.resolve_offsets(&ctx) {
-                TextLocation {
-                    start_offset: offsets.start,
-                    end_offset: offsets.end,
-                    ..Default::default()
-                }
+            let mut loc_builder = TextLocation::builder().with_value(ne.value.clone());
+            if let Some(offsets) = ne.resolve_offsets(&ctx) {
+                loc_builder = loc_builder
+                    .with_start_offset(offsets.start)
+                    .with_end_offset(offsets.end);
             } else {
-                TextLocation::default()
-            };
+                loc_builder = loc_builder
+                    .with_start_offset(0usize)
+                    .with_end_offset(0usize);
+            }
+            let loc = loc_builder.build().expect("required fields provided");
 
             let entity = Entity::builder()
                 .with_category(category)
                 .with_entity_kind(entity_kind)
-                .with_value(&ne.value)
-                .with_recognition_methods(vec![RecognitionMethod::ner(model_info.clone())])
+                .with_recognition_methods(vec![RecognitionMethod::Ner(model.clone())])
                 .with_confidence(confidence)
-                .with_location(loc.into())
+                .with_location(Location::from(loc))
                 .build()
                 .expect("required fields provided");
             entities.push(entity);

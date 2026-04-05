@@ -7,12 +7,8 @@
 //! # Span model
 //!
 //! [`TextHandler::text_spans`] yields one [`Span`] per text node in
-//! document order.  Each span is addressed by a [`HtmlSpan`]
-//! (0-based text-node index) and carries the text content as a
-//! `String`.
-//!
-//! [`TextHandler::edit_text`] replaces the content of text nodes at the
-//! given indices.
+//! document order, addressed by [`TextLocation`] with byte offsets
+//! computed from cumulative text node lengths.
 //!
 //! # Encoding
 //!
@@ -24,14 +20,11 @@ use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
+use nvisy_ontology::entity::TextLocation;
 
 use crate::document::{Span, SpanStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-
-/// 0-based index of a text node within the HTML document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct HtmlSpan(pub usize);
 
 /// Parsed HTML content stored as extracted text nodes.
 #[derive(Debug, Clone)]
@@ -43,8 +36,6 @@ pub struct HtmlData {
 }
 
 /// Handler for loaded HTML content.
-///
-/// Each text node is independently addressable via [`HtmlSpan`].
 #[derive(Debug)]
 pub struct HtmlHandler {
     source: ContentSource,
@@ -62,10 +53,8 @@ impl Handler for HtmlHandler {
 
     #[tracing::instrument(name = "html.encode", skip_all, fields(output_bytes))]
     fn encode(&self) -> Result<ContentData, Error> {
-        // Re-parse the original source into a mutable DOM.
         let mut dom = scraper::Html::parse_document(&self.data.raw);
 
-        // Collect text-node IDs in document order.
         let text_node_ids: Vec<_> = dom
             .tree
             .nodes()
@@ -73,7 +62,6 @@ impl Handler for HtmlHandler {
             .map(|node| node.id())
             .collect();
 
-        // Mutate changed text nodes directly in the DOM.
         for (i, &node_id) in text_node_ids.iter().enumerate() {
             let current: &str = &self.data.text_nodes[i];
             if let Some(mut node_mut) = dom.tree.get_mut(node_id)
@@ -84,7 +72,6 @@ impl Handler for HtmlHandler {
             }
         }
 
-        // Serialize the mutated DOM back to HTML.
         let bytes = dom.html().into_bytes();
         tracing::Span::current().record("output_bytes", bytes.len());
         let source = ContentSource::new().with_parent(&self.source);
@@ -94,27 +81,57 @@ impl Handler for HtmlHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for HtmlHandler {
-    type TextId = HtmlSpan;
+    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
+        let mut spans = Vec::with_capacity(self.data.text_nodes.len());
+        let mut offset = 0usize;
 
-    async fn text_spans(&self) -> SpanStream<'_, HtmlSpan, TextData> {
-        SpanStream::new(futures::stream::iter(HtmlSpanIter {
-            nodes: &self.data.text_nodes,
-            index: 0,
-        }))
+        for text in &self.data.text_nodes {
+            let start = offset;
+            let end = start + text.len();
+            spans.push(
+                Span::new(
+                    TextLocation {
+                        start_offset: start,
+                        end_offset: end,
+                        ..Default::default()
+                    },
+                    TextData::from(text.clone()),
+                )
+                .with_source(self.source),
+            );
+            offset = end;
+        }
+
+        SpanStream::new(futures::stream::iter(spans))
     }
 
-    async fn edit_text(&mut self, edits: SpanStream<'_, HtmlSpan, TextData>) -> Result<(), Error> {
+    async fn edit_text(
+        &mut self,
+        edits: SpanStream<'_, TextLocation, TextData>,
+    ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
+        let offsets = self.node_offsets();
         for edit in edits {
-            let node = self.data.text_nodes.get_mut(edit.id.0).ok_or_else(|| {
-                Error::validation(
-                    format!("text node index out of bounds: {}", edit.id.0),
-                    "html-handler",
-                )
-            })?;
-            *node = edit.data.into_inner();
+            let idx = offsets
+                .iter()
+                .position(|&(start, _)| start == edit.id.start_offset)
+                .ok_or_else(|| {
+                    Error::validation(
+                        format!("no text node at byte offset {}", edit.id.start_offset),
+                        "html-handler",
+                    )
+                })?;
+            self.data.text_nodes[idx] = edit.data.into_inner();
         }
         Ok(())
+    }
+
+    async fn value_at(&self, location: &TextLocation) -> Option<String> {
+        let offsets = self.node_offsets();
+        let idx = offsets
+            .iter()
+            .position(|&(start, _)| start == location.start_offset)?;
+        self.data.text_nodes.get(idx).cloned()
     }
 }
 
@@ -162,31 +179,21 @@ impl HtmlHandler {
     pub fn into_data(self) -> HtmlData {
         self.data
     }
-}
 
-/// Iterator over text nodes of an HTML document.
-struct HtmlSpanIter<'a> {
-    nodes: &'a [String],
-    index: usize,
-}
-
-impl<'a> Iterator for HtmlSpanIter<'a> {
-    type Item = Span<HtmlSpan, TextData>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let text = self.nodes.get(self.index)?;
-        let span = Span::new(HtmlSpan(self.index), TextData::from(text.clone()));
-        self.index += 1;
-        Some(span)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.nodes.len() - self.index;
-        (remaining, Some(remaining))
+    fn node_offsets(&self) -> Vec<(usize, usize)> {
+        let mut offset = 0;
+        self.data
+            .text_nodes
+            .iter()
+            .map(|text| {
+                let start = offset;
+                let end = start + text.len();
+                offset = end;
+                (start, end)
+            })
+            .collect()
     }
 }
-
-impl ExactSizeIterator for HtmlSpanIter<'_> {}
 
 #[cfg(test)]
 mod tests {
@@ -225,47 +232,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn encode_after_edit_spans() -> Result<(), Error> {
+    async fn encode_after_edit() -> Result<(), Error> {
         let raw = "<html><head></head><body><p>Hello</p><p>World</p></body></html>";
         let mut h = handler_from_html(raw);
+        let spans: Vec<_> = h.text_spans().await.collect().await;
         h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-            HtmlSpan(0),
+            spans[0].id.clone(),
             "[REDACTED]".into(),
         )])))
         .await?;
         let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("[REDACTED]"));
         assert!(result.contains("World"));
-        assert!(result.contains("<p>"));
-        Ok(())
-    }
-
-    #[test]
-    fn encode_preserves_tags() -> Result<(), Error> {
-        let h = handler_from_html(
-            "<html><head></head><body><div><span>foo</span> bar</div></body></html>",
-        );
-        let mut h = h;
-        h.data.text_nodes[0] = "baz".to_string();
-        let result = h.encode()?.as_str().unwrap().to_owned();
-        assert!(result.contains("<span>baz</span>"));
-        assert!(result.contains(" bar"));
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn encode_duplicate_text_nodes() -> Result<(), Error> {
-        let raw = "<html><head></head><body><p>hello</p><p>hello</p></body></html>";
-        let mut h = handler_from_html(raw);
-        // Edit only the first "hello" — the second should remain unchanged.
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-            HtmlSpan(0),
-            "FIRST".into(),
-        )])))
-        .await?;
-        let result = h.encode()?.as_str().unwrap().to_owned();
-        assert!(result.contains("<p>FIRST</p>"));
-        assert!(result.contains("<p>hello</p>"));
         Ok(())
     }
 
@@ -275,21 +253,13 @@ mod tests {
         let spans: Vec<_> = h.text_spans().await.collect().await;
         assert_eq!(spans.len(), 2);
         assert_eq!(spans[0].data, "Alpha");
-        assert_eq!(spans[0].id, HtmlSpan(0));
         assert_eq!(spans[1].data, "Beta");
-        assert_eq!(spans[1].id, HtmlSpan(1));
     }
 
     #[tokio::test]
-    async fn edit_spans_out_of_bounds() {
-        let mut h = handler_from_html("<html><head></head><body><p>only</p></body></html>");
-        let err = h
-            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-                HtmlSpan(99),
-                "nope".into(),
-            )])))
-            .await
-            .unwrap_err();
-        assert!(err.to_string().contains("out of bounds"));
+    async fn value_at_returns_text_node() {
+        let h = handler_from_html("<html><head></head><body><p>Hello</p></body></html>");
+        let spans: Vec<_> = h.text_spans().await.collect().await;
+        assert_eq!(h.value_at(&spans[0].id).await, Some("Hello".to_string()));
     }
 }

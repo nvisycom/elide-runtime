@@ -1,257 +1,305 @@
-//! DAG orchestrator: concurrent task scheduling for compiled execution plans.
+//! Pipeline orchestrator: concurrent document processing through a
+//! typed execution plan.
 //!
-//! [`Orchestrator`] takes a compiled [`ExecutionPlan`] and spawns one
-//! tokio task per node. Each task:
+//! The [`Orchestrator`] drives the pipeline at the top level: it
+//! imports documents, fans them out to concurrent [`DocumentPipeline`]
+//! tasks (one per document), and collects the results.
 //!
-//! 1. Waits for upstream dependencies via `watch::Receiver` channels.
-//! 2. Acquires a permit from the optional concurrency semaphore.
-//! 3. Delegates to [`NodeExecutor::execute`] for operation dispatch.
-//! 4. Reports node status updates to the shared [`RunState`].
-//!
-//! [`CompletionGuard`] ensures the watch-channel signal fires even if
-//! the task panics, preventing downstream deadlocks.
+//! [`DocumentPipeline`] processes a single document through all plan
+//! phases sequentially: extraction → detection → deduplication → redaction →
+//! validation.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::workflow::ConcurrencyPolicy;
+use nvisy_ontology::workflow::{ConcurrencyPolicy, Detection, Extraction};
 use nvisy_provider::http::HttpClient;
-use tokio::sync::{Semaphore, mpsc, watch};
+use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 
 use super::config::RuntimeConfig;
-use super::executor::{NodeExecutor, NodeOutput, RunOutput};
-use super::plan::ExecutionPlan;
-use super::runs::NodeStatus;
-use super::runs::state::RunState;
-use crate::graph::ConcurrencyExt;
-use crate::operation::DocumentEnvelope;
+use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
+use crate::graph::TimeoutExt;
 use crate::operation::envelope::SharedData;
+use crate::operation::{
+    DeduplicationOp, DocumentEnvelope, EntityRecognitionOp, ExportFileOp, ExtractionOp,
+    GenerateContextOp, ImportFileOp, Operation, PatternRecognitionOp, RedactionOp, ValidationOp,
+};
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
-type ChannelMap<T> = HashMap<Uuid, Vec<T>>;
-
-/// RAII guard that signals completion on drop, preventing deadlocks.
-struct CompletionGuard {
-    tx: Option<watch::Sender<bool>>,
-}
-
-impl CompletionGuard {
-    fn new(tx: Option<watch::Sender<bool>>) -> Self {
-        Self { tx }
-    }
-}
-
-impl Drop for CompletionGuard {
-    fn drop(&mut self) {
-        if let Some(tx) = self.tx.take() {
-            let _ = tx.send(true);
-        }
-    }
-}
-
-/// Per-run execution context shared across all node tasks.
+/// Per-run execution context shared across all document tasks.
 pub(super) struct RunContext {
-    /// Token to signal cancellation to all node tasks.
+    /// Token to signal cancellation to all tasks.
     pub cancel: CancellationToken,
-    /// Shared run-wide state: run ID, actor, registry, policies, key provider.
+    /// Shared run-wide state: run ID, actor, registry, policies.
     pub shared: Arc<SharedData>,
     /// Effective configuration after merging per-request overrides.
     pub config: Arc<RuntimeConfig>,
     /// Shared HTTP client for downstream API calls.
     pub http_client: HttpClient,
-    /// Optional limit on how many nodes may execute concurrently.
+    /// Optional limit on how many documents may process concurrently.
     pub concurrency: Option<ConcurrencyPolicy>,
-    /// When `true`, skip validation and export phases.
+    /// When `true`, skip redaction, validation, and export phases.
     pub dry_run: bool,
 }
 
-/// DAG orchestrator: spawns concurrent node tasks and collects results.
+/// Result of processing a single document through the pipeline.
+#[derive(Debug)]
+pub(super) struct DocumentResult {
+    /// The processed envelope, if the document completed successfully.
+    pub envelope: Option<DocumentEnvelope>,
+    /// Error message if the document failed, `None` on success.
+    pub error: Option<String>,
+}
+
+/// Aggregate outcome of executing the full pipeline.
+#[derive(Debug)]
+pub(super) struct RunOutput {
+    /// Results from all processed documents.
+    pub results: Vec<DocumentResult>,
+}
+
+/// Top-level pipeline orchestrator.
+///
+/// Imports documents, fans them out to concurrent [`DocumentPipeline`]
+/// tasks, exports results, and collects outcomes.
 pub(super) struct Orchestrator {
     ctx: Arc<RunContext>,
-    run_id: Uuid,
-    runs: RunState,
     semaphore: Option<Arc<Semaphore>>,
 }
 
 impl Orchestrator {
     /// Create an orchestrator for the given run.
-    pub fn new(run_id: Uuid, runs: RunState, ctx: RunContext) -> Self {
-        let semaphore = ctx.concurrency.map(|c| c.to_semaphore());
+    pub fn new(ctx: RunContext) -> Self {
+        let semaphore = ctx
+            .concurrency
+            .map(|c| Arc::new(Semaphore::new(c.max_nodes)));
         Self {
             ctx: Arc::new(ctx),
-            run_id,
-            runs,
             semaphore,
         }
     }
 
-    /// Execute the compiled plan, returning results from all nodes.
-    pub async fn run(self, plan: &ExecutionPlan) -> Result<RunOutput, Error> {
-        let (senders, receivers) = self.build_channels(plan);
-        let (signal_senders, signal_receivers) = self.build_signals(plan);
-        let join_set = self.spawn_tasks(plan, senders, receivers, signal_senders, signal_receivers);
-        self.collect_results(join_set).await
-    }
+    /// Execute the compiled plan.
+    pub async fn run(&self, plan: &ExecutionPlan) -> Result<RunOutput, Error> {
+        let envelopes = self.run_imports(&plan.imports).await?;
 
-    /// Build MPSC data channels from plan edges.
-    fn build_channels(
-        &self,
-        plan: &ExecutionPlan,
-    ) -> (
-        ChannelMap<mpsc::Sender<DocumentEnvelope>>,
-        ChannelMap<mpsc::Receiver<DocumentEnvelope>>,
-    ) {
-        let mut senders: ChannelMap<mpsc::Sender<DocumentEnvelope>> = HashMap::new();
-        let mut receivers: ChannelMap<mpsc::Receiver<DocumentEnvelope>> = HashMap::new();
-        for edge in plan.edges() {
-            let (tx, rx) = mpsc::channel(edge.config.channel_buffer);
-            senders.entry(edge.source).or_default().push(tx);
-            receivers.entry(edge.target).or_default().push(rx);
-        }
-        (senders, receivers)
-    }
-
-    /// Build watch-channel dependency signals for each node.
-    fn build_signals(
-        &self,
-        plan: &ExecutionPlan,
-    ) -> (
-        HashMap<Uuid, watch::Sender<bool>>,
-        HashMap<Uuid, watch::Receiver<bool>>,
-    ) {
-        let mut senders = HashMap::new();
-        let mut receivers = HashMap::new();
-        for resolved in plan.nodes() {
-            let (tx, rx) = watch::channel(false);
-            senders.insert(resolved.node.id, tx);
-            receivers.insert(resolved.node.id, rx);
-        }
-        (senders, receivers)
-    }
-
-    /// Spawn one task per node into a JoinSet.
-    fn spawn_tasks(
-        &self,
-        plan: &ExecutionPlan,
-        mut senders: ChannelMap<mpsc::Sender<DocumentEnvelope>>,
-        mut receivers: ChannelMap<mpsc::Receiver<DocumentEnvelope>>,
-        mut signal_senders: HashMap<Uuid, watch::Sender<bool>>,
-        signal_receivers: HashMap<Uuid, watch::Receiver<bool>>,
-    ) -> JoinSet<NodeOutput> {
         let mut join_set = JoinSet::new();
-
-        for resolved in plan.nodes() {
-            let resolved = resolved.clone();
-            let node_id = resolved.node.id;
-            let runs = self.runs.clone();
-            let run_id = self.run_id;
-            let cancel = self.ctx.cancel.clone();
-            let executor = NodeExecutor::new(Arc::clone(&self.ctx));
+        for envelope in envelopes {
+            let ctx = Arc::clone(&self.ctx);
             let sem = self.semaphore.clone();
-
-            let upstream_watches: Vec<_> = resolved
-                .upstream_ids
-                .iter()
-                .filter_map(|id| signal_receivers.get(id).cloned())
-                .collect();
-            let completion_tx = signal_senders.remove(&node_id);
-            let node_senders = senders.remove(&node_id).unwrap_or_default();
-            let node_receivers = receivers.remove(&node_id).unwrap_or_default();
+            let plan = plan.clone();
 
             join_set.spawn(async move {
-                let _guard = CompletionGuard::new(completion_tx);
-
-                for mut rx in upstream_watches {
-                    let _ = rx.wait_for(|&done| done).await;
-                }
-                tracing::trace!(target: TARGET, %node_id, "upstream dependencies satisfied");
-
                 let _permit = match sem {
                     Some(ref s) => Some(s.acquire().await.expect("semaphore closed")),
                     None => None,
                 };
 
-                tracing::debug!(target: TARGET, %node_id, "node starting");
-                runs.update_node(run_id, node_id, NodeStatus::Running, 0, None)
-                    .await;
-
-                let result = executor
-                    .execute(&resolved, node_senders, node_receivers)
-                    .await;
-
-                let output = match result {
-                    Ok(output) => output,
-                    Err(e) => NodeOutput {
-                        items_processed: 0,
-                        error: Some(e.to_string()),
-                        envelopes: Vec::new(),
+                let pipeline = DocumentPipeline { ctx: ctx.clone() };
+                match pipeline.run(envelope, &plan).await {
+                    Ok(envelope) => DocumentResult {
+                        envelope: Some(envelope),
+                        error: None,
                     },
-                };
-
-                let status = if output.error.is_none() {
-                    NodeStatus::Succeeded
-                } else {
-                    cancel.cancel();
-                    NodeStatus::Failed
-                };
-
-                tracing::debug!(
-                    target: TARGET,
-                    %node_id, ?status,
-                    items = output.items_processed,
-                    "node completed",
-                );
-                runs.update_node(
-                    run_id,
-                    node_id,
-                    status,
-                    output.items_processed,
-                    output.error.clone(),
-                )
-                .await;
-
-                output
+                    Err(e) => DocumentResult {
+                        envelope: None,
+                        error: Some(e.to_string()),
+                    },
+                }
             });
         }
 
-        join_set
-    }
-
-    /// Collect results from all spawned tasks.
-    async fn collect_results(&self, mut join_set: JoinSet<NodeOutput>) -> Result<RunOutput, Error> {
-        let mut node_results = Vec::new();
-
+        let mut results = Vec::new();
         while let Some(result) = join_set.join_next().await {
             match result {
-                Ok(nr) => node_results.push(nr),
+                Ok(doc_result) => results.push(doc_result),
                 Err(e) => {
                     let msg = if e.is_panic() {
-                        let panic_payload = e.into_panic();
-                        let panic_msg = panic_payload
+                        let payload = e.into_panic();
+                        let panic_msg = payload
                             .downcast_ref::<&str>()
                             .copied()
-                            .or_else(|| panic_payload.downcast_ref::<String>().map(|s| s.as_str()))
+                            .or_else(|| payload.downcast_ref::<String>().map(|s| s.as_str()))
                             .unwrap_or("unknown panic");
-                        tracing::error!(target: TARGET, panic = panic_msg, "node task panicked");
+                        tracing::error!(target: TARGET, panic = panic_msg, "document task panicked");
                         format!("Task panicked: {panic_msg}")
                     } else {
-                        tracing::error!(target: TARGET, error = %e, "node task failed");
+                        tracing::error!(target: TARGET, error = %e, "document task failed");
                         format!("Task failed: {e}")
                     };
-                    node_results.push(NodeOutput {
-                        items_processed: 0,
+                    results.push(DocumentResult {
+                        envelope: None,
                         error: Some(msg),
-                        envelopes: Vec::new(),
                     });
                 }
             }
         }
 
-        Ok(RunOutput { node_results })
+        Ok(RunOutput { results })
+    }
+
+    /// Execute import steps to produce envelopes.
+    async fn run_imports(&self, imports: &[ImportStep]) -> Result<Vec<DocumentEnvelope>, Error> {
+        let mut envelopes = Vec::new();
+
+        for step in imports {
+            let import = ImportFileOp::new()
+                .with_decompression(step.config.decompression)
+                .with_decryption(step.config.decryption.clone());
+
+            let shared = &self.ctx.shared;
+            for &content_id in &step.config.content_ids {
+                tracing::debug!(target: TARGET, %content_id, "importing content");
+                let handle = shared
+                    .registry
+                    .read_content(shared.actor_id, content_id)
+                    .await?;
+                let content = handle.content().await?;
+                let envelope = import.import(content, &self.ctx.shared).await?;
+                envelopes.push(envelope);
+            }
+        }
+
+        tracing::info!(target: TARGET, count = envelopes.len(), "documents imported");
+        Ok(envelopes)
+    }
+}
+
+/// Processes a single document through all plan phases sequentially.
+struct DocumentPipeline {
+    ctx: Arc<RunContext>,
+}
+
+impl DocumentPipeline {
+    /// Run all phases for a single envelope.
+    async fn run(
+        &self,
+        mut envelope: DocumentEnvelope,
+        plan: &ExecutionPlan,
+    ) -> Result<DocumentEnvelope, Error> {
+        self.check_cancelled()?;
+
+        // Phase 1: extraction.
+        self.run_phase(&plan.extraction_policy, async {
+            self.run_extraction(&plan.extraction, &mut envelope).await
+        })
+        .await?;
+        self.check_cancelled()?;
+
+        // Phase 2: detection.
+        self.run_phase(&plan.detection_policy, async {
+            self.run_detection(&plan.detection, &mut envelope).await
+        })
+        .await?;
+        self.check_cancelled()?;
+
+        // Phase 3: deduplication.
+        DeduplicationOp::new(&plan.deduplication)
+            .execute(&mut envelope)
+            .await?;
+        self.check_cancelled()?;
+
+        // Phase 4: redaction + generate context.
+        if !self.ctx.dry_run {
+            self.run_phase(&plan.redaction_policy, async {
+                RedactionOp::new(&plan.redaction)
+                    .execute(&mut envelope)
+                    .await
+            })
+            .await?;
+        }
+        if plan.generate_context {
+            GenerateContextOp::new(&Default::default())
+                .execute(&mut envelope)
+                .await?;
+        }
+        self.check_cancelled()?;
+
+        // Phase 5: validation (skipped in dry-run).
+        if !self.ctx.dry_run {
+            ValidationOp::new(&plan.validation)
+                .execute(&mut envelope)
+                .await?;
+        }
+
+        // Phase 6: export (skipped in dry-run).
+        if !self.ctx.dry_run {
+            self.run_exports(&plan.exports, &envelope).await?;
+        }
+
+        Ok(envelope)
+    }
+
+    /// Wrap a phase future with an optional timeout from the phase policy.
+    async fn run_phase<F>(&self, policy: &PhasePolicy, future: F) -> Result<(), Error>
+    where
+        F: std::future::Future<Output = Result<(), Error>> + Send,
+    {
+        match &policy.timeout {
+            Some(tp) => tp.with_timeout(future).await,
+            None => future.await,
+        }
+    }
+
+    /// Run extraction for all applicable modalities.
+    async fn run_extraction(
+        &self,
+        cfg: &Extraction,
+        envelope: &mut DocumentEnvelope,
+    ) -> Result<(), Error> {
+        ExtractionOp::new(cfg, &self.ctx.config, &self.ctx.http_client)
+            .execute(envelope)
+            .await
+    }
+
+    /// Run detection methods sequentially.
+    ///
+    /// NER and Pattern are logically independent but both mutate the
+    /// envelope (appending to `audit.entities`), so they run
+    /// sequentially on the same `&mut` reference. NER silently skips
+    /// if no LLM provider is configured.
+    async fn run_detection(
+        &self,
+        cfg: &Detection,
+        envelope: &mut DocumentEnvelope,
+    ) -> Result<(), Error> {
+        let ner_cfg = cfg.ner.clone().unwrap_or_default();
+        if let Ok(op) =
+            EntityRecognitionOp::new(&ner_cfg, &self.ctx.config, &self.ctx.http_client).await
+        {
+            op.execute(envelope).await?;
+        }
+
+        let pat_cfg = cfg.pattern.clone().unwrap_or_default();
+        let op = PatternRecognitionOp::new(&pat_cfg);
+        op.execute(envelope).await?;
+
+        Ok(())
+    }
+
+    /// Export envelopes to the registry.
+    async fn run_exports(
+        &self,
+        exports: &[ExportStep],
+        envelope: &DocumentEnvelope,
+    ) -> Result<(), Error> {
+        for step in exports {
+            let export = ExportFileOp::new()
+                .with_encryption(step.config.encryption.clone())
+                .with_compression(step.config.compression)
+                .with_content_ids(step.config.content_ids.clone());
+            export.export(envelope).await?;
+        }
+        Ok(())
+    }
+
+    fn check_cancelled(&self) -> Result<(), Error> {
+        if self.ctx.cancel.is_cancelled() {
+            return Err(Error::cancellation("run cancelled"));
+        }
+        Ok(())
     }
 }

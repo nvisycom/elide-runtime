@@ -15,8 +15,8 @@ use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionConfig};
 use uuid::Uuid;
 
 use crate::operation::DocumentEnvelope;
-use crate::operation::compression::CompressionService;
-use crate::operation::encryption::CryptoService;
+use crate::utility::compression::CompressionService;
+use crate::utility::encryption::CryptoService;
 
 const TARGET: &str = "nvisy_engine::op::export_file";
 

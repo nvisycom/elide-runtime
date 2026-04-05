@@ -30,7 +30,7 @@ pub struct LlmSection {
 
 /// Speech-to-text subsystem configuration.
 ///
-/// Controls the STT provider used by [`AudialExtraction`](nvisy_ontology::workflow::AudialExtraction)
+/// Controls the STT provider used by [`Extraction`](nvisy_ontology::workflow::Extraction)
 /// nodes for audio transcription.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SttSection {

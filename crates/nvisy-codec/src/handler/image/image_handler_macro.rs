@@ -32,12 +32,24 @@ macro_rules! impl_image_handler {
                 &self,
             ) -> crate::document::SpanStream<
                 '_,
-                crate::handler::ImageSpanId,
+                nvisy_ontology::entity::ImageLocation,
                 crate::handler::ImageData,
             > {
+                let (w, h) = (self.image.width(), self.image.height());
+                let location = nvisy_ontology::entity::ImageLocation {
+                    bounding_box: nvisy_ontology::math::BoundingBox {
+                        x: 0.0,
+                        y: 0.0,
+                        width: w as f64,
+                        height: h as f64,
+                    },
+                    value: None,
+                    image_id: None,
+                    page_number: None,
+                };
                 crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
                     crate::document::Span::new(
-                        crate::handler::ImageSpanId::default(),
+                        location,
                         crate::handler::ImageData::from(self.image.clone()),
                     ),
                 )))
@@ -47,7 +59,7 @@ macro_rules! impl_image_handler {
                 &mut self,
                 edits: crate::document::SpanStream<
                     '_,
-                    crate::handler::ImageSpanId,
+                    nvisy_ontology::entity::ImageLocation,
                     crate::handler::ImageData,
                 >,
             ) -> Result<(), nvisy_core::Error> {
@@ -57,6 +69,22 @@ macro_rules! impl_image_handler {
                     self.image = edit.data.into_inner();
                 }
                 Ok(())
+            }
+
+            async fn value_at(
+                &self,
+                location: &nvisy_ontology::entity::ImageLocation,
+            ) -> Option<crate::handler::ImageData> {
+                let bb = &location.bounding_box;
+                let x = bb.x.max(0.0) as u32;
+                let y = bb.y.max(0.0) as u32;
+                let w = (bb.width as u32).min(self.image.width().saturating_sub(x));
+                let h = (bb.height as u32).min(self.image.height().saturating_sub(y));
+                if w == 0 || h == 0 {
+                    return None;
+                }
+                let cropped = self.image.crop_imm(x, y, w, h);
+                Some(crate::handler::ImageData::from(cropped))
             }
         }
 

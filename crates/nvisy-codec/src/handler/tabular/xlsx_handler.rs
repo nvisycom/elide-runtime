@@ -3,6 +3,7 @@
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
+use nvisy_ontology::entity::TextLocation;
 
 use crate::document::SpanStream;
 use crate::handler::text::TextData;
@@ -46,13 +47,18 @@ impl Handler for XlsxHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for XlsxHandler {
-    type TextId = ();
-
-    async fn text_spans(&self) -> SpanStream<'_, (), TextData> {
+    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
         SpanStream::new(futures::stream::empty())
     }
 
-    async fn edit_text(&mut self, _edits: SpanStream<'_, (), TextData>) -> Result<(), Error> {
+    async fn edit_text(
+        &mut self,
+        _edits: SpanStream<'_, TextLocation, TextData>,
+    ) -> Result<(), Error> {
         Ok(())
+    }
+
+    async fn value_at(&self, _location: &TextLocation) -> Option<String> {
+        None
     }
 }

@@ -1,7 +1,7 @@
 //! Redaction node configuration.
 //!
 //! [`Redaction`] runs at **phase 4**, alongside [`GenerateContext`], after
-//! fusion has produced a final scored entity list. It applies redaction
+//! deduplication has produced a final scored entity list. It applies redaction
 //! instructions to the document envelope, replacing or removing detected
 //! values, and optionally strips embedded document metadata.
 //!

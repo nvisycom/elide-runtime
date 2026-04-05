@@ -35,7 +35,7 @@ mod tests {
 
     use super::*;
     use crate::document::{Span, SpanStream};
-    use crate::handler::{AudioData, AudioHandler, AudioSpanId, Handler};
+    use crate::handler::{AudioData, AudioHandler, Handler};
 
     #[tokio::test]
     async fn view_spans_returns_single_span() {
@@ -48,9 +48,14 @@ mod tests {
 
     #[tokio::test]
     async fn edit_spans_replaces_bytes() -> Result<(), Error> {
+        use nvisy_ontology::entity::AudioLocation;
         let mut h = Mp3Handler::new(Bytes::from_static(b"original"));
+        let spans: Vec<_> = {
+            use futures::StreamExt;
+            h.audio_spans().await.collect().await
+        };
         h.edit_audio(SpanStream::new(futures::stream::iter(vec![Span::new(
-            AudioSpanId::default(),
+            spans[0].id.clone(),
             AudioData::new(Bytes::from_static(b"replaced")),
         )])))
         .await?;

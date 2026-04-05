@@ -9,7 +9,6 @@ mod category;
 mod kind;
 mod location;
 mod method;
-mod model;
 mod sensitivity;
 mod source;
 
@@ -23,13 +22,13 @@ pub use self::annotation::{Annotation, AnnotationKind, AnnotationTarget, Annotat
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;
 pub use self::location::{
-    AudioLocation, ImageLocation, Location, Overlap, TabularLocation, TextLocation,
+    AudioLocation, AudioLocationBuilder, ImageLocation, ImageLocationBuilder, Location, Overlap,
+    TabularLocation, TabularLocationBuilder, TextLocation, TextLocationBuilder,
 };
 pub use self::method::{
-    AnnotationProvenance, ExtractionMethod, ModelProvenance, PatternProvenance, RecognitionMethod,
-    RecognitionMethodKind, RefinementMethod,
+    AnnotationProvenance, ExtractionMethod, ModelKind, ModelProvenance, PatternProvenance,
+    RecognitionMethod, RecognitionMethodKind, RefinementMethod,
 };
-pub use self::model::{ModelInfo, ModelKind};
 pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;
 
@@ -50,8 +49,6 @@ pub struct Entity {
     pub category: EntityCategory,
     /// Specific entity kind (e.g. `GovernmentId`, `EmailAddress`, `PaymentCard`).
     pub entity_kind: EntityKind,
-    /// The matched text or value.
-    pub value: String,
     /// How content was extracted from its source modality, ordered by application time.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -64,10 +61,8 @@ pub struct Entity {
     pub refinement_methods: Vec<RefinementMethod>,
     /// Detection confidence score in the range `[0.0, 1.0]`.
     pub confidence: f64,
-    /// Modality-specific location of the entity.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub location: Option<Location>,
+    /// Modality-specific location of the entity within the document.
+    pub location: Location,
     /// BCP-47 language tag of the detected content.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -82,6 +77,14 @@ impl Entity {
     /// Create a new [`EntityBuilder`].
     pub fn builder() -> EntityBuilder {
         EntityBuilder::default()
+    }
+
+    /// The detected text value, if available for this entity's location.
+    ///
+    /// Not serialized in API responses. Delegates to
+    /// [`Location::text_value`].
+    pub fn text_value(&self) -> Option<&str> {
+        self.location.text_value()
     }
 }
 
@@ -151,5 +154,68 @@ impl<'a> IntoIterator for &'a Entities {
 impl FromIterator<Entity> for Entities {
     fn from_iter<I: IntoIterator<Item = Entity>>(iter: I) -> Self {
         Self(iter.into_iter().collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entity(confidence: f64) -> Entity {
+        Entity::builder()
+            .with_category(EntityCategory::PersonalIdentity)
+            .with_entity_kind(EntityKind::PersonName)
+            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
+            .with_confidence(confidence)
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_start_offset(0usize)
+                    .with_end_offset(4usize)
+                    .build()
+                    .unwrap(),
+            ))
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn above_confidence_filters() {
+        let entities: Entities = vec![entity(0.9), entity(0.3), entity(0.7)].into();
+        let filtered = entities.above_confidence(0.5);
+        assert_eq!(filtered.len(), 2);
+    }
+
+    #[test]
+    fn above_confidence_empty() {
+        let entities = Entities::new();
+        assert!(entities.above_confidence(0.5).is_empty());
+    }
+
+    #[test]
+    fn text_value_from_location() {
+        let mut e = entity(0.9);
+        if let Location::Text(ref mut loc) = e.location {
+            loc.value = "hello".to_string();
+        }
+        assert_eq!(e.text_value(), Some("hello"));
+    }
+
+    #[test]
+    fn text_value_empty_string_returns_none() {
+        let e = entity(0.9);
+        assert_eq!(e.text_value(), None);
+    }
+
+    #[test]
+    fn entities_from_vec() {
+        let v = vec![entity(0.5), entity(0.8)];
+        let entities = Entities::from(v);
+        assert_eq!(entities.len(), 2);
+    }
+
+    #[test]
+    fn entities_collect() {
+        let entities: Entities = (0..3).map(|i| entity(i as f64 * 0.3)).collect();
+        assert_eq!(entities.len(), 3);
     }
 }

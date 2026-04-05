@@ -1,4 +1,4 @@
-//! Two-phase entity grouping for fusion.
+//! Two-phase entity grouping for deduplication.
 //!
 //! Groups entities that refer to the same real-world value so they
 //! can be fused into a single detection. The algorithm runs in two
@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use nvisy_ontology::entity::{Entities, Entity, EntityKind, Overlap};
 use nvisy_ontology::workflow::GroupingCriteria;
 
-const TARGET: &str = "nvisy_engine::op::fusion::grouping";
+const TARGET: &str = "nvisy_engine::op::deduplication::grouping";
 
 /// Hash key for the first grouping phase.
 ///
@@ -35,14 +35,21 @@ struct GroupKey {
 
 impl GroupKey {
     fn new(entity: &Entity, criteria: GroupingCriteria) -> Self {
+        // Entities without a text value (e.g. image bounding boxes)
+        // get a unique sentinel so they don't all bucket together.
+        // They will still be grouped by location overlap in phase 2.
+        let value = match entity.text_value() {
+            Some(v) => criteria.bucket_value(v),
+            None => entity.id.to_string(),
+        };
         Self {
             kind: entity.entity_kind,
-            value: criteria.bucket_value(&entity.value),
+            value,
         }
     }
 }
 
-/// Extension trait that groups entities for fusion.
+/// Extension trait that groups entities for deduplication.
 pub(super) trait GroupEntities {
     /// Partition entities into groups of candidates that should be fused.
     ///
@@ -117,9 +124,14 @@ impl GroupEntities for Entities {
                             continue;
                         }
                         let any_value_match = groups[indices[i]].iter().any(|a| {
-                            groups[indices[j]]
-                                .iter()
-                                .any(|b| criteria.values_match(&a.value, &b.value))
+                            groups[indices[j]].iter().any(|b| {
+                                match (a.text_value(), b.text_value()) {
+                                    (Some(va), Some(vb)) => criteria.values_match(va, vb),
+                                    // Non-text entities: skip value match,
+                                    // rely on location overlap.
+                                    _ => false,
+                                }
+                            })
                         });
                         let location_ok = !check_overlap
                             || groups[indices[i]].iter().any(|a| {

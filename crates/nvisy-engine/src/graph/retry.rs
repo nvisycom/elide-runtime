@@ -7,6 +7,7 @@ use nvisy_core::Error;
 use nvisy_ontology::workflow::{BackoffStrategy, RetryPolicy};
 
 /// Async retry execution for [`RetryPolicy`].
+#[allow(dead_code)] // wired when operations gain internal retry
 pub(crate) trait RetryExt {
     /// Base delay as a [`Duration`].
     fn base_delay(&self) -> Duration;

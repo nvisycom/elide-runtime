@@ -31,7 +31,7 @@ pub struct DenyRule {
 ///     .with("John Doe", DenyRule {
 ///         category: EntityCategory::PersonalIdentity,
 ///         entity_kind: EntityKind::PersonName,
-///         method: RecognitionMethod::ner(ModelInfo::new("test", ModelKind::SelfHosted)),
+///         method: RecognitionMethod::ner("test", ModelKind::SelfHosted),
 ///     });
 /// ```
 #[derive(Debug, Clone, Default)]

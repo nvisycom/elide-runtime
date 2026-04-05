@@ -1,4 +1,4 @@
-//! Execution behaviour for [`FusionStrategy`].
+//! Execution behaviour for [`DeduplicationStrategy`].
 //!
 //! Implements the actual confidence-combination algorithms and entity
 //! field merging. The strategy determines *how* confidences are combined;
@@ -7,14 +7,14 @@
 use std::collections::HashSet;
 
 use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
-use nvisy_ontology::workflow::{FusionStrategy, GroupingCriteria};
+use nvisy_ontology::workflow::{DeduplicationStrategy, GroupingCriteria};
 
 use super::grouping::GroupEntities;
 
-const TARGET: &str = "nvisy_engine::op::fusion::strategy";
+const TARGET: &str = "nvisy_engine::op::deduplication::strategy";
 
-/// Adds fusion execution to [`FusionStrategy`].
-pub(super) trait FusionStrategyExt {
+/// Adds deduplication execution to [`DeduplicationStrategy`].
+pub(super) trait DeduplicationStrategyExt {
     /// Group entities by the given criteria, then fuse each group into a
     /// single entity.
     #[must_use]
@@ -37,7 +37,7 @@ pub(super) trait FusionStrategyExt {
     fn compute_confidence(&self, group: &[Entity]) -> f64;
 }
 
-impl FusionStrategyExt for FusionStrategy {
+impl DeduplicationStrategyExt for DeduplicationStrategy {
     fn fuse(&self, entities: Entities, criteria: GroupingCriteria) -> Entities {
         if entities.len() <= 1 {
             return entities;
@@ -67,6 +67,12 @@ impl FusionStrategyExt for FusionStrategy {
 
         let fused_confidence = self.compute_confidence(&group);
 
+        // Determine the refinement type: if all entities in the group
+        // share the same set of recognition method kinds, this is a
+        // deduplication (same detector produced duplicates). Otherwise
+        // it's an ensemble fusion (different detectors combined).
+        let refinement = classify_refinement(&group);
+
         // Sort by descending confidence: highest-confidence entity
         // becomes the base since it carries the most trusted metadata.
         group.sort_by(|a, b| {
@@ -77,13 +83,15 @@ impl FusionStrategyExt for FusionStrategy {
         let mut result = group.remove(0);
         let rest = group;
 
-        // Prefer the longest value: it is the more specific match
-        // (e.g. "John Smith" over "John"). When the value changes,
-        // adopt the location from the entity that produced it so the
+        // Prefer the largest span: for text, the longer match is more
+        // specific (e.g. "John Smith" over "John"); for images, the
+        // larger bounding box. Adopt the winner's location so the
         // span stays consistent.
         for e in &rest {
-            if e.value.len() > result.value.len() {
-                result.value.clone_from(&e.value);
+            if e.location
+                .is_at_least_as_large(&result.location)
+                .unwrap_or(false)
+            {
                 result.location.clone_from(&e.location);
             }
         }
@@ -113,16 +121,15 @@ impl FusionStrategyExt for FusionStrategy {
             result.language = rest.iter().find_map(|e| e.language.clone());
         }
         result.confidence = fused_confidence;
-        result
-            .refinement_methods
-            .push(RefinementMethod::EnsembleFusion);
+        result.refinement_methods.push(refinement);
 
         tracing::trace!(
             target: TARGET,
             entity_id = %result.id,
             fused_from = rest.len() + 1,
             confidence = fused_confidence,
-            value = %result.value,
+            ?refinement,
+            value = result.text_value().unwrap_or_default(),
             "fused entity group",
         );
 
@@ -162,5 +169,26 @@ impl FusionStrategyExt for FusionStrategy {
             // Fallback for future variants: treat as MaxConfidence.
             _ => group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max),
         }
+    }
+}
+
+/// Classify whether a group merge is a deduplication (same detector
+/// kinds) or an ensemble fusion (different detector kinds).
+fn classify_refinement(group: &[Entity]) -> RefinementMethod {
+    let first_kinds: HashSet<_> = group[0]
+        .recognition_methods
+        .iter()
+        .map(|m| m.kind())
+        .collect();
+
+    let all_same = group[1..].iter().all(|e| {
+        let kinds: HashSet<_> = e.recognition_methods.iter().map(|m| m.kind()).collect();
+        kinds == first_kinds
+    });
+
+    if all_same {
+        RefinementMethod::Deduplication
+    } else {
+        RefinementMethod::EnsembleFusion
     }
 }

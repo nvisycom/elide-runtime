@@ -11,7 +11,7 @@ use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{Action, Condition, DefaultStrategy, StrategyPolicy};
-use nvisy_ontology::provenance::AuditEntry;
+use nvisy_ontology::provenance::{AuditEntry, RedactionMapping};
 use nvisy_ontology::workflow::Redaction;
 use uuid::Uuid;
 
@@ -52,7 +52,7 @@ impl Operation for RedactionOp {
         );
 
         let document_labels = envelope.annotations.document_labels();
-        let entries = evaluate(
+        let (entries, mappings) = evaluate(
             &envelope.audit.entities,
             &strategies,
             &defaults,
@@ -61,6 +61,7 @@ impl Operation for RedactionOp {
             &envelope.metadata,
         );
         envelope.audit.entries.extend(entries);
+        envelope.redaction_map.entries.extend(mappings);
 
         RedactionApplicator::new(envelope).apply().await?;
 
@@ -68,7 +69,8 @@ impl Operation for RedactionOp {
     }
 }
 
-/// Evaluate strategy policies against entities, producing audit entries.
+/// Evaluate strategy policies against entities, producing audit entries
+/// and redaction mappings.
 fn evaluate(
     entities: &Entities,
     strategies: &[(Uuid, &StrategyPolicy)],
@@ -76,8 +78,9 @@ fn evaluate(
     default_threshold: f64,
     document_labels: &[&str],
     metadata: &ContentMetadata,
-) -> Vec<AuditEntry> {
+) -> (Vec<AuditEntry>, Vec<RedactionMapping>) {
     let mut entries = Vec::new();
+    let mut mappings = Vec::new();
 
     for entity in entities {
         let matched = find_matching_strategy(strategies, entity, document_labels, metadata);
@@ -100,10 +103,7 @@ fn evaluate(
                 if entity.confidence < default_threshold {
                     continue;
                 }
-                let Some(location) = &entity.location else {
-                    continue;
-                };
-                let Some(spec) = defaults.for_location(location) else {
+                let Some(spec) = defaults.for_location(&entity.location) else {
                     continue;
                 };
                 (spec, None)
@@ -111,7 +111,12 @@ fn evaluate(
         };
 
         let entity_id = entity.id;
-        let mut builder = AuditEntry::builder().for_entity(entity_id, spec, &entity.value);
+        let original_value = entity
+            .text_value()
+            .map(String::from)
+            .unwrap_or_else(|| format!("[{}]", entity.location));
+
+        let mut builder = AuditEntry::builder().for_entity(entity_id, spec, original_value.clone());
         if let Some(id) = policy_id {
             builder = builder.with_policy_id(id);
         }
@@ -125,15 +130,22 @@ fn evaluate(
         );
 
         entries.push(entry);
+        mappings.push(RedactionMapping {
+            entity_id,
+            location: entity.location.clone(),
+            original: original_value,
+            replacement: None,
+        });
     }
 
     tracing::info!(
         target: TARGET,
         entries = entries.len(),
+        mappings = mappings.len(),
         "policy evaluation complete",
     );
 
-    entries
+    (entries, mappings)
 }
 
 fn find_matching_strategy<'a>(
@@ -200,15 +212,16 @@ mod tests {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
-            .with_value(value)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(confidence)
-            .with_location(Location::from(TextLocation {
-                start_offset: 0,
-                end_offset: value.len(),
-                span_index: Some(0),
-                ..Default::default()
-            }))
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_value(value)
+                    .with_start_offset(0usize)
+                    .with_end_offset(value.len())
+                    .build()
+                    .unwrap(),
+            ))
             .build()
             .unwrap()
     }
@@ -223,7 +236,7 @@ mod tests {
     #[test]
     fn skips_below_threshold() {
         let entities: Entities = vec![test_entity("John", 0.5)].into();
-        let entries = evaluate(
+        let (entries, _mappings) = evaluate(
             &entities,
             &[],
             &defaults(),
@@ -237,7 +250,7 @@ mod tests {
     #[test]
     fn produces_entry_above_threshold() {
         let entities: Entities = vec![test_entity("John", 0.9)].into();
-        let entries = evaluate(
+        let (entries, _mappings) = evaluate(
             &entities,
             &[],
             &defaults(),
@@ -256,7 +269,8 @@ mod tests {
             ..Default::default()
         };
         let entities: Entities = vec![test_entity("secret", 0.9)].into();
-        let entries = evaluate(&entities, &[], &defaults, 0.0, &[], &ContentMetadata::new());
+        let (entries, _mappings) =
+            evaluate(&entities, &[], &defaults, 0.0, &[], &ContentMetadata::new());
         assert_eq!(
             entries[0].redaction.strategy,
             Strategy::Text(TextStrategy::Remove)
@@ -270,14 +284,15 @@ mod tests {
             ..Default::default()
         };
         let entities: Entities = vec![test_entity("text-entity", 0.9)].into();
-        let entries = evaluate(&entities, &[], &defaults, 0.0, &[], &ContentMetadata::new());
+        let (entries, _mappings) =
+            evaluate(&entities, &[], &defaults, 0.0, &[], &ContentMetadata::new());
         assert!(entries.is_empty());
     }
 
     #[test]
     fn captures_original_value() {
         let entities: Entities = vec![test_entity("secret-value", 0.9)].into();
-        let entries = evaluate(
+        let (entries, _mappings) = evaluate(
             &entities,
             &[],
             &defaults(),

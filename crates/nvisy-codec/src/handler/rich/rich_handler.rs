@@ -3,22 +3,75 @@
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
+use nvisy_ontology::entity::{ImageLocation, TextLocation};
 
 #[cfg(feature = "pdf")]
 use super::RichTextHandler;
 use crate::document::SpanStream;
-use crate::handler::image::{ImageData, ImageSpanId};
-use crate::handler::text::{TextData, TextSpanId, forward_edits, reindex_stream};
+use crate::handler::image::ImageData;
+use crate::handler::text::TextData;
 use crate::handler::{Handler, ImageHandler, TextHandler};
 
 /// A type-erased rich-document handler backed by a boxed trait object.
 ///
-/// Normalises text span IDs to [`TextSpanId`] (positional index) so
-/// that heterogeneous rich handlers can be used interchangeably.
-pub struct BoxedRichHandler(Box<dyn DynRichHandler>);
+/// Since both [`TextHandler`] and [`ImageHandler`] are now directly
+/// object-safe, this is a simple `Box<dyn RichHandler>` wrapper.
+pub struct BoxedRichHandler(Box<dyn RichHandler>);
+
+/// Combined text + image handler trait for rich documents (PDF, DOCX).
+#[async_trait::async_trait]
+pub(crate) trait RichHandler: Handler + Send + Sync {
+    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData>;
+    async fn edit_text(
+        &mut self,
+        edits: SpanStream<'_, TextLocation, TextData>,
+    ) -> Result<(), Error>;
+    async fn text_value_at(&self, location: &TextLocation) -> Option<String>;
+
+    async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData>;
+    async fn edit_images(
+        &mut self,
+        edits: SpanStream<'_, ImageLocation, ImageData>,
+    ) -> Result<(), Error>;
+    async fn image_value_at(&self, location: &ImageLocation) -> Option<ImageData>;
+}
+
+#[cfg(feature = "pdf")]
+#[async_trait::async_trait]
+impl RichHandler for RichTextHandler {
+    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
+        TextHandler::text_spans(self).await
+    }
+
+    async fn edit_text(
+        &mut self,
+        edits: SpanStream<'_, TextLocation, TextData>,
+    ) -> Result<(), Error> {
+        TextHandler::edit_text(self, edits).await
+    }
+
+    async fn text_value_at(&self, location: &TextLocation) -> Option<String> {
+        TextHandler::value_at(self, location).await
+    }
+
+    async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData> {
+        ImageHandler::image_spans(self).await
+    }
+
+    async fn edit_images(
+        &mut self,
+        edits: SpanStream<'_, ImageLocation, ImageData>,
+    ) -> Result<(), Error> {
+        ImageHandler::edit_images(self, edits).await
+    }
+
+    async fn image_value_at(&self, location: &ImageLocation) -> Option<ImageData> {
+        ImageHandler::value_at(self, location).await
+    }
+}
 
 impl BoxedRichHandler {
-    fn new<H: DynRichHandler>(handler: H) -> Self {
+    fn new<H: RichHandler + 'static>(handler: H) -> Self {
         Self(Box::new(handler))
     }
 }
@@ -54,96 +107,36 @@ impl Handler for BoxedRichHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for BoxedRichHandler {
-    type TextId = TextSpanId;
-
-    async fn text_spans(&self) -> SpanStream<'_, TextSpanId, TextData> {
-        self.0.text_spans_reindexed().await
+    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
+        self.0.text_spans().await
     }
 
     async fn edit_text(
         &mut self,
-        edits: SpanStream<'_, TextSpanId, TextData>,
+        edits: SpanStream<'_, TextLocation, TextData>,
     ) -> Result<(), Error> {
-        self.0.edit_text_reindexed(edits).await
+        self.0.edit_text(edits).await
+    }
+
+    async fn value_at(&self, location: &TextLocation) -> Option<String> {
+        self.0.text_value_at(location).await
     }
 }
 
 #[async_trait::async_trait]
 impl ImageHandler for BoxedRichHandler {
-    async fn image_spans(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
-        self.0.image_spans_rich().await
+    async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData> {
+        self.0.image_spans().await
     }
 
     async fn edit_images(
         &mut self,
-        edits: SpanStream<'_, ImageSpanId, ImageData>,
+        edits: SpanStream<'_, ImageLocation, ImageData>,
     ) -> Result<(), Error> {
-        self.0.edit_images_rich(edits).await
+        self.0.edit_images(edits).await
+    }
+
+    async fn value_at(&self, location: &ImageLocation) -> Option<ImageData> {
+        self.0.image_value_at(location).await
     }
 }
-
-/// Object-safe private supertrait that bridges [`Handler`] and
-/// [`TextHandler`] for dynamic dispatch.
-///
-/// Rich-document handlers have heterogeneous `TextId` types (e.g.
-/// [`RichTextSpan`](super::RichTextSpan) for PDF). This trait
-/// normalises them to [`TextSpanId`] via [`reindex_stream`] and
-/// [`forward_edits`], allowing [`BoxedRichHandler`] to present a
-/// uniform `TextHandler<TextId = TextSpanId>` interface.
-///
-/// Concrete implementations are generated by [`impl_dyn_rich!`].
-#[async_trait::async_trait]
-trait DynRichHandler: Handler {
-    /// Return text spans with IDs re-mapped to sequential [`TextSpanId`] indices.
-    async fn text_spans_reindexed(&self) -> SpanStream<'_, TextSpanId, TextData>;
-
-    /// Accept [`TextSpanId`]-keyed edits and forward them back using the
-    /// handler's native [`TextId`](crate::handler::TextHandler::TextId).
-    async fn edit_text_reindexed(
-        &mut self,
-        edits: SpanStream<'_, TextSpanId, TextData>,
-    ) -> Result<(), Error>;
-
-    /// Return image spans from the underlying rich handler.
-    async fn image_spans_rich(&self) -> SpanStream<'_, ImageSpanId, ImageData>;
-
-    /// Apply image edits from an async stream back to the handler.
-    async fn edit_images_rich(
-        &mut self,
-        edits: SpanStream<'_, ImageSpanId, ImageData>,
-    ) -> Result<(), Error>;
-}
-
-macro_rules! impl_dyn_rich {
-    ($ty:ty) => {
-        #[async_trait::async_trait]
-        impl DynRichHandler for $ty {
-            async fn text_spans_reindexed(&self) -> SpanStream<'_, TextSpanId, TextData> {
-                reindex_stream(self).await
-            }
-
-            async fn edit_text_reindexed(
-                &mut self,
-                edits: SpanStream<'_, TextSpanId, TextData>,
-            ) -> Result<(), Error> {
-                use futures::StreamExt;
-                let edits: Vec<_> = edits.collect().await;
-                forward_edits(self, edits).await
-            }
-
-            async fn image_spans_rich(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
-                ImageHandler::image_spans(self).await
-            }
-
-            async fn edit_images_rich(
-                &mut self,
-                edits: SpanStream<'_, ImageSpanId, ImageData>,
-            ) -> Result<(), Error> {
-                ImageHandler::edit_images(self, edits).await
-            }
-        }
-    };
-}
-
-#[cfg(feature = "pdf")]
-impl_dyn_rich!(RichTextHandler);

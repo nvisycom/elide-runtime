@@ -8,11 +8,12 @@
 
 use std::collections::HashMap;
 
-use nvisy_codec::handler::{AudioSpanId, ImageSpanId, TextSpanId};
 use nvisy_codec::transform::{
     AudioOutput, AudioRedaction, ImageOutput, ImageRedaction, TextOutput, TextRedaction,
 };
-use nvisy_ontology::entity::{Entity, EntityKind, Location};
+use nvisy_ontology::entity::{
+    AudioLocation, Entity, EntityKind, ImageLocation, Location, TextLocation,
+};
 use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -63,7 +64,7 @@ impl<'a> RedactionApplicator<'a> {
         Ok(())
     }
 
-    fn build_text_redactions(&mut self) -> Vec<TextRedaction<TextSpanId>> {
+    fn build_text_redactions(&mut self) -> Vec<TextRedaction<TextLocation>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Vec::new();
 
@@ -74,7 +75,7 @@ impl<'a> RedactionApplicator<'a> {
                 None => continue,
             };
 
-            let Some(Location::Text(ref loc)) = entity.location else {
+            let Location::Text(ref loc) = entity.location else {
                 continue;
             };
 
@@ -83,26 +84,33 @@ impl<'a> RedactionApplicator<'a> {
                 _ => continue,
             };
 
-            let Some(index) = loc.span_index else {
-                continue;
-            };
-            let span_id = TextSpanId(index);
             let entity_id = record.entity_id;
 
-            self.envelope.audit.entries[i].value.replacement =
-                output.replacement_value().map(String::from);
+            let replacement = output.replacement_value().map(String::from);
+            self.envelope.audit.entries[i].value.replacement = replacement.clone();
+            if let Some(mapping) = self
+                .envelope
+                .redaction_map
+                .entries
+                .iter_mut()
+                .find(|m| m.entity_id == entity_id)
+            {
+                mapping.replacement = replacement;
+            }
 
             tracing::trace!(
                 target: TARGET,
                 %entity_id,
-                span = span_id.0,
                 start = loc.start_offset,
                 end = loc.end_offset,
                 "built text redaction instruction",
             );
 
+            // The entity location directly identifies the byte range
+            // to redact. start/end are intra-span offsets (0..len for
+            // a full value replacement within the containing span).
             redactions.push(TextRedaction {
-                span_id,
+                span_id: loc.clone(),
                 start: loc.start_offset,
                 end: loc.end_offset,
                 output,
@@ -112,7 +120,7 @@ impl<'a> RedactionApplicator<'a> {
         redactions
     }
 
-    fn build_image_redactions(&mut self) -> Vec<ImageRedaction<ImageSpanId>> {
+    fn build_image_redactions(&mut self) -> Vec<ImageRedaction<ImageLocation>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Vec::new();
 
@@ -123,7 +131,7 @@ impl<'a> RedactionApplicator<'a> {
                 None => continue,
             };
 
-            let Some(Location::Image(ref loc)) = entity.location else {
+            let Location::Image(ref loc) = entity.location else {
                 continue;
             };
 
@@ -139,10 +147,19 @@ impl<'a> RedactionApplicator<'a> {
                 _ => continue,
             };
 
-            let span_id = ImageSpanId(loc.page_number);
             let entity_id = record.entity_id;
+            let replacement = IMAGE_REDACTED.to_string();
 
-            self.envelope.audit.entries[i].value.replacement = Some(IMAGE_REDACTED.into());
+            self.envelope.audit.entries[i].value.replacement = Some(replacement.clone());
+            if let Some(mapping) = self
+                .envelope
+                .redaction_map
+                .entries
+                .iter_mut()
+                .find(|m| m.entity_id == entity_id)
+            {
+                mapping.replacement = Some(replacement);
+            }
 
             tracing::trace!(
                 target: TARGET,
@@ -151,7 +168,7 @@ impl<'a> RedactionApplicator<'a> {
             );
 
             redactions.push(ImageRedaction {
-                span_id,
+                span_id: loc.clone(),
                 bounding_box: loc.bounding_box,
                 output,
             });
@@ -160,7 +177,7 @@ impl<'a> RedactionApplicator<'a> {
         redactions
     }
 
-    fn build_audio_redactions(&mut self) -> Vec<AudioRedaction<AudioSpanId>> {
+    fn build_audio_redactions(&mut self) -> Vec<AudioRedaction<AudioLocation>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Vec::new();
 
@@ -171,7 +188,7 @@ impl<'a> RedactionApplicator<'a> {
                 None => continue,
             };
 
-            let Some(Location::Audio(ref loc)) = entity.location else {
+            let Location::Audio(ref loc) = entity.location else {
                 continue;
             };
 
@@ -185,8 +202,18 @@ impl<'a> RedactionApplicator<'a> {
             };
 
             let entity_id = record.entity_id;
+            let replacement = AUDIO_REDACTED.to_string();
 
-            self.envelope.audit.entries[i].value.replacement = Some(AUDIO_REDACTED.into());
+            self.envelope.audit.entries[i].value.replacement = Some(replacement.clone());
+            if let Some(mapping) = self
+                .envelope
+                .redaction_map
+                .entries
+                .iter_mut()
+                .find(|m| m.entity_id == entity_id)
+            {
+                mapping.replacement = Some(replacement);
+            }
 
             tracing::trace!(
                 target: TARGET,
@@ -197,7 +224,7 @@ impl<'a> RedactionApplicator<'a> {
             );
 
             redactions.push(AudioRedaction {
-                span_id: AudioSpanId::default(),
+                span_id: loc.clone(),
                 time_span: loc.time_span,
                 output,
             });
@@ -212,9 +239,10 @@ impl<'a> RedactionApplicator<'a> {
     }
 
     fn text_output(entity: &Entity, strategy: &TextStrategy) -> TextOutput {
+        let value = entity.text_value().unwrap_or_default();
         match strategy {
             TextStrategy::Mask { mask_char } => {
-                TextOutput::replace(mask_char.to_string().repeat(entity.value.len()))
+                TextOutput::replace(mask_char.to_string().repeat(value.len()))
             }
 
             TextStrategy::Replace { placeholder } => {
@@ -234,10 +262,10 @@ impl<'a> RedactionApplicator<'a> {
 
             TextStrategy::Remove => TextOutput::Remove,
 
-            TextStrategy::Hash => TextOutput::replace(Self::hash_value(&entity.value)),
+            TextStrategy::Hash => TextOutput::replace(Self::hash_value(value)),
 
             TextStrategy::Pseudonymize => {
-                TextOutput::replace(Self::pseudonymize(&entity.entity_kind, &entity.value))
+                TextOutput::replace(Self::pseudonymize(&entity.entity_kind, value))
             }
 
             TextStrategy::Encrypt { .. } => {
@@ -281,19 +309,20 @@ mod tests {
     use super::*;
     use crate::operation::envelope::SharedData;
 
-    fn text_entity(value: &str, span_index: usize, start: usize, end: usize) -> Entity {
+    fn text_entity(value: &str, start: usize, end: usize) -> Entity {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
-            .with_value(value)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(0.9)
-            .with_location(Location::from(TextLocation {
-                start_offset: start,
-                end_offset: end,
-                span_index: Some(span_index),
-                ..Default::default()
-            }))
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_value(value)
+                    .with_start_offset(start)
+                    .with_end_offset(end)
+                    .build()
+                    .unwrap(),
+            ))
             .build()
             .unwrap()
     }
@@ -320,7 +349,7 @@ mod tests {
 
     #[tokio::test]
     async fn mask_applies_and_records_replacement() {
-        let entity = text_entity("John", 0, 6, 10);
+        let entity = text_entity("John", 6, 10);
         let entity_id = entity.id;
         let record = test_record(
             entity_id,
@@ -345,7 +374,7 @@ mod tests {
 
     #[tokio::test]
     async fn remove_leaves_replacement_none() {
-        let entity = text_entity("John", 0, 6, 10);
+        let entity = text_entity("John", 6, 10);
         let entity_id = entity.id;
         let record = test_record(entity_id, Strategy::Text(TextStrategy::Remove), "John");
 
@@ -363,7 +392,7 @@ mod tests {
 
     #[tokio::test]
     async fn skips_image_strategy_for_text_entity() {
-        let entity = text_entity("face", 0, 0, 4);
+        let entity = text_entity("face", 0, 4);
         let record = test_record(
             entity.id,
             Strategy::Image(ImageStrategy::Blur { sigma: 15.0 }),

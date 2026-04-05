@@ -19,8 +19,8 @@ use uuid::Uuid;
 use validator::Validate;
 
 pub use self::context::{GenerateContext, LoadContext, SaveContext};
-pub use self::detection::{NamedEntityRecognition, PatternRecognition};
-pub use self::extraction::{AudialExtraction, VisualExtraction};
+pub use self::detection::{Detection, NerDetection, PatternDetection};
+pub use self::extraction::{AudialExtraction, Extraction, TextExtraction, VisualExtraction};
 pub use self::ingest::{
     CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig, ExportFile, ImportFile,
 };
@@ -28,7 +28,8 @@ pub use self::policy::{
     BackoffStrategy, ConcurrencyPolicy, RetryPolicy, TimeoutBehavior, TimeoutPolicy,
 };
 pub use self::refinement::{
-    CalibrationMap, Fusion, FusionStrategy, GroupingCriteria, Redaction, Validation,
+    CalibrationMap, ConflictResolution, Deduplication, DeduplicationStrategy, GroupingCriteria,
+    Redaction, Validation,
 };
 use crate::Error;
 
@@ -49,18 +50,13 @@ pub enum GraphNodeKind {
     /// Generates a new context from detection results and content data.
     GenerateContext(GenerateContext),
 
-    /// Extracts text and entities from images and scanned documents.
-    VisualExtraction(VisualExtraction),
-    /// Extracts text from speech audio.
-    AudialExtraction(AudialExtraction),
-
-    /// Detects named entities via language model inference.
-    NamedEntityRecognition(NamedEntityRecognition),
-    /// Detects entities via regex, checksum, dictionary, and heuristic rules.
-    PatternRecognition(PatternRecognition),
+    /// Extracts structured text from content (visual, audial, text).
+    Extraction(Extraction),
+    /// Detects entities via NER and/or pattern matching.
+    Detection(Detection),
 
     /// Merges and scores entities from multiple detection sources.
-    Fusion(Fusion),
+    Deduplication(Deduplication),
     /// Applies redaction instructions to produce output content.
     Redaction(Redaction),
     /// Verifies that redacted content does not leak original values.
@@ -78,11 +74,9 @@ impl std::fmt::Display for GraphNodeKind {
             Self::LoadContext(_) => f.write_str("load_context"),
             Self::SaveContext(_) => f.write_str("save_context"),
             Self::GenerateContext(_) => f.write_str("generate_context"),
-            Self::VisualExtraction(_) => f.write_str("visual_extraction"),
-            Self::AudialExtraction(_) => f.write_str("audial_extraction"),
-            Self::NamedEntityRecognition(_) => f.write_str("named_entity_recognition"),
-            Self::PatternRecognition(_) => f.write_str("pattern_recognition"),
-            Self::Fusion(_) => f.write_str("fusion"),
+            Self::Extraction(_) => f.write_str("extraction"),
+            Self::Detection(_) => f.write_str("detection"),
+            Self::Deduplication(_) => f.write_str("deduplication"),
             Self::Redaction(_) => f.write_str("redaction"),
             Self::Validation(_) => f.write_str("validation"),
             Self::ImportFile(_) => f.write_str("import"),
@@ -94,22 +88,22 @@ impl std::fmt::Display for GraphNodeKind {
 impl GraphNodeKind {
     /// Returns the pipeline phase for this node kind.
     ///
-    /// | Phase | Actions                                           |
-    /// |-------|---------------------------------------------------|
-    /// | 0     | ImportFile, LoadContext                             |
-    /// | 1     | VisualExtraction, AudialExtraction                 |
-    /// | 2     | NamedEntityRecognition, PatternRecognition         |
-    /// | 3     | Fusion                                            |
-    /// | 4     | Redaction, GenerateContext                         |
-    /// | 5     | Validation                                        |
-    /// | 6     | ExportFile, SaveContext                            |
+    /// | Phase | Actions                                 |
+    /// |-------|-----------------------------------------|
+    /// | 0     | ImportFile, LoadContext                  |
+    /// | 1     | Extraction                              |
+    /// | 2     | Detection                               |
+    /// | 3     | Deduplication                            |
+    /// | 4     | Redaction, GenerateContext               |
+    /// | 5     | Validation                              |
+    /// | 6     | ExportFile, SaveContext                  |
     #[must_use]
     pub fn phase(&self) -> u8 {
         match self {
             Self::ImportFile(_) | Self::LoadContext(_) => 0,
-            Self::VisualExtraction(_) | Self::AudialExtraction(_) => 1,
-            Self::NamedEntityRecognition(_) | Self::PatternRecognition(_) => 2,
-            Self::Fusion(_) => 3,
+            Self::Extraction(_) => 1,
+            Self::Detection(_) => 2,
+            Self::Deduplication(_) => 3,
             Self::Redaction(_) | Self::GenerateContext(_) => 4,
             Self::Validation(_) => 5,
             Self::ExportFile(_) | Self::SaveContext(_) => 6,
@@ -117,18 +111,16 @@ impl GraphNodeKind {
     }
 
     /// Returns `true` for nodes that run before policy evaluation:
-    /// import, context loading, extraction, detection, and fusion.
+    /// import, context loading, extraction, detection, and deduplication.
     #[must_use]
     pub fn is_pre_redaction(&self) -> bool {
         matches!(
             self,
             Self::ImportFile(_)
                 | Self::LoadContext(_)
-                | Self::VisualExtraction(_)
-                | Self::AudialExtraction(_)
-                | Self::NamedEntityRecognition(_)
-                | Self::PatternRecognition(_)
-                | Self::Fusion(_)
+                | Self::Extraction(_)
+                | Self::Detection(_)
+                | Self::Deduplication(_)
         )
     }
 
@@ -156,12 +148,10 @@ impl GraphNodeKind {
             Self::ImportFile(cfg) => validate_struct(cfg),
             Self::LoadContext(cfg) => validate_struct(cfg),
             Self::SaveContext(cfg) => validate_struct(cfg),
-            Self::NamedEntityRecognition(cfg) => validate_struct(cfg),
             Self::ExportFile(cfg) => validate_struct(cfg),
-            Self::PatternRecognition(cfg) => validate_struct(cfg),
-            Self::VisualExtraction(_)
-            | Self::AudialExtraction(_)
-            | Self::Fusion(_)
+            Self::Detection(cfg) => cfg.validate().map_err(|e| Error::new(e.to_string())),
+            Self::Extraction(_)
+            | Self::Deduplication(_)
             | Self::Redaction(_)
             | Self::Validation(_)
             | Self::GenerateContext(_) => Ok(()),
@@ -218,7 +208,7 @@ pub struct GraphEdge {
 pub struct Graph {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
-    /// Optional concurrency limit for parallel node execution.
+    /// Optional concurrency limit for parallel document execution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub concurrency: Option<ConcurrencyPolicy>,
 }
@@ -235,4 +225,119 @@ impl Graph {
 
 fn validate_struct(v: &impl Validate) -> Result<(), Error> {
     v.validate().map_err(|e| Error::new(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn import() -> GraphNodeKind {
+        GraphNodeKind::ImportFile(ImportFile::default())
+    }
+
+    fn extraction() -> GraphNodeKind {
+        GraphNodeKind::Extraction(Extraction::default())
+    }
+
+    fn detection() -> GraphNodeKind {
+        GraphNodeKind::Detection(Detection::default())
+    }
+
+    fn dedup() -> GraphNodeKind {
+        GraphNodeKind::Deduplication(Deduplication::default())
+    }
+
+    fn redaction() -> GraphNodeKind {
+        GraphNodeKind::Redaction(Redaction::default())
+    }
+
+    fn validation() -> GraphNodeKind {
+        GraphNodeKind::Validation(Validation::default())
+    }
+
+    fn export() -> GraphNodeKind {
+        GraphNodeKind::ExportFile(ExportFile::default())
+    }
+
+    #[test]
+    fn phases() {
+        assert_eq!(import().phase(), 0);
+        assert_eq!(
+            GraphNodeKind::LoadContext(LoadContext {
+                context_ids: vec![Uuid::nil()]
+            })
+            .phase(),
+            0
+        );
+        assert_eq!(extraction().phase(), 1);
+        assert_eq!(detection().phase(), 2);
+        assert_eq!(dedup().phase(), 3);
+        assert_eq!(redaction().phase(), 4);
+        assert_eq!(validation().phase(), 5);
+        assert_eq!(export().phase(), 6);
+        assert_eq!(
+            GraphNodeKind::SaveContext(SaveContext {
+                context_ids: vec![Uuid::nil()],
+            })
+            .phase(),
+            6
+        );
+    }
+
+    #[test]
+    fn pre_redaction() {
+        assert!(import().is_pre_redaction());
+        assert!(extraction().is_pre_redaction());
+        assert!(detection().is_pre_redaction());
+        assert!(dedup().is_pre_redaction());
+        assert!(!redaction().is_pre_redaction());
+        assert!(!validation().is_pre_redaction());
+        assert!(!export().is_pre_redaction());
+    }
+
+    #[test]
+    fn is_redaction() {
+        assert!(!import().is_redaction());
+        assert!(redaction().is_redaction());
+        assert!(GraphNodeKind::GenerateContext(GenerateContext::default()).is_redaction());
+    }
+
+    #[test]
+    fn post_redaction() {
+        assert!(!import().is_post_redaction());
+        assert!(!redaction().is_post_redaction());
+        assert!(validation().is_post_redaction());
+        assert!(export().is_post_redaction());
+        assert!(
+            GraphNodeKind::SaveContext(SaveContext {
+                context_ids: vec![Uuid::nil()],
+            })
+            .is_post_redaction()
+        );
+    }
+
+    #[test]
+    fn display() {
+        assert_eq!(import().to_string(), "import");
+        assert_eq!(extraction().to_string(), "extraction");
+        assert_eq!(detection().to_string(), "detection");
+        assert_eq!(dedup().to_string(), "deduplication");
+        assert_eq!(redaction().to_string(), "redaction");
+        assert_eq!(validation().to_string(), "validation");
+        assert_eq!(export().to_string(), "export");
+    }
+
+    #[test]
+    fn validate_accepts_valid_configs() {
+        assert!(extraction().validate().is_ok());
+        assert!(detection().validate().is_ok());
+        assert!(dedup().validate().is_ok());
+        assert!(redaction().validate().is_ok());
+        assert!(validation().validate().is_ok());
+    }
+
+    #[test]
+    fn validate_rejects_empty_import() {
+        assert!(import().validate().is_err());
+    }
 }

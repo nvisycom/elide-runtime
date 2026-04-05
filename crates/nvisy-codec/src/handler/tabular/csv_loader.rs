@@ -217,9 +217,7 @@ mod tests {
         assert_eq!(spans[0].data, "name");
         assert_eq!(spans[1].data, "age");
         assert_eq!(spans[2].data, "Alice");
-        assert_eq!(spans[2].id.key, "name");
         assert_eq!(spans[3].data, "30");
-        assert_eq!(spans[3].id.key, "age");
         Ok(())
     }
 

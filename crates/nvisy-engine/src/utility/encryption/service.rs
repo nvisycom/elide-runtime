@@ -146,7 +146,7 @@ mod tests {
 
     use super::*;
     use crate::operation::DocumentEnvelope;
-    use crate::operation::encryption::{SharedKeyProvider, StaticKeyProvider};
+    use crate::utility::encryption::{SharedKeyProvider, StaticKeyProvider};
 
     fn test_key_provider() -> SharedKeyProvider {
         let key = vec![0xAB; 32];

@@ -2,56 +2,37 @@
 //! bytes, providing span-based access via [`Handler`] + [`TextHandler`] +
 //! [`ImageHandler`].
 //!
-//! This handler is format-agnostic and used for any rich document that
-//! contains pages of text and embedded images (PDF, DOCX, etc.).
-//!
 //! # Text span model
 //!
-//! [`TextHandler::text_spans`] yields one [`Span`] per page.  Each span
-//! is addressed by a [`RichTextSpan`] (0-based page index) and carries the
-//! extracted text for that page as `TextData`.
-//!
-//! [`TextHandler::edit_text`] replaces the text at the given page indices.
-//! For PDF documents the changes are applied to the underlying content
-//! streams via [`lopdf::Document::replace_text`].
+//! [`TextHandler::text_spans`] yields one [`Span`] per page, addressed
+//! by [`TextLocation`] with byte offsets computed from cumulative page
+//! text lengths and `page_number` set.
 //!
 //! # Encoding
 //!
-//! [`Handler::encode`] returns the raw document bytes.  Edits applied via
-//! [`edit_text`](TextHandler::edit_text) are already baked into the raw
-//! bytes, so `encode` is a simple clone.
+//! [`Handler::encode`] returns the raw document bytes. Edits applied via
+//! [`edit_text`](TextHandler::edit_text) are baked into the raw bytes.
 
 use bytes::Bytes;
 use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
+use nvisy_ontology::entity::{ImageLocation, TextLocation};
 use nvisy_ontology::math::Dpi;
 
 use super::pdf_render::PdfRenderer;
 use crate::document::{Span, SpanStream};
-use crate::handler::image::{ImageData, ImageSpanId};
+use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, ImageHandler, TextHandler};
 
-/// 0-based page index for text spans within a rich document.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RichTextSpan(pub u32);
-
 /// Handler for rich documents containing pages of text and images.
-///
-/// Both PDF and DOCX documents share this representation: per-page
-/// extracted text alongside the raw document bytes. Rendering is
-/// dispatched to a dedicated single-thread pool via `PdfRenderer`.
 #[derive(Debug)]
 pub struct RichTextHandler {
-    /// Content source for lineage tracking.
     source: ContentSource,
-    /// The document type (PDF, DOCX, etc.).
     document_type: DocumentType,
-    /// Per-page extracted text (0-indexed).
     pages: Vec<String>,
-    /// Raw document bytes for encode and rendering.
     raw: Bytes,
 }
 
@@ -73,9 +54,6 @@ impl RichTextHandler {
     }
 
     /// Parse raw PDF bytes, extract per-page text, and return a new handler.
-    ///
-    /// Uses [`lopdf::Document::extract_text_chunks`] with error-filtering
-    /// for resilience (PDF font encoding issues are common).
     pub fn from_pdf(raw: impl Into<Bytes>, password: Option<&str>) -> Result<Self, Error> {
         let raw: Bytes = raw.into();
         let mut doc = lopdf::Document::load_mem(&raw).map_err(|e| {
@@ -140,10 +118,23 @@ impl RichTextHandler {
     }
 
     /// Render all pages of the PDF to images at the given DPI.
-    ///
-    /// Delegates to `PdfRenderer::parallel_render`.
     pub fn render_pages(&self, dpi: Dpi) -> Result<Vec<ImageData>, Error> {
         PdfRenderer::parallel_render(&self.raw, dpi)
+    }
+
+    /// Compute `(start_offset, end_offset, page_number)` for each page.
+    fn page_offsets(&self) -> Vec<(usize, usize, u32)> {
+        let mut offset = 0;
+        self.pages
+            .iter()
+            .enumerate()
+            .map(|(i, text)| {
+                let start = offset;
+                let end = start + text.len();
+                offset = end;
+                (start, end, (i + 1) as u32)
+            })
+            .collect()
     }
 }
 
@@ -166,32 +157,52 @@ impl Handler for RichTextHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for RichTextHandler {
-    type TextId = RichTextSpan;
-
-    async fn text_spans(&self) -> SpanStream<'_, RichTextSpan, TextData> {
-        SpanStream::new(futures::stream::iter(RichTextSpanIter {
-            pages: &self.pages,
-            index: 0,
-        }))
+    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
+        let offsets = self.page_offsets();
+        let spans: Vec<_> = self
+            .pages
+            .iter()
+            .zip(offsets.iter())
+            .map(|(text, &(start, end, page))| {
+                Span::new(
+                    TextLocation {
+                        start_offset: start,
+                        end_offset: end,
+                        page_number: Some(page),
+                        ..Default::default()
+                    },
+                    TextData::from(text.clone()),
+                )
+                .with_source(self.source)
+            })
+            .collect();
+        SpanStream::new(futures::stream::iter(spans))
     }
 
     async fn edit_text(
         &mut self,
-        edits: SpanStream<'_, RichTextSpan, TextData>,
+        edits: SpanStream<'_, TextLocation, TextData>,
     ) -> Result<(), Error> {
         let edits: Vec<_> = edits.collect().await;
         if edits.is_empty() {
             return Ok(());
         }
 
+        let offsets = self.page_offsets();
+
+        // Map byte offsets to page indices.
+        let mut page_edits: Vec<(usize, String)> = Vec::new();
         for edit in &edits {
-            let idx = edit.id.0 as usize;
-            if idx >= self.pages.len() {
-                return Err(Error::validation(
-                    format!("page index out of bounds: {idx}"),
-                    "rich-text-handler",
-                ));
-            }
+            let page_idx = offsets
+                .iter()
+                .position(|&(start, _, _)| start == edit.id.start_offset)
+                .ok_or_else(|| {
+                    Error::validation(
+                        format!("no page at byte offset {}", edit.id.start_offset),
+                        "rich-text-handler",
+                    )
+                })?;
+            page_edits.push((page_idx, edit.data.as_str().to_owned()));
         }
 
         // PDF-specific: apply replacements to content streams.
@@ -204,13 +215,12 @@ impl TextHandler for RichTextHandler {
                 )
             })?;
 
-            for edit in &edits {
-                let idx = edit.id.0 as usize;
+            for &(idx, ref new_text) in &page_edits {
                 let old_text = &self.pages[idx];
-                if !old_text.is_empty() && old_text.as_str() != edit.data.as_str() {
-                    let _ = doc.replace_text((idx as u32) + 1, old_text, edit.data.as_str(), None);
+                if !old_text.is_empty() && old_text != new_text {
+                    let _ = doc.replace_text((idx as u32) + 1, old_text, new_text, None);
                 }
-                self.pages[idx] = edit.data.as_str().to_owned();
+                self.pages[idx] = new_text.clone();
             }
 
             let mut buf = Vec::new();
@@ -223,19 +233,26 @@ impl TextHandler for RichTextHandler {
             })?;
             self.raw = Bytes::from(buf);
         } else {
-            for edit in &edits {
-                let idx = edit.id.0 as usize;
-                self.pages[idx] = edit.data.as_str().to_owned();
+            for (idx, new_text) in page_edits {
+                self.pages[idx] = new_text;
             }
         }
 
         Ok(())
     }
+
+    async fn value_at(&self, location: &TextLocation) -> Option<String> {
+        let offsets = self.page_offsets();
+        let page_idx = offsets
+            .iter()
+            .position(|&(start, _, _)| start == location.start_offset)?;
+        self.pages.get(page_idx).cloned()
+    }
 }
 
 #[async_trait::async_trait]
 impl ImageHandler for RichTextHandler {
-    async fn image_spans(&self) -> SpanStream<'_, ImageSpanId, ImageData> {
+    async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData> {
         let images = match PdfRenderer::extract_images(&self.raw) {
             Ok(imgs) => imgs,
             Err(e) => {
@@ -247,52 +264,35 @@ impl ImageHandler for RichTextHandler {
                 return SpanStream::new(futures::stream::empty());
             }
         };
-        SpanStream::new(futures::stream::iter(
-            images
-                .into_iter()
-                .enumerate()
-                .map(|(i, data)| Span::new(ImageSpanId::new(i as u32), data)),
-        ))
+        SpanStream::new(futures::stream::iter(images.into_iter().enumerate().map(
+            |(i, data)| {
+                // Embedded image bounding box — exact position within
+                // the page requires PDF content stream parsing. For now,
+                // use a full-page placeholder that identifies the page.
+                let location = ImageLocation {
+                    bounding_box: nvisy_ontology::math::BoundingBox::default(),
+                    value: None,
+                    image_id: None,
+                    page_number: Some((i + 1) as u32),
+                };
+                Span::new(location, data)
+            },
+        )))
     }
 
     async fn edit_images(
         &mut self,
-        _edits: SpanStream<'_, ImageSpanId, ImageData>,
+        _edits: SpanStream<'_, ImageLocation, ImageData>,
     ) -> Result<(), Error> {
-        // Replacing individual embedded images in a PDF requires
-        // re-encoding and re-embedding them into the document structure.
-        // This is not yet implemented — image redactions on rich
-        // documents are currently read-only (detect but not mutate).
         Ok(())
     }
-}
 
-/// Iterator over pages of a rich document (text spans).
-struct RichTextSpanIter<'a> {
-    pages: &'a [String],
-    index: usize,
-}
-
-impl<'a> Iterator for RichTextSpanIter<'a> {
-    type Item = Span<RichTextSpan, TextData>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let text = self.pages.get(self.index)?;
-        let span = Span::new(
-            RichTextSpan(self.index as u32),
-            TextData::from(text.clone()),
-        );
-        self.index += 1;
-        Some(span)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.pages.len() - self.index;
-        (remaining, Some(remaining))
+    async fn value_at(&self, _location: &ImageLocation) -> Option<ImageData> {
+        // Cropping embedded PDF images by bounding box is not yet
+        // implemented. Requires re-rendering the page region.
+        None
     }
 }
-
-impl ExactSizeIterator for RichTextSpanIter<'_> {}
 
 #[cfg(test)]
 mod tests {
@@ -300,7 +300,6 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::document::Span;
     use crate::handler::TextHandler;
 
     fn handler(pages: &[&str]) -> RichTextHandler {
@@ -317,11 +316,11 @@ mod tests {
         let spans: Vec<_> = h.text_spans().await.collect().await;
 
         assert_eq!(spans.len(), 3);
-        assert_eq!(spans[0].id, RichTextSpan(0));
+        assert_eq!(spans[0].id.page_number, Some(1));
         assert_eq!(spans[0].data, "page one");
-        assert_eq!(spans[1].id, RichTextSpan(1));
+        assert_eq!(spans[1].id.page_number, Some(2));
         assert_eq!(spans[1].data, "page two");
-        assert_eq!(spans[2].id, RichTextSpan(2));
+        assert_eq!(spans[2].id.page_number, Some(3));
         assert_eq!(spans[2].data, "page three");
     }
 
@@ -349,20 +348,6 @@ mod tests {
         let raw = b"fake-pdf-bytes";
         let h = RichTextHandler::new(DocumentType::Pdf, vec!["text".into()], raw.to_vec());
         assert_eq!(h.encode()?.as_bytes(), raw);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn edit_spans_updates_text() -> Result<(), Error> {
-        let mut h = handler(&["hello"]);
-        let err = h
-            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-                RichTextSpan(5),
-                "nope".into(),
-            )])))
-            .await
-            .unwrap_err();
-        assert!(err.to_string().contains("out of bounds"));
         Ok(())
     }
 

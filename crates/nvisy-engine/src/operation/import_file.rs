@@ -1,11 +1,9 @@
 //! File import operation.
 //!
-//! Runs at **phase 0** alongside [`LoadContext`]. Decodes raw content
-//! into a [`DocumentEnvelope`], optionally applying decompression and
+//! Runs at **phase 0**. Decodes raw content into a
+//! [`DocumentEnvelope`], optionally applying decompression and
 //! decryption.
 //!
-//! [`LoadContext`]: crate::operation::LoadContextOp
-
 //! The import pipeline applies optional pre-processing steps in order:
 //!
 //! 1. **Decompression** — decompress raw bytes (if format specified)
@@ -22,9 +20,9 @@ use nvisy_core::content::{Content, ContentData};
 use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 
 use crate::operation::DocumentEnvelope;
-use crate::operation::compression::CompressionService;
-use crate::operation::encryption::{CryptoService, EncryptedContent};
 use crate::operation::envelope::SharedData;
+use crate::utility::compression::CompressionService;
+use crate::utility::encryption::{CryptoService, EncryptedContent};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 

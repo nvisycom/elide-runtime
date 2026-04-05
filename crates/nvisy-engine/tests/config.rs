@@ -41,21 +41,6 @@ fn empty_toml_uses_defaults() {
 }
 
 #[test]
-fn validation_rejects_zero_channel_buffer() {
-    let config = RuntimeConfig {
-        engine: Some(EngineSection {
-            limits: ResourceLimits {
-                channel_buffer: 0,
-                ..Default::default()
-            },
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-    assert!(config.validate().is_err());
-}
-
-#[test]
 fn validation_accepts_defaults() {
     let config = RuntimeConfig::default();
     assert!(config.validate().is_ok());
@@ -66,7 +51,7 @@ fn merge_overrides_present_sections() {
     let base = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                channel_buffer: 256,
+                run_timeout_ms: Some(30_000),
                 ..Default::default()
             },
             ..Default::default()
@@ -76,7 +61,7 @@ fn merge_overrides_present_sections() {
     let overrides = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                channel_buffer: 64,
+                run_timeout_ms: Some(5_000),
                 ..Default::default()
             },
             ..Default::default()
@@ -85,7 +70,7 @@ fn merge_overrides_present_sections() {
     };
 
     let merged = base.merge(&overrides);
-    assert_eq!(merged.engine.unwrap().limits.channel_buffer, 64);
+    assert_eq!(merged.engine.unwrap().limits.run_timeout_ms, Some(5_000));
 }
 
 #[test]
@@ -93,7 +78,7 @@ fn merge_falls_back_to_base() {
     let base = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                channel_buffer: 512,
+                run_timeout_ms: Some(60_000),
                 ..Default::default()
             },
             ..Default::default()
@@ -103,5 +88,5 @@ fn merge_falls_back_to_base() {
     let overrides = RuntimeConfig::default();
 
     let merged = base.merge(&overrides);
-    assert_eq!(merged.engine.unwrap().limits.channel_buffer, 512);
+    assert_eq!(merged.engine.unwrap().limits.run_timeout_ms, Some(60_000));
 }

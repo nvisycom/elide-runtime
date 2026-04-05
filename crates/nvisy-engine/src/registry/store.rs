@@ -12,6 +12,7 @@ use nvisy_ontology::provenance::Audit;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::cache::ResourceCache;
 use super::content::ContentHandle;
 use super::fjall_ext::{FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found};
 use super::key::CompositeKey;
@@ -34,6 +35,8 @@ struct RegistryInner {
     contexts_ks: Keyspace,
     policies_ks: Keyspace,
     audits_ks: Keyspace,
+    context_cache: ResourceCache<Context>,
+    policy_cache: ResourceCache<Policy>,
 }
 
 impl std::fmt::Debug for Registry {
@@ -66,6 +69,8 @@ impl Registry {
                 contexts_ks,
                 policies_ks,
                 audits_ks,
+                context_cache: ResourceCache::new("context"),
+                policy_cache: ResourceCache::new("policy"),
             }),
         })
     }
@@ -74,6 +79,16 @@ impl Registry {
     #[must_use]
     pub fn base_dir(&self) -> &Path {
         &self.inner.base_dir
+    }
+
+    /// Returns the shared context cache.
+    pub fn context_cache(&self) -> &ResourceCache<Context> {
+        &self.inner.context_cache
+    }
+
+    /// Returns the shared policy cache.
+    pub fn policy_cache(&self) -> &ResourceCache<Policy> {
+        &self.inner.policy_cache
     }
 
     /// Registers content (bytes + metadata).
@@ -385,8 +400,8 @@ impl Registry {
     }
 
     /// Remove persisted audit trails for a pipeline run.
-    #[tracing::instrument(target = TARGET, name = "registry.remove_audits", skip(self), fields(%actor_id, %run_id))]
-    pub async fn remove_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<()> {
+    #[tracing::instrument(target = TARGET, name = "registry.unregister_audits", skip(self), fields(%actor_id, %run_id))]
+    pub async fn unregister_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<()> {
         let key = CompositeKey::new(actor_id, run_id);
         self.remove_entry(&self.inner.audits_ks, key, "audits")
             .await

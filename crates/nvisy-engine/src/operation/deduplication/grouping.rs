@@ -134,11 +134,11 @@ impl GroupEntities for Entities {
                             for b in &groups[indices[j]] {
                                 let va = document.value_at(&a.location).await;
                                 let vb = document.value_at(&b.location).await;
-                                if let (Some(va), Some(vb)) = (va.as_deref(), vb.as_deref()) {
-                                    if criteria.values_match(va, vb) {
-                                        any_value_match = true;
-                                        break;
-                                    }
+                                if let (Some(va), Some(vb)) = (va.as_deref(), vb.as_deref())
+                                    && criteria.values_match(va, vb)
+                                {
+                                    any_value_match = true;
+                                    break;
                                 }
                             }
                             if any_value_match {

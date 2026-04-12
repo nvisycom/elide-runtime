@@ -8,7 +8,7 @@ use crate::math::{BoundingBox, Polygon};
 /// A single word detected by OCR.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct OcrWord {
+pub struct Word {
     /// Recognised text content.
     pub text: String,
     /// Confidence score (0.0..=1.0), if available.
@@ -24,7 +24,7 @@ pub struct OcrWord {
 /// A line of text: ordered sequence of words.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct OcrLine {
+pub struct Line {
     /// Concatenated text from all words in this line.
     pub text: String,
     /// Line-level confidence, if available.
@@ -36,13 +36,13 @@ pub struct OcrLine {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub polygon: Option<Polygon>,
     /// Words in reading order.
-    pub words: Vec<OcrWord>,
+    pub words: Vec<Word>,
 }
 
 /// Classification of a block region.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum OcrBlockKind {
+pub enum BlockKind {
     /// Paragraph / prose.
     Text,
     /// Tabular content.
@@ -56,7 +56,7 @@ pub enum OcrBlockKind {
 /// A block (paragraph, table cell, figure caption, etc.).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct OcrBlock {
+pub struct Block {
     /// Concatenated text from all lines in this block.
     pub text: String,
     /// Block-level confidence, if available.
@@ -68,15 +68,15 @@ pub struct OcrBlock {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub polygon: Option<Polygon>,
     /// Classification of this block.
-    pub kind: OcrBlockKind,
+    pub kind: BlockKind,
     /// Lines in reading order.
-    pub lines: Vec<OcrLine>,
+    pub lines: Vec<Line>,
 }
 
 /// OCR results for a single page.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct OcrPage {
+pub struct Page {
     /// 1-based page number.
     pub page_number: u32,
     /// Page width in pixels, when known.
@@ -86,7 +86,7 @@ pub struct OcrPage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub height: Option<f64>,
     /// Blocks in reading order.
-    pub blocks: Vec<OcrBlock>,
+    pub blocks: Vec<Block>,
 }
 
 /// Artifacts produced during processing of image content.
@@ -95,5 +95,5 @@ pub struct OcrPage {
 pub struct ImageArtifacts {
     /// OCR results as a hierarchical page → block → line → word tree.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub ocr_pages: Vec<OcrPage>,
+    pub ocr_pages: Vec<Page>,
 }

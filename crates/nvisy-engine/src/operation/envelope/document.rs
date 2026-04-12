@@ -197,3 +197,43 @@ impl std::fmt::Debug for Document {
     }
 }
 
+#[cfg(test)]
+impl Document {
+    /// Create a test document from plain text content.
+    pub(crate) async fn from_text(text: &str) -> Self {
+        let data = ContentData::from_text(ContentSource::new(), text);
+        let meta = ContentMetadata::new().with_content_type("text/plain");
+        let content = nvisy_core::content::Content::with_metadata(data, meta.clone());
+        let handle = ContentHandle::decode(&content).await.expect("decode text");
+        Self::new(handle, meta)
+    }
+}
+
+/// Test helper: build a text entity at the given byte offsets.
+#[cfg(test)]
+pub(crate) fn test_text_entity(
+    value: &str,
+    method: nvisy_ontology::entity::RecognitionMethod,
+    confidence: f64,
+    start: usize,
+    end: usize,
+) -> nvisy_ontology::entity::Entity {
+    use nvisy_ontology::entity::{EntityCategory, EntityKind};
+
+    nvisy_ontology::entity::Entity::builder()
+        .with_category(EntityCategory::PersonalIdentity)
+        .with_entity_kind(EntityKind::PersonName)
+        .with_recognition_methods(vec![method])
+        .with_confidence(confidence)
+        .with_location(nvisy_ontology::entity::Location::from(
+            TextLocation::builder()
+                .with_text(value)
+                .with_start_offset(start)
+                .with_end_offset(end)
+                .build()
+                .unwrap(),
+        ))
+        .build()
+        .unwrap()
+}
+

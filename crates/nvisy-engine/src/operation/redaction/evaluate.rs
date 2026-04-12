@@ -208,7 +208,7 @@ mod tests {
     use nvisy_ontology::policy::{Strategy, TextStrategy};
 
     use super::*;
-    use crate::test_support::text_document;
+    use crate::operation::Document;
 
     fn test_entity(value: &str, confidence: f64) -> Entity {
         use nvisy_ontology::entity::TextLocation;
@@ -239,7 +239,7 @@ mod tests {
 
     #[tokio::test]
     async fn skips_below_threshold() {
-        let doc = text_document("John").await;
+        let doc = Document::from_text("John").await;
         let entities: Entities = vec![test_entity("John", 0.5)].into();
         let (entries, _mappings) = evaluate(
             &entities,
@@ -256,7 +256,7 @@ mod tests {
 
     #[tokio::test]
     async fn produces_entry_above_threshold() {
-        let doc = text_document("John").await;
+        let doc = Document::from_text("John").await;
         let entities: Entities = vec![test_entity("John", 0.9)].into();
         let (entries, _mappings) = evaluate(
             &entities,
@@ -274,7 +274,7 @@ mod tests {
 
     #[tokio::test]
     async fn uses_default_strategy_when_no_rules() {
-        let doc = text_document("secret").await;
+        let doc = Document::from_text("secret").await;
         let defaults = DefaultStrategy {
             text: Some(TextStrategy::Remove),
             ..Default::default()
@@ -290,7 +290,7 @@ mod tests {
 
     #[tokio::test]
     async fn skips_entity_without_matching_modality_default() {
-        let doc = text_document("text-entity").await;
+        let doc = Document::from_text("text-entity").await;
         let defaults = DefaultStrategy {
             image: Some(nvisy_ontology::policy::ImageStrategy::Blur { sigma: 15.0 }),
             ..Default::default()
@@ -303,7 +303,7 @@ mod tests {
 
     #[tokio::test]
     async fn captures_original_value() {
-        let doc = text_document("secret-value").await;
+        let doc = Document::from_text("secret-value").await;
         let entities: Entities = vec![test_entity("secret-value", 0.9)].into();
         let (entries, _mappings) = evaluate(
             &entities,

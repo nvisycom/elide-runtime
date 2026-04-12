@@ -33,6 +33,8 @@ mod document;
 mod shared;
 
 pub use self::document::Document;
+#[cfg(test)]
+pub(crate) use self::document::test_text_entity;
 pub use self::shared::SharedData;
 
 /// Per-document state that flows through the entire pipeline.

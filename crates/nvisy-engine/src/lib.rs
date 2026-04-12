@@ -6,6 +6,4 @@ pub(crate) mod graph;
 pub mod operation;
 pub mod pipeline;
 pub mod registry;
-#[cfg(test)]
-pub(crate) mod test_support;
 pub mod utility;

@@ -142,7 +142,8 @@ mod tests {
     use nvisy_ontology::workflow::DeduplicationStrategy::*;
 
     use super::*;
-    use crate::test_support::{text_document, text_entity};
+    use crate::operation::envelope::test_text_entity as text_entity;
+    use crate::operation::Document;
 
     /// The test document that entities reference by byte offset.
     /// "John Smith" at 0..10, then padding, then "Jane" at 100..104.
@@ -150,7 +151,7 @@ mod tests {
 
     #[tokio::test]
     async fn strict_groups_exact_overlap() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4),
@@ -163,7 +164,7 @@ mod tests {
 
     #[tokio::test]
     async fn strict_preserves_non_overlapping() {
-        let doc = text_document("John......John").await;
+        let doc = Document::from_text("John......John").await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity("John", RecognitionMethod::regex("test"), 0.9, 10, 14),
@@ -175,7 +176,7 @@ mod tests {
 
     #[tokio::test]
     async fn normalized_groups_case_insensitive() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
@@ -193,7 +194,7 @@ mod tests {
 
     #[tokio::test]
     async fn narrowing_groups_substring_with_overlap() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
@@ -215,7 +216,7 @@ mod tests {
     async fn narrowing_preserves_non_overlapping_substrings() {
         // Pad to 110 chars so offset 100..110 is valid.
         let text = format!("{:<100}John Smith", TEST_TEXT);
-        let doc = text_document(&text).await;
+        let doc = Document::from_text(&text).await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
@@ -234,7 +235,7 @@ mod tests {
     #[tokio::test]
     async fn widening_groups_across_locations() {
         let text = format!("{:<100}John Smith", TEST_TEXT);
-        let doc = text_document(&text).await;
+        let doc = Document::from_text(&text).await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
@@ -254,7 +255,7 @@ mod tests {
 
     #[tokio::test]
     async fn max_confidence_strategy() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
             text_entity(
@@ -273,7 +274,7 @@ mod tests {
 
     #[tokio::test]
     async fn noisy_or_strategy() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
             text_entity(
@@ -292,7 +293,7 @@ mod tests {
 
     #[tokio::test]
     async fn weighted_average_strategy() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let mut weights = HashMap::new();
         weights.insert(RecognitionMethodKind::Regex, 1.0);
         weights.insert(RecognitionMethodKind::Ner, 2.0);
@@ -356,7 +357,7 @@ mod tests {
 
     #[tokio::test]
     async fn fuse_picks_longest_value() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4),
             text_entity(
@@ -376,7 +377,7 @@ mod tests {
 
     #[tokio::test]
     async fn fuse_merges_extraction_methods() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let mut e1 = text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4);
         e1.extraction_methods = vec![ExtractionMethod::DocumentParsing];
         let mut e2 = text_entity(
@@ -395,7 +396,7 @@ mod tests {
 
     #[tokio::test]
     async fn fuse_fills_missing_language() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let mut e1 = text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4);
         let mut e2 = text_entity(
             "John",
@@ -414,7 +415,7 @@ mod tests {
 
     #[tokio::test]
     async fn same_detector_duplicates_tagged_as_deduplication() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity("John", RecognitionMethod::regex("other"), 0.9, 0, 4),
@@ -431,7 +432,7 @@ mod tests {
 
     #[tokio::test]
     async fn different_detector_tagged_as_ensemble_fusion() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
             text_entity(
@@ -454,7 +455,7 @@ mod tests {
 
     #[tokio::test]
     async fn confidence_threshold_filters() {
-        let doc = text_document("John......Jane").await;
+        let doc = Document::from_text("John......Jane").await;
         let cfg = Deduplication {
             confidence_threshold: Some(0.85),
             ..Default::default()
@@ -473,7 +474,7 @@ mod tests {
 
     #[tokio::test]
     async fn full_pipeline() {
-        let doc = text_document(TEST_TEXT).await;
+        let doc = Document::from_text(TEST_TEXT).await;
         let cfg = Deduplication {
             strategy: DeduplicationStrategy::MaxConfidence,
             ..Default::default()
@@ -499,7 +500,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_input() {
-        let doc = text_document("").await;
+        let doc = Document::from_text("").await;
         let cfg = Deduplication::default();
         let op = DeduplicationOp::new(&cfg);
         let result = op.deduplicate(Entities::new(), &doc).await;
@@ -539,7 +540,7 @@ mod tests {
 
     #[tokio::test]
     async fn single_entity_passes_through_unchanged() {
-        let doc = text_document("..........John").await;
+        let doc = Document::from_text("..........John").await;
         let entity = text_entity("John", RecognitionMethod::regex("test"), 0.75, 10, 14);
         let entities: Entities = vec![entity.clone()].into();
         let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict, &doc).await;
@@ -556,7 +557,7 @@ mod tests {
         // C(6..16="mith Jones"), but A does not overlap C. Using
         // Widening criteria, all three share substring relationships
         // and should end up in one group via transitive overlap.
-        let doc = text_document("John Smith Jones").await;
+        let doc = Document::from_text("John Smith Jones").await;
         let entities: Entities = vec![
             text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
             text_entity(

@@ -50,6 +50,16 @@ impl TextLocation {
     pub fn builder() -> TextLocationBuilder {
         TextLocationBuilder::default()
     }
+
+    /// Byte length of the span (`end_offset - start_offset`).
+    pub fn len(&self) -> usize {
+        self.end_offset.saturating_sub(self.start_offset)
+    }
+
+    /// Whether the span is empty (zero length).
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl Overlap for TextLocation {

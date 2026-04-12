@@ -101,35 +101,15 @@ impl ConflictResolutionExt for ConflictResolution {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{
-        Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
-    };
+    use nvisy_ontology::entity::{Entity, EntityKind};
 
     use super::*;
-
-    fn entity(kind: EntityKind, value: &str, confidence: f64, start: usize, end: usize) -> Entity {
-        Entity::builder()
-            .with_category(EntityCategory::PersonalIdentity)
-            .with_entity_kind(kind)
-            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(confidence)
-            .with_location(Location::from(
-                TextLocation::builder()
-                    .with_text(value)
-                    .with_start_offset(start)
-                    .with_end_offset(end)
-                    .build()
-                    .unwrap(),
-            ))
-            .build()
-            .unwrap()
-    }
 
     #[test]
     fn highest_confidence_keeps_winner() {
         let entities: Entities = vec![
-            entity(EntityKind::PhoneNumber, "555-1234", 0.9, 0, 8),
-            entity(EntityKind::EmailAddress, "555-1234", 0.8, 0, 8),
+            Entity::test_builder(0, 8).with_entity_kind(EntityKind::PhoneNumber).test_build(),
+            Entity::test_builder(0, 8).with_entity_kind(EntityKind::EmailAddress).with_confidence(0.8).test_build(),
         ]
         .into();
         let result = ConflictResolution::HighestConfidence.resolve(entities);
@@ -140,8 +120,8 @@ mod tests {
     #[test]
     fn non_overlapping_not_resolved() {
         let entities: Entities = vec![
-            entity(EntityKind::PhoneNumber, "555-1234", 0.9, 0, 8),
-            entity(EntityKind::EmailAddress, "9876", 0.8, 20, 24),
+            Entity::test_builder(0, 8).with_entity_kind(EntityKind::PhoneNumber).test_build(),
+            Entity::test_builder(20, 24).with_entity_kind(EntityKind::EmailAddress).with_confidence(0.8).test_build(),
         ]
         .into();
         let result = ConflictResolution::HighestConfidence.resolve(entities);
@@ -151,8 +131,8 @@ mod tests {
     #[test]
     fn same_kind_not_resolved() {
         let entities: Entities = vec![
-            entity(EntityKind::PhoneNumber, "555-1234", 0.9, 0, 8),
-            entity(EntityKind::PhoneNumber, "555-1234", 0.8, 0, 8),
+            Entity::test_builder(0, 8).with_entity_kind(EntityKind::PhoneNumber).test_build(),
+            Entity::test_builder(0, 8).with_entity_kind(EntityKind::PhoneNumber).with_confidence(0.8).test_build(),
         ]
         .into();
         let result = ConflictResolution::HighestConfidence.resolve(entities);
@@ -162,8 +142,8 @@ mod tests {
     #[test]
     fn longest_span_keeps_longer() {
         let entities: Entities = vec![
-            entity(EntityKind::PhoneNumber, "555", 0.9, 0, 3),
-            entity(EntityKind::EmailAddress, "555-1234", 0.7, 0, 8),
+            Entity::test_builder(0, 3).with_entity_kind(EntityKind::PhoneNumber).test_build(),
+            Entity::test_builder(0, 8).with_entity_kind(EntityKind::EmailAddress).with_confidence(0.7).test_build(),
         ]
         .into();
         let result = ConflictResolution::LongestSpan.resolve(entities);

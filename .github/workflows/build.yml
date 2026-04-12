@@ -2,14 +2,18 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches:
+      - "main"
+      - "release"
     paths:
       - "crates/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - ".github/workflows/build.yml"
   pull_request:
-    branches: [main]
+    branches:
+      - "main"
+      - "release"
     paths:
       - "crates/**"
       - "Cargo.toml"

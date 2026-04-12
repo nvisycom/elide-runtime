@@ -95,4 +95,5 @@ tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 nvisy-engine = { path = ".", features = ["test-utils"] }
+nvisy-ontology = { workspace = true, features = ["test-utils"] }
 tempfile = { workspace = true, features = [] }

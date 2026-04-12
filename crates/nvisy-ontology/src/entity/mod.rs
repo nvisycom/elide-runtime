@@ -79,12 +79,42 @@ impl Entity {
         EntityBuilder::default()
     }
 
+    /// Create a pre-filled [`EntityBuilder`] for tests.
+    ///
+    /// Defaults: `PersonalIdentity` / `PersonName` / `regex("test")` /
+    /// confidence `0.9` / text location at `start..end`.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn test_builder(start: usize, end: usize) -> EntityBuilder {
+        Entity::builder()
+            .with_category(EntityCategory::PersonalIdentity)
+            .with_entity_kind(EntityKind::PersonName)
+            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
+            .with_confidence(0.9)
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_start_offset(start)
+                    .with_end_offset(end)
+                    .build()
+                    .expect("required fields provided"),
+            ))
+    }
+
     /// The detected text value, if available for this entity's location.
     ///
     /// Not serialized in API responses. Delegates to
     /// [`Location::text_value`].
     pub fn text_value(&self) -> Option<&str> {
         self.location.text_value()
+    }
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+impl EntityBuilder {
+    /// Build the entity, panicking on missing fields.
+    ///
+    /// Shorthand for `.build().expect(...)` in tests.
+    pub fn test_build(self) -> Entity {
+        self.build().expect("test entity builder: missing fields")
     }
 }
 

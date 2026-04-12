@@ -42,6 +42,11 @@ impl ImageLocation {
     pub fn builder() -> ImageLocationBuilder {
         ImageLocationBuilder::default()
     }
+
+    /// Area of the bounding box in pixels (`width * height`).
+    pub fn area(&self) -> f64 {
+        self.bounding_box.width * self.bounding_box.height
+    }
 }
 
 impl Overlap for ImageLocation {

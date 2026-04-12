@@ -3,6 +3,8 @@
 //! Compares the spatial/temporal extent of two same-modality locations
 //! to select the most representative span when merging entities.
 
+use std::cmp::Ordering;
+
 use nvisy_ontology::entity::Location;
 
 /// Extension trait for comparing the spatial/temporal extent of two
@@ -25,24 +27,16 @@ pub(crate) trait SpanSize {
     /// Compare the extent of two locations.
     ///
     /// Returns `None` if the locations are different modalities.
-    fn span_cmp(&self, other: &Self) -> Option<std::cmp::Ordering>;
+    fn span_cmp(&self, other: &Self) -> Option<Ordering>;
 }
 
 impl SpanSize for Location {
-    fn span_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn span_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
-            (Self::Text(a), Self::Text(b)) => {
-                let sa = a.end_offset.saturating_sub(a.start_offset);
-                let sb = b.end_offset.saturating_sub(b.start_offset);
-                Some(sa.cmp(&sb))
-            }
-            (Self::Image(a), Self::Image(b)) => {
-                let area_a = a.bounding_box.width * a.bounding_box.height;
-                let area_b = b.bounding_box.width * b.bounding_box.height;
-                area_a.partial_cmp(&area_b)
-            }
+            (Self::Text(a), Self::Text(b)) => Some(a.len().cmp(&b.len())),
+            (Self::Image(a), Self::Image(b)) => a.area().partial_cmp(&b.area()),
             (Self::Audio(a), Self::Audio(b)) => {
-                a.time_span.duration_secs().partial_cmp(&b.time_span.duration_secs())
+                Some(a.time_span.duration_us().cmp(&b.time_span.duration_us()))
             }
             (Self::Tabular(a), Self::Tabular(b)) => Some(a.text.len().cmp(&b.text.len())),
             _ => None,

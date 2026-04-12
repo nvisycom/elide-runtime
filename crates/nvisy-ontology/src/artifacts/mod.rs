@@ -14,7 +14,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::audio::{AudioArtifacts, Transcription};
-pub use self::image::{ImageArtifacts, OcrResult};
+pub use self::image::{
+    ImageArtifacts, OcrBlock, OcrBlockKind, OcrLine, OcrPage, OcrWord,
+};
 pub use self::rich::RichArtifacts;
 pub use self::tabular::TabularArtifacts;
 pub use self::text::TextArtifacts;

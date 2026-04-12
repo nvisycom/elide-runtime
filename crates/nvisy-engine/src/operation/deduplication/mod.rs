@@ -142,8 +142,31 @@ mod tests {
     use nvisy_ontology::workflow::DeduplicationStrategy::*;
 
     use super::*;
-    use crate::operation::envelope::test_text_entity as text_entity;
     use crate::operation::Document;
+
+    fn text_entity(
+        value: &str,
+        method: RecognitionMethod,
+        confidence: f64,
+        start: usize,
+        end: usize,
+    ) -> Entity {
+        Entity::builder()
+            .with_category(EntityCategory::PersonalIdentity)
+            .with_entity_kind(EntityKind::PersonName)
+            .with_recognition_methods(vec![method])
+            .with_confidence(confidence)
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_text(value)
+                    .with_start_offset(start)
+                    .with_end_offset(end)
+                    .build()
+                    .unwrap(),
+            ))
+            .build()
+            .unwrap()
+    }
 
     /// The test document that entities reference by byte offset.
     /// "John Smith" at 0..10, then padding, then "Jane" at 100..104.

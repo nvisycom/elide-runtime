@@ -75,6 +75,7 @@ sha2 = { workspace = true, optional = true, features = [] }
 hmac = { workspace = true, optional = true, features = [] }
 
 # Derive macros and error handling
+derive_more = { workspace = true, features = ["deref"] }
 thiserror = { workspace = true, features = [] }
 
 # Observability

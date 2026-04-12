@@ -3121,6 +3121,7 @@ dependencies = [
  "async-trait",
  "base64",
  "bytes",
+ "derive_more",
  "futures",
  "hmac 0.13.0",
  "nvisy-core",

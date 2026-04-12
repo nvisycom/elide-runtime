@@ -27,7 +27,7 @@ mod grouping;
 pub(crate) mod span_size;
 mod strategy;
 #[cfg(test)]
-mod test_helpers;
+pub(crate) mod test_helpers;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;

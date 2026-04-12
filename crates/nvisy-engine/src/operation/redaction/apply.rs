@@ -41,7 +41,7 @@ impl<'a> RedactionApplicator<'a> {
 
     /// Build and apply all redaction instructions.
     pub async fn apply(mut self) -> nvisy_core::Result<()> {
-        let text = self.build_text_redactions();
+        let text = self.build_text_redactions().await;
         let image = self.build_image_redactions();
         let audio = self.build_audio_redactions();
 
@@ -64,7 +64,7 @@ impl<'a> RedactionApplicator<'a> {
         Ok(())
     }
 
-    fn build_text_redactions(&mut self) -> Vec<TextRedaction<TextLocation>> {
+    async fn build_text_redactions(&mut self) -> Vec<TextRedaction<TextLocation>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Vec::new();
 
@@ -79,8 +79,15 @@ impl<'a> RedactionApplicator<'a> {
                 continue;
             };
 
+            let value = self
+                .envelope
+                .document
+                .value_at(&entity.location)
+                .await
+                .unwrap_or_default();
+
             let output = match &record.redaction.strategy {
-                Strategy::Text(text) => Self::text_output(entity, text),
+                Strategy::Text(text) => Self::text_output(&value, entity, text),
                 _ => continue,
             };
 
@@ -238,8 +245,7 @@ impl<'a> RedactionApplicator<'a> {
         entities.iter().map(|e| (e.id, e)).collect()
     }
 
-    fn text_output(entity: &Entity, strategy: &TextStrategy) -> TextOutput {
-        let value = entity.text_value().unwrap_or_default();
+    fn text_output(value: &str, entity: &Entity, strategy: &TextStrategy) -> TextOutput {
         match strategy {
             TextStrategy::Mask { mask_char } => {
                 TextOutput::replace(mask_char.to_string().repeat(value.len()))

@@ -9,7 +9,7 @@ use nvisy_ontology::entity::{
 use crate::operation::Document;
 
 /// Create a test [`Document`] from plain text content.
-pub(super) async fn text_document(text: &str) -> Document {
+pub(crate) async fn text_document(text: &str) -> Document {
     let data = ContentData::from_text(ContentSource::new(), text);
     let meta = ContentMetadata::new().with_content_type("text/plain");
     let content = Content::with_metadata(data, meta.clone());
@@ -18,7 +18,7 @@ pub(super) async fn text_document(text: &str) -> Document {
 }
 
 /// Build a text entity at the given byte offsets for testing.
-pub(super) fn text_entity(
+pub(crate) fn text_entity(
     value: &str,
     method: RecognitionMethod,
     confidence: f64,

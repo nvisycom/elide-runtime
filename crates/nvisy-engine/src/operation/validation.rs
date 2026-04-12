@@ -43,14 +43,15 @@ impl ValidationOp {
 
     /// Check whether any redacted values leaked in the output text.
     ///
-    /// Only entities with a [`text_value`](nvisy_ontology::entity::Entity::text_value)
+    /// Only entities with a text value (resolved from the document)
     /// can be verified this way. Image/audio entities without text
     /// values are counted as passed — visual and temporal redaction
     /// verification is not yet implemented.
-    fn check(
+    async fn check(
         entities: &Entities,
         records: &[AuditEntry],
         redacted_text: Option<&str>,
+        document: &crate::operation::Document,
     ) -> ValidationResult {
         let mut passed = 0usize;
         let mut leaked = Vec::new();
@@ -63,11 +64,11 @@ impl ValidationOp {
                 let entity = entities.iter().find(|e| e.id == record.entity_id);
 
                 if let Some(entity) = entity {
-                    if let Some(value) = entity.text_value() {
+                    if let Some(value) = document.value_at(&entity.location).await {
                         let lower_value = value.to_lowercase();
                         if !value.is_empty() && lower_text.contains(&lower_value) {
                             leaked.push(LeakedValue {
-                                value: value.to_string(),
+                                value,
                                 entity_id: record.entity_id,
                             });
                         } else {
@@ -108,7 +109,9 @@ impl Operation for ValidationOp {
             &envelope.audit.entities,
             &envelope.audit.entries,
             redacted_text.as_deref(),
-        );
+            &envelope.document,
+        )
+        .await;
 
         if result.leaked.is_empty() {
             tracing::debug!(target: TARGET, passed = result.passed, "validation passed");

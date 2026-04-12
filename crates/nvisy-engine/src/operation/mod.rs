@@ -10,7 +10,7 @@
 //! - [`deduplication`]: entity deduplication and confidence scoring.
 //! - [`redaction`]: policy evaluation and content redaction.
 
-mod deduplication;
+pub(crate) mod deduplication;
 mod detection;
 pub mod envelope;
 mod export_file;

@@ -16,6 +16,8 @@ use std::collections::{HashMap, HashSet};
 use nvisy_ontology::entity::{Entities, Entity, EntityKind, Overlap};
 use nvisy_ontology::workflow::GroupingCriteria;
 
+use crate::operation::Document;
+
 const TARGET: &str = "nvisy_engine::op::deduplication::grouping";
 
 /// Hash key for the first grouping phase.
@@ -34,12 +36,12 @@ struct GroupKey {
 }
 
 impl GroupKey {
-    fn new(entity: &Entity, criteria: GroupingCriteria) -> Self {
+    async fn new(entity: &Entity, criteria: GroupingCriteria, document: &Document) -> Self {
         // Entities without a text value (e.g. image bounding boxes)
         // get a unique sentinel so they don't all bucket together.
         // They will still be grouped by location overlap in phase 2.
-        let value = match entity.text_value() {
-            Some(v) => criteria.bucket_value(v),
+        let value = match document.value_at(&entity.location).await {
+            Some(v) => criteria.bucket_value(&v),
             None => entity.id.to_string(),
         };
         Self {
@@ -56,11 +58,19 @@ pub(super) trait GroupEntities {
     /// Each returned `Vec<Entity>` contains entities that share the same
     /// kind/value (per the criteria) and overlap in location (unless the
     /// criteria ignores location).
-    fn group(self, criteria: GroupingCriteria) -> Vec<Vec<Entity>>;
+    fn group(
+        self,
+        criteria: GroupingCriteria,
+        document: &Document,
+    ) -> impl Future<Output = Vec<Vec<Entity>>> + Send;
 }
 
 impl GroupEntities for Entities {
-    fn group(self, criteria: GroupingCriteria) -> Vec<Vec<Entity>> {
+    async fn group(
+        self,
+        criteria: GroupingCriteria,
+        document: &Document,
+    ) -> Vec<Vec<Entity>> {
         let check_overlap = criteria.requires_location_overlap();
         let is_substring = criteria.is_substring();
         let entity_count = self.len();
@@ -68,7 +78,7 @@ impl GroupEntities for Entities {
         // Phase 1: bucket by (kind, value).
         let mut buckets: HashMap<GroupKey, Vec<Entity>> = HashMap::new();
         for entity in self {
-            let key = GroupKey::new(&entity, criteria);
+            let key = GroupKey::new(&entity, criteria, document).await;
             buckets.entry(key).or_default().push(entity);
         }
 
@@ -123,16 +133,22 @@ impl GroupEntities for Entities {
                         if merged_into.contains(&indices[j]) {
                             continue;
                         }
-                        let any_value_match = groups[indices[i]].iter().any(|a| {
-                            groups[indices[j]].iter().any(|b| {
-                                match (a.text_value(), b.text_value()) {
-                                    (Some(va), Some(vb)) => criteria.values_match(va, vb),
-                                    // Non-text entities: skip value match,
-                                    // rely on location overlap.
-                                    _ => false,
+                        let mut any_value_match = false;
+                        for a in &groups[indices[i]] {
+                            for b in &groups[indices[j]] {
+                                let va = document.value_at(&a.location).await;
+                                let vb = document.value_at(&b.location).await;
+                                if let (Some(va), Some(vb)) = (va.as_deref(), vb.as_deref()) {
+                                    if criteria.values_match(va, vb) {
+                                        any_value_match = true;
+                                        break;
+                                    }
                                 }
-                            })
-                        });
+                            }
+                            if any_value_match {
+                                break;
+                            }
+                        }
                         let location_ok = !check_overlap
                             || groups[indices[i]].iter().any(|a| {
                                 groups[indices[j]]

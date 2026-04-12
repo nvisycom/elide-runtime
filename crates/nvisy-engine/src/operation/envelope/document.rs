@@ -12,7 +12,7 @@ use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::artifacts::ContentArtifacts;
 use nvisy_ontology::entity::{
-    AudioLocation, ImageLocation, TabularLocation, TextLocation,
+    AudioLocation, ImageLocation, Location, TabularLocation, TextLocation,
 };
 
 use nvisy_codec::transform::{AudioRedaction, ImageRedaction, TabularRedaction, TextRedaction};
@@ -133,6 +133,20 @@ impl Document {
     /// internally and don't have a dedicated `ContentHandle` variant yet.
     pub async fn tabular_at(&self, _location: &TabularLocation) -> Option<String> {
         None
+    }
+
+    /// Extract the text value at a [`Location`], dispatching by modality.
+    ///
+    /// Returns the text content for Text/Tabular locations and the
+    /// extracted text (OCR/STT) for Image/Audio locations.
+    pub async fn value_at(&self, location: &Location) -> Option<String> {
+        match location {
+            Location::Text(loc) => self.text_at(loc).await,
+            Location::Image(loc) => loc.extracted_text.clone(),
+            Location::Audio(loc) => loc.extracted_text.clone(),
+            Location::Tabular(loc) => self.tabular_at(loc).await,
+            _ => None,
+        }
     }
 
     // -- Redaction delegates --

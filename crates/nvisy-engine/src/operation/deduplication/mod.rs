@@ -26,8 +26,6 @@ mod conflict;
 mod grouping;
 pub(crate) mod span_size;
 mod strategy;
-#[cfg(test)]
-pub(crate) mod test_helpers;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
@@ -144,7 +142,7 @@ mod tests {
     use nvisy_ontology::workflow::DeduplicationStrategy::*;
 
     use super::*;
-    use crate::operation::deduplication::test_helpers::{text_document, text_entity};
+    use crate::test_support::{text_document, text_entity};
 
     /// The test document that entities reference by byte offset.
     /// "John Smith" at 0..10, then padding, then "Jane" at 100..104.

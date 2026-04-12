@@ -208,7 +208,7 @@ mod tests {
     use nvisy_ontology::policy::{Strategy, TextStrategy};
 
     use super::*;
-    use crate::operation::deduplication::test_helpers::text_document;
+    use crate::test_support::text_document;
 
     fn test_entity(value: &str, confidence: f64) -> Entity {
         use nvisy_ontology::entity::TextLocation;

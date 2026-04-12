@@ -5,9 +5,7 @@
 //! wraps them with a [`ContentSource`] for provenance tracking.
 
 use nvisy_core::content::ContentSource;
-
-// Re-export structural OCR types from ontology.
-pub use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
+use nvisy_ontology::artifacts::{Block, Line, Page, Word};
 
 /// Complete OCR output for one image/document.
 ///

@@ -5,15 +5,14 @@
 use std::fmt;
 
 use nvisy_core::{Error, Result};
+use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
 use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use super::AzureDocaiParams;
 use crate::http::{HttpClient, HttpConfig};
-use crate::ocr::backend::{
-    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word, check_response,
-};
+use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
 /// [`Backend`] implementation for Azure Document Intelligence.
 ///
@@ -122,7 +121,7 @@ impl Backend for AzureDocaiBackend {
             .await
             .map_err(|e| Error::connection(e.to_string(), "azure_docai_ocr", true))?;
 
-        let resp = check_response(resp, "Azure DocAI submit").await?;
+        let resp = HttpClient::check_response(resp, "Azure DocAI submit").await?;
 
         let result_url = resp
             .headers()
@@ -167,7 +166,7 @@ impl Backend for AzureDocaiBackend {
                 .await
                 .map_err(|e| Error::connection(e.to_string(), "azure_docai_ocr", true))?;
 
-            let poll_resp = check_response(poll_resp, "Azure DocAI poll").await?;
+            let poll_resp = HttpClient::check_response(poll_resp, "Azure DocAI poll").await?;
 
             let parsed: AnalyzeResponse = poll_resp.json().await.map_err(|e| {
                 Error::runtime(

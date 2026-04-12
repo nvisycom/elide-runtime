@@ -60,6 +60,23 @@ impl HttpClient {
         ))
     }
 
+    /// Check an HTTP response status, returning an error for non-success.
+    pub async fn check_response(
+        resp: reqwest_middleware::reqwest::Response,
+        provider: &str,
+    ) -> nvisy_core::Result<reqwest_middleware::reqwest::Response> {
+        let status = resp.status();
+        if status.is_success() {
+            return Ok(resp);
+        }
+        let body = resp.text().await.unwrap_or_default();
+        Err(nvisy_core::Error::connection(
+            format!("{provider} returned {status}: {body}"),
+            provider,
+            status.is_server_error(),
+        ))
+    }
+
     /// Consume the wrapper and return the inner middleware client.
     pub fn into_inner(self) -> ClientWithMiddleware {
         self.0

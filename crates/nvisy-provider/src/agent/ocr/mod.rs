@@ -20,7 +20,7 @@ use self::prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use crate::agent::base::UsageTracker;
 use crate::agent::{AgentConfig, AgentProvider, BaseAgent};
 use crate::http::HttpClient;
-pub use crate::ocr::{Backend, Block, BlockKind, ImageFormat, Line, OcrProvider, Page, Word};
+pub use crate::ocr::{Backend, ImageFormat, OcrProvider};
 use crate::ocr::{ImageInput, ImageOutput, OcrEngine, RunParams};
 
 const TARGET: &str = "nvisy_provider::agent::ocr";

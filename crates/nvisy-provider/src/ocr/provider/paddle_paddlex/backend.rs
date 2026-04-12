@@ -3,16 +3,14 @@
 //! [`Backend`]: crate::Backend
 
 use nvisy_core::{Error, Result};
+use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
 use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::PaddleXParams;
 use crate::http::{HttpClient, HttpConfig};
-use crate::ocr::backend::{
-    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
-    check_response, image_part,
-};
+use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams, image_part};
 
 /// [`Backend`] implementation for PaddleX PP-OCRv5.
 ///
@@ -94,7 +92,7 @@ impl Backend for PaddleXBackend {
             .await
             .map_err(|e| Error::connection(e.to_string(), "paddlex_ocr", true))?;
 
-        let resp = check_response(resp, "PaddleX").await?;
+        let resp = HttpClient::check_response(resp, "PaddleX").await?;
 
         let parsed: PaddleXResponse = resp.json().await.map_err(|e| {
             Error::runtime(

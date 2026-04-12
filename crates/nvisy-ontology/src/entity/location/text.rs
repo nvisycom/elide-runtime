@@ -16,13 +16,6 @@ use super::Overlap;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct TextLocation {
-    /// The matched text at this location.
-    ///
-    /// Populated during detection; skipped in serialization to prevent
-    /// sensitive data from appearing in API responses.
-    #[builder(default)]
-    #[serde(default, skip_serializing)]
-    pub text: String,
     /// Byte or character offset where the entity starts.
     pub start_offset: usize,
     /// Byte or character offset where the entity ends.
@@ -89,19 +82,14 @@ mod tests {
             .unwrap();
         assert_eq!(loc.start_offset, 0);
         assert_eq!(loc.end_offset, 5);
-        assert!(loc.text.is_empty());
         assert_eq!(loc.line_number, None);
     }
 
     #[test]
-    fn builder_with_text() {
-        let loc = TextLocation::builder()
-            .with_text("hello")
-            .with_start_offset(0usize)
-            .with_end_offset(5usize)
-            .build()
-            .unwrap();
-        assert_eq!(loc.text, "hello");
+    fn len_and_is_empty() {
+        assert_eq!(loc(0, 10).len(), 10);
+        assert!(!loc(0, 10).is_empty());
+        assert!(loc(5, 5).is_empty());
     }
 
     #[test]
@@ -126,15 +114,8 @@ mod tests {
 
     #[test]
     fn serde_round_trip() {
-        let loc = TextLocation::builder()
-            .with_text("secret")
-            .with_start_offset(0usize)
-            .with_end_offset(6usize)
-            .build()
-            .unwrap();
+        let loc = loc(0, 6);
         let json = serde_json::to_string(&loc).unwrap();
-        // text field is skip_serializing
-        assert!(!json.contains("secret"));
         let deser: TextLocation = serde_json::from_str(&json).unwrap();
         assert_eq!(deser.start_offset, 0);
         assert_eq!(deser.end_offset, 6);

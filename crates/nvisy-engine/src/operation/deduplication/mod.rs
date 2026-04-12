@@ -467,7 +467,6 @@ mod tests {
             .with_confidence(1.0)
             .with_location(Location::from(
                 TextLocation::builder()
-                    .with_text("John")
                     .with_start_offset(0usize)
                     .with_end_offset(4usize)
                     .build()

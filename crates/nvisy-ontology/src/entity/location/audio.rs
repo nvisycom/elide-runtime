@@ -20,13 +20,6 @@ use crate::math::TimeSpan;
 pub struct AudioLocation {
     /// Time interval of the entity.
     pub time_span: TimeSpan,
-    /// Text extracted from the audio segment (e.g. via STT).
-    ///
-    /// Populated during extraction; skipped in serialization to prevent
-    /// sensitive data from appearing in API responses.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing)]
-    pub extracted_text: Option<String>,
     /// Speaker identifier from diarization.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -23,6 +23,6 @@ pub use self::ner::{
 };
 pub use self::ocr::{
     Backend, Block, BlockKind, ImageFormat, Line, OcrAgent, OcrProvider, Page, ProposedEntity,
-    VerificationOutput, VerificationStatus, VerifiedEntity, Word,
+    VerificationCandidate, VerificationOutput, VerificationStatus, VerifiedEntity, Word,
 };
 pub use crate::ocr::{ImageInput, ImageOutput, RunParams};

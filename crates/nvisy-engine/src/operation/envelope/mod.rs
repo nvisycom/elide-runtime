@@ -97,14 +97,19 @@ impl DocumentEnvelope {
 
     /// Add detected entities, assigning sensitivity from entity kind
     /// and filtering out any that fall within exclusion annotations.
-    pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity>) {
+    pub async fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity>) {
         for mut entity in entities {
             // Assign sensitivity if not already set.
             if entity.sensitivity.is_none() {
                 entity.sensitivity = Some(entity.entity_kind.sensitivity());
             }
-            if self.annotations.is_empty() || !self.annotations.is_excluded(&entity) {
+            if self.annotations.is_empty() {
                 self.audit.entities.push(entity);
+            } else {
+                let value = self.document.value_at(&entity.location).await;
+                if !self.annotations.is_excluded(&entity, value.as_deref()) {
+                    self.audit.entities.push(entity);
+                }
             }
         }
     }

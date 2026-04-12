@@ -56,8 +56,10 @@ fn column_confidence_applies_to_csv_dictionaries() {
     let entities = engine.scan_entities("I paid in US Dollar and also in USD.", &empty_ctx());
     let full_name = entities
         .iter()
-        .find(|e| e.text_value() == Some("US Dollar"));
-    let code = entities.iter().find(|e| e.text_value() == Some("USD"));
+        .find(|e| e.location.as_text().is_some_and(|l| l.len() == 9));
+    let code = entities
+        .iter()
+        .find(|e| e.location.as_text().is_some_and(|l| l.len() == 3));
     assert!(full_name.is_some(), "should match 'US Dollar'");
     assert!(code.is_some(), "should match 'USD'");
     let full_conf = full_name.unwrap().confidence;

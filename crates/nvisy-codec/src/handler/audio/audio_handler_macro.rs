@@ -43,7 +43,6 @@ macro_rules! impl_audio_handler {
                         start_us: 0,
                         end_us: 0,
                     },
-                    extracted_text: None,
                     speaker_id: None,
                     audio_id: None,
                 };

@@ -5,6 +5,15 @@ use nvisy_ontology::math::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// An entity paired with its resolved text value, ready for VLM
+/// verification.
+pub struct VerificationCandidate {
+    /// The detected entity.
+    pub entity: Entity,
+    /// Text value resolved from the document.
+    pub value: String,
+}
+
 /// An entity proposed by NER that the VLM should verify against the image.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct ProposedEntity {
@@ -23,8 +32,9 @@ pub struct ProposedEntity {
 }
 
 impl ProposedEntity {
-    /// Create a proposed entity from a detected [`Entity`] and its index.
-    pub fn from_entity(id: usize, entity: &Entity) -> Self {
+    /// Create a proposed entity from a detected [`Entity`], its index,
+    /// and the resolved text value from the document.
+    pub fn from_entity(id: usize, entity: &Entity, value: &str) -> Self {
         let bbox = match &entity.location {
             Location::Image(loc) => Some(loc.bounding_box),
             _ => None,
@@ -33,7 +43,7 @@ impl ProposedEntity {
             id,
             category: entity.category,
             entity_type: entity.entity_kind,
-            value: entity.text_value().unwrap_or_default().to_string(),
+            value: value.to_string(),
             confidence: entity.confidence,
             bbox,
         }

@@ -16,13 +16,6 @@ use super::Overlap;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct TabularLocation {
-    /// The cell text at this location.
-    ///
-    /// Populated during detection; skipped in serialization to prevent
-    /// sensitive data from appearing in API responses.
-    #[builder(default)]
-    #[serde(default, skip_serializing)]
-    pub text: String,
     /// Row index (0-based).
     pub row_index: usize,
     /// Column index (0-based).
@@ -95,7 +88,6 @@ mod tests {
         let loc = cell(1, 2);
         assert_eq!(loc.row_index, 1);
         assert_eq!(loc.column_index, 2);
-        assert!(loc.text.is_empty());
     }
 
     #[test]

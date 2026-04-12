@@ -315,22 +315,8 @@ mod tests {
     use super::*;
     use crate::operation::envelope::SharedData;
 
-    fn text_entity(value: &str, start: usize, end: usize) -> Entity {
-        Entity::builder()
-            .with_category(EntityCategory::PersonalIdentity)
-            .with_entity_kind(EntityKind::PersonName)
-            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(0.9)
-            .with_location(Location::from(
-                TextLocation::builder()
-                    .with_text(value)
-                    .with_start_offset(start)
-                    .with_end_offset(end)
-                    .build()
-                    .unwrap(),
-            ))
-            .build()
-            .unwrap()
+    fn text_entity(start: usize, end: usize) -> Entity {
+        Entity::test_builder(start, end).test_build()
     }
 
     async fn test_envelope(entities: Entities) -> DocumentEnvelope {
@@ -355,7 +341,7 @@ mod tests {
 
     #[tokio::test]
     async fn mask_applies_and_records_replacement() {
-        let entity = text_entity("John", 6, 10);
+        let entity = text_entity(6, 10);
         let entity_id = entity.id;
         let record = test_record(
             entity_id,
@@ -380,7 +366,7 @@ mod tests {
 
     #[tokio::test]
     async fn remove_leaves_replacement_none() {
-        let entity = text_entity("John", 6, 10);
+        let entity = text_entity(6, 10);
         let entity_id = entity.id;
         let record = test_record(entity_id, Strategy::Text(TextStrategy::Remove), "John");
 
@@ -398,7 +384,7 @@ mod tests {
 
     #[tokio::test]
     async fn skips_image_strategy_for_text_entity() {
-        let entity = text_entity("face", 0, 4);
+        let entity = text_entity(0, 4);
         let record = test_record(
             entity.id,
             Strategy::Image(ImageStrategy::Blur { sigma: 15.0 }),

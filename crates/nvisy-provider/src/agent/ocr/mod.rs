@@ -14,7 +14,7 @@ use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entity;
 use uuid::Uuid;
 
-pub use self::input::ProposedEntity;
+pub use self::input::{ProposedEntity, VerificationCandidate};
 pub use self::output::{VerificationOutput, VerificationStatus, VerifiedEntity};
 use self::prompt::{OCR_SYSTEM_PROMPT, OcrPromptBuilder};
 use crate::agent::base::UsageTracker;
@@ -165,23 +165,28 @@ impl OcrAgent {
     #[tracing::instrument(
         target = TARGET,
         skip_all,
-        fields(image_bytes = image.len(), entity_count = entities.len()),
+        fields(image_bytes = image.len(), entity_count = candidates.len()),
     )]
+    /// Verify detected entities against an image using VLM.
+    ///
+    /// Each [`VerificationCandidate`] pairs an entity with its resolved
+    /// text value (from `Document::value_at`).
     pub async fn verify_entities(
         &self,
         image: &ImageInput,
-        entities: Vec<Entity>,
+        candidates: Vec<VerificationCandidate>,
     ) -> Result<Vec<Entity>> {
-        if entities.is_empty() {
+        if candidates.is_empty() {
             return Ok(Vec::new());
         }
 
-        let proposed: Vec<ProposedEntity> = entities
+        let proposed: Vec<ProposedEntity> = candidates
             .iter()
             .enumerate()
-            .map(|(i, e)| ProposedEntity::from_entity(i, e))
+            .map(|(i, c)| ProposedEntity::from_entity(i, &c.entity, &c.value))
             .collect();
 
+        let entities: Vec<Entity> = candidates.into_iter().map(|c| c.entity).collect();
         let output = self.verify(image, &proposed).await?;
         Ok(output.merge(entities))
     }

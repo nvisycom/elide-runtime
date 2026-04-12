@@ -211,23 +211,9 @@ mod tests {
     use crate::operation::Document;
 
     fn test_entity(value: &str, confidence: f64) -> Entity {
-        use nvisy_ontology::entity::TextLocation;
-
-        Entity::builder()
-            .with_category(EntityCategory::PersonalIdentity)
-            .with_entity_kind(EntityKind::PersonName)
-            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
+        Entity::test_builder(0, value.len())
             .with_confidence(confidence)
-            .with_location(Location::from(
-                TextLocation::builder()
-                    .with_text(value)
-                    .with_start_offset(0usize)
-                    .with_end_offset(value.len())
-                    .build()
-                    .unwrap(),
-            ))
-            .build()
-            .unwrap()
+            .test_build()
     }
 
     fn defaults() -> DefaultStrategy {

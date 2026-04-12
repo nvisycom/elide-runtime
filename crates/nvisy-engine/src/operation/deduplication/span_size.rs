@@ -38,7 +38,13 @@ impl SpanSize for Location {
             (Self::Audio(a), Self::Audio(b)) => {
                 Some(a.time_span.duration_us().cmp(&b.time_span.duration_us()))
             }
-            (Self::Tabular(a), Self::Tabular(b)) => Some(a.text.len().cmp(&b.text.len())),
+            // Tabular: compare intra-cell byte range length. Entities
+            // without offsets (whole-cell) compare as equal (both 0).
+            (Self::Tabular(a), Self::Tabular(b)) => {
+                let len_a = a.end_offset.unwrap_or(0).saturating_sub(a.start_offset.unwrap_or(0));
+                let len_b = b.end_offset.unwrap_or(0).saturating_sub(b.start_offset.unwrap_or(0));
+                Some(len_a.cmp(&len_b))
+            }
             _ => None,
         }
     }
@@ -53,7 +59,6 @@ mod tests {
 
     fn text_loc(start: usize, end: usize) -> Location {
         Location::Text(TextLocation {
-            text: String::new(),
             start_offset: start,
             end_offset: end,
             ..Default::default()

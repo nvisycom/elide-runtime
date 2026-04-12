@@ -80,25 +80,6 @@ impl Location {
     }
 }
 
-impl Location {
-    /// The text value at this location, if available.
-    ///
-    /// For Text/Tabular locations this is the detected text itself; for
-    /// Image/Audio it is the text extracted via OCR or STT. The value
-    /// is populated during detection/extraction and is **not serialized**
-    /// in API responses to prevent data leaks. Use [`Document::value_at`]
-    /// to extract from the source document instead.
-    pub fn text_value(&self) -> Option<&str> {
-        match self {
-            Self::Text(loc) if !loc.text.is_empty() => Some(&loc.text),
-            Self::Image(loc) => loc.extracted_text.as_deref(),
-            Self::Audio(loc) => loc.extracted_text.as_deref(),
-            Self::Tabular(loc) if !loc.text.is_empty() => Some(&loc.text),
-            _ => None,
-        }
-    }
-}
-
 /// Diagnostic display format for logging; not intended for round-trip
 /// parsing.
 impl std::fmt::Display for Location {
@@ -144,17 +125,6 @@ mod tests {
     fn text(start: usize, end: usize) -> Location {
         Location::Text(
             TextLocation::builder()
-                .with_start_offset(start)
-                .with_end_offset(end)
-                .build()
-                .unwrap(),
-        )
-    }
-
-    fn text_with_value(val: &str, start: usize, end: usize) -> Location {
-        Location::Text(
-            TextLocation::builder()
-                .with_text(val)
                 .with_start_offset(start)
                 .with_end_offset(end)
                 .build()
@@ -226,47 +196,6 @@ mod tests {
         let loc = tabular(0, 0);
         assert!(loc.as_tabular().is_some());
         assert!(loc.as_audio().is_none());
-    }
-
-    // -- text_value --
-
-    #[test]
-    fn text_value_with_text() {
-        assert_eq!(text_with_value("hello", 0, 5).text_value(), Some("hello"));
-    }
-
-    #[test]
-    fn text_value_empty_is_none() {
-        assert_eq!(text(0, 5).text_value(), None);
-    }
-
-    #[test]
-    fn text_value_image_extracted() {
-        let loc = Location::Image(ImageLocation {
-            bounding_box: BoundingBox::default(),
-            extracted_text: Some("ocr result".into()),
-            image_id: None,
-            page_number: None,
-        });
-        assert_eq!(loc.text_value(), Some("ocr result"));
-    }
-
-    #[test]
-    fn text_value_image_none() {
-        assert_eq!(image().text_value(), None);
-    }
-
-    #[test]
-    fn text_value_tabular() {
-        let loc = Location::Tabular(
-            TabularLocation::builder()
-                .with_text("cell")
-                .with_row_index(0usize)
-                .with_column_index(0usize)
-                .build()
-                .unwrap(),
-        );
-        assert_eq!(loc.text_value(), Some("cell"));
     }
 
     // -- Display --

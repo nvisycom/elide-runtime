@@ -142,9 +142,14 @@ impl Document {
     pub async fn value_at(&self, location: &Location) -> Option<String> {
         match location {
             Location::Text(loc) => self.text_at(loc).await,
-            Location::Image(loc) => loc.extracted_text.clone(),
-            Location::Audio(loc) => loc.extracted_text.clone(),
             Location::Tabular(loc) => self.tabular_at(loc).await,
+            Location::Audio(_) => self
+                .artifacts
+                .as_audio()
+                .and_then(|a| a.transcription.as_ref())
+                .map(|t| t.text.clone()),
+            // Image OCR results are multi-region; location-specific
+            // lookup is not yet implemented.
             _ => None,
         }
     }

@@ -99,13 +99,6 @@ impl Entity {
             ))
     }
 
-    /// The detected text value, if available for this entity's location.
-    ///
-    /// Not serialized in API responses. Delegates to
-    /// [`Location::text_value`].
-    pub fn text_value(&self) -> Option<&str> {
-        self.location.text_value()
-    }
 }
 
 #[cfg(any(test, feature = "test-utils"))]
@@ -219,21 +212,6 @@ mod tests {
     fn above_confidence_empty() {
         let entities = Entities::new();
         assert!(entities.above_confidence(0.5).is_empty());
-    }
-
-    #[test]
-    fn text_value_from_location() {
-        let mut e = entity(0.9);
-        if let Location::Text(ref mut loc) = e.location {
-            loc.text = "hello".to_string();
-        }
-        assert_eq!(e.text_value(), Some("hello"));
-    }
-
-    #[test]
-    fn text_value_empty_string_returns_none() {
-        let e = entity(0.9);
-        assert_eq!(e.text_value(), None);
     }
 
     #[test]

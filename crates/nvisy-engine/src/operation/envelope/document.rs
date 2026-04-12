@@ -6,6 +6,7 @@
 //! processing data like OCR results or transcriptions).
 
 use nvisy_codec::handler::{AudioData, ImageData, TextData};
+use nvisy_codec::transform::{AudioRedaction, ImageRedaction, TabularRedaction, TextRedaction};
 use nvisy_codec::{ContentHandle, Span, SpanStream};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
@@ -14,8 +15,6 @@ use nvisy_ontology::artifacts::ContentArtifacts;
 use nvisy_ontology::entity::{
     AudioLocation, ImageLocation, Location, TabularLocation, TextLocation,
 };
-
-use nvisy_codec::transform::{AudioRedaction, ImageRedaction, TabularRedaction, TextRedaction};
 
 /// Engine-level document combining content, metadata, and artifacts.
 ///
@@ -213,5 +212,3 @@ impl Document {
         Self::new(handle, meta)
     }
 }
-
-

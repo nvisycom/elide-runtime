@@ -98,7 +98,6 @@ impl Entity {
                     .expect("required fields provided"),
             ))
     }
-
 }
 
 #[cfg(any(test, feature = "test-utils"))]

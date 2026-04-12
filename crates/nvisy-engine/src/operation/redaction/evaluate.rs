@@ -266,8 +266,16 @@ mod tests {
             ..Default::default()
         };
         let entities: Entities = vec![test_entity("secret", 0.9)].into();
-        let (entries, _mappings) =
-            evaluate(&entities, &[], &defaults, 0.0, &[], &ContentMetadata::new(), &doc).await;
+        let (entries, _mappings) = evaluate(
+            &entities,
+            &[],
+            &defaults,
+            0.0,
+            &[],
+            &ContentMetadata::new(),
+            &doc,
+        )
+        .await;
         assert_eq!(
             entries[0].redaction.strategy,
             Strategy::Text(TextStrategy::Remove)
@@ -282,8 +290,16 @@ mod tests {
             ..Default::default()
         };
         let entities: Entities = vec![test_entity("text-entity", 0.9)].into();
-        let (entries, _mappings) =
-            evaluate(&entities, &[], &defaults, 0.0, &[], &ContentMetadata::new(), &doc).await;
+        let (entries, _mappings) = evaluate(
+            &entities,
+            &[],
+            &defaults,
+            0.0,
+            &[],
+            &ContentMetadata::new(),
+            &doc,
+        )
+        .await;
         assert!(entries.is_empty());
     }
 

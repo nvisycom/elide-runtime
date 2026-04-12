@@ -41,8 +41,14 @@ impl SpanSize for Location {
             // Tabular: compare intra-cell byte range length. Entities
             // without offsets (whole-cell) compare as equal (both 0).
             (Self::Tabular(a), Self::Tabular(b)) => {
-                let len_a = a.end_offset.unwrap_or(0).saturating_sub(a.start_offset.unwrap_or(0));
-                let len_b = b.end_offset.unwrap_or(0).saturating_sub(b.start_offset.unwrap_or(0));
+                let len_a = a
+                    .end_offset
+                    .unwrap_or(0)
+                    .saturating_sub(a.start_offset.unwrap_or(0));
+                let len_b = b
+                    .end_offset
+                    .unwrap_or(0)
+                    .saturating_sub(b.start_offset.unwrap_or(0));
                 Some(len_a.cmp(&len_b))
             }
             _ => None,

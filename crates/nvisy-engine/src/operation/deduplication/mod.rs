@@ -156,7 +156,9 @@ mod tests {
             Entity::test_builder(0, 4).test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict, &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Strict, &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
     }
@@ -169,7 +171,9 @@ mod tests {
             Entity::test_builder(10, 14).test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict, &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Strict, &doc)
+            .await;
         assert_eq!(result.len(), 2);
     }
 
@@ -179,11 +183,16 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Normalized, &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Normalized, &doc)
+            .await;
         assert_eq!(result.len(), 1);
     }
 
@@ -193,11 +202,16 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
             Entity::test_builder(0, 10)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Narrowing, &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Narrowing, &doc)
+            .await;
         assert_eq!(result.len(), 1);
         let value = doc.value_at(&result[0].location).await;
         assert_eq!(value.as_deref(), Some("John Smith"));
@@ -211,11 +225,16 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
             Entity::test_builder(100, 110)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Narrowing, &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Narrowing, &doc)
+            .await;
         assert_eq!(result.len(), 2);
     }
 
@@ -226,11 +245,16 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
             Entity::test_builder(100, 110)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Widening, &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Widening, &doc)
+            .await;
         assert_eq!(result.len(), 1);
         let value = doc.value_at(&result[0].location).await;
         assert_eq!(value.as_deref(), Some("John Smith"));
@@ -242,12 +266,17 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .with_confidence(0.85)
                 .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::default(), &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
     }
@@ -258,12 +287,17 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .with_confidence(0.8)
                 .test_build(),
         ]
         .into();
-        let result = NoisyOr.fuse(entities, GroupingCriteria::default(), &doc).await;
+        let result = NoisyOr
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.94).abs() < 0.001);
     }
@@ -278,7 +312,10 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.6).test_build(),
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .test_build(),
         ]
         .into();
@@ -322,12 +359,17 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(0, 10)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .with_confidence(0.7)
                 .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Widening, &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Widening, &doc)
+            .await;
         assert_eq!(result.len(), 1);
         let value = doc.value_at(&result[0].location).await;
         assert_eq!(value.as_deref(), Some("John Smith"));
@@ -344,7 +386,9 @@ mod tests {
         e2.extraction_methods = vec![ExtractionMethod::OpticalCharacterRecognition];
 
         let entities: Entities = vec![e1, e2].into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::default(), &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result[0].extraction_methods.len(), 2);
     }
 
@@ -360,7 +404,9 @@ mod tests {
         e2.language = Some("en".into());
 
         let entities: Entities = vec![e1, e2].into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::default(), &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result[0].language.as_deref(), Some("en"));
     }
 
@@ -369,10 +415,14 @@ mod tests {
         let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
-            Entity::test_builder(0, 4).with_recognition_methods(vec![RecognitionMethod::regex("other")]).test_build(),
+            Entity::test_builder(0, 4)
+                .with_recognition_methods(vec![RecognitionMethod::regex("other")])
+                .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::default(), &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!(
             result[0]
@@ -387,11 +437,16 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::default(), &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!(
             result[0]
@@ -410,7 +465,9 @@ mod tests {
         let op = DeduplicationOp::new(&cfg);
         let entities: Entities = vec![
             Entity::test_builder(0, 4).test_build(),
-            Entity::test_builder(10, 14).with_confidence(0.5).test_build(),
+            Entity::test_builder(10, 14)
+                .with_confidence(0.5)
+                .test_build(),
         ]
         .into();
         let result = op.deduplicate(entities, &doc).await;
@@ -431,7 +488,10 @@ mod tests {
             Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
             Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
             Entity::test_builder(0, 4)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .with_confidence(0.85)
                 .test_build(),
         ]
@@ -484,9 +544,13 @@ mod tests {
     #[tokio::test]
     async fn single_entity_passes_through_unchanged() {
         let doc = Document::from_text("..........John").await;
-        let entity = Entity::test_builder(10, 14).with_confidence(0.75).test_build();
+        let entity = Entity::test_builder(10, 14)
+            .with_confidence(0.75)
+            .test_build();
         let entities: Entities = vec![entity.clone()].into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict, &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Strict, &doc)
+            .await;
         assert_eq!(result.len(), 1);
         let value = doc.value_at(&result[0].location).await;
         assert_eq!(value.as_deref(), Some("John"));
@@ -504,15 +568,23 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
             Entity::test_builder(0, 10)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .with_confidence(0.8)
                 .test_build(),
             Entity::test_builder(0, 16)
-                .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
                 .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Widening, &doc).await;
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Widening, &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
     }

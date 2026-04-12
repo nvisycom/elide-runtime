@@ -75,8 +75,7 @@ impl Operation for AudialExtractionOp {
                 let trailing = stt_result.text.ends_with('\n');
                 let source = envelope.document.source();
                 let handler = TxtHandler::new(lines, trailing).with_source(source);
-                envelope.document.handle =
-                    ContentHandle::from(BoxedTextHandler::from(handler));
+                envelope.document.handle = ContentHandle::from(BoxedTextHandler::from(handler));
                 tracing::debug!(target: TARGET, "replaced audio with transcript");
             }
         }

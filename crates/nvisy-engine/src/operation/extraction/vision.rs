@@ -114,7 +114,10 @@ impl VisualExtractionOp {
             let image = ImageInput::with_source(span.source, png_bytes, ImageFormat::Png);
             let mut candidates = Vec::with_capacity(verified.len());
             for entity in verified {
-                let value = document.value_at(&entity.location).await.unwrap_or_default();
+                let value = document
+                    .value_at(&entity.location)
+                    .await
+                    .unwrap_or_default();
                 candidates.push(VerificationCandidate { entity, value });
             }
             verified = self
@@ -145,7 +148,11 @@ impl Operation for VisualExtractionOp {
         if self.agent.has_verifier() && !envelope.audit.entities.is_empty() {
             let verify_spans = envelope.document.collect_image_spans().await;
             match self
-                .verify(&verify_spans, envelope.audit.entities.clone(), &envelope.document)
+                .verify(
+                    &verify_spans,
+                    envelope.audit.entities.clone(),
+                    &envelope.document,
+                )
                 .await
             {
                 Ok(verified) => envelope.audit.entities = verified,

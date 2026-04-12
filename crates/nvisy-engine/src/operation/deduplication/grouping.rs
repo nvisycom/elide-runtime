@@ -66,11 +66,7 @@ pub(super) trait GroupEntities {
 }
 
 impl GroupEntities for Entities {
-    async fn group(
-        self,
-        criteria: GroupingCriteria,
-        document: &Document,
-    ) -> Vec<Vec<Entity>> {
+    async fn group(self, criteria: GroupingCriteria, document: &Document) -> Vec<Vec<Entity>> {
         let check_overlap = criteria.requires_location_overlap();
         let is_substring = criteria.is_substring();
         let entity_count = self.len();

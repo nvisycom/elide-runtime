@@ -95,7 +95,9 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
         // larger bounding box. Adopt the winner's location so the
         // span stays consistent.
         for e in &rest {
-            if e.location.span_cmp(&result.location).unwrap_or(std::cmp::Ordering::Less)
+            if e.location
+                .span_cmp(&result.location)
+                .unwrap_or(std::cmp::Ordering::Less)
                 == std::cmp::Ordering::Greater
             {
                 result.location.clone_from(&e.location);
@@ -160,17 +162,15 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
 
             Self::WeightedAverage { weights } => {
                 let (wsum, total_w) =
-                    group
-                        .iter()
-                        .fold((0.0_f64, 0.0_f64), |(wsum, total_w), e| {
-                            let w = e
-                                .recognition_methods
-                                .iter()
-                                .filter_map(|m| weights.get(&m.kind()))
-                                .copied()
-                                .fold(1.0_f64, f64::max);
-                            (wsum + e.confidence * w, total_w + w)
-                        });
+                    group.iter().fold((0.0_f64, 0.0_f64), |(wsum, total_w), e| {
+                        let w = e
+                            .recognition_methods
+                            .iter()
+                            .filter_map(|m| weights.get(&m.kind()))
+                            .copied()
+                            .fold(1.0_f64, f64::max);
+                        (wsum + e.confidence * w, total_w + w)
+                    });
                 if total_w > 0.0 { wsum / total_w } else { 0.0 }
             }
             _ => group
@@ -189,10 +189,13 @@ fn classify_refinement(group: &[Entity]) -> RefinementMethod {
         .iter()
         .map(|m| m.kind())
         .collect();
-    let all_same = group
-        .iter()
-        .skip(1)
-        .all(|e| e.recognition_methods.iter().map(|m| m.kind()).collect::<HashSet<_>>() == first_kinds);
+    let all_same = group.iter().skip(1).all(|e| {
+        e.recognition_methods
+            .iter()
+            .map(|m| m.kind())
+            .collect::<HashSet<_>>()
+            == first_kinds
+    });
     if all_same {
         RefinementMethod::Deduplication
     } else {

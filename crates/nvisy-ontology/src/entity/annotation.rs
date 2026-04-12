@@ -117,9 +117,7 @@ impl Annotations {
                 return false;
             };
             match target {
-                AnnotationTarget::Value(value) => {
-                    entity_value.is_some_and(|v| v == value)
-                }
+                AnnotationTarget::Value(value) => entity_value.is_some_and(|v| v == value),
                 AnnotationTarget::Location(location) => entity.location.overlaps(location),
             }
         })

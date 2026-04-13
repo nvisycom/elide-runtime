@@ -16,11 +16,6 @@ use super::Overlap;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct TabularLocation {
-    /// The cell value at this location.
-    /// Skipped during serialization to prevent sensitive data leaks.
-    #[builder(default)]
-    #[serde(skip_serializing)]
-    pub value: String,
     /// Row index (0-based).
     pub row_index: usize,
     /// Column index (0-based).
@@ -52,6 +47,77 @@ impl TabularLocation {
 
 impl Overlap for TabularLocation {
     fn overlaps(&self, other: &Self) -> bool {
-        self.row_index == other.row_index && self.column_index == other.column_index
+        if self.row_index != other.row_index || self.column_index != other.column_index {
+            return false;
+        }
+        // Same cell — check intra-cell byte ranges if both are present.
+        match (
+            self.start_offset,
+            self.end_offset,
+            other.start_offset,
+            other.end_offset,
+        ) {
+            (Some(s1), Some(e1), Some(s2), Some(e2)) => s1 < e2 && s2 < e1,
+            _ => true, // no offset info → assume full-cell overlap
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cell(row: usize, col: usize) -> TabularLocation {
+        TabularLocation::builder()
+            .with_row_index(row)
+            .with_column_index(col)
+            .build()
+            .unwrap()
+    }
+
+    fn cell_with_offsets(row: usize, col: usize, start: usize, end: usize) -> TabularLocation {
+        TabularLocation {
+            start_offset: Some(start),
+            end_offset: Some(end),
+            ..cell(row, col)
+        }
+    }
+
+    #[test]
+    fn builder_required_fields() {
+        let loc = cell(1, 2);
+        assert_eq!(loc.row_index, 1);
+        assert_eq!(loc.column_index, 2);
+    }
+
+    #[test]
+    fn overlap_same_cell_no_offsets() {
+        assert!(cell(0, 0).overlaps(&cell(0, 0)));
+    }
+
+    #[test]
+    fn no_overlap_different_row() {
+        assert!(!cell(0, 0).overlaps(&cell(1, 0)));
+    }
+
+    #[test]
+    fn no_overlap_different_col() {
+        assert!(!cell(0, 0).overlaps(&cell(0, 1)));
+    }
+
+    #[test]
+    fn overlap_same_cell_intersecting_offsets() {
+        assert!(cell_with_offsets(0, 0, 0, 10).overlaps(&cell_with_offsets(0, 0, 5, 15)));
+    }
+
+    #[test]
+    fn no_overlap_same_cell_disjoint_offsets() {
+        assert!(!cell_with_offsets(0, 0, 0, 5).overlaps(&cell_with_offsets(0, 0, 5, 10)));
+    }
+
+    #[test]
+    fn overlap_same_cell_one_has_offsets() {
+        // One has offsets, one doesn't → assume overlap.
+        assert!(cell(0, 0).overlaps(&cell_with_offsets(0, 0, 5, 10)));
     }
 }

@@ -20,11 +20,6 @@ use crate::math::TimeSpan;
 pub struct AudioLocation {
     /// Time interval of the entity.
     pub time_span: TimeSpan,
-    /// Transcribed text at this time span, if available.
-    /// Skipped during serialization to prevent sensitive data leaks.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing)]
-    pub value: Option<String>,
     /// Speaker identifier from diarization.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]

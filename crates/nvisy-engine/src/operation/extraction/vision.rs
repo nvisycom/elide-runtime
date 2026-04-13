@@ -101,17 +101,28 @@ impl VisualExtractionOp {
         &self,
         image_spans: &[Span<nvisy_ontology::entity::ImageLocation, ImageData>],
         entities: Entities,
+        document: &crate::operation::Document,
     ) -> Result<Entities> {
         if entities.is_empty() || image_spans.is_empty() {
             return Ok(entities);
         }
+        use nvisy_provider::agent::VerificationCandidate;
+
         let mut verified = entities.into_inner();
         for span in image_spans {
             let png_bytes = span.data.encode_png()?;
             let image = ImageInput::with_source(span.source, png_bytes, ImageFormat::Png);
+            let mut candidates = Vec::with_capacity(verified.len());
+            for entity in verified {
+                let value = document
+                    .value_at(&entity.location)
+                    .await
+                    .unwrap_or_default();
+                candidates.push(VerificationCandidate { entity, value });
+            }
             verified = self
                 .agent
-                .verify_entities(&image, verified)
+                .verify_entities(&image, candidates)
                 .await
                 .map_err(|e| Error::runtime(e.to_string(), "ocr-verification", e.is_retryable()))?;
         }
@@ -137,7 +148,11 @@ impl Operation for VisualExtractionOp {
         if self.agent.has_verifier() && !envelope.audit.entities.is_empty() {
             let verify_spans = envelope.document.collect_image_spans().await;
             match self
-                .verify(&verify_spans, envelope.audit.entities.clone())
+                .verify(
+                    &verify_spans,
+                    envelope.audit.entities.clone(),
+                    &envelope.document,
+                )
                 .await
             {
                 Ok(verified) => envelope.audit.entities = verified,

@@ -41,7 +41,7 @@ impl<'a> RedactionApplicator<'a> {
 
     /// Build and apply all redaction instructions.
     pub async fn apply(mut self) -> nvisy_core::Result<()> {
-        let text = self.build_text_redactions();
+        let text = self.build_text_redactions().await;
         let image = self.build_image_redactions();
         let audio = self.build_audio_redactions();
 
@@ -64,7 +64,7 @@ impl<'a> RedactionApplicator<'a> {
         Ok(())
     }
 
-    fn build_text_redactions(&mut self) -> Vec<TextRedaction<TextLocation>> {
+    async fn build_text_redactions(&mut self) -> Vec<TextRedaction<TextLocation>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Vec::new();
 
@@ -79,8 +79,15 @@ impl<'a> RedactionApplicator<'a> {
                 continue;
             };
 
+            let value = self
+                .envelope
+                .document
+                .value_at(&entity.location)
+                .await
+                .unwrap_or_default();
+
             let output = match &record.redaction.strategy {
-                Strategy::Text(text) => Self::text_output(entity, text),
+                Strategy::Text(text) => Self::text_output(&value, entity, text),
                 _ => continue,
             };
 
@@ -238,8 +245,7 @@ impl<'a> RedactionApplicator<'a> {
         entities.iter().map(|e| (e.id, e)).collect()
     }
 
-    fn text_output(entity: &Entity, strategy: &TextStrategy) -> TextOutput {
-        let value = entity.text_value().unwrap_or_default();
+    fn text_output(value: &str, entity: &Entity, strategy: &TextStrategy) -> TextOutput {
         match strategy {
             TextStrategy::Mask { mask_char } => {
                 TextOutput::replace(mask_char.to_string().repeat(value.len()))
@@ -298,7 +304,7 @@ impl<'a> RedactionApplicator<'a> {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::Document;
+    use nvisy_codec::ContentHandle;
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
     use nvisy_ontology::entity::{
         Entities, Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
@@ -309,29 +315,15 @@ mod tests {
     use super::*;
     use crate::operation::envelope::SharedData;
 
-    fn text_entity(value: &str, start: usize, end: usize) -> Entity {
-        Entity::builder()
-            .with_category(EntityCategory::PersonalIdentity)
-            .with_entity_kind(EntityKind::PersonName)
-            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(0.9)
-            .with_location(Location::from(
-                TextLocation::builder()
-                    .with_value(value)
-                    .with_start_offset(start)
-                    .with_end_offset(end)
-                    .build()
-                    .unwrap(),
-            ))
-            .build()
-            .unwrap()
+    fn text_entity(start: usize, end: usize) -> Entity {
+        Entity::test_builder(start, end).test_build()
     }
 
     async fn test_envelope(entities: Entities) -> DocumentEnvelope {
         let data = ContentData::from_text(ContentSource::new(), "Hello John world");
         let content =
             Content::with_metadata(data, ContentMetadata::new().with_content_type("text/plain"));
-        let doc = Document::decode(&content).await.unwrap();
+        let doc = ContentHandle::decode(&content).await.unwrap();
         let dir = tempfile::tempdir().unwrap();
         let registry = crate::registry::Registry::open(dir.path()).unwrap();
         let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
@@ -349,7 +341,7 @@ mod tests {
 
     #[tokio::test]
     async fn mask_applies_and_records_replacement() {
-        let entity = text_entity("John", 6, 10);
+        let entity = text_entity(6, 10);
         let entity_id = entity.id;
         let record = test_record(
             entity_id,
@@ -374,7 +366,7 @@ mod tests {
 
     #[tokio::test]
     async fn remove_leaves_replacement_none() {
-        let entity = text_entity("John", 6, 10);
+        let entity = text_entity(6, 10);
         let entity_id = entity.id;
         let record = test_record(entity_id, Strategy::Text(TextStrategy::Remove), "John");
 
@@ -392,7 +384,7 @@ mod tests {
 
     #[tokio::test]
     async fn skips_image_strategy_for_text_entity() {
-        let entity = text_entity("face", 0, 4);
+        let entity = text_entity(0, 4);
         let record = test_record(
             entity.id,
             Strategy::Image(ImageStrategy::Blur { sigma: 15.0 }),

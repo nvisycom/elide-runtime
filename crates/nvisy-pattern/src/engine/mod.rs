@@ -492,7 +492,9 @@ mod tests {
             context: None,
         };
         let entity = raw.into_entity();
-        assert_eq!(entity.text_value(), Some("123-45-6789"));
+        let loc = entity.location.as_text().unwrap();
+        assert_eq!(loc.start_offset, 5);
+        assert_eq!(loc.end_offset, 16);
         assert_eq!(entity.entity_kind, EntityKind::GovernmentId);
         assert_eq!(
             entity.recognition_methods,

@@ -5,7 +5,8 @@ mod middleware;
 
 use std::time::Duration;
 
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use derive_more::Deref;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
 
 pub use self::config::HttpConfig;
 use self::middleware::{retry, tracing as mw_tracing};
@@ -14,7 +15,7 @@ const TARGET: &str = "nvisy_provider::http";
 
 /// Newtype around [`ClientWithMiddleware`] with a [`Default`] implementation
 /// that builds a client from [`HttpConfig::default`].
-#[derive(Clone)]
+#[derive(Clone, Deref)]
 pub struct HttpClient(ClientWithMiddleware);
 
 impl HttpClient {
@@ -72,10 +73,57 @@ impl std::fmt::Debug for HttpClient {
     }
 }
 
-impl std::ops::Deref for HttpClient {
-    type Target = ClientWithMiddleware;
+/// Extension trait for [`RequestBuilder`] that adds send + check + parse
+/// helpers with standardised error mapping.
+///
+/// Import this trait to use `.send_and_check("provider")` and
+/// `.send_and_parse::<T>("provider")` on any request builder.
+pub trait RequestBuilderExt {
+    /// Send the request and check the response status.
+    ///
+    /// Maps transport errors to retryable connection errors and
+    /// non-success status codes to connection errors (5xx are retryable).
+    fn send_and_check(
+        self,
+        provider: &str,
+    ) -> impl Future<Output = nvisy_core::Result<reqwest_middleware::reqwest::Response>> + Send;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    /// Send the request, check status, and parse the JSON response body.
+    fn send_and_parse<T: serde::de::DeserializeOwned>(
+        self,
+        provider: &str,
+    ) -> impl Future<Output = nvisy_core::Result<T>> + Send;
+}
+
+impl RequestBuilderExt for RequestBuilder {
+    async fn send_and_check(
+        self,
+        provider: &str,
+    ) -> nvisy_core::Result<reqwest_middleware::reqwest::Response> {
+        let resp = self
+            .send()
+            .await
+            .map_err(|e| nvisy_core::Error::connection(e.to_string(), provider, true))?;
+
+        let status = resp.status();
+        if status.is_success() {
+            return Ok(resp);
+        }
+        let body = resp.text().await.unwrap_or_default();
+        Err(nvisy_core::Error::connection(
+            format!("{provider} returned {status}: {body}"),
+            provider,
+            status.is_server_error(),
+        ))
+    }
+
+    async fn send_and_parse<T: serde::de::DeserializeOwned>(
+        self,
+        provider: &str,
+    ) -> nvisy_core::Result<T> {
+        let resp = self.send_and_check(provider).await?;
+        resp.json().await.map_err(|e| {
+            nvisy_core::Error::runtime(format!("{provider} JSON parse error: {e}"), provider, false)
+        })
     }
 }

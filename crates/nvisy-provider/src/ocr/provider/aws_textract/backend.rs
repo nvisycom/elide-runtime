@@ -7,15 +7,14 @@ use std::fmt;
 
 use hmac::{Hmac, KeyInit, Mac};
 use nvisy_core::{Error, Result};
+use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
 use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use super::AwsTextractParams;
-use crate::http::{HttpClient, HttpConfig};
-use crate::ocr::backend::{
-    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word, check_response,
-};
+use crate::http::{HttpClient, HttpConfig, RequestBuilderExt};
+use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
 /// [`Backend`] implementation for AWS Textract.
 ///
@@ -238,7 +237,7 @@ impl Backend for AwsTextractBackend {
             payload: &payload,
         });
 
-        let resp = self
+        let parsed: TextractResponse = self
             .client
             .post(&url)
             .header("Content-Type", "application/x-amz-json-1.1")
@@ -246,19 +245,8 @@ impl Backend for AwsTextractBackend {
             .header("X-Amz-Date", &*datetime)
             .header("Authorization", &*authorization)
             .body(payload)
-            .send()
-            .await
-            .map_err(|e| Error::connection(e.to_string(), "aws_textract_ocr", true))?;
-
-        let resp = check_response(resp, "Textract").await?;
-
-        let parsed: TextractResponse = resp.json().await.map_err(|e| {
-            Error::runtime(
-                format!("Textract JSON parse error: {e}"),
-                "aws_textract_ocr",
-                false,
-            )
-        })?;
+            .send_and_parse("aws_textract_ocr")
+            .await?;
 
         let threshold = params.confidence_threshold;
 

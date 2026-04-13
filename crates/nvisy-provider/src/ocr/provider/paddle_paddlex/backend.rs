@@ -3,16 +3,14 @@
 //! [`Backend`]: crate::Backend
 
 use nvisy_core::{Error, Result};
+use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
 use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::PaddleXParams;
-use crate::http::{HttpClient, HttpConfig};
-use crate::ocr::backend::{
-    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
-    check_response, image_part,
-};
+use crate::http::{HttpClient, HttpConfig, RequestBuilderExt};
+use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams, image_part};
 
 /// [`Backend`] implementation for PaddleX PP-OCRv5.
 ///
@@ -86,23 +84,12 @@ impl Backend for PaddleXBackend {
 
         let url = format!("{}/ocr", self.base_url.trim_end_matches('/'));
 
-        let resp = self
+        let parsed: PaddleXResponse = self
             .client
             .post(&url)
             .multipart(form)
-            .send()
-            .await
-            .map_err(|e| Error::connection(e.to_string(), "paddlex_ocr", true))?;
-
-        let resp = check_response(resp, "PaddleX").await?;
-
-        let parsed: PaddleXResponse = resp.json().await.map_err(|e| {
-            Error::runtime(
-                format!("PaddleX JSON parse error: {e}"),
-                "paddlex_ocr",
-                false,
-            )
-        })?;
+            .send_and_parse("paddlex_ocr")
+            .await?;
 
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());

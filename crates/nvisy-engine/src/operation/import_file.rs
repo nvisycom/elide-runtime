@@ -8,13 +8,13 @@
 //!
 //! 1. **Decompression** — decompress raw bytes (if format specified)
 //! 2. **Decryption** — decrypt content (if encryption config specified)
-//! 3. **Decode** — detect format and decode into a typed [`Document`]
+//! 3. **Decode** — detect format and decode into a typed [`ContentHandle`]
 //!
-//! [`Document`]: nvisy_codec::Document
+//! [`ContentHandle`]: nvisy_codec::ContentHandle
 
 use std::sync::Arc;
 
-use nvisy_codec::Document;
+use nvisy_codec::ContentHandle;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData};
 use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
@@ -81,7 +81,7 @@ impl ImportFileOp {
             content = replace_data(content, decrypted_data);
         }
 
-        let doc = Document::decode(&content).await?;
+        let doc = ContentHandle::decode(&content).await?;
         tracing::debug!(target: TARGET, doc_type = %doc.document_type(), "decoded document");
         let mut metadata = content.into_parts().1.unwrap_or_default();
 

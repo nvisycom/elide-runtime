@@ -24,6 +24,7 @@
 mod calibration;
 mod conflict;
 mod grouping;
+pub(crate) mod span_size;
 mod strategy;
 
 use nvisy_core::Result;
@@ -73,7 +74,11 @@ impl DeduplicationOp {
     }
 
     /// Run the full deduplication pipeline.
-    pub(crate) fn deduplicate(&self, mut entities: Entities) -> Entities {
+    pub(crate) async fn deduplicate(
+        &self,
+        mut entities: Entities,
+        document: &crate::operation::Document,
+    ) -> Entities {
         if entities.is_empty() {
             return entities;
         }
@@ -84,7 +89,7 @@ impl DeduplicationOp {
         self.calibration.calibrate(&mut entities);
 
         // Step 2: group + fuse.
-        let mut result = self.strategy.fuse(entities, self.grouping);
+        let mut result = self.strategy.fuse(entities, self.grouping, document).await;
 
         // Step 3: resolve cross-kind span conflicts.
         result = self.conflict_resolution.resolve(result);
@@ -120,7 +125,7 @@ impl Operation for DeduplicationOp {
                 "running deduplication",
             );
             let entities = std::mem::take(&mut envelope.audit.entities);
-            envelope.audit.entities = self.deduplicate(entities);
+            envelope.audit.entities = self.deduplicate(entities, &envelope.document).await;
         }
         Ok(())
     }
@@ -137,179 +142,186 @@ mod tests {
     use nvisy_ontology::workflow::DeduplicationStrategy::*;
 
     use super::*;
+    use crate::operation::Document;
 
-    /// Build a text entity at the given byte offsets for testing.
-    fn text_entity(
-        value: &str,
-        method: RecognitionMethod,
-        confidence: f64,
-        start: usize,
-        end: usize,
-    ) -> Entity {
-        Entity::builder()
-            .with_category(EntityCategory::PersonalIdentity)
-            .with_entity_kind(EntityKind::PersonName)
-            .with_recognition_methods(vec![method])
-            .with_confidence(confidence)
-            .with_location(Location::from(
-                TextLocation::builder()
-                    .with_value(value)
-                    .with_start_offset(start)
-                    .with_end_offset(end)
-                    .build()
-                    .unwrap(),
-            ))
-            .build()
-            .unwrap()
-    }
+    /// The test document that entities reference by byte offset.
+    /// "John Smith" at 0..10, then padding, then "Jane" at 100..104.
+    const TEST_TEXT: &str = "John Smith";
 
-    #[test]
-    fn strict_groups_exact_overlap() {
+    #[tokio::test]
+    async fn strict_groups_exact_overlap() {
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
-            text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4),
+            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4).test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Strict, &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn strict_preserves_non_overlapping() {
+    #[tokio::test]
+    async fn strict_preserves_non_overlapping() {
+        let doc = Document::from_text("John......John").await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
-            text_entity("John", RecognitionMethod::regex("test"), 0.9, 10, 14),
+            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(10, 14).test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Strict, &doc)
+            .await;
         assert_eq!(result.len(), 2);
     }
 
-    #[test]
-    fn normalized_groups_case_insensitive() {
+    #[tokio::test]
+    async fn normalized_groups_case_insensitive() {
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
-            text_entity(
-                "john",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.9,
-                0,
-                4,
-            ),
+            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Normalized);
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Normalized, &doc)
+            .await;
         assert_eq!(result.len(), 1);
     }
 
-    #[test]
-    fn narrowing_groups_substring_with_overlap() {
+    #[tokio::test]
+    async fn narrowing_groups_substring_with_overlap() {
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
-            text_entity(
-                "John Smith",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.9,
-                0,
-                10,
-            ),
+            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 10)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Narrowing);
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Narrowing, &doc)
+            .await;
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].text_value().unwrap(), "John Smith");
+        let value = doc.value_at(&result[0].location).await;
+        assert_eq!(value.as_deref(), Some("John Smith"));
     }
 
-    #[test]
-    fn narrowing_preserves_non_overlapping_substrings() {
+    #[tokio::test]
+    async fn narrowing_preserves_non_overlapping_substrings() {
+        // Pad to 110 chars so offset 100..110 is valid.
+        let text = format!("{:<100}John Smith", TEST_TEXT);
+        let doc = Document::from_text(&text).await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
-            text_entity(
-                "John Smith",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.9,
-                100,
-                110,
-            ),
+            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(100, 110)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Narrowing);
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Narrowing, &doc)
+            .await;
         assert_eq!(result.len(), 2);
     }
 
-    #[test]
-    fn widening_groups_across_locations() {
+    #[tokio::test]
+    async fn widening_groups_across_locations() {
+        let text = format!("{:<100}John Smith", TEST_TEXT);
+        let doc = Document::from_text(&text).await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
-            text_entity(
-                "John Smith",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.9,
-                100,
-                110,
-            ),
+            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(100, 110)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Widening);
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Widening, &doc)
+            .await;
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].text_value().unwrap(), "John Smith");
+        let value = doc.value_at(&result[0].location).await;
+        assert_eq!(value.as_deref(), Some("John Smith"));
     }
 
-    #[test]
-    fn max_confidence_strategy() {
+    #[tokio::test]
+    async fn max_confidence_strategy() {
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
-            text_entity(
-                "John",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.85,
-                0,
-                4,
-            ),
+            Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
+            Entity::test_builder(0, 4)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .with_confidence(0.85)
+                .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn noisy_or_strategy() {
+    #[tokio::test]
+    async fn noisy_or_strategy() {
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
-            text_entity(
-                "John",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.8,
-                0,
-                4,
-            ),
+            Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
+            Entity::test_builder(0, 4)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .with_confidence(0.8)
+                .test_build(),
         ]
         .into();
-        let result = NoisyOr.fuse(entities, GroupingCriteria::default());
+        let result = NoisyOr
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.94).abs() < 0.001);
     }
 
-    #[test]
-    fn weighted_average_strategy() {
+    #[tokio::test]
+    async fn weighted_average_strategy() {
+        let doc = Document::from_text(TEST_TEXT).await;
         let mut weights = HashMap::new();
         weights.insert(RecognitionMethodKind::Regex, 1.0);
         weights.insert(RecognitionMethodKind::Ner, 2.0);
 
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.6, 0, 4),
-            text_entity(
-                "John",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.9,
-                0,
-                4,
-            ),
+            Entity::test_builder(0, 4).with_confidence(0.6).test_build(),
+            Entity::test_builder(0, 4)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .test_build(),
         ]
         .into();
-        let result = WeightedAverage { weights }.fuse(entities, GroupingCriteria::default());
+        let result = (WeightedAverage { weights })
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.8).abs() < 0.001);
     }
@@ -319,14 +331,8 @@ mod tests {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Regex, 0.5);
 
-        let mut entities: Entities = vec![text_entity(
-            "John",
-            RecognitionMethod::regex("test"),
-            0.8,
-            0,
-            4,
-        )]
-        .into();
+        let mut entities: Entities =
+            vec![Entity::test_builder(0, 4).with_confidence(0.8).test_build()].into();
         calibration.calibrate(&mut entities);
         assert!((entities[0].confidence - 0.4).abs() < f64::EPSILON);
         assert!(
@@ -341,80 +347,82 @@ mod tests {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Regex, 2.0);
 
-        let mut entities: Entities = vec![text_entity(
-            "John",
-            RecognitionMethod::regex("test"),
-            0.8,
-            0,
-            4,
-        )]
-        .into();
+        let mut entities: Entities =
+            vec![Entity::test_builder(0, 4).with_confidence(0.8).test_build()].into();
         calibration.calibrate(&mut entities);
         assert!((entities[0].confidence - 1.0).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn fuse_picks_longest_value() {
+    #[tokio::test]
+    async fn fuse_picks_longest_value() {
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4),
-            text_entity(
-                "John Smith",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.7,
-                0,
-                10,
-            ),
+            Entity::test_builder(0, 4).test_build(),
+            Entity::test_builder(0, 10)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .with_confidence(0.7)
+                .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Widening);
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Widening, &doc)
+            .await;
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].text_value().unwrap(), "John Smith");
+        let value = doc.value_at(&result[0].location).await;
+        assert_eq!(value.as_deref(), Some("John Smith"));
     }
 
-    #[test]
-    fn fuse_merges_extraction_methods() {
-        let mut e1 = text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4);
+    #[tokio::test]
+    async fn fuse_merges_extraction_methods() {
+        let doc = Document::from_text(TEST_TEXT).await;
+        let mut e1 = Entity::test_builder(0, 4).with_confidence(0.8).test_build();
         e1.extraction_methods = vec![ExtractionMethod::DocumentParsing];
-        let mut e2 = text_entity(
-            "John",
-            RecognitionMethod::ner("test", ModelKind::SelfHosted),
-            0.9,
-            0,
-            4,
-        );
+        let mut e2 = Entity::test_builder(0, 4)
+            .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+            .test_build();
         e2.extraction_methods = vec![ExtractionMethod::OpticalCharacterRecognition];
 
         let entities: Entities = vec![e1, e2].into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result[0].extraction_methods.len(), 2);
     }
 
-    #[test]
-    fn fuse_fills_missing_language() {
-        let mut e1 = text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4);
-        let mut e2 = text_entity(
-            "John",
-            RecognitionMethod::ner("test", ModelKind::SelfHosted),
-            0.7,
-            0,
-            4,
-        );
+    #[tokio::test]
+    async fn fuse_fills_missing_language() {
+        let doc = Document::from_text(TEST_TEXT).await;
+        let mut e1 = Entity::test_builder(0, 4).test_build();
+        let mut e2 = Entity::test_builder(0, 4)
+            .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
+            .with_confidence(0.7)
+            .test_build();
         e1.language = None;
         e2.language = Some("en".into());
 
         let entities: Entities = vec![e1, e2].into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result[0].language.as_deref(), Some("en"));
     }
 
-    #[test]
-    fn same_detector_duplicates_tagged_as_deduplication() {
+    #[tokio::test]
+    async fn same_detector_duplicates_tagged_as_deduplication() {
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
-            text_entity("John", RecognitionMethod::regex("other"), 0.9, 0, 4),
+            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_recognition_methods(vec![RecognitionMethod::regex("other")])
+                .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!(
             result[0]
@@ -423,20 +431,22 @@ mod tests {
         );
     }
 
-    #[test]
-    fn different_detector_tagged_as_ensemble_fusion() {
+    #[tokio::test]
+    async fn different_detector_tagged_as_ensemble_fusion() {
+        let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
-            text_entity(
-                "John",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.9,
-                0,
-                4,
-            ),
+            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::default());
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::default(), &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!(
             result[0]
@@ -445,53 +455,59 @@ mod tests {
         );
     }
 
-    #[test]
-    fn confidence_threshold_filters() {
+    #[tokio::test]
+    async fn confidence_threshold_filters() {
+        let doc = Document::from_text("John......Jane").await;
         let cfg = Deduplication {
             confidence_threshold: Some(0.85),
             ..Default::default()
         };
         let op = DeduplicationOp::new(&cfg);
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.9, 0, 4),
-            text_entity("Jane", RecognitionMethod::regex("test"), 0.5, 10, 14),
+            Entity::test_builder(0, 4).test_build(),
+            Entity::test_builder(10, 14)
+                .with_confidence(0.5)
+                .test_build(),
         ]
         .into();
-        let result = op.deduplicate(entities);
+        let result = op.deduplicate(entities, &doc).await;
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].text_value().unwrap(), "John");
+        let value = doc.value_at(&result[0].location).await;
+        assert_eq!(value.as_deref(), Some("John"));
     }
 
-    #[test]
-    fn full_pipeline() {
+    #[tokio::test]
+    async fn full_pipeline() {
+        let doc = Document::from_text(TEST_TEXT).await;
         let cfg = Deduplication {
             strategy: DeduplicationStrategy::MaxConfidence,
             ..Default::default()
         };
         let op = DeduplicationOp::new(&cfg);
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 4),
-            text_entity("John", RecognitionMethod::regex("test"), 0.8, 0, 4),
-            text_entity(
-                "John",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.85,
-                0,
-                4,
-            ),
+            Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
+            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .with_confidence(0.85)
+                .test_build(),
         ]
         .into();
 
-        let result = op.deduplicate(entities);
+        let result = op.deduplicate(entities, &doc).await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn empty_input() {
+    #[tokio::test]
+    async fn empty_input() {
+        let doc = Document::from_text("").await;
         let cfg = Deduplication::default();
         let op = DeduplicationOp::new(&cfg);
-        let result = op.deduplicate(Entities::new());
+        let result = op.deduplicate(Entities::new(), &doc).await;
         assert!(result.is_empty());
     }
 
@@ -511,7 +527,6 @@ mod tests {
             .with_confidence(1.0)
             .with_location(Location::from(
                 TextLocation::builder()
-                    .with_value("John")
                     .with_start_offset(0usize)
                     .with_end_offset(4usize)
                     .build()
@@ -526,43 +541,50 @@ mod tests {
         assert!((entities[0].confidence - 0.8).abs() < f64::EPSILON);
     }
 
-    #[test]
-    fn single_entity_passes_through_unchanged() {
-        let entity = text_entity("John", RecognitionMethod::regex("test"), 0.75, 10, 14);
+    #[tokio::test]
+    async fn single_entity_passes_through_unchanged() {
+        let doc = Document::from_text("..........John").await;
+        let entity = Entity::test_builder(10, 14)
+            .with_confidence(0.75)
+            .test_build();
         let entities: Entities = vec![entity.clone()].into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Strict, &doc)
+            .await;
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].text_value().unwrap(), "John");
+        let value = doc.value_at(&result[0].location).await;
+        assert_eq!(value.as_deref(), Some("John"));
         assert!((result[0].confidence - 0.75).abs() < f64::EPSILON);
-        assert_eq!(
-            result[0].recognition_methods,
-            vec![RecognitionMethod::regex("test")]
-        );
     }
 
-    #[test]
-    fn transitive_overlap_groups_correctly() {
-        // A overlaps B, B overlaps C, but A does not overlap C.
-        // All three should end up in the same group.
+    #[tokio::test]
+    async fn transitive_overlap_groups_correctly() {
+        // Three entities with overlapping spans and substring-matching
+        // values. A(0..4="John") overlaps B(2..10="hn Smit"), B overlaps
+        // C(6..16="mith Jones"), but A does not overlap C. Using
+        // Widening criteria, all three share substring relationships
+        // and should end up in one group via transitive overlap.
+        let doc = Document::from_text("John Smith Jones").await;
         let entities: Entities = vec![
-            text_entity("John", RecognitionMethod::regex("test"), 0.7, 0, 6),
-            text_entity(
-                "John",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.8,
-                4,
-                10,
-            ),
-            text_entity(
-                "John",
-                RecognitionMethod::ner("test", ModelKind::SelfHosted),
-                0.9,
-                8,
-                14,
-            ),
+            Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
+            Entity::test_builder(0, 10)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .with_confidence(0.8)
+                .test_build(),
+            Entity::test_builder(0, 16)
+                .with_recognition_methods(vec![RecognitionMethod::ner(
+                    "test",
+                    ModelKind::SelfHosted,
+                )])
+                .test_build(),
         ]
         .into();
-        let result = MaxConfidence.fuse(entities, GroupingCriteria::Strict);
+        let result = MaxConfidence
+            .fuse(entities, GroupingCriteria::Widening, &doc)
+            .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
     }

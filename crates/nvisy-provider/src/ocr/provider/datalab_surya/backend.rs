@@ -3,16 +3,14 @@
 //! [`Backend`]: crate::Backend
 
 use nvisy_core::{Error, Result};
+use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
 use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::SuryaParams;
-use crate::http::{HttpClient, HttpConfig};
-use crate::ocr::backend::{
-    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word,
-    check_response, image_part,
-};
+use crate::http::{HttpClient, HttpConfig, RequestBuilderExt};
+use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams, image_part};
 
 /// [`Backend`] implementation for Surya OCR.
 ///
@@ -88,19 +86,12 @@ impl Backend for SuryaBackend {
 
         let url = format!("{}/ocr", self.base_url.trim_end_matches('/'));
 
-        let resp = self
+        let parsed: SuryaResponse = self
             .client
             .post(&url)
             .multipart(form)
-            .send()
-            .await
-            .map_err(|e| Error::connection(e.to_string(), "surya_ocr", true))?;
-
-        let resp = check_response(resp, "Surya").await?;
-
-        let parsed: SuryaResponse = resp.json().await.map_err(|e| {
-            Error::runtime(format!("Surya JSON parse error: {e}"), "surya_ocr", false)
-        })?;
+            .send_and_parse("surya_ocr")
+            .await?;
 
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());

@@ -190,7 +190,6 @@ mod tests {
     ) -> TabularRedaction {
         TabularRedaction {
             location: TabularLocation {
-                value: String::new(),
                 row_index: row,
                 column_index: col,
                 start_offset: None,
@@ -248,7 +247,6 @@ mod tests {
         let mut h = handler();
         let r = TabularRedaction {
             location: TabularLocation {
-                value: String::new(),
                 row_index: 1,
                 column_index: 1,
                 start_offset: None,

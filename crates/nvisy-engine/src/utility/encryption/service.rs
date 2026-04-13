@@ -141,7 +141,7 @@ impl CryptoService {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::Document;
+    use nvisy_codec::ContentHandle;
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 
     use super::*;
@@ -157,7 +157,7 @@ mod tests {
         let data = ContentData::from_text(ContentSource::new(), "Hello, world!");
         let meta = ContentMetadata::new().with_content_type("text/plain");
         let content = Content::with_metadata(data, meta);
-        let doc = Document::decode(&content).await.expect("decode text");
+        let doc = ContentHandle::decode(&content).await.expect("decode text");
         let dir = tempfile::tempdir().unwrap();
         let registry = crate::registry::Registry::open(dir.path()).unwrap();
         let shared = crate::operation::envelope::SharedData::new(

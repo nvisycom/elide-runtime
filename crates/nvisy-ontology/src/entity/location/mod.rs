@@ -14,7 +14,16 @@ pub use self::image::{ImageLocation, ImageLocationBuilder};
 pub use self::tabular::{TabularLocation, TabularLocationBuilder};
 pub use self::text::{TextLocation, TextLocationBuilder};
 
-/// Trait for checking whether two values overlap spatially or temporally.
+/// Trait for checking whether two locations overlap.
+///
+/// The semantics of "overlap" vary by modality:
+/// - **Text**: byte-range interval overlap (`start < other.end && other.start < end`).
+/// - **Image**: bounding box intersection.
+/// - **Audio**: time span overlap.
+/// - **Tabular**: same cell (row + column), with optional intra-cell
+///   byte-range check when offsets are present.
+///
+/// Cross-modality comparisons on [`Location`] always return `false`.
 pub trait Overlap {
     fn overlaps(&self, other: &Self) -> bool;
 }
@@ -71,54 +80,8 @@ impl Location {
     }
 }
 
-impl Location {
-    /// The text value at this location, if available.
-    ///
-    /// Returns the internally stored value (not serialized in API
-    /// responses). Use [`Document::value_at`] to extract from the
-    /// source document instead.
-    pub fn text_value(&self) -> Option<&str> {
-        match self {
-            Self::Text(loc) if !loc.value.is_empty() => Some(&loc.value),
-            Self::Image(loc) => loc.value.as_deref(),
-            Self::Audio(loc) => loc.value.as_deref(),
-            Self::Tabular(loc) if !loc.value.is_empty() => Some(&loc.value),
-            _ => None,
-        }
-    }
-
-    /// Compare the span size of two same-modality locations.
-    ///
-    /// Returns `None` if the locations are different modalities (cross-
-    /// modality size comparison is meaningless). Returns `Some(true)`
-    /// if `self` is at least as large as `other`.
-    ///
-    /// Size metric per modality:
-    /// - **Text**: byte length of the span (`end - start`).
-    /// - **Image**: bounding box area in pixels.
-    /// - **Audio**: time span duration in seconds.
-    /// - **Tabular**: value (cell content) length.
-    pub fn is_at_least_as_large(&self, other: &Self) -> Option<bool> {
-        match (self, other) {
-            (Self::Text(a), Self::Text(b)) => {
-                let sa = a.end_offset.saturating_sub(a.start_offset);
-                let sb = b.end_offset.saturating_sub(b.start_offset);
-                Some(sa >= sb)
-            }
-            (Self::Image(a), Self::Image(b)) => {
-                let area_a = a.bounding_box.width * a.bounding_box.height;
-                let area_b = b.bounding_box.width * b.bounding_box.height;
-                Some(area_a >= area_b)
-            }
-            (Self::Audio(a), Self::Audio(b)) => {
-                Some(a.time_span.duration_secs() >= b.time_span.duration_secs())
-            }
-            (Self::Tabular(a), Self::Tabular(b)) => Some(a.value.len() >= b.value.len()),
-            _ => None,
-        }
-    }
-}
-
+/// Diagnostic display format for logging; not intended for round-trip
+/// parsing.
 impl std::fmt::Display for Location {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -151,5 +114,108 @@ impl Overlap for Location {
             (Self::Tabular(a), Self::Tabular(b)) => a.overlaps(b),
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::math::{BoundingBox, TimeSpan};
+
+    fn text(start: usize, end: usize) -> Location {
+        Location::Text(
+            TextLocation::builder()
+                .with_start_offset(start)
+                .with_end_offset(end)
+                .build()
+                .unwrap(),
+        )
+    }
+
+    fn image() -> Location {
+        Location::Image(
+            ImageLocation::builder()
+                .with_bounding_box(BoundingBox {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 10.0,
+                    height: 10.0,
+                })
+                .build()
+                .unwrap(),
+        )
+    }
+
+    fn audio() -> Location {
+        Location::Audio(
+            AudioLocation::builder()
+                .with_time_span(TimeSpan {
+                    start_us: 0,
+                    end_us: 1_000_000,
+                })
+                .build()
+                .unwrap(),
+        )
+    }
+
+    fn tabular(row: usize, col: usize) -> Location {
+        Location::Tabular(
+            TabularLocation::builder()
+                .with_row_index(row)
+                .with_column_index(col)
+                .build()
+                .unwrap(),
+        )
+    }
+
+    // -- as_* accessors --
+
+    #[test]
+    fn as_text_correct_variant() {
+        let loc = text(0, 5);
+        assert!(loc.as_text().is_some());
+        assert!(loc.as_image().is_none());
+    }
+
+    #[test]
+    fn as_image_correct_variant() {
+        let loc = image();
+        assert!(loc.as_image().is_some());
+        assert!(loc.as_text().is_none());
+    }
+
+    #[test]
+    fn as_audio_correct_variant() {
+        let loc = audio();
+        assert!(loc.as_audio().is_some());
+        assert!(loc.as_tabular().is_none());
+    }
+
+    #[test]
+    fn as_tabular_correct_variant() {
+        let loc = tabular(0, 0);
+        assert!(loc.as_tabular().is_some());
+        assert!(loc.as_audio().is_none());
+    }
+
+    // -- Display --
+
+    #[test]
+    fn display_text() {
+        assert_eq!(text(0, 10).to_string(), "text:0..10");
+    }
+
+    #[test]
+    fn display_tabular() {
+        assert_eq!(tabular(2, 3).to_string(), "tabular:r2c3");
+    }
+
+    // -- cross-modality overlap --
+
+    #[test]
+    fn cross_modality_no_overlap() {
+        assert!(!text(0, 10).overlaps(&image()));
+        assert!(!image().overlaps(&audio()));
+        assert!(!audio().overlaps(&tabular(0, 0)));
     }
 }

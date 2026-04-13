@@ -2,9 +2,10 @@
 //!
 //! Transcribes speech audio into text using automatic speech recognition.
 
-use nvisy_codec::Document;
+use nvisy_codec::ContentHandle;
 use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_core::{Error, ErrorKind, Result};
+use nvisy_ontology::artifacts::Transcription;
 use nvisy_ontology::workflow::AudialExtraction as AudialExtractionCfg;
 use nvisy_provider::audio::stt::{SttConfig, SttService};
 use nvisy_provider::http::HttpClient;
@@ -52,10 +53,11 @@ impl AudialExtractionOp {
 
 impl Operation for AudialExtractionOp {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
-        if let Document::Audio(ref handler) = envelope.document {
+        if let ContentHandle::Audio(ref handler) = envelope.document.handle {
             tracing::debug!(target: TARGET, "transcribing audio");
             let audio_data = Handler::encode(handler)?;
             let filename = envelope
+                .document
                 .metadata
                 .filename
                 .as_deref()
@@ -70,11 +72,20 @@ impl Operation for AudialExtractionOp {
             if stt_result.text.is_empty() {
                 tracing::debug!(target: TARGET, "transcription returned empty text");
             } else {
+                // Store transcription in artifacts.
+                if let Some(audio) = envelope.document.artifacts.as_audio_mut() {
+                    audio.transcription = Some(Transcription {
+                        text: stt_result.text.clone(),
+                        language: None,
+                    });
+                }
+
+                // Replace audio handle with text for downstream detection.
                 let lines: Vec<String> = stt_result.text.lines().map(String::from).collect();
                 let trailing = stt_result.text.ends_with('\n');
                 let source = envelope.document.source();
                 let handler = TxtHandler::new(lines, trailing).with_source(source);
-                envelope.document = Document::from(BoxedTextHandler::from(handler));
+                envelope.document.handle = ContentHandle::from(BoxedTextHandler::from(handler));
                 tracing::debug!(target: TARGET, "replaced audio with transcript");
             }
         }

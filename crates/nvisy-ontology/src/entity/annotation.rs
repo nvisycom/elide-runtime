@@ -106,13 +106,18 @@ impl Annotations {
     /// is the text at the entity's location, extracted from the
     /// document by the caller (since the annotation layer has no
     /// document access).
-    pub fn is_excluded(&self, entity: &Entity) -> bool {
+    /// Check whether any exclusion annotation matches this entity.
+    ///
+    /// `entity_value` is the detected text value resolved from the
+    /// document (via `Document::value_at`). Pass `None` for entities
+    /// without a text value (e.g. image-only detections).
+    pub fn is_excluded(&self, entity: &Entity, entity_value: Option<&str>) -> bool {
         self.0.iter().any(|ann| {
             let AnnotationKind::Exclusion { target } = &ann.kind else {
                 return false;
             };
             match target {
-                AnnotationTarget::Value(value) => entity.text_value().is_some_and(|v| v == value),
+                AnnotationTarget::Value(value) => entity_value.is_some_and(|v| v == value),
                 AnnotationTarget::Location(location) => entity.location.overlaps(location),
             }
         })
@@ -136,11 +141,13 @@ impl Annotations {
                     if v.is_empty() {
                         continue;
                     }
+                    // User-supplied inclusion — no real document position.
+                    // Use a zero-length sentinel; the value is carried by the
+                    // annotation, not the location.
                     Location::Text(
                         TextLocation::builder()
-                            .with_value(v.as_str())
                             .with_start_offset(0usize)
-                            .with_end_offset(v.len())
+                            .with_end_offset(0usize)
                             .build()
                             .expect("required fields provided"),
                     )
@@ -199,7 +206,6 @@ mod tests {
             kind: AnnotationKind::Exclusion {
                 target: AnnotationTarget::Location(Location::from(
                     TextLocation::builder()
-                        .with_value("")
                         .with_start_offset(start)
                         .with_end_offset(end)
                         .build()
@@ -224,7 +230,6 @@ mod tests {
             .with_confidence(0.9)
             .with_location(Location::from(
                 TextLocation::builder()
-                    .with_value(value)
                     .with_start_offset(start)
                     .with_end_offset(end)
                     .build()
@@ -241,9 +246,11 @@ mod tests {
         let mut entities = Entities::new();
         annotations.apply_inclusions(&mut entities);
         assert_eq!(entities.len(), 2);
-        // Inclusion entities have TextLocation with start=0, end=value.len().
-        assert_eq!(entities[0].text_value(), Some("John Smith"));
-        assert_eq!(entities[1].text_value(), Some("jane@example.com"));
+        // Inclusion entities use sentinel offsets (0..0) since they
+        // don't reference real document positions.
+        let loc0 = entities[0].location.as_text().unwrap();
+        assert_eq!(loc0.start_offset, 0);
+        assert_eq!(loc0.end_offset, 0);
         assert!((entities[0].confidence - 1.0).abs() < f64::EPSILON);
     }
 
@@ -294,28 +301,28 @@ mod tests {
     fn exclusion_by_value() {
         let annotations = Annotations::from(vec![exclusion_value("safe-value")]);
         let entity = test_entity("safe-value", 0, 10);
-        assert!(annotations.is_excluded(&entity));
+        assert!(annotations.is_excluded(&entity, Some("safe-value")));
     }
 
     #[test]
     fn exclusion_by_value_no_match() {
         let annotations = Annotations::from(vec![exclusion_value("other")]);
         let entity = test_entity("sensitive", 0, 9);
-        assert!(!annotations.is_excluded(&entity));
+        assert!(!annotations.is_excluded(&entity, Some("sensitive")));
     }
 
     #[test]
     fn exclusion_by_location_overlap() {
         let annotations = Annotations::from(vec![exclusion_location(5, 15)]);
         let entity = test_entity("test", 10, 20);
-        assert!(annotations.is_excluded(&entity));
+        assert!(annotations.is_excluded(&entity, Some("test")));
     }
 
     #[test]
     fn exclusion_by_location_no_overlap() {
         let annotations = Annotations::from(vec![exclusion_location(0, 5)]);
         let entity = test_entity("test", 10, 20);
-        assert!(!annotations.is_excluded(&entity));
+        assert!(!annotations.is_excluded(&entity, Some("test")));
     }
 
     #[test]
@@ -334,6 +341,6 @@ mod tests {
     fn empty_annotations_exclude_nothing() {
         let annotations = Annotations::new();
         let entity = test_entity("anything", 0, 8);
-        assert!(!annotations.is_excluded(&entity));
+        assert!(!annotations.is_excluded(&entity, Some("anything")));
     }
 }

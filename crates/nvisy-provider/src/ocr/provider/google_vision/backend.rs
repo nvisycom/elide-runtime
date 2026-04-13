@@ -5,14 +5,13 @@
 use std::fmt;
 
 use nvisy_core::{Error, Result};
+use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
 use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;
 
 use super::GoogleVisionParams;
-use crate::http::{HttpClient, HttpConfig};
-use crate::ocr::backend::{
-    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word, check_response,
-};
+use crate::http::{HttpClient, HttpConfig, RequestBuilderExt};
+use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
 /// [`Backend`] implementation for Google Cloud Vision API.
 ///
@@ -150,23 +149,12 @@ impl Backend for GoogleVisionBackend {
             self.api_key
         );
 
-        let resp = self
+        let parsed: AnnotateResponse = self
             .client
             .post(&url)
             .json(&body)
-            .send()
-            .await
-            .map_err(|e| Error::connection(e.to_string(), "google_vision_ocr", true))?;
-
-        let resp = check_response(resp, "Google Vision").await?;
-
-        let parsed: AnnotateResponse = resp.json().await.map_err(|e| {
-            Error::runtime(
-                format!("Google Vision JSON parse error: {e}"),
-                "google_vision_ocr",
-                false,
-            )
-        })?;
+            .send_and_parse("google_vision_ocr")
+            .await?;
 
         let threshold = params.confidence_threshold;
         let mut output = ImageOutput::new(image.source.derive());

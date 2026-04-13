@@ -10,9 +10,7 @@ use std::sync::Arc;
 use nvisy_core::Error;
 use tracing::instrument;
 
-pub use self::backend::{
-    Backend, Block, BlockKind, ImageFormat, ImageInput, ImageOutput, Line, Page, RunParams, Word,
-};
+pub use self::backend::{Backend, ImageFormat, ImageInput, ImageOutput, RunParams};
 pub use self::params::OcrProvider;
 
 const TARGET: &str = "nvisy_provider::ocr";

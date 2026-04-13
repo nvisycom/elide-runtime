@@ -5,11 +5,10 @@ mod output;
 
 use nvisy_core::Error;
 pub use nvisy_core::media::ImageFormat;
-use reqwest_middleware::reqwest::Response;
 use reqwest_middleware::reqwest::multipart::Part;
 
 pub use self::input::ImageInput;
-pub use self::output::{Block, BlockKind, ImageOutput, Line, Page, Word};
+pub use self::output::ImageOutput;
 
 /// Build a multipart [`Part`] from an [`ImageInput`].
 pub(crate) fn image_part(image: &ImageInput) -> Result<Part, Error> {
@@ -18,21 +17,6 @@ pub(crate) fn image_part(image: &ImageInput) -> Result<Part, Error> {
         .file_name(filename)
         .mime_str(image.mime_type())
         .map_err(|e| Error::runtime(format!("invalid mime type: {e}"), "ocr", false))
-}
-
-/// Check an HTTP response status code, returning an error for non-success.
-pub(crate) async fn check_response(resp: Response, provider: &str) -> Result<Response, Error> {
-    let status = resp.status();
-    if status.is_success() {
-        return Ok(resp);
-    }
-
-    let body = resp.text().await.unwrap_or_default();
-    Err(Error::connection(
-        format!("{provider} returned {status}: {body}"),
-        format!("{provider}_ocr"),
-        status.is_server_error(),
-    ))
 }
 
 /// Parameters passed to a [`Backend`] implementation.
@@ -69,7 +53,7 @@ impl RunParams {
 /// hierarchical [`ImageOutput`] results with page/block/line/word structure.
 ///
 /// Confidence values **must** be normalised to 0.0..=1.0 before
-/// populating [`Word::confidence`]. Backends whose upstream API uses
+/// populating word confidence. Backends whose upstream API uses
 /// a different scale (e.g. AWS Textract returns 0–100) are
 /// responsible for converting.
 #[async_trait::async_trait]

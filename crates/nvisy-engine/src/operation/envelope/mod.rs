@@ -23,19 +23,21 @@
 
 use std::sync::Arc;
 
-use nvisy_codec::Document;
+use nvisy_codec::ContentHandle;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::context::Contexts;
 use nvisy_ontology::entity::{Annotations, Entity};
 use nvisy_ontology::provenance::{Audit, RedactionMap};
 
+mod document;
 mod shared;
 
+pub use self::document::Document;
 pub use self::shared::SharedData;
 
 /// Per-document state that flows through the entire pipeline.
 ///
-/// Created by import from a decoded [`Document`], then progressively
+/// Created by import from a decoded [`ContentHandle`], then progressively
 /// enriched by detection, policy, and redaction operations. Operations
 /// receive `&mut DocumentEnvelope` and access run-wide shared state
 /// via the [`shared`](DocumentEnvelope::shared) field.
@@ -43,13 +45,10 @@ pub use self::shared::SharedData;
 /// Detected entities live on [`audit.entities`](Audit::entities),
 /// not as a top-level field.
 pub struct DocumentEnvelope {
-    /// The decoded document content (text, image, audio, or rich).
+    /// The document: content handle + metadata + artifacts.
     ///
-    /// Modified in-place during the redaction stage.
+    /// The content handle is modified in-place during the redaction stage.
     pub document: Document,
-
-    /// Content metadata (MIME type, filename, etc.) from the original upload.
-    pub metadata: ContentMetadata,
 
     /// User-supplied annotations (inclusions, exclusions, labels)
     /// attached at upload time. Set during import from content metadata.
@@ -77,12 +76,12 @@ pub struct DocumentEnvelope {
 }
 
 impl DocumentEnvelope {
-    /// Create a new envelope from a freshly decoded document.
-    pub fn new(document: Document, metadata: ContentMetadata, shared: Arc<SharedData>) -> Self {
+    /// Create a new envelope from a content handle and metadata.
+    pub fn new(handle: ContentHandle, metadata: ContentMetadata, shared: Arc<SharedData>) -> Self {
+        let document = Document::new(handle, metadata);
         let audit = Audit::new(document.source());
         Self {
             document,
-            metadata,
             annotations: Annotations::new(),
             contexts: Contexts::new(),
             audit,
@@ -98,14 +97,19 @@ impl DocumentEnvelope {
 
     /// Add detected entities, assigning sensitivity from entity kind
     /// and filtering out any that fall within exclusion annotations.
-    pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity>) {
+    pub async fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity>) {
         for mut entity in entities {
             // Assign sensitivity if not already set.
             if entity.sensitivity.is_none() {
                 entity.sensitivity = Some(entity.entity_kind.sensitivity());
             }
-            if self.annotations.is_empty() || !self.annotations.is_excluded(&entity) {
+            if self.annotations.is_empty() {
                 self.audit.entities.push(entity);
+            } else {
+                let value = self.document.value_at(&entity.location).await;
+                if !self.annotations.is_excluded(&entity, value.as_deref()) {
+                    self.audit.entities.push(entity);
+                }
             }
         }
     }

@@ -5,15 +5,14 @@
 use std::fmt;
 
 use nvisy_core::{Error, Result};
+use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
 use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use super::AzureDocaiParams;
-use crate::http::{HttpClient, HttpConfig};
-use crate::ocr::backend::{
-    Backend, Block, BlockKind, ImageInput, ImageOutput, Line, Page, RunParams, Word, check_response,
-};
+use crate::http::{HttpClient, HttpConfig, RequestBuilderExt};
+use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
 /// [`Backend`] implementation for Azure Document Intelligence.
 ///
@@ -118,11 +117,8 @@ impl Backend for AzureDocaiBackend {
             .header("Ocp-Apim-Subscription-Key", &*self.api_key)
             .header("Content-Type", "application/json")
             .json(&body)
-            .send()
-            .await
-            .map_err(|e| Error::connection(e.to_string(), "azure_docai_ocr", true))?;
-
-        let resp = check_response(resp, "Azure DocAI submit").await?;
+            .send_and_check("azure_docai_ocr")
+            .await?;
 
         let result_url = resp
             .headers()
@@ -159,23 +155,12 @@ impl Backend for AzureDocaiBackend {
             }
             attempts += 1;
 
-            let poll_resp = self
+            let parsed: AnalyzeResponse = self
                 .client
                 .get(&result_url)
                 .header("Ocp-Apim-Subscription-Key", &*self.api_key)
-                .send()
-                .await
-                .map_err(|e| Error::connection(e.to_string(), "azure_docai_ocr", true))?;
-
-            let poll_resp = check_response(poll_resp, "Azure DocAI poll").await?;
-
-            let parsed: AnalyzeResponse = poll_resp.json().await.map_err(|e| {
-                Error::runtime(
-                    format!("Azure DocAI JSON parse error: {e}"),
-                    "azure_docai_ocr",
-                    false,
-                )
-            })?;
+                .send_and_parse("azure_docai_ocr")
+                .await?;
 
             match parsed.status.as_str() {
                 "succeeded" => break parsed,

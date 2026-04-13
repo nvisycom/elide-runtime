@@ -22,7 +22,7 @@ mod validation;
 
 pub(crate) use self::deduplication::DeduplicationOp;
 pub(crate) use self::detection::{EntityRecognitionOp, PatternRecognitionOp};
-pub use self::envelope::DocumentEnvelope;
+pub use self::envelope::{Document, DocumentEnvelope};
 pub(crate) use self::export_file::ExportFileOp;
 pub(crate) use self::extraction::ExtractionOp;
 pub(crate) use self::generate_context::GenerateContextOp;

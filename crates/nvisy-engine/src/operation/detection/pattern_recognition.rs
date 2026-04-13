@@ -110,7 +110,7 @@ impl Operation for PatternRecognitionOp {
                 detected = detected.len(),
                 "appending pattern entities",
             );
-            envelope.add_entities(detected);
+            envelope.add_entities(detected).await;
         }
         Ok(())
     }

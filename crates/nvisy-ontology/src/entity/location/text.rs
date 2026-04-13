@@ -16,11 +16,6 @@ use super::Overlap;
 )]
 #[serde(rename_all = "camelCase")]
 pub struct TextLocation {
-    /// The matched text at this location. Skipped during serialization
-    /// to prevent sensitive data from appearing in API responses.
-    #[builder(default)]
-    #[serde(skip_serializing)]
-    pub value: String,
     /// Byte or character offset where the entity starts.
     pub start_offset: usize,
     /// Byte or character offset where the entity ends.
@@ -48,10 +43,81 @@ impl TextLocation {
     pub fn builder() -> TextLocationBuilder {
         TextLocationBuilder::default()
     }
+
+    /// Byte length of the span (`end_offset - start_offset`).
+    pub fn len(&self) -> usize {
+        self.end_offset.saturating_sub(self.start_offset)
+    }
+
+    /// Whether the span is empty (zero length).
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl Overlap for TextLocation {
     fn overlaps(&self, other: &Self) -> bool {
         self.start_offset < other.end_offset && other.start_offset < self.end_offset
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn loc(start: usize, end: usize) -> TextLocation {
+        TextLocation::builder()
+            .with_start_offset(start)
+            .with_end_offset(end)
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn builder_required_fields() {
+        let loc = TextLocation::builder()
+            .with_start_offset(0usize)
+            .with_end_offset(5usize)
+            .build()
+            .unwrap();
+        assert_eq!(loc.start_offset, 0);
+        assert_eq!(loc.end_offset, 5);
+        assert_eq!(loc.line_number, None);
+    }
+
+    #[test]
+    fn len_and_is_empty() {
+        assert_eq!(loc(0, 10).len(), 10);
+        assert!(!loc(0, 10).is_empty());
+        assert!(loc(5, 5).is_empty());
+    }
+
+    #[test]
+    fn overlap_intersecting() {
+        assert!(loc(0, 10).overlaps(&loc(5, 15)));
+    }
+
+    #[test]
+    fn overlap_contained() {
+        assert!(loc(0, 10).overlaps(&loc(2, 5)));
+    }
+
+    #[test]
+    fn no_overlap_adjacent() {
+        assert!(!loc(0, 5).overlaps(&loc(5, 10)));
+    }
+
+    #[test]
+    fn no_overlap_disjoint() {
+        assert!(!loc(0, 5).overlaps(&loc(10, 15)));
+    }
+
+    #[test]
+    fn serde_round_trip() {
+        let loc = loc(0, 6);
+        let json = serde_json::to_string(&loc).unwrap();
+        let deser: TextLocation = serde_json::from_str(&json).unwrap();
+        assert_eq!(deser.start_offset, 0);
+        assert_eq!(deser.end_offset, 6);
     }
 }

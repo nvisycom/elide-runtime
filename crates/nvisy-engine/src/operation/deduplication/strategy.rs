@@ -10,6 +10,8 @@ use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
 use nvisy_ontology::workflow::{DeduplicationStrategy, GroupingCriteria};
 
 use super::grouping::GroupEntities;
+use super::span_size::SpanSize;
+use crate::operation::Document;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::strategy";
 
@@ -17,20 +19,19 @@ const TARGET: &str = "nvisy_engine::op::deduplication::strategy";
 pub(super) trait DeduplicationStrategyExt {
     /// Group entities by the given criteria, then fuse each group into a
     /// single entity.
-    #[must_use]
-    fn fuse(&self, entities: Entities, criteria: GroupingCriteria) -> Entities;
+    fn fuse(
+        &self,
+        entities: Entities,
+        criteria: GroupingCriteria,
+        document: &Document,
+    ) -> impl Future<Output = Entities> + Send;
 
     /// Fuse a group of co-referent entities into one.
-    ///
-    /// Field merging rules:
-    /// - **base**: highest-confidence entity (most trusted metadata)
-    /// - **value**: longest value wins (more specific match)
-    /// - **location**: follows the selected value
-    /// - **recognition/extraction methods**: order-preserving union
-    /// - **language/model**: first non-`None` across the group
-    /// - **confidence**: computed by the strategy
-    #[must_use]
-    fn fuse_group(&self, group: Vec<Entity>) -> Entity;
+    fn fuse_group(
+        &self,
+        group: Vec<Entity>,
+        document: &Document,
+    ) -> impl Future<Output = Entity> + Send;
 
     /// Compute the fused confidence for a group of entities.
     #[must_use]
@@ -38,12 +39,17 @@ pub(super) trait DeduplicationStrategyExt {
 }
 
 impl DeduplicationStrategyExt for DeduplicationStrategy {
-    fn fuse(&self, entities: Entities, criteria: GroupingCriteria) -> Entities {
+    async fn fuse(
+        &self,
+        entities: Entities,
+        criteria: GroupingCriteria,
+        document: &Document,
+    ) -> Entities {
         if entities.len() <= 1 {
             return entities;
         }
 
-        let groups = entities.group(criteria);
+        let groups = entities.group(criteria, document).await;
 
         tracing::debug!(
             target: TARGET,
@@ -52,13 +58,14 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
             "fusing entity groups",
         );
 
-        groups
-            .into_iter()
-            .map(|group| self.fuse_group(group))
-            .collect()
+        let mut result = Entities::new();
+        for group in groups {
+            result.push(self.fuse_group(group, document).await);
+        }
+        result
     }
 
-    fn fuse_group(&self, mut group: Vec<Entity>) -> Entity {
+    async fn fuse_group(&self, mut group: Vec<Entity>, document: &Document) -> Entity {
         debug_assert!(!group.is_empty());
 
         if group.len() == 1 {
@@ -89,8 +96,9 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
         // span stays consistent.
         for e in &rest {
             if e.location
-                .is_at_least_as_large(&result.location)
-                .unwrap_or(false)
+                .span_cmp(&result.location)
+                .unwrap_or(std::cmp::Ordering::Less)
+                == std::cmp::Ordering::Greater
             {
                 result.location.clone_from(&e.location);
             }
@@ -123,13 +131,17 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
         result.confidence = fused_confidence;
         result.refinement_methods.push(refinement);
 
+        let value = document
+            .value_at(&result.location)
+            .await
+            .unwrap_or_default();
         tracing::trace!(
             target: TARGET,
             entity_id = %result.id,
             fused_from = rest.len() + 1,
             confidence = fused_confidence,
             ?refinement,
-            value = result.text_value().unwrap_or_default(),
+            value,
             "fused entity group",
         );
 
@@ -138,54 +150,52 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
 
     fn compute_confidence(&self, group: &[Entity]) -> f64 {
         match self {
-            Self::MaxConfidence => group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max),
-            Self::WeightedAverage { weights } => {
-                // For each entity, use the max weight across all its
-                // recognition methods. Methods absent from the weight
-                // map default to 1.0.
-                let mut total_weight = 0.0;
-                let mut weighted_sum = 0.0;
-                for e in group {
-                    let w = e
-                        .recognition_methods
-                        .iter()
-                        .filter_map(|m| weights.get(&m.kind()).copied())
-                        .fold(1.0_f64, f64::max);
-                    weighted_sum += e.confidence * w;
-                    total_weight += w;
-                }
-                if total_weight > 0.0 {
-                    weighted_sum / total_weight
-                } else {
-                    0.0
-                }
-            }
+            Self::MaxConfidence => group
+                .iter()
+                .map(|e| e.confidence)
+                .fold(f64::NEG_INFINITY, f64::max),
+
             Self::NoisyOr => {
-                // Independent-detector combination:
-                // P(any) = 1 - ∏(1 - pᵢ)
-                let product: f64 = group.iter().map(|e| 1.0 - e.confidence).product();
-                1.0 - product
+                // P(at least one) = 1 − ∏(1 − pᵢ)
+                1.0 - group.iter().map(|e| 1.0 - e.confidence).product::<f64>()
             }
-            // Fallback for future variants: treat as MaxConfidence.
-            _ => group.iter().map(|e| e.confidence).fold(0.0_f64, f64::max),
+
+            Self::WeightedAverage { weights } => {
+                let (wsum, total_w) =
+                    group.iter().fold((0.0_f64, 0.0_f64), |(wsum, total_w), e| {
+                        let w = e
+                            .recognition_methods
+                            .iter()
+                            .filter_map(|m| weights.get(&m.kind()))
+                            .copied()
+                            .fold(1.0_f64, f64::max);
+                        (wsum + e.confidence * w, total_w + w)
+                    });
+                if total_w > 0.0 { wsum / total_w } else { 0.0 }
+            }
+            _ => group
+                .iter()
+                .map(|e| e.confidence)
+                .fold(f64::NEG_INFINITY, f64::max),
         }
     }
 }
 
-/// Classify whether a group merge is a deduplication (same detector
-/// kinds) or an ensemble fusion (different detector kinds).
+/// Classify how the group was formed (all same detector kind → Dedup,
+/// mixed → Ensemble).
 fn classify_refinement(group: &[Entity]) -> RefinementMethod {
     let first_kinds: HashSet<_> = group[0]
         .recognition_methods
         .iter()
         .map(|m| m.kind())
         .collect();
-
-    let all_same = group[1..].iter().all(|e| {
-        let kinds: HashSet<_> = e.recognition_methods.iter().map(|m| m.kind()).collect();
-        kinds == first_kinds
+    let all_same = group.iter().skip(1).all(|e| {
+        e.recognition_methods
+            .iter()
+            .map(|m| m.kind())
+            .collect::<HashSet<_>>()
+            == first_kinds
     });
-
     if all_same {
         RefinementMethod::Deduplication
     } else {

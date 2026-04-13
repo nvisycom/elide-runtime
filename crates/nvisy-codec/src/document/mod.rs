@@ -1,4 +1,4 @@
-//! Unified document representation.
+//! Type-erased content handle for all supported formats.
 
 mod span;
 mod stream;
@@ -31,22 +31,22 @@ use crate::transform::{AudioRedaction, ImageRedaction, TextRedaction};
 /// - **Audio**: WAV, MP3
 /// - **Rich**: PDF, DOCX (multi-modal documents with text + images)
 #[derive(From, IsVariant, TryInto)]
-pub enum Document {
+pub enum ContentHandle {
     Text(BoxedTextHandler),
     Image(BoxedImageHandler),
     Audio(BoxedAudioHandler),
     Rich(BoxedRichHandler),
 }
 
-impl std::fmt::Debug for Document {
+impl std::fmt::Debug for ContentHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Document")
+        f.debug_tuple("ContentHandle")
             .field(&self.document_type())
             .finish()
     }
 }
 
-impl Document {
+impl ContentHandle {
     /// The document type of the underlying content.
     pub fn document_type(&self) -> DocumentType {
         match self {
@@ -167,13 +167,13 @@ impl Document {
         }
     }
 
-    /// Decode [`Content`] into a `Document` using default parameters.
+    /// Decode [`Content`] into a `ContentHandle` using default parameters.
     pub async fn decode(content: &Content) -> Result<Self, Error> {
         let doc_type = content.infer_document_type().ok_or_else(|| {
             Error::validation(
                 "unable to detect document type from content; \
                  set a MIME type via ContentMetadata::with_content_type",
-                "Document::decode",
+                "ContentHandle::decode",
             )
         })?;
         let data = content.data();
@@ -223,7 +223,7 @@ impl Document {
             _ => {
                 return Err(Error::validation(
                     format!("no text loader for: {doc_type}"),
-                    "Document::decode_text",
+                    "ContentHandle::decode_text",
                 ));
             }
         };
@@ -244,7 +244,7 @@ impl Document {
             _ => {
                 return Err(Error::validation(
                     format!("no image loader for: {doc_type}"),
-                    "Document::decode_image",
+                    "ContentHandle::decode_image",
                 ));
             }
         };
@@ -262,7 +262,7 @@ impl Document {
             _ => {
                 return Err(Error::validation(
                     format!("no audio loader for: {doc_type}"),
-                    "Document::decode_audio",
+                    "ContentHandle::decode_audio",
                 ));
             }
         };
@@ -282,7 +282,7 @@ impl Document {
                 {
                     Err(Error::validation(
                         "PDF support requires the \"pdf\" feature",
-                        "Document::decode_rich",
+                        "ContentHandle::decode_rich",
                     ))
                 }
             }
@@ -297,13 +297,13 @@ impl Document {
                 {
                     Err(Error::validation(
                         "DOCX support requires the \"docx\" feature",
-                        "Document::decode_rich",
+                        "ContentHandle::decode_rich",
                     ))
                 }
             }
             _ => Err(Error::validation(
                 format!("no rich loader for: {doc_type}"),
-                "Document::decode_rich",
+                "ContentHandle::decode_rich",
             )),
         }
     }

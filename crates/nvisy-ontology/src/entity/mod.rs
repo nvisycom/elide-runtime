@@ -79,12 +79,34 @@ impl Entity {
         EntityBuilder::default()
     }
 
-    /// The detected text value, if available for this entity's location.
+    /// Create a pre-filled [`EntityBuilder`] for tests.
     ///
-    /// Not serialized in API responses. Delegates to
-    /// [`Location::text_value`].
-    pub fn text_value(&self) -> Option<&str> {
-        self.location.text_value()
+    /// Defaults: `PersonalIdentity` / `PersonName` / `regex("test")` /
+    /// confidence `0.9` / text location at `start..end`.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn test_builder(start: usize, end: usize) -> EntityBuilder {
+        Entity::builder()
+            .with_category(EntityCategory::PersonalIdentity)
+            .with_entity_kind(EntityKind::PersonName)
+            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
+            .with_confidence(0.9)
+            .with_location(Location::from(
+                TextLocation::builder()
+                    .with_start_offset(start)
+                    .with_end_offset(end)
+                    .build()
+                    .expect("required fields provided"),
+            ))
+    }
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+impl EntityBuilder {
+    /// Build the entity, panicking on missing fields.
+    ///
+    /// Shorthand for `.build().expect(...)` in tests.
+    pub fn test_build(self) -> Entity {
+        self.build().expect("test entity builder: missing fields")
     }
 }
 
@@ -189,21 +211,6 @@ mod tests {
     fn above_confidence_empty() {
         let entities = Entities::new();
         assert!(entities.above_confidence(0.5).is_empty());
-    }
-
-    #[test]
-    fn text_value_from_location() {
-        let mut e = entity(0.9);
-        if let Location::Text(ref mut loc) = e.location {
-            loc.value = "hello".to_string();
-        }
-        assert_eq!(e.text_value(), Some("hello"));
-    }
-
-    #[test]
-    fn text_value_empty_string_returns_none() {
-        let e = entity(0.9);
-        assert_eq!(e.text_value(), None);
     }
 
     #[test]

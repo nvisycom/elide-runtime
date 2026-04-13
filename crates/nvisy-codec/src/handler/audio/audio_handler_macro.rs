@@ -43,7 +43,6 @@ macro_rules! impl_audio_handler {
                         start_us: 0,
                         end_us: 0,
                     },
-                    value: None,
                     speaker_id: None,
                     audio_id: None,
                 };
@@ -75,7 +74,7 @@ macro_rules! impl_audio_handler {
                 &self,
                 _location: &nvisy_ontology::entity::AudioLocation,
             ) -> Option<crate::handler::AudioData> {
-                // Full audio segment — extracting a sub-segment by
+                // Full audio segment: extracting a sub-segment by
                 // time span requires decoding, which we don't do here.
                 Some(crate::handler::AudioData::new(self.bytes.clone()))
             }

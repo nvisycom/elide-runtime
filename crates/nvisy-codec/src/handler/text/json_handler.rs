@@ -128,7 +128,6 @@ impl TextHandler for JsonHandler {
             .map(|ls| {
                 Span::new(
                     TextLocation {
-                        value: ls.text.clone(),
                         start_offset: ls.start,
                         end_offset: ls.end,
                         ..Default::default()

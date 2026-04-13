@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 pub use self::audio::{AudioArtifacts, TranscriptSegment, Transcription};
 pub use self::image::{Block, BlockKind, ImageArtifacts, Line, Page, Word};
 pub use self::rich::RichArtifacts;
-pub use self::tabular::TabularArtifacts;
+pub use self::tabular::{ColumnHeader, TabularArtifacts};
 pub use self::text::TextArtifacts;
 
 /// Modality-specific processing artifacts.
@@ -96,6 +96,42 @@ impl ContentArtifacts {
     pub fn as_audio_mut(&mut self) -> Option<&mut AudioArtifacts> {
         match self {
             Self::Audio(a) => Some(a),
+            _ => None,
+        }
+    }
+
+    /// Access text artifacts, if this is a text or rich variant.
+    pub fn as_text(&self) -> Option<&TextArtifacts> {
+        match self {
+            Self::Text(a) => Some(a),
+            Self::Rich(a) => Some(&a.text),
+            _ => None,
+        }
+    }
+
+    /// Access text artifacts mutably, if this is a text or rich variant.
+    pub fn as_text_mut(&mut self) -> Option<&mut TextArtifacts> {
+        match self {
+            Self::Text(a) => Some(a),
+            Self::Rich(a) => Some(&mut a.text),
+            _ => None,
+        }
+    }
+
+    /// Access tabular artifacts, if this is a tabular or rich variant.
+    pub fn as_tabular(&self) -> Option<&TabularArtifacts> {
+        match self {
+            Self::Tabular(a) => Some(a),
+            Self::Rich(a) => Some(&a.tabular),
+            _ => None,
+        }
+    }
+
+    /// Access tabular artifacts mutably, if this is a tabular or rich variant.
+    pub fn as_tabular_mut(&mut self) -> Option<&mut TabularArtifacts> {
+        match self {
+            Self::Tabular(a) => Some(a),
+            Self::Rich(a) => Some(&mut a.tabular),
             _ => None,
         }
     }

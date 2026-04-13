@@ -7,7 +7,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::embedding::{DistanceMetric, EmbeddingData};
-pub use self::pattern::PatternData;
+pub use self::pattern::{GlobPattern, PatternData, PatternExpression, RegexPattern};
 
 /// Analytic computation variants.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

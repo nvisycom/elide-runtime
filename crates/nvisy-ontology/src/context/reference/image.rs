@@ -15,7 +15,4 @@ pub struct ImageData {
     /// Optional sub-region within the image.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<BoundingBox>,
-    /// Image format hint (e.g. `"jpeg"`, `"png"`, `"webp"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub format: Option<String>,
 }

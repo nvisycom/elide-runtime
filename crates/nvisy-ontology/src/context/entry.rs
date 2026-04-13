@@ -60,7 +60,7 @@ impl ContextEntry {
     /// Create a new context entry with a generated UUID and current timestamp.
     pub fn new(data: ContextEntryData) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: Uuid::now_v7(),
             label: None,
             created_at: Timestamp::now(),
             expires_at: None,

@@ -8,7 +8,7 @@ mod text;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::credential::CredentialData;
+pub use self::credential::{CredentialData, CredentialKind};
 pub use self::image::ImageData;
 pub use self::tag::TagData;
 pub use self::text::{TextData, TextEntry};
@@ -25,5 +25,5 @@ pub enum ReferenceVariant {
     /// API keys, tokens, or known secret patterns.
     Credential(CredentialData),
     /// Reference image for object/scene matching.
-    Object(ImageData),
+    Image(ImageData),
 }

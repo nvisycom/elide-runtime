@@ -21,6 +21,9 @@ pub struct SignatureData {
     /// Identity of the signer this signature belongs to.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer_id: Option<String>,
+    /// Algorithm used for signature verification.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub algorithm: Option<String>,
 }
 
 impl SignatureData {
@@ -31,12 +34,19 @@ impl SignatureData {
             region: None,
             format: None,
             signer_id: None,
+            algorithm: None,
         }
     }
 
     /// Set the signer identity.
     pub fn with_signer_id(mut self, signer_id: impl Into<String>) -> Self {
         self.signer_id = Some(signer_id.into());
+        self
+    }
+
+    /// Set the verification algorithm.
+    pub fn with_algorithm(mut self, algorithm: impl Into<String>) -> Self {
+        self.algorithm = Some(algorithm.into());
         self
     }
 }

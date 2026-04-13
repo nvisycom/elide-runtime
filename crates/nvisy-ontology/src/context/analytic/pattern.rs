@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// A pattern expression with its type.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "syntax", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum PatternExpression {
     /// Regular expression pattern.

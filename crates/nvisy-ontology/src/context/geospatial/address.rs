@@ -15,9 +15,9 @@ pub struct AddressData {
     /// City name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub city: Option<String>,
-    /// State, province, or region.
+    /// State, province, or administrative area.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub region: Option<String>,
+    pub state: Option<String>,
     /// Postal / ZIP code.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub postal_code: Option<String>,

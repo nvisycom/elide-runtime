@@ -3,6 +3,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::primitive::LanguageTag;
+
 /// A labeled text value for reference matching.
 ///
 /// The `key` is a human/LLM-readable label describing what this value
@@ -26,4 +28,8 @@ pub struct TextEntry {
 pub struct TextData {
     /// Key-value pairs for matching.
     pub entries: Vec<TextEntry>,
+    /// BCP-47 language tag for locale-sensitive matching.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<String>")]
+    pub language: Option<LanguageTag>,
 }

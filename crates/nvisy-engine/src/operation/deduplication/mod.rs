@@ -401,13 +401,13 @@ mod tests {
             .with_confidence(0.7)
             .test_build();
         e1.language = None;
-        e2.language = Some("en".into());
+        e2.language = Some("en".parse().unwrap());
 
         let entities: Entities = vec![e1, e2].into();
         let result = MaxConfidence
             .fuse(entities, GroupingCriteria::default(), &doc)
             .await;
-        assert_eq!(result[0].language.as_deref(), Some("en"));
+        assert_eq!(result[0].language.as_ref().map(|t| t.as_str()), Some("en"));
     }
 
     #[tokio::test]

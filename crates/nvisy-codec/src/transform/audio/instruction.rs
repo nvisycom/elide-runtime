@@ -1,6 +1,6 @@
 //! Audio redaction instruction types.
 
-use nvisy_ontology::math::TimeSpan;
+use nvisy_ontology::primitive::TimeSpan;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

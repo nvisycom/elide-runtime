@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::Overlap;
-use crate::math::TimeSpan;
+use crate::primitive::TimeSpan;
 
 /// Location of an entity within an audio stream.
 #[derive(Debug, Clone, PartialEq, Builder)]

@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::ContentSource;
-use crate::math::BoundingBox;
+use crate::primitive::BoundingBox;
 
 /// Reference handwritten signature for verification.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

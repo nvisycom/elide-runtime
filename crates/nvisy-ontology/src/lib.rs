@@ -5,7 +5,7 @@
 pub mod artifacts;
 pub mod context;
 pub mod entity;
-pub mod math;
+pub mod primitive;
 
 mod error;
 pub use self::error::{Error, Result};

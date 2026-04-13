@@ -120,7 +120,7 @@ impl Overlap for Location {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::{BoundingBox, TimeSpan};
+    use crate::primitive::{BoundingBox, TimeSpan};
 
     fn text(start: usize, end: usize) -> Location {
         Location::Text(

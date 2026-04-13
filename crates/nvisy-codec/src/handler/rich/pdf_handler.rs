@@ -19,7 +19,7 @@ use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::entity::{ImageLocation, TextLocation};
-use nvisy_ontology::math::Dpi;
+use nvisy_ontology::primitive::Dpi;
 
 use super::pdf_render::PdfRenderer;
 use crate::document::{Span, SpanStream};
@@ -270,7 +270,7 @@ impl ImageHandler for RichTextHandler {
                 // the page requires PDF content stream parsing. For now,
                 // use a full-page placeholder that identifies the page.
                 let location = ImageLocation {
-                    bounding_box: nvisy_ontology::math::BoundingBox::default(),
+                    bounding_box: nvisy_ontology::primitive::BoundingBox::default(),
                     image_id: None,
                     page_number: Some((i + 1) as u32),
                 };

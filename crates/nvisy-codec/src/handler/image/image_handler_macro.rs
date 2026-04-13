@@ -37,7 +37,7 @@ macro_rules! impl_image_handler {
             > {
                 let (w, h) = (self.image.width(), self.image.height());
                 let location = nvisy_ontology::entity::ImageLocation {
-                    bounding_box: nvisy_ontology::math::BoundingBox {
+                    bounding_box: nvisy_ontology::primitive::BoundingBox {
                         x: 0.0,
                         y: 0.0,
                         width: w as f64,

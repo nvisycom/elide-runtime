@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::coordinates::GeoCoordinate;
-use crate::math::Polygon;
+use crate::primitive::Polygon;
 
 /// A geographic bounding box defined by its south-west and north-east corners.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]

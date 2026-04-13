@@ -10,6 +10,7 @@ mod selector;
 mod strategy;
 
 use derive_builder::Builder;
+use derive_more::{Deref, DerefMut};
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -65,18 +66,16 @@ impl Policy {
 }
 
 /// A collection of policies to apply during a pipeline run.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Deref, DerefMut)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Policies {
     /// The policies to evaluate, in order.
+    #[deref]
+    #[deref_mut]
     pub policies: Vec<Policy>,
 }
 
 impl Policies {
-    /// Append a policy.
-    pub fn push(&mut self, policy: Policy) {
-        self.policies.push(policy);
-    }
-
     /// All strategy policies across all policies, sorted by priority.
     ///
     /// Returns tuples of `(policy_id, strategy)` so callers can trace

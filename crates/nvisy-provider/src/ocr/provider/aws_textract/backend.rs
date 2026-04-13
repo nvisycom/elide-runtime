@@ -8,7 +8,7 @@ use std::fmt;
 use hmac::{Hmac, KeyInit, Mac};
 use nvisy_core::{Error, Result};
 use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
-use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
+use nvisy_ontology::primitive::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 

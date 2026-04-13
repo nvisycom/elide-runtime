@@ -1,7 +1,6 @@
 //! Content source identity and lineage.
 
-use std::fmt;
-
+use derive_more::Display;
 use jiff::Zoned;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -12,7 +11,8 @@ use uuid::Uuid;
 /// Uses `UUIDv7` for time-ordered, globally unique identification of data
 /// sources. Tracks parent lineage for provenance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[derive(Serialize, Deserialize, JsonSchema, Display)]
+#[display("{id}")]
 pub struct ContentSource {
     id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -107,12 +107,6 @@ impl ContentSource {
 impl Default for ContentSource {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl fmt::Display for ContentSource {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.id)
     }
 }
 

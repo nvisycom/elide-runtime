@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::ContentSource;
-use crate::math::BoundingBox;
+use crate::primitive::BoundingBox;
 
 /// Reference document template for layout/type classification.
 ///

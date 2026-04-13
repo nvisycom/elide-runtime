@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::ContentSource;
-use crate::math::TimeSpan;
+use crate::primitive::TimeSpan;
 
 /// Reference voice data for speaker identification.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

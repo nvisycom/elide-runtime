@@ -1,5 +1,6 @@
 //! Context entry types for reference data.
 
+use derive_more::From;
 use jiff::Timestamp;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,7 +17,7 @@ use super::temporal::TemporalVariant;
 ///
 /// Each domain contains a nested enum of specific variants,
 /// keeping modality and semantic purpose cleanly separated.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, From, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "domain", content = "data", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum ContextEntryData {

@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::math::Color;
+use crate::primitive::Color;
 
 const DEFAULT_BLUR_SIGMA: f32 = 15.0;
 const DEFAULT_PIXELATE_BLOCK_SIZE: u32 = 10;

@@ -146,7 +146,7 @@ impl Document {
                 .artifacts
                 .as_audio()
                 .and_then(|a| a.transcription.as_ref())
-                .map(|t| t.text.clone()),
+                .map(|t| t.text()),
             // Image OCR results are multi-region; location-specific
             // lookup is not yet implemented.
             _ => None,

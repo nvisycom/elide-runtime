@@ -13,6 +13,7 @@ mod policy;
 mod refinement;
 mod validate;
 
+use derive_more::{Display, From};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -39,50 +40,52 @@ use crate::Error;
 /// Variants carry a dedicated configuration struct.
 ///
 /// [`Operation`]: crate::operation::Operation
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Display,
+    From,
+    Serialize,
+    Deserialize,
+    JsonSchema
+)]
 #[serde(tag = "action", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum GraphNodeKind {
     /// Loads reference-data contexts required by downstream actions.
+    #[display("load_context")]
     LoadContext(LoadContext),
     /// Persists contexts produced during the pipeline run.
+    #[display("save_context")]
     SaveContext(SaveContext),
     /// Generates a new context from detection results and content data.
+    #[display("generate_context")]
     GenerateContext(GenerateContext),
 
     /// Extracts structured text from content (visual, audial, text).
+    #[display("extraction")]
     Extraction(Extraction),
     /// Detects entities via NER and/or pattern matching.
+    #[display("detection")]
     Detection(Detection),
 
     /// Merges and scores entities from multiple detection sources.
+    #[display("deduplication")]
     Deduplication(Deduplication),
     /// Applies redaction instructions to produce output content.
+    #[display("redaction")]
     Redaction(Redaction),
     /// Verifies that redacted content does not leak original values.
+    #[display("validation")]
     Validation(Validation),
 
     /// Imports content into the pipeline for processing.
+    #[display("import")]
     ImportFile(ImportFile),
     /// Exports processed content to a target destination.
+    #[display("export")]
     ExportFile(ExportFile),
-}
-
-impl std::fmt::Display for GraphNodeKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::LoadContext(_) => f.write_str("load_context"),
-            Self::SaveContext(_) => f.write_str("save_context"),
-            Self::GenerateContext(_) => f.write_str("generate_context"),
-            Self::Extraction(_) => f.write_str("extraction"),
-            Self::Detection(_) => f.write_str("detection"),
-            Self::Deduplication(_) => f.write_str("deduplication"),
-            Self::Redaction(_) => f.write_str("redaction"),
-            Self::Validation(_) => f.write_str("validation"),
-            Self::ImportFile(_) => f.write_str("import"),
-            Self::ExportFile(_) => f.write_str("export"),
-        }
-    }
 }
 
 impl GraphNodeKind {

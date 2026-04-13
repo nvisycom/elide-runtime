@@ -10,10 +10,11 @@ mod rich;
 mod tabular;
 mod text;
 
+use derive_more::From;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::audio::{AudioArtifacts, Transcription};
+pub use self::audio::{AudioArtifacts, TranscriptSegment, Transcription};
 pub use self::image::{Block, BlockKind, ImageArtifacts, Line, Page, Word};
 pub use self::rich::RichArtifacts;
 pub use self::tabular::TabularArtifacts;
@@ -24,7 +25,7 @@ pub use self::text::TextArtifacts;
 /// Each variant matches a content modality and holds only the artifact
 /// types that make sense for that modality (e.g. transcription is only
 /// available on audio, OCR only on image/rich).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, From, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "modality", rename_all = "snake_case")]
 pub enum ContentArtifacts {
     /// Artifacts from text content processing.

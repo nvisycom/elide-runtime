@@ -52,11 +52,11 @@ reqwest-retry = { version = "0.9", features = [] }
 reqwest-tracing = { version = "0.7", features = [] }
 
 # Async runtime and parallelism
-tokio = { version = "1.50", features = [] }
+tokio = { version = "1.52", features = [] }
 tokio-util = { version = "0.7", features = [] }
 futures = { version = "0.3", features = [] }
 async-trait = { version = "0.1", features = [] }
-rayon = { version = "1.10", features = [] }
+rayon = { version = "1.12", features = [] }
 
 # Observability
 tracing = { version = "0.1", features = ["attributes"] }
@@ -65,7 +65,7 @@ tracing-subscriber = { version = "0.3", features = [] }
 # (De)serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = [] }
-serde_with = { version = "3.18", features = [] }
+serde_with = { version = "3.20", features = [] }
 schemars = { version = "1.0", features = ["uuid1", "bytes1"] }
 csv = { version = "1.0", features = [] }
 toml = { version = "1.1", features = [] }
@@ -78,7 +78,7 @@ derive_builder = { version = "0.20", features = [] }
 strum = { version = "0.28", features = ["derive"] }
 
 # Primitive datatypes
-uuid = { version = "1.22", features = ["serde", "v4", "v7"] }
+uuid = { version = "1.23", features = ["serde", "v4", "v7"] }
 bytes = { version = "1.0", features = ["serde"] }
 hipstr = { version = "0.8", features = [] }
 jiff = { version = "0.2", features = ["serde"] }
@@ -105,7 +105,7 @@ pdfium-render = { version = "0.8", features = [] }
 # Document parsing
 scraper = { version = "0.26", features = [] }
 calamine = { version = "0.34", features = [] }
-zip = { version = "8.4", features = [] }
+zip = { version = "8.6", features = [] }
 quick-xml = { version = "0.39", features = [] }
 
 # Image processing
@@ -122,7 +122,7 @@ clap = { version = "4.6", features = [] }
 
 # HTTP server
 axum = { version = "0.8", features = [] }
-aide = { version = "0.16.0-alpha.2", features = [] }
+aide = { version = "0.16.0-alpha.4", features = [] }
 tower = { version = "0.5", features = [] }
 tower-http = { version = "0.6", features = [] }
 

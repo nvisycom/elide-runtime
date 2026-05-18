@@ -12,6 +12,7 @@ use nvisy_codec::transform::{
     AudioOutput, AudioRedaction, ConflictPolicy, ImageOutput, ImageRedaction, Redactions,
     TextOutput, TextRedaction,
 };
+use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::{
     AudioLocation, Entity, EntityKind, ImageLocation, Location, TextLocation,
 };
@@ -41,7 +42,7 @@ impl<'a> RedactionApplicator<'a> {
     }
 
     /// Build and apply all redaction instructions.
-    pub async fn apply(mut self) -> nvisy_core::Result<()> {
+    pub async fn apply(mut self) -> Result<()> {
         let text = self.build_text_redactions().await?;
         let image = self.build_image_redactions()?;
         let audio = self.build_audio_redactions()?;
@@ -61,7 +62,7 @@ impl<'a> RedactionApplicator<'a> {
 
     async fn build_text_redactions(
         &mut self,
-    ) -> nvisy_core::Result<Redactions<TextLocation, TextRedaction>> {
+    ) -> Result<Redactions<TextLocation, TextRedaction>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
@@ -118,7 +119,7 @@ impl<'a> RedactionApplicator<'a> {
                     TextRedaction::new(loc.start_offset, loc.end_offset, output),
                 )
                 .map_err(|e| {
-                    nvisy_core::Error::validation(e.to_string(), "redaction-apply-text")
+                    Error::validation(e.to_string(), "redaction-apply-text")
                 })?;
         }
 
@@ -127,7 +128,7 @@ impl<'a> RedactionApplicator<'a> {
 
     fn build_image_redactions(
         &mut self,
-    ) -> nvisy_core::Result<Redactions<ImageLocation, ImageRedaction>> {
+    ) -> Result<Redactions<ImageLocation, ImageRedaction>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
@@ -177,7 +178,7 @@ impl<'a> RedactionApplicator<'a> {
             redactions
                 .try_insert(loc.clone(), ImageRedaction::new(loc.bounding_box, output))
                 .map_err(|e| {
-                    nvisy_core::Error::validation(e.to_string(), "redaction-apply-image")
+                    Error::validation(e.to_string(), "redaction-apply-image")
                 })?;
         }
 
@@ -186,7 +187,7 @@ impl<'a> RedactionApplicator<'a> {
 
     fn build_audio_redactions(
         &mut self,
-    ) -> nvisy_core::Result<Redactions<AudioLocation, AudioRedaction>> {
+    ) -> Result<Redactions<AudioLocation, AudioRedaction>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
@@ -235,7 +236,7 @@ impl<'a> RedactionApplicator<'a> {
             redactions
                 .try_insert(loc.clone(), AudioRedaction::new(loc.time_span, output))
                 .map_err(|e| {
-                    nvisy_core::Error::validation(e.to_string(), "redaction-apply-audio")
+                    Error::validation(e.to_string(), "redaction-apply-audio")
                 })?;
         }
 

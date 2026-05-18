@@ -101,7 +101,7 @@ impl StaticKeyProvider {
 impl KeyProvider for StaticKeyProvider {
     fn resolve(&self, key_id: &str) -> Result<Bytes> {
         self.keys.get(key_id).cloned().ok_or_else(|| {
-            nvisy_core::Error::validation(
+            Error::validation(
                 format!("unknown key_id: {key_id}"),
                 "StaticKeyProvider::resolve",
             )

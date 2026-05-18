@@ -5,7 +5,7 @@ use std::collections::HashSet;
 /// Exact-match allow list for suppressing known false positives.
 ///
 /// Values that appear in the allow list are silently dropped from
-/// [`PatternEngine::scan_text`](super::PatternEngine::scan_text) results.
+/// [`PatternEngine::scan_entities`](super::PatternEngine::scan_entities) results.
 ///
 /// # Examples
 ///

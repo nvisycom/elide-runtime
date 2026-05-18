@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::coordinates::GeoCoordinate;
-use crate::math::Polygon;
+use crate::primitive::Polygon;
 
 /// A geographic bounding box defined by its south-west and north-east corners.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
@@ -41,17 +41,17 @@ impl GeoBounds {
 pub enum GeoShape {
     /// Axis-aligned bounding rectangle.
     Bounds(GeoBounds),
-    /// Circular region defined by centre and radius.
+    /// Circular region defined by center and radius.
     Circle {
-        /// Centre of the circle.
-        centre: GeoCoordinate,
-        /// Radius in metres.
+        /// Center of the circle.
+        center: GeoCoordinate,
+        /// Radius in meters.
         radius_m: f64,
     },
     /// Arbitrary polygon defined by vertices.
     Polygon {
-        /// Vertices in order (x = lng, y = lat).
-        polygon: Polygon,
+        /// Boundary vertices in order (x = lng, y = lat).
+        boundary: Polygon,
     },
 }
 
@@ -77,17 +77,17 @@ impl RegionData {
     }
 
     /// Create a circular region.
-    pub fn from_circle(centre: GeoCoordinate, radius_m: f64) -> Self {
+    pub fn from_circle(center: GeoCoordinate, radius_m: f64) -> Self {
         Self {
-            region: GeoShape::Circle { centre, radius_m },
+            region: GeoShape::Circle { center, radius_m },
             name: None,
         }
     }
 
     /// Create a polygon region.
-    pub fn from_polygon(polygon: Polygon) -> Self {
+    pub fn from_polygon(boundary: Polygon) -> Self {
         Self {
-            region: GeoShape::Polygon { polygon },
+            region: GeoShape::Polygon { boundary },
             name: None,
         }
     }

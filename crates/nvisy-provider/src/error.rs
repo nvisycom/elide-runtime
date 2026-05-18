@@ -67,7 +67,7 @@ impl From<PromptError> for Error {
 impl From<StructuredOutputError> for Error {
     fn from(err: StructuredOutputError) -> Self {
         match err {
-            StructuredOutputError::PromptError(e) => Self::from(e),
+            StructuredOutputError::PromptError(e) => Self::from(*e),
             StructuredOutputError::DeserializationError(e) => {
                 Self::Response(format!("structured output: {e}"))
             }

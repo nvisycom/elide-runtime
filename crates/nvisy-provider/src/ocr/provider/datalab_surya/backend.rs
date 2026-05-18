@@ -4,7 +4,7 @@
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
-use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
+use nvisy_ontology::primitive::{BoundingBox, Polygon, Vertex};
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 

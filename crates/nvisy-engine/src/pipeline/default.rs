@@ -1,4 +1,4 @@
-//! [`Engine`]: the main entry point for running redaction pipelines.
+//! [`Engine`] — the main entry point for running redaction pipelines.
 //!
 //! The engine is a thin facade over the pipeline subsystem. It owns
 //! shared infrastructure (registry, HTTP client, run state) and
@@ -8,6 +8,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
+use std::{fmt, mem};
 
 use nvisy_core::Error;
 use nvisy_ontology::provenance::Audit;
@@ -87,21 +88,20 @@ pub(super) struct EngineInner {
 /// The redaction pipeline engine.
 ///
 /// Thin facade over shared infrastructure. Actual pipeline execution
-/// is delegated to [`Pipeline`] (one per run). All state lives in
+/// is delegated to `Pipeline` (one per run). All state lives in
 /// `Arc<EngineInner>` and is shared across clones.
 ///
 /// Builder methods ([`with_key_provider`]) require exclusive access
 /// via `Arc::get_mut` and must be called before the engine is cloned.
 ///
-/// [`Pipeline`]: super::run::Pipeline
 /// [`with_key_provider`]: Engine::with_key_provider
 #[derive(Clone)]
 pub struct Engine {
     pub(super) inner: Arc<EngineInner>,
 }
 
-impl std::fmt::Debug for Engine {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Engine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Engine")
             .field("runtime_config", &self.inner.runtime_config)
             .field("http_client", &self.inner.http_client)
@@ -150,6 +150,7 @@ impl Engine {
     ///
     /// Panics if the temp directory or registry cannot be created.
     ///
+    /// [`tempfile`]: https://docs.rs/tempfile
     /// [`TempDir`]: tempfile::TempDir
     #[cfg(any(test, feature = "test-utils"))]
     pub fn temp() -> (Self, tempfile::TempDir) {
@@ -333,7 +334,7 @@ impl Engine {
     /// Call during graceful shutdown to ensure in-flight runs finish
     /// and persist their results before the process exits.
     pub async fn shutdown(&self) {
-        let tasks = std::mem::take(&mut *self.inner.background_tasks.lock().await);
+        let tasks = mem::take(&mut *self.inner.background_tasks.lock().await);
         tasks.join_all().await;
     }
 }

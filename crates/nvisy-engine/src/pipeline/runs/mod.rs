@@ -78,6 +78,8 @@ pub struct NodeSnapshot {
 /// `Succeeded` and `PartialFailure` include audit trails (populated
 /// from the registry by [`Engine::get_run`]). `Failed` carries an
 /// optional error message. `Pending` and `Running` have no extra data.
+///
+/// [`Engine::get_run`]: crate::pipeline::Engine::get_run
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum RunOutcome {

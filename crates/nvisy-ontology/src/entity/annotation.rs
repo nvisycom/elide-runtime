@@ -1,5 +1,6 @@
 //! Annotation types for pre-identified regions and classification labels.
 
+use derive_more::{Deref, DerefMut, From, IntoIterator};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -59,7 +60,9 @@ pub struct Annotation {
 }
 
 /// A collection of [`Annotation`]s.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Deref, DerefMut, From, IntoIterator)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Annotations(Vec<Annotation>);
 
 impl Annotations {
@@ -68,24 +71,12 @@ impl Annotations {
         Self::default()
     }
 
-    /// Number of annotations.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
     /// Returns `true` if the collection is empty.
+    ///
+    /// Provided as an inherent method so it can be used with
+    /// `#[serde(skip_serializing_if)]`.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
-    }
-
-    /// Iterate over all annotations.
-    pub fn iter(&self) -> std::slice::Iter<'_, Annotation> {
-        self.0.iter()
-    }
-
-    /// Add an annotation.
-    pub fn push(&mut self, annotation: Annotation) {
-        self.0.push(annotation);
     }
 
     /// All document-level label names.
@@ -168,12 +159,6 @@ impl Annotations {
     }
 }
 
-impl From<Vec<Annotation>> for Annotations {
-    fn from(v: Vec<Annotation>) -> Self {
-        Self(v)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,7 +207,7 @@ mod tests {
         }
     }
 
-    fn test_entity(value: &str, start: usize, end: usize) -> Entity {
+    fn test_entity(_value: &str, start: usize, end: usize) -> Entity {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)

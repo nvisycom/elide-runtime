@@ -2,6 +2,9 @@
 
 /// Implement [`Handler`] + [`ImageHandler`] + inherent methods for an
 /// image handler struct that holds a single `DynamicImage`.
+///
+/// [`Handler`]: crate::handler::Handler
+/// [`ImageHandler`]: crate::handler::ImageHandler
 macro_rules! impl_image_handler {
     ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal, $encode_name:literal) => {
         impl crate::handler::Handler for $handler {
@@ -15,7 +18,9 @@ macro_rules! impl_image_handler {
 
             #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
             fn encode(&self) -> Result<nvisy_core::content::ContentData, nvisy_core::Error> {
-                let mut buf = std::io::Cursor::new(Vec::new());
+                use ::std::io::Cursor;
+
+                let mut buf = Cursor::new(Vec::new());
                 self.image.write_to(&mut buf, $fmt).map_err(|e| {
                     nvisy_core::Error::validation(format!("encode failed: {e}"), $origin)
                 })?;
@@ -37,7 +42,7 @@ macro_rules! impl_image_handler {
             > {
                 let (w, h) = (self.image.width(), self.image.height());
                 let location = nvisy_ontology::entity::ImageLocation {
-                    bounding_box: nvisy_ontology::math::BoundingBox {
+                    bounding_box: nvisy_ontology::primitive::BoundingBox {
                         x: 0.0,
                         y: 0.0,
                         width: w as f64,
@@ -46,7 +51,9 @@ macro_rules! impl_image_handler {
                     image_id: None,
                     page_number: None,
                 };
-                crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
+                use ::std::iter;
+
+                crate::document::SpanStream::new(futures::stream::iter(iter::once(
                     crate::document::Span::new(
                         location,
                         crate::handler::ImageData::from(self.image.clone()),

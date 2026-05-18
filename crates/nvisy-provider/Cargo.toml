@@ -48,7 +48,7 @@ nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
 # LLM framework
-rig-core = { workspace = true, features = ["derive", "reqwest-middleware", "audio"] }
+rig = { workspace = true, features = ["derive", "reqwest-middleware", "audio"] }
 
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }

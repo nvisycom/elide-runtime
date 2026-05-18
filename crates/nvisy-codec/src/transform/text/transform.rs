@@ -5,6 +5,7 @@
 //! byte-offset replacements right-to-left, and writes the results back
 //! via [`TextHandler::edit_text`].
 
+use std::cmp::Reverse;
 use std::collections::HashMap;
 
 use futures::StreamExt;
@@ -68,7 +69,7 @@ impl<H: TextHandler> TextTransform for H {
             let content: &str = span.data.as_ref();
 
             // Sort right-to-left so earlier byte offsets stay valid.
-            replacements.sort_by(|a, b| b.0.cmp(&a.0));
+            replacements.sort_by_key(|r| Reverse(r.0));
 
             // Check for overlapping ranges (sorted descending by start).
             for pair in replacements.windows(2) {

@@ -24,14 +24,18 @@ pub enum DistanceMetric {
 #[serde(rename_all = "camelCase")]
 pub struct EmbeddingData {
     /// The embedding vector values.
-    pub vector: Vec<f64>,
-    /// Dimensionality of the vector.
+    pub vector: Vec<f32>,
+    /// Identifier of the model/algorithm that produced this embedding.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub dimensions: Option<u32>,
-    /// Identifier of the model that produced this embedding.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
+    pub algorithm: Option<String>,
     /// Distance metric to use for comparison.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub distance_metric: Option<DistanceMetric>,
+}
+
+impl EmbeddingData {
+    /// Dimensionality of the embedding vector.
+    pub fn dimensions(&self) -> usize {
+        self.vector.len()
+    }
 }

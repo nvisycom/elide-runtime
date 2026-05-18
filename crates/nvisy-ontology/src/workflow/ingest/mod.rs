@@ -61,8 +61,6 @@ impl EncryptionAlgorithm {
 pub struct EncryptionConfig {
     /// Algorithm to use for encryption/decryption.
     pub algorithm: EncryptionAlgorithm,
-    /// Identifier of the key to resolve via the [`KeyProvider`].
-    ///
-    /// [`KeyProvider`]: crate::operation::encryption::KeyProvider
+    /// Identifier of the key to resolve via the engine's `KeyProvider`.
     pub key_id: String,
 }

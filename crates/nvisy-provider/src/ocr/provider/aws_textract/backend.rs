@@ -4,11 +4,12 @@
 
 use std::collections::HashMap;
 use std::fmt;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use hmac::{Hmac, KeyInit, Mac};
 use nvisy_core::{Error, Result};
 use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
-use nvisy_ontology::math::{BoundingBox, Polygon, Vertex};
+use nvisy_ontology::primitive::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
@@ -213,15 +214,13 @@ impl Backend for AwsTextractBackend {
         let host = format!("textract.{}.amazonaws.com", self.region);
         let url = format!("https://{host}/");
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| {
-                Error::runtime(
-                    "system clock is before UNIX epoch",
-                    "aws_textract_ocr",
-                    false,
-                )
-            })?;
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| {
+            Error::runtime(
+                "system clock is before UNIX epoch",
+                "aws_textract_ocr",
+                false,
+            )
+        })?;
         let secs = now.as_secs();
         let datetime = format_datetime(secs);
         let date_stamp = &datetime[..8];

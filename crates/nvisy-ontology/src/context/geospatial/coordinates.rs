@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::math::Vertex;
+use crate::primitive::Vertex;
 
 /// A geographic coordinate (latitude/longitude).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]

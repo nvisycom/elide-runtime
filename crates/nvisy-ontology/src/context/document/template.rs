@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::ContentSource;
-use crate::math::BoundingBox;
+use crate::primitive::BoundingBox;
 
 /// Reference document template for layout/type classification.
 ///
@@ -18,9 +18,6 @@ pub struct TemplateData {
     /// Optional sub-region of interest within the template.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<BoundingBox>,
-    /// Image format hint (e.g. `"jpeg"`, `"png"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub format: Option<String>,
     /// Document type label (e.g. `"passport"`, `"drivers_license"`, `"invoice"`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub document_type: Option<String>,
@@ -32,7 +29,6 @@ impl TemplateData {
         Self {
             image_source,
             region: None,
-            format: None,
             document_type: None,
         }
     }

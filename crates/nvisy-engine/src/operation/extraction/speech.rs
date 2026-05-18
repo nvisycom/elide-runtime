@@ -5,7 +5,8 @@
 use nvisy_codec::ContentHandle;
 use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_ontology::artifacts::Transcription;
+use nvisy_ontology::artifacts::{TranscriptSegment, Transcription};
+use nvisy_ontology::primitive::TimeSpan;
 use nvisy_ontology::workflow::AudialExtraction as AudialExtractionCfg;
 use nvisy_provider::audio::stt::{SttConfig, SttService};
 use nvisy_provider::http::HttpClient;
@@ -73,9 +74,16 @@ impl Operation for AudialExtractionOp {
                 tracing::debug!(target: TARGET, "transcription returned empty text");
             } else {
                 // Store transcription in artifacts.
+                // TODO: populate real segment timestamps once the STT provider
+                // returns verbose_json with timestamp_granularities.
                 if let Some(audio) = envelope.document.artifacts.as_audio_mut() {
                     audio.transcription = Some(Transcription {
-                        text: stt_result.text.clone(),
+                        segments: vec![TranscriptSegment {
+                            text: stt_result.text.clone(),
+                            time_span: TimeSpan::new(0, 0),
+                            speaker_id: None,
+                            confidence: None,
+                        }],
                         language: None,
                     });
                 }

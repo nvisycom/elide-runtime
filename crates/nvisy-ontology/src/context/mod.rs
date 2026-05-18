@@ -13,6 +13,7 @@ pub mod reference;
 pub mod temporal;
 
 use derive_builder::Builder;
+use derive_more::{Deref, DerefMut, From};
 use schemars::JsonSchema;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -23,38 +24,20 @@ pub use self::entry::{ContextEntry, ContextEntryData};
 /// Lightweight set of context references carried by each document envelope.
 ///
 /// Each UUID points to a [`Context`] in the engine's context cache.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Deref, DerefMut, From)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Contexts(Vec<Uuid>);
 
 impl Contexts {
     pub fn new() -> Self {
-        Self(Vec::new())
+        Self::default()
     }
 
-    pub fn from_ids(ids: Vec<Uuid>) -> Self {
-        Self(ids)
-    }
-
+    /// Add a context ID, deduplicating.
     pub fn push(&mut self, id: Uuid) {
         if !self.0.contains(&id) {
             self.0.push(id);
         }
-    }
-
-    pub fn ids(&self) -> &[Uuid] {
-        &self.0
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    pub fn contains(&self, id: &Uuid) -> bool {
-        self.0.contains(id)
     }
 }
 
@@ -82,9 +65,9 @@ mod tests {
     #[test]
     fn contains_and_ids() {
         let id = Uuid::now_v7();
-        let ctx = Contexts::from_ids(vec![id]);
+        let ctx = Contexts::from(vec![id]);
         assert!(ctx.contains(&id));
-        assert_eq!(ctx.ids(), &[id]);
+        assert_eq!(&*ctx, &[id]);
     }
 
     #[test]

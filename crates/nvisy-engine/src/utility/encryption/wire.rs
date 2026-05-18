@@ -1,5 +1,7 @@
 //! Self-describing wire envelope for encrypted content.
 
+use std::str;
+
 use bytes::Bytes;
 use nvisy_core::content::ContentSource;
 use nvisy_core::{Error, Result};
@@ -96,7 +98,7 @@ impl WireEnvelope<'_> {
             ));
         }
 
-        let key_id = std::str::from_utf8(&data[8..key_id_end]).map_err(|e| {
+        let key_id = str::from_utf8(&data[8..key_id_end]).map_err(|e| {
             Error::validation(format!("invalid key_id UTF-8: {e}"), "WireEnvelope::parse")
         })?;
 

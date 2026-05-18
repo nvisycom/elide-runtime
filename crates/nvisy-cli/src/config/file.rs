@@ -17,6 +17,7 @@
 //! [ocr] / [llm] / [stt] / [tts]  # ┘ → RuntimeConfig (flattened)
 //! ```
 
+use std::fs;
 use std::net::IpAddr;
 use std::path::PathBuf;
 
@@ -124,7 +125,7 @@ impl FileConfig {
         if !path.exists() {
             return Ok(Self::default());
         }
-        let contents = std::fs::read_to_string(path)?;
+        let contents = fs::read_to_string(path)?;
         let config = toml::from_str(&contents)?;
         Ok(config)
     }

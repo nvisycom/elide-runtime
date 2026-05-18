@@ -12,6 +12,8 @@ mod method;
 mod sensitivity;
 mod source;
 
+use std::slice;
+
 use derive_builder::Builder;
 use derive_more::{Deref, DerefMut, From, IntoIterator};
 use schemars::JsonSchema;
@@ -31,6 +33,7 @@ pub use self::method::{
 };
 pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;
+use crate::primitive::LanguageTag;
 
 /// A detected sensitive data occurrence within a document.
 #[derive(Debug, Clone, PartialEq, Builder)]
@@ -66,7 +69,8 @@ pub struct Entity {
     /// BCP-47 language tag of the detected content.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub language: Option<String>,
+    #[schemars(with = "Option<String>")]
+    pub language: Option<LanguageTag>,
     /// Sensitivity classification of this entity.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -165,7 +169,7 @@ impl Entities {
 }
 
 impl<'a> IntoIterator for &'a Entities {
-    type IntoIter = std::slice::Iter<'a, Entity>;
+    type IntoIter = slice::Iter<'a, Entity>;
     type Item = &'a Entity;
 
     fn into_iter(self) -> Self::IntoIter {

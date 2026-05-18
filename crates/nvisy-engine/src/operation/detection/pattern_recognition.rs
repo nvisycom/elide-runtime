@@ -6,6 +6,8 @@
 //!
 //! [`EntityRecognitionOp`]: crate::operation::EntityRecognitionOp
 
+use std::ops::Deref;
+
 use nvisy_codec::Span;
 use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
@@ -23,7 +25,7 @@ enum EngineRef {
     Owned(nvisy_pattern::PatternEngine),
 }
 
-impl std::ops::Deref for EngineRef {
+impl Deref for EngineRef {
     type Target = nvisy_pattern::PatternEngine;
 
     fn deref(&self) -> &Self::Target {

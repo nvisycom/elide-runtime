@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::Overlap;
-use crate::math::BoundingBox;
+use crate::primitive::BoundingBox;
 
 /// Location of an entity within an image.
 #[derive(Debug, Clone, PartialEq, Builder)]

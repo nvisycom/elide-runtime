@@ -1,5 +1,6 @@
 //! TCP listener binding and graceful server lifecycle.
 
+use std::fs;
 use std::path::Path;
 
 use tokio::net::TcpListener;
@@ -34,7 +35,7 @@ fn cleanup_data_dir(path: &Path) {
     if !path.exists() {
         return;
     }
-    match std::fs::remove_dir_all(path) {
+    match fs::remove_dir_all(path) {
         Ok(()) => {
             tracing::info!(target: TARGET, path = %path.display(), "data directory cleaned up")
         }

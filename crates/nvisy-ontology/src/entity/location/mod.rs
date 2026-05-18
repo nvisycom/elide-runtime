@@ -5,6 +5,8 @@ mod image;
 mod tabular;
 mod text;
 
+use std::fmt;
+
 use derive_more::From;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -82,8 +84,8 @@ impl Location {
 
 /// Diagnostic display format for logging; not intended for round-trip
 /// parsing.
-impl std::fmt::Display for Location {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Location {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Text(loc) => write!(f, "text:{}..{}", loc.start_offset, loc.end_offset),
             Self::Image(loc) => {
@@ -120,7 +122,7 @@ impl Overlap for Location {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::{BoundingBox, TimeSpan};
+    use crate::primitive::{BoundingBox, TimeSpan};
 
     fn text(start: usize, end: usize) -> Location {
         Location::Text(

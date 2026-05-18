@@ -3,6 +3,8 @@
 //!
 //! The loader parses the input using [`scraper`], extracts text nodes
 //! in document order, and produces a handler backed by those nodes.
+//!
+//! [`scraper`]: https://docs.rs/scraper
 
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};

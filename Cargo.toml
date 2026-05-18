@@ -16,7 +16,7 @@ members = [
 
 [workspace.package]
 version = "0.1.0"
-rust-version = "1.92"
+rust-version = "1.95"
 edition = "2024"
 license = "Apache-2.0"
 publish = false
@@ -43,7 +43,7 @@ nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
 # LLM framework
-rig-core = { version = "0.33", features = [] }
+rig = { version = "0.37", features = [], default-features = false }
 
 # HTTP client and middleware
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
@@ -73,7 +73,7 @@ toml = { version = "1.1", features = [] }
 # Derive macros and error handling
 thiserror = { version = "2.0", features = [] }
 anyhow = { version = "1.0", features = [] }
-derive_more = { version = "2.0", features = ["as_ref", "deref", "deref_mut", "display", "from", "into", "is_variant", "try_into"] }
+derive_more = { version = "2.0", features = ["as_ref", "deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator", "is_variant", "try_into"] }
 derive_builder = { version = "0.20", features = [] }
 strum = { version = "0.28", features = ["derive"] }
 
@@ -83,6 +83,7 @@ bytes = { version = "1.0", features = ["serde"] }
 hipstr = { version = "0.8", features = [] }
 jiff = { version = "0.2", features = ["serde"] }
 semver = { version = "1.0", features = ["serde"] }
+oxilangtag = { version = "0.1", features = ["serde"] }
 
 # Encoding and hashing
 base64 = { version = "0.22", features = [] }

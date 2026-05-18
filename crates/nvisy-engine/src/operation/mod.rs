@@ -5,10 +5,10 @@
 //!
 //! # Submodules
 //!
-//! - [`extraction`]: visual (OCR), audial (STT), and text extraction.
-//! - [`detection`]: NER and pattern-based entity detection.
-//! - [`deduplication`]: entity deduplication and confidence scoring.
-//! - [`redaction`]: policy evaluation and content redaction.
+//! - `extraction`: visual (OCR), audial (STT), and text extraction.
+//! - `detection`: NER and pattern-based entity detection.
+//! - `deduplication`: entity deduplication and confidence scoring.
+//! - `redaction`: policy evaluation and content redaction.
 
 mod deduplication;
 mod detection;

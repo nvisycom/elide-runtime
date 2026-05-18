@@ -5,6 +5,8 @@
 //! module resolves the conflict by keeping only the winner based on
 //! the configured [`ConflictResolution`] strategy.
 
+use std::cmp::Ordering;
+
 use nvisy_ontology::entity::{Entities, Entity, Overlap};
 use nvisy_ontology::workflow::ConflictResolution;
 
@@ -91,10 +93,7 @@ impl ConflictResolutionExt for ConflictResolution {
                 (None, None) => a.confidence >= b.confidence,
             },
             Self::LongestSpan => {
-                a.location
-                    .span_cmp(&b.location)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-                    != std::cmp::Ordering::Less
+                a.location.span_cmp(&b.location).unwrap_or(Ordering::Equal) != Ordering::Less
             }
             _ => true,
         }

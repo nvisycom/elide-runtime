@@ -143,7 +143,14 @@ impl Operation for VisualExtractionOp {
             "running OCR extraction",
         );
 
-        let _ocr_output = self.extract(&image_spans).await?;
+        let ocr_output = self.extract(&image_spans).await?;
+
+        // Store OCR results in image artifacts.
+        if let Some(image_artifacts) = envelope.document.artifacts.as_image_mut() {
+            for output in &ocr_output {
+                image_artifacts.ocr_pages.extend(output.pages.clone());
+            }
+        }
 
         if self.agent.has_verifier() && !envelope.audit.entities.is_empty() {
             let verify_spans = envelope.document.collect_image_spans().await;

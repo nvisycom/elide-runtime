@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::LazyLock;
+use std::{fmt, fs};
 
 use include_dir::{Dir, include_dir};
 
@@ -23,8 +24,8 @@ pub struct DictionaryRegistry {
     inner: BTreeMap<String, BoxDictionary>,
 }
 
-impl std::fmt::Debug for DictionaryRegistry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for DictionaryRegistry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let names: Vec<&str> = self.inner.keys().map(|s| s.as_str()).collect();
         f.debug_struct("DictionaryRegistry")
             .field("len", &self.inner.len())
@@ -183,7 +184,7 @@ impl DictionaryRegistry {
     pub fn load_dir(&mut self, dir: impl AsRef<Path>) -> nvisy_core::Result<()> {
         let dir = dir.as_ref();
 
-        let entries = std::fs::read_dir(dir).map_err(|source| DictionaryLoadError::ReadDir {
+        let entries = fs::read_dir(dir).map_err(|source| DictionaryLoadError::ReadDir {
             path: dir.to_owned(),
             source,
         })?;
@@ -298,10 +299,10 @@ mod tests {
     fn load_dir_reads_filesystem() {
         let dir = tempfile::tempdir().unwrap();
 
-        std::fs::write(dir.path().join("colors.txt"), "red\nblue\ngreen\n").unwrap();
-        std::fs::write(dir.path().join("sizes.csv"), "small,S\nmedium,M\nlarge,L\n").unwrap();
+        fs::write(dir.path().join("colors.txt"), "red\nblue\ngreen\n").unwrap();
+        fs::write(dir.path().join("sizes.csv"), "small,S\nmedium,M\nlarge,L\n").unwrap();
         // Should be skipped.
-        std::fs::write(dir.path().join("readme.md"), "ignore me").unwrap();
+        fs::write(dir.path().join("readme.md"), "ignore me").unwrap();
 
         let mut reg = DictionaryRegistry::new();
         reg.load_dir(dir.path()).unwrap();

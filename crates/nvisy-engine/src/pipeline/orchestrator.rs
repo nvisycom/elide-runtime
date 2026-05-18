@@ -9,6 +9,7 @@
 //! phases sequentially: extraction → detection → deduplication → redaction →
 //! validation.
 
+use std::future::Future;
 use std::sync::Arc;
 
 use nvisy_core::Error;
@@ -236,7 +237,7 @@ impl DocumentPipeline {
     /// Wrap a phase future with an optional timeout from the phase policy.
     async fn run_phase<F>(&self, policy: &PhasePolicy, future: F) -> Result<(), Error>
     where
-        F: std::future::Future<Output = Result<(), Error>> + Send,
+        F: Future<Output = Result<(), Error>> + Send,
     {
         match &policy.timeout {
             Some(tp) => tp.with_timeout(future).await,

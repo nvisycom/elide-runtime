@@ -13,6 +13,8 @@
 //! Paths are relative — the version prefix (e.g. `/api/v1`) is applied
 //! by the version module.
 
+use std::path::PathBuf;
+
 use aide::axum::ApiRouter;
 use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
@@ -55,7 +57,7 @@ async fn upload_file(
         metadata.content_type = Some(mime.clone());
     }
     if let Some(ref name) = req.filename {
-        metadata.filename = Some(std::path::PathBuf::from(name));
+        metadata.filename = Some(PathBuf::from(name));
     }
 
     let content = Content::with_metadata(content_data, metadata);

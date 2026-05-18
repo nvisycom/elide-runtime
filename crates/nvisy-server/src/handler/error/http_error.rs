@@ -1,7 +1,7 @@
 //! HTTP error type with builder pattern for dynamic error responses.
 
 use std::borrow::Cow;
-use std::fmt;
+use std::{error, fmt, result};
 
 use axum::response::{IntoResponse, Response};
 
@@ -179,7 +179,7 @@ impl fmt::Display for Error<'_> {
     }
 }
 
-impl std::error::Error for Error<'_> {}
+impl error::Error for Error<'_> {}
 
 impl IntoResponse for Error<'_> {
     fn into_response(self) -> Response {
@@ -233,7 +233,7 @@ impl<'a> aide::OperationOutput for Error<'a> {
 /// A specialized [`Result`] type for HTTP operations.
 ///
 /// [`Result`]: std::result::Result
-pub type Result<T, E = Error<'static>> = std::result::Result<T, E>;
+pub type Result<T, E = Error<'static>> = result::Result<T, E>;
 
 #[cfg(test)]
 mod tests {
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn std_error_trait() {
         let error = Error::new(ErrorKind::BadRequest);
-        let _: &dyn std::error::Error = &error;
+        let _: &dyn error::Error = &error;
     }
 
     #[test]

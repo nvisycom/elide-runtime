@@ -48,7 +48,6 @@ mod tests {
 
     #[tokio::test]
     async fn edit_spans_replaces_bytes() -> Result<(), Error> {
-        use nvisy_ontology::entity::AudioLocation;
         let mut h = Mp3Handler::new(Bytes::from_static(b"original"));
         let spans: Vec<_> = {
             use futures::StreamExt;

@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::math::{BoundingBox, Polygon};
+use crate::primitive::{BoundingBox, Polygon};
 
 /// A single word detected by OCR.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

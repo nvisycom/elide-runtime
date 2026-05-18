@@ -8,6 +8,8 @@
 //! [`DynamicImage`](image::DynamicImage).
 //! [`ImageHandler::edit_images`](crate::handler::ImageHandler::edit_images)
 //! replaces the image in-place.
+//!
+//! [`Span`]: crate::document::Span
 
 use nvisy_core::content::ContentSource;
 

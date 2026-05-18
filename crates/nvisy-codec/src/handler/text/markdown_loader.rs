@@ -5,6 +5,8 @@
 //! [`TxtHandler`] for span access and editing; the format distinction
 //! is carried by the [`DocumentType`] so downstream operations can
 //! apply Markdown-aware processing when needed.
+//!
+//! [`DocumentType`]: nvisy_core::media::DocumentType
 
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, TextEncoding};

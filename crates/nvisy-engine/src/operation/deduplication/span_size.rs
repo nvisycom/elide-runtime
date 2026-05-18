@@ -58,8 +58,8 @@ impl SpanSize for Location {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{AudioLocation, ImageLocation, TabularLocation, TextLocation};
-    use nvisy_ontology::math::{BoundingBox, TimeSpan};
+    use nvisy_ontology::entity::{AudioLocation, ImageLocation, TextLocation};
+    use nvisy_ontology::primitive::{BoundingBox, TimeSpan};
 
     use super::*;
 

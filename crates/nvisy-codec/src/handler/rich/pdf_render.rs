@@ -9,7 +9,7 @@ use std::cell::RefCell;
 use std::sync::LazyLock;
 
 use nvisy_core::Error;
-use nvisy_ontology::math::Dpi;
+use nvisy_ontology::primitive::Dpi;
 use pdfium_render::prelude::*;
 
 use crate::handler::image::ImageData;

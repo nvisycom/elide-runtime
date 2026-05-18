@@ -2,6 +2,9 @@
 
 /// Implement [`Handler`] + [`AudioHandler`] + inherent methods for an
 /// audio handler struct that holds raw bytes.
+///
+/// [`Handler`]: crate::handler::Handler
+/// [`AudioHandler`]: crate::handler::AudioHandler
 macro_rules! impl_audio_handler {
     ($handler:ident, $doc_type:expr, $origin:literal, $encode_name:literal) => {
         impl crate::handler::Handler for $handler {
@@ -39,14 +42,16 @@ macro_rules! impl_audio_handler {
                 // a placeholder. The actual time span is set by the
                 // STT extraction operation after transcription.
                 let location = nvisy_ontology::entity::AudioLocation {
-                    time_span: nvisy_ontology::math::TimeSpan {
+                    time_span: nvisy_ontology::primitive::TimeSpan {
                         start_us: 0,
                         end_us: 0,
                     },
                     speaker_id: None,
                     audio_id: None,
                 };
-                crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
+                use ::std::iter;
+
+                crate::document::SpanStream::new(futures::stream::iter(iter::once(
                     crate::document::Span::new(
                         location,
                         crate::handler::AudioData::new(self.bytes.clone()),

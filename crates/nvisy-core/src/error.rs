@@ -3,6 +3,8 @@
 //! All crates in the nvisy workspace use [`Error`] as their primary error
 //! type and [`ErrorKind`] to classify failures.
 
+use std::{error, io, result};
+
 use derive_more::Display;
 
 /// Classification of error kinds.
@@ -49,7 +51,7 @@ pub struct Error {
     pub retryable: bool,
     /// The underlying cause, if any.
     #[source]
-    pub source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    pub source: Option<Box<dyn error::Error + Send + Sync>>,
 }
 
 impl Error {
@@ -65,7 +67,7 @@ impl Error {
     }
 
     /// Attach an underlying cause to this error.
-    pub fn with_source(mut self, source: impl std::error::Error + Send + Sync + 'static) -> Self {
+    pub fn with_source(mut self, source: impl error::Error + Send + Sync + 'static) -> Self {
         self.source = Some(Box::new(source));
         self
     }
@@ -130,8 +132,8 @@ impl Error {
     }
 }
 
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Self {
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Self {
         Self::new(ErrorKind::Internal, err.to_string()).with_source(err)
     }
 }
@@ -149,4 +151,4 @@ impl From<serde_json::Error> for Error {
 }
 
 /// Convenience type alias for results using the Nvisy error type.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = Error> = result::Result<T, E>;

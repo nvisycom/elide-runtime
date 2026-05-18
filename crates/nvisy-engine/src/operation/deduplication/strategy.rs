@@ -4,6 +4,7 @@
 //! field merging. The strategy determines *how* confidences are combined;
 //! the grouping module determines *which* entities are candidates.
 
+use std::cmp::Ordering;
 use std::collections::HashSet;
 
 use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
@@ -85,7 +86,7 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
         group.sort_by(|a, b| {
             b.confidence
                 .partial_cmp(&a.confidence)
-                .unwrap_or(std::cmp::Ordering::Equal)
+                .unwrap_or(Ordering::Equal)
         });
         let mut result = group.remove(0);
         let rest = group;
@@ -97,8 +98,8 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
         for e in &rest {
             if e.location
                 .span_cmp(&result.location)
-                .unwrap_or(std::cmp::Ordering::Less)
-                == std::cmp::Ordering::Greater
+                .unwrap_or(Ordering::Less)
+                == Ordering::Greater
             {
                 result.location.clone_from(&e.location);
             }

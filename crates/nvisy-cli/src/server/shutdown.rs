@@ -1,5 +1,7 @@
 //! Graceful shutdown signal handling.
 
+#[cfg(not(unix))]
+use std::future;
 use std::time::Duration;
 
 use tokio::signal::ctrl_c;
@@ -50,7 +52,7 @@ pub async fn shutdown_signal(shutdown_timeout: Duration) {
     };
 
     #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+    let terminate = future::pending::<()>();
 
     tokio::select! {
         () = ctrl_c => {},

@@ -4,6 +4,7 @@
 //! that every envelope and operation can cheaply access the same actor
 //! identity, policies, and context cache.
 
+use std::fmt;
 use std::sync::Arc;
 
 use nvisy_ontology::policy::{Policies, Policy};
@@ -61,8 +62,8 @@ impl SharedData {
     }
 }
 
-impl std::fmt::Debug for SharedData {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for SharedData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SharedData")
             .field("run_id", &self.run_id)
             .field("actor_id", &self.actor_id)

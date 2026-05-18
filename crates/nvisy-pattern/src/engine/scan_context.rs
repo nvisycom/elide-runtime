@@ -5,7 +5,7 @@ use super::deny_list::DenyList;
 
 /// Per-scan configuration for allow and deny lists.
 ///
-/// Passed to [`PatternEngine::scan_text`](super::PatternEngine::scan_text)
+/// Passed to [`PatternEngine::scan_entities`](super::PatternEngine::scan_entities)
 /// to control per-invocation suppression and forced detection without
 /// rebuilding the engine.
 ///
@@ -22,7 +22,7 @@ use super::deny_list::DenyList;
 ///         entity_kind: EntityKind::PersonName,
 ///         method: RecognitionMethod::annotation(Some("test".into())),
 ///     }));
-/// let matches = PatternEngine::instance().scan_text("text", &ctx);
+/// let matches = PatternEngine::instance().scan_entities("text", &ctx);
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct ScanContext {

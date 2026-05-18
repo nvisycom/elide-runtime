@@ -12,6 +12,7 @@
 //!
 //! [`ContentHandle`]: nvisy_codec::ContentHandle
 
+use std::mem;
 use std::sync::Arc;
 
 use nvisy_codec::ContentHandle;
@@ -87,7 +88,7 @@ impl ImportFileOp {
 
         // Move persisted annotations from metadata to the envelope
         // and apply inclusions as entities.
-        let annotations = std::mem::take(&mut metadata.annotations);
+        let annotations = mem::take(&mut metadata.annotations);
         let mut envelope = DocumentEnvelope::new(doc, metadata, Arc::clone(shared));
         if !annotations.is_empty() {
             annotations.apply_inclusions(&mut envelope.audit.entities);

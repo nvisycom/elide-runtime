@@ -19,8 +19,7 @@ pub struct DenyRule {
 ///
 /// If a deny-list value is found in the scanned text but was not already
 /// matched by any regex or dictionary pattern, it is injected as a synthetic
-/// [`RawMatch`](super::RawMatch) with confidence `1.0` and
-/// `pattern_name: None`.
+/// raw match with confidence `1.0` and `pattern_name: None`.
 ///
 /// # Examples
 ///

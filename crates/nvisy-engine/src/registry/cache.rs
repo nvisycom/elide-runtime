@@ -13,9 +13,9 @@
 //! [`Registry`]: super::Registry
 
 use std::collections::HashMap;
-use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
+use std::{fmt, mem};
 
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -221,7 +221,7 @@ impl<T: Send + Sync + 'static> Drop for ResourceGuard<T> {
             return;
         }
         let cache = self.cache.clone();
-        let ids = std::mem::take(&mut self.ids);
+        let ids = mem::take(&mut self.ids);
         tokio::spawn(async move {
             cache.release(&ids).await;
         });

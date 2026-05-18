@@ -1,5 +1,7 @@
 //! Post-deserialization validation and environment variable resolution.
 
+use std::env;
+
 use nvisy_core::Error;
 use validator::Validate;
 
@@ -123,7 +125,7 @@ fn resolve_ocr_provider_key(
 #[allow(dead_code)]
 pub(super) fn fill_key_from_env(key: &mut String, env_var: &str) {
     if key.is_empty()
-        && let Ok(val) = std::env::var(env_var)
+        && let Ok(val) = env::var(env_var)
         && !val.is_empty()
     {
         *key = val;

@@ -1,6 +1,7 @@
 //! Plain-text dictionary: one entry per line.
 
 use std::path::Path;
+use std::{fs, io};
 
 use super::{Dictionary, DictionaryTerm};
 
@@ -39,13 +40,13 @@ impl TxtDictionary {
     /// # Errors
     ///
     /// Returns [`std::io::Error`] if the file cannot be read.
-    pub fn from_path(path: impl AsRef<Path>) -> std::io::Result<Self> {
+    pub fn from_path(path: impl AsRef<Path>) -> io::Result<Self> {
         let path = path.as_ref();
         let name = path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or_default();
-        let text = std::fs::read_to_string(path)?;
+        let text = fs::read_to_string(path)?;
         Ok(Self::new(name, &text))
     }
 }

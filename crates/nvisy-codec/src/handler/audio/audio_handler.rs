@@ -1,5 +1,7 @@
 //! [`BoxedAudioHandler`]: type-erased wrapper over all audio handler types.
 
+use std::fmt;
+
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
@@ -19,8 +21,8 @@ impl BoxedAudioHandler {
     }
 }
 
-impl std::fmt::Debug for BoxedAudioHandler {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for BoxedAudioHandler {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("BoxedAudioHandler")
             .field(&self.0.document_type())
             .finish()

@@ -7,6 +7,8 @@
 //! 2. **Apply**: build per-modality codec instructions (text, image,
 //!    audio) from decisions and apply them to the document, writing
 //!    replacement values into audit records (in [`apply`]).
+//!
+//! [`AuditEntry`]: nvisy_ontology::provenance::AuditEntry
 
 mod apply;
 mod evaluate;

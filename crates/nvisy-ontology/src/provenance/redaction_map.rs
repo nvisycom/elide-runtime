@@ -7,6 +7,7 @@
 //!
 //! [`Audit`]: super::Audit
 
+use derive_more::{Deref, DerefMut};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -37,10 +38,13 @@ pub struct RedactionMapping {
 /// under access control.
 ///
 /// [`Audit`]: super::Audit
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Deref, DerefMut)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionMap {
     /// Per-entity redaction mappings.
+    #[deref]
+    #[deref_mut]
     pub entries: Vec<RedactionMapping>,
 }
 
@@ -48,21 +52,6 @@ impl RedactionMap {
     /// Create an empty redaction map.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Add a mapping entry.
-    pub fn push(&mut self, mapping: RedactionMapping) {
-        self.entries.push(mapping);
-    }
-
-    /// Number of entries in the map.
-    pub fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    /// Whether the map is empty.
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
     }
 
     /// Look up the original value for a given entity.

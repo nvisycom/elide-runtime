@@ -2,12 +2,10 @@
 //!
 //! The [`Registry`] stores content, contexts, policies, and audit
 //! trails in a fjall database. All entries are actor-scoped via
-//! [`CompositeKey`].
+//! a composite key.
 //!
 //! [`ResourceCache`] provides generic ref-counted caching on top of
 //! the store, used for contexts and policies.
-//!
-//! [`CompositeKey`]: key::CompositeKey
 
 mod cache;
 mod content;

@@ -32,8 +32,10 @@ impl RunParams {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Validation`] if `confidence_threshold` is not in
-    /// `0.0..=1.0` (including `NaN`).
+    /// Returns an [`Error`] with [`ErrorKind::Validation`] if
+    /// `confidence_threshold` is not in `0.0..=1.0` (including `NaN`).
+    ///
+    /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
     pub fn new(confidence_threshold: f64) -> Result<Self, Error> {
         if !(0.0..=1.0).contains(&confidence_threshold) {
             return Err(Error::validation(

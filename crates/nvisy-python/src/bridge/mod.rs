@@ -6,6 +6,8 @@
 
 mod error;
 
+use std::fmt;
+
 use hipstr::HipStr;
 use nvisy_core::Error;
 use pyo3::prelude::*;
@@ -27,9 +29,9 @@ pub struct PythonBridge {
     module_name: HipStr<'static>,
 }
 
-impl std::fmt::Debug for PythonBridge {
+impl fmt::Debug for PythonBridge {
     /// Formats the bridge for debugging, showing only the module name.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PythonBridge")
             .field("module_name", &self.module_name.as_str())
             .finish()

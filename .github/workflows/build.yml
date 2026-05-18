@@ -24,6 +24,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
+  RUST_TOOLCHAIN: "1.95.0"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,7 +40,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -68,8 +71,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: clippy
 
       - name: Install Python
@@ -100,7 +104,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -130,7 +136,9 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Install Python
         uses: actions/setup-python@v6

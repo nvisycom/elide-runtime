@@ -1,5 +1,7 @@
 //! [`ImageTransform`] async trait and blanket implementation.
 
+use std::iter;
+
 use futures::StreamExt;
 use image::DynamicImage;
 use nvisy_core::Error;
@@ -81,7 +83,7 @@ impl<H: ImageHandler> ImageTransform for H {
             }
         }
 
-        self.edit_images(SpanStream::new(futures::stream::iter(std::iter::once(
+        self.edit_images(SpanStream::new(futures::stream::iter(iter::once(
             Span::new(span.id, ImageData::from(img)),
         ))))
         .await?;

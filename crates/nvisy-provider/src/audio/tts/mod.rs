@@ -56,7 +56,10 @@ impl TtsService {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Request`] if client construction fails.
+    /// Returns an [`Error`] with [`ErrorKind::Validation`] if client
+    /// construction fails.
+    ///
+    /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
     pub fn new(
         provider: &TtsProvider,
         config: TtsConfig,

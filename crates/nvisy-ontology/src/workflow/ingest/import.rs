@@ -5,7 +5,7 @@
 //! optionally decompresses and decrypts it, then feeds the raw bytes into the
 //! pipeline envelope for downstream extraction.
 //!
-//! [`LoadContext`]: crate::graph::LoadContext
+//! [`LoadContext`]: crate::workflow::LoadContext
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,7 @@ use super::{CompressionAlgorithm, EncryptionConfig};
 /// Identifies the content objects to load and specifies any decoding steps
 /// that must be applied before the bytes are passed to extraction nodes.
 ///
-/// [`ImportFile`]: crate::graph::GraphNodeKind::ImportFile
+/// [`ImportFile`]: crate::workflow::GraphNodeKind::ImportFile
 #[derive(Debug, Clone, Default, PartialEq, Eq, Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ImportFile {

@@ -36,10 +36,8 @@ use crate::Error;
 
 /// The set of strongly-typed actions a pipeline node can perform.
 ///
-/// Each variant maps to one or more [`Operation`] implementations.
-/// Variants carry a dedicated configuration struct.
-///
-/// [`Operation`]: crate::operation::Operation
+/// Each variant maps to one or more `Operation` implementations in the
+/// engine. Variants carry a dedicated configuration struct.
 #[derive(Debug, Clone, PartialEq, Display, From)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", rename_all = "snake_case")]

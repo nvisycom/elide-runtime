@@ -33,7 +33,7 @@ impl PatternEngineBuilder {
     /// Set the minimum confidence score for matches.
     ///
     /// Matches with confidence below this value are discarded during
-    /// [`scan_text`](PatternEngine::scan_text). Defaults to `0.0`.
+    /// [`scan_entities`](PatternEngine::scan_entities). Defaults to `0.0`.
     pub fn with_confidence_threshold(mut self, threshold: f64) -> Self {
         self.confidence_threshold = threshold;
         self

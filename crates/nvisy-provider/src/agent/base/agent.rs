@@ -135,6 +135,8 @@ impl BaseAgent {
 
     /// Plain-text completion without compaction (used internally by
     /// [`maybe_compact`] to avoid recursion).
+    ///
+    /// [`maybe_compact`]: Self::maybe_compact
     async fn prompt_text_raw(&self, prompt: &str) -> Result<String, Error> {
         let (text, usage) = dispatch!(&self.inner, |agent| {
             let builder = agent

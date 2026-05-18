@@ -197,11 +197,7 @@ impl Pipeline {
         let limits = self.base_config.effective_limits();
         let orchestrator = Orchestrator::new(ctx);
         let run_output = if let Some(ms) = limits.run_timeout_ms {
-            match tokio::time::timeout(
-                Duration::from_millis(ms),
-                orchestrator.run(&compiled),
-            )
-            .await
+            match tokio::time::timeout(Duration::from_millis(ms), orchestrator.run(&compiled)).await
             {
                 Ok(Ok(output)) => output,
                 Ok(Err(e)) => {
@@ -335,6 +331,8 @@ impl Pipeline {
     ///
     /// Mirrors [`acquire_resources`] — contexts are loaded into the
     /// cache before execution and saved back here after completion.
+    ///
+    /// [`acquire_resources`]: Self::acquire_resources
     async fn release_resources(&self, actor_id: Uuid, save_context_ids: &[Uuid]) {
         let registry = &self.registry;
         for &id in save_context_ids {

@@ -1,10 +1,9 @@
 //! [`DictionaryRegistry`]: named dictionary collection with O(log n) lookup.
 
 use std::collections::BTreeMap;
-use std::fmt;
-use std::fs;
 use std::path::Path;
 use std::sync::LazyLock;
+use std::{fmt, fs};
 
 use include_dir::{Dir, include_dir};
 

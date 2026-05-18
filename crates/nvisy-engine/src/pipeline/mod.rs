@@ -2,19 +2,17 @@
 //!
 //! The pipeline processes content through a typed execution plan
 //! derived from a user-submitted [`Graph`]. The [`Engine`] is a thin
-//! facade that delegates actual execution to [`Pipeline`] (one per run).
+//! facade that delegates actual execution to `Pipeline` (one per run).
 //!
 //! # Submodules
 //!
-//! - [`config`]: [`RuntimeConfig`] and per-subsystem sections.
-//! - [`plan`]: compiles a [`Graph`] into a typed [`ExecutionPlan`].
-//! - [`run`]: per-run lifecycle ([`Pipeline`]).
-//! - [`orchestrator`]: concurrent document processing through the plan.
-//! - [`runs`]: in-memory run lifecycle tracking.
+//! - `config`: [`RuntimeConfig`] and per-subsystem sections.
+//! - `plan`: compiles a [`Graph`] into a typed `ExecutionPlan`.
+//! - `run`: per-run lifecycle (`Pipeline`).
+//! - `orchestrator`: concurrent document processing through the plan.
+//! - `runs`: in-memory run lifecycle tracking.
 //!
 //! [`Graph`]: nvisy_ontology::workflow::Graph
-//! [`Pipeline`]: run::Pipeline
-//! [`ExecutionPlan`]: plan::ExecutionPlan
 
 mod config;
 mod default;

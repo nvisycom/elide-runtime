@@ -5,8 +5,7 @@
 //! attributes (MIME type, filename, arbitrary metadata) live on
 //! [`ContentMetadata`](super::ContentMetadata).
 
-use std::fmt;
-use std::str;
+use std::{fmt, str};
 
 use bytes::Bytes;
 use hipstr::HipStr;

@@ -2,6 +2,9 @@
 
 /// Implement [`Handler`] + [`ImageHandler`] + inherent methods for an
 /// image handler struct that holds a single `DynamicImage`.
+///
+/// [`Handler`]: crate::handler::Handler
+/// [`ImageHandler`]: crate::handler::ImageHandler
 macro_rules! impl_image_handler {
     ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal, $encode_name:literal) => {
         impl crate::handler::Handler for $handler {

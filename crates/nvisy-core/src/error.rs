@@ -3,9 +3,7 @@
 //! All crates in the nvisy workspace use [`Error`] as their primary error
 //! type and [`ErrorKind`] to classify failures.
 
-use std::error;
-use std::io;
-use std::result;
+use std::{error, io, result};
 
 use derive_more::Display;
 

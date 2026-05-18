@@ -12,16 +12,10 @@ use super::json_pattern::JsonPatternError;
 pub enum PatternLoadError {
     /// The directory could not be read.
     #[error("failed to read pattern directory '{}': {source}", path.display())]
-    ReadDir {
-        path: PathBuf,
-        source: io::Error,
-    },
+    ReadDir { path: PathBuf, source: io::Error },
     /// A pattern file could not be read.
     #[error("failed to read pattern file '{}': {source}", path.display())]
-    ReadFile {
-        path: PathBuf,
-        source: io::Error,
-    },
+    ReadFile { path: PathBuf, source: io::Error },
     /// A pattern file failed to parse.
     #[error("failed to parse pattern '{}': {source}", path.display())]
     Parse {

@@ -1,9 +1,7 @@
 //! HTTP error type with builder pattern for dynamic error responses.
 
 use std::borrow::Cow;
-use std::error;
-use std::fmt;
-use std::result;
+use std::{error, fmt, result};
 
 use axum::response::{IntoResponse, Response};
 

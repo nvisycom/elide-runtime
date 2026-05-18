@@ -12,16 +12,10 @@ use super::CsvDictionaryError;
 pub enum DictionaryLoadError {
     /// The directory could not be read.
     #[error("failed to read dictionary directory '{}': {source}", path.display())]
-    ReadDir {
-        path: PathBuf,
-        source: io::Error,
-    },
+    ReadDir { path: PathBuf, source: io::Error },
     /// A dictionary file could not be read.
     #[error("failed to read dictionary file '{}': {source}", path.display())]
-    ReadFile {
-        path: PathBuf,
-        source: io::Error,
-    },
+    ReadFile { path: PathBuf, source: io::Error },
     /// A CSV dictionary file failed to parse.
     #[error("failed to parse CSV dictionary '{}': {source}", path.display())]
     CsvParse {

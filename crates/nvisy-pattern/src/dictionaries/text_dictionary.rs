@@ -1,8 +1,7 @@
 //! Plain-text dictionary: one entry per line.
 
-use std::fs;
-use std::io;
 use std::path::Path;
+use std::{fs, io};
 
 use super::{Dictionary, DictionaryTerm};
 

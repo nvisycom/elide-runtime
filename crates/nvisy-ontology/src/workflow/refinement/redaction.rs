@@ -5,7 +5,7 @@
 //! instructions to the document envelope, replacing or removing detected
 //! values, and optionally strips embedded document metadata.
 //!
-//! [`GenerateContext`]: crate::graph::GenerateContext
+//! [`GenerateContext`]: crate::workflow::GenerateContext
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 /// Controls which supplementary sanitisation steps are performed in addition
 /// to span-level value replacement.
 ///
-/// [`Redaction`]: crate::graph::GraphNodeKind::Redaction
+/// [`Redaction`]: crate::workflow::GraphNodeKind::Redaction
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Redaction {

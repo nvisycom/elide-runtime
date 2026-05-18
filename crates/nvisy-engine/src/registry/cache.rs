@@ -13,10 +13,9 @@
 //! [`Registry`]: super::Registry
 
 use std::collections::HashMap;
-use std::fmt;
 use std::future::Future;
-use std::mem;
 use std::sync::Arc;
+use std::{fmt, mem};
 
 use tokio::sync::RwLock;
 use uuid::Uuid;

@@ -214,15 +214,13 @@ impl Backend for AwsTextractBackend {
         let host = format!("textract.{}.amazonaws.com", self.region);
         let url = format!("https://{host}/");
 
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|_| {
-                Error::runtime(
-                    "system clock is before UNIX epoch",
-                    "aws_textract_ocr",
-                    false,
-                )
-            })?;
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|_| {
+            Error::runtime(
+                "system clock is before UNIX epoch",
+                "aws_textract_ocr",
+                false,
+            )
+        })?;
         let secs = now.as_secs();
         let datetime = format_datetime(secs);
         let date_stamp = &datetime[..8];

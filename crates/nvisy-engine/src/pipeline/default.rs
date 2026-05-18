@@ -1,4 +1,4 @@
-//! [`Engine`]: the main entry point for running redaction pipelines.
+//! [`Engine`] — the main entry point for running redaction pipelines.
 //!
 //! The engine is a thin facade over the pipeline subsystem. It owns
 //! shared infrastructure (registry, HTTP client, run state) and
@@ -6,10 +6,9 @@
 //!
 //! [`Pipeline`]: super::run::Pipeline
 
-use std::fmt;
-use std::mem;
 use std::path::Path;
 use std::sync::Arc;
+use std::{fmt, mem};
 
 use nvisy_core::Error;
 use nvisy_ontology::provenance::Audit;
@@ -89,13 +88,12 @@ pub(super) struct EngineInner {
 /// The redaction pipeline engine.
 ///
 /// Thin facade over shared infrastructure. Actual pipeline execution
-/// is delegated to [`Pipeline`] (one per run). All state lives in
+/// is delegated to `Pipeline` (one per run). All state lives in
 /// `Arc<EngineInner>` and is shared across clones.
 ///
 /// Builder methods ([`with_key_provider`]) require exclusive access
 /// via `Arc::get_mut` and must be called before the engine is cloned.
 ///
-/// [`Pipeline`]: super::run::Pipeline
 /// [`with_key_provider`]: Engine::with_key_provider
 #[derive(Clone)]
 pub struct Engine {
@@ -152,6 +150,7 @@ impl Engine {
     ///
     /// Panics if the temp directory or registry cannot be created.
     ///
+    /// [`tempfile`]: https://docs.rs/tempfile
     /// [`TempDir`]: tempfile::TempDir
     #[cfg(any(test, feature = "test-utils"))]
     pub fn temp() -> (Self, tempfile::TempDir) {

@@ -2,6 +2,9 @@
 
 /// Implement [`Handler`] + [`AudioHandler`] + inherent methods for an
 /// audio handler struct that holds raw bytes.
+///
+/// [`Handler`]: crate::handler::Handler
+/// [`AudioHandler`]: crate::handler::AudioHandler
 macro_rules! impl_audio_handler {
     ($handler:ident, $doc_type:expr, $origin:literal, $encode_name:literal) => {
         impl crate::handler::Handler for $handler {

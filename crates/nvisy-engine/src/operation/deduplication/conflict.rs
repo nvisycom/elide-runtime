@@ -93,10 +93,7 @@ impl ConflictResolutionExt for ConflictResolution {
                 (None, None) => a.confidence >= b.confidence,
             },
             Self::LongestSpan => {
-                a.location
-                    .span_cmp(&b.location)
-                    .unwrap_or(Ordering::Equal)
-                    != Ordering::Less
+                a.location.span_cmp(&b.location).unwrap_or(Ordering::Equal) != Ordering::Less
             }
             _ => true,
         }

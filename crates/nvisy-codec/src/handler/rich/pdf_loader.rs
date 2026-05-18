@@ -2,6 +2,8 @@
 //!
 //! Text is extracted per page via [`lopdf`].  The raw bytes are
 //! preserved for encoding and rendering.
+//!
+//! [`lopdf`]: https://docs.rs/lopdf
 
 use nvisy_core::content::{ContentData, ContentSource};
 

@@ -135,15 +135,16 @@ impl PatternEngine {
         PatternEngineBuilder::default()
     }
 
-    /// Scan `text` and return all matches above the confidence threshold.
+    /// Scan `text` and return detected entities with [`TextLocation`]s.
     ///
     /// Matches whose value appears in the allow list are suppressed.
     /// Deny-list values found in the text are injected as synthetic matches
     /// with confidence `1.0` when not already matched.
-    /// Scan `text` and return detected entities with [`TextLocation`]s.
     ///
     /// Each entity carries a [`TextLocation`] with `start_offset` and
     /// `end_offset` set from the match.
+    ///
+    /// [`TextLocation`]: nvisy_ontology::entity::TextLocation
     #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), entities = tracing::field::Empty))]
     pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
         let mut raw = self.scan_raw(text, ctx);

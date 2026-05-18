@@ -71,11 +71,10 @@ impl CsvDictionary {
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or_default();
-        let text =
-            fs::read_to_string(path).map_err(|source| DictionaryLoadError::ReadFile {
-                path: path.to_owned(),
-                source,
-            })?;
+        let text = fs::read_to_string(path).map_err(|source| DictionaryLoadError::ReadFile {
+            path: path.to_owned(),
+            source,
+        })?;
         Self::new(name, &text).map_err(|source| DictionaryLoadError::CsvParse {
             path: path.to_owned(),
             source,

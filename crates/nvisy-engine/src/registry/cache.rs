@@ -15,6 +15,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
+use std::mem;
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
@@ -221,7 +222,7 @@ impl<T: Send + Sync + 'static> Drop for ResourceGuard<T> {
             return;
         }
         let cache = self.cache.clone();
-        let ids = std::mem::take(&mut self.ids);
+        let ids = mem::take(&mut self.ids);
         tokio::spawn(async move {
             cache.release(&ids).await;
         });

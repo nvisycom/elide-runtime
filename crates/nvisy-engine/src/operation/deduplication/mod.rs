@@ -27,6 +27,8 @@ mod grouping;
 pub(crate) mod span_size;
 mod strategy;
 
+use std::mem;
+
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::workflow::{
@@ -124,7 +126,7 @@ impl Operation for DeduplicationOp {
                 entities = envelope.audit.entities.len(),
                 "running deduplication",
             );
-            let entities = std::mem::take(&mut envelope.audit.entities);
+            let entities = mem::take(&mut envelope.audit.entities);
             envelope.audit.entities = self.deduplicate(entities, &envelope.document).await;
         }
         Ok(())

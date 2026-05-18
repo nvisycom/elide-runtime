@@ -1,5 +1,7 @@
 //! [`ImageData`]: opaque wrapper around a decoded image.
 
+use std::io::Cursor;
+
 use derive_more::{From, Into};
 use image::DynamicImage;
 use nvisy_core::Error;
@@ -27,7 +29,7 @@ impl ImageData {
 
     /// Encode to PNG bytes.
     pub fn encode_png(&self) -> Result<bytes::Bytes, Error> {
-        let mut buf = std::io::Cursor::new(Vec::new());
+        let mut buf = Cursor::new(Vec::new());
         self.0
             .write_to(&mut buf, image::ImageFormat::Png)
             .map_err(|e| Error::validation(format!("PNG encode failed: {e}"), "image-data"))?;

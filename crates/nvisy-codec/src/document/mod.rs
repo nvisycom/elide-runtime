@@ -3,6 +3,8 @@
 mod span;
 mod stream;
 
+use std::fmt;
+
 use derive_more::{From, IsVariant, TryInto};
 use futures::StreamExt;
 use nvisy_core::Error;
@@ -38,8 +40,8 @@ pub enum ContentHandle {
     Rich(BoxedRichHandler),
 }
 
-impl std::fmt::Debug for ContentHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for ContentHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("ContentHandle")
             .field(&self.document_type())
             .finish()

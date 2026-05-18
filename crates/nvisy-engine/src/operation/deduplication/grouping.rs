@@ -12,6 +12,7 @@
 //!    containment across different hash keys.
 
 use std::collections::{HashMap, HashSet};
+use std::mem;
 
 use nvisy_ontology::entity::{Entities, Entity, EntityKind, Overlap};
 use nvisy_ontology::workflow::GroupingCriteria;
@@ -152,7 +153,7 @@ impl GroupEntities for Entities {
                                     .any(|b| a.location.overlaps(&b.location))
                             });
                         if location_ok && any_value_match {
-                            let donor = std::mem::take(&mut groups[indices[j]]);
+                            let donor = mem::take(&mut groups[indices[j]]);
                             groups[indices[i]].extend(donor);
                             merged_into.insert(indices[j]);
                             total_merges += 1;

@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::fmt;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use hmac::{Hmac, KeyInit, Mac};
 use nvisy_core::{Error, Result};
@@ -213,8 +214,8 @@ impl Backend for AwsTextractBackend {
         let host = format!("textract.{}.amazonaws.com", self.region);
         let url = format!("https://{host}/");
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .map_err(|_| {
                 Error::runtime(
                     "system clock is before UNIX epoch",

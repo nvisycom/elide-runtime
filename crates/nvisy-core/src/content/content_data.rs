@@ -6,6 +6,7 @@
 //! [`ContentMetadata`](super::ContentMetadata).
 
 use std::fmt;
+use std::str;
 
 use bytes::Bytes;
 use hipstr::HipStr;
@@ -90,7 +91,7 @@ impl ContentData {
     /// return).
     #[must_use]
     pub fn is_likely_text(&self) -> bool {
-        let Ok(s) = std::str::from_utf8(&self.data) else {
+        let Ok(s) = str::from_utf8(&self.data) else {
             return false;
         };
         s.chars()
@@ -103,7 +104,7 @@ impl ContentData {
     ///
     /// Returns an error if the content data contains invalid UTF-8 sequences.
     pub fn as_str(&self) -> Result<&str> {
-        std::str::from_utf8(&self.data)
+        str::from_utf8(&self.data)
             .map_err(|e| Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}")))
     }
 
@@ -122,7 +123,7 @@ impl ContentData {
     ///
     /// Returns an error if the content is not valid UTF-8.
     pub fn as_hipstr(&self) -> Result<HipStr<'static>> {
-        let s = std::str::from_utf8(&self.data)
+        let s = str::from_utf8(&self.data)
             .map_err(|e| Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}")))?;
         Ok(HipStr::from(s))
     }
@@ -267,7 +268,7 @@ mod tests {
         let content = ContentData::from("Hello, world!");
         let hash = content.sha256().clone();
         assert!(content.verify_sha256(&hash).is_ok());
-        assert!(content.verify_sha256(&[0u8; 32]).is_err());
+        assert!(content.verify_sha256([0u8; 32]).is_err());
     }
 
     #[test]

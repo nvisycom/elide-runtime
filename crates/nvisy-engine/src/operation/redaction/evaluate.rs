@@ -204,7 +204,7 @@ impl ConditionExt for Condition {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, Location, RecognitionMethod};
+    use nvisy_ontology::entity::Entity;
     use nvisy_ontology::policy::{Strategy, TextStrategy};
 
     use super::*;

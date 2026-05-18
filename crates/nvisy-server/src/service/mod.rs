@@ -4,7 +4,7 @@
 //! dependencies (registry, HTTP client, policies). Individual handlers
 //! extract the engine via a `FromRef` implementation.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use nvisy_engine::pipeline::{Engine, RuntimeConfig};
 use nvisy_engine::registry::Registry;
@@ -30,7 +30,7 @@ impl ServiceState {
     }
 
     /// Returns the data directory path.
-    pub fn data_dir(&self) -> &std::path::Path {
+    pub fn data_dir(&self) -> &Path {
         self.engine.data_dir()
     }
 }

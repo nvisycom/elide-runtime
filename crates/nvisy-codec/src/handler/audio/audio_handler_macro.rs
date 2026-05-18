@@ -46,7 +46,9 @@ macro_rules! impl_audio_handler {
                     speaker_id: None,
                     audio_id: None,
                 };
-                crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
+                use ::std::iter;
+
+                crate::document::SpanStream::new(futures::stream::iter(iter::once(
                     crate::document::Span::new(
                         location,
                         crate::handler::AudioData::new(self.bytes.clone()),

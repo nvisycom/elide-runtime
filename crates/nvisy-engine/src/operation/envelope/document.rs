@@ -5,6 +5,8 @@
 //! (MIME type, filename) and [`ContentArtifacts`] (intermediate
 //! processing data like OCR results or transcriptions).
 
+use std::fmt;
+
 use nvisy_codec::handler::{AudioData, ImageData, TextData};
 use nvisy_codec::transform::{AudioRedaction, ImageRedaction, TabularRedaction, TextRedaction};
 use nvisy_codec::{ContentHandle, Span, SpanStream};
@@ -192,8 +194,8 @@ impl Document {
     }
 }
 
-impl std::fmt::Debug for Document {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Document {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Document")
             .field("type", &self.document_type())
             .field("source", &self.source())

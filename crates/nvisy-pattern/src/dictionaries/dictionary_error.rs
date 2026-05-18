@@ -1,5 +1,8 @@
 //! Error type for dictionary filesystem loading.
 
+use std::io;
+use std::path::PathBuf;
+
 use nvisy_core::{Error, ErrorKind};
 
 use super::CsvDictionaryError;
@@ -10,19 +13,19 @@ pub enum DictionaryLoadError {
     /// The directory could not be read.
     #[error("failed to read dictionary directory '{}': {source}", path.display())]
     ReadDir {
-        path: std::path::PathBuf,
-        source: std::io::Error,
+        path: PathBuf,
+        source: io::Error,
     },
     /// A dictionary file could not be read.
     #[error("failed to read dictionary file '{}': {source}", path.display())]
     ReadFile {
-        path: std::path::PathBuf,
-        source: std::io::Error,
+        path: PathBuf,
+        source: io::Error,
     },
     /// A CSV dictionary file failed to parse.
     #[error("failed to parse CSV dictionary '{}': {source}", path.display())]
     CsvParse {
-        path: std::path::PathBuf,
+        path: PathBuf,
         source: CsvDictionaryError,
     },
 }

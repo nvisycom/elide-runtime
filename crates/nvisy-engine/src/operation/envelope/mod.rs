@@ -21,6 +21,7 @@
 //! provider) is available via the [`shared`](DocumentEnvelope::shared)
 //! field.
 
+use std::fmt;
 use std::sync::Arc;
 
 use nvisy_codec::ContentHandle;
@@ -115,8 +116,8 @@ impl DocumentEnvelope {
     }
 }
 
-impl std::fmt::Debug for DocumentEnvelope {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for DocumentEnvelope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DocumentEnvelope")
             .field("document_type", &self.document.document_type())
             .field("source", &self.document.source())

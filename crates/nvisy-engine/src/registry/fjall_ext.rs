@@ -4,6 +4,7 @@
 //! operations with [`CompositeKey`] support and consistent error
 //! mapping to [`nvisy_core::Error`].
 
+use std::error;
 use std::path::Path;
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions, KvSeparationOptions};
@@ -144,7 +145,7 @@ pub(crate) fn not_found(kind: &str, actor_id: Uuid, resource_id: Uuid) -> Error 
     .with_component(COMPONENT)
 }
 
-fn fjall_err(msg: impl Into<String>, err: impl std::error::Error + Send + Sync + 'static) -> Error {
+fn fjall_err(msg: impl Into<String>, err: impl error::Error + Send + Sync + 'static) -> Error {
     Error::new(ErrorKind::Internal, msg)
         .with_component(COMPONENT)
         .with_source(err)

@@ -1,6 +1,8 @@
 //! [`PatternRegistry`]: named pattern collection with O(log n) lookup.
 
 use std::collections::BTreeMap;
+use std::fmt;
+use std::fs;
 use std::path::Path;
 use std::sync::LazyLock;
 
@@ -25,8 +27,8 @@ pub struct PatternRegistry {
     inner: BTreeMap<String, BoxPattern>,
 }
 
-impl std::fmt::Debug for PatternRegistry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for PatternRegistry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let names: Vec<&str> = self.inner.keys().map(|s| s.as_str()).collect();
         f.debug_struct("PatternRegistry")
             .field("len", &self.inner.len())
@@ -151,7 +153,7 @@ impl PatternRegistry {
             return Ok(());
         };
 
-        let bytes = std::fs::read(path).map_err(|source| PatternLoadError::ReadFile {
+        let bytes = fs::read(path).map_err(|source| PatternLoadError::ReadFile {
             path: path.to_owned(),
             source,
         })?;
@@ -194,7 +196,7 @@ impl PatternRegistry {
     pub fn load_dir(&mut self, dir: impl AsRef<Path>) -> nvisy_core::Result<()> {
         let dir = dir.as_ref();
 
-        let entries = std::fs::read_dir(dir).map_err(|source| PatternLoadError::ReadDir {
+        let entries = fs::read_dir(dir).map_err(|source| PatternLoadError::ReadDir {
             path: dir.to_owned(),
             source,
         })?;
@@ -250,6 +252,7 @@ pub fn builtin_registry() -> &'static PatternRegistry {
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
+    use std::fs;
 
     use super::super::json_pattern::JsonPattern;
     use super::super::pattern::{MatchSource, RegexPattern};
@@ -354,7 +357,7 @@ mod tests {
     fn load_dir_reads_filesystem() {
         let dir = tempfile::tempdir().unwrap();
 
-        std::fs::write(
+        fs::write(
             dir.path().join("test_pattern.json"),
             r#"{
                 "name": "test_fs",
@@ -365,7 +368,7 @@ mod tests {
         )
         .unwrap();
         // Should be skipped.
-        std::fs::write(dir.path().join("readme.md"), "ignore me").unwrap();
+        fs::write(dir.path().join("readme.md"), "ignore me").unwrap();
 
         let mut reg = PatternRegistry::new();
         reg.load_dir(dir.path()).unwrap();
@@ -385,7 +388,7 @@ mod tests {
     fn load_file_single_pattern() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("single.json");
-        std::fs::write(
+        fs::write(
             &path,
             r#"{
                 "name": "single_test",

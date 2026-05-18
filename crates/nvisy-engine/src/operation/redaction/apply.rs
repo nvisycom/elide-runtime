@@ -306,9 +306,7 @@ impl<'a> RedactionApplicator<'a> {
 mod tests {
     use nvisy_codec::ContentHandle;
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
-    use nvisy_ontology::entity::{
-        Entities, Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
-    };
+    use nvisy_ontology::entity::{Entities, Entity, EntityKind};
     use nvisy_ontology::policy::ImageStrategy;
     use nvisy_ontology::provenance::AuditEntry;
 

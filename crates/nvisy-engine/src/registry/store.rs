@@ -1,5 +1,6 @@
 //! [`Registry`]: actor-scoped content, context, and policy store.
 
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -39,8 +40,8 @@ struct RegistryInner {
     policy_cache: ResourceCache<Policy>,
 }
 
-impl std::fmt::Debug for Registry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Registry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Registry")
             .field("base_dir", &self.inner.base_dir)
             .finish_non_exhaustive()

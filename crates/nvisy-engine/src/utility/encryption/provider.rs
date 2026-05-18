@@ -1,6 +1,7 @@
 //! Key provider abstraction for encryption key resolution.
 
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -35,8 +36,8 @@ impl Default for SharedKeyProvider {
     }
 }
 
-impl std::fmt::Debug for SharedKeyProvider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for SharedKeyProvider {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("SharedKeyProvider").finish()
     }
 }

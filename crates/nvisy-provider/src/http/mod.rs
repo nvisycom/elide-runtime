@@ -3,6 +3,7 @@
 mod config;
 mod middleware;
 
+use std::fmt;
 use std::time::Duration;
 
 use derive_more::Deref;
@@ -67,8 +68,8 @@ impl HttpClient {
     }
 }
 
-impl std::fmt::Debug for HttpClient {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for HttpClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("HttpClient").finish()
     }
 }

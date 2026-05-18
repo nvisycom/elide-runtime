@@ -3,6 +3,7 @@
 //! Parses the version number from the request URI path (`/api/v{n}/...`)
 //! and provides it as a typed [`ApiVersion`] newtype.
 
+use std::convert::Infallible;
 use std::num::NonZeroU16;
 
 use aide::OperationInput;
@@ -26,7 +27,7 @@ impl ApiVersion {
 impl OperationInput for ApiVersion {}
 
 impl<S: Send + Sync> FromRequestParts<S> for ApiVersion {
-    type Rejection = std::convert::Infallible;
+    type Rejection = Infallible;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         Ok(Self::from_path(parts.uri.path()))

@@ -20,7 +20,9 @@ mod error;
 mod pattern_match;
 mod scan_context;
 
+use std::cmp::Ordering;
 use std::collections::HashSet;
+use std::fmt;
 use std::sync::LazyLock;
 
 use aho_corasick::AhoCorasick;
@@ -99,8 +101,8 @@ pub struct PatternEngine {
     confidence_threshold: f64,
 }
 
-impl std::fmt::Debug for PatternEngine {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for PatternEngine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PatternEngine")
             .field("regex_patterns", &self.regex_entries.len())
             .field("dict_patterns", &self.dict_entries.len())
@@ -109,8 +111,8 @@ impl std::fmt::Debug for PatternEngine {
     }
 }
 
-impl std::fmt::Display for PatternEngine {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for PatternEngine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "PatternEngine({} regex, {} dict, threshold {:.2})",
@@ -160,7 +162,7 @@ impl PatternEngine {
             a.start.cmp(&b.start).then(
                 b.confidence
                     .partial_cmp(&a.confidence)
-                    .unwrap_or(std::cmp::Ordering::Equal),
+                    .unwrap_or(Ordering::Equal),
             )
         });
         let mut deduped: Vec<RawMatch> = Vec::with_capacity(raw.len());

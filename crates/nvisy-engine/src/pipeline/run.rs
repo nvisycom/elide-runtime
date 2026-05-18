@@ -10,6 +10,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use nvisy_core::Error;
 use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
@@ -155,7 +156,7 @@ impl Pipeline {
             .await;
         let mut policies = Policies::default();
         for policy in cached_policies {
-            policies.push(std::sync::Arc::unwrap_or_clone(policy));
+            policies.push(Arc::unwrap_or_clone(policy));
         }
 
         let retention_rules = policies
@@ -197,7 +198,7 @@ impl Pipeline {
         let orchestrator = Orchestrator::new(ctx);
         let run_output = if let Some(ms) = limits.run_timeout_ms {
             match tokio::time::timeout(
-                std::time::Duration::from_millis(ms),
+                Duration::from_millis(ms),
                 orchestrator.run(&compiled),
             )
             .await
@@ -349,7 +350,7 @@ impl Pipeline {
                 }
             };
             if let Err(e) = registry
-                .register_context(actor_id, std::sync::Arc::unwrap_or_clone(context))
+                .register_context(actor_id, Arc::unwrap_or_clone(context))
                 .await
             {
                 tracing::warn!(

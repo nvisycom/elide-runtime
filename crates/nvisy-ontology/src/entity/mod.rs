@@ -12,6 +12,8 @@ mod method;
 mod sensitivity;
 mod source;
 
+use std::slice;
+
 use derive_builder::Builder;
 use derive_more::{Deref, DerefMut, From, IntoIterator};
 use schemars::JsonSchema;
@@ -167,7 +169,7 @@ impl Entities {
 }
 
 impl<'a> IntoIterator for &'a Entities {
-    type IntoIter = std::slice::Iter<'a, Entity>;
+    type IntoIter = slice::Iter<'a, Entity>;
     type Item = &'a Entity;
 
     fn into_iter(self) -> Self::IntoIter {

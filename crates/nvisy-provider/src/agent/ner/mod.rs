@@ -8,6 +8,8 @@ mod context;
 mod output;
 mod prompt;
 
+use std::mem;
+
 use nvisy_core::Result;
 use nvisy_ontology::entity::{
     Entity, EntityCategory, Location, ModelKind, ModelProvenance, RecognitionMethod, TextLocation,
@@ -183,7 +185,7 @@ impl NerAgent {
 
         // Update coreference state for the next call.
         let mut state = self.state.lock().await;
-        let mut merge_ctx = NerContext::with_known(text, std::mem::take(&mut *state));
+        let mut merge_ctx = NerContext::with_known(text, mem::take(&mut *state));
         merge_ctx.merge(ner_entities);
         *state = merge_ctx.known_entities;
 

@@ -1,4 +1,8 @@
 //! Shared test helpers and factories for integration tests.
+//!
+//! Each integration test compiles this module separately, so some helpers
+//! may appear unused from any given test file's perspective.
+#![allow(dead_code)]
 
 use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 use nvisy_engine::pipeline::{Engine, EngineInput};

@@ -15,7 +15,9 @@ macro_rules! impl_image_handler {
 
             #[tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
             fn encode(&self) -> Result<nvisy_core::content::ContentData, nvisy_core::Error> {
-                let mut buf = std::io::Cursor::new(Vec::new());
+                use ::std::io::Cursor;
+
+                let mut buf = Cursor::new(Vec::new());
                 self.image.write_to(&mut buf, $fmt).map_err(|e| {
                     nvisy_core::Error::validation(format!("encode failed: {e}"), $origin)
                 })?;
@@ -46,7 +48,9 @@ macro_rules! impl_image_handler {
                     image_id: None,
                     page_number: None,
                 };
-                crate::document::SpanStream::new(futures::stream::iter(std::iter::once(
+                use ::std::iter;
+
+                crate::document::SpanStream::new(futures::stream::iter(iter::once(
                     crate::document::Span::new(
                         location,
                         crate::handler::ImageData::from(self.image.clone()),

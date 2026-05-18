@@ -16,6 +16,7 @@
 //! | Shutdown timeout | `--shutdown-timeout` | `SHUTDOWN_TIMEOUT` | `30` s                     |
 //! | Data directory   | `--data-dir`         | `DATA_DIR`         | `$TMPDIR/nvisy-server-data`|
 
+use std::env;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -77,7 +78,7 @@ impl ServerConfig {
                 .data_dir
                 .clone()
                 .or_else(|| toml.and_then(|s| s.data_dir.clone()))
-                .unwrap_or_else(|| std::env::temp_dir().join("nvisy-server-data")),
+                .unwrap_or_else(|| env::temp_dir().join("nvisy-server-data")),
             log_level: obs.level,
             log_format: obs.format,
         }

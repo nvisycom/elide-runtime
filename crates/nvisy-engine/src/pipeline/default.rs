@@ -6,6 +6,8 @@
 //!
 //! [`Pipeline`]: super::run::Pipeline
 
+use std::fmt;
+use std::mem;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -100,8 +102,8 @@ pub struct Engine {
     pub(super) inner: Arc<EngineInner>,
 }
 
-impl std::fmt::Debug for Engine {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Engine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Engine")
             .field("runtime_config", &self.inner.runtime_config)
             .field("http_client", &self.inner.http_client)
@@ -333,7 +335,7 @@ impl Engine {
     /// Call during graceful shutdown to ensure in-flight runs finish
     /// and persist their results before the process exits.
     pub async fn shutdown(&self) {
-        let tasks = std::mem::take(&mut *self.inner.background_tasks.lock().await);
+        let tasks = mem::take(&mut *self.inner.background_tasks.lock().await);
         tasks.join_all().await;
     }
 }

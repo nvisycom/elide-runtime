@@ -207,7 +207,7 @@ mod tests {
         }
     }
 
-    fn test_entity(value: &str, start: usize, end: usize) -> Entity {
+    fn test_entity(_value: &str, start: usize, end: usize) -> Entity {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)

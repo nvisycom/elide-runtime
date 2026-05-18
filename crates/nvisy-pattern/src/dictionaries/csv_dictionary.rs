@@ -1,5 +1,6 @@
 //! CSV dictionary: one row per entity, each cell becomes a matchable variant.
 
+use std::fs;
 use std::path::Path;
 
 use super::{CsvDictionaryError, Dictionary, DictionaryLoadError, DictionaryTerm};
@@ -71,7 +72,7 @@ impl CsvDictionary {
             .and_then(|s| s.to_str())
             .unwrap_or_default();
         let text =
-            std::fs::read_to_string(path).map_err(|source| DictionaryLoadError::ReadFile {
+            fs::read_to_string(path).map_err(|source| DictionaryLoadError::ReadFile {
                 path: path.to_owned(),
                 source,
             })?;

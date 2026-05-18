@@ -8,7 +8,9 @@
 use std::fmt;
 
 use nvisy_codec::handler::{AudioData, ImageData, TextData};
-use nvisy_codec::transform::{AudioRedaction, ImageRedaction, TabularRedaction, TextRedaction};
+use nvisy_codec::transform::{
+    AudioRedaction, ImageRedaction, Redactions, TabularRedaction, TextRedaction,
+};
 use nvisy_codec::{ContentHandle, Span, SpanStream};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
@@ -160,7 +162,7 @@ impl Document {
     /// Apply a batch of text redactions to the document.
     pub async fn apply_text_redactions(
         &mut self,
-        redactions: &[TextRedaction<TextLocation>],
+        redactions: Redactions<TextLocation, TextRedaction>,
     ) -> Result<(), Error> {
         self.handle.apply_text_redactions(redactions).await
     }
@@ -168,7 +170,7 @@ impl Document {
     /// Apply a batch of image redactions to the document.
     pub async fn apply_image_redactions(
         &mut self,
-        redactions: &[ImageRedaction<ImageLocation>],
+        redactions: Redactions<ImageLocation, ImageRedaction>,
     ) -> Result<(), Error> {
         self.handle.apply_image_redactions(redactions).await
     }
@@ -176,7 +178,7 @@ impl Document {
     /// Apply a batch of audio redactions to the document.
     pub async fn apply_audio_redactions(
         &mut self,
-        redactions: &[AudioRedaction<AudioLocation>],
+        redactions: Redactions<AudioLocation, AudioRedaction>,
     ) -> Result<(), Error> {
         self.handle.apply_audio_redactions(redactions).await
     }
@@ -184,7 +186,7 @@ impl Document {
     /// Apply a batch of tabular redactions to the document.
     pub async fn apply_tabular_redactions(
         &mut self,
-        redactions: &[TabularRedaction],
+        redactions: Redactions<TabularLocation, TabularRedaction>,
     ) -> Result<(), Error> {
         use nvisy_codec::transform::TabularTransform;
         match &mut self.handle {

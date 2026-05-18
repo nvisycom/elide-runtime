@@ -5,6 +5,7 @@ use nvisy_ontology::entity::AudioLocation;
 
 use super::instruction::AudioRedaction;
 use crate::handler::AudioHandler;
+use crate::transform::Redactions;
 
 const TARGET: &str = "nvisy_codec::transform::audio";
 
@@ -12,9 +13,13 @@ const TARGET: &str = "nvisy_codec::transform::audio";
 #[async_trait::async_trait]
 pub trait AudioTransform: AudioHandler {
     /// Apply a batch of audio redactions, mutating in place.
+    ///
+    /// Redactions are grouped by [`AudioLocation`] span in the input
+    /// [`Redactions`] collection. Time-span overlaps within a span are
+    /// resolved by the collection on insert.
     async fn redact_audio(
         &mut self,
-        redactions: &[AudioRedaction<AudioLocation>],
+        redactions: Redactions<AudioLocation, AudioRedaction>,
     ) -> Result<(), Error>;
 }
 
@@ -22,7 +27,7 @@ pub trait AudioTransform: AudioHandler {
 impl<H: AudioHandler> AudioTransform for H {
     async fn redact_audio(
         &mut self,
-        redactions: &[AudioRedaction<AudioLocation>],
+        redactions: Redactions<AudioLocation, AudioRedaction>,
     ) -> Result<(), Error> {
         tracing::debug!(
             target: TARGET,

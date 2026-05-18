@@ -11,6 +11,7 @@ use super::instruction::{ImageOutput, ImageRedaction};
 use super::ops::ImageOps;
 use crate::document::{Span, SpanStream};
 use crate::handler::{ImageData, ImageHandler};
+use crate::transform::Redactions;
 
 const TARGET: &str = "nvisy_codec::transform::image";
 
@@ -18,9 +19,13 @@ const TARGET: &str = "nvisy_codec::transform::image";
 #[async_trait::async_trait]
 pub trait ImageTransform: ImageHandler {
     /// Apply a batch of image redactions, mutating in place.
+    ///
+    /// Redactions are grouped by [`ImageLocation`] span in the input
+    /// [`Redactions`] collection. Bounding-box overlaps within a span
+    /// are resolved by the collection on insert.
     async fn redact_images(
         &mut self,
-        redactions: &[ImageRedaction<ImageLocation>],
+        redactions: Redactions<ImageLocation, ImageRedaction>,
     ) -> Result<(), Error>;
 }
 
@@ -28,7 +33,7 @@ pub trait ImageTransform: ImageHandler {
 impl<H: ImageHandler> ImageTransform for H {
     async fn redact_images(
         &mut self,
-        redactions: &[ImageRedaction<ImageLocation>],
+        redactions: Redactions<ImageLocation, ImageRedaction>,
     ) -> Result<(), Error> {
         tracing::debug!(
             target: TARGET,
@@ -48,37 +53,47 @@ impl<H: ImageHandler> ImageTransform for H {
         let image_data: ImageData = span.data;
         let mut img: DynamicImage = image_data.into_inner();
 
-        for redaction in redactions {
-            let region = redaction.bounding_box.to_pixel();
-            match &redaction.output {
-                ImageOutput::Blur { sigma } => {
-                    img.apply_gaussian_blur(&region, *sigma);
-                }
-                ImageOutput::Block { color } => {
-                    img.apply_block_overlay(&region, *color);
-                }
-                ImageOutput::Pixelate { block_size } => {
-                    img.apply_pixelate(&region, *block_size);
-                }
-                ImageOutput::Replace { data } => {
-                    let replacement = match image::load_from_memory(data) {
-                        Ok(r) => r,
-                        Err(e) => {
-                            tracing::warn!(
-                                target: TARGET,
-                                region = ?region,
-                                error = %e,
-                                "failed to decode replacement image data, skipping region"
-                            );
-                            continue;
-                        }
-                    };
-                    let resized = replacement.resize_exact(
-                        region.width,
-                        region.height,
-                        image::imageops::FilterType::Lanczos3,
-                    );
-                    image::imageops::overlay(&mut img, &resized, region.x as i64, region.y as i64);
+        // Image handlers expose a single span; apply every redaction in
+        // the collection to that one image. The collection's grouping
+        // is preserved but does not gate application here.
+        for (_loc, items) in redactions {
+            for redaction in items {
+                let region = redaction.bounding_box.to_pixel();
+                match &redaction.output {
+                    ImageOutput::Blur { sigma } => {
+                        img.apply_gaussian_blur(&region, *sigma);
+                    }
+                    ImageOutput::Block { color } => {
+                        img.apply_block_overlay(&region, *color);
+                    }
+                    ImageOutput::Pixelate { block_size } => {
+                        img.apply_pixelate(&region, *block_size);
+                    }
+                    ImageOutput::Replace { data } => {
+                        let replacement = match image::load_from_memory(data) {
+                            Ok(r) => r,
+                            Err(e) => {
+                                tracing::warn!(
+                                    target: TARGET,
+                                    region = ?region,
+                                    error = %e,
+                                    "failed to decode replacement image data, skipping region"
+                                );
+                                continue;
+                            }
+                        };
+                        let resized = replacement.resize_exact(
+                            region.width,
+                            region.height,
+                            image::imageops::FilterType::Lanczos3,
+                        );
+                        image::imageops::overlay(
+                            &mut img,
+                            &resized,
+                            region.x as i64,
+                            region.y as i64,
+                        );
+                    }
                 }
             }
         }

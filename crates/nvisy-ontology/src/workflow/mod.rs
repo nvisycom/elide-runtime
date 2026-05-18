@@ -40,16 +40,8 @@ use crate::Error;
 /// Variants carry a dedicated configuration struct.
 ///
 /// [`Operation`]: crate::operation::Operation
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Display,
-    From,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, PartialEq, Display, From)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum GraphNodeKind {

@@ -32,3 +32,40 @@ pub struct TabularArtifacts {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<ColumnHeader>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sparse_headers_skip_gaps() {
+        // Columns 0 and 3 have headers; columns 1 and 2 do not.
+        let artifacts = TabularArtifacts {
+            row_count: Some(100),
+            column_count: Some(4),
+            headers: vec![
+                ColumnHeader {
+                    column_index: 0,
+                    text: "id".to_owned(),
+                },
+                ColumnHeader {
+                    column_index: 3,
+                    text: "name".to_owned(),
+                },
+            ],
+        };
+        let json = serde_json::to_string(&artifacts).unwrap();
+        let back: TabularArtifacts = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.headers.len(), 2);
+        assert_eq!(back.headers[0].column_index, 0);
+        assert_eq!(back.headers[1].column_index, 3);
+    }
+
+    #[test]
+    fn default_is_empty() {
+        let artifacts = TabularArtifacts::default();
+        let json = serde_json::to_string(&artifacts).unwrap();
+        // All fields skipped — JSON should be empty object.
+        assert_eq!(json, "{}");
+    }
+}

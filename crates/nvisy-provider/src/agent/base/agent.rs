@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use reqwest_middleware::ClientWithMiddleware;
 use rig::agent::Agent;
-use rig::completion::Completion;
+use rig::completion::{Completion, Message};
 #[cfg(feature = "anthropic-claude")]
 use rig::providers::anthropic;
 #[cfg(feature = "google-gemini")]
@@ -138,7 +138,7 @@ impl BaseAgent {
     async fn prompt_text_raw(&self, prompt: &str) -> Result<String, Error> {
         let (text, usage) = dispatch!(&self.inner, |agent| {
             let builder = agent
-                .completion(prompt, vec![])
+                .completion(prompt, Vec::<Message>::new())
                 .await
                 .map_err(Error::from)?;
 
@@ -191,7 +191,7 @@ impl BaseAgent {
 
         let (text, usage) = dispatch!(&self.inner, |agent| {
             let builder = agent
-                .completion(prompt, vec![])
+                .completion(prompt, Vec::<Message>::new())
                 .await
                 .map_err(Error::from)?
                 .output_schema(schema);

@@ -15,10 +15,6 @@ pub struct DateData {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub end: Option<Date>,
-    /// Optional format hint describing the expected representation
-    /// (e.g. `"MM/DD/YYYY"`, `"ISO8601"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub format: Option<String>,
 }
 
 impl DateData {
@@ -27,7 +23,6 @@ impl DateData {
         Self {
             start: date,
             end: None,
-            format: None,
         }
     }
 
@@ -36,13 +31,6 @@ impl DateData {
         Self {
             start,
             end: Some(end),
-            format: None,
         }
-    }
-
-    /// Set a format hint.
-    pub fn with_format(mut self, format: impl Into<String>) -> Self {
-        self.format = Some(format.into());
-        self
     }
 }

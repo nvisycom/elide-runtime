@@ -38,3 +38,29 @@ impl DateTimeData {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use jiff::civil::datetime;
+
+    use super::*;
+
+    #[test]
+    fn roundtrip_serde() {
+        let dt = DateTimeData::range(
+            datetime(2026, 1, 1, 9, 0, 0, 0),
+            datetime(2026, 1, 1, 17, 0, 0, 0),
+        );
+        let json = serde_json::to_string(&dt).unwrap();
+        let back: DateTimeData = serde_json::from_str(&json).unwrap();
+        assert_eq!(dt.start, back.start);
+        assert_eq!(dt.end, back.end);
+    }
+
+    #[test]
+    fn single_skips_end_in_json() {
+        let dt = DateTimeData::single(datetime(2026, 1, 1, 9, 0, 0, 0));
+        let json = serde_json::to_string(&dt).unwrap();
+        assert!(!json.contains("\"end\""), "end should be skipped: {json}");
+    }
+}

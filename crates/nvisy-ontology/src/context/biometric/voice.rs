@@ -15,9 +15,6 @@ pub struct VoiceData {
     /// Segment within the audio used for enrollment.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub segment: Option<TimeSpan>,
-    /// Audio format hint (e.g. `"wav"`, `"flac"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub format: Option<String>,
     /// Base64-encoded speaker embedding / voiceprint.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub template: Option<String>,
@@ -32,7 +29,6 @@ impl VoiceData {
         Self {
             audio_source,
             segment: None,
-            format: None,
             template: None,
             algorithm: None,
         }

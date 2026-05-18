@@ -15,9 +15,6 @@ pub struct FaceData {
     /// Bounding box of the face within the image.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<BoundingBox>,
-    /// Image format hint (e.g. `"jpeg"`, `"png"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub format: Option<String>,
     /// Base64-encoded face embedding / template.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub template: Option<String>,
@@ -32,7 +29,6 @@ impl FaceData {
         Self {
             image_source,
             region: None,
-            format: None,
             template: None,
             algorithm: None,
         }

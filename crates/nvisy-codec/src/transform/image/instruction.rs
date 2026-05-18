@@ -15,9 +15,9 @@ use crate::transform::Mergeable;
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageRedaction {
     /// Bounding box of the region to redact within the span.
-    pub bounding_box: BoundingBox,
+    pub(crate) bounding_box: BoundingBox,
     /// The redaction output that determines the rendering method.
-    pub output: ImageOutput,
+    pub(crate) output: ImageOutput,
 }
 
 impl ImageRedaction {

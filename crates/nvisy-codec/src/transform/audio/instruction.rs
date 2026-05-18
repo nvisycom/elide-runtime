@@ -15,9 +15,9 @@ use crate::transform::Mergeable;
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioRedaction {
     /// Time interval of the segment to redact.
-    pub time_span: TimeSpan,
+    pub(crate) time_span: TimeSpan,
     /// The redaction output that determines the rendering method.
-    pub output: AudioOutput,
+    pub(crate) output: AudioOutput,
 }
 
 impl AudioRedaction {

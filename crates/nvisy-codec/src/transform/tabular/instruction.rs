@@ -18,11 +18,11 @@ use crate::transform::{Mergeable, TextOutput};
 #[derive(Debug, Clone, PartialEq)]
 pub struct TabularRedaction {
     /// Byte offset where the redacted region starts within the cell value.
-    pub start: usize,
+    pub(crate) start: usize,
     /// Byte offset where the redacted region ends (exclusive) within the cell value.
-    pub end: usize,
+    pub(crate) end: usize,
     /// The redaction output that carries the replacement value.
-    pub output: TextOutput,
+    pub(crate) output: TextOutput,
 }
 
 impl TabularRedaction {

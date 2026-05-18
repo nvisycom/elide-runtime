@@ -15,11 +15,11 @@ use crate::transform::Mergeable;
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextRedaction {
     /// Byte offset where the redacted region starts within the span.
-    pub start: usize,
+    pub(crate) start: usize,
     /// Byte offset where the redacted region ends (exclusive) within the span.
-    pub end: usize,
+    pub(crate) end: usize,
     /// The redaction output that carries the replacement value.
-    pub output: TextOutput,
+    pub(crate) output: TextOutput,
 }
 
 impl TextRedaction {

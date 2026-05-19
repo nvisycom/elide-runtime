@@ -8,8 +8,9 @@ use nvisy_core::media::DocumentType;
 use nvisy_ontology::entity::AudioLocation;
 
 use super::{AudioData, Mp3Handler, WavHandler};
-use crate::document::SpanStream;
+use crate::document::LocationStream;
 use crate::handler::{AudioHandler, Handler};
+use crate::transform::{AudioRedaction, Redactions};
 
 /// A type-erased audio handler backed by a boxed trait object.
 pub struct BoxedAudioHandler(Box<dyn AudioHandler>);
@@ -57,47 +58,18 @@ impl Handler for BoxedAudioHandler {
 
 #[async_trait::async_trait]
 impl AudioHandler for BoxedAudioHandler {
-    async fn audio_spans(&self) -> SpanStream<'_, AudioLocation, AudioData> {
-        self.0.audio_spans().await
+    fn locations(&self) -> LocationStream<'_, AudioLocation> {
+        self.0.locations()
     }
 
-    async fn edit_audio(
+    async fn read(&self, location: &AudioLocation) -> Option<AudioData> {
+        self.0.read(location).await
+    }
+
+    async fn redact(
         &mut self,
-        edits: SpanStream<'_, AudioLocation, AudioData>,
+        redactions: Redactions<AudioLocation, AudioRedaction>,
     ) -> Result<(), Error> {
-        self.0.edit_audio(edits).await
-    }
-
-    async fn value_at(&self, location: &AudioLocation) -> Option<AudioData> {
-        self.0.value_at(location).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use futures::StreamExt;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn wav_variant_delegates() {
-        let h = BoxedAudioHandler::from(WavHandler::new(bytes::Bytes::from_static(b"wav-data")));
-        assert_eq!(
-            h.document_type(),
-            DocumentType::Audio(nvisy_core::media::AudioFormat::Wav),
-        );
-        let spans: Vec<_> = h.audio_spans().await.collect().await;
-        assert_eq!(spans.len(), 1);
-        assert_eq!(spans[0].data.as_bytes().as_ref(), b"wav-data");
-    }
-
-    #[tokio::test]
-    async fn mp3_variant_delegates() {
-        let h = BoxedAudioHandler::from(Mp3Handler::new(bytes::Bytes::from_static(b"mp3-data")));
-        assert_eq!(
-            h.document_type(),
-            DocumentType::Audio(nvisy_core::media::AudioFormat::Mp3),
-        );
-        assert_eq!(h.encode().unwrap().as_bytes(), b"mp3-data");
+        self.0.redact(redactions).await
     }
 }

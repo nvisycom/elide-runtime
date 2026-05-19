@@ -1,21 +1,20 @@
 //! Type-erased content handle for all supported formats.
 
-mod span;
+mod located;
 mod stream;
 
 use std::fmt;
 
 use derive_more::{From, IsVariant, TryInto};
-use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::content::{Content, ContentData, ContentSource};
 use nvisy_core::media::{
     AudioFormat, DocumentType, ImageFormat, SpreadsheetFormat, TextFormat, WordFormat,
 };
-use nvisy_ontology::entity::{AudioLocation, ImageLocation, Location, TextLocation};
+use nvisy_ontology::entity::{AudioLocation, ImageLocation, TextLocation};
 
-pub use self::span::Span;
-pub use self::stream::SpanStream;
+pub use self::located::Located;
+pub use self::stream::LocationStream;
 use crate::handler::{
     AudioData, AudioHandler, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
     BoxedTextHandler, CsvLoader, CsvParams, Handler, ImageData, ImageHandler, JpegLoader,
@@ -29,7 +28,7 @@ use crate::transform::{AudioRedaction, ImageRedaction, Redactions, TextRedaction
 ///
 /// Groups documents into four modality families:
 /// - **Text**: plain text, CSV, JSON, HTML, XLSX
-/// - **Image**: PNG, JPEG
+/// - **Image**: PNG, JPEG, TIFF
 /// - **Audio**: WAV, MP3
 /// - **Rich**: PDF, DOCX (multi-modal documents with text + images)
 #[derive(From, IsVariant, TryInto)]
@@ -79,54 +78,57 @@ impl ContentHandle {
         }
     }
 
-    /// Stream text spans from text or rich documents.
-    pub async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
+    /// Stream text locations from text or rich documents.
+    pub fn text_locations(&self) -> LocationStream<'_, TextLocation> {
         match self {
-            Self::Text(h) => h.text_spans().await,
-            Self::Rich(h) => h.text_spans().await,
-            _ => SpanStream::new(futures::stream::empty()),
+            Self::Text(h) => h.locations(),
+            Self::Rich(h) => TextHandler::locations(h),
+            Self::Image(_) | Self::Audio(_) => LocationStream::empty(),
         }
     }
 
-    /// Stream image spans from image or rich documents.
-    pub async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData> {
+    /// Stream image locations from image or rich documents.
+    pub fn image_locations(&self) -> LocationStream<'_, ImageLocation> {
         match self {
-            Self::Image(h) => h.image_spans().await,
-            Self::Rich(h) => h.image_spans().await,
-            Self::Text(_) | Self::Audio(_) => SpanStream::new(futures::stream::empty()),
+            Self::Image(h) => h.locations(),
+            Self::Rich(h) => ImageHandler::locations(h),
+            Self::Text(_) | Self::Audio(_) => LocationStream::empty(),
         }
     }
 
-    /// Stream audio spans from audio documents.
-    pub async fn audio_spans(&self) -> SpanStream<'_, AudioLocation, AudioData> {
+    /// Stream audio locations from audio documents.
+    pub fn audio_locations(&self) -> LocationStream<'_, AudioLocation> {
         match self {
-            Self::Audio(h) => h.audio_spans().await,
-            _ => SpanStream::new(futures::stream::empty()),
+            Self::Audio(h) => h.locations(),
+            _ => LocationStream::empty(),
         }
     }
 
-    /// Collect all text spans into a `Vec`.
-    pub async fn collect_text_spans(&self) -> Vec<Span<TextLocation, TextData>> {
-        self.text_spans().await.collect().await
-    }
-
-    /// Collect all image spans into a `Vec`.
-    pub async fn collect_image_spans(&self) -> Vec<Span<ImageLocation, ImageData>> {
-        self.image_spans().await.collect().await
-    }
-
-    /// Collect all audio spans into a `Vec`.
-    pub async fn collect_audio_spans(&self) -> Vec<Span<AudioLocation, AudioData>> {
-        self.audio_spans().await.collect().await
-    }
-
-    /// Extract the value at the given location, dispatching by modality.
+    /// Read text data at the given location.
     ///
-    /// Returns the text/data at the location if available.
-    pub async fn value_at(&self, location: &Location) -> Option<String> {
-        match (self, location) {
-            (Self::Text(h), Location::Text(loc)) => h.value_at(loc).await,
-            (Self::Rich(h), Location::Text(loc)) => TextHandler::value_at(h, loc).await,
+    /// Returns `None` if the location is out of bounds or the handle
+    /// does not expose text content.
+    pub async fn read_text(&self, location: &TextLocation) -> Option<TextData> {
+        match self {
+            Self::Text(h) => h.read(location).await,
+            Self::Rich(h) => TextHandler::read(h, location).await,
+            Self::Image(_) | Self::Audio(_) => None,
+        }
+    }
+
+    /// Read image data at the given location.
+    pub async fn read_image(&self, location: &ImageLocation) -> Option<ImageData> {
+        match self {
+            Self::Image(h) => h.read(location).await,
+            Self::Rich(h) => ImageHandler::read(h, location).await,
+            Self::Text(_) | Self::Audio(_) => None,
+        }
+    }
+
+    /// Read audio data at the given location.
+    pub async fn read_audio(&self, location: &AudioLocation) -> Option<AudioData> {
+        match self {
+            Self::Audio(h) => h.read(location).await,
             _ => None,
         }
     }
@@ -136,10 +138,9 @@ impl ContentHandle {
         &mut self,
         redactions: Redactions<TextLocation, TextRedaction>,
     ) -> Result<(), Error> {
-        use crate::transform::TextTransform;
         match self {
-            Self::Text(h) => h.redact_text(redactions).await,
-            Self::Rich(h) => h.redact_text(redactions).await,
+            Self::Text(h) => h.redact(redactions).await,
+            Self::Rich(h) => TextHandler::redact(h, redactions).await,
             Self::Image(_) | Self::Audio(_) => Ok(()),
         }
     }
@@ -149,10 +150,9 @@ impl ContentHandle {
         &mut self,
         redactions: Redactions<ImageLocation, ImageRedaction>,
     ) -> Result<(), Error> {
-        use crate::transform::ImageTransform;
         match self {
-            Self::Image(h) => h.redact_images(redactions).await,
-            Self::Rich(h) => h.redact_images(redactions).await,
+            Self::Image(h) => h.redact(redactions).await,
+            Self::Rich(h) => ImageHandler::redact(h, redactions).await,
             Self::Text(_) | Self::Audio(_) => Ok(()),
         }
     }
@@ -162,9 +162,8 @@ impl ContentHandle {
         &mut self,
         redactions: Redactions<AudioLocation, AudioRedaction>,
     ) -> Result<(), Error> {
-        use crate::transform::AudioTransform;
         match self {
-            Self::Audio(h) => h.redact_audio(redactions).await,
+            Self::Audio(h) => h.redact(redactions).await,
             Self::Text(_) | Self::Image(_) | Self::Rich(_) => Ok(()),
         }
     }

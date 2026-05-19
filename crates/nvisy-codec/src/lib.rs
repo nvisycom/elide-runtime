@@ -6,4 +6,4 @@ mod document;
 pub mod handler;
 pub mod transform;
 
-pub use self::document::{ContentHandle, Span, SpanStream};
+pub use self::document::{ContentHandle, Located, LocationStream};

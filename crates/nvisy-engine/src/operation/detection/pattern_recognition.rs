@@ -8,6 +8,7 @@
 
 use std::ops::Deref;
 
+use nvisy_codec::Span;
 use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
 use nvisy_ontology::entity::{Entity, TextLocation};
@@ -72,18 +73,18 @@ impl PatternRecognitionOp {
         Self { engine }
     }
 
-    fn scan(&self, spans: &[(TextLocation, TextData)]) -> Vec<Entity> {
+    fn scan(&self, spans: &[Span<TextLocation, TextData>]) -> Vec<Entity> {
         let scan_ctx = nvisy_pattern::ScanContext::default();
         let mut entities = Vec::new();
 
-        for (loc, data) in spans {
-            let detected = self.engine.scan_entities(data.as_str(), &scan_ctx);
+        for span in spans {
+            let detected = self.engine.scan_entities(span.data.as_str(), &scan_ctx);
 
             for mut entity in detected {
                 // Adjust offsets to be document-relative.
                 if let nvisy_ontology::entity::Location::Text(ref mut elem) = entity.location {
-                    elem.start_offset += loc.start_offset;
-                    elem.end_offset += loc.start_offset;
+                    elem.start_offset += span.location.start_offset;
+                    elem.end_offset += span.location.start_offset;
                 }
 
                 entities.push(entity);
@@ -104,10 +105,10 @@ impl PatternRecognitionOp {
 impl Operation for PatternRecognitionOp {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         let locations = envelope.document.collect_text_locations().await;
-        let mut spans: Vec<(TextLocation, TextData)> = Vec::with_capacity(locations.len());
+        let mut spans: Vec<Span<TextLocation, TextData>> = Vec::with_capacity(locations.len());
         for located in locations {
             if let Some(data) = envelope.document.read_text(&located.location).await {
-                spans.push((located.location, data));
+                spans.push(Span::from_located(located, data));
             }
         }
         if !spans.is_empty() {

@@ -1,6 +1,7 @@
 //! Type-erased content handle for all supported formats.
 
 mod located;
+mod span;
 mod stream;
 
 use std::fmt;
@@ -14,6 +15,7 @@ use nvisy_core::media::{
 use nvisy_ontology::entity::{AudioLocation, ImageLocation, TextLocation};
 
 pub use self::located::Located;
+pub use self::span::Span;
 pub use self::stream::LocationStream;
 use crate::handler::{
     AudioData, AudioHandler, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,

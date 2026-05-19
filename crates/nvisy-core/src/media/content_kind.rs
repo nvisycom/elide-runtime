@@ -4,6 +4,7 @@
 //! into broad categories. Extension-to-kind mapping is handled by the
 //! engine's format registry.
 
+use derive_more::IsVariant;
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, Display, EnumIter, EnumString};
 
@@ -13,7 +14,7 @@ use strum::{AsRefStr, Display, EnumIter, EnumString};
 /// of specific file extensions or MIME types. The engine's format registry
 /// handles the mapping from extensions/MIME types to content kinds.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(AsRefStr, Display, EnumString, EnumIter, Serialize, Deserialize)]
+#[derive(AsRefStr, Display, EnumString, EnumIter, IsVariant, Serialize, Deserialize)]
 #[strum(serialize_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ContentKind {
@@ -28,30 +29,4 @@ pub enum ContentKind {
     /// Unknown or unsupported content type
     #[default]
     Unknown,
-}
-
-impl ContentKind {
-    /// Check if this content kind represents text-based content
-    #[must_use]
-    pub fn is_text_based(&self) -> bool {
-        matches!(self, Self::Text)
-    }
-
-    /// Check if this content kind represents a document
-    #[must_use]
-    pub fn is_document(&self) -> bool {
-        matches!(self, Self::Document)
-    }
-
-    /// Check if this content kind represents a spreadsheet
-    #[must_use]
-    pub fn is_spreadsheet(&self) -> bool {
-        matches!(self, Self::Spreadsheet)
-    }
-
-    /// Check if this content kind represents an image
-    #[must_use]
-    pub fn is_image(&self) -> bool {
-        matches!(self, Self::Image)
-    }
 }

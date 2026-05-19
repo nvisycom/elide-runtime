@@ -56,7 +56,7 @@ uuid = { workspace = true, features = [] }
 hipstr = { workspace = true, features = [] }
 
 # Derive macros and error handling
-derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from"] }
+derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from", "into_iterator"] }
 thiserror = { workspace = true, features = [] }
 
 # Image processing

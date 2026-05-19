@@ -12,8 +12,6 @@ mod method;
 mod sensitivity;
 mod source;
 
-use std::slice;
-
 use derive_builder::Builder;
 use derive_more::{Deref, DerefMut, From, IntoIterator};
 use schemars::JsonSchema;
@@ -125,7 +123,7 @@ impl EntityBuilder {
 #[derive(Deref, DerefMut, From, IntoIterator)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
-pub struct Entities(pub Vec<Entity>);
+pub struct Entities(#[into_iterator(owned, ref, ref_mut)] pub Vec<Entity>);
 
 impl Entities {
     /// Create an empty collection.
@@ -165,15 +163,6 @@ impl Entities {
     /// Consume and return the inner `Vec<Entity>`.
     pub fn into_inner(self) -> Vec<Entity> {
         self.0
-    }
-}
-
-impl<'a> IntoIterator for &'a Entities {
-    type IntoIter = slice::Iter<'a, Entity>;
-    type Item = &'a Entity;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
     }
 }
 

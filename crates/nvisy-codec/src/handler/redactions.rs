@@ -14,6 +14,7 @@
 
 use std::fmt;
 
+use derive_more::IntoIterator;
 use nvisy_ontology::entity::{Mergeable, Overlap};
 
 use super::policy::{ConflictPolicy, InsertError};
@@ -32,8 +33,10 @@ use super::policy::{ConflictPolicy, InsertError};
 /// small (per-document), so linear scans are cheap.
 ///
 /// [`Merge`]: ConflictPolicy::Merge
+#[derive(IntoIterator)]
 pub struct Redactions<S, R> {
     policy: ConflictPolicy,
+    #[into_iterator(owned)]
     items: Vec<(S, R)>,
 }
 
@@ -111,17 +114,6 @@ where
 impl<S, R> Default for Redactions<S, R> {
     fn default() -> Self {
         Self::new(ConflictPolicy::default())
-    }
-}
-
-impl<S, R> IntoIterator for Redactions<S, R> {
-    type IntoIter = std::vec::IntoIter<(S, R)>;
-    type Item = (S, R);
-
-    /// Consume the collection, yielding each `(location, redaction)`
-    /// pair in insertion order.
-    fn into_iter(self) -> Self::IntoIter {
-        self.items.into_iter()
     }
 }
 

@@ -7,18 +7,17 @@
 
 use std::fmt;
 
+use futures::StreamExt;
 use nvisy_codec::handler::{AudioData, ImageData, TextData};
 use nvisy_codec::transform::{
-    AudioRedaction, ImageRedaction, Redactions, TabularRedaction, TextRedaction,
+    AudioRedaction, ImageRedaction, Redactions, TextRedaction,
 };
-use nvisy_codec::{ContentHandle, Span, SpanStream};
+use nvisy_codec::{ContentHandle, Located};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::artifacts::ContentArtifacts;
-use nvisy_ontology::entity::{
-    AudioLocation, ImageLocation, Location, TabularLocation, TextLocation,
-};
+use nvisy_ontology::entity::{AudioLocation, ImageLocation, Location, TextLocation};
 
 /// Engine-level document combining content, metadata, and artifacts.
 ///
@@ -35,9 +34,6 @@ pub struct Document {
 
 impl Document {
     /// Create a new document from a content handle and metadata.
-    ///
-    /// Artifacts are initialized to the appropriate empty variant based
-    /// on the handle's modality.
     pub fn new(handle: ContentHandle, metadata: ContentMetadata) -> Self {
         let artifacts = match &handle {
             ContentHandle::Text(_) => ContentArtifacts::text(),
@@ -51,8 +47,6 @@ impl Document {
             artifacts,
         }
     }
-
-    // -- Delegated handle methods --
 
     /// The document type of the underlying content.
     pub fn document_type(&self) -> DocumentType {
@@ -69,95 +63,58 @@ impl Document {
         self.handle.encode()
     }
 
-    /// Stream text spans from text or rich documents.
-    pub async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
-        self.handle.text_spans().await
+    /// Collect all text locations into a `Vec`.
+    pub async fn collect_text_locations(&self) -> Vec<Located<TextLocation>> {
+        self.handle.text_locations().collect().await
     }
 
-    /// Stream image spans from image or rich documents.
-    pub async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData> {
-        self.handle.image_spans().await
+    /// Collect all image locations into a `Vec`.
+    pub async fn collect_image_locations(&self) -> Vec<Located<ImageLocation>> {
+        self.handle.image_locations().collect().await
     }
 
-    /// Stream audio spans from audio documents.
-    pub async fn audio_spans(&self) -> SpanStream<'_, AudioLocation, AudioData> {
-        self.handle.audio_spans().await
+    /// Collect all audio locations into a `Vec`.
+    pub async fn collect_audio_locations(&self) -> Vec<Located<AudioLocation>> {
+        self.handle.audio_locations().collect().await
     }
 
-    /// Collect all text spans into a `Vec`.
-    pub async fn collect_text_spans(&self) -> Vec<Span<TextLocation, TextData>> {
-        self.handle.collect_text_spans().await
+    /// Read the text content at the given text location.
+    pub async fn read_text(&self, location: &TextLocation) -> Option<TextData> {
+        self.handle.read_text(location).await
     }
 
-    /// Collect all image spans into a `Vec`.
-    pub async fn collect_image_spans(&self) -> Vec<Span<ImageLocation, ImageData>> {
-        self.handle.collect_image_spans().await
+    /// Read the image data at the given image location.
+    pub async fn read_image(&self, location: &ImageLocation) -> Option<ImageData> {
+        self.handle.read_image(location).await
     }
 
-    /// Collect all audio spans into a `Vec`.
-    pub async fn collect_audio_spans(&self) -> Vec<Span<AudioLocation, AudioData>> {
-        self.handle.collect_audio_spans().await
+    /// Read the audio data at the given audio location.
+    pub async fn read_audio(&self, location: &AudioLocation) -> Option<AudioData> {
+        self.handle.read_audio(location).await
     }
 
-    // -- Type-safe value access --
-
-    /// Extract the text value at the given text location.
-    pub async fn text_at(&self, location: &TextLocation) -> Option<String> {
-        use nvisy_codec::handler::TextHandler;
-        match &self.handle {
-            ContentHandle::Text(h) => h.value_at(location).await,
-            ContentHandle::Rich(h) => TextHandler::value_at(h, location).await,
-            _ => None,
-        }
-    }
-
-    /// Extract the image data at the given image location.
-    pub async fn image_at(&self, location: &ImageLocation) -> Option<ImageData> {
-        use nvisy_codec::handler::ImageHandler;
-        match &self.handle {
-            ContentHandle::Image(h) => h.value_at(location).await,
-            ContentHandle::Rich(h) => ImageHandler::value_at(h, location).await,
-            _ => None,
-        }
-    }
-
-    /// Extract the audio data at the given audio location.
-    pub async fn audio_at(&self, location: &AudioLocation) -> Option<AudioData> {
-        use nvisy_codec::handler::AudioHandler;
-        match &self.handle {
-            ContentHandle::Audio(h) => h.value_at(location).await,
-            _ => None,
-        }
-    }
-
-    /// Extract the cell value at the given tabular location.
+    /// Resolve a [`Location`] to its text representation, dispatching by modality.
     ///
-    /// Currently returns `None` — tabular documents are handled as text
-    /// internally and don't have a dedicated `ContentHandle` variant yet.
-    pub async fn tabular_at(&self, _location: &TabularLocation) -> Option<String> {
-        None
-    }
-
-    /// Extract the text value at a [`Location`], dispatching by modality.
-    ///
-    /// Returns the text content for Text/Tabular locations and the
-    /// extracted text (OCR/STT) for Image/Audio locations.
+    /// - Text and tabular locations: read from the underlying handler.
+    /// - Audio locations: read the transcription text from artifacts.
+    /// - Image locations: not yet implemented (OCR results are multi-region).
     pub async fn value_at(&self, location: &Location) -> Option<String> {
         match location {
-            Location::Text(loc) => self.text_at(loc).await,
-            Location::Tabular(loc) => self.tabular_at(loc).await,
+            Location::Text(loc) => self.read_text(loc).await.map(TextData::into_inner),
             Location::Audio(_) => self
                 .artifacts
                 .as_audio()
                 .and_then(|a| a.transcription.as_ref())
                 .map(|t| t.text()),
-            // Image OCR results are multi-region; location-specific
+            // Tabular locations are currently surfaced through the
+            // underlying TextHandler; per-cell extraction would need a
+            // (row, col) → byte-offset bridge that the engine no longer
+            // owns. Image OCR results are multi-region; per-location
             // lookup is not yet implemented.
+            Location::Tabular(_) | Location::Image(_) => None,
             _ => None,
         }
     }
-
-    // -- Redaction delegates --
 
     /// Apply a batch of text redactions to the document.
     pub async fn apply_text_redactions(
@@ -181,18 +138,6 @@ impl Document {
         redactions: Redactions<AudioLocation, AudioRedaction>,
     ) -> Result<(), Error> {
         self.handle.apply_audio_redactions(redactions).await
-    }
-
-    /// Apply a batch of tabular redactions to the document.
-    pub async fn apply_tabular_redactions(
-        &mut self,
-        redactions: Redactions<TabularLocation, TabularRedaction>,
-    ) -> Result<(), Error> {
-        use nvisy_codec::transform::TabularTransform;
-        match &mut self.handle {
-            ContentHandle::Text(h) => h.redact_tabular(redactions).await,
-            _ => Ok(()),
-        }
     }
 }
 

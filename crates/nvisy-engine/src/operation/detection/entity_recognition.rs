@@ -3,10 +3,9 @@
 //! Runs at **phase 2**, after extraction. Drives language-model inference
 //! to identify and classify named entities within extracted text.
 
-use nvisy_codec::Span;
 use nvisy_codec::handler::TextData;
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_ontology::entity::Entity;
+use nvisy_ontology::entity::{Entity, TextLocation};
 use nvisy_ontology::workflow::NerDetection;
 use nvisy_provider::agent::{DetectionConfig, NerAgent};
 use nvisy_provider::http::HttpClient;
@@ -47,17 +46,14 @@ impl EntityRecognitionOp {
         Ok(Self { agent, config })
     }
 
-    async fn detect(
-        &self,
-        spans: &[Span<nvisy_ontology::entity::TextLocation, TextData>],
-    ) -> Result<Vec<Entity>> {
+    async fn detect(&self, spans: &[(TextLocation, TextData)]) -> Result<Vec<Entity>> {
         tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
         let mut entities = Vec::new();
 
-        for span in spans {
+        for (loc, data) in spans {
             let detected = self
                 .agent
-                .detect_entities(span.data.as_str(), &self.config)
+                .detect_entities(data.as_str(), &self.config)
                 .await
                 .map_err(|e| Error::runtime(e.to_string(), "ner-agent", e.is_retryable()))?;
 
@@ -65,9 +61,9 @@ impl EntityRecognitionOp {
                 // Adjust entity's text location offsets to be relative
                 // to the document (not the span) by adding the span's
                 // start offset.
-                if let nvisy_ontology::entity::Location::Text(ref mut loc) = entity.location {
-                    loc.start_offset += span.id.start_offset;
-                    loc.end_offset += span.id.start_offset;
+                if let nvisy_ontology::entity::Location::Text(ref mut elem) = entity.location {
+                    elem.start_offset += loc.start_offset;
+                    elem.end_offset += loc.start_offset;
                 }
 
                 entities.push(entity);
@@ -80,7 +76,13 @@ impl EntityRecognitionOp {
 
 impl Operation for EntityRecognitionOp {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
-        let spans: Vec<_> = envelope.document.collect_text_spans().await;
+        let locations = envelope.document.collect_text_locations().await;
+        let mut spans: Vec<(TextLocation, TextData)> = Vec::with_capacity(locations.len());
+        for located in locations {
+            if let Some(data) = envelope.document.read_text(&located.location).await {
+                spans.push((located.location, data));
+            }
+        }
         if !spans.is_empty() {
             let detected = self.detect(&spans).await?;
             tracing::debug!(

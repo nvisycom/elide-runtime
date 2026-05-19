@@ -80,8 +80,9 @@ impl<'a> RedactionApplicator<'a> {
             let value = self
                 .envelope
                 .document
-                .value_at(&entity.location)
+                .read_text(loc)
                 .await
+                .map(|d| d.into_inner())
                 .unwrap_or_default();
 
             let output = match &record.redaction.strategy {

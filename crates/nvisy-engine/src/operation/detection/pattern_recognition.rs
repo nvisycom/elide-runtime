@@ -8,10 +8,9 @@
 
 use std::ops::Deref;
 
-use nvisy_codec::Span;
 use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
-use nvisy_ontology::entity::Entity;
+use nvisy_ontology::entity::{Entity, TextLocation};
 use nvisy_ontology::workflow::PatternDetection;
 
 use crate::operation::{DocumentEnvelope, Operation};
@@ -73,18 +72,18 @@ impl PatternRecognitionOp {
         Self { engine }
     }
 
-    fn scan(&self, spans: &[Span<nvisy_ontology::entity::TextLocation, TextData>]) -> Vec<Entity> {
+    fn scan(&self, spans: &[(TextLocation, TextData)]) -> Vec<Entity> {
         let scan_ctx = nvisy_pattern::ScanContext::default();
         let mut entities = Vec::new();
 
-        for span in spans {
-            let detected = self.engine.scan_entities(span.data.as_str(), &scan_ctx);
+        for (loc, data) in spans {
+            let detected = self.engine.scan_entities(data.as_str(), &scan_ctx);
 
             for mut entity in detected {
                 // Adjust offsets to be document-relative.
-                if let nvisy_ontology::entity::Location::Text(ref mut loc) = entity.location {
-                    loc.start_offset += span.id.start_offset;
-                    loc.end_offset += span.id.start_offset;
+                if let nvisy_ontology::entity::Location::Text(ref mut elem) = entity.location {
+                    elem.start_offset += loc.start_offset;
+                    elem.end_offset += loc.start_offset;
                 }
 
                 entities.push(entity);
@@ -104,7 +103,13 @@ impl PatternRecognitionOp {
 
 impl Operation for PatternRecognitionOp {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
-        let spans: Vec<_> = envelope.document.collect_text_spans().await;
+        let locations = envelope.document.collect_text_locations().await;
+        let mut spans: Vec<(TextLocation, TextData)> = Vec::with_capacity(locations.len());
+        for located in locations {
+            if let Some(data) = envelope.document.read_text(&located.location).await {
+                spans.push((located.location, data));
+            }
+        }
         if !spans.is_empty() {
             let detected = self.scan(&spans);
             tracing::debug!(

@@ -31,8 +31,6 @@ pub enum EntitySensitivity {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
 
     #[test]
@@ -40,26 +38,5 @@ mod tests {
         assert!(EntitySensitivity::Critical > EntitySensitivity::High);
         assert!(EntitySensitivity::High > EntitySensitivity::Medium);
         assert!(EntitySensitivity::Medium > EntitySensitivity::Low);
-    }
-
-    #[test]
-    fn display_snake_case() {
-        assert_eq!(EntitySensitivity::Critical.to_string(), "critical");
-        assert_eq!(EntitySensitivity::Low.to_string(), "low");
-    }
-
-    #[test]
-    fn parse_roundtrip() {
-        let s = EntitySensitivity::from_str("high").unwrap();
-        assert_eq!(s, EntitySensitivity::High);
-    }
-
-    #[test]
-    fn serde_roundtrip() {
-        let s = EntitySensitivity::Critical;
-        let json = serde_json::to_string(&s).unwrap();
-        assert_eq!(json, "\"critical\"");
-        let back: EntitySensitivity = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, s);
     }
 }

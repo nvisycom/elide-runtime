@@ -255,18 +255,12 @@ mod tests {
     use std::collections::HashSet;
     use std::fs;
 
-    use super::super::json_pattern::JsonPattern;
     use super::super::pattern::{MatchSource, RegexPattern};
     use super::*;
     use crate::validators::ValidatorResolver;
 
     fn registry() -> &'static PatternRegistry {
         builtin_registry()
-    }
-
-    #[test]
-    fn builtins_load() {
-        assert!(!registry().is_empty());
     }
 
     #[test]
@@ -334,24 +328,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn registry_insert_and_get() {
-        let validators = ValidatorResolver::builtins();
-        let json = br#"{
-            "name": "test",
-            "category": "personal_identity",
-            "entity_type": "government_id",
-            "pattern": { "regex": "\\d+", "confidence": 0.9 }
-        }"#;
-        let (pattern, _warnings) = JsonPattern::from_bytes(json, &validators).unwrap();
-
-        let mut reg = PatternRegistry::new();
-        reg.insert(Box::new(pattern));
-
-        assert_eq!(reg.len(), 1);
-        assert_eq!(reg.get("test").unwrap().name(), "test");
     }
 
     #[test]

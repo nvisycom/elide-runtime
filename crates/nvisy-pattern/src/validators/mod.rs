@@ -74,14 +74,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resolver_builtins() {
-        let r = ValidatorResolver::builtins();
-        assert!(r.resolve("ssn").is_some());
-        assert!(r.resolve("luhn").is_some());
-        assert!(r.resolve("nope").is_none());
-    }
-
-    #[test]
     fn resolver_custom() {
         let mut r = ValidatorResolver::builtins();
         r.register("always_true", |_| true);

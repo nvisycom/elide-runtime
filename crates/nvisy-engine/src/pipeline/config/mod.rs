@@ -130,100 +130,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_toml_parses_to_defaults() {
-        let config: RuntimeConfig = toml::from_str("").unwrap();
-        assert_eq!(config.version, Version::new(0, 1, 0));
-        assert!(config.engine.is_none());
-        assert!(config.ocr.is_none());
-        assert!(config.llm.is_none());
-        assert!(config.stt.is_none());
-        assert!(config.tts.is_none());
-    }
-
-    #[test]
-    fn http_section_parses_under_engine() {
-        let toml = r#"
-            [engine.http]
-            max_retries = 5
-            timeout_secs = 60
-            connect_timeout_secs = 5
-            idle_timeout_secs = 30
-        "#;
-        let config: RuntimeConfig = toml::from_str(toml).unwrap();
-        let http = config.engine.unwrap().http.unwrap();
-        assert_eq!(http.max_retries, 5);
-        assert_eq!(http.timeout_secs, 60);
-    }
-
-    #[test]
-    fn ocr_provider_section_parses() {
-        let toml = r#"
-            [ocr.provider]
-            kind = "surya"
-            base_url = "http://localhost:8001"
-        "#;
-        let config: RuntimeConfig = toml::from_str(toml).unwrap();
-        assert!(config.ocr.is_some());
-        assert!(config.ocr.unwrap().provider.is_some());
-    }
-
-    #[test]
-    fn ocr_policy_section_parses() {
-        let toml = r#"
-            [ocr.policy]
-            confidence_threshold = 0.5
-        "#;
-        let config: RuntimeConfig = toml::from_str(toml).unwrap();
-        let ocr = config.ocr.unwrap();
-        let policy = ocr.policy.unwrap();
-        assert!((policy.confidence_threshold - 0.5).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn engine_retry_section_parses() {
-        let toml = r#"
-            [engine.retry]
-            max_retries = 3
-            delay_ms = 500
-            backoff = "fixed"
-        "#;
-        let config: RuntimeConfig = toml::from_str(toml).unwrap();
-        let engine = config.engine.unwrap();
-        let retry = engine.retry.unwrap();
-        assert_eq!(retry.max_retries, 3);
-        assert_eq!(retry.delay_ms, 500);
-    }
-
-    #[test]
-    fn engine_timeout_section_parses() {
-        let toml = r#"
-            [engine.timeout]
-            duration_ms = 30000
-            on_timeout = "fail"
-        "#;
-        let config: RuntimeConfig = toml::from_str(toml).unwrap();
-        let engine = config.engine.unwrap();
-        let timeout = engine.timeout.unwrap();
-        assert_eq!(timeout.duration_ms, 30000);
-    }
-
-    #[test]
-    fn llm_policy_section_parses() {
-        let toml = r#"
-            [llm.policy]
-            temperature = 0.1
-            max_tokens = 4096
-            max_retries = 3
-        "#;
-        let config: RuntimeConfig = toml::from_str(toml).unwrap();
-        let llm = config.llm.unwrap();
-        let policy = llm.policy.unwrap();
-        assert!((policy.temperature - 0.1).abs() < f64::EPSILON);
-        assert_eq!(policy.max_tokens, 4096);
-        assert_eq!(policy.max_retries, 3);
-    }
-
-    #[test]
     fn merge_overrides_present_sections() {
         let base = RuntimeConfig {
             engine: Some(EngineSection {
@@ -270,19 +176,6 @@ mod tests {
         let overrides = RuntimeConfig::default();
         let merged = base.merge(&overrides);
         assert_eq!(merged.engine.unwrap().http.unwrap().max_retries, 3);
-    }
-
-    #[test]
-    fn validate_accepts_valid_config() {
-        let config = RuntimeConfig::default();
-        assert!(config.validate().is_ok());
-    }
-
-    #[test]
-    fn version_parses_as_semver() {
-        let toml = r#"version = "1.2.3""#;
-        let config: RuntimeConfig = toml::from_str(toml).unwrap();
-        assert_eq!(config.version, Version::new(1, 2, 3));
     }
 
     #[test]

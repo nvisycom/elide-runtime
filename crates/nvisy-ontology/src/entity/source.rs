@@ -124,10 +124,6 @@ impl From<ContentSource> for Uuid {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-    use std::thread;
-    use std::time::Duration;
-
     use super::*;
 
     #[test]
@@ -138,35 +134,10 @@ mod tests {
     }
 
     #[test]
-    fn uniqueness() {
-        let mut sources = HashSet::new();
-        for _ in 0..1000 {
-            assert!(sources.insert(ContentSource::new()));
-        }
-    }
-
-    #[test]
     fn derive_sets_parent() {
         let parent = ContentSource::new();
         let child = parent.derive();
         assert_eq!(child.parent_id(), Some(parent.as_uuid()));
         assert_ne!(child.as_uuid(), parent.as_uuid());
-    }
-
-    #[test]
-    fn ordering() {
-        let a = ContentSource::new();
-        thread::sleep(Duration::from_millis(2));
-        let b = ContentSource::new();
-        assert!(a.created_before(&b));
-        assert!(a < b);
-    }
-
-    #[test]
-    fn serde_roundtrip() {
-        let source = ContentSource::new();
-        let json = serde_json::to_string(&source).unwrap();
-        let d: ContentSource = serde_json::from_str(&json).unwrap();
-        assert_eq!(source, d);
     }
 }

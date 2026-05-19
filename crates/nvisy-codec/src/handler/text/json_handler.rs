@@ -173,10 +173,7 @@ impl TextHandler for JsonHandler {
 
         for (path, new_value) in value_updates {
             let target = self.data.value.pointer_mut(&path.pointer).ok_or_else(|| {
-                Error::validation(
-                    format!("JSON pointer not found: {}", path.pointer),
-                    TARGET,
-                )
+                Error::validation(format!("JSON pointer not found: {}", path.pointer), TARGET)
             })?;
             if target.is_string() {
                 *target = serde_json::Value::String(new_value);
@@ -381,14 +378,10 @@ impl Iterator for JsonSpanIter {
 }
 
 /// Rename an object key at the given JSON pointer path.
-fn rename_key(
-    root: &mut serde_json::Value,
-    pointer: &str,
-    new_key: &str,
-) -> Result<(), Error> {
-    let (parent_ptr, old_key_segment) = pointer.rsplit_once('/').ok_or_else(|| {
-        Error::validation(format!("cannot rename root: {pointer}"), TARGET)
-    })?;
+fn rename_key(root: &mut serde_json::Value, pointer: &str, new_key: &str) -> Result<(), Error> {
+    let (parent_ptr, old_key_segment) = pointer
+        .rsplit_once('/')
+        .ok_or_else(|| Error::validation(format!("cannot rename root: {pointer}"), TARGET))?;
 
     let old_key = old_key_segment.replace("~1", "/").replace("~0", "~");
 
@@ -396,10 +389,7 @@ fn rename_key(
         root
     } else {
         root.pointer_mut(parent_ptr).ok_or_else(|| {
-            Error::validation(
-                format!("parent pointer not found: {parent_ptr}"),
-                TARGET,
-            )
+            Error::validation(format!("parent pointer not found: {parent_ptr}"), TARGET)
         })?
     };
 
@@ -456,11 +446,12 @@ mod tests {
     async fn read_returns_string() {
         let h = compact_handler(r#"{"name":"Alice"}"#);
         let items: Vec<_> = h.locations().collect().await;
-        let alice = futures::future::join_all(
-            items.iter().map(|l| h.read(&l.location)),
-        )
-        .await;
-        assert!(alice.iter().any(|d| d.as_ref().map(|d| d.as_str()) == Some("Alice")));
+        let alice = futures::future::join_all(items.iter().map(|l| h.read(&l.location))).await;
+        assert!(
+            alice
+                .iter()
+                .any(|d| d.as_ref().map(|d| d.as_str()) == Some("Alice"))
+        );
     }
 
     #[tokio::test]

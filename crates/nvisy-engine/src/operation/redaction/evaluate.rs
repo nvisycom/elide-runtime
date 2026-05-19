@@ -10,7 +10,7 @@
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::entity::{Entities, Entity};
-use nvisy_ontology::policy::{Action, Condition, DefaultStrategy, StrategyPolicy};
+use nvisy_ontology::policy::{Action, Condition, Strategy, StrategyPolicy};
 use nvisy_ontology::provenance::{AuditEntry, RedactionMapping};
 use nvisy_ontology::workflow::Redaction;
 use uuid::Uuid;
@@ -73,10 +73,16 @@ impl Operation for RedactionOp {
 
 /// Evaluate strategy policies against entities, producing audit entries
 /// and redaction mappings.
+///
+/// Each entity either matches a rule (in which case the rule's
+/// [`Strategy`] is merged with `defaults` before storage) or falls
+/// back to `defaults` outright once it clears the confidence
+/// threshold. Every entry stores a complete `Strategy`; at apply time
+/// the per-modality method is resolved via [`Strategy::for_location`].
 async fn evaluate(
     entities: &Entities,
     strategies: &[(Uuid, &StrategyPolicy)],
-    defaults: &DefaultStrategy,
+    defaults: &Strategy,
     default_threshold: f64,
     document_labels: &[&str],
     metadata: &ContentMetadata,
@@ -88,15 +94,15 @@ async fn evaluate(
     for entity in entities {
         let matched = find_matching_strategy(strategies, entity, document_labels, metadata);
 
-        let (spec, policy_id) = match matched {
-            Some((policy_id, strategy)) => match &strategy.action {
+        let (mut strategy, policy_id) = match matched {
+            Some((policy_id, rule)) => match &rule.action {
                 Action::Redact { strategy } => (strategy.clone(), Some(policy_id)),
                 _ => {
                     tracing::debug!(
                         target: TARGET,
                         entity_id = %entity.id,
                         %policy_id,
-                        action = ?strategy.action,
+                        action = ?rule.action,
                         "non-redact policy action",
                     );
                     continue;
@@ -106,12 +112,15 @@ async fn evaluate(
                 if entity.confidence < default_threshold {
                     continue;
                 }
-                let Some(spec) = defaults.for_location(&entity.location) else {
-                    continue;
-                };
-                (spec, None)
+                (Strategy::default(), None)
             }
         };
+
+        // Fold defaults under the rule-level strategy: rule fields win,
+        // unset fields fall back to the policy-set defaults, and any
+        // still-unset modalities resolve to their per-modality Default
+        // when the applicator calls Strategy::for_location.
+        strategy.merge(defaults);
 
         let entity_id = entity.id;
         let original_value = document
@@ -119,7 +128,12 @@ async fn evaluate(
             .await
             .unwrap_or_else(|| format!("[{}]", entity.location));
 
-        let mut builder = AuditEntry::builder().for_entity(entity_id, spec, original_value.clone());
+        let mut builder = AuditEntry::builder().for_entity(
+            entity_id,
+            strategy,
+            original_value.clone(),
+            &entity.location,
+        );
         if let Some(id) = policy_id {
             builder = builder.with_policy_id(id);
         }
@@ -205,7 +219,7 @@ impl ConditionExt for Condition {
 #[cfg(test)]
 mod tests {
     use nvisy_ontology::entity::Entity;
-    use nvisy_ontology::policy::{Strategy, TextStrategy};
+    use nvisy_ontology::policy::TextStrategy;
 
     use super::*;
     use crate::operation::Document;
@@ -216,11 +230,8 @@ mod tests {
             .test_build()
     }
 
-    fn defaults() -> DefaultStrategy {
-        DefaultStrategy {
-            text: Some(TextStrategy::Mask { mask_char: '*' }),
-            ..Default::default()
-        }
+    fn defaults() -> Strategy {
+        Strategy::text(TextStrategy::Mask { mask_char: '*' })
     }
 
     #[tokio::test]
@@ -261,10 +272,7 @@ mod tests {
     #[tokio::test]
     async fn uses_default_strategy_when_no_rules() {
         let doc = Document::from_text("secret").await;
-        let defaults = DefaultStrategy {
-            text: Some(TextStrategy::Remove),
-            ..Default::default()
-        };
+        let defaults = Strategy::text(TextStrategy::Remove);
         let entities: Entities = vec![test_entity("secret", 0.9)].into();
         let (entries, _mappings) = evaluate(
             &entities,
@@ -277,30 +285,9 @@ mod tests {
         )
         .await;
         assert_eq!(
-            entries[0].redaction.strategy,
-            Strategy::Text(TextStrategy::Remove)
+            entries[0].redaction.strategy.text.as_ref(),
+            Some(&TextStrategy::Remove),
         );
-    }
-
-    #[tokio::test]
-    async fn skips_entity_without_matching_modality_default() {
-        let doc = Document::from_text("text-entity").await;
-        let defaults = DefaultStrategy {
-            image: Some(nvisy_ontology::policy::ImageStrategy::Blur { sigma: 15.0 }),
-            ..Default::default()
-        };
-        let entities: Entities = vec![test_entity("text-entity", 0.9)].into();
-        let (entries, _mappings) = evaluate(
-            &entities,
-            &[],
-            &defaults,
-            0.0,
-            &[],
-            &ContentMetadata::new(),
-            &doc,
-        )
-        .await;
-        assert!(entries.is_empty());
     }
 
     #[tokio::test]

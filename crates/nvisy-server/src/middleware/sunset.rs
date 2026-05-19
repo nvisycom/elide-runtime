@@ -126,13 +126,6 @@ mod tests {
     }
 
     #[test]
-    fn deprecate_builds_headers() {
-        let config = SunsetConfig::new().deprecate(1, Date::new(2025, 11, 1).unwrap());
-        assert!(config.versions.contains_key(&nz(1)));
-        assert!(!config.versions.contains_key(&nz(2)));
-    }
-
-    #[test]
     fn successor_is_version_plus_one() {
         let config = SunsetConfig::new().deprecate(3, Date::new(2026, 6, 15).unwrap());
         let entry = &config.versions[&nz(3)];

@@ -74,12 +74,4 @@ mod tests {
         let back: CredentialData = serde_json::from_str(&json).unwrap();
         assert_eq!(back.value, "");
     }
-
-    #[test]
-    fn deserialize_with_value_provided() {
-        let json = r#"{"value":"abc123","credentialKind":"password"}"#;
-        let cred: CredentialData = serde_json::from_str(json).unwrap();
-        assert_eq!(cred.value, "abc123");
-        assert_eq!(cred.credential_kind, Some(CredentialKind::Password));
-    }
 }

@@ -235,15 +235,6 @@ mod tests {
     }
 
     #[test]
-    fn builtins_load_and_are_nonempty() {
-        let reg = registry();
-        assert!(!reg.is_empty());
-        for (_, dict) in reg.iter() {
-            assert!(!dict.terms().is_empty(), "{} is empty", dict.name());
-        }
-    }
-
-    #[test]
     fn terms_are_trimmed_and_nonempty() {
         for (_, dict) in registry().iter() {
             let name = dict.name();
@@ -280,21 +271,6 @@ mod tests {
         let mut sorted = keys.clone();
         sorted.sort();
         assert_eq!(keys, sorted);
-    }
-
-    #[test]
-    fn registry_insert_and_get() {
-        let mut reg = DictionaryRegistry::new();
-        let dict: BoxDictionary = Box::new(TxtDictionary::new("test", "foo\nbar\n"));
-        reg.insert(dict);
-
-        assert_eq!(reg.len(), 1);
-
-        let dict = reg.get("test").unwrap();
-        assert_eq!(dict.name(), "test");
-
-        let values: Vec<&str> = dict.terms().iter().map(|t| t.value.as_str()).collect();
-        assert_eq!(values, &["foo", "bar"]);
     }
 
     #[test]

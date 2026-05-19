@@ -192,10 +192,6 @@ impl Engine {
         self.inner.registry.base_dir()
     }
 
-    // ------------------------------------------------------------------
-    // Pipeline execution
-    // ------------------------------------------------------------------
-
     /// Create a new [`Pipeline`] bound to this engine's shared state.
     fn pipeline(&self) -> Pipeline {
         Pipeline::new(
@@ -259,10 +255,6 @@ impl Engine {
         });
         Ok(run_id)
     }
-
-    // ------------------------------------------------------------------
-    // Run management
-    // ------------------------------------------------------------------
 
     /// Get a full [`RunSnapshot`] including per-node status for a single run.
     ///

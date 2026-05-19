@@ -39,8 +39,5 @@ pub(crate) use self::validation::ValidationOp;
 /// registry, key provider) is accessible via `envelope.shared`.
 pub trait Operation {
     /// Execute the operation, mutating the envelope in place.
-    fn execute(
-        &self,
-        envelope: &mut DocumentEnvelope,
-    ) -> impl Future<Output = Result<()>> + Send;
+    fn execute(&self, envelope: &mut DocumentEnvelope) -> impl Future<Output = Result<()>> + Send;
 }

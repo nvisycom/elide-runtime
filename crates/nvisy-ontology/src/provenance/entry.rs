@@ -8,6 +8,7 @@ use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use super::review::ReviewDecision;
+use crate::entity::Location;
 use crate::policy::Strategy;
 
 /// Outcome status of a redaction operation.
@@ -113,14 +114,16 @@ impl AuditEntry {
 impl AuditEntryBuilder {
     /// Set the entity ID, strategy, and original value in one call.
     ///
-    /// `reversible` is derived from the strategy.
+    /// `reversible` is derived from the strategy resolved against
+    /// `location`'s modality.
     pub fn for_entity(
         self,
         entity_id: Uuid,
         strategy: Strategy,
         original: impl Into<String>,
+        location: &Location,
     ) -> Self {
-        let reversible = strategy.is_reversible();
+        let reversible = strategy.is_reversible_for(location);
         self.with_entity_id(entity_id)
             .with_redaction(RedactionSpec {
                 strategy,

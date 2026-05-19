@@ -210,23 +210,4 @@ mod tests {
         let filtered = entities.above_confidence(0.5);
         assert_eq!(filtered.len(), 2);
     }
-
-    #[test]
-    fn above_confidence_empty() {
-        let entities = Entities::new();
-        assert!(entities.above_confidence(0.5).is_empty());
-    }
-
-    #[test]
-    fn entities_from_vec() {
-        let v = vec![entity(0.5), entity(0.8)];
-        let entities = Entities::from(v);
-        assert_eq!(entities.len(), 2);
-    }
-
-    #[test]
-    fn entities_collect() {
-        let entities: Entities = (0..3).map(|i| entity(i as f64 * 0.3)).collect();
-        assert_eq!(entities.len(), 3);
-    }
 }

@@ -20,7 +20,7 @@ pub use self::condition::Condition;
 pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
 pub use self::selector::EntitySelector;
 pub use self::strategy::{
-    Action, AudioStrategy, DefaultStrategy, ImageStrategy, Strategy, StrategyPolicy, TextStrategy,
+    Action, AudioStrategy, ImageStrategy, Strategy, StrategyPolicy, TextStrategy,
 };
 
 /// A named, versioned governance policy.
@@ -45,9 +45,14 @@ pub struct Policy {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Per-modality fallback strategies for unmatched entities.
+    ///
+    /// Combined into a single effective default across all policies in
+    /// the run via [`Policies::default_strategy`]; the applicator then
+    /// merges any rule-level [`Strategy`] with this default so every
+    /// modality always resolves to a method.
     #[builder(default, setter(into = false))]
-    #[serde(default, skip_serializing_if = "DefaultStrategy::is_empty")]
-    pub default_strategy: DefaultStrategy,
+    #[serde(default, skip_serializing_if = "Strategy::is_empty")]
+    pub default_strategy: Strategy,
     /// Entity redaction strategies.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -103,8 +108,8 @@ impl Policies {
     /// Earlier policies take precedence per-modality: if policy A sets
     /// a text default and policy B sets text + image defaults, the result
     /// uses A's text and B's image.
-    pub fn default_strategy(&self) -> DefaultStrategy {
-        let mut merged = DefaultStrategy::default();
+    pub fn default_strategy(&self) -> Strategy {
+        let mut merged = Strategy::default();
         for policy in &self.policies {
             merged.merge(&policy.default_strategy);
         }

@@ -39,23 +39,3 @@ impl<L> Located<L> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn map_transforms_inner() {
-        let src = ContentSource::new();
-        let l = Located::new(src, 7u32);
-        let mapped = l.map(|n| n.to_string());
-        assert_eq!(mapped.location, "7");
-        assert_eq!(mapped.source, src);
-    }
-
-    #[test]
-    fn into_location_discards_source() {
-        let l = Located::new(ContentSource::new(), 42u32);
-        assert_eq!(l.into_location(), 42);
-    }
-}

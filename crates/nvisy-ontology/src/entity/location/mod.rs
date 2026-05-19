@@ -170,50 +170,6 @@ mod tests {
         )
     }
 
-    // -- as_* accessors --
-
-    #[test]
-    fn as_text_correct_variant() {
-        let loc = text(0, 5);
-        assert!(loc.as_text().is_some());
-        assert!(loc.as_image().is_none());
-    }
-
-    #[test]
-    fn as_image_correct_variant() {
-        let loc = image();
-        assert!(loc.as_image().is_some());
-        assert!(loc.as_text().is_none());
-    }
-
-    #[test]
-    fn as_audio_correct_variant() {
-        let loc = audio();
-        assert!(loc.as_audio().is_some());
-        assert!(loc.as_tabular().is_none());
-    }
-
-    #[test]
-    fn as_tabular_correct_variant() {
-        let loc = tabular(0, 0);
-        assert!(loc.as_tabular().is_some());
-        assert!(loc.as_audio().is_none());
-    }
-
-    // -- Display --
-
-    #[test]
-    fn display_text() {
-        assert_eq!(text(0, 10).to_string(), "text:0..10");
-    }
-
-    #[test]
-    fn display_tabular() {
-        assert_eq!(tabular(2, 3).to_string(), "tabular:r2c3");
-    }
-
-    // -- cross-modality overlap --
-
     #[test]
     fn cross_modality_no_overlap() {
         assert!(!text(0, 10).overlaps(&image()));

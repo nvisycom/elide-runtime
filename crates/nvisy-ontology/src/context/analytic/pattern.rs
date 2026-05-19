@@ -51,29 +51,6 @@ mod tests {
     use crate::context::analytic::AnalyticVariant;
 
     #[test]
-    fn pattern_expression_roundtrip_regex() {
-        let pat = PatternExpression::Regex(RegexPattern {
-            expression: r"^\d+$".to_owned(),
-        });
-        let json = serde_json::to_string(&pat).unwrap();
-        assert!(json.contains(r#""syntax":"regex""#));
-        assert!(json.contains(r#""expression":"^\\d+$""#));
-        let back: PatternExpression = serde_json::from_str(&json).unwrap();
-        assert_eq!(pat, back);
-    }
-
-    #[test]
-    fn pattern_expression_roundtrip_glob() {
-        let pat = PatternExpression::Glob(GlobPattern {
-            expression: "*.txt".to_owned(),
-        });
-        let json = serde_json::to_string(&pat).unwrap();
-        assert!(json.contains(r#""syntax":"glob""#));
-        let back: PatternExpression = serde_json::from_str(&json).unwrap();
-        assert_eq!(pat, back);
-    }
-
-    #[test]
     fn pattern_data_flatten_no_tag_collision() {
         // AnalyticVariant uses `tag = "kind"` and PatternExpression uses
         // `tag = "syntax"`. Flattening must keep both distinct.

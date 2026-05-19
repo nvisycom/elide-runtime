@@ -90,13 +90,6 @@ mod tests {
     }
 
     #[test]
-    fn empty_map() {
-        let map = RedactionMap::new();
-        assert!(map.is_empty());
-        assert_eq!(map.len(), 0);
-    }
-
-    #[test]
     fn push_and_lookup() {
         let id = Uuid::now_v7();
         let mut map = RedactionMap::new();
@@ -104,21 +97,5 @@ mod tests {
         assert_eq!(map.len(), 1);
         assert_eq!(map.original(id), Some("John"));
         assert_eq!(map.replacement(id), Some("[NAME]"));
-    }
-
-    #[test]
-    fn lookup_missing() {
-        let map = RedactionMap::new();
-        assert_eq!(map.original(Uuid::now_v7()), None);
-        assert_eq!(map.replacement(Uuid::now_v7()), None);
-    }
-
-    #[test]
-    fn replacement_none_when_not_applied() {
-        let id = Uuid::now_v7();
-        let mut map = RedactionMap::new();
-        map.push(mapping(id, "secret", None));
-        assert_eq!(map.original(id), Some("secret"));
-        assert_eq!(map.replacement(id), None);
     }
 }

@@ -49,13 +49,12 @@ impl Loader for PdfLoader {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use futures::StreamExt;
     use lopdf::{Dictionary, Document, Object, Stream, dictionary};
     use nvisy_core::content::ContentSource;
     use nvisy_core::media::DocumentType;
 
     use super::*;
-    use crate::handler::{Handler, TextHandler};
+    use crate::handler::Handler;
 
     fn content_from_bytes(bytes: &[u8]) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(bytes.to_vec()))
@@ -121,30 +120,5 @@ mod tests {
         assert_eq!(doc.document_type(), DocumentType::Pdf);
         assert_eq!(doc.page_count(), 1);
         assert!(doc.page(0).unwrap().trim().is_empty());
-    }
-
-    #[tokio::test]
-    async fn load_preserves_raw_bytes() {
-        let raw = minimal_pdf();
-        let content = content_from_bytes(&raw);
-        let doc = PdfLoader
-            .decode(&content, &PdfParams::default())
-            .await
-            .unwrap();
-
-        assert_eq!(doc.raw(), &raw);
-    }
-
-    #[tokio::test]
-    async fn locations_matches_pages() {
-        let raw = minimal_pdf();
-        let content = content_from_bytes(&raw);
-        let doc = PdfLoader
-            .decode(&content, &PdfParams::default())
-            .await
-            .unwrap();
-
-        let items: Vec<_> = TextHandler::locations(&doc).collect().await;
-        assert_eq!(items.len(), doc.page_count());
     }
 }

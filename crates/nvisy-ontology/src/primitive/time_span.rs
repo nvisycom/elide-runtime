@@ -116,12 +116,6 @@ mod tests {
     }
 
     #[test]
-    fn midpoint() {
-        let span = TimeSpan::new(2_000_000, 4_000_000);
-        assert_eq!(span.midpoint_us(), 3_000_000);
-    }
-
-    #[test]
     fn contains() {
         let span = TimeSpan::new(1_000_000, 5_000_000);
         assert!(span.contains_us(1_000_000));

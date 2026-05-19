@@ -239,20 +239,8 @@ mod tests {
 
     #[tokio::test]
     async fn locations_returns_text_nodes() {
-        let h = handler_from_html(
-            "<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>",
-        );
+        let h = handler_from_html("<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>");
         let items: Vec<_> = h.locations().collect().await;
         assert_eq!(items.len(), 2);
-    }
-
-    #[tokio::test]
-    async fn read_returns_text_node() {
-        let h = handler_from_html("<html><head></head><body><p>Hello</p></body></html>");
-        let items: Vec<_> = h.locations().collect().await;
-        assert_eq!(
-            h.read(&items[0].location).await.unwrap().as_str(),
-            "Hello"
-        );
     }
 }

@@ -48,11 +48,7 @@ impl HttpClient {
             .pool_idle_timeout(Duration::from_secs(config.idle_timeout_secs))
             .build()
             .map_err(|e| {
-                Error::runtime(
-                    format!("failed to build HTTP client: {e}"),
-                    "http",
-                    false,
-                )
+                Error::runtime(format!("failed to build HTTP client: {e}"), "http", false)
             })?;
 
         Ok(Self(
@@ -98,10 +94,7 @@ pub trait RequestBuilderExt {
 }
 
 impl RequestBuilderExt for RequestBuilder {
-    async fn send_and_check(
-        self,
-        provider: &str,
-    ) -> Result<reqwest_middleware::reqwest::Response> {
+    async fn send_and_check(self, provider: &str) -> Result<reqwest_middleware::reqwest::Response> {
         let resp = self
             .send()
             .await
@@ -119,10 +112,7 @@ impl RequestBuilderExt for RequestBuilder {
         ))
     }
 
-    async fn send_and_parse<T: serde::de::DeserializeOwned>(
-        self,
-        provider: &str,
-    ) -> Result<T> {
+    async fn send_and_parse<T: serde::de::DeserializeOwned>(self, provider: &str) -> Result<T> {
         let resp = self.send_and_check(provider).await?;
         resp.json().await.map_err(|e| {
             Error::runtime(format!("{provider} JSON parse error: {e}"), provider, false)

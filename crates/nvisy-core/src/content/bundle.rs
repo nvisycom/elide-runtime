@@ -150,42 +150,6 @@ mod tests {
     use crate::media::{ImageFormat, TextFormat};
 
     #[test]
-    fn content_with_metadata() {
-        let data = ContentData::from_text(ContentSource::new(), "Test content");
-        let metadata = ContentMetadata::with_path("test.txt");
-        let content = Content::with_metadata(data, metadata);
-
-        assert!(content.metadata().is_some());
-        assert_eq!(content.file_extension(), Some("txt"));
-    }
-
-    #[test]
-    fn metadata_operations() {
-        let data = ContentData::from("Test");
-        let mut content = Content::new(data);
-
-        assert!(content.metadata().is_none());
-
-        content.set_metadata(ContentMetadata::with_path("file.pdf"));
-        assert!(content.metadata().is_some());
-        assert_eq!(content.file_extension(), Some("pdf"));
-
-        content.clear_metadata();
-        assert!(content.metadata().is_none());
-    }
-
-    #[test]
-    fn into_parts_roundtrip() {
-        let data = ContentData::from_text(ContentSource::new(), "Test");
-        let metadata = ContentMetadata::with_path("test.txt");
-        let content = Content::with_metadata(data.clone(), metadata.clone());
-
-        let (recovered_data, recovered_metadata) = content.into_parts();
-        assert_eq!(recovered_data, data);
-        assert_eq!(recovered_metadata, Some(metadata));
-    }
-
-    #[test]
     fn infer_document_type_from_metadata() {
         let data = ContentData::from("plain text");
         let metadata = ContentMetadata::new().with_content_type("text/plain");

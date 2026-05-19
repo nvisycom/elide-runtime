@@ -12,36 +12,40 @@ use nvisy_core::content::{Content, ContentData, ContentSource};
 use nvisy_core::media::{
     AudioFormat, DocumentType, ImageFormat, SpreadsheetFormat, TextFormat, WordFormat,
 };
-use nvisy_ontology::entity::{AudioLocation, ImageLocation, TextLocation};
+use nvisy_ontology::entity::{AudioLocation, ImageLocation, TabularLocation, TextLocation};
 
 pub use self::located::Located;
 pub use self::span::Span;
 pub use self::stream::LocationStream;
+use crate::handler::{
+    AudioData, AudioHandler, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
+    BoxedTabularHandler, BoxedTextHandler, CsvLoader, CsvParams, Handler, ImageData, ImageHandler,
+    JpegLoader, JpegParams, JsonLoader, JsonParams, Loader, MarkdownLoader, MarkdownParams,
+    Mp3Loader, Mp3Params, PngLoader, PngParams, TabularHandler, TextData, TextHandler, TiffLoader,
+    TiffParams, TxtLoader, TxtParams, WavLoader, WavParams, XlsxLoader, XlsxParams,
+};
 #[cfg(feature = "docx")]
 use crate::handler::{DocxLoader, DocxParams};
 #[cfg(feature = "html")]
 use crate::handler::{HtmlLoader, HtmlParams};
 #[cfg(feature = "pdf")]
 use crate::handler::{PdfLoader, PdfParams};
-use crate::handler::{
-    AudioData, AudioHandler, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
-    BoxedTextHandler, CsvLoader, CsvParams, Handler, ImageData, ImageHandler, JpegLoader,
-    JpegParams, JsonLoader, JsonParams, Loader, MarkdownLoader, MarkdownParams, Mp3Loader,
-    Mp3Params, PngLoader, PngParams, TextData, TextHandler, TiffLoader, TiffParams, TxtLoader,
-    TxtParams, WavLoader, WavParams, XlsxLoader, XlsxParams,
+use crate::transform::{
+    AudioRedaction, ImageRedaction, Redactions, TabularRedaction, TextRedaction,
 };
-use crate::transform::{AudioRedaction, ImageRedaction, Redactions, TextRedaction};
 
 /// A fully type-erased document that can hold any supported format.
 ///
-/// Groups documents into four modality families:
-/// - **Text**: plain text, CSV, JSON, HTML, XLSX
+/// Groups documents into five modality families:
+/// - **Text**: plain text, JSON, HTML
+/// - **Tabular**: CSV, XLSX (cell-coordinate addressed)
 /// - **Image**: PNG, JPEG, TIFF
 /// - **Audio**: WAV, MP3
 /// - **Rich**: PDF, DOCX (multi-modal documents with text + images)
 #[derive(From, IsVariant, TryInto)]
 pub enum ContentHandle {
     Text(BoxedTextHandler),
+    Tabular(BoxedTabularHandler),
     Image(BoxedImageHandler),
     Audio(BoxedAudioHandler),
     Rich(BoxedRichHandler),
@@ -60,6 +64,7 @@ impl ContentHandle {
     pub fn document_type(&self) -> DocumentType {
         match self {
             Self::Text(h) => h.document_type(),
+            Self::Tabular(h) => h.document_type(),
             Self::Image(h) => h.document_type(),
             Self::Audio(h) => h.document_type(),
             Self::Rich(h) => h.document_type(),
@@ -70,6 +75,7 @@ impl ContentHandle {
     pub fn source(&self) -> ContentSource {
         match self {
             Self::Text(h) => h.source(),
+            Self::Tabular(h) => h.source(),
             Self::Image(h) => h.source(),
             Self::Audio(h) => h.source(),
             Self::Rich(h) => h.source(),
@@ -80,6 +86,7 @@ impl ContentHandle {
     pub fn encode(&self) -> Result<ContentData, Error> {
         match self {
             Self::Text(h) => h.encode(),
+            Self::Tabular(h) => h.encode(),
             Self::Image(h) => h.encode(),
             Self::Audio(h) => h.encode(),
             Self::Rich(h) => h.encode(),
@@ -91,7 +98,15 @@ impl ContentHandle {
         match self {
             Self::Text(h) => h.locations(),
             Self::Rich(h) => TextHandler::locations(h),
-            Self::Image(_) | Self::Audio(_) => LocationStream::empty(),
+            Self::Tabular(_) | Self::Image(_) | Self::Audio(_) => LocationStream::empty(),
+        }
+    }
+
+    /// Stream tabular (cell) locations from spreadsheet documents.
+    pub fn tabular_locations(&self) -> LocationStream<'_, TabularLocation> {
+        match self {
+            Self::Tabular(h) => h.locations(),
+            _ => LocationStream::empty(),
         }
     }
 
@@ -100,7 +115,7 @@ impl ContentHandle {
         match self {
             Self::Image(h) => h.locations(),
             Self::Rich(h) => ImageHandler::locations(h),
-            Self::Text(_) | Self::Audio(_) => LocationStream::empty(),
+            Self::Text(_) | Self::Tabular(_) | Self::Audio(_) => LocationStream::empty(),
         }
     }
 
@@ -120,7 +135,15 @@ impl ContentHandle {
         match self {
             Self::Text(h) => h.read(location).await,
             Self::Rich(h) => TextHandler::read(h, location).await,
-            Self::Image(_) | Self::Audio(_) => None,
+            Self::Tabular(_) | Self::Image(_) | Self::Audio(_) => None,
+        }
+    }
+
+    /// Read the cell value at the given tabular location.
+    pub async fn read_tabular(&self, location: &TabularLocation) -> Option<TextData> {
+        match self {
+            Self::Tabular(h) => h.read(location).await,
+            _ => None,
         }
     }
 
@@ -129,7 +152,7 @@ impl ContentHandle {
         match self {
             Self::Image(h) => h.read(location).await,
             Self::Rich(h) => ImageHandler::read(h, location).await,
-            Self::Text(_) | Self::Audio(_) => None,
+            Self::Text(_) | Self::Tabular(_) | Self::Audio(_) => None,
         }
     }
 
@@ -149,7 +172,18 @@ impl ContentHandle {
         match self {
             Self::Text(h) => h.redact(redactions).await,
             Self::Rich(h) => TextHandler::redact(h, redactions).await,
-            Self::Image(_) | Self::Audio(_) => Ok(()),
+            Self::Tabular(_) | Self::Image(_) | Self::Audio(_) => Ok(()),
+        }
+    }
+
+    /// Apply a batch of tabular redactions to the document.
+    pub async fn apply_tabular_redactions(
+        &mut self,
+        redactions: Redactions<TabularLocation, TabularRedaction>,
+    ) -> Result<(), Error> {
+        match self {
+            Self::Tabular(h) => h.redact(redactions).await,
+            _ => Ok(()),
         }
     }
 
@@ -161,7 +195,7 @@ impl ContentHandle {
         match self {
             Self::Image(h) => h.redact(redactions).await,
             Self::Rich(h) => ImageHandler::redact(h, redactions).await,
-            Self::Text(_) | Self::Audio(_) => Ok(()),
+            Self::Text(_) | Self::Tabular(_) | Self::Audio(_) => Ok(()),
         }
     }
 
@@ -172,7 +206,7 @@ impl ContentHandle {
     ) -> Result<(), Error> {
         match self {
             Self::Audio(h) => h.redact(redactions).await,
-            Self::Text(_) | Self::Image(_) | Self::Rich(_) => Ok(()),
+            _ => Ok(()),
         }
     }
 
@@ -188,9 +222,8 @@ impl ContentHandle {
         let data = content.data();
 
         match doc_type {
-            DocumentType::Text(_) | DocumentType::Html | DocumentType::Spreadsheet(_) => {
-                Self::decode_text(doc_type, data).await
-            }
+            DocumentType::Text(_) | DocumentType::Html => Self::decode_text(doc_type, data).await,
+            DocumentType::Spreadsheet(_) => Self::decode_tabular(doc_type, data).await,
             DocumentType::Image(_) => Self::decode_image(doc_type, data).await,
             DocumentType::Audio(_) => Self::decode_audio(doc_type, data).await,
             DocumentType::Pdf | DocumentType::Word(_) | DocumentType::Presentation(_) => {
@@ -218,6 +251,18 @@ impl ContentHandle {
                 .decode(content, &HtmlParams::default())
                 .await?
                 .into(),
+            _ => {
+                return Err(Error::validation(
+                    format!("no text loader for: {doc_type}"),
+                    "ContentHandle::decode_text",
+                ));
+            }
+        };
+        Ok(Self::from(handler))
+    }
+
+    async fn decode_tabular(doc_type: DocumentType, content: &ContentData) -> Result<Self, Error> {
+        let handler: BoxedTabularHandler = match doc_type {
             DocumentType::Spreadsheet(SpreadsheetFormat::Csv) => CsvLoader
                 .decode(content, &CsvParams::default())
                 .await?
@@ -228,8 +273,8 @@ impl ContentHandle {
             }
             _ => {
                 return Err(Error::validation(
-                    format!("no text loader for: {doc_type}"),
-                    "ContentHandle::decode_text",
+                    format!("no tabular loader for: {doc_type}"),
+                    "ContentHandle::decode_tabular",
                 ));
             }
         };

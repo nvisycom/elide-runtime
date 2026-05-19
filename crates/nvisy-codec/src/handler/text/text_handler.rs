@@ -76,8 +76,8 @@ macro_rules! impl_from_text_handler {
     };
 }
 
-use super::{CsvHandler, JsonHandler, TxtHandler, XlsxHandler};
-impl_from_text_handler!(TxtHandler, CsvHandler, JsonHandler, XlsxHandler);
+use super::{JsonHandler, TxtHandler};
+impl_from_text_handler!(TxtHandler, JsonHandler);
 
 #[cfg(feature = "html")]
 use super::HtmlHandler;

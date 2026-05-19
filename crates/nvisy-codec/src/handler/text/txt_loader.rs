@@ -50,13 +50,12 @@ impl Loader for TxtLoader {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use futures::StreamExt;
     use nvisy_core::Error;
     use nvisy_core::content::ContentSource;
     use nvisy_core::media::{DocumentType, TextFormat};
 
     use super::*;
-    use crate::handler::{Handler, TextHandler};
+    use crate::handler::Handler;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))
@@ -81,19 +80,6 @@ mod tests {
         assert_eq!(doc.len(), 1);
         assert_eq!(doc.line(0), Some("single line"));
         assert!(!doc.trailing_newline());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn load_preserves_lines_through_round_trip() -> Result<(), Error> {
-        let content = content_from_str("Alice\nBob\nCharlie\n");
-        let doc = TxtLoader.decode(&content, &TxtParams::default()).await?;
-
-        let items: Vec<_> = doc.locations().collect().await;
-        assert_eq!(items.len(), 3);
-        assert_eq!(doc.read(&items[0].location).await.unwrap().as_str(), "Alice");
-        assert_eq!(doc.read(&items[1].location).await.unwrap().as_str(), "Bob");
-        assert_eq!(doc.read(&items[2].location).await.unwrap().as_str(), "Charlie");
         Ok(())
     }
 

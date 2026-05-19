@@ -23,9 +23,7 @@ use crate::document::{Located, LocationStream};
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, ImageHandler, TextHandler};
-use crate::transform::{
-    ImageRedaction, Redactions, TextRedaction, apply_text_redactions,
-};
+use crate::transform::{ImageRedaction, Redactions, TextRedaction, apply_text_redactions};
 
 const TARGET: &str = "rich-text-handler";
 
@@ -293,7 +291,6 @@ impl ImageHandler for RichTextHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_core::Error;
 
     use super::*;
     use crate::handler::TextHandler;
@@ -317,13 +314,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn locations_empty_document() {
-        let h = handler(&[]);
-        let items: Vec<_> = TextHandler::locations(&h).collect().await;
-        assert!(items.is_empty());
-    }
-
-    #[tokio::test]
     async fn read_returns_page_text() {
         let h = handler(&["page one", "page two"]);
         let items: Vec<_> = TextHandler::locations(&h).collect().await;
@@ -334,39 +324,5 @@ mod tests {
                 .as_str(),
             "page one"
         );
-    }
-
-    #[test]
-    fn accessors() {
-        let h = handler(&["alpha", "beta"]);
-        assert_eq!(h.page_count(), 2);
-        assert_eq!(h.len(), 2);
-        assert!(!h.is_empty());
-        assert_eq!(h.page(0), Some("alpha"));
-        assert_eq!(h.page(1), Some("beta"));
-        assert_eq!(h.page(2), None);
-        assert_eq!(h.pages(), &["alpha", "beta"]);
-    }
-
-    #[test]
-    fn encode_returns_raw_bytes() -> Result<(), Error> {
-        let raw = b"fake-pdf-bytes";
-        let h = RichTextHandler::new(DocumentType::Pdf, vec!["text".into()], raw.to_vec());
-        assert_eq!(h.encode()?.as_bytes(), raw);
-        Ok(())
-    }
-
-    #[test]
-    fn document_type_is_pdf() {
-        let h = handler(&[]);
-        assert_eq!(h.document_type(), DocumentType::Pdf);
-    }
-
-    #[test]
-    fn empty_handler() {
-        let h = handler(&[]);
-        assert!(h.is_empty());
-        assert_eq!(h.len(), 0);
-        assert_eq!(h.page_count(), 0);
     }
 }

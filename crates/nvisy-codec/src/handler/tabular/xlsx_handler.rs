@@ -1,14 +1,20 @@
 //! XLSX handler (stub: awaiting full spreadsheet support).
+//!
+//! Implements [`TabularHandler`] only — the underlying ZIP-of-XML
+//! structure does not map to flat byte offsets, so the handler does
+//! not implement [`TextHandler`].
+//!
+//! [`TabularHandler`]: crate::handler::TabularHandler
+//! [`TextHandler`]: crate::handler::TextHandler
 
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
-use nvisy_ontology::entity::TextLocation;
+use nvisy_ontology::entity::TabularLocation;
 
 use crate::document::LocationStream;
-use crate::handler::text::TextData;
-use crate::handler::{Handler, TextHandler};
-use crate::transform::{Redactions, TextRedaction};
+use crate::handler::{Handler, TabularHandler, TextData};
+use crate::transform::{Redactions, TabularRedaction};
 
 #[derive(Debug, Default)]
 pub struct XlsxHandler {
@@ -47,18 +53,18 @@ impl Handler for XlsxHandler {
 }
 
 #[async_trait::async_trait]
-impl TextHandler for XlsxHandler {
-    fn locations(&self) -> LocationStream<'_, TextLocation> {
+impl TabularHandler for XlsxHandler {
+    fn locations(&self) -> LocationStream<'_, TabularLocation> {
         LocationStream::empty()
     }
 
-    async fn read(&self, _location: &TextLocation) -> Option<TextData> {
+    async fn read(&self, _location: &TabularLocation) -> Option<TextData> {
         None
     }
 
     async fn redact(
         &mut self,
-        _redactions: Redactions<TextLocation, TextRedaction>,
+        _redactions: Redactions<TabularLocation, TabularRedaction>,
     ) -> Result<(), Error> {
         Ok(())
     }

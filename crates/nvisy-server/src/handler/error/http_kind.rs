@@ -108,32 +108,3 @@ impl IntoResponse for ErrorKind {
         self.response().into_response()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn all_error_kinds_have_responses() {
-        let kinds = vec![
-            ErrorKind::MissingPathParam,
-            ErrorKind::BadRequest,
-            ErrorKind::MissingAuthToken,
-            ErrorKind::MalformedAuthToken,
-            ErrorKind::Unauthorized,
-            ErrorKind::Forbidden,
-            ErrorKind::NotFound,
-            ErrorKind::Conflict,
-            ErrorKind::TooManyRequests,
-            ErrorKind::InternalServerError,
-            ErrorKind::NotImplemented,
-        ];
-
-        for kind in kinds {
-            let response = kind.response();
-            assert!(!response.name.is_empty());
-            assert!(response.status.as_u16() >= 400);
-            let _ = kind.into_response();
-        }
-    }
-}

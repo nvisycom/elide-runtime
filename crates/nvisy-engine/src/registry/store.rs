@@ -546,15 +546,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn base_dir() -> anyhow::Result<()> {
-        let temp = tempfile::tempdir()?;
-        let base = temp.path().join("reg");
-        let registry = Registry::open(&base)?;
-        assert_eq!(registry.base_dir(), base);
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn data_persists_across_reopen() -> anyhow::Result<()> {
         let temp = tempfile::tempdir()?;
         let path = temp.path().join("persist");

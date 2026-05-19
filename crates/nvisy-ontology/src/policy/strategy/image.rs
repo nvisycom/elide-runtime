@@ -25,7 +25,6 @@ fn default_block_size() -> u32 {
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum ImageStrategy {
     /// Apply a gaussian blur.
     Blur {

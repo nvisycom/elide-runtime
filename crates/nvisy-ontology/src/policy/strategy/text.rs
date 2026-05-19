@@ -19,7 +19,6 @@ fn default_mask_char() -> char {
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum TextStrategy {
     /// Replace characters with a mask character.
     Mask {

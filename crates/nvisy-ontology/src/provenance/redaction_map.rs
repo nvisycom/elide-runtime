@@ -6,7 +6,7 @@
 //! [`RedactionValue`]) — the map is a thin index, not a value store.
 //!
 //! A future extension may pair this index with a separate blob store
-//! to support reversibility for image/audio modalities — see
+//! to support reversibility for image/audio modalities: see
 //! [issue #151](https://github.com/nvisycom/runtime/issues/151).
 //!
 //! [`AuditEntry::value`]: super::AuditEntry::value

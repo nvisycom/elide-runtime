@@ -1,15 +1,17 @@
-//! PNG handler: holds a decoded image and provides single-span access
-//! via [`ImageHandler`](crate::handler::ImageHandler).
+//! PNG handler: holds a decoded image and provides single-location
+//! access via [`ImageHandler`].
 //!
-//! # Span model
+//! [`ImageHandler::locations`] yields exactly one full-image
+//! [`ImageLocation`]; [`ImageHandler::read`] returns the current
+//! [`DynamicImage`](image::DynamicImage) (cropped to the location's
+//! bounding box); [`ImageHandler::redact`] applies bounding-box
+//! redactions in place.
 //!
-//! [`ImageHandler::image_spans`](crate::handler::ImageHandler::image_spans)
-//! yields exactly one [`Span`] whose data is the current
-//! [`DynamicImage`](image::DynamicImage).
-//! [`ImageHandler::edit_images`](crate::handler::ImageHandler::edit_images)
-//! replaces the image in-place.
-//!
-//! [`Span`]: crate::document::Span
+//! [`ImageHandler`]: crate::handler::ImageHandler
+//! [`ImageHandler::locations`]: crate::handler::ImageHandler::locations
+//! [`ImageHandler::read`]: crate::handler::ImageHandler::read
+//! [`ImageHandler::redact`]: crate::handler::ImageHandler::redact
+//! [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
 
 use nvisy_core::content::ContentSource;
 

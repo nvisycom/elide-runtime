@@ -137,7 +137,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn view_spans_matches_pages() {
+    async fn locations_matches_pages() {
         let raw = minimal_pdf();
         let content = content_from_bytes(&raw);
         let doc = PdfLoader
@@ -145,7 +145,7 @@ mod tests {
             .await
             .unwrap();
 
-        let spans: Vec<_> = doc.text_spans().await.collect().await;
-        assert_eq!(spans.len(), doc.page_count());
+        let items: Vec<_> = TextHandler::locations(&doc).collect().await;
+        assert_eq!(items.len(), doc.page_count());
     }
 }

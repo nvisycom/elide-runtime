@@ -21,10 +21,11 @@ mod tabular;
 mod text;
 
 pub use self::audio::{AudioOutput, AudioRedaction};
-pub(crate) use self::image::ImageOps;
+pub(crate) use self::image::apply_image_redactions;
 pub use self::image::{ImageOutput, ImageRedaction};
 pub use self::mergeable::Mergeable;
 pub use self::policy::{ConflictPolicy, InsertError};
 pub use self::redactions::Redactions;
 pub use self::tabular::TabularRedaction;
+pub(crate) use self::text::apply_text_redactions;
 pub use self::text::{TextOutput, TextRedaction};

@@ -85,15 +85,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_preserves_spans_through_round_trip() -> Result<(), Error> {
+    async fn load_preserves_lines_through_round_trip() -> Result<(), Error> {
         let content = content_from_str("Alice\nBob\nCharlie\n");
         let doc = TxtLoader.decode(&content, &TxtParams::default()).await?;
 
-        let spans: Vec<_> = doc.text_spans().await.collect().await;
-        assert_eq!(spans.len(), 3);
-        assert_eq!(spans[0].data, "Alice");
-        assert_eq!(spans[1].data, "Bob");
-        assert_eq!(spans[2].data, "Charlie");
+        let items: Vec<_> = doc.locations().collect().await;
+        assert_eq!(items.len(), 3);
+        assert_eq!(doc.read(&items[0].location).await.unwrap().as_str(), "Alice");
+        assert_eq!(doc.read(&items[1].location).await.unwrap().as_str(), "Bob");
+        assert_eq!(doc.read(&items[2].location).await.unwrap().as_str(), "Charlie");
         Ok(())
     }
 

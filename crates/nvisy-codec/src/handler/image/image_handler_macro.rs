@@ -33,13 +33,12 @@ macro_rules! impl_image_handler {
 
         #[async_trait::async_trait]
         impl crate::handler::ImageHandler for $handler {
-            async fn image_spans(
+            fn locations(
                 &self,
-            ) -> crate::document::SpanStream<
-                '_,
-                nvisy_ontology::entity::ImageLocation,
-                crate::handler::ImageData,
-            > {
+            ) -> crate::document::LocationStream<'_, nvisy_ontology::entity::ImageLocation>
+            {
+                use ::std::iter;
+
                 let (w, h) = (self.image.width(), self.image.height());
                 let location = nvisy_ontology::entity::ImageLocation {
                     bounding_box: nvisy_ontology::primitive::BoundingBox {
@@ -51,33 +50,12 @@ macro_rules! impl_image_handler {
                     image_id: None,
                     page_number: None,
                 };
-                use ::std::iter;
-
-                crate::document::SpanStream::new(futures::stream::iter(iter::once(
-                    crate::document::Span::new(
-                        location,
-                        crate::handler::ImageData::from(self.image.clone()),
-                    ),
+                crate::document::LocationStream::new(futures::stream::iter(iter::once(
+                    crate::document::Located::new(self.source, location),
                 )))
             }
 
-            async fn edit_images(
-                &mut self,
-                edits: crate::document::SpanStream<
-                    '_,
-                    nvisy_ontology::entity::ImageLocation,
-                    crate::handler::ImageData,
-                >,
-            ) -> Result<(), nvisy_core::Error> {
-                use futures::StreamExt;
-                let edits: Vec<_> = edits.collect().await;
-                if let Some(edit) = edits.into_iter().next() {
-                    self.image = edit.data.into_inner();
-                }
-                Ok(())
-            }
-
-            async fn value_at(
+            async fn read(
                 &self,
                 location: &nvisy_ontology::entity::ImageLocation,
             ) -> Option<crate::handler::ImageData> {
@@ -91,6 +69,24 @@ macro_rules! impl_image_handler {
                 }
                 let cropped = self.image.crop_imm(x, y, w, h);
                 Some(crate::handler::ImageData::from(cropped))
+            }
+
+            async fn redact(
+                &mut self,
+                redactions: crate::transform::Redactions<
+                    nvisy_ontology::entity::ImageLocation,
+                    crate::transform::ImageRedaction,
+                >,
+            ) -> Result<(), nvisy_core::Error> {
+                if redactions.is_empty() {
+                    return Ok(());
+                }
+                // Image handlers expose a single full-image location; apply
+                // every redaction in the collection to the single image.
+                for (_loc, items) in redactions {
+                    crate::transform::apply_image_redactions(&mut self.image, &items);
+                }
+                Ok(())
             }
         }
 

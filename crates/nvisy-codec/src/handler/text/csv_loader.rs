@@ -207,17 +207,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_spans_round_trip() -> Result<(), Error> {
+    async fn load_locations_round_trip() -> Result<(), Error> {
         let content = content_from_str("name,age\nAlice,30\n");
         let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
-        let spans: Vec<_> = doc.text_spans().await.collect().await;
+        let items: Vec<_> = doc.locations().collect().await;
 
         // 2 header + 2 data
-        assert_eq!(spans.len(), 4);
-        assert_eq!(spans[0].data, "name");
-        assert_eq!(spans[1].data, "age");
-        assert_eq!(spans[2].data, "Alice");
-        assert_eq!(spans[3].data, "30");
+        assert_eq!(items.len(), 4);
+        assert_eq!(doc.read(&items[0].location).await.unwrap().as_str(), "name");
+        assert_eq!(doc.read(&items[1].location).await.unwrap().as_str(), "age");
+        assert_eq!(doc.read(&items[2].location).await.unwrap().as_str(), "Alice");
+        assert_eq!(doc.read(&items[3].location).await.unwrap().as_str(), "30");
         Ok(())
     }
 

@@ -7,8 +7,6 @@ use super::Handler;
 use crate::document::LocationStream;
 use crate::transform::{Redactions, TextRedaction};
 
-mod csv_handler;
-mod csv_loader;
 #[cfg(feature = "html")]
 mod html_handler;
 #[cfg(feature = "html")]
@@ -20,11 +18,7 @@ mod text_data;
 mod text_handler;
 mod txt_handler;
 mod txt_loader;
-mod xlsx_handler;
-mod xlsx_loader;
 
-pub use self::csv_handler::{CsvData, CsvHandler};
-pub use self::csv_loader::{CsvLoader, CsvParams};
 #[cfg(feature = "html")]
 pub use self::html_handler::{HtmlData, HtmlHandler};
 #[cfg(feature = "html")]
@@ -36,8 +30,6 @@ pub use self::text_data::TextData;
 pub use self::text_handler::BoxedTextHandler;
 pub use self::txt_handler::TxtHandler;
 pub use self::txt_loader::{TxtLoader, TxtParams};
-pub use self::xlsx_handler::XlsxHandler;
-pub use self::xlsx_loader::{XlsxLoader, XlsxParams};
 
 /// Capability trait for handlers that expose text content.
 ///

@@ -26,6 +26,7 @@ pub use self::image::{ImageOutput, ImageRedaction};
 pub use self::mergeable::Mergeable;
 pub use self::policy::{ConflictPolicy, InsertError};
 pub use self::redactions::Redactions;
+pub(crate) use self::tabular::apply_tabular_redactions;
 pub use self::tabular::TabularRedaction;
 pub(crate) use self::text::apply_text_redactions;
 pub use self::text::{TextOutput, TextRedaction};

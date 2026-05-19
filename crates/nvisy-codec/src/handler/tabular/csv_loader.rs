@@ -140,7 +140,7 @@ mod tests {
     use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 
     use super::*;
-    use crate::handler::{Handler, TextHandler};
+    use crate::handler::{Handler, TabularHandler};
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

@@ -10,14 +10,16 @@ use std::fmt;
 use futures::StreamExt;
 use nvisy_codec::handler::{AudioData, ImageData, TextData};
 use nvisy_codec::transform::{
-    AudioRedaction, ImageRedaction, Redactions, TextRedaction,
+    AudioRedaction, ImageRedaction, Redactions, TabularRedaction, TextRedaction,
 };
 use nvisy_codec::{ContentHandle, Located};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::artifacts::ContentArtifacts;
-use nvisy_ontology::entity::{AudioLocation, ImageLocation, Location, TextLocation};
+use nvisy_ontology::entity::{
+    AudioLocation, ImageLocation, Location, TabularLocation, TextLocation,
+};
 
 /// Engine-level document combining content, metadata, and artifacts.
 ///
@@ -39,6 +41,7 @@ impl Document {
     pub fn new(handle: ContentHandle, metadata: ContentMetadata) -> Self {
         let artifacts = match &handle {
             ContentHandle::Text(_) => ContentArtifacts::text(),
+            ContentHandle::Tabular(_) => ContentArtifacts::tabular(),
             ContentHandle::Image(_) => ContentArtifacts::image(),
             ContentHandle::Audio(_) => ContentArtifacts::audio(),
             ContentHandle::Rich(_) => ContentArtifacts::rich(),
@@ -70,6 +73,11 @@ impl Document {
         self.handle.text_locations().collect().await
     }
 
+    /// Collect all tabular (cell) locations into a `Vec`.
+    pub async fn collect_tabular_locations(&self) -> Vec<Located<TabularLocation>> {
+        self.handle.tabular_locations().collect().await
+    }
+
     /// Collect all image locations into a `Vec`.
     pub async fn collect_image_locations(&self) -> Vec<Located<ImageLocation>> {
         self.handle.image_locations().collect().await
@@ -83,6 +91,11 @@ impl Document {
     /// Read the text content at the given text location.
     pub async fn read_text(&self, location: &TextLocation) -> Option<TextData> {
         self.handle.read_text(location).await
+    }
+
+    /// Read the cell value at the given tabular location.
+    pub async fn read_tabular(&self, location: &TabularLocation) -> Option<TextData> {
+        self.handle.read_tabular(location).await
     }
 
     /// Read the image data at the given image location.
@@ -103,17 +116,15 @@ impl Document {
     pub async fn value_at(&self, location: &Location) -> Option<String> {
         match location {
             Location::Text(loc) => self.read_text(loc).await.map(TextData::into_inner),
+            Location::Tabular(loc) => self.read_tabular(loc).await.map(TextData::into_inner),
             Location::Audio(_) => self
                 .artifacts
                 .as_audio()
                 .and_then(|a| a.transcription.as_ref())
                 .map(|t| t.text()),
-            // Tabular locations are currently surfaced through the
-            // underlying TextHandler; per-cell extraction would need a
-            // (row, col) → byte-offset bridge that the engine no longer
-            // owns. Image OCR results are multi-region; per-location
-            // lookup is not yet implemented.
-            Location::Tabular(_) | Location::Image(_) => None,
+            // Image OCR results are multi-region; per-location lookup
+            // is not yet implemented.
+            Location::Image(_) => None,
             _ => None,
         }
     }
@@ -124,6 +135,14 @@ impl Document {
         redactions: Redactions<TextLocation, TextRedaction>,
     ) -> Result<(), Error> {
         self.handle.apply_text_redactions(redactions).await
+    }
+
+    /// Apply a batch of tabular redactions to the document.
+    pub async fn apply_tabular_redactions(
+        &mut self,
+        redactions: Redactions<TabularLocation, TabularRedaction>,
+    ) -> Result<(), Error> {
+        self.handle.apply_tabular_redactions(redactions).await
     }
 
     /// Apply a batch of image redactions to the document.
@@ -162,4 +181,5 @@ impl Document {
         let handle = ContentHandle::decode(&content).await.expect("decode text");
         Self::new(handle, meta)
     }
+
 }

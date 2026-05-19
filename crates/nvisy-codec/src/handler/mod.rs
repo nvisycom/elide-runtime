@@ -15,6 +15,7 @@ use nvisy_core::media::DocumentType;
 mod audio;
 mod image;
 mod rich;
+mod tabular;
 mod text;
 
 use nvisy_core::content::ContentSource;
@@ -22,6 +23,7 @@ use nvisy_core::content::ContentSource;
 pub use self::audio::*;
 pub use self::image::*;
 pub use self::rich::*;
+pub use self::tabular::*;
 pub use self::text::*;
 
 /// Base trait implemented by all format handlers.

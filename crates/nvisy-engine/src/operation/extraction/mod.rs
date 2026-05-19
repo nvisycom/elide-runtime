@@ -76,10 +76,10 @@ impl Operation for ExtractionOp {
                     op.execute(envelope).await?;
                 }
             }
-            ContentHandle::Text(_) => {
-                // Text documents are already structured text — no
-                // extraction needed. Future: whitespace normalization.
-                tracing::debug!(target: TARGET, "text document, no extraction needed");
+            ContentHandle::Text(_) | ContentHandle::Tabular(_) => {
+                // Text and tabular documents are already structured —
+                // no extraction needed. Future: whitespace normalization.
+                tracing::debug!(target: TARGET, "structured document, no extraction needed");
             }
         }
         Ok(())

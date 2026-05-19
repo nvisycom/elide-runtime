@@ -65,16 +65,21 @@ impl TextOutput {
 }
 
 impl Mergeable for TextRedaction {
-    fn overlaps(&self, other: &Self) -> bool {
-        self.start < other.end && other.start < self.end
-    }
-
-    /// Merge two overlapping text redactions.
+    /// Merge two text redactions targeting overlapping byte ranges
+    /// within the same line/span. Returns `Some` only when both share
+    /// the same [`TextOutput`] — the merged redaction unions the byte
+    /// ranges. Returns `None` when the outputs differ (e.g.
+    /// `Replace { "[A]" }` vs `Replace { "[B]" }`), since picking one
+    /// would silently drop a redaction.
     ///
-    /// Returns `Some` only when both share the same [`TextOutput`] —
-    /// the merged redaction unions the byte ranges. Returns `None`
-    /// when the outputs differ (e.g. `Replace { "[A]" }` vs `Replace { "[B]" }`),
-    /// since picking one would silently drop a redaction.
+    /// Unlike the other modalities, `TextRedaction` carries its own
+    /// intra-span range — `TextLocation` represents the *containing*
+    /// line/page, not the redacted byte range itself. Two redactions
+    /// on the same line with disjoint byte ranges should both apply.
+    /// The caller is responsible for not relying on `try_merge` to
+    /// detect intra-line overlap — that check belongs to the
+    /// applicator, which sorts redactions per-line and applies them
+    /// right-to-left.
     fn try_merge(self, other: Self) -> Option<Self> {
         if self.output != other.output {
             return None;

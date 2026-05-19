@@ -63,6 +63,9 @@ thiserror = { workspace = true, features = [] }
 image = { workspace = true, features = [] }
 imageproc = { workspace = true, features = [] }
 
+# Audio processing
+hound = { workspace = true, features = [] }
+
 # PDF processing (feature-gated)
 lopdf = { workspace = true, optional = true, features = [] }
 pdfium-render = { workspace = true, optional = true, features = [] }

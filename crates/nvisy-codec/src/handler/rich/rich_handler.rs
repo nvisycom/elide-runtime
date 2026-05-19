@@ -13,7 +13,7 @@ use crate::document::LocationStream;
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, ImageHandler, TextHandler};
-use crate::transform::{ImageRedaction, Redactions, TextRedaction};
+use crate::transform::{ImageRedaction, TextRedaction};
 
 /// A type-erased rich-document handler backed by a boxed trait object.
 pub struct BoxedRichHandler(Box<dyn RichHandler>);
@@ -23,16 +23,18 @@ pub struct BoxedRichHandler(Box<dyn RichHandler>);
 pub(crate) trait RichHandler: Handler + Send + Sync {
     fn text_locations(&self) -> LocationStream<'_, TextLocation>;
     async fn read_text(&self, location: &TextLocation) -> Option<TextData>;
-    async fn redact_text(
+    async fn redact_text_at(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        location: &TextLocation,
+        redaction: TextRedaction,
     ) -> Result<(), Error>;
 
     fn image_locations(&self) -> LocationStream<'_, ImageLocation>;
     async fn read_image(&self, location: &ImageLocation) -> Option<ImageData>;
-    async fn redact_images(
+    async fn redact_image_at(
         &mut self,
-        redactions: Redactions<ImageLocation, ImageRedaction>,
+        location: &ImageLocation,
+        redaction: ImageRedaction,
     ) -> Result<(), Error>;
 }
 
@@ -47,11 +49,12 @@ impl RichHandler for RichTextHandler {
         TextHandler::read(self, location).await
     }
 
-    async fn redact_text(
+    async fn redact_text_at(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        location: &TextLocation,
+        redaction: TextRedaction,
     ) -> Result<(), Error> {
-        TextHandler::redact(self, redactions).await
+        TextHandler::redact_at(self, location, redaction).await
     }
 
     fn image_locations(&self) -> LocationStream<'_, ImageLocation> {
@@ -62,11 +65,12 @@ impl RichHandler for RichTextHandler {
         ImageHandler::read(self, location).await
     }
 
-    async fn redact_images(
+    async fn redact_image_at(
         &mut self,
-        redactions: Redactions<ImageLocation, ImageRedaction>,
+        location: &ImageLocation,
+        redaction: ImageRedaction,
     ) -> Result<(), Error> {
-        ImageHandler::redact(self, redactions).await
+        ImageHandler::redact_at(self, location, redaction).await
     }
 }
 
@@ -115,11 +119,12 @@ impl TextHandler for BoxedRichHandler {
         self.0.read_text(location).await
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        location: &TextLocation,
+        redaction: TextRedaction,
     ) -> Result<(), Error> {
-        self.0.redact_text(redactions).await
+        self.0.redact_text_at(location, redaction).await
     }
 }
 
@@ -133,10 +138,11 @@ impl ImageHandler for BoxedRichHandler {
         self.0.read_image(location).await
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<ImageLocation, ImageRedaction>,
+        location: &ImageLocation,
+        redaction: ImageRedaction,
     ) -> Result<(), Error> {
-        self.0.redact_images(redactions).await
+        self.0.redact_image_at(location, redaction).await
     }
 }

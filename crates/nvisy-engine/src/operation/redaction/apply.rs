@@ -158,23 +158,18 @@ impl<'a> RedactionApplicator<'a> {
                 self.envelope.redaction_map.entries[idx].replacement = replacement;
             }
 
-            // Intra-cell byte range: prefer explicit offsets if the
-            // entity provided them, otherwise redact the entire cell.
-            let start = loc.start_offset.unwrap_or(0);
-            let end = loc.end_offset.unwrap_or(value.len());
-
             tracing::trace!(
                 target: TARGET,
                 %entity_id,
                 row = loc.row_index,
                 col = loc.column_index,
-                start,
-                end,
+                start = ?loc.start_offset,
+                end = ?loc.end_offset,
                 "built tabular redaction instruction",
             );
 
             redactions
-                .try_insert(loc.clone(), TabularRedaction::new(start, end, output))
+                .try_insert(loc.clone(), TabularRedaction::new(output))
                 .map_err(|e| Error::validation(e.to_string(), "redaction-apply-tabular"))?;
         }
 
@@ -221,7 +216,7 @@ impl<'a> RedactionApplicator<'a> {
             );
 
             redactions
-                .try_insert(loc.clone(), ImageRedaction::new(loc.bounding_box, output))
+                .try_insert(loc.clone(), ImageRedaction::new(output))
                 .map_err(|e| Error::validation(e.to_string(), "redaction-apply-image"))?;
         }
 
@@ -270,7 +265,7 @@ impl<'a> RedactionApplicator<'a> {
             );
 
             redactions
-                .try_insert(loc.clone(), AudioRedaction::new(loc.time_span, output))
+                .try_insert(loc.clone(), AudioRedaction::new(output))
                 .map_err(|e| Error::validation(e.to_string(), "redaction-apply-audio"))?;
         }
 

@@ -10,7 +10,7 @@ use nvisy_ontology::entity::AudioLocation;
 use super::{AudioData, Mp3Handler, WavHandler};
 use crate::document::LocationStream;
 use crate::handler::{AudioHandler, Handler};
-use crate::transform::{AudioRedaction, Redactions};
+use crate::transform::AudioRedaction;
 
 /// A type-erased audio handler backed by a boxed trait object.
 pub struct BoxedAudioHandler(Box<dyn AudioHandler>);
@@ -66,10 +66,11 @@ impl AudioHandler for BoxedAudioHandler {
         self.0.read(location).await
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<AudioLocation, AudioRedaction>,
+        location: &AudioLocation,
+        redaction: AudioRedaction,
     ) -> Result<(), Error> {
-        self.0.redact(redactions).await
+        self.0.redact_at(location, redaction).await
     }
 }

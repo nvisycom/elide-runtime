@@ -14,7 +14,7 @@ use nvisy_ontology::entity::TabularLocation;
 
 use crate::document::LocationStream;
 use crate::handler::{Handler, TabularHandler, TextData};
-use crate::transform::{Redactions, TabularRedaction};
+use crate::transform::TabularRedaction;
 
 #[derive(Debug, Default)]
 pub struct XlsxHandler {
@@ -62,9 +62,10 @@ impl TabularHandler for XlsxHandler {
         None
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        _redactions: Redactions<TabularLocation, TabularRedaction>,
+        _location: &TabularLocation,
+        _redaction: TabularRedaction,
     ) -> Result<(), Error> {
         Ok(())
     }

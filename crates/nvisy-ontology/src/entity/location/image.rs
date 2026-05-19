@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::Overlap;
+use super::{Mergeable, Overlap};
 use crate::primitive::BoundingBox;
 
 /// Location of an entity within an image.
@@ -45,5 +45,21 @@ impl ImageLocation {
 impl Overlap for ImageLocation {
     fn overlaps(&self, other: &Self) -> bool {
         self.bounding_box.overlaps(&other.bounding_box)
+    }
+}
+
+impl Mergeable for ImageLocation {
+    /// Merge two image locations by unioning bounding boxes when their
+    /// `image_id` and `page_number` match. Different documents or
+    /// different pages cannot merge.
+    fn try_merge(self, other: Self) -> Option<Self> {
+        if self.image_id != other.image_id || self.page_number != other.page_number {
+            return None;
+        }
+        Some(Self {
+            bounding_box: self.bounding_box.union(&other.bounding_box),
+            image_id: self.image_id,
+            page_number: self.page_number,
+        })
     }
 }

@@ -1,32 +1,27 @@
 //! Image redaction instruction types.
 
-use nvisy_ontology::primitive::{BoundingBox, Color};
+use nvisy_ontology::primitive::Color;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::transform::Mergeable;
 
-/// An image redaction targeting a bounding box within its containing span.
+/// An image redaction: the *how*. The *where* (bounding box, page
+/// number, image id) lives on the containing [`ImageLocation`] via
+/// [`Redactions`]'s `(S, R)` pairs.
 ///
-/// Span identity is supplied externally via [`Redactions`] — this
-/// struct only carries the bounding box and the rendering method.
-///
+/// [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
 /// [`Redactions`]: crate::transform::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageRedaction {
-    /// Bounding box of the region to redact within the span.
-    pub(crate) bounding_box: BoundingBox,
     /// The redaction output that determines the rendering method.
     pub(crate) output: ImageOutput,
 }
 
 impl ImageRedaction {
-    /// Create a new image redaction.
-    pub fn new(bounding_box: BoundingBox, output: ImageOutput) -> Self {
-        Self {
-            bounding_box,
-            output,
-        }
+    /// Create a new image redaction with the given output.
+    pub fn new(output: ImageOutput) -> Self {
+        Self { output }
     }
 }
 
@@ -45,23 +40,10 @@ pub enum ImageOutput {
 }
 
 impl Mergeable for ImageRedaction {
-    fn overlaps(&self, other: &Self) -> bool {
-        self.bounding_box.overlaps(&other.bounding_box)
-    }
-
-    /// Merge two overlapping image redactions.
-    ///
-    /// Returns `Some` only when both share the same [`ImageOutput`]
-    /// (method *and* parameters) — the merged redaction unions the
-    /// bounding boxes. Returns `None` when the methods differ (e.g.
-    /// `Blur { sigma: 5.0 }` vs `Pixelate { block_size: 10 }`).
+    /// Combine two redactions that target overlapping locations.
+    /// Returns `Some` only when the outputs match (method *and*
+    /// parameters); a Blur and a Pixelate cannot be reconciled.
     fn try_merge(self, other: Self) -> Option<Self> {
-        if self.output != other.output {
-            return None;
-        }
-        Some(Self {
-            bounding_box: self.bounding_box.union(&other.bounding_box),
-            output: self.output,
-        })
+        (self.output == other.output).then_some(self)
     }
 }

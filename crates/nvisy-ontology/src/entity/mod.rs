@@ -24,8 +24,8 @@ pub use self::annotation::{Annotation, AnnotationKind, AnnotationTarget, Annotat
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;
 pub use self::location::{
-    AudioLocation, AudioLocationBuilder, ImageLocation, ImageLocationBuilder, Location, Overlap,
-    TabularLocation, TabularLocationBuilder, TextLocation, TextLocationBuilder,
+    AudioLocation, AudioLocationBuilder, ImageLocation, ImageLocationBuilder, Location, Mergeable,
+    Overlap, TabularLocation, TabularLocationBuilder, TextLocation, TextLocationBuilder,
 };
 pub use self::method::{
     AnnotationProvenance, ExtractionMethod, ModelKind, ModelProvenance, PatternProvenance,

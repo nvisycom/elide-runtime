@@ -18,7 +18,8 @@ use nvisy_ontology::entity::TextLocation;
 use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-use crate::transform::{Redactions, TextRedaction, apply_text_redactions};
+use super::apply_text_redaction;
+use crate::transform::TextRedaction;
 
 const TARGET: &str = "txt-handler";
 
@@ -89,24 +90,19 @@ impl TextHandler for TxtHandler {
         line.get(local_start..local_end).map(TextData::from)
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        location: &TextLocation,
+        redaction: TextRedaction,
     ) -> Result<(), Error> {
-        if redactions.is_empty() {
-            return Ok(());
-        }
         let offsets = self.line_offsets();
-        for (loc, items) in redactions {
-            let Some(line_idx) = offsets
-                .iter()
-                .position(|&(start, _)| start == loc.start_offset)
-            else {
-                continue;
-            };
-            apply_text_redactions(&mut self.lines[line_idx], &items, TARGET)?;
-        }
-        Ok(())
+        let Some(line_idx) = offsets
+            .iter()
+            .position(|&(start, _)| start == location.start_offset)
+        else {
+            return Ok(());
+        };
+        apply_text_redaction(&mut self.lines[line_idx], &redaction, TARGET)
     }
 }
 
@@ -172,7 +168,7 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::transform::{ConflictPolicy, TextOutput};
+    use crate::transform::{ConflictPolicy, Redactions, TextOutput, TextTransform};
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');

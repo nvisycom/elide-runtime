@@ -1,48 +1,40 @@
-//! Generic [`Redactions`] collection keyed by span identity.
+//! Generic [`Redactions`] collection of `(location, redaction)` pairs
+//! with overlap detection on insert.
 //!
-//! Stores redactions grouped by their target span, with overlap
-//! detection on insert. The [`ConflictPolicy`] decides what happens
-//! when two redactions overlap within the same span. See the
-//! [`mergeable`] and [`policy`] modules for the traits and types
-//! that govern collection behavior.
+//! The collection is a flat `Vec<(S, R)>` ordered by insertion. On
+//! [`try_insert`], `S::overlaps` checks for a collision with any
+//! existing entry; under [`ConflictPolicy::Merge`], both
+//! `S::try_merge` and `R::try_merge` must succeed to fuse the entries.
 //!
-//! Transforms consume a `Redactions` instead of a flat slice, so the
-//! grouping + overlap-checking work is done once at the engine
-//! boundary rather than re-done in each handler. The collection does
-//! not expose raw map access: callers consume the collection via
-//! [`IntoIterator`].
+//! Callers consume the collection via [`IntoIterator`] yielding `(S, R)`.
 //!
 //! [`Redactions`]: crate::transform::Redactions
-//! [`ConflictPolicy`]: crate::transform::ConflictPolicy
-//! [`mergeable`]: crate::transform::mergeable
-//! [`policy`]: crate::transform::policy
+//! [`ConflictPolicy::Merge`]: crate::transform::ConflictPolicy::Merge
+//! [`try_insert`]: Redactions::try_insert
 
 use std::fmt;
 
-use super::mergeable::Mergeable;
+use nvisy_ontology::entity::{Mergeable, Overlap};
+
 use super::policy::{ConflictPolicy, InsertError};
 
-/// A set of redactions grouped by their target span, with overlap
-/// detection on insert.
+/// A set of `(location, redaction)` pairs with overlap detection on
+/// insert.
 ///
-/// `S` is the span identity (e.g. [`TextLocation`], [`ImageLocation`])
-/// and must implement [`PartialEq`] so the collection can find the
-/// span an inserted redaction belongs to.
+/// `S` is the location key. It must implement [`Overlap`] (for
+/// collision detection) and [`Mergeable`] (for the [`Merge`] policy).
 ///
-/// `R` is the per-span redaction payload (e.g. [`TextRedaction`])
-/// and must implement [`Mergeable`] to support overlap detection.
+/// `R` is the redaction payload. It must implement [`Mergeable`] —
+/// the collection asks both `S` and `R` whether they can be merged
+/// before fusing two colliding entries.
 ///
-/// Internally backed by a `Vec<(S, Vec<R>)>` — span counts are
-/// typically small and insertion order matters for deterministic
-/// downstream behavior, so a `HashMap` would be more cost than
-/// benefit and would not work for keys with `f64` fields anyway.
+/// Internally backed by a `Vec<(S, R)>`. Entry counts are typically
+/// small (per-document), so linear scans are cheap.
 ///
-/// [`TextLocation`]: nvisy_ontology::entity::TextLocation
-/// [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
-/// [`TextRedaction`]: crate::transform::TextRedaction
+/// [`Merge`]: ConflictPolicy::Merge
 pub struct Redactions<S, R> {
     policy: ConflictPolicy,
-    spans: Vec<(S, Vec<R>)>,
+    items: Vec<(S, R)>,
 }
 
 impl<S, R> Redactions<S, R> {
@@ -50,7 +42,7 @@ impl<S, R> Redactions<S, R> {
     pub fn new(policy: ConflictPolicy) -> Self {
         Self {
             policy,
-            spans: Vec::new(),
+            items: Vec::new(),
         }
     }
 
@@ -59,70 +51,57 @@ impl<S, R> Redactions<S, R> {
         self.policy
     }
 
-    /// Total number of redactions across all spans.
+    /// Total number of redactions.
     pub fn len(&self) -> usize {
-        self.spans.iter().map(|(_, rs)| rs.len()).sum()
-    }
-
-    /// Number of distinct spans that hold redactions.
-    pub fn span_count(&self) -> usize {
-        self.spans.len()
+        self.items.len()
     }
 
     /// Returns `true` if the collection holds no redactions.
     pub fn is_empty(&self) -> bool {
-        self.spans.iter().all(|(_, rs)| rs.is_empty())
+        self.items.is_empty()
     }
 }
 
 impl<S, R> Redactions<S, R>
 where
-    S: PartialEq,
+    S: Overlap + Mergeable,
     R: Mergeable,
 {
-    /// Insert a redaction targeting the given span.
+    /// Insert a `(location, redaction)` pair.
     ///
-    /// If the span already holds an overlapping redaction, behavior
+    /// If `location` overlaps any existing entry's location, behavior
     /// is determined by the configured [`ConflictPolicy`]:
     ///
     /// - [`Reject`]: returns [`InsertError::OverlapRejected`].
-    /// - [`Merge`]: attempts to merge; returns
-    ///   [`InsertError::NotMergeable`] when the merge fails.
-    /// - [`Replace`]: drops the existing overlapping redaction and
+    /// - [`Merge`]: attempts to merge both location and redaction;
+    ///   returns [`InsertError::NotMergeable`] if either rejects.
+    /// - [`Replace`]: drops the existing overlapping entry and
     ///   inserts the new one.
     ///
     /// [`Reject`]: ConflictPolicy::Reject
     /// [`Merge`]: ConflictPolicy::Merge
     /// [`Replace`]: ConflictPolicy::Replace
-    pub fn try_insert(&mut self, span: S, redaction: R) -> Result<(), InsertError> {
-        let bucket = match self.spans.iter().position(|(s, _)| s == &span) {
-            Some(idx) => &mut self.spans[idx].1,
-            None => {
-                self.spans.push((span, vec![redaction]));
-                return Ok(());
-            }
-        };
-
-        let overlap_idx = bucket.iter().position(|r| r.overlaps(&redaction));
+    pub fn try_insert(&mut self, location: S, redaction: R) -> Result<(), InsertError> {
+        let overlap_idx = self.items.iter().position(|(s, _)| s.overlaps(&location));
         let Some(idx) = overlap_idx else {
-            bucket.push(redaction);
+            self.items.push((location, redaction));
             return Ok(());
         };
 
         match self.policy {
             ConflictPolicy::Reject => Err(InsertError::OverlapRejected),
             ConflictPolicy::Replace => {
-                bucket[idx] = redaction;
+                self.items[idx] = (location, redaction);
                 Ok(())
             }
             ConflictPolicy::Merge => {
-                let existing = bucket.remove(idx);
-                match existing.try_merge(redaction) {
-                    Some(merged) => {
-                        bucket.push(merged);
+                let (existing_s, existing_r) = self.items.remove(idx);
+                match (existing_s.try_merge(location), existing_r.try_merge(redaction)) {
+                    (Some(merged_s), Some(merged_r)) => {
+                        self.items.push((merged_s, merged_r));
                         Ok(())
                     }
-                    None => Err(InsertError::NotMergeable),
+                    _ => Err(InsertError::NotMergeable),
                 }
             }
         }
@@ -136,13 +115,13 @@ impl<S, R> Default for Redactions<S, R> {
 }
 
 impl<S, R> IntoIterator for Redactions<S, R> {
-    type IntoIter = std::vec::IntoIter<(S, Vec<R>)>;
-    type Item = (S, Vec<R>);
+    type IntoIter = std::vec::IntoIter<(S, R)>;
+    type Item = (S, R);
 
-    /// Consume the collection, yielding each span paired with its
-    /// owned redactions in insertion order.
+    /// Consume the collection, yielding each `(location, redaction)`
+    /// pair in insertion order.
     fn into_iter(self) -> Self::IntoIter {
-        self.spans.into_iter()
+        self.items.into_iter()
     }
 }
 
@@ -150,7 +129,6 @@ impl<S: fmt::Debug, R: fmt::Debug> fmt::Debug for Redactions<S, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Redactions")
             .field("policy", &self.policy)
-            .field("spans", &self.spans.len())
             .field("redactions", &self.len())
             .finish()
     }
@@ -161,116 +139,94 @@ mod tests {
     use super::*;
 
     #[derive(Debug, Clone, PartialEq)]
-    struct R {
+    struct S {
         start: usize,
         end: usize,
-        out: String,
     }
 
-    impl R {
-        fn new(start: usize, end: usize, out: &str) -> Self {
-            Self {
-                start,
-                end,
-                out: out.to_owned(),
-            }
+    impl S {
+        fn new(start: usize, end: usize) -> Self {
+            Self { start, end }
         }
     }
 
-    impl Mergeable for R {
+    impl Overlap for S {
         fn overlaps(&self, other: &Self) -> bool {
             self.start < other.end && other.start < self.end
         }
+    }
 
+    impl Mergeable for S {
         fn try_merge(self, other: Self) -> Option<Self> {
-            if self.out != other.out {
-                return None;
-            }
-            Some(R {
+            Some(Self {
                 start: self.start.min(other.start),
                 end: self.end.max(other.end),
-                out: self.out,
             })
         }
     }
 
-    #[test]
-    fn insert_into_new_span() {
-        let mut rs = Redactions::<u32, R>::new(ConflictPolicy::Reject);
-        rs.try_insert(0, R::new(0, 5, "x")).unwrap();
-        assert_eq!(rs.len(), 1);
-        assert_eq!(rs.span_count(), 1);
+    #[derive(Debug, Clone, PartialEq)]
+    struct R(&'static str);
+
+    impl Mergeable for R {
+        fn try_merge(self, other: Self) -> Option<Self> {
+            (self.0 == other.0).then_some(self)
+        }
     }
 
     #[test]
-    fn insert_non_overlapping_into_same_span() {
-        let mut rs = Redactions::<u32, R>::new(ConflictPolicy::Reject);
-        rs.try_insert(0, R::new(0, 5, "x")).unwrap();
-        rs.try_insert(0, R::new(10, 15, "y")).unwrap();
+    fn insert_non_overlapping_keeps_both() {
+        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Reject);
+        rs.try_insert(S::new(0, 5), R("x")).unwrap();
+        rs.try_insert(S::new(10, 15), R("y")).unwrap();
         assert_eq!(rs.len(), 2);
-        assert_eq!(rs.span_count(), 1);
-    }
-
-    #[test]
-    fn insert_into_different_spans() {
-        let mut rs = Redactions::<u32, R>::new(ConflictPolicy::Reject);
-        rs.try_insert(0, R::new(0, 5, "x")).unwrap();
-        rs.try_insert(1, R::new(0, 5, "x")).unwrap();
-        assert_eq!(rs.span_count(), 2);
     }
 
     #[test]
     fn reject_policy_errors_on_overlap() {
-        let mut rs = Redactions::<u32, R>::new(ConflictPolicy::Reject);
-        rs.try_insert(0, R::new(0, 5, "x")).unwrap();
-        let err = rs.try_insert(0, R::new(3, 8, "y")).unwrap_err();
+        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Reject);
+        rs.try_insert(S::new(0, 5), R("x")).unwrap();
+        let err = rs.try_insert(S::new(3, 8), R("y")).unwrap_err();
         assert!(matches!(err, InsertError::OverlapRejected));
         assert_eq!(rs.len(), 1);
     }
 
     #[test]
     fn replace_policy_overwrites_overlap() {
-        let mut rs = Redactions::<u32, R>::new(ConflictPolicy::Replace);
-        rs.try_insert(0, R::new(0, 5, "x")).unwrap();
-        rs.try_insert(0, R::new(3, 8, "y")).unwrap();
+        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Replace);
+        rs.try_insert(S::new(0, 5), R("x")).unwrap();
+        rs.try_insert(S::new(3, 8), R("y")).unwrap();
         assert_eq!(rs.len(), 1);
-        let (_, items) = rs.into_iter().next().unwrap();
-        assert_eq!(items[0].out, "y");
+        let (s, r) = rs.into_iter().next().unwrap();
+        assert_eq!((s.start, s.end), (3, 8));
+        assert_eq!(r.0, "y");
     }
 
     #[test]
-    fn merge_policy_combines_same_output() {
-        let mut rs = Redactions::<u32, R>::new(ConflictPolicy::Merge);
-        rs.try_insert(0, R::new(0, 5, "x")).unwrap();
-        rs.try_insert(0, R::new(3, 8, "x")).unwrap();
+    fn merge_policy_combines_same_payload() {
+        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Merge);
+        rs.try_insert(S::new(0, 5), R("x")).unwrap();
+        rs.try_insert(S::new(3, 8), R("x")).unwrap();
         assert_eq!(rs.len(), 1);
-        let (_, items) = rs.into_iter().next().unwrap();
-        assert_eq!(items[0].start, 0);
-        assert_eq!(items[0].end, 8);
+        let (s, _) = rs.into_iter().next().unwrap();
+        assert_eq!((s.start, s.end), (0, 8));
     }
 
     #[test]
-    fn merge_policy_errors_when_unmergeable() {
-        let mut rs = Redactions::<u32, R>::new(ConflictPolicy::Merge);
-        rs.try_insert(0, R::new(0, 5, "x")).unwrap();
-        let err = rs.try_insert(0, R::new(3, 8, "y")).unwrap_err();
+    fn merge_policy_errors_when_payload_differs() {
+        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Merge);
+        rs.try_insert(S::new(0, 5), R("x")).unwrap();
+        let err = rs.try_insert(S::new(3, 8), R("y")).unwrap_err();
         assert!(matches!(err, InsertError::NotMergeable));
     }
 
     #[test]
     fn into_iter_preserves_insertion_order() {
-        let mut rs = Redactions::<u32, R>::new(ConflictPolicy::Reject);
-        rs.try_insert(2, R::new(0, 5, "x")).unwrap();
-        rs.try_insert(0, R::new(0, 5, "x")).unwrap();
-        rs.try_insert(1, R::new(0, 5, "x")).unwrap();
-        let spans: Vec<u32> = rs.into_iter().map(|(s, _)| s).collect();
-        assert_eq!(spans, vec![2, 0, 1]);
-    }
-
-    #[test]
-    fn empty_and_len() {
-        let rs = Redactions::<u32, R>::new(ConflictPolicy::Reject);
-        assert!(rs.is_empty());
-        assert_eq!(rs.len(), 0);
+        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Reject);
+        rs.try_insert(S::new(20, 25), R("a")).unwrap();
+        rs.try_insert(S::new(0, 5), R("b")).unwrap();
+        rs.try_insert(S::new(10, 15), R("c")).unwrap();
+        let starts: Vec<usize> = rs.into_iter().map(|(s, _)| s.start).collect();
+        assert_eq!(starts, vec![20, 0, 10]);
     }
 }

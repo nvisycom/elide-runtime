@@ -1,7 +1,7 @@
 //! Text redaction primitives.
 
-mod apply;
 mod instruction;
+mod transform;
 
-pub(crate) use self::apply::apply_text_redactions;
 pub use self::instruction::{TextOutput, TextRedaction};
+pub use self::transform::TextTransform;

@@ -5,8 +5,9 @@ use nvisy_ontology::entity::TextLocation;
 
 use super::Handler;
 use crate::document::LocationStream;
-use crate::transform::{Redactions, TextRedaction};
+use crate::transform::TextRedaction;
 
+mod apply;
 #[cfg(feature = "html")]
 mod html_handler;
 #[cfg(feature = "html")]
@@ -18,6 +19,8 @@ mod text_data;
 mod text_handler;
 mod txt_handler;
 mod txt_loader;
+
+pub(crate) use self::apply::apply_text_redaction;
 
 #[cfg(feature = "html")]
 pub use self::html_handler::{HtmlData, HtmlHandler};
@@ -61,12 +64,15 @@ pub trait TextHandler: Handler {
     /// Returns `None` if the location is out of bounds.
     async fn read(&self, location: &TextLocation) -> Option<TextData>;
 
-    /// Apply a batch of redactions grouped by [`TextLocation`].
+    /// Apply a single redaction at the given location, mutating in
+    /// place. Implementations need not handle iteration or overlap —
+    /// the blanket [`TextTransform::redact`] feeds one
+    /// `(location, redaction)` pair at a time.
     ///
-    /// The collection enforces overlap policy on insert; this method
-    /// trusts that ranges within a single location do not overlap.
-    async fn redact(
+    /// [`TextTransform::redact`]: crate::transform::TextTransform::redact
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        location: &TextLocation,
+        redaction: TextRedaction,
     ) -> Result<(), Error>;
 }

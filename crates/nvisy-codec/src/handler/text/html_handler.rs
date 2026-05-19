@@ -15,7 +15,8 @@ use nvisy_ontology::entity::TextLocation;
 use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-use crate::transform::{Redactions, TextRedaction, apply_text_redactions};
+use super::apply_text_redaction;
+use crate::transform::TextRedaction;
 
 const TARGET: &str = "html-handler";
 
@@ -102,24 +103,19 @@ impl TextHandler for HtmlHandler {
         self.data.text_nodes.get(idx).cloned().map(TextData::from)
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        location: &TextLocation,
+        redaction: TextRedaction,
     ) -> Result<(), Error> {
-        if redactions.is_empty() {
-            return Ok(());
-        }
         let offsets = self.node_offsets();
-        for (loc, items) in redactions {
-            let Some(idx) = offsets
-                .iter()
-                .position(|&(start, _)| start == loc.start_offset)
-            else {
-                continue;
-            };
-            apply_text_redactions(&mut self.data.text_nodes[idx], &items, TARGET)?;
-        }
-        Ok(())
+        let Some(idx) = offsets
+            .iter()
+            .position(|&(start, _)| start == location.start_offset)
+        else {
+            return Ok(());
+        };
+        apply_text_redaction(&mut self.data.text_nodes[idx], &redaction, TARGET)
     }
 }
 
@@ -189,7 +185,7 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::transform::{ConflictPolicy, TextOutput};
+    use crate::transform::{ConflictPolicy, Redactions, TextOutput, TextTransform};
 
     fn handler_from_html(raw: &str) -> HtmlHandler {
         let dom = scraper::Html::parse_document(raw);

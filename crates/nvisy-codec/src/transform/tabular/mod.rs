@@ -1,7 +1,7 @@
 //! Tabular redaction primitives.
 
-mod apply;
 mod instruction;
+mod transform;
 
-pub(crate) use self::apply::apply_tabular_redactions;
 pub use self::instruction::TabularRedaction;
+pub use self::transform::TabularTransform;

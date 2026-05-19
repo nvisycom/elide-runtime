@@ -18,14 +18,16 @@ use nvisy_ontology::entity::TabularLocation;
 use super::Handler;
 use crate::document::LocationStream;
 use crate::handler::TextData;
-use crate::transform::{Redactions, TabularRedaction};
+use crate::transform::TabularRedaction;
 
+mod apply;
 mod csv_handler;
 mod csv_loader;
 mod tabular_handler;
 mod xlsx_handler;
 mod xlsx_loader;
 
+pub(crate) use self::apply::apply_tabular_redaction;
 pub use self::csv_handler::{CsvData, CsvHandler};
 pub use self::csv_loader::{CsvLoader, CsvParams};
 pub use self::tabular_handler::BoxedTabularHandler;
@@ -34,11 +36,18 @@ pub use self::xlsx_loader::{XlsxLoader, XlsxParams};
 
 /// Capability trait for handlers that expose content by cell coordinate.
 ///
-/// Handlers expose tabular content as a stream of
-/// [`TabularLocation`]s identifying individual cells, with explicit
-/// `read` calls to fetch a cell's value as [`TextData`], and a
-/// `redact` call that applies a batch of [`TabularRedaction`]s
-/// grouped by cell.
+/// Handlers implement three narrow operations:
+/// - [`locations`]: cheap, identity-only stream of [`TabularLocation`]s
+///   identifying individual cells.
+/// - [`read`]: fetch a cell's value as [`TextData`].
+/// - [`redact_at`]: apply a single redaction to a single cell.
+///
+/// Batched redaction lives on the blanket-impl [`TabularTransform::redact`].
+///
+/// [`locations`]: TabularHandler::locations
+/// [`read`]: TabularHandler::read
+/// [`redact_at`]: TabularHandler::redact_at
+/// [`TabularTransform::redact`]: crate::transform::TabularTransform::redact
 #[async_trait::async_trait]
 pub trait TabularHandler: Handler {
     /// Async stream of [`TabularLocation`]s for this document, each
@@ -52,13 +61,12 @@ pub trait TabularHandler: Handler {
     /// Returns `None` if the location is out of bounds.
     async fn read(&self, location: &TabularLocation) -> Option<TextData>;
 
-    /// Apply a batch of redactions grouped by [`TabularLocation`].
-    ///
-    /// Cell identity is supplied by the [`Redactions`] collection's
-    /// keys; each redaction within a cell carries intra-cell byte
-    /// offsets that the handler maps onto its own cell value.
-    async fn redact(
+    /// Apply a single redaction to the cell at `location`, mutating
+    /// in place. The cell coordinates and optional intra-cell byte
+    /// offsets come from `location`.
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TabularLocation, TabularRedaction>,
+        location: &TabularLocation,
+        redaction: TabularRedaction,
     ) -> Result<(), Error>;
 }

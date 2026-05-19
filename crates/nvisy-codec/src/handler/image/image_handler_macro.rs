@@ -70,21 +70,16 @@ macro_rules! impl_image_handler {
                 Some(crate::handler::ImageData::from(cropped))
             }
 
-            async fn redact(
+            async fn redact_at(
                 &mut self,
-                redactions: crate::transform::Redactions<
-                    nvisy_ontology::entity::ImageLocation,
-                    crate::transform::ImageRedaction,
-                >,
+                location: &nvisy_ontology::entity::ImageLocation,
+                redaction: crate::transform::ImageRedaction,
             ) -> Result<(), nvisy_core::Error> {
-                if redactions.is_empty() {
-                    return Ok(());
-                }
-                // Image handlers expose a single full-image location; apply
-                // every redaction in the collection to the single image.
-                for (_loc, items) in redactions {
-                    crate::transform::apply_image_redactions(&mut self.image, &items);
-                }
+                crate::handler::image::apply_image_redaction(
+                    &mut self.image,
+                    &redaction,
+                    location.bounding_box,
+                );
                 Ok(())
             }
         }

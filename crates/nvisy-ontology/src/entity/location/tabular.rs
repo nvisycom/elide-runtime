@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::Overlap;
+use super::{Mergeable, Overlap};
 
 /// Location of an entity within tabular data.
 #[derive(Debug, Clone, PartialEq, Eq, Builder)]
@@ -60,6 +60,40 @@ impl Overlap for TabularLocation {
             (Some(s1), Some(e1), Some(s2), Some(e2)) => s1 < e2 && s2 < e1,
             _ => true, // no offset info → assume full-cell overlap
         }
+    }
+}
+
+impl Mergeable for TabularLocation {
+    /// Merge two tabular locations when their cell coordinates match
+    /// (same `row_index` + `column_index` + `sheet_name`). Intra-cell
+    /// byte offsets union when present on both sides; otherwise the
+    /// result has no offsets (meaning "whole cell").
+    fn try_merge(self, other: Self) -> Option<Self> {
+        if self.row_index != other.row_index
+            || self.column_index != other.column_index
+            || self.sheet_name != other.sheet_name
+        {
+            return None;
+        }
+        let (start, end) = match (
+            self.start_offset,
+            self.end_offset,
+            other.start_offset,
+            other.end_offset,
+        ) {
+            (Some(s1), Some(e1), Some(s2), Some(e2)) => {
+                (Some(s1.min(s2)), Some(e1.max(e2)))
+            }
+            _ => (None, None),
+        };
+        Some(Self {
+            row_index: self.row_index,
+            column_index: self.column_index,
+            start_offset: start,
+            end_offset: end,
+            column_name: self.column_name.or(other.column_name),
+            sheet_name: self.sheet_name,
+        })
     }
 }
 

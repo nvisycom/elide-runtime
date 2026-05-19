@@ -10,7 +10,7 @@ use nvisy_ontology::entity::ImageLocation;
 use super::{ImageData, JpegHandler, PngHandler, TiffHandler};
 use crate::document::LocationStream;
 use crate::handler::{Handler, ImageHandler};
-use crate::transform::{ImageRedaction, Redactions};
+use crate::transform::ImageRedaction;
 
 /// A type-erased image handler backed by a boxed trait object.
 pub struct BoxedImageHandler(Box<dyn ImageHandler>);
@@ -72,10 +72,11 @@ impl ImageHandler for BoxedImageHandler {
         self.0.read(location).await
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<ImageLocation, ImageRedaction>,
+        location: &ImageLocation,
+        redaction: ImageRedaction,
     ) -> Result<(), Error> {
-        self.0.redact(redactions).await
+        self.0.redact_at(location, redaction).await
     }
 }

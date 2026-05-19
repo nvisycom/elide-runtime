@@ -31,7 +31,8 @@ use crate::handler::{HtmlLoader, HtmlParams};
 #[cfg(feature = "pdf")]
 use crate::handler::{PdfLoader, PdfParams};
 use crate::transform::{
-    AudioRedaction, ImageRedaction, Redactions, TabularRedaction, TextRedaction,
+    AudioRedaction, AudioTransform, ImageRedaction, ImageTransform, Redactions, TabularRedaction,
+    TabularTransform, TextRedaction, TextTransform,
 };
 
 /// A fully type-erased document that can hold any supported format.
@@ -170,8 +171,8 @@ impl ContentHandle {
         redactions: Redactions<TextLocation, TextRedaction>,
     ) -> Result<(), Error> {
         match self {
-            Self::Text(h) => h.redact(redactions).await,
-            Self::Rich(h) => TextHandler::redact(h, redactions).await,
+            Self::Text(h) => TextTransform::redact(h, redactions).await,
+            Self::Rich(h) => TextTransform::redact(h, redactions).await,
             Self::Tabular(_) | Self::Image(_) | Self::Audio(_) => Ok(()),
         }
     }
@@ -182,7 +183,7 @@ impl ContentHandle {
         redactions: Redactions<TabularLocation, TabularRedaction>,
     ) -> Result<(), Error> {
         match self {
-            Self::Tabular(h) => h.redact(redactions).await,
+            Self::Tabular(h) => TabularTransform::redact(h, redactions).await,
             _ => Ok(()),
         }
     }
@@ -193,8 +194,8 @@ impl ContentHandle {
         redactions: Redactions<ImageLocation, ImageRedaction>,
     ) -> Result<(), Error> {
         match self {
-            Self::Image(h) => h.redact(redactions).await,
-            Self::Rich(h) => ImageHandler::redact(h, redactions).await,
+            Self::Image(h) => ImageTransform::redact(h, redactions).await,
+            Self::Rich(h) => ImageTransform::redact(h, redactions).await,
             Self::Text(_) | Self::Tabular(_) | Self::Audio(_) => Ok(()),
         }
     }
@@ -205,7 +206,7 @@ impl ContentHandle {
         redactions: Redactions<AudioLocation, AudioRedaction>,
     ) -> Result<(), Error> {
         match self {
-            Self::Audio(h) => h.redact(redactions).await,
+            Self::Audio(h) => AudioTransform::redact(h, redactions).await,
             _ => Ok(()),
         }
     }

@@ -30,6 +30,21 @@ pub trait Overlap {
     fn overlaps(&self, other: &Self) -> bool;
 }
 
+/// Trait for combining two values into one when they can be reconciled.
+///
+/// Used by [`Redactions`] (and any other collection that groups
+/// targets) under a merge policy: when two entries collide (per
+/// [`Overlap`]), the collection asks both the location and the
+/// payload whether they can fuse. Returns `Some(merged)` when the
+/// two can be combined (e.g. unioned bounding boxes, identical
+/// outputs), `None` when they cannot (e.g. different tabular cells,
+/// conflicting replacement strings).
+///
+/// [`Redactions`]: https://docs.rs/nvisy-codec/latest/nvisy_codec/transform/struct.Redactions.html
+pub trait Mergeable: Sized {
+    fn try_merge(self, other: Self) -> Option<Self>;
+}
+
 /// A modality-specific location for a detected entity.
 ///
 /// Exactly one variant is set per entity, enforcing the invariant that

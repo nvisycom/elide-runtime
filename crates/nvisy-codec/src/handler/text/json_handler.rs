@@ -26,7 +26,8 @@ use serde::{Deserialize, Serialize};
 use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-use crate::transform::{Redactions, TextRedaction, apply_text_redactions};
+use super::apply_text_redaction;
+use crate::transform::TextRedaction;
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 const TARGET: &str = "json-handler";
@@ -143,50 +144,36 @@ impl TextHandler for JsonHandler {
             .map(|ls| TextData::from(ls.text))
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        location: &TextLocation,
+        redaction: TextRedaction,
     ) -> Result<(), Error> {
-        if redactions.is_empty() {
-            return Ok(());
-        }
         let located = self.locate_spans();
-
-        let mut value_updates = Vec::new();
-        let mut key_updates = Vec::new();
-
-        for (loc, items) in redactions {
-            let Some(ls) = located
-                .iter()
-                .find(|ls| ls.start == loc.start_offset && ls.end == loc.end_offset)
-            else {
-                continue;
-            };
-            let mut content = ls.text.clone();
-            apply_text_redactions(&mut content, &items, TARGET)?;
-            if ls.path.key_of {
-                key_updates.push((ls.path.clone(), content));
-            } else {
-                value_updates.push((ls.path.clone(), content));
-            }
-        }
-
-        for (path, new_value) in value_updates {
-            let target = self.data.value.pointer_mut(&path.pointer).ok_or_else(|| {
-                Error::validation(format!("JSON pointer not found: {}", path.pointer), TARGET)
+        let Some(ls) = located
+            .into_iter()
+            .find(|ls| ls.start == location.start_offset && ls.end == location.end_offset)
+        else {
+            return Ok(());
+        };
+        let mut content = ls.text.clone();
+        apply_text_redaction(&mut content, &redaction, TARGET)?;
+        if ls.path.key_of {
+            rename_key(&mut self.data.value, &ls.path.pointer, &content)?;
+        } else {
+            let target = self.data.value.pointer_mut(&ls.path.pointer).ok_or_else(|| {
+                Error::validation(
+                    format!("JSON pointer not found: {}", ls.path.pointer),
+                    TARGET,
+                )
             })?;
             if target.is_string() {
-                *target = serde_json::Value::String(new_value);
+                *target = serde_json::Value::String(content);
             } else {
-                *target = serde_json::from_str(&new_value)
-                    .unwrap_or(serde_json::Value::String(new_value));
+                *target = serde_json::from_str(&content)
+                    .unwrap_or(serde_json::Value::String(content));
             }
         }
-
-        for (path, new_key) in key_updates {
-            rename_key(&mut self.data.value, &path.pointer, &new_key)?;
-        }
-
         Ok(())
     }
 }

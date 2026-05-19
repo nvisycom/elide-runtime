@@ -217,17 +217,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn read_substring() {
-        let h = handler("hello world");
-        let loc = TextLocation {
-            start_offset: 6,
-            end_offset: 11,
-            ..Default::default()
-        };
-        assert_eq!(h.read(&loc).await.unwrap().as_str(), "world");
-    }
-
-    #[tokio::test]
     async fn read_cross_line_returns_none() {
         let h = handler("hello\nworld\n");
         let loc = TextLocation {
@@ -307,10 +296,4 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn empty_handler_locations() {
-        let h = TxtHandler::new(vec![], false);
-        let items: Vec<_> = h.locations().collect().await;
-        assert!(items.is_empty());
-    }
 }

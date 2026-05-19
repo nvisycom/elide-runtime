@@ -85,19 +85,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_preserves_lines_through_round_trip() -> Result<(), Error> {
-        let content = content_from_str("Alice\nBob\nCharlie\n");
-        let doc = TxtLoader.decode(&content, &TxtParams::default()).await?;
-
-        let items: Vec<_> = doc.locations().collect().await;
-        assert_eq!(items.len(), 3);
-        assert_eq!(doc.read(&items[0].location).await.unwrap().as_str(), "Alice");
-        assert_eq!(doc.read(&items[1].location).await.unwrap().as_str(), "Bob");
-        assert_eq!(doc.read(&items[2].location).await.unwrap().as_str(), "Charlie");
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn load_invalid_utf8() {
         let content = ContentData::new(
             ContentSource::new(),

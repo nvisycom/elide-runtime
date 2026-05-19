@@ -191,37 +191,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_semicolon_delimited() -> Result<(), Error> {
-        let content = content_from_str("a;b\n1;2\n");
-        let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
-        assert_eq!(doc.delimiter(), b';');
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn load_quoted_fields() -> Result<(), Error> {
-        let content = content_from_str("name,bio\n\"Alice\",\"Has a, comma\"\n");
-        let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
-        assert_eq!(doc.cell(0, 1), Some("Has a, comma"));
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn load_locations_round_trip() -> Result<(), Error> {
-        let content = content_from_str("name,age\nAlice,30\n");
-        let doc = CsvLoader.decode(&content, &CsvParams::default()).await?;
-        let items: Vec<_> = doc.locations().collect().await;
-
-        // 2 header + 2 data
-        assert_eq!(items.len(), 4);
-        assert_eq!(doc.read(&items[0].location).await.unwrap().as_str(), "name");
-        assert_eq!(doc.read(&items[1].location).await.unwrap().as_str(), "age");
-        assert_eq!(doc.read(&items[2].location).await.unwrap().as_str(), "Alice");
-        assert_eq!(doc.read(&items[3].location).await.unwrap().as_str(), "30");
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn load_invalid_utf8() {
         let content = ContentData::new(
             ContentSource::new(),

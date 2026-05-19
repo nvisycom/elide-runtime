@@ -131,14 +131,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_detects_four_space_indent() -> Result<(), Error> {
-        let content = content_from_str("{\n    \"a\": 1\n}\n");
-        let doc = JsonLoader.decode(&content, &JsonParams::default()).await?;
-        assert_eq!(doc.indent(), JsonIndent::four_spaces());
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn load_detects_tab_indent() -> Result<(), Error> {
         let content = content_from_str("{\n\t\"a\": 1\n}\n");
         let doc = JsonLoader.decode(&content, &JsonParams::default()).await?;

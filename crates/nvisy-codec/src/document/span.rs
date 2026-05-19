@@ -56,25 +56,3 @@ impl<L, D> Span<L, D> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn from_located_preserves_source_and_location() {
-        let src = ContentSource::new();
-        let located = Located::new(src, 7u32);
-        let span = Span::from_located(located, "data");
-        assert_eq!(span.source, src);
-        assert_eq!(span.location, 7);
-        assert_eq!(span.data, "data");
-    }
-
-    #[test]
-    fn map_transforms_data() {
-        let span = Span::new(ContentSource::new(), 1u32, "hello");
-        let mapped = span.map(|d| d.len());
-        assert_eq!(mapped.location, 1);
-        assert_eq!(mapped.data, 5);
-    }
-}

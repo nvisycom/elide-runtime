@@ -23,9 +23,7 @@ use crate::document::{Located, LocationStream};
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, ImageHandler, TextHandler};
-use crate::transform::{
-    ImageRedaction, Redactions, TextRedaction, apply_text_redactions,
-};
+use crate::transform::{ImageRedaction, Redactions, TextRedaction, apply_text_redactions};
 
 const TARGET: &str = "rich-text-handler";
 
@@ -327,5 +325,4 @@ mod tests {
             "page one"
         );
     }
-
 }

@@ -17,12 +17,6 @@ use nvisy_ontology::entity::{AudioLocation, ImageLocation, TabularLocation, Text
 pub use self::located::Located;
 pub use self::span::Span;
 pub use self::stream::LocationStream;
-#[cfg(feature = "docx")]
-use crate::handler::{DocxLoader, DocxParams};
-#[cfg(feature = "html")]
-use crate::handler::{HtmlLoader, HtmlParams};
-#[cfg(feature = "pdf")]
-use crate::handler::{PdfLoader, PdfParams};
 use crate::handler::{
     AudioData, AudioHandler, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
     BoxedTabularHandler, BoxedTextHandler, CsvLoader, CsvParams, Handler, ImageData, ImageHandler,
@@ -30,6 +24,12 @@ use crate::handler::{
     Mp3Loader, Mp3Params, PngLoader, PngParams, TabularHandler, TextData, TextHandler, TiffLoader,
     TiffParams, TxtLoader, TxtParams, WavLoader, WavParams, XlsxLoader, XlsxParams,
 };
+#[cfg(feature = "docx")]
+use crate::handler::{DocxLoader, DocxParams};
+#[cfg(feature = "html")]
+use crate::handler::{HtmlLoader, HtmlParams};
+#[cfg(feature = "pdf")]
+use crate::handler::{PdfLoader, PdfParams};
 use crate::transform::{
     AudioRedaction, ImageRedaction, Redactions, TabularRedaction, TextRedaction,
 };
@@ -261,10 +261,7 @@ impl ContentHandle {
         Ok(Self::from(handler))
     }
 
-    async fn decode_tabular(
-        doc_type: DocumentType,
-        content: &ContentData,
-    ) -> Result<Self, Error> {
+    async fn decode_tabular(doc_type: DocumentType, content: &ContentData) -> Result<Self, Error> {
         let handler: BoxedTabularHandler = match doc_type {
             DocumentType::Spreadsheet(SpreadsheetFormat::Csv) => CsvLoader
                 .decode(content, &CsvParams::default())

@@ -16,6 +16,12 @@ fn default_block_size() -> u32 {
 }
 
 /// Image redaction strategy with method-specific configuration.
+///
+/// The [`Default`] impl returns an opaque [`Block`] in [`Color::default`]
+/// (black) — the most-destructive option short of removing the region.
+///
+/// [`Block`]: ImageStrategy::Block
+/// [`Color::default`]: crate::primitive::Color::default
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
@@ -39,4 +45,12 @@ pub enum ImageStrategy {
         #[serde(default = "default_block_size")]
         block_size: u32,
     },
+}
+
+impl Default for ImageStrategy {
+    fn default() -> Self {
+        Self::Block {
+            color: Color::default(),
+        }
+    }
 }

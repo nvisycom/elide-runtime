@@ -321,5 +321,4 @@ mod tests {
         let labels = annotations.document_labels();
         assert_eq!(labels, vec!["medical", "gdpr"]);
     }
-
 }

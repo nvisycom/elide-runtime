@@ -472,5 +472,4 @@ mod tests {
             EntitySensitivity::Low
         );
     }
-
 }

@@ -121,5 +121,4 @@ mod tests {
         };
         assert!(t.time_span().is_none());
     }
-
 }

@@ -53,7 +53,6 @@ mod tests {
         ctx.push(id);
         assert_eq!(ctx.len(), 1);
     }
-
 }
 
 /// A persistent, reusable collection of reference data for detection.

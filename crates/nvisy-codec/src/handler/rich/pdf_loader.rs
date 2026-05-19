@@ -121,5 +121,4 @@ mod tests {
         assert_eq!(doc.page_count(), 1);
         assert!(doc.page(0).unwrap().trim().is_empty());
     }
-
 }

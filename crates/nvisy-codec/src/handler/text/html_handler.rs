@@ -239,11 +239,8 @@ mod tests {
 
     #[tokio::test]
     async fn locations_returns_text_nodes() {
-        let h = handler_from_html(
-            "<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>",
-        );
+        let h = handler_from_html("<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>");
         let items: Vec<_> = h.locations().collect().await;
         assert_eq!(items.len(), 2);
     }
-
 }

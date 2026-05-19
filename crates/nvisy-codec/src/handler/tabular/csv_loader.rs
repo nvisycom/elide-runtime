@@ -202,8 +202,6 @@ mod tests {
         assert!(err.to_string().contains("UTF-8"));
     }
 
-    // --- detect_delimiter unit tests ---
-
     #[test]
     fn detect_tab_delimited() {
         let text = "a\tb\tc\n1\t2\t3\n4\t5\t6\n";

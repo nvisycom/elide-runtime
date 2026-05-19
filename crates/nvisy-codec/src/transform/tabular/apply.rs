@@ -49,4 +49,3 @@ pub(crate) fn apply_tabular_redactions(
 
     Ok(())
 }
-

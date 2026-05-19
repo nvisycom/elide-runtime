@@ -10,6 +10,12 @@ fn default_mask_char() -> char {
 }
 
 /// Text redaction strategy with method-specific configuration.
+///
+/// The [`Default`] impl returns [`Replace`] with an empty placeholder;
+/// the engine fills in `[ENTITY_KIND]` when the placeholder is empty,
+/// producing a neutral marker so users see something was redacted.
+///
+/// [`Replace`]: TextStrategy::Replace
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "method", rename_all = "snake_case")]
@@ -44,4 +50,12 @@ pub enum TextStrategy {
         #[serde(default)]
         vault_id: Option<String>,
     },
+}
+
+impl Default for TextStrategy {
+    fn default() -> Self {
+        Self::Replace {
+            placeholder: String::new(),
+        }
+    }
 }

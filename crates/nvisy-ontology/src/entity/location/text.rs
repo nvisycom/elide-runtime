@@ -99,5 +99,4 @@ mod tests {
     fn no_overlap_disjoint() {
         assert!(!loc(0, 5).overlaps(&loc(10, 15)));
     }
-
 }

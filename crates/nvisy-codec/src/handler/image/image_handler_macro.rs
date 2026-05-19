@@ -35,8 +35,7 @@ macro_rules! impl_image_handler {
         impl crate::handler::ImageHandler for $handler {
             fn locations(
                 &self,
-            ) -> crate::document::LocationStream<'_, nvisy_ontology::entity::ImageLocation>
-            {
+            ) -> crate::document::LocationStream<'_, nvisy_ontology::entity::ImageLocation> {
                 use ::std::iter;
 
                 let (w, h) = (self.image.width(), self.image.height());

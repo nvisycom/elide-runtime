@@ -32,4 +32,3 @@ impl_audio_handler!(
     "mp3-handler",
     "mp3.encode"
 );
-

@@ -181,5 +181,4 @@ impl Document {
         let handle = ContentHandle::decode(&content).await.expect("decode text");
         Self::new(handle, meta)
     }
-
 }

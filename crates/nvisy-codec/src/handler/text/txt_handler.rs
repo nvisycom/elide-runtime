@@ -295,5 +295,4 @@ mod tests {
         assert_eq!(content.as_bytes(), b"no newline");
         Ok(())
     }
-
 }

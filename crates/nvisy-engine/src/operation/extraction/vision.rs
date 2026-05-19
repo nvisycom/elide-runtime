@@ -9,7 +9,9 @@ use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::{Entities, ImageLocation};
 use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
-use nvisy_provider::agent::{ImageFormat, ImageInput, ImageOutput, OcrAgent, VerificationCandidate};
+use nvisy_provider::agent::{
+    ImageFormat, ImageInput, ImageOutput, OcrAgent, VerificationCandidate,
+};
 use nvisy_provider::http::HttpClient;
 
 use crate::operation::{DocumentEnvelope, Operation};
@@ -75,10 +77,7 @@ impl VisualExtractionOp {
     }
 
     /// Run OCR extraction on a batch of image spans.
-    async fn extract(
-        &self,
-        spans: &[Span<ImageLocation, ImageData>],
-    ) -> Result<Vec<ImageOutput>> {
+    async fn extract(&self, spans: &[Span<ImageLocation, ImageData>]) -> Result<Vec<ImageOutput>> {
         if spans.is_empty() {
             return Ok(Vec::new());
         }

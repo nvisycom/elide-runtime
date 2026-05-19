@@ -74,5 +74,4 @@ mod tests {
         let back: CredentialData = serde_json::from_str(&json).unwrap();
         assert_eq!(back.value, "");
     }
-
 }

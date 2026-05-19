@@ -16,7 +16,7 @@ use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::{
     AudioLocation, Entity, EntityKind, ImageLocation, Location, TabularLocation, TextLocation,
 };
-use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, Strategy, TextStrategy};
+use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, TextStrategy};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -43,8 +43,12 @@ impl<'a> RedactionApplicator<'a> {
         let entity_map = entity_map(&self.envelope.audit.entities);
         let mut mapping_index = mapping_index(&self.envelope.redaction_map.entries);
 
-        let text = self.build_text_redactions(&entity_map, &mut mapping_index).await?;
-        let tabular = self.build_tabular_redactions(&entity_map, &mut mapping_index).await?;
+        let text = self
+            .build_text_redactions(&entity_map, &mut mapping_index)
+            .await?;
+        let tabular = self
+            .build_tabular_redactions(&entity_map, &mut mapping_index)
+            .await?;
         let image = self.build_image_redactions(&entity_map, &mut mapping_index)?;
         let audio = self.build_audio_redactions(&entity_map, &mut mapping_index)?;
 
@@ -82,11 +86,8 @@ impl<'a> RedactionApplicator<'a> {
             let Location::Text(ref loc) = entity.location else {
                 continue;
             };
-            let Strategy::Text(ref strategy) = record.redaction.strategy else {
-                log_modality_mismatch(entity.id, "text", &record.redaction.strategy);
-                continue;
-            };
 
+            let strategy = record.redaction.strategy.text_or_default();
             let value = self
                 .envelope
                 .document
@@ -95,7 +96,7 @@ impl<'a> RedactionApplicator<'a> {
                 .map(|d| d.into_inner())
                 .unwrap_or_default();
 
-            let output = text_output(&value, entity, strategy);
+            let output = text_output(&value, entity, &strategy);
             let entity_id = record.entity_id;
             let replacement = output.replacement_value().map(String::from);
 
@@ -138,11 +139,8 @@ impl<'a> RedactionApplicator<'a> {
             let Location::Tabular(ref loc) = entity.location else {
                 continue;
             };
-            let Strategy::Text(ref strategy) = record.redaction.strategy else {
-                log_modality_mismatch(entity.id, "tabular", &record.redaction.strategy);
-                continue;
-            };
 
+            let strategy = record.redaction.strategy.text_or_default();
             let value = self
                 .envelope
                 .document
@@ -151,7 +149,7 @@ impl<'a> RedactionApplicator<'a> {
                 .map(|d| d.into_inner())
                 .unwrap_or_default();
 
-            let output = text_output(&value, entity, strategy);
+            let output = text_output(&value, entity, &strategy);
             let entity_id = record.entity_id;
             let replacement = output.replacement_value().map(String::from);
 
@@ -198,12 +196,9 @@ impl<'a> RedactionApplicator<'a> {
             let Location::Image(ref loc) = entity.location else {
                 continue;
             };
-            let Strategy::Image(ref strategy) = record.redaction.strategy else {
-                log_modality_mismatch(entity.id, "image", &record.redaction.strategy);
-                continue;
-            };
 
-            let Some((output, placeholder)) = image_output(strategy) else {
+            let strategy = record.redaction.strategy.image_or_default();
+            let Some((output, placeholder)) = image_output(&strategy) else {
                 tracing::debug!(
                     target: TARGET,
                     entity_id = %entity.id,
@@ -248,12 +243,9 @@ impl<'a> RedactionApplicator<'a> {
             let Location::Audio(ref loc) = entity.location else {
                 continue;
             };
-            let Strategy::Audio(ref strategy) = record.redaction.strategy else {
-                log_modality_mismatch(entity.id, "audio", &record.redaction.strategy);
-                continue;
-            };
 
-            let Some((output, placeholder)) = audio_output(strategy) else {
+            let strategy = record.redaction.strategy.audio_or_default();
+            let Some((output, placeholder)) = audio_output(&strategy) else {
                 tracing::debug!(
                     target: TARGET,
                     entity_id = %entity.id,
@@ -299,7 +291,11 @@ fn entity_map(entities: &nvisy_ontology::entity::Entities) -> HashMap<Uuid, Enti
 fn mapping_index(
     mappings: &[nvisy_ontology::provenance::RedactionMapping],
 ) -> HashMap<Uuid, usize> {
-    mappings.iter().enumerate().map(|(i, m)| (m.entity_id, i)).collect()
+    mappings
+        .iter()
+        .enumerate()
+        .map(|(i, m)| (m.entity_id, i))
+        .collect()
 }
 
 /// Compute the codec [`TextOutput`] for a value + entity + strategy.
@@ -326,9 +322,7 @@ fn text_output(value: &str, entity: &Entity, strategy: &TextStrategy) -> TextOut
         }
         TextStrategy::Remove => TextOutput::Remove,
         TextStrategy::Hash => TextOutput::replace(hash_value(value)),
-        TextStrategy::Pseudonymize => {
-            TextOutput::replace(pseudonymize(&entity.entity_kind, value))
-        }
+        TextStrategy::Pseudonymize => TextOutput::replace(pseudonymize(&entity.entity_kind, value)),
         TextStrategy::Encrypt { .. } => {
             // TODO: real encryption — placeholder until the key vault is wired.
             TextOutput::replace(format!("[ENC:{}]", entity.entity_kind))
@@ -358,12 +352,16 @@ fn text_output(value: &str, entity: &Entity, strategy: &TextStrategy) -> TextOut
 /// Returns `None` when the strategy has no defined codec output.
 fn image_output(strategy: &ImageStrategy) -> Option<(ImageOutput, String)> {
     match strategy {
-        ImageStrategy::Blur { sigma } => {
-            Some((ImageOutput::Blur { sigma: *sigma }, format!("[IMAGE_BLUR:{sigma}]")))
-        }
+        ImageStrategy::Blur { sigma } => Some((
+            ImageOutput::Blur { sigma: *sigma },
+            format!("[IMAGE_BLUR:{sigma}]"),
+        )),
         ImageStrategy::Block { color } => Some((
             ImageOutput::Block { color: *color },
-            format!("[IMAGE_BLOCK:#{:02x}{:02x}{:02x}]", color.r, color.g, color.b),
+            format!(
+                "[IMAGE_BLOCK:#{:02x}{:02x}{:02x}]",
+                color.r, color.g, color.b
+            ),
         )),
         ImageStrategy::Pixelate { block_size } => Some((
             ImageOutput::Pixelate {
@@ -408,22 +406,12 @@ fn pseudonymize(entity_kind: &EntityKind, value: &str) -> String {
     format!("{entity_kind}_{id}")
 }
 
-fn log_modality_mismatch(entity_id: Uuid, location_modality: &str, strategy: &Strategy) {
-    tracing::trace!(
-        target: TARGET,
-        %entity_id,
-        location_modality,
-        strategy = ?strategy,
-        "strategy modality does not match entity location, skipping",
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use nvisy_codec::ContentHandle;
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
     use nvisy_ontology::entity::{Entities, Entity, EntityKind, Location, TabularLocation};
-    use nvisy_ontology::policy::ImageStrategy;
+    use nvisy_ontology::policy::{ImageStrategy, Strategy};
     use nvisy_ontology::provenance::{AuditEntry, RedactionMapping};
 
     use super::*;
@@ -455,11 +443,7 @@ mod tests {
         envelope_with(csv, "text/csv", entities).await
     }
 
-    async fn envelope_with(
-        body: &str,
-        content_type: &str,
-        entities: Entities,
-    ) -> DocumentEnvelope {
+    async fn envelope_with(body: &str, content_type: &str, entities: Entities) -> DocumentEnvelope {
         let data = ContentData::from_text(ContentSource::new(), body);
         let content =
             Content::with_metadata(data, ContentMetadata::new().with_content_type(content_type));
@@ -472,9 +456,14 @@ mod tests {
         envelope
     }
 
-    fn test_record(entity_id: Uuid, strategy: Strategy, original: &str) -> AuditEntry {
+    fn test_record(
+        entity_id: Uuid,
+        strategy: Strategy,
+        original: &str,
+        location: &Location,
+    ) -> AuditEntry {
         AuditEntry::builder()
-            .for_entity(entity_id, strategy, original)
+            .for_entity(entity_id, strategy, original, location)
             .build()
             .unwrap()
     }
@@ -492,10 +481,12 @@ mod tests {
     async fn mask_applies_and_records_replacement() {
         let entity = text_entity(6, 10);
         let entity_id = entity.id;
+        let location = entity.location.clone();
         let record = test_record(
             entity_id,
-            Strategy::Text(TextStrategy::Mask { mask_char: '*' }),
+            Strategy::text(TextStrategy::Mask { mask_char: '*' }),
             "John",
+            &location,
         );
 
         let entities: Entities = vec![entity].into();
@@ -517,7 +508,13 @@ mod tests {
     async fn remove_leaves_replacement_none() {
         let entity = text_entity(6, 10);
         let entity_id = entity.id;
-        let record = test_record(entity_id, Strategy::Text(TextStrategy::Remove), "John");
+        let location = entity.location.clone();
+        let record = test_record(
+            entity_id,
+            Strategy::text(TextStrategy::Remove),
+            "John",
+            &location,
+        );
 
         let entities: Entities = vec![entity].into();
         let mut envelope = test_envelope(entities).await;
@@ -532,12 +529,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn skips_image_strategy_for_text_entity() {
+    async fn image_only_strategy_on_text_entity_uses_text_default() {
+        // A rule that only specified an image strategy now resolves to
+        // TextStrategy::default() on a text entity — no mismatch, just
+        // the fundamental default.
         let entity = text_entity(0, 4);
+        let location = entity.location.clone();
         let record = test_record(
             entity.id,
-            Strategy::Image(ImageStrategy::Blur { sigma: 15.0 }),
-            "face",
+            Strategy::image(ImageStrategy::Blur { sigma: 15.0 }),
+            "Hell",
+            &location,
         );
 
         let entities: Entities = vec![entity].into();
@@ -548,6 +550,13 @@ mod tests {
             .apply()
             .await
             .unwrap();
+
+        // TextStrategy::default() is Replace { placeholder: "" } — engine
+        // fills in [ENTITY_KIND]. PersonName from test_builder.
+        assert_eq!(
+            envelope.audit.entries[0].value.replacement.as_deref(),
+            Some("[PERSON_NAME]"),
+        );
     }
 
     #[test]
@@ -566,41 +575,40 @@ mod tests {
         assert!(a.contains('_'));
     }
 
-    // -- Tabular end-to-end tests --
-
     #[tokio::test]
     async fn tabular_full_cell_mask() {
-        // row 1, col 1 = "123-45-6789" (11 chars)
         let entity = tabular_entity(1, 1, 0, 11);
         let entity_id = entity.id;
+        let location = entity.location.clone();
         let record = test_record(
             entity_id,
-            Strategy::Text(TextStrategy::Mask { mask_char: '*' }),
+            Strategy::text(TextStrategy::Mask { mask_char: '*' }),
             "123-45-6789",
+            &location,
         );
 
         let entities: Entities = vec![entity.clone()].into();
-        let mut envelope =
-            test_envelope_csv(entities, "name,ssn\nAlice,123-45-6789\n").await;
+        let mut envelope = test_envelope_csv(entities, "name,ssn\nAlice,123-45-6789\n").await;
         envelope.audit.entries.push(record);
-        envelope
-            .redaction_map
-            .entries
-            .push(test_mapping(entity_id, entity.location.clone(), "123-45-6789"));
+        envelope.redaction_map.entries.push(test_mapping(
+            entity_id,
+            entity.location.clone(),
+            "123-45-6789",
+        ));
 
-        RedactionApplicator::new(&mut envelope).apply().await.unwrap();
+        RedactionApplicator::new(&mut envelope)
+            .apply()
+            .await
+            .unwrap();
 
-        // 11 chars -> 11 asterisks
         assert_eq!(
             envelope.audit.entries[0].value.replacement.as_deref(),
             Some("***********"),
         );
-        // Mapping was updated too.
         assert_eq!(
             envelope.redaction_map.entries[0].replacement.as_deref(),
             Some("***********"),
         );
-        // Document content was actually mutated.
         let value = envelope
             .document
             .read_tabular(entity.location.as_tabular().unwrap())
@@ -611,23 +619,26 @@ mod tests {
 
     #[tokio::test]
     async fn tabular_partial_cell_replace() {
-        // row 1, col 0 = "Alice Smith" — redact "Alice" (0..5)
         let entity = tabular_entity(1, 0, 0, 5);
         let entity_id = entity.id;
+        let location = entity.location.clone();
         let record = test_record(
             entity_id,
-            Strategy::Text(TextStrategy::Replace {
+            Strategy::text(TextStrategy::Replace {
                 placeholder: "[NAME]".to_owned(),
             }),
             "Alice",
+            &location,
         );
 
         let entities: Entities = vec![entity.clone()].into();
-        let mut envelope =
-            test_envelope_csv(entities, "name,ssn\nAlice Smith,123-45-6789\n").await;
+        let mut envelope = test_envelope_csv(entities, "name,ssn\nAlice Smith,123-45-6789\n").await;
         envelope.audit.entries.push(record);
 
-        RedactionApplicator::new(&mut envelope).apply().await.unwrap();
+        RedactionApplicator::new(&mut envelope)
+            .apply()
+            .await
+            .unwrap();
 
         let value = envelope
             .document
@@ -641,18 +652,22 @@ mod tests {
     async fn tabular_remove_leaves_empty_cell() {
         let entity = tabular_entity(1, 1, 0, 11);
         let entity_id = entity.id;
+        let location = entity.location.clone();
         let record = test_record(
             entity_id,
-            Strategy::Text(TextStrategy::Remove),
+            Strategy::text(TextStrategy::Remove),
             "123-45-6789",
+            &location,
         );
 
         let entities: Entities = vec![entity.clone()].into();
-        let mut envelope =
-            test_envelope_csv(entities, "name,ssn\nAlice,123-45-6789\n").await;
+        let mut envelope = test_envelope_csv(entities, "name,ssn\nAlice,123-45-6789\n").await;
         envelope.audit.entries.push(record);
 
-        RedactionApplicator::new(&mut envelope).apply().await.unwrap();
+        RedactionApplicator::new(&mut envelope)
+            .apply()
+            .await
+            .unwrap();
 
         let value = envelope
             .document
@@ -660,26 +675,5 @@ mod tests {
             .await
             .map(|d| d.into_inner());
         assert_eq!(value.as_deref(), Some(""));
-    }
-
-    #[tokio::test]
-    async fn tabular_image_strategy_for_tabular_entity_skipped() {
-        // Mismatched modality: tabular location with image strategy.
-        // The applicator should skip it without erroring.
-        let entity = tabular_entity(1, 0, 0, 5);
-        let record = test_record(
-            entity.id,
-            Strategy::Image(ImageStrategy::Blur { sigma: 15.0 }),
-            "Alice",
-        );
-
-        let entities: Entities = vec![entity].into();
-        let mut envelope =
-            test_envelope_csv(entities, "name,ssn\nAlice,123\n").await;
-        envelope.audit.entries.push(record);
-
-        // No error, but no replacement either.
-        RedactionApplicator::new(&mut envelope).apply().await.unwrap();
-        assert!(envelope.audit.entries[0].value.replacement.is_none());
     }
 }

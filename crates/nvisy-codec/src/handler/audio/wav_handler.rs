@@ -32,4 +32,3 @@ impl_audio_handler!(
     "wav-handler",
     "wav.encode"
 );
-

@@ -95,11 +95,7 @@ impl TabularHandler for CsvHandler {
                         column_index: col,
                         start_offset: None,
                         end_offset: None,
-                        column_name: self
-                            .data
-                            .headers
-                            .as_ref()
-                            .and_then(|h| h.get(col).cloned()),
+                        column_name: self.data.headers.as_ref().and_then(|h| h.get(col).cloned()),
                         sheet_name: None,
                     },
                 ));

@@ -55,4 +55,3 @@ impl<L, D> Span<L, D> {
         }
     }
 }
-

@@ -2,24 +2,32 @@
 //! string in place. Shared across the text-family handlers (TXT, JSON,
 //! HTML, and the per-page text in [`RichTextHandler`]).
 //!
+//! The byte range `start..end` comes from the redaction's containing
+//! [`TextLocation`] under the `(location, redaction)` shape — not from
+//! the redaction itself. Callers translate the location's
+//! document-absolute offsets into span-relative offsets before
+//! calling.
+//!
 //! [`RichTextHandler`]: crate::handler::rich::RichTextHandler
+//! [`TextLocation`]: nvisy_ontology::entity::TextLocation
 
 use nvisy_core::Error;
 
 use crate::handler::TextRedaction;
 
-/// Apply a single redaction to `content` in place.
-///
-/// Returns an error if the redaction's byte offsets fall mid-character.
-/// Out-of-range offsets are silently clipped to `content.len()`.
+/// Apply a single redaction to `content` in place, restricted to byte
+/// range `start..end` (clamped to `content.len()`). Returns an error
+/// if either offset falls mid-character.
 pub(crate) fn apply_text_redaction(
     content: &mut String,
     redaction: &TextRedaction,
+    start: usize,
+    end: usize,
     target: &'static str,
 ) -> Result<(), Error> {
     let value = redaction.output.replacement_value().unwrap_or_default();
-    let s = redaction.start.min(content.len());
-    let e = redaction.end.min(content.len());
+    let s = start.min(content.len());
+    let e = end.min(content.len());
     if s >= e {
         return Ok(());
     }
@@ -27,9 +35,7 @@ pub(crate) fn apply_text_redaction(
         return Err(Error::validation(
             format!(
                 "redaction offset falls mid-character \
-                 (start={}, end={}, len={})",
-                redaction.start,
-                redaction.end,
+                 (start={start}, end={end}, len={})",
                 content.len()
             ),
             target,
@@ -44,14 +50,14 @@ mod tests {
     use super::*;
     use crate::handler::TextOutput;
 
-    fn redaction(start: usize, end: usize, replacement: &str) -> TextRedaction {
-        TextRedaction::new(start, end, TextOutput::replace(replacement))
+    fn redaction(replacement: &str) -> TextRedaction {
+        TextRedaction::new(TextOutput::replace(replacement))
     }
 
     #[test]
     fn single_replacement() {
         let mut s = String::from("hello world");
-        apply_text_redaction(&mut s, &redaction(0, 5, "[X]"), "test").unwrap();
+        apply_text_redaction(&mut s, &redaction("[X]"), 0, 5, "test").unwrap();
         assert_eq!(s, "[X] world");
     }
 
@@ -60,7 +66,9 @@ mod tests {
         let mut s = String::from("hello world");
         apply_text_redaction(
             &mut s,
-            &TextRedaction::new(5, 11, TextOutput::Remove),
+            &TextRedaction::new(TextOutput::Remove),
+            5,
+            11,
             "test",
         )
         .unwrap();
@@ -70,14 +78,14 @@ mod tests {
     #[test]
     fn out_of_bounds_clipped() {
         let mut s = String::from("short");
-        apply_text_redaction(&mut s, &redaction(0, 999, "[X]"), "test").unwrap();
+        apply_text_redaction(&mut s, &redaction("[X]"), 0, 999, "test").unwrap();
         assert_eq!(s, "[X]");
     }
 
     #[test]
     fn mid_character_rejected() {
         let mut s = String::from("héllo"); // 'é' is 2 bytes
-        let err = apply_text_redaction(&mut s, &redaction(0, 2, "[X]"), "test").unwrap_err();
+        let err = apply_text_redaction(&mut s, &redaction("[X]"), 0, 2, "test").unwrap_err();
         assert!(err.to_string().contains("mid-character"));
     }
 }

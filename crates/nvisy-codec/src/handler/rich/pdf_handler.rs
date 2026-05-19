@@ -192,15 +192,17 @@ impl TextHandler for RichTextHandler {
         redaction: TextRedaction,
     ) -> Result<(), Error> {
         let offsets = self.page_offsets();
-        let Some(page_idx) = offsets
-            .iter()
-            .position(|&(start, _, _)| start == location.start_offset)
-        else {
+        let Some(page_idx) = offsets.iter().position(|&(start, end, _)| {
+            location.start_offset >= start && location.end_offset <= end
+        }) else {
             return Ok(());
         };
+        let page_start = offsets[page_idx].0;
+        let start = location.start_offset - page_start;
+        let end = location.end_offset - page_start;
 
         let mut content = self.pages[page_idx].clone();
-        apply_text_redaction(&mut content, &redaction, TARGET)?;
+        apply_text_redaction(&mut content, &redaction, start, end, TARGET)?;
 
         if self.document_type == DocumentType::Pdf {
             let mut doc = lopdf::Document::load_mem(&self.raw).map_err(|e| {

@@ -114,10 +114,7 @@ impl<'a> RedactionApplicator<'a> {
             );
 
             redactions
-                .try_insert(
-                    loc.clone(),
-                    TextRedaction::new(loc.start_offset, loc.end_offset, output),
-                )
+                .try_insert(loc.clone(), TextRedaction::new(output))
                 .map_err(|e| Error::validation(e.to_string(), "redaction-apply-text"))?;
         }
 

@@ -120,7 +120,7 @@ impl<S, R> Default for Redactions<S, R> {
     }
 }
 
-impl<S: fmt::Debug, R: fmt::Debug> fmt::Debug for Redactions<S, R> {
+impl<S, R> fmt::Debug for Redactions<S, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Redactions")
             .field("policy", &self.policy)

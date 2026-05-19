@@ -151,12 +151,14 @@ impl TextHandler for JsonHandler {
         let located = self.locate_spans();
         let Some(ls) = located
             .into_iter()
-            .find(|ls| ls.start == location.start_offset && ls.end == location.end_offset)
+            .find(|ls| location.start_offset >= ls.start && location.end_offset <= ls.end)
         else {
             return Ok(());
         };
+        let start = location.start_offset - ls.start;
+        let end = location.end_offset - ls.start;
         let mut content = ls.text.clone();
-        apply_text_redaction(&mut content, &redaction, TARGET)?;
+        apply_text_redaction(&mut content, &redaction, start, end, TARGET)?;
         if ls.path.key_of {
             rename_key(&mut self.data.value, &ls.path.pointer, &content)?;
         } else {

@@ -110,11 +110,20 @@ impl TextHandler for HtmlHandler {
         let offsets = self.node_offsets();
         let Some(idx) = offsets
             .iter()
-            .position(|&(start, _)| start == location.start_offset)
+            .position(|&(start, end)| location.start_offset >= start && location.end_offset <= end)
         else {
             return Ok(());
         };
-        apply_text_redaction(&mut self.data.text_nodes[idx], &redaction, TARGET)
+        let node_start = offsets[idx].0;
+        let start = location.start_offset - node_start;
+        let end = location.end_offset - node_start;
+        apply_text_redaction(
+            &mut self.data.text_nodes[idx],
+            &redaction,
+            start,
+            end,
+            TARGET,
+        )
     }
 }
 
@@ -222,7 +231,7 @@ mod tests {
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
             items[0].location.clone(),
-            TextRedaction::new(0, 5, TextOutput::replace("[REDACTED]")),
+            TextRedaction::new(TextOutput::replace("[REDACTED]")),
         )
         .unwrap();
         h.redact(rs).await?;

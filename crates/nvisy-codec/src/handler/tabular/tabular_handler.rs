@@ -9,8 +9,7 @@ use nvisy_ontology::entity::TabularLocation;
 
 use super::TabularHandler;
 use crate::document::LocationStream;
-use crate::handler::{CsvHandler, Handler, TextData, XlsxHandler};
-use crate::transform::{Redactions, TabularRedaction};
+use crate::handler::{CsvHandler, Handler, TabularRedaction, TextData, XlsxHandler};
 
 /// A type-erased tabular handler backed by a boxed trait object.
 pub struct BoxedTabularHandler(Box<dyn TabularHandler>);
@@ -54,11 +53,12 @@ impl TabularHandler for BoxedTabularHandler {
         self.0.read(location).await
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TabularLocation, TabularRedaction>,
+        location: &TabularLocation,
+        redaction: TabularRedaction,
     ) -> Result<(), Error> {
-        self.0.redact(redactions).await
+        self.0.redact_at(location, redaction).await
     }
 }
 

@@ -18,11 +18,12 @@ pub use self::located::Located;
 pub use self::span::Span;
 pub use self::stream::LocationStream;
 use crate::handler::{
-    AudioData, AudioHandler, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
-    BoxedTabularHandler, BoxedTextHandler, CsvLoader, CsvParams, Handler, ImageData, ImageHandler,
-    JpegLoader, JpegParams, JsonLoader, JsonParams, Loader, MarkdownLoader, MarkdownParams,
-    Mp3Loader, Mp3Params, PngLoader, PngParams, TabularHandler, TextData, TextHandler, TiffLoader,
-    TiffParams, TxtLoader, TxtParams, WavLoader, WavParams, XlsxLoader, XlsxParams,
+    AudioData, AudioHandler, AudioRedaction, BoxedAudioHandler, BoxedImageHandler,
+    BoxedRichHandler, BoxedTabularHandler, BoxedTextHandler, CsvLoader, CsvParams, Handler,
+    ImageData, ImageHandler, ImageRedaction, JpegLoader, JpegParams, JsonLoader, JsonParams,
+    Loader, MarkdownLoader, MarkdownParams, Mp3Loader, Mp3Params, PngLoader, PngParams, Redactions,
+    TabularHandler, TabularRedaction, TextData, TextHandler, TextRedaction, TiffLoader, TiffParams,
+    TxtLoader, TxtParams, WavLoader, WavParams, XlsxLoader, XlsxParams,
 };
 #[cfg(feature = "docx")]
 use crate::handler::{DocxLoader, DocxParams};
@@ -30,9 +31,6 @@ use crate::handler::{DocxLoader, DocxParams};
 use crate::handler::{HtmlLoader, HtmlParams};
 #[cfg(feature = "pdf")]
 use crate::handler::{PdfLoader, PdfParams};
-use crate::transform::{
-    AudioRedaction, ImageRedaction, Redactions, TabularRedaction, TextRedaction,
-};
 
 /// A fully type-erased document that can hold any supported format.
 ///
@@ -170,7 +168,7 @@ impl ContentHandle {
         redactions: Redactions<TextLocation, TextRedaction>,
     ) -> Result<(), Error> {
         match self {
-            Self::Text(h) => h.redact(redactions).await,
+            Self::Text(h) => TextHandler::redact(h, redactions).await,
             Self::Rich(h) => TextHandler::redact(h, redactions).await,
             Self::Tabular(_) | Self::Image(_) | Self::Audio(_) => Ok(()),
         }
@@ -193,7 +191,7 @@ impl ContentHandle {
         redactions: Redactions<ImageLocation, ImageRedaction>,
     ) -> Result<(), Error> {
         match self {
-            Self::Image(h) => h.redact(redactions).await,
+            Self::Image(h) => ImageHandler::redact(h, redactions).await,
             Self::Rich(h) => ImageHandler::redact(h, redactions).await,
             Self::Text(_) | Self::Tabular(_) | Self::Audio(_) => Ok(()),
         }

@@ -3,29 +3,24 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::transform::Mergeable;
+use crate::handler::Mergeable;
 
-/// A text redaction targeting a byte range within its containing span.
+/// A text redaction: the *how*. The *where* (byte range within the
+/// document) lives on the containing [`TextLocation`] via
+/// [`Redactions`]'s `(S, R)` pairs.
 ///
-/// Span identity is supplied externally via [`Redactions`] — this
-/// struct only carries the intra-span byte range and the replacement
-/// output.
-///
-/// [`Redactions`]: crate::transform::Redactions
+/// [`TextLocation`]: nvisy_ontology::entity::TextLocation
+/// [`Redactions`]: crate::handler::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextRedaction {
-    /// Byte offset where the redacted region starts within the span.
-    pub(crate) start: usize,
-    /// Byte offset where the redacted region ends (exclusive) within the span.
-    pub(crate) end: usize,
     /// The redaction output that carries the replacement value.
     pub(crate) output: TextOutput,
 }
 
 impl TextRedaction {
-    /// Create a new text redaction.
-    pub fn new(start: usize, end: usize, output: TextOutput) -> Self {
-        Self { start, end, output }
+    /// Create a new text redaction with the given output.
+    pub fn new(output: TextOutput) -> Self {
+        Self { output }
     }
 }
 
@@ -65,24 +60,10 @@ impl TextOutput {
 }
 
 impl Mergeable for TextRedaction {
-    fn overlaps(&self, other: &Self) -> bool {
-        self.start < other.end && other.start < self.end
-    }
-
-    /// Merge two overlapping text redactions.
-    ///
-    /// Returns `Some` only when both share the same [`TextOutput`] —
-    /// the merged redaction unions the byte ranges. Returns `None`
-    /// when the outputs differ (e.g. `Replace { "[A]" }` vs `Replace { "[B]" }`),
-    /// since picking one would silently drop a redaction.
+    /// Combine two redactions that target overlapping locations. Returns
+    /// `Some` only when the outputs match; different replacement
+    /// strings cannot be reconciled.
     fn try_merge(self, other: Self) -> Option<Self> {
-        if self.output != other.output {
-            return None;
-        }
-        Some(Self {
-            start: self.start.min(other.start),
-            end: self.end.max(other.end),
-            output: self.output,
-        })
+        (self.output == other.output).then_some(self)
     }
 }

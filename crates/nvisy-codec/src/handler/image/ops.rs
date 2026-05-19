@@ -9,7 +9,7 @@ use imageproc::filter::gaussian_blur_f32;
 use nvisy_ontology::primitive::{BoundingBoxPixel, Color};
 
 /// Mutating image-transform operations on individual bounding-box regions.
-pub trait ImageOps {
+pub(super) trait ImageOps {
     /// Apply a gaussian blur to `region` with the given `sigma`.
     fn apply_gaussian_blur(&mut self, region: &BoundingBoxPixel, sigma: f32);
 

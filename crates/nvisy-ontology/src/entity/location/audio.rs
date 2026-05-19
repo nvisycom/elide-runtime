@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::Overlap;
+use super::{Mergeable, Overlap};
 use crate::primitive::TimeSpan;
 
 /// Location of an entity within an audio stream.
@@ -40,5 +40,21 @@ impl AudioLocation {
 impl Overlap for AudioLocation {
     fn overlaps(&self, other: &Self) -> bool {
         self.time_span.overlaps(&other.time_span)
+    }
+}
+
+impl Mergeable for AudioLocation {
+    /// Merge two audio locations by unioning time spans when their
+    /// `audio_id` and `speaker_id` match. Different speakers or
+    /// different documents cannot merge.
+    fn try_merge(self, other: Self) -> Option<Self> {
+        if self.audio_id != other.audio_id || self.speaker_id != other.speaker_id {
+            return None;
+        }
+        Some(Self {
+            time_span: self.time_span.union(&other.time_span),
+            speaker_id: self.speaker_id,
+            audio_id: self.audio_id,
+        })
     }
 }

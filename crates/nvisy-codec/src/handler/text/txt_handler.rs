@@ -15,10 +15,10 @@ use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
 use nvisy_ontology::entity::TextLocation;
 
+use super::{TextRedaction, apply_text_redaction};
 use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-use crate::transform::{Redactions, TextRedaction, apply_text_redactions};
 
 const TARGET: &str = "txt-handler";
 
@@ -89,24 +89,22 @@ impl TextHandler for TxtHandler {
         line.get(local_start..local_end).map(TextData::from)
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        location: &TextLocation,
+        redaction: TextRedaction,
     ) -> Result<(), Error> {
-        if redactions.is_empty() {
-            return Ok(());
-        }
         let offsets = self.line_offsets();
-        for (loc, items) in redactions {
-            let Some(line_idx) = offsets
-                .iter()
-                .position(|&(start, _)| start == loc.start_offset)
-            else {
-                continue;
-            };
-            apply_text_redactions(&mut self.lines[line_idx], &items, TARGET)?;
-        }
-        Ok(())
+        let Some(line_idx) = offsets
+            .iter()
+            .position(|&(start, end)| location.start_offset >= start && location.end_offset <= end)
+        else {
+            return Ok(());
+        };
+        let line_start = offsets[line_idx].0;
+        let start = location.start_offset - line_start;
+        let end = location.end_offset - line_start;
+        apply_text_redaction(&mut self.lines[line_idx], &redaction, start, end, TARGET)
     }
 }
 
@@ -172,7 +170,7 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::transform::{ConflictPolicy, TextOutput};
+    use crate::handler::{ConflictPolicy, Redactions, TextHandler, TextOutput};
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');
@@ -228,17 +226,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn redact_replaces_substring() -> Result<(), Error> {
+    async fn redact_replaces_whole_line() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
         let items: Vec<_> = h.locations().collect().await;
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
             items[1].location.clone(),
-            TextRedaction::new(0, 5, TextOutput::replace("[REDACTED]")),
+            TextRedaction::new(TextOutput::replace("[REDACTED]")),
         )
         .unwrap();
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn redact_substring_within_line() -> Result<(), Error> {
+        // Entity-shaped location: bytes 6..11 in "hello world" picks the
+        // substring "world", which lives inside the single-line span.
+        let mut h = handler("hello world");
+        let mut rs = Redactions::new(ConflictPolicy::Reject);
+        rs.try_insert(
+            TextLocation {
+                start_offset: 6,
+                end_offset: 11,
+                ..Default::default()
+            },
+            TextRedaction::new(TextOutput::replace("[X]")),
+        )
+        .unwrap();
+        h.redact(rs).await?;
+        assert_eq!(h.lines(), &["hello [X]"]);
         Ok(())
     }
 
@@ -249,12 +267,12 @@ mod tests {
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
             items[0].location.clone(),
-            TextRedaction::new(0, 3, TextOutput::replace("[X]")),
+            TextRedaction::new(TextOutput::replace("[X]")),
         )
         .unwrap();
         rs.try_insert(
             items[2].location.clone(),
-            TextRedaction::new(0, 3, TextOutput::replace("[Y]")),
+            TextRedaction::new(TextOutput::replace("[Y]")),
         )
         .unwrap();
         h.redact(rs).await?;
@@ -272,7 +290,7 @@ mod tests {
                 end_offset: 1000,
                 ..Default::default()
             },
-            TextRedaction::new(0, 1, TextOutput::replace("nope")),
+            TextRedaction::new(TextOutput::replace("nope")),
         )
         .unwrap();
         h.redact(rs).await?;

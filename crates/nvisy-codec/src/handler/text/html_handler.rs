@@ -12,10 +12,10 @@ use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::entity::TextLocation;
 
+use super::{TextRedaction, apply_text_redaction};
 use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-use crate::transform::{Redactions, TextRedaction, apply_text_redactions};
 
 const TARGET: &str = "html-handler";
 
@@ -102,24 +102,28 @@ impl TextHandler for HtmlHandler {
         self.data.text_nodes.get(idx).cloned().map(TextData::from)
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        location: &TextLocation,
+        redaction: TextRedaction,
     ) -> Result<(), Error> {
-        if redactions.is_empty() {
-            return Ok(());
-        }
         let offsets = self.node_offsets();
-        for (loc, items) in redactions {
-            let Some(idx) = offsets
-                .iter()
-                .position(|&(start, _)| start == loc.start_offset)
-            else {
-                continue;
-            };
-            apply_text_redactions(&mut self.data.text_nodes[idx], &items, TARGET)?;
-        }
-        Ok(())
+        let Some(idx) = offsets
+            .iter()
+            .position(|&(start, end)| location.start_offset >= start && location.end_offset <= end)
+        else {
+            return Ok(());
+        };
+        let node_start = offsets[idx].0;
+        let start = location.start_offset - node_start;
+        let end = location.end_offset - node_start;
+        apply_text_redaction(
+            &mut self.data.text_nodes[idx],
+            &redaction,
+            start,
+            end,
+            TARGET,
+        )
     }
 }
 
@@ -189,7 +193,7 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::transform::{ConflictPolicy, TextOutput};
+    use crate::handler::{ConflictPolicy, Redactions, TextHandler, TextOutput};
 
     fn handler_from_html(raw: &str) -> HtmlHandler {
         let dom = scraper::Html::parse_document(raw);
@@ -227,7 +231,7 @@ mod tests {
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
             items[0].location.clone(),
-            TextRedaction::new(0, 5, TextOutput::replace("[REDACTED]")),
+            TextRedaction::new(TextOutput::replace("[REDACTED]")),
         )
         .unwrap();
         h.redact(rs).await?;

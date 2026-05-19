@@ -21,9 +21,8 @@ use nvisy_ontology::primitive::Dpi;
 use super::pdf_render::PdfRenderer;
 use crate::document::{Located, LocationStream};
 use crate::handler::image::ImageData;
-use crate::handler::text::TextData;
-use crate::handler::{Handler, ImageHandler, TextHandler};
-use crate::transform::{ImageRedaction, Redactions, TextRedaction, apply_text_redactions};
+use crate::handler::text::{TextData, apply_text_redaction};
+use crate::handler::{Handler, ImageHandler, ImageRedaction, TextHandler, TextRedaction};
 
 const TARGET: &str = "rich-text-handler";
 
@@ -187,30 +186,24 @@ impl TextHandler for RichTextHandler {
         self.pages.get(page_idx).cloned().map(TextData::from)
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        location: &TextLocation,
+        redaction: TextRedaction,
     ) -> Result<(), Error> {
-        if redactions.is_empty() {
-            return Ok(());
-        }
         let offsets = self.page_offsets();
+        let Some(page_idx) = offsets.iter().position(|&(start, end, _)| {
+            location.start_offset >= start && location.end_offset <= end
+        }) else {
+            return Ok(());
+        };
+        let page_start = offsets[page_idx].0;
+        let start = location.start_offset - page_start;
+        let end = location.end_offset - page_start;
 
-        // Compute new page texts by applying redactions to current values.
-        let mut page_updates: Vec<(usize, String)> = Vec::new();
-        for (loc, items) in redactions {
-            let Some(page_idx) = offsets
-                .iter()
-                .position(|&(start, _, _)| start == loc.start_offset)
-            else {
-                continue;
-            };
-            let mut content = self.pages[page_idx].clone();
-            apply_text_redactions(&mut content, &items, TARGET)?;
-            page_updates.push((page_idx, content));
-        }
+        let mut content = self.pages[page_idx].clone();
+        apply_text_redaction(&mut content, &redaction, start, end, TARGET)?;
 
-        // PDF-specific: bake replacements into content streams.
         if self.document_type == DocumentType::Pdf {
             let mut doc = lopdf::Document::load_mem(&self.raw).map_err(|e| {
                 Error::runtime(
@@ -219,14 +212,10 @@ impl TextHandler for RichTextHandler {
                     false,
                 )
             })?;
-
-            for (idx, new_text) in &page_updates {
-                let old_text = &self.pages[*idx];
-                if !old_text.is_empty() && old_text != new_text {
-                    let _ = doc.replace_text((*idx as u32) + 1, old_text, new_text, None);
-                }
+            let old_text = &self.pages[page_idx];
+            if !old_text.is_empty() && old_text != &content {
+                let _ = doc.replace_text((page_idx as u32) + 1, old_text, &content, None);
             }
-
             let mut buf = Vec::new();
             doc.save_to(&mut buf).map_err(|e| {
                 Error::runtime(format!("failed to save edited PDF: {e}"), TARGET, false)
@@ -234,10 +223,7 @@ impl TextHandler for RichTextHandler {
             self.raw = Bytes::from(buf);
         }
 
-        for (idx, new_text) in page_updates {
-            self.pages[idx] = new_text;
-        }
-
+        self.pages[page_idx] = content;
         Ok(())
     }
 }
@@ -280,9 +266,10 @@ impl ImageHandler for RichTextHandler {
         None
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        _redactions: Redactions<ImageLocation, ImageRedaction>,
+        _location: &ImageLocation,
+        _redaction: ImageRedaction,
     ) -> Result<(), Error> {
         Ok(())
     }

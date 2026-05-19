@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::Overlap;
+use super::{Mergeable, Overlap};
 
 /// Location of an entity within text content.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Builder)]
@@ -58,6 +58,40 @@ impl TextLocation {
 impl Overlap for TextLocation {
     fn overlaps(&self, other: &Self) -> bool {
         self.start_offset < other.end_offset && other.start_offset < self.end_offset
+    }
+}
+
+impl Mergeable for TextLocation {
+    /// Merge two text locations by unioning byte offsets when their
+    /// non-range identity (page/line) matches. Context offsets union
+    /// when present on both sides; otherwise the result has no
+    /// context window.
+    fn try_merge(self, other: Self) -> Option<Self> {
+        if self.page_number != other.page_number || self.line_number != other.line_number {
+            return None;
+        }
+        Some(Self {
+            start_offset: self.start_offset.min(other.start_offset),
+            end_offset: self.end_offset.max(other.end_offset),
+            context_start_offset: option_min(self.context_start_offset, other.context_start_offset),
+            context_end_offset: option_max(self.context_end_offset, other.context_end_offset),
+            page_number: self.page_number,
+            line_number: self.line_number,
+        })
+    }
+}
+
+fn option_min(a: Option<usize>, b: Option<usize>) -> Option<usize> {
+    match (a, b) {
+        (Some(x), Some(y)) => Some(x.min(y)),
+        _ => None,
+    }
+}
+
+fn option_max(a: Option<usize>, b: Option<usize>) -> Option<usize> {
+    match (a, b) {
+        (Some(x), Some(y)) => Some(x.max(y)),
+        _ => None,
     }
 }
 

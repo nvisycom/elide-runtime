@@ -7,7 +7,7 @@
 //! else row `0` is the first data row. [`TabularHandler::read`]
 //! returns the cell's value as [`TextData`].
 //! [`TabularHandler::redact`] mutates cells by coordinate, applying
-//! intra-cell byte-offset replacements via [`apply_tabular_redactions`].
+//! intra-cell byte-offset replacements via [`apply_tabular_redaction`].
 //!
 //! [`TabularLocation`]: nvisy_ontology::entity::TabularLocation
 
@@ -16,10 +16,10 @@ use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 use nvisy_ontology::entity::TabularLocation;
 
+use super::{TabularRedaction, apply_tabular_redaction};
 use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TabularHandler};
-use crate::transform::{Redactions, TabularRedaction, apply_tabular_redactions};
 
 const TARGET: &str = "csv-handler";
 
@@ -115,38 +115,36 @@ impl TabularHandler for CsvHandler {
         Some(TextData::from(cell.clone()))
     }
 
-    async fn redact(
+    async fn redact_at(
         &mut self,
-        redactions: Redactions<TabularLocation, TabularRedaction>,
+        location: &TabularLocation,
+        redaction: TabularRedaction,
     ) -> Result<(), Error> {
-        if redactions.is_empty() {
+        let Some((is_header, data_row)) = self.resolve_row(location.row_index) else {
             return Ok(());
-        }
-
-        for (loc, items) in redactions {
-            let Some((is_header, data_row)) = self.resolve_row(loc.row_index) else {
-                continue;
+        };
+        let cell = if is_header {
+            let Some(headers) = self.data.headers.as_mut() else {
+                return Ok(());
             };
-            let cell = if is_header {
-                let Some(headers) = self.data.headers.as_mut() else {
-                    continue;
-                };
-                let Some(cell) = headers.get_mut(loc.column_index) else {
-                    continue;
-                };
-                cell
-            } else {
-                let Some(row) = self.data.rows.get_mut(data_row) else {
-                    continue;
-                };
-                let Some(cell) = row.get_mut(loc.column_index) else {
-                    continue;
-                };
-                cell
+            let Some(cell) = headers.get_mut(location.column_index) else {
+                return Ok(());
             };
-            apply_tabular_redactions(cell, &items, TARGET)?;
-        }
-        Ok(())
+            cell
+        } else {
+            let Some(row) = self.data.rows.get_mut(data_row) else {
+                return Ok(());
+            };
+            let Some(cell) = row.get_mut(location.column_index) else {
+                return Ok(());
+            };
+            cell
+        };
+        // Intra-cell byte range comes from the location; omitted means
+        // redact the whole cell.
+        let start = location.start_offset.unwrap_or(0);
+        let end = location.end_offset.unwrap_or(cell.len());
+        apply_tabular_redaction(cell, &redaction, start, end, TARGET)
     }
 }
 
@@ -274,7 +272,7 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::transform::{ConflictPolicy, TextOutput};
+    use crate::handler::{ConflictPolicy, Redactions, TabularHandler, TextOutput};
 
     fn handler_with_headers(headers: Vec<&str>, rows: Vec<Vec<&str>>) -> CsvHandler {
         CsvHandler::new(CsvData {
@@ -306,6 +304,14 @@ mod tests {
             .with_column_index(col)
             .build()
             .unwrap()
+    }
+
+    fn cell_range(row: usize, col: usize, start: usize, end: usize) -> TabularLocation {
+        TabularLocation {
+            start_offset: Some(start),
+            end_offset: Some(end),
+            ..cell_loc(row, col)
+        }
     }
 
     #[tokio::test]
@@ -350,8 +356,8 @@ mod tests {
         let mut h = handler_with_headers(vec!["ssn"], vec![vec!["123-45-6789"]]);
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            cell_loc(1, 0),
-            TabularRedaction::new(0, 11, TextOutput::replace("[REDACTED]")),
+            cell_range(1, 0, 0, 11),
+            TabularRedaction::new(TextOutput::replace("[REDACTED]")),
         )
         .unwrap();
         h.redact(rs).await?;
@@ -364,8 +370,8 @@ mod tests {
         let mut h = handler_with_headers(vec!["bio"], vec![vec!["Alice Smith"]]);
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            cell_loc(1, 0),
-            TabularRedaction::new(0, 5, TextOutput::replace("[NAME]")),
+            cell_range(1, 0, 0, 5),
+            TabularRedaction::new(TextOutput::replace("[NAME]")),
         )
         .unwrap();
         h.redact(rs).await?;
@@ -378,8 +384,8 @@ mod tests {
         let mut h = handler_with_headers(vec!["secret_field"], vec![vec!["v"]]);
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            cell_loc(0, 0),
-            TabularRedaction::new(0, 12, TextOutput::replace("redacted")),
+            cell_range(0, 0, 0, 12),
+            TabularRedaction::new(TextOutput::replace("redacted")),
         )
         .unwrap();
         h.redact(rs).await?;
@@ -392,8 +398,8 @@ mod tests {
         let mut h = handler_with_headers(vec!["a"], vec![vec!["one"]]);
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            cell_loc(99, 0),
-            TabularRedaction::new(0, 1, TextOutput::replace("X")),
+            cell_range(99, 0, 0, 1),
+            TabularRedaction::new(TextOutput::replace("X")),
         )
         .unwrap();
         h.redact(rs).await?;

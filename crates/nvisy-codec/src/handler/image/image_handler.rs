@@ -10,7 +10,7 @@ use nvisy_ontology::entity::ImageLocation;
 use super::{ImageData, JpegHandler, PngHandler, TiffHandler};
 use crate::document::LocationStream;
 use crate::handler::{Handler, ImageHandler};
-use crate::transform::ImageRedaction;
+use crate::handler::ImageRedaction;
 
 /// A type-erased image handler backed by a boxed trait object.
 pub struct BoxedImageHandler(Box<dyn ImageHandler>);

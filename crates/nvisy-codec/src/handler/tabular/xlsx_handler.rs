@@ -14,7 +14,7 @@ use nvisy_ontology::entity::TabularLocation;
 
 use crate::document::LocationStream;
 use crate::handler::{Handler, TabularHandler, TextData};
-use crate::transform::TabularRedaction;
+use crate::handler::TabularRedaction;
 
 #[derive(Debug, Default)]
 pub struct XlsxHandler {

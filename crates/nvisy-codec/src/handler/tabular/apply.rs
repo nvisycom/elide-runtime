@@ -3,7 +3,7 @@
 
 use nvisy_core::Error;
 
-use crate::transform::TabularRedaction;
+use crate::handler::TabularRedaction;
 
 /// Apply a single redaction to `cell` in place, restricted to byte
 /// range `start..end` (clamped to the cell's length). Returns an

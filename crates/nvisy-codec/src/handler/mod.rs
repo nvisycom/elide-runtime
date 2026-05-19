@@ -14,14 +14,19 @@ use nvisy_core::media::DocumentType;
 
 mod audio;
 mod image;
+mod policy;
+mod redactions;
 mod rich;
 mod tabular;
 mod text;
 
 use nvisy_core::content::ContentSource;
+pub use nvisy_ontology::entity::Mergeable;
 
 pub use self::audio::*;
 pub use self::image::*;
+pub use self::policy::{ConflictPolicy, InsertError};
+pub use self::redactions::Redactions;
 pub use self::rich::*;
 pub use self::tabular::*;
 pub use self::text::*;

@@ -5,12 +5,13 @@ use nvisy_ontology::entity::ImageLocation;
 
 use super::Handler;
 use crate::document::LocationStream;
-use crate::transform::ImageRedaction;
+use crate::handler::Redactions;
 
 mod apply;
 mod image_data;
 mod image_handler;
 mod image_handler_macro;
+mod instruction;
 mod ops;
 
 mod jpeg_handler;
@@ -26,6 +27,7 @@ pub(crate) use self::apply::apply_image_redaction;
 pub use self::image_data::ImageData;
 pub use self::image_handler::BoxedImageHandler;
 pub(crate) use self::image_handler_macro::impl_image_handler;
+pub use self::instruction::{ImageOutput, ImageRedaction};
 pub use self::jpeg_handler::JpegHandler;
 pub use self::jpeg_loader::{JpegLoader, JpegParams};
 pub use self::png_handler::PngHandler;
@@ -41,12 +43,13 @@ pub use self::tiff_loader::{TiffLoader, TiffParams};
 ///   the location's bounding box).
 /// - [`redact_at`]: apply a single redaction to a single location.
 ///
-/// Batched redaction lives on the blanket-impl [`ImageTransform::redact`].
+/// Batched redaction is provided by [`redact`], which loops
+/// [`redact_at`] in insertion order.
 ///
 /// [`locations`]: ImageHandler::locations
 /// [`read`]: ImageHandler::read
 /// [`redact_at`]: ImageHandler::redact_at
-/// [`ImageTransform::redact`]: crate::transform::ImageTransform::redact
+/// [`redact`]: ImageHandler::redact
 #[async_trait::async_trait]
 pub trait ImageHandler: Handler {
     /// Async stream of [`ImageLocation`]s for this document, each
@@ -67,4 +70,22 @@ pub trait ImageHandler: Handler {
         location: &ImageLocation,
         redaction: ImageRedaction,
     ) -> Result<(), Error>;
+
+    /// Apply every `(location, redaction)` pair in `redactions` to the
+    /// handler in insertion order. The first error aborts the batch.
+    ///
+    /// The default loops [`redact_at`] in [`Redactions`] insertion
+    /// order; handlers with ordering constraints override this
+    /// default.
+    ///
+    /// [`redact_at`]: ImageHandler::redact_at
+    async fn redact(
+        &mut self,
+        redactions: Redactions<ImageLocation, ImageRedaction>,
+    ) -> Result<(), Error> {
+        for (location, redaction) in redactions {
+            self.redact_at(&location, redaction).await?;
+        }
+        Ok(())
+    }
 }

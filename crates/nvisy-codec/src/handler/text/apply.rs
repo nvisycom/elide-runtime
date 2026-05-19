@@ -6,7 +6,7 @@
 
 use nvisy_core::Error;
 
-use crate::transform::TextRedaction;
+use crate::handler::TextRedaction;
 
 /// Apply a single redaction to `content` in place.
 ///
@@ -42,7 +42,7 @@ pub(crate) fn apply_text_redaction(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transform::TextOutput;
+    use crate::handler::TextOutput;
 
     fn redaction(start: usize, end: usize, replacement: &str) -> TextRedaction {
         TextRedaction::new(start, end, TextOutput::replace(replacement))

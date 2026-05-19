@@ -10,7 +10,7 @@ use nvisy_ontology::entity::TextLocation;
 use super::TextData;
 use crate::document::LocationStream;
 use crate::handler::{Handler, TextHandler};
-use crate::transform::TextRedaction;
+use crate::handler::TextRedaction;
 
 /// A type-erased text handler backed by a boxed trait object.
 pub struct BoxedTextHandler(Box<dyn TextHandler>);

@@ -1,12 +1,12 @@
 //! Conflict resolution policy for [`Redactions`].
 //!
-//! [`Redactions`]: crate::transform::Redactions
+//! [`Redactions`]: crate::handler::Redactions
 
 use thiserror::Error;
 
 /// How [`Redactions`] resolves overlapping insertions within a span.
 ///
-/// [`Redactions`]: crate::transform::Redactions
+/// [`Redactions`]: crate::handler::Redactions
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum ConflictPolicy {
     /// Refuse to insert a redaction that overlaps with an existing one.
@@ -18,7 +18,7 @@ pub enum ConflictPolicy {
     /// When `try_merge` returns `None`, insertion fails with
     /// [`InsertError::NotMergeable`].
     ///
-    /// [`Mergeable::try_merge`]: crate::transform::Mergeable::try_merge
+    /// [`Mergeable::try_merge`]: crate::handler::Mergeable::try_merge
     Merge,
     /// Drop the existing redaction and replace it with the new one.
     Replace,
@@ -27,7 +27,7 @@ pub enum ConflictPolicy {
 /// Error returned by [`Redactions::try_insert`] when a conflict cannot
 /// be resolved under the configured [`ConflictPolicy`].
 ///
-/// [`Redactions::try_insert`]: crate::transform::Redactions::try_insert
+/// [`Redactions::try_insert`]: crate::handler::Redactions::try_insert
 #[derive(Debug, Error)]
 pub enum InsertError {
     /// [`ConflictPolicy::Reject`] is active and the new redaction

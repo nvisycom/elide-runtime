@@ -6,14 +6,14 @@
 //! Supported formats are `i8` / `i16` / `i32` PCM and `f32` IEEE
 //! float; other bit depths surface a clear error.
 //!
-//! Batched redaction goes through [`AudioTransform::redact`], which
+//! Batched redaction goes through [`AudioHandler::redact`], which
 //! sorts right-to-left by `time_span.start_us` so
 //! [`AudioOutput::Remove`] operations don't shift the indices of
 //! pending redactions.
 //!
 //! [`AudioHandler`]: crate::handler::AudioHandler
-//! [`AudioTransform::redact`]: crate::transform::AudioTransform::redact
-//! [`AudioOutput::Remove`]: crate::transform::AudioOutput::Remove
+//! [`AudioHandler::redact`]: crate::handler::AudioHandler::redact
+//! [`AudioOutput::Remove`]: crate::handler::AudioOutput::Remove
 
 use std::io::Cursor;
 
@@ -27,8 +27,7 @@ use nvisy_ontology::primitive::TimeSpan;
 
 use crate::document::{Located, LocationStream};
 use crate::handler::{AudioData, AudioHandler, Handler};
-use super::apply_audio_redaction;
-use crate::transform::AudioRedaction;
+use super::{AudioRedaction, apply_audio_redaction};
 
 const TARGET: &str = "wav-handler";
 
@@ -192,7 +191,8 @@ mod tests {
     use hound::SampleFormat;
 
     use super::*;
-    use crate::transform::{AudioOutput, AudioTransform, ConflictPolicy, Redactions};
+    use crate::handler::AudioHandler;
+    use crate::handler::{AudioOutput, ConflictPolicy, Redactions};
 
     /// Encode a mono i16 PCM WAV with the given samples at 1 kHz.
     fn encode_wav_mono_i16(samples: &[i16]) -> Bytes {

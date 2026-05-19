@@ -24,7 +24,7 @@ use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, ImageHandler, TextHandler};
 use crate::handler::text::apply_text_redaction;
-use crate::transform::{ImageRedaction, TextRedaction};
+use crate::handler::{ImageRedaction, TextRedaction};
 
 const TARGET: &str = "rich-text-handler";
 

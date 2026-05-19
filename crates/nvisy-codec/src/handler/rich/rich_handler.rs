@@ -13,7 +13,7 @@ use crate::document::LocationStream;
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, ImageHandler, TextHandler};
-use crate::transform::{ImageRedaction, TextRedaction};
+use crate::handler::{ImageRedaction, TextRedaction};
 
 /// A type-erased rich-document handler backed by a boxed trait object.
 pub struct BoxedRichHandler(Box<dyn RichHandler>);

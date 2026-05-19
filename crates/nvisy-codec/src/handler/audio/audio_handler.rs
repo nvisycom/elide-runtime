@@ -10,7 +10,7 @@ use nvisy_ontology::entity::AudioLocation;
 use super::{AudioData, Mp3Handler, WavHandler};
 use crate::document::LocationStream;
 use crate::handler::{AudioHandler, Handler};
-use crate::transform::AudioRedaction;
+use crate::handler::AudioRedaction;
 
 /// A type-erased audio handler backed by a boxed trait object.
 pub struct BoxedAudioHandler(Box<dyn AudioHandler>);

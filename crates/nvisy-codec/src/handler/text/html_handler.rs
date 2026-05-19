@@ -15,8 +15,7 @@ use nvisy_ontology::entity::TextLocation;
 use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-use super::apply_text_redaction;
-use crate::transform::TextRedaction;
+use super::{TextRedaction, apply_text_redaction};
 
 const TARGET: &str = "html-handler";
 
@@ -185,7 +184,8 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::transform::{ConflictPolicy, Redactions, TextOutput, TextTransform};
+    use crate::handler::TextHandler;
+    use crate::handler::{ConflictPolicy, Redactions, TextOutput};
 
     fn handler_from_html(raw: &str) -> HtmlHandler {
         let dom = scraper::Html::parse_document(raw);

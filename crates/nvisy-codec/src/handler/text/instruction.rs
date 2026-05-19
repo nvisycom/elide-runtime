@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::transform::Mergeable;
+use crate::handler::Mergeable;
 
 /// A text redaction targeting a byte range within its containing span.
 ///
@@ -11,7 +11,7 @@ use crate::transform::Mergeable;
 /// struct only carries the intra-span byte range and the replacement
 /// output.
 ///
-/// [`Redactions`]: crate::transform::Redactions
+/// [`Redactions`]: crate::handler::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextRedaction {
     /// Byte offset where the redacted region starts within the span.

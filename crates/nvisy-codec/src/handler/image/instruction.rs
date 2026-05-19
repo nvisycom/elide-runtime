@@ -4,14 +4,14 @@ use nvisy_ontology::primitive::Color;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::transform::Mergeable;
+use crate::handler::Mergeable;
 
 /// An image redaction: the *how*. The *where* (bounding box, page
 /// number, image id) lives on the containing [`ImageLocation`] via
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
 /// [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
-/// [`Redactions`]: crate::transform::Redactions
+/// [`Redactions`]: crate::handler::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageRedaction {
     /// The redaction output that determines the rendering method.

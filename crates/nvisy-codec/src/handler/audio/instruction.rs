@@ -3,14 +3,14 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::transform::Mergeable;
+use crate::handler::Mergeable;
 
 /// An audio redaction: the *how*. The *where* (time span, speaker,
 /// audio id) lives on the containing [`AudioLocation`] via
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
 /// [`AudioLocation`]: nvisy_ontology::entity::AudioLocation
-/// [`Redactions`]: crate::transform::Redactions
+/// [`Redactions`]: crate::handler::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioRedaction {
     /// The redaction output that determines the rendering method.

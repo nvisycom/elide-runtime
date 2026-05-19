@@ -26,8 +26,7 @@ use serde::{Deserialize, Serialize};
 use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-use super::apply_text_redaction;
-use crate::transform::TextRedaction;
+use super::{TextRedaction, apply_text_redaction};
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 const TARGET: &str = "json-handler";

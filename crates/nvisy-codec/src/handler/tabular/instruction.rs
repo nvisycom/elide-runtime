@@ -1,6 +1,6 @@
 //! Tabular redaction instruction types.
 
-use crate::transform::{Mergeable, TextOutput};
+use crate::handler::{Mergeable, TextOutput};
 
 /// A tabular redaction: the *how*. The *where* — cell coordinates
 /// (`row_index`, `column_index`) and optional intra-cell byte offsets
@@ -11,8 +11,8 @@ use crate::transform::{Mergeable, TextOutput};
 /// being grouped by a line-level text span, it is grouped by a cell
 /// coordinate.
 ///
-/// [`Redactions`]: crate::transform::Redactions
-/// [`TextRedaction`]: crate::transform::TextRedaction
+/// [`Redactions`]: crate::handler::Redactions
+/// [`TextRedaction`]: crate::handler::TextRedaction
 /// [`TabularLocation`]: nvisy_ontology::entity::TabularLocation
 #[derive(Debug, Clone, PartialEq)]
 pub struct TabularRedaction {

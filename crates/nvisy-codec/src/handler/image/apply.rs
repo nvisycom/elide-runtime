@@ -5,7 +5,7 @@ use image::DynamicImage;
 use nvisy_ontology::primitive::BoundingBox;
 
 use super::ops::ImageOps;
-use crate::transform::{ImageOutput, ImageRedaction};
+use crate::handler::{ImageOutput, ImageRedaction};
 
 const TARGET: &str = "nvisy_codec::handler::image";
 

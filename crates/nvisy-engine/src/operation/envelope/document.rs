@@ -9,7 +9,7 @@ use std::fmt;
 
 use futures::StreamExt;
 use nvisy_codec::handler::{AudioData, ImageData, TextData};
-use nvisy_codec::transform::{
+use nvisy_codec::handler::{
     AudioRedaction, ImageRedaction, Redactions, TabularRedaction, TextRedaction,
 };
 use nvisy_codec::{ContentHandle, Located};

@@ -3,7 +3,7 @@
 
 use nvisy_ontology::primitive::TimeSpan;
 
-use crate::transform::{AudioOutput, AudioRedaction};
+use crate::handler::{AudioOutput, AudioRedaction};
 
 const TARGET: &str = "nvisy_codec::handler::audio";
 
@@ -19,10 +19,10 @@ const TARGET: &str = "nvisy_codec::handler::audio";
 /// Ordering across multiple redactions is the caller's
 /// responsibility: an [`AudioOutput::Remove`] shrinks the buffer, so
 /// later time spans must be applied first to keep earlier ones'
-/// indices valid. See [`AudioTransform`].
+/// indices valid. See [`AudioHandler::redact`].
 ///
 /// [`AudioLocation`]: nvisy_ontology::entity::AudioLocation
-/// [`AudioTransform`]: crate::transform::AudioTransform
+/// [`AudioHandler::redact`]: crate::handler::AudioHandler::redact
 pub(crate) fn apply_audio_redaction<S>(
     samples: &mut Vec<S>,
     time_span: TimeSpan,

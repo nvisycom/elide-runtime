@@ -19,8 +19,7 @@ use nvisy_ontology::entity::TabularLocation;
 use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TabularHandler};
-use super::apply_tabular_redaction;
-use crate::transform::TabularRedaction;
+use super::{TabularRedaction, apply_tabular_redaction};
 
 const TARGET: &str = "csv-handler";
 
@@ -273,7 +272,8 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::transform::{ConflictPolicy, Redactions, TabularTransform, TextOutput};
+    use crate::handler::TabularHandler;
+    use crate::handler::{ConflictPolicy, Redactions, TextOutput};
 
     fn handler_with_headers(headers: Vec<&str>, rows: Vec<Vec<&str>>) -> CsvHandler {
         CsvHandler::new(CsvData {

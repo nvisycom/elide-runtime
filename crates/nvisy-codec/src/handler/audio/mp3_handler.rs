@@ -4,13 +4,13 @@
 //! Redaction is **not supported**: no pure-Rust MP3 encoder exists and
 //! pulling a C dependency (libmp3lame) is out of scope here. Callers
 //! get an explicit error from [`AudioHandler::redact_at`]; under
-//! [`AudioTransform::redact`] this aborts the document's pipeline at
-//! the first redaction. Convert to WAV upstream if audio redaction is
+//! [`AudioHandler::redact`] this aborts the document's pipeline at the
+//! first redaction. Convert to WAV upstream if audio redaction is
 //! required.
 //!
 //! [`AudioHandler`]: crate::handler::AudioHandler
 //! [`AudioHandler::redact_at`]: crate::handler::AudioHandler::redact_at
-//! [`AudioTransform::redact`]: crate::transform::AudioTransform::redact
+//! [`AudioHandler::redact`]: crate::handler::AudioHandler::redact
 
 use bytes::Bytes;
 use nvisy_core::Error;
@@ -21,7 +21,7 @@ use nvisy_ontology::primitive::TimeSpan;
 
 use crate::document::{Located, LocationStream};
 use crate::handler::{AudioData, AudioHandler, Handler};
-use crate::transform::AudioRedaction;
+use crate::handler::AudioRedaction;
 
 const TARGET: &str = "mp3-handler";
 
@@ -108,7 +108,8 @@ mod tests {
     use nvisy_ontology::primitive::TimeSpan;
 
     use super::*;
-    use crate::transform::{AudioOutput, AudioTransform, ConflictPolicy, Redactions};
+    use crate::handler::AudioHandler;
+    use crate::handler::{AudioOutput, ConflictPolicy, Redactions};
 
     #[tokio::test]
     async fn redact_with_entries_errors() {

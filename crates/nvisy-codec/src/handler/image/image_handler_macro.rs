@@ -73,7 +73,7 @@ macro_rules! impl_image_handler {
             async fn redact_at(
                 &mut self,
                 location: &nvisy_ontology::entity::ImageLocation,
-                redaction: crate::transform::ImageRedaction,
+                redaction: crate::handler::ImageRedaction,
             ) -> Result<(), nvisy_core::Error> {
                 crate::handler::image::apply_image_redaction(
                     &mut self.image,

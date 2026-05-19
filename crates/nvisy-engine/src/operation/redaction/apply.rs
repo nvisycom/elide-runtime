@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_codec::transform::{
+use nvisy_codec::handler::{
     AudioOutput, AudioRedaction, ConflictPolicy, ImageOutput, ImageRedaction, Redactions,
     TabularRedaction, TextOutput, TextRedaction,
 };

@@ -147,6 +147,7 @@ impl Content {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::media::{ImageFormat, TextFormat};
 
     #[test]
     fn content_with_metadata() {
@@ -186,8 +187,6 @@ mod tests {
 
     #[test]
     fn infer_document_type_from_metadata() {
-        use crate::media::TextFormat;
-
         let data = ContentData::from("plain text");
         let metadata = ContentMetadata::new().with_content_type("text/plain");
         let content = Content::with_metadata(data, metadata);
@@ -200,8 +199,6 @@ mod tests {
 
     #[test]
     fn infer_document_type_from_magic_bytes() {
-        use crate::media::ImageFormat;
-
         let png = vec![
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
             0x44, 0x52,

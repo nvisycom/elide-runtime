@@ -1,8 +1,10 @@
 //! Text generation agent for generating synthetic replacement values.
 //!
-//! [`GenAgent`] wraps a [`BaseAgent`](super::BaseAgent) with
+//! [`GenAgent`] wraps a [`BaseAgent`] with
 //! generation-specific prompts. It is a pure LLM agent (no tools) that
 //! generates realistic fake values to replace detected PII/entities.
+//!
+//! [`BaseAgent`]: super::BaseAgent
 
 mod output;
 mod prompt;
@@ -35,9 +37,11 @@ pub struct GenRequest {
 /// # Workflow
 ///
 /// 1. Caller passes a batch of [`GenRequest`]s to
-///    [`generate`](Self::generate).
+///    [`generate`].
 /// 2. The agent builds a user prompt via `GenPromptBuilder`.
 /// 3. Structured output is parsed into `Vec<GeneratedEntity>`.
+///
+/// [`generate`]: Self::generate
 pub struct GenAgent {
     base: BaseAgent,
 }

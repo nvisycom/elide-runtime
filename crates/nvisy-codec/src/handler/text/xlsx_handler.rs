@@ -5,9 +5,10 @@ use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 use nvisy_ontology::entity::TextLocation;
 
-use crate::document::SpanStream;
+use crate::document::LocationStream;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
+use crate::transform::{Redactions, TextRedaction};
 
 #[derive(Debug, Default)]
 pub struct XlsxHandler {
@@ -47,18 +48,18 @@ impl Handler for XlsxHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for XlsxHandler {
-    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
-        SpanStream::new(futures::stream::empty())
+    fn locations(&self) -> LocationStream<'_, TextLocation> {
+        LocationStream::empty()
     }
 
-    async fn edit_text(
+    async fn read(&self, _location: &TextLocation) -> Option<TextData> {
+        None
+    }
+
+    async fn redact(
         &mut self,
-        _edits: SpanStream<'_, TextLocation, TextData>,
+        _redactions: Redactions<TextLocation, TextRedaction>,
     ) -> Result<(), Error> {
         Ok(())
-    }
-
-    async fn value_at(&self, _location: &TextLocation) -> Option<String> {
-        None
     }
 }

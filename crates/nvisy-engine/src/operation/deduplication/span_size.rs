@@ -15,7 +15,7 @@ use nvisy_ontology::entity::Location;
 /// over "John", or the larger bounding box).
 ///
 /// Returns `None` for cross-modality comparisons (meaningless).
-/// Returns `Some(cmp)` with a standard [`Ordering`](std::cmp::Ordering)
+/// Returns `Some(cmp)` with a standard [`Ordering`]
 /// for same-modality pairs.
 ///
 /// Size metric per modality:
@@ -23,6 +23,8 @@ use nvisy_ontology::entity::Location;
 /// - **Image**: bounding box area (`width * height`).
 /// - **Audio**: time span duration.
 /// - **Tabular**: cell text length.
+///
+/// [`Ordering`]: std::cmp::Ordering
 pub(crate) trait SpanSize {
     /// Compare the extent of two locations.
     ///

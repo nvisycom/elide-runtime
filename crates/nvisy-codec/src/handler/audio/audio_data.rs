@@ -5,10 +5,12 @@ use derive_more::{AsRef, From, Into};
 
 /// Opaque wrapper around raw audio bytes.
 ///
-/// Mirrors [`ImageData`](crate::handler::ImageData) and
-/// [`TextData`](crate::handler::TextData) for audio-bearing handlers,
+/// Mirrors [`ImageData`] and [`TextData`] for audio-bearing handlers,
 /// providing a consistent type boundary at the `AudioHandler` trait
 /// level.
+///
+/// [`ImageData`]: crate::handler::ImageData
+/// [`TextData`]: crate::handler::TextData
 #[derive(Debug, Clone, From, Into, AsRef)]
 pub struct AudioData(Bytes);
 

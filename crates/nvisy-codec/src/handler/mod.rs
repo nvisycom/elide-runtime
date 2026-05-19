@@ -15,7 +15,6 @@ use nvisy_core::media::DocumentType;
 mod audio;
 mod image;
 mod rich;
-mod tabular;
 mod text;
 
 use nvisy_core::content::ContentSource;
@@ -23,7 +22,6 @@ use nvisy_core::content::ContentSource;
 pub use self::audio::*;
 pub use self::image::*;
 pub use self::rich::*;
-pub use self::tabular::*;
 pub use self::text::*;
 
 /// Base trait implemented by all format handlers.
@@ -32,7 +30,7 @@ pub use self::text::*;
 /// identify and serialize it. Handlers are produced by their
 /// corresponding [`Loader`].
 ///
-/// Capability-specific span access is provided by the opt-in traits
+/// Capability-specific access is provided by the opt-in traits
 /// [`TextHandler`], [`ImageHandler`], and [`AudioHandler`].
 pub trait Handler: Send + Sync + 'static {
     /// The document type this handler represents.

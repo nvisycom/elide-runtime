@@ -13,8 +13,10 @@ use crate::ocr::provider::{PaddleXBackend, PaddleXParams, SuryaBackend, SuryaPar
 /// Union of all provider parameter types.
 ///
 /// Each variant holds the configuration needed to construct one OCR backend.
-/// Use [`into_engine`](OcrProvider::into_engine) to build a ready-to-use
+/// Use [`into_engine`] to build a ready-to-use
 /// `OcrEngine` from any variant.
+///
+/// [`into_engine`]: OcrProvider::into_engine
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum OcrProvider {

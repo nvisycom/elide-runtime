@@ -29,18 +29,17 @@ macro_rules! impl_audio_handler {
 
         #[async_trait::async_trait]
         impl crate::handler::AudioHandler for $handler {
-            async fn audio_spans(
+            fn locations(
                 &self,
-            ) -> crate::document::SpanStream<
-                '_,
-                nvisy_ontology::entity::AudioLocation,
-                crate::handler::AudioData,
-            > {
-                // Single-track audio: the entire audio as one span
-                // with a time span covering the full duration.
-                // Duration is unknown without decoding — use 0..0 as
-                // a placeholder. The actual time span is set by the
-                // STT extraction operation after transcription.
+            ) -> crate::document::LocationStream<'_, nvisy_ontology::entity::AudioLocation>
+            {
+                use ::std::iter;
+
+                // Single-track audio: the entire audio as one location
+                // with a time span covering the full duration. Duration
+                // is unknown without decoding — use 0..0 as a
+                // placeholder. The actual time span is set by the STT
+                // extraction operation after transcription.
                 let location = nvisy_ontology::entity::AudioLocation {
                     time_span: nvisy_ontology::primitive::TimeSpan {
                         start_us: 0,
@@ -49,39 +48,33 @@ macro_rules! impl_audio_handler {
                     speaker_id: None,
                     audio_id: None,
                 };
-                use ::std::iter;
-
-                crate::document::SpanStream::new(futures::stream::iter(iter::once(
-                    crate::document::Span::new(
-                        location,
-                        crate::handler::AudioData::new(self.bytes.clone()),
-                    ),
+                crate::document::LocationStream::new(futures::stream::iter(iter::once(
+                    crate::document::Located::new(self.source, location),
                 )))
             }
 
-            async fn edit_audio(
-                &mut self,
-                edits: crate::document::SpanStream<
-                    '_,
-                    nvisy_ontology::entity::AudioLocation,
-                    crate::handler::AudioData,
-                >,
-            ) -> Result<(), nvisy_core::Error> {
-                use futures::StreamExt;
-                let edits: Vec<_> = edits.collect().await;
-                if let Some(edit) = edits.into_iter().next() {
-                    self.bytes = edit.data.into_inner();
-                }
-                Ok(())
-            }
-
-            async fn value_at(
+            async fn read(
                 &self,
                 _location: &nvisy_ontology::entity::AudioLocation,
             ) -> Option<crate::handler::AudioData> {
                 // Full audio segment: extracting a sub-segment by
                 // time span requires decoding, which we don't do here.
                 Some(crate::handler::AudioData::new(self.bytes.clone()))
+            }
+
+            async fn redact(
+                &mut self,
+                _redactions: crate::transform::Redactions<
+                    nvisy_ontology::entity::AudioLocation,
+                    crate::transform::AudioRedaction,
+                >,
+            ) -> Result<(), nvisy_core::Error> {
+                // TODO: implement audio redaction (silence/remove time ranges)
+                tracing::warn!(
+                    target: $origin,
+                    "audio redaction is not yet implemented"
+                );
+                Ok(())
             }
         }
 

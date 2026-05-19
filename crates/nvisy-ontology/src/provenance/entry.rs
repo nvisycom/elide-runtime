@@ -34,8 +34,11 @@ pub enum AuditEntryStatus {
 /// the applicator with the replacement value and `is_applied` flag.
 ///
 /// Location and confidence are not stored here: they live on the
-/// corresponding [`Entity`](crate::entity::Entity) in
-/// [`Audit::entities`](super::Audit::entities), linked by `entity_id`.
+/// corresponding [`Entity`] in
+/// [`Audit::entities`], linked by `entity_id`.
+///
+/// [`Entity`]: crate::entity::Entity
+/// [`Audit::entities`]: super::Audit::entities
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "AuditEntryBuilder",

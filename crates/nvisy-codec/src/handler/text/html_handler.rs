@@ -1,30 +1,23 @@
-//! HTML handler: holds parsed HTML content and provides span-based
+//! HTML handler: holds parsed HTML content and provides location-based
 //! access via [`Handler`] + [`TextHandler`].
 //!
-//! The handler stores extracted text nodes so the content can be
-//! inspected and edited without holding the full DOM.
-//!
-//! # Span model
-//!
-//! [`TextHandler::text_spans`] yields one [`Span`] per text node in
-//! document order, addressed by [`TextLocation`] with byte offsets
-//! computed from cumulative text node lengths.
-//!
-//! # Encoding
-//!
-//! [`Handler::encode`] reconstructs the HTML by re-parsing the
-//! original source into a DOM, applying edits via direct node
-//! mutation, and serializing back with [`scraper::Html::html`].
+//! [`TextHandler::locations`] yields one location per text node in
+//! document order; offsets are cumulative over the text-node sequence
+//! (not raw HTML bytes). [`Handler::encode`] reconstructs the HTML by
+//! re-parsing the original source into a DOM, applying mutations, and
+//! serializing back with [`scraper::Html::html`].
 
-use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::entity::TextLocation;
 
-use crate::document::{Span, SpanStream};
+use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
+use crate::transform::{Redactions, TextRedaction, apply_text_redactions};
+
+const TARGET: &str = "html-handler";
 
 /// Parsed HTML content stored as extracted text nodes.
 #[derive(Debug, Clone)]
@@ -81,57 +74,52 @@ impl Handler for HtmlHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for HtmlHandler {
-    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
-        let mut spans = Vec::with_capacity(self.data.text_nodes.len());
+    fn locations(&self) -> LocationStream<'_, TextLocation> {
+        let source = self.source;
+        let mut items = Vec::with_capacity(self.data.text_nodes.len());
         let mut offset = 0usize;
-
         for text in &self.data.text_nodes {
             let start = offset;
             let end = start + text.len();
-            spans.push(
-                Span::new(
-                    TextLocation {
-                        start_offset: start,
-                        end_offset: end,
-                        ..Default::default()
-                    },
-                    TextData::from(text.clone()),
-                )
-                .with_source(self.source),
-            );
+            items.push(Located::new(
+                source,
+                TextLocation {
+                    start_offset: start,
+                    end_offset: end,
+                    ..Default::default()
+                },
+            ));
             offset = end;
         }
-
-        SpanStream::new(futures::stream::iter(spans))
+        LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanStream<'_, TextLocation, TextData>,
-    ) -> Result<(), Error> {
-        let edits: Vec<_> = edits.collect().await;
-        let offsets = self.node_offsets();
-        for edit in edits {
-            let idx = offsets
-                .iter()
-                .position(|&(start, _)| start == edit.id.start_offset)
-                .ok_or_else(|| {
-                    Error::validation(
-                        format!("no text node at byte offset {}", edit.id.start_offset),
-                        "html-handler",
-                    )
-                })?;
-            self.data.text_nodes[idx] = edit.data.into_inner();
-        }
-        Ok(())
-    }
-
-    async fn value_at(&self, location: &TextLocation) -> Option<String> {
+    async fn read(&self, location: &TextLocation) -> Option<TextData> {
         let offsets = self.node_offsets();
         let idx = offsets
             .iter()
             .position(|&(start, _)| start == location.start_offset)?;
-        self.data.text_nodes.get(idx).cloned()
+        self.data.text_nodes.get(idx).cloned().map(TextData::from)
+    }
+
+    async fn redact(
+        &mut self,
+        redactions: Redactions<TextLocation, TextRedaction>,
+    ) -> Result<(), Error> {
+        if redactions.is_empty() {
+            return Ok(());
+        }
+        let offsets = self.node_offsets();
+        for (loc, items) in redactions {
+            let Some(idx) = offsets
+                .iter()
+                .position(|&(start, _)| start == loc.start_offset)
+            else {
+                continue;
+            };
+            apply_text_redactions(&mut self.data.text_nodes[idx], &items, TARGET)?;
+        }
+        Ok(())
     }
 }
 
@@ -197,11 +185,11 @@ impl HtmlHandler {
 
 #[cfg(test)]
 mod tests {
+    use futures::StreamExt;
     use nvisy_core::Error;
 
     use super::*;
-    use crate::document::Span;
-    use crate::handler::{Handler, TextHandler};
+    use crate::transform::{ConflictPolicy, TextOutput};
 
     fn handler_from_html(raw: &str) -> HtmlHandler {
         let dom = scraper::Html::parse_document(raw);
@@ -232,15 +220,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn encode_after_edit() -> Result<(), Error> {
+    async fn encode_after_redact() -> Result<(), Error> {
         let raw = "<html><head></head><body><p>Hello</p><p>World</p></body></html>";
         let mut h = handler_from_html(raw);
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-            spans[0].id.clone(),
-            "[REDACTED]".into(),
-        )])))
-        .await?;
+        let items: Vec<_> = h.locations().collect().await;
+        let mut rs = Redactions::new(ConflictPolicy::Reject);
+        rs.try_insert(
+            items[0].location.clone(),
+            TextRedaction::new(0, 5, TextOutput::replace("[REDACTED]")),
+        )
+        .unwrap();
+        h.redact(rs).await?;
         let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("[REDACTED]"));
         assert!(result.contains("World"));
@@ -248,18 +238,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn view_spans_returns_text() {
-        let h = handler_from_html("<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>");
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        assert_eq!(spans.len(), 2);
-        assert_eq!(spans[0].data, "Alpha");
-        assert_eq!(spans[1].data, "Beta");
+    async fn locations_returns_text_nodes() {
+        let h = handler_from_html(
+            "<html><head></head><body><p>Alpha</p><p>Beta</p></body></html>",
+        );
+        let items: Vec<_> = h.locations().collect().await;
+        assert_eq!(items.len(), 2);
     }
 
     #[tokio::test]
-    async fn value_at_returns_text_node() {
+    async fn read_returns_text_node() {
         let h = handler_from_html("<html><head></head><body><p>Hello</p></body></html>");
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        assert_eq!(h.value_at(&spans[0].id).await, Some("Hello".to_string()));
+        let items: Vec<_> = h.locations().collect().await;
+        assert_eq!(
+            h.read(&items[0].location).await.unwrap().as_str(),
+            "Hello"
+        );
     }
 }

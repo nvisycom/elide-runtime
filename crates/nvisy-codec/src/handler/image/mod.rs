@@ -4,7 +4,8 @@ use nvisy_core::Error;
 use nvisy_ontology::entity::ImageLocation;
 
 use super::Handler;
-use crate::document::SpanStream;
+use crate::document::LocationStream;
+use crate::transform::{ImageRedaction, Redactions};
 
 mod image_data;
 mod image_handler;
@@ -31,22 +32,26 @@ pub use self::tiff_loader::{TiffLoader, TiffParams};
 
 /// Capability trait for handlers that expose image content.
 ///
-/// All image handlers use [`ImageLocation`] as their span identifier.
+/// Handlers expose image content as a stream of [`ImageLocation`]s
+/// (cheap, identity-only), with explicit `read` calls to fetch the
+/// payload for any given location, and a `redact` call that applies a
+/// batch of [`ImageRedaction`]s grouped by location.
 #[async_trait::async_trait]
 pub trait ImageHandler: Handler {
-    /// Return image content as an async stream of [`Span`](crate::document::Span)s.
+    /// Async stream of [`ImageLocation`]s for this document, each
+    /// tagged with the handler's [`ContentSource`].
     ///
-    /// Each span carries an [`ImageLocation`] and [`ImageData`] payload.
-    async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData>;
+    /// [`ContentSource`]: nvisy_core::content::ContentSource
+    fn locations(&self) -> LocationStream<'_, ImageLocation>;
 
-    /// Apply image edits from an async stream back to the handler.
-    async fn edit_images(
-        &mut self,
-        edits: SpanStream<'_, ImageLocation, ImageData>,
-    ) -> Result<(), Error>;
-
-    /// Extract the image data at the given location (crop the bounding box).
+    /// Read the image data at the given location (crop the bounding box).
     ///
     /// Returns `None` if the location is out of bounds.
-    async fn value_at(&self, location: &ImageLocation) -> Option<ImageData>;
+    async fn read(&self, location: &ImageLocation) -> Option<ImageData>;
+
+    /// Apply a batch of redactions grouped by [`ImageLocation`].
+    async fn redact(
+        &mut self,
+        redactions: Redactions<ImageLocation, ImageRedaction>,
+    ) -> Result<(), Error>;
 }

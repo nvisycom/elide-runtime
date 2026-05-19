@@ -184,13 +184,15 @@ impl PatternRegistry {
     ///
     /// Non-`.json` files are logged as warnings and skipped. Loaded
     /// patterns are inserted into `self`, so this can be called after
-    /// [`load_builtins`](Self::load_builtins) to layer user-provided
+    /// [`load_builtins`] to layer user-provided
     /// patterns on top of the built-ins.
     ///
     /// # Errors
     ///
     /// Returns [`nvisy_core::Error`] if the directory cannot be read,
     /// a file cannot be read, or a JSON file fails to parse.
+    ///
+    /// [`load_builtins`]: Self::load_builtins
     #[tracing::instrument(target = TARGET, name = "patterns.load_dir", skip_all, fields(path = %dir.as_ref().display(), count))]
     pub fn load_dir(&mut self, dir: impl AsRef<Path>) -> nvisy_core::Result<()> {
         let dir = dir.as_ref();

@@ -1,34 +1,22 @@
-//! CSV handler: holds parsed CSV content and provides span-based
+//! CSV handler: holds parsed CSV content and provides location-based
 //! access via [`Handler`] + [`TextHandler`].
 //!
-//! The handler stores the parsed rows (and optional headers) together
-//! with the detected delimiter so the file can be reconstructed after
-//! edits.
-//!
-//! # Span model
-//!
-//! [`TextHandler::text_spans`] yields one [`Span`] per cell. If headers
-//! are present, header cells are emitted first, followed by data cells
-//! in row-major order. Each span is addressed by a [`TextLocation`]
-//! with byte offsets computed from the **serialized** CSV form,
-//! correctly accounting for quoted/escaped fields.
-//!
-//! # Offset semantics
-//!
-//! Offsets are into the serialized CSV string (after CRLF→LF
-//! normalization). Quoted fields include the quote characters in their
-//! offset range. The `value` field on [`TextLocation`] carries the
-//! unescaped cell content.
+//! [`TextHandler::locations`] yields one location per cell, ordered
+//! header-then-row-major. Each location's byte offsets address the
+//! field in the **serialized** CSV form (quoted/escaped if necessary).
+//! [`TextHandler::read`] returns the unescaped cell value.
 
-use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 use nvisy_ontology::entity::TextLocation;
 
-use crate::document::{Span, SpanStream};
+use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
+use crate::transform::{Redactions, TextRedaction, apply_text_redactions};
+
+const TARGET: &str = "csv-handler";
 
 /// Parsed CSV content.
 #[derive(Debug, Clone)]
@@ -81,76 +69,77 @@ impl Handler for CsvHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for CsvHandler {
-    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
-        let cells = self.locate_cells();
+    fn locations(&self) -> LocationStream<'_, TextLocation> {
         let source = self.source;
-        let spans: Vec<_> = cells
+        let cells = self.locate_cells();
+        let items: Vec<_> = cells
             .into_iter()
             .map(|c| {
-                Span::new(
+                Located::new(
+                    source,
                     TextLocation {
                         start_offset: c.start,
                         end_offset: c.end,
                         line_number: Some(c.line_number),
                         ..Default::default()
                     },
-                    TextData::from(c.value),
                 )
-                .with_source(source)
             })
             .collect();
-        SpanStream::new(futures::stream::iter(spans))
+        LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanStream<'_, TextLocation, TextData>,
-    ) -> Result<(), Error> {
-        let edits: Vec<_> = edits.collect().await;
-        let cells = self.locate_cells();
-        for edit in edits {
-            let cell = cells
-                .iter()
-                .find(|c| c.start == edit.id.start_offset && c.end == edit.id.end_offset)
-                .ok_or_else(|| {
-                    Error::validation(
-                        format!(
-                            "no cell at byte offset {}..{}",
-                            edit.id.start_offset, edit.id.end_offset
-                        ),
-                        "csv-handler",
-                    )
-                })?;
+    async fn read(&self, location: &TextLocation) -> Option<TextData> {
+        self.locate_cells()
+            .into_iter()
+            .find(|c| c.start == location.start_offset && c.end == location.end_offset)
+            .map(|c| TextData::from(c.value))
+    }
 
-            if cell.is_header {
+    async fn redact(
+        &mut self,
+        redactions: Redactions<TextLocation, TextRedaction>,
+    ) -> Result<(), Error> {
+        if redactions.is_empty() {
+            return Ok(());
+        }
+        let cells = self.locate_cells();
+
+        let mut updates: Vec<(bool, usize, usize, String)> = Vec::new();
+        for (loc, items) in redactions {
+            let Some(cell) = cells
+                .iter()
+                .find(|c| c.start == loc.start_offset && c.end == loc.end_offset)
+            else {
+                continue;
+            };
+            let mut value = cell.value.clone();
+            apply_text_redactions(&mut value, &items, TARGET)?;
+            updates.push((cell.is_header, cell.row, cell.col, value));
+        }
+
+        for (is_header, row, col, new_value) in updates {
+            if is_header {
                 let headers = self
                     .data
                     .headers
                     .as_mut()
-                    .ok_or_else(|| Error::validation("no headers to edit", "csv-handler"))?;
-                headers[cell.col] = edit.data.into_inner();
+                    .ok_or_else(|| Error::validation("no headers to edit", TARGET))?;
+                headers[col] = new_value;
             } else {
-                let row = self.data.rows.get_mut(cell.row).ok_or_else(|| {
-                    Error::validation(format!("row {} out of bounds", cell.row), "csv-handler")
+                let row_vec = self.data.rows.get_mut(row).ok_or_else(|| {
+                    Error::validation(format!("row {row} out of bounds"), TARGET)
                 })?;
-                let target = row.get_mut(cell.col).ok_or_else(|| {
+                let target = row_vec.get_mut(col).ok_or_else(|| {
                     Error::validation(
-                        format!("col {} out of bounds in row {}", cell.col, cell.row),
-                        "csv-handler",
+                        format!("col {col} out of bounds in row {row}"),
+                        TARGET,
                     )
                 })?;
-                *target = edit.data.into_inner();
+                *target = new_value;
             }
         }
         Ok(())
-    }
-
-    async fn value_at(&self, location: &TextLocation) -> Option<String> {
-        let cells = self.locate_cells();
-        cells
-            .iter()
-            .find(|c| c.start == location.start_offset && c.end == location.end_offset)
-            .map(|c| c.value.clone())
     }
 }
 
@@ -228,15 +217,15 @@ impl CsvHandler {
 
         if let Some(headers) = &self.data.headers {
             wtr.write_record(headers)
-                .map_err(|e| Error::validation(format!("CSV encode error: {e}"), "csv-handler"))?;
+                .map_err(|e| Error::validation(format!("CSV encode error: {e}"), TARGET))?;
         }
         for row in &self.data.rows {
             wtr.write_record(row)
-                .map_err(|e| Error::validation(format!("CSV encode error: {e}"), "csv-handler"))?;
+                .map_err(|e| Error::validation(format!("CSV encode error: {e}"), TARGET))?;
         }
         let mut bytes = wtr
             .into_inner()
-            .map_err(|e| Error::validation(format!("CSV encode error: {e}"), "csv-handler"))?;
+            .map_err(|e| Error::validation(format!("CSV encode error: {e}"), TARGET))?;
 
         bytes.retain(|&b| b != b'\r');
 
@@ -248,10 +237,6 @@ impl CsvHandler {
     }
 
     /// Locate all cells by serializing and finding field boundaries.
-    ///
-    /// Serializes the CSV once, splits by newlines, and uses a
-    /// field-position parser on each line that correctly handles
-    /// quoted/escaped fields.
     fn locate_cells(&self) -> Vec<CellLocation> {
         let bytes = match self.serialize_bytes() {
             Ok(b) => b,
@@ -318,11 +303,9 @@ fn find_field_in_line(line: &str, delimiter: u8, target_col: usize) -> Option<(u
 
     while pos < line.len() && col <= target_col {
         if col == target_col {
-            // Found the target column.
             if line[pos..].starts_with('"') {
-                // Quoted field — find closing quote.
                 let content_start = pos;
-                pos += 1; // skip opening quote
+                pos += 1;
                 loop {
                     if pos >= line.len() {
                         break;
@@ -330,9 +313,9 @@ fn find_field_in_line(line: &str, delimiter: u8, target_col: usize) -> Option<(u
                     if line.as_bytes()[pos] == b'"' {
                         pos += 1;
                         if pos < line.len() && line.as_bytes()[pos] == b'"' {
-                            pos += 1; // escaped quote
+                            pos += 1;
                         } else {
-                            break; // closing quote
+                            break;
                         }
                     } else {
                         pos += 1;
@@ -340,7 +323,6 @@ fn find_field_in_line(line: &str, delimiter: u8, target_col: usize) -> Option<(u
                 }
                 return Some((content_start, pos));
             } else {
-                // Unquoted field — find delimiter or end of line.
                 let start = pos;
                 while pos < line.len()
                     && line.as_bytes()[pos] != delimiter
@@ -352,7 +334,6 @@ fn find_field_in_line(line: &str, delimiter: u8, target_col: usize) -> Option<(u
             }
         }
 
-        // Skip to next field.
         if line[pos..].starts_with('"') {
             pos += 1;
             loop {
@@ -380,7 +361,7 @@ fn find_field_in_line(line: &str, delimiter: u8, target_col: usize) -> Option<(u
         }
 
         if pos < line.len() && line.as_bytes()[pos] == delimiter {
-            pos += 1; // skip delimiter
+            pos += 1;
         }
         col += 1;
     }
@@ -394,8 +375,7 @@ mod tests {
     use nvisy_core::Error;
 
     use super::*;
-    use crate::document::Span;
-    use crate::handler::TextHandler;
+    use crate::transform::{ConflictPolicy, TextOutput};
 
     fn handler_with_headers(headers: Vec<&str>, rows: Vec<Vec<&str>>) -> CsvHandler {
         CsvHandler::new(CsvData {
@@ -422,83 +402,80 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn view_spans_with_headers() {
+    async fn locations_with_headers() {
         let h = handler_with_headers(
             vec!["name", "age"],
             vec![vec!["Alice", "30"], vec!["Bob", "25"]],
         );
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        assert_eq!(spans.len(), 6);
-        assert_eq!(spans[0].data, "name");
-        assert_eq!(spans[1].data, "age");
-        assert_eq!(spans[2].data, "Alice");
-        assert_eq!(spans[3].data, "30");
-        assert_eq!(spans[4].data, "Bob");
-        assert_eq!(spans[5].data, "25");
+        let items: Vec<_> = h.locations().collect().await;
+        assert_eq!(items.len(), 6);
     }
 
     #[tokio::test]
-    async fn view_spans_no_headers() {
+    async fn locations_no_headers() {
         let h = handler_no_headers(vec![vec!["x", "y"], vec!["1", "2"]]);
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        assert_eq!(spans.len(), 4);
-        assert_eq!(spans[0].data, "x");
+        let items: Vec<_> = h.locations().collect().await;
+        assert_eq!(items.len(), 4);
     }
 
     #[tokio::test]
-    async fn edit_cell() -> Result<(), Error> {
+    async fn redact_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["ssn"], vec![vec!["123-45-6789"]]);
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        let data_loc = spans[1].id.clone();
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+        let items: Vec<_> = h.locations().collect().await;
+        let data_loc = items[1].location.clone();
+        let mut rs = Redactions::new(ConflictPolicy::Reject);
+        rs.try_insert(
             data_loc,
-            "[REDACTED]".into(),
-        )])))
-        .await?;
+            TextRedaction::new(0, 11, TextOutput::replace("[REDACTED]")),
+        )
+        .unwrap();
+        h.redact(rs).await?;
         assert_eq!(h.cell(0, 0), Some("[REDACTED]"));
         Ok(())
     }
 
     #[tokio::test]
-    async fn edit_header() -> Result<(), Error> {
+    async fn redact_header() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["secret_field"], vec![vec!["value"]]);
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        let header_loc = spans[0].id.clone();
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
+        let items: Vec<_> = h.locations().collect().await;
+        let header_loc = items[0].location.clone();
+        let mut rs = Redactions::new(ConflictPolicy::Reject);
+        rs.try_insert(
             header_loc,
-            "redacted".into(),
-        )])))
-        .await?;
+            TextRedaction::new(0, 12, TextOutput::replace("redacted")),
+        )
+        .unwrap();
+        h.redact(rs).await?;
         assert_eq!(h.headers(), Some(["redacted".to_string()].as_slice()));
         Ok(())
     }
 
     #[tokio::test]
-    async fn value_at_returns_cell() {
+    async fn read_returns_cell() {
         let h = handler_with_headers(vec!["name"], vec![vec!["Alice"]]);
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        assert_eq!(h.value_at(&spans[1].id).await, Some("Alice".to_string()));
+        let items: Vec<_> = h.locations().collect().await;
+        assert_eq!(
+            h.read(&items[1].location).await.unwrap().as_str(),
+            "Alice"
+        );
     }
 
     #[tokio::test]
     async fn quoted_field_offsets_correct() {
         let h = handler_with_headers(vec!["bio"], vec![vec!["has, comma"]]);
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        let bio_span = spans.iter().find(|s| s.data.as_str() == "has, comma");
-        assert!(bio_span.is_some(), "should find quoted field");
-        let loc = &bio_span.unwrap().id;
-        // Offsets should include the quotes in the serialized form.
-        assert!(loc.end_offset > loc.start_offset);
-        assert_eq!(h.value_at(loc).await, Some("has, comma".to_string()));
+        let items: Vec<_> = h.locations().collect().await;
+        // Header + data cell.
+        assert_eq!(items.len(), 2);
+        let data_loc = &items[1].location;
+        assert!(data_loc.end_offset > data_loc.start_offset);
+        assert_eq!(h.read(data_loc).await.unwrap().as_str(), "has, comma");
     }
 
     #[tokio::test]
     async fn empty_data_with_headers() {
         let h = handler_with_headers(vec!["a", "b"], vec![]);
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        assert_eq!(spans.len(), 2);
-        assert_eq!(spans[0].data, "a");
-        assert_eq!(spans[1].data, "b");
+        let items: Vec<_> = h.locations().collect().await;
+        assert_eq!(items.len(), 2);
     }
 
     #[test]

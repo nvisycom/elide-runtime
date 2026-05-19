@@ -1,5 +1,7 @@
-//! TIFF handler: holds a decoded image and provides single-span access
-//! via [`ImageHandler`](crate::handler::ImageHandler).
+//! TIFF handler: holds a decoded image and provides single-location
+//! access via [`ImageHandler`].
+//!
+//! [`ImageHandler`]: crate::handler::ImageHandler
 
 use nvisy_core::content::ContentSource;
 

@@ -5,7 +5,7 @@ use std::collections::HashSet;
 /// Exact-match allow list for suppressing known false positives.
 ///
 /// Values that appear in the allow list are silently dropped from
-/// [`PatternEngine::scan_entities`](super::PatternEngine::scan_entities) results.
+/// [`PatternEngine::scan_entities`] results.
 ///
 /// # Examples
 ///
@@ -14,6 +14,8 @@ use std::collections::HashSet;
 ///     .with("123-45-6789")
 ///     .with("000-00-0000");
 /// ```
+///
+/// [`PatternEngine::scan_entities`]: super::PatternEngine::scan_entities
 #[derive(Debug, Clone, Default)]
 pub struct AllowList {
     pub(crate) values: HashSet<String>,

@@ -1,28 +1,26 @@
 //! Plain-text handler: holds loaded text content and provides
-//! span-based access via [`Handler`] + [`TextHandler`].
+//! location-based access via [`Handler`] + [`TextHandler`].
 //!
 //! The handler stores the text as a vector of lines together with a
 //! trailing-newline flag so the original file can be reconstructed
 //! byte-for-byte after edits.
 //!
-//! # Span model
-//!
-//! [`TextHandler::text_spans`] yields one [`Span`] per line. Each span
-//! is addressed by a [`TextLocation`] with byte offsets computed from
-//! cumulative line lengths.
-//!
-//! [`TextHandler::edit_text`] replaces the content of lines at the
-//! given locations.
+//! [`TextHandler::locations`] yields one [`TextLocation`] per line;
+//! [`TextHandler::read`] returns the line at a given location;
+//! [`TextHandler::redact`] applies redactions in place, mutating the
+//! affected lines directly.
 
-use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
 use nvisy_ontology::entity::TextLocation;
 
-use crate::document::{Span, SpanStream};
+use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
+use crate::transform::{Redactions, TextRedaction, apply_text_redactions};
+
+const TARGET: &str = "txt-handler";
 
 /// Handler for loaded plain-text content.
 ///
@@ -58,38 +56,28 @@ impl Handler for TxtHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for TxtHandler {
-    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
-        SpanStream::new(futures::stream::iter(TxtSpanIter {
-            lines: &self.lines,
-            source: self.source,
-            byte_offset: 0,
-            index: 0,
-        }))
+    fn locations(&self) -> LocationStream<'_, TextLocation> {
+        let source = self.source;
+        let items: Vec<_> = self
+            .line_offsets()
+            .into_iter()
+            .enumerate()
+            .map(|(i, (start, end))| {
+                Located::new(
+                    source,
+                    TextLocation {
+                        start_offset: start,
+                        end_offset: end,
+                        line_number: Some((i + 1) as u32),
+                        ..Default::default()
+                    },
+                )
+            })
+            .collect();
+        LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanStream<'_, TextLocation, TextData>,
-    ) -> Result<(), Error> {
-        let edits: Vec<_> = edits.collect().await;
-        // Map each edit's byte offset range to a line index and apply.
-        let offsets = self.line_offsets();
-        for edit in edits {
-            let line_idx = offsets
-                .iter()
-                .position(|&(start, _)| start == edit.id.start_offset)
-                .ok_or_else(|| {
-                    Error::validation(
-                        format!("no line starts at byte offset {}", edit.id.start_offset),
-                        "txt-handler",
-                    )
-                })?;
-            self.lines[line_idx] = edit.data.into_inner();
-        }
-        Ok(())
-    }
-
-    async fn value_at(&self, location: &TextLocation) -> Option<String> {
+    async fn read(&self, location: &TextLocation) -> Option<TextData> {
         let offsets = self.line_offsets();
         let line_idx = offsets.iter().position(|&(start, end)| {
             location.start_offset >= start && location.end_offset <= end
@@ -98,7 +86,27 @@ impl TextHandler for TxtHandler {
         let line_start = offsets[line_idx].0;
         let local_start = location.start_offset - line_start;
         let local_end = location.end_offset - line_start;
-        line.get(local_start..local_end).map(String::from)
+        line.get(local_start..local_end).map(TextData::from)
+    }
+
+    async fn redact(
+        &mut self,
+        redactions: Redactions<TextLocation, TextRedaction>,
+    ) -> Result<(), Error> {
+        if redactions.is_empty() {
+            return Ok(());
+        }
+        let offsets = self.line_offsets();
+        for (loc, items) in redactions {
+            let Some(line_idx) = offsets
+                .iter()
+                .position(|&(start, _)| start == loc.start_offset)
+            else {
+                continue;
+            };
+            apply_text_redactions(&mut self.lines[line_idx], &items, TARGET)?;
+        }
+        Ok(())
     }
 }
 
@@ -158,53 +166,13 @@ impl TxtHandler {
     }
 }
 
-/// Iterator over lines of a plain-text document, producing
-/// [`TextLocation`]-addressed spans.
-struct TxtSpanIter<'a> {
-    lines: &'a [String],
-    source: ContentSource,
-    byte_offset: usize,
-    index: usize,
-}
-
-impl<'a> Iterator for TxtSpanIter<'a> {
-    type Item = Span<TextLocation, TextData>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let line = self.lines.get(self.index)?;
-        let start = self.byte_offset;
-        let end = start + line.len();
-
-        let location = TextLocation {
-            start_offset: start,
-            end_offset: end,
-            line_number: Some((self.index + 1) as u32),
-            ..Default::default()
-        };
-        let span = Span::new(location, TextData::from(line.clone())).with_source(self.source);
-
-        // Advance past this line + newline separator.
-        self.byte_offset = end + 1;
-        self.index += 1;
-        Some(span)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.lines.len() - self.index;
-        (remaining, Some(remaining))
-    }
-}
-
-impl<'a> ExactSizeIterator for TxtSpanIter<'a> {}
-
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
     use nvisy_core::Error;
 
     use super::*;
-    use crate::document::Span;
-    use crate::handler::TextHandler;
+    use crate::transform::{ConflictPolicy, TextOutput};
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');
@@ -213,88 +181,114 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn view_spans_multiline() {
+    async fn locations_multiline() {
         let h = handler("hello\nworld\n");
-        let spans: Vec<_> = h.text_spans().await.collect().await;
+        let items: Vec<_> = h.locations().collect().await;
 
-        assert_eq!(spans.len(), 2);
-        assert_eq!(spans[0].id.start_offset, 0);
-        assert_eq!(spans[0].id.end_offset, 5);
-        assert_eq!(spans[0].id.line_number, Some(1));
-        assert_eq!(spans[0].data, "hello");
-        assert_eq!(spans[1].id.start_offset, 6);
-        assert_eq!(spans[1].id.end_offset, 11);
-        assert_eq!(spans[1].id.line_number, Some(2));
-        assert_eq!(spans[1].data, "world");
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].location.start_offset, 0);
+        assert_eq!(items[0].location.end_offset, 5);
+        assert_eq!(items[0].location.line_number, Some(1));
+        assert_eq!(items[1].location.start_offset, 6);
+        assert_eq!(items[1].location.end_offset, 11);
+        assert_eq!(items[1].location.line_number, Some(2));
     }
 
     #[tokio::test]
-    async fn view_spans_single_line_no_newline() {
+    async fn locations_single_line_no_newline() {
         let h = handler("no newline");
-        let spans: Vec<_> = h.text_spans().await.collect().await;
+        let items: Vec<_> = h.locations().collect().await;
 
-        assert_eq!(spans.len(), 1);
-        assert_eq!(spans[0].data, "no newline");
-        assert_eq!(spans[0].id.start_offset, 0);
-        assert_eq!(spans[0].id.end_offset, 10);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].location.start_offset, 0);
+        assert_eq!(items[0].location.end_offset, 10);
         assert!(!h.trailing_newline());
     }
 
     #[tokio::test]
-    async fn edit_spans_replace_line() -> Result<(), Error> {
-        let mut h = handler("hello\nworld\n");
-        let loc = TextLocation {
-            start_offset: 6,
-            end_offset: 11,
-            ..Default::default()
-        };
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-            loc,
-            "[REDACTED]".into(),
-        )])))
-        .await?;
-        assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn edit_spans_bad_offset() {
-        let mut h = handler("one line");
-        let loc = TextLocation {
-            start_offset: 999,
-            end_offset: 1000,
-            ..Default::default()
-        };
-        let err = h
-            .edit_text(SpanStream::new(futures::stream::iter(vec![Span::new(
-                loc,
-                "nope".into(),
-            )])))
-            .await
-            .unwrap_err();
-        assert!(err.to_string().contains("no line starts at"));
-    }
-
-    #[tokio::test]
-    async fn value_at_returns_line() {
+    async fn read_returns_line() {
         let h = handler("hello\nworld\n");
         let loc = TextLocation {
             start_offset: 6,
             end_offset: 11,
             ..Default::default()
         };
-        assert_eq!(h.value_at(&loc).await, Some("world".to_string()));
+        assert_eq!(h.read(&loc).await.unwrap().as_str(), "world");
     }
 
     #[tokio::test]
-    async fn value_at_substring() {
+    async fn read_substring() {
         let h = handler("hello world");
         let loc = TextLocation {
             start_offset: 6,
             end_offset: 11,
             ..Default::default()
         };
-        assert_eq!(h.value_at(&loc).await, Some("world".to_string()));
+        assert_eq!(h.read(&loc).await.unwrap().as_str(), "world");
+    }
+
+    #[tokio::test]
+    async fn read_cross_line_returns_none() {
+        let h = handler("hello\nworld\n");
+        let loc = TextLocation {
+            start_offset: 3,
+            end_offset: 8,
+            ..Default::default()
+        };
+        assert!(h.read(&loc).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn redact_replaces_substring() -> Result<(), Error> {
+        let mut h = handler("hello\nworld\n");
+        let items: Vec<_> = h.locations().collect().await;
+        let mut rs = Redactions::new(ConflictPolicy::Reject);
+        rs.try_insert(
+            items[1].location.clone(),
+            TextRedaction::new(0, 5, TextOutput::replace("[REDACTED]")),
+        )
+        .unwrap();
+        h.redact(rs).await?;
+        assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn redact_multiple_lines() -> Result<(), Error> {
+        let mut h = handler("aaa\nbbb\nccc\n");
+        let items: Vec<_> = h.locations().collect().await;
+        let mut rs = Redactions::new(ConflictPolicy::Reject);
+        rs.try_insert(
+            items[0].location.clone(),
+            TextRedaction::new(0, 3, TextOutput::replace("[X]")),
+        )
+        .unwrap();
+        rs.try_insert(
+            items[2].location.clone(),
+            TextRedaction::new(0, 3, TextOutput::replace("[Y]")),
+        )
+        .unwrap();
+        h.redact(rs).await?;
+        assert_eq!(h.lines(), &["[X]", "bbb", "[Y]"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn redact_unknown_location_skipped() -> Result<(), Error> {
+        let mut h = handler("one line");
+        let mut rs = Redactions::new(ConflictPolicy::Reject);
+        rs.try_insert(
+            TextLocation {
+                start_offset: 999,
+                end_offset: 1000,
+                ..Default::default()
+            },
+            TextRedaction::new(0, 1, TextOutput::replace("nope")),
+        )
+        .unwrap();
+        h.redact(rs).await?;
+        assert_eq!(h.lines(), &["one line"]);
+        Ok(())
     }
 
     #[test]
@@ -314,34 +308,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn value_at_cross_line_returns_none() {
-        let h = handler("hello\nworld\n");
-        // Offsets spanning two lines should return None.
-        let loc = TextLocation {
-            start_offset: 3,
-            end_offset: 8,
-            ..Default::default()
-        };
-        assert_eq!(h.value_at(&loc).await, None);
-    }
-
-    #[tokio::test]
-    async fn edit_multiple_lines() -> Result<(), Error> {
-        let mut h = handler("aaa\nbbb\nccc\n");
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        h.edit_text(SpanStream::new(futures::stream::iter(vec![
-            Span::new(spans[0].id.clone(), "[X]".into()),
-            Span::new(spans[2].id.clone(), "[Y]".into()),
-        ])))
-        .await?;
-        assert_eq!(h.lines(), &["[X]", "bbb", "[Y]"]);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn empty_handler_spans() {
+    async fn empty_handler_locations() {
         let h = TxtHandler::new(vec![], false);
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        assert!(spans.is_empty());
+        let items: Vec<_> = h.locations().collect().await;
+        assert!(items.is_empty());
     }
 }

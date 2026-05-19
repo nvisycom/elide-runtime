@@ -4,8 +4,11 @@ use nvisy_core::Error;
 use nvisy_ontology::entity::TextLocation;
 
 use super::Handler;
-use crate::document::SpanStream;
+use crate::document::LocationStream;
+use crate::transform::{Redactions, TextRedaction};
 
+mod csv_handler;
+mod csv_loader;
 #[cfg(feature = "html")]
 mod html_handler;
 #[cfg(feature = "html")]
@@ -17,7 +20,11 @@ mod text_data;
 mod text_handler;
 mod txt_handler;
 mod txt_loader;
+mod xlsx_handler;
+mod xlsx_loader;
 
+pub use self::csv_handler::{CsvData, CsvHandler};
+pub use self::csv_loader::{CsvLoader, CsvParams};
 #[cfg(feature = "html")]
 pub use self::html_handler::{HtmlData, HtmlHandler};
 #[cfg(feature = "html")]
@@ -29,43 +36,45 @@ pub use self::text_data::TextData;
 pub use self::text_handler::BoxedTextHandler;
 pub use self::txt_handler::TxtHandler;
 pub use self::txt_loader::{TxtLoader, TxtParams};
+pub use self::xlsx_handler::XlsxHandler;
+pub use self::xlsx_loader::{XlsxLoader, XlsxParams};
 
 /// Capability trait for handlers that expose text content.
 ///
-/// Handlers implementing this trait yield text spans addressed by
-/// [`TextLocation`] and accept text edits keyed by the same type.
+/// Handlers expose text content as a stream of [`TextLocation`]s
+/// (cheap, identity-only), with explicit `read` calls to fetch the
+/// payload for any given location, and a `redact` call that applies a
+/// batch of [`TextRedaction`]s grouped by location.
 ///
 /// # Offset semantics
 ///
 /// Byte offsets in [`TextLocation`] are relative to the handler's
 /// **serialized** form. For plain text this is identical to the
 /// in-memory form; for JSON and CSV the offsets include formatting
-/// characters (quotes, escapes, delimiters). Use [`value_at`] to
-/// extract the logical value at a location rather than slicing the
-/// serialized bytes directly.
+/// characters (quotes, escapes, delimiters). Use [`read`] to extract
+/// the logical value at a location rather than slicing the serialized
+/// bytes directly.
 ///
-/// [`value_at`]: TextHandler::value_at
+/// [`read`]: TextHandler::read
 #[async_trait::async_trait]
 pub trait TextHandler: Handler {
-    /// Return text content as an async stream of [`Span`]s.
+    /// Async stream of [`TextLocation`]s for this document, each
+    /// tagged with the handler's [`ContentSource`].
     ///
-    /// Each span carries a [`TextLocation`] identifying its position
-    /// within the document and a [`TextData`] payload.
-    ///
-    /// [`Span`]: crate::document::Span
-    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData>;
+    /// [`ContentSource`]: nvisy_core::content::ContentSource
+    fn locations(&self) -> LocationStream<'_, TextLocation>;
 
-    /// Apply text edits from an async stream back to the handler.
-    ///
-    /// The stream items must use [`TextLocation`] values that
-    /// correspond to spans returned by [`text_spans`](Self::text_spans).
-    async fn edit_text(
-        &mut self,
-        edits: SpanStream<'_, TextLocation, TextData>,
-    ) -> Result<(), Error>;
-
-    /// Extract the text value at the given location, if available.
+    /// Read the text content at the given location.
     ///
     /// Returns `None` if the location is out of bounds.
-    async fn value_at(&self, location: &TextLocation) -> Option<String>;
+    async fn read(&self, location: &TextLocation) -> Option<TextData>;
+
+    /// Apply a batch of redactions grouped by [`TextLocation`].
+    ///
+    /// The collection enforces overlap policy on insert; this method
+    /// trusts that ranges within a single location do not overlap.
+    async fn redact(
+        &mut self,
+        redactions: Redactions<TextLocation, TextRedaction>,
+    ) -> Result<(), Error>;
 }

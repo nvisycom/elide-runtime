@@ -1,8 +1,11 @@
 //! Typed request bodies and path parameters for API endpoints.
 //!
-//! Each struct derives [`Deserialize`](serde::Deserialize) and
-//! [`JsonSchema`](schemars::JsonSchema) for automatic OpenAPI schema
+//! Each struct derives [`Deserialize`] and
+//! [`JsonSchema`] for automatic OpenAPI schema
 //! generation via aide.
+//!
+//! [`Deserialize`]: serde::Deserialize
+//! [`JsonSchema`]: schemars::JsonSchema
 
 mod contexts;
 mod files;

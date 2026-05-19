@@ -57,6 +57,7 @@ hipstr = { workspace = true, features = [] }
 
 # Derive macros and error handling
 derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from"] }
+thiserror = { workspace = true, features = [] }
 
 # Image processing
 image = { workspace = true, features = [] }

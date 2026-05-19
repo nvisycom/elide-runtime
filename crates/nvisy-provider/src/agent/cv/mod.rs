@@ -1,9 +1,11 @@
 //! Computer vision agent for face, license plate, and signature detection.
 //!
-//! [`CvAgent`] wraps a [`BaseAgent`](crate::backend::BaseAgent) with a
+//! [`CvAgent`] wraps a [`BaseAgent`] with a
 //! [`CvProvider`]-backed tool. It encodes an image as base64, prompts the
 //! VLM to call the CV tool, and returns classified entities with bounding
 //! boxes.
+//!
+//! [`BaseAgent`]: crate::backend::BaseAgent
 
 mod output;
 mod prompt;
@@ -54,13 +56,15 @@ pub trait CvProvider: Send + Sync {
 ///
 /// # Workflow
 ///
-/// 1. Caller passes raw image bytes to [`detect`](Self::detect).
+/// 1. Caller passes raw image bytes to [`detect`].
 /// 2. The agent base64-encodes the image and builds a user prompt via
 ///    `CvPromptBuilder`.
 /// 3. The VLM is instructed to call the `cv_detect_objects` tool (backed
 ///    by the [`CvProvider`]) and then classify each detection into an
 ///    entity category and type.
 /// 4. Structured output is parsed into a `Vec<CvEntity>`.
+///
+/// [`detect`]: Self::detect
 pub struct CvAgent {
     base: BaseAgent,
 }

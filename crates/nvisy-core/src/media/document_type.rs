@@ -318,6 +318,8 @@ impl DocumentType {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsStr;
+
     use super::*;
 
     #[test]
@@ -337,8 +339,6 @@ mod tests {
 
     #[test]
     fn from_extension_common_formats() {
-        use std::ffi::OsStr;
-
         assert_eq!(
             DocumentType::from_extension(OsStr::new("png")),
             Some(DocumentType::Image(ImageFormat::Png)),

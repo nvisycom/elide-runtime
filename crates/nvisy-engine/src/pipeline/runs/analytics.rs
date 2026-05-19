@@ -2,8 +2,11 @@
 //!
 //! [`AnalyticsSnapshot`] captures status counts, actor count, and
 //! duration stats. The snapshot is computed on demand from the
-//! in-memory [`RunState`](super::runs::state::RunState) and exposed
-//! via [`Engine::snapshot`](super::Engine::snapshot).
+//! in-memory [`RunState`] and exposed
+//! via [`Engine::snapshot`].
+//!
+//! [`RunState`]: super::runs::state::RunState
+//! [`Engine::snapshot`]: super::Engine::snapshot
 
 use jiff::Timestamp;
 use schemars::JsonSchema;

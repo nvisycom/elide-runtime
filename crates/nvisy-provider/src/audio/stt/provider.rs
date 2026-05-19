@@ -51,7 +51,9 @@ impl SttProvider {
 
     /// Create a local transcription provider with a custom base URL.
     ///
-    /// **Not yet implemented** — see [`local`](Self::local).
+    /// **Not yet implemented** — see [`local`].
+    ///
+    /// [`local`]: Self::local
     pub fn local_with_url(model: &str, url: &str) -> Self {
         Self::Local(UnauthenticatedProvider {
             model: model.to_owned(),

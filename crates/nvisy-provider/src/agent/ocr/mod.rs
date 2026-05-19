@@ -1,8 +1,10 @@
 //! Unified OCR agent: extraction + optional LLM-based verification.
 //!
-//! [`OcrAgent`] wraps an [`OcrEngine`](crate::ocr::OcrEngine) with an
+//! [`OcrAgent`] wraps an [`OcrEngine`] with an
 //! optional LLM verifier. It is the single public entry point for all
 //! OCR operations.
+//!
+//! [`OcrEngine`]: crate::ocr::OcrEngine
 
 mod input;
 mod output;
@@ -70,7 +72,9 @@ impl OcrAgent {
     /// Run OCR on a single image.
     ///
     /// Uses the params provided at construction. To override, use
-    /// [`run_with_params`](Self::run_with_params).
+    /// [`run_with_params`].
+    ///
+    /// [`run_with_params`]: Self::run_with_params
     #[tracing::instrument(
         target = TARGET,
         skip_all,
@@ -97,7 +101,9 @@ impl OcrAgent {
     /// Run OCR on multiple images.
     ///
     /// Uses the params provided at construction. To override, use
-    /// [`run_batch_with_params`](Self::run_batch_with_params).
+    /// [`run_batch_with_params`].
+    ///
+    /// [`run_batch_with_params`]: Self::run_batch_with_params
     #[tracing::instrument(target = TARGET, skip_all, fields(count = images.len()))]
     pub async fn run_batch(&self, images: &[ImageInput]) -> Result<Vec<ImageOutput>> {
         self.engine.run_batch(images, &self.params).await

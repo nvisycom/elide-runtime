@@ -93,16 +93,17 @@ impl Operation for ValidationOp {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         tracing::debug!(target: TARGET, "running post-redaction validation");
 
-        let text_spans: Vec<_> = envelope.document.collect_text_spans().await;
-        let redacted_text = if text_spans.is_empty() {
+        let locations = envelope.document.collect_text_locations().await;
+        let redacted_text = if locations.is_empty() {
             None
         } else {
-            Some(
-                text_spans
-                    .iter()
-                    .map(|s| s.data.as_str())
-                    .collect::<String>(),
-            )
+            let mut buf = String::new();
+            for located in &locations {
+                if let Some(data) = envelope.document.read_text(&located.location).await {
+                    buf.push_str(data.as_str());
+                }
+            }
+            Some(buf)
         };
 
         let result = Self::check(

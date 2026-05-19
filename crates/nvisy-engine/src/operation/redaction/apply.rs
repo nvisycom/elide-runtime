@@ -9,8 +9,10 @@
 use std::collections::HashMap;
 
 use nvisy_codec::transform::{
-    AudioOutput, AudioRedaction, ImageOutput, ImageRedaction, TextOutput, TextRedaction,
+    AudioOutput, AudioRedaction, ConflictPolicy, ImageOutput, ImageRedaction, Redactions,
+    TextOutput, TextRedaction,
 };
+use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::{
     AudioLocation, Entity, EntityKind, ImageLocation, Location, TextLocation,
 };
@@ -40,33 +42,29 @@ impl<'a> RedactionApplicator<'a> {
     }
 
     /// Build and apply all redaction instructions.
-    pub async fn apply(mut self) -> nvisy_core::Result<()> {
-        let text = self.build_text_redactions().await;
-        let image = self.build_image_redactions();
-        let audio = self.build_audio_redactions();
+    pub async fn apply(mut self) -> Result<()> {
+        let text = self.build_text_redactions().await?;
+        let image = self.build_image_redactions()?;
+        let audio = self.build_audio_redactions()?;
 
         if !text.is_empty() {
-            self.envelope.document.apply_text_redactions(&text).await?;
+            self.envelope.document.apply_text_redactions(text).await?;
         }
         if !image.is_empty() {
-            self.envelope
-                .document
-                .apply_image_redactions(&image)
-                .await?;
+            self.envelope.document.apply_image_redactions(image).await?;
         }
         if !audio.is_empty() {
-            self.envelope
-                .document
-                .apply_audio_redactions(&audio)
-                .await?;
+            self.envelope.document.apply_audio_redactions(audio).await?;
         }
 
         Ok(())
     }
 
-    async fn build_text_redactions(&mut self) -> Vec<TextRedaction<TextLocation>> {
+    async fn build_text_redactions(
+        &mut self,
+    ) -> Result<Redactions<TextLocation, TextRedaction>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
-        let mut redactions = Vec::new();
+        let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
             let record = &self.envelope.audit.entries[i];
@@ -82,8 +80,9 @@ impl<'a> RedactionApplicator<'a> {
             let value = self
                 .envelope
                 .document
-                .value_at(&entity.location)
+                .read_text(loc)
                 .await
+                .map(|d| d.into_inner())
                 .unwrap_or_default();
 
             let output = match &record.redaction.strategy {
@@ -113,23 +112,26 @@ impl<'a> RedactionApplicator<'a> {
                 "built text redaction instruction",
             );
 
-            // The entity location directly identifies the byte range
-            // to redact. start/end are intra-span offsets (0..len for
-            // a full value replacement within the containing span).
-            redactions.push(TextRedaction {
-                span_id: loc.clone(),
-                start: loc.start_offset,
-                end: loc.end_offset,
-                output,
-            });
+            // The entity location identifies the span; start/end are
+            // intra-span offsets (0..len for full value replacement).
+            redactions
+                .try_insert(
+                    loc.clone(),
+                    TextRedaction::new(loc.start_offset, loc.end_offset, output),
+                )
+                .map_err(|e| {
+                    Error::validation(e.to_string(), "redaction-apply-text")
+                })?;
         }
 
-        redactions
+        Ok(redactions)
     }
 
-    fn build_image_redactions(&mut self) -> Vec<ImageRedaction<ImageLocation>> {
+    fn build_image_redactions(
+        &mut self,
+    ) -> Result<Redactions<ImageLocation, ImageRedaction>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
-        let mut redactions = Vec::new();
+        let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
             let record = &self.envelope.audit.entries[i];
@@ -174,19 +176,21 @@ impl<'a> RedactionApplicator<'a> {
                 "built image redaction instruction",
             );
 
-            redactions.push(ImageRedaction {
-                span_id: loc.clone(),
-                bounding_box: loc.bounding_box,
-                output,
-            });
+            redactions
+                .try_insert(loc.clone(), ImageRedaction::new(loc.bounding_box, output))
+                .map_err(|e| {
+                    Error::validation(e.to_string(), "redaction-apply-image")
+                })?;
         }
 
-        redactions
+        Ok(redactions)
     }
 
-    fn build_audio_redactions(&mut self) -> Vec<AudioRedaction<AudioLocation>> {
+    fn build_audio_redactions(
+        &mut self,
+    ) -> Result<Redactions<AudioLocation, AudioRedaction>> {
         let entity_map = Self::entity_map(&self.envelope.audit.entities);
-        let mut redactions = Vec::new();
+        let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
             let record = &self.envelope.audit.entries[i];
@@ -230,14 +234,14 @@ impl<'a> RedactionApplicator<'a> {
                 "built audio redaction instruction",
             );
 
-            redactions.push(AudioRedaction {
-                span_id: loc.clone(),
-                time_span: loc.time_span,
-                output,
-            });
+            redactions
+                .try_insert(loc.clone(), AudioRedaction::new(loc.time_span, output))
+                .map_err(|e| {
+                    Error::validation(e.to_string(), "redaction-apply-audio")
+                })?;
         }
 
-        redactions
+        Ok(redactions)
     }
 
     /// Build a lookup map from entity UUID to entity reference.

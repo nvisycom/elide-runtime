@@ -24,9 +24,12 @@ pub type ValidatorFn = fn(&str) -> bool;
 
 /// Maps validator names to [`ValidatorFn`]s.
 ///
-/// Created with the built-in validators via [`builtins`](Self::builtins)
+/// Created with the built-in validators via [`builtins`]
 /// (or [`Default`]), then optionally extended with
-/// [`register`](Self::register) for custom validators.
+/// [`register`] for custom validators.
+///
+/// [`builtins`]: Self::builtins
+/// [`register`]: Self::register
 #[derive(Debug, Clone)]
 pub struct ValidatorResolver {
     table: HashMap<&'static str, ValidatorFn>,

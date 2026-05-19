@@ -4,7 +4,8 @@ use nvisy_core::Error;
 use nvisy_ontology::entity::AudioLocation;
 
 use super::Handler;
-use crate::document::SpanStream;
+use crate::document::LocationStream;
+use crate::transform::{AudioRedaction, Redactions};
 
 mod audio_data;
 mod audio_handler;
@@ -24,22 +25,26 @@ pub use self::wav_loader::{WavLoader, WavParams};
 
 /// Capability trait for handlers that expose audio content.
 ///
-/// All audio handlers use [`AudioLocation`] as their span identifier.
+/// Handlers expose audio content as a stream of [`AudioLocation`]s
+/// (cheap, identity-only), with explicit `read` calls to fetch the
+/// payload for any given location, and a `redact` call that applies a
+/// batch of [`AudioRedaction`]s grouped by location.
 #[async_trait::async_trait]
 pub trait AudioHandler: Handler {
-    /// Return audio content as an async stream of [`Span`](crate::document::Span)s.
+    /// Async stream of [`AudioLocation`]s for this document, each
+    /// tagged with the handler's [`ContentSource`].
     ///
-    /// Each span carries an [`AudioLocation`] and [`AudioData`] payload.
-    async fn audio_spans(&self) -> SpanStream<'_, AudioLocation, AudioData>;
+    /// [`ContentSource`]: nvisy_core::content::ContentSource
+    fn locations(&self) -> LocationStream<'_, AudioLocation>;
 
-    /// Apply audio edits from an async stream back to the handler.
-    async fn edit_audio(
-        &mut self,
-        edits: SpanStream<'_, AudioLocation, AudioData>,
-    ) -> Result<(), Error>;
-
-    /// Extract the audio data at the given location (time span segment).
+    /// Read the audio segment at the given location (time-span slice).
     ///
     /// Returns `None` if the location is out of bounds.
-    async fn value_at(&self, location: &AudioLocation) -> Option<AudioData>;
+    async fn read(&self, location: &AudioLocation) -> Option<AudioData>;
+
+    /// Apply a batch of redactions grouped by [`AudioLocation`].
+    async fn redact(
+        &mut self,
+        redactions: Redactions<AudioLocation, AudioRedaction>,
+    ) -> Result<(), Error>;
 }

@@ -17,7 +17,9 @@ pub struct VerificationCandidate {
 /// An entity proposed by NER that the VLM should verify against the image.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct ProposedEntity {
-    /// Index used to correlate with [`VerifiedEntity::id`](super::VerifiedEntity::id).
+    /// Index used to correlate with [`VerifiedEntity::id`].
+    ///
+    /// [`VerifiedEntity::id`]: super::VerifiedEntity::id
     pub id: usize,
     /// Broad classification.
     pub category: EntityCategory,

@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 ///
 /// Uses naive (timezone-unaware) date-times from [`jiff::civil::DateTime`].
 /// For timezone-aware timestamps, use the entry-level `created_at` /
-/// `expires_at` fields on [`ContextEntry`](crate::context::ContextEntry).
+/// `expires_at` fields on [`ContextEntry`].
+///
+/// [`ContextEntry`]: crate::context::ContextEntry
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DateTimeData {

@@ -26,8 +26,11 @@ use crate::entity::{ContentSource, Entities};
 /// A per-document audit trail: detected entities and redaction entries.
 ///
 /// `Audit` is the single compliance artifact for a document. It tracks:
-/// - **What was found**: via [`entities`](Self::entities)
-/// - **What was redacted and how**: via [`entries`](Self::entries)
+/// - **What was found**: via [`entities`]
+/// - **What was redacted and how**: via [`entries`]
+///
+/// [`entities`]: Self::entities
+/// [`entries`]: Self::entries
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "AuditBuilder",

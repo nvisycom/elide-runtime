@@ -8,13 +8,11 @@ use nvisy_core::media::DocumentType;
 use nvisy_ontology::entity::TextLocation;
 
 use super::TextData;
-use crate::document::SpanStream;
+use crate::document::LocationStream;
 use crate::handler::{Handler, TextHandler};
+use crate::transform::{Redactions, TextRedaction};
 
 /// A type-erased text handler backed by a boxed trait object.
-///
-/// Since [`TextHandler`] no longer has an associated type, it is
-/// directly object-safe and can be stored as `Box<dyn TextHandler>`.
 pub struct BoxedTextHandler(Box<dyn TextHandler>);
 
 impl BoxedTextHandler {
@@ -49,19 +47,19 @@ impl Handler for BoxedTextHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for BoxedTextHandler {
-    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
-        self.0.text_spans().await
+    fn locations(&self) -> LocationStream<'_, TextLocation> {
+        self.0.locations()
     }
 
-    async fn edit_text(
+    async fn read(&self, location: &TextLocation) -> Option<TextData> {
+        self.0.read(location).await
+    }
+
+    async fn redact(
         &mut self,
-        edits: SpanStream<'_, TextLocation, TextData>,
+        redactions: Redactions<TextLocation, TextRedaction>,
     ) -> Result<(), Error> {
-        self.0.edit_text(edits).await
-    }
-
-    async fn value_at(&self, location: &TextLocation) -> Option<String> {
-        self.0.value_at(location).await
+        self.0.redact(redactions).await
     }
 }
 
@@ -78,41 +76,10 @@ macro_rules! impl_from_text_handler {
     };
 }
 
-use super::{JsonHandler, TxtHandler};
-use crate::handler::tabular::CsvHandler;
-impl_from_text_handler!(TxtHandler, CsvHandler, JsonHandler);
+use super::{CsvHandler, JsonHandler, TxtHandler, XlsxHandler};
+impl_from_text_handler!(TxtHandler, CsvHandler, JsonHandler, XlsxHandler);
 
 #[cfg(feature = "html")]
 use super::HtmlHandler;
 #[cfg(feature = "html")]
 impl_from_text_handler!(HtmlHandler);
-
-#[cfg(feature = "xlsx")]
-use crate::handler::tabular::XlsxHandler;
-#[cfg(feature = "xlsx")]
-impl_from_text_handler!(XlsxHandler);
-
-#[cfg(test)]
-mod tests {
-    use futures::StreamExt;
-    use nvisy_core::media::TextFormat;
-
-    use super::*;
-    use crate::handler::TxtHandler;
-
-    #[test]
-    fn txt_variant_document_type() {
-        let h = BoxedTextHandler::from(TxtHandler::new(vec!["hello".into()], false));
-        assert_eq!(h.document_type(), DocumentType::Text(TextFormat::Txt));
-    }
-
-    #[tokio::test]
-    async fn view_spans_returns_text() {
-        let h =
-            BoxedTextHandler::from(TxtHandler::new(vec!["line1".into(), "line2".into()], false));
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        assert_eq!(spans.len(), 2);
-        assert_eq!(spans[0].data, "line1");
-        assert_eq!(spans[1].data, "line2");
-    }
-}

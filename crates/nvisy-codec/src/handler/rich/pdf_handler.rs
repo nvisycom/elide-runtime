@@ -1,20 +1,17 @@
 //! Rich-text handler: holds per-page extracted text and raw document
-//! bytes, providing span-based access via [`Handler`] + [`TextHandler`] +
-//! [`ImageHandler`].
+//! bytes, providing location-based access via [`Handler`] +
+//! [`TextHandler`] + [`ImageHandler`].
 //!
-//! # Text span model
+//! [`TextHandler::locations`] yields one [`TextLocation`] per page,
+//! with byte offsets computed from cumulative page text lengths and
+//! `page_number` set. [`ImageHandler::locations`] yields one
+//! [`ImageLocation`] per embedded image.
 //!
-//! [`TextHandler::text_spans`] yields one [`Span`] per page, addressed
-//! by [`TextLocation`] with byte offsets computed from cumulative page
-//! text lengths and `page_number` set.
-//!
-//! # Encoding
-//!
-//! [`Handler::encode`] returns the raw document bytes. Edits applied via
-//! [`edit_text`](TextHandler::edit_text) are baked into the raw bytes.
+//! [`Handler::encode`] returns the raw document bytes; text redactions
+//! applied via [`TextHandler::redact`] are baked into the raw PDF
+//! content streams.
 
 use bytes::Bytes;
-use futures::StreamExt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
@@ -22,10 +19,15 @@ use nvisy_ontology::entity::{ImageLocation, TextLocation};
 use nvisy_ontology::primitive::Dpi;
 
 use super::pdf_render::PdfRenderer;
-use crate::document::{Span, SpanStream};
+use crate::document::{Located, LocationStream};
 use crate::handler::image::ImageData;
 use crate::handler::text::TextData;
 use crate::handler::{Handler, ImageHandler, TextHandler};
+use crate::transform::{
+    ImageRedaction, Redactions, TextRedaction, apply_text_redactions,
+};
+
+const TARGET: &str = "rich-text-handler";
 
 /// Handler for rich documents containing pages of text and images.
 #[derive(Debug)]
@@ -59,7 +61,7 @@ impl RichTextHandler {
         let mut doc = lopdf::Document::load_mem(&raw).map_err(|e| {
             Error::runtime(
                 format!("failed to extract text from PDF: {e}"),
-                "rich-text-handler",
+                TARGET,
                 false,
             )
         })?;
@@ -67,7 +69,7 @@ impl RichTextHandler {
             doc.decrypt(password.unwrap_or("")).map_err(|e| {
                 Error::runtime(
                     format!("failed to extract text from PDF: {e}"),
-                    "rich-text-handler",
+                    TARGET,
                     false,
                 )
             })?;
@@ -107,7 +109,9 @@ impl RichTextHandler {
         &self.raw
     }
 
-    /// Total number of pages (alias for [`page_count`](Self::page_count)).
+    /// Total number of pages (alias for [`page_count`]).
+    ///
+    /// [`page_count`]: Self::page_count
     pub fn len(&self) -> usize {
         self.pages.len()
     }
@@ -157,102 +161,93 @@ impl Handler for RichTextHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for RichTextHandler {
-    async fn text_spans(&self) -> SpanStream<'_, TextLocation, TextData> {
-        let offsets = self.page_offsets();
-        let spans: Vec<_> = self
-            .pages
-            .iter()
-            .zip(offsets.iter())
-            .map(|(text, &(start, end, page))| {
-                Span::new(
+    fn locations(&self) -> LocationStream<'_, TextLocation> {
+        let source = self.source;
+        let items: Vec<_> = self
+            .page_offsets()
+            .into_iter()
+            .map(|(start, end, page)| {
+                Located::new(
+                    source,
                     TextLocation {
                         start_offset: start,
                         end_offset: end,
                         page_number: Some(page),
                         ..Default::default()
                     },
-                    TextData::from(text.clone()),
                 )
-                .with_source(self.source)
             })
             .collect();
-        SpanStream::new(futures::stream::iter(spans))
+        LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn edit_text(
-        &mut self,
-        edits: SpanStream<'_, TextLocation, TextData>,
-    ) -> Result<(), Error> {
-        let edits: Vec<_> = edits.collect().await;
-        if edits.is_empty() {
-            return Ok(());
-        }
-
-        let offsets = self.page_offsets();
-
-        // Map byte offsets to page indices.
-        let mut page_edits: Vec<(usize, String)> = Vec::new();
-        for edit in &edits {
-            let page_idx = offsets
-                .iter()
-                .position(|&(start, _, _)| start == edit.id.start_offset)
-                .ok_or_else(|| {
-                    Error::validation(
-                        format!("no page at byte offset {}", edit.id.start_offset),
-                        "rich-text-handler",
-                    )
-                })?;
-            page_edits.push((page_idx, edit.data.as_str().to_owned()));
-        }
-
-        // PDF-specific: apply replacements to content streams.
-        if self.document_type == DocumentType::Pdf {
-            let mut doc = lopdf::Document::load_mem(&self.raw).map_err(|e| {
-                Error::runtime(
-                    format!("failed to load PDF for editing: {e}"),
-                    "rich-text-handler",
-                    false,
-                )
-            })?;
-
-            for &(idx, ref new_text) in &page_edits {
-                let old_text = &self.pages[idx];
-                if !old_text.is_empty() && old_text != new_text {
-                    let _ = doc.replace_text((idx as u32) + 1, old_text, new_text, None);
-                }
-                self.pages[idx] = new_text.clone();
-            }
-
-            let mut buf = Vec::new();
-            doc.save_to(&mut buf).map_err(|e| {
-                Error::runtime(
-                    format!("failed to save edited PDF: {e}"),
-                    "rich-text-handler",
-                    false,
-                )
-            })?;
-            self.raw = Bytes::from(buf);
-        } else {
-            for (idx, new_text) in page_edits {
-                self.pages[idx] = new_text;
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn value_at(&self, location: &TextLocation) -> Option<String> {
+    async fn read(&self, location: &TextLocation) -> Option<TextData> {
         let offsets = self.page_offsets();
         let page_idx = offsets
             .iter()
             .position(|&(start, _, _)| start == location.start_offset)?;
-        self.pages.get(page_idx).cloned()
+        self.pages.get(page_idx).cloned().map(TextData::from)
+    }
+
+    async fn redact(
+        &mut self,
+        redactions: Redactions<TextLocation, TextRedaction>,
+    ) -> Result<(), Error> {
+        if redactions.is_empty() {
+            return Ok(());
+        }
+        let offsets = self.page_offsets();
+
+        // Compute new page texts by applying redactions to current values.
+        let mut page_updates: Vec<(usize, String)> = Vec::new();
+        for (loc, items) in redactions {
+            let Some(page_idx) = offsets
+                .iter()
+                .position(|&(start, _, _)| start == loc.start_offset)
+            else {
+                continue;
+            };
+            let mut content = self.pages[page_idx].clone();
+            apply_text_redactions(&mut content, &items, TARGET)?;
+            page_updates.push((page_idx, content));
+        }
+
+        // PDF-specific: bake replacements into content streams.
+        if self.document_type == DocumentType::Pdf {
+            let mut doc = lopdf::Document::load_mem(&self.raw).map_err(|e| {
+                Error::runtime(
+                    format!("failed to load PDF for editing: {e}"),
+                    TARGET,
+                    false,
+                )
+            })?;
+
+            for (idx, new_text) in &page_updates {
+                let old_text = &self.pages[*idx];
+                if !old_text.is_empty() && old_text != new_text {
+                    let _ = doc.replace_text((*idx as u32) + 1, old_text, new_text, None);
+                }
+            }
+
+            let mut buf = Vec::new();
+            doc.save_to(&mut buf).map_err(|e| {
+                Error::runtime(format!("failed to save edited PDF: {e}"), TARGET, false)
+            })?;
+            self.raw = Bytes::from(buf);
+        }
+
+        for (idx, new_text) in page_updates {
+            self.pages[idx] = new_text;
+        }
+
+        Ok(())
     }
 }
 
 #[async_trait::async_trait]
 impl ImageHandler for RichTextHandler {
-    async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData> {
+    fn locations(&self) -> LocationStream<'_, ImageLocation> {
+        let source = self.source;
         let images = match PdfRenderer::extract_images(&self.raw) {
             Ok(imgs) => imgs,
             Err(e) => {
@@ -261,35 +256,37 @@ impl ImageHandler for RichTextHandler {
                     error = %e,
                     "failed to extract embedded images",
                 );
-                return SpanStream::new(futures::stream::empty());
+                return LocationStream::empty();
             }
         };
-        SpanStream::new(futures::stream::iter(images.into_iter().enumerate().map(
-            |(i, data)| {
-                // Embedded image bounding box — exact position within
-                // the page requires PDF content stream parsing. For now,
-                // use a full-page placeholder that identifies the page.
-                let location = ImageLocation {
-                    bounding_box: nvisy_ontology::primitive::BoundingBox::default(),
-                    image_id: None,
-                    page_number: Some((i + 1) as u32),
-                };
-                Span::new(location, data)
-            },
-        )))
+        let items: Vec<_> = images
+            .into_iter()
+            .enumerate()
+            .map(|(i, _data)| {
+                Located::new(
+                    source,
+                    ImageLocation {
+                        bounding_box: nvisy_ontology::primitive::BoundingBox::default(),
+                        image_id: None,
+                        page_number: Some((i + 1) as u32),
+                    },
+                )
+            })
+            .collect();
+        LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn edit_images(
-        &mut self,
-        _edits: SpanStream<'_, ImageLocation, ImageData>,
-    ) -> Result<(), Error> {
-        Ok(())
-    }
-
-    async fn value_at(&self, _location: &ImageLocation) -> Option<ImageData> {
+    async fn read(&self, _location: &ImageLocation) -> Option<ImageData> {
         // Cropping embedded PDF images by bounding box is not yet
         // implemented. Requires re-rendering the page region.
         None
+    }
+
+    async fn redact(
+        &mut self,
+        _redactions: Redactions<ImageLocation, ImageRedaction>,
+    ) -> Result<(), Error> {
+        Ok(())
     }
 }
 
@@ -310,24 +307,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn view_spans_yields_one_per_page() {
+    async fn locations_yields_one_per_page() {
         let h = handler(&["page one", "page two", "page three"]);
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-
-        assert_eq!(spans.len(), 3);
-        assert_eq!(spans[0].id.page_number, Some(1));
-        assert_eq!(spans[0].data, "page one");
-        assert_eq!(spans[1].id.page_number, Some(2));
-        assert_eq!(spans[1].data, "page two");
-        assert_eq!(spans[2].id.page_number, Some(3));
-        assert_eq!(spans[2].data, "page three");
+        let items: Vec<_> = TextHandler::locations(&h).collect().await;
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].location.page_number, Some(1));
+        assert_eq!(items[1].location.page_number, Some(2));
+        assert_eq!(items[2].location.page_number, Some(3));
     }
 
     #[tokio::test]
-    async fn view_spans_empty_document() {
+    async fn locations_empty_document() {
         let h = handler(&[]);
-        let spans: Vec<_> = h.text_spans().await.collect().await;
-        assert!(spans.is_empty());
+        let items: Vec<_> = TextHandler::locations(&h).collect().await;
+        assert!(items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn read_returns_page_text() {
+        let h = handler(&["page one", "page two"]);
+        let items: Vec<_> = TextHandler::locations(&h).collect().await;
+        assert_eq!(
+            TextHandler::read(&h, &items[0].location)
+                .await
+                .unwrap()
+                .as_str(),
+            "page one"
+        );
     }
 
     #[test]

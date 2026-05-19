@@ -12,8 +12,11 @@ const US_PER_SEC: i64 = 1_000_000;
 /// point rounding. At 48kHz sample rate, one sample is ~20.8μs — well
 /// within the 1μs resolution.
 ///
-/// Use [`from_secs`](Self::from_secs) and [`start_secs`](Self::start_secs)
+/// Use [`from_secs`] and [`start_secs`]
 /// for ergonomic conversion to/from seconds.
+///
+/// [`from_secs`]: Self::from_secs
+/// [`start_secs`]: Self::start_secs
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct TimeSpan {

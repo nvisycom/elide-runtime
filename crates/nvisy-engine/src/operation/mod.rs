@@ -20,6 +20,8 @@ mod import_file;
 pub(crate) mod redaction;
 mod validation;
 
+use nvisy_core::Result;
+
 pub(crate) use self::deduplication::DeduplicationOp;
 pub(crate) use self::detection::{EntityRecognitionOp, PatternRecognitionOp};
 pub use self::envelope::{Document, DocumentEnvelope};
@@ -40,5 +42,5 @@ pub trait Operation {
     fn execute(
         &self,
         envelope: &mut DocumentEnvelope,
-    ) -> impl Future<Output = nvisy_core::Result<()>> + Send;
+    ) -> impl Future<Output = Result<()>> + Send;
 }

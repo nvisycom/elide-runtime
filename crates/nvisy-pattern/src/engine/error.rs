@@ -4,7 +4,9 @@
 
 use nvisy_core::{Error, ErrorKind};
 
-/// Errors that can occur while building a [`PatternEngine`](super::PatternEngine).
+/// Errors that can occur while building a [`PatternEngine`].
+///
+/// [`PatternEngine`]: super::PatternEngine
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum PatternEngineError {
     /// A regex pattern string failed to compile.

@@ -1,8 +1,8 @@
 //! Image redaction primitives.
 
+mod apply;
 mod instruction;
 mod ops;
-mod transform;
 
+pub(crate) use self::apply::apply_image_redactions;
 pub use self::instruction::{ImageOutput, ImageRedaction};
-pub use self::transform::ImageTransform;

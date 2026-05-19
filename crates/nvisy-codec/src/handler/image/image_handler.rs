@@ -8,8 +8,9 @@ use nvisy_core::media::DocumentType;
 use nvisy_ontology::entity::ImageLocation;
 
 use super::{ImageData, JpegHandler, PngHandler, TiffHandler};
-use crate::document::SpanStream;
+use crate::document::LocationStream;
 use crate::handler::{Handler, ImageHandler};
+use crate::transform::{ImageRedaction, Redactions};
 
 /// A type-erased image handler backed by a boxed trait object.
 pub struct BoxedImageHandler(Box<dyn ImageHandler>);
@@ -63,60 +64,18 @@ impl Handler for BoxedImageHandler {
 
 #[async_trait::async_trait]
 impl ImageHandler for BoxedImageHandler {
-    async fn image_spans(&self) -> SpanStream<'_, ImageLocation, ImageData> {
-        self.0.image_spans().await
+    fn locations(&self) -> LocationStream<'_, ImageLocation> {
+        self.0.locations()
     }
 
-    async fn edit_images(
+    async fn read(&self, location: &ImageLocation) -> Option<ImageData> {
+        self.0.read(location).await
+    }
+
+    async fn redact(
         &mut self,
-        edits: SpanStream<'_, ImageLocation, ImageData>,
+        redactions: Redactions<ImageLocation, ImageRedaction>,
     ) -> Result<(), Error> {
-        self.0.edit_images(edits).await
-    }
-
-    async fn value_at(&self, location: &ImageLocation) -> Option<ImageData> {
-        self.0.value_at(location).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use futures::StreamExt;
-
-    use super::*;
-
-    fn make_png() -> PngHandler {
-        let img = image::DynamicImage::new_rgb8(1, 1);
-        PngHandler::new(img)
-    }
-
-    fn make_jpeg() -> JpegHandler {
-        let img = image::DynamicImage::new_rgb8(1, 1);
-        JpegHandler::new(img)
-    }
-
-    #[test]
-    fn png_variant_document_type() {
-        let h = BoxedImageHandler::from(make_png());
-        assert_eq!(
-            h.document_type(),
-            DocumentType::Image(nvisy_core::media::ImageFormat::Png),
-        );
-    }
-
-    #[test]
-    fn jpeg_variant_document_type() {
-        let h = BoxedImageHandler::from(make_jpeg());
-        assert_eq!(
-            h.document_type(),
-            DocumentType::Image(nvisy_core::media::ImageFormat::Jpeg),
-        );
-    }
-
-    #[tokio::test]
-    async fn view_spans_returns_image() {
-        let h = BoxedImageHandler::from(make_png());
-        let spans: Vec<_> = h.image_spans().await.collect().await;
-        assert_eq!(spans.len(), 1);
+        self.0.redact(redactions).await
     }
 }

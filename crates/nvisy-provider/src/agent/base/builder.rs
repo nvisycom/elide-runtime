@@ -1,4 +1,6 @@
-//! Builder for [`BaseAgent`](super::BaseAgent).
+//! Builder for [`BaseAgent`].
+//!
+//! [`BaseAgent`]: super::BaseAgent
 
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
@@ -16,7 +18,9 @@ use crate::http::{HttpClient, HttpConfig};
 ///
 /// Created via [`BaseAgent::builder`]. Collects a provider reference, config,
 /// and optional tools, then constructs the concrete rig-core agent on
-/// [`build`](Self::build).
+/// [`build`].
+///
+/// [`build`]: Self::build
 pub(crate) struct BaseAgentBuilder {
     provider: AgentProvider,
     config: AgentConfig,

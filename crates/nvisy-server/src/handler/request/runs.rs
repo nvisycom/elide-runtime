@@ -1,25 +1,26 @@
 //! Run request types.
 
 use nvisy_engine::pipeline::{RunStatus, RuntimeConfig};
+use nvisy_ontology::policy::PolicyRef;
 use nvisy_ontology::workflow::Graph;
 use schemars::JsonSchema;
 use serde::Deserialize;
-use uuid::Uuid;
 
 use super::Pagination;
 
 /// Request body for `POST /runs`.
 ///
 /// Content identifiers are specified on [`Import`] nodes within the
-/// graph, not as a top-level field. Policy identifiers reference
-/// previously uploaded policies.
+/// graph, not as a top-level field. Each [`PolicyRef`] references a
+/// previously uploaded policy and carries the precedence at which it
+/// should layer relative to other refs in the same run.
 ///
 /// [`Import`]: nvisy_ontology::workflow::ImportFile
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewRun {
-    /// Previously uploaded policy IDs to apply.
-    pub policy_ids: Vec<Uuid>,
+    /// Previously uploaded policies to apply, tagged with precedence.
+    pub policies: Vec<PolicyRef>,
     /// Execution graph defining the pipeline DAG.
     pub graph: Graph,
     /// Per-request configuration overrides (optional).

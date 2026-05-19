@@ -69,7 +69,7 @@ pub fn import_export_graph(content_id: Uuid) -> Graph {
 pub fn engine_input(actor_id: Uuid, graph: Graph) -> EngineInput {
     EngineInput {
         actor_id,
-        policy_ids: Vec::new(),
+        policies: Vec::new(),
         graph,
         config: None,
         dry_run: false,
@@ -80,7 +80,7 @@ pub fn engine_input(actor_id: Uuid, graph: Graph) -> EngineInput {
 pub fn dry_run_input(actor_id: Uuid, graph: Graph) -> EngineInput {
     EngineInput {
         actor_id,
-        policy_ids: Vec::new(),
+        policies: Vec::new(),
         graph,
         config: None,
         dry_run: true,

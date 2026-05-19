@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::{fmt, mem};
 
 use nvisy_core::Error;
+use nvisy_ontology::policy::PolicyRef;
 use nvisy_ontology::provenance::Audit;
 use nvisy_ontology::workflow::Graph;
 use nvisy_provider::http::HttpClient;
@@ -34,8 +35,10 @@ use crate::utility::encryption::SharedKeyProvider;
 pub struct EngineInput {
     /// Identity of the human or service account initiating the run.
     pub actor_id: Uuid,
-    /// Previously uploaded policy IDs to apply.
-    pub policy_ids: Vec<Uuid>,
+    /// Previously uploaded policies to apply, each tagged with the
+    /// precedence at which it should layer (lower = higher precedence).
+    /// See [`PolicyRef`].
+    pub policies: Vec<PolicyRef>,
     /// Execution graph defining the pipeline DAG.
     ///
     /// Content identifiers live on [`ImportFile`] nodes within the

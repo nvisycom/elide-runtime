@@ -134,13 +134,12 @@ fn detect_delimiter(text: &str) -> u8 {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use futures::StreamExt;
     use nvisy_core::Error;
     use nvisy_core::content::ContentSource;
     use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 
     use super::*;
-    use crate::handler::{Handler, TabularHandler};
+    use crate::handler::Handler;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

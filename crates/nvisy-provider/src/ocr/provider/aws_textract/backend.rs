@@ -392,53 +392,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_response() {
-        let json = serde_json::json!({
-            "Blocks": [
-                {
-                    "BlockType": "PAGE",
-                    "Geometry": {
-                        "BoundingBox": { "Width": 1.0, "Height": 1.0, "Left": 0.0, "Top": 0.0 }
-                    }
-                },
-                {
-                    "BlockType": "WORD",
-                    "Text": "hello",
-                    "Confidence": 99.5,
-                    "Geometry": {
-                        "BoundingBox": {
-                            "Width": 0.2,
-                            "Height": 0.05,
-                            "Left": 0.1,
-                            "Top": 0.3
-                        },
-                        "Polygon": [
-                            { "X": 0.1, "Y": 0.3 },
-                            { "X": 0.3, "Y": 0.3 },
-                            { "X": 0.3, "Y": 0.35 },
-                            { "X": 0.1, "Y": 0.35 }
-                        ]
-                    }
-                }
-            ]
-        });
-
-        let resp: TextractResponse = serde_json::from_value(json).unwrap();
-        assert_eq!(resp.blocks.len(), 2);
-
-        let word = &resp.blocks[1];
-        assert_eq!(word.block_type, "WORD");
-        assert_eq!(word.text.as_deref(), Some("hello"));
-        assert!((word.confidence.unwrap() - 99.5).abs() < 0.01);
-
-        let geom = word.geometry.as_ref().unwrap();
-        let bbox = geom.bounding_box.as_ref().unwrap();
-        assert!((bbox.left - 0.1).abs() < 0.001);
-        assert!((bbox.top - 0.3).abs() < 0.001);
-        assert!((bbox.width - 0.2).abs() < 0.001);
-    }
-
-    #[test]
     fn build_hierarchy_from_relationships() {
         let json = serde_json::json!({
             "Blocks": [

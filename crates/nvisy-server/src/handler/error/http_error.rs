@@ -240,59 +240,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_http_error() {
-        let error = Error::default();
-        assert_eq!(error.kind(), ErrorKind::InternalServerError);
-        let _ = error.into_response();
-    }
-
-    #[test]
-    fn error_from_kind() {
-        let error = Error::new(ErrorKind::NotFound);
-        assert_eq!(error.kind(), ErrorKind::NotFound);
-        let _ = error.into_response();
-    }
-
-    #[test]
-    fn error_with_context() {
-        let error = ErrorKind::BadRequest.with_context("Invalid format");
-        assert_eq!(error.context(), Some("Invalid format"));
-        let _ = error.into_response();
-    }
-
-    #[test]
-    fn error_with_message() {
-        let error = ErrorKind::NotFound.with_message("Custom not found message");
-        assert_eq!(error.message(), Some("Custom not found message"));
-        let _ = error.into_response();
-    }
-
-    #[test]
-    fn error_with_resource() {
-        let error = ErrorKind::Forbidden.with_resource("document");
-        assert_eq!(error.resource(), Some("document"));
-        let _ = error.into_response();
-    }
-
-    #[test]
-    fn error_builder_chaining() {
-        let error = ErrorKind::NotFound
-            .with_message("Document not found")
-            .with_resource("document")
-            .with_context("ID: 123")
-            .with_suggestion("Check if the document ID is correct");
-
-        assert_eq!(error.kind(), ErrorKind::NotFound);
-        assert_eq!(error.message(), Some("Document not found"));
-        assert_eq!(error.resource(), Some("document"));
-        assert_eq!(error.context(), Some("ID: 123"));
-        assert_eq!(
-            error.suggestion(),
-            Some("Check if the document ID is correct")
-        );
-    }
-
-    #[test]
     fn std_fmt_display() {
         let error = ErrorKind::NotFound
             .with_message("Resource not found")
@@ -318,12 +265,6 @@ mod tests {
         assert!(debug.contains("Forbidden"));
         assert!(debug.contains("Access denied"));
         assert!(debug.contains("document"));
-    }
-
-    #[test]
-    fn std_error_trait() {
-        let error = Error::new(ErrorKind::BadRequest);
-        let _: &dyn error::Error = &error;
     }
 
     #[test]

@@ -50,13 +50,12 @@ impl Loader for TxtLoader {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use futures::StreamExt;
     use nvisy_core::Error;
     use nvisy_core::content::ContentSource;
     use nvisy_core::media::{DocumentType, TextFormat};
 
     use super::*;
-    use crate::handler::{Handler, TextHandler};
+    use crate::handler::Handler;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

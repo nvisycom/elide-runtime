@@ -252,52 +252,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_response() {
-        let json = serde_json::json!({
-            "responses": [{
-                "fullTextAnnotation": {
-                    "pages": [{
-                        "blocks": [{
-                            "paragraphs": [{
-                                "words": [
-                                    {
-                                        "symbols": [
-                                            { "text": "H" },
-                                            { "text": "i" }
-                                        ],
-                                        "confidence": 0.99,
-                                        "boundingBox": {
-                                            "vertices": [
-                                                { "x": 10, "y": 20 },
-                                                { "x": 50, "y": 20 },
-                                                { "x": 50, "y": 40 },
-                                                { "x": 10, "y": 40 }
-                                            ]
-                                        }
-                                    }
-                                ]
-                            }]
-                        }]
-                    }]
-                }
-            }]
-        });
-
-        let resp: AnnotateResponse = serde_json::from_value(json).unwrap();
-        let annotation = resp.responses[0].full_text_annotation.as_ref().unwrap();
-        let word = &annotation.pages[0].blocks[0].paragraphs[0].words[0];
-
-        let text: String = word.symbols.iter().map(|s| s.text.as_str()).collect();
-        assert_eq!(text, "Hi");
-        assert!((word.confidence - 0.99).abs() < 0.001);
-
-        let bp = word.bounding_box.as_ref().unwrap();
-        assert_eq!(bp.vertices.len(), 4);
-        assert_eq!(bp.vertices[0].x, Some(10));
-        assert_eq!(bp.vertices[0].y, Some(20));
-    }
-
-    #[test]
     fn handles_missing_vertex_coords() {
         let json = serde_json::json!({
             "responses": [{

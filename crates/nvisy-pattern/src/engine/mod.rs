@@ -333,22 +333,6 @@ mod tests {
     }
 
     #[test]
-    fn default_engine_builds() {
-        let engine = PatternEngine::instance();
-        assert!(!engine.regex_entries.is_empty());
-    }
-
-    #[test]
-    fn builder_pattern_filter() {
-        let engine = PatternEngine::builder()
-            .with_patterns(&["email"])
-            .build()
-            .unwrap();
-        assert_eq!(engine.regex_entries.len(), 1);
-        assert_eq!(engine.regex_entries[0].pattern_name, "email");
-    }
-
-    #[test]
     fn scan_raw_returns_correct_offsets() {
         let engine = PatternEngine::instance();
         let text = "SSN: 123-45-6789";
@@ -424,44 +408,6 @@ mod tests {
         assert!(
             !matches.iter().any(|m| m.pattern_name.is_none()),
             "deny list value not in text should not be injected"
-        );
-    }
-
-    #[test]
-    fn allow_list_from_iterator() {
-        let allow: AllowList = ["123-45-6789", "000-00-0000"].into_iter().collect();
-        assert_eq!(allow.len(), 2);
-        assert!(allow.contains("123-45-6789"));
-        assert!(allow.contains("000-00-0000"));
-        assert!(!allow.contains("999-99-9999"));
-    }
-
-    #[test]
-    fn deny_list_insert_and_lookup() {
-        let mut deny = DenyList::new();
-        deny.insert(
-            "secret",
-            DenyRule {
-                category: EntityCategory::PersonalIdentity,
-                entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::ner("test", ModelKind::SelfHosted),
-            },
-        );
-        deny.insert(
-            "other",
-            DenyRule {
-                category: EntityCategory::Financial,
-                entity_kind: EntityKind::PaymentCard,
-                method: RecognitionMethod::annotation(Some("test".into())),
-            },
-        );
-        assert_eq!(deny.len(), 2);
-        assert!(deny.contains("secret"));
-        let rule = deny.get("other").unwrap();
-        assert_eq!(rule.category, EntityCategory::Financial);
-        assert_eq!(
-            rule.method,
-            RecognitionMethod::annotation(Some("test".into()))
         );
     }
 

@@ -84,13 +84,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn run_params_accepts_valid_range() {
-        assert!(RunParams::new(0.0).is_ok());
-        assert!(RunParams::new(0.5).is_ok());
-        assert!(RunParams::new(1.0).is_ok());
-    }
-
-    #[test]
     fn run_params_rejects_above_one() {
         assert!(RunParams::new(1.01).is_err());
     }

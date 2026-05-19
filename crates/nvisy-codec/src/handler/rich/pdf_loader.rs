@@ -49,13 +49,12 @@ impl Loader for PdfLoader {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use futures::StreamExt;
     use lopdf::{Dictionary, Document, Object, Stream, dictionary};
     use nvisy_core::content::ContentSource;
     use nvisy_core::media::DocumentType;
 
     use super::*;
-    use crate::handler::{Handler, TextHandler};
+    use crate::handler::Handler;
 
     fn content_from_bytes(bytes: &[u8]) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(bytes.to_vec()))

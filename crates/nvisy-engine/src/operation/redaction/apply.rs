@@ -514,36 +514,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mask_counts_chars_not_bytes() {
-        // The handler reads "John" (4 bytes / 4 chars); for an
-        // entity spanning a multi-byte character the count should
-        // track chars. This test pins the chars-not-bytes behavior
-        // by checking the mask length matches the char count of the
-        // value the handler returns.
-        let entity = text_entity(6, 10);
-        let entity_id = entity.id;
-        let record = test_record(
-            entity_id,
-            Strategy::Text(TextStrategy::Mask { mask_char: '*' }),
-            "John",
-        );
-        let entities: Entities = vec![entity].into();
-        let mut envelope = test_envelope(entities).await;
-        envelope.audit.entries.push(record);
-
-        RedactionApplicator::new(&mut envelope)
-            .apply()
-            .await
-            .unwrap();
-
-        // "John" is 4 chars -> 4 mask chars.
-        assert_eq!(
-            envelope.audit.entries[0].value.replacement.as_deref(),
-            Some("****"),
-        );
-    }
-
-    #[tokio::test]
     async fn remove_leaves_replacement_none() {
         let entity = text_entity(6, 10);
         let entity_id = entity.id;

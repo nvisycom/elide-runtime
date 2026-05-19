@@ -293,7 +293,6 @@ impl ImageHandler for RichTextHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_core::Error;
 
     use super::*;
     use crate::handler::TextHandler;

@@ -81,9 +81,7 @@ impl Mergeable for TabularLocation {
             other.start_offset,
             other.end_offset,
         ) {
-            (Some(s1), Some(e1), Some(s2), Some(e2)) => {
-                (Some(s1.min(s2)), Some(e1.max(e2)))
-            }
+            (Some(s1), Some(e1), Some(s2), Some(e2)) => (Some(s1.min(s2)), Some(e1.max(e2))),
             _ => (None, None),
         };
         Some(Self {

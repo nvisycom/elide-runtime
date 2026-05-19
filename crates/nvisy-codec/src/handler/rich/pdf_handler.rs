@@ -21,10 +21,8 @@ use nvisy_ontology::primitive::Dpi;
 use super::pdf_render::PdfRenderer;
 use crate::document::{Located, LocationStream};
 use crate::handler::image::ImageData;
-use crate::handler::text::TextData;
-use crate::handler::{Handler, ImageHandler, TextHandler};
-use crate::handler::text::apply_text_redaction;
-use crate::handler::{ImageRedaction, TextRedaction};
+use crate::handler::text::{TextData, apply_text_redaction};
+use crate::handler::{Handler, ImageHandler, ImageRedaction, TextHandler, TextRedaction};
 
 const TARGET: &str = "rich-text-handler";
 

@@ -9,8 +9,7 @@ use nvisy_ontology::entity::TabularLocation;
 
 use super::TabularHandler;
 use crate::document::LocationStream;
-use crate::handler::{CsvHandler, Handler, TextData, XlsxHandler};
-use crate::handler::TabularRedaction;
+use crate::handler::{CsvHandler, Handler, TabularRedaction, TextData, XlsxHandler};
 
 /// A type-erased tabular handler backed by a boxed trait object.
 pub struct BoxedTabularHandler(Box<dyn TabularHandler>);

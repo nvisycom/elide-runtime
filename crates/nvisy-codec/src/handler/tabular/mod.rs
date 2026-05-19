@@ -17,8 +17,7 @@ use nvisy_ontology::entity::TabularLocation;
 
 use super::Handler;
 use crate::document::LocationStream;
-use crate::handler::TextData;
-use crate::handler::Redactions;
+use crate::handler::{Redactions, TextData};
 
 mod apply;
 mod csv_handler;
@@ -30,8 +29,8 @@ mod xlsx_loader;
 
 pub(crate) use self::apply::apply_tabular_redaction;
 pub use self::csv_handler::{CsvData, CsvHandler};
-pub use self::instruction::TabularRedaction;
 pub use self::csv_loader::{CsvLoader, CsvParams};
+pub use self::instruction::TabularRedaction;
 pub use self::tabular_handler::BoxedTabularHandler;
 pub use self::xlsx_handler::XlsxHandler;
 pub use self::xlsx_loader::{XlsxLoader, XlsxParams};

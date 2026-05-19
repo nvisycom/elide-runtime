@@ -22,12 +22,11 @@ mod txt_handler;
 mod txt_loader;
 
 pub(crate) use self::apply::apply_text_redaction;
-pub use self::instruction::{TextOutput, TextRedaction};
-
 #[cfg(feature = "html")]
 pub use self::html_handler::{HtmlData, HtmlHandler};
 #[cfg(feature = "html")]
 pub use self::html_loader::{HtmlLoader, HtmlParams};
+pub use self::instruction::{TextOutput, TextRedaction};
 pub use self::json_handler::{JsonData, JsonHandler, JsonIndent};
 pub use self::json_loader::{JsonLoader, JsonParams};
 pub use self::markdown_loader::{MarkdownLoader, MarkdownParams};

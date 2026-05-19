@@ -8,9 +8,9 @@
 use std::fmt;
 
 use futures::StreamExt;
-use nvisy_codec::handler::{AudioData, ImageData, TextData};
 use nvisy_codec::handler::{
-    AudioRedaction, ImageRedaction, Redactions, TabularRedaction, TextRedaction,
+    AudioData, AudioRedaction, ImageData, ImageRedaction, Redactions, TabularRedaction, TextData,
+    TextRedaction,
 };
 use nvisy_codec::{ContentHandle, Located};
 use nvisy_core::Error;

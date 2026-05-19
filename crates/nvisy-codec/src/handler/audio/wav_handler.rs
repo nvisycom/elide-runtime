@@ -25,9 +25,9 @@ use nvisy_core::media::{AudioFormat, DocumentType};
 use nvisy_ontology::entity::AudioLocation;
 use nvisy_ontology::primitive::TimeSpan;
 
+use super::{AudioRedaction, apply_audio_redaction};
 use crate::document::{Located, LocationStream};
 use crate::handler::{AudioData, AudioHandler, Handler};
-use super::{AudioRedaction, apply_audio_redaction};
 
 const TARGET: &str = "wav-handler";
 
@@ -191,8 +191,7 @@ mod tests {
     use hound::SampleFormat;
 
     use super::*;
-    use crate::handler::AudioHandler;
-    use crate::handler::{AudioOutput, ConflictPolicy, Redactions};
+    use crate::handler::{AudioHandler, AudioOutput, ConflictPolicy, Redactions};
 
     /// Encode a mono i16 PCM WAV with the given samples at 1 kHz.
     fn encode_wav_mono_i16(samples: &[i16]) -> Bytes {

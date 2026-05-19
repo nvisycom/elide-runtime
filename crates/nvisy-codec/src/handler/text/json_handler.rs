@@ -23,10 +23,10 @@ use nvisy_core::media::{DocumentType, TextFormat};
 use nvisy_ontology::entity::TextLocation;
 use serde::{Deserialize, Serialize};
 
+use super::{TextRedaction, apply_text_redaction};
 use crate::document::{Located, LocationStream};
 use crate::handler::text::TextData;
 use crate::handler::{Handler, TextHandler};
-use super::{TextRedaction, apply_text_redaction};
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 const TARGET: &str = "json-handler";
@@ -160,17 +160,21 @@ impl TextHandler for JsonHandler {
         if ls.path.key_of {
             rename_key(&mut self.data.value, &ls.path.pointer, &content)?;
         } else {
-            let target = self.data.value.pointer_mut(&ls.path.pointer).ok_or_else(|| {
-                Error::validation(
-                    format!("JSON pointer not found: {}", ls.path.pointer),
-                    TARGET,
-                )
-            })?;
+            let target = self
+                .data
+                .value
+                .pointer_mut(&ls.path.pointer)
+                .ok_or_else(|| {
+                    Error::validation(
+                        format!("JSON pointer not found: {}", ls.path.pointer),
+                        TARGET,
+                    )
+                })?;
             if target.is_string() {
                 *target = serde_json::Value::String(content);
             } else {
-                *target = serde_json::from_str(&content)
-                    .unwrap_or(serde_json::Value::String(content));
+                *target =
+                    serde_json::from_str(&content).unwrap_or(serde_json::Value::String(content));
             }
         }
         Ok(())

@@ -99,7 +99,10 @@ where
             }
             ConflictPolicy::Merge => {
                 let (existing_s, existing_r) = self.items.remove(idx);
-                match (existing_s.try_merge(location), existing_r.try_merge(redaction)) {
+                match (
+                    existing_s.try_merge(location),
+                    existing_r.try_merge(redaction),
+                ) {
                     (Some(merged_s), Some(merged_r)) => {
                         self.items.push((merged_s, merged_r));
                         Ok(())

@@ -20,8 +20,7 @@ use nvisy_ontology::entity::AudioLocation;
 use nvisy_ontology::primitive::TimeSpan;
 
 use crate::document::{Located, LocationStream};
-use crate::handler::{AudioData, AudioHandler, Handler};
-use crate::handler::AudioRedaction;
+use crate::handler::{AudioData, AudioHandler, AudioRedaction, Handler};
 
 const TARGET: &str = "mp3-handler";
 
@@ -108,14 +107,16 @@ mod tests {
     use nvisy_ontology::primitive::TimeSpan;
 
     use super::*;
-    use crate::handler::AudioHandler;
-    use crate::handler::{AudioOutput, ConflictPolicy, Redactions};
+    use crate::handler::{AudioHandler, AudioOutput, ConflictPolicy, Redactions};
 
     #[tokio::test]
     async fn redact_with_entries_errors() {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
         let location = AudioLocation {
-            time_span: TimeSpan { start_us: 0, end_us: 1_000 },
+            time_span: TimeSpan {
+                start_us: 0,
+                end_us: 1_000,
+            },
             speaker_id: None,
             audio_id: None,
         };
@@ -123,7 +124,10 @@ mod tests {
         rs.try_insert(location, AudioRedaction::new(AudioOutput::Silence))
             .unwrap();
         let err = handler.redact(rs).await.unwrap_err();
-        assert!(err.to_string().contains("MP3 redaction is not yet supported"));
+        assert!(
+            err.to_string()
+                .contains("MP3 redaction is not yet supported")
+        );
     }
 
     #[tokio::test]

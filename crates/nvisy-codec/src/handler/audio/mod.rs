@@ -20,8 +20,8 @@ mod wav_loader;
 
 pub(crate) use self::apply::apply_audio_redaction;
 pub use self::audio_data::AudioData;
-pub use self::instruction::{AudioOutput, AudioRedaction};
 pub use self::audio_handler::BoxedAudioHandler;
+pub use self::instruction::{AudioOutput, AudioRedaction};
 pub use self::mp3_handler::Mp3Handler;
 pub use self::mp3_loader::{Mp3Loader, Mp3Params};
 pub use self::wav_handler::WavHandler;

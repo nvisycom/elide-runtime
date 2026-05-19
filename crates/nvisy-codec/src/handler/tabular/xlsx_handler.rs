@@ -13,8 +13,7 @@ use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 use nvisy_ontology::entity::TabularLocation;
 
 use crate::document::LocationStream;
-use crate::handler::{Handler, TabularHandler, TextData};
-use crate::handler::TabularRedaction;
+use crate::handler::{Handler, TabularHandler, TabularRedaction, TextData};
 
 #[derive(Debug, Default)]
 pub struct XlsxHandler {

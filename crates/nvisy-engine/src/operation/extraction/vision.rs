@@ -9,7 +9,7 @@ use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::{Entities, ImageLocation};
 use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
-use nvisy_provider::agent::{ImageFormat, ImageInput, ImageOutput, OcrAgent};
+use nvisy_provider::agent::{ImageFormat, ImageInput, ImageOutput, OcrAgent, VerificationCandidate};
 use nvisy_provider::http::HttpClient;
 
 use crate::operation::{DocumentEnvelope, Operation};
@@ -106,7 +106,6 @@ impl VisualExtractionOp {
         if entities.is_empty() || spans.is_empty() {
             return Ok(entities);
         }
-        use nvisy_provider::agent::VerificationCandidate;
 
         let mut verified = entities.into_inner();
         for span in spans {

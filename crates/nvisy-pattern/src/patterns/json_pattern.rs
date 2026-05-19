@@ -1,9 +1,11 @@
 //! JSON-backed [`JsonPattern`] implementation.
 //!
 //! Each JSON file under `assets/patterns/` is deserialized into a
-//! [`JsonPattern`] via [`from_bytes`](JsonPattern::from_bytes). The method
+//! [`JsonPattern`] via [`from_bytes`]. The method
 //! returns the validated pattern together with any non-fatal
 //! [`JsonPatternWarning`]s so the caller can decide how to surface them.
+//!
+//! [`from_bytes`]: JsonPattern::from_bytes
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use serde::Deserialize;

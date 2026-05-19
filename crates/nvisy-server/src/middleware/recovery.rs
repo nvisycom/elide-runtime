@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DurationSeconds, serde_as};
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
+use tower::timeout::error::Elapsed;
 use tower_http::catch_panic::CatchPanicLayer;
 
 use super::constants::DEFAULT_REQUEST_TIMEOUT_SECS;
@@ -111,11 +112,11 @@ where
 
 /// Converts a Tower service error into an appropriate HTTP error response.
 ///
-/// Distinguishes timeouts ([`Elapsed`](tower::timeout::error::Elapsed))
+/// Distinguishes timeouts ([`Elapsed`])
 /// from other middleware errors and logs accordingly.
+///
+/// [`Elapsed`]: tower::timeout::error::Elapsed
 pub(crate) fn handle_error(err: tower::BoxError) -> ResponseFut {
-    use tower::timeout::error::Elapsed;
-
     if err.downcast_ref::<Elapsed>().is_some() {
         tracing::error!(
             target: TRACING_TARGET_ERROR,
@@ -141,9 +142,12 @@ pub(crate) fn handle_error(err: tower::BoxError) -> ResponseFut {
 /// Converts a panic payload into a `500 Internal Server Error` response.
 ///
 /// Returns `Response` directly (not a future) because
-/// [`ResponseForPanic`](tower_http::catch_panic::ResponseForPanic) requires
+/// [`ResponseForPanic`] requires
 /// a synchronous return, unlike [`handle_error`] which returns a
-/// [`BoxFuture`](futures::future::BoxFuture).
+/// [`BoxFuture`].
+///
+/// [`ResponseForPanic`]: tower_http::catch_panic::ResponseForPanic
+/// [`BoxFuture`]: futures::future::BoxFuture
 fn catch_panic(err: Panic) -> Response {
     let message = err
         .downcast_ref::<String>()

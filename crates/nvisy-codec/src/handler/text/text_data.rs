@@ -5,11 +5,13 @@ use hipstr::HipStr;
 
 /// Opaque wrapper around a text span's content.
 ///
-/// Mirrors [`ImageData`](crate::handler::ImageData) for text-bearing
+/// Mirrors [`ImageData`] for text-bearing
 /// handlers, providing a consistent type boundary at the `Handler`
 /// trait level.
 ///
 /// Internally backed by [`HipStr`] for cheap cloning.
+///
+/// [`ImageData`]: crate::handler::ImageData
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Display, From, AsRef)]
 #[as_ref(forward)]

@@ -1,8 +1,10 @@
 //! Named Entity Recognition (NER) agent for textual PII/entity detection.
 //!
-//! [`NerAgent`] wraps a [`BaseAgent`](crate::backend::BaseAgent) with
+//! [`NerAgent`] wraps a [`BaseAgent`] with
 //! NER-specific prompts. It is a pure LLM agent (no tools) that analyses
 //! text and returns structured entity detections.
+//!
+//! [`BaseAgent`]: crate::backend::BaseAgent
 
 mod context;
 mod output;
@@ -31,10 +33,12 @@ const TARGET: &str = "nvisy_provider::agent::ner";
 /// # Workflow
 ///
 /// 1. Caller passes a [`NerContext`] and a [`DetectionConfig`] to
-///    [`detect`](Self::detect).
+///    [`detect`].
 /// 2. The agent builds a user prompt via `NerPromptBuilder` that
 ///    specifies entity types, confidence thresholds, and known entities.
 /// 3. Structured output is parsed into `Vec<NerEntity>`.
+///
+/// [`detect`]: Self::detect
 pub struct NerAgent {
     base: BaseAgent,
     state: Mutex<Vec<KnownNerEntity>>,
@@ -124,11 +128,13 @@ impl NerAgent {
     ///
     /// Manages coreference state internally: previously detected entities
     /// are carried forward so the LLM can assign consistent `entity_id`
-    /// values across successive calls. Call [`reset`](Self::reset) to
+    /// values across successive calls. Call [`reset`] to
     /// clear the state between documents.
     ///
     /// The caller is responsible for adjusting byte offsets to be
     /// document-relative after this call.
+    ///
+    /// [`reset`]: Self::reset
     #[tracing::instrument(
         target = "nvisy_provider::agent::ner",
         skip_all,

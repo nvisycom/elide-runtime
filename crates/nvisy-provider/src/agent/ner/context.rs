@@ -8,9 +8,12 @@ use super::{KnownNerEntity, NerEntity};
 /// entities so the LLM can assign consistent `entity_id` values across
 /// chunks or sequential calls.
 ///
-/// Use [`merge`](Self::merge) to accumulate entities from successive
-/// detection calls, then update the text with [`set_text`](Self::set_text)
+/// Use [`merge`] to accumulate entities from successive
+/// detection calls, then update the text with [`set_text`]
 /// before the next call.
+///
+/// [`merge`]: Self::merge
+/// [`set_text`]: Self::set_text
 pub struct NerContext<'a> {
     /// The text to analyse.
     pub text: &'a str,

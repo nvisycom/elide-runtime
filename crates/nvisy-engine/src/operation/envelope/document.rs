@@ -22,7 +22,9 @@ use nvisy_ontology::entity::{AudioLocation, ImageLocation, Location, TextLocatio
 /// Engine-level document combining content, metadata, and artifacts.
 ///
 /// Created during import and carried through the entire pipeline via
-/// [`DocumentEnvelope`](crate::operation::DocumentEnvelope).
+/// [`DocumentEnvelope`].
+///
+/// [`DocumentEnvelope`]: crate::operation::DocumentEnvelope
 pub struct Document {
     /// The decoded content handle (text, image, audio, or rich).
     pub handle: ContentHandle,

@@ -4,11 +4,12 @@ use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use bytes::Bytes;
 use nvisy_core::content::ContentData;
-use nvisy_core::{Error, Result};
+use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::workflow::EncryptionAlgorithm;
+use rand::RngExt;
 
 use super::provider::{KeyProvider, SharedKeyProvider};
-use super::wire::{EncryptedContent, WireEnvelope};
+use super::wire::{EncryptedContent, NONCE_SIZE, WireEnvelope};
 use crate::operation::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::encryption";
@@ -30,11 +31,6 @@ impl CryptoService {
 
     /// Encrypt a [`DocumentEnvelope`] into an [`EncryptedContent`] blob.
     pub async fn encrypt(&self, envelope: &DocumentEnvelope) -> Result<EncryptedContent> {
-        use nvisy_core::ErrorKind;
-        use rand::RngExt;
-
-        use super::wire::NONCE_SIZE;
-
         let content_data = envelope.document.encode()?;
         let source = content_data.content_source;
         let plaintext = content_data.as_bytes();

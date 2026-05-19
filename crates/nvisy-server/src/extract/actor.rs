@@ -2,7 +2,9 @@
 //!
 //! Wraps the raw header value into a typed [`ActorId`] newtype,
 //! rejecting requests that omit the header or supply an invalid UUID
-//! with our standard [`ErrorResponse`](crate::handler::response::ErrorResponse).
+//! with our standard [`ErrorResponse`].
+//!
+//! [`ErrorResponse`]: crate::handler::response::ErrorResponse
 
 use aide::OperationInput;
 use axum::extract::FromRequestParts;

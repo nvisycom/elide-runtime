@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
+use base64::Engine;
 use bytes::Bytes;
 use nvisy_core::{Error, Result};
 
@@ -69,8 +70,6 @@ impl StaticKeyProvider {
     /// Expects an object whose keys are key IDs and values are
     /// base64-encoded key bytes. Any other shape returns an empty provider.
     pub fn from_json(value: &serde_json::Value) -> Result<Self> {
-        use base64::Engine;
-
         let Some(map) = value.as_object() else {
             return Ok(Self::default());
         };

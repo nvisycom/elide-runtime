@@ -12,7 +12,9 @@
 //!   detail (`GET /runs`).
 //!
 //! The [`state`] submodule contains the volatile in-memory storage
-//! ([`RunState`](state::RunState)) backing all run queries and mutations.
+//! ([`RunState`]) backing all run queries and mutations.
+//!
+//! [`RunState`]: state::RunState
 
 mod analytics;
 pub(crate) mod state;

@@ -3,6 +3,8 @@
 use std::env;
 
 use nvisy_core::Error;
+use nvisy_provider::agent::{AgentProvider, OcrProvider};
+use nvisy_provider::audio::{SttProvider, TtsProvider};
 use validator::Validate;
 
 use super::RuntimeConfig;
@@ -55,13 +57,8 @@ impl RuntimeConfig {
     }
 }
 
-#[allow(unused_variables, unused_imports)]
-fn resolve_agent_provider_key(
-    provider: &mut Option<nvisy_provider::agent::AgentProvider>,
-    env_var: &str,
-) {
-    use nvisy_provider::agent::AgentProvider;
-
+#[allow(unused_variables)]
+fn resolve_agent_provider_key(provider: &mut Option<AgentProvider>, env_var: &str) {
     let Some(p) = provider else { return };
     match p {
         #[cfg(feature = "openai")]
@@ -74,13 +71,8 @@ fn resolve_agent_provider_key(
     }
 }
 
-#[allow(unused_variables, unused_imports)]
-fn resolve_stt_provider_key(
-    provider: &mut Option<nvisy_provider::audio::SttProvider>,
-    env_var: &str,
-) {
-    use nvisy_provider::audio::SttProvider;
-
+#[allow(unused_variables)]
+fn resolve_stt_provider_key(provider: &mut Option<SttProvider>, env_var: &str) {
     let Some(p) = provider else { return };
     match p {
         #[cfg(feature = "openai")]
@@ -89,13 +81,8 @@ fn resolve_stt_provider_key(
     }
 }
 
-#[allow(unused_variables, unused_imports)]
-fn resolve_tts_provider_key(
-    provider: &mut Option<nvisy_provider::audio::TtsProvider>,
-    env_var: &str,
-) {
-    use nvisy_provider::audio::TtsProvider;
-
+#[allow(unused_variables)]
+fn resolve_tts_provider_key(provider: &mut Option<TtsProvider>, env_var: &str) {
     let Some(p) = provider else { return };
     match p {
         #[cfg(feature = "openai")]
@@ -104,13 +91,8 @@ fn resolve_tts_provider_key(
     }
 }
 
-#[allow(unused_variables, unused_imports)]
-fn resolve_ocr_provider_key(
-    provider: &mut Option<nvisy_provider::agent::OcrProvider>,
-    env_var: &str,
-) {
-    use nvisy_provider::agent::OcrProvider;
-
+#[allow(unused_variables)]
+fn resolve_ocr_provider_key(provider: &mut Option<OcrProvider>, env_var: &str) {
     let Some(p) = provider else { return };
     match p {
         #[cfg(feature = "google")]

@@ -25,9 +25,11 @@ pub enum ReviewStatus {
 
 /// A review decision recorded against a redaction, including versioning.
 ///
-/// Present on an [`AuditEntry`](super::AuditEntry) only when the
+/// Present on an [`AuditEntry`] only when the
 /// redaction has been reviewed (or is pending review). Absent for
 /// entries that have not entered the review workflow.
+///
+/// [`AuditEntry`]: super::AuditEntry
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewDecision {

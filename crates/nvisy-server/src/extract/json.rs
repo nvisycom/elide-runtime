@@ -1,8 +1,10 @@
 //! Custom `Json` extractor that converts rejections into [`Error`].
 //!
 //! Wraps [`axum::Json`] so that malformed JSON bodies produce our
-//! standard [`ErrorResponse`](crate::handler::response::ErrorResponse)
+//! standard [`ErrorResponse`]
 //! instead of axum's default plain-text rejection.
+//!
+//! [`ErrorResponse`]: crate::handler::response::ErrorResponse
 
 use aide::OperationInput;
 use axum::extract::rejection::JsonRejection;

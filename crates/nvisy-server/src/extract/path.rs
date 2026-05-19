@@ -2,8 +2,10 @@
 //!
 //! Wraps [`axum::extract::Path`] so that invalid path parameters
 //! (e.g. a malformed UUID) produce our standard
-//! [`ErrorResponse`](crate::handler::response::ErrorResponse)
+//! [`ErrorResponse`]
 //! instead of axum's default plain-text rejection.
+//!
+//! [`ErrorResponse`]: crate::handler::response::ErrorResponse
 
 use aide::OperationInput;
 use axum::extract::FromRequestParts;

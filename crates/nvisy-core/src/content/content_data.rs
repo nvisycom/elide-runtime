@@ -3,7 +3,9 @@
 //! [`ContentData`] is the pure data half of the content model. It holds
 //! the raw bytes and a [`ContentSource`] identifier. All descriptive
 //! attributes (MIME type, filename, arbitrary metadata) live on
-//! [`ContentMetadata`](super::ContentMetadata).
+//! [`ContentMetadata`].
+//!
+//! [`ContentMetadata`]: super::ContentMetadata
 
 use std::{fmt, str};
 
@@ -19,8 +21,11 @@ use crate::error::{Error, ErrorKind, Result};
 ///
 /// This is the data-only half of the content model — it does not carry
 /// MIME type, filename, or other descriptive metadata. Pair with
-/// [`ContentMetadata`](super::ContentMetadata) via
-/// [`Content`](super::Content) for a complete representation.
+/// [`ContentMetadata`] via
+/// [`Content`] for a complete representation.
+///
+/// [`ContentMetadata`]: super::ContentMetadata
+/// [`Content`]: super::Content
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentData {
     /// Unique identifier for the content source.
@@ -197,7 +202,9 @@ impl ContentData {
     ///
     /// Returns `None` for content with no recognizable magic bytes
     /// (e.g. plain text). Use this to populate
-    /// [`ContentMetadata::detected_content_type`](super::ContentMetadata::detected_content_type).
+    /// [`ContentMetadata::detected_content_type`].
+    ///
+    /// [`ContentMetadata::detected_content_type`]: super::ContentMetadata::detected_content_type
     #[must_use]
     pub fn detect_mime(&self) -> Option<String> {
         infer::get(&self.data).map(|t| t.mime_type().to_owned())

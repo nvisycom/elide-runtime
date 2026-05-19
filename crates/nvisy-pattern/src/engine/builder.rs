@@ -11,7 +11,9 @@ use crate::validators::ValidatorResolver;
 /// Builder for [`PatternEngine`].
 ///
 /// By default all built-in patterns are included. Use
-/// [`with_patterns`](Self::with_patterns) to restrict to a subset.
+/// [`with_patterns`] to restrict to a subset.
+///
+/// [`with_patterns`]: Self::with_patterns
 #[derive(Default)]
 pub struct PatternEngineBuilder {
     pattern_names: Option<Vec<String>>,
@@ -33,7 +35,9 @@ impl PatternEngineBuilder {
     /// Set the minimum confidence score for matches.
     ///
     /// Matches with confidence below this value are discarded during
-    /// [`scan_entities`](PatternEngine::scan_entities). Defaults to `0.0`.
+    /// [`scan_entities`]. Defaults to `0.0`.
+    ///
+    /// [`scan_entities`]: PatternEngine::scan_entities
     pub fn with_confidence_threshold(mut self, threshold: f64) -> Self {
         self.confidence_threshold = threshold;
         self

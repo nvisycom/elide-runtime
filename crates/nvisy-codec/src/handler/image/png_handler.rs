@@ -3,10 +3,11 @@
 //!
 //! [`ImageHandler::locations`] yields exactly one full-image
 //! [`ImageLocation`]; [`ImageHandler::read`] returns the current
-//! [`DynamicImage`](image::DynamicImage) (cropped to the location's
+//! [`DynamicImage`] (cropped to the location's
 //! bounding box); [`ImageHandler::redact`] applies bounding-box
 //! redactions in place.
 //!
+//! [`DynamicImage`]: image::DynamicImage
 //! [`ImageHandler`]: crate::handler::ImageHandler
 //! [`ImageHandler::locations`]: crate::handler::ImageHandler::locations
 //! [`ImageHandler::read`]: crate::handler::ImageHandler::read
@@ -19,9 +20,12 @@ use super::impl_image_handler;
 
 /// Handler for loaded PNG content.
 ///
-/// Stores the decoded [`DynamicImage`](image::DynamicImage) directly.
+/// Stores the decoded [`DynamicImage`] directly.
 /// The raw PNG bytes can be produced on demand via
-/// [`Handler::encode`](crate::handler::Handler::encode).
+/// [`Handler::encode`].
+///
+/// [`DynamicImage`]: image::DynamicImage
+/// [`Handler::encode`]: crate::handler::Handler::encode
 #[derive(Debug)]
 pub struct PngHandler {
     source: ContentSource,

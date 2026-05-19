@@ -2,8 +2,10 @@
 //!
 //! [`RunState`] wraps an `Arc<RwLock<HashMap<Uuid, RunRecord>>>` providing
 //! concurrent read/write access to run records. It is cheaply clonable
-//! (single `Arc` bump) and shared between the [`Engine`](super::super::Engine)
+//! (single `Arc` bump) and shared between the [`Engine`]
 //! and the [orchestrator](super::super::orchestrator).
+//!
+//! [`Engine`]: super::super::Engine
 //!
 //! All queries are scoped by `actor_id` — an actor can only see and
 //! mutate their own runs. Finalization forces any still-pending or
@@ -146,13 +148,15 @@ impl RunState {
 
     /// Transition a run to its final status and record aggregate counters.
     ///
-    /// If the run was already cancelled (via [`cancel_run`](Self::cancel_run)),
+    /// If the run was already cancelled (via [`cancel_run`]),
     /// the `Cancelled` status is preserved rather than being overwritten by
     /// the orchestrator's computed status.
     ///
     /// Any nodes still in `Pending` or `Running` state are forced to
     /// `Failed` with an explanatory error message, ensuring all nodes
     /// reach a terminal status.
+    ///
+    /// [`cancel_run`]: Self::cancel_run
     pub async fn finalize(
         &self,
         run_id: Uuid,

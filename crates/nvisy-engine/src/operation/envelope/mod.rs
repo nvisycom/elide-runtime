@@ -18,8 +18,9 @@
 //!
 //! Each operation receives `&mut DocumentEnvelope` and reads/writes
 //! fields directly. Run-wide shared state (policies, registry, key
-//! provider) is available via the [`shared`](DocumentEnvelope::shared)
-//! field.
+//! provider) is available via the [`shared`] field.
+//!
+//! [`shared`]: DocumentEnvelope::shared
 
 use std::fmt;
 use std::sync::Arc;
@@ -41,10 +42,13 @@ pub use self::shared::SharedData;
 /// Created by import from a decoded [`ContentHandle`], then progressively
 /// enriched by detection, policy, and redaction operations. Operations
 /// receive `&mut DocumentEnvelope` and access run-wide shared state
-/// via the [`shared`](DocumentEnvelope::shared) field.
+/// via the [`shared`] field.
 ///
-/// Detected entities live on [`audit.entities`](Audit::entities),
+/// Detected entities live on [`audit.entities`],
 /// not as a top-level field.
+///
+/// [`shared`]: DocumentEnvelope::shared
+/// [`audit.entities`]: Audit::entities
 pub struct DocumentEnvelope {
     /// The document: content handle + metadata + artifacts.
     ///

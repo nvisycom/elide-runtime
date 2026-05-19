@@ -35,7 +35,9 @@ pub enum ContextEntryData {
     Document(DocumentVariant),
 }
 
-/// A single reference-data entry within a [`Context`](super::Context).
+/// A single reference-data entry within a [`Context`].
+///
+/// [`Context`]: super::Context
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextEntry {

@@ -17,6 +17,12 @@ use nvisy_ontology::entity::{AudioLocation, ImageLocation, TextLocation};
 pub use self::located::Located;
 pub use self::span::Span;
 pub use self::stream::LocationStream;
+#[cfg(feature = "docx")]
+use crate::handler::{DocxLoader, DocxParams};
+#[cfg(feature = "html")]
+use crate::handler::{HtmlLoader, HtmlParams};
+#[cfg(feature = "pdf")]
+use crate::handler::{PdfLoader, PdfParams};
 use crate::handler::{
     AudioData, AudioHandler, BoxedAudioHandler, BoxedImageHandler, BoxedRichHandler,
     BoxedTextHandler, CsvLoader, CsvParams, Handler, ImageData, ImageHandler, JpegLoader,
@@ -208,13 +214,10 @@ impl ContentHandle {
                 .await?
                 .into(),
             #[cfg(feature = "html")]
-            DocumentType::Html => {
-                use crate::handler::{HtmlLoader, HtmlParams};
-                HtmlLoader
-                    .decode(content, &HtmlParams::default())
-                    .await?
-                    .into()
-            }
+            DocumentType::Html => HtmlLoader
+                .decode(content, &HtmlParams::default())
+                .await?
+                .into(),
             DocumentType::Spreadsheet(SpreadsheetFormat::Csv) => CsvLoader
                 .decode(content, &CsvParams::default())
                 .await?
@@ -277,7 +280,6 @@ impl ContentHandle {
             DocumentType::Pdf => {
                 #[cfg(feature = "pdf")]
                 {
-                    use crate::handler::{PdfLoader, PdfParams};
                     let handler = PdfLoader.decode(content, &PdfParams::default()).await?;
                     Ok(Self::from(BoxedRichHandler::from(handler)))
                 }
@@ -292,7 +294,6 @@ impl ContentHandle {
             DocumentType::Word(WordFormat::Docx) => {
                 #[cfg(feature = "docx")]
                 {
-                    use crate::handler::{DocxLoader, DocxParams};
                     let handler = DocxLoader.decode(content, &DocxParams).await?;
                     Ok(Self::from(BoxedRichHandler::from(handler)))
                 }

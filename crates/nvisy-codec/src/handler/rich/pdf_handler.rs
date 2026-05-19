@@ -109,7 +109,9 @@ impl RichTextHandler {
         &self.raw
     }
 
-    /// Total number of pages (alias for [`page_count`](Self::page_count)).
+    /// Total number of pages (alias for [`page_count`]).
+    ///
+    /// [`page_count`]: Self::page_count
     pub fn len(&self) -> usize {
         self.pages.len()
     }

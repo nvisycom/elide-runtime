@@ -11,6 +11,7 @@
 //! 2. **Compression** — compress for storage or transfer (if format specified)
 
 use nvisy_core::Result;
+use nvisy_core::content::{Content, ContentData, ContentSource};
 use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionConfig};
 use uuid::Uuid;
 
@@ -77,7 +78,6 @@ impl ExportFileOp {
         }
 
         for &content_id in &self.content_ids {
-            use nvisy_core::content::{Content, ContentData, ContentSource};
             let source = ContentSource::from_uuid(content_id);
             let data = ContentData::new(source, output_bytes.clone());
             let content = Content::new(data);

@@ -16,7 +16,9 @@ use crate::utility::encryption::SharedKeyProvider;
 /// Immutable run-wide state shared across all envelopes via `Arc`.
 ///
 /// Constructed once at the start of a pipeline run and stored on each
-/// [`DocumentEnvelope`](crate::operation::DocumentEnvelope).
+/// [`DocumentEnvelope`].
+///
+/// [`DocumentEnvelope`]: crate::operation::DocumentEnvelope
 #[derive(Clone)]
 pub struct SharedData {
     /// Unique identifier for this pipeline run.

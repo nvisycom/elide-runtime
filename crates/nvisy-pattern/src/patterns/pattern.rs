@@ -32,7 +32,9 @@ pub struct RegexPattern {
 impl RegexPattern {
     /// Return the regex string ready for compilation.
     ///
-    /// Prepends `(?i)` when [`case_sensitive`](Self::case_sensitive) is `false`.
+    /// Prepends `(?i)` when [`case_sensitive`] is `false`.
+    ///
+    /// [`case_sensitive`]: Self::case_sensitive
     pub fn effective_regex(&self) -> String {
         if self.case_sensitive {
             self.regex.clone()

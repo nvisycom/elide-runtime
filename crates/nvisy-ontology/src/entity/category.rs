@@ -1,9 +1,11 @@
 //! Broad entity category classification.
 //!
-//! [`EntityCategory`] groups related [`EntityKind`](super::EntityKind)
+//! [`EntityCategory`] groups related [`EntityKind`]
 //! variants into policy-addressable buckets.  Policy selectors can
 //! target an entire category (e.g. "redact all financial data") without
 //! enumerating individual kinds.
+//!
+//! [`EntityKind`]: super::EntityKind
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -11,8 +13,11 @@ use strum::{Display, EnumString};
 
 /// Broad category of sensitive data.
 ///
-/// Each [`EntityKind`](super::EntityKind) maps to exactly one category
-/// via [`EntityKind::category()`](super::EntityKind::category).
+/// Each [`EntityKind`] maps to exactly one category
+/// via [`EntityKind::category()`].
+///
+/// [`EntityKind`]: super::EntityKind
+/// [`EntityKind::category()`]: super::EntityKind::category
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

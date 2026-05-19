@@ -36,8 +36,10 @@ pub enum ErrorKind {
 
 /// Unified error type for the nvisy platform.
 ///
-/// Carries a [`kind`](ErrorKind), a human-readable message, an optional
+/// Carries a [`kind`], a human-readable message, an optional
 /// source component name, a retryable flag, and an optional wrapped cause.
+///
+/// [`kind`]: ErrorKind
 #[derive(Debug, thiserror::Error)]
 #[error("{kind}: {message}")]
 pub struct Error {

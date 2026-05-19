@@ -5,7 +5,7 @@ use super::deny_list::DenyList;
 
 /// Per-scan configuration for allow and deny lists.
 ///
-/// Passed to [`PatternEngine::scan_entities`](super::PatternEngine::scan_entities)
+/// Passed to [`PatternEngine::scan_entities`]
 /// to control per-invocation suppression and forced detection without
 /// rebuilding the engine.
 ///
@@ -24,6 +24,8 @@ use super::deny_list::DenyList;
 ///     }));
 /// let matches = PatternEngine::instance().scan_entities("text", &ctx);
 /// ```
+///
+/// [`PatternEngine::scan_entities`]: super::PatternEngine::scan_entities
 #[derive(Debug, Clone, Default)]
 pub struct ScanContext {
     pub(super) allow: AllowList,

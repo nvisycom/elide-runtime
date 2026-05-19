@@ -1,8 +1,11 @@
 //! Typed response bodies for API endpoints.
 //!
-//! Each struct derives [`Serialize`](serde::Serialize) and
-//! [`JsonSchema`](schemars::JsonSchema) for automatic OpenAPI schema
+//! Each struct derives [`Serialize`] and
+//! [`JsonSchema`] for automatic OpenAPI schema
 //! generation via aide.
+//!
+//! [`Serialize`]: serde::Serialize
+//! [`JsonSchema`]: schemars::JsonSchema
 
 mod check;
 mod contexts;

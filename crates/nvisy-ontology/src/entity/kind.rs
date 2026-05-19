@@ -109,7 +109,9 @@ pub enum EntityKind {
     Voiceprint,
     /// Retina or iris scan data.
     RetinaScan,
-    /// Facial geometry or face embedding (not a photo: see [`Face`](Self::Face)).
+    /// Facial geometry or face embedding (not a photo: see [`Face`]).
+    ///
+    /// [`Face`]: Self::Face
     FacialGeometry,
 
     // Credentials

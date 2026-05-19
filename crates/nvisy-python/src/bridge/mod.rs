@@ -7,6 +7,8 @@
 mod error;
 
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
 
 use hipstr::HipStr;
 use nvisy_core::Error;
@@ -139,9 +141,6 @@ impl PythonBridge {
     where
         F: FnOnce(Python<'_>) -> Result<Bound<'_, PyDict>, Error> + Send + 'static,
     {
-        use std::future::Future;
-        use std::pin::Pin;
-
         tracing::Span::current().record("method", method);
 
         let future: Pin<Box<dyn Future<Output = PyResult<Py<PyAny>>> + Send>> =

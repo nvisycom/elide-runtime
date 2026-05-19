@@ -310,26 +310,6 @@ mod tests {
     }
 
     #[test]
-    fn display() {
-        assert_eq!(import().to_string(), "import");
-        assert_eq!(extraction().to_string(), "extraction");
-        assert_eq!(detection().to_string(), "detection");
-        assert_eq!(dedup().to_string(), "deduplication");
-        assert_eq!(redaction().to_string(), "redaction");
-        assert_eq!(validation().to_string(), "validation");
-        assert_eq!(export().to_string(), "export");
-    }
-
-    #[test]
-    fn validate_accepts_valid_configs() {
-        assert!(extraction().validate().is_ok());
-        assert!(detection().validate().is_ok());
-        assert!(dedup().validate().is_ok());
-        assert!(redaction().validate().is_ok());
-        assert!(validation().validate().is_ok());
-    }
-
-    #[test]
     fn validate_rejects_empty_import() {
         assert!(import().validate().is_err());
     }

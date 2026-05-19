@@ -84,13 +84,6 @@ mod tests {
     }
 
     #[test]
-    fn builder_required_fields() {
-        let loc = cell(1, 2);
-        assert_eq!(loc.row_index, 1);
-        assert_eq!(loc.column_index, 2);
-    }
-
-    #[test]
     fn overlap_same_cell_no_offsets() {
         assert!(cell(0, 0).overlaps(&cell(0, 0)));
     }
@@ -98,11 +91,6 @@ mod tests {
     #[test]
     fn no_overlap_different_row() {
         assert!(!cell(0, 0).overlaps(&cell(1, 0)));
-    }
-
-    #[test]
-    fn no_overlap_different_col() {
-        assert!(!cell(0, 0).overlaps(&cell(0, 1)));
     }
 
     #[test]

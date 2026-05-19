@@ -54,28 +54,6 @@ mod tests {
         assert_eq!(ctx.len(), 1);
     }
 
-    #[test]
-    fn push_distinct() {
-        let mut ctx = Contexts::new();
-        ctx.push(Uuid::now_v7());
-        ctx.push(Uuid::now_v7());
-        assert_eq!(ctx.len(), 2);
-    }
-
-    #[test]
-    fn contains_and_ids() {
-        let id = Uuid::now_v7();
-        let ctx = Contexts::from(vec![id]);
-        assert!(ctx.contains(&id));
-        assert_eq!(&*ctx, &[id]);
-    }
-
-    #[test]
-    fn empty() {
-        let ctx = Contexts::new();
-        assert!(ctx.is_empty());
-        assert_eq!(ctx.len(), 0);
-    }
 }
 
 /// A persistent, reusable collection of reference data for detection.

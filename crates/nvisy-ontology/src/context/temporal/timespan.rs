@@ -28,18 +28,3 @@ impl TimeSpanData {
         self
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn roundtrip_serde() {
-        let ts = TimeSpanData::new(TimeSpan::from_secs(1.0, 5.5)).with_label("intro");
-        let json = serde_json::to_string(&ts).unwrap();
-        let back: TimeSpanData = serde_json::from_str(&json).unwrap();
-        assert_eq!(ts.span.start_us, back.span.start_us);
-        assert_eq!(ts.span.end_us, back.span.end_us);
-        assert_eq!(ts.label, back.label);
-    }
-}

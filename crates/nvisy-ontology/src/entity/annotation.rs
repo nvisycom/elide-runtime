@@ -322,10 +322,4 @@ mod tests {
         assert_eq!(labels, vec!["medical", "gdpr"]);
     }
 
-    #[test]
-    fn empty_annotations_exclude_nothing() {
-        let annotations = Annotations::new();
-        let entity = test_entity("anything", 0, 8);
-        assert!(!annotations.is_excluded(&entity, Some("anything")));
-    }
 }

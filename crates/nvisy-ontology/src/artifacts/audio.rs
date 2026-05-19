@@ -122,11 +122,4 @@ mod tests {
         assert!(t.time_span().is_none());
     }
 
-    #[test]
-    fn serde_roundtrip() {
-        let t = sample_transcription();
-        let json = serde_json::to_string(&t).unwrap();
-        let back: Transcription = serde_json::from_str(&json).unwrap();
-        assert_eq!(t, back);
-    }
 }

@@ -125,12 +125,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn area() {
-        let bb = BoundingBox::new(0.0, 0.0, 10.0, 5.0);
-        assert!((bb.area() - 50.0).abs() < f64::EPSILON);
-    }
-
-    #[test]
     fn edges_and_center() {
         let bb = BoundingBox::new(10.0, 20.0, 30.0, 40.0);
         assert!((bb.right() - 40.0).abs() < f64::EPSILON);

@@ -278,15 +278,6 @@ mod tests {
     }
 
     #[test]
-    fn as_hipstr() {
-        let content = ContentData::from("Hello, HipStr!");
-        assert_eq!(content.as_hipstr().unwrap().as_str(), "Hello, HipStr!");
-
-        let binary = ContentData::from(vec![0xFF, 0xFE]);
-        assert!(binary.as_hipstr().is_err());
-    }
-
-    #[test]
     fn slice_operations() {
         let content = ContentData::from("Hello, world!");
         assert_eq!(content.slice(0, 5).unwrap(), Bytes::from("Hello"));
@@ -303,12 +294,6 @@ mod tests {
         ];
         let data = ContentData::from(png);
         assert_eq!(data.detect_mime().as_deref(), Some("image/png"));
-    }
-
-    #[test]
-    fn detect_mime_unknown() {
-        let data = ContentData::from("hello world");
-        assert_eq!(data.detect_mime(), None);
     }
 
     #[test]

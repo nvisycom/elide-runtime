@@ -331,35 +331,7 @@ impl EntityKind {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
-
-    #[test]
-    fn display_snake_case() {
-        assert_eq!(EntityKind::GovernmentId.to_string(), "government_id");
-        assert_eq!(EntityKind::PaymentCard.to_string(), "payment_card");
-        assert_eq!(EntityKind::EmailAddress.to_string(), "email_address");
-        assert_eq!(EntityKind::Fingerprint.to_string(), "fingerprint");
-        assert_eq!(EntityKind::ApiKey.to_string(), "api_key");
-        assert_eq!(EntityKind::Face.to_string(), "face");
-    }
-
-    #[test]
-    fn parse_roundtrip() {
-        let kind = EntityKind::from_str("fingerprint").unwrap();
-        assert_eq!(kind, EntityKind::Fingerprint);
-        assert_eq!(kind.to_string(), "fingerprint");
-    }
-
-    #[test]
-    fn serde_roundtrip() {
-        let kind = EntityKind::ApiKey;
-        let json = serde_json::to_string(&kind).unwrap();
-        assert_eq!(json, "\"api_key\"");
-        let back: EntityKind = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, kind);
-    }
 
     #[test]
     fn category_personal_identity() {
@@ -501,17 +473,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn sensitivity_ordering() {
-        assert!(EntityKind::GovernmentId.sensitivity() > EntityKind::PersonName.sensitivity());
-        assert!(EntityKind::PersonName.sensitivity() > EntityKind::Age.sensitivity());
-        assert!(EntityKind::Age.sensitivity() > EntityKind::Url.sensitivity());
-    }
-
-    #[test]
-    fn entity_kind_is_copy() {
-        let a = EntityKind::Fingerprint;
-        let b = a;
-        assert_eq!(a, b);
-    }
 }

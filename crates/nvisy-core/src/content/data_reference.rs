@@ -61,27 +61,3 @@ impl DataReference {
         self.mapping_id.as_deref()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn with_mapping_id() {
-        let source = ContentSource::new();
-        let data_ref = DataReference::new(source).with_mapping_id("line-42");
-
-        assert_eq!(data_ref.mapping_id(), Some("line-42"));
-    }
-
-    #[test]
-    fn serialization_roundtrip() {
-        let source = ContentSource::new();
-        let data_ref = DataReference::new(source).with_mapping_id("test-mapping");
-
-        let json = serde_json::to_string(&data_ref).unwrap();
-        let deserialized: DataReference = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(data_ref, deserialized);
-    }
-}

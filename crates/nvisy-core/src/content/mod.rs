@@ -4,12 +4,10 @@
 //! - [`ContentMetadata`]: MIME type, filename, and descriptive attributes
 //! - [`Content`]: [`ContentData`] paired with optional [`ContentMetadata`]
 //! - [`ContentSource`]: UUIDv7-based content identity and lineage
-//! - [`DataReference`]: Lightweight pointer into a content source
 
 mod bundle;
 mod content_data;
 mod content_metadata;
-mod data_reference;
 mod encoding;
 
 pub use nvisy_ontology::entity::ContentSource;
@@ -17,5 +15,4 @@ pub use nvisy_ontology::entity::ContentSource;
 pub use self::bundle::Content;
 pub use self::content_data::ContentData;
 pub use self::content_metadata::ContentMetadata;
-pub use self::data_reference::DataReference;
 pub use self::encoding::TextEncoding;

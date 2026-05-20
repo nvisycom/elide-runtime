@@ -9,7 +9,7 @@
 mod builder;
 mod nlp_engine;
 
-pub use self::builder::NlpEngineBuilder;
+pub use self::builder::{NlpEngineBuilder, NoLang, NoNer, WithLang, WithNer};
 pub use self::nlp_engine::NlpEngine;
 
 #[cfg(test)]

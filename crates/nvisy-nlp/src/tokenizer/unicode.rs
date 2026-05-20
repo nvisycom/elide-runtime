@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use nvisy_ontology::primitive::LanguageTag;
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::{Tokenizer, is_supported};
+use super::{Tokenizer, is_stopword_language_supported};
 use crate::artifacts::Token;
 use crate::error::Result;
 
@@ -52,7 +52,7 @@ impl UnicodeTokenizer {
     /// [`stop-words`]: https://crates.io/crates/stop-words
     pub fn with_language(lang: &LanguageTag) -> Option<Self> {
         let primary = lang.primary_language();
-        if !is_supported(primary) {
+        if !is_stopword_language_supported(primary) {
             return None;
         }
         let words = stop_words::get(primary);

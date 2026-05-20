@@ -50,3 +50,4 @@ tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
+tempfile = { workspace = true, features = [] }

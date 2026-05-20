@@ -43,4 +43,14 @@ mod tests {
         let entities = backend.recognize("anything", None).await.unwrap();
         assert!(entities.is_empty());
     }
+
+    #[tokio::test]
+    async fn default_constructs_same_backend() {
+        let backend = NoopNerBackend;
+        let entities = backend.recognize("anything", None).await.unwrap();
+        assert!(entities.is_empty());
+
+        // Default-derived constructor produces an equivalent instance.
+        let _default: NoopNerBackend = Default::default();
+    }
 }

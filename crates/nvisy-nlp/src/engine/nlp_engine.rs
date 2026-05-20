@@ -14,7 +14,7 @@ use nvisy_ontology::primitive::LanguageTag;
 use super::NlpEngineBuilder;
 use crate::artifacts::{Artifacts, Token};
 use crate::error::Result;
-use crate::language::{LanguageDetection, LanguageDetector};
+use crate::language::{LanguageDetection, LanguageDetector, LanguageProvenance};
 use crate::ner::NerBackend;
 use crate::tokenizer::Tokenizer;
 
@@ -62,8 +62,9 @@ impl NlpEngine {
     ///
     /// Use this when the language is known a priori (uploaded with
     /// metadata, set by a UI selector, etc.). The asserted language
-    /// is attached to [`Artifacts::language`] with `confidence: None`
-    /// to mark its provenance as "asserted, not detected".
+    /// is attached to [`Artifacts::language`] and carries
+    /// [`LanguageProvenance::Asserted`] internally so downstream
+    /// code can distinguish it from a detector-produced result.
     pub async fn analyze_in_language(
         &self,
         text: &str,
@@ -72,6 +73,7 @@ impl NlpEngine {
         let detection = Some(LanguageDetection {
             language,
             confidence: None,
+            provenance: LanguageProvenance::Asserted,
         });
         self.run(text, detection).await
     }

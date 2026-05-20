@@ -10,7 +10,7 @@ mod noop;
 mod ort;
 
 pub use self::noop::NoopNerBackend;
-pub use self::ort::{Inferencer, OrtInferencer, OrtNerBackend, OrtNerConfig};
+pub use self::ort::{OrtNerBackend, OrtNerConfig};
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::{Entities, EntityKind};

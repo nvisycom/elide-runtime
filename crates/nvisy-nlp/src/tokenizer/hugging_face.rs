@@ -14,7 +14,7 @@ use std::path::Path;
 use nvisy_ontology::primitive::LanguageTag;
 use tokenizers::Tokenizer as InnerTokenizer;
 
-use super::{Tokenizer, is_supported};
+use super::{Tokenizer, is_stopword_language_supported};
 use crate::artifacts::Token;
 use crate::error::{Error, Result};
 
@@ -23,7 +23,20 @@ use crate::error::{Error, Result};
 /// Construction loads the tokenizer eagerly so subsequent
 /// [`tokenize`] calls don't repeat work.
 ///
+/// # Limitations on `is_stop`
+///
+/// Subword tokenizers (BPE, WordPiece, Unigram) emit fragments like
+/// `"##ing"` or `"▁the"`, not whole words. The `is_stop` flag is
+/// computed by lowercasing each emitted token and looking it up in
+/// the configured stopword set — which only matches when the token
+/// happens to equal a stopword surface form. For most subword models
+/// `is_stop` will be `false` even on real stopwords.
+///
+/// If you need word-level stopword filtering, run [`UnicodeTokenizer`]
+/// alongside or do the filtering post-hoc on the source text.
+///
 /// [`tokenize`]: Self::tokenize
+/// [`UnicodeTokenizer`]: super::UnicodeTokenizer
 pub struct HfTokenizer {
     inner: InnerTokenizer,
     stopwords: Option<HashSet<String>>,
@@ -65,7 +78,7 @@ impl HfTokenizer {
     pub fn with_language(path: impl AsRef<Path>, lang: &LanguageTag) -> Result<Self> {
         let mut tok = Self::from_file(path)?;
         let primary = lang.primary_language();
-        if is_supported(primary) {
+        if is_stopword_language_supported(primary) {
             let words = stop_words::get(primary);
             tok.stopwords = Some(words.iter().map(|s| s.to_lowercase()).collect());
         }

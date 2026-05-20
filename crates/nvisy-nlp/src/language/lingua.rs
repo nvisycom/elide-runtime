@@ -13,12 +13,15 @@
 //! Neither constructor enables `low_accuracy_mode`; lingua's default
 //! (highest accuracy) is in effect.
 
+use std::collections::HashSet;
+use std::sync::Mutex;
+use std::sync::OnceLock;
 use std::{fmt, str::FromStr};
 
 use lingua::{IsoCode639_1, Language, LanguageDetector as LinguaDetector, LanguageDetectorBuilder};
 use nvisy_ontology::primitive::LanguageTag;
 
-use super::{LanguageDetection, LanguageDetector, LanguageSpan};
+use super::{LanguageDetection, LanguageDetector, LanguageProvenance, LanguageSpan};
 use crate::error::Result;
 
 /// A [`LanguageDetector`] backed by [`lingua`].
@@ -74,16 +77,31 @@ impl LinguaLanguageDetector {
         match iso.parse() {
             Ok(tag) => Some(tag),
             Err(e) => {
-                tracing::warn!(
-                    target = "nvisy_nlp::language::lingua",
-                    lingua_language = ?lang,
-                    iso_code = %iso,
-                    error = %e,
-                    "lingua ISO 639-1 code did not parse as a BCP-47 LanguageTag",
-                );
+                warn_once_unmappable(&iso, &e.to_string());
                 None
             }
         }
+    }
+}
+
+/// Cache of ISO codes we've already logged an "unmappable" warning
+/// for, so a hot detection loop doesn't spam the log with the same
+/// failure once per call. Lingua's code set is finite and fixed —
+/// real failures here are deterministic.
+fn warn_once_unmappable(iso: &str, error: &str) {
+    static SEEN: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    let seen = SEEN.get_or_init(|| Mutex::new(HashSet::new()));
+    let mut guard = match seen.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if guard.insert(iso.to_owned()) {
+        tracing::warn!(
+            target: "nvisy_nlp::language::lingua",
+            iso_code = %iso,
+            error = %error,
+            "lingua ISO 639-1 code did not parse as a BCP-47 LanguageTag (logged once per process)",
+        );
     }
 }
 
@@ -106,6 +124,7 @@ impl LanguageDetector for LinguaLanguageDetector {
         Ok(Some(LanguageDetection {
             language,
             confidence: Some(confidence),
+            provenance: LanguageProvenance::Detected,
         }))
     }
 

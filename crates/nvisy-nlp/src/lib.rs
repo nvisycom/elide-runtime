@@ -11,10 +11,10 @@ pub mod ner;
 pub mod tokenizer;
 
 pub use self::artifacts::{Artifacts, Token};
-pub use self::engine::{NlpEngine, NlpEngineBuilder};
+pub use self::engine::{NlpEngine, NlpEngineBuilder, NoLang, NoNer, WithLang, WithNer};
 pub use self::error::{Error, Result};
 pub use self::language::{
-    LanguageDetection, LanguageDetector, LanguageSpan, LinguaLanguageDetector,
+    LanguageDetection, LanguageDetector, LanguageProvenance, LanguageSpan, LinguaLanguageDetector,
 };
 pub use self::ner::{NerBackend, NoopNerBackend, OrtNerBackend, OrtNerConfig};
 pub use self::tokenizer::{HfTokenizer, Tokenizer, UnicodeTokenizer};

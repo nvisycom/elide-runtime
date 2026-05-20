@@ -9,16 +9,31 @@
 //! returns `Ok`.
 
 mod hugging_face;
-mod stopword_lang;
 mod unicode;
 
 pub use self::hugging_face::HfTokenizer;
 pub use self::unicode::UnicodeTokenizer;
 
-pub(crate) use self::stopword_lang::is_supported;
-
 use crate::artifacts::Token;
 use crate::error::Result;
+
+/// ISO 639-1 codes the `iso`-featured `stop-words` build recognises.
+///
+/// Used to gate calls to [`stop_words::get`] so we never reach the
+/// crate's panic path on unknown codes. Keep this in sync with the
+/// `stop-words` crate's `LANGUAGE` enum — adding more languages here
+/// requires enabling additional features on the workspace
+/// `stop-words` dependency.
+pub(crate) const SUPPORTED_STOPWORD_LANGUAGES: &[&str] = &[
+    "ar", "da", "nl", "en", "fi", "fr", "de", "el", "hu", "id", "it", "no", "pt", "ro", "ru", "sl",
+    "es", "sv", "tr",
+];
+
+/// Whether `code` (BCP-47 primary subtag / ISO 639-1) has a stopword
+/// list available without panicking the `stop-words` crate.
+pub(crate) fn is_stopword_language_supported(code: &str) -> bool {
+    SUPPORTED_STOPWORD_LANGUAGES.contains(&code)
+}
 
 /// Split text into tokens.
 ///
@@ -37,4 +52,21 @@ use crate::error::Result;
 pub trait Tokenizer: Send + Sync {
     /// Tokenize `text`.
     fn tokenize(&self, text: &str) -> Result<Vec<Token>>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn english_is_supported() {
+        assert!(is_stopword_language_supported("en"));
+    }
+
+    #[test]
+    fn nonsense_codes_are_not_supported() {
+        assert!(!is_stopword_language_supported("xx"));
+        assert!(!is_stopword_language_supported(""));
+        assert!(!is_stopword_language_supported("EN"));
+    }
 }

@@ -1,15 +1,13 @@
 //! Plain-text dictionary: one entry per line.
 
-use std::path::Path;
-use std::{fs, io};
-
-use super::{Dictionary, DictionaryTerm};
+use super::{Dictionary, DictionaryMetadata, DictionaryTerm};
 
 /// A dictionary parsed from a plain-text file (one entry per line).
 #[derive(Debug)]
 pub struct TxtDictionary {
     name: String,
     terms: Vec<DictionaryTerm>,
+    metadata: DictionaryMetadata,
 }
 
 impl TxtDictionary {
@@ -30,25 +28,19 @@ impl TxtDictionary {
             })
             .collect();
 
-        Self { name, terms }
+        Self {
+            name,
+            terms,
+            metadata: DictionaryMetadata::default(),
+        }
     }
 
-    /// Load a plain-text dictionary from a file path.
-    ///
-    /// The dictionary name is derived from the file stem.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`std::io::Error`] if the file cannot be read.
-    pub fn from_path(path: impl AsRef<Path>) -> io::Result<Self> {
-        let path = path.as_ref();
-        let name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default();
-        let text = fs::read_to_string(path)?;
-        Ok(Self::new(name, &text))
+    /// Attach metadata loaded from a sidecar file.
+    pub fn with_metadata(mut self, metadata: DictionaryMetadata) -> Self {
+        self.metadata = metadata;
+        self
     }
+
 }
 
 impl Dictionary for TxtDictionary {
@@ -58,6 +50,10 @@ impl Dictionary for TxtDictionary {
 
     fn terms(&self) -> &[DictionaryTerm] {
         &self.terms
+    }
+
+    fn metadata(&self) -> &DictionaryMetadata {
+        &self.metadata
     }
 }
 

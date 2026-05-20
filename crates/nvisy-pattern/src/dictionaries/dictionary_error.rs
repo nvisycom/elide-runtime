@@ -10,9 +10,12 @@ use super::CsvDictionaryError;
 /// Error returned when loading dictionaries from the filesystem.
 #[derive(Debug, thiserror::Error)]
 pub enum DictionaryLoadError {
-    /// The directory could not be read.
-    #[error("failed to read dictionary directory '{}': {source}", path.display())]
-    ReadDir { path: PathBuf, source: io::Error },
+    /// The directory could not be traversed.
+    #[error("failed to walk dictionary directory '{}': {source}", path.display())]
+    Walk {
+        path: PathBuf,
+        source: walkdir::Error,
+    },
     /// A dictionary file could not be read.
     #[error("failed to read dictionary file '{}': {source}", path.display())]
     ReadFile { path: PathBuf, source: io::Error },
@@ -27,7 +30,7 @@ pub enum DictionaryLoadError {
 impl From<DictionaryLoadError> for Error {
     fn from(err: DictionaryLoadError) -> Self {
         let kind = match &err {
-            DictionaryLoadError::ReadDir { .. } | DictionaryLoadError::ReadFile { .. } => {
+            DictionaryLoadError::Walk { .. } | DictionaryLoadError::ReadFile { .. } => {
                 ErrorKind::Internal
             }
             DictionaryLoadError::CsvParse { .. } => ErrorKind::Validation,

@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use crate::entity::EntityKind;
+use crate::primitive::LanguageTag;
 
 /// NER detection settings (LLM-based named entity recognition).
 ///
@@ -52,6 +53,54 @@ pub struct PatternDetection {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[validate(range(min = 0.0, max = 1.0))]
     pub confidence_threshold: Option<f64>,
+    /// Narrow the active patterns (regex and dictionary alike) by
+    /// their declared tags.
+    ///
+    /// Patterns whose metadata leaves a tag field empty are considered
+    /// **universal** on that axis — they pass any filter for that
+    /// field. Patterns ship with empty metadata by default, so an
+    /// untagged pattern always passes any filter.
+    ///
+    /// When `None`, all patterns are eligible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<PatternFilter>,
+}
+
+/// Tag-based narrowing of the active pattern set.
+///
+/// A pattern passes the filter when every non-empty constraint is
+/// satisfied (AND across fields); within a single field, the
+/// pattern's metadata either overlaps the filter (OR within field)
+/// **or** is empty on that axis (the pattern is considered universal
+/// on that dimension and passes any filter).
+///
+/// Empty fields on the filter are unconstrained. An entirely empty
+/// filter selects every pattern.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct PatternFilter {
+    /// Languages the pattern must list as applicable (OR within field).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(with = "Vec<String>")]
+    pub languages: Vec<LanguageTag>,
+    /// Industries the pattern must list (OR within field).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub industries: Vec<String>,
+    /// Regions the pattern must list (OR within field).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub regions: Vec<String>,
+    /// Compliance regimes the pattern must list (OR within field).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub compliance: Vec<String>,
+}
+
+impl PatternFilter {
+    /// Whether every constraint is empty (the filter selects everything).
+    pub fn is_unconstrained(&self) -> bool {
+        self.languages.is_empty()
+            && self.industries.is_empty()
+            && self.regions.is_empty()
+            && self.compliance.is_empty()
+    }
 }
 
 /// Unified entity detection configuration.

@@ -1,0 +1,15 @@
+{
+  "name": "ipv4",
+  "category": "network_identifier",
+  "entity_type": "ip_address",
+  "pattern": {
+    "regex": "\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b",
+    "confidence": 0.75
+  },
+  "metadata": {
+    "description": "IPv4 dotted-quad address.",
+    "version": "1.0.0",
+    "regions": ["global"],
+    "compliance": ["gdpr"]
+  }
+}

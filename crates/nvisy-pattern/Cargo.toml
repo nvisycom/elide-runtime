@@ -32,8 +32,14 @@ csv = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 
+# Versioning (sidecar metadata)
+semver = { workspace = true, features = ["serde"] }
+
 # Storage, file detection, and asset embedding
 include_dir = { workspace = true, features = [] }
+
+# Filesystem traversal
+walkdir = { workspace = true, features = [] }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
@@ -41,6 +47,7 @@ thiserror = { workspace = true, features = [] }
 # Pattern matching
 regex = { workspace = true, features = [] }
 aho-corasick = { workspace = true, features = [] }
+smallvec = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

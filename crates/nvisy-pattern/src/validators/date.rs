@@ -10,6 +10,14 @@
 ///
 /// Checks that the date is a real calendar date (accounts for leap years)
 /// and that the year is in 1900:2100.
+///
+/// # Ambiguity
+///
+/// When both interpretations are valid (e.g. `02/03/1999` could mean
+/// Feb 3 or 3 Mar), the validator prefers `MM/DD/YYYY` and only falls
+/// back to `DD/MM/YYYY` if the first part is not a valid month. This
+/// is a format-level structural check — locale disambiguation is out
+/// of scope.
 pub fn validate_date(value: &str) -> bool {
     let parts: Vec<&str> = value.split(['/', '-']).collect();
     if parts.len() != 3 {

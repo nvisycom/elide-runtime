@@ -12,6 +12,7 @@ use serde::Deserialize;
 
 use super::context_rule::ContextRule;
 use super::pattern::{DictionaryPattern, MatchSource, Pattern, RegexPattern};
+use super::pattern_metadata::PatternMetadata;
 use crate::validators::ValidatorResolver;
 
 /// Error returned when a JSON pattern file cannot be loaded.
@@ -44,6 +45,7 @@ pub struct JsonPattern {
     entity_kind: EntityKind,
     match_source: MatchSource,
     pub(crate) context: Option<ContextRule>,
+    metadata: PatternMetadata,
 }
 
 impl JsonPattern {
@@ -84,6 +86,8 @@ impl JsonPattern {
             source: RawSource,
             #[serde(default)]
             context: Option<ContextRule>,
+            #[serde(default)]
+            metadata: PatternMetadata,
         }
 
         let raw: Raw = serde_json::from_slice(bytes)?;
@@ -113,6 +117,7 @@ impl JsonPattern {
             entity_kind: raw.entity_kind,
             match_source,
             context: raw.context,
+            metadata: raw.metadata,
         };
 
         Ok((p, warnings))
@@ -138,5 +143,9 @@ impl Pattern for JsonPattern {
 
     fn context(&self) -> Option<&ContextRule> {
         self.context.as_ref()
+    }
+
+    fn metadata(&self) -> &PatternMetadata {
+        &self.metadata
     }
 }

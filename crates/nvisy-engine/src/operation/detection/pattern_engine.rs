@@ -27,9 +27,15 @@ impl PatternEngineRef {
     /// Resolve a [`PatternDetection`] config into either a borrowed
     /// reference to the shared singleton (when the config is the
     /// default empty shape) or a freshly built owned engine (when the
-    /// config names patterns or sets a confidence threshold).
+    /// config names patterns, sets a confidence threshold, or supplies
+    /// a pattern filter).
     pub(super) fn new(cfg: &PatternDetection) -> Self {
-        let needs_custom = !cfg.patterns.is_empty() || cfg.confidence_threshold.is_some();
+        let needs_custom = !cfg.patterns.is_empty()
+            || cfg.confidence_threshold.is_some()
+            || cfg
+                .filter
+                .as_ref()
+                .is_some_and(|f| !f.is_unconstrained());
         if !needs_custom {
             return Self::Shared(PatternEngine::instance());
         }
@@ -40,6 +46,9 @@ impl PatternEngineRef {
         }
         if let Some(threshold) = cfg.confidence_threshold {
             builder = builder.with_confidence_threshold(threshold);
+        }
+        if let Some(ref filter) = cfg.filter {
+            builder = builder.with_filter(filter.clone());
         }
         Self::Owned(builder.build().expect("pattern engine must compile"))
     }

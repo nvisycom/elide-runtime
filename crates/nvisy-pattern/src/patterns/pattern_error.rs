@@ -10,9 +10,12 @@ use super::json_pattern::JsonPatternError;
 /// Error returned when loading patterns from the filesystem.
 #[derive(Debug, thiserror::Error)]
 pub enum PatternLoadError {
-    /// The directory could not be read.
-    #[error("failed to read pattern directory '{}': {source}", path.display())]
-    ReadDir { path: PathBuf, source: io::Error },
+    /// The directory could not be traversed.
+    #[error("failed to walk pattern directory '{}': {source}", path.display())]
+    Walk {
+        path: PathBuf,
+        source: walkdir::Error,
+    },
     /// A pattern file could not be read.
     #[error("failed to read pattern file '{}': {source}", path.display())]
     ReadFile { path: PathBuf, source: io::Error },
@@ -27,7 +30,7 @@ pub enum PatternLoadError {
 impl From<PatternLoadError> for Error {
     fn from(err: PatternLoadError) -> Self {
         let kind = match &err {
-            PatternLoadError::ReadDir { .. } | PatternLoadError::ReadFile { .. } => {
+            PatternLoadError::Walk { .. } | PatternLoadError::ReadFile { .. } => {
                 ErrorKind::Internal
             }
             PatternLoadError::Parse { .. } => ErrorKind::Validation,

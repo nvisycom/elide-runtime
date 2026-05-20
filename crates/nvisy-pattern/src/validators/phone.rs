@@ -7,18 +7,19 @@
 ///
 /// Strips all non-digit characters, then checks:
 /// - 7 to 15 digits (ITU-T E.164 range)
-/// - Does not start with 0 when a country code is present (10+ digits)
+/// - When the original begins with `+` (explicit E.164), the digits
+///   must not start with 0 (no country code is `0…`). National formats
+///   such as UK `020 7946 0958` keep their trunk-prefix zero and remain
+///   valid.
 pub fn validate_phone(value: &str) -> bool {
     let digits: String = value.chars().filter(|c| c.is_ascii_digit()).collect();
     let len = digits.len();
 
-    // ITU-T E.164: minimum 7 digits (local), maximum 15 (international).
     if !(7..=15).contains(&len) {
         return false;
     }
 
-    // International numbers (10+ digits) should not start with 0.
-    if len >= 10 && digits.starts_with('0') {
+    if value.trim_start().starts_with('+') && digits.starts_with('0') {
         return false;
     }
 
@@ -56,8 +57,15 @@ mod tests {
     }
 
     #[test]
-    fn international_starting_with_zero() {
-        assert!(!validate_phone("0123456789012"));
+    fn e164_starting_with_zero_rejected() {
+        assert!(!validate_phone("+0123456789012"));
+    }
+
+    #[test]
+    fn national_format_with_trunk_zero_accepted() {
+        // UK national format keeps the leading 0 trunk prefix.
+        assert!(validate_phone("020 7946 0958"));
+        assert!(validate_phone("0207946 0958"));
     }
 
     #[test]

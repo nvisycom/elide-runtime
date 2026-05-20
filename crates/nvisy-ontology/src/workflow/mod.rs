@@ -20,7 +20,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 pub use self::context::{GenerateContext, LoadContext, SaveContext};
-pub use self::detection::{Detection, NerDetection, PatternDetection};
+pub use self::detection::{Detection, NerDetection, PatternDetection, PatternFilter};
 pub use self::extraction::{AudialExtraction, Extraction, TextExtraction, VisualExtraction};
 pub use self::ingest::{
     CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig, ExportFile, ImportFile,

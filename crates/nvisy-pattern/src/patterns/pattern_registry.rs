@@ -6,8 +6,9 @@ use std::sync::LazyLock;
 use std::{fmt, fs};
 
 use include_dir::{Dir, include_dir};
+use walkdir::WalkDir;
 
-use super::{BoxPattern, JsonPattern, JsonPatternWarning, Pattern, PatternLoadError};
+use super::{JsonPattern, JsonPatternWarning, Pattern, PatternLoadError};
 use crate::validators::ValidatorResolver;
 
 const TARGET: &str = "nvisy_pattern::patterns";
@@ -23,7 +24,7 @@ const TARGET: &str = "nvisy_pattern::patterns";
 /// [`load_file`]: Self::load_file
 #[derive(Default)]
 pub struct PatternRegistry {
-    inner: BTreeMap<String, BoxPattern>,
+    inner: BTreeMap<String, Box<dyn Pattern>>,
 }
 
 impl fmt::Debug for PatternRegistry {
@@ -43,7 +44,7 @@ impl PatternRegistry {
     }
 
     /// Insert a pattern, keyed by its [`Pattern::name`].
-    pub fn insert(&mut self, pattern: BoxPattern) {
+    pub fn insert(&mut self, pattern: Box<dyn Pattern>) {
         let name = pattern.name().to_owned();
         self.inner.insert(name, pattern);
     }
@@ -78,16 +79,23 @@ impl PatternRegistry {
     }
 
     /// Load all `.json` files from the embedded `assets/patterns/`
-    /// directory into this registry.
+    /// directory tree into this registry.
     ///
-    /// Files that fail to parse are logged as warnings and skipped.
+    /// Recurses into subdirectories. The pattern's name is taken from
+    /// the JSON `"name"` field, not the filename.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any embedded pattern file fails to parse. Built-in
+    /// patterns are compiled into the binary, so a parse failure is a
+    /// build-time bug that must not be silently swallowed at runtime.
     #[tracing::instrument(target = TARGET, name = "patterns.load_builtins", skip(self), fields(count))]
     pub fn load_builtins(&mut self) {
         static PATTERN_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets/patterns");
 
         let validators = ValidatorResolver::builtins();
 
-        for file in PATTERN_DIR.files() {
+        for file in walk_embedded(&PATTERN_DIR) {
             let path = file.path();
 
             let Some("json") = path.extension().and_then(|e| e.to_str()) else {
@@ -99,18 +107,13 @@ impl PatternRegistry {
                 continue;
             };
 
-            let (pattern, warnings) = match JsonPattern::from_bytes(file.contents(), &validators) {
-                Ok(pair) => pair,
-                Err(e) => {
-                    tracing::warn!(
-                        target: TARGET,
-                        path = %path.display(),
-                        error = %e,
-                        "failed to load pattern, skipping",
-                    );
-                    continue;
-                }
-            };
+            let (pattern, warnings) = JsonPattern::from_bytes(file.contents(), &validators)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "built-in pattern '{}' failed to parse: {e}",
+                        path.display(),
+                    )
+                });
 
             Self::log_warnings(&warnings);
 
@@ -180,41 +183,33 @@ impl PatternRegistry {
         Ok(())
     }
 
-    /// Load all `.json` files from a filesystem directory.
+    /// Load all `.json` files from a filesystem directory tree.
     ///
-    /// Non-`.json` files are logged as warnings and skipped. Loaded
-    /// patterns are inserted into `self`, so this can be called after
-    /// [`load_builtins`] to layer user-provided
-    /// patterns on top of the built-ins.
+    /// Recurses into subdirectories. Non-`.json` files are logged as
+    /// warnings and skipped. Loaded patterns are inserted into `self`,
+    /// so this can be called after [`load_builtins`] to layer
+    /// user-provided patterns on top of the built-ins.
     ///
     /// # Errors
     ///
-    /// Returns [`nvisy_core::Error`] if the directory cannot be read,
-    /// a file cannot be read, or a JSON file fails to parse.
+    /// Returns [`nvisy_core::Error`] if the directory cannot be
+    /// traversed, a file cannot be read, or a JSON file fails to parse.
     ///
     /// [`load_builtins`]: Self::load_builtins
     #[tracing::instrument(target = TARGET, name = "patterns.load_dir", skip_all, fields(path = %dir.as_ref().display(), count))]
     pub fn load_dir(&mut self, dir: impl AsRef<Path>) -> nvisy_core::Result<()> {
         let dir = dir.as_ref();
 
-        let entries = fs::read_dir(dir).map_err(|source| PatternLoadError::ReadDir {
-            path: dir.to_owned(),
-            source,
-        })?;
-
         let mut count = 0usize;
-        for entry in entries {
-            let entry = entry.map_err(|source| PatternLoadError::ReadDir {
+        for entry in WalkDir::new(dir).follow_links(false) {
+            let entry = entry.map_err(|source| PatternLoadError::Walk {
                 path: dir.to_owned(),
                 source,
             })?;
-            let path = entry.path();
-
-            if !path.is_file() {
+            if !entry.file_type().is_file() {
                 continue;
             }
-
-            self.load_file(&path)?;
+            self.load_file(entry.path())?;
             count += 1;
         }
 
@@ -248,6 +243,18 @@ static BUILTIN_REGISTRY: LazyLock<PatternRegistry> = LazyLock::new(|| {
 /// Return a reference to the lazily-initialised built-in [`PatternRegistry`].
 pub fn builtin_registry() -> &'static PatternRegistry {
     &BUILTIN_REGISTRY
+}
+
+/// Recursively iterate every file under an embedded `Dir`.
+fn walk_embedded<'a>(dir: &'a Dir<'a>) -> Vec<&'a include_dir::File<'a>> {
+    let mut out = Vec::new();
+    for f in dir.files() {
+        out.push(f);
+    }
+    for sub in dir.dirs() {
+        out.extend(walk_embedded(sub));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -352,6 +359,43 @@ mod tests {
 
         assert_eq!(reg.len(), 1);
         assert_eq!(reg.get("test_fs").unwrap().name(), "test_fs");
+    }
+
+    #[test]
+    fn load_dir_recurses_into_subfolders() {
+        let dir = tempfile::tempdir().unwrap();
+
+        fs::create_dir_all(dir.path().join("contact")).unwrap();
+        fs::write(
+            dir.path().join("contact/email_nested.json"),
+            r#"{
+                "name": "email_nested",
+                "category": "contact_info",
+                "entity_type": "email_address",
+                "pattern": { "regex": ".+@.+", "confidence": 0.7 }
+            }"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("top.json"),
+            r#"{
+                "name": "top",
+                "category": "personal_identity",
+                "entity_type": "government_id",
+                "pattern": { "regex": "\\d{3}", "confidence": 0.8 }
+            }"#,
+        )
+        .unwrap();
+
+        let mut reg = PatternRegistry::new();
+        reg.load_dir(dir.path()).unwrap();
+
+        assert_eq!(reg.len(), 2);
+        assert!(reg.get("top").is_some());
+        assert!(
+            reg.get("email_nested").is_some(),
+            "pattern in subfolder should be loaded"
+        );
     }
 
     #[test]

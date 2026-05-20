@@ -1,0 +1,16 @@
+{
+  "name": "us-passport",
+  "category": "personal_identity",
+  "entity_type": "passport_number",
+  "pattern": {
+    "regex": "\\b[A-Z]\\d{8}\\b",
+    "confidence": 0.5
+  },
+  "metadata": {
+    "description": "US passport number (letter + 8 digits).",
+    "version": "1.0.0",
+    "regions": ["us"],
+    "industries": ["travel", "government"],
+    "compliance": ["ccpa"]
+  }
+}

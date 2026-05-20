@@ -1,45 +1,46 @@
-//! [`LanguageDetector`] trait, supporting types, and built-in
-//! implementations.
+//! Language detection: public [`LanguagePolicy`] factory trait,
+//! built-in implementations, and supporting types.
 //!
-//! Detection runs synchronously — language detection on a single
-//! string is CPU-bound and fast. The trait is **fallible** so future
-//! networked detectors can report real backend failures; pure-CPU
-//! detectors that never fail simply return `Ok(...)`.
+//! Two layers:
 //!
-//! Both trait methods return `Result<Vec<LanguageDetection>>` so
-//! callers see a uniform shape: an empty vec is "couldn't decide,"
-//! a single-element vec is the common monolingual answer, and a
-//! multi-element vec carries per-region [`LanguageSpan`]s for
-//! mixed-language input. The caller picks the first entry when they
-//! only need the dominant language.
+//! - **`LanguagePolicy`** (public) is the abstraction the
+//!   [`Engine`](crate::engine::Engine) plugs into. A policy is a
+//!   factory: per call it builds a fresh detector restricted to a
+//!   caller-supplied language set (or to every language the policy
+//!   can produce when the caller has no preference).
+//! - **`LanguageDetector`** (crate-private) is what a policy
+//!   produces. It exposes a single `detect` method. Language scope
+//!   is baked into the detector at construction time — the engine
+//!   never asks a detector to re-narrow.
 //!
-//! [`detect_in`] is a per-call refinement of [`detect`]: the caller
-//! restricts which languages the detector should consider for this
-//! one call. The default implementation ignores the restriction and
-//! delegates to [`detect`]; backends that natively support a
-//! constructable candidate set override it.
+//! Built-in: [`LinguaLanguagePolicy`] wraps the [`lingua`] crate.
 //!
-//! [`detect`]: LanguageDetector::detect
-//! [`detect_in`]: LanguageDetector::detect_in
+//! [`lingua`]: https://crates.io/crates/lingua
 
-mod lang_detection;
-mod lang_span;
+mod detection;
+mod dyn_policy;
 mod lingua;
-
-pub use self::lang_detection::{LanguageDetection, LanguageProvenance};
-pub use self::lang_span::LanguageSpan;
-pub use self::lingua::LinguaLanguageDetector;
 
 use nvisy_ontology::primitive::LanguageTag;
 
+pub use self::detection::{LanguageDetection, LanguageProvenance, LanguageSpan};
+pub(crate) use self::dyn_policy::DynLanguagePolicy;
+pub use self::lingua::{LinguaLanguageDetector, LinguaLanguagePolicy};
 use crate::error::Result;
 
-/// Detect languages within a text string.
+/// A produced detector that recognises language(s) within a text
+/// string.
 ///
-/// Implementations return `Ok(vec![])` for inconclusive input (text
-/// too short, no recognised script, etc.) and reserve `Err(_)` for
-/// real backend failures (network, model load, etc.).
-pub trait LanguageDetector: Send + Sync {
+/// Implementations bake their language scope in at construction
+/// time — the engine never asks a detector to re-narrow. To detect
+/// against a different language set, the engine asks the
+/// [`LanguagePolicy`] for a fresh detector via
+/// [`LanguagePolicy::detector_for`] /
+/// [`LanguagePolicy::detector_for_all`].
+///
+/// Crate-private: external code interacts with policies, not the
+/// detectors they produce.
+pub(crate) trait LanguageDetector: Send + Sync {
     /// Detect languages in `text`.
     ///
     /// Single-language detectors return a one-element vec; backends
@@ -47,20 +48,46 @@ pub trait LanguageDetector: Send + Sync {
     /// region with [`LanguageDetection::span`] populated. An empty
     /// vec means "couldn't decide."
     fn detect(&self, text: &str) -> Result<Vec<LanguageDetection>>;
+}
 
-    /// Detect languages in `text`, restricting the candidate set to
-    /// `candidates` for this call only.
+/// Factory for building a language detector keyed on a per-call
+/// language set.
+///
+/// The engine holds a policy and asks for a fresh detector each
+/// call. Two entrypoints:
+///
+/// - [`detector_for_all`] — "I don't know what language to expect;
+///   consider everything you can."
+/// - [`detector_for`] — "Only consider these languages."
+///
+/// Implementations may cache produced detectors internally;
+/// callers must not assume a fresh allocation per call.
+///
+/// [`detector_for_all`]: Self::detector_for_all
+/// [`detector_for`]: Self::detector_for
+pub trait LanguagePolicy: Send + Sync {
+    /// Concrete detector type this policy produces. Surfaced as an
+    /// associated type so impls advertise their detector kind and
+    /// callers that go through the policy directly (rather than via
+    /// the engine) get a typed handle. The bound on the
+    /// crate-private `LanguageDetector` trait is intentional —
+    /// external code can name the detector type but cannot call
+    /// methods on it directly; routing through the policy / engine
+    /// is the only supported path.
+    #[allow(private_bounds)]
+    type Detector: LanguageDetector + 'static;
+
+    /// Build a detector that considers every language the policy
+    /// can produce. Used when the caller hasn't restricted the set.
+    fn detector_for_all(&self) -> Self::Detector;
+
+    /// Build a detector restricted to `languages`.
     ///
-    /// The default implementation ignores `candidates` and delegates
-    /// to [`detect`]. Backends that can cheaply construct a per-call
-    /// restricted detector — [`LinguaLanguageDetector`], for example
-    /// — override this to honor the restriction.
+    /// Implementations decide how to handle an empty slice and how
+    /// to handle tags they don't recognise — the convention in this
+    /// crate is to fall back to [`detector_for_all`] for empty
+    /// input and silently skip unmappable tags.
     ///
-    /// An empty `candidates` slice is treated as "no restriction"
-    /// and behaves identically to [`detect`].
-    ///
-    /// [`detect`]: Self::detect
-    fn detect_in(&self, text: &str, _candidates: &[LanguageTag]) -> Result<Vec<LanguageDetection>> {
-        self.detect(text)
-    }
+    /// [`detector_for_all`]: Self::detector_for_all
+    fn detector_for(&self, languages: &[LanguageTag]) -> Self::Detector;
 }

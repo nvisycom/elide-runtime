@@ -16,7 +16,8 @@ pub use self::engine::{
 };
 pub use self::error::{Error, Result};
 pub use self::language::{
-    LanguageDetection, LanguageDetector, LanguageProvenance, LanguageSpan, LinguaLanguageDetector,
+    LanguageDetection, LanguagePolicy, LanguageProvenance, LanguageSpan, LinguaLanguageDetector,
+    LinguaLanguagePolicy,
 };
 #[cfg(any(test, feature = "test-utils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]

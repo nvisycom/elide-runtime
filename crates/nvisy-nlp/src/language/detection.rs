@@ -1,10 +1,9 @@
-//! [`LanguageDetection`] — single-language detection result, with
-//! [`LanguageProvenance`] distinguishing detected from caller-asserted
-//! and an optional [`LanguageSpan`] for mixed-language detectors.
+//! [`LanguageDetection`] — single language-detection result with
+//! [`LanguageProvenance`] distinguishing detected from
+//! caller-asserted answers, plus the [`LanguageSpan`] byte-offset
+//! range it applies to when the detector reports per-region results.
 
 use nvisy_ontology::primitive::{Confidence, LanguageTag};
-
-use super::LanguageSpan;
 
 /// Provenance of a [`LanguageDetection`].
 ///
@@ -13,15 +12,28 @@ use super::LanguageSpan;
 /// detection" — without overloading `confidence: None`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LanguageProvenance {
-    /// The language was produced by a [`LanguageDetector`].
-    ///
-    /// [`LanguageDetector`]: super::LanguageDetector
+    /// Produced by a language-detection backend.
     Detected,
-    /// The language was asserted by the caller (e.g. via
+    /// Asserted by the caller (e.g. via
     /// [`ContextBuilder::with_language`]).
     ///
     /// [`ContextBuilder::with_language`]: crate::engine::ContextBuilder::with_language
     Asserted,
+}
+
+/// A byte-offset range within the analyzed text.
+///
+/// Attached to a [`LanguageDetection`] when the detector knows the
+/// span its answer covers (mixed-language input produces multiple
+/// detections, each with a distinct span). Single-language
+/// detections from non-segmenting backends, and caller-asserted
+/// answers, typically leave the span as `None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LanguageSpan {
+    /// Byte offset of the span start in the original text.
+    pub start: usize,
+    /// Byte offset of the span end in the original text.
+    pub end: usize,
 }
 
 /// A single language detection result.

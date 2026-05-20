@@ -15,12 +15,12 @@
 
 mod token;
 
-pub use self::token::Token;
-
 use std::collections::HashSet;
 
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::primitive::LanguageTag;
+
+pub use self::token::Token;
 
 /// NLP output of one [`Engine::analyze`] call.
 ///
@@ -43,13 +43,13 @@ pub struct Artifacts {
     /// [`NerBackend`]: crate::ner::NerBackend
     pub entities: Entities,
 
-    /// Language asserted by the caller or detected by the configured
-    /// [`LanguageDetector`].
+    /// Language asserted by the caller or detected by the engine's
+    /// [`LanguagePolicy`].
     ///
-    /// `None` when detection on short text was inconclusive *and* the
-    /// caller did not supply an asserted language.
+    /// `None` when detection on short text was inconclusive *and*
+    /// the caller did not supply an asserted language.
     ///
-    /// [`LanguageDetector`]: crate::language::LanguageDetector
+    /// [`LanguagePolicy`]: crate::language::LanguagePolicy
     pub language: Option<LanguageTag>,
 
     /// Token stream from the configured [`Tokenizer`], if any.

@@ -13,7 +13,6 @@ mod unicode;
 
 pub use self::hugging_face::HfTokenizer;
 pub use self::unicode::UnicodeTokenizer;
-
 use crate::artifacts::Token;
 use crate::error::Result;
 

@@ -27,7 +27,7 @@ HTTP, gRPC) and plug in.
 ## Quick taste
 
 ```rust,ignore
-use nvisy_nlp::{Engine, OrtNerBackend, OrtNerConfig, LinguaLanguageDetector};
+use nvisy_nlp::{Context, Engine, LinguaLanguagePolicy, OrtNerBackend, OrtNerConfig};
 
 let ner = OrtNerBackend::new(OrtNerConfig {
     model_path: "models/bert-base-NER.onnx".into(),
@@ -36,15 +36,18 @@ let ner = OrtNerBackend::new(OrtNerConfig {
     max_sequence_length: 512,
     model_name: "dslim/bert-base-NER".into(),
 })?;
-let language = LinguaLanguageDetector::for_languages(&["en".parse()?, "de".parse()?])
-    .expect("at least one supported language");
 
 let engine = Engine::builder()
     .with_ner(ner)
-    .with_language_detector(language)
+    .with_language_policy(LinguaLanguagePolicy)
     .build()?;
 
-let artifacts = engine.analyze("Patient name: John Doe.").await?;
+// Caller-supplied language scope rides on Context::candidate_languages.
+let ctx = Context::builder()
+    .with_text("Patient name: John Doe.")
+    .with_candidate_languages(vec!["en".parse()?, "de".parse()?])
+    .build()?;
+let artifacts = engine.analyze(ctx).await?;
 ```
 
 ## Runtime requirements

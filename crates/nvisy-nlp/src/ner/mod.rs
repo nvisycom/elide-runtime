@@ -12,15 +12,14 @@
 mod noop;
 mod ort;
 
-#[cfg(any(test, feature = "test-utils"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
-pub use self::noop::NoopNerBackend;
-pub use self::ort::{OrtNerBackend, OrtNerConfig};
-
 use async_trait::async_trait;
 use nvisy_ontology::entity::{Entities, EntityKind};
 use nvisy_ontology::primitive::LanguageTag;
 
+#[cfg(any(test, feature = "test-utils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
+pub use self::noop::NoopNerBackend;
+pub use self::ort::{OrtNerBackend, OrtNerConfig};
 use crate::error::Result;
 
 /// Recognize entities in text.

@@ -53,11 +53,11 @@ pub struct Context<'a> {
     pub language: Option<LanguageTag>,
 
     /// Restrict language detection to this subset. Ignored when
-    /// the `language` field is `Some`. Detectors that don't support
-    /// per-call restriction fall back to their configured language
-    /// set (see [`LanguageDetector::detect_in`]).
+    /// the `language` field is `Some`. The engine forwards this
+    /// to [`LanguagePolicy::detector_for`] each call, so the policy
+    /// decides what "restricted to this set" means concretely.
     ///
-    /// [`LanguageDetector::detect_in`]: crate::language::LanguageDetector::detect_in
+    /// [`LanguagePolicy::detector_for`]: crate::language::LanguagePolicy::detector_for
     #[builder(default)]
     pub candidate_languages: Option<Vec<LanguageTag>>,
 

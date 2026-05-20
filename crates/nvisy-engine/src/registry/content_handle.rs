@@ -9,7 +9,7 @@ use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 use uuid::Uuid;
 
 use super::fjall_ext::{FjallKeyspaceExt, blocking, not_found};
-use super::key::CompositeKey;
+use super::composite_key::CompositeKey;
 
 /// Lightweight handle to a content entry stored in the registry.
 ///

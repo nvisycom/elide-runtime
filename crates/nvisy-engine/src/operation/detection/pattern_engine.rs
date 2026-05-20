@@ -7,12 +7,20 @@
 use std::ops::Deref;
 
 use nvisy_ontology::workflow::PatternDetection;
+use nvisy_pattern::PatternEngine;
 
 /// Holds either a borrowed reference to the global singleton or an
 /// owned engine built from custom config.
 pub(super) enum PatternEngineRef {
-    Shared(&'static nvisy_pattern::PatternEngine),
-    Owned(nvisy_pattern::PatternEngine),
+    /// The process-wide [`PatternEngine::instance`] singleton, used
+    /// when the [`PatternDetection`] config carries default settings
+    /// (no custom patterns, no custom threshold) so every run can
+    /// share the same compiled regex/dictionary automata.
+    Shared(&'static PatternEngine),
+    /// A freshly compiled engine carrying this run's custom
+    /// configuration. Owned because no other run will see the same
+    /// pattern set / threshold combination.
+    Owned(PatternEngine),
 }
 
 impl PatternEngineRef {
@@ -23,9 +31,9 @@ impl PatternEngineRef {
     pub(super) fn new(cfg: &PatternDetection) -> Self {
         let needs_custom = !cfg.patterns.is_empty() || cfg.confidence_threshold.is_some();
         if !needs_custom {
-            return Self::Shared(nvisy_pattern::PatternEngine::instance());
+            return Self::Shared(PatternEngine::instance());
         }
-        let mut builder = nvisy_pattern::PatternEngine::builder();
+        let mut builder = PatternEngine::builder();
         if !cfg.patterns.is_empty() {
             let names: Vec<&str> = cfg.patterns.iter().map(String::as_str).collect();
             builder = builder.with_patterns(&names);
@@ -38,7 +46,7 @@ impl PatternEngineRef {
 }
 
 impl Deref for PatternEngineRef {
-    type Target = nvisy_pattern::PatternEngine;
+    type Target = PatternEngine;
 
     fn deref(&self) -> &Self::Target {
         match self {

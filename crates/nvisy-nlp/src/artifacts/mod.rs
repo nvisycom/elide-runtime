@@ -1,4 +1,4 @@
-//! [`Artifacts`] — output of a single [`NlpEngine::analyze`] call,
+//! [`Artifacts`] — output of a single [`Engine::analyze`] call,
 //! plus the [`Token`] type produced by [`Tokenizer`] impls.
 //!
 //! Composed from the outputs of independently-configured backends.
@@ -8,7 +8,7 @@
 //! caller-asserted or detected language, and may be `None` only when
 //! detection on short or ambiguous text was inconclusive.
 //!
-//! [`NlpEngine::analyze`]: crate::engine::NlpEngine::analyze
+//! [`Engine::analyze`]: crate::engine::Engine::analyze
 //! [`Tokenizer`]: crate::tokenizer::Tokenizer
 
 mod token;
@@ -20,7 +20,7 @@ use std::collections::HashSet;
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::primitive::LanguageTag;
 
-/// Result of one [`NlpEngine::analyze`] call.
+/// Result of one [`Engine::analyze`] call.
 ///
 /// Mirrors the field set Presidio's `NlpArtifacts` actually exposes to
 /// downstream recognizers — entities + tokens + keywords + language —
@@ -31,7 +31,7 @@ use nvisy_ontology::primitive::LanguageTag;
 /// <https://github.com/nvisycom/runtime/issues/154> captures the
 /// rationale and trigger conditions for revisiting.
 ///
-/// [`NlpEngine::analyze`]: crate::engine::NlpEngine::analyze
+/// [`Engine::analyze`]: crate::engine::Engine::analyze
 #[derive(Debug, Clone)]
 pub struct Artifacts {
     /// Entities detected by the configured [`NerBackend`].

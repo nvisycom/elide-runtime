@@ -5,10 +5,10 @@
 /// A single token produced by a [`Tokenizer`].
 ///
 /// Byte offsets index the original text passed to
-/// [`NlpEngine::analyze`].
+/// [`Engine::analyze`].
 ///
 /// [`Tokenizer`]: crate::tokenizer::Tokenizer
-/// [`NlpEngine::analyze`]: crate::engine::NlpEngine::analyze
+/// [`Engine::analyze`]: crate::engine::Engine::analyze
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     /// Byte offset of the token start in the original text.

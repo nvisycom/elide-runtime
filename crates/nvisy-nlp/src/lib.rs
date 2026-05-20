@@ -11,7 +11,7 @@ pub mod ner;
 pub mod tokenizer;
 
 pub use self::artifacts::{Artifacts, Token};
-pub use self::engine::{NlpEngine, NlpEngineBuilder, NoLang, NoNer, WithLang, WithNer};
+pub use self::engine::{Engine, EngineBuilder, NoLang, NoNer, WithLang, WithNer};
 pub use self::error::{Error, Result};
 pub use self::language::{
     LanguageDetection, LanguageDetector, LanguageProvenance, LanguageSpan, LinguaLanguageDetector,

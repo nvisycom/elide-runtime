@@ -27,7 +27,7 @@ HTTP, gRPC) and plug in.
 ## Quick taste
 
 ```rust,ignore
-use nvisy_nlp::{NlpEngine, OrtNerBackend, OrtNerConfig, LinguaLanguageDetector};
+use nvisy_nlp::{Engine, OrtNerBackend, OrtNerConfig, LinguaLanguageDetector};
 
 let ner = OrtNerBackend::new(OrtNerConfig {
     model_path: "models/bert-base-NER.onnx".into(),
@@ -39,7 +39,7 @@ let ner = OrtNerBackend::new(OrtNerConfig {
 let language = LinguaLanguageDetector::for_languages(&["en".parse()?, "de".parse()?])
     .expect("at least one supported language");
 
-let engine = NlpEngine::builder()
+let engine = Engine::builder()
     .with_ner(ner)
     .with_language_detector(language)
     .build();

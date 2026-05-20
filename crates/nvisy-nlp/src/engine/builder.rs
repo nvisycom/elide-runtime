@@ -1,16 +1,16 @@
-//! [`NlpEngineBuilder`] — type-state builder for [`NlpEngine`].
+//! [`EngineBuilder`] — type-state builder for [`Engine`].
 //!
 //! The builder uses two phantom type parameters to track which
 //! required components have been attached. [`build`] is only
 //! callable on the fully-configured shape, so missing-required-field
 //! errors are compile-time, not runtime.
 //!
-//! [`build`]: NlpEngineBuilder::build
+//! [`build`]: EngineBuilder::build
 
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use super::NlpEngine;
+use super::Engine;
 use crate::language::LanguageDetector;
 use crate::ner::NerBackend;
 use crate::tokenizer::Tokenizer;
@@ -24,24 +24,24 @@ pub struct NoLang;
 /// Phantom marker: language detector attached.
 pub struct WithLang;
 
-/// Type-state builder for [`NlpEngine`].
+/// Type-state builder for [`Engine`].
 ///
 /// `Ner` tracks whether [`with_ner`] has been called; `Lang` tracks
 /// [`with_language_detector`]. [`build`] is only implemented when
 /// both are `With*` — calling it earlier is a compile error rather
 /// than a runtime panic.
 ///
-/// [`with_ner`]: NlpEngineBuilder::with_ner
-/// [`with_language_detector`]: NlpEngineBuilder::with_language_detector
-/// [`build`]: NlpEngineBuilder::build
-pub struct NlpEngineBuilder<Ner = NoNer, Lang = NoLang> {
+/// [`with_ner`]: EngineBuilder::with_ner
+/// [`with_language_detector`]: EngineBuilder::with_language_detector
+/// [`build`]: EngineBuilder::build
+pub struct EngineBuilder<Ner = NoNer, Lang = NoLang> {
     ner: Option<Arc<dyn NerBackend>>,
     language: Option<Arc<dyn LanguageDetector>>,
     tokenizer: Option<Arc<dyn Tokenizer>>,
     _marker: PhantomData<(Ner, Lang)>,
 }
 
-impl Default for NlpEngineBuilder<NoNer, NoLang> {
+impl Default for EngineBuilder<NoNer, NoLang> {
     fn default() -> Self {
         Self {
             ner: None,
@@ -52,9 +52,9 @@ impl Default for NlpEngineBuilder<NoNer, NoLang> {
     }
 }
 
-impl<Ner, Lang> NlpEngineBuilder<Ner, Lang> {
-    fn into_state<Ner2, Lang2>(self) -> NlpEngineBuilder<Ner2, Lang2> {
-        NlpEngineBuilder {
+impl<Ner, Lang> EngineBuilder<Ner, Lang> {
+    fn into_state<Ner2, Lang2>(self) -> EngineBuilder<Ner2, Lang2> {
+        EngineBuilder {
             ner: self.ner,
             language: self.language,
             tokenizer: self.tokenizer,
@@ -72,9 +72,9 @@ impl<Ner, Lang> NlpEngineBuilder<Ner, Lang> {
     }
 }
 
-impl<Lang> NlpEngineBuilder<NoNer, Lang> {
+impl<Lang> EngineBuilder<NoNer, Lang> {
     /// Attach the NER backend. Required; advances the type state.
-    pub fn with_ner<B>(mut self, backend: B) -> NlpEngineBuilder<WithNer, Lang>
+    pub fn with_ner<B>(mut self, backend: B) -> EngineBuilder<WithNer, Lang>
     where
         B: NerBackend + 'static,
     {
@@ -83,10 +83,10 @@ impl<Lang> NlpEngineBuilder<NoNer, Lang> {
     }
 }
 
-impl<Ner> NlpEngineBuilder<Ner, NoLang> {
+impl<Ner> EngineBuilder<Ner, NoLang> {
     /// Attach the language detector. Required; advances the type
     /// state.
-    pub fn with_language_detector<D>(mut self, detector: D) -> NlpEngineBuilder<Ner, WithLang>
+    pub fn with_language_detector<D>(mut self, detector: D) -> EngineBuilder<Ner, WithLang>
     where
         D: LanguageDetector + 'static,
     {
@@ -95,11 +95,11 @@ impl<Ner> NlpEngineBuilder<Ner, NoLang> {
     }
 }
 
-impl NlpEngineBuilder<WithNer, WithLang> {
+impl EngineBuilder<WithNer, WithLang> {
     /// Build the engine. Only callable once both required
     /// components are attached — earlier calls don't compile.
-    pub fn build(self) -> NlpEngine {
-        NlpEngine {
+    pub fn build(self) -> Engine {
+        Engine {
             ner: self.ner.expect("type-state guarantees ner is Some"),
             language: self
                 .language

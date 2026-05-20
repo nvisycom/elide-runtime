@@ -1,8 +1,8 @@
 //! [`NoopNerBackend`] — returns no entities. Intended for tests and
-//! for assembling an [`NlpEngine`] when only tokenization or language
+//! for assembling an [`Engine`] when only tokenization or language
 //! detection is needed.
 //!
-//! [`NlpEngine`]: crate::engine::NlpEngine
+//! [`Engine`]: crate::engine::Engine
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::Entities;
@@ -13,7 +13,7 @@ use crate::error::Result;
 
 /// A [`NerBackend`] that produces no entities.
 ///
-/// Useful in unit tests that need an `NlpEngine` without a real
+/// Useful in unit tests that need an `Engine` without a real
 /// model, and as a placeholder in pipelines where NER is opt-in and
 /// the caller chose to opt out.
 #[derive(Debug, Default, Clone, Copy)]

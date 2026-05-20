@@ -12,7 +12,7 @@ use nvisy_codec::handler::{
     AudioData, AudioRedaction, ImageData, ImageRedaction, Redactions, TabularRedaction, TextData,
     TextRedaction,
 };
-use nvisy_codec::{ContentHandle, Located};
+use nvisy_codec::{ContentHandle, Located, Span};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_core::media::DocumentType;
@@ -91,6 +91,21 @@ impl Document {
     /// Read the text content at the given text location.
     pub async fn read_text(&self, location: &TextLocation) -> Option<TextData> {
         self.handle.read_text(location).await
+    }
+
+    /// Collect every text location together with its data, skipping
+    /// locations the handler can't read. Used by detection ops that
+    /// scan extracted text spans without caring about the underlying
+    /// streaming machinery.
+    pub async fn collect_text_spans(&self) -> Vec<Span<TextLocation, TextData>> {
+        let locations = self.collect_text_locations().await;
+        let mut spans = Vec::with_capacity(locations.len());
+        for located in locations {
+            if let Some(data) = self.read_text(&located.location).await {
+                spans.push(Span::from_located(located, data));
+            }
+        }
+        spans
     }
 
     /// Read the cell value at the given tabular location.

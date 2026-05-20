@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
 use nvisy_ontology::workflow::{DeduplicationStrategy, GroupingCriteria};
 
-use super::grouping::GroupEntities;
+use super::group_entities::GroupEntities;
 use super::span_size::SpanSize;
 use crate::operation::Document;
 

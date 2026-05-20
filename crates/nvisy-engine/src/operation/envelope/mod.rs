@@ -32,10 +32,10 @@ use nvisy_ontology::entity::{Annotations, Entity};
 use nvisy_ontology::provenance::{Audit, RedactionMap};
 
 mod document;
-mod shared;
+mod shared_data;
 
 pub use self::document::Document;
-pub use self::shared::SharedData;
+pub use self::shared_data::SharedData;
 
 /// Per-document state that flows through the entire pipeline.
 ///

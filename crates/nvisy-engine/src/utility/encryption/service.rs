@@ -156,11 +156,8 @@ mod tests {
         let doc = ContentHandle::decode(&content).await.expect("decode text");
         let dir = tempfile::tempdir().unwrap();
         let registry = crate::registry::Registry::open(dir.path()).unwrap();
-        let shared = crate::operation::envelope::SharedData::new(
-            uuid::Uuid::new_v4(),
-            uuid::Uuid::new_v4(),
-            registry,
-        );
+        let shared =
+            crate::operation::SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
         DocumentEnvelope::new(
             doc,
             ContentMetadata::new().with_content_type("text/plain"),

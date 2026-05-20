@@ -3,21 +3,21 @@
 //! Runs at **phase 4** alongside [`Redaction`]. Will eventually support
 //! summarization, translation, and audit context generation.
 //!
-//! [`Redaction`]: crate::operation::RedactionOp
+//! [`Redaction`]: crate::operation::Redaction
 
 use nvisy_core::Result;
-use nvisy_ontology::workflow::GenerateContext;
+use nvisy_ontology::workflow::GenerateContext as GenerateContextConfig;
 
 use crate::operation::{DocumentEnvelope, Operation};
 
 /// Generates contexts from detection results and content data.
 ///
 /// Currently a passthrough stub.
-pub struct GenerateContextOp;
+pub struct GenerateContext;
 
-impl GenerateContextOp {
+impl GenerateContext {
     /// Create from graph config.
-    pub fn new(cfg: &GenerateContext) -> Self {
+    pub fn new(cfg: &GenerateContextConfig) -> Self {
         if cfg.summarization {
             tracing::warn!("summarization not yet implemented, skipping");
         }
@@ -31,13 +31,13 @@ impl GenerateContextOp {
     }
 }
 
-impl Default for GenerateContextOp {
+impl Default for GenerateContext {
     fn default() -> Self {
         Self
     }
 }
 
-impl Operation for GenerateContextOp {
+impl Operation for GenerateContext {
     async fn execute(&self, _envelope: &mut DocumentEnvelope) -> Result<()> {
         Ok(())
     }

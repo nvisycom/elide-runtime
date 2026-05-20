@@ -20,11 +20,11 @@ use crate::pipeline::RuntimeConfig;
 const TARGET: &str = "nvisy_engine::op::extraction::visual";
 
 /// Visual extraction operation: OCR + optional verification + optional CV.
-pub(super) struct VisualExtractionOp {
+pub(super) struct VisualExtraction {
     agent: OcrAgent,
 }
 
-impl VisualExtractionOp {
+impl VisualExtraction {
     /// Build from graph config and runtime dependencies.
     pub fn new(
         cfg: &VisualExtractionCfg,
@@ -142,7 +142,7 @@ impl VisualExtractionOp {
     }
 }
 
-impl Operation for VisualExtractionOp {
+impl Operation for VisualExtraction {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         let spans = Self::collect_spans(&envelope.document).await;
         if spans.is_empty() {

@@ -1,6 +1,6 @@
 //! Extraction operations: visual (OCR), audial (STT), and text.
 //!
-//! [`ExtractionOp`] is the single entry point for the extraction phase.
+//! [`Extraction`] is the single entry point for the extraction phase.
 //! It runs all applicable modalities based on the document type,
 //! using configuration from the [`Extraction`] graph node.
 //!
@@ -15,11 +15,11 @@ mod vision;
 
 use nvisy_codec::ContentHandle;
 use nvisy_core::Result;
-use nvisy_ontology::workflow::Extraction;
+use nvisy_ontology::workflow::Extraction as ExtractionConfig;
 use nvisy_provider::http::HttpClient;
 
-use self::speech::AudialExtractionOp;
-use self::vision::VisualExtractionOp;
+use self::speech::AudialExtraction;
+use self::vision::VisualExtraction;
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
 
@@ -31,27 +31,27 @@ const TARGET: &str = "nvisy_engine::op::extraction";
 /// document's content type. Both modalities are attempted — errors
 /// from missing providers are silently skipped (the document may
 /// not need that modality).
-pub struct ExtractionOp {
-    visual: Option<VisualExtractionOp>,
-    audial: Option<AudialExtractionOp>,
+pub struct Extraction {
+    visual: Option<VisualExtraction>,
+    audial: Option<AudialExtraction>,
 }
 
-impl ExtractionOp {
+impl Extraction {
     /// Build from extraction config and runtime dependencies.
     ///
     /// Each modality is constructed independently. Missing providers
     /// result in that modality being `None` (skipped at runtime),
     /// not an error.
-    pub fn new(cfg: &Extraction, config: &RuntimeConfig, http_client: &HttpClient) -> Self {
+    pub fn new(cfg: &ExtractionConfig, config: &RuntimeConfig, http_client: &HttpClient) -> Self {
         let visual_cfg = cfg.visual.clone().unwrap_or_default();
-        let visual = VisualExtractionOp::new(&visual_cfg, config, http_client)
+        let visual = VisualExtraction::new(&visual_cfg, config, http_client)
             .inspect_err(|e| {
                 tracing::debug!(target: TARGET, error = %e, "visual extraction unavailable");
             })
             .ok();
 
         let audial_cfg = cfg.audial.clone().unwrap_or_default();
-        let audial = AudialExtractionOp::new(&audial_cfg, config, http_client)
+        let audial = AudialExtraction::new(&audial_cfg, config, http_client)
             .inspect_err(|e| {
                 tracing::debug!(target: TARGET, error = %e, "audial extraction unavailable");
             })
@@ -61,7 +61,7 @@ impl ExtractionOp {
     }
 }
 
-impl Operation for ExtractionOp {
+impl Operation for Extraction {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         match &envelope.document.handle {
             ContentHandle::Image(_) | ContentHandle::Rich(_) => {

@@ -25,7 +25,7 @@ use super::orchestrator::{Orchestrator, RunContext};
 use super::plan::{self, ExecutionPlan};
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
-use crate::operation::envelope::SharedData;
+use crate::operation::SharedData;
 use crate::registry::Registry;
 use crate::utility::encryption::SharedKeyProvider;
 

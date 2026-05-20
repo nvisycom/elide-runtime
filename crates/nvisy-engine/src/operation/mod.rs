@@ -12,25 +12,26 @@
 
 mod deduplication;
 mod detection;
-pub mod envelope;
+mod envelope;
 mod export_file;
 mod extraction;
 mod generate_context;
 mod import_file;
-pub(crate) mod redaction;
-mod validation;
+mod redaction;
+mod validate;
 
 use nvisy_core::Result;
 
-pub(crate) use self::deduplication::DeduplicationOp;
-pub(crate) use self::detection::{EntityRecognitionOp, PatternRecognitionOp};
+pub(crate) use self::deduplication::Deduplication;
+pub(crate) use self::detection::{EntityRecognition, PatternRecognition};
+pub(crate) use self::envelope::SharedData;
 pub use self::envelope::{Document, DocumentEnvelope};
-pub(crate) use self::export_file::ExportFileOp;
-pub(crate) use self::extraction::ExtractionOp;
-pub(crate) use self::generate_context::GenerateContextOp;
-pub(crate) use self::import_file::ImportFileOp;
-pub(crate) use self::redaction::RedactionOp;
-pub(crate) use self::validation::ValidationOp;
+pub(crate) use self::export_file::ExportFile;
+pub(crate) use self::extraction::Extraction;
+pub(crate) use self::generate_context::GenerateContext;
+pub(crate) use self::import_file::ImportFile;
+pub(crate) use self::redaction::Redaction;
+pub(crate) use self::validate::Validation;
 
 /// A single unit of work in the redaction pipeline.
 ///

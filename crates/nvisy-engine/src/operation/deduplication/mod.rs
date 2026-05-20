@@ -21,23 +21,25 @@
 //! [`DeduplicationStrategy`]: nvisy_ontology::workflow::DeduplicationStrategy
 //! [`ConflictResolution`]: nvisy_ontology::workflow::ConflictResolution
 
-mod calibration;
-mod conflict;
-mod grouping;
+mod calibrate_entities;
+mod fuse_entities;
+mod group_entities;
+mod group_key;
+mod resolve_conflicts;
 pub(crate) mod span_size;
-mod strategy;
 
 use std::mem;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::workflow::{
-    CalibrationMap, ConflictResolution, Deduplication, DeduplicationStrategy, GroupingCriteria,
+    CalibrationMap, ConflictResolution, Deduplication as DeduplicationConfig,
+    DeduplicationStrategy, GroupingCriteria,
 };
 
-use self::calibration::CalibrationExt;
-use self::conflict::ConflictResolutionExt;
-use self::strategy::DeduplicationStrategyExt;
+use self::calibrate_entities::CalibrationExt;
+use self::fuse_entities::DeduplicationStrategyExt;
+use self::resolve_conflicts::ConflictResolutionExt;
 use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::deduplication";
@@ -46,7 +48,7 @@ const TARGET: &str = "nvisy_engine::op::deduplication";
 /// threshold filtering operation.
 ///
 /// Created from the [`Deduplication`] graph node configuration.
-pub struct DeduplicationOp {
+pub struct Deduplication {
     grouping: GroupingCriteria,
     strategy: DeduplicationStrategy,
     calibration: CalibrationMap,
@@ -54,9 +56,9 @@ pub struct DeduplicationOp {
     conflict_resolution: ConflictResolution,
 }
 
-impl DeduplicationOp {
-    /// Create from a [`Deduplication`] graph node config.
-    pub fn new(cfg: &Deduplication) -> Self {
+impl Deduplication {
+    /// Create from a [`DeduplicationConfig`] graph node config.
+    pub fn new(cfg: &DeduplicationConfig) -> Self {
         tracing::debug!(
             target: TARGET,
             grouping = ?cfg.grouping,
@@ -118,7 +120,7 @@ impl DeduplicationOp {
     }
 }
 
-impl Operation for DeduplicationOp {
+impl Operation for Deduplication {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         if !envelope.audit.entities.is_empty() {
             tracing::debug!(
@@ -460,11 +462,11 @@ mod tests {
     #[tokio::test]
     async fn confidence_threshold_filters() {
         let doc = Document::from_text("John......Jane").await;
-        let cfg = Deduplication {
+        let cfg = DeduplicationConfig {
             confidence_threshold: Some(0.85),
             ..Default::default()
         };
-        let op = DeduplicationOp::new(&cfg);
+        let op = Deduplication::new(&cfg);
         let entities: Entities = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(10, 14)
@@ -481,11 +483,11 @@ mod tests {
     #[tokio::test]
     async fn full_pipeline() {
         let doc = Document::from_text(TEST_TEXT).await;
-        let cfg = Deduplication {
+        let cfg = DeduplicationConfig {
             strategy: DeduplicationStrategy::MaxConfidence,
             ..Default::default()
         };
-        let op = DeduplicationOp::new(&cfg);
+        let op = Deduplication::new(&cfg);
         let entities: Entities = vec![
             Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
             Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
@@ -507,8 +509,8 @@ mod tests {
     #[tokio::test]
     async fn empty_input() {
         let doc = Document::from_text("").await;
-        let cfg = Deduplication::default();
-        let op = DeduplicationOp::new(&cfg);
+        let cfg = DeduplicationConfig::default();
+        let op = Deduplication::new(&cfg);
         let result = op.deduplicate(Entities::new(), &doc).await;
         assert!(result.is_empty());
     }

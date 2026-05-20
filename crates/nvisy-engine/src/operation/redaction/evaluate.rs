@@ -1,18 +1,18 @@
 //! Redaction operation.
 //!
-//! Runs at **phase 4** alongside [`GenerateContextOp`]. Evaluates policy
+//! Runs at **phase 4** alongside [`GenerateContext`]. Evaluates policy
 //! rules against detected entities to produce redaction records, then
 //! builds and applies redaction instructions across all modalities
 //! (text, image, audio) via [`RedactionApplicator`].
 //!
-//! [`GenerateContextOp`]: crate::operation::GenerateContextOp
+//! [`GenerateContext`]: crate::operation::GenerateContext
 
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{Action, Condition, Strategy, StrategyPolicy};
 use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, RedactionMapping};
-use nvisy_ontology::workflow::Redaction;
+use nvisy_ontology::workflow::Redaction as RedactionConfig;
 use uuid::Uuid;
 
 use super::apply::RedactionApplicator;
@@ -21,20 +21,20 @@ use crate::operation::{Document, DocumentEnvelope, Operation};
 const TARGET: &str = "nvisy_engine::op::redaction";
 
 /// Redaction operation: evaluates policies and applies redaction instructions.
-pub struct RedactionOp {
+pub struct Redaction {
     default_threshold: f64,
 }
 
-impl RedactionOp {
+impl Redaction {
     /// Build from graph config.
-    pub fn new(cfg: &Redaction) -> Self {
+    pub fn new(cfg: &RedactionConfig) -> Self {
         Self {
             default_threshold: cfg.confidence_threshold.unwrap_or(0.5),
         }
     }
 }
 
-impl Operation for RedactionOp {
+impl Operation for Redaction {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         if envelope.audit.entities.is_empty() {
             return Ok(());

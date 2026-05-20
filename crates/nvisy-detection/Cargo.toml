@@ -1,0 +1,52 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-detection"
+description = "Entity recognition: trait surface + built-in recognizers (NER, pattern, LLM) for the Nvisy runtime"
+keywords = ["nvisy", "ner", "pii", "detection"]
+categories = ["text-processing"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = []
+
+[dependencies]
+# Internal crates
+nvisy-codec = { workspace = true, features = [] }
+nvisy-core = { workspace = true, features = [] }
+nvisy-nlp = { workspace = true, features = [] }
+nvisy-ontology = { workspace = true, features = [] }
+nvisy-pattern = { workspace = true, features = [] }
+nvisy-provider = { workspace = true, features = [] }
+
+# Async
+async-trait = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
+
+# Derive macros and error handling
+thiserror = { workspace = true, features = [] }
+derive_builder = { workspace = true, features = [] }
+
+# Identifiers
+uuid = { workspace = true, features = ["v4"] }
+
+# Observability
+tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

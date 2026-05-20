@@ -82,12 +82,11 @@ pub(super) struct EngineInner {
     pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
     pub key_provider: Option<SharedKeyProvider>,
-    /// Optional [`nvisy_nlp::NerBackend`] (typically an ONNX local
-    /// model, but the trait is transport-agnostic) shared across
-    /// runs. When `Some`, every run executes the
-    /// [`NerRecognition`](crate::operation::NerRecognition) operation
-    /// in addition to LLM-driven NER and pattern matching.
-    pub ner_backend: Option<Arc<dyn nvisy_nlp::NerBackend>>,
+    /// Optional [`nvisy_detection::DetectionEngine`] shared across
+    /// runs. When `Some`, the detection phase dispatches every
+    /// text span through it. When `None`, the detection phase is a
+    /// no-op.
+    pub detection_engine: Option<Arc<nvisy_detection::DetectionEngine>>,
     /// In-memory run lifecycle tracker (volatile: lost on restart).
     pub runs: RunState,
     /// Background pipeline tasks spawned by [`Engine::submit`].
@@ -143,7 +142,7 @@ impl Engine {
                 http_client,
                 registry,
                 key_provider: None,
-                ner_backend: None,
+                detection_engine: None,
                 runs: RunState::new(),
                 background_tasks: Mutex::new(JoinSet::new()),
             }),
@@ -182,21 +181,22 @@ impl Engine {
         self
     }
 
-    /// Attach a [`nvisy_nlp::NerBackend`] (typically an
-    /// [`OrtNerBackend`](nvisy_nlp::OrtNerBackend) local model)
-    /// shared across runs.
+    /// Attach a shared [`nvisy_detection::DetectionEngine`]
+    /// composed externally with whatever recognizers the user
+    /// wants (NER, pattern, LLM, custom).
     ///
-    /// When set, the orchestrator runs
-    /// [`NerRecognition`](crate::operation::NerRecognition) in the
-    /// detection phase alongside LLM-driven NER and pattern matching.
+    /// When set, the detection phase dispatches every text span
+    /// through this engine. When unset, the detection phase is a
+    /// no-op (e.g. for redaction-only pipelines with no
+    /// detection).
     ///
     /// # Panics
     ///
     /// Panics if the engine has already been cloned (Arc is shared).
-    pub fn with_ner_backend(mut self, backend: Arc<dyn nvisy_nlp::NerBackend>) -> Self {
+    pub fn with_detection_engine(mut self, engine: Arc<nvisy_detection::DetectionEngine>) -> Self {
         Arc::get_mut(&mut self.inner)
             .expect("engine must not be shared during construction")
-            .ner_backend = Some(backend);
+            .detection_engine = Some(engine);
         self
     }
 
@@ -226,7 +226,7 @@ impl Engine {
             self.inner.registry.clone(),
             self.inner.http_client.clone(),
             self.inner.key_provider.clone(),
-            self.inner.ner_backend.clone(),
+            self.inner.detection_engine.clone(),
             self.inner.runs.clone(),
             self.inner.runtime_config.clone(),
         )

@@ -119,37 +119,42 @@ impl Engine {
     /// impl, and `engine.analyze(context)` works when the caller
     /// built a context explicitly.
     pub async fn analyze<'a>(&self, context: impl Into<Context<'a>>) -> Result<Artifacts> {
+        use tracing::Instrument;
+
         let context = context.into();
-        let _span = tracing::debug_span!(
+        let span = tracing::debug_span!(
             "nvisy_nlp::analyze",
             correlation_id = context.correlation_id.as_ref().map(|id| id.to_string()),
-        )
-        .entered();
+        );
 
-        let detections = self.resolve_language(&context)?;
-        let language_hint = detections.first().map(|d| &d.language);
-        let mut entities = self.ner.recognize(context.text, language_hint).await?;
+        async move {
+            let detections = self.resolve_language(&context)?;
+            let language_hint = detections.first().map(|d| &d.language);
+            let mut entities = self.ner.recognize(context.text, language_hint).await?;
 
-        if let Some(allowed) = context.entities.as_deref() {
-            entities.retain(|e| allowed.contains(&e.entity_kind));
+            if let Some(allowed) = context.entities.as_deref() {
+                entities.retain(|e| allowed.contains(&e.entity_kind));
+            }
+            if let Some(threshold) = context.score_threshold {
+                entities.retain(|e| e.confidence.get() >= threshold);
+            }
+
+            let tokens = match &self.tokenizer {
+                Some(t) => Some(t.tokenize(context.text)?),
+                None => None,
+            };
+            let keywords = tokens.as_deref().map(derive_keywords);
+            let language = detections.into_iter().next().map(|d| d.language);
+
+            Ok(Artifacts {
+                entities,
+                language,
+                tokens,
+                keywords,
+            })
         }
-        if let Some(threshold) = context.score_threshold {
-            entities.retain(|e| e.confidence.get() >= threshold);
-        }
-
-        let tokens = match &self.tokenizer {
-            Some(t) => Some(t.tokenize(context.text)?),
-            None => None,
-        };
-        let keywords = tokens.as_deref().map(derive_keywords);
-        let language = detections.into_iter().next().map(|d| d.language);
-
-        Ok(Artifacts {
-            entities,
-            language,
-            tokens,
-            keywords,
-        })
+        .instrument(span)
+        .await
     }
 
     fn resolve_language(&self, context: &Context<'_>) -> Result<Vec<LanguageDetection>> {

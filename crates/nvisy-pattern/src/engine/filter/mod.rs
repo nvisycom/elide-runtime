@@ -29,7 +29,7 @@ pub use self::deny_list::{DenyList, DenyRule};
 /// API can accept a `ScanContext` as JSON request body.
 ///
 /// [`PatternEngine::scan_entities`]: super::PatternEngine::scan_entities
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct ScanContext {
     /// Values to silently drop from results.
     #[serde(default)]

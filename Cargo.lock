@@ -3228,6 +3228,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-detection"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "derive_builder",
+ "nvisy-codec",
+ "nvisy-core",
+ "nvisy-nlp",
+ "nvisy-ontology",
+ "nvisy-pattern",
+ "nvisy-provider",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "nvisy-engine"
 version = "0.1.0"
 dependencies = [
@@ -3243,10 +3261,9 @@ dependencies = [
  "jiff",
  "nvisy-codec",
  "nvisy-core",
+ "nvisy-detection",
  "nvisy-engine",
- "nvisy-nlp",
  "nvisy-ontology",
- "nvisy-pattern",
  "nvisy-provider",
  "petgraph",
  "rand 0.10.1",

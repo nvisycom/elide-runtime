@@ -43,9 +43,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
+nvisy-detection = { workspace = true, features = [] }
 nvisy-provider = { workspace = true, features = [] }
-nvisy-pattern = { workspace = true, features = [] }
-nvisy-nlp = { workspace = true, features = [] }
 
 # Storage
 fjall = { workspace = true, features = [] }

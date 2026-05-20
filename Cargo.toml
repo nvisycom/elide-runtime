@@ -12,7 +12,6 @@ members = [
     "./crates/nvisy-ontology",
     "./crates/nvisy-pattern",
     "./crates/nvisy-provider",
-    "./crates/nvisy-python",
     "./crates/nvisy-server",
 ]
 
@@ -43,7 +42,6 @@ nvisy-nlp = { path = "./crates/nvisy-nlp", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-provider = { path = "./crates/nvisy-provider", version = "0.1.0" }
-nvisy-python = { path = "./crates/nvisy-python", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
 # LLM framework
@@ -128,11 +126,6 @@ imageproc = { version = "0.26", features = [] }
 
 # Audio processing
 hound = { version = "3.5", features = [] }
-
-# Python interop
-pyo3 = { version = "0.28", features = [] }
-pyo3-async-runtimes = { version = "0.28", features = ["tokio-runtime"] }
-pythonize = { version = "0.28", features = [] }
 
 # CLI
 clap = { version = "4.6", features = [] }

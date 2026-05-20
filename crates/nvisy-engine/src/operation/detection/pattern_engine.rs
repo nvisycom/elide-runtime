@@ -32,10 +32,7 @@ impl PatternEngineRef {
     pub(super) fn new(cfg: &PatternDetection) -> Self {
         let needs_custom = !cfg.patterns.is_empty()
             || cfg.confidence_threshold.is_some()
-            || cfg
-                .filter
-                .as_ref()
-                .is_some_and(|f| !f.is_unconstrained());
+            || cfg.filter.as_ref().is_some_and(|f| !f.is_unconstrained());
         if !needs_custom {
             return Self::Shared(PatternEngine::instance());
         }

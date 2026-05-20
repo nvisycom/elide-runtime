@@ -8,6 +8,7 @@ use super::{
     Entities, Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
 };
 use crate::entity::Overlap;
+use crate::primitive::Confidence;
 
 /// What a region annotation points at: a text value or a spatial/temporal location.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -146,11 +147,14 @@ impl Annotations {
                 AnnotationTarget::Location(loc) => loc.clone(),
             };
 
+            let raw_confidence = confidence.unwrap_or(1.0);
+            let confidence = Confidence::new(raw_confidence)
+                .expect("annotation confidence must be in [0.0, 1.0]");
             let entity = Entity::builder()
                 .with_category(*category)
                 .with_entity_kind(*entity_kind)
                 .with_recognition_methods(vec![RecognitionMethod::annotation(ann.name.clone())])
-                .with_confidence(confidence.unwrap_or(1.0))
+                .with_confidence(confidence)
                 .with_location(location)
                 .build()
                 .expect("required fields provided");
@@ -212,7 +216,7 @@ mod tests {
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(0.9)
+            .with_confidence(Confidence::new(0.9).expect("in range"))
             .with_location(Location::from(
                 TextLocation::builder()
                     .with_start_offset(start)
@@ -236,7 +240,7 @@ mod tests {
         let loc0 = entities[0].location.as_text().unwrap();
         assert_eq!(loc0.start_offset, 0);
         assert_eq!(loc0.end_offset, 0);
-        assert!((entities[0].confidence - 1.0).abs() < f64::EPSILON);
+        assert!((entities[0].confidence.get() - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -260,7 +264,7 @@ mod tests {
         };
         let mut entities = Entities::new();
         Annotations::from(vec![ann]).apply_inclusions(&mut entities);
-        assert!((entities[0].confidence - 0.7).abs() < f64::EPSILON);
+        assert!((entities[0].confidence.get() - 0.7).abs() < f64::EPSILON);
     }
 
     #[test]

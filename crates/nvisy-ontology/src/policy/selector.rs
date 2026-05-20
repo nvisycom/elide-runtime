@@ -37,7 +37,7 @@ impl EntitySelector {
     /// Returns `true` if the given entity matches this selector.
     pub fn matches(&self, entity: &Entity) -> bool {
         if let Some(threshold) = self.confidence_threshold
-            && entity.confidence < threshold
+            && entity.confidence.get() < threshold
         {
             return false;
         }

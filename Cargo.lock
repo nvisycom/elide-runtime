@@ -3272,6 +3272,7 @@ name = "nvisy-nlp"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "derive_builder",
  "lingua",
  "ndarray",
  "nvisy-core",
@@ -3285,6 +3286,7 @@ dependencies = [
  "tokio",
  "tracing",
  "unicode-segmentation",
+ "uuid",
 ]
 
 [[package]]

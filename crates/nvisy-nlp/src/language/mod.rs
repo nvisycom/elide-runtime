@@ -6,15 +6,21 @@
 //! networked detectors can report real backend failures; pure-CPU
 //! detectors that never fail simply return `Ok(...)`.
 //!
-//! [`detect`] returns `Result<Option<LanguageDetection>>` to split
-//! two different concepts: `Ok(None)` means *no answer* (text too
-//! short or ambiguous — not an error), and `Err(_)` means *real
-//! failure* (network, model, etc.). [`detect_multiple`] returns
-//! `Result<Vec<LanguageSpan>>` where an empty vec already represents
-//! "couldn't decide on any span."
+//! Both trait methods return `Result<Vec<LanguageDetection>>` so
+//! callers see a uniform shape: an empty vec is "couldn't decide,"
+//! a single-element vec is the common monolingual answer, and a
+//! multi-element vec carries per-region [`LanguageSpan`]s for
+//! mixed-language input. The caller picks the first entry when they
+//! only need the dominant language.
+//!
+//! [`detect_in`] is a per-call refinement of [`detect`]: the caller
+//! restricts which languages the detector should consider for this
+//! one call. The default implementation ignores the restriction and
+//! delegates to [`detect`]; backends that natively support a
+//! constructable candidate set override it.
 //!
 //! [`detect`]: LanguageDetector::detect
-//! [`detect_multiple`]: LanguageDetector::detect_multiple
+//! [`detect_in`]: LanguageDetector::detect_in
 
 mod lang_detection;
 mod lang_span;
@@ -24,34 +30,37 @@ pub use self::lang_detection::{LanguageDetection, LanguageProvenance};
 pub use self::lang_span::LanguageSpan;
 pub use self::lingua::LinguaLanguageDetector;
 
+use nvisy_ontology::primitive::LanguageTag;
+
 use crate::error::Result;
 
-/// Detect the dominant language of a text string.
+/// Detect languages within a text string.
 ///
-/// `Ok(None)` represents "no answer" (text too short, ambiguous);
-/// `Err(_)` represents a real backend failure. Implementations prefer
-/// `Ok(None)` over guessing when input is inconclusive.
+/// Implementations return `Ok(vec![])` for inconclusive input (text
+/// too short, no recognised script, etc.) and reserve `Err(_)` for
+/// real backend failures (network, model load, etc.).
 pub trait LanguageDetector: Send + Sync {
-    /// Detect the dominant language of `text`.
-    fn detect(&self, text: &str) -> Result<Option<LanguageDetection>>;
-
-    /// Detect contiguous single-language sections within `text`.
+    /// Detect languages in `text`.
     ///
-    /// The default implementation falls back to single-language
-    /// [`detect`] over the entire string. Backends with real
-    /// mixed-language support — [`LinguaLanguageDetector`], for
-    /// example — override this with proper segmentation.
+    /// Single-language detectors return a one-element vec; backends
+    /// with mixed-language support return one entry per detected
+    /// region with [`LanguageDetection::span`] populated. An empty
+    /// vec means "couldn't decide."
+    fn detect(&self, text: &str) -> Result<Vec<LanguageDetection>>;
+
+    /// Detect languages in `text`, restricting the candidate set to
+    /// `candidates` for this call only.
+    ///
+    /// The default implementation ignores `candidates` and delegates
+    /// to [`detect`]. Backends that can cheaply construct a per-call
+    /// restricted detector — [`LinguaLanguageDetector`], for example
+    /// — override this to honor the restriction.
+    ///
+    /// An empty `candidates` slice is treated as "no restriction"
+    /// and behaves identically to [`detect`].
     ///
     /// [`detect`]: Self::detect
-    fn detect_multiple(&self, text: &str) -> Result<Vec<LanguageSpan>> {
-        Ok(match self.detect(text)? {
-            Some(d) => vec![LanguageSpan {
-                start: 0,
-                end: text.len(),
-                language: d.language,
-                confidence: d.confidence,
-            }],
-            None => Vec::new(),
-        })
+    fn detect_in(&self, text: &str, _candidates: &[LanguageTag]) -> Result<Vec<LanguageDetection>> {
+        self.detect(text)
     }
 }

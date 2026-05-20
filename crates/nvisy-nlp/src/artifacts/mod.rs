@@ -3,13 +3,15 @@
 //!
 //! Composed from the outputs of independently-configured backends.
 //! Fields are [`Option`] when produced by an optional component
-//! (tokenizer). [`entities`](Artifacts::entities) is always
-//! populated; [`language`](Artifacts::language) reflects either
-//! caller-asserted or detected language, and may be `None` only when
-//! detection on short or ambiguous text was inconclusive.
+//! (tokenizer). [`entities`] is always populated; [`language`]
+//! reflects either caller-asserted or detected language, and may be
+//! `None` only when detection on short or ambiguous text was
+//! inconclusive.
 //!
 //! [`Engine::analyze`]: crate::engine::Engine::analyze
 //! [`Tokenizer`]: crate::tokenizer::Tokenizer
+//! [`entities`]: Artifacts::entities
+//! [`language`]: Artifacts::language
 
 mod token;
 
@@ -20,7 +22,7 @@ use std::collections::HashSet;
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::primitive::LanguageTag;
 
-/// Result of one [`Engine::analyze`] call.
+/// NLP output of one [`Engine::analyze`] call.
 ///
 /// Mirrors the field set Presidio's `NlpArtifacts` actually exposes to
 /// downstream recognizers — entities + tokens + keywords + language —

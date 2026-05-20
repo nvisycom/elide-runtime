@@ -2,6 +2,10 @@
 //! for assembling an [`Engine`] when only tokenization or language
 //! detection is needed.
 //!
+//! Gated behind the `test-utils` feature so production builds don't
+//! ship the no-op fallback; downstream test crates that need it
+//! enable the feature in their `[dev-dependencies]`.
+//!
 //! [`Engine`]: crate::engine::Engine
 
 use async_trait::async_trait;

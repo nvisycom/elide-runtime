@@ -11,10 +11,15 @@ pub mod ner;
 pub mod tokenizer;
 
 pub use self::artifacts::{Artifacts, Token};
-pub use self::engine::{Engine, EngineBuilder, NoLang, NoNer, WithLang, WithNer};
+pub use self::engine::{
+    Context, ContextBuilder, ContextBuilderError, Engine, EngineBuilder, EngineBuilderError,
+};
 pub use self::error::{Error, Result};
 pub use self::language::{
     LanguageDetection, LanguageDetector, LanguageProvenance, LanguageSpan, LinguaLanguageDetector,
 };
-pub use self::ner::{NerBackend, NoopNerBackend, OrtNerBackend, OrtNerConfig};
+#[cfg(any(test, feature = "test-utils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
+pub use self::ner::NoopNerBackend;
+pub use self::ner::{NerBackend, OrtNerBackend, OrtNerConfig};
 pub use self::tokenizer::{HfTokenizer, Tokenizer, UnicodeTokenizer};

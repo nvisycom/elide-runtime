@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, ImageLocation, RefinementMethod};
-use nvisy_ontology::primitive::BoundingBox;
+use nvisy_ontology::primitive::{BoundingBox, Confidence};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -67,6 +67,10 @@ impl VerifiedEntity {
 
                 let mut refinements = entity.refinement_methods;
                 refinements.push(RefinementMethod::ModelVerification);
+                // Model-reported scores aren't guaranteed in range;
+                // clamp defensively before constructing.
+                let confidence = Confidence::new(self.confidence.clamp(0.0, 1.0))
+                    .expect("clamped value is in [0,1]");
                 let corrected = Entity::builder()
                     .with_id(entity.id)
                     .with_category(self.category.unwrap_or(entity.category))
@@ -74,7 +78,7 @@ impl VerifiedEntity {
                     .with_recognition_methods(entity.recognition_methods)
                     .with_extraction_methods(entity.extraction_methods)
                     .with_refinement_methods(refinements)
-                    .with_confidence(self.confidence)
+                    .with_confidence(confidence)
                     .with_location(location)
                     .build()
                     .expect("required fields provided");

@@ -277,8 +277,7 @@ impl DocumentPipeline {
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
         let ner_cfg = cfg.ner.clone().unwrap_or_default();
-        if let Ok(op) =
-            LlmRecognition::new(&ner_cfg, &self.ctx.config, &self.ctx.http_client).await
+        if let Ok(op) = LlmRecognition::new(&ner_cfg, &self.ctx.config, &self.ctx.http_client).await
         {
             op.execute(envelope).await?;
         }

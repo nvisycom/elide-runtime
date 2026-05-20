@@ -45,11 +45,12 @@ impl LlmRecognition {
         http_client: &HttpClient,
     ) -> Result<Self> {
         let llm = runtime.llm.as_ref();
-        let provider = llm
-            .and_then(|s| s.provider.clone())
-            .ok_or_else(|| {
-                Error::new(ErrorKind::Validation, "LLM recognition requires an LLM provider")
-            })?;
+        let provider = llm.and_then(|s| s.provider.clone()).ok_or_else(|| {
+            Error::new(
+                ErrorKind::Validation,
+                "LLM recognition requires an LLM provider",
+            )
+        })?;
         let agent_config = llm.and_then(|s| s.policy.clone()).unwrap_or_default();
 
         let agent = NerAgent::new(&provider, agent_config, Some(http_client.clone()))

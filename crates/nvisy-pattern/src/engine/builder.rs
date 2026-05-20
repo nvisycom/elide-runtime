@@ -229,10 +229,8 @@ mod tests {
             .with_filter(filter)
             .build()
             .unwrap();
-        let entities = engine.scan_entities(
-            "SSN: 123-45-6789",
-            &super::super::ScanContext::default(),
-        );
+        let entities =
+            engine.scan_entities("SSN: 123-45-6789", &super::super::ScanContext::default());
         assert!(
             entities
                 .iter()
@@ -253,10 +251,8 @@ mod tests {
             .with_filter(filter)
             .build()
             .unwrap();
-        let entities = engine.scan_entities(
-            "She is American.",
-            &super::super::ScanContext::default(),
-        );
+        let entities =
+            engine.scan_entities("She is American.", &super::super::ScanContext::default());
         assert!(
             !entities
                 .iter()
@@ -275,10 +271,8 @@ mod tests {
             .with_filter(filter)
             .build()
             .unwrap();
-        let entities = engine.scan_entities(
-            "She is American.",
-            &super::super::ScanContext::default(),
-        );
+        let entities =
+            engine.scan_entities("She is American.", &super::super::ScanContext::default());
         assert!(
             entities
                 .iter()

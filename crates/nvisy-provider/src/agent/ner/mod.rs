@@ -16,6 +16,7 @@ use nvisy_core::Result;
 use nvisy_ontology::entity::{
     Entity, EntityCategory, Location, ModelKind, ModelProvenance, RecognitionMethod, TextLocation,
 };
+use nvisy_ontology::primitive::Confidence;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -161,10 +162,16 @@ impl NerAgent {
                 Some(ek) => ek,
                 None => continue,
             };
-            let confidence = ne.confidence.unwrap_or(0.0);
-            if confidence < config.confidence_threshold {
+            let raw_confidence = ne.confidence.unwrap_or(0.0);
+            if raw_confidence < config.confidence_threshold {
                 continue;
             }
+            // LLM-reported scores aren't guaranteed in range; clamp
+            // defensively before constructing.
+            let confidence = match Confidence::new(raw_confidence.clamp(0.0, 1.0)) {
+                Some(c) => c,
+                None => continue,
+            };
 
             let mut loc_builder = TextLocation::builder();
             if let Some(offsets) = ne.resolve_offsets(&ctx) {

@@ -3,15 +3,18 @@
 //!
 //! Constructors mirror [`lingua::LanguageDetectorBuilder`]:
 //!
-//! - [`for_languages`](LinguaLanguageDetector::for_languages) — restrict
-//!   to a known set. **Preferred when the corpus language is known**;
-//!   lingua is more accurate when the candidate set is narrowed.
-//! - [`for_all_languages`](LinguaLanguageDetector::for_all_languages) —
-//!   consider every language compiled into the `lingua` crate's
-//!   feature set. Use only when the language is genuinely unknown.
+//! - [`for_languages`] — restrict to a known set. **Preferred when
+//!   the corpus language is known**; lingua is more accurate when
+//!   the candidate set is narrowed.
+//! - [`for_all_languages`] — consider every language compiled into
+//!   the `lingua` crate's feature set. Use only when the language is
+//!   genuinely unknown.
 //!
 //! Neither constructor enables `low_accuracy_mode`; lingua's default
 //! (highest accuracy) is in effect.
+//!
+//! [`for_languages`]: LinguaLanguageDetector::for_languages
+//! [`for_all_languages`]: LinguaLanguageDetector::for_all_languages
 
 use std::collections::HashSet;
 use std::sync::Mutex;
@@ -19,7 +22,7 @@ use std::sync::OnceLock;
 use std::{fmt, str::FromStr};
 
 use lingua::{IsoCode639_1, Language, LanguageDetector as LinguaDetector, LanguageDetectorBuilder};
-use nvisy_ontology::primitive::LanguageTag;
+use nvisy_ontology::primitive::{Confidence, LanguageTag};
 
 use super::{LanguageDetection, LanguageDetector, LanguageProvenance, LanguageSpan};
 use crate::error::Result;
@@ -29,6 +32,11 @@ use crate::error::Result;
 /// [`lingua`]: https://crates.io/crates/lingua
 pub struct LinguaLanguageDetector {
     inner: LinguaDetector,
+    /// Languages the detector was constructed with. Retained so that
+    /// per-call candidate-set restriction
+    /// ([`LanguageDetector::detect_in`]) can intersect with the
+    /// configured set instead of widening it.
+    configured: Vec<Language>,
 }
 
 impl LinguaLanguageDetector {
@@ -52,7 +60,10 @@ impl LinguaLanguageDetector {
             return None;
         }
         let inner = LanguageDetectorBuilder::from_languages(&langs).build();
-        Some(Self { inner })
+        Some(Self {
+            inner,
+            configured: langs,
+        })
     }
 
     /// Construct a detector considering every language compiled into
@@ -69,7 +80,10 @@ impl LinguaLanguageDetector {
     /// [`for_languages`]: Self::for_languages
     pub fn for_all_languages() -> Self {
         let inner = LanguageDetectorBuilder::from_all_languages().build();
-        Self { inner }
+        Self {
+            inner,
+            configured: Language::all().into_iter().collect(),
+        }
     }
 
     fn lingua_to_tag(lang: Language) -> Option<LanguageTag> {
@@ -81,6 +95,35 @@ impl LinguaLanguageDetector {
                 None
             }
         }
+    }
+
+    /// Run lingua's multi-language detector and map every returned
+    /// region to a [`LanguageDetection`] with [`LanguageSpan`] set.
+    /// Used by both [`detect`] (configured detector) and
+    /// [`detect_in`] (per-call restricted detector).
+    ///
+    /// [`detect`]: <Self as LanguageDetector>::detect
+    /// [`detect_in`]: <Self as LanguageDetector>::detect_in
+    fn detect_with(detector: &LinguaDetector, text: &str) -> Result<Vec<LanguageDetection>> {
+        let detections = detector
+            .detect_multiple_languages_of(text)
+            .into_iter()
+            .filter_map(|result| {
+                let language = Self::lingua_to_tag(result.language())?;
+                let raw_confidence = detector.compute_language_confidence(text, result.language());
+                let confidence = Confidence::new(raw_confidence.clamp(0.0, 1.0));
+                Some(LanguageDetection {
+                    language,
+                    confidence,
+                    provenance: LanguageProvenance::Detected,
+                    span: Some(LanguageSpan {
+                        start: result.start_index(),
+                        end: result.end_index(),
+                    }),
+                })
+            })
+            .collect();
+        Ok(detections)
     }
 }
 
@@ -113,39 +156,29 @@ fn tags_to_languages(tags: &[LanguageTag]) -> Vec<Language> {
 }
 
 impl LanguageDetector for LinguaLanguageDetector {
-    fn detect(&self, text: &str) -> Result<Option<LanguageDetection>> {
-        let Some(lang) = self.inner.detect_language_of(text) else {
-            return Ok(None);
-        };
-        let Some(language) = Self::lingua_to_tag(lang) else {
-            return Ok(None);
-        };
-        let confidence = self.inner.compute_language_confidence(text, lang);
-        Ok(Some(LanguageDetection {
-            language,
-            confidence: Some(confidence),
-            provenance: LanguageProvenance::Detected,
-        }))
+    fn detect(&self, text: &str) -> Result<Vec<LanguageDetection>> {
+        Self::detect_with(&self.inner, text)
     }
 
-    fn detect_multiple(&self, text: &str) -> Result<Vec<LanguageSpan>> {
-        Ok(self
-            .inner
-            .detect_multiple_languages_of(text)
-            .into_iter()
-            .filter_map(|result| {
-                let language = Self::lingua_to_tag(result.language())?;
-                let confidence = self
-                    .inner
-                    .compute_language_confidence(text, result.language());
-                Some(LanguageSpan {
-                    start: result.start_index(),
-                    end: result.end_index(),
-                    language,
-                    confidence: Some(confidence),
-                })
-            })
-            .collect())
+    fn detect_in(&self, text: &str, candidates: &[LanguageTag]) -> Result<Vec<LanguageDetection>> {
+        if candidates.is_empty() {
+            return self.detect(text);
+        }
+        let requested = tags_to_languages(candidates);
+        let intersection: Vec<Language> = self
+            .configured
+            .iter()
+            .copied()
+            .filter(|l| requested.contains(l))
+            .collect();
+        match intersection.len() {
+            0 => Ok(Vec::new()),
+            n if n == self.configured.len() => self.detect(text),
+            _ => {
+                let restricted = LanguageDetectorBuilder::from_languages(&intersection).build();
+                Self::detect_with(&restricted, text)
+            }
+        }
     }
 }
 
@@ -167,19 +200,21 @@ mod tests {
     #[test]
     fn detects_english_sentence() {
         let det = english_only();
-        let detection = det
+        let detections = det
             .detect("The quick brown fox jumps over the lazy dog.")
-            .unwrap()
-            .expect("detection");
-        assert_eq!(detection.language.primary_language(), "en");
-        let conf = detection.confidence.expect("confidence");
+            .unwrap();
+        assert!(!detections.is_empty(), "expected at least one detection");
+        let first = &detections[0];
+        assert_eq!(first.language.primary_language(), "en");
+        let conf = first.confidence.expect("confidence").get();
         assert!((0.0..=1.0).contains(&conf), "confidence in [0,1]: {conf}");
+        assert!(first.span.is_some(), "span should be populated");
     }
 
     #[test]
-    fn empty_input_returns_none() {
+    fn empty_input_returns_empty_vec() {
         let det = english_only();
-        assert!(det.detect("").unwrap().is_none());
+        assert!(det.detect("").unwrap().is_empty());
     }
 
     #[test]
@@ -191,19 +226,18 @@ mod tests {
     #[test]
     fn for_all_languages_constructs() {
         let det = LinguaLanguageDetector::for_all_languages();
-        let detection = det.detect("Hello world, this is English.").unwrap();
-        assert!(detection.is_some());
+        let detections = det.detect("Hello world, this is English.").unwrap();
+        assert!(!detections.is_empty());
     }
 
     #[test]
-    fn detect_multiple_returns_at_least_one_span() {
+    fn detect_returns_span_offsets() {
         let det = english_only();
-        let spans = det
-            .detect_multiple("The quick brown fox jumps over the lazy dog.")
+        let detections = det
+            .detect("The quick brown fox jumps over the lazy dog.")
             .unwrap();
-        assert!(!spans.is_empty());
-        let first = &spans[0];
-        assert_eq!(first.start, 0);
-        assert!(first.end > 0);
+        let span = detections[0].span.expect("span");
+        assert_eq!(span.start, 0);
+        assert!(span.end > 0);
     }
 }

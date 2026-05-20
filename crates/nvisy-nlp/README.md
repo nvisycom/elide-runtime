@@ -42,7 +42,7 @@ let language = LinguaLanguageDetector::for_languages(&["en".parse()?, "de".parse
 let engine = Engine::builder()
     .with_ner(ner)
     .with_language_detector(language)
-    .build();
+    .build()?;
 
 let artifacts = engine.analyze("Patient name: John Doe.").await?;
 ```

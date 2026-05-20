@@ -64,7 +64,6 @@ impl CsvDictionary {
         self.metadata = metadata;
         self
     }
-
 }
 
 impl Dictionary for CsvDictionary {

@@ -1,25 +1,18 @@
-//! [`LanguageSpan`] — contiguous single-language section within a
-//! mixed-language text.
+//! [`LanguageSpan`] — byte-offset range a [`LanguageDetection`]
+//! applies to.
 
-use nvisy_ontology::primitive::LanguageTag;
-
-/// A contiguous single-language section within a possibly
-/// mixed-language text. Returned by [`detect_multiple`].
+/// A byte-offset range within the analyzed text.
 ///
-/// `start` and `end` are byte offsets into the original text. The
-/// language and optional confidence follow the same conventions as
-/// [`LanguageDetection`].
+/// Attached to a [`LanguageDetection`] when the detector knows the
+/// span its answer covers (mixed-language input produces multiple
+/// detections, each with a distinct span). Single-language detections
+/// from non-segmenting backends typically leave the span as `None`.
 ///
-/// [`detect_multiple`]: super::LanguageDetector::detect_multiple
 /// [`LanguageDetection`]: super::LanguageDetection
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LanguageSpan {
     /// Byte offset of the span start in the original text.
     pub start: usize,
     /// Byte offset of the span end in the original text.
     pub end: usize,
-    /// The detected language for the span.
-    pub language: LanguageTag,
-    /// Optional confidence score in `[0.0, 1.0]`.
-    pub confidence: Option<f64>,
 }

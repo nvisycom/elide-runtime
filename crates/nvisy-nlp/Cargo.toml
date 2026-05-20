@@ -22,6 +22,12 @@ documentation = { workspace = true }
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[features]
+default = []
+
+# Exposes helpers intended for downstream tests.
+test-utils = []
+
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
@@ -41,6 +47,10 @@ unicode-segmentation = { workspace = true, features = [] }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
+derive_builder = { workspace = true, features = [] }
+
+# Identifiers
+uuid = { workspace = true, features = ["v4"] }
 
 # Collections / utility
 smallvec = { workspace = true, features = [] }
@@ -51,3 +61,4 @@ tracing = { workspace = true, features = [] }
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
 tempfile = { workspace = true, features = [] }
+nvisy-ontology = { workspace = true, features = ["test-utils"] }

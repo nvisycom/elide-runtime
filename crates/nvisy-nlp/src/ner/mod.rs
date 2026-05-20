@@ -5,10 +5,15 @@
 //! [`Entities`] with `confidence` populated. Filtering by confidence
 //! threshold and entity-kind allowlist is the caller's responsibility
 //! — backends return everything they detect.
+//!
+//! [`Entities`]: nvisy_ontology::entity::Entities
 
+#[cfg(any(test, feature = "test-utils"))]
 mod noop;
 mod ort;
 
+#[cfg(any(test, feature = "test-utils"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub use self::noop::NoopNerBackend;
 pub use self::ort::{OrtNerBackend, OrtNerConfig};
 

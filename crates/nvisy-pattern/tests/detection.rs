@@ -63,8 +63,8 @@ fn column_confidence_applies_to_csv_dictionaries() {
         .find(|e| e.location.as_text().is_some_and(|l| l.start_offset == 32));
     assert!(full_name.is_some(), "should match 'US Dollar'");
     assert!(code.is_some(), "should match 'USD'");
-    let full_conf = full_name.unwrap().confidence;
-    let code_conf = code.unwrap().confidence;
+    let full_conf = full_name.unwrap().confidence.get();
+    let code_conf = code.unwrap().confidence.get();
     assert!(
         full_conf > code_conf,
         "full name confidence ({full_conf}) should exceed code confidence ({code_conf})"

@@ -7,6 +7,7 @@
 use nvisy_ontology::entity::{
     Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
 };
+use nvisy_ontology::primitive::Confidence;
 use smallvec::SmallVec;
 
 use crate::patterns::ContextRule;
@@ -103,11 +104,17 @@ impl RawMatch {
             !self.recognition_methods.is_empty(),
             "RawMatch::into_entity requires at least one recognition method"
         );
+        // RawMatch::confidence is bounded to [0,1] by pattern engine's
+        // context adjustment (see RawMatch::apply_context_adjustment).
+        // Clamp defensively to absorb any float rounding before the
+        // Confidence constructor would reject it.
+        let confidence =
+            Confidence::new(self.confidence.clamp(0.0, 1.0)).expect("clamped value is in [0,1]");
         Entity::builder()
             .with_category(self.category)
             .with_entity_kind(self.entity_kind)
             .with_recognition_methods(self.recognition_methods.into_vec())
-            .with_confidence(self.confidence)
+            .with_confidence(confidence)
             .with_location(Location::from(
                 TextLocation::builder()
                     .with_start_offset(self.start)

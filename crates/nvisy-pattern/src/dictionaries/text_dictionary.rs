@@ -40,7 +40,6 @@ impl TxtDictionary {
         self.metadata = metadata;
         self
     }
-
 }
 
 impl Dictionary for TxtDictionary {

@@ -46,7 +46,7 @@ impl ProposedEntity {
             category: entity.category,
             entity_type: entity.entity_kind,
             value: value.to_string(),
-            confidence: entity.confidence,
+            confidence: entity.confidence.get(),
             bbox,
         }
     }

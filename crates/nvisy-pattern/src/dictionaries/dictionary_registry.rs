@@ -8,9 +8,7 @@ use std::{fmt, fs};
 use include_dir::{Dir, include_dir};
 use walkdir::WalkDir;
 
-use super::{
-    CsvDictionary, Dictionary, DictionaryLoadError, DictionaryMetadata, TxtDictionary,
-};
+use super::{CsvDictionary, Dictionary, DictionaryLoadError, DictionaryMetadata, TxtDictionary};
 
 const TARGET: &str = "nvisy_pattern::dictionaries";
 
@@ -119,11 +117,12 @@ impl DictionaryRegistry {
                 .expect("built-in dictionary file is not valid UTF-8");
 
             let default_name = derive_name(path);
-            let metadata = load_embedded_metadata(&DICT_DIR, path)
-                .unwrap_or_else(|e| panic!(
+            let metadata = load_embedded_metadata(&DICT_DIR, path).unwrap_or_else(|e| {
+                panic!(
                     "built-in dictionary '{}' has malformed sidecar: {e}",
                     path.display(),
-                ));
+                )
+            });
             let name = metadata.name.clone().unwrap_or(default_name);
 
             let dict: Box<dyn Dictionary> = match extension(path) {
@@ -232,11 +231,7 @@ impl DictionaryRegistry {
         Ok(())
     }
 
-    fn load_file_with_name(
-        &mut self,
-        path: &Path,
-        default_name: &str,
-    ) -> nvisy_core::Result<()> {
+    fn load_file_with_name(&mut self, path: &Path, default_name: &str) -> nvisy_core::Result<()> {
         // Sidecars themselves: silently skip so a directory traversal
         // doesn't error on .json files.
         if extension(path) == Some(SIDECAR_EXT) {
@@ -259,21 +254,19 @@ impl DictionaryRegistry {
 
         let dict: Box<dyn Dictionary> = match extension(path) {
             Some("txt") => {
-                let text = fs::read_to_string(path).map_err(|source| {
-                    DictionaryLoadError::ReadFile {
+                let text =
+                    fs::read_to_string(path).map_err(|source| DictionaryLoadError::ReadFile {
                         path: path.to_owned(),
                         source,
-                    }
-                })?;
+                    })?;
                 Box::new(TxtDictionary::new(&name, &text).with_metadata(metadata))
             }
             Some("csv") => {
-                let text = fs::read_to_string(path).map_err(|source| {
-                    DictionaryLoadError::ReadFile {
+                let text =
+                    fs::read_to_string(path).map_err(|source| DictionaryLoadError::ReadFile {
                         path: path.to_owned(),
                         source,
-                    }
-                })?;
+                    })?;
                 Box::new(
                     CsvDictionary::new(&name, &text)
                         .map_err(|source| DictionaryLoadError::CsvParse {
@@ -366,8 +359,7 @@ fn load_embedded_metadata(dir: &Dir<'_>, path: &Path) -> Result<DictionaryMetada
         return Ok(DictionaryMetadata::default());
     };
     let bytes = file.contents();
-    serde_json::from_slice(bytes)
-        .map_err(|e| format!("parse {}: {e}", sidecar_rel.display()))
+    serde_json::from_slice(bytes).map_err(|e| format!("parse {}: {e}", sidecar_rel.display()))
 }
 
 #[cfg(test)]
@@ -443,7 +435,11 @@ mod tests {
         fs::create_dir_all(dir.path().join("healthcare")).unwrap();
         fs::create_dir_all(dir.path().join("finance/sub")).unwrap();
 
-        fs::write(dir.path().join("healthcare/drugs.txt"), "aspirin\nibuprofen\n").unwrap();
+        fs::write(
+            dir.path().join("healthcare/drugs.txt"),
+            "aspirin\nibuprofen\n",
+        )
+        .unwrap();
         fs::write(dir.path().join("finance/sub/banks.csv"), "Chase\nBoA\n").unwrap();
         fs::write(dir.path().join("top.txt"), "a\nb\n").unwrap();
 

@@ -238,7 +238,7 @@ mod tests {
             entity.recognition_methods,
             vec![RecognitionMethod::regex_validated("ssn", "ssn")]
         );
-        assert!((entity.confidence - 0.9).abs() < f64::EPSILON);
+        assert!((entity.confidence.get() - 0.9).abs() < f64::EPSILON);
         assert!(entity.location.as_text().is_some());
     }
 }

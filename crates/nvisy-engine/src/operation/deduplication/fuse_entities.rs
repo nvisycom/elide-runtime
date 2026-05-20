@@ -8,6 +8,7 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 
 use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
+use nvisy_ontology::primitive::Confidence;
 use nvisy_ontology::workflow::{DeduplicationStrategy, GroupingCriteria};
 
 use super::group_entities::GroupEntities;
@@ -129,7 +130,8 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
         if result.language.is_none() {
             result.language = rest.iter().find_map(|e| e.language.clone());
         }
-        result.confidence = fused_confidence;
+        result.confidence =
+            Confidence::new(fused_confidence.clamp(0.0, 1.0)).expect("clamped to [0,1]");
         result.refinement_methods.push(refinement);
 
         let value = document
@@ -153,12 +155,15 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
         match self {
             Self::MaxConfidence => group
                 .iter()
-                .map(|e| e.confidence)
+                .map(|e| e.confidence.get())
                 .fold(f64::NEG_INFINITY, f64::max),
 
             Self::NoisyOr => {
                 // P(at least one) = 1 − ∏(1 − pᵢ)
-                1.0 - group.iter().map(|e| 1.0 - e.confidence).product::<f64>()
+                1.0 - group
+                    .iter()
+                    .map(|e| 1.0 - e.confidence.get())
+                    .product::<f64>()
             }
 
             Self::WeightedAverage { weights } => {
@@ -170,13 +175,13 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
                             .filter_map(|m| weights.get(&m.kind()))
                             .copied()
                             .fold(1.0_f64, f64::max);
-                        (wsum + e.confidence * w, total_w + w)
+                        (wsum + e.confidence.get() * w, total_w + w)
                     });
                 if total_w > 0.0 { wsum / total_w } else { 0.0 }
             }
             _ => group
                 .iter()
-                .map(|e| e.confidence)
+                .map(|e| e.confidence.get())
                 .fold(f64::NEG_INFINITY, f64::max),
         }
     }

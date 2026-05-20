@@ -103,11 +103,7 @@ pub(in crate::engine) fn scan_dict(
 /// Phase 3: inject deny-list values found in `text` not already matched
 /// by regex or dictionary. Total scan is O(n + matches) via the
 /// pre-compiled Aho-Corasick automaton on [`DenyList`].
-pub(in crate::engine) fn scan_deny_list(
-    text: &str,
-    deny: &DenyList,
-    results: &mut Vec<RawMatch>,
-) {
+pub(in crate::engine) fn scan_deny_list(text: &str, deny: &DenyList, results: &mut Vec<RawMatch>) {
     let Some(scanner) = deny.scanner() else {
         return;
     };

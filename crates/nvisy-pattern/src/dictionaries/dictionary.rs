@@ -58,4 +58,3 @@ pub(crate) mod sealed {
     impl Sealed for super::super::csv_dictionary::CsvDictionary {}
     impl Sealed for super::super::text_dictionary::TxtDictionary {}
 }
-

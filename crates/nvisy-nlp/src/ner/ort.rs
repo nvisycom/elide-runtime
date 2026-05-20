@@ -10,6 +10,9 @@
 //! - [`OrtNerBackend`]: orchestration — tokenize input, dispatch to
 //!   the inferencer, argmax + softmax over logits, fold BIO tags
 //!   into spans, build [`Entity`] values.
+//!
+//! [`ort`]: https://crates.io/crates/ort
+//! [`Entity`]: nvisy_ontology::entity::Entity
 
 use std::collections::HashMap;
 use std::fmt;
@@ -22,7 +25,7 @@ use nvisy_ontology::entity::{
     Entities, Entity, EntityCategory, EntityKind, Location, ModelKind, RecognitionMethod,
     TextLocation,
 };
-use nvisy_ontology::primitive::LanguageTag;
+use nvisy_ontology::primitive::{Confidence, LanguageTag};
 use ort::session::Session;
 use ort::value::Value;
 use tokenizers::{Encoding, Tokenizer};
@@ -351,11 +354,16 @@ impl OrtNerBackend {
             .with_end_offset(span.end)
             .build()
             .ok()?;
-        let confidence = if span.token_count == 0 {
+        let raw_confidence = if span.token_count == 0 {
             0.0
         } else {
             span.confidence_sum / span.token_count as f64
         };
+        // Softmax mean is in [0,1] by construction; clamp to absorb
+        // float rounding so the Confidence constructor doesn't reject
+        // a value like 1.0000000000000002.
+        let confidence =
+            Confidence::new(raw_confidence.clamp(0.0, 1.0)).expect("clamped value is in [0,1]");
         Entity::builder()
             .with_category(category)
             .with_entity_kind(kind)
@@ -665,7 +673,11 @@ mod tests {
         // Both spans are PersonName per the label_map.
         for e in &entities {
             assert_eq!(e.entity_kind, EntityKind::PersonName);
-            assert!(e.confidence > 0.9, "softmax conf {} too low", e.confidence);
+            assert!(
+                e.confidence.get() > 0.9,
+                "softmax conf {} too low",
+                e.confidence.get(),
+            );
         }
 
         // Spans line up with the input text.

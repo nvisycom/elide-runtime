@@ -2,6 +2,8 @@
 
 use std::collections::HashSet;
 
+use serde::{Deserialize, Serialize};
+
 /// Exact-match allow list for suppressing known false positives.
 ///
 /// Values that appear in the allow list are silently dropped from
@@ -13,8 +15,11 @@ use std::collections::HashSet;
 /// let allow: AllowList = ["123-45-6789", "000-00-0000"].into_iter().collect();
 /// ```
 ///
+/// Serializes transparently as a JSON array of strings.
+///
 /// [`PatternEngine::scan_entities`]: super::PatternEngine::scan_entities
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct AllowList {
     values: HashSet<String>,
 }

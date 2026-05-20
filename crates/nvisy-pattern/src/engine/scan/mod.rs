@@ -7,6 +7,7 @@
 //! [`PatternEngine::scan_entities`]: super::PatternEngine::scan_entities
 
 pub(super) mod dedup;
+pub(super) mod enhancer;
 pub(super) mod entries;
 pub(super) mod pattern_match;
 pub(super) mod phases;

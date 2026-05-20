@@ -3,8 +3,8 @@
 use nvisy_ontology::workflow::PatternFilter;
 use regex::{Regex, RegexSet};
 
+use super::PatternEngine;
 use super::error::PatternEngineError;
-use super::pattern_engine::PatternEngine;
 use super::scan::entries::{DictEntry, RegexEntry};
 use crate::dictionaries;
 use crate::patterns::{MatchSource, Pattern};

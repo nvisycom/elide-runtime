@@ -9,6 +9,7 @@
 //! [`RecognitionMethod`]: nvisy_ontology::entity::RecognitionMethod
 
 use nvisy_ontology::entity::{Entities, RefinementMethod};
+use nvisy_ontology::primitive::Confidence;
 use nvisy_ontology::workflow::CalibrationMap;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::calibration";
@@ -43,8 +44,9 @@ impl CalibrationExt for CalibrationMap {
                 .reduce(f64::max);
 
             if let Some(m) = multiplier {
-                let before = entity.confidence;
-                entity.confidence = (entity.confidence * m).clamp(0.0, 1.0);
+                let before = entity.confidence.get();
+                let after = (before * m).clamp(0.0, 1.0);
+                entity.confidence = Confidence::new(after).expect("clamped to [0,1]");
                 entity
                     .refinement_methods
                     .push(RefinementMethod::ConfidenceCalibration);
@@ -55,7 +57,7 @@ impl CalibrationExt for CalibrationMap {
                     entity_id = %entity.id,
                     multiplier = m,
                     before,
-                    after = entity.confidence,
+                    after,
                     "calibrated confidence",
                 );
             }

@@ -13,9 +13,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use nvisy_core::Error;
+use nvisy_detection::DetectionEngine;
 use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
 use nvisy_ontology::workflow::GraphNodeKind;
-use nvisy_provider::http::HttpClient;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -39,8 +39,8 @@ const TARGET: &str = "nvisy_engine::pipeline::run";
 pub(super) struct Pipeline {
     run_id: Uuid,
     registry: Registry,
-    http_client: HttpClient,
     key_provider: Option<SharedKeyProvider>,
+    detection_engine: Option<Arc<DetectionEngine>>,
     runs: RunState,
     base_config: RuntimeConfig,
 }
@@ -49,16 +49,16 @@ impl Pipeline {
     /// Create a new pipeline run bound to the given engine state.
     pub fn new(
         registry: Registry,
-        http_client: HttpClient,
         key_provider: Option<SharedKeyProvider>,
+        detection_engine: Option<Arc<DetectionEngine>>,
         runs: RunState,
         base_config: RuntimeConfig,
     ) -> Self {
         Self {
             run_id: Uuid::now_v7(),
             registry,
-            http_client,
             key_provider,
+            detection_engine,
             runs,
             base_config,
         }
@@ -189,7 +189,7 @@ impl Pipeline {
             cancel,
             shared: Arc::new(shared_data),
             config: Arc::new(effective_config),
-            http_client: self.http_client.clone(),
+            detection_engine: self.detection_engine.clone(),
             concurrency,
             dry_run: input.dry_run,
         };

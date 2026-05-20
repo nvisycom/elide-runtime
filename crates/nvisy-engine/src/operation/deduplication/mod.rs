@@ -143,10 +143,17 @@ mod tests {
         Entity, EntityCategory, EntityKind, ExtractionMethod, Location, ModelKind,
         RecognitionMethod, RecognitionMethodKind, RefinementMethod, TextLocation,
     };
+    use nvisy_ontology::primitive::Confidence;
     use nvisy_ontology::workflow::DeduplicationStrategy::*;
 
     use super::*;
     use crate::operation::Document;
+
+    /// Test helper: build a `Confidence` from an `f64`, panicking on
+    /// out-of-range. Kept short because every dedup test uses it.
+    fn conf(v: f64) -> Confidence {
+        Confidence::new(v).expect("confidence in [0,1]")
+    }
 
     /// The test document that entities reference by byte offset.
     /// "John Smith" at 0..10, then padding, then "Jane" at 100..104.
@@ -156,7 +163,9 @@ mod tests {
     async fn strict_groups_exact_overlap() {
         let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
             Entity::test_builder(0, 4).test_build(),
         ]
         .into();
@@ -164,14 +173,16 @@ mod tests {
             .fuse(entities, GroupingCriteria::Strict, &doc)
             .await;
         assert_eq!(result.len(), 1);
-        assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
+        assert!((result[0].confidence.get() - 0.9).abs() < f64::EPSILON);
     }
 
     #[tokio::test]
     async fn strict_preserves_non_overlapping() {
         let doc = Document::from_text("John......John").await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
             Entity::test_builder(10, 14).test_build(),
         ]
         .into();
@@ -185,7 +196,9 @@ mod tests {
     async fn normalized_groups_case_insensitive() {
         let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
             Entity::test_builder(0, 4)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
                     "test",
@@ -204,7 +217,9 @@ mod tests {
     async fn narrowing_groups_substring_with_overlap() {
         let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
             Entity::test_builder(0, 10)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
                     "test",
@@ -227,7 +242,9 @@ mod tests {
         let text = format!("{:<100}John Smith", TEST_TEXT);
         let doc = Document::from_text(&text).await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
             Entity::test_builder(100, 110)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
                     "test",
@@ -247,7 +264,9 @@ mod tests {
         let text = format!("{:<100}John Smith", TEST_TEXT);
         let doc = Document::from_text(&text).await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
             Entity::test_builder(100, 110)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
                     "test",
@@ -268,13 +287,15 @@ mod tests {
     async fn max_confidence_strategy() {
         let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.7))
+                .test_build(),
             Entity::test_builder(0, 4)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
                     "test",
                     ModelKind::SelfHosted,
                 )])
-                .with_confidence(0.85)
+                .with_confidence(conf(0.85))
                 .test_build(),
         ]
         .into();
@@ -282,20 +303,22 @@ mod tests {
             .fuse(entities, GroupingCriteria::default(), &doc)
             .await;
         assert_eq!(result.len(), 1);
-        assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
+        assert!((result[0].confidence.get() - 0.85).abs() < f64::EPSILON);
     }
 
     #[tokio::test]
     async fn noisy_or_strategy() {
         let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.7))
+                .test_build(),
             Entity::test_builder(0, 4)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
                     "test",
                     ModelKind::SelfHosted,
                 )])
-                .with_confidence(0.8)
+                .with_confidence(conf(0.8))
                 .test_build(),
         ]
         .into();
@@ -303,7 +326,7 @@ mod tests {
             .fuse(entities, GroupingCriteria::default(), &doc)
             .await;
         assert_eq!(result.len(), 1);
-        assert!((result[0].confidence - 0.94).abs() < 0.001);
+        assert!((result[0].confidence.get() - 0.94).abs() < 0.001);
     }
 
     #[tokio::test]
@@ -314,7 +337,9 @@ mod tests {
         weights.insert(RecognitionMethodKind::Ner, 2.0);
 
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.6).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.6))
+                .test_build(),
             Entity::test_builder(0, 4)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
                     "test",
@@ -327,7 +352,7 @@ mod tests {
             .fuse(entities, GroupingCriteria::default(), &doc)
             .await;
         assert_eq!(result.len(), 1);
-        assert!((result[0].confidence - 0.8).abs() < 0.001);
+        assert!((result[0].confidence.get() - 0.8).abs() < 0.001);
     }
 
     #[test]
@@ -335,10 +360,14 @@ mod tests {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Regex, 0.5);
 
-        let mut entities: Entities =
-            vec![Entity::test_builder(0, 4).with_confidence(0.8).test_build()].into();
+        let mut entities: Entities = vec![
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
+        ]
+        .into();
         calibration.calibrate(&mut entities);
-        assert!((entities[0].confidence - 0.4).abs() < f64::EPSILON);
+        assert!((entities[0].confidence.get() - 0.4).abs() < f64::EPSILON);
         assert!(
             entities[0]
                 .refinement_methods
@@ -351,10 +380,14 @@ mod tests {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Regex, 2.0);
 
-        let mut entities: Entities =
-            vec![Entity::test_builder(0, 4).with_confidence(0.8).test_build()].into();
+        let mut entities: Entities = vec![
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
+        ]
+        .into();
         calibration.calibrate(&mut entities);
-        assert!((entities[0].confidence - 1.0).abs() < f64::EPSILON);
+        assert!((entities[0].confidence.get() - 1.0).abs() < f64::EPSILON);
     }
 
     #[tokio::test]
@@ -367,7 +400,7 @@ mod tests {
                     "test",
                     ModelKind::SelfHosted,
                 )])
-                .with_confidence(0.7)
+                .with_confidence(conf(0.7))
                 .test_build(),
         ]
         .into();
@@ -382,7 +415,9 @@ mod tests {
     #[tokio::test]
     async fn fuse_merges_extraction_methods() {
         let doc = Document::from_text(TEST_TEXT).await;
-        let mut e1 = Entity::test_builder(0, 4).with_confidence(0.8).test_build();
+        let mut e1 = Entity::test_builder(0, 4)
+            .with_confidence(conf(0.8))
+            .test_build();
         e1.extraction_methods = vec![ExtractionMethod::DocumentParsing];
         let mut e2 = Entity::test_builder(0, 4)
             .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
@@ -402,7 +437,7 @@ mod tests {
         let mut e1 = Entity::test_builder(0, 4).test_build();
         let mut e2 = Entity::test_builder(0, 4)
             .with_recognition_methods(vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)])
-            .with_confidence(0.7)
+            .with_confidence(conf(0.7))
             .test_build();
         e1.language = None;
         e2.language = Some("en".parse().unwrap());
@@ -418,7 +453,9 @@ mod tests {
     async fn same_detector_duplicates_tagged_as_deduplication() {
         let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
             Entity::test_builder(0, 4)
                 .with_recognition_methods(vec![RecognitionMethod::regex("other")])
                 .test_build(),
@@ -439,7 +476,9 @@ mod tests {
     async fn different_detector_tagged_as_ensemble_fusion() {
         let doc = Document::from_text(TEST_TEXT).await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
             Entity::test_builder(0, 4)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
                     "test",
@@ -470,7 +509,7 @@ mod tests {
         let entities: Entities = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(10, 14)
-                .with_confidence(0.5)
+                .with_confidence(conf(0.5))
                 .test_build(),
         ]
         .into();
@@ -489,21 +528,25 @@ mod tests {
         };
         let op = Deduplication::new(&cfg);
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
-            Entity::test_builder(0, 4).with_confidence(0.8).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.7))
+                .test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.8))
+                .test_build(),
             Entity::test_builder(0, 4)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
                     "test",
                     ModelKind::SelfHosted,
                 )])
-                .with_confidence(0.85)
+                .with_confidence(conf(0.85))
                 .test_build(),
         ]
         .into();
 
         let result = op.deduplicate(entities, &doc).await;
         assert_eq!(result.len(), 1);
-        assert!((result[0].confidence - 0.85).abs() < f64::EPSILON);
+        assert!((result[0].confidence.get() - 0.85).abs() < f64::EPSILON);
     }
 
     #[tokio::test]
@@ -528,7 +571,7 @@ mod tests {
                 RecognitionMethod::regex("test"),
                 RecognitionMethod::ner("test", ModelKind::SelfHosted),
             ])
-            .with_confidence(1.0)
+            .with_confidence(conf(1.0))
             .with_location(Location::from(
                 TextLocation::builder()
                     .with_start_offset(0usize)
@@ -542,14 +585,14 @@ mod tests {
         let mut entities: Entities = vec![entity].into();
         calibration.calibrate(&mut entities);
         // max(0.5, 0.8) = 0.8; 1.0 * 0.8 = 0.8
-        assert!((entities[0].confidence - 0.8).abs() < f64::EPSILON);
+        assert!((entities[0].confidence.get() - 0.8).abs() < f64::EPSILON);
     }
 
     #[tokio::test]
     async fn single_entity_passes_through_unchanged() {
         let doc = Document::from_text("..........John").await;
         let entity = Entity::test_builder(10, 14)
-            .with_confidence(0.75)
+            .with_confidence(conf(0.75))
             .test_build();
         let entities: Entities = vec![entity.clone()].into();
         let result = MaxConfidence
@@ -558,7 +601,7 @@ mod tests {
         assert_eq!(result.len(), 1);
         let value = doc.value_at(&result[0].location).await;
         assert_eq!(value.as_deref(), Some("John"));
-        assert!((result[0].confidence - 0.75).abs() < f64::EPSILON);
+        assert!((result[0].confidence.get() - 0.75).abs() < f64::EPSILON);
     }
 
     #[tokio::test]
@@ -570,13 +613,15 @@ mod tests {
         // and should end up in one group via transitive overlap.
         let doc = Document::from_text("John Smith Jones").await;
         let entities: Entities = vec![
-            Entity::test_builder(0, 4).with_confidence(0.7).test_build(),
+            Entity::test_builder(0, 4)
+                .with_confidence(conf(0.7))
+                .test_build(),
             Entity::test_builder(0, 10)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
                     "test",
                     ModelKind::SelfHosted,
                 )])
-                .with_confidence(0.8)
+                .with_confidence(conf(0.8))
                 .test_build(),
             Entity::test_builder(0, 16)
                 .with_recognition_methods(vec![RecognitionMethod::ner(
@@ -590,6 +635,6 @@ mod tests {
             .fuse(entities, GroupingCriteria::Widening, &doc)
             .await;
         assert_eq!(result.len(), 1);
-        assert!((result[0].confidence - 0.9).abs() < f64::EPSILON);
+        assert!((result[0].confidence.get() - 0.9).abs() < f64::EPSILON);
     }
 }

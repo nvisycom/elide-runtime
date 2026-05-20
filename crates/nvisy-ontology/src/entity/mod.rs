@@ -31,7 +31,7 @@ pub use self::method::{
 };
 pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;
-use crate::primitive::LanguageTag;
+use crate::primitive::{Confidence, LanguageTag};
 
 /// A detected sensitive data occurrence within a document.
 #[derive(Debug, Clone, PartialEq, Builder)]
@@ -61,7 +61,7 @@ pub struct Entity {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refinement_methods: Vec<RefinementMethod>,
     /// Detection confidence score in the range `[0.0, 1.0]`.
-    pub confidence: f64,
+    pub confidence: Confidence,
     /// Modality-specific location of the entity within the document.
     pub location: Location,
     /// BCP-47 language tag of the detected content.
@@ -91,7 +91,7 @@ impl Entity {
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(0.9)
+            .with_confidence(Confidence::new(0.9).expect("0.9 in range"))
             .with_location(Location::from(
                 TextLocation::builder()
                     .with_start_offset(start)
@@ -155,7 +155,7 @@ impl Entities {
     pub fn above_confidence(&self, threshold: f64) -> Self {
         self.0
             .iter()
-            .filter(|e| e.confidence >= threshold)
+            .filter(|e| e.confidence.get() >= threshold)
             .cloned()
             .collect()
     }
@@ -181,7 +181,7 @@ mod tests {
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(confidence)
+            .with_confidence(Confidence::new(confidence).expect("in range"))
             .with_location(Location::from(
                 TextLocation::builder()
                     .with_start_offset(0usize)

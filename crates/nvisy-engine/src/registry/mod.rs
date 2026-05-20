@@ -7,12 +7,12 @@
 //! [`ResourceCache`] provides generic ref-counted caching on top of
 //! the store, used for contexts and policies.
 
-mod resource_cache;
+mod composite_key;
 mod content_handle;
 mod fjall_ext;
-mod composite_key;
 mod registry_store;
+mod resource_cache;
 
-pub use self::resource_cache::{ResourceCache, ResourceGuard};
 pub use self::content_handle::ContentHandle;
 pub use self::registry_store::Registry;
+pub use self::resource_cache::{ResourceCache, ResourceGuard};

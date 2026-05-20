@@ -133,11 +133,11 @@ mod tests {
     fn merge_overrides_present_sections() {
         let base = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_provider::http::HttpConfig {
+                http: Some(nvisy_rig::http::HttpConfig {
                     max_retries: 3,
-                    timeout_secs: 120,
-                    connect_timeout_secs: 10,
-                    idle_timeout_secs: 90,
+                    timeout: std::time::Duration::from_secs(120),
+                    connect_timeout: std::time::Duration::from_secs(10),
+                    idle_timeout: std::time::Duration::from_secs(90),
                 }),
                 ..Default::default()
             }),
@@ -145,11 +145,11 @@ mod tests {
         };
         let overrides = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_provider::http::HttpConfig {
+                http: Some(nvisy_rig::http::HttpConfig {
                     max_retries: 1,
-                    timeout_secs: 30,
-                    connect_timeout_secs: 5,
-                    idle_timeout_secs: 60,
+                    timeout: std::time::Duration::from_secs(30),
+                    connect_timeout: std::time::Duration::from_secs(5),
+                    idle_timeout: std::time::Duration::from_secs(60),
                 }),
                 ..Default::default()
             }),
@@ -163,11 +163,11 @@ mod tests {
     fn merge_falls_back_to_base() {
         let base = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_provider::http::HttpConfig {
+                http: Some(nvisy_rig::http::HttpConfig {
                     max_retries: 3,
-                    timeout_secs: 120,
-                    connect_timeout_secs: 10,
-                    idle_timeout_secs: 90,
+                    timeout: std::time::Duration::from_secs(120),
+                    connect_timeout: std::time::Duration::from_secs(10),
+                    idle_timeout: std::time::Duration::from_secs(90),
                 }),
                 ..Default::default()
             }),

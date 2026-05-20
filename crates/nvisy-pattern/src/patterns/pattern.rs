@@ -205,4 +205,3 @@ pub(crate) mod sealed {
     pub trait Sealed {}
     impl Sealed for super::super::json_pattern::JsonPattern {}
 }
-

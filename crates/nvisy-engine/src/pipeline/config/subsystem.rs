@@ -1,7 +1,8 @@
 //! Provider subsystem configuration sections (OCR, LLM, STT, TTS).
 
-use nvisy_provider::agent::{AgentConfig, AgentProvider};
-use nvisy_provider::audio::{SttProvider, TtsProvider};
+use nvisy_ocr::{OcrProvider, RunParams as OcrRunParams};
+use nvisy_rig::agent::{AgentConfig, AgentProvider};
+use nvisy_rig::audio::{SttProvider, TtsProvider};
 use serde::{Deserialize, Serialize};
 
 /// OCR subsystem configuration.
@@ -11,9 +12,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OcrSection {
     /// OCR provider selection and connection settings.
-    pub provider: Option<nvisy_provider::agent::OcrProvider>,
+    pub provider: Option<OcrProvider>,
     /// OCR runtime parameters (confidence thresholds, etc.).
-    pub policy: Option<nvisy_provider::agent::RunParams>,
+    pub policy: Option<OcrRunParams>,
 }
 
 /// LLM subsystem configuration.

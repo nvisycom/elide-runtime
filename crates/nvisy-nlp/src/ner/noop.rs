@@ -1,0 +1,60 @@
+//! [`NoopNerBackend`] — returns no entities. Intended for tests and
+//! for assembling an [`Engine`] when only tokenization or language
+//! detection is needed.
+//!
+//! Gated behind the `test-utils` feature so production builds don't
+//! ship the no-op fallback; downstream test crates that need it
+//! enable the feature in their `[dev-dependencies]`.
+//!
+//! [`Engine`]: crate::engine::Engine
+
+use async_trait::async_trait;
+use nvisy_ontology::entity::Entities;
+use nvisy_ontology::primitive::LanguageTag;
+
+use super::NerBackend;
+use crate::error::Result;
+
+/// A [`NerBackend`] that produces no entities.
+///
+/// Useful in unit tests that need an `Engine` without a real
+/// model, and as a placeholder in pipelines where NER is opt-in and
+/// the caller chose to opt out.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoopNerBackend;
+
+impl NoopNerBackend {
+    /// Construct an empty backend.
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait]
+impl NerBackend for NoopNerBackend {
+    async fn recognize(&self, _text: &str, _language: Option<&LanguageTag>) -> Result<Entities> {
+        Ok(Entities::new())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn returns_no_entities() {
+        let backend = NoopNerBackend::new();
+        let entities = backend.recognize("anything", None).await.unwrap();
+        assert!(entities.is_empty());
+    }
+
+    #[tokio::test]
+    async fn default_constructs_same_backend() {
+        let backend = NoopNerBackend;
+        let entities = backend.recognize("anything", None).await.unwrap();
+        assert!(entities.is_empty());
+
+        // Default-derived constructor produces an equivalent instance.
+        let _default: NoopNerBackend = Default::default();
+    }
+}

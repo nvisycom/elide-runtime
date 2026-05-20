@@ -8,8 +8,8 @@ use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 use uuid::Uuid;
 
-use super::fjall_ext::{FjallKeyspaceExt, blocking, not_found};
 use super::composite_key::CompositeKey;
+use super::fjall_ext::{FjallKeyspaceExt, blocking, not_found};
 
 /// Lightweight handle to a content entry stored in the registry.
 ///

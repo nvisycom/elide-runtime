@@ -1,18 +1,22 @@
 //! Visual extraction operation.
 //!
-//! Extracts text and entities from image documents by running OCR,
-//! optionally verifying detected entities against the source image,
-//! and optionally running computer vision.
+//! Extracts text and entities from image documents by running OCR
+//! against an [`OcrEngine`], optionally verifying detected entities
+//! against the source image via an [`EntityVerifier`], and
+//! optionally running computer vision.
+//!
+//! [`OcrEngine`]: nvisy_ocr::OcrEngine
+//! [`EntityVerifier`]: nvisy_rig::agent::EntityVerifier
 
+use bytes::Bytes;
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, ErrorKind, Result};
+use nvisy_ocr::http::{HttpClient as OcrHttpClient, HttpConfig as OcrHttpConfig};
+use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{Entities, ImageLocation};
 use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
-use nvisy_provider::agent::{
-    ImageFormat, ImageInput, ImageOutput, OcrAgent, VerificationCandidate,
-};
-use nvisy_provider::http::HttpClient;
+use nvisy_rig::agent::{EntityVerifier, ProposedEntity, VerificationCandidate};
 
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
@@ -21,16 +25,14 @@ const TARGET: &str = "nvisy_engine::op::extraction::visual";
 
 /// Visual extraction operation: OCR + optional verification + optional CV.
 pub(super) struct VisualExtraction {
-    agent: OcrAgent,
+    engine: OcrEngine,
+    params: RunParams,
+    verifier: Option<EntityVerifier>,
 }
 
 impl VisualExtraction {
     /// Build from graph config and runtime dependencies.
-    pub fn new(
-        cfg: &VisualExtractionCfg,
-        config: &RuntimeConfig,
-        http_client: &HttpClient,
-    ) -> Result<Self> {
+    pub fn new(cfg: &VisualExtractionCfg, config: &RuntimeConfig) -> Result<Self> {
         let ocr_section = config.ocr.as_ref();
         let ocr_provider = ocr_section
             .and_then(|s| s.provider.clone())
@@ -40,31 +42,38 @@ impl VisualExtraction {
                     "visual extraction requires an OCR provider",
                 )
             })?;
-        let ocr_params = ocr_section
+        let params = ocr_section
             .and_then(|s| s.policy.clone())
             .unwrap_or_default();
 
-        let mut agent = OcrAgent::new(ocr_provider, ocr_params, http_client);
+        // Construct an OCR-side HTTP client. Tuning lives on
+        // RuntimeConfig::engine::http in rig-typed form for now;
+        // we keep defaults here and revisit if OCR providers need
+        // independent tuning.
+        let ocr_http_client = OcrHttpClient::new(&OcrHttpConfig::default())
+            .map_err(|e| Error::runtime(e.to_string(), "ocr-http-client", false))?;
+        let engine = ocr_provider.into_engine_with_client(ocr_http_client);
 
-        if cfg.verification {
+        let verifier = if cfg.verification {
             let llm = config.llm.as_ref();
-            let llm_provider = llm.and_then(|s| s.provider.as_ref());
-            let llm_config = llm.and_then(|s| s.policy.clone()).unwrap_or_default();
-
-            match llm_provider {
+            match llm.and_then(|s| s.provider.as_ref()) {
                 Some(provider) => {
-                    agent = agent
-                        .with_verification(provider, llm_config)
-                        .map_err(|e| Error::runtime(e.to_string(), "ocr-agent", false))?;
+                    let llm_config = llm.and_then(|s| s.policy.clone()).unwrap_or_default();
+                    let v = EntityVerifier::new(provider, llm_config)
+                        .map_err(|e| Error::runtime(e.to_string(), "entity-verifier", false))?;
+                    Some(v)
                 }
                 None => {
                     tracing::warn!(
                         target: TARGET,
                         "OCR verification requires an LLM provider, skipping"
                     );
+                    None
                 }
             }
-        }
+        } else {
+            None
+        };
 
         if cfg.entity_detection {
             tracing::warn!(
@@ -73,7 +82,11 @@ impl VisualExtraction {
             );
         }
 
-        Ok(Self { agent })
+        Ok(Self {
+            engine,
+            params,
+            verifier,
+        })
     }
 
     /// Run OCR extraction on a batch of image spans.
@@ -92,12 +105,13 @@ impl VisualExtraction {
                 ))
             })
             .collect::<Result<Vec<_>>>()?;
-        self.agent.run_batch(&inputs).await
+        self.engine.run_batch(&inputs, &self.params).await
     }
 
     /// Verify detected entities against the source images.
     async fn verify(
         &self,
+        verifier: &EntityVerifier,
         spans: &[Span<ImageLocation, ImageData>],
         entities: Entities,
         document: &crate::operation::Document,
@@ -108,8 +122,11 @@ impl VisualExtraction {
 
         let mut verified = entities.into_inner();
         for span in spans {
-            let png_bytes = span.data.encode_png()?;
-            let image = ImageInput::with_source(span.source, png_bytes, ImageFormat::Png);
+            if verified.is_empty() {
+                break;
+            }
+            let png_bytes: Bytes = span.data.encode_png()?;
+
             let mut candidates = Vec::with_capacity(verified.len());
             for entity in verified {
                 let value = document
@@ -118,11 +135,20 @@ impl VisualExtraction {
                     .unwrap_or_default();
                 candidates.push(VerificationCandidate { entity, value });
             }
-            verified = self
-                .agent
-                .verify_entities(&image, candidates)
+
+            let proposed: Vec<ProposedEntity> = candidates
+                .iter()
+                .enumerate()
+                .map(|(i, c)| ProposedEntity::from_entity(i, &c.entity, &c.value))
+                .collect();
+            let entities_only: Vec<_> = candidates.into_iter().map(|c| c.entity).collect();
+
+            let output = verifier
+                .verify(&png_bytes, &proposed)
                 .await
-                .map_err(|e| Error::runtime(e.to_string(), "ocr-verification", e.is_retryable()))?;
+                .map_err(|e| Error::runtime(e.to_string(), "entity-verifier", e.is_retryable()))?;
+
+            verified = output.merge(entities_only);
         }
         Ok(verified.into())
     }
@@ -164,10 +190,13 @@ impl Operation for VisualExtraction {
             }
         }
 
-        if self.agent.has_verifier() && !envelope.audit.entities.is_empty() {
+        if let Some(ref verifier) = self.verifier
+            && !envelope.audit.entities.is_empty()
+        {
             let verify_spans = Self::collect_spans(&envelope.document).await;
             match self
                 .verify(
+                    verifier,
                     &verify_spans,
                     envelope.audit.entities.clone(),
                     &envelope.document,

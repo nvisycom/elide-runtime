@@ -16,7 +16,6 @@ mod vision;
 use nvisy_codec::ContentHandle;
 use nvisy_core::Result;
 use nvisy_ontology::workflow::Extraction as ExtractionConfig;
-use nvisy_provider::http::HttpClient;
 
 use self::speech::AudialExtraction;
 use self::vision::VisualExtraction;
@@ -39,19 +38,20 @@ pub struct Extraction {
 impl Extraction {
     /// Build from extraction config and runtime dependencies.
     ///
-    /// Each modality is constructed independently. Missing providers
-    /// result in that modality being `None` (skipped at runtime),
-    /// not an error.
-    pub fn new(cfg: &ExtractionConfig, config: &RuntimeConfig, http_client: &HttpClient) -> Self {
+    /// Each modality is constructed independently and provisions
+    /// its own HTTP client(s) from `RuntimeConfig`. Missing
+    /// providers result in that modality being `None` (skipped at
+    /// runtime), not an error.
+    pub fn new(cfg: &ExtractionConfig, config: &RuntimeConfig) -> Self {
         let visual_cfg = cfg.visual.clone().unwrap_or_default();
-        let visual = VisualExtraction::new(&visual_cfg, config, http_client)
+        let visual = VisualExtraction::new(&visual_cfg, config)
             .inspect_err(|e| {
                 tracing::debug!(target: TARGET, error = %e, "visual extraction unavailable");
             })
             .ok();
 
         let audial_cfg = cfg.audial.clone().unwrap_or_default();
-        let audial = AudialExtraction::new(&audial_cfg, config, http_client)
+        let audial = AudialExtraction::new(&audial_cfg, config)
             .inspect_err(|e| {
                 tracing::debug!(target: TARGET, error = %e, "audial extraction unavailable");
             })

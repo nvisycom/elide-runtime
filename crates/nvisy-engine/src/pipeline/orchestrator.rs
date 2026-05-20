@@ -13,8 +13,10 @@ use std::future::Future;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::workflow::{ConcurrencyPolicy, Detection, Extraction as ExtractionConfig};
-use nvisy_provider::http::HttpClient;
+use nvisy_detection::DetectionEngine;
+use nvisy_ontology::workflow::{
+    ConcurrencyPolicy, Detection as DetectionConfig, Extraction as ExtractionConfig,
+};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -23,8 +25,8 @@ use super::config::RuntimeConfig;
 use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
 use crate::graph::TimeoutExt;
 use crate::operation::{
-    Deduplication, DocumentEnvelope, EntityRecognition, ExportFile, Extraction, GenerateContext,
-    ImportFile, Operation, PatternRecognition, Redaction, SharedData, Validation,
+    Deduplication, Detection, DocumentEnvelope, ExportFile, Extraction, GenerateContext,
+    ImportFile, Operation, Redaction, SharedData, Validation,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -37,8 +39,10 @@ pub(super) struct RunContext {
     pub shared: Arc<SharedData>,
     /// Effective configuration after merging per-request overrides.
     pub config: Arc<RuntimeConfig>,
-    /// Shared HTTP client for downstream API calls.
-    pub http_client: HttpClient,
+    /// Optional shared detection engine. `None` skips the
+    /// detection phase entirely (e.g. for redaction-only or
+    /// validation-only pipelines).
+    pub detection_engine: Option<Arc<DetectionEngine>>,
     /// Optional limit on how many documents may process concurrently.
     pub concurrency: Option<ConcurrencyPolicy>,
     /// When `true`, skip redaction, validation, and export phases.
@@ -248,33 +252,34 @@ impl DocumentPipeline {
         cfg: &ExtractionConfig,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
-        Extraction::new(cfg, &self.ctx.config, &self.ctx.http_client)
+        Extraction::new(cfg, &self.ctx.config)
             .execute(envelope)
             .await
     }
 
-    /// Run detection methods sequentially.
+    /// Run detection through the attached
+    /// [`DetectionEngine`]. The engine is constructed externally
+    /// (see [`Engine::with_detection_engine`]) with whatever
+    /// recognizers the user wants. When no engine is attached,
+    /// the detection phase is a no-op.
     ///
-    /// NER and Pattern are logically independent but both mutate the
-    /// envelope (appending to `audit.entities`), so they run
-    /// sequentially on the same `&mut` reference. NER silently skips
-    /// if no LLM provider is configured.
+    /// The workflow [`DetectionConfig`] is currently ignored at
+    /// this layer — recognizer composition (NER, pattern, LLM)
+    /// happens at engine-construction time. A future change may
+    /// thread per-call hints (`candidate_languages`,
+    /// `score_threshold`, `scan_context`) from the config into
+    /// the `DetectionContext`.
+    ///
+    /// [`Engine::with_detection_engine`]: crate::pipeline::Engine::with_detection_engine
     async fn run_detection(
         &self,
-        cfg: &Detection,
+        _cfg: &DetectionConfig,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
-        let ner_cfg = cfg.ner.clone().unwrap_or_default();
-        if let Ok(op) =
-            EntityRecognition::new(&ner_cfg, &self.ctx.config, &self.ctx.http_client).await
-        {
+        if let Some(ref engine) = self.ctx.detection_engine {
+            let op = Detection::new(Arc::clone(engine));
             op.execute(envelope).await?;
         }
-
-        let pat_cfg = cfg.pattern.clone().unwrap_or_default();
-        let op = PatternRecognition::new(&pat_cfg);
-        op.execute(envelope).await?;
-
         Ok(())
     }
 

@@ -171,7 +171,7 @@ async fn evaluate(
                         "matched non-redact, non-suppress action; falling through to default",
                     );
                 }
-                if entity.confidence < default_threshold {
+                if entity.confidence.get() < default_threshold {
                     continue;
                 }
                 (Strategy::default(), None)
@@ -290,13 +290,14 @@ impl ConditionExt for Condition {
 mod tests {
     use nvisy_ontology::entity::Entity;
     use nvisy_ontology::policy::{EntitySelector, TextStrategy};
+    use nvisy_ontology::primitive::Confidence;
 
     use super::*;
     use crate::operation::Document;
 
     fn test_entity(value: &str, confidence: f64) -> Entity {
         Entity::test_builder(0, value.len())
-            .with_confidence(confidence)
+            .with_confidence(Confidence::new(confidence).expect("in range"))
             .test_build()
     }
 

@@ -109,10 +109,7 @@ impl PatternRegistry {
 
             let (pattern, warnings) = JsonPattern::from_bytes(file.contents(), &validators)
                 .unwrap_or_else(|e| {
-                    panic!(
-                        "built-in pattern '{}' failed to parse: {e}",
-                        path.display(),
-                    )
+                    panic!("built-in pattern '{}' failed to parse: {e}", path.display(),)
                 });
 
             Self::log_warnings(&warnings);

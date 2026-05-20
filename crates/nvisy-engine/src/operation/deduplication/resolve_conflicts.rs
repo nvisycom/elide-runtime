@@ -85,12 +85,12 @@ impl ConflictResolutionExt for ConflictResolution {
 
     fn should_keep_first(&self, a: &Entity, b: &Entity) -> bool {
         match self {
-            Self::HighestConfidence => a.confidence >= b.confidence,
+            Self::HighestConfidence => a.confidence.get() >= b.confidence.get(),
             Self::HighestSensitivity => match (a.sensitivity, b.sensitivity) {
                 (Some(sa), Some(sb)) => sa >= sb,
                 (Some(_), None) => true,
                 (None, Some(_)) => false,
-                (None, None) => a.confidence >= b.confidence,
+                (None, None) => a.confidence.get() >= b.confidence.get(),
             },
             Self::LongestSpan => {
                 a.location.span_cmp(&b.location).unwrap_or(Ordering::Equal) != Ordering::Less
@@ -103,8 +103,13 @@ impl ConflictResolutionExt for ConflictResolution {
 #[cfg(test)]
 mod tests {
     use nvisy_ontology::entity::{Entity, EntityKind};
+    use nvisy_ontology::primitive::Confidence;
 
     use super::*;
+
+    fn conf(v: f64) -> Confidence {
+        Confidence::new(v).expect("confidence in [0,1]")
+    }
 
     #[test]
     fn highest_confidence_keeps_winner() {
@@ -114,7 +119,7 @@ mod tests {
                 .test_build(),
             Entity::test_builder(0, 8)
                 .with_entity_kind(EntityKind::EmailAddress)
-                .with_confidence(0.8)
+                .with_confidence(conf(0.8))
                 .test_build(),
         ]
         .into();
@@ -131,7 +136,7 @@ mod tests {
                 .test_build(),
             Entity::test_builder(20, 24)
                 .with_entity_kind(EntityKind::EmailAddress)
-                .with_confidence(0.8)
+                .with_confidence(conf(0.8))
                 .test_build(),
         ]
         .into();
@@ -147,7 +152,7 @@ mod tests {
                 .test_build(),
             Entity::test_builder(0, 8)
                 .with_entity_kind(EntityKind::PhoneNumber)
-                .with_confidence(0.8)
+                .with_confidence(conf(0.8))
                 .test_build(),
         ]
         .into();
@@ -163,7 +168,7 @@ mod tests {
                 .test_build(),
             Entity::test_builder(0, 8)
                 .with_entity_kind(EntityKind::EmailAddress)
-                .with_confidence(0.7)
+                .with_confidence(conf(0.7))
                 .test_build(),
         ]
         .into();

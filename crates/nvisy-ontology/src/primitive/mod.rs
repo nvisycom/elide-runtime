@@ -6,6 +6,7 @@
 mod bounding_box;
 mod bounding_box_pixel;
 mod color;
+mod confidence;
 mod dpi;
 mod language_tag;
 mod polygon;
@@ -14,6 +15,7 @@ mod time_span;
 pub use self::bounding_box::BoundingBox;
 pub use self::bounding_box_pixel::BoundingBoxPixel;
 pub use self::color::Color;
+pub use self::confidence::Confidence;
 pub use self::dpi::Dpi;
 pub use self::language_tag::LanguageTag;
 pub use self::polygon::{Polygon, Vertex};

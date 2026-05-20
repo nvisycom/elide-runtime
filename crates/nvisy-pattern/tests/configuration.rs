@@ -41,11 +41,11 @@ fn context_boost_applied_when_keyword_present() {
         .find(|e| e.entity_kind == EntityKind::GovernmentId)
         .expect("should detect SSN without keyword");
 
+    let boosted_conf = boosted.confidence.get();
+    let unboosted_conf = unboosted.confidence.get();
     assert!(
-        boosted.confidence > unboosted.confidence,
-        "confidence with keyword ({}) should exceed without ({})",
-        boosted.confidence,
-        unboosted.confidence,
+        boosted_conf > unboosted_conf,
+        "confidence with keyword ({boosted_conf}) should exceed without ({unboosted_conf})",
     );
 }
 

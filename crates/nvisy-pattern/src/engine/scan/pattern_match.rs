@@ -1,12 +1,16 @@
 //! [`RawMatch`]: internal output type from pattern scan phases.
 //!
-//! Lives in the [`scan`](super) module because it is the shared
-//! exchange type between [`phases`](super::phases) and
-//! [`dedup`](super::dedup).
+//! Lives in the [`scan`] module because it is the shared exchange
+//! type between [`phases`] and [`dedup`].
+//!
+//! [`scan`]: super
+//! [`phases`]: super::phases
+//! [`dedup`]: super::dedup
 
 use nvisy_ontology::entity::{
     Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
 };
+use nvisy_ontology::primitive::Confidence;
 use smallvec::SmallVec;
 
 use crate::patterns::ContextRule;
@@ -42,58 +46,6 @@ pub(crate) struct RawMatch {
 }
 
 impl RawMatch {
-    /// Apply context-based confidence adjustment.
-    ///
-    /// Searches the surrounding text (within `window` characters of the
-    /// match boundaries) for any of the context rule's keywords. If at
-    /// least one is found, boosts confidence by `boost`. If none are
-    /// found, reduces confidence by `penalty`. Both are clamped to
-    /// `[0.0, 1.0]`.
-    pub fn apply_context_adjustment(&mut self, text: &str) {
-        let rule = match &self.context {
-            Some(r) => r,
-            None => return,
-        };
-
-        let search_start = self.start.saturating_sub(rule.window);
-        let search_end = (self.end + rule.window).min(text.len());
-        let window_text = &text[search_start..search_end];
-
-        let found = if rule.case_sensitive {
-            rule.keywords
-                .iter()
-                .any(|kw| window_text.contains(kw.as_str()))
-        } else {
-            let lower = window_text.to_lowercase();
-            rule.keywords
-                .iter()
-                .any(|kw| lower.contains(&kw.to_lowercase()))
-        };
-
-        let adjusted = if found {
-            self.confidence = (self.confidence + rule.boost).clamp(0.0, 1.0);
-            true
-        } else if rule.penalty > 0.0 {
-            self.confidence = (self.confidence - rule.penalty).clamp(0.0, 1.0);
-            true
-        } else {
-            false
-        };
-
-        if adjusted {
-            for m in &mut self.recognition_methods {
-                match m {
-                    RecognitionMethod::Regex(p)
-                    | RecognitionMethod::Dictionary(p)
-                    | RecognitionMethod::CrossReference(p) => {
-                        p.contextual_analysis = true;
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-
     /// Build an [`Entity`] from this match.
     ///
     /// The returned entity has no location or parent set: the caller
@@ -103,11 +55,17 @@ impl RawMatch {
             !self.recognition_methods.is_empty(),
             "RawMatch::into_entity requires at least one recognition method"
         );
+        // RawMatch::confidence is bounded to [0,1] by the pattern
+        // engine's context-aware enhancer (see ContextEnhancer in
+        // scan/enhancer.rs). Clamp defensively to absorb any float
+        // rounding before the Confidence constructor would reject it.
+        let confidence =
+            Confidence::new(self.confidence.clamp(0.0, 1.0)).expect("clamped value is in [0,1]");
         Entity::builder()
             .with_category(self.category)
             .with_entity_kind(self.entity_kind)
             .with_recognition_methods(self.recognition_methods.into_vec())
-            .with_confidence(self.confidence)
+            .with_confidence(confidence)
             .with_location(Location::from(
                 TextLocation::builder()
                     .with_start_offset(self.start)

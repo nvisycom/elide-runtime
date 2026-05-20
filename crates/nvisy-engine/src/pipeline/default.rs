@@ -14,7 +14,6 @@ use nvisy_core::Error;
 use nvisy_ontology::policy::PolicyRef;
 use nvisy_ontology::provenance::Audit;
 use nvisy_ontology::workflow::Graph;
-use nvisy_provider::http::HttpClient;
 use schemars::JsonSchema;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -76,12 +75,15 @@ pub struct EngineOutput {
 pub(super) struct EngineInner {
     /// Base configuration, merged with per-request overrides at runtime.
     pub runtime_config: RuntimeConfig,
-    /// Shared HTTP client for all downstream API calls.
-    pub http_client: HttpClient,
     /// Content and context storage backend.
     pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
     pub key_provider: Option<SharedKeyProvider>,
+    /// Optional [`nvisy_detection::DetectionEngine`] shared across
+    /// runs. When `Some`, the detection phase dispatches every
+    /// text span through it. When `None`, the detection phase is a
+    /// no-op.
+    pub detection_engine: Option<Arc<nvisy_detection::DetectionEngine>>,
     /// In-memory run lifecycle tracker (volatile: lost on restart).
     pub runs: RunState,
     /// Background pipeline tasks spawned by [`Engine::submit`].
@@ -107,7 +109,6 @@ impl fmt::Debug for Engine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Engine")
             .field("runtime_config", &self.inner.runtime_config)
-            .field("http_client", &self.inner.http_client)
             .finish()
     }
 }
@@ -115,8 +116,9 @@ impl fmt::Debug for Engine {
 impl Engine {
     /// Open a new engine with the given configuration and data directory.
     ///
-    /// Constructs the HTTP client, registry, and run state from the
-    /// provided config.
+    /// Constructs the registry and run state. HTTP clients are now
+    /// the responsibility of individual extraction ops, which build
+    /// them per-call from `RuntimeConfig`.
     ///
     /// # Errors
     ///
@@ -124,19 +126,12 @@ impl Engine {
     pub fn open(data_dir: impl AsRef<Path>, config: RuntimeConfig) -> Result<Self, Error> {
         let registry = Registry::open(data_dir.as_ref())?;
 
-        let http_config = config
-            .engine
-            .as_ref()
-            .and_then(|e| e.http.clone())
-            .unwrap_or_default();
-        let http_client = HttpClient::new(&http_config)?;
-
         Ok(Self {
             inner: Arc::new(EngineInner {
                 runtime_config: config,
-                http_client,
                 registry,
                 key_provider: None,
+                detection_engine: None,
                 runs: RunState::new(),
                 background_tasks: Mutex::new(JoinSet::new()),
             }),
@@ -175,14 +170,28 @@ impl Engine {
         self
     }
 
+    /// Attach a shared [`nvisy_detection::DetectionEngine`]
+    /// composed externally with whatever recognizers the user
+    /// wants (NER, pattern, LLM, custom).
+    ///
+    /// When set, the detection phase dispatches every text span
+    /// through this engine. When unset, the detection phase is a
+    /// no-op (e.g. for redaction-only pipelines with no
+    /// detection).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the engine has already been cloned (Arc is shared).
+    pub fn with_detection_engine(mut self, engine: Arc<nvisy_detection::DetectionEngine>) -> Self {
+        Arc::get_mut(&mut self.inner)
+            .expect("engine must not be shared during construction")
+            .detection_engine = Some(engine);
+        self
+    }
+
     /// Returns the base runtime configuration before per-request overrides.
     pub fn config(&self) -> &RuntimeConfig {
         &self.inner.runtime_config
-    }
-
-    /// Returns the shared HTTP client.
-    pub fn http_client(&self) -> &HttpClient {
-        &self.inner.http_client
     }
 
     /// Returns the content and context registry.
@@ -199,8 +208,8 @@ impl Engine {
     fn pipeline(&self) -> Pipeline {
         Pipeline::new(
             self.inner.registry.clone(),
-            self.inner.http_client.clone(),
             self.inner.key_provider.clone(),
+            self.inner.detection_engine.clone(),
             self.inner.runs.clone(),
             self.inner.runtime_config.clone(),
         )

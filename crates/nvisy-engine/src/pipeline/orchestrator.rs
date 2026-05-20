@@ -41,7 +41,7 @@ pub(super) struct RunContext {
     pub config: Arc<RuntimeConfig>,
     /// Shared HTTP client for downstream API calls.
     pub http_client: HttpClient,
-    /// Optional offline NER backend shared across all documents.
+    /// Optional [`NerBackend`] shared across all documents.
     ///
     /// `None` skips the [`NerRecognition`](crate::operation::NerRecognition)
     /// stage; the LLM-driven [`LlmRecognition`](crate::operation::LlmRecognition)
@@ -263,11 +263,12 @@ impl DocumentPipeline {
 
     /// Run detection methods sequentially.
     ///
-    /// LLM, offline NER, and Pattern are logically independent but
-    /// all mutate the envelope (appending to `audit.entities`), so
-    /// they run sequentially on the same `&mut` reference. Each
-    /// silently skips when its prerequisite is missing: LLM
-    /// recognition needs an LLM provider; offline NER needs an
+    /// LLM recognition, [`NerBackend`]-driven NER, and pattern
+    /// matching are logically independent but all mutate the
+    /// envelope (appending to `audit.entities`), so they run
+    /// sequentially on the same `&mut` reference. Each silently
+    /// skips when its prerequisite is missing: LLM recognition needs
+    /// an LLM provider; NER recognition needs an
     /// `Arc<dyn NerBackend>` on the run context; pattern recognition
     /// always runs.
     async fn run_detection(

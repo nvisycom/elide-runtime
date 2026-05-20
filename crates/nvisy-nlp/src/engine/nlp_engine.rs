@@ -12,8 +12,8 @@ use std::sync::Arc;
 use nvisy_ontology::primitive::LanguageTag;
 
 use super::NlpEngineBuilder;
-use crate::artifacts::{NlpArtifacts, Token};
-use crate::error::NlpError;
+use crate::artifacts::{Artifacts, Token};
+use crate::error::Result;
 use crate::language::{LanguageDetection, LanguageDetector};
 use crate::ner::NerBackend;
 use crate::tokenizer::Tokenizer;
@@ -50,8 +50,8 @@ impl NlpEngine {
 
     /// Run all configured components, detecting the language from
     /// `text` first.
-    pub async fn analyze(&self, text: &str) -> Result<NlpArtifacts, NlpError> {
-        let detection = self.language.detect(text);
+    pub async fn analyze(&self, text: &str) -> Result<Artifacts> {
+        let detection = self.language.detect(text)?;
         self.run(text, detection).await
     }
 
@@ -60,13 +60,13 @@ impl NlpEngine {
     ///
     /// Use this when the language is known a priori (uploaded with
     /// metadata, set by a UI selector, etc.). The asserted language
-    /// is attached to [`NlpArtifacts::language`] with `confidence:
-    /// None` to mark its provenance as "asserted, not detected".
+    /// is attached to [`Artifacts::language`] with `confidence: None`
+    /// to mark its provenance as "asserted, not detected".
     pub async fn analyze_in_language(
         &self,
         text: &str,
         language: LanguageTag,
-    ) -> Result<NlpArtifacts, NlpError> {
+    ) -> Result<Artifacts> {
         let detection = Some(LanguageDetection {
             language,
             confidence: None,
@@ -78,7 +78,7 @@ impl NlpEngine {
         &self,
         text: &str,
         detection: Option<LanguageDetection>,
-    ) -> Result<NlpArtifacts, NlpError> {
+    ) -> Result<Artifacts> {
         let language_hint = detection.as_ref().map(|d| &d.language);
         let entities = self.ner.recognize(text, language_hint).await?;
         let tokens = match &self.tokenizer {
@@ -88,7 +88,7 @@ impl NlpEngine {
         let keywords = tokens.as_deref().map(derive_keywords);
         let language = detection.map(|d| d.language);
 
-        Ok(NlpArtifacts {
+        Ok(Artifacts {
             entities,
             language,
             tokens,

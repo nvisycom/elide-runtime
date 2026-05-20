@@ -3244,6 +3244,7 @@ dependencies = [
  "nvisy-codec",
  "nvisy-core",
  "nvisy-engine",
+ "nvisy-nlp",
  "nvisy-ontology",
  "nvisy-pattern",
  "nvisy-provider",

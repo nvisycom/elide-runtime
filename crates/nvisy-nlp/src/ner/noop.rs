@@ -9,7 +9,7 @@ use nvisy_ontology::entity::Entities;
 use nvisy_ontology::primitive::LanguageTag;
 
 use super::NerBackend;
-use crate::error::NlpError;
+use crate::error::Result;
 
 /// A [`NerBackend`] that produces no entities.
 ///
@@ -32,7 +32,7 @@ impl NerBackend for NoopNerBackend {
         &self,
         _text: &str,
         _language: Option<&LanguageTag>,
-    ) -> Result<Entities, NlpError> {
+    ) -> Result<Entities> {
         Ok(Entities::new())
     }
 }

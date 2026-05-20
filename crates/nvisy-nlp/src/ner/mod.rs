@@ -16,7 +16,7 @@ use async_trait::async_trait;
 use nvisy_ontology::entity::{Entities, EntityKind};
 use nvisy_ontology::primitive::LanguageTag;
 
-use crate::error::NlpError;
+use crate::error::Result;
 
 /// Recognize entities in text.
 ///
@@ -27,7 +27,8 @@ use crate::error::NlpError;
 /// `language` is **advisory**. Multilingual models may ignore it;
 /// monolingual models should validate it against
 /// [`supported_languages`](Self::supported_languages) and may return
-/// [`NlpError::UnsupportedLanguage`] if the hint disagrees.
+/// [`Error::UnsupportedLanguage`](crate::Error::UnsupportedLanguage)
+/// if the hint disagrees.
 #[async_trait]
 pub trait NerBackend: Send + Sync {
     /// Recognize entities in `text`.
@@ -35,7 +36,7 @@ pub trait NerBackend: Send + Sync {
         &self,
         text: &str,
         language: Option<&LanguageTag>,
-    ) -> Result<Entities, NlpError>;
+    ) -> Result<Entities>;
 
     /// Languages this backend was trained or configured for.
     ///

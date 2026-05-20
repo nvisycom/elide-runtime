@@ -8,17 +8,17 @@
 //! Pure-Unicode implementations cannot fail; their `tokenize` always
 //! returns `Ok`.
 
-mod hf;
+mod hugging_face;
 mod stopword_lang;
 mod unicode;
 
-pub use self::hf::HfTokenizer;
+pub use self::hugging_face::HfTokenizer;
 pub use self::unicode::UnicodeTokenizer;
 
 pub(crate) use self::stopword_lang::is_supported;
 
 use crate::artifacts::Token;
-use crate::error::NlpError;
+use crate::error::Result;
 
 /// Split text into tokens.
 ///
@@ -29,10 +29,11 @@ use crate::error::NlpError;
 ///
 /// # Errors
 ///
-/// Implementations return [`NlpError::Tokenizer`] when they cannot
+/// Implementations return [`Error::Tokenizer`](crate::Error::Tokenizer)
+/// when they cannot
 /// produce a token stream. Pure-Rust implementations like
 /// [`UnicodeTokenizer`] never error in practice.
 pub trait Tokenizer: Send + Sync {
     /// Tokenize `text`.
-    fn tokenize(&self, text: &str) -> Result<Vec<Token>, NlpError>;
+    fn tokenize(&self, text: &str) -> Result<Vec<Token>>;
 }

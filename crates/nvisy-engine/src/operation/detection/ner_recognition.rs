@@ -1,13 +1,16 @@
-//! Offline NER over the [`nvisy_nlp::NerBackend`] trait.
+//! NER over the [`nvisy_nlp::NerBackend`] trait.
 //!
 //! Runs at **phase 2**, after extraction. Iterates the document's
 //! text spans and dispatches each through a configured `NerBackend`
-//! (ONNX-backed today; other backends pluggable). Span-relative
-//! offsets are rebased onto document coordinates before the
-//! entities are appended to the envelope.
+//! — typically an ONNX-backed local model today, but the trait is
+//! transport-agnostic and any conforming impl works. Span-relative
+//! offsets are rebased onto document coordinates before the entities
+//! are appended to the envelope.
 //!
-//! For LLM-driven NER, see
-//! [`LlmRecognition`](super::llm_recognition::LlmRecognition).
+//! The LLM-driven counterpart lives in
+//! [`LlmRecognition`](super::llm_recognition::LlmRecognition); the
+//! two run sequentially within the detection phase and their outputs
+//! merge downstream.
 
 use std::sync::Arc;
 
@@ -23,7 +26,7 @@ use crate::operation::{DocumentEnvelope, Operation};
 
 const TARGET: &str = "nvisy_engine::op::ner_recognition";
 
-/// Offline NER operation backed by a [`NerBackend`].
+/// NER operation backed by a [`NerBackend`].
 ///
 /// Backends are constructed once (typically at engine init) and
 /// shared across runs via `Arc`. The operation itself is cheap to
@@ -51,7 +54,7 @@ impl NerRecognition {
     }
 
     async fn detect(&self, spans: &[Span<TextLocation, TextData>]) -> Result<Entities> {
-        tracing::debug!(target: TARGET, span_count = spans.len(), "running offline NER");
+        tracing::debug!(target: TARGET, span_count = spans.len(), "running NER backend");
         let mut entities = Entities::new();
 
         for span in spans {
@@ -76,7 +79,7 @@ impl Operation for NerRecognition {
             tracing::debug!(
                 target: TARGET,
                 detected = detected.len(),
-                "appending offline NER entities",
+                "appending NER backend entities",
             );
             envelope.add_entities(detected).await;
         }

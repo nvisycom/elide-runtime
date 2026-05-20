@@ -2,7 +2,7 @@
 
 [package]
 name = "nvisy-nlp"
-description = "Offline NLP / NER backends and a composable engine for the Nvisy runtime"
+description = "NLP / NER backends and a composable engine for the Nvisy runtime"
 keywords = ["nvisy", "nlp", "ner", "pii"]
 categories = ["text-processing"]
 readme = "README.md"

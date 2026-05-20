@@ -10,9 +10,9 @@ pub mod language;
 pub mod ner;
 pub mod tokenizer;
 
-pub use self::artifacts::{NlpArtifacts, Token};
+pub use self::artifacts::{Artifacts, Token};
 pub use self::engine::{NlpEngine, NlpEngineBuilder};
-pub use self::error::NlpError;
+pub use self::error::{Error, Result};
 pub use self::language::{
     LanguageDetection, LanguageDetector, LanguageSpan, LinguaLanguageDetector,
 };

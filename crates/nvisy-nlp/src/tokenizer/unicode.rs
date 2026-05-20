@@ -15,7 +15,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use super::{Tokenizer, is_supported};
 use crate::artifacts::Token;
-use crate::error::NlpError;
+use crate::error::Result;
 
 /// Unicode-segmentation tokenizer.
 ///
@@ -70,7 +70,7 @@ impl UnicodeTokenizer {
 }
 
 impl Tokenizer for UnicodeTokenizer {
-    fn tokenize(&self, text: &str) -> Result<Vec<Token>, NlpError> {
+    fn tokenize(&self, text: &str) -> Result<Vec<Token>> {
         let tokens = text
             .unicode_word_indices()
             .map(|(start, word)| {

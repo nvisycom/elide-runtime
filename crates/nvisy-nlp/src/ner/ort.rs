@@ -29,7 +29,7 @@ use ort::value::Value;
 use tokenizers::{Encoding, Tokenizer};
 
 use super::NerBackend;
-use crate::error::NlpError;
+use crate::error::{Error, Result};
 
 /// Configuration for [`OrtNerBackend`].
 ///
@@ -65,7 +65,7 @@ pub struct OrtNerConfig {
 /// without loading an ONNX model.
 pub trait Inferencer: Send + Sync {
     /// Run inference and return per-token label logits.
-    fn infer(&self, encoding: &Encoding) -> Result<Vec<Vec<f32>>, NlpError>;
+    fn infer(&self, encoding: &Encoding) -> Result<Vec<Vec<f32>>>;
 }
 
 /// ONNX-Runtime-backed inferencer.
@@ -81,15 +81,15 @@ pub struct OrtInferencer {
 
 impl OrtInferencer {
     /// Load a model from disk.
-    pub fn from_file(path: impl AsRef<Path>) -> Result<Self, NlpError> {
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_owned();
         let session = Session::builder()
-            .map_err(|e| NlpError::ModelLoad {
+            .map_err(|e| Error::ModelLoad {
                 path: path.clone(),
                 cause: e.to_string(),
             })?
             .commit_from_file(&path)
-            .map_err(|e| NlpError::ModelLoad {
+            .map_err(|e| Error::ModelLoad {
                 path: path.clone(),
                 cause: e.to_string(),
             })?;
@@ -101,7 +101,7 @@ impl OrtInferencer {
 }
 
 impl Inferencer for OrtInferencer {
-    fn infer(&self, encoding: &Encoding) -> Result<Vec<Vec<f32>>, NlpError> {
+    fn infer(&self, encoding: &Encoding) -> Result<Vec<Vec<f32>>> {
         let ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
         let attention: Vec<i64> = encoding
             .get_attention_mask()
@@ -111,33 +111,33 @@ impl Inferencer for OrtInferencer {
         let seq_len = ids.len();
 
         let input_ids = Array2::from_shape_vec((1, seq_len), ids)
-            .map_err(|e| NlpError::Inference(format!("input_ids shape: {e}")))?;
+            .map_err(|e| Error::Inference(format!("input_ids shape: {e}")))?;
         let attention_mask = Array2::from_shape_vec((1, seq_len), attention)
-            .map_err(|e| NlpError::Inference(format!("attention_mask shape: {e}")))?;
+            .map_err(|e| Error::Inference(format!("attention_mask shape: {e}")))?;
 
         let mut session = self
             .session
             .lock()
-            .map_err(|_| NlpError::Inference("ORT session mutex poisoned".to_owned()))?;
+            .map_err(|_| Error::Inference("ORT session mutex poisoned".to_owned()))?;
 
         let input_ids_v = Value::from_array(input_ids)
-            .map_err(|e| NlpError::Inference(format!("input_ids value: {e}")))?;
+            .map_err(|e| Error::Inference(format!("input_ids value: {e}")))?;
         let attention_v = Value::from_array(attention_mask)
-            .map_err(|e| NlpError::Inference(format!("attention_mask value: {e}")))?;
+            .map_err(|e| Error::Inference(format!("attention_mask value: {e}")))?;
 
         let outputs = session
             .run(ort::inputs![
                 "input_ids" => input_ids_v,
                 "attention_mask" => attention_v,
             ])
-            .map_err(|e| NlpError::Inference(e.to_string()))?;
+            .map_err(|e| Error::Inference(e.to_string()))?;
 
         let (shape, data) = outputs[0]
             .try_extract_tensor::<f32>()
-            .map_err(|e| NlpError::Inference(format!("logits extract: {e}")))?;
+            .map_err(|e| Error::Inference(format!("logits extract: {e}")))?;
 
         if shape.len() != 3 || shape[0] != 1 || shape[1] as usize != seq_len {
-            return Err(NlpError::Inference(format!(
+            return Err(Error::Inference(format!(
                 "unexpected logits shape {shape:?}; expected [1, {seq_len}, num_labels]",
             )));
         }
@@ -172,7 +172,7 @@ pub struct OrtNerBackend {
 impl OrtNerBackend {
     /// Construct from a [`OrtNerConfig`], loading the model and
     /// tokenizer from disk.
-    pub fn new(config: OrtNerConfig) -> Result<Self, NlpError> {
+    pub fn new(config: OrtNerConfig) -> Result<Self> {
         let inferencer = Box::new(OrtInferencer::from_file(&config.model_path)?);
         Self::with_inferencer(config, inferencer)
     }
@@ -182,9 +182,9 @@ impl OrtNerBackend {
     pub fn with_inferencer(
         config: OrtNerConfig,
         inferencer: Box<dyn Inferencer>,
-    ) -> Result<Self, NlpError> {
+    ) -> Result<Self> {
         let tokenizer = Tokenizer::from_file(&config.tokenizer_path)
-            .map_err(|e| NlpError::Tokenizer(format!("{}: {e}", config.tokenizer_path.display())))?;
+            .map_err(|e| Error::Tokenizer(format!("{}: {e}", config.tokenizer_path.display())))?;
         let id_to_label = label_order(&config.label_map);
         Ok(Self {
             tokenizer,
@@ -196,11 +196,11 @@ impl OrtNerBackend {
 
     /// Run the backend without going through `&dyn NerBackend`. Used
     /// by tests for synchronous assertions.
-    pub(crate) fn recognize_sync(&self, text: &str) -> Result<Entities, NlpError> {
+    pub(crate) fn recognize_sync(&self, text: &str) -> Result<Entities> {
         let encoding = self
             .tokenizer
             .encode(text, true)
-            .map_err(|e| NlpError::Tokenizer(e.to_string()))?;
+            .map_err(|e| Error::Tokenizer(e.to_string()))?;
         let logits = self.inferencer.infer(&encoding)?;
         let predictions = argmax(&logits);
         Ok(self.fold_predictions(text, &encoding, &predictions))
@@ -297,7 +297,7 @@ impl NerBackend for OrtNerBackend {
         &self,
         text: &str,
         _language: Option<&LanguageTag>,
-    ) -> Result<Entities, NlpError> {
+    ) -> Result<Entities> {
         self.recognize_sync(text)
     }
 }
@@ -391,7 +391,7 @@ mod tests {
 
     #[allow(dead_code)]
     impl Inferencer for CannedInferencer {
-        fn infer(&self, _encoding: &Encoding) -> Result<Vec<Vec<f32>>, NlpError> {
+        fn infer(&self, _encoding: &Encoding) -> Result<Vec<Vec<f32>>> {
             Ok(self.logits.clone())
         }
     }

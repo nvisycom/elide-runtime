@@ -1,5 +1,5 @@
-//! Entity recognition operations: LLM-driven NER, offline-model NER,
-//! and pattern matching.
+//! Entity recognition operations: LLM-driven NER, trait-backed NER
+//! over [`nvisy_nlp::NerBackend`], and pattern matching.
 //!
 //! All three methods detect entities in extracted text and run
 //! sequentially within the detection phase. They share the

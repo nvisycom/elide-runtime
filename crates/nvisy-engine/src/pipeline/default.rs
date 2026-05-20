@@ -82,8 +82,9 @@ pub(super) struct EngineInner {
     pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
     pub key_provider: Option<SharedKeyProvider>,
-    /// Optional offline NER backend (e.g. an ONNX model) shared
-    /// across runs. When `Some`, every run executes the
+    /// Optional [`nvisy_nlp::NerBackend`] (typically an ONNX local
+    /// model, but the trait is transport-agnostic) shared across
+    /// runs. When `Some`, every run executes the
     /// [`NerRecognition`](crate::operation::NerRecognition) operation
     /// in addition to LLM-driven NER and pattern matching.
     pub ner_backend: Option<Arc<dyn nvisy_nlp::NerBackend>>,
@@ -181,8 +182,9 @@ impl Engine {
         self
     }
 
-    /// Attach an offline NER backend (typically an
-    /// [`OrtNerBackend`](nvisy_nlp::OrtNerBackend)) shared across runs.
+    /// Attach a [`nvisy_nlp::NerBackend`] (typically an
+    /// [`OrtNerBackend`](nvisy_nlp::OrtNerBackend) local model)
+    /// shared across runs.
     ///
     /// When set, the orchestrator runs
     /// [`NerRecognition`](crate::operation::NerRecognition) in the

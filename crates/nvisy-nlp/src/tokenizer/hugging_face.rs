@@ -16,7 +16,7 @@ use tokenizers::Tokenizer as InnerTokenizer;
 
 use super::{Tokenizer, is_supported};
 use crate::artifacts::Token;
-use crate::error::NlpError;
+use crate::error::{Error, Result};
 
 /// A [`Tokenizer`] backed by a HuggingFace `tokenizer.json` file.
 ///
@@ -33,12 +33,12 @@ impl HfTokenizer {
     ///
     /// # Errors
     ///
-    /// Returns [`NlpError::Tokenizer`] when the file can't be read or
+    /// Returns [`Error::Tokenizer`] when the file can't be read or
     /// parsed.
-    pub fn from_file(path: impl AsRef<Path>) -> Result<Self, NlpError> {
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let inner = InnerTokenizer::from_file(path)
-            .map_err(|e| NlpError::Tokenizer(format!("{}: {e}", path.display())))?;
+            .map_err(|e| Error::Tokenizer(format!("{}: {e}", path.display())))?;
         Ok(Self {
             inner,
             stopwords: None,
@@ -56,9 +56,9 @@ impl HfTokenizer {
     ///
     /// # Errors
     ///
-    /// Returns [`NlpError::Tokenizer`] only if the tokenizer file
+    /// Returns [`Error::Tokenizer`] only if the tokenizer file
     /// itself can't be loaded.
-    pub fn with_language(path: impl AsRef<Path>, lang: &LanguageTag) -> Result<Self, NlpError> {
+    pub fn with_language(path: impl AsRef<Path>, lang: &LanguageTag) -> Result<Self> {
         let mut tok = Self::from_file(path)?;
         let primary = lang.primary_language();
         if is_supported(primary) {
@@ -82,11 +82,11 @@ impl HfTokenizer {
 }
 
 impl Tokenizer for HfTokenizer {
-    fn tokenize(&self, text: &str) -> Result<Vec<Token>, NlpError> {
+    fn tokenize(&self, text: &str) -> Result<Vec<Token>> {
         let encoding = self
             .inner
             .encode(text, false)
-            .map_err(|e| NlpError::Tokenizer(e.to_string()))?;
+            .map_err(|e| Error::Tokenizer(e.to_string()))?;
         let offsets = encoding.get_offsets();
         let tokens = encoding
             .get_tokens()
@@ -119,12 +119,12 @@ mod tests {
     use super::*;
 
     /// `HfTokenizer::from_file` against a missing path should surface
-    /// `NlpError::Tokenizer` (not panic).
+    /// `Error::Tokenizer` (not panic).
     #[test]
     fn missing_file_returns_error() {
         let err =
             HfTokenizer::from_file("/nonexistent/tokenizer.json").expect_err("should error");
-        assert!(matches!(err, NlpError::Tokenizer(_)));
+        assert!(matches!(err, Error::Tokenizer(_)));
     }
 
     #[test]
@@ -132,6 +132,6 @@ mod tests {
         let lang: LanguageTag = "en".parse().unwrap();
         let err = HfTokenizer::with_language("/nonexistent/tokenizer.json", &lang)
             .expect_err("should error");
-        assert!(matches!(err, NlpError::Tokenizer(_)));
+        assert!(matches!(err, Error::Tokenizer(_)));
     }
 }

@@ -1,17 +1,26 @@
-//! [`LanguageDetector`] trait, [`LanguageDetection`] struct, and
-//! built-in implementations.
+//! [`LanguageDetector`] trait, supporting types, and built-in
+//! implementations.
 //!
 //! Detection runs synchronously — language detection on a single
-//! string is CPU-bound and fast. An [`Option`] return on
-//! [`detect`](LanguageDetector::detect) acknowledges that detection
-//! on very short text is unreliable: implementations prefer returning
-//! `None` over guessing.
+//! string is CPU-bound and fast. The trait is **fallible** so future
+//! networked detectors can report real backend failures; pure-CPU
+//! detectors that never fail simply return `Ok(...)`.
+//!
+//! [`detect`](LanguageDetector::detect) returns
+//! `Result<Option<LanguageDetection>>` to split two different
+//! concepts: `Ok(None)` means *no answer* (text too short or
+//! ambiguous — not an error), and `Err(_)` means *real failure*
+//! (network, model, etc.). [`detect_multiple`](LanguageDetector::detect_multiple)
+//! returns `Result<Vec<LanguageSpan>>` where an empty vec already
+//! represents "couldn't decide on any span."
 
 mod lingua;
 
 pub use self::lingua::LinguaLanguageDetector;
 
 use nvisy_ontology::primitive::LanguageTag;
+
+use crate::error::Result;
 
 /// A single language detection result.
 ///
@@ -48,21 +57,21 @@ pub struct LanguageSpan {
 
 /// Detect the dominant language of a text string.
 ///
-/// Implementations prefer returning `None` over guessing when the
-/// text is too short or otherwise ambiguous.
+/// `Ok(None)` represents "no answer" (text too short, ambiguous);
+/// `Err(_)` represents a real backend failure. Implementations prefer
+/// `Ok(None)` over guessing when input is inconclusive.
 pub trait LanguageDetector: Send + Sync {
     /// Detect the dominant language of `text`.
-    fn detect(&self, text: &str) -> Option<LanguageDetection>;
+    fn detect(&self, text: &str) -> Result<Option<LanguageDetection>>;
 
-    /// Detect contiguous single-language sections within
-    /// `text`.
+    /// Detect contiguous single-language sections within `text`.
     ///
     /// The default implementation falls back to single-language
     /// [`detect`](Self::detect) over the entire string. Backends with
     /// real mixed-language support — [`LinguaLanguageDetector`], for
     /// example — override this with proper segmentation.
-    fn detect_multiple(&self, text: &str) -> Vec<LanguageSpan> {
-        match self.detect(text) {
+    fn detect_multiple(&self, text: &str) -> Result<Vec<LanguageSpan>> {
+        Ok(match self.detect(text)? {
             Some(d) => vec![LanguageSpan {
                 start: 0,
                 end: text.len(),
@@ -70,6 +79,6 @@ pub trait LanguageDetector: Send + Sync {
                 confidence: d.confidence,
             }],
             None => Vec::new(),
-        }
+        })
     }
 }

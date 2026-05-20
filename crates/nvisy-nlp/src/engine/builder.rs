@@ -28,26 +28,12 @@ impl NlpEngineBuilder {
         self
     }
 
-    /// Attach an arbitrary `Arc<dyn NerBackend>` (for sharing one
-    /// backend across multiple engines).
-    pub fn with_ner_arc(mut self, backend: Arc<dyn NerBackend>) -> Self {
-        self.ner = Some(backend);
-        self
-    }
-
     /// Attach the language detector. Required.
     pub fn with_language_detector<D>(mut self, detector: D) -> Self
     where
         D: LanguageDetector + 'static,
     {
         self.language = Some(Arc::new(detector));
-        self
-    }
-
-    /// Attach an arbitrary `Arc<dyn LanguageDetector>` (for sharing
-    /// one detector across multiple engines).
-    pub fn with_language_detector_arc(mut self, detector: Arc<dyn LanguageDetector>) -> Self {
-        self.language = Some(detector);
         self
     }
 

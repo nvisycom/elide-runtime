@@ -19,6 +19,7 @@ use lingua::{IsoCode639_1, Language, LanguageDetector as LinguaDetector, Languag
 use nvisy_ontology::primitive::LanguageTag;
 
 use super::{LanguageDetection, LanguageDetector, LanguageSpan};
+use crate::error::Result;
 
 /// A [`LanguageDetector`] backed by [`lingua`](https://crates.io/crates/lingua).
 pub struct LinguaLanguageDetector {
@@ -91,17 +92,23 @@ fn tags_to_languages(tags: &[LanguageTag]) -> Vec<Language> {
 }
 
 impl LanguageDetector for LinguaLanguageDetector {
-    fn detect(&self, text: &str) -> Option<LanguageDetection> {
-        let lang = self.inner.detect_language_of(text)?;
+    fn detect(&self, text: &str) -> Result<Option<LanguageDetection>> {
+        let Some(lang) = self.inner.detect_language_of(text) else {
+            return Ok(None);
+        };
+        let Some(language) = Self::lingua_to_tag(lang) else {
+            return Ok(None);
+        };
         let confidence = self.inner.compute_language_confidence(text, lang);
-        Some(LanguageDetection {
-            language: Self::lingua_to_tag(lang)?,
+        Ok(Some(LanguageDetection {
+            language,
             confidence: Some(confidence),
-        })
+        }))
     }
 
-    fn detect_multiple(&self, text: &str) -> Vec<LanguageSpan> {
-        self.inner
+    fn detect_multiple(&self, text: &str) -> Result<Vec<LanguageSpan>> {
+        Ok(self
+            .inner
             .detect_multiple_languages_of(text)
             .into_iter()
             .filter_map(|result| {
@@ -116,7 +123,7 @@ impl LanguageDetector for LinguaLanguageDetector {
                     confidence: Some(confidence),
                 })
             })
-            .collect()
+            .collect())
     }
 }
 
@@ -140,9 +147,9 @@ mod tests {
         let det = english_only();
         let detection = det
             .detect("The quick brown fox jumps over the lazy dog.")
+            .unwrap()
             .expect("detection");
         assert_eq!(detection.language.primary_language(), "en");
-        // English-only detector should be very confident on English text.
         let conf = detection.confidence.expect("confidence");
         assert!((0.0..=1.0).contains(&conf), "confidence in [0,1]: {conf}");
     }
@@ -150,34 +157,31 @@ mod tests {
     #[test]
     fn empty_input_returns_none() {
         let det = english_only();
-        assert!(det.detect("").is_none());
+        assert!(det.detect("").unwrap().is_none());
     }
 
     #[test]
     fn rejects_construction_with_no_recognised_languages() {
-        // "xx" is not a valid ISO 639-1 code.
         let tags = ["xx".parse().unwrap()];
         assert!(LinguaLanguageDetector::for_languages(&tags).is_none());
     }
 
     #[test]
     fn for_all_languages_constructs() {
-        // With only `english` enabled in the workspace, this is the
-        // same as the english-only detector — but the constructor
-        // shape itself must work.
         let det = LinguaLanguageDetector::for_all_languages();
-        let detection = det.detect("Hello world, this is English.");
+        let detection = det.detect("Hello world, this is English.").unwrap();
         assert!(detection.is_some());
     }
 
     #[test]
     fn detect_multiple_returns_at_least_one_span() {
         let det = english_only();
-        let spans = det.detect_multiple("The quick brown fox jumps over the lazy dog.");
+        let spans = det
+            .detect_multiple("The quick brown fox jumps over the lazy dog.")
+            .unwrap();
         assert!(!spans.is_empty());
         let first = &spans[0];
         assert_eq!(first.start, 0);
-        // Whole-text span when only one language candidate exists.
         assert!(first.end > 0);
     }
 }

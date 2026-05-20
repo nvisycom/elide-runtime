@@ -6,7 +6,8 @@
 //! LLM provider is configured — [`Self::new`] returns an error in
 //! that case and the orchestrator skips the operation.
 //!
-//! For offline (model-based) NER, see
+//! For trait-driven NER over any [`nvisy_nlp::NerBackend`] —
+//! typically an ONNX local model today — see
 //! [`NerRecognition`](super::ner_recognition::NerRecognition).
 
 use nvisy_codec::Span;

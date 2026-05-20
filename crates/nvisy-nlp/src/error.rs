@@ -1,17 +1,24 @@
 //! Errors produced by [`nvisy-nlp`] backends and the composite engine.
 //!
 //! Backends surface these wrapped in [`nvisy_core::Error`] via
-//! `From<NlpError>`. Callers that need structured access can downcast
-//! through [`Error::source`](nvisy_core::Error::source).
+//! `From<Error>`. Callers that need structured access can downcast
+//! through [`nvisy_core::Error::source`].
 
 use std::path::PathBuf;
 
-use nvisy_core::{Error, ErrorKind};
+use nvisy_core::{Error as CoreError, ErrorKind};
 use nvisy_ontology::primitive::LanguageTag;
+
+/// Result alias for [`nvisy-nlp`] operations.
+///
+/// Defaults the error type to [`Error`]; backends and helpers in
+/// this crate use this everywhere instead of writing
+/// `Result<T, Error>` by hand.
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Errors that can occur during NLP backend construction or inference.
 #[derive(Debug, thiserror::Error)]
-pub enum NlpError {
+pub enum Error {
     /// Failed to load an ONNX model file.
     #[error("failed to load ONNX model at '{}': {cause}", path.display())]
     ModelLoad { path: PathBuf, cause: String },
@@ -33,14 +40,14 @@ pub enum NlpError {
     Backend(String),
 }
 
-impl From<NlpError> for Error {
-    fn from(err: NlpError) -> Self {
+impl From<Error> for CoreError {
+    fn from(err: Error) -> Self {
         let kind = match &err {
-            NlpError::ModelLoad { .. } | NlpError::Tokenizer(_) => ErrorKind::Internal,
-            NlpError::Inference(_) | NlpError::Backend(_) => ErrorKind::Runtime,
-            NlpError::UnsupportedLanguage(_) => ErrorKind::Validation,
+            Error::ModelLoad { .. } | Error::Tokenizer(_) => ErrorKind::Internal,
+            Error::Inference(_) | Error::Backend(_) => ErrorKind::Runtime,
+            Error::UnsupportedLanguage(_) => ErrorKind::Validation,
         };
-        Error::new(kind, err.to_string())
+        CoreError::new(kind, err.to_string())
             .with_component("nvisy-nlp")
             .with_source(err)
     }

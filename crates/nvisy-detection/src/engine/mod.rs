@@ -3,13 +3,12 @@
 
 mod context;
 
-pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
-
 use std::sync::Arc;
 
 use derive_builder::Builder;
 use nvisy_ontology::entity::Entities;
 
+pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
 use crate::Recognizer;
 use crate::error::Result;
 

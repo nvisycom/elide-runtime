@@ -9,9 +9,10 @@ members = [
     "./crates/nvisy-detection",
     "./crates/nvisy-engine",
     "./crates/nvisy-nlp",
+    "./crates/nvisy-ocr",
     "./crates/nvisy-ontology",
     "./crates/nvisy-pattern",
-    "./crates/nvisy-provider",
+    "./crates/nvisy-rig",
     "./crates/nvisy-server",
 ]
 
@@ -39,9 +40,10 @@ nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-detection = { path = "./crates/nvisy-detection", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-nlp = { path = "./crates/nvisy-nlp", version = "0.1.0" }
+nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
-nvisy-provider = { path = "./crates/nvisy-provider", version = "0.1.0" }
+nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
 # LLM framework
@@ -86,6 +88,7 @@ hipstr = { version = "0.8", features = [] }
 jiff = { version = "0.2", features = ["serde"] }
 semver = { version = "1.0", features = ["serde"] }
 oxilangtag = { version = "0.1", features = ["serde"] }
+humantime-serde = { version = "1.1", features = [] }
 
 # Encoding and hashing
 base64 = { version = "0.22", features = [] }

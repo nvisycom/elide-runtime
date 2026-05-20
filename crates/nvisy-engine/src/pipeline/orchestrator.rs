@@ -17,7 +17,6 @@ use nvisy_detection::DetectionEngine;
 use nvisy_ontology::workflow::{
     ConcurrencyPolicy, Detection as DetectionConfig, Extraction as ExtractionConfig,
 };
-use nvisy_provider::http::HttpClient;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -40,8 +39,6 @@ pub(super) struct RunContext {
     pub shared: Arc<SharedData>,
     /// Effective configuration after merging per-request overrides.
     pub config: Arc<RuntimeConfig>,
-    /// Shared HTTP client for downstream API calls.
-    pub http_client: HttpClient,
     /// Optional shared detection engine. `None` skips the
     /// detection phase entirely (e.g. for redaction-only or
     /// validation-only pipelines).
@@ -255,7 +252,7 @@ impl DocumentPipeline {
         cfg: &ExtractionConfig,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
-        Extraction::new(cfg, &self.ctx.config, &self.ctx.http_client)
+        Extraction::new(cfg, &self.ctx.config)
             .execute(envelope)
             .await
     }

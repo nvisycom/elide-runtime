@@ -8,8 +8,8 @@ use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::artifacts::{TranscriptSegment, Transcription};
 use nvisy_ontology::primitive::TimeSpan;
 use nvisy_ontology::workflow::AudialExtraction as AudialExtractionCfg;
-use nvisy_provider::audio::stt::{SttConfig, SttService};
-use nvisy_provider::http::HttpClient;
+use nvisy_rig::audio::stt::{SttConfig, SttService};
+use nvisy_rig::http::HttpClient;
 
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
@@ -22,11 +22,7 @@ pub(super) struct AudialExtraction {
 }
 
 impl AudialExtraction {
-    pub fn new(
-        cfg: &AudialExtractionCfg,
-        config: &RuntimeConfig,
-        http_client: &HttpClient,
-    ) -> Result<Self> {
+    pub fn new(cfg: &AudialExtractionCfg, config: &RuntimeConfig) -> Result<Self> {
         let stt_provider = config
             .stt
             .as_ref()
@@ -38,11 +34,16 @@ impl AudialExtraction {
                 )
             })?;
 
-        let stt = SttService::new(
-            &stt_provider,
-            SttConfig::default(),
-            Some(http_client.clone()),
-        )?;
+        // STT runs over a rig-typed HTTP client. Use the engine's
+        // HTTP config when supplied; default otherwise.
+        let http_config = config
+            .engine
+            .as_ref()
+            .and_then(|e| e.http.clone())
+            .unwrap_or_default();
+        let http_client = HttpClient::new(&http_config)?;
+
+        let stt = SttService::new(&stt_provider, SttConfig::default(), Some(http_client))?;
 
         if cfg.diarization {
             tracing::warn!(target: TARGET, "diarization not yet supported, skipping");

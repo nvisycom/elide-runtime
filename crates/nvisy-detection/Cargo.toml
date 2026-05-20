@@ -32,7 +32,7 @@ nvisy-core = { workspace = true, features = [] }
 nvisy-nlp = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
-nvisy-provider = { workspace = true, features = [] }
+nvisy-rig = { workspace = true, features = [] }
 
 # Async
 async-trait = { workspace = true, features = [] }

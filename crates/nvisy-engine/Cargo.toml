@@ -24,15 +24,15 @@ default = []
 test-utils = ["dep:tempfile"]
 
 ## Enable all OpenAI providers (GPT, Whisper STT, TTS).
-openai = ["nvisy-provider/openai-gpt", "nvisy-provider/openai-whisper", "nvisy-provider/openai-tts"]
+openai = ["nvisy-rig/openai-gpt", "nvisy-rig/openai-whisper", "nvisy-rig/openai-tts"]
 ## Enable Anthropic Claude completion provider.
-anthropic = ["nvisy-provider/anthropic-claude"]
+anthropic = ["nvisy-rig/anthropic-claude"]
 ## Enable Google Gemini + Google Cloud Vision OCR.
-google = ["nvisy-provider/google-gemini", "nvisy-provider/google-vision"]
+google = ["nvisy-rig/google-gemini", "nvisy-ocr/google-vision"]
 ## Enable Azure Document Intelligence OCR.
-microsoft = ["nvisy-provider/azure-docai"]
+microsoft = ["nvisy-ocr/azure-docai"]
 ## Enable AWS Textract OCR.
-amazon = ["nvisy-provider/aws-textract"]
+amazon = ["nvisy-ocr/aws-textract"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -44,7 +44,8 @@ nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
 nvisy-detection = { workspace = true, features = [] }
-nvisy-provider = { workspace = true, features = [] }
+nvisy-ocr = { workspace = true, features = [] }
+nvisy-rig = { workspace = true, features = [] }
 
 # Storage
 fjall = { workspace = true, features = [] }

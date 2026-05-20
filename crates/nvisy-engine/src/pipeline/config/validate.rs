@@ -3,8 +3,9 @@
 use std::env;
 
 use nvisy_core::Error;
-use nvisy_provider::agent::{AgentProvider, OcrProvider};
-use nvisy_provider::audio::{SttProvider, TtsProvider};
+use nvisy_ocr::OcrProvider;
+use nvisy_rig::agent::AgentProvider;
+use nvisy_rig::audio::{SttProvider, TtsProvider};
 use validator::Validate;
 
 use super::RuntimeConfig;

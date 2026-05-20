@@ -2042,6 +2042,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
+name = "humantime"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "135b12329e5e3ce057a9f972339ea52bc954fe1e9358ef27f95e89716fbc5424"
+
+[[package]]
+name = "humantime-serde"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57a3db5ea5923d99402c94e9feb261dc5ee9b4efa158b0315f788cf549cc200c"
+dependencies = [
+ "humantime",
+ "serde",
+]
+
+[[package]]
 name = "hybrid-array"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3238,7 +3254,7 @@ dependencies = [
  "nvisy-nlp",
  "nvisy-ontology",
  "nvisy-pattern",
- "nvisy-provider",
+ "nvisy-rig",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -3263,8 +3279,9 @@ dependencies = [
  "nvisy-core",
  "nvisy-detection",
  "nvisy-engine",
+ "nvisy-ocr",
  "nvisy-ontology",
- "nvisy-provider",
+ "nvisy-rig",
  "petgraph",
  "rand 0.10.1",
  "schemars 1.2.1",
@@ -3303,6 +3320,32 @@ dependencies = [
  "tokio",
  "tracing",
  "unicode-segmentation",
+ "uuid",
+]
+
+[[package]]
+name = "nvisy-ocr"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "derive_more",
+ "futures",
+ "hmac",
+ "humantime-serde",
+ "nvisy-core",
+ "nvisy-ontology",
+ "reqwest-middleware",
+ "reqwest-retry",
+ "reqwest-tracing",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -3346,7 +3389,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-provider"
+name = "nvisy-rig"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -3354,7 +3397,7 @@ dependencies = [
  "bytes",
  "derive_more",
  "futures",
- "hmac",
+ "humantime-serde",
  "nvisy-core",
  "nvisy-ontology",
  "reqwest-middleware",
@@ -3364,7 +3407,6 @@ dependencies = [
  "schemars 1.2.1",
  "serde",
  "serde_json",
- "sha2 0.11.0",
  "thiserror 2.0.18",
  "tokio",
  "tracing",

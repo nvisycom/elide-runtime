@@ -15,9 +15,8 @@ use nvisy_ontology::entity::Entities;
 use nvisy_ontology::workflow::PatternDetection;
 use nvisy_pattern::PatternEngine;
 
-use crate::DetectionContext;
-use crate::Recognizer;
 use crate::error::Result;
+use crate::{DetectionContext, Recognizer};
 
 /// Pattern-based recognizer.
 ///

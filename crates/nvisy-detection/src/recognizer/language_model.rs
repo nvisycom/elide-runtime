@@ -12,11 +12,10 @@
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::Entities;
-use nvisy_provider::agent::{DetectionConfig, NerAgent};
+use nvisy_rig::agent::{DetectionConfig, NerAgent};
 
-use crate::DetectionContext;
-use crate::Recognizer;
 use crate::error::{Error, Result};
+use crate::{DetectionContext, Recognizer};
 
 /// LLM-backed entity recognizer.
 pub struct LlmRecognizer {

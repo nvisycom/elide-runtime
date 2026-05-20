@@ -4,8 +4,7 @@
 //! consumes a [`DetectionContext`] and produces [`Entities`].
 //! Recognizers run independently — combination, dedup, and
 //! threshold filtering happen at higher layers (the
-//! [`DetectionEngine`](crate::DetectionEngine) and, downstream,
-//! the redaction pipeline).
+//! [`DetectionEngine`] and, downstream, the redaction pipeline).
 //!
 //! Built-in recognizers cover the three detection sources today:
 //!
@@ -13,11 +12,12 @@
 //!   language detection, tokens, keywords).
 //! - [`PatternRecognizer`] wraps `nvisy_pattern::PatternEngine`
 //!   (regex, dictionary, allow/deny, context-aware boosting).
-//! - [`LlmRecognizer`] wraps `nvisy_provider::NerAgent`
+//! - [`LlmRecognizer`] wraps `nvisy_rig::agent::NerAgent`
 //!   (LLM-driven detection with coreference state).
 //!
 //! [`DetectionContext`]: crate::DetectionContext
 //! [`Entities`]: nvisy_ontology::entity::Entities
+//! [`DetectionEngine`]: crate::DetectionEngine
 
 mod language_model;
 mod named_entity;

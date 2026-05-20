@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Serializes transparently as a JSON array of strings.
 ///
-/// [`PatternEngine::scan_entities`]: super::PatternEngine::scan_entities
+/// [`PatternEngine::scan_entities`]: crate::PatternEngine::scan_entities
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AllowList {

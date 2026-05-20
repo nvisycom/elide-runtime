@@ -2,10 +2,11 @@
 //!
 //! [`RunState`] wraps an `Arc<RwLock<HashMap<Uuid, RunRecord>>>` providing
 //! concurrent read/write access to run records. It is cheaply clonable
-//! (single `Arc` bump) and shared between the [`Engine`]
-//! and the [orchestrator](super::super::orchestrator).
+//! (single `Arc` bump) and shared between the [`Engine`] and the
+//! [`orchestrator`].
 //!
 //! [`Engine`]: super::super::Engine
+//! [`orchestrator`]: super::super::orchestrator
 //!
 //! All queries are scoped by `actor_id` — an actor can only see and
 //! mutate their own runs. Finalization forces any still-pending or

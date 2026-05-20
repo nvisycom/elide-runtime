@@ -3,11 +3,11 @@
 //!
 //! Two layers:
 //!
-//! - **`LanguagePolicy`** (public) is the abstraction the
-//!   [`Engine`](crate::engine::Engine) plugs into. A policy is a
-//!   factory: per call it builds a fresh detector restricted to a
-//!   caller-supplied language set (or to every language the policy
-//!   can produce when the caller has no preference).
+//! - **`LanguagePolicy`** (public) is the abstraction the [`Engine`]
+//!   plugs into. A policy is a factory: per call it builds a fresh
+//!   detector restricted to a caller-supplied language set (or to
+//!   every language the policy can produce when the caller has no
+//!   preference).
 //! - **`LanguageDetector`** (crate-private) is what a policy
 //!   produces. It exposes a single `detect` method. Language scope
 //!   is baked into the detector at construction time — the engine
@@ -15,6 +15,7 @@
 //!
 //! Built-in: [`LinguaLanguagePolicy`] wraps the [`lingua`] crate.
 //!
+//! [`Engine`]: crate::engine::Engine
 //! [`lingua`]: https://crates.io/crates/lingua
 
 mod detection;

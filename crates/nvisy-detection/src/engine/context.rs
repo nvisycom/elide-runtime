@@ -1,21 +1,26 @@
 //! [`DetectionContext`] — per-call input to
-//! [`DetectionEngine::detect`](super::DetectionEngine::detect) and
-//! every [`Recognizer`](crate::Recognizer).
+//! [`DetectionEngine::detect`] and every [`Recognizer`].
 //!
 //! Bundles the same shape `nvisy_nlp::Context` carries, plus the
 //! [`ScanContext`] needed by pattern-backed recognizers. Each
 //! recognizer reads the subset it cares about:
 //!
-//! - [`NerRecognizer`](crate::NerRecognizer) honors `text`,
-//!   `language`, `candidate_languages`, `entities`, `score_threshold`.
-//! - [`PatternRecognizer`](crate::PatternRecognizer) reads
-//!   `text` and `scan_context` (allow/deny/hints).
-//! - [`LlmRecognizer`](crate::LlmRecognizer) reads `text` and
-//!   honors its own per-build configuration; per-call overrides
-//!   land on the recognizer at construction.
+//! - [`NerRecognizer`] honors `text`, `language`,
+//!   `candidate_languages`, `entities`, `score_threshold`.
+//! - [`PatternRecognizer`] reads `text` and `scan_context`
+//!   (allow/deny/hints).
+//! - [`LlmRecognizer`] reads `text` and honors its own per-build
+//!   configuration; per-call overrides land on the recognizer at
+//!   construction.
 //!
 //! `correlation_id` flows through the tracing span and isn't read
 //! by recognizers themselves.
+//!
+//! [`DetectionEngine::detect`]: super::DetectionEngine::detect
+//! [`Recognizer`]: crate::Recognizer
+//! [`NerRecognizer`]: crate::NerRecognizer
+//! [`PatternRecognizer`]: crate::PatternRecognizer
+//! [`LlmRecognizer`]: crate::LlmRecognizer
 
 use derive_builder::Builder;
 use nvisy_ontology::entity::EntityKind;

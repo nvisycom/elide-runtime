@@ -1,8 +1,11 @@
 //! [`RawMatch`]: internal output type from pattern scan phases.
 //!
-//! Lives in the [`scan`](super) module because it is the shared
-//! exchange type between [`phases`](super::phases) and
-//! [`dedup`](super::dedup).
+//! Lives in the [`scan`] module because it is the shared exchange
+//! type between [`phases`] and [`dedup`].
+//!
+//! [`scan`]: super
+//! [`phases`]: super::phases
+//! [`dedup`]: super::dedup
 
 use nvisy_ontology::entity::{
     Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,

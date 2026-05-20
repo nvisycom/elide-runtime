@@ -8,9 +8,10 @@ use nvisy_core::{Error, ErrorKind};
 ///
 /// Built engines surface these wrapped in [`nvisy_core::Error`] via
 /// `From<PatternEngineError>`. Callers that need structured access can
-/// downcast through [`Error::source`](nvisy_core::Error::source).
+/// downcast through [`Error::source`].
 ///
 /// [`PatternEngine`]: super::PatternEngine
+/// [`Error::source`]: nvisy_core::Error::source
 #[derive(Debug, thiserror::Error)]
 pub enum PatternEngineError {
     /// A regex pattern string failed to compile.

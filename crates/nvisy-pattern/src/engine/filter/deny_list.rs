@@ -25,8 +25,8 @@ pub struct DenyRule {
 /// matched by any regex or dictionary pattern, it is injected as a synthetic
 /// raw match with confidence `1.0` and `pattern_name: None`.
 ///
-/// The first call to [`scanner`](Self::scanner) compiles the values into an
-/// Aho-Corasick automaton; subsequent calls reuse it.
+/// The first scan after construction compiles the values into an
+/// Aho-Corasick automaton; subsequent scans reuse it.
 ///
 /// Serializes as just `entries`; the cached automaton is rebuilt
 /// lazily on the first scan after a round-trip.

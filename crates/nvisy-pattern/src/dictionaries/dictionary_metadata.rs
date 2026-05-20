@@ -25,12 +25,12 @@ use serde::{Deserialize, Serialize};
 /// a dictionary tagged `languages: ["en", "de"]` is applicable when
 /// the consumer asks for English *or* German.
 ///
-/// Cross-field semantics on the consumer side ([`DictionaryFilter`])
+/// Cross-field semantics on the consumer side ([`PatternFilter`])
 /// is **AND**: a filter `{ languages: ["en"], industries: ["healthcare"] }`
 /// selects dictionaries that have English in `languages` *and* `healthcare`
 /// in `industries`.
 ///
-/// [`DictionaryFilter`]: nvisy_ontology::workflow::DictionaryFilter
+/// [`PatternFilter`]: nvisy_ontology::workflow::PatternFilter
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DictionaryMetadata {
     /// Override the dictionary's name in the registry. When present

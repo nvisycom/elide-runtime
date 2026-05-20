@@ -2,10 +2,11 @@
 //! match's per-pattern [`ContextRule`] plus caller-supplied
 //! [`ContextHint`]s.
 //!
-//! Lives next to [`RawMatch`](super::pattern_match::RawMatch)
-//! because it operates on a slice of raw matches before dedup. Kept
-//! crate-private; the orchestration goes through
-//! [`PatternEngine::scan_entities`].
+//! Lives next to [`RawMatch`] because it operates on a slice of raw
+//! matches before dedup. Kept crate-private; the orchestration goes
+//! through [`PatternEngine::scan_entities`].
+//!
+//! [`RawMatch`]: super::pattern_match::RawMatch
 //!
 //! # Semantics
 //!

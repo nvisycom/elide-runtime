@@ -1,10 +1,12 @@
 //! Visual extraction operation.
 //!
 //! Extracts text and entities from image documents by running OCR
-//! against an [`OcrEngine`](nvisy_ocr::OcrEngine), optionally
-//! verifying detected entities against the source image via an
-//! [`EntityVerifier`](nvisy_rig::agent::EntityVerifier), and
+//! against an [`OcrEngine`], optionally verifying detected entities
+//! against the source image via an [`EntityVerifier`], and
 //! optionally running computer vision.
+//!
+//! [`OcrEngine`]: nvisy_ocr::OcrEngine
+//! [`EntityVerifier`]: nvisy_rig::agent::EntityVerifier
 
 use bytes::Bytes;
 use nvisy_codec::Span;

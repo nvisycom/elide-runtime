@@ -3,9 +3,11 @@
 //!
 //! Wraps either the shared `PatternEngine::instance()` singleton
 //! (when default-shaped) or an owned engine built from custom
-//! config. Forwards [`ScanContext`](nvisy_pattern::ScanContext)
-//! from each [`DetectionContext`] so allow/deny lists and context
-//! hints work per-call.
+//! config. Forwards [`ScanContext`] from each [`DetectionContext`]
+//! so allow/deny lists and context hints work per-call.
+//!
+//! [`ScanContext`]: nvisy_pattern::ScanContext
+//! [`DetectionContext`]: crate::DetectionContext
 
 use std::ops::Deref;
 use std::sync::Arc;

@@ -14,10 +14,10 @@
 //! - [`filter`] groups the per-scan inputs callers configure:
 //!   [`AllowList`], [`DenyList`], [`ContextHint`], and the
 //!   [`ScanContext`] that bundles them.
-//! - [`scan`] holds the internal matching machinery: compiled
-//!   per-pattern entries, the [`RawMatch`](scan::pattern_match::RawMatch)
-//!   exchange type, the per-phase scan logic, overlap-aware dedup,
-//!   and the context-aware [`ContextEnhancer`](scan::enhancer::ContextEnhancer).
+//! - `scan` (crate-private) holds the internal matching machinery:
+//!   compiled per-pattern entries, the `RawMatch` exchange type,
+//!   the per-phase scan logic, overlap-aware dedup, and the
+//!   context-aware `ContextEnhancer`.
 
 mod builder;
 mod error;

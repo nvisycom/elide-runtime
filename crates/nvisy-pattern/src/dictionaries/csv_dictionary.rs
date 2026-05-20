@@ -1,9 +1,6 @@
 //! CSV dictionary: one row per entity, each cell becomes a matchable variant.
 
-use std::fs;
-use std::path::Path;
-
-use super::{CsvDictionaryError, Dictionary, DictionaryLoadError, DictionaryTerm};
+use super::{CsvDictionaryError, Dictionary, DictionaryMetadata, DictionaryTerm};
 
 /// A dictionary parsed from a CSV file.
 ///
@@ -16,6 +13,7 @@ use super::{CsvDictionaryError, Dictionary, DictionaryLoadError, DictionaryTerm}
 pub struct CsvDictionary {
     name: String,
     terms: Vec<DictionaryTerm>,
+    metadata: DictionaryMetadata,
 }
 
 impl CsvDictionary {
@@ -54,32 +52,19 @@ impl CsvDictionary {
             }
         }
 
-        Ok(Self { name, terms })
-    }
-
-    /// Load a CSV dictionary from a file path.
-    ///
-    /// The dictionary name is derived from the file stem.
-    ///
-    /// # Errors
-    ///
-    /// Returns `DictionaryLoadError` if the file cannot be read or
-    /// the CSV content cannot be parsed.
-    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, DictionaryLoadError> {
-        let path = path.as_ref();
-        let name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default();
-        let text = fs::read_to_string(path).map_err(|source| DictionaryLoadError::ReadFile {
-            path: path.to_owned(),
-            source,
-        })?;
-        Self::new(name, &text).map_err(|source| DictionaryLoadError::CsvParse {
-            path: path.to_owned(),
-            source,
+        Ok(Self {
+            name,
+            terms,
+            metadata: DictionaryMetadata::default(),
         })
     }
+
+    /// Attach metadata loaded from a sidecar file.
+    pub fn with_metadata(mut self, metadata: DictionaryMetadata) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
 }
 
 impl Dictionary for CsvDictionary {
@@ -89,6 +74,10 @@ impl Dictionary for CsvDictionary {
 
     fn terms(&self) -> &[DictionaryTerm] {
         &self.terms
+    }
+
+    fn metadata(&self) -> &DictionaryMetadata {
+        &self.metadata
     }
 }
 

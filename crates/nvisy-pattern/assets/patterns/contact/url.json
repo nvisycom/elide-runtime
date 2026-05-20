@@ -1,0 +1,14 @@
+{
+  "name": "url",
+  "category": "contact_info",
+  "entity_type": "url",
+  "pattern": {
+    "regex": "\\bhttps?://[^\\s/$.?#][^\\s]*\\b",
+    "confidence": 0.9
+  },
+  "metadata": {
+    "description": "HTTP(S) URL.",
+    "version": "1.0.0",
+    "regions": ["global"]
+  }
+}

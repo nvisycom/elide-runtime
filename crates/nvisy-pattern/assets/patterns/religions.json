@@ -1,9 +1,0 @@
-{
-  "name": "religions",
-  "category": "demographic",
-  "entity_type": "religion",
-  "dictionary": {
-    "name": "religions",
-    "confidence": 0.85
-  }
-}

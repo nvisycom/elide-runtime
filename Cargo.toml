@@ -95,6 +95,7 @@ hex = { version = "0.4", features = [] }
 # Pattern matching
 regex = { version = "1.0", features = [] }
 aho-corasick = { version = "1.0", features = [] }
+smallvec = { version = "1.13", features = [] }
 
 # Graph data structures
 petgraph = { version = "0.8", features = [] }
@@ -129,6 +130,9 @@ axum = { version = "0.8", features = [] }
 aide = { version = "0.16.0-alpha.2", features = [] }
 tower = { version = "0.5", features = [] }
 tower-http = { version = "0.6", features = [] }
+
+# Filesystem traversal
+walkdir = { version = "2.5", features = [] }
 
 # Storage, file detection, and asset embedding
 fjall = { version = "3.1", features = [] }

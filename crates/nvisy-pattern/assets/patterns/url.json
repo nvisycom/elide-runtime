@@ -1,9 +1,0 @@
-{
-  "name": "url",
-  "category": "contact_info",
-  "entity_type": "url",
-  "pattern": {
-    "regex": "\\bhttps?://[^\\s/$.?#][^\\s]*\\b",
-    "confidence": 0.9
-  }
-}

@@ -5,327 +5,35 @@
 //! scan text in one call. Use [`PatternEngine::builder`] for configuration
 //! or [`PatternEngine::instance`] for an out-of-the-box singleton.
 //!
-//! # Key types
+//! # Layout
 //!
-//! - [`PatternEngine`]: pre-compiled scanning engine.
-//! - [`ScanContext`]: per-scan allow/deny list configuration.
-//! - [`RawMatch`]: single match produced by scanning.
-//! - [`AllowList`] / [`DenyList`]: exact-match suppression and forced detection.
-//! - [`PatternEngineBuilder`]: builder for configuring patterns and thresholds.
+//! - The engine type, builder, and structured build error live at the
+//!   top level (this module).
+//! - [`filter`] groups the per-scan inputs callers configure:
+//!   [`AllowList`], [`DenyList`], and the [`ScanContext`] that bundles
+//!   them.
+//! - [`scan`] holds the internal matching machinery: compiled per-pattern
+//!   entries, the [`RawMatch`](scan::pattern_match::RawMatch) exchange
+//!   type, the per-phase scan logic, and overlap-aware dedup.
 
-mod allow_list;
 mod builder;
-mod deny_list;
 mod error;
-mod pattern_match;
-mod scan_context;
+mod pattern_engine;
 
-use std::cmp::Ordering;
-use std::collections::HashSet;
-use std::fmt;
-use std::sync::LazyLock;
+pub mod filter;
+pub(crate) mod scan;
 
-use aho_corasick::AhoCorasick;
-use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
-use regex::{Regex, RegexSet};
-
-pub use self::allow_list::AllowList;
 pub use self::builder::PatternEngineBuilder;
-pub use self::deny_list::{DenyList, DenyRule};
-pub(crate) use self::pattern_match::RawMatch;
-pub use self::scan_context::ScanContext;
-use crate::patterns::{ContextRule, DictionaryConfidence};
-use crate::validators::ValidatorResolver;
-
-const TARGET: &str = "nvisy_pattern::engine";
-
-/// Metadata stored alongside each compiled regex.
-struct RegexEntry {
-    pattern_name: String,
-    category: EntityCategory,
-    entity_kind: EntityKind,
-    confidence: f64,
-    validator_name: Option<String>,
-    regex: Regex,
-    context: Option<ContextRule>,
-}
-
-/// Metadata stored alongside each compiled Aho-Corasick automaton.
-struct DictEntry {
-    pattern_name: String,
-    category: EntityCategory,
-    entity_kind: EntityKind,
-    confidence: DictionaryConfidence,
-    automaton: AhoCorasick,
-    /// The terms used to build the automaton, indexed by pattern id.
-    values: Vec<String>,
-    /// Per-entry column index from the source dictionary (parallel to `values`).
-    /// `None` entries indicate plain-text origin (logically column 0).
-    columns: Vec<Option<u32>>,
-    context: Option<ContextRule>,
-}
-
-impl DictEntry {
-    /// Resolve the confidence for the entry at `pattern_index`.
-    fn resolve_confidence(&self, pattern_index: usize) -> f64 {
-        let col = self
-            .columns
-            .get(pattern_index)
-            .copied()
-            .flatten()
-            .unwrap_or(0) as usize;
-        self.confidence.resolve(col)
-    }
-}
-
-/// Pre-compiled engine that scans text against all registered patterns.
-///
-/// Scanning runs in three phases:
-///
-/// 1. **Regex**: a [`RegexSet`] pre-filter selects candidate patterns,
-///    then each matching regex extracts offsets and values.
-/// 2. **Dictionary**: Aho-Corasick automata perform literal multi-pattern
-///    matching against known-value dictionaries.
-/// 3. **Deny list**: known sensitive values not already matched are
-///    injected as synthetic matches with confidence `1.0`.
-///
-/// Allow-list filtering is applied inline during phases 1 and 2.
-///
-/// Build via [`PatternEngine::builder`] or use [`PatternEngine::instance`]
-/// for the singleton with all built-in patterns.
-pub struct PatternEngine {
-    regex_set: RegexSet,
-    regex_entries: Vec<RegexEntry>,
-    dict_entries: Vec<DictEntry>,
-    validators: ValidatorResolver,
-    confidence_threshold: f64,
-}
-
-impl fmt::Debug for PatternEngine {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PatternEngine")
-            .field("regex_patterns", &self.regex_entries.len())
-            .field("dict_patterns", &self.dict_entries.len())
-            .field("confidence_threshold", &self.confidence_threshold)
-            .finish()
-    }
-}
-
-impl fmt::Display for PatternEngine {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "PatternEngine({} regex, {} dict, threshold {:.2})",
-            self.regex_entries.len(),
-            self.dict_entries.len(),
-            self.confidence_threshold,
-        )
-    }
-}
-
-impl PatternEngine {
-    /// Return a reference to the lazily-initialised default engine
-    /// containing all built-in patterns.
-    pub fn instance() -> &'static Self {
-        &DEFAULT_ENGINE
-    }
-
-    /// Create a new [`PatternEngineBuilder`].
-    pub fn builder() -> PatternEngineBuilder {
-        PatternEngineBuilder::default()
-    }
-
-    /// Scan `text` and return detected entities with [`TextLocation`]s.
-    ///
-    /// Matches whose value appears in the allow list are suppressed.
-    /// Deny-list values found in the text are injected as synthetic matches
-    /// with confidence `1.0` when not already matched.
-    ///
-    /// Each entity carries a [`TextLocation`] with `start_offset` and
-    /// `end_offset` set from the match.
-    ///
-    /// [`TextLocation`]: nvisy_ontology::entity::TextLocation
-    #[tracing::instrument(target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), entities = tracing::field::Empty))]
-    pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
-        let mut raw = self.scan_raw(text, ctx);
-
-        // Apply context-based confidence adjustment before threshold
-        // filtering so that a match just below threshold can be
-        // promoted by keyword co-occurrence.
-        for m in &mut raw {
-            m.apply_context_adjustment(text);
-        }
-
-        // Deduplicate overlapping matches of the same entity kind:
-        // sort by (kind, start, descending confidence) then keep only
-        // the highest-confidence match per overlapping span.
-        raw.sort_by(|a, b| {
-            a.start.cmp(&b.start).then(
-                b.confidence
-                    .partial_cmp(&a.confidence)
-                    .unwrap_or(Ordering::Equal),
-            )
-        });
-        let mut deduped: Vec<RawMatch> = Vec::with_capacity(raw.len());
-        for m in raw {
-            let dominated = deduped.iter().any(|existing| {
-                existing.entity_kind == m.entity_kind
-                    && existing.start <= m.start
-                    && existing.end >= m.end
-                    && existing.confidence >= m.confidence
-            });
-            if !dominated {
-                deduped.push(m);
-            }
-        }
-
-        let threshold = self.confidence_threshold;
-        let entities: Vec<Entity> = deduped
-            .into_iter()
-            .filter(|m| m.confidence >= threshold)
-            .map(|m| {
-                tracing::trace!(
-                    target: TARGET,
-                    pattern = m.pattern_name.as_deref().unwrap_or("deny_list"),
-                    kind = %m.entity_kind,
-                    confidence = m.confidence,
-                    start = m.start,
-                    end = m.end,
-                    "matched entity",
-                );
-
-                m.into_entity()
-            })
-            .collect();
-
-        tracing::Span::current().record("entities", entities.len());
-        entities
-    }
-
-    /// Internal: scan and return raw matches (used by [`scan_entities`]
-    /// and tests).
-    fn scan_raw(&self, text: &str, ctx: &ScanContext) -> Vec<RawMatch> {
-        let mut results = Vec::new();
-
-        self.scan_regex(text, &ctx.allow, &mut results);
-        self.scan_dict(text, &ctx.allow, &mut results);
-        self.scan_deny_list(text, &ctx.deny, &mut results);
-
-        results
-    }
-
-    /// Phase 1: regex matches. Uses `RegexSet` as a pre-filter, then runs
-    /// each matching regex individually to extract offsets and values.
-    fn scan_regex(&self, text: &str, allow: &AllowList, results: &mut Vec<RawMatch>) {
-        let set_matches = self.regex_set.matches(text);
-        for idx in set_matches.iter() {
-            let entry = &self.regex_entries[idx];
-
-            for mat in entry.regex.find_iter(text) {
-                let value = mat.as_str();
-
-                if allow.contains(value) {
-                    continue;
-                }
-
-                if let Some(ref vname) = entry.validator_name
-                    && let Some(validate) = self.validators.resolve(vname)
-                    && !validate(value)
-                {
-                    continue;
-                }
-
-                let method = if let Some(ref vname) = entry.validator_name {
-                    RecognitionMethod::regex_validated(&entry.pattern_name, vname)
-                } else {
-                    RecognitionMethod::regex(&entry.pattern_name)
-                };
-
-                results.push(RawMatch {
-                    pattern_name: Some(entry.pattern_name.clone()),
-                    category: entry.category,
-                    entity_kind: entry.entity_kind,
-                    value: value.to_owned(),
-                    start: mat.start(),
-                    end: mat.end(),
-                    confidence: entry.confidence,
-                    recognition_methods: vec![method],
-                    context: entry.context.clone(),
-                });
-            }
-        }
-    }
-
-    /// Phase 2: dictionary matches via Aho-Corasick automata.
-    fn scan_dict(&self, text: &str, allow: &AllowList, results: &mut Vec<RawMatch>) {
-        for entry in &self.dict_entries {
-            for mat in entry.automaton.find_iter(text) {
-                let pat_idx = mat.pattern().as_usize();
-                let value = &entry.values[pat_idx];
-
-                let confidence = entry.resolve_confidence(pat_idx);
-
-                if allow.contains(value.as_str()) {
-                    continue;
-                }
-
-                results.push(RawMatch {
-                    pattern_name: Some(entry.pattern_name.clone()),
-                    category: entry.category,
-                    entity_kind: entry.entity_kind,
-                    value: value.clone(),
-                    start: mat.start(),
-                    end: mat.end(),
-                    confidence,
-                    recognition_methods: vec![RecognitionMethod::dictionary(&entry.pattern_name)],
-                    context: entry.context.clone(),
-                });
-            }
-        }
-    }
-
-    /// Phase 3: inject deny-list values found in `text` not already
-    /// matched by regex or dictionary.
-    fn scan_deny_list(&self, text: &str, deny: &DenyList, results: &mut Vec<RawMatch>) {
-        let matched_values: HashSet<&str> = results.iter().map(|r| r.value.as_str()).collect();
-
-        let mut deny_matches = Vec::new();
-        for (deny_value, deny_rule) in deny.iter() {
-            if matched_values.contains(deny_value) {
-                continue;
-            }
-            let mut search_start = 0;
-            while let Some(pos) = text[search_start..].find(deny_value) {
-                let abs_start = search_start + pos;
-                let abs_end = abs_start + deny_value.len();
-                deny_matches.push(RawMatch {
-                    pattern_name: None,
-                    category: deny_rule.category,
-                    entity_kind: deny_rule.entity_kind,
-                    value: deny_value.to_owned(),
-                    start: abs_start,
-                    end: abs_end,
-                    confidence: 1.0,
-                    recognition_methods: vec![deny_rule.method.clone()],
-                    context: None,
-                });
-                search_start = abs_end;
-            }
-        }
-        results.extend(deny_matches);
-    }
-}
-
-static DEFAULT_ENGINE: LazyLock<PatternEngine> = LazyLock::new(|| {
-    PatternEngine::builder()
-        .build()
-        .expect("built-in patterns must compile")
-});
+pub use self::error::PatternEngineError;
+pub use self::filter::{AllowList, DenyList, DenyRule, ScanContext};
+pub use self::pattern_engine::PatternEngine;
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::ModelKind;
+    use nvisy_ontology::entity::{EntityCategory, EntityKind, ModelKind, RecognitionMethod};
 
+    use super::scan::dedup::{beats, dedup_overlapping, sort_for_dedup, spans_overlap};
+    use super::scan::pattern_match::RawMatch;
     use super::*;
 
     fn empty_ctx() -> ScanContext {
@@ -350,7 +58,10 @@ mod tests {
             .with_patterns(&["ssn"])
             .build()
             .unwrap();
-        let ctx = ScanContext::new().with_allow(AllowList::new().with("123-45-6789"));
+        let ctx = ScanContext {
+            allow: ["123-45-6789"].into_iter().collect(),
+            ..Default::default()
+        };
         let matches = engine.scan_raw("SSN: 123-45-6789", &ctx);
         assert!(
             !matches
@@ -362,7 +73,8 @@ mod tests {
 
     #[test]
     fn deny_list_injects_match() {
-        let deny = DenyList::new().with(
+        let mut deny = DenyList::new();
+        deny.insert(
             "secret-value-42",
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
@@ -374,7 +86,10 @@ mod tests {
             .with_patterns(&["email"])
             .build()
             .unwrap();
-        let ctx = ScanContext::new().with_deny(deny);
+        let ctx = ScanContext {
+            deny,
+            ..Default::default()
+        };
         let matches = engine.scan_raw("The secret-value-42 should be detected.", &ctx);
         let deny_match = matches
             .iter()
@@ -384,14 +99,15 @@ mod tests {
         assert_eq!(deny_match.confidence, 1.0);
         assert_eq!(deny_match.entity_kind, EntityKind::PersonName);
         assert_eq!(
-            deny_match.recognition_methods,
-            vec![RecognitionMethod::ner("test", ModelKind::SelfHosted)]
+            deny_match.recognition_methods.as_slice(),
+            &[RecognitionMethod::ner("test", ModelKind::SelfHosted)]
         );
     }
 
     #[test]
     fn deny_list_not_injected_when_absent() {
-        let deny = DenyList::new().with(
+        let mut deny = DenyList::new();
+        deny.insert(
             "not-in-text",
             DenyRule {
                 category: EntityCategory::PersonalIdentity,
@@ -403,7 +119,10 @@ mod tests {
             .with_patterns(&["email"])
             .build()
             .unwrap();
-        let ctx = ScanContext::new().with_deny(deny);
+        let ctx = ScanContext {
+            deny,
+            ..Default::default()
+        };
         let matches = engine.scan_raw("Nothing special here.", &ctx);
         assert!(
             !matches.iter().any(|m| m.pattern_name.is_none()),
@@ -428,6 +147,74 @@ mod tests {
     }
 
     #[test]
+    fn dedup_prefers_tighter_higher_confidence_match() {
+        let wide = RawMatch {
+            pattern_name: Some("wide".into()),
+            category: EntityCategory::PersonalIdentity,
+            entity_kind: EntityKind::GovernmentId,
+            value: "wide".into(),
+            start: 10,
+            end: 30,
+            confidence: 0.7,
+            recognition_methods: smallvec::smallvec![RecognitionMethod::regex("wide")],
+            context: None,
+        };
+        let tight = RawMatch {
+            pattern_name: Some("tight".into()),
+            category: EntityCategory::PersonalIdentity,
+            entity_kind: EntityKind::GovernmentId,
+            value: "tight".into(),
+            start: 15,
+            end: 20,
+            confidence: 0.9,
+            recognition_methods: smallvec::smallvec![RecognitionMethod::regex("tight")],
+            context: None,
+        };
+        let mut raw = vec![wide, tight];
+        sort_for_dedup(&mut raw);
+        let kept = dedup_overlapping(&raw);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].pattern_name.as_deref(), Some("tight"));
+    }
+
+    #[test]
+    fn spans_overlap_basic() {
+        assert!(spans_overlap(0, 10, 5, 15));
+        assert!(spans_overlap(5, 15, 0, 10));
+        assert!(!spans_overlap(0, 5, 5, 10));
+        assert!(!spans_overlap(5, 10, 0, 5));
+    }
+
+    #[test]
+    fn beats_prefers_higher_confidence_then_tighter_span() {
+        let mk = |start, end, conf| RawMatch {
+            pattern_name: None,
+            category: EntityCategory::PersonalIdentity,
+            entity_kind: EntityKind::PersonName,
+            value: "x".into(),
+            start,
+            end,
+            confidence: conf,
+            recognition_methods: smallvec::smallvec![],
+            context: None,
+        };
+        let high = mk(0, 10, 0.9);
+        let low = mk(0, 10, 0.5);
+        assert!(beats(&high, &low, true));
+        assert!(!beats(&low, &high, true));
+
+        let tight = mk(0, 5, 0.7);
+        let wide = mk(0, 10, 0.7);
+        assert!(beats(&tight, &wide, true));
+        assert!(!beats(&wide, &tight, true));
+
+        let a = mk(0, 5, 0.7);
+        let b = mk(0, 5, 0.7);
+        assert!(beats(&a, &b, true));
+        assert!(!beats(&a, &b, false));
+    }
+
+    #[test]
     fn into_entity_preserves_fields() {
         let raw = RawMatch {
             pattern_name: Some("ssn".into()),
@@ -437,7 +224,9 @@ mod tests {
             start: 5,
             end: 16,
             confidence: 0.9,
-            recognition_methods: vec![RecognitionMethod::regex_validated("ssn", "ssn")],
+            recognition_methods: smallvec::smallvec![RecognitionMethod::regex_validated(
+                "ssn", "ssn"
+            )],
             context: None,
         };
         let entity = raw.into_entity();

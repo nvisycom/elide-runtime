@@ -92,21 +92,22 @@ Allow and deny lists are configured per-scan via [`ScanContext`], not on the
 engine itself:
 
 ```rust,ignore
-use nvisy_pattern::prelude::*;
+use nvisy_pattern::{AllowList, DenyList, DenyRule, PatternEngine, ScanContext};
 use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
 
-let ctx = ScanContext::new()
-    .with_allow(AllowList::new()
-        .with("123-45-6789")         // suppress known test SSN
-        .with("000-00-0000"))
-    .with_deny(DenyList::new()
-        .with("John Doe", DenyRule {
-            category: EntityCategory::PersonalIdentity,
-            entity_kind: EntityKind::PersonName,
-            method: RecognitionMethod::Ner,
-        }));
+let mut deny = DenyList::new();
+deny.insert("John Doe", DenyRule {
+    category: EntityCategory::PersonalIdentity,
+    entity_kind: EntityKind::PersonName,
+    method: RecognitionMethod::Ner,
+});
 
-let matches = PatternEngine::instance().scan_text("...", &ctx);
+let ctx = ScanContext {
+    allow: ["123-45-6789", "000-00-0000"].into_iter().collect(),
+    deny,
+};
+
+let matches = PatternEngine::instance().scan_entities("...", &ctx);
 ```
 
 - **Allow list** (`AllowList`): matched values that appear in the allow list

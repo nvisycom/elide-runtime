@@ -24,12 +24,14 @@ mod csv_dictionary;
 mod csv_error;
 mod dictionary;
 mod dictionary_error;
+mod dictionary_metadata;
 mod dictionary_registry;
 mod text_dictionary;
 
 pub use self::csv_dictionary::CsvDictionary;
 pub(crate) use self::csv_error::CsvDictionaryError;
-pub use self::dictionary::{BoxDictionary, Dictionary, DictionaryTerm};
+pub use self::dictionary::{Dictionary, DictionaryTerm};
 pub(crate) use self::dictionary_error::DictionaryLoadError;
+pub use self::dictionary_metadata::DictionaryMetadata;
 pub use self::dictionary_registry::{DictionaryRegistry, builtin_registry};
 pub use self::text_dictionary::TxtDictionary;

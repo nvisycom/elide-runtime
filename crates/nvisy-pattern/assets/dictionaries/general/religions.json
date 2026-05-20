@@ -1,0 +1,7 @@
+{
+  "name": "religions",
+  "description": "Religion and belief-system names in English.",
+  "version": "1.0.0",
+  "languages": ["en"],
+  "regions": ["global"]
+}

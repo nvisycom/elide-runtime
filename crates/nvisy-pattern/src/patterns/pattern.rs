@@ -1,9 +1,10 @@
-//! Core [`Pattern`] trait, [`MatchSource`] enum, and [`BoxPattern`] type alias.
+//! Core [`Pattern`] trait and [`MatchSource`] enum.
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use serde::Deserialize;
 
 use super::context_rule::ContextRule;
+use super::pattern_metadata::PatternMetadata;
 
 /// A regex-based match source with an optional post-match validator.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -158,8 +159,14 @@ fn default_case_sensitive() -> bool {
 /// The built-in implementation is [`JsonPattern`], which is deserialized
 /// from the JSON files under `assets/patterns/`.
 ///
+/// This trait is **sealed**: external crates cannot add new implementations.
+/// New pattern sources should be added via JSON files loaded through
+/// [`PatternRegistry::load_dir`] or [`PatternRegistry::load_file`].
+///
 /// [`JsonPattern`]: super::JsonPattern
-pub trait Pattern: Send + Sync {
+/// [`PatternRegistry::load_dir`]: super::PatternRegistry::load_dir
+/// [`PatternRegistry::load_file`]: super::PatternRegistry::load_file
+pub trait Pattern: sealed::Sealed + Send + Sync {
     /// Unique name identifying this pattern (e.g. `"ssn"`, `"credit-card"`).
     fn name(&self) -> &str;
 
@@ -180,7 +187,22 @@ pub trait Pattern: Send + Sync {
     fn context(&self) -> Option<&ContextRule> {
         None
     }
+
+    /// Optional metadata declared on the pattern (language/industry/
+    /// region/compliance tags, version, description, references).
+    ///
+    /// Returns a reference into the pattern's own storage; the default
+    /// returns an empty metadata value, used when no `metadata` block
+    /// is present.
+    fn metadata(&self) -> &PatternMetadata {
+        static EMPTY: std::sync::LazyLock<PatternMetadata> =
+            std::sync::LazyLock::new(PatternMetadata::default);
+        &EMPTY
+    }
 }
 
-/// Type-erased boxed [`Pattern`].
-pub type BoxPattern = Box<dyn Pattern>;
+pub(crate) mod sealed {
+    pub trait Sealed {}
+    impl Sealed for super::super::json_pattern::JsonPattern {}
+}
+

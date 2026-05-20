@@ -1,0 +1,7 @@
+{
+  "name": "currencies",
+  "description": "ISO 4217 currency names and codes.",
+  "version": "1.0.0",
+  "industries": ["finance"],
+  "regions": ["global"]
+}

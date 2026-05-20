@@ -1,9 +1,0 @@
-{
-  "name": "nationalities",
-  "category": "demographic",
-  "entity_type": "nationality",
-  "dictionary": {
-    "name": "nationalities",
-    "confidence": 0.85
-  }
-}

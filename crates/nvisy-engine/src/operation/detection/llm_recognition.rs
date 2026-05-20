@@ -1,7 +1,13 @@
-//! Named entity recognition operation.
+//! LLM-driven named entity recognition.
 //!
-//! Runs at **phase 2**, after extraction. Drives language-model inference
-//! to identify and classify named entities within extracted text.
+//! Runs at **phase 2**, after extraction. Drives an LLM via
+//! [`NerAgent`] to identify and classify named entities within
+//! extracted text. Silently no-ops at the orchestrator level when no
+//! LLM provider is configured — [`Self::new`] returns an error in
+//! that case and the orchestrator skips the operation.
+//!
+//! For offline (model-based) NER, see
+//! [`NerRecognition`](super::ner_recognition::NerRecognition).
 
 use nvisy_codec::Span;
 use nvisy_codec::handler::TextData;
@@ -15,17 +21,23 @@ use super::rebase_entities::RebaseEntities;
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
 
-const TARGET: &str = "nvisy_engine::op::entity_recognition";
+const TARGET: &str = "nvisy_engine::op::llm_recognition";
 
-/// NER-based entity recognition. Wraps an [`NerAgent`] which manages
+/// LLM-backed entity recognition. Wraps an [`NerAgent`] which manages
 /// coreference state internally between successive text spans.
-pub struct EntityRecognition {
+pub struct LlmRecognition {
     agent: NerAgent,
     config: DetectionConfig,
 }
 
-impl EntityRecognition {
+impl LlmRecognition {
     /// Build from graph config and runtime dependencies.
+    ///
+    /// # Errors
+    ///
+    /// Returns a validation error if no LLM provider is configured.
+    /// Callers (the orchestrator) treat this as "skip the operation",
+    /// not as a fatal pipeline failure.
     pub async fn new(
         cfg: &NerDetection,
         runtime: &RuntimeConfig,
@@ -34,7 +46,9 @@ impl EntityRecognition {
         let llm = runtime.llm.as_ref();
         let provider = llm
             .and_then(|s| s.provider.clone())
-            .ok_or_else(|| Error::new(ErrorKind::Validation, "NER requires an LLM provider"))?;
+            .ok_or_else(|| {
+                Error::new(ErrorKind::Validation, "LLM recognition requires an LLM provider")
+            })?;
         let agent_config = llm.and_then(|s| s.policy.clone()).unwrap_or_default();
 
         let agent = NerAgent::new(&provider, agent_config, Some(http_client.clone()))
@@ -49,7 +63,7 @@ impl EntityRecognition {
     }
 
     async fn detect(&self, spans: &[Span<TextLocation, TextData>]) -> Result<Entities> {
-        tracing::debug!(target: TARGET, span_count = spans.len(), "running NER");
+        tracing::debug!(target: TARGET, span_count = spans.len(), "running LLM recognition");
         let mut entities = Entities::new();
 
         for span in spans {
@@ -67,7 +81,7 @@ impl EntityRecognition {
     }
 }
 
-impl Operation for EntityRecognition {
+impl Operation for LlmRecognition {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         let spans = envelope.document.collect_text_spans().await;
         if !spans.is_empty() {
@@ -75,7 +89,7 @@ impl Operation for EntityRecognition {
             tracing::debug!(
                 target: TARGET,
                 detected = detected.len(),
-                "appending NER entities",
+                "appending LLM-recognised entities",
             );
             envelope.add_entities(detected).await;
         }

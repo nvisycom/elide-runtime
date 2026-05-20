@@ -23,7 +23,7 @@ mod validate;
 use nvisy_core::Result;
 
 pub(crate) use self::deduplication::Deduplication;
-pub(crate) use self::detection::{EntityRecognition, PatternRecognition};
+pub(crate) use self::detection::{LlmRecognition, NerRecognition, PatternRecognition};
 pub(crate) use self::envelope::SharedData;
 pub use self::envelope::{Document, DocumentEnvelope};
 pub(crate) use self::export_file::ExportFile;

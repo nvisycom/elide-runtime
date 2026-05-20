@@ -82,6 +82,11 @@ pub(super) struct EngineInner {
     pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
     pub key_provider: Option<SharedKeyProvider>,
+    /// Optional offline NER backend (e.g. an ONNX model) shared
+    /// across runs. When `Some`, every run executes the
+    /// [`NerRecognition`](crate::operation::NerRecognition) operation
+    /// in addition to LLM-driven NER and pattern matching.
+    pub ner_backend: Option<Arc<dyn nvisy_nlp::NerBackend>>,
     /// In-memory run lifecycle tracker (volatile: lost on restart).
     pub runs: RunState,
     /// Background pipeline tasks spawned by [`Engine::submit`].
@@ -137,6 +142,7 @@ impl Engine {
                 http_client,
                 registry,
                 key_provider: None,
+                ner_backend: None,
                 runs: RunState::new(),
                 background_tasks: Mutex::new(JoinSet::new()),
             }),
@@ -175,6 +181,23 @@ impl Engine {
         self
     }
 
+    /// Attach an offline NER backend (typically an
+    /// [`OrtNerBackend`](nvisy_nlp::OrtNerBackend)) shared across runs.
+    ///
+    /// When set, the orchestrator runs
+    /// [`NerRecognition`](crate::operation::NerRecognition) in the
+    /// detection phase alongside LLM-driven NER and pattern matching.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the engine has already been cloned (Arc is shared).
+    pub fn with_ner_backend(mut self, backend: Arc<dyn nvisy_nlp::NerBackend>) -> Self {
+        Arc::get_mut(&mut self.inner)
+            .expect("engine must not be shared during construction")
+            .ner_backend = Some(backend);
+        self
+    }
+
     /// Returns the base runtime configuration before per-request overrides.
     pub fn config(&self) -> &RuntimeConfig {
         &self.inner.runtime_config
@@ -201,6 +224,7 @@ impl Engine {
             self.inner.registry.clone(),
             self.inner.http_client.clone(),
             self.inner.key_provider.clone(),
+            self.inner.ner_backend.clone(),
             self.inner.runs.clone(),
             self.inner.runtime_config.clone(),
         )

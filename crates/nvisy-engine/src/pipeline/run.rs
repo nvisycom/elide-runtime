@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use nvisy_core::Error;
+use nvisy_nlp::NerBackend;
 use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
 use nvisy_ontology::workflow::GraphNodeKind;
 use nvisy_provider::http::HttpClient;
@@ -41,6 +42,7 @@ pub(super) struct Pipeline {
     registry: Registry,
     http_client: HttpClient,
     key_provider: Option<SharedKeyProvider>,
+    ner_backend: Option<Arc<dyn NerBackend>>,
     runs: RunState,
     base_config: RuntimeConfig,
 }
@@ -51,6 +53,7 @@ impl Pipeline {
         registry: Registry,
         http_client: HttpClient,
         key_provider: Option<SharedKeyProvider>,
+        ner_backend: Option<Arc<dyn NerBackend>>,
         runs: RunState,
         base_config: RuntimeConfig,
     ) -> Self {
@@ -59,6 +62,7 @@ impl Pipeline {
             registry,
             http_client,
             key_provider,
+            ner_backend,
             runs,
             base_config,
         }
@@ -190,6 +194,7 @@ impl Pipeline {
             shared: Arc::new(shared_data),
             config: Arc::new(effective_config),
             http_client: self.http_client.clone(),
+            ner_backend: self.ner_backend.clone(),
             concurrency,
             dry_run: input.dry_run,
         };

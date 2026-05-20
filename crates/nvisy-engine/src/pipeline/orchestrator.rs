@@ -13,6 +13,7 @@ use std::future::Future;
 use std::sync::Arc;
 
 use nvisy_core::Error;
+use nvisy_nlp::NerBackend;
 use nvisy_ontology::workflow::{ConcurrencyPolicy, Detection, Extraction as ExtractionConfig};
 use nvisy_provider::http::HttpClient;
 use tokio::sync::Semaphore;
@@ -23,8 +24,9 @@ use super::config::RuntimeConfig;
 use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
 use crate::graph::TimeoutExt;
 use crate::operation::{
-    Deduplication, DocumentEnvelope, EntityRecognition, ExportFile, Extraction, GenerateContext,
-    ImportFile, Operation, PatternRecognition, Redaction, SharedData, Validation,
+    Deduplication, DocumentEnvelope, ExportFile, Extraction, GenerateContext, ImportFile,
+    LlmRecognition, NerRecognition, Operation, PatternRecognition, Redaction, SharedData,
+    Validation,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -39,6 +41,12 @@ pub(super) struct RunContext {
     pub config: Arc<RuntimeConfig>,
     /// Shared HTTP client for downstream API calls.
     pub http_client: HttpClient,
+    /// Optional offline NER backend shared across all documents.
+    ///
+    /// `None` skips the [`NerRecognition`](crate::operation::NerRecognition)
+    /// stage; the LLM-driven [`LlmRecognition`](crate::operation::LlmRecognition)
+    /// runs independently.
+    pub ner_backend: Option<Arc<dyn NerBackend>>,
     /// Optional limit on how many documents may process concurrently.
     pub concurrency: Option<ConcurrencyPolicy>,
     /// When `true`, skip redaction, validation, and export phases.
@@ -255,10 +263,13 @@ impl DocumentPipeline {
 
     /// Run detection methods sequentially.
     ///
-    /// NER and Pattern are logically independent but both mutate the
-    /// envelope (appending to `audit.entities`), so they run
-    /// sequentially on the same `&mut` reference. NER silently skips
-    /// if no LLM provider is configured.
+    /// LLM, offline NER, and Pattern are logically independent but
+    /// all mutate the envelope (appending to `audit.entities`), so
+    /// they run sequentially on the same `&mut` reference. Each
+    /// silently skips when its prerequisite is missing: LLM
+    /// recognition needs an LLM provider; offline NER needs an
+    /// `Arc<dyn NerBackend>` on the run context; pattern recognition
+    /// always runs.
     async fn run_detection(
         &self,
         cfg: &Detection,
@@ -266,8 +277,13 @@ impl DocumentPipeline {
     ) -> Result<(), Error> {
         let ner_cfg = cfg.ner.clone().unwrap_or_default();
         if let Ok(op) =
-            EntityRecognition::new(&ner_cfg, &self.ctx.config, &self.ctx.http_client).await
+            LlmRecognition::new(&ner_cfg, &self.ctx.config, &self.ctx.http_client).await
         {
+            op.execute(envelope).await?;
+        }
+
+        if let Some(ref backend) = self.ctx.ner_backend {
+            let op = NerRecognition::new(Arc::clone(backend));
             op.execute(envelope).await?;
         }
 

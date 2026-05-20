@@ -7,6 +7,7 @@ members = [
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
+    "./crates/nvisy-nlp",
     "./crates/nvisy-ontology",
     "./crates/nvisy-pattern",
     "./crates/nvisy-provider",
@@ -36,6 +37,7 @@ documentation = "https://docs.rs/nvisy-runtime"
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
+nvisy-nlp = { path = "./crates/nvisy-nlp", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-provider = { path = "./crates/nvisy-provider", version = "0.1.0" }
@@ -96,6 +98,14 @@ hex = { version = "0.4", features = [] }
 regex = { version = "1.0", features = [] }
 aho-corasick = { version = "1.0", features = [] }
 smallvec = { version = "1.13", features = [] }
+
+# NLP / NER
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "load-dynamic", "api-24"] }
+ndarray = { version = "0.17", features = [] }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
+lingua = { version = "1.8", default-features = false, features = ["english"] }
+stop-words = { version = "0.10", features = ["iso"] }
+unicode-segmentation = { version = "1.13", features = [] }
 
 # Graph data structures
 petgraph = { version = "0.8", features = [] }

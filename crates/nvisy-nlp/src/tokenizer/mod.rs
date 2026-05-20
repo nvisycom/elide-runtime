@@ -29,10 +29,11 @@ use crate::error::Result;
 ///
 /// # Errors
 ///
-/// Implementations return [`Error::Tokenizer`](crate::Error::Tokenizer)
-/// when they cannot
+/// Implementations return [`Error::Tokenizer`] when they cannot
 /// produce a token stream. Pure-Rust implementations like
 /// [`UnicodeTokenizer`] never error in practice.
+///
+/// [`Error::Tokenizer`]: crate::Error::Tokenizer
 pub trait Tokenizer: Send + Sync {
     /// Tokenize `text`.
     fn tokenize(&self, text: &str) -> Result<Vec<Token>>;

@@ -26,17 +26,15 @@ use crate::error::Result;
 ///
 /// `language` is **advisory**. Multilingual models may ignore it;
 /// monolingual models should validate it against
-/// [`supported_languages`](Self::supported_languages) and may return
-/// [`Error::UnsupportedLanguage`](crate::Error::UnsupportedLanguage)
-/// if the hint disagrees.
+/// [`supported_languages`] and may return
+/// [`Error::UnsupportedLanguage`] if the hint disagrees.
+///
+/// [`supported_languages`]: Self::supported_languages
+/// [`Error::UnsupportedLanguage`]: crate::Error::UnsupportedLanguage
 #[async_trait]
 pub trait NerBackend: Send + Sync {
     /// Recognize entities in `text`.
-    async fn recognize(
-        &self,
-        text: &str,
-        language: Option<&LanguageTag>,
-    ) -> Result<Entities>;
+    async fn recognize(&self, text: &str, language: Option<&LanguageTag>) -> Result<Entities>;
 
     /// Languages this backend was trained or configured for.
     ///

@@ -28,11 +28,7 @@ impl NoopNerBackend {
 
 #[async_trait]
 impl NerBackend for NoopNerBackend {
-    async fn recognize(
-        &self,
-        _text: &str,
-        _language: Option<&LanguageTag>,
-    ) -> Result<Entities> {
+    async fn recognize(&self, _text: &str, _language: Option<&LanguageTag>) -> Result<Entities> {
         Ok(Entities::new())
     }
 }

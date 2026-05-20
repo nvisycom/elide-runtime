@@ -21,7 +21,9 @@ use nvisy_ontology::primitive::LanguageTag;
 use super::{LanguageDetection, LanguageDetector, LanguageSpan};
 use crate::error::Result;
 
-/// A [`LanguageDetector`] backed by [`lingua`](https://crates.io/crates/lingua).
+/// A [`LanguageDetector`] backed by [`lingua`].
+///
+/// [`lingua`]: https://crates.io/crates/lingua
 pub struct LinguaLanguageDetector {
     inner: LinguaDetector,
 }
@@ -54,13 +56,14 @@ impl LinguaLanguageDetector {
     /// the `lingua` crate's feature set.
     ///
     /// **Use only when the corpus language is genuinely unknown.** A
-    /// restricted set via [`for_languages`](Self::for_languages) gives
-    /// better accuracy and lower memory use when you do know the
-    /// candidate languages.
+    /// restricted set via [`for_languages`] gives better accuracy
+    /// and lower memory use when you do know the candidate languages.
     ///
     /// The actual languages considered depend on which `lingua`
     /// feature flags are enabled — e.g. only `english` by default in
     /// the nvisy workspace.
+    ///
+    /// [`for_languages`]: Self::for_languages
     pub fn for_all_languages() -> Self {
         let inner = LanguageDetectorBuilder::from_all_languages().build();
         Self { inner }

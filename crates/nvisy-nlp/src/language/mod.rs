@@ -6,13 +6,15 @@
 //! networked detectors can report real backend failures; pure-CPU
 //! detectors that never fail simply return `Ok(...)`.
 //!
-//! [`detect`](LanguageDetector::detect) returns
-//! `Result<Option<LanguageDetection>>` to split two different
-//! concepts: `Ok(None)` means *no answer* (text too short or
-//! ambiguous — not an error), and `Err(_)` means *real failure*
-//! (network, model, etc.). [`detect_multiple`](LanguageDetector::detect_multiple)
-//! returns `Result<Vec<LanguageSpan>>` where an empty vec already
-//! represents "couldn't decide on any span."
+//! [`detect`] returns `Result<Option<LanguageDetection>>` to split
+//! two different concepts: `Ok(None)` means *no answer* (text too
+//! short or ambiguous — not an error), and `Err(_)` means *real
+//! failure* (network, model, etc.). [`detect_multiple`] returns
+//! `Result<Vec<LanguageSpan>>` where an empty vec already represents
+//! "couldn't decide on any span."
+//!
+//! [`detect`]: LanguageDetector::detect
+//! [`detect_multiple`]: LanguageDetector::detect_multiple
 
 mod lingua;
 
@@ -37,12 +39,13 @@ pub struct LanguageDetection {
 }
 
 /// A contiguous single-language section within a possibly
-/// mixed-language text. Returned by
-/// [`detect_multiple`](LanguageDetector::detect_multiple).
+/// mixed-language text. Returned by [`detect_multiple`].
 ///
 /// `start` and `end` are byte offsets into the original text. The
 /// language and optional confidence follow the same conventions as
 /// [`LanguageDetection`].
+///
+/// [`detect_multiple`]: LanguageDetector::detect_multiple
 #[derive(Debug, Clone)]
 pub struct LanguageSpan {
     /// Byte offset of the span start in the original text.
@@ -67,9 +70,11 @@ pub trait LanguageDetector: Send + Sync {
     /// Detect contiguous single-language sections within `text`.
     ///
     /// The default implementation falls back to single-language
-    /// [`detect`](Self::detect) over the entire string. Backends with
-    /// real mixed-language support — [`LinguaLanguageDetector`], for
+    /// [`detect`] over the entire string. Backends with real
+    /// mixed-language support — [`LinguaLanguageDetector`], for
     /// example — override this with proper segmentation.
+    ///
+    /// [`detect`]: Self::detect
     fn detect_multiple(&self, text: &str) -> Result<Vec<LanguageSpan>> {
         Ok(match self.detect(text)? {
             Some(d) => vec![LanguageSpan {

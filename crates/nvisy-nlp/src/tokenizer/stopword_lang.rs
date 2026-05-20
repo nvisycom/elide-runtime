@@ -12,14 +12,14 @@
 
 /// ISO 639-1 codes the `iso`-featured `stop-words` build recognises.
 const SUPPORTED: &[&str] = &[
-    "ar", "da", "nl", "en", "fi", "fr", "de", "el", "hu", "id", "it", "no", "pt", "ro", "ru",
-    "sl", "es", "sv", "tr",
+    "ar", "da", "nl", "en", "fi", "fr", "de", "el", "hu", "id", "it", "no", "pt", "ro", "ru", "sl",
+    "es", "sv", "tr",
 ];
 
 /// Whether `code` (BCP-47 primary subtag / ISO 639-1) has a stopword
 /// list available without panicking the `stop-words` crate.
 pub(crate) fn is_supported(code: &str) -> bool {
-    SUPPORTED.iter().any(|&c| c == code)
+    SUPPORTED.contains(&code)
 }
 
 #[cfg(test)]

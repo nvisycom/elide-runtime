@@ -1,4 +1,4 @@
-//! Errors produced by [`nvisy-nlp`] backends and the composite engine.
+//! Errors produced by `nvisy-nlp` backends and the composite engine.
 //!
 //! Backends surface these wrapped in [`nvisy_core::Error`] via
 //! `From<Error>`. Callers that need structured access can downcast
@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use nvisy_core::{Error as CoreError, ErrorKind};
 use nvisy_ontology::primitive::LanguageTag;
 
-/// Result alias for [`nvisy-nlp`] operations.
+/// Result alias for `nvisy-nlp` operations.
 ///
 /// Defaults the error type to [`Error`]; backends and helpers in
 /// this crate use this everywhere instead of writing

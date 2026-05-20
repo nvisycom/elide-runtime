@@ -1,12 +1,13 @@
 //! [`UnicodeTokenizer`] — model-free tokenizer over Unicode word
 //! boundaries.
 //!
-//! Wraps [`unicode-segmentation`](https://docs.rs/unicode-segmentation)
-//! to produce one [`Token`] per Unicode word, with `is_stop` driven
-//! by an optional stopword set (loaded via the `stop-words` crate
-//! when a language is configured).
+//! Wraps [`unicode-segmentation`] to produce one [`Token`] per Unicode
+//! word, with `is_stop` driven by an optional stopword set (loaded
+//! via the `stop-words` crate when a language is configured).
 //!
 //! Use this when you want token offsets without depending on a model.
+//!
+//! [`unicode-segmentation`]: https://docs.rs/unicode-segmentation
 
 use std::collections::HashSet;
 
@@ -19,9 +20,13 @@ use crate::error::Result;
 
 /// Unicode-segmentation tokenizer.
 ///
-/// Construct with [`new`](Self::new) for a stopword-free tokenizer or
-/// [`with_language`](Self::with_language) to load the matching
-/// stopword list from [`stop-words`](https://crates.io/crates/stop-words).
+/// Construct with [`new`] for a stopword-free tokenizer or
+/// [`with_language`] to load the matching stopword list from
+/// [`stop-words`].
+///
+/// [`new`]: Self::new
+/// [`with_language`]: Self::with_language
+/// [`stop-words`]: https://crates.io/crates/stop-words
 #[derive(Debug, Clone, Default)]
 pub struct UnicodeTokenizer {
     stopwords: Option<HashSet<String>>,

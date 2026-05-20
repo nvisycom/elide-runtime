@@ -21,21 +21,23 @@ use crate::tokenizer::Tokenizer;
 /// Composite NLP engine.
 ///
 /// Holds a [`NerBackend`] and a [`LanguageDetector`] (both required)
-/// plus an optional [`Tokenizer`]. The default
-/// [`analyze`](Self::analyze) entrypoint matches Microsoft Presidio's
-/// `AnalyzerEngine` ordering: detect language, run NER (with the
-/// detected language as a hint), tokenize, derive keywords.
+/// plus an optional [`Tokenizer`]. The default [`analyze`] entrypoint
+/// matches Microsoft Presidio's `AnalyzerEngine` ordering: detect
+/// language, run NER (with the detected language as a hint),
+/// tokenize, derive keywords.
 ///
 /// When the caller already knows the language — e.g. a document
-/// uploaded with explicit metadata — use
-/// [`analyze_in_language`](Self::analyze_in_language) to bypass
-/// detection.
+/// uploaded with explicit metadata — use [`analyze_in_language`] to
+/// bypass detection.
 ///
-/// Construct via [`builder`](Self::builder).
+/// Construct via [`builder`].
 ///
 /// [`NerBackend`]: crate::ner::NerBackend
 /// [`LanguageDetector`]: crate::language::LanguageDetector
 /// [`Tokenizer`]: crate::tokenizer::Tokenizer
+/// [`analyze`]: Self::analyze
+/// [`analyze_in_language`]: Self::analyze_in_language
+/// [`builder`]: Self::builder
 pub struct NlpEngine {
     pub(super) ner: Arc<dyn NerBackend>,
     pub(super) language: Arc<dyn LanguageDetector>,
@@ -74,11 +76,7 @@ impl NlpEngine {
         self.run(text, detection).await
     }
 
-    async fn run(
-        &self,
-        text: &str,
-        detection: Option<LanguageDetection>,
-    ) -> Result<Artifacts> {
+    async fn run(&self, text: &str, detection: Option<LanguageDetection>) -> Result<Artifacts> {
         let language_hint = detection.as_ref().map(|d| &d.language);
         let entities = self.ner.recognize(text, language_hint).await?;
         let tokens = match &self.tokenizer {

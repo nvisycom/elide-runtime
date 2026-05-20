@@ -9,8 +9,6 @@
 //! - [`OrtNerBackend`]: orchestration — tokenize input, dispatch to
 //!   the inferencer, argmax over logits, fold BIO tags into spans,
 //!   build [`Entity`] values.
-//!
-//! See `DESIGN.md` for the rationale.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -179,10 +177,7 @@ impl OrtNerBackend {
 
     /// Construct with an arbitrary [`Inferencer`]. Used by tests to
     /// inject canned logits.
-    pub fn with_inferencer(
-        config: OrtNerConfig,
-        inferencer: Box<dyn Inferencer>,
-    ) -> Result<Self> {
+    pub fn with_inferencer(config: OrtNerConfig, inferencer: Box<dyn Inferencer>) -> Result<Self> {
         let tokenizer = Tokenizer::from_file(&config.tokenizer_path)
             .map_err(|e| Error::Tokenizer(format!("{}: {e}", config.tokenizer_path.display())))?;
         let id_to_label = label_order(&config.label_map);
@@ -206,12 +201,7 @@ impl OrtNerBackend {
         Ok(self.fold_predictions(text, &encoding, &predictions))
     }
 
-    fn fold_predictions(
-        &self,
-        text: &str,
-        encoding: &Encoding,
-        predictions: &[usize],
-    ) -> Entities {
+    fn fold_predictions(&self, text: &str, encoding: &Encoding, predictions: &[usize]) -> Entities {
         let offsets = encoding.get_offsets();
         let special = encoding.get_special_tokens_mask();
         let mut entities: Vec<Entity> = Vec::new();
@@ -293,11 +283,7 @@ impl fmt::Debug for OrtNerBackend {
 
 #[async_trait]
 impl NerBackend for OrtNerBackend {
-    async fn recognize(
-        &self,
-        text: &str,
-        _language: Option<&LanguageTag>,
-    ) -> Result<Entities> {
+    async fn recognize(&self, text: &str, _language: Option<&LanguageTag>) -> Result<Entities> {
         self.recognize_sync(text)
     }
 }

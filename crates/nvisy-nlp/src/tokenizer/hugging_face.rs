@@ -21,7 +21,9 @@ use crate::error::{Error, Result};
 /// A [`Tokenizer`] backed by a HuggingFace `tokenizer.json` file.
 ///
 /// Construction loads the tokenizer eagerly so subsequent
-/// [`tokenize`](Self::tokenize) calls don't repeat work.
+/// [`tokenize`] calls don't repeat work.
+///
+/// [`tokenize`]: Self::tokenize
 pub struct HfTokenizer {
     inner: InnerTokenizer,
     stopwords: Option<HashSet<String>>,
@@ -51,13 +53,15 @@ impl HfTokenizer {
     /// Returns the loaded tokenizer with the stopword set when
     /// `lang`'s primary subtag is among those `stop-words` recognises;
     /// otherwise returns the tokenizer without a stopword set
-    /// (mirroring [`UnicodeTokenizer::with_language`](super::UnicodeTokenizer::with_language)'s
-    /// semantics: unknown language ≠ failure to load).
+    /// (mirroring [`UnicodeTokenizer::with_language`]'s semantics:
+    /// unknown language ≠ failure to load).
     ///
     /// # Errors
     ///
     /// Returns [`Error::Tokenizer`] only if the tokenizer file
     /// itself can't be loaded.
+    ///
+    /// [`UnicodeTokenizer::with_language`]: super::UnicodeTokenizer::with_language
     pub fn with_language(path: impl AsRef<Path>, lang: &LanguageTag) -> Result<Self> {
         let mut tok = Self::from_file(path)?;
         let primary = lang.primary_language();
@@ -122,8 +126,7 @@ mod tests {
     /// `Error::Tokenizer` (not panic).
     #[test]
     fn missing_file_returns_error() {
-        let err =
-            HfTokenizer::from_file("/nonexistent/tokenizer.json").expect_err("should error");
+        let err = HfTokenizer::from_file("/nonexistent/tokenizer.json").expect_err("should error");
         assert!(matches!(err, Error::Tokenizer(_)));
     }
 

@@ -10,7 +10,9 @@ use crate::tokenizer::Tokenizer;
 /// Builder for [`NlpEngine`].
 ///
 /// Both the NER backend and the language detector are mandatory.
-/// [`build`](Self::build) panics if either is missing.
+/// [`build`] panics if either is missing.
+///
+/// [`build`]: Self::build
 #[derive(Default)]
 pub struct NlpEngineBuilder {
     ner: Option<Arc<dyn NerBackend>>,
@@ -55,7 +57,9 @@ impl NlpEngineBuilder {
     pub fn build(self) -> NlpEngine {
         NlpEngine {
             ner: self.ner.expect("NlpEngine requires a NerBackend"),
-            language: self.language.expect("NlpEngine requires a LanguageDetector"),
+            language: self
+                .language
+                .expect("NlpEngine requires a LanguageDetector"),
             tokenizer: self.tokenizer,
         }
     }

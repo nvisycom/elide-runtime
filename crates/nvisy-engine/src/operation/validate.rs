@@ -3,12 +3,12 @@
 //! Runs at **phase 5**, after [`Redaction`]. Re-scans redacted content
 //! to verify that no originally detected values remain visible.
 //!
-//! [`Redaction`]: crate::operation::RedactionOp
+//! [`Redaction`]: crate::operation::Redaction
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::AuditEntry;
-use nvisy_ontology::workflow::Validation;
+use nvisy_ontology::workflow::Validation as ValidationConfig;
 use uuid::Uuid;
 
 use crate::operation::{DocumentEnvelope, Operation};
@@ -29,13 +29,13 @@ pub struct ValidationResult {
 }
 
 /// Post-redaction validator that checks for leaked sensitive values.
-pub struct ValidationOp {
+pub struct Validation {
     fail_on_leak: bool,
 }
 
-impl ValidationOp {
+impl Validation {
     /// Create from graph config.
-    pub fn new(cfg: &Validation) -> Self {
+    pub fn new(cfg: &ValidationConfig) -> Self {
         Self {
             fail_on_leak: cfg.fail_on_leak,
         }
@@ -89,7 +89,7 @@ impl ValidationOp {
     }
 }
 
-impl Operation for ValidationOp {
+impl Operation for Validation {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         tracing::debug!(target: TARGET, "running post-redaction validation");
 

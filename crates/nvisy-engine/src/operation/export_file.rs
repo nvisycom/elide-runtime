@@ -29,13 +29,13 @@ const TARGET: &str = "nvisy_engine::op::export_file";
 ///
 /// [`Operation`]: crate::operation::Operation
 #[derive(Default)]
-pub struct ExportFileOp {
+pub struct ExportFile {
     encryption: Option<EncryptionConfig>,
     compression: Option<CompressionAlgorithm>,
     content_ids: Vec<Uuid>,
 }
 
-impl ExportFileOp {
+impl ExportFile {
     pub fn new() -> Self {
         Self::default()
     }

@@ -13,10 +13,10 @@ use nvisy_ontology::provenance::Audit;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::cache::ResourceCache;
-use super::content::ContentHandle;
+use super::resource_cache::ResourceCache;
+use super::content_handle::ContentHandle;
 use super::fjall_ext::{FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found};
-use super::key::CompositeKey;
+use super::composite_key::CompositeKey;
 
 const TARGET: &str = "nvisy_engine::registry";
 

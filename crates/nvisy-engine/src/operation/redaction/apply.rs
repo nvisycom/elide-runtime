@@ -17,6 +17,7 @@ use nvisy_ontology::entity::{
     AudioLocation, Entity, EntityKind, ImageLocation, Location, TabularLocation, TextLocation,
 };
 use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, TextStrategy};
+use nvisy_ontology::provenance::AuditEntryStatus;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -41,16 +42,11 @@ impl<'a> RedactionApplicator<'a> {
     /// Build and apply all redaction instructions.
     pub async fn apply(mut self) -> Result<()> {
         let entity_map = entity_map(&self.envelope.audit.entities);
-        let mut mapping_index = mapping_index(&self.envelope.redaction_map.entries);
 
-        let text = self
-            .build_text_redactions(&entity_map, &mut mapping_index)
-            .await?;
-        let tabular = self
-            .build_tabular_redactions(&entity_map, &mut mapping_index)
-            .await?;
-        let image = self.build_image_redactions(&entity_map, &mut mapping_index)?;
-        let audio = self.build_audio_redactions(&entity_map, &mut mapping_index)?;
+        let text = self.build_text_redactions(&entity_map).await?;
+        let tabular = self.build_tabular_redactions(&entity_map).await?;
+        let image = self.build_image_redactions(&entity_map)?;
+        let audio = self.build_audio_redactions(&entity_map)?;
 
         if !text.is_empty() {
             self.envelope.document.apply_text_redactions(text).await?;
@@ -74,12 +70,14 @@ impl<'a> RedactionApplicator<'a> {
     async fn build_text_redactions(
         &mut self,
         entity_map: &HashMap<Uuid, Entity>,
-        mapping_index: &mut HashMap<Uuid, usize>,
     ) -> Result<Redactions<TextLocation, TextRedaction>> {
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
             let record = &self.envelope.audit.entries[i];
+            if record.status == AuditEntryStatus::Suppressed {
+                continue;
+            }
             let Some(entity) = entity_map.get(&record.entity_id) else {
                 continue;
             };
@@ -100,10 +98,7 @@ impl<'a> RedactionApplicator<'a> {
             let entity_id = record.entity_id;
             let replacement = output.replacement_value().map(String::from);
 
-            self.envelope.audit.entries[i].value.replacement = replacement.clone();
-            if let Some(&idx) = mapping_index.get(&entity_id) {
-                self.envelope.redaction_map.entries[idx].replacement = replacement;
-            }
+            self.envelope.audit.entries[i].value.replacement = replacement;
 
             tracing::trace!(
                 target: TARGET,
@@ -124,12 +119,14 @@ impl<'a> RedactionApplicator<'a> {
     async fn build_tabular_redactions(
         &mut self,
         entity_map: &HashMap<Uuid, Entity>,
-        mapping_index: &mut HashMap<Uuid, usize>,
     ) -> Result<Redactions<TabularLocation, TabularRedaction>> {
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
             let record = &self.envelope.audit.entries[i];
+            if record.status == AuditEntryStatus::Suppressed {
+                continue;
+            }
             let Some(entity) = entity_map.get(&record.entity_id) else {
                 continue;
             };
@@ -150,10 +147,7 @@ impl<'a> RedactionApplicator<'a> {
             let entity_id = record.entity_id;
             let replacement = output.replacement_value().map(String::from);
 
-            self.envelope.audit.entries[i].value.replacement = replacement.clone();
-            if let Some(&idx) = mapping_index.get(&entity_id) {
-                self.envelope.redaction_map.entries[idx].replacement = replacement;
-            }
+            self.envelope.audit.entries[i].value.replacement = replacement;
 
             tracing::trace!(
                 target: TARGET,
@@ -176,12 +170,14 @@ impl<'a> RedactionApplicator<'a> {
     fn build_image_redactions(
         &mut self,
         entity_map: &HashMap<Uuid, Entity>,
-        mapping_index: &mut HashMap<Uuid, usize>,
     ) -> Result<Redactions<ImageLocation, ImageRedaction>> {
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
             let record = &self.envelope.audit.entries[i];
+            if record.status == AuditEntryStatus::Suppressed {
+                continue;
+            }
             let Some(entity) = entity_map.get(&record.entity_id) else {
                 continue;
             };
@@ -201,10 +197,7 @@ impl<'a> RedactionApplicator<'a> {
             };
 
             let entity_id = record.entity_id;
-            self.envelope.audit.entries[i].value.replacement = Some(placeholder.clone());
-            if let Some(&idx) = mapping_index.get(&entity_id) {
-                self.envelope.redaction_map.entries[idx].replacement = Some(placeholder);
-            }
+            self.envelope.audit.entries[i].value.replacement = Some(placeholder);
 
             tracing::trace!(
                 target: TARGET,
@@ -223,12 +216,14 @@ impl<'a> RedactionApplicator<'a> {
     fn build_audio_redactions(
         &mut self,
         entity_map: &HashMap<Uuid, Entity>,
-        mapping_index: &mut HashMap<Uuid, usize>,
     ) -> Result<Redactions<AudioLocation, AudioRedaction>> {
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
             let record = &self.envelope.audit.entries[i];
+            if record.status == AuditEntryStatus::Suppressed {
+                continue;
+            }
             let Some(entity) = entity_map.get(&record.entity_id) else {
                 continue;
             };
@@ -248,10 +243,7 @@ impl<'a> RedactionApplicator<'a> {
             };
 
             let entity_id = record.entity_id;
-            self.envelope.audit.entries[i].value.replacement = Some(placeholder.clone());
-            if let Some(&idx) = mapping_index.get(&entity_id) {
-                self.envelope.redaction_map.entries[idx].replacement = Some(placeholder);
-            }
+            self.envelope.audit.entries[i].value.replacement = Some(placeholder);
 
             tracing::trace!(
                 target: TARGET,
@@ -273,21 +265,6 @@ impl<'a> RedactionApplicator<'a> {
 /// Build a lookup map from entity UUID to a cloned entity.
 fn entity_map(entities: &nvisy_ontology::entity::Entities) -> HashMap<Uuid, Entity> {
     entities.iter().map(|e| (e.id, e.clone())).collect()
-}
-
-/// Build an index from entity UUID to its position in
-/// [`RedactionMap::entries`], so per-entity mapping updates become
-/// `O(1)` instead of a linear scan per audit entry.
-///
-/// [`RedactionMap::entries`]: nvisy_ontology::provenance::RedactionMap::entries
-fn mapping_index(
-    mappings: &[nvisy_ontology::provenance::RedactionMapping],
-) -> HashMap<Uuid, usize> {
-    mappings
-        .iter()
-        .enumerate()
-        .map(|(i, m)| (m.entity_id, i))
-        .collect()
 }
 
 /// Compute the codec [`TextOutput`] for a value + entity + strategy.
@@ -323,18 +300,6 @@ fn text_output(value: &str, entity: &Entity, strategy: &TextStrategy) -> TextOut
             // TODO: real tokenization — placeholder until the vault is wired.
             TextOutput::replace(format!("[TOKEN:{}]", entity.entity_kind))
         }
-        // `TextStrategy` is `#[non_exhaustive]`; new variants need
-        // explicit handling. Surface a generic placeholder so the
-        // pipeline doesn't silently drop entities.
-        _ => {
-            tracing::warn!(
-                target: TARGET,
-                entity_id = %entity.id,
-                strategy = ?strategy,
-                "unhandled text strategy, using generic placeholder",
-            );
-            TextOutput::replace(format!("[REDACTED:{}]", entity.entity_kind))
-        }
     }
 }
 
@@ -361,9 +326,6 @@ fn image_output(strategy: &ImageStrategy) -> Option<(ImageOutput, String)> {
             },
             format!("[IMAGE_PIXELATE:{block_size}]"),
         )),
-        // `ImageStrategy` is `#[non_exhaustive]`; new variants without
-        // a defined codec output are skipped.
-        _ => None,
     }
 }
 
@@ -375,9 +337,6 @@ fn audio_output(strategy: &AudioStrategy) -> Option<(AudioOutput, String)> {
     match strategy {
         AudioStrategy::Silence => Some((AudioOutput::Silence, "[AUDIO_SILENCE]".to_string())),
         AudioStrategy::Remove => Some((AudioOutput::Remove, "[AUDIO_REMOVE]".to_string())),
-        // `AudioStrategy` is `#[non_exhaustive]`; new variants without
-        // a defined codec output are skipped.
-        _ => None,
     }
 }
 
@@ -460,12 +419,10 @@ mod tests {
             .unwrap()
     }
 
-    fn test_mapping(entity_id: Uuid, location: Location, original: &str) -> RedactionMapping {
+    fn test_mapping(entity_id: Uuid, location: Location) -> RedactionMapping {
         RedactionMapping {
             entity_id,
             location,
-            original: original.to_owned(),
-            replacement: None,
         }
     }
 
@@ -582,11 +539,10 @@ mod tests {
         let entities: Entities = vec![entity.clone()].into();
         let mut envelope = test_envelope_csv(entities, "name,ssn\nAlice,123-45-6789\n").await;
         envelope.audit.entries.push(record);
-        envelope.redaction_map.entries.push(test_mapping(
-            entity_id,
-            entity.location.clone(),
-            "123-45-6789",
-        ));
+        envelope
+            .redaction_map
+            .entries
+            .push(test_mapping(entity_id, entity.location.clone()));
 
         RedactionApplicator::new(&mut envelope)
             .apply()
@@ -595,10 +551,6 @@ mod tests {
 
         assert_eq!(
             envelope.audit.entries[0].value.replacement.as_deref(),
-            Some("***********"),
-        );
-        assert_eq!(
-            envelope.redaction_map.entries[0].replacement.as_deref(),
             Some("***********"),
         );
         let value = envelope

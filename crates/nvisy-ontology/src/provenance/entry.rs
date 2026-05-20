@@ -26,6 +26,13 @@ pub enum AuditEntryStatus {
     Partial,
     /// Redaction is pending (not yet applied).
     Pending,
+    /// Entity was deliberately not redacted because a matching
+    /// [`Action::Suppress`] rule won out over any matching Redact rule
+    /// (or no Redact rule matched). The entry records the suppressing
+    /// policy and the original value so the suppression is auditable.
+    ///
+    /// [`Action::Suppress`]: crate::policy::Action::Suppress
+    Suppressed,
 }
 
 /// A per-entity audit entry: what strategy was chosen, what the

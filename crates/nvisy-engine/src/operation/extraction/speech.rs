@@ -17,11 +17,11 @@ use crate::pipeline::RuntimeConfig;
 const TARGET: &str = "nvisy_engine::op::extraction::audial";
 
 /// Audial extraction: transcribes audio documents via STT.
-pub(super) struct AudialExtractionOp {
+pub(super) struct AudialExtraction {
     stt: SttService,
 }
 
-impl AudialExtractionOp {
+impl AudialExtraction {
     pub fn new(
         cfg: &AudialExtractionCfg,
         config: &RuntimeConfig,
@@ -52,7 +52,7 @@ impl AudialExtractionOp {
     }
 }
 
-impl Operation for AudialExtractionOp {
+impl Operation for AudialExtraction {
     async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         if let ContentHandle::Audio(ref handler) = envelope.document.handle {
             tracing::debug!(target: TARGET, "transcribing audio");

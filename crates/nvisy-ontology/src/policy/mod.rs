@@ -70,21 +70,54 @@ impl Policy {
     }
 }
 
+/// A reference to a stored [`Policy`] tagged with the precedence it
+/// should take when applied alongside other policies.
+///
+/// Lower [`precedence`] wins: a ref with `precedence: 0` is the most
+/// authoritative ("override"), higher numbers are layered underneath
+/// (org defaults, etc.). Ties are resolved by insertion order (stable).
+///
+/// [`precedence`]: PolicyRef::precedence
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyRef {
+    /// Identifier of the previously uploaded policy.
+    pub id: Uuid,
+    /// Application precedence (lower = higher precedence).
+    pub precedence: u32,
+}
+
 /// A collection of policies to apply during a pipeline run.
+///
+/// The inner `Vec<Policy>` is held in **precedence order**: index `0`
+/// is the highest-precedence policy (lowest [`PolicyRef::precedence`]
+/// value). Callers should construct via the engine's resolution path
+/// rather than building this directly, so the order matches the
+/// precedence declared at the run boundary.
 #[derive(Debug, Clone, Default, Deref, DerefMut)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Policies {
-    /// The policies to evaluate, in order.
+    /// The policies to evaluate, in precedence order (index 0 is highest).
     #[deref]
     #[deref_mut]
     pub policies: Vec<Policy>,
 }
 
 impl Policies {
-    /// All strategy policies across all policies, sorted by priority.
+    /// All strategy policies across all policies, sorted by
+    /// [`StrategyPolicy::priority`] (lower first).
+    ///
+    /// Ties are broken by policy precedence: since [`policies`] is held
+    /// in precedence order, equal-priority strategies from a
+    /// higher-precedence policy come before those from a
+    /// lower-precedence policy. Within a single policy, ties follow
+    /// the [`strategies`] insertion order.
     ///
     /// Returns tuples of `(policy_id, strategy)` so callers can trace
     /// which policy a matched strategy belongs to.
+    ///
+    /// [`policies`]: Self::policies
+    /// [`strategies`]: Policy::strategies
     pub fn all_strategies(&self) -> Vec<(Uuid, &StrategyPolicy)> {
         let mut result: Vec<_> = self
             .policies

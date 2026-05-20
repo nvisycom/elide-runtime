@@ -13,4 +13,4 @@
 mod apply;
 mod evaluate;
 
-pub use self::evaluate::RedactionOp;
+pub use self::evaluate::Redaction;

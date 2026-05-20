@@ -45,7 +45,7 @@ async fn create_run(
 ) -> Result<(StatusCode, Json<RunId>)> {
     let input = EngineInput {
         actor_id,
-        policy_ids: req.policy_ids,
+        policies: req.policies,
         graph: req.graph,
         config: req.config,
         dry_run: req.dry_run,

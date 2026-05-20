@@ -144,7 +144,6 @@ impl Strategy {
 /// The action a strategy policy performs when it matches an entity.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum Action {
     /// Apply a redaction to the matched entity.
     Redact {

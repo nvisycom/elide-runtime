@@ -25,7 +25,7 @@ use super::orchestrator::{Orchestrator, RunContext};
 use super::plan::{self, ExecutionPlan};
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
-use crate::operation::envelope::SharedData;
+use crate::operation::SharedData;
 use crate::registry::Registry;
 use crate::utility::encryption::SharedKeyProvider;
 
@@ -144,16 +144,18 @@ impl Pipeline {
 
         let actor_id = input.actor_id;
 
+        // Sort policy refs by precedence (lower first); the stable sort
+        // preserves insertion order for equal-precedence refs.
+        let mut policy_refs = input.policies.clone();
+        policy_refs.sort_by_key(|r| r.precedence);
+        let policy_ids: Vec<Uuid> = policy_refs.iter().map(|r| r.id).collect();
+
         // Acquire contexts and policies into the registry caches.
         let (_context_guard, _policy_guard) = self
-            .acquire_resources(actor_id, &compiled.context_ids, &input.policy_ids)
+            .acquire_resources(actor_id, &compiled.context_ids, &policy_ids)
             .await;
 
-        let cached_policies = self
-            .registry
-            .policy_cache()
-            .resolve(&input.policy_ids)
-            .await;
+        let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
         let mut policies = Policies::default();
         for policy in cached_policies {
             policies.push(Arc::unwrap_or_clone(policy));

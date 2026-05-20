@@ -13,7 +13,7 @@ use std::future::Future;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::workflow::{ConcurrencyPolicy, Detection, Extraction};
+use nvisy_ontology::workflow::{ConcurrencyPolicy, Detection, Extraction as ExtractionConfig};
 use nvisy_provider::http::HttpClient;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
@@ -22,10 +22,9 @@ use tokio_util::sync::CancellationToken;
 use super::config::RuntimeConfig;
 use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
 use crate::graph::TimeoutExt;
-use crate::operation::envelope::SharedData;
 use crate::operation::{
-    DeduplicationOp, DocumentEnvelope, EntityRecognitionOp, ExportFileOp, ExtractionOp,
-    GenerateContextOp, ImportFileOp, Operation, PatternRecognitionOp, RedactionOp, ValidationOp,
+    Deduplication, DocumentEnvelope, EntityRecognition, ExportFile, Extraction, GenerateContext,
+    ImportFile, Operation, PatternRecognition, Redaction, SharedData, Validation,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -147,7 +146,7 @@ impl Orchestrator {
         let mut envelopes = Vec::new();
 
         for step in imports {
-            let import = ImportFileOp::new()
+            let import = ImportFile::new()
                 .with_decompression(step.config.decompression)
                 .with_decryption(step.config.decryption.clone());
 
@@ -198,7 +197,7 @@ impl DocumentPipeline {
         self.check_cancelled()?;
 
         // Phase 3: deduplication.
-        DeduplicationOp::new(&plan.deduplication)
+        Deduplication::new(&plan.deduplication)
             .execute(&mut envelope)
             .await?;
         self.check_cancelled()?;
@@ -206,14 +205,12 @@ impl DocumentPipeline {
         // Phase 4: redaction + generate context.
         if !self.ctx.dry_run {
             self.run_phase(&plan.redaction_policy, async {
-                RedactionOp::new(&plan.redaction)
-                    .execute(&mut envelope)
-                    .await
+                Redaction::new(&plan.redaction).execute(&mut envelope).await
             })
             .await?;
         }
         if plan.generate_context {
-            GenerateContextOp::new(&Default::default())
+            GenerateContext::new(&Default::default())
                 .execute(&mut envelope)
                 .await?;
         }
@@ -221,7 +218,7 @@ impl DocumentPipeline {
 
         // Phase 5: validation (skipped in dry-run).
         if !self.ctx.dry_run {
-            ValidationOp::new(&plan.validation)
+            Validation::new(&plan.validation)
                 .execute(&mut envelope)
                 .await?;
         }
@@ -248,10 +245,10 @@ impl DocumentPipeline {
     /// Run extraction for all applicable modalities.
     async fn run_extraction(
         &self,
-        cfg: &Extraction,
+        cfg: &ExtractionConfig,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
-        ExtractionOp::new(cfg, &self.ctx.config, &self.ctx.http_client)
+        Extraction::new(cfg, &self.ctx.config, &self.ctx.http_client)
             .execute(envelope)
             .await
     }
@@ -269,13 +266,13 @@ impl DocumentPipeline {
     ) -> Result<(), Error> {
         let ner_cfg = cfg.ner.clone().unwrap_or_default();
         if let Ok(op) =
-            EntityRecognitionOp::new(&ner_cfg, &self.ctx.config, &self.ctx.http_client).await
+            EntityRecognition::new(&ner_cfg, &self.ctx.config, &self.ctx.http_client).await
         {
             op.execute(envelope).await?;
         }
 
         let pat_cfg = cfg.pattern.clone().unwrap_or_default();
-        let op = PatternRecognitionOp::new(&pat_cfg);
+        let op = PatternRecognition::new(&pat_cfg);
         op.execute(envelope).await?;
 
         Ok(())
@@ -288,7 +285,7 @@ impl DocumentPipeline {
         envelope: &DocumentEnvelope,
     ) -> Result<(), Error> {
         for step in exports {
-            let export = ExportFileOp::new()
+            let export = ExportFile::new()
                 .with_encryption(step.config.encryption.clone())
                 .with_compression(step.config.compression)
                 .with_content_ids(step.config.content_ids.clone());

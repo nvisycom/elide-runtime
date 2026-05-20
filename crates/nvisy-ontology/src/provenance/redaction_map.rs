@@ -1,11 +1,16 @@
-//! Redaction map: entity-to-value mapping for tracking original and
-//! replacement content across all modalities.
+//! Redaction map: entity-to-location index for the redaction phase.
 //!
-//! The [`RedactionMap`] is created during the redaction phase and
-//! contains the sensitive original values that are stripped from the
-//! [`Audit`] response. It is stored separately and access-controlled.
+//! The [`RedactionMap`] records which entities the pipeline touched
+//! and where they were located. Original and replacement *values*
+//! live on the corresponding [`AuditEntry::value`] (see
+//! [`RedactionValue`]) — the map is a thin index, not a value store.
 //!
-//! [`Audit`]: super::Audit
+//! A future extension may pair this index with a separate blob store
+//! to support reversibility for image/audio modalities: see
+//! [issue #151](https://github.com/nvisycom/runtime/issues/151).
+//!
+//! [`AuditEntry::value`]: super::AuditEntry::value
+//! [`RedactionValue`]: super::RedactionValue
 
 use derive_more::{Deref, DerefMut};
 use schemars::JsonSchema;
@@ -14,8 +19,13 @@ use uuid::Uuid;
 
 use crate::entity::Location;
 
-/// A single entry in the redaction map, tracking the original and
-/// replacement values for one entity.
+/// One entry in the redaction map: the entity touched and where it
+/// was located in the document.
+///
+/// Values (original / replacement) are not stored here; consult the
+/// corresponding [`AuditEntry`] by `entity_id`.
+///
+/// [`AuditEntry`]: super::AuditEntry
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionMapping {
@@ -23,21 +33,16 @@ pub struct RedactionMapping {
     pub entity_id: Uuid,
     /// Where in the document the entity was found.
     pub location: Location,
-    /// The original sensitive value at this location.
-    pub original: String,
-    /// The replacement value after redaction, if applied.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub replacement: Option<String>,
 }
 
-/// Maps entity IDs to their original and replacement values.
+/// Per-entity redaction lineage index.
 ///
 /// Created during the redaction phase (phase 4) by the redaction
-/// evaluator and applicator. Contains sensitive data — must not be
-/// included in the public [`Audit`] response. Stored separately
-/// under access control.
+/// evaluator. Records which entities were considered for redaction
+/// and where they lived in the document. Sensitive values are not
+/// duplicated here — they live on the matching [`AuditEntry`].
 ///
-/// [`Audit`]: super::Audit
+/// [`AuditEntry`]: super::AuditEntry
 #[derive(Debug, Clone, Default, Deref, DerefMut)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -53,22 +58,6 @@ impl RedactionMap {
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// Look up the original value for a given entity.
-    pub fn original(&self, entity_id: Uuid) -> Option<&str> {
-        self.entries
-            .iter()
-            .find(|e| e.entity_id == entity_id)
-            .map(|e| e.original.as_str())
-    }
-
-    /// Look up the replacement value for a given entity.
-    pub fn replacement(&self, entity_id: Uuid) -> Option<&str> {
-        self.entries
-            .iter()
-            .find(|e| e.entity_id == entity_id)
-            .and_then(|e| e.replacement.as_deref())
-    }
 }
 
 #[cfg(test)]
@@ -76,26 +65,23 @@ mod tests {
     use super::*;
     use crate::entity::{Location, TextLocation};
 
-    fn mapping(id: Uuid, original: &str, replacement: Option<&str>) -> RedactionMapping {
+    fn mapping(id: Uuid) -> RedactionMapping {
         RedactionMapping {
             entity_id: id,
             location: Location::from(TextLocation {
                 start_offset: 0,
-                end_offset: original.len(),
+                end_offset: 4,
                 ..Default::default()
             }),
-            original: original.to_string(),
-            replacement: replacement.map(String::from),
         }
     }
 
     #[test]
-    fn push_and_lookup() {
+    fn push_and_count() {
         let id = Uuid::now_v7();
         let mut map = RedactionMap::new();
-        map.push(mapping(id, "John", Some("[NAME]")));
+        map.push(mapping(id));
         assert_eq!(map.len(), 1);
-        assert_eq!(map.original(id), Some("John"));
-        assert_eq!(map.replacement(id), Some("[NAME]"));
+        assert_eq!(map.entries[0].entity_id, id);
     }
 }

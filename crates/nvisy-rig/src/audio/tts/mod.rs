@@ -3,7 +3,6 @@
 mod provider;
 
 use nvisy_core::{Error, Result};
-use nvisy_http::HttpClient;
 #[cfg(feature = "openai-tts")]
 use rig::audio_generation::AudioGenerationModel as _;
 use uuid::Uuid;
@@ -49,10 +48,8 @@ pub struct TtsService {
 }
 
 impl TtsService {
-    /// Create a new TTS service for the given provider.
-    ///
-    /// Pass an [`HttpClient`] to share a connection pool with other
-    /// services; otherwise a new client is created from the config.
+    /// Create a new TTS service for the given provider. The HTTP
+    /// client is built internally from `config.max_retries`.
     ///
     /// # Errors
     ///
@@ -60,18 +57,9 @@ impl TtsService {
     /// construction fails.
     ///
     /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
-    pub fn new(
-        provider: &TtsProvider,
-        config: TtsConfig,
-        http_client: Option<HttpClient>,
-    ) -> Result<Self> {
-        let inner = TtsModels::from_provider(
-            provider,
-            &config.model,
-            config.max_retries,
-            http_client.map(HttpClient::into_inner),
-        )
-        .map_err(crate::error::convert)?;
+    pub fn new(provider: &TtsProvider, config: TtsConfig) -> Result<Self> {
+        let inner = TtsModels::from_provider(provider, &config.model, config.max_retries, None)
+            .map_err(crate::error::convert)?;
 
         Ok(Self {
             id: Uuid::now_v7(),

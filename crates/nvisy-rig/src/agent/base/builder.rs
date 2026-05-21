@@ -25,7 +25,6 @@ pub(crate) struct BaseAgentBuilder {
     provider: AgentProvider,
     config: AgentConfig,
     tools: Vec<Box<dyn ToolDyn>>,
-    http_client: Option<HttpClient>,
 }
 
 impl BaseAgentBuilder {
@@ -34,7 +33,6 @@ impl BaseAgentBuilder {
             provider: provider.clone(),
             config,
             tools: Vec::new(),
-            http_client: None,
         }
     }
 
@@ -44,29 +42,19 @@ impl BaseAgentBuilder {
         self
     }
 
-    /// Use a pre-built HTTP client instead of constructing a new one.
-    pub fn http_client(mut self, client: HttpClient) -> Self {
-        self.http_client = Some(client);
-        self
-    }
-
     /// Build the [`BaseAgent`], constructing the provider-specific rig client.
     pub fn build(self) -> Result<BaseAgent, Error> {
         let Self {
             provider,
             config,
             tools,
-            http_client: existing_client,
         } = self;
 
-        let http_client = match existing_client {
-            Some(c) => c,
-            None => HttpClient::new(&HttpConfig {
-                max_retries: config.max_retries,
-                ..HttpConfig::default()
-            })
-            .map_err(|e| Error::Request(e.to_string()))?,
-        };
+        let http_client = HttpClient::new(&HttpConfig {
+            max_retries: config.max_retries,
+            ..HttpConfig::default()
+        })
+        .map_err(|e| Error::Request(e.to_string()))?;
         let preamble = config.preamble.as_deref();
 
         let raw_client = http_client.into_inner();

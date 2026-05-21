@@ -10,7 +10,6 @@ mod output;
 mod prompt;
 
 use nvisy_core::Result;
-use nvisy_http::HttpClient;
 use nvisy_ontology::entity::EntityKind;
 use uuid::Uuid;
 
@@ -47,23 +46,16 @@ pub struct GenAgent {
 }
 
 impl GenAgent {
-    /// Create a new generation agent.
-    ///
-    /// Pass an [`HttpClient`] to share a connection pool with other
-    /// services; otherwise a new client is created from the agent config.
-    pub fn new(
-        provider: &AgentProvider,
-        mut config: AgentConfig,
-        http_client: Option<HttpClient>,
-    ) -> Result<Self> {
+    /// Create a new generation agent. The HTTP client is built
+    /// internally from `config.max_retries` and otherwise-default
+    /// settings.
+    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self> {
         config
             .preamble
             .get_or_insert_with(|| GEN_SYSTEM_PROMPT.into());
-        let mut builder = BaseAgent::builder(provider, config);
-        if let Some(client) = http_client {
-            builder = builder.http_client(client);
-        }
-        let base = builder.build().map_err(crate::error::convert)?;
+        let base = BaseAgent::builder(provider, config)
+            .build()
+            .map_err(crate::error::convert)?;
         Ok(Self { base })
     }
 

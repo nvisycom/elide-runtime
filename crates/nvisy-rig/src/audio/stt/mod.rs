@@ -7,7 +7,6 @@
 mod provider;
 
 use nvisy_core::{Error, Result};
-use nvisy_http::HttpClient;
 #[cfg(feature = "openai-whisper")]
 use rig::transcription::TranscriptionModel;
 use uuid::Uuid;
@@ -66,9 +65,7 @@ pub struct SttService {
 
 impl SttService {
     /// Create a new speech-to-text service for the given provider.
-    ///
-    /// Pass an [`HttpClient`] to share a connection pool with other
-    /// services; otherwise a new client is created from the config.
+    /// The HTTP client is built internally from `config.max_retries`.
     ///
     /// # Errors
     ///
@@ -76,18 +73,9 @@ impl SttService {
     /// construction fails.
     ///
     /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
-    pub fn new(
-        provider: &SttProvider,
-        config: SttConfig,
-        http_client: Option<HttpClient>,
-    ) -> Result<Self> {
-        let inner = SttModels::from_provider(
-            provider,
-            &config.model,
-            config.max_retries,
-            http_client.map(HttpClient::into_inner),
-        )
-        .map_err(crate::error::convert)?;
+    pub fn new(provider: &SttProvider, config: SttConfig) -> Result<Self> {
+        let inner = SttModels::from_provider(provider, &config.model, config.max_retries, None)
+            .map_err(crate::error::convert)?;
 
         Ok(Self {
             id: Uuid::now_v7(),

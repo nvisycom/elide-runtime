@@ -14,7 +14,7 @@
 //! [`NerVerifier`]: crate::agent::NerVerifier
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
-use nvisy_ontology::primitive::BoundingBox;
+use nvisy_ontology::primitive::{BoundingBox, Confidence};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -50,8 +50,8 @@ pub struct VerifiedEntity {
     pub entity_type: Option<EntityKind>,
     /// Corrected value (present when `status` is `Corrected`).
     pub value: Option<String>,
-    /// Verifier confidence in the verdict (0.0..=1.0).
-    pub confidence: f64,
+    /// Verifier confidence in the verdict.
+    pub confidence: Confidence,
     /// Corrected bounding box (CV verifier only; present when
     /// `status` is `Corrected` and the modality is image-based).
     pub bbox: Option<BoundingBox>,

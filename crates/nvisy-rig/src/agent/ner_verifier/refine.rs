@@ -125,7 +125,7 @@ fn apply_verdicts(
                     }
                     // Update confidence to the verifier's (more
                     // recent) judgement.
-                    l.candidate.confidence = Some(v.confidence);
+                    l.candidate.confidence = Some(v.confidence.get());
                     out.push(l);
                 }
             },

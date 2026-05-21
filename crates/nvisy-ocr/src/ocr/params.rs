@@ -1,7 +1,7 @@
 use nvisy_core::Result;
+use nvisy_http::HttpClient;
 use serde::{Deserialize, Serialize};
 
-use crate::http::HttpClient;
 #[cfg(feature = "aws-textract")]
 use crate::ocr::provider::{AwsTextractBackend, AwsTextractParams};
 #[cfg(feature = "azure-docai")]

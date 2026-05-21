@@ -12,7 +12,7 @@ use bytes::Bytes;
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_ocr::http::{HttpClient as OcrHttpClient, HttpConfig as OcrHttpConfig};
+use nvisy_http::{HttpClient, HttpConfig};
 use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{Entities, ImageLocation};
 use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
@@ -50,7 +50,7 @@ impl VisualExtraction {
         // RuntimeConfig::engine::http in rig-typed form for now;
         // we keep defaults here and revisit if OCR providers need
         // independent tuning.
-        let ocr_http_client = OcrHttpClient::new(&OcrHttpConfig::default())
+        let ocr_http_client = HttpClient::new(&HttpConfig::default())
             .map_err(|e| Error::runtime(e.to_string(), "ocr-http-client", false))?;
         let engine = ocr_provider.into_engine_with_client(ocr_http_client);
 

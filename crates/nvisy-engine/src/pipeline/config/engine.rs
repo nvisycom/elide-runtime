@@ -1,7 +1,7 @@
 //! Engine-level execution policies, networking, and resource limits.
 
+use nvisy_http::HttpConfig;
 use nvisy_ontology::workflow::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
-use nvisy_rig::http::HttpConfig;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 

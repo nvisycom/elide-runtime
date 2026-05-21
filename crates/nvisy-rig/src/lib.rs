@@ -5,4 +5,3 @@
 pub mod agent;
 pub mod audio;
 pub(crate) mod error;
-pub mod http;

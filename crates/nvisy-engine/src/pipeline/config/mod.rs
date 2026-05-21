@@ -133,7 +133,7 @@ mod tests {
     fn merge_overrides_present_sections() {
         let base = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_rig::http::HttpConfig {
+                http: Some(nvisy_http::HttpConfig {
                     max_retries: 3,
                     timeout: std::time::Duration::from_secs(120),
                     connect_timeout: std::time::Duration::from_secs(10),
@@ -145,7 +145,7 @@ mod tests {
         };
         let overrides = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_rig::http::HttpConfig {
+                http: Some(nvisy_http::HttpConfig {
                     max_retries: 1,
                     timeout: std::time::Duration::from_secs(30),
                     connect_timeout: std::time::Duration::from_secs(5),
@@ -163,7 +163,7 @@ mod tests {
     fn merge_falls_back_to_base() {
         let base = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_rig::http::HttpConfig {
+                http: Some(nvisy_http::HttpConfig {
                     max_retries: 3,
                     timeout: std::time::Duration::from_secs(120),
                     connect_timeout: std::time::Duration::from_secs(10),

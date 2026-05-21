@@ -3279,6 +3279,7 @@ dependencies = [
  "nvisy-core",
  "nvisy-detection",
  "nvisy-engine",
+ "nvisy-http",
  "nvisy-ocr",
  "nvisy-ontology",
  "nvisy-rig",
@@ -3299,6 +3300,20 @@ dependencies = [
  "tracing",
  "uuid",
  "validator",
+]
+
+[[package]]
+name = "nvisy-http"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "humantime-serde",
+ "nvisy-core",
+ "reqwest-middleware",
+ "reqwest-retry",
+ "reqwest-tracing",
+ "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -3330,15 +3345,12 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bytes",
- "derive_more",
  "futures",
  "hmac",
- "humantime-serde",
  "nvisy-core",
+ "nvisy-http",
  "nvisy-ontology",
  "reqwest-middleware",
- "reqwest-retry",
- "reqwest-tracing",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -3395,14 +3407,11 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bytes",
- "derive_more",
  "futures",
- "humantime-serde",
  "nvisy-core",
+ "nvisy-http",
  "nvisy-ontology",
  "reqwest-middleware",
- "reqwest-retry",
- "reqwest-tracing",
  "rig",
  "schemars 1.2.1",
  "serde",

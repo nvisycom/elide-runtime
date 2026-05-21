@@ -26,5 +26,7 @@ Surya, PaddleX) live in `nvisy-ocr`.
 - **`audio::stt`** / **`audio::tts`** — speech-to-text and
   text-to-speech via LLM providers (OpenAI Whisper, OpenAI TTS,
   etc.).
-- **`http`** — internal `HttpClient` over `reqwest-middleware` with
-  retry + tracing. Agents construct their own clients from config.
+
+HTTP transport (`HttpClient`, `HttpConfig`, retry + tracing
+middleware) lives in the shared `nvisy-http` crate; agents accept
+clients built by callers.

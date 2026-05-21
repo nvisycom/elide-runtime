@@ -13,6 +13,7 @@ mod prompt;
 use std::mem;
 
 use nvisy_core::Result;
+use nvisy_http::HttpClient;
 use nvisy_ontology::entity::{
     Entity, EntityCategory, Location, ModelKind, ModelProvenance, RecognitionMethod, TextLocation,
 };
@@ -25,7 +26,6 @@ pub use self::output::{KnownNerEntity, NerEntities, NerEntity, ResolvedOffsets};
 use self::prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
-use crate::http::HttpClient;
 
 const TARGET: &str = "nvisy_rig::agent::ner";
 

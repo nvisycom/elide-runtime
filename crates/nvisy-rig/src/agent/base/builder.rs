@@ -2,6 +2,7 @@
 //!
 //! [`BaseAgent`]: super::BaseAgent
 
+use nvisy_http::{HttpClient, HttpConfig};
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
 use rig::completion::CompletionModel;
@@ -12,7 +13,6 @@ use uuid::Uuid;
 
 use super::{AgentConfig, AgentProvider, Agents, BaseAgent, UsageTracker};
 use crate::error::Error;
-use crate::http::{HttpClient, HttpConfig};
 
 /// Builder for [`BaseAgent`].
 ///

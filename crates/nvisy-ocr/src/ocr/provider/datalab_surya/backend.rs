@@ -3,13 +3,13 @@
 //! [`Backend`]: crate::Backend
 
 use nvisy_core::{Error, Result};
+use nvisy_http::{HttpClient, HttpConfig, RequestBuilderExt};
 use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
 use nvisy_ontology::primitive::{BoundingBox, Polygon, Vertex};
 use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::SuryaParams;
-use crate::http::{HttpClient, HttpConfig, RequestBuilderExt};
 use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams, image_part};
 
 /// [`Backend`] implementation for Surya OCR.

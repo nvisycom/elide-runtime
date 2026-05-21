@@ -1,4 +1,6 @@
-//! HTTP client construction with retry and tracing middleware.
+#![forbid(unsafe_code)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![doc = include_str!("../README.md")]
 
 mod config;
 mod middleware;
@@ -12,15 +14,23 @@ use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
 pub use self::config::HttpConfig;
 use self::middleware::{backoff_policy, retry_layer, tracing_layer};
 
-const TARGET: &str = "nvisy_ocr::http";
+const TARGET: &str = "nvisy_http";
 
-/// Newtype around [`ClientWithMiddleware`] with a [`Default`] implementation
-/// that builds a client from [`HttpConfig::default`].
+/// Newtype around [`ClientWithMiddleware`] with retry and tracing
+/// middleware pre-installed.
 #[derive(Clone, Deref)]
 pub struct HttpClient(ClientWithMiddleware);
 
 impl HttpClient {
     /// Build an [`HttpClient`] from the given configuration.
+    ///
+    /// The returned client has exponential-backoff retry and OpenTelemetry
+    /// tracing middleware pre-installed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying `reqwest::Client` cannot be built
+    /// (e.g. TLS backend initialisation failure).
     pub fn new(config: &HttpConfig) -> Result<Self> {
         tracing::debug!(
             target: TARGET,
@@ -64,12 +74,20 @@ impl fmt::Debug for HttpClient {
 
 /// Extension trait for [`RequestBuilder`] that adds send + check + parse
 /// helpers with standardised error mapping.
+///
+/// Import this trait to use `.send_and_check("provider")` and
+/// `.send_and_parse::<T>("provider")` on any request builder.
 pub trait RequestBuilderExt {
+    /// Send the request and check the response status.
+    ///
+    /// Maps transport errors to retryable connection errors and
+    /// non-success status codes to connection errors (5xx are retryable).
     fn send_and_check(
         self,
         provider: &str,
     ) -> impl Future<Output = Result<reqwest_middleware::reqwest::Response>> + Send;
 
+    /// Send the request, check status, and parse the JSON response body.
     fn send_and_parse<T: serde::de::DeserializeOwned>(
         self,
         provider: &str,

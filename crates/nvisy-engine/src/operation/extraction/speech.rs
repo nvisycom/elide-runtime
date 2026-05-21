@@ -5,11 +5,11 @@
 use nvisy_codec::ContentHandle;
 use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
 use nvisy_core::{Error, ErrorKind, Result};
+use nvisy_http::HttpClient;
 use nvisy_ontology::artifacts::{TranscriptSegment, Transcription};
 use nvisy_ontology::primitive::TimeSpan;
 use nvisy_ontology::workflow::AudialExtraction as AudialExtractionCfg;
 use nvisy_rig::audio::stt::{SttConfig, SttService};
-use nvisy_rig::http::HttpClient;
 
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;

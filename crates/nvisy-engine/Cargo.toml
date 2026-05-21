@@ -44,6 +44,7 @@ nvisy-core = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
 nvisy-detection = { workspace = true, features = [] }
+nvisy-http = { workspace = true, features = [] }
 nvisy-ocr = { workspace = true, features = [] }
 nvisy-rig = { workspace = true, features = [] }
 

@@ -10,6 +10,7 @@ mod output;
 mod prompt;
 
 use nvisy_core::Result;
+use nvisy_http::HttpClient;
 use nvisy_ontology::entity::EntityKind;
 use uuid::Uuid;
 
@@ -17,7 +18,6 @@ pub use self::output::{GenOutput, GeneratedEntity};
 use self::prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
 use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent};
-use crate::http::HttpClient;
 
 const TARGET: &str = "nvisy_rig::agent::generate";
 

@@ -39,10 +39,13 @@ impl<'a> NerPromptBuilder<'a> {
                 .join(", ")
         };
 
+        let threshold_clause = match self.config.confidence_threshold {
+            Some(t) => format!(" with minimum confidence {t:.2}"),
+            None => String::new(),
+        };
         let mut prompt = format!(
-            "{DETECT_PREFIX} [{types_hint}] with minimum confidence \
-             {threshold:.2} in the following text. {RESPONSE_FORMAT}\n\n---\n{text}\n---",
-            threshold = self.config.confidence_threshold,
+            "{DETECT_PREFIX} [{types_hint}]{threshold_clause} in the following text. \
+             {RESPONSE_FORMAT}\n\n---\n{text}\n---",
         );
 
         if !self.known_entities.is_empty() {
@@ -104,7 +107,7 @@ mod tests {
     fn builds_prompt_with_entity_kinds() {
         let config = DetectionConfig {
             entity_kinds: vec![EntityKind::PersonName, EntityKind::GovernmentId],
-            confidence_threshold: 0.7,
+            confidence_threshold: Some(0.7),
             system_prompt: None,
         };
         let prompt = NerPromptBuilder::new(&config, &[]).build("Hello world");
@@ -117,7 +120,7 @@ mod tests {
     fn builds_prompt_without_entity_kinds() {
         let config = DetectionConfig {
             entity_kinds: vec![],
-            confidence_threshold: 0.5,
+            confidence_threshold: Some(0.5),
             system_prompt: None,
         };
         let prompt = NerPromptBuilder::new(&config, &[]).build("test");
@@ -128,7 +131,7 @@ mod tests {
     fn builds_prompt_with_known_entities() {
         let config = DetectionConfig {
             entity_kinds: vec![],
-            confidence_threshold: 0.8,
+            confidence_threshold: Some(0.8),
             system_prompt: None,
         };
         let known = vec![KnownNerEntity {

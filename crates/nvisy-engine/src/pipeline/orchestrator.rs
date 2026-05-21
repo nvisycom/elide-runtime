@@ -257,27 +257,29 @@ impl DocumentPipeline {
             .await
     }
 
-    /// Run detection through the attached
-    /// [`DetectionEngine`]. The engine is constructed externally
-    /// (see [`Engine::with_detection_engine`]) with whatever
-    /// recognizers the user wants. When no engine is attached,
-    /// the detection phase is a no-op.
+    /// Run detection through the attached [`DetectionEngine`].
     ///
-    /// The workflow [`DetectionConfig`] is currently ignored at
-    /// this layer — recognizer composition (NER, pattern, LLM)
-    /// happens at engine-construction time. A future change may
-    /// thread per-call hints (`candidate_languages`,
-    /// `score_threshold`, `scan_context`) from the config into
-    /// the `DetectionContext`.
+    /// The engine itself is constructed externally
+    /// (see [`Engine::with_detection_engine`]) with whatever
+    /// recognizers the user wants. When no engine is attached, the
+    /// detection phase is a no-op.
+    ///
+    /// Per-call hints from the workflow [`DetectionConfig`] —
+    /// `cfg.ner.entity_kinds` (allowlist) and
+    /// `cfg.ner.confidence_threshold` — flow into the
+    /// `DetectionContext` for each text span. Pattern-side
+    /// settings (`cfg.pattern.patterns`, `filter`,
+    /// `confidence_threshold`) are baked into the
+    /// `PatternRecognizer` at engine-construction time.
     ///
     /// [`Engine::with_detection_engine`]: crate::pipeline::Engine::with_detection_engine
     async fn run_detection(
         &self,
-        _cfg: &DetectionConfig,
+        cfg: &DetectionConfig,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
         if let Some(ref engine) = self.ctx.detection_engine {
-            let op = Detection::new(Arc::clone(engine));
+            let op = Detection::new(Arc::clone(engine), cfg.clone());
             op.execute(envelope).await?;
         }
         Ok(())

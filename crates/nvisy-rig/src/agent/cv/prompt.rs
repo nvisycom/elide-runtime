@@ -35,12 +35,14 @@ impl<'a> CvPromptBuilder<'a> {
                 .join(", ")
         };
 
+        let threshold_clause = match self.config.confidence_threshold {
+            Some(t) => format!(" with minimum confidence {t:.2}"),
+            None => String::new(),
+        };
         format!(
-            "Detect objects of types [{entity_hint}] with minimum confidence \
-             {threshold:.2} in the following base64-encoded image using the \
-             cv_detect_objects tool.\n\n\
-             Image (base64): {image_b64}",
-            threshold = self.config.confidence_threshold,
+            "Detect objects of types [{entity_hint}]{threshold_clause} in the \
+             following base64-encoded image using the cv_detect_objects \
+             tool.\n\nImage (base64): {image_b64}",
         )
     }
 }

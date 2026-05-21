@@ -163,7 +163,9 @@ impl NerAgent {
                 None => continue,
             };
             let raw_confidence = ne.confidence.unwrap_or(0.0);
-            if raw_confidence < config.confidence_threshold {
+            if let Some(threshold) = config.confidence_threshold
+                && raw_confidence < threshold
+            {
                 continue;
             }
             // LLM-reported scores aren't guaranteed in range; clamp

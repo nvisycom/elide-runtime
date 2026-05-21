@@ -58,16 +58,27 @@ impl PatternRecognizer {
 
 #[async_trait]
 impl Recognizer for PatternRecognizer {
-    fn name(&self) -> &str {
-        "pattern"
-    }
-
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            text_len = ctx.text.len(),
+            correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
+        ),
+    )]
     async fn recognize(&self, ctx: &DetectionContext<'_>) -> Result<Entities> {
-        let entities = self
+        let mut entities: Entities = self
             .engine
             .scan_entities(ctx.text, &ctx.scan_context)
             .into_iter()
             .collect();
+
+        if let Some(ref allowed) = ctx.entities {
+            entities.retain(|e| allowed.contains(&e.entity_kind));
+        }
+        if let Some(threshold) = ctx.score_threshold {
+            entities.retain(|e| e.confidence.get() >= threshold);
+        }
+
         Ok(entities)
     }
 }

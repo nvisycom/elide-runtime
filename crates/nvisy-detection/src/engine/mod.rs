@@ -120,11 +120,9 @@ impl DetectionEngine {
         async move {
             let mut all = Entities::new();
             for recognizer in &self.recognizers {
-                let name = recognizer.name();
                 let entities = recognizer.recognize(ctx).await?;
                 tracing::debug!(
                     target: TARGET,
-                    recognizer = name,
                     detected = entities.len(),
                     "recognizer produced entities",
                 );

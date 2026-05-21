@@ -2,11 +2,11 @@
 //!
 //! Extracts text and entities from image documents by running OCR
 //! against an [`OcrEngine`], optionally verifying detected entities
-//! against the source image via an [`EntityVerifier`], and
+//! against the source image via an [`CvVerifier`], and
 //! optionally running computer vision.
 //!
 //! [`OcrEngine`]: nvisy_ocr::OcrEngine
-//! [`EntityVerifier`]: nvisy_rig::agent::EntityVerifier
+//! [`CvVerifier`]: nvisy_rig::agent::CvVerifier
 
 use bytes::Bytes;
 use nvisy_codec::Span;
@@ -16,7 +16,7 @@ use nvisy_http::{HttpClient, HttpConfig};
 use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{Entities, ImageLocation};
 use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
-use nvisy_rig::agent::{EntityVerifier, ProposedEntity, VerificationCandidate};
+use nvisy_rig::agent::{CvVerifier, ProposedEntity, VerificationCandidate};
 
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
@@ -27,7 +27,7 @@ const TARGET: &str = "nvisy_engine::op::extraction::visual";
 pub(super) struct VisualExtraction {
     engine: OcrEngine,
     params: RunParams,
-    verifier: Option<EntityVerifier>,
+    verifier: Option<CvVerifier>,
 }
 
 impl VisualExtraction {
@@ -59,8 +59,8 @@ impl VisualExtraction {
             match llm.and_then(|s| s.provider.as_ref()) {
                 Some(provider) => {
                     let llm_config = llm.and_then(|s| s.policy.clone()).unwrap_or_default();
-                    let v = EntityVerifier::new(provider, llm_config)
-                        .map_err(|e| Error::runtime(e.to_string(), "entity-verifier", false))?;
+                    let v = CvVerifier::new(provider, llm_config)
+                        .map_err(|e| Error::runtime(e.to_string(), "cv-verifier", false))?;
                     Some(v)
                 }
                 None => {
@@ -111,7 +111,7 @@ impl VisualExtraction {
     /// Verify detected entities against the source images.
     async fn verify(
         &self,
-        verifier: &EntityVerifier,
+        verifier: &CvVerifier,
         spans: &[Span<ImageLocation, ImageData>],
         entities: Entities,
         document: &crate::operation::Document,
@@ -146,7 +146,7 @@ impl VisualExtraction {
             let output = verifier
                 .verify(&png_bytes, &proposed)
                 .await
-                .map_err(|e| Error::runtime(e.to_string(), "entity-verifier", e.is_retryable()))?;
+                .map_err(|e| Error::runtime(e.to_string(), "cv-verifier", e.is_retryable()))?;
 
             verified = output.merge(entities_only);
         }

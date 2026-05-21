@@ -1,4 +1,4 @@
-//! [`EntityVerifier`]: LLM-driven verification of proposed entities
+//! [`CvVerifier`]: LLM-driven verification of proposed entities
 //! against an image.
 //!
 //! Given a list of [`ProposedEntity`] values (typically produced
@@ -6,12 +6,6 @@
 //! vision-capable LLM to confirm, correct, or reject each one.
 //! Returns a [`VerificationOutput`] containing only changed
 //! entities; confirmed entities are implicitly absent.
-//!
-//! This is the pure LLM half of what used to be `OcrAgent`. The
-//! OCR-provider orchestration (running an OCR engine, building
-//! `ProposedEntity` from its output, calling the verifier, merging
-//! the verdict back) now lives in
-//! `nvisy_engine::operation::extraction::vision`.
 
 mod input;
 mod output;
@@ -25,19 +19,19 @@ use uuid::Uuid;
 
 pub use self::input::{ProposedEntity, VerificationCandidate};
 pub use self::output::{VerificationOutput, VerificationStatus, VerifiedEntity};
-use self::prompt::{ENTITY_VERIFIER_SYSTEM_PROMPT, EntityVerifierPromptBuilder};
+use self::prompt::{CV_VERIFIER_SYSTEM_PROMPT, CvVerifierPromptBuilder};
 use crate::agent::base::UsageTracker;
 use crate::agent::{AgentConfig, AgentProvider, BaseAgent};
 
-const TARGET: &str = "nvisy_rig::agent::entity_verifier";
+const TARGET: &str = "nvisy_rig::agent::cv_verifier";
 
 /// LLM-driven entity verifier. Wraps an internal `BaseAgent` with
 /// the entity-verification system prompt baked in.
-pub struct EntityVerifier {
+pub struct CvVerifier {
     base: BaseAgent,
 }
 
-impl EntityVerifier {
+impl CvVerifier {
     /// Construct a verifier from an LLM provider + agent config.
     ///
     /// The config's preamble defaults to the built-in
@@ -45,7 +39,7 @@ impl EntityVerifier {
     pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self> {
         config
             .preamble
-            .get_or_insert_with(|| ENTITY_VERIFIER_SYSTEM_PROMPT.into());
+            .get_or_insert_with(|| CV_VERIFIER_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config)
             .build()
             .map_err(crate::error::convert)?;
@@ -74,7 +68,7 @@ impl EntityVerifier {
             "encoded image, building verification prompt"
         );
 
-        let prompt = EntityVerifierPromptBuilder::new(entities).build(&image_b64);
+        let prompt = CvVerifierPromptBuilder::new(entities).build(&image_b64);
         let output: VerificationOutput = self
             .base
             .prompt_structured_raw(&prompt)

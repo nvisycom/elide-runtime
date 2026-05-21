@@ -9,18 +9,18 @@
 
 mod base;
 mod cv;
-mod entity_verifier;
+mod cv_verifier;
 mod generate;
 mod ner;
 
 pub(crate) use self::base::{ALL_TYPES_HINT, BaseAgent};
 pub use self::base::{
     AgentConfig, AgentProvider, AuthenticatedProvider, ContextWindow, DetectionConfig,
-    DetectionRequest, UnauthenticatedProvider, UsageStats, UsageTracker,
+    UnauthenticatedProvider, UsageStats, UsageTracker,
 };
 pub use self::cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
-pub use self::entity_verifier::{
-    EntityVerifier, ProposedEntity, VerificationCandidate, VerificationOutput, VerificationStatus,
+pub use self::cv_verifier::{
+    CvVerifier, ProposedEntity, VerificationCandidate, VerificationOutput, VerificationStatus,
     VerifiedEntity,
 };
 pub use self::generate::{GenAgent, GenOutput, GenRequest, GeneratedEntity};

@@ -35,10 +35,13 @@ impl NerRecognizer {
 
 #[async_trait]
 impl Recognizer for NerRecognizer {
-    fn name(&self) -> &str {
-        "ner"
-    }
-
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            text_len = ctx.text.len(),
+            correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
+        ),
+    )]
     async fn recognize(&self, ctx: &DetectionContext<'_>) -> Result<Entities> {
         let mut nlp_ctx = NlpContext::new(ctx.text);
         if let Some(language) = ctx.language.clone() {

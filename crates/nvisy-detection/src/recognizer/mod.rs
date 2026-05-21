@@ -46,12 +46,6 @@ use crate::error::Result;
 /// [`DetectionContext`]: crate::DetectionContext
 #[async_trait]
 pub trait Recognizer: Send + Sync {
-    /// Stable identifier surfaced in tracing spans and (eventually)
-    /// `recognition_metadata.recognizer_name`. Should be short
-    /// (kebab-case is conventional in this crate: `"ner"`,
-    /// `"pattern"`, `"llm"`).
-    fn name(&self) -> &str;
-
     /// Detect entities in `ctx.text`. Offsets in returned entities
     /// are relative to `ctx.text` — the caller rebases when
     /// integrating into a larger document.

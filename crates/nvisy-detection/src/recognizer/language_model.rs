@@ -1,14 +1,14 @@
-//! [`LlmRecognizer`]: LLM-driven NER over `nvisy_provider::NerAgent`.
+//! [`LlmRecognizer`]: LLM-driven NER over `nvisy_rig::agent::NerAgent`.
 //!
-//! Wraps a constructed `NerAgent` with a frozen `DetectionConfig`
-//! (entity-kind allowlist, score threshold, system prompt). The
-//! agent manages coreference state internally between successive
-//! `recognize` calls; call [`reset`](Self::reset) at document
-//! boundaries to clear it.
+//! Wraps a constructed `NerAgent`. Per-call detection hints come
+//! exclusively from [`DetectionContext`]: `entities` (kind allowlist)
+//! and `score_threshold` are translated into the rig
+//! `DetectionConfig` for each `recognize` call. The agent's system
+//! prompt is its own per-build concern.
 //!
-//! Construction is fallible — building the underlying agent
-//! requires a configured LLM provider. The orchestrator treats
-//! "no provider" as "skip this recognizer," not a fatal error.
+//! The agent manages coreference state internally between
+//! successive `recognize` calls; call [`reset`](Self::reset) at
+//! document boundaries to clear it.
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::Entities;
@@ -20,28 +20,42 @@ use crate::{DetectionContext, Recognizer};
 /// LLM-backed entity recognizer.
 pub struct LlmRecognizer {
     agent: NerAgent,
-    config: DetectionConfig,
 }
 
 impl LlmRecognizer {
-    /// Construct from a pre-built [`NerAgent`] and a frozen
-    /// detection config (entity-kind allowlist, score threshold,
-    /// system prompt).
-    pub fn new(agent: NerAgent, config: DetectionConfig) -> Self {
-        Self { agent, config }
+    /// Construct from a pre-built [`NerAgent`]. Per-call detection
+    /// hints (entity-kind allowlist, score threshold) flow through
+    /// [`DetectionContext`] at recognize time.
+    ///
+    /// [`DetectionContext`]: crate::DetectionContext
+    pub fn new(agent: NerAgent) -> Self {
+        Self { agent }
+    }
+
+    /// Build the rig per-call config from a DetectionContext.
+    fn build_config(ctx: &DetectionContext<'_>) -> DetectionConfig {
+        DetectionConfig {
+            entity_kinds: ctx.entities.clone().unwrap_or_default(),
+            confidence_threshold: ctx.score_threshold,
+            system_prompt: None,
+        }
     }
 }
 
 #[async_trait]
 impl Recognizer for LlmRecognizer {
-    fn name(&self) -> &str {
-        "llm"
-    }
-
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            text_len = ctx.text.len(),
+            correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
+        ),
+    )]
     async fn recognize(&self, ctx: &DetectionContext<'_>) -> Result<Entities> {
+        let config = Self::build_config(ctx);
         let entities: Entities = self
             .agent
-            .detect_entities(ctx.text, &self.config)
+            .detect_entities(ctx.text, &config)
             .await
             .map_err(|e| Error::Recognizer {
                 name: "llm".into(),

@@ -1,6 +1,6 @@
 //! Input context for NER detection calls.
 
-use super::{KnownNerEntity, NerEntity};
+use super::{KnownNerEntity, NerCandidate};
 
 /// Input context for a single NER detection call.
 ///
@@ -49,7 +49,7 @@ impl<'a> NerContext<'a> {
     /// already exists, its `values` list is extended with any new surface
     /// forms and new descriptions are appended. Otherwise a new
     /// `KnownNerEntity` is created.
-    pub fn merge(&mut self, entities: Vec<NerEntity>) {
+    pub fn merge(&mut self, entities: Vec<NerCandidate>) {
         for entity in entities {
             if let Some(known) = self
                 .known_entities
@@ -90,8 +90,8 @@ mod tests {
 
     use super::*;
 
-    fn ner_entity(id: &str, value: &str, desc: Option<&str>) -> NerEntity {
-        NerEntity {
+    fn ner_candidate(id: &str, value: &str, desc: Option<&str>) -> NerCandidate {
+        NerCandidate {
             entity_id: id.into(),
             category: None,
             entity_type: Some(EntityKind::PersonName),
@@ -105,7 +105,11 @@ mod tests {
     #[test]
     fn merge_creates_new_known_entity() {
         let mut ctx = NerContext::new("");
-        ctx.merge(vec![ner_entity("person_1", "John Smith", Some("the CEO"))]);
+        ctx.merge(vec![ner_candidate(
+            "person_1",
+            "John Smith",
+            Some("the CEO"),
+        )]);
 
         assert_eq!(ctx.known_entities.len(), 1);
         assert_eq!(ctx.known_entities[0].entity_id, "person_1");
@@ -116,11 +120,11 @@ mod tests {
     #[test]
     fn merge_accumulates_surface_forms() {
         let mut ctx = NerContext::new("");
-        ctx.merge(vec![ner_entity("person_1", "John Smith", None)]);
-        ctx.merge(vec![ner_entity("person_1", "John", None)]);
-        ctx.merge(vec![ner_entity("person_1", "Mr. Smith", None)]);
+        ctx.merge(vec![ner_candidate("person_1", "John Smith", None)]);
+        ctx.merge(vec![ner_candidate("person_1", "John", None)]);
+        ctx.merge(vec![ner_candidate("person_1", "Mr. Smith", None)]);
         // Duplicate value should not be added.
-        ctx.merge(vec![ner_entity("person_1", "John", None)]);
+        ctx.merge(vec![ner_candidate("person_1", "John", None)]);
 
         assert_eq!(ctx.known_entities.len(), 1);
         assert_eq!(
@@ -132,8 +136,8 @@ mod tests {
     #[test]
     fn merge_accumulates_descriptions() {
         let mut ctx = NerContext::new("");
-        ctx.merge(vec![ner_entity("person_1", "Alice", Some("the CEO"))]);
-        ctx.merge(vec![ner_entity(
+        ctx.merge(vec![ner_candidate("person_1", "Alice", Some("the CEO"))]);
+        ctx.merge(vec![ner_candidate(
             "person_1",
             "Alice",
             Some("signed the contract on Jan 5"),
@@ -148,8 +152,8 @@ mod tests {
     #[test]
     fn merge_deduplicates_descriptions() {
         let mut ctx = NerContext::new("");
-        ctx.merge(vec![ner_entity("person_1", "Alice", Some("the CEO"))]);
-        ctx.merge(vec![ner_entity("person_1", "Alice", Some("the CEO"))]);
+        ctx.merge(vec![ner_candidate("person_1", "Alice", Some("the CEO"))]);
+        ctx.merge(vec![ner_candidate("person_1", "Alice", Some("the CEO"))]);
 
         assert_eq!(ctx.known_entities[0].descriptions, vec!["the CEO"]);
     }
@@ -157,7 +161,7 @@ mod tests {
     #[test]
     fn merge_no_description() {
         let mut ctx = NerContext::new("");
-        ctx.merge(vec![ner_entity("person_1", "Alice", None)]);
+        ctx.merge(vec![ner_candidate("person_1", "Alice", None)]);
 
         assert!(ctx.known_entities[0].descriptions.is_empty());
     }
@@ -165,12 +169,12 @@ mod tests {
     #[test]
     fn merge_fills_missing_entity_type() {
         let mut ctx = NerContext::new("");
-        let mut e = ner_entity("org_1", "Acme", None);
+        let mut e = ner_candidate("org_1", "Acme", None);
         e.entity_type = None;
         ctx.merge(vec![e]);
         assert!(ctx.known_entities[0].entity_type.is_none());
 
-        ctx.merge(vec![ner_entity("org_1", "Acme Corp", None)]);
+        ctx.merge(vec![ner_candidate("org_1", "Acme Corp", None)]);
         assert_eq!(
             ctx.known_entities[0].entity_type,
             Some(EntityKind::PersonName)

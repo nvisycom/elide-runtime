@@ -111,6 +111,7 @@ tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 lingua = { version = "1.8", default-features = false, features = ["english"] }
 stop-words = { version = "0.10", features = ["iso"] }
 unicode-segmentation = { version = "1.13", features = [] }
+unicode-normalization = { version = "0.1", features = [] }
 
 # Graph data structures
 petgraph = { version = "0.8", features = [] }

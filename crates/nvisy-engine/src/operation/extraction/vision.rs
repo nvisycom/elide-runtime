@@ -16,7 +16,7 @@ use nvisy_http::{HttpClient, HttpConfig};
 use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{Entities, ImageLocation};
 use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
-use nvisy_rig::agent::{CvVerifier, ProposedEntity, VerificationCandidate};
+use nvisy_rig::agent::{CvVerifier, VerificationCandidate};
 
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
@@ -136,19 +136,10 @@ impl VisualExtraction {
                 candidates.push(VerificationCandidate { entity, value });
             }
 
-            let proposed: Vec<ProposedEntity> = candidates
-                .iter()
-                .enumerate()
-                .map(|(i, c)| ProposedEntity::from_entity(i, &c.entity, &c.value))
-                .collect();
-            let entities_only: Vec<_> = candidates.into_iter().map(|c| c.entity).collect();
-
-            let output = verifier
-                .verify(&png_bytes, &proposed)
+            verified = verifier
+                .verify_entities(&png_bytes, candidates)
                 .await
                 .map_err(|e| Error::runtime(e.to_string(), "cv-verifier", e.is_retryable()))?;
-
-            verified = output.merge(entities_only);
         }
         Ok(verified.into())
     }

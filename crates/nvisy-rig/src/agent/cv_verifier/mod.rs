@@ -15,12 +15,12 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use bytes::Bytes;
 use nvisy_core::Result;
+use nvisy_ontology::entity::Entity;
 use uuid::Uuid;
 
 pub use self::input::{ProposedEntity, VerificationCandidate};
-pub use self::output::{VerificationOutput, VerificationStatus, VerifiedEntity};
 use self::prompt::{CV_VERIFIER_SYSTEM_PROMPT, CvVerifierPromptBuilder};
-use crate::agent::base::UsageTracker;
+use crate::agent::base::{UsageTracker, VerificationOutput};
 use crate::agent::{AgentConfig, AgentProvider, BaseAgent};
 
 const TARGET: &str = "nvisy_rig::agent::cv_verifier";
@@ -82,6 +82,30 @@ impl CvVerifier {
         );
 
         Ok(output)
+    }
+
+    /// Verify proposed entities and merge verdicts back into the
+    /// original entity list.
+    ///
+    /// Confirmed entities pass through unchanged, corrected
+    /// entities are updated with the verifier's bbox / value /
+    /// type / category, and rejected entities are dropped.
+    pub async fn verify_entities(
+        &self,
+        image_data: &Bytes,
+        candidates: Vec<VerificationCandidate>,
+    ) -> Result<Vec<Entity>> {
+        if candidates.is_empty() {
+            return Ok(Vec::new());
+        }
+        let proposed: Vec<ProposedEntity> = candidates
+            .iter()
+            .enumerate()
+            .map(|(i, c)| ProposedEntity::from_entity(i, &c.entity, &c.value))
+            .collect();
+        let entities_only: Vec<Entity> = candidates.into_iter().map(|c| c.entity).collect();
+        let output = self.verify(image_data, &proposed).await?;
+        Ok(output::merge(output, entities_only))
     }
 
     /// Access the usage tracker for the underlying agent.

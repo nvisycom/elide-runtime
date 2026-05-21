@@ -19,7 +19,7 @@ pub struct VerificationCandidate {
 pub struct ProposedEntity {
     /// Index used to correlate with [`VerifiedEntity::id`].
     ///
-    /// [`VerifiedEntity::id`]: super::VerifiedEntity::id
+    /// [`VerifiedEntity::id`]: crate::agent::VerifiedEntity::id
     pub id: usize,
     /// Broad classification.
     pub category: EntityCategory,

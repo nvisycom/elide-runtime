@@ -12,18 +12,16 @@ mod cv;
 mod cv_verifier;
 mod generate;
 mod ner;
+mod ner_verifier;
 
 pub(crate) use self::base::{ALL_TYPES_HINT, BaseAgent};
 pub use self::base::{
     AgentConfig, AgentProvider, AuthenticatedProvider, ContextWindow, DetectionConfig,
-    UnauthenticatedProvider, UsageStats, UsageTracker,
-};
-pub use self::cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
-pub use self::cv_verifier::{
-    CvVerifier, ProposedEntity, VerificationCandidate, VerificationOutput, VerificationStatus,
+    UnauthenticatedProvider, UsageStats, UsageTracker, VerificationOutput, VerificationStatus,
     VerifiedEntity,
 };
+pub use self::cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
+pub use self::cv_verifier::{CvVerifier, ProposedEntity, VerificationCandidate};
 pub use self::generate::{GenAgent, GenOutput, GenRequest, GeneratedEntity};
-pub use self::ner::{
-    KnownNerEntity, NerAgent, NerContext, NerEntities, NerEntity, ResolvedOffsets,
-};
+pub use self::ner::{KnownNerEntity, NerAgent, NerCandidate, NerContext};
+pub use self::ner_verifier::{NerVerifier, UnresolvedCandidatePolicy};

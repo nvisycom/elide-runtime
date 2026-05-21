@@ -64,6 +64,7 @@ uuid = { workspace = true, features = [] }
 # Encoding and hashing
 base64 = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
+unicode-normalization = { workspace = true, features = [] }
 
 # Error handling
 thiserror = { workspace = true, features = [] }

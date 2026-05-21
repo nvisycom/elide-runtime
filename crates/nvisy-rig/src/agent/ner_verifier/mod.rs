@@ -27,6 +27,7 @@
 //! [`RefinementMethod::ModelVerification`]: nvisy_ontology::entity::RefinementMethod::ModelVerification
 
 mod localize;
+mod prompt;
 mod refine;
 
 use nvisy_core::Result;
@@ -38,7 +39,8 @@ use nvisy_ontology::primitive::Confidence;
 
 pub use self::localize::UnresolvedCandidatePolicy;
 use self::localize::{LocalizedCandidate, localize_all};
-use self::refine::{NER_VERIFIER_SYSTEM_PROMPT, refine_localized};
+use self::prompt::NER_VERIFIER_SYSTEM_PROMPT;
+use self::refine::refine_localized;
 use crate::agent::base::UsageTracker;
 use crate::agent::ner::NerCandidate;
 use crate::agent::{AgentConfig, AgentProvider, BaseAgent};
@@ -50,6 +52,7 @@ const TARGET: &str = "nvisy_rig::agent::ner_verifier";
 const DEFAULT_CONFIDENCE: f64 = 0.5;
 
 /// Verifier for NER candidates.
+#[derive(Default)]
 pub struct NerVerifier {
     /// LLM agent for the optional refinement pass. `None` means
     /// pure-localization verification (no second LLM call).
@@ -58,19 +61,10 @@ pub struct NerVerifier {
     unresolved: UnresolvedCandidatePolicy,
 }
 
-impl Default for NerVerifier {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl NerVerifier {
     /// Localization-only verifier. No second LLM call.
     pub fn new() -> Self {
-        Self {
-            refiner: None,
-            unresolved: UnresolvedCandidatePolicy::default(),
-        }
+        Self::default()
     }
 
     /// Add a second-pass LLM refiner. The refiner gets the source
@@ -170,17 +164,17 @@ impl NerVerifier {
                 refinement_methods.push(RefinementMethod::ModelVerification);
             }
 
-            let entity = Entity::builder()
+            let mut b = Entity::builder()
                 .with_category(category)
                 .with_entity_kind(entity_kind)
                 .with_recognition_methods(vec![RecognitionMethod::Ner(model.clone())])
                 .with_refinement_methods(refinement_methods)
                 .with_confidence(confidence)
-                .with_location(Location::from(loc))
-                .with_entity_id(l.candidate.entity_id)
-                .build()
-                .expect("required fields provided");
-            out.push(entity);
+                .with_location(Location::from(loc));
+            if let Some(id) = l.candidate.entity_id {
+                b = b.with_entity_id(id);
+            }
+            out.push(b.build().expect("required fields provided"));
         }
 
         if dropped_missing_kind > 0 || dropped_bad_confidence > 0 {

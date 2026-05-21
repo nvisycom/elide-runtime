@@ -66,7 +66,8 @@ base64 = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
 unicode-normalization = { workspace = true, features = [] }
 
-# Error handling
+# Derive macros and error handling
+derive_builder = { workspace = true, features = [] }
 thiserror = { workspace = true, features = [] }
 
 # Observability

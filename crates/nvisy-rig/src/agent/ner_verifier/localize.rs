@@ -144,7 +144,7 @@ fn warn_dropped(c: &NerCandidate, policy: UnresolvedCandidatePolicy, reason: &st
     if matches!(policy, UnresolvedCandidatePolicy::DropWithWarning) {
         tracing::warn!(
             target: super::TARGET,
-            entity_id = %c.entity_id,
+            entity_id = ?c.entity_id,
             value = %c.value,
             reason,
             "dropping unresolvable NER candidate"
@@ -220,7 +220,7 @@ mod tests {
 
     fn cand(value: &str, context: Option<&str>) -> NerCandidate {
         NerCandidate {
-            entity_id: "test_1".into(),
+            entity_id: Some("test_1".into()),
             category: None,
             entity_type: None,
             value: value.into(),

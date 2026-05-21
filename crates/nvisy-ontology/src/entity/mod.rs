@@ -46,7 +46,7 @@ pub struct Entity {
     /// Unique identifier for this entity (UUIDv7).
     #[builder(default = "Uuid::now_v7()")]
     pub id: Uuid,
-    /// LLM-assigned coreference identifier, stable across coreferent
+    /// NER/LLM-assigned coreference identifier, stable across coreferent
     /// mentions within one detection call. Two entities sharing
     /// `entity_id` refer to the same real-world entity (different
     /// surface mentions).

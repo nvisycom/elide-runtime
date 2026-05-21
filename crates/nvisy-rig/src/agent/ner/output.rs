@@ -24,7 +24,9 @@ pub(crate) struct NerCandidates {
 ///
 /// Multiple candidates may share `entity_id` when the LLM marks
 /// them as coreferent (different surface mentions of the same
-/// real-world entity).
+/// real-world entity). When `entity_id` is `None` the candidate
+/// participates in detection but not in cross-call coreference
+/// tracking.
 ///
 /// [`NerVerifier`]: crate::agent::NerVerifier
 /// [`context`]: Self::context
@@ -32,8 +34,10 @@ pub(crate) struct NerCandidates {
 pub struct NerCandidate {
     /// LLM-assigned identifier for the underlying real-world entity.
     /// Stable across coreferent mentions within one detection call,
-    /// not stable across calls.
-    pub entity_id: String,
+    /// not stable across calls. `None` when the LLM declined to
+    /// link this mention to a previously seen entity.
+    #[serde(default)]
+    pub entity_id: Option<String>,
     /// Broad classification (may be absent for coreferent mentions like pronouns).
     pub category: Option<EntityCategory>,
     /// Specific entity type (may be absent for coreferent mentions like pronouns).

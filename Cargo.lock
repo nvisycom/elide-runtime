@@ -3407,6 +3407,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bytes",
+ "derive_builder",
  "futures",
  "nvisy-core",
  "nvisy-http",

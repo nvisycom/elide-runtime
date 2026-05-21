@@ -45,16 +45,22 @@ impl<'a> NerContext<'a> {
 
     /// Merge newly detected entities into the known set.
     ///
-    /// For each entity: if a [`KnownNerEntity`] with the same `entity_id`
-    /// already exists, its `values` list is extended with any new surface
-    /// forms and new descriptions are appended. Otherwise a new
-    /// `KnownNerEntity` is created.
+    /// For each entity: if a [`KnownNerEntity`] with the same
+    /// `entity_id` already exists, its `values` list is extended
+    /// with any new surface forms and new descriptions are
+    /// appended. Otherwise a new `KnownNerEntity` is created.
+    ///
+    /// Candidates whose `entity_id` is `None` are skipped — they
+    /// have no coreference link to track.
     pub fn merge(&mut self, entities: Vec<NerCandidate>) {
         for entity in entities {
+            let Some(entity_id) = entity.entity_id else {
+                continue;
+            };
             if let Some(known) = self
                 .known_entities
                 .iter_mut()
-                .find(|k| k.entity_id == entity.entity_id)
+                .find(|k| k.entity_id == entity_id)
             {
                 // Add new surface form if not already present.
                 if !known.values.iter().any(|v| v == &entity.value) {
@@ -74,7 +80,7 @@ impl<'a> NerContext<'a> {
                 }
             } else {
                 self.known_entities.push(KnownNerEntity {
-                    entity_id: entity.entity_id,
+                    entity_id,
                     entity_type: entity.entity_type,
                     values: vec![entity.value],
                     descriptions: entity.description.into_iter().collect(),
@@ -92,7 +98,7 @@ mod tests {
 
     fn ner_candidate(id: &str, value: &str, desc: Option<&str>) -> NerCandidate {
         NerCandidate {
-            entity_id: id.into(),
+            entity_id: Some(id.into()),
             category: None,
             entity_type: Some(EntityKind::PersonName),
             value: value.into(),

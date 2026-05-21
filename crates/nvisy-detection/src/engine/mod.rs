@@ -3,6 +3,7 @@
 
 mod context;
 
+use std::fmt;
 use std::sync::Arc;
 
 use derive_builder::Builder;
@@ -59,15 +60,6 @@ impl DetectionEngineBuilder {
         self
     }
 
-    /// Add a recognizer that's already in an `Arc`. Useful when
-    /// the same recognizer instance is shared across engines.
-    pub fn with_recognizer_arc(mut self, recognizer: Arc<dyn Recognizer>) -> Self {
-        self.recognizers
-            .get_or_insert_with(Vec::new)
-            .push(recognizer);
-        self
-    }
-
     fn validate(&self) -> std::result::Result<(), String> {
         match &self.recognizers {
             Some(rs) if !rs.is_empty() => Ok(()),
@@ -106,7 +98,7 @@ impl DetectionEngine {
     /// Recognizer offsets are context-local. The caller (typically
     /// `nvisy-engine`'s `Detection` operation) rebases them onto
     /// document coordinates after this returns.
-    pub async fn detect(&self, ctx: &DetectionContext<'_>) -> Result<Entities> {
+    pub async fn run(&self, ctx: &DetectionContext<'_>) -> Result<Entities> {
         use tracing::Instrument;
 
         let span = tracing::debug_span!(
@@ -120,7 +112,7 @@ impl DetectionEngine {
         async move {
             let mut all = Entities::new();
             for recognizer in &self.recognizers {
-                let entities = recognizer.recognize(ctx).await?;
+                let entities = recognizer.run(ctx).await?;
                 tracing::debug!(
                     target: TARGET,
                     detected = entities.len(),
@@ -149,8 +141,8 @@ impl DetectionEngine {
     }
 }
 
-impl std::fmt::Debug for DetectionEngine {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for DetectionEngine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DetectionEngine")
             .field("recognizers", &self.recognizers.len())
             .finish_non_exhaustive()

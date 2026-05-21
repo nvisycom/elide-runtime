@@ -75,7 +75,7 @@ impl Operation for Detection {
             let ctx = self.build_context(span.data.as_str(), run_id);
             let detected = self
                 .engine
-                .detect(&ctx)
+                .run(&ctx)
                 .await
                 .map_err(nvisy_core::Error::from)?;
             all.extend(detected.rebase_offsets(span));

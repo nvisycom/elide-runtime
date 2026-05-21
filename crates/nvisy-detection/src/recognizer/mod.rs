@@ -49,7 +49,7 @@ pub trait Recognizer: Send + Sync {
     /// Detect entities in `ctx.text`. Offsets in returned entities
     /// are relative to `ctx.text` — the caller rebases when
     /// integrating into a larger document.
-    async fn recognize(&self, ctx: &DetectionContext<'_>) -> Result<Entities>;
+    async fn run(&self, ctx: &DetectionContext<'_>) -> Result<Entities>;
 
     /// Reset per-document state, called by the orchestrator at
     /// document boundaries. The default is a no-op — stateless

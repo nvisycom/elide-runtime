@@ -7,8 +7,11 @@
 //! prompt is its own per-build concern.
 //!
 //! The agent manages coreference state internally between
-//! successive `recognize` calls; call [`reset`](Self::reset) at
-//! document boundaries to clear it.
+//! successive `recognize` calls; call [`reset`] at document
+//! boundaries to clear it.
+//!
+//! [`DetectionContext`]: crate::DetectionContext
+//! [`reset`]: Recognizer::reset
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::Entities;

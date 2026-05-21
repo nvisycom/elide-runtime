@@ -154,8 +154,8 @@ impl DictionaryRegistry {
     /// Load a single `.txt` or `.csv` dictionary file and insert it.
     ///
     /// The dictionary name defaults to the file stem when called
-    /// directly. Use [`load_dir`](Self::load_dir) for path-based naming
-    /// across an entire tree.
+    /// directly. Use [`load_dir`] for path-based naming across an
+    /// entire tree.
     ///
     /// If a sibling `<stem>.json` sidecar exists it is parsed for
     /// [`DictionaryMetadata`]; a malformed sidecar logs a warning and
@@ -170,6 +170,8 @@ impl DictionaryRegistry {
     ///
     /// Returns [`nvisy_core::Error`] if the dictionary file itself
     /// cannot be read, or a CSV file fails to parse.
+    ///
+    /// [`load_dir`]: Self::load_dir
     #[tracing::instrument(target = TARGET, name = "dictionaries.load_file", skip_all, fields(path = %path.as_ref().display()))]
     pub fn load_file(&mut self, path: impl AsRef<Path>) -> nvisy_core::Result<()> {
         let path = path.as_ref();
@@ -186,8 +188,7 @@ impl DictionaryRegistry {
     /// Recurses into subdirectories. The dictionary's default name is
     /// derived from its path relative to `dir`, with the extension
     /// stripped — `dir/healthcare/drugs.csv` becomes `healthcare/drugs`.
-    /// A sidecar's [`name`](DictionaryMetadata::name) field overrides
-    /// the default verbatim.
+    /// A sidecar's [`name`] field overrides the default verbatim.
     ///
     /// Files with unrecognised extensions are logged as warnings and
     /// skipped. Loaded dictionaries are inserted into `self`, so this
@@ -199,6 +200,7 @@ impl DictionaryRegistry {
     /// Returns [`nvisy_core::Error`] if the directory cannot be
     /// traversed, a file cannot be read, or a CSV file fails to parse.
     ///
+    /// [`name`]: DictionaryMetadata::name
     /// [`load_builtins`]: Self::load_builtins
     #[tracing::instrument(target = TARGET, name = "dictionaries.load_dir", skip_all, fields(path = %dir.as_ref().display(), count))]
     pub fn load_dir(&mut self, dir: impl AsRef<Path>) -> nvisy_core::Result<()> {

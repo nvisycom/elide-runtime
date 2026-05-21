@@ -66,9 +66,10 @@ impl EngineBuilder {
     /// Attach the language-detection policy. Required.
     ///
     /// The engine asks the policy for a fresh detector each
-    /// [`analyze`](Engine::analyze) call, restricted to whatever
-    /// language scope the caller supplied via
-    /// [`Context::candidate_languages`].
+    /// [`analyze`] call, restricted to whatever language scope the
+    /// caller supplied via [`Context::candidate_languages`].
+    ///
+    /// [`analyze`]: Engine::analyze
     pub fn with_language_policy<P>(mut self, policy: P) -> Self
     where
         P: LanguagePolicy + 'static,

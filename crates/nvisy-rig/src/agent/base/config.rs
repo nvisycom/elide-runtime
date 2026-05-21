@@ -1,8 +1,11 @@
 //! Shared detection configuration used by NER + CV agents.
 //!
-//! Lives in [`base`](super) because both [`NerAgent`](crate::agent::NerAgent)
-//! and [`CvAgent`](crate::agent::CvAgent) consume it; the type isn't
-//! detection-specific to one agent kind.
+//! Lives in [`base`] because both [`NerAgent`] and [`CvAgent`]
+//! consume it; the type isn't detection-specific to one agent kind.
+//!
+//! [`base`]: super
+//! [`NerAgent`]: crate::agent::NerAgent
+//! [`CvAgent`]: crate::agent::CvAgent
 
 use nvisy_ontology::entity::EntityKind;
 

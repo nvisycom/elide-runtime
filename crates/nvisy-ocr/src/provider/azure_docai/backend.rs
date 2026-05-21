@@ -12,7 +12,7 @@ use serde::Deserialize;
 use tokio::time::{Duration, sleep};
 
 use super::AzureDocaiParams;
-use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams};
+use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
 /// [`Backend`] implementation for Azure Document Intelligence.
 ///

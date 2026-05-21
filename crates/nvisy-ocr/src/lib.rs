@@ -2,9 +2,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-pub mod ocr;
+pub mod backend;
+pub mod engine;
+pub mod provider;
 
-// Hoist the OCR types to the crate root because everything in this
-// crate is OCR-related. Mirrors the legacy `nvisy_ocr::ocr::*`
-// path so consumers can transition smoothly.
-pub use self::ocr::*;
+pub use self::backend::{Backend, ImageFormat, ImageInput, ImageOutput, RunParams};
+pub use self::engine::{OcrEngine, OcrProvider};

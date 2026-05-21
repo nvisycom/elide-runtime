@@ -11,7 +11,7 @@ use nvisy_ontology::primitive::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;
 
 use super::GoogleVisionParams;
-use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams};
+use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
 /// [`Backend`] implementation for Google Cloud Vision API.
 ///

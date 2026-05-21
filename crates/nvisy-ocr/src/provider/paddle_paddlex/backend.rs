@@ -10,7 +10,7 @@ use reqwest_middleware::reqwest::multipart::Form;
 use serde::Deserialize;
 
 use super::PaddleXParams;
-use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams, image_part};
+use crate::backend::{Backend, ImageInput, ImageOutput, RunParams, image_part};
 
 /// [`Backend`] implementation for PaddleX PP-OCRv5.
 ///

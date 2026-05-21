@@ -3,12 +3,12 @@ use nvisy_http::HttpClient;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "aws-textract")]
-use crate::ocr::provider::{AwsTextractBackend, AwsTextractParams};
+use crate::provider::{AwsTextractBackend, AwsTextractParams};
 #[cfg(feature = "azure-docai")]
-use crate::ocr::provider::{AzureDocaiBackend, AzureDocaiParams};
+use crate::provider::{AzureDocaiBackend, AzureDocaiParams};
 #[cfg(feature = "google-vision")]
-use crate::ocr::provider::{GoogleVisionBackend, GoogleVisionParams};
-use crate::ocr::provider::{PaddleXBackend, PaddleXParams, SuryaBackend, SuryaParams};
+use crate::provider::{GoogleVisionBackend, GoogleVisionParams};
+use crate::provider::{PaddleXBackend, PaddleXParams, SuryaBackend, SuryaParams};
 
 /// Union of all provider parameter types.
 ///

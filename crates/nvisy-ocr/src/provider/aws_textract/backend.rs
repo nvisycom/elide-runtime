@@ -15,7 +15,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 use super::AwsTextractParams;
-use crate::ocr::backend::{Backend, ImageInput, ImageOutput, RunParams};
+use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
 /// [`Backend`] implementation for AWS Textract.
 ///

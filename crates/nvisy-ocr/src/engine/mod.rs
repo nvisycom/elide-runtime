@@ -1,8 +1,9 @@
-//! Type-erased OCR engine.
+//! Type-erased OCR engine plus the [`OcrProvider`] enum that
+//! resolves config into a concrete [`Backend`].
+//!
+//! [`Backend`]: crate::backend::Backend
 
-pub mod backend;
-mod params;
-pub mod provider;
+mod provider;
 
 use std::fmt;
 use std::sync::Arc;
@@ -10,10 +11,10 @@ use std::sync::Arc;
 use nvisy_core::Error;
 use tracing::instrument;
 
-pub use self::backend::{Backend, ImageFormat, ImageInput, ImageOutput, RunParams};
-pub use self::params::OcrProvider;
+pub use self::provider::OcrProvider;
+use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
 
-const TARGET: &str = "nvisy_ocr::ocr";
+const TARGET: &str = "nvisy_ocr::engine";
 
 /// Type-erased OCR engine wrapping any [`Backend`] implementation.
 ///
@@ -24,8 +25,8 @@ const TARGET: &str = "nvisy_ocr::ocr";
 /// # Examples
 ///
 /// ```ignore
-/// use nvisy_ocr::ocr::{OcrEngine, ImageInput, ImageFormat, RunParams};
-/// use nvisy_ocr::ocr::provider::{SuryaBackend, SuryaParams};
+/// use nvisy_ocr::{OcrEngine, ImageInput, ImageFormat, RunParams};
+/// use nvisy_ocr::provider::{SuryaBackend, SuryaParams};
 ///
 /// let backend = SuryaBackend::new(SuryaParams { base_url: "http://localhost:8000".into() });
 /// let engine = OcrEngine::new(backend);
@@ -34,6 +35,8 @@ const TARGET: &str = "nvisy_ocr::ocr";
 /// let output = engine.run(&image, &RunParams::default()).await?;
 /// println!("{} words detected", output.word_count());
 /// ```
+///
+/// [`Backend`]: crate::backend::Backend
 #[derive(Clone)]
 pub struct OcrEngine {
     backend: Arc<dyn Backend>,
@@ -47,6 +50,8 @@ impl fmt::Debug for OcrEngine {
 
 impl OcrEngine {
     /// Create a new engine from any [`Backend`] implementation.
+    ///
+    /// [`Backend`]: crate::backend::Backend
     pub fn new(backend: impl Backend) -> Self {
         Self {
             backend: Arc::new(backend),

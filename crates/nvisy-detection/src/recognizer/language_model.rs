@@ -126,7 +126,7 @@ impl LlmRecognizer {
     /// [`DetectionContext`].
     ///
     /// [`DetectionContext`]: crate::DetectionContext
-    fn build_config(ctx: &DetectionContext<'_>) -> DetectionConfig {
+    fn build_config(ctx: &DetectionContext) -> DetectionConfig {
         DetectionConfig {
             entity_kinds: ctx.entities.clone().unwrap_or_default(),
             confidence_threshold: ctx.score_threshold,
@@ -144,10 +144,10 @@ impl Recognizer for LlmRecognizer {
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, ctx: &DetectionContext<'_>) -> Result<Entities> {
+    async fn run(&self, ctx: &DetectionContext) -> Result<Entities> {
         let config = Self::build_config(ctx);
         self.pipeline
-            .run(ctx.text, &config)
+            .run(&ctx.text, &config)
             .await
             .map_err(|e| Error::Recognizer {
                 name: "llm".into(),

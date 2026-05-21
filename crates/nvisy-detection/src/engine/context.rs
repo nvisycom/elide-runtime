@@ -1,5 +1,5 @@
 //! [`DetectionContext`] — per-call input to
-//! [`DetectionEngine::detect`] and every [`Recognizer`].
+//! [`DetectionEngine::run`] and every [`Recognizer`].
 //!
 //! Bundles the same shape `nvisy_nlp::Context` carries, plus the
 //! [`ScanContext`] needed by pattern-backed recognizers. Each
@@ -16,26 +16,29 @@
 //! `correlation_id` flows through the tracing span and isn't read
 //! by recognizers themselves.
 //!
-//! [`DetectionEngine::detect`]: super::DetectionEngine::detect
+//! [`DetectionEngine::run`]: super::DetectionEngine::run
 //! [`Recognizer`]: crate::Recognizer
 //! [`NerRecognizer`]: crate::NerRecognizer
 //! [`PatternRecognizer`]: crate::PatternRecognizer
 //! [`LlmRecognizer`]: crate::LlmRecognizer
 
 use derive_builder::Builder;
+use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::primitive::LanguageTag;
 use nvisy_pattern::ScanContext;
 use uuid::Uuid;
 
-/// Per-call input to [`DetectionEngine::detect`].
+/// Per-call input to [`DetectionEngine::run`].
 ///
-/// Lifetimes are hybrid: `text` is borrowed because it can be large
-/// and is call-scoped; the optional lists and the [`ScanContext`]
-/// are owned so the context can be passed around without lifetime
-/// annotations spreading through callers.
+/// Fully owned (no lifetime parameter) so the engine can share it
+/// across recognizer tasks via [`Arc`] for parallel dispatch.
+/// `text` is a [`TextData`] — internally a `HipStr` — so the
+/// shared clone is an atomic increment, not a copy of the source
+/// bytes.
 ///
-/// [`DetectionEngine::detect`]: super::DetectionEngine::detect
+/// [`DetectionEngine::run`]: super::DetectionEngine::run
+/// [`Arc`]: std::sync::Arc
 #[derive(Debug, Clone, Builder)]
 #[builder(
     name = "DetectionContextBuilder",
@@ -43,9 +46,11 @@ use uuid::Uuid;
     setter(into, strip_option, prefix = "with"),
     build_fn(error = "DetectionContextBuilderError")
 )]
-pub struct DetectionContext<'a> {
-    /// The text to analyze.
-    pub text: &'a str,
+pub struct DetectionContext {
+    /// The text to analyze. Cheap to clone (atomic incr on the
+    /// inner `HipStr`, inline for short text).
+    #[builder(setter(into))]
+    pub text: TextData,
 
     /// Caller-asserted language. When `Some`, NER recognizers skip
     /// per-call language detection.
@@ -78,11 +83,11 @@ pub struct DetectionContext<'a> {
     pub correlation_id: Option<Uuid>,
 }
 
-impl<'a> DetectionContext<'a> {
+impl DetectionContext {
     /// Construct a context with only `text` set.
-    pub fn new(text: &'a str) -> Self {
+    pub fn new(text: impl Into<TextData>) -> Self {
         Self {
-            text,
+            text: text.into(),
             language: None,
             candidate_languages: None,
             entities: None,
@@ -95,14 +100,26 @@ impl<'a> DetectionContext<'a> {
     /// Start a typed builder. Equivalent to
     /// `DetectionContextBuilder::default()` but more discoverable
     /// from the context type.
-    pub fn builder() -> DetectionContextBuilder<'a> {
+    pub fn builder() -> DetectionContextBuilder {
         DetectionContextBuilder::default()
     }
 }
 
-impl<'a> From<&'a str> for DetectionContext<'a> {
-    fn from(text: &'a str) -> Self {
+impl From<TextData> for DetectionContext {
+    fn from(text: TextData) -> Self {
         Self::new(text)
+    }
+}
+
+impl From<&str> for DetectionContext {
+    fn from(text: &str) -> Self {
+        Self::new(TextData::from(text))
+    }
+}
+
+impl From<String> for DetectionContext {
+    fn from(text: String) -> Self {
+        Self::new(TextData::from(text))
     }
 }
 

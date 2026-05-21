@@ -65,10 +65,10 @@ impl Recognizer for PatternRecognizer {
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, ctx: &DetectionContext<'_>) -> Result<Entities> {
+    async fn run(&self, ctx: &DetectionContext) -> Result<Entities> {
         let mut entities: Entities = self
             .engine
-            .scan_entities(ctx.text, &ctx.scan_context)
+            .scan_entities(&ctx.text, &ctx.scan_context)
             .into_iter()
             .collect();
 

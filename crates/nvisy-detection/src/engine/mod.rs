@@ -8,23 +8,30 @@ use std::sync::Arc;
 
 use derive_builder::Builder;
 use nvisy_ontology::entity::Entities;
+use tokio::task::JoinSet;
 
 pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
 use crate::Recognizer;
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 const TARGET: &str = "nvisy_detection::engine";
 
 /// Composite detection engine.
 ///
-/// Holds an ordered list of [`Recognizer`]s and runs each against
-/// a [`DetectionContext`], returning all detected entities
-/// combined into a single [`Entities`] collection.
+/// Holds an ordered list of [`Recognizer`]s and dispatches them in
+/// parallel against a shared [`DetectionContext`], returning every
+/// detected entity combined into a single [`Entities`] collection.
 ///
-/// Recognizers run sequentially. Future work may parallelise them
-/// (each holds an `Arc` so contention is on the underlying
-/// backends, not the engine), but the order is currently
-/// deterministic to make tracing easy to read.
+/// Parallelism uses [`tokio::task::JoinSet`]: each recognizer runs
+/// on its own task so CPU-bound work (ONNX inference inside the NER
+/// backend) and I/O-bound work (LLM HTTP calls inside the LLM
+/// backend) overlap. The context is wrapped in an [`Arc`] once and
+/// shared by every task — the inner [`TextData`] is itself cheap to
+/// clone, so fan-out is an atomic increment, not a copy of the
+/// source text.
+///
+/// Failure is fail-fast: on the first task error every other
+/// in-flight task is aborted and the error is returned.
 ///
 /// Dedup, conflict resolution, and threshold filtering are *not*
 /// the engine's concern — those live in the downstream pipeline
@@ -34,6 +41,7 @@ const TARGET: &str = "nvisy_detection::engine";
 /// attached; calling [`build`] without one returns a
 /// `Misconfigured` error.
 ///
+/// [`TextData`]: nvisy_codec::handler::TextData
 /// [`builder`]: Self::builder
 /// [`build`]: DetectionEngineBuilder::build
 #[derive(Builder)]
@@ -92,13 +100,19 @@ impl DetectionEngine {
         DetectionEngineBuilder::default()
     }
 
-    /// Run every attached recognizer against `ctx` and return the
-    /// combined entity set.
+    /// Run every attached recognizer against `ctx` in parallel and
+    /// return the combined entity set.
+    ///
+    /// Each recognizer runs on its own [`tokio::task::JoinSet`]
+    /// task. The first error aborts the remaining in-flight tasks
+    /// and is returned to the caller (fail-fast). On success the
+    /// outputs are merged in completion order — recognizer
+    /// independence means order doesn't affect downstream dedup.
     ///
     /// Recognizer offsets are context-local. The caller (typically
     /// `nvisy-engine`'s `Detection` operation) rebases them onto
     /// document coordinates after this returns.
-    pub async fn run(&self, ctx: &DetectionContext<'_>) -> Result<Entities> {
+    pub async fn run(&self, ctx: DetectionContext) -> Result<Entities> {
         use tracing::Instrument;
 
         let span = tracing::debug_span!(
@@ -109,16 +123,39 @@ impl DetectionEngine {
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         );
 
+        let ctx = Arc::new(ctx);
+        let recognizers = self.recognizers.clone();
+
         async move {
+            let mut set: JoinSet<Result<Entities>> = JoinSet::new();
+            for recognizer in recognizers {
+                let ctx = Arc::clone(&ctx);
+                set.spawn(async move { recognizer.run(&ctx).await });
+            }
+
             let mut all = Entities::new();
-            for recognizer in &self.recognizers {
-                let entities = recognizer.run(ctx).await?;
-                tracing::debug!(
-                    target: TARGET,
-                    detected = entities.len(),
-                    "recognizer produced entities",
-                );
-                all.extend(entities);
+            while let Some(joined) = set.join_next().await {
+                match joined {
+                    Ok(Ok(entities)) => {
+                        tracing::debug!(
+                            target: TARGET,
+                            detected = entities.len(),
+                            "recognizer produced entities",
+                        );
+                        all.extend(entities);
+                    }
+                    Ok(Err(e)) => {
+                        set.abort_all();
+                        return Err(e);
+                    }
+                    Err(join_err) => {
+                        set.abort_all();
+                        return Err(Error::Recognizer {
+                            name: "detection-engine".into(),
+                            cause: format!("recognizer task panicked or was cancelled: {join_err}"),
+                        });
+                    }
+                }
             }
             Ok(all)
         }

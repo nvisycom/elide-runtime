@@ -42,8 +42,8 @@ impl Recognizer for NerRecognizer {
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, ctx: &DetectionContext<'_>) -> Result<Entities> {
-        let mut nlp_ctx = NlpContext::new(ctx.text);
+    async fn run(&self, ctx: &DetectionContext) -> Result<Entities> {
+        let mut nlp_ctx = NlpContext::new(&ctx.text);
         if let Some(language) = ctx.language.clone() {
             nlp_ctx.language = Some(language);
         }

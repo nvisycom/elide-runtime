@@ -13,6 +13,7 @@
 
 use std::sync::Arc;
 
+use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
 use nvisy_detection::{DetectionContext, DetectionEngine, RebaseEntities};
 use nvisy_ontology::workflow::Detection as DetectionConfig;
@@ -47,7 +48,7 @@ impl Detection {
     /// pattern applies them as post-filters). Pattern-engine
     /// settings (patterns, filter, default threshold) are baked
     /// into the PatternRecognizer at construction time.
-    fn build_context<'a>(&self, text: &'a str, run_id: uuid::Uuid) -> DetectionContext<'a> {
+    fn build_context(&self, text: TextData, run_id: uuid::Uuid) -> DetectionContext {
         let mut ctx = DetectionContext::new(text);
         ctx.correlation_id = Some(run_id);
         if let Some(ref ner) = self.cfg.ner {
@@ -72,10 +73,10 @@ impl Operation for Detection {
         let run_id = envelope.shared.run_id;
         let mut all = nvisy_ontology::entity::Entities::new();
         for span in &spans {
-            let ctx = self.build_context(span.data.as_str(), run_id);
+            let ctx = self.build_context(span.data.clone(), run_id);
             let detected = self
                 .engine
-                .run(&ctx)
+                .run(ctx)
                 .await
                 .map_err(nvisy_core::Error::from)?;
             all.extend(detected.rebase_offsets(span));

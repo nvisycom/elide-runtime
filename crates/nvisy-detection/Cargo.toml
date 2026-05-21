@@ -27,10 +27,12 @@ default = []
 
 [dependencies]
 # Internal crates
-nvisy-codec = { workspace = true, features = [] }
 nvisy-core = { workspace = true, features = [] }
-nvisy-nlp = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
+nvisy-codec = { workspace = true, features = [] }
+
+# Recognizer crates
+nvisy-nlp = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 nvisy-rig = { workspace = true, features = [] }
 

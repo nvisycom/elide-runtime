@@ -28,7 +28,7 @@ body_limit_mb = 4
 request_timeout_secs = 300
 cors = { allowed_origins = ["*"], max_age_secs = 3600 }
 
-# Default retry and timeout policies applied to every graph node.
+# Default retry and timeout policies applied to every pipeline phase.
 [engine]
 retry = { max_retries = 3, delay_ms = 500, backoff = "fixed" }
 timeout = { duration_ms = 30000, on_timeout = "fail" }
@@ -37,7 +37,6 @@ concurrency = { maxNodes = 4 }
 # Run-level resource limits.
 [engine.limits]
 run_timeout_ms = 60000
-max_nodes = 50
 max_envelope_size_bytes = 104857600  # 100 MB
 
 # Shared HTTP client for all downstream provider calls.
@@ -51,7 +50,7 @@ idle_timeout_secs = 90
 #
 # Each opted-in `[extractor.*]` section is built once at server
 # startup. Set `enabled = false` to keep the config but skip
-# construction and dispatch. Workflow `Extraction` nodes carry
+# construction and dispatch. The pipeline `Extraction` step carries
 # per-call flags only.
 
 # OCR text extraction from image documents.
@@ -129,7 +128,7 @@ confidence_threshold = 0.5
 
 # Redaction defaults + audio redaction codec.
 #
-# Workflow `Redaction` nodes fall back to these for any field
+# Pipeline `Redaction` steps fall back to these for any field
 # they leave unset. Per-request overrides are honored (cheap config,
 # no expensive construction).
 [redactor]

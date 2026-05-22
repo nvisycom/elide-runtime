@@ -2,11 +2,11 @@
 //! config.
 //!
 //! Cross-recognizer hints (`entity_kinds`, `confidence_threshold`)
-//! live on [`DetectionParams`] because every recognizer honors
+//! live directly on [`Detection`] because every recognizer honors
 //! them. This struct carries the bits that only mean something for
 //! the ONNX NER path — today, the prebuilt engine preset.
 //!
-//! [`DetectionParams`]: crate::recognizer::DetectionParams
+//! [`Detection`]: crate::detection::Detection
 
 use nvisy_nlp::NlpPreset;
 use schemars::JsonSchema;

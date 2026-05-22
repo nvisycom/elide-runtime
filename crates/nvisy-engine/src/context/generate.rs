@@ -5,7 +5,7 @@
 //! the detection results and the processed document envelope, optionally
 //! enriching it with summarisation, translation, and audit records.
 //!
-//! [`Redaction`]: crate::workflow::Redaction
+//! [`Redaction`]: crate::redaction::Redaction
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 /// Controls which supplementary outputs are generated alongside the base
 /// context record produced from detection results.
 ///
-/// [`GenerateContext`]: crate::workflow::GraphNodeKind::GenerateContext
+/// [`GenerateContext`]: crate::context::GenerateContext
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct GenerateContext {

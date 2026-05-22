@@ -9,7 +9,7 @@
 use bytes::Bytes;
 use nvisy_core::{Error, Result};
 
-use crate::workflow::CompressionAlgorithm;
+use crate::ingestion::CompressionAlgorithm;
 
 const TARGET: &str = "nvisy_engine::op::compression";
 

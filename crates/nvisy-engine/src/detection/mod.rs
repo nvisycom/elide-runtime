@@ -12,7 +12,6 @@ mod dyn_recognizer;
 mod extension;
 mod llm;
 mod nlp;
-mod params;
 mod pattern;
 mod recognizer;
 mod recognizers;
@@ -33,7 +32,6 @@ pub use self::dyn_recognizer::DynRecognizer;
 pub use self::extension::RebaseEntities;
 pub use self::llm::{LlmContext, LlmDetection, LlmRecognizer};
 pub use self::nlp::{NlpContext, NlpDetection, NlpRecognizer};
-pub use self::params::DetectionParams;
 pub use self::pattern::{PatternContext, PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
 pub use self::recognizers::{RecognizerSection, Recognizers};
@@ -221,6 +219,53 @@ impl DetectionEngine {
             recognizer.reset().await;
         }
     }
+
+    /// Run detection against every text span on the envelope's
+    /// document, rebase offsets into document coordinates, and
+    /// append to `envelope.audit.entities`. Resets per-document
+    /// state at the end of the call so the next document starts
+    /// clean.
+    ///
+    /// `cfg` provides the per-call hints (`entity_kinds`,
+    /// `confidence_threshold`) carried into each
+    /// [`DetectionContext`].
+    pub async fn detect_in(
+        &self,
+        envelope: &mut crate::operation::DocumentEnvelope,
+        cfg: &Detection,
+    ) -> Result<()> {
+        const TARGET: &str = "nvisy_engine::detection::detect_in";
+        let spans = envelope.document.collect_text_spans().await;
+        if spans.is_empty() {
+            return Ok(());
+        }
+
+        let run_id = envelope.shared.run_id;
+        let mut all = nvisy_ontology::entity::Entities::new();
+        for span in &spans {
+            let mut ctx = DetectionContext::new(span.data.clone());
+            ctx.correlation_id = Some(run_id);
+            if !cfg.entity_kinds.is_empty() {
+                ctx.entities = Some(cfg.entity_kinds.clone());
+            }
+            if let Some(threshold) = cfg.confidence_threshold {
+                ctx.score_threshold = Some(threshold);
+            }
+            let detected = self.run(ctx).await?;
+            all.extend(detected.rebase_offsets(span));
+        }
+
+        tracing::debug!(
+            target: TARGET,
+            detected = all.len(),
+            spans = spans.len(),
+            "appending detected entities",
+        );
+        envelope.add_entities(all).await;
+
+        self.reset().await;
+        Ok(())
+    }
 }
 
 impl fmt::Debug for DetectionEngine {
@@ -241,34 +286,37 @@ impl fmt::Debug for DetectionEngine {
 /// [`kinds`] is the enable/disable list — empty means no detection
 /// runs for this workflow.
 ///
-/// [`params`] carries the per-call hints (entity-kind allowlist,
-/// confidence threshold) that every kind in [`kinds`] honors.
-/// Recognizer-specific build config (provider, model, regex set,
-/// etc.) lives in `[recognizer.*]` runtime config, never here.
+/// [`entity_kinds`] and [`confidence_threshold`] are the per-call
+/// hints honored by every enabled recognizer. Recognizer-specific
+/// build config (provider, model, regex set, etc.) lives in
+/// `[recognizer.*]` runtime config, never here.
 ///
 /// [`kinds`]: Self::kinds
-/// [`params`]: Self::params
-#[derive(Debug, Clone, Default, PartialEq)]
+/// [`entity_kinds`]: Self::entity_kinds
+/// [`confidence_threshold`]: Self::confidence_threshold
+#[derive(Debug, Clone, Default, PartialEq, validator::Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Detection {
     /// Which recognizer kinds to enable for this workflow. Empty
     /// disables detection entirely.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub kinds: Vec<RecognizerKind>,
-    /// Cross-recognizer per-call hints applied to every enabled
-    /// recognizer.
+    /// Entity-kind allowlist applied to every enabled recognizer.
+    /// Empty = all kinds permitted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub entity_kinds: Vec<nvisy_ontology::entity::EntityKind>,
+    /// Minimum confidence threshold honored by every recognizer
+    /// (0.0..=1.0). `None` disables confidence filtering.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub params: Option<DetectionParams>,
+    #[validate(range(min = 0.0, max = 1.0))]
+    pub confidence_threshold: Option<f64>,
 }
 
 impl Detection {
-    /// Validate the per-call hints.
+    /// Validate the configuration.
     pub fn validate(&self) -> std::result::Result<(), validator::ValidationErrors> {
         use validator::Validate;
-        if let Some(ref params) = self.params {
-            params.validate()?;
-        }
-        Ok(())
+        Validate::validate(self)
     }
 
     /// Assemble a [`DetectionEngine`] by picking each enabled kind

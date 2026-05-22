@@ -37,7 +37,7 @@ pub struct PatternRecognizer {
 }
 
 impl PatternRecognizer {
-    /// Construct from a [`PatternDetection`] graph config. Uses the
+    /// Construct from a [`PatternDetection`] workflow config. Uses the
     /// shared singleton when the config is unconstrained; builds a
     /// fresh engine otherwise.
     pub fn from_config(cfg: &PatternDetection) -> Self {

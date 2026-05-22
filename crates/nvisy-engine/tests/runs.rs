@@ -11,8 +11,9 @@ async fn dry_run_returns_without_exporting() -> anyhow::Result<()> {
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "dry run test").await;
 
-    let graph = fixtures::import_export_graph(content_id);
-    let output = engine.run(fixtures::dry_run_input(actor, graph)).await?;
+    let output = engine
+        .run(fixtures::dry_run_input(actor, content_id))
+        .await?;
 
     // Dry run should succeed and return a valid run_id.
     let snapshot = engine.get_run(actor, output.run_id).await.unwrap();
@@ -29,8 +30,9 @@ async fn successful_run_has_succeeded_status() -> anyhow::Result<()> {
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "run test").await;
 
-    let graph = fixtures::import_export_graph(content_id);
-    let output = engine.run(fixtures::engine_input(actor, graph)).await?;
+    let output = engine
+        .run(fixtures::engine_input(actor, content_id))
+        .await?;
 
     let snapshot = engine.get_run(actor, output.run_id).await.unwrap();
     assert!(matches!(snapshot.outcome, RunOutcome::Succeeded { .. }));
@@ -43,8 +45,9 @@ async fn successful_run_appears_in_listing() -> anyhow::Result<()> {
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "listing test").await;
 
-    let graph = fixtures::import_export_graph(content_id);
-    let output = engine.run(fixtures::engine_input(actor, graph)).await?;
+    let output = engine
+        .run(fixtures::engine_input(actor, content_id))
+        .await?;
 
     let runs = engine.list_runs(actor, RunFilter { status: None }).await;
     assert!(runs.iter().any(|r| r.id == output.run_id));
@@ -57,8 +60,9 @@ async fn filter_runs_by_status() -> anyhow::Result<()> {
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "filter test").await;
 
-    let graph = fixtures::import_export_graph(content_id);
-    engine.run(fixtures::engine_input(actor, graph)).await?;
+    engine
+        .run(fixtures::engine_input(actor, content_id))
+        .await?;
 
     let succeeded = engine
         .list_runs(
@@ -88,8 +92,9 @@ async fn analytics_reflects_successful_run() -> anyhow::Result<()> {
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "analytics test").await;
 
-    let graph = fixtures::import_export_graph(content_id);
-    engine.run(fixtures::engine_input(actor, graph)).await?;
+    engine
+        .run(fixtures::engine_input(actor, content_id))
+        .await?;
 
     let snap = engine.snapshot().await;
     assert_eq!(snap.succeeded_runs, 1);
@@ -157,9 +162,8 @@ async fn failed_run_appears_in_listing() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
-    // An empty graph will fail compilation, creating a Failed run entry.
-    let graph = nvisy_engine::workflow::Graph::new(vec![], vec![]);
-    let input = fixtures::engine_input(actor, graph);
+    // A non-existent content ID fails at import, creating a Failed run entry.
+    let input = fixtures::failing_input(actor);
     let result = engine.run(input).await;
     assert!(result.is_err());
 
@@ -175,8 +179,7 @@ async fn failed_run_can_be_deleted() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
-    let graph = nvisy_engine::workflow::Graph::new(vec![], vec![]);
-    let input = fixtures::engine_input(actor, graph);
+    let input = fixtures::failing_input(actor);
     let _ = engine.run(input).await;
 
     let runs = engine.list_runs(actor, RunFilter { status: None }).await;
@@ -194,8 +197,7 @@ async fn delete_all_runs_clears_finished() -> anyhow::Result<()> {
     let actor = fixtures::actor();
 
     for _ in 0..2 {
-        let graph = nvisy_engine::workflow::Graph::new(vec![], vec![]);
-        let _ = engine.run(fixtures::engine_input(actor, graph)).await;
+        let _ = engine.run(fixtures::failing_input(actor)).await;
     }
 
     let removed = engine.delete_all_runs(actor).await;
@@ -215,8 +217,7 @@ async fn runs_isolated_between_actors() -> anyhow::Result<()> {
     let actor_a = fixtures::actor();
     let actor_b = fixtures::other_actor();
 
-    let graph = nvisy_engine::workflow::Graph::new(vec![], vec![]);
-    let _ = engine.run(fixtures::engine_input(actor_a, graph)).await;
+    let _ = engine.run(fixtures::failing_input(actor_a)).await;
 
     let a_runs = engine.list_runs(actor_a, RunFilter { status: None }).await;
     let b_runs = engine.list_runs(actor_b, RunFilter { status: None }).await;
@@ -230,11 +231,51 @@ async fn analytics_reflects_failed_run() -> anyhow::Result<()> {
     let (engine, _dir) = fixtures::engine();
     let actor = fixtures::actor();
 
-    let graph = nvisy_engine::workflow::Graph::new(vec![], vec![]);
-    let _ = engine.run(fixtures::engine_input(actor, graph)).await;
+    let _ = engine.run(fixtures::failing_input(actor)).await;
 
     let snap = engine.snapshot().await;
     assert_eq!(snap.failed_runs, 1);
     assert_eq!(snap.distinct_actors, 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn detection_kinds_with_unconfigured_recognizer_fails_validation() -> anyhow::Result<()> {
+    use nvisy_engine::detection::{Detection, RecognizerKind};
+
+    let (engine, _dir) = fixtures::engine();
+    let actor = fixtures::actor();
+    let content_id = fixtures::upload_text(&engine, actor, "test").await;
+
+    // Build an input that opts in to the LLM recognizer without
+    // configuring `[recognizer.llm]` — the assembly step should
+    // refuse.
+    let mut input = fixtures::engine_input(actor, content_id);
+    input.detection = Detection {
+        kinds: vec![RecognizerKind::Llm],
+        ..Default::default()
+    };
+
+    let result = engine.run(input).await;
+    assert!(
+        result.is_err(),
+        "expected validation error for unconfigured recognizer"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn empty_extraction_succeeds() -> anyhow::Result<()> {
+    // Default Extraction config (no per-modality flags) is valid;
+    // text content needs no extractor so the phase is a no-op.
+    let (engine, _dir) = fixtures::engine();
+    let actor = fixtures::actor();
+    let content_id = fixtures::upload_text(&engine, actor, "no extraction needed").await;
+
+    let input = fixtures::engine_input(actor, content_id);
+    let output = engine.run(input).await?;
+
+    let snapshot = engine.get_run(actor, output.run_id).await.unwrap();
+    assert!(matches!(snapshot.outcome, RunOutcome::Succeeded { .. }));
     Ok(())
 }

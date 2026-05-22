@@ -23,38 +23,68 @@ use super::config::RuntimeConfig;
 use super::run::Pipeline;
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
-use crate::detection::Recognizers;
-use crate::extraction::Extractors;
-use crate::redaction::RedactorDefaults;
+use crate::context::GenerateContext;
+use crate::detection::{Detection, Recognizers};
+use crate::extraction::{Extraction, Extractors};
+use crate::ingestion::{ExportFile, ImportFile};
+use crate::operation::{Deduplication, Validation};
+use crate::pipeline::PhasePolicy;
+use crate::redaction::{Redaction, RedactorDefaults};
 use crate::registry::Registry;
 use crate::utility::encryption::SharedKeyProvider;
-use crate::workflow::Graph;
 
 /// Input required to execute a redaction pipeline.
 ///
-/// Bundles the actor identity, redaction policies, execution graph, and
-/// optional per-request configuration overrides into a single submission.
+/// A flat, fixed-order plan. Each phase carries its own config plus
+/// optional retry/timeout overrides. The order is hardwired
+/// (extraction → detection → dedup → redaction → validation)
+/// because downstream phases depend on upstream artifacts.
+#[derive(Clone)]
 pub struct EngineInput {
     /// Identity of the human or service account initiating the run.
     pub actor_id: Uuid,
-    /// Previously uploaded policies to apply, each tagged with the
-    /// precedence at which it should layer (lower = higher precedence).
-    /// See [`PolicyRef`].
+    /// Previously uploaded policies to apply, tagged with precedence.
     pub policies: Vec<PolicyRef>,
-    /// Execution graph defining the pipeline DAG.
-    ///
-    /// Content identifiers live on [`ImportFile`] nodes within the
-    /// graph, not as a top-level field.
-    ///
-    /// [`ImportFile`]: crate::workflow::ImportFile
-    pub graph: Graph,
     /// Per-request configuration overrides, merged with engine defaults
     /// via [`RuntimeConfig::merge`] at the start of each run.
     pub config: Option<RuntimeConfig>,
     /// When `true`, the pipeline evaluates detection and policy rules
-    /// but skips validation and export. The returned [`EngineOutput`]
-    /// contains the audit trail without modifying or exporting content.
+    /// but skips validation and export.
     pub dry_run: bool,
+
+    /// Phase 0: content imports (source).
+    pub imports: Vec<ImportFile>,
+    /// Phase 0: context IDs to load into the cache.
+    pub context_ids: Vec<Uuid>,
+
+    /// Phase 1: extraction settings per modality.
+    pub extraction: Extraction,
+    /// Retry/timeout policy for the extraction phase.
+    pub extraction_policy: PhasePolicy,
+
+    /// Phase 2: detection settings (which recognizer kinds + hints).
+    pub detection: Detection,
+    /// Retry/timeout policy for the detection phase.
+    pub detection_policy: PhasePolicy,
+
+    /// Phase 3: deduplication settings.
+    pub deduplication: Deduplication,
+
+    /// Phase 4: redaction settings.
+    pub redaction: Redaction,
+    /// Retry/timeout policy for the redaction phase.
+    pub redaction_policy: PhasePolicy,
+    /// Phase 4: whether to generate a new context from detection
+    /// results.
+    pub generate_context: Option<GenerateContext>,
+
+    /// Phase 5: validation settings.
+    pub validation: Validation,
+
+    /// Phase 6: content exports (sink).
+    pub exports: Vec<ExportFile>,
+    /// Phase 6: context IDs to save.
+    pub save_context_ids: Vec<Uuid>,
 }
 
 /// Complete result of a pipeline run.
@@ -225,42 +255,38 @@ impl Engine {
 
     /// Execute a full redaction pipeline synchronously (blocks until done).
     ///
-    /// Compiles the graph, pre-loads contexts and policies, runs the DAG
-    /// orchestrator, and collects results. Used directly in tests and
-    /// the CLI.
+    /// Acquires resources, runs every configured phase against each
+    /// imported document, and collects results. Used directly in
+    /// tests and the CLI.
     ///
     /// # Errors
     ///
-    /// Returns an error if graph compilation fails, the run times out,
-    /// or all nodes fail during execution.
+    /// Returns an error if the run times out or all documents fail
+    /// during execution.
     pub async fn run(&self, input: EngineInput) -> Result<EngineOutput, Error> {
         self.pipeline().run(input).await
     }
 
     /// Submit a pipeline run for background execution.
     ///
-    /// Compiles and validates the graph synchronously (fail-fast on bad
-    /// input), then spawns the actual execution on a background tokio
-    /// task. Returns the run ID immediately.
+    /// Registers the run record synchronously, then spawns the
+    /// actual execution on a background tokio task. Returns the run
+    /// ID immediately.
     ///
     /// Results are persisted to the registry and can be retrieved via
     /// [`Engine::get_run`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if graph compilation or validation fails.
     pub async fn submit(&self, input: EngineInput) -> Result<Uuid, Error> {
         let pipeline = self.pipeline();
         let run_id = pipeline.id();
         let actor_id = input.actor_id;
 
-        // Prepare synchronously — fail fast on bad input.
-        let compiled = pipeline.prepare(&input).await?;
+        // Insert the initial Pending run record up front (cheap).
+        pipeline.register_pending(&input).await;
 
         let registry = self.inner.registry.clone();
         let runs = self.inner.runs.clone();
         self.inner.background_tasks.lock().await.spawn(async move {
-            match pipeline.execute(input, compiled).await {
+            match pipeline.execute(input).await {
                 Ok(output) => {
                     if let Err(e) = registry.store_audits(actor_id, run_id, output.audits).await {
                         tracing::error!(%run_id, error = %e, "failed to persist run audits");

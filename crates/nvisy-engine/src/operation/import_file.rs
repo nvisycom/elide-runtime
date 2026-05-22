@@ -19,11 +19,11 @@ use nvisy_codec::ContentHandle;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData};
 
+use crate::ingestion::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 use crate::operation::DocumentEnvelope;
 use crate::operation::envelope::SharedData;
 use crate::utility::compression::CompressionService;
 use crate::utility::encryption::{CryptoService, EncryptedContent};
-use crate::workflow::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 
@@ -35,12 +35,12 @@ const TARGET: &str = "nvisy_engine::op::import_file";
 ///
 /// [`Operation`]: crate::operation::Operation
 #[derive(Default)]
-pub struct ImportFile {
+pub struct Importer {
     decompression: Option<CompressionAlgorithm>,
     decryption: Option<EncryptionConfig>,
 }
 
-impl ImportFile {
+impl Importer {
     pub fn new() -> Self {
         Self::default()
     }
@@ -119,6 +119,6 @@ mod tests {
         let registry = crate::registry::Registry::open(dir.path()).unwrap();
         let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
         let content = Content::new(ContentData::from("plain text has no magic bytes"));
-        assert!(ImportFile::new().import(content, &shared).await.is_err());
+        assert!(Importer::new().import(content, &shared).await.is_err());
     }
 }

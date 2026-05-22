@@ -16,19 +16,19 @@ use uuid::Uuid;
 
 use super::apply::RedactionApplicator;
 use super::defaults::RedactorDefaults;
-use crate::operation::{Document, DocumentEnvelope, Operation};
-use crate::workflow::Redaction as RedactionConfig;
+use crate::operation::{Document, DocumentEnvelope};
+use crate::redaction::Redaction as RedactionConfig;
 
 const TARGET: &str = "nvisy_engine::redaction";
 
 /// Redaction operation: evaluates policies and applies redaction instructions.
-pub struct Redaction {
+pub struct Redactor {
     default_threshold: f64,
     process_metadata: bool,
 }
 
-impl Redaction {
-    /// Build from graph config + server-wide defaults.
+impl Redactor {
+    /// Build from workflow config + server-wide defaults.
     ///
     /// Each workflow field falls back to the matching
     /// [`RedactorDefaults`] value when unset.
@@ -46,10 +46,9 @@ impl Redaction {
     pub fn process_metadata(&self) -> bool {
         self.process_metadata
     }
-}
 
-impl Operation for Redaction {
-    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+    /// Evaluate policies and apply redaction instructions to the envelope.
+    pub async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         if envelope.audit.entities.is_empty() {
             return Ok(());
         }

@@ -14,10 +14,10 @@ use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentSource};
 use uuid::Uuid;
 
+use crate::ingestion::{CompressionAlgorithm, EncryptionConfig};
 use crate::operation::DocumentEnvelope;
 use crate::utility::compression::CompressionService;
 use crate::utility::encryption::CryptoService;
-use crate::workflow::{CompressionAlgorithm, EncryptionConfig};
 
 const TARGET: &str = "nvisy_engine::op::export_file";
 
@@ -29,13 +29,13 @@ const TARGET: &str = "nvisy_engine::op::export_file";
 ///
 /// [`Operation`]: crate::operation::Operation
 #[derive(Default)]
-pub struct ExportFile {
+pub struct Exporter {
     encryption: Option<EncryptionConfig>,
     compression: Option<CompressionAlgorithm>,
     content_ids: Vec<Uuid>,
 }
 
-impl ExportFile {
+impl Exporter {
     pub fn new() -> Self {
         Self::default()
     }

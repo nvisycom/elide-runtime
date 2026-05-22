@@ -9,7 +9,7 @@
 //! redacted spans, so it lives here rather than as a separate
 //! generation phase.
 //!
-//! [`Redaction`]: crate::workflow::Redaction
+//! [`Redaction`]: crate::redaction::Redaction
 
 use serde::{Deserialize, Serialize};
 

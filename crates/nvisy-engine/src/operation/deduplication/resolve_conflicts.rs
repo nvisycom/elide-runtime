@@ -10,7 +10,7 @@ use std::cmp::Ordering;
 use nvisy_ontology::entity::{Entities, Entity, Overlap};
 
 use super::span_size::SpanSize;
-use crate::workflow::ConflictResolution;
+use crate::operation::ConflictResolution;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::conflict";
 

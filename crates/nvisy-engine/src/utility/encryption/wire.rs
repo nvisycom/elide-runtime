@@ -6,7 +6,7 @@ use bytes::Bytes;
 use nvisy_core::content::ContentSource;
 use nvisy_core::{Error, Result};
 
-use crate::workflow::EncryptionAlgorithm;
+use crate::ingestion::EncryptionAlgorithm;
 
 /// Wire-format magic bytes identifying an Nvisy encrypted blob.
 const MAGIC: &[u8; 4] = b"NVSE";

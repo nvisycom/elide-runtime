@@ -20,11 +20,12 @@
 //! runs. Each `Extractors::run` call honors those flags by
 //! activating/deactivating individual techniques.
 //!
-//! [`Extraction`]: crate::workflow::Extraction
+//! [`Extraction`]: crate::extraction::Extraction
 
 mod ocr;
 mod stt;
 mod vlm;
+mod workflow;
 
 use std::sync::Arc;
 
@@ -35,8 +36,8 @@ use serde::{Deserialize, Serialize};
 pub use self::ocr::{OcrExtractor, OcrExtractorConfig};
 pub use self::stt::{SttExtractor, SttExtractorConfig};
 pub use self::vlm::{VlmExtractor, VlmExtractorConfig};
+pub use self::workflow::{AudialExtraction, Extraction, TextExtraction, VisualExtraction};
 use crate::operation::DocumentEnvelope;
-use crate::workflow::Extraction;
 
 const TARGET: &str = "nvisy_engine::extraction";
 

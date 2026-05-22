@@ -7,16 +7,16 @@
 
 use nvisy_core::Result;
 
-use crate::operation::{DocumentEnvelope, Operation};
-use crate::workflow::GenerateContext as GenerateContextConfig;
+use crate::context::GenerateContext as GenerateContextConfig;
+use crate::operation::DocumentEnvelope;
 
 /// Generates contexts from detection results and content data.
 ///
 /// Currently a passthrough stub.
-pub struct GenerateContext;
+pub struct ContextGenerator;
 
-impl GenerateContext {
-    /// Create from graph config.
+impl ContextGenerator {
+    /// Create from config.
     pub fn new(cfg: &GenerateContextConfig) -> Self {
         if cfg.summarization {
             tracing::warn!("summarization not yet implemented, skipping");
@@ -29,16 +29,15 @@ impl GenerateContext {
         }
         Self
     }
-}
 
-impl Default for GenerateContext {
-    fn default() -> Self {
-        Self
+    /// Execute the operation (currently a passthrough).
+    pub async fn execute(&self, _envelope: &mut DocumentEnvelope) -> Result<()> {
+        Ok(())
     }
 }
 
-impl Operation for GenerateContext {
-    async fn execute(&self, _envelope: &mut DocumentEnvelope) -> Result<()> {
-        Ok(())
+impl Default for ContextGenerator {
+    fn default() -> Self {
+        Self
     }
 }

@@ -4,7 +4,7 @@
 //! loading reference-data contexts from the registry into the envelope
 //! for use by downstream detection and redaction stages.
 //!
-//! [`ImportFile`]: crate::workflow::ImportFile
+//! [`ImportFile`]: crate::ingestion::ImportFile
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ use validator::Validate;
 /// Each context is identified by its UUID and will be attached to
 /// every document envelope passing through this node.
 ///
-/// [`LoadContext`]: crate::workflow::GraphNodeKind::LoadContext
+/// [`LoadContext`]: crate::context::LoadContext
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[derive(Validate, Serialize, Deserialize, JsonSchema)]
 pub struct LoadContext {

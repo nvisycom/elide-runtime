@@ -10,8 +10,7 @@ use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::AuditEntry;
 use uuid::Uuid;
 
-use crate::operation::{DocumentEnvelope, Operation};
-use crate::workflow::Validation as ValidationConfig;
+use crate::operation::{DocumentEnvelope, Validation as ValidationConfig};
 
 const TARGET: &str = "nvisy_engine::op::validation";
 
@@ -29,12 +28,12 @@ pub struct ValidationResult {
 }
 
 /// Post-redaction validator that checks for leaked sensitive values.
-pub struct Validation {
+pub struct Validator {
     fail_on_leak: bool,
 }
 
-impl Validation {
-    /// Create from graph config.
+impl Validator {
+    /// Create from config.
     pub fn new(cfg: &ValidationConfig) -> Self {
         Self {
             fail_on_leak: cfg.fail_on_leak,
@@ -87,10 +86,9 @@ impl Validation {
 
         ValidationResult { passed, leaked }
     }
-}
 
-impl Operation for Validation {
-    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+    /// Execute post-redaction validation against the envelope.
+    pub async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         tracing::debug!(target: TARGET, "running post-redaction validation");
 
         let locations = envelope.document.collect_text_locations().await;

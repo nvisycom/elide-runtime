@@ -16,10 +16,10 @@
 //! 4. **Threshold filter**: drop entities below the minimum
 //!    confidence threshold.
 //!
-//! [`CalibrationMap`]: crate::workflow::CalibrationMap
-//! [`GroupingCriteria`]: crate::workflow::GroupingCriteria
-//! [`DeduplicationStrategy`]: crate::workflow::DeduplicationStrategy
-//! [`ConflictResolution`]: crate::workflow::ConflictResolution
+//! [`CalibrationMap`]: crate::operation::CalibrationMap
+//! [`GroupingCriteria`]: crate::operation::GroupingCriteria
+//! [`DeduplicationStrategy`]: crate::operation::DeduplicationStrategy
+//! [`ConflictResolution`]: crate::operation::ConflictResolution
 
 mod calibrate_entities;
 mod fuse_entities;
@@ -27,6 +27,7 @@ mod group_entities;
 mod group_key;
 mod resolve_conflicts;
 pub(crate) mod span_size;
+pub(crate) mod workflow;
 
 use std::mem;
 
@@ -36,19 +37,19 @@ use nvisy_ontology::entity::Entities;
 use self::calibrate_entities::CalibrationExt;
 use self::fuse_entities::DeduplicationStrategyExt;
 use self::resolve_conflicts::ConflictResolutionExt;
-use crate::operation::{DocumentEnvelope, Operation};
-use crate::workflow::{
+use self::workflow::{
     CalibrationMap, ConflictResolution, Deduplication as DeduplicationConfig,
     DeduplicationStrategy, GroupingCriteria,
 };
+use crate::operation::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::deduplication";
 
 /// Combined calibration, deduplication, conflict resolution, and
 /// threshold filtering operation.
 ///
-/// Created from the [`Deduplication`] graph node configuration.
-pub struct Deduplication {
+/// Created from the [`Deduplication`] workflow configuration.
+pub struct Deduplicator {
     grouping: GroupingCriteria,
     strategy: DeduplicationStrategy,
     calibration: CalibrationMap,
@@ -56,8 +57,8 @@ pub struct Deduplication {
     conflict_resolution: ConflictResolution,
 }
 
-impl Deduplication {
-    /// Create from a [`DeduplicationConfig`] graph node config.
+impl Deduplicator {
+    /// Create from a [`DeduplicationConfig`] workflow config.
     pub fn new(cfg: &DeduplicationConfig) -> Self {
         tracing::debug!(
             target: TARGET,
@@ -118,10 +119,9 @@ impl Deduplication {
 
         result
     }
-}
 
-impl Operation for Deduplication {
-    async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+    /// Execute deduplication against the envelope's entities.
+    pub async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         if !envelope.audit.entities.is_empty() {
             tracing::debug!(
                 target: TARGET,
@@ -146,8 +146,8 @@ mod tests {
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
+    use crate::operation::DeduplicationStrategy::*;
     use crate::operation::Document;
-    use crate::workflow::DeduplicationStrategy::*;
 
     /// Test helper: build a `Confidence` from an `f64`, panicking on
     /// out-of-range. Kept short because every dedup test uses it.
@@ -505,7 +505,7 @@ mod tests {
             confidence_threshold: Some(0.85),
             ..Default::default()
         };
-        let op = Deduplication::new(&cfg);
+        let op = Deduplicator::new(&cfg);
         let entities: Entities = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(10, 14)
@@ -526,7 +526,7 @@ mod tests {
             strategy: DeduplicationStrategy::MaxConfidence,
             ..Default::default()
         };
-        let op = Deduplication::new(&cfg);
+        let op = Deduplicator::new(&cfg);
         let entities: Entities = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
@@ -553,7 +553,7 @@ mod tests {
     async fn empty_input() {
         let doc = Document::from_text("").await;
         let cfg = DeduplicationConfig::default();
-        let op = Deduplication::new(&cfg);
+        let op = Deduplicator::new(&cfg);
         let result = op.deduplicate(Entities::new(), &doc).await;
         assert!(result.is_empty());
     }

@@ -2,8 +2,7 @@
 
 use nvisy_ontology::entity::{Entity, EntityKind};
 
-use crate::operation::Document;
-use crate::workflow::GroupingCriteria;
+use crate::operation::{Document, GroupingCriteria};
 
 /// Hash key for the first grouping phase.
 ///

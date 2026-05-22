@@ -19,7 +19,7 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{Engine, EngineInput, RunFilter, RunSnapshot};
+use nvisy_engine::pipeline::{Engine, RunFilter, RunSnapshot};
 
 use super::error::{ErrorKind, Result};
 use super::request::{NewRun, RunPath, RunQuery};
@@ -43,13 +43,7 @@ async fn create_run(
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
 ) -> Result<(StatusCode, Json<RunId>)> {
-    let input = EngineInput {
-        actor_id,
-        policies: req.policies,
-        graph: req.graph,
-        config: req.config,
-        dry_run: req.dry_run,
-    };
+    let input = req.into_engine_input(actor_id);
 
     let id = engine.submit(input).await?;
     tracing::info!(target: TARGET, %id, "pipeline run submitted");

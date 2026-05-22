@@ -5,7 +5,7 @@
 //! instructions to the document envelope, replacing or removing detected
 //! values, and optionally strips embedded document metadata.
 //!
-//! [`GenerateContext`]: crate::workflow::GenerateContext
+//! [`GenerateContext`]: crate::context::GenerateContext
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 /// ([`crate::redaction::RedactorDefaults`]); if neither is set,
 /// hard-coded defaults apply (0.5 threshold, no metadata stripping).
 ///
-/// [`Redaction`]: crate::workflow::GraphNodeKind::Redaction
+/// [`Redaction`]: crate::redaction::Redaction
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Redaction {

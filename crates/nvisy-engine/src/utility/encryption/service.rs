@@ -9,8 +9,8 @@ use rand::RngExt;
 
 use super::provider::{KeyProvider, SharedKeyProvider};
 use super::wire::{EncryptedContent, NONCE_SIZE, WireEnvelope};
+use crate::ingestion::EncryptionAlgorithm;
 use crate::operation::DocumentEnvelope;
-use crate::workflow::EncryptionAlgorithm;
 
 const TARGET: &str = "nvisy_engine::op::encryption";
 

@@ -3,7 +3,7 @@
 //! [`SaveContext`] nodes run at phase 6 alongside [`ExportFile`] nodes,
 //! persisting selected contexts from the envelope back to the registry.
 //!
-//! [`ExportFile`]: crate::workflow::ExportFile
+//! [`ExportFile`]: crate::ingestion::ExportFile
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,7 +16,7 @@ use validator::Validate;
 /// back to the registry. Only contexts whose UUID appears in
 /// `context_ids` are saved.
 ///
-/// [`SaveContext`]: crate::workflow::GraphNodeKind::SaveContext
+/// [`SaveContext`]: crate::context::SaveContext
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[derive(Validate, Serialize, Deserialize, JsonSchema)]
 pub struct SaveContext {

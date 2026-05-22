@@ -4,7 +4,7 @@ use nvisy_http::HttpConfig;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-use crate::workflow::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
+use crate::pipeline::{ConcurrencyPolicy, TimeoutPolicy};
 
 /// Hard limits on pipeline resource consumption.
 ///
@@ -24,10 +24,8 @@ pub struct ResourceLimits {
     #[serde(default)]
     pub run_timeout_ms: Option<u64>,
 
-    /// Maximum number of nodes allowed in an execution graph.
-    ///
-    /// Rejects overly complex graphs at compilation time. `None` means
-    /// no limit (not yet enforced — reserved for future use).
+    /// Reserved; previously capped the size of the execution graph.
+    /// Retained for config-schema compatibility — not enforced.
     #[serde(default)]
     pub max_nodes: Option<usize>,
 
@@ -66,14 +64,13 @@ pub struct CacheConfig {
 /// Engine-level execution policies, networking, and resource limits.
 ///
 /// Controls default behavior for all pipeline runs unless overridden
-/// by per-request or per-graph configuration.
+/// by per-request configuration.
 ///
 /// # Field groups
 ///
-/// **Execution policies** — applied to graph nodes that lack their own:
-/// - [`retry`] — automatic retry on transient failures.
-/// - [`timeout`] — per-node wall-clock deadline.
-/// - [`concurrency`] — limits parallel node execution.
+/// **Execution policies** — applied to phases that lack their own:
+/// - [`timeout`] — per-phase wall-clock deadline.
+/// - [`concurrency`] — limits parallel document execution.
 ///
 /// **Networking:**
 /// - [`http`] — shared HTTP client settings (timeouts, retries,
@@ -85,7 +82,6 @@ pub struct CacheConfig {
 /// **Cache tuning:**
 /// - [`cache`] — resource cache size limits (reserved for future use).
 ///
-/// [`retry`]: Self::retry
 /// [`timeout`]: Self::timeout
 /// [`concurrency`]: Self::concurrency
 /// [`http`]: Self::http
@@ -93,33 +89,19 @@ pub struct CacheConfig {
 /// [`cache`]: Self::cache
 #[derive(Debug, Clone, Default, Validate, Serialize, Deserialize)]
 pub struct EngineSection {
-    /// Default retry policy applied to nodes without an explicit one.
+    /// Default timeout policy applied to phases without an explicit
+    /// per-phase policy on the pipeline input.
     ///
-    /// Controls max retries, delay, and backoff strategy for transient
-    /// failures. Overridden by [`GraphNode::retry`] when set on an
-    /// individual node.
-    ///
-    /// [`GraphNode::retry`]: crate::workflow::GraphNode::retry
-    #[validate(nested)]
-    pub retry: Option<RetryPolicy>,
-
-    /// Default timeout policy applied to nodes without an explicit one.
-    ///
-    /// Sets a per-node wall-clock deadline and behavior on expiry
-    /// (fail or skip). Overridden by [`GraphNode::timeout`] when set
-    /// on an individual node.
-    ///
-    /// [`GraphNode::timeout`]: crate::workflow::GraphNode::timeout
+    /// Sets a per-phase wall-clock deadline and behavior on expiry
+    /// (fail or skip).
     #[validate(nested)]
     pub timeout: Option<TimeoutPolicy>,
 
-    /// Default concurrency limit for graph execution.
+    /// Default concurrency limit for parallel document execution.
     ///
-    /// Caps the number of graph nodes that may execute in parallel via
+    /// Caps the number of documents processed in parallel via
     /// a [`tokio::sync::Semaphore`]. Overridden by
-    /// [`Graph::concurrency`] when set on the graph itself.
-    ///
-    /// [`Graph::concurrency`]: crate::workflow::Graph::concurrency
+    /// `EngineInput::concurrency` per-run.
     #[serde(default)]
     pub concurrency: Option<ConcurrencyPolicy>,
 
@@ -147,12 +129,6 @@ pub struct EngineSection {
 }
 
 impl EngineSection {
-    /// Returns the configured retry policy, if any.
-    #[must_use]
-    pub fn retry(&self) -> Option<&RetryPolicy> {
-        self.retry.as_ref()
-    }
-
     /// Returns the configured timeout policy, if any.
     #[must_use]
     pub fn timeout(&self) -> Option<&TimeoutPolicy> {

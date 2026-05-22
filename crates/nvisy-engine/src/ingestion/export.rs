@@ -5,7 +5,7 @@
 //! content objects, applying encryption and compression as requested before
 //! writing the bytes out.
 //!
-//! [`SaveContext`]: crate::workflow::SaveContext
+//! [`SaveContext`]: crate::context::SaveContext
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,7 @@ use super::{CompressionAlgorithm, EncryptionConfig};
 /// Identifies the destination content objects and specifies any encoding
 /// steps that must be applied before the bytes are written out.
 ///
-/// [`ExportFile`]: crate::workflow::GraphNodeKind::ExportFile
+/// [`ExportFile`]: crate::ingestion::ExportFile
 #[derive(Debug, Clone, Default, PartialEq, Eq, Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct ExportFile {

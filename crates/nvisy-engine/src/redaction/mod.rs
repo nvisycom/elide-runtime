@@ -11,8 +11,8 @@
 //! Unlike extraction and detection, redaction has no expensive
 //! per-run construction — there's no model to load or HTTP client
 //! to set up. The [`RedactorDefaults`] config section only supplies
-//! fallback values for workflow [`crate::workflow::Redaction`]
-//! fields that aren't explicitly set.
+//! fallback values for workflow [`Redaction`] fields that aren't
+//! explicitly set.
 //!
 //! [`AuditEntry`]: nvisy_ontology::provenance::AuditEntry
 
@@ -20,7 +20,9 @@ mod apply;
 mod defaults;
 mod evaluate;
 mod tts;
+mod workflow;
 
 pub use self::defaults::RedactorDefaults;
-pub use self::evaluate::Redaction;
+pub use self::evaluate::Redactor;
 pub use self::tts::RedactorTtsConfig;
+pub use self::workflow::Redaction;

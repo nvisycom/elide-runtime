@@ -61,7 +61,7 @@ pub struct DocumentEnvelope {
 
     /// Reference-data contexts loaded by [`LoadContext`] nodes.
     ///
-    /// [`LoadContext`]: crate::workflow::LoadContext
+    /// [`LoadContext`]: crate::context::LoadContext
     pub contexts: Contexts,
 
     /// Per-document audit trail: entities, processing log, and

@@ -13,7 +13,7 @@ pub mod tokenizer;
 pub use self::artifacts::{Artifacts, Token};
 pub use self::engine::{
     Context, ContextBuilder, ContextBuilderError, Engine, EngineBuilder, EngineBuilderError,
-    NerEngine,
+    NlpPreset,
 };
 pub use self::error::{Error, Result};
 pub use self::language::{

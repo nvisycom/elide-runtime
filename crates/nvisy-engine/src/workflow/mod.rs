@@ -22,7 +22,7 @@ use validator::Validate;
 
 pub use self::context::{GenerateContext, LoadContext, SaveContext};
 pub use self::detection::{
-    Detection, DetectionParams, LlmDetection, NerDetection, PatternDetection, PatternFilter,
+    Detection, DetectionParams, LlmDetection, NlpDetection, PatternDetection, PatternFilter,
 };
 pub use self::extraction::{AudialExtraction, Extraction, TextExtraction, VisualExtraction};
 pub use self::ingest::{

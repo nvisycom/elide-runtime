@@ -5,7 +5,7 @@
 //! [`ScanContext`] needed by pattern-backed recognizers. Each
 //! recognizer reads the subset it cares about:
 //!
-//! - [`NerRecognizer`] honors `text`, `language`,
+//! - [`NlpRecognizer`] honors `text`, `language`,
 //!   `candidate_languages`, `entities`, `score_threshold`.
 //! - [`PatternRecognizer`] reads `text` and `scan_context`
 //!   (allow/deny/hints).
@@ -18,7 +18,7 @@
 //!
 //! [`DetectionEngine::run`]: super::DetectionEngine::run
 //! [`Recognizer`]: crate::Recognizer
-//! [`NerRecognizer`]: crate::NerRecognizer
+//! [`NlpRecognizer`]: crate::NlpRecognizer
 //! [`PatternRecognizer`]: crate::PatternRecognizer
 //! [`LlmRecognizer`]: crate::LlmRecognizer
 

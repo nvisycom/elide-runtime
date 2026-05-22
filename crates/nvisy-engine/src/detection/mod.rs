@@ -11,10 +11,11 @@ mod context;
 mod dyn_recognizer;
 mod extension;
 mod llm;
-mod ner;
+mod nlp;
 mod params;
 mod pattern;
 mod recognizer;
+mod recognizers;
 
 use std::fmt;
 use std::sync::Arc;
@@ -31,10 +32,11 @@ pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionCont
 pub use self::dyn_recognizer::DynRecognizer;
 pub use self::extension::RebaseEntities;
 pub use self::llm::{LlmContext, LlmDetection, LlmRecognizer};
-pub use self::ner::{NerContext, NerDetection, NerRecognizer};
+pub use self::nlp::{NlpContext, NlpDetection, NlpRecognizer};
 pub use self::params::DetectionParams;
 pub use self::pattern::{PatternContext, PatternDetection, PatternRecognizer};
-pub use self::recognizer::Recognizer;
+pub use self::recognizer::{Recognizer, RecognizerKind};
+pub use self::recognizers::{RecognizerSection, Recognizers};
 
 const TARGET: &str = "nvisy_engine::detection";
 
@@ -94,6 +96,19 @@ impl DetectionEngineBuilder {
         self.recognizers
             .get_or_insert_with(Vec::new)
             .push(Arc::new(recognizer));
+        self
+    }
+
+    /// Attach a recognizer already wrapped in `Arc`. Used by the
+    /// startup-time [`Recognizers`] registry to share each
+    /// recognizer across many engines without re-wrapping.
+    pub fn with_recognizer_arc<R>(mut self, recognizer: Arc<R>) -> Self
+    where
+        R: Recognizer + 'static,
+        R::Context: for<'a> From<&'a DetectionContext> + Send + Sync,
+    {
+        let dyn_rec: Arc<dyn DynRecognizer> = recognizer;
+        self.recognizers.get_or_insert_with(Vec::new).push(dyn_rec);
         self
     }
 
@@ -216,74 +231,71 @@ impl fmt::Debug for DetectionEngine {
     }
 }
 
-/// Unified workflow detection config.
+/// Workflow detection node — which recognizers to dispatch and the
+/// shared per-call hints.
 ///
-/// Every recognizer-specific field is optional — `Some` opts that
-/// recognizer in and supplies its params, `None` opts it out. The
-/// shared [`params`] field is honored by every recognizer that
-/// runs.
+/// Recognizer construction lives in [`Recognizers`], built once at
+/// engine startup from `[recognizer.*]` config sections. This node
+/// only references already-built recognizers by [`RecognizerKind`].
 ///
-/// Calling [`into_engine`] auto-assembles a [`DetectionEngine`]
-/// with one recognizer per opted-in slot.
+/// [`kinds`] is the enable/disable list — empty means no detection
+/// runs for this workflow.
 ///
+/// [`params`] carries the per-call hints (entity-kind allowlist,
+/// confidence threshold) that every kind in [`kinds`] honors.
+/// Recognizer-specific build config (provider, model, regex set,
+/// etc.) lives in `[recognizer.*]` runtime config, never here.
+///
+/// [`kinds`]: Self::kinds
 /// [`params`]: Self::params
-/// [`into_engine`]: Self::into_engine
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Detection {
-    /// Cross-recognizer hints (entity kinds, confidence threshold)
-    /// applied to every recognizer that runs.
+    /// Which recognizer kinds to enable for this workflow. Empty
+    /// disables detection entirely.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kinds: Vec<RecognizerKind>,
+    /// Cross-recognizer per-call hints applied to every enabled
+    /// recognizer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub params: Option<DetectionParams>,
-    /// Opts the NER recognizer in. `None` skips it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ner: Option<NerDetection>,
-    /// Opts the LLM recognizer in. `None` skips it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub llm: Option<LlmDetection>,
-    /// Opts the pattern recognizer in. `None` skips it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pattern: Option<PatternDetection>,
 }
 
 impl Detection {
-    /// Validate every configured sub-section.
+    /// Validate the per-call hints.
     pub fn validate(&self) -> std::result::Result<(), validator::ValidationErrors> {
         use validator::Validate;
         if let Some(ref params) = self.params {
             params.validate()?;
         }
-        if let Some(ref pattern) = self.pattern {
-            pattern.validate()?;
-        }
         Ok(())
     }
 
-    /// Assemble a [`DetectionEngine`] with one recognizer per
-    /// opted-in slot.
+    /// Assemble a [`DetectionEngine`] by picking each enabled kind
+    /// from the pre-built [`Recognizers`] registry.
     ///
     /// # Errors
     ///
-    /// Returns an error if any recognizer fails to construct (NER
-    /// engine preset fails to build, LLM agent fails to construct),
-    /// or if no recognizers are opted in (an empty engine would
-    /// have nothing to dispatch).
-    pub fn into_engine(self) -> Result<DetectionEngine> {
-        let Detection {
-            params: _,
-            ner,
-            llm,
-            pattern,
-        } = self;
+    /// Returns a validation error if [`kinds`] names a recognizer
+    /// whose `[recognizer.*]` section is not configured, or if
+    /// [`kinds`] is empty (no recognizers to dispatch).
+    ///
+    /// [`kinds`]: Self::kinds
+    pub fn into_engine(&self, recognizers: &Recognizers) -> Result<DetectionEngine> {
         let mut builder = DetectionEngine::builder();
-        if let Some(ner_cfg) = ner {
-            builder = builder.with_recognizer(NerRecognizer::from_config(&ner_cfg)?);
-        }
-        if let Some(pattern_cfg) = pattern {
-            builder = builder.with_recognizer(PatternRecognizer::from_config(&pattern_cfg));
-        }
-        if let Some(llm_cfg) = llm {
-            builder = builder.with_recognizer(LlmRecognizer::new(llm_cfg)?);
+        for &kind in &self.kinds {
+            recognizers.require(kind)?;
+            builder = match kind {
+                RecognizerKind::Llm => {
+                    builder.with_recognizer_arc(Arc::clone(recognizers.llm.as_ref().unwrap()))
+                }
+                RecognizerKind::Nlp => {
+                    builder.with_recognizer_arc(Arc::clone(recognizers.nlp.as_ref().unwrap()))
+                }
+                RecognizerKind::Pattern => {
+                    builder.with_recognizer_arc(Arc::clone(recognizers.pattern.as_ref().unwrap()))
+                }
+            };
         }
         builder
             .build()

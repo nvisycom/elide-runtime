@@ -52,11 +52,11 @@ pub struct LlmRecognizer {
 impl LlmRecognizer {
     /// Build a recognizer from an [`LlmDetection`] config bundle.
     ///
-    /// `cfg.verifier` toggles the second-pass verifier: `None` gives
-    /// a localization-only verifier (one LLM call per span), `Some`
-    /// enables the two-pass refinement verifier with the carried
-    /// agent config (two LLM calls per span; the verifier may use a
-    /// cheaper/stricter model than detection).
+    /// `cfg.verify_pass` toggles the second-pass refinement
+    /// verifier. `false` runs localization-only verification (one
+    /// LLM call per span); `true` enables the two-pass verifier
+    /// reusing the same `cfg.agent` config (two LLM calls per
+    /// span).
     ///
     /// # Errors
     ///
@@ -66,10 +66,11 @@ impl LlmRecognizer {
         let LlmDetection {
             provider,
             agent,
-            verifier,
+            verify_pass,
             unresolved_policy,
         } = cfg;
-        let pipeline = NerPipeline::new(&provider, agent, verifier, unresolved_policy)
+        let verifier_config = verify_pass.then(|| agent.clone());
+        let pipeline = NerPipeline::new(&provider, agent, verifier_config, unresolved_policy)
             .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "llm", false))?;
         Ok(Self::from_pipeline(pipeline))
     }

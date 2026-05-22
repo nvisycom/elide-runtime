@@ -4,7 +4,10 @@
 # The server loads Nvisy.toml by default; override with --config or NVISY_CONFIG.
 #
 # All sections are optional — omitted sections use runtime defaults.
-# Per-request overrides (in the JSON request body) replace entire sections.
+# Per-request overrides (in the JSON request body) replace entire sections
+# EXCEPT `[recognizer.*]`, which is built once at startup and shared
+# across runs (overrides would force model reloads and defeat the
+# amortization).
 #
 # Provider api_key fields can be set via environment variables instead
 # of hardcoding them here: NVISY_LLM_API_KEY, NVISY_STT_API_KEY,
@@ -33,13 +36,13 @@ cors = { allowed_origins = ["*"], max_age_secs = 3600 }
 [engine]
 retry = { max_retries = 3, delay_ms = 500, backoff = "fixed" }
 timeout = { duration_ms = 30000, on_timeout = "fail" }
-# concurrency = { max_nodes = 4 }
+concurrency = { maxNodes = 4 }
 
 # Run-level resource limits.
 [engine.limits]
-# run_timeout_ms = 60000       # hard ceiling on total run duration
-# max_nodes = 50               # maximum graph nodes (reserved)
-# max_envelope_size_bytes = 104857600  # 100 MB (reserved)
+run_timeout_ms = 60000
+max_nodes = 50
+max_envelope_size_bytes = 104857600  # 100 MB
 
 # Shared HTTP client for all downstream provider calls.
 [engine.http]
@@ -57,12 +60,13 @@ base_url = "http://localhost:8003"
 [ocr.policy]
 confidence_threshold = 0.5
 
-# LLM for entity detection and classification.
+# LLM for OCR entity verification (CV verifier path).
+# Detection-side LLM lives in [recognizer.llm], not here.
 # kind: open-ai | anthropic | gemini | ollama
 # api_key: set here or via NVISY_LLM_API_KEY env var.
 [llm.provider]
 kind = "open-ai"
-api_key = ""
+api_key = "sk-example-replace-me"
 model = "gpt-4o"
 
 [llm.policy]
@@ -75,7 +79,7 @@ max_retries = 3
 # api_key: set here or via NVISY_STT_API_KEY env var.
 [stt.provider]
 kind = "open-ai"
-api_key = ""
+api_key = "sk-example-replace-me"
 model = "whisper-1"
 
 # Text-to-speech synthesis.
@@ -83,5 +87,35 @@ model = "whisper-1"
 # api_key: set here or via NVISY_TTS_API_KEY env var.
 [tts.provider]
 kind = "open-ai"
-api_key = ""
+api_key = "sk-example-replace-me"
 model = "tts-1"
+
+# Detection recognizer registry.
+#
+# Each opted-in `[recognizer.*]` section is built once at server
+# startup. Workflows enable recognizers by name via
+# `detection.kinds = ["llm", "nlp", "pattern"]` — recognizer-side
+# configuration lives here, never in the workflow.
+
+# LLM-backed recognizer.
+[recognizer.llm]
+verify_pass = true # adds a second LLM call per span
+unresolved_policy = "drop" # drop | warn | error
+
+[recognizer.llm.provider]
+kind = "open-ai"
+api_key = "sk-example-replace-me"
+model = "gpt-4o"
+
+[recognizer.llm.agent]
+temperature = 0.1
+max_tokens = 4096
+
+# NLP-engine recognizer (NER + language detection + tokenizer).
+[recognizer.nlp]
+engine = "default"
+
+# Pattern-based recognizer (regex + dictionary + checksum).
+[recognizer.pattern]
+patterns = [] # empty = all built-in patterns
+confidence_threshold = 0.5

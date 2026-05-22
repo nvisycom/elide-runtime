@@ -23,6 +23,7 @@ use super::orchestrator::{Orchestrator, RunContext};
 use super::plan::{self, ExecutionPlan};
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
+use crate::detection::Recognizers;
 use crate::operation::SharedData;
 use crate::registry::Registry;
 use crate::utility::encryption::SharedKeyProvider;
@@ -41,6 +42,7 @@ pub(super) struct Pipeline {
     key_provider: Option<SharedKeyProvider>,
     runs: RunState,
     base_config: RuntimeConfig,
+    recognizers: Arc<Recognizers>,
 }
 
 impl Pipeline {
@@ -50,6 +52,7 @@ impl Pipeline {
         key_provider: Option<SharedKeyProvider>,
         runs: RunState,
         base_config: RuntimeConfig,
+        recognizers: Arc<Recognizers>,
     ) -> Self {
         Self {
             run_id: Uuid::now_v7(),
@@ -57,6 +60,7 @@ impl Pipeline {
             key_provider,
             runs,
             base_config,
+            recognizers,
         }
     }
 
@@ -179,20 +183,21 @@ impl Pipeline {
             shared_data.key_provider = kp.clone();
         }
 
-        // Build the detection engine once per run from the compiled
-        // plan. `None` when no recognizer is opted in (every per-slot
-        // field is `None`), in which case `Detection::into_engine`
-        // returns a `Misconfigured` error — we treat that as "skip
-        // the detection phase" rather than failing the run.
-        let detection_engine = if compiled.detection.ner.is_some()
-            || compiled.detection.llm.is_some()
-            || compiled.detection.pattern.is_some()
-        {
-            Some(Arc::new(compiled.detection.clone().into_engine().map_err(
-                |e| Error::validation(format!("detection engine assembly: {e}"), "detection"),
-            )?))
-        } else {
+        // Build the detection engine once per run by picking
+        // pre-built recognizers from the registry. `None` when the
+        // workflow opted no recognizers in (`kinds` empty) — we
+        // skip the detection phase rather than fail.
+        let detection_engine = if compiled.detection.kinds.is_empty() {
             None
+        } else {
+            Some(Arc::new(
+                compiled
+                    .detection
+                    .into_engine(&self.recognizers)
+                    .map_err(|e| {
+                        Error::validation(format!("detection engine assembly: {e}"), "detection")
+                    })?,
+            ))
         };
 
         let cancel = CancellationToken::new();

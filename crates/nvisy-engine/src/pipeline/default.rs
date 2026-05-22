@@ -23,6 +23,7 @@ use super::config::RuntimeConfig;
 use super::run::Pipeline;
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
+use crate::detection::Recognizers;
 use crate::registry::Registry;
 use crate::utility::encryption::SharedKeyProvider;
 use crate::workflow::Graph;
@@ -75,6 +76,9 @@ pub struct EngineOutput {
 pub(super) struct EngineInner {
     /// Base configuration, merged with per-request overrides at runtime.
     pub runtime_config: RuntimeConfig,
+    /// Pre-built recognizer registry, constructed once from
+    /// `runtime_config.recognizer` and shared across every run.
+    pub recognizers: Arc<Recognizers>,
     /// Content and context storage backend.
     pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
@@ -120,10 +124,19 @@ impl Engine {
     /// Returns an error if the registry database cannot be opened.
     pub fn open(data_dir: impl AsRef<Path>, config: RuntimeConfig) -> Result<Self, Error> {
         let registry = Registry::open(data_dir.as_ref())?;
+        let recognizers = Arc::new(
+            config
+                .recognizer
+                .as_ref()
+                .map(Recognizers::from_config)
+                .transpose()?
+                .unwrap_or_default(),
+        );
 
         Ok(Self {
             inner: Arc::new(EngineInner {
                 runtime_config: config,
+                recognizers,
                 registry,
                 key_provider: None,
                 runs: RunState::new(),
@@ -186,6 +199,7 @@ impl Engine {
             self.inner.key_provider.clone(),
             self.inner.runs.clone(),
             self.inner.runtime_config.clone(),
+            Arc::clone(&self.inner.recognizers),
         )
     }
 

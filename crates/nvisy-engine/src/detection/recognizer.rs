@@ -1,11 +1,15 @@
-//! [`Recognizer`] trait — the per-recognizer abstraction the
-//! [`DetectionEngine`] dispatches against.
+//! [`Recognizer`] trait + [`RecognizerKind`] enum — the
+//! per-recognizer abstraction the [`DetectionEngine`] dispatches
+//! against, and the enum used by workflow nodes and config sections
+//! to refer to recognizers by kind.
 //!
 //! [`DetectionEngine`]: super::DetectionEngine
 
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 /// Recognize entities given a per-recognizer context.
 ///
@@ -40,4 +44,23 @@ pub trait Recognizer: Send + Sync {
     /// state between documents so per-document entity references
     /// don't bleed across runs.
     async fn reset(&self) {}
+}
+
+/// Which built-in recognizer to dispatch.
+///
+/// Used by [`Detection`] workflow nodes to enable/disable specific
+/// recognizers and by [`Recognizers`] to look one up.
+///
+/// [`Detection`]: super::Detection
+/// [`Recognizers`]: super::Recognizers
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum RecognizerKind {
+    /// LLM-backed recognizer (see [`super::LlmRecognizer`]).
+    Llm,
+    /// NLP-engine recognizer (see [`super::NlpRecognizer`]).
+    Nlp,
+    /// Pattern-based recognizer (see [`super::PatternRecognizer`]).
+    Pattern,
 }

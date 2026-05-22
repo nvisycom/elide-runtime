@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::engine::{CacheConfig, EngineSection, ResourceLimits};
 pub use self::subsystem::{LlmSection, OcrSection, SttSection, TtsSection};
+use crate::detection::RecognizerSection;
 use crate::workflow::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
 
 fn default_config_version() -> Version {
@@ -57,6 +58,11 @@ pub struct RuntimeConfig {
     pub stt: Option<SttSection>,
     /// TTS subsystem (text-to-speech generation).
     pub tts: Option<TtsSection>,
+    /// Recognizer registry — `[recognizer.llm]`, `[recognizer.nlp]`,
+    /// `[recognizer.pattern]` sub-sections. Built once at engine
+    /// startup; workflow `Detection` nodes only reference these by
+    /// kind.
+    pub recognizer: Option<RecognizerSection>,
 }
 
 impl Default for RuntimeConfig {
@@ -68,6 +74,7 @@ impl Default for RuntimeConfig {
             llm: None,
             stt: None,
             tts: None,
+            recognizer: None,
         }
     }
 }
@@ -93,6 +100,7 @@ impl RuntimeConfig {
             && self.llm.is_none()
             && self.stt.is_none()
             && self.tts.is_none()
+            && self.recognizer.is_none()
     }
 
     /// Resource limits from the engine section, or defaults.
@@ -114,6 +122,11 @@ impl RuntimeConfig {
     /// version is taken from the base config.
     #[must_use]
     pub fn merge(&self, overrides: &RuntimeConfig) -> RuntimeConfig {
+        // `recognizer` is intentionally NOT overridable: the
+        // registry is built once at engine startup so per-request
+        // dispatch stays cheap. Per-request override would force a
+        // rebuild (model loads, HTTP client setup) and defeat the
+        // amortization.
         RuntimeConfig {
             version: self.version.clone(),
             engine: overrides.engine.clone().or_else(|| self.engine.clone()),
@@ -121,6 +134,7 @@ impl RuntimeConfig {
             llm: overrides.llm.clone().or_else(|| self.llm.clone()),
             stt: overrides.stt.clone().or_else(|| self.stt.clone()),
             tts: overrides.tts.clone().or_else(|| self.tts.clone()),
+            recognizer: self.recognizer.clone(),
         }
     }
 }

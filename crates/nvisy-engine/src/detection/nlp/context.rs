@@ -1,4 +1,4 @@
-//! [`NerContext`]: per-call input to [`super::NerRecognizer`].
+//! [`NlpContext`]: per-call input to [`super::NlpRecognizer`].
 
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
@@ -7,9 +7,9 @@ use uuid::Uuid;
 
 use crate::detection::DetectionContext;
 
-/// Per-call input to [`super::NerRecognizer`].
+/// Per-call input to [`super::NlpRecognizer`].
 #[derive(Debug, Clone)]
-pub struct NerContext {
+pub struct NlpContext {
     /// The text to analyze.
     pub text: TextData,
     /// Caller-asserted language. When `Some`, NER skips per-call
@@ -26,7 +26,7 @@ pub struct NerContext {
     pub correlation_id: Option<Uuid>,
 }
 
-impl From<&DetectionContext> for NerContext {
+impl From<&DetectionContext> for NlpContext {
     fn from(ctx: &DetectionContext) -> Self {
         Self {
             text: ctx.text.clone(),

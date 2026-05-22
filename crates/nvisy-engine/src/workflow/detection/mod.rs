@@ -9,5 +9,5 @@
 //! a `DetectionEngine` with one recognizer per opted-in slot.
 
 pub use crate::detection::{
-    Detection, DetectionParams, LlmDetection, NerDetection, PatternDetection, PatternFilter,
+    Detection, DetectionParams, LlmDetection, NlpDetection, PatternDetection, PatternFilter,
 };

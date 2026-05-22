@@ -19,15 +19,13 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::pipeline::{Engine, EngineInput, RunFilter, RunSnapshot};
+use nvisy_engine::pipeline::{Engine, RunFilter, RunSnapshot};
 
 use super::error::{ErrorKind, Result};
 use super::request::{NewRun, RunPath, RunQuery};
 use super::response::{RunId, RunList};
 use crate::extract::{ActorId, Json, Path};
-use crate::middleware::{
-    DEFAULT_PIPELINE_TIMEOUT_SECS, DEFAULT_READ_TIMEOUT_SECS, RouterTimeoutExt,
-};
+use crate::middleware::{DEFAULT_PIPELINE_TIMEOUT, DEFAULT_READ_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::runs";
@@ -43,13 +41,7 @@ async fn create_run(
     ActorId(actor_id): ActorId,
     Json(req): Json<NewRun>,
 ) -> Result<(StatusCode, Json<RunId>)> {
-    let input = EngineInput {
-        actor_id,
-        policies: req.policies,
-        graph: req.graph,
-        config: req.config,
-        dry_run: req.dry_run,
-    };
+    let input = req.into_engine_input(actor_id);
 
     let id = engine.submit(input).await?;
     tracing::info!(target: TARGET, %id, "pipeline run submitted");
@@ -202,7 +194,7 @@ fn delete_all_runs_docs(op: TransformOperation) -> TransformOperation {
 pub fn routes_v1() -> ApiRouter<ServiceState> {
     let pipeline_routes = ApiRouter::new()
         .api_route("/runs", post_with(create_run, create_run_docs))
-        .with_timeout(DEFAULT_PIPELINE_TIMEOUT_SECS);
+        .with_timeout(DEFAULT_PIPELINE_TIMEOUT);
 
     let read_routes = ApiRouter::new()
         .api_route(
@@ -214,7 +206,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
             get_with(get_run, get_run_docs).delete_with(delete_run, delete_run_docs),
         )
         .api_route("/runs/{id}/cancel", post_with(cancel_run, cancel_run_docs))
-        .with_timeout(DEFAULT_READ_TIMEOUT_SECS);
+        .with_timeout(DEFAULT_READ_TIMEOUT);
 
     pipeline_routes.merge(read_routes)
 }

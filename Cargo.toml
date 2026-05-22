@@ -3,6 +3,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "./crates/nvisy-agent",
     "./crates/nvisy-cli",
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
@@ -12,7 +13,6 @@ members = [
     "./crates/nvisy-ocr",
     "./crates/nvisy-ontology",
     "./crates/nvisy-pattern",
-    "./crates/nvisy-rig",
     "./crates/nvisy-server",
 ]
 
@@ -35,6 +35,7 @@ documentation = "https://docs.rs/nvisy-runtime"
 # See for more details: https://github.com/rust-lang/cargo/issues/11329
 
 # Internal crates
+nvisy-agent = { path = "./crates/nvisy-agent", version = "0.1.0" }
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
@@ -43,7 +44,6 @@ nvisy-nlp = { path = "./crates/nvisy-nlp", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
-nvisy-rig = { path = "./crates/nvisy-rig", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
 # LLM framework

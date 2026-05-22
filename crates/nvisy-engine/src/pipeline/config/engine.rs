@@ -1,50 +1,34 @@
-//! Engine-level execution policies, networking, and resource limits.
+//! Engine-level configuration: networking, resource limits, concurrency.
+
+use std::num::NonZeroUsize;
+use std::time::Duration;
 
 use nvisy_http::HttpConfig;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-use crate::workflow::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
-
 /// Hard limits on pipeline resource consumption.
 ///
-/// These values cap the overall duration, buffer sizes, and graph
-/// complexity for a single pipeline run. They are read once during
-/// [`Engine::run`] and cannot be changed mid-run.
+/// Deployment-side caps read once during [`Engine::run`] and not
+/// adjustable per-request.
 ///
 /// [`Engine::run`]: super::super::Engine::run
 #[derive(Debug, Clone, Copy, Default, Validate, Serialize, Deserialize)]
 pub struct ResourceLimits {
-    /// Hard ceiling on total pipeline run duration, in milliseconds.
+    /// Hard ceiling on total pipeline run duration.
     ///
-    /// If a run exceeds this limit, the cancellation token is triggered
-    /// and the run is marked as timed out. Individual node timeouts
-    /// (via [`TimeoutPolicy`]) are independent of this limit.
-    /// `None` means no run-level timeout.
-    #[serde(default)]
-    pub run_timeout_ms: Option<u64>,
-
-    /// Maximum number of nodes allowed in an execution graph.
+    /// On expiry, the run-level cancellation token fires and the run
+    /// is marked as timed out. `None` means no run-level timeout —
+    /// rely on external supervision (k8s liveness, etc.) instead.
     ///
-    /// Rejects overly complex graphs at compilation time. `None` means
-    /// no limit (not yet enforced — reserved for future use).
-    #[serde(default)]
-    pub max_nodes: Option<usize>,
-
-    /// Maximum number of content IDs per import node.
-    ///
-    /// Caps the fan-out of a single import operation. `None` means no
-    /// limit (not yet enforced — reserved for future use).
-    #[serde(default)]
-    pub max_content_ids_per_import: Option<usize>,
-
-    /// Maximum envelope payload size in bytes.
-    ///
-    /// Documents exceeding this threshold are rejected at import time.
-    /// `None` means no limit (not yet enforced — reserved for future
-    /// use).
-    #[serde(default)]
-    pub max_envelope_size_bytes: Option<u64>,
+    /// Parses from human-friendly strings via `humantime_serde`:
+    /// `"60s"`, `"5m"`, `"1h30m"`.
+    #[serde(
+        default,
+        with = "humantime_serde",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub run_timeout: Option<Duration>,
 }
 
 /// Cache tuning parameters.
@@ -52,7 +36,7 @@ pub struct ResourceLimits {
 /// Controls resource cache behavior for contexts and policies held in
 /// the [`Registry`]. Not yet enforced — reserved for future use.
 ///
-/// [`Registry`]: crate::registry::Registry
+/// [`Registry`]: crate::ingestion::registry::Registry
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct CacheConfig {
     /// Maximum number of entries to keep in each resource cache.
@@ -63,65 +47,19 @@ pub struct CacheConfig {
     pub max_entries: Option<usize>,
 }
 
-/// Engine-level execution policies, networking, and resource limits.
+/// Engine-level configuration: concurrency, networking, resource
+/// limits, and cache tuning.
 ///
-/// Controls default behavior for all pipeline runs unless overridden
-/// by per-request or per-graph configuration.
-///
-/// # Field groups
-///
-/// **Execution policies** — applied to graph nodes that lack their own:
-/// - [`retry`] — automatic retry on transient failures.
-/// - [`timeout`] — per-node wall-clock deadline.
-/// - [`concurrency`] — limits parallel node execution.
-///
-/// **Networking:**
-/// - [`http`] — shared HTTP client settings (timeouts, retries,
-///   connection pooling) for all downstream API calls.
-///
-/// **Resource limits:**
-/// - [`limits`] — run timeout, channel buffer size, graph complexity.
-///
-/// **Cache tuning:**
-/// - [`cache`] — resource cache size limits (reserved for future use).
-///
-/// [`retry`]: Self::retry
-/// [`timeout`]: Self::timeout
-/// [`concurrency`]: Self::concurrency
-/// [`http`]: Self::http
-/// [`limits`]: Self::limits
-/// [`cache`]: Self::cache
+/// All settings are deployment-side — set once in `Nvisy.toml` by
+/// the operator. Per-request overrides apply only to fields
+/// explicitly noted as overridable.
 #[derive(Debug, Clone, Default, Validate, Serialize, Deserialize)]
 pub struct EngineSection {
-    /// Default retry policy applied to nodes without an explicit one.
-    ///
-    /// Controls max retries, delay, and backoff strategy for transient
-    /// failures. Overridden by [`GraphNode::retry`] when set on an
-    /// individual node.
-    ///
-    /// [`GraphNode::retry`]: crate::workflow::GraphNode::retry
-    #[validate(nested)]
-    pub retry: Option<RetryPolicy>,
-
-    /// Default timeout policy applied to nodes without an explicit one.
-    ///
-    /// Sets a per-node wall-clock deadline and behavior on expiry
-    /// (fail or skip). Overridden by [`GraphNode::timeout`] when set
-    /// on an individual node.
-    ///
-    /// [`GraphNode::timeout`]: crate::workflow::GraphNode::timeout
-    #[validate(nested)]
-    pub timeout: Option<TimeoutPolicy>,
-
-    /// Default concurrency limit for graph execution.
-    ///
-    /// Caps the number of graph nodes that may execute in parallel via
-    /// a [`tokio::sync::Semaphore`]. Overridden by
-    /// [`Graph::concurrency`] when set on the graph itself.
-    ///
-    /// [`Graph::concurrency`]: crate::workflow::Graph::concurrency
+    /// Maximum number of documents processed in parallel via a
+    /// shared [`tokio::sync::Semaphore`]. Server-wide; not
+    /// overridable per-request. `None` means unbounded.
     #[serde(default)]
-    pub concurrency: Option<ConcurrencyPolicy>,
+    pub concurrency: Option<NonZeroUsize>,
 
     /// Shared HTTP client configuration for all downstream API calls.
     ///
@@ -130,8 +68,7 @@ pub struct EngineSection {
     /// and connection pooling.
     pub http: Option<HttpConfig>,
 
-    /// Run-level resource limits (timeout, channel buffer size, graph
-    /// complexity caps).
+    /// Run-level resource limits.
     ///
     /// Nested under `[engine.limits]` in TOML.
     #[validate(nested)]
@@ -144,18 +81,4 @@ pub struct EngineSection {
     /// reserved for future use.
     #[serde(default)]
     pub cache: Option<CacheConfig>,
-}
-
-impl EngineSection {
-    /// Returns the configured retry policy, if any.
-    #[must_use]
-    pub fn retry(&self) -> Option<&RetryPolicy> {
-        self.retry.as_ref()
-    }
-
-    /// Returns the configured timeout policy, if any.
-    #[must_use]
-    pub fn timeout(&self) -> Option<&TimeoutPolicy> {
-        self.timeout.as_ref()
-    }
 }

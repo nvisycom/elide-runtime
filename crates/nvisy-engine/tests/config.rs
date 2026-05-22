@@ -2,6 +2,8 @@
 
 mod fixtures;
 
+use std::time::Duration;
+
 use nvisy_engine::pipeline::{EngineSection, ResourceLimits, RuntimeConfig};
 use validator::Validate;
 
@@ -33,10 +35,8 @@ fn example_toml_parses() {
 fn empty_toml_uses_defaults() {
     let config: RuntimeConfig = toml::from_str("").unwrap();
     assert!(config.engine.is_none());
-    assert!(config.ocr.is_none());
-    assert!(config.llm.is_none());
-    assert!(config.stt.is_none());
-    assert!(config.tts.is_none());
+    assert!(config.extraction.is_none());
+    assert!(config.detection.is_none());
     assert!(config.validate().is_ok());
 }
 
@@ -51,8 +51,7 @@ fn merge_overrides_present_sections() {
     let base = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                run_timeout_ms: Some(30_000),
-                ..Default::default()
+                run_timeout: Some(Duration::from_secs(30)),
             },
             ..Default::default()
         }),
@@ -61,8 +60,7 @@ fn merge_overrides_present_sections() {
     let overrides = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                run_timeout_ms: Some(5_000),
-                ..Default::default()
+                run_timeout: Some(Duration::from_secs(5)),
             },
             ..Default::default()
         }),
@@ -70,7 +68,10 @@ fn merge_overrides_present_sections() {
     };
 
     let merged = base.merge(&overrides);
-    assert_eq!(merged.engine.unwrap().limits.run_timeout_ms, Some(5_000));
+    assert_eq!(
+        merged.engine.unwrap().limits.run_timeout,
+        Some(Duration::from_secs(5))
+    );
 }
 
 #[test]
@@ -78,8 +79,7 @@ fn merge_falls_back_to_base() {
     let base = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                run_timeout_ms: Some(60_000),
-                ..Default::default()
+                run_timeout: Some(Duration::from_secs(60)),
             },
             ..Default::default()
         }),
@@ -88,5 +88,8 @@ fn merge_falls_back_to_base() {
     let overrides = RuntimeConfig::default();
 
     let merged = base.merge(&overrides);
-    assert_eq!(merged.engine.unwrap().limits.run_timeout_ms, Some(60_000));
+    assert_eq!(
+        merged.engine.unwrap().limits.run_timeout,
+        Some(Duration::from_secs(60))
+    );
 }

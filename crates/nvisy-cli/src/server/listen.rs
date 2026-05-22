@@ -20,7 +20,7 @@ pub async fn run(server: &ResolvedServer, app: axum::Router) -> anyhow::Result<(
 
     tracing::info!(target: TARGET, %addr, "listening");
 
-    let shutdown = shutdown::shutdown_signal(server.shutdown_timeout());
+    let shutdown = shutdown::shutdown_signal(server.shutdown_timeout);
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)

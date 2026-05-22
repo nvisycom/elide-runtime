@@ -1,15 +1,15 @@
 //! Pipeline orchestrator: concurrent document processing through a
-//! typed execution plan.
+//! flat fixed-order plan.
 //!
 //! The [`Orchestrator`] drives the pipeline at the top level: it
 //! imports documents, fans them out to concurrent [`DocumentPipeline`]
 //! tasks (one per document), and collects the results.
 //!
-//! [`DocumentPipeline`] processes a single document through all plan
-//! phases sequentially: extraction → detection → deduplication → redaction →
+//! [`DocumentPipeline`] processes a single document through all phases
+//! sequentially: extraction → detection → deduplication → redaction →
 //! validation.
 
-use std::future::Future;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_core::Error;
@@ -17,17 +17,16 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
-use super::config::RuntimeConfig;
-use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
-use crate::detection::DetectionEngine;
-use crate::graph::TimeoutExt;
-use crate::operation::{
-    Deduplication, Detection, DocumentEnvelope, ExportFile, Extraction, GenerateContext,
-    ImportFile, Operation, Redaction, SharedData, Validation,
+use super::default::EngineInput;
+use crate::deduplication::Deduplicator;
+use crate::detection::{Detection as DetectionConfig, DetectionEngine};
+use crate::envelope::{DocumentEnvelope, SharedData};
+use crate::extraction::{Extraction as ExtractionConfig, Extractors};
+use crate::ingestion::{
+    ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
 };
-use crate::workflow::{
-    ConcurrencyPolicy, Detection as DetectionConfig, Extraction as ExtractionConfig,
-};
+use crate::redaction::{RedactionDefaults, Redactor};
+use crate::validation::Validator;
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
@@ -37,14 +36,18 @@ pub(super) struct RunContext {
     pub cancel: CancellationToken,
     /// Shared run-wide state: run ID, actor, registry, policies.
     pub shared: Arc<SharedData>,
-    /// Effective configuration after merging per-request overrides.
-    pub config: Arc<RuntimeConfig>,
+    /// Pre-built extractor registry from `RuntimeConfig.extraction`.
+    /// Shared across every run.
+    pub extractors: Arc<Extractors>,
     /// Optional shared detection engine. `None` skips the
     /// detection phase entirely (e.g. for redaction-only or
     /// validation-only pipelines).
     pub detection_engine: Option<Arc<DetectionEngine>>,
+    /// Server-wide redaction defaults from `RuntimeConfig.redaction`.
+    /// Per-workflow `Redaction` fields fall back to these.
+    pub redaction_defaults: Arc<RedactionDefaults>,
     /// Optional limit on how many documents may process concurrently.
-    pub concurrency: Option<ConcurrencyPolicy>,
+    pub concurrency: Option<NonZeroUsize>,
     /// When `true`, skip redaction, validation, and export phases.
     pub dry_run: bool,
 }
@@ -77,17 +80,15 @@ pub(super) struct Orchestrator {
 impl Orchestrator {
     /// Create an orchestrator for the given run.
     pub fn new(ctx: RunContext) -> Self {
-        let semaphore = ctx
-            .concurrency
-            .map(|c| Arc::new(Semaphore::new(c.max_nodes)));
+        let semaphore = ctx.concurrency.map(|c| Arc::new(Semaphore::new(c.get())));
         Self {
             ctx: Arc::new(ctx),
             semaphore,
         }
     }
 
-    /// Execute the compiled plan.
-    pub async fn run(&self, plan: &ExecutionPlan) -> Result<RunOutput, Error> {
+    /// Execute the plan.
+    pub async fn run(&self, plan: &EngineInput) -> Result<RunOutput, Error> {
         let envelopes = self.run_imports(&plan.imports).await?;
 
         let mut join_set = JoinSet::new();
@@ -146,23 +147,26 @@ impl Orchestrator {
     }
 
     /// Execute import steps to produce envelopes.
-    async fn run_imports(&self, imports: &[ImportStep]) -> Result<Vec<DocumentEnvelope>, Error> {
+    async fn run_imports(
+        &self,
+        imports: &[ImportFileConfig],
+    ) -> Result<Vec<DocumentEnvelope>, Error> {
         let mut envelopes = Vec::new();
 
-        for step in imports {
-            let import = ImportFile::new()
-                .with_decompression(step.config.decompression)
-                .with_decryption(step.config.decryption.clone());
+        for cfg in imports {
+            let importer = Importer::new()
+                .with_decompression(cfg.decompression)
+                .with_decryption(cfg.decryption.clone());
 
             let shared = &self.ctx.shared;
-            for &content_id in &step.config.content_ids {
+            for &content_id in &cfg.content_ids {
                 tracing::debug!(target: TARGET, %content_id, "importing content");
                 let handle = shared
                     .registry
                     .read_content(shared.actor_id, content_id)
                     .await?;
                 let content = handle.content().await?;
-                let envelope = import.import(content, &self.ctx.shared).await?;
+                let envelope = importer.import(content, &self.ctx.shared).await?;
                 envelopes.push(envelope);
             }
         }
@@ -182,52 +186,40 @@ impl DocumentPipeline {
     async fn run(
         &self,
         mut envelope: DocumentEnvelope,
-        plan: &ExecutionPlan,
+        plan: &EngineInput,
     ) -> Result<DocumentEnvelope, Error> {
         self.check_cancelled()?;
 
-        // Phase 1: extraction.
-        self.run_phase(&plan.extraction_policy, async {
-            self.run_extraction(&plan.extraction, &mut envelope).await
-        })
-        .await?;
+        // Extraction.
+        self.run_extraction(&plan.extraction, &mut envelope).await?;
         self.check_cancelled()?;
 
-        // Phase 2: detection.
-        self.run_phase(&plan.detection_policy, async {
-            self.run_detection(&plan.detection, &mut envelope).await
-        })
-        .await?;
+        // Detection.
+        self.run_detection(&plan.detection, &mut envelope).await?;
         self.check_cancelled()?;
 
-        // Phase 3: deduplication.
-        Deduplication::new(&plan.deduplication)
+        // Deduplication.
+        Deduplicator::new(&plan.deduplication)
             .execute(&mut envelope)
             .await?;
         self.check_cancelled()?;
 
-        // Phase 4: redaction + generate context.
+        // Redaction.
         if !self.ctx.dry_run {
-            self.run_phase(&plan.redaction_policy, async {
-                Redaction::new(&plan.redaction).execute(&mut envelope).await
-            })
-            .await?;
-        }
-        if plan.generate_context {
-            GenerateContext::new(&Default::default())
+            Redactor::new(&plan.redaction, &self.ctx.redaction_defaults)
                 .execute(&mut envelope)
                 .await?;
         }
         self.check_cancelled()?;
 
-        // Phase 5: validation (skipped in dry-run).
+        // Validation (skipped in dry-run).
         if !self.ctx.dry_run {
-            Validation::new(&plan.validation)
+            Validator::new(&plan.validation)
                 .execute(&mut envelope)
                 .await?;
         }
 
-        // Phase 6: export (skipped in dry-run).
+        // Export (skipped in dry-run).
         if !self.ctx.dry_run {
             self.run_exports(&plan.exports, &envelope).await?;
         }
@@ -235,52 +227,31 @@ impl DocumentPipeline {
         Ok(envelope)
     }
 
-    /// Wrap a phase future with an optional timeout from the phase policy.
-    async fn run_phase<F>(&self, policy: &PhasePolicy, future: F) -> Result<(), Error>
-    where
-        F: Future<Output = Result<(), Error>> + Send,
-    {
-        match &policy.timeout {
-            Some(tp) => tp.with_timeout(future).await,
-            None => future.await,
-        }
-    }
-
-    /// Run extraction for all applicable modalities.
+    /// Run extraction by dispatching the document to the matching
+    /// pre-built extractor in [`Extractors`].
+    ///
+    /// [`Extractors`]: crate::extraction::Extractors
     async fn run_extraction(
         &self,
         cfg: &ExtractionConfig,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
-        Extraction::new(cfg, &self.ctx.config)
-            .execute(envelope)
-            .await
+        self.ctx.extractors.run(envelope, cfg).await
     }
 
-    /// Run detection through the run-scoped [`DetectionEngine`].
+    /// Run detection through the shared [`DetectionEngine`].
     ///
-    /// The engine is built once per run from `plan.detection` (see
-    /// [`Detection::into_engine`]) and stored on [`RunContext`]; it
-    /// is `None` when no recognizer is opted in (every per-slot
-    /// field on `plan.detection` is `None`), in which case the
-    /// detection phase is skipped.
-    ///
-    /// Per-call hints from the workflow [`DetectionConfig`] —
-    /// `cfg.params.entity_kinds` (allowlist) and
-    /// `cfg.params.confidence_threshold` — flow into the
-    /// `DetectionContext` for each text span. Recognizer-specific
-    /// settings are baked into the matching recognizer at engine-
-    /// construction time.
-    ///
-    /// [`Detection::into_engine`]: crate::detection::Detection::into_engine
+    /// The engine is built once per run by [`super::run::Pipeline`]
+    /// from `input.detection` and stored on [`RunContext`]; it is
+    /// `None` when no recognizer is opted in (`detection.kinds` is
+    /// empty), in which case detection is skipped.
     async fn run_detection(
         &self,
         cfg: &DetectionConfig,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
         if let Some(ref engine) = self.ctx.detection_engine {
-            let op = Detection::new(Arc::clone(engine), cfg.clone());
-            op.execute(envelope).await?;
+            engine.detect_in(envelope, cfg).await?;
         }
         Ok(())
     }
@@ -288,15 +259,15 @@ impl DocumentPipeline {
     /// Export envelopes to the registry.
     async fn run_exports(
         &self,
-        exports: &[ExportStep],
+        exports: &[ExportFileConfig],
         envelope: &DocumentEnvelope,
     ) -> Result<(), Error> {
-        for step in exports {
-            let export = ExportFile::new()
-                .with_encryption(step.config.encryption.clone())
-                .with_compression(step.config.compression)
-                .with_content_ids(step.config.content_ids.clone());
-            export.export(envelope).await?;
+        for cfg in exports {
+            let exporter = Exporter::new()
+                .with_encryption(cfg.encryption.clone())
+                .with_compression(cfg.compression)
+                .with_content_ids(cfg.content_ids.clone());
+            exporter.export(envelope).await?;
         }
         Ok(())
     }

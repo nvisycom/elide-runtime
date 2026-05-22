@@ -5,8 +5,8 @@
 #![allow(dead_code)]
 
 use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
+use nvisy_engine::ingestion::{ExportFile, ImportFile};
 use nvisy_engine::pipeline::{Engine, EngineInput};
-use nvisy_engine::workflow::{ExportFile, Graph, GraphEdge, GraphNode, GraphNodeKind, ImportFile};
 use uuid::Uuid;
 
 /// Creates a temporary [`Engine`] for testing.
@@ -33,54 +33,42 @@ pub async fn upload_text(engine: &Engine, actor_id: Uuid, text: &str) -> Uuid {
     content.unwrap().content_source().as_uuid()
 }
 
-/// Builds a simple import→export graph for the given content ID.
-pub fn import_export_graph(content_id: Uuid) -> Graph {
-    let import_id = Uuid::new_v4();
-    let export_id = Uuid::new_v4();
+/// Builds an `EngineInput` with one import + one export for the given content.
+pub fn engine_input(actor_id: Uuid, content_id: Uuid) -> EngineInput {
+    base_input(actor_id, content_id, false)
+}
 
-    Graph {
-        nodes: vec![
-            GraphNode::new(
-                import_id,
-                GraphNodeKind::ImportFile(ImportFile {
-                    content_ids: vec![content_id],
-                    ..Default::default()
-                }),
-            ),
-            GraphNode::new(
-                export_id,
-                GraphNodeKind::ExportFile(ExportFile {
-                    content_ids: vec![Uuid::new_v4()],
-                    ..Default::default()
-                }),
-            ),
-        ],
-        edges: vec![GraphEdge {
-            source: import_id,
-            target: export_id,
+/// Same as [`engine_input`] but with `dry_run = true`.
+pub fn dry_run_input(actor_id: Uuid, content_id: Uuid) -> EngineInput {
+    base_input(actor_id, content_id, true)
+}
+
+/// `EngineInput` that imports a non-existent content ID. The run
+/// will fail at import time — useful for testing failure paths
+/// (failed run is still recorded, etc.).
+pub fn failing_input(actor_id: Uuid) -> EngineInput {
+    base_input(actor_id, Uuid::nil(), false)
+}
+
+fn base_input(actor_id: Uuid, content_id: Uuid, dry_run: bool) -> EngineInput {
+    EngineInput {
+        actor_id,
+        policies: Vec::new(),
+        config: None,
+        dry_run,
+        imports: vec![ImportFile {
+            content_ids: vec![content_id],
+            ..Default::default()
         }],
-        concurrency: None,
-    }
-}
-
-/// Builds an [`EngineInput`] with the given graph and no policies.
-pub fn engine_input(actor_id: Uuid, graph: Graph) -> EngineInput {
-    EngineInput {
-        actor_id,
-        policies: Vec::new(),
-        graph,
-        config: None,
-        dry_run: false,
-    }
-}
-
-/// Builds a dry-run [`EngineInput`] with the given graph and no policies.
-pub fn dry_run_input(actor_id: Uuid, graph: Graph) -> EngineInput {
-    EngineInput {
-        actor_id,
-        policies: Vec::new(),
-        graph,
-        config: None,
-        dry_run: true,
+        context_ids: Vec::new(),
+        extraction: Default::default(),
+        detection: Default::default(),
+        deduplication: Default::default(),
+        redaction: Default::default(),
+        validation: Default::default(),
+        exports: vec![ExportFile {
+            content_ids: vec![Uuid::new_v4()],
+            ..Default::default()
+        }],
     }
 }

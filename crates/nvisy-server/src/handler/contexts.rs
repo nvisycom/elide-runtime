@@ -18,14 +18,14 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::registry::Registry;
+use nvisy_engine::ingestion::registry::Registry;
 use nvisy_ontology::context::Context;
 
 use super::error::Result;
 use super::request::{ContextPath, NewContext, Pagination};
 use super::response::{ContextEntry, ContextId, ContextList};
 use crate::extract::{ActorId, Json, Path};
-use crate::middleware::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS, RouterTimeoutExt};
+use crate::middleware::{DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::contexts";
@@ -164,7 +164,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
             "/contexts/{id}",
             get_with(download_context, download_context_docs),
         )
-        .with_timeout(DEFAULT_READ_TIMEOUT_SECS);
+        .with_timeout(DEFAULT_READ_TIMEOUT);
 
     let write_routes = ApiRouter::new()
         .api_route(
@@ -176,7 +176,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
             "/contexts/{id}",
             aide::axum::routing::delete_with(delete_context, delete_context_docs),
         )
-        .with_timeout(DEFAULT_WRITE_TIMEOUT_SECS);
+        .with_timeout(DEFAULT_WRITE_TIMEOUT);
 
     read_routes.merge(write_routes)
 }

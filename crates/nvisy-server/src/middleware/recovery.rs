@@ -23,13 +23,12 @@ use axum::error_handling::HandleErrorLayer;
 use axum::response::{IntoResponse, Response};
 use futures::future::{BoxFuture, FutureExt};
 use serde::{Deserialize, Serialize};
-use serde_with::{DurationSeconds, serde_as};
 use tower::ServiceBuilder;
 use tower::timeout::TimeoutLayer;
 use tower::timeout::error::Elapsed;
 use tower_http::catch_panic::CatchPanicLayer;
 
-use super::constants::DEFAULT_REQUEST_TIMEOUT_SECS;
+use super::constants::DEFAULT_REQUEST_TIMEOUT;
 use crate::handler::error::{Error, ErrorKind};
 
 /// Tracing target for error recovery.
@@ -45,21 +44,21 @@ type Panic = Box<dyn Any + Send + 'static>;
 ///
 /// Controls how the recovery middleware handles various error conditions
 /// including timeouts and panic recovery.
-#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecoveryConfig {
     /// Maximum duration to wait for a request to complete before timing
     /// out. Requests exceeding this duration receive a 500 response with
-    /// a timeout message. Serialized as whole seconds.
-    #[serde_as(as = "DurationSeconds")]
+    /// a timeout message. Parses human-readable durations
+    /// (`"5m"`, `"300s"`).
+    #[serde(with = "humantime_serde")]
     pub request_timeout: Duration,
 }
 
 impl Default for RecoveryConfig {
     fn default() -> Self {
         Self {
-            request_timeout: Duration::from_secs(DEFAULT_REQUEST_TIMEOUT_SECS),
+            request_timeout: DEFAULT_REQUEST_TIMEOUT,
         }
     }
 }
@@ -94,18 +93,18 @@ where
 /// Extension trait for [`ApiRouter`] to apply a per-group timeout.
 pub trait RouterTimeoutExt<S> {
     /// Layer a timeout with error recovery onto this router.
-    fn with_timeout(self, secs: u64) -> Self;
+    fn with_timeout(self, duration: Duration) -> Self;
 }
 
 impl<S> RouterTimeoutExt<S> for ApiRouter<S>
 where
     S: Clone + Send + Sync + 'static,
 {
-    fn with_timeout(self, secs: u64) -> Self {
+    fn with_timeout(self, duration: Duration) -> Self {
         self.layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(handle_error))
-                .layer(TimeoutLayer::new(Duration::from_secs(secs))),
+                .layer(TimeoutLayer::new(duration)),
         )
     }
 }

@@ -2,6 +2,8 @@
 
 mod fixtures;
 
+use std::time::Duration;
+
 use nvisy_engine::pipeline::{Engine, EngineSection, ResourceLimits, RuntimeConfig};
 
 #[test]
@@ -24,8 +26,7 @@ fn open_with_custom_limits() -> anyhow::Result<()> {
     let config = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                run_timeout_ms: Some(5000),
-                ..Default::default()
+                run_timeout: Some(Duration::from_secs(5)),
             },
             ..Default::default()
         }),
@@ -33,14 +34,8 @@ fn open_with_custom_limits() -> anyhow::Result<()> {
     };
     let engine = Engine::open(dir.path(), config)?;
     assert_eq!(
-        engine
-            .config()
-            .engine
-            .as_ref()
-            .unwrap()
-            .limits
-            .run_timeout_ms,
-        Some(5000)
+        engine.config().engine.as_ref().unwrap().limits.run_timeout,
+        Some(Duration::from_secs(5))
     );
     Ok(())
 }

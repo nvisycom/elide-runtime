@@ -38,7 +38,7 @@ pub struct RedactionMapping {
 
 /// Per-entity redaction lineage index.
 ///
-/// Created during the redaction phase (phase 4) by the redaction
+/// Created during the redaction phase by the redaction
 /// evaluator. Records which entities were considered for redaction
 /// and where they lived in the document. Sensitive values are not
 /// duplicated here — they live on the matching [`AuditEntry`].

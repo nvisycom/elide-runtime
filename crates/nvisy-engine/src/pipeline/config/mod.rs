@@ -1,12 +1,14 @@
 //! Pipeline runtime configuration, typically deserialized from TOML.
 //!
 //! [`RuntimeConfig`] is the top-level configuration object containing
-//! optional sections for each subsystem — [`EngineSection`],
-//! [`OcrSection`], [`LlmSection`], [`SttSection`], and [`TtsSection`].
+//! optional subsystem sections — [`EngineSection`],
+//! [`ExtractionSection`], and [`DetectionSection`].
 //!
 //! Per-request overrides are supported via [`RuntimeConfig::merge`],
 //! which replaces entire sections (not individual fields) when the
-//! override provides a non-`None` value.
+//! override provides a non-`None` value — with the exception of
+//! `extractor` and `recognizer`, which are built once at engine
+//! startup and never per-request-overridden.
 //!
 //! # Post-load steps
 //!
@@ -16,15 +18,17 @@
 //! 2. Call [`RuntimeConfig::validate`] to check structural constraints.
 
 mod engine;
-mod subsystem;
 mod validate;
+
+use std::num::NonZeroUsize;
 
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
 pub use self::engine::{CacheConfig, EngineSection, ResourceLimits};
-pub use self::subsystem::{LlmSection, OcrSection, SttSection, TtsSection};
-use crate::workflow::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
+use crate::detection::DetectionSection;
+use crate::extraction::ExtractionSection;
+use crate::redaction::RedactionDefaults;
 
 fn default_config_version() -> Version {
     Version::new(0, 1, 0)
@@ -40,7 +44,9 @@ fn default_config_version() -> Version {
 ///
 /// [`RuntimeConfig::merge`] replaces entire sections — if the override
 /// provides a non-`None` section, it wins completely. Fields within a
-/// section are not merged individually.
+/// section are not merged individually. `extractor` and `recognizer`
+/// are NOT overridable per-request: both are built once at engine
+/// startup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     /// Configuration schema version.
@@ -49,14 +55,19 @@ pub struct RuntimeConfig {
 
     /// Engine-level execution policies, networking, and resource limits.
     pub engine: Option<EngineSection>,
-    /// OCR subsystem (optical character recognition).
-    pub ocr: Option<OcrSection>,
-    /// LLM subsystem (language model inference).
-    pub llm: Option<LlmSection>,
-    /// STT subsystem (speech-to-text transcription).
-    pub stt: Option<SttSection>,
-    /// TTS subsystem (text-to-speech generation).
-    pub tts: Option<TtsSection>,
+    /// Extraction registry — `[extraction.ocr]`, `[extraction.stt]`,
+    /// `[extraction.vlm]` sub-sections. Built once at engine startup;
+    /// the `Extraction` phase config carries per-call flags only.
+    pub extraction: Option<ExtractionSection>,
+    /// Detection registry — `[detection.llm]`, `[detection.nlp]`,
+    /// `[detection.pattern]` sub-sections. Built once at engine
+    /// startup; the `Detection` phase config only references these
+    /// by kind.
+    pub detection: Option<DetectionSection>,
+    /// Server-wide redaction defaults — `[redaction]` section.
+    /// `Redaction` phase config falls back to these for any `None`
+    /// fields.
+    pub redaction: Option<RedactionDefaults>,
 }
 
 impl Default for RuntimeConfig {
@@ -64,35 +75,21 @@ impl Default for RuntimeConfig {
         Self {
             version: default_config_version(),
             engine: None,
-            ocr: None,
-            llm: None,
-            stt: None,
-            tts: None,
+            extraction: None,
+            detection: None,
+            redaction: None,
         }
     }
 }
 
 impl RuntimeConfig {
-    /// Default retry policy from the engine section, if configured.
-    #[must_use]
-    pub fn default_retry(&self) -> Option<&RetryPolicy> {
-        self.engine.as_ref().and_then(|e| e.retry.as_ref())
-    }
-
-    /// Default timeout policy from the engine section, if configured.
-    #[must_use]
-    pub fn default_timeout(&self) -> Option<&TimeoutPolicy> {
-        self.engine.as_ref().and_then(|e| e.timeout.as_ref())
-    }
-
     /// Returns `true` if all optional sections are `None`.
     #[must_use]
     pub fn is_default(&self) -> bool {
         self.engine.is_none()
-            && self.ocr.is_none()
-            && self.llm.is_none()
-            && self.stt.is_none()
-            && self.tts.is_none()
+            && self.extraction.is_none()
+            && self.detection.is_none()
+            && self.redaction.is_none()
     }
 
     /// Resource limits from the engine section, or defaults.
@@ -101,9 +98,9 @@ impl RuntimeConfig {
         self.engine.as_ref().map(|e| e.limits).unwrap_or_default()
     }
 
-    /// Concurrency policy from the engine section, if configured.
+    /// Concurrency limit from the engine section, if configured.
     #[must_use]
-    pub fn effective_concurrency(&self) -> Option<ConcurrencyPolicy> {
+    pub fn effective_concurrency(&self) -> Option<NonZeroUsize> {
         self.engine.as_ref().and_then(|e| e.concurrency)
     }
 
@@ -111,46 +108,53 @@ impl RuntimeConfig {
     ///
     /// Non-`None` sections in `overrides` replace the corresponding
     /// section in `self`; `None` sections fall back to `self`. The
-    /// version is taken from the base config.
+    /// version is taken from the base config. `extraction` and
+    /// `detection` are intentionally NOT overridable: each is built
+    /// once at engine startup so per-request dispatch stays cheap.
+    /// Per-request override would force a rebuild (model loads,
+    /// HTTP client setup) and defeat the amortization.
     #[must_use]
     pub fn merge(&self, overrides: &RuntimeConfig) -> RuntimeConfig {
         RuntimeConfig {
             version: self.version.clone(),
             engine: overrides.engine.clone().or_else(|| self.engine.clone()),
-            ocr: overrides.ocr.clone().or_else(|| self.ocr.clone()),
-            llm: overrides.llm.clone().or_else(|| self.llm.clone()),
-            stt: overrides.stt.clone().or_else(|| self.stt.clone()),
-            tts: overrides.tts.clone().or_else(|| self.tts.clone()),
+            extraction: self.extraction.clone(),
+            detection: self.detection.clone(),
+            redaction: overrides
+                .redaction
+                .clone()
+                .or_else(|| self.redaction.clone()),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
+
+    fn http(max_retries: u32) -> nvisy_http::HttpConfig {
+        nvisy_http::HttpConfig {
+            max_retries,
+            timeout: Duration::from_secs(120),
+            connect_timeout: Duration::from_secs(10),
+            idle_timeout: Duration::from_secs(90),
+        }
+    }
 
     #[test]
     fn merge_overrides_present_sections() {
         let base = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_http::HttpConfig {
-                    max_retries: 3,
-                    timeout: std::time::Duration::from_secs(120),
-                    connect_timeout: std::time::Duration::from_secs(10),
-                    idle_timeout: std::time::Duration::from_secs(90),
-                }),
+                http: Some(http(3)),
                 ..Default::default()
             }),
             ..Default::default()
         };
         let overrides = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_http::HttpConfig {
-                    max_retries: 1,
-                    timeout: std::time::Duration::from_secs(30),
-                    connect_timeout: std::time::Duration::from_secs(5),
-                    idle_timeout: std::time::Duration::from_secs(60),
-                }),
+                http: Some(http(1)),
                 ..Default::default()
             }),
             ..Default::default()
@@ -163,12 +167,7 @@ mod tests {
     fn merge_falls_back_to_base() {
         let base = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_http::HttpConfig {
-                    max_retries: 3,
-                    timeout: std::time::Duration::from_secs(120),
-                    connect_timeout: std::time::Duration::from_secs(10),
-                    idle_timeout: std::time::Duration::from_secs(90),
-                }),
+                http: Some(http(3)),
                 ..Default::default()
             }),
             ..Default::default()
@@ -176,20 +175,5 @@ mod tests {
         let overrides = RuntimeConfig::default();
         let merged = base.merge(&overrides);
         assert_eq!(merged.engine.unwrap().http.unwrap().max_retries, 3);
-    }
-
-    #[test]
-    fn fill_key_skips_nonempty() {
-        let mut key = "existing".to_string();
-        // Point at an env var that almost certainly doesn't exist.
-        super::validate::fill_key_from_env(&mut key, "NVISY_TEST_NONEXISTENT_VAR_12345");
-        assert_eq!(key, "existing");
-    }
-
-    #[test]
-    fn fill_key_leaves_empty_when_env_missing() {
-        let mut key = String::new();
-        super::validate::fill_key_from_env(&mut key, "NVISY_TEST_NONEXISTENT_VAR_12345");
-        assert!(key.is_empty());
     }
 }

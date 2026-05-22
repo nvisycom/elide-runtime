@@ -4,11 +4,10 @@
 # The server loads Nvisy.toml by default; override with --config or NVISY_CONFIG.
 #
 # All sections are optional — omitted sections use runtime defaults.
-# Per-request overrides (in the JSON request body) replace entire sections.
-#
-# Provider api_key fields can be set via environment variables instead
-# of hardcoding them here: NVISY_LLM_API_KEY, NVISY_STT_API_KEY,
-# NVISY_TTS_API_KEY, NVISY_OCR_API_KEY.
+# Per-request overrides (in the JSON request body) replace entire
+# [engine] / [redaction] sections; `[extraction.*]` and `[detection.*]`
+# are built once at startup and shared across runs (overrides would
+# force model reloads and defeat the amortization).
 
 version = "0.1.0"
 
@@ -17,7 +16,7 @@ version = "0.1.0"
 [server]
 host = "0.0.0.0"
 port = 8080
-shutdown_timeout = 30
+shutdown_timeout = "30s"
 data_dir = "./data"
 
 [server.observability]
@@ -26,62 +25,128 @@ format = "json"              # json | text
 
 [server.middleware]
 body_limit_mb = 4
-request_timeout_secs = 300
-cors = { allowed_origins = ["*"], max_age_secs = 3600 }
+request_timeout = "5m"
+cors = { allowed_origins = ["*"], max_age = "1h" }
 
-# Default retry and timeout policies applied to every graph node.
+# Engine-level resource limits and shared infrastructure.
 [engine]
-retry = { max_retries = 3, delay_ms = 500, backoff = "fixed" }
-timeout = { duration_ms = 30000, on_timeout = "fail" }
-# concurrency = { max_nodes = 4 }
+concurrency = 4              # max parallel documents in flight
 
 # Run-level resource limits.
 [engine.limits]
-# run_timeout_ms = 60000       # hard ceiling on total run duration
-# max_nodes = 50               # maximum graph nodes (reserved)
-# max_envelope_size_bytes = 104857600  # 100 MB (reserved)
+run_timeout = "60s"
 
 # Shared HTTP client for all downstream provider calls.
 [engine.http]
 max_retries = 3
-timeout_secs = 120
-connect_timeout_secs = 10
-idle_timeout_secs = 90
+timeout = "120s"
+connect_timeout = "10s"
+idle_timeout = "90s"
 
-# OCR text extraction.
-# kind: surya | paddle-x | aws-textract | azure-docai | google-vision
-[ocr.provider]
+# Extraction registry.
+#
+# Each opted-in `[extraction.*]` section is built once at server
+# startup. Set `enabled = false` to keep the config but skip
+# construction and dispatch. The pipeline `Extraction` step carries
+# per-call flags only.
+
+# OCR text extraction from image documents.
+[extraction.ocr]
+enabled = true
+
+[extraction.ocr.provider]
 kind = "paddle-x"
 base_url = "http://localhost:8003"
 
-[ocr.policy]
+[extraction.ocr.policy]
 confidence_threshold = 0.5
 
-# LLM for entity detection and classification.
-# kind: open-ai | anthropic | gemini | ollama
-# api_key: set here or via NVISY_LLM_API_KEY env var.
-[llm.provider]
+# Speech-to-text transcription.
+[extraction.stt]
+enabled = true
+
+[extraction.stt.provider]
 kind = "open-ai"
-api_key = ""
+api_key = "sk-example-replace-me"
+model = "whisper-1"
+
+[extraction.stt.agent]
+model = "whisper-1"
+max_retries = 3
+
+# VLM verifier — runs an LLM pass over OCR-detected entities to
+# confirm/correct them against the source image. Dispatched after
+# [extraction.ocr] when workflow extraction.visual.verification is set.
+[extraction.vlm]
+enabled = true
+
+[extraction.vlm.provider]
+kind = "open-ai"
+api_key = "sk-example-replace-me"
 model = "gpt-4o"
 
-[llm.policy]
+[extraction.vlm.agent]
+temperature = 0.0
+max_tokens = 1024
+max_retries = 3
+
+# Detection recognizer registry.
+#
+# Each opted-in `[detection.*]` section is built once at server
+# startup. Set `enabled = false` to keep the config but skip
+# construction and dispatch. Workflows enable recognizers by name
+# via `detection.kinds = ["llm", "nlp", "pattern"]` — recognizer-side
+# configuration lives here, never in the workflow.
+
+# LLM-backed recognizer.
+[detection.llm]
+enabled = true
+verify_pass = true # adds a second LLM call per span
+unresolved_policy = "drop" # drop | warn | error
+
+[detection.llm.provider]
+kind = "open-ai"
+api_key = "sk-example-replace-me"
+model = "gpt-4o"
+
+[detection.llm.agent]
 temperature = 0.1
 max_tokens = 4096
 max_retries = 3
 
-# Speech-to-text transcription.
-# kind: open-ai | local
-# api_key: set here or via NVISY_STT_API_KEY env var.
-[stt.provider]
-kind = "open-ai"
-api_key = ""
-model = "whisper-1"
+# NLP-engine recognizer (NER + language detection + tokenizer).
+[detection.nlp]
+enabled = true
+engine = "default"
 
-# Text-to-speech synthesis.
-# kind: open-ai | local
-# api_key: set here or via NVISY_TTS_API_KEY env var.
-[tts.provider]
+# Pattern-based recognizer (regex + dictionary + checksum).
+[detection.pattern]
+enabled = true
+patterns = [] # empty = all built-in patterns
+confidence_threshold = 0.5
+
+# Redaction defaults + audio redaction codec.
+#
+# Pipeline `Redaction` steps fall back to these for any field
+# they leave unset. Per-request overrides are honored (cheap config,
+# no expensive construction).
+[redaction]
+confidence_threshold = 0.5
+process_metadata = false
+
+# TTS provider for audio redaction codec — synthesizes replacement
+# audio for redacted spans in audio documents. Omit the section
+# entirely to fall back to non-TTS audio replacement (silence/beep).
+[redaction.tts]
+enabled = true
+
+[redaction.tts.provider]
 kind = "open-ai"
-api_key = ""
+api_key = "sk-example-replace-me"
 model = "tts-1"
+
+[redaction.tts.agent]
+model = "tts-1"
+voice = "alloy"
+speed = 1.0
+max_retries = 3

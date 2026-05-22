@@ -42,7 +42,7 @@ pub struct SecurityConfig {
     pub cors_allowed_origins: Vec<String>,
 
     /// Optional max-age for CORS preflight responses.
-    pub cors_max_age_secs: Option<u64>,
+    pub cors_max_age: Option<Duration>,
 }
 
 impl Default for SecurityConfig {
@@ -51,7 +51,7 @@ impl Default for SecurityConfig {
             body_limit_bytes: DEFAULT_MAX_BODY_SIZE,
             file_body_limit_bytes: DEFAULT_MAX_FILE_BODY_SIZE,
             cors_allowed_origins: Vec::new(),
-            cors_max_age_secs: None,
+            cors_max_age: None,
         }
     }
 }
@@ -80,8 +80,8 @@ where
             CorsLayer::new().allow_origin(AllowOrigin::list(origins))
         };
 
-        let cors = if let Some(secs) = config.cors_max_age_secs {
-            cors.max_age(Duration::from_secs(secs))
+        let cors = if let Some(max_age) = config.cors_max_age {
+            cors.max_age(max_age)
         } else {
             cors
         };

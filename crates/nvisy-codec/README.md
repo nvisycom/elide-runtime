@@ -4,10 +4,15 @@
 
 File-format codecs for the Nvisy multimodal redaction platform.
 
-This crate provides handlers for reading, editing, and writing PDF, DOCX,
-HTML, Image, XLSX, Audio, CSV, JSON, and plain-text files. Each handler
-implements the `Handler` trait and provides
-span-based access to content for detection and redaction.
+## Overview
+
+The crate ships handlers for reading, editing, and writing PDF, DOCX,
+HTML, image, XLSX, audio, CSV, JSON, and plain-text files. Each
+handler implements the `Handler` trait and provides span-based
+access to content (`Span`, `Located`, `LocationStream`) so detection
+and redaction can address regions uniformly regardless of source
+format. `ContentHandle` is the lazy reader passed to detection
+operations.
 
 ## Feature Flags
 

@@ -20,6 +20,7 @@
 use std::fs;
 use std::net::IpAddr;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use nvisy_engine::pipeline::RuntimeConfig;
 use serde::Deserialize;
@@ -70,8 +71,10 @@ pub struct CorsConfig {
     /// An empty list (or omitted) means permissive (all origins).
     #[serde(default)]
     pub allowed_origins: Vec<String>,
-    /// `Access-Control-Max-Age` for preflight responses, in seconds.
-    pub max_age_secs: Option<u64>,
+    /// `Access-Control-Max-Age` for preflight responses. Parses
+    /// human-readable durations (`"1h"`, `"3600s"`).
+    #[serde(default, with = "humantime_serde")]
+    pub max_age: Option<Duration>,
 }
 
 /// `[server.middleware]` — body limits, request timeout, and CORS.
@@ -79,8 +82,10 @@ pub struct CorsConfig {
 pub struct MiddlewareSection {
     /// Maximum request body size in MiB for axum extractors. Default: 4.
     pub body_limit_mb: Option<usize>,
-    /// Per-request timeout in seconds. Default: 300.
-    pub request_timeout_secs: Option<u64>,
+    /// Per-request timeout. Parses human-readable durations
+    /// (`"5m"`, `"300s"`). Default: 5m.
+    #[serde(default, with = "humantime_serde")]
+    pub request_timeout: Option<Duration>,
     /// CORS policy. Omit for permissive defaults.
     pub cors: Option<CorsConfig>,
 }
@@ -92,8 +97,10 @@ pub struct ServerSection {
     pub host: Option<IpAddr>,
     /// TCP port number.
     pub port: Option<u16>,
-    /// Graceful shutdown timeout in seconds.
-    pub shutdown_timeout: Option<u64>,
+    /// Graceful shutdown timeout. Parses human-readable durations
+    /// (`"30s"`, `"1m"`).
+    #[serde(default, with = "humantime_serde")]
+    pub shutdown_timeout: Option<Duration>,
     /// Directory for content and context storage.
     pub data_dir: Option<PathBuf>,
     /// Logging configuration.
@@ -128,5 +135,43 @@ impl FileConfig {
         let contents = fs::read_to_string(path)?;
         let config = toml::from_str(&contents)?;
         Ok(config)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `Nvisy.example.toml` is the source of truth for the documented
+    /// schema. If it stops parsing, the docs lie. Loaded from the
+    /// workspace root via `CARGO_MANIFEST_DIR`.
+    #[test]
+    fn example_toml_parses() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("Nvisy.example.toml");
+        let config = FileConfig::from_file(&path).expect("Nvisy.example.toml must parse");
+
+        // Sanity: the top-level shape resolved.
+        assert!(
+            config.server.is_some(),
+            "[server] section should be present"
+        );
+        assert!(
+            config.inner.engine.is_some(),
+            "[engine] section should be present"
+        );
+        assert!(
+            config.inner.extraction.is_some(),
+            "[extraction.*] sections should be present"
+        );
+        assert!(
+            config.inner.detection.is_some(),
+            "[detection.*] sections should be present"
+        );
+        assert!(
+            config.inner.redaction.is_some(),
+            "[redaction] section should be present"
+        );
     }
 }

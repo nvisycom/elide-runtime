@@ -1,5 +1,7 @@
 //! Shared constants used across the middleware layer.
 
+use std::time::Duration;
+
 /// Default maximum request body size: 4 MiB.
 ///
 /// Used for security middleware to limit incoming request body sizes
@@ -12,19 +14,19 @@ pub const DEFAULT_MAX_BODY_SIZE: usize = 4 * 1024 * 1024;
 /// before accepting file data into memory.
 pub const DEFAULT_MAX_FILE_BODY_SIZE: usize = 12 * 1024 * 1024;
 
-/// Default per-request timeout in seconds: 5 minutes.
+/// Default per-request timeout: 5 minutes.
 ///
 /// Acts as the global ceiling; per-category timeouts below are tighter.
-pub const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 5 * 60;
+pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 /// Timeout for read operations (GET): 30 seconds.
-pub const DEFAULT_READ_TIMEOUT_SECS: u64 = 30;
+pub const DEFAULT_READ_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Timeout for write operations (POST, DELETE): 60 seconds.
-pub const DEFAULT_WRITE_TIMEOUT_SECS: u64 = 60;
+pub const DEFAULT_WRITE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Timeout for pipeline runs: 5 minutes.
-pub const DEFAULT_PIPELINE_TIMEOUT_SECS: u64 = 300;
+pub const DEFAULT_PIPELINE_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Timeout for health checks: 5 seconds.
-pub const DEFAULT_HEALTH_TIMEOUT_SECS: u64 = 5;
+pub const DEFAULT_HEALTH_TIMEOUT: Duration = Duration::from_secs(5);

@@ -18,14 +18,14 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::registry::Registry;
+use nvisy_engine::ingestion::registry::Registry;
 use nvisy_ontology::policy::Policy;
 
 use super::error::Result;
 use super::request::{NewPolicy, Pagination, PolicyPath};
 use super::response::{PolicyEntry, PolicyId, PolicyList};
 use crate::extract::{ActorId, Json, Path};
-use crate::middleware::{DEFAULT_READ_TIMEOUT_SECS, DEFAULT_WRITE_TIMEOUT_SECS, RouterTimeoutExt};
+use crate::middleware::{DEFAULT_READ_TIMEOUT, DEFAULT_WRITE_TIMEOUT, RouterTimeoutExt};
 use crate::service::ServiceState;
 
 const TARGET: &str = "nvisy_server::policies";
@@ -159,7 +159,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
             "/policies/{id}",
             get_with(download_policy, download_policy_docs),
         )
-        .with_timeout(DEFAULT_READ_TIMEOUT_SECS);
+        .with_timeout(DEFAULT_READ_TIMEOUT);
 
     let write_routes = ApiRouter::new()
         .api_route(
@@ -171,7 +171,7 @@ pub fn routes_v1() -> ApiRouter<ServiceState> {
             "/policies/{id}",
             aide::axum::routing::delete_with(delete_policy, delete_policy_docs),
         )
-        .with_timeout(DEFAULT_WRITE_TIMEOUT_SECS);
+        .with_timeout(DEFAULT_WRITE_TIMEOUT);
 
     read_routes.merge(write_routes)
 }

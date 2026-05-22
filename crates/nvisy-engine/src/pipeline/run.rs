@@ -1,16 +1,15 @@
 //! Single pipeline run lifecycle.
 //!
 //! [`Pipeline`] encapsulates the full lifecycle of one pipeline run:
-//! validation, compilation, resource acquisition, execution,
-//! retention enforcement, and finalization. It is created per-run by
-//! [`Engine::run`] or [`Engine::submit`] and is not reusable.
+//! resource acquisition, execution, retention enforcement, and
+//! finalization. It is created per-run by [`Engine::run`] or
+//! [`Engine::submit`] and is not reusable.
 //!
 //! [`Engine::run`]: super::Engine::run
 //! [`Engine::submit`]: super::Engine::submit
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 use nvisy_core::Error;
 use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
@@ -20,13 +19,14 @@ use uuid::Uuid;
 use super::config::RuntimeConfig;
 use super::default::{EngineInput, EngineOutput};
 use super::orchestrator::{Orchestrator, RunContext};
-use super::plan::{self, ExecutionPlan};
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
-use crate::operation::SharedData;
-use crate::registry::Registry;
-use crate::utility::encryption::SharedKeyProvider;
-use crate::workflow::GraphNodeKind;
+use crate::detection::Recognizers;
+use crate::envelope::SharedData;
+use crate::extraction::Extractors;
+use crate::ingestion::encryption::SharedKeyProvider;
+use crate::ingestion::registry::Registry;
+use crate::redaction::RedactionDefaults;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
 
@@ -41,6 +41,9 @@ pub(super) struct Pipeline {
     key_provider: Option<SharedKeyProvider>,
     runs: RunState,
     base_config: RuntimeConfig,
+    extractors: Arc<Extractors>,
+    recognizers: Arc<Recognizers>,
+    redaction_defaults: Arc<RedactionDefaults>,
 }
 
 impl Pipeline {
@@ -50,6 +53,9 @@ impl Pipeline {
         key_provider: Option<SharedKeyProvider>,
         runs: RunState,
         base_config: RuntimeConfig,
+        extractors: Arc<Extractors>,
+        recognizers: Arc<Recognizers>,
+        redaction_defaults: Arc<RedactionDefaults>,
     ) -> Self {
         Self {
             run_id: Uuid::now_v7(),
@@ -57,6 +63,9 @@ impl Pipeline {
             key_provider,
             runs,
             base_config,
+            extractors,
+            recognizers,
+            redaction_defaults,
         }
     }
 
@@ -65,47 +74,23 @@ impl Pipeline {
         self.run_id
     }
 
-    /// Prepare and execute the full pipeline, returning the output.
+    /// Register + execute the run end-to-end.
     ///
     /// This is the synchronous (blocking) path used by [`Engine::run`].
     ///
     /// [`Engine::run`]: super::Engine::run
     pub async fn run(self, input: EngineInput) -> Result<EngineOutput, Error> {
-        let compiled = self.prepare(&input).await?;
-        self.execute(input, compiled).await
+        self.register_pending(&input).await;
+        self.execute(input).await
     }
 
-    /// Validate input, compile the graph, and insert the initial run record.
+    /// Insert the initial run record as `Pending`. Called separately
+    /// from [`execute`] so [`Engine::submit`] can return the run_id
+    /// before spawning the background task.
     ///
-    /// On success, returns the compiled plan. On compilation failure,
-    /// inserts a failed run record and returns the error.
-    pub async fn prepare(&self, input: &EngineInput) -> Result<ExecutionPlan, Error> {
-        let compiled = match plan::compile(&input.graph) {
-            Ok(plan) => plan,
-            Err(e) => {
-                let now = jiff::Timestamp::now();
-                self.runs
-                    .insert(
-                        self.run_id,
-                        RunRecord {
-                            actor_id: input.actor_id,
-                            status: RunStatus::Failed,
-                            created_at: now,
-                            started_at: None,
-                            completed_at: Some(now),
-                            nodes: HashMap::new(),
-                            cancel: CancellationToken::new(),
-                            entities_detected: 0,
-                            redactions_applied: 0,
-                            error: Some(e.to_string()),
-                        },
-                    )
-                    .await;
-                return Err(e);
-            }
-        };
-
-        // Insert initial run record as Pending.
+    /// [`execute`]: Self::execute
+    /// [`Engine::submit`]: super::Engine::submit
+    pub async fn register_pending(&self, input: &EngineInput) {
         self.runs
             .insert(
                 self.run_id,
@@ -123,16 +108,10 @@ impl Pipeline {
                 },
             )
             .await;
-
-        Ok(compiled)
     }
 
-    /// Run the compiled plan to completion.
-    pub async fn execute(
-        &self,
-        input: EngineInput,
-        compiled: ExecutionPlan,
-    ) -> Result<EngineOutput, Error> {
+    /// Run the pipeline to completion.
+    pub async fn execute(&self, input: EngineInput) -> Result<EngineOutput, Error> {
         let effective_config = match &input.config {
             Some(overrides) => self.base_config.merge(overrides),
             None => self.base_config.clone(),
@@ -148,7 +127,7 @@ impl Pipeline {
 
         // Acquire contexts and policies into the registry caches.
         let (_context_guard, _policy_guard) = self
-            .acquire_resources(actor_id, &compiled.context_ids, &policy_ids)
+            .acquire_resources(actor_id, &input.context_ids, &policy_ids)
             .await;
 
         let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
@@ -163,10 +142,7 @@ impl Pipeline {
             .copied()
             .collect::<Vec<_>>();
 
-        let concurrency = input
-            .graph
-            .concurrency
-            .or_else(|| effective_config.effective_concurrency());
+        let concurrency = effective_config.effective_concurrency();
 
         let mut shared_data = SharedData {
             run_id: self.run_id,
@@ -179,29 +155,41 @@ impl Pipeline {
             shared_data.key_provider = kp.clone();
         }
 
-        // Build the detection engine once per run from the compiled
-        // plan. `None` when no recognizer is opted in (every per-slot
-        // field is `None`), in which case `Detection::into_engine`
-        // returns a `Misconfigured` error — we treat that as "skip
-        // the detection phase" rather than failing the run.
-        let detection_engine = if compiled.detection.ner.is_some()
-            || compiled.detection.llm.is_some()
-            || compiled.detection.pattern.is_some()
-        {
-            Some(Arc::new(compiled.detection.clone().into_engine().map_err(
-                |e| Error::validation(format!("detection engine assembly: {e}"), "detection"),
-            )?))
-        } else {
+        // Build the detection engine once per run by picking
+        // pre-built recognizers from the registry. `None` when the
+        // workflow opted no recognizers in (`kinds` empty) — we
+        // skip the detection phase rather than fail.
+        let detection_engine = if input.detection.kinds.is_empty() {
             None
+        } else {
+            Some(Arc::new(
+                input
+                    .detection
+                    .into_engine(&self.recognizers)
+                    .map_err(|e| {
+                        Error::validation(format!("detection engine assembly: {e}"), "detection")
+                    })?,
+            ))
         };
 
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
+        // Per-request redactor overrides win; otherwise reuse the
+        // pre-built defaults. We always rebuild a fresh Arc when the
+        // effective config carries a section, since identity-equality
+        // doesn't tell us whether the section came from override or
+        // base. The defaults struct is small (two scalars + an
+        // Option), so the allocation is trivial.
+        let redaction_defaults = match &effective_config.redaction {
+            Some(d) => Arc::new(d.clone()),
+            None => Arc::clone(&self.redaction_defaults),
+        };
         let ctx = RunContext {
             cancel,
             shared: Arc::new(shared_data),
-            config: Arc::new(effective_config),
+            extractors: Arc::clone(&self.extractors),
             detection_engine,
+            redaction_defaults,
             concurrency,
             dry_run: input.dry_run,
         };
@@ -210,9 +198,8 @@ impl Pipeline {
 
         let limits = self.base_config.effective_limits();
         let orchestrator = Orchestrator::new(ctx);
-        let run_output = if let Some(ms) = limits.run_timeout_ms {
-            match tokio::time::timeout(Duration::from_millis(ms), orchestrator.run(&compiled)).await
-            {
+        let run_output = if let Some(duration) = limits.run_timeout {
+            match tokio::time::timeout(duration, orchestrator.run(&input)).await {
                 Ok(Ok(output)) => output,
                 Ok(Err(e)) => {
                     self.runs.fail(self.run_id, e.to_string()).await;
@@ -227,7 +214,7 @@ impl Pipeline {
                 }
             }
         } else {
-            match orchestrator.run(&compiled).await {
+            match orchestrator.run(&input).await {
                 Ok(output) => output,
                 Err(e) => {
                     self.runs.fail(self.run_id, e.to_string()).await;
@@ -235,12 +222,6 @@ impl Pipeline {
                 }
             }
         };
-
-        // Save contexts from cache to registry (phase 6).
-        if !input.dry_run {
-            self.release_resources(actor_id, &compiled.save_context_ids)
-                .await;
-        }
 
         // Collect audits and counters from document results.
         let mut audits = Vec::new();
@@ -273,7 +254,7 @@ impl Pipeline {
         };
 
         // Enforce retention policies.
-        self.apply_retention(actor_id, &retention_rules, &input.graph, &mut output)
+        self.apply_retention(actor_id, &retention_rules, &input, &mut output)
             .await;
 
         let status = if !any_failed {
@@ -307,8 +288,8 @@ impl Pipeline {
         context_ids: &[Uuid],
         policy_ids: &[Uuid],
     ) -> (
-        crate::registry::ResourceGuard<nvisy_ontology::context::Context>,
-        crate::registry::ResourceGuard<nvisy_ontology::policy::Policy>,
+        crate::ingestion::registry::ResourceGuard<nvisy_ontology::context::Context>,
+        crate::ingestion::registry::ResourceGuard<nvisy_ontology::policy::Policy>,
     ) {
         let registry = &self.registry;
 
@@ -341,46 +322,12 @@ impl Pipeline {
         (context_guard, policy_guard)
     }
 
-    /// Persist contexts from the cache to the registry.
-    ///
-    /// Mirrors [`acquire_resources`] — contexts are loaded into the
-    /// cache before execution and saved back here after completion.
-    ///
-    /// [`acquire_resources`]: Self::acquire_resources
-    async fn release_resources(&self, actor_id: Uuid, save_context_ids: &[Uuid]) {
-        let registry = &self.registry;
-        for &id in save_context_ids {
-            let context = match registry.context_cache().get(&id).await {
-                Some(ctx) => ctx,
-                None => {
-                    tracing::warn!(
-                        target: TARGET,
-                        %id,
-                        "context not found in cache, skipping save",
-                    );
-                    continue;
-                }
-            };
-            if let Err(e) = registry
-                .register_context(actor_id, Arc::unwrap_or_clone(context))
-                .await
-            {
-                tracing::warn!(
-                    target: TARGET,
-                    %id,
-                    error = %e,
-                    "failed to save context",
-                );
-            }
-        }
-    }
-
     /// Enforce retention policies after a pipeline run.
     async fn apply_retention(
         &self,
         actor_id: Uuid,
         retention_rules: &[RetentionPolicy],
-        graph: &crate::workflow::Graph,
+        input: &EngineInput,
         output: &mut EngineOutput,
     ) {
         if retention_rules.is_empty() {
@@ -393,14 +340,10 @@ impl Pipeline {
             }
             match rp.scope {
                 RetentionScope::OriginalContent => {
-                    let content_ids: Vec<Uuid> = graph
-                        .nodes
+                    let content_ids: Vec<Uuid> = input
+                        .imports
                         .iter()
-                        .filter_map(|node| match &node.kind {
-                            GraphNodeKind::ImportFile(cfg) => Some(cfg.content_ids.clone()),
-                            _ => None,
-                        })
-                        .flatten()
+                        .flat_map(|cfg| cfg.content_ids.clone())
                         .collect();
                     for id in content_ids {
                         if let Err(e) = self.registry.unregister_content(actor_id, id).await {
@@ -413,14 +356,10 @@ impl Pipeline {
                     }
                 }
                 RetentionScope::RedactedOutput => {
-                    let content_ids: Vec<Uuid> = graph
-                        .nodes
+                    let content_ids: Vec<Uuid> = input
+                        .exports
                         .iter()
-                        .filter_map(|node| match &node.kind {
-                            GraphNodeKind::ExportFile(cfg) => Some(cfg.content_ids.clone()),
-                            _ => None,
-                        })
-                        .flatten()
+                        .flat_map(|cfg| cfg.content_ids.clone())
                         .collect();
                     for id in content_ids {
                         if let Err(e) = self.registry.unregister_content(actor_id, id).await {

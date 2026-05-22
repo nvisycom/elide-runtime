@@ -3173,12 +3173,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-agent"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "derive_builder",
+ "derive_more",
+ "futures",
+ "nvisy-core",
+ "nvisy-http",
+ "nvisy-ontology",
+ "reqwest-middleware",
+ "rig",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "unicode-normalization",
+ "uuid",
+]
+
+[[package]]
 name = "nvisy-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
  "clap",
+ "humantime-serde",
  "nvisy-engine",
  "nvisy-server",
  "serde",
@@ -3223,7 +3249,6 @@ dependencies = [
 name = "nvisy-core"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "bytes",
  "derive_more",
  "hex",
@@ -3242,7 +3267,6 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
- "validator",
 ]
 
 [[package]]
@@ -3258,7 +3282,9 @@ dependencies = [
  "derive_more",
  "fjall",
  "futures",
+ "humantime-serde",
  "jiff",
+ "nvisy-agent",
  "nvisy-codec",
  "nvisy-core",
  "nvisy-engine",
@@ -3267,7 +3293,6 @@ dependencies = [
  "nvisy-ocr",
  "nvisy-ontology",
  "nvisy-pattern",
- "nvisy-rig",
  "petgraph",
  "rand 0.10.1",
  "schemars 1.2.1",
@@ -3389,31 +3414,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-rig"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "bytes",
- "derive_builder",
- "derive_more",
- "futures",
- "nvisy-core",
- "nvisy-http",
- "nvisy-ontology",
- "reqwest-middleware",
- "rig",
- "schemars 1.2.1",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "unicode-normalization",
- "uuid",
-]
-
-[[package]]
 name = "nvisy-server"
 version = "0.1.0"
 dependencies = [
@@ -3422,6 +3422,7 @@ dependencies = [
  "base64 0.22.1",
  "derive_more",
  "futures",
+ "humantime-serde",
  "jiff",
  "nvisy-core",
  "nvisy-engine",

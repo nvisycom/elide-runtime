@@ -48,13 +48,13 @@ pub(crate) struct RunRecord {
     pub actor_id: Uuid,
     /// Current lifecycle status.
     pub status: RunStatus,
-    /// When the run was first created (before compilation).
+    /// When the run was first created.
     pub created_at: Timestamp,
-    /// When DAG execution actually began (after compilation + context loading).
+    /// When pipeline execution actually began (after context loading).
     pub started_at: Option<Timestamp>,
     /// When the run reached a terminal state.
     pub completed_at: Option<Timestamp>,
-    /// Per-node progress snapshots, keyed by node ID.
+    /// Per-phase progress snapshots, keyed by phase ID.
     pub nodes: HashMap<Uuid, NodeSnapshot>,
     /// Token shared with all node tasks for cooperative cancellation.
     pub cancel: CancellationToken,

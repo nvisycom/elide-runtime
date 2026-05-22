@@ -172,9 +172,9 @@ pub struct RunEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub completed_at: Option<Timestamp>,
-    /// Number of nodes in the execution graph.
+    /// Number of phases executed in the run.
     pub node_count: usize,
-    /// Total entities detected across all nodes.
+    /// Total entities detected across all phases.
     pub entities_detected: u64,
     /// Total redactions applied across all nodes.
     pub redactions_applied: u64,

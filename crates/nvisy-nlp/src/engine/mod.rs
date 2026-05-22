@@ -15,7 +15,7 @@ use std::sync::Arc;
 use derive_builder::Builder;
 
 pub use self::context::{Context, ContextBuilder, ContextBuilderError};
-pub use self::preset::NerEngine;
+pub use self::preset::NlpPreset;
 use crate::artifacts::{Artifacts, Token};
 use crate::error::Result;
 use crate::language::{DynLanguagePolicy, LanguageDetection, LanguagePolicy, LanguageProvenance};

@@ -5,26 +5,17 @@
 NLP for the Nvisy runtime: named entity recognition, language
 detection, and tokenization, composed behind a small set of traits.
 
-This crate hosts the trait surface and the local-by-default
-implementations (ONNX-backed NER, lingua language detection, HF and
-Unicode tokenizers). LLM-mediated NER lives in `nvisy-llm` — by
-deliberate crate split, not by trait restriction: a third-party
-backend can implement `NerBackend` over any transport (local model,
-HTTP, gRPC) and plug in.
+## Overview
 
-## Traits
-
-- **`NerBackend`** (async) — recognize entities in text. Implemented
-  by `OrtNerBackend` (HF token-classification via ONNX), and
-  `NoopNerBackend` for tests.
-- **`LanguageDetector`** (sync) — detect language + confidence,
-  optionally segment mixed-language documents. Implemented by
-  `LinguaLanguageDetector`.
-- **`Tokenizer`** (sync, fallible) — split text into tokens with
-  byte offsets. Implemented by `HfTokenizer` (HF tokenizer.json) and
-  `UnicodeTokenizer` (model-free, Unicode word boundaries).
-
-## Quick taste
+The crate hosts the trait surface (`NerBackend`, `LanguageDetector`,
+`Tokenizer`) and the local-by-default implementations (ONNX-backed
+NER via `OrtNerBackend`, language detection via
+`LinguaLanguageDetector`, tokenization via `HfTokenizer` and
+`UnicodeTokenizer`). `Engine` composes one of each into an analysis
+pipeline; LLM-mediated NER lives in `nvisy-agent` instead, by
+deliberate crate split — a third-party backend can implement
+`NerBackend` over any transport (local model, HTTP, gRPC) and plug
+in here.
 
 ```rust,ignore
 use nvisy_nlp::{Context, Engine, LinguaLanguagePolicy, OrtNerBackend, OrtNerConfig};
@@ -42,7 +33,6 @@ let engine = Engine::builder()
     .with_language_policy(LinguaLanguagePolicy)
     .build()?;
 
-// Caller-supplied language scope rides on Context::candidate_languages.
 let ctx = Context::builder()
     .with_text("Patient name: John Doe.")
     .with_candidate_languages(vec!["en".parse()?, "de".parse()?])
@@ -56,14 +46,28 @@ let artifacts = engine.analyze(ctx).await?;
 means **`libonnxruntime` must be installed on the host at runtime**:
 
 - macOS: `brew install onnxruntime`
-- Debian/Ubuntu: download from
-  [ONNX Runtime releases](https://github.com/microsoft/onnxruntime/releases)
+- Debian/Ubuntu: download from [ONNX Runtime releases]
 
-Model files (`.onnx` + `tokenizer.json`) are user-provided. Convert a
-HuggingFace token-classification model with
+Model files (`.onnx` + `tokenizer.json`) are user-provided. Convert
+a HuggingFace token-classification model with
 `optimum-cli export onnx --model <name> ./out`.
 
-## Status
+[ONNX Runtime releases]: https://github.com/microsoft/onnxruntime/releases
 
-Pre-1.0. The trait surface is stable enough to start consuming;
-implementations may add fields.
+## Documentation
+
+See [`docs/`](../../docs/) for architecture, security, and API documentation.
+
+## Changelog
+
+See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
+
+## License
+
+Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
+
+## Support
+
+- **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/runtime/issues)
+- **Email**: [support@nvisy.com](mailto:support@nvisy.com)

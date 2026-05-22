@@ -2,13 +2,32 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Domain data types for the Nvisy platform. Provides entity detection outputs, modality-specific location types, redaction specifications, policy review types, and annotation structures used across the detection and redaction pipeline.
+Domain data types for the Nvisy platform — entities, locations,
+artifacts, and the redaction/review provenance shared across every
+crate in the workspace.
 
-- **Entity taxonomy**: hierarchical entity types (PII, PHI, PCI, etc.) with confidence scores
-- **Detection outputs**: unified detection results spanning text, image, and audio modalities
-- **Modality locations**: text spans, bounding boxes, and temporal ranges for locating entities
-- **Redaction operations**: mask, replace, hash, encrypt, blur, block, and pixelate specifications
-- **Review annotations**: human-in-the-loop review decisions, approval states, and audit trails
+## Overview
+
+`entity::*` defines the hierarchical entity taxonomy (`EntityKind`,
+`EntityCategory`, `Confidence`, `RecognitionMethod`, etc.) and
+`Entity`/`Entities` collection types used as the output of every
+recognizer.
+
+`primitive::*` carries cross-cutting value types: `BoundingBox`,
+`LanguageTag`, time spans, etc.
+
+`policy::*` describes how a detected entity should be redacted —
+text strategies (`Mask`, `Replace`, `Hash`, `Encrypt`), image
+strategies (`Blur`, `Pixelate`, `Block`), and the matching rules
+that pick a strategy per entity.
+
+`provenance::*` records what the pipeline did: `RedactionMap`,
+`AuditEntry`, `ReviewStatus`, and the redaction-value index for
+reversibility.
+
+`artifacts::*` and `context::*` carry the per-document state
+threaded through the engine (extracted text/image artifacts,
+analyser hints).
 
 ## Documentation
 

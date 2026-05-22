@@ -5,7 +5,7 @@
 //! instructions to the document envelope, replacing or removing detected
 //! values, and optionally strips embedded document metadata.
 //!
-//! [`GenerateContext`]: crate::context::GenerateContext
+//! [`GenerateContext`]: GenerateContext (removed)
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Controls per-workflow knobs for the redaction phase. Unset
 /// fields fall back to `[redactor]` defaults in `Nvisy.toml`
-/// ([`crate::redaction::RedactorDefaults`]); if neither is set,
+/// ([`crate::redaction::RedactionDefaults`]); if neither is set,
 /// hard-coded defaults apply (0.5 threshold, no metadata stripping).
 ///
 /// [`Redaction`]: crate::redaction::Redaction

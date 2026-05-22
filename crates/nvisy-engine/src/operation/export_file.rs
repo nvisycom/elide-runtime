@@ -14,10 +14,10 @@ use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentSource};
 use uuid::Uuid;
 
+use crate::ingestion::compression::CompressionService;
+use crate::ingestion::encryption::CryptoService;
 use crate::ingestion::{CompressionAlgorithm, EncryptionConfig};
 use crate::operation::DocumentEnvelope;
-use crate::utility::compression::CompressionService;
-use crate::utility::encryption::CryptoService;
 
 const TARGET: &str = "nvisy_engine::op::export_file";
 

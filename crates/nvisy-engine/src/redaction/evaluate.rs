@@ -15,7 +15,7 @@ use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, RedactionMapping}
 use uuid::Uuid;
 
 use super::apply::RedactionApplicator;
-use super::defaults::RedactorDefaults;
+use super::defaults::RedactionDefaults;
 use crate::operation::{Document, DocumentEnvelope};
 use crate::redaction::Redaction as RedactionConfig;
 
@@ -31,8 +31,8 @@ impl Redactor {
     /// Build from workflow config + server-wide defaults.
     ///
     /// Each workflow field falls back to the matching
-    /// [`RedactorDefaults`] value when unset.
-    pub fn new(cfg: &RedactionConfig, defaults: &RedactorDefaults) -> Self {
+    /// [`RedactionDefaults`] value when unset.
+    pub fn new(cfg: &RedactionConfig, defaults: &RedactionDefaults) -> Self {
         Self {
             default_threshold: cfg
                 .confidence_threshold

@@ -1,12 +1,17 @@
-//! Import and export node configurations.
+//! Ingestion: the pipeline's edge — content + context I/O.
 //!
-//! Ingest nodes form the boundary between the outside world and the pipeline.
-//! [`ImportFile`] runs at **phase 0** to pull content in; [`ExportFile`] runs
-//! at **phase 6** to push processed content out. Both nodes share the same
-//! set of [`CompressionAlgorithm`] and [`EncryptionConfig`] codec options.
+//! These configs form the boundary between the outside world and the
+//! pipeline. [`ImportFile`] (phase 0) pulls content in and
+//! [`ExportFile`] (phase 6) pushes processed content out; both share
+//! the same [`CompressionAlgorithm`] / [`EncryptionConfig`] codec
+//! options. [`LoadContext`] (phase 0) loads reference-data contexts
+//! that downstream phases consume.
 
+pub(crate) mod compression;
+pub mod encryption;
 mod export;
 mod import;
+mod load_context;
 
 use nvisy_ontology::Error;
 use schemars::JsonSchema;
@@ -14,6 +19,7 @@ use serde::{Deserialize, Serialize};
 
 pub use self::export::ExportFile;
 pub use self::import::ImportFile;
+pub use self::load_context::LoadContext;
 
 /// Supported compression algorithms for import/export.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

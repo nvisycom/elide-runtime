@@ -5,9 +5,9 @@
 #
 # All sections are optional — omitted sections use runtime defaults.
 # Per-request overrides (in the JSON request body) replace entire
-# [engine] sections; `[extractor.*]` and `[recognizer.*]` are built
-# once at startup and shared across runs (overrides would force model
-# reloads and defeat the amortization).
+# [engine] / [redaction] sections; `[extraction.*]` and `[detection.*]`
+# are built once at startup and shared across runs (overrides would
+# force model reloads and defeat the amortization).
 
 version = "0.1.0"
 
@@ -28,15 +28,13 @@ body_limit_mb = 4
 request_timeout_secs = 300
 cors = { allowed_origins = ["*"], max_age_secs = 3600 }
 
-# Default retry and timeout policies applied to every pipeline phase.
+# Engine-level execution policies and resource limits.
 [engine]
-retry = { max_retries = 3, delay_ms = 500, backoff = "fixed" }
-timeout = { duration_ms = 30000, on_timeout = "fail" }
 concurrency = { maxNodes = 4 }
 
 # Run-level resource limits.
 [engine.limits]
-run_timeout_ms = 60000
+run_timeout = "60s"
 max_envelope_size_bytes = 104857600  # 100 MB
 
 # Shared HTTP client for all downstream provider calls.
@@ -46,82 +44,82 @@ timeout_secs = 120
 connect_timeout_secs = 10
 idle_timeout_secs = 90
 
-# Extractor registry.
+# Extraction registry.
 #
-# Each opted-in `[extractor.*]` section is built once at server
+# Each opted-in `[extraction.*]` section is built once at server
 # startup. Set `enabled = false` to keep the config but skip
 # construction and dispatch. The pipeline `Extraction` step carries
 # per-call flags only.
 
 # OCR text extraction from image documents.
-[extractor.ocr]
+[extraction.ocr]
 enabled = true
 
-[extractor.ocr.provider]
+[extraction.ocr.provider]
 kind = "paddle-x"
 base_url = "http://localhost:8003"
 
-[extractor.ocr.policy]
+[extraction.ocr.policy]
 confidence_threshold = 0.5
 
 # Speech-to-text transcription.
-[extractor.stt]
+[extraction.stt]
 enabled = true
 
-[extractor.stt.provider]
+[extraction.stt.provider]
 kind = "open-ai"
 api_key = "sk-example-replace-me"
 model = "whisper-1"
 
-[extractor.stt.agent]
+[extraction.stt.agent]
 model = "whisper-1"
 max_retries = 3
 
 # VLM verifier — runs an LLM pass over OCR-detected entities to
 # confirm/correct them against the source image. Dispatched after
-# [extractor.ocr] when workflow extraction.visual.verification is set.
-[extractor.vlm]
+# [extraction.ocr] when workflow extraction.visual.verification is set.
+[extraction.vlm]
 enabled = true
 
-[extractor.vlm.provider]
+[extraction.vlm.provider]
 kind = "open-ai"
 api_key = "sk-example-replace-me"
 model = "gpt-4o"
 
-[extractor.vlm.agent]
+[extraction.vlm.agent]
 temperature = 0.0
 max_tokens = 1024
 
 # Detection recognizer registry.
 #
-# Each opted-in `[recognizer.*]` section is built once at server
+# Each opted-in `[detection.*]` section is built once at server
 # startup. Set `enabled = false` to keep the config but skip
 # construction and dispatch. Workflows enable recognizers by name
 # via `detection.kinds = ["llm", "nlp", "pattern"]` — recognizer-side
 # configuration lives here, never in the workflow.
 
 # LLM-backed recognizer.
-[recognizer.llm]
+[detection.llm]
 enabled = true
 verify_pass = true # adds a second LLM call per span
 unresolved_policy = "drop" # drop | warn | error
 
-[recognizer.llm.provider]
+[detection.llm.provider]
 kind = "open-ai"
 api_key = "sk-example-replace-me"
 model = "gpt-4o"
 
-[recognizer.llm.agent]
+[detection.llm.agent]
 temperature = 0.1
 max_tokens = 4096
 
 # NLP-engine recognizer (NER + language detection + tokenizer).
-[recognizer.nlp]
+[detection.nlp]
 enabled = true
 engine = "default"
 
 # Pattern-based recognizer (regex + dictionary + checksum).
-[recognizer.pattern]
+[detection.pattern]
 enabled = true
 patterns = [] # empty = all built-in patterns
 confidence_threshold = 0.5
@@ -131,22 +129,22 @@ confidence_threshold = 0.5
 # Pipeline `Redaction` steps fall back to these for any field
 # they leave unset. Per-request overrides are honored (cheap config,
 # no expensive construction).
-[redactor]
+[redaction]
 confidence_threshold = 0.5
 process_metadata = false
 
 # TTS provider for audio redaction codec — synthesizes replacement
 # audio for redacted spans in audio documents. Omit the section
 # entirely to fall back to non-TTS audio replacement (silence/beep).
-[redactor.tts]
+[redaction.tts]
 enabled = true
 
-[redactor.tts.provider]
+[redaction.tts.provider]
 kind = "open-ai"
 api_key = "sk-example-replace-me"
 model = "tts-1"
 
-[redactor.tts.agent]
+[redaction.tts.agent]
 model = "tts-1"
 voice = "alloy"
 speed = 1.0

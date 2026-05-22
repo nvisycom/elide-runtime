@@ -9,7 +9,6 @@
 //! sequentially: extraction → detection → deduplication → redaction →
 //! validation.
 
-use std::future::Future;
 use std::sync::Arc;
 
 use nvisy_core::Error;
@@ -21,11 +20,9 @@ use super::default::EngineInput;
 use crate::detection::{Detection as DetectionConfig, DetectionEngine};
 use crate::extraction::{Extraction as ExtractionConfig, Extractors};
 use crate::ingestion::{ExportFile as ExportFileConfig, ImportFile as ImportFileConfig};
-use crate::operation::{
-    ContextGenerator, Deduplicator, DocumentEnvelope, Exporter, Importer, SharedData, Validator,
-};
-use crate::pipeline::{ConcurrencyPolicy, PhasePolicy};
-use crate::redaction::{Redactor, RedactorDefaults};
+use crate::operation::{Deduplicator, DocumentEnvelope, Exporter, Importer, SharedData, Validator};
+use crate::pipeline::ConcurrencyPolicy;
+use crate::redaction::{RedactionDefaults, Redactor};
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
@@ -35,16 +32,16 @@ pub(super) struct RunContext {
     pub cancel: CancellationToken,
     /// Shared run-wide state: run ID, actor, registry, policies.
     pub shared: Arc<SharedData>,
-    /// Pre-built extractor registry from `RuntimeConfig.extractor`.
+    /// Pre-built extractor registry from `RuntimeConfig.extraction`.
     /// Shared across every run.
     pub extractors: Arc<Extractors>,
     /// Optional shared detection engine. `None` skips the
     /// detection phase entirely (e.g. for redaction-only or
     /// validation-only pipelines).
     pub detection_engine: Option<Arc<DetectionEngine>>,
-    /// Server-wide redaction defaults from `RuntimeConfig.redactor`.
+    /// Server-wide redaction defaults from `RuntimeConfig.redaction`.
     /// Per-workflow `Redaction` fields fall back to these.
-    pub redactor_defaults: Arc<RedactorDefaults>,
+    pub redaction_defaults: Arc<RedactionDefaults>,
     /// Optional limit on how many documents may process concurrently.
     pub concurrency: Option<ConcurrencyPolicy>,
     /// When `true`, skip redaction, validation, and export phases.
@@ -192,17 +189,11 @@ impl DocumentPipeline {
         self.check_cancelled()?;
 
         // Phase 1: extraction.
-        self.run_phase(&plan.extraction_policy, async {
-            self.run_extraction(&plan.extraction, &mut envelope).await
-        })
-        .await?;
+        self.run_extraction(&plan.extraction, &mut envelope).await?;
         self.check_cancelled()?;
 
         // Phase 2: detection.
-        self.run_phase(&plan.detection_policy, async {
-            self.run_detection(&plan.detection, &mut envelope).await
-        })
-        .await?;
+        self.run_detection(&plan.detection, &mut envelope).await?;
         self.check_cancelled()?;
 
         // Phase 3: deduplication.
@@ -211,17 +202,11 @@ impl DocumentPipeline {
             .await?;
         self.check_cancelled()?;
 
-        // Phase 4: redaction + generate context.
+        // Phase 4: redaction.
         if !self.ctx.dry_run {
-            self.run_phase(&plan.redaction_policy, async {
-                Redactor::new(&plan.redaction, &self.ctx.redactor_defaults)
-                    .execute(&mut envelope)
-                    .await
-            })
-            .await?;
-        }
-        if let Some(ref cfg) = plan.generate_context {
-            ContextGenerator::new(cfg).execute(&mut envelope).await?;
+            Redactor::new(&plan.redaction, &self.ctx.redaction_defaults)
+                .execute(&mut envelope)
+                .await?;
         }
         self.check_cancelled()?;
 
@@ -238,17 +223,6 @@ impl DocumentPipeline {
         }
 
         Ok(envelope)
-    }
-
-    /// Wrap a phase future with an optional timeout from the phase policy.
-    async fn run_phase<F>(&self, policy: &PhasePolicy, future: F) -> Result<(), Error>
-    where
-        F: Future<Output = Result<(), Error>> + Send,
-    {
-        match &policy.timeout {
-            Some(tp) => tp.with_timeout(future).await,
-            None => future.await,
-        }
     }
 
     /// Run extraction by dispatching the document to the matching

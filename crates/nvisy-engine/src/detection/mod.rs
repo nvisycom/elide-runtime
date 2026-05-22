@@ -34,7 +34,7 @@ pub use self::llm::{LlmContext, LlmDetection, LlmRecognizer};
 pub use self::nlp::{NlpContext, NlpDetection, NlpRecognizer};
 pub use self::pattern::{PatternContext, PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
-pub use self::recognizers::{RecognizerSection, Recognizers};
+pub use self::recognizers::{DetectionSection, Recognizers};
 
 const TARGET: &str = "nvisy_engine::detection";
 

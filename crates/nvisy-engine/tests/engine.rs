@@ -24,7 +24,7 @@ fn open_with_custom_limits() -> anyhow::Result<()> {
     let config = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                run_timeout_ms: Some(5000),
+                run_timeout: Some(std::time::Duration::from_secs(5)),
                 ..Default::default()
             },
             ..Default::default()
@@ -33,14 +33,8 @@ fn open_with_custom_limits() -> anyhow::Result<()> {
     };
     let engine = Engine::open(dir.path(), config)?;
     assert_eq!(
-        engine
-            .config()
-            .engine
-            .as_ref()
-            .unwrap()
-            .limits
-            .run_timeout_ms,
-        Some(5000)
+        engine.config().engine.as_ref().unwrap().limits.run_timeout,
+        Some(std::time::Duration::from_secs(5))
     );
     Ok(())
 }

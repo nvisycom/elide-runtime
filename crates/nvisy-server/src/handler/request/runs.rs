@@ -1,11 +1,10 @@
 //! Run request types.
 
-use nvisy_engine::context::GenerateContext;
 use nvisy_engine::detection::Detection;
 use nvisy_engine::extraction::Extraction;
 use nvisy_engine::ingestion::{ExportFile, ImportFile};
 use nvisy_engine::operation::{Deduplication, Validation};
-use nvisy_engine::pipeline::{PhasePolicy, RunStatus, RuntimeConfig};
+use nvisy_engine::pipeline::{RunStatus, RuntimeConfig};
 use nvisy_engine::redaction::Redaction;
 use nvisy_ontology::policy::PolicyRef;
 use schemars::JsonSchema;
@@ -54,19 +53,12 @@ pub struct NewRun {
     /// Phase 4: redaction settings.
     #[serde(default)]
     pub redaction: Redaction,
-    /// Phase 4: whether to generate a new context from detection
-    /// results.
-    #[serde(default)]
-    pub generate_context: Option<GenerateContext>,
     /// Phase 5: validation settings.
     #[serde(default)]
     pub validation: Validation,
     /// Phase 6: content exports (sink).
     #[serde(default)]
     pub exports: Vec<ExportFile>,
-    /// Phase 6: context IDs to save.
-    #[serde(default)]
-    pub save_context_ids: Vec<Uuid>,
 }
 
 impl NewRun {
@@ -82,16 +74,11 @@ impl NewRun {
             imports: self.imports,
             context_ids: self.context_ids,
             extraction: self.extraction,
-            extraction_policy: PhasePolicy::default(),
             detection: self.detection,
-            detection_policy: PhasePolicy::default(),
             deduplication: self.deduplication,
             redaction: self.redaction,
-            redaction_policy: PhasePolicy::default(),
-            generate_context: self.generate_context,
             validation: self.validation,
             exports: self.exports,
-            save_context_ids: self.save_context_ids,
         }
     }
 }
@@ -126,8 +113,6 @@ mod tests {
         assert!(input.context_ids.is_empty());
         assert!(input.detection.kinds.is_empty());
         assert!(input.exports.is_empty());
-        assert!(input.save_context_ids.is_empty());
-        assert!(input.generate_context.is_none());
     }
 
     #[test]

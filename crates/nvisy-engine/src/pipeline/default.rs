@@ -23,20 +23,17 @@ use super::config::RuntimeConfig;
 use super::run::Pipeline;
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
-use crate::context::GenerateContext;
 use crate::detection::{Detection, Recognizers};
 use crate::extraction::{Extraction, Extractors};
+use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::{ExportFile, ImportFile};
 use crate::operation::{Deduplication, Validation};
-use crate::pipeline::PhasePolicy;
-use crate::redaction::{Redaction, RedactorDefaults};
+use crate::redaction::{Redaction, RedactionDefaults};
 use crate::registry::Registry;
-use crate::utility::encryption::SharedKeyProvider;
 
 /// Input required to execute a redaction pipeline.
 ///
-/// A flat, fixed-order plan. Each phase carries its own config plus
-/// optional retry/timeout overrides. The order is hardwired
+/// A flat, fixed-order plan. The order is hardwired
 /// (extraction → detection → dedup → redaction → validation)
 /// because downstream phases depend on upstream artifacts.
 #[derive(Clone)]
@@ -59,32 +56,21 @@ pub struct EngineInput {
 
     /// Phase 1: extraction settings per modality.
     pub extraction: Extraction,
-    /// Retry/timeout policy for the extraction phase.
-    pub extraction_policy: PhasePolicy,
 
     /// Phase 2: detection settings (which recognizer kinds + hints).
     pub detection: Detection,
-    /// Retry/timeout policy for the detection phase.
-    pub detection_policy: PhasePolicy,
 
     /// Phase 3: deduplication settings.
     pub deduplication: Deduplication,
 
     /// Phase 4: redaction settings.
     pub redaction: Redaction,
-    /// Retry/timeout policy for the redaction phase.
-    pub redaction_policy: PhasePolicy,
-    /// Phase 4: whether to generate a new context from detection
-    /// results.
-    pub generate_context: Option<GenerateContext>,
 
     /// Phase 5: validation settings.
     pub validation: Validation,
 
     /// Phase 6: content exports (sink).
     pub exports: Vec<ExportFile>,
-    /// Phase 6: context IDs to save.
-    pub save_context_ids: Vec<Uuid>,
 }
 
 /// Complete result of a pipeline run.
@@ -109,13 +95,13 @@ pub(super) struct EngineInner {
     /// Base configuration, merged with per-request overrides at runtime.
     pub runtime_config: RuntimeConfig,
     /// Pre-built extractor registry, constructed once from
-    /// `runtime_config.extractor` and shared across every run.
+    /// `runtime_config.extraction` and shared across every run.
     pub extractors: Arc<Extractors>,
     /// Pre-built recognizer registry, constructed once from
-    /// `runtime_config.recognizer` and shared across every run.
+    /// `runtime_config.detection` and shared across every run.
     pub recognizers: Arc<Recognizers>,
     /// Server-wide redaction defaults shared across every run.
-    pub redactor_defaults: Arc<RedactorDefaults>,
+    pub redaction_defaults: Arc<RedactionDefaults>,
     /// Content and context storage backend.
     pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
@@ -163,7 +149,7 @@ impl Engine {
         let registry = Registry::open(data_dir.as_ref())?;
         let extractors = Arc::new(
             config
-                .extractor
+                .extraction
                 .as_ref()
                 .map(Extractors::from_config)
                 .transpose()?
@@ -171,20 +157,20 @@ impl Engine {
         );
         let recognizers = Arc::new(
             config
-                .recognizer
+                .detection
                 .as_ref()
                 .map(Recognizers::from_config)
                 .transpose()?
                 .unwrap_or_default(),
         );
-        let redactor_defaults = Arc::new(config.redactor.clone().unwrap_or_default());
+        let redaction_defaults = Arc::new(config.redaction.clone().unwrap_or_default());
 
         Ok(Self {
             inner: Arc::new(EngineInner {
                 runtime_config: config,
                 extractors,
                 recognizers,
-                redactor_defaults,
+                redaction_defaults,
                 registry,
                 key_provider: None,
                 runs: RunState::new(),
@@ -249,7 +235,7 @@ impl Engine {
             self.inner.runtime_config.clone(),
             Arc::clone(&self.inner.extractors),
             Arc::clone(&self.inner.recognizers),
-            Arc::clone(&self.inner.redactor_defaults),
+            Arc::clone(&self.inner.redaction_defaults),
         )
     }
 

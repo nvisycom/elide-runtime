@@ -141,8 +141,8 @@ mod tests {
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 
     use super::*;
+    use crate::ingestion::encryption::{SharedKeyProvider, StaticKeyProvider};
     use crate::operation::DocumentEnvelope;
-    use crate::utility::encryption::{SharedKeyProvider, StaticKeyProvider};
 
     fn test_key_provider() -> SharedKeyProvider {
         let key = vec![0xAB; 32];

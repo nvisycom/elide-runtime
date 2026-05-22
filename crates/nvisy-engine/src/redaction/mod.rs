@@ -10,7 +10,7 @@
 //!
 //! Unlike extraction and detection, redaction has no expensive
 //! per-run construction — there's no model to load or HTTP client
-//! to set up. The [`RedactorDefaults`] config section only supplies
+//! to set up. The [`RedactionDefaults`] config section only supplies
 //! fallback values for workflow [`Redaction`] fields that aren't
 //! explicitly set.
 //!
@@ -22,7 +22,7 @@ mod evaluate;
 mod tts;
 mod workflow;
 
-pub use self::defaults::RedactorDefaults;
+pub use self::defaults::RedactionDefaults;
 pub use self::evaluate::Redactor;
 pub use self::tts::RedactorTtsConfig;
 pub use self::workflow::Redaction;

@@ -63,6 +63,7 @@ serde_json = { workspace = true, features = [] }
 serde_with = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
 toml = { workspace = true, features = [] }
+humantime-serde = { workspace = true, features = [] }
 
 # Async runtime and parallelism
 async-trait = { workspace = true, features = [] }

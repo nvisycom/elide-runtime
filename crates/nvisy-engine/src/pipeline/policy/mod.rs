@@ -1,10 +1,5 @@
-//! Pipeline policy configuration types: per-phase timeouts and
-//! concurrency limits.
+//! Pipeline policy configuration types.
 
 mod concurrency;
-mod phase;
-mod timeout;
 
 pub use self::concurrency::ConcurrencyPolicy;
-pub use self::phase::PhasePolicy;
-pub use self::timeout::{TimeoutBehavior, TimeoutPolicy};

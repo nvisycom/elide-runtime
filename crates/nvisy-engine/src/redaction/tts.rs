@@ -1,12 +1,12 @@
 //! [`RedactorTtsConfig`]: TTS provider config used to synthesize
 //! audio replacements for redacted spans.
 //!
-//! Lives under [`RedactorDefaults`] because TTS is a redaction-codec
+//! Lives under [`RedactionDefaults`] because TTS is a redaction-codec
 //! concern, not a separate phase: when an audio document is
 //! redacted, the redaction apply step synthesizes replacement audio
 //! (silence, bleeps, or a "redacted" voice) using this provider.
 //!
-//! [`RedactorDefaults`]: super::RedactorDefaults
+//! [`RedactionDefaults`]: super::RedactionDefaults
 
 use nvisy_agent::audio::TtsProvider;
 use nvisy_agent::audio::tts::TtsConfig;

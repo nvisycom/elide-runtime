@@ -5,7 +5,7 @@
 //! content objects, applying encryption and compression as requested before
 //! writing the bytes out.
 //!
-//! [`SaveContext`]: crate::context::SaveContext
+//! [`SaveContext`]: crate::ingestion::SaveContext
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

@@ -61,7 +61,7 @@ pub struct Extractors {
 /// Each field maps to a `[extractor.*]` section in `Nvisy.toml`.
 /// `None` opts the technique out entirely.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ExtractorSection {
+pub struct ExtractionSection {
     /// `[extractor.ocr]` — OCR text extraction from images.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ocr: Option<OcrExtractorConfig>,
@@ -73,7 +73,7 @@ pub struct ExtractorSection {
     pub vlm: Option<VlmExtractorConfig>,
 }
 
-impl ExtractorSection {
+impl ExtractionSection {
     /// `true` when every technique is `None`.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -82,7 +82,7 @@ impl ExtractorSection {
 }
 
 impl Extractors {
-    /// Build the registry once from an [`ExtractorSection`].
+    /// Build the registry once from an [`ExtractionSection`].
     ///
     /// Each opted-in section drives one extractor construction.
     /// Construction is eager — HTTP clients, OCR engines, and
@@ -92,7 +92,7 @@ impl Extractors {
     ///
     /// Returns the first construction error encountered (HTTP
     /// client setup, VLM agent build, STT service build).
-    pub fn from_config(cfg: &ExtractorSection) -> Result<Self> {
+    pub fn from_config(cfg: &ExtractionSection) -> Result<Self> {
         let ocr = cfg
             .ocr
             .as_ref()

@@ -10,7 +10,6 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 use nvisy_core::Error;
 use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
@@ -24,10 +23,10 @@ use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
 use crate::detection::Recognizers;
 use crate::extraction::Extractors;
+use crate::ingestion::encryption::SharedKeyProvider;
 use crate::operation::SharedData;
-use crate::redaction::RedactorDefaults;
+use crate::redaction::RedactionDefaults;
 use crate::registry::Registry;
-use crate::utility::encryption::SharedKeyProvider;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
 
@@ -44,7 +43,7 @@ pub(super) struct Pipeline {
     base_config: RuntimeConfig,
     extractors: Arc<Extractors>,
     recognizers: Arc<Recognizers>,
-    redactor_defaults: Arc<RedactorDefaults>,
+    redaction_defaults: Arc<RedactionDefaults>,
 }
 
 impl Pipeline {
@@ -56,7 +55,7 @@ impl Pipeline {
         base_config: RuntimeConfig,
         extractors: Arc<Extractors>,
         recognizers: Arc<Recognizers>,
-        redactor_defaults: Arc<RedactorDefaults>,
+        redaction_defaults: Arc<RedactionDefaults>,
     ) -> Self {
         Self {
             run_id: Uuid::now_v7(),
@@ -66,7 +65,7 @@ impl Pipeline {
             base_config,
             extractors,
             recognizers,
-            redactor_defaults,
+            redaction_defaults,
         }
     }
 
@@ -181,16 +180,16 @@ impl Pipeline {
         // doesn't tell us whether the section came from override or
         // base. The defaults struct is small (two scalars + an
         // Option), so the allocation is trivial.
-        let redactor_defaults = match &effective_config.redactor {
+        let redaction_defaults = match &effective_config.redaction {
             Some(d) => Arc::new(d.clone()),
-            None => Arc::clone(&self.redactor_defaults),
+            None => Arc::clone(&self.redaction_defaults),
         };
         let ctx = RunContext {
             cancel,
             shared: Arc::new(shared_data),
             extractors: Arc::clone(&self.extractors),
             detection_engine,
-            redactor_defaults,
+            redaction_defaults,
             concurrency,
             dry_run: input.dry_run,
         };
@@ -199,8 +198,8 @@ impl Pipeline {
 
         let limits = self.base_config.effective_limits();
         let orchestrator = Orchestrator::new(ctx);
-        let run_output = if let Some(ms) = limits.run_timeout_ms {
-            match tokio::time::timeout(Duration::from_millis(ms), orchestrator.run(&input)).await {
+        let run_output = if let Some(duration) = limits.run_timeout {
+            match tokio::time::timeout(duration, orchestrator.run(&input)).await {
                 Ok(Ok(output)) => output,
                 Ok(Err(e)) => {
                     self.runs.fail(self.run_id, e.to_string()).await;
@@ -223,12 +222,6 @@ impl Pipeline {
                 }
             }
         };
-
-        // Save contexts from cache to registry (phase 6).
-        if !input.dry_run {
-            self.release_resources(actor_id, &input.save_context_ids)
-                .await;
-        }
 
         // Collect audits and counters from document results.
         let mut audits = Vec::new();
@@ -327,40 +320,6 @@ impl Pipeline {
             .await;
 
         (context_guard, policy_guard)
-    }
-
-    /// Persist contexts from the cache to the registry.
-    ///
-    /// Mirrors [`acquire_resources`] — contexts are loaded into the
-    /// cache before execution and saved back here after completion.
-    ///
-    /// [`acquire_resources`]: Self::acquire_resources
-    async fn release_resources(&self, actor_id: Uuid, save_context_ids: &[Uuid]) {
-        let registry = &self.registry;
-        for &id in save_context_ids {
-            let context = match registry.context_cache().get(&id).await {
-                Some(ctx) => ctx,
-                None => {
-                    tracing::warn!(
-                        target: TARGET,
-                        %id,
-                        "context not found in cache, skipping save",
-                    );
-                    continue;
-                }
-            };
-            if let Err(e) = registry
-                .register_context(actor_id, Arc::unwrap_or_clone(context))
-                .await
-            {
-                tracing::warn!(
-                    target: TARGET,
-                    %id,
-                    error = %e,
-                    "failed to save context",
-                );
-            }
-        }
     }
 
     /// Enforce retention policies after a pipeline run.

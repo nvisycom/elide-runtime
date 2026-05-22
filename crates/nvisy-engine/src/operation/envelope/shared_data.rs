@@ -10,8 +10,8 @@ use std::sync::Arc;
 use nvisy_ontology::policy::{Policies, Policy};
 use uuid::Uuid;
 
+use crate::ingestion::encryption::SharedKeyProvider;
 use crate::registry::Registry;
-use crate::utility::encryption::SharedKeyProvider;
 
 /// Immutable run-wide state shared across all envelopes via `Arc`.
 ///

@@ -8,7 +8,6 @@
 mod deduplication;
 mod envelope;
 mod export_file;
-mod generate_context;
 mod import_file;
 mod validate;
 mod validation_workflow;
@@ -20,7 +19,6 @@ pub use self::deduplication::workflow::{
 pub(crate) use self::envelope::SharedData;
 pub use self::envelope::{Document, DocumentEnvelope};
 pub(crate) use self::export_file::Exporter;
-pub(crate) use self::generate_context::ContextGenerator;
 pub(crate) use self::import_file::Importer;
 pub(crate) use self::validate::Validator;
 pub use self::validation_workflow::Validation;

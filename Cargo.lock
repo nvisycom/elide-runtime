@@ -3281,6 +3281,7 @@ dependencies = [
  "derive_more",
  "fjall",
  "futures",
+ "humantime-serde",
  "jiff",
  "nvisy-agent",
  "nvisy-codec",

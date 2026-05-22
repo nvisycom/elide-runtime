@@ -6,7 +6,7 @@
 
 use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 use nvisy_engine::ingestion::{ExportFile, ImportFile};
-use nvisy_engine::pipeline::{Engine, EngineInput, PhasePolicy};
+use nvisy_engine::pipeline::{Engine, EngineInput};
 use uuid::Uuid;
 
 /// Creates a temporary [`Engine`] for testing.
@@ -62,18 +62,13 @@ fn base_input(actor_id: Uuid, content_id: Uuid, dry_run: bool) -> EngineInput {
         }],
         context_ids: Vec::new(),
         extraction: Default::default(),
-        extraction_policy: PhasePolicy::default(),
         detection: Default::default(),
-        detection_policy: PhasePolicy::default(),
         deduplication: Default::default(),
         redaction: Default::default(),
-        redaction_policy: PhasePolicy::default(),
-        generate_context: None,
         validation: Default::default(),
         exports: vec![ExportFile {
             content_ids: vec![Uuid::new_v4()],
             ..Default::default()
         }],
-        save_context_ids: Vec::new(),
     }
 }

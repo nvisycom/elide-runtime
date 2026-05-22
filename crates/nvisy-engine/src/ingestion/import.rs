@@ -5,7 +5,7 @@
 //! optionally decompresses and decrypts it, then feeds the raw bytes into the
 //! pipeline envelope for downstream extraction.
 //!
-//! [`LoadContext`]: crate::context::LoadContext
+//! [`LoadContext`]: crate::ingestion::LoadContext
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

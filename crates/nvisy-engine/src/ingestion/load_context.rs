@@ -17,7 +17,7 @@ use validator::Validate;
 /// Each context is identified by its UUID and will be attached to
 /// every document envelope passing through this node.
 ///
-/// [`LoadContext`]: crate::context::LoadContext
+/// [`LoadContext`]: crate::ingestion::LoadContext
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[derive(Validate, Serialize, Deserialize, JsonSchema)]
 pub struct LoadContext {

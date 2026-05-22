@@ -19,11 +19,11 @@ use nvisy_codec::ContentHandle;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData};
 
+use crate::ingestion::compression::CompressionService;
+use crate::ingestion::encryption::{CryptoService, EncryptedContent};
 use crate::ingestion::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 use crate::operation::DocumentEnvelope;
 use crate::operation::envelope::SharedData;
-use crate::utility::compression::CompressionService;
-use crate::utility::encryption::{CryptoService, EncryptedContent};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 

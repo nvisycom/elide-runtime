@@ -2,7 +2,7 @@
 //!
 //! [`RuntimeConfig`] is the top-level configuration object containing
 //! optional subsystem sections — [`EngineSection`],
-//! [`ExtractorSection`], and [`RecognizerSection`].
+//! [`ExtractionSection`], and [`DetectionSection`].
 //!
 //! Per-request overrides are supported via [`RuntimeConfig::merge`],
 //! which replaces entire sections (not individual fields) when the
@@ -24,10 +24,10 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 
 pub use self::engine::{CacheConfig, EngineSection, ResourceLimits};
-use crate::detection::RecognizerSection;
-use crate::extraction::ExtractorSection;
-use crate::pipeline::{ConcurrencyPolicy, TimeoutPolicy};
-use crate::redaction::RedactorDefaults;
+use crate::detection::DetectionSection;
+use crate::extraction::ExtractionSection;
+use crate::pipeline::ConcurrencyPolicy;
+use crate::redaction::RedactionDefaults;
 
 fn default_config_version() -> Version {
     Version::new(0, 1, 0)
@@ -54,19 +54,19 @@ pub struct RuntimeConfig {
 
     /// Engine-level execution policies, networking, and resource limits.
     pub engine: Option<EngineSection>,
-    /// Extractor registry — `[extractor.visual]`, `[extractor.audial]`
-    /// sub-sections. Built once at engine startup; workflow
-    /// `Extraction` nodes carry per-call flags only.
-    pub extractor: Option<ExtractorSection>,
-    /// Recognizer registry — `[recognizer.llm]`, `[recognizer.nlp]`,
-    /// `[recognizer.pattern]` sub-sections. Built once at engine
-    /// startup; workflow `Detection` nodes only reference these by
-    /// kind.
-    pub recognizer: Option<RecognizerSection>,
-    /// Server-wide redaction defaults — `[redactor]` section.
-    /// Workflow `Redaction` nodes fall back to these for any
-    /// `None` fields.
-    pub redactor: Option<RedactorDefaults>,
+    /// Extraction registry — `[extraction.ocr]`, `[extraction.stt]`,
+    /// `[extraction.vlm]` sub-sections. Built once at engine startup;
+    /// the `Extraction` phase config carries per-call flags only.
+    pub extraction: Option<ExtractionSection>,
+    /// Detection registry — `[detection.llm]`, `[detection.nlp]`,
+    /// `[detection.pattern]` sub-sections. Built once at engine
+    /// startup; the `Detection` phase config only references these
+    /// by kind.
+    pub detection: Option<DetectionSection>,
+    /// Server-wide redaction defaults — `[redaction]` section.
+    /// `Redaction` phase config falls back to these for any `None`
+    /// fields.
+    pub redaction: Option<RedactionDefaults>,
 }
 
 impl Default for RuntimeConfig {
@@ -74,27 +74,21 @@ impl Default for RuntimeConfig {
         Self {
             version: default_config_version(),
             engine: None,
-            extractor: None,
-            recognizer: None,
-            redactor: None,
+            extraction: None,
+            detection: None,
+            redaction: None,
         }
     }
 }
 
 impl RuntimeConfig {
-    /// Default timeout policy from the engine section, if configured.
-    #[must_use]
-    pub fn default_timeout(&self) -> Option<&TimeoutPolicy> {
-        self.engine.as_ref().and_then(|e| e.timeout.as_ref())
-    }
-
     /// Returns `true` if all optional sections are `None`.
     #[must_use]
     pub fn is_default(&self) -> bool {
         self.engine.is_none()
-            && self.extractor.is_none()
-            && self.recognizer.is_none()
-            && self.redactor.is_none()
+            && self.extraction.is_none()
+            && self.detection.is_none()
+            && self.redaction.is_none()
     }
 
     /// Resource limits from the engine section, or defaults.
@@ -113,8 +107,8 @@ impl RuntimeConfig {
     ///
     /// Non-`None` sections in `overrides` replace the corresponding
     /// section in `self`; `None` sections fall back to `self`. The
-    /// version is taken from the base config. `extractor` and
-    /// `recognizer` are intentionally NOT overridable: each is built
+    /// version is taken from the base config. `extraction` and
+    /// `detection` are intentionally NOT overridable: each is built
     /// once at engine startup so per-request dispatch stays cheap.
     /// Per-request override would force a rebuild (model loads,
     /// HTTP client setup) and defeat the amortization.
@@ -123,9 +117,12 @@ impl RuntimeConfig {
         RuntimeConfig {
             version: self.version.clone(),
             engine: overrides.engine.clone().or_else(|| self.engine.clone()),
-            extractor: self.extractor.clone(),
-            recognizer: self.recognizer.clone(),
-            redactor: overrides.redactor.clone().or_else(|| self.redactor.clone()),
+            extraction: self.extraction.clone(),
+            detection: self.detection.clone(),
+            redaction: overrides
+                .redaction
+                .clone()
+                .or_else(|| self.redaction.clone()),
         }
     }
 }

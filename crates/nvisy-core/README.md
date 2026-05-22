@@ -2,13 +2,27 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Foundational crate for the Nvisy runtime. Defines domain types, error types, the plugin trait system, and the action/provider registry that all other crates build on.
+Foundational crate for the Nvisy runtime — domain types, error
+types, and the cross-cutting traits that every other crate builds
+on.
 
-- **Error types**: structured error hierarchy for pipeline, codec, detection, and provider failures
-- **Plugin trait system**: `Plugin`, `Action`, and `Provider` traits with a capability registry
-- **Content model**: span-based representation of document content across modalities
-- **File abstraction**: unified `File` type with MIME detection and byte-level access
-- **Math primitives**: bounding boxes, polygons, and geometric operations for spatial detection
+## Overview
+
+`Error` and `ErrorKind` define the structured error hierarchy used
+across the workspace (pipeline, codec, detection, provider
+failures), with `with_component`/`with_retryable` helpers and
+unconditional `From` conversions from `nvisy_ontology::Error`. The
+crate ships a `Result<T>` alias keyed on this error type so every
+downstream crate can `use nvisy_core::Result;` and get consistent
+error semantics.
+
+`content::*` defines the span-based representation of document
+content shared across modalities (text, image, audio, structured),
+`media::*` carries the unified `File` type with MIME detection +
+byte-level access, and `detection::*` hosts the `Recognizer` trait
+(with associated `type Context`) plus `DetectionParams` — the
+abstraction every detection backend implements regardless of which
+crate it lives in.
 
 ## Documentation
 

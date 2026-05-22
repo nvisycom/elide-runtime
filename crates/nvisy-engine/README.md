@@ -2,16 +2,36 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-DAG compiler and executor for the Nvisy runtime. Compiles graph definitions into executable pipelines, manages run lifecycles, and coordinates policy resolution and connection routing between nodes.
+DAG compiler and executor for the Nvisy runtime — compiles workflow
+definitions into executable pipelines, manages run lifecycles, and
+orchestrates detection + redaction across modalities.
 
-- **Graph compilation**: validates and compiles graph definitions into executable DAGs via petgraph
-- **Run lifecycle**: manages pipeline execution with retry, timeout, and chunked context-window policies
-- **Policy resolution**: selects redaction strategies based on entity type, document class, and confidence
-- **Connection routing**: routes data between nodes with type-checked ports and buffered channels
+## Overview
+
+`workflow::*` defines the graph-config shape (ingest → extraction →
+detection → refinement → context → policy → export, plus
+cross-cutting policy types). `pipeline::*` compiles a workflow into
+an executable `Pipeline`, owns the per-run `RuntimeConfig`, and
+drives execution via `Pipeline::execute`. `operation::*` hosts the
+concrete operation implementations each graph node maps to —
+`Detection`, `VisualExtraction`, `Deduplication`, redaction
+strategies, etc.
+
+`detection::*` is the recognizer-side machinery: the trait surface
+(re-exported from `nvisy_core::detection::Recognizer`), the
+parallel-dispatching `DetectionEngine`, and the built-in
+recognizers (`PatternRecognizer`, `NerRecognizer`, `LlmRecognizer`).
+`Detection::into_engine()` auto-assembles a `DetectionEngine` from
+workflow config — one recognizer per opted-in slot.
+
+`registry::*` holds the workflow-node type registry; `utility::*`
+ships compression and encryption helpers used by the pipeline.
 
 ## Feature Flags
 
-Vendor features control which LLM and OCR providers are compiled in. All are disabled by default.
+Vendor features control which LLM and OCR providers are compiled in.
+All are disabled by default; the CLI/server entry points enable
+them.
 
 | Feature | Default | Description |
 |---------|---------|-------------|

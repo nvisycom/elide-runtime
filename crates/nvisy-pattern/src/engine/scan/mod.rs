@@ -8,6 +8,6 @@
 
 pub(super) mod dedup;
 pub(super) mod enhancer;
-pub(super) mod entries;
+pub(crate) mod entries;
 pub(super) mod pattern_match;
 pub(super) mod phases;

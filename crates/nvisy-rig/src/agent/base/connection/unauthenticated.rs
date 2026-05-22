@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 
 /// Provider that does not require an API key (Ollama).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct UnauthenticatedProvider {
     pub model: String,
     pub base_url: Option<String>,

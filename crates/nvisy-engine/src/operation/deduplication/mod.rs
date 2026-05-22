@@ -16,10 +16,10 @@
 //! 4. **Threshold filter**: drop entities below the minimum
 //!    confidence threshold.
 //!
-//! [`CalibrationMap`]: nvisy_ontology::workflow::CalibrationMap
-//! [`GroupingCriteria`]: nvisy_ontology::workflow::GroupingCriteria
-//! [`DeduplicationStrategy`]: nvisy_ontology::workflow::DeduplicationStrategy
-//! [`ConflictResolution`]: nvisy_ontology::workflow::ConflictResolution
+//! [`CalibrationMap`]: crate::workflow::CalibrationMap
+//! [`GroupingCriteria`]: crate::workflow::GroupingCriteria
+//! [`DeduplicationStrategy`]: crate::workflow::DeduplicationStrategy
+//! [`ConflictResolution`]: crate::workflow::ConflictResolution
 
 mod calibrate_entities;
 mod fuse_entities;
@@ -32,15 +32,15 @@ use std::mem;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
-use nvisy_ontology::workflow::{
-    CalibrationMap, ConflictResolution, Deduplication as DeduplicationConfig,
-    DeduplicationStrategy, GroupingCriteria,
-};
 
 use self::calibrate_entities::CalibrationExt;
 use self::fuse_entities::DeduplicationStrategyExt;
 use self::resolve_conflicts::ConflictResolutionExt;
 use crate::operation::{DocumentEnvelope, Operation};
+use crate::workflow::{
+    CalibrationMap, ConflictResolution, Deduplication as DeduplicationConfig,
+    DeduplicationStrategy, GroupingCriteria,
+};
 
 const TARGET: &str = "nvisy_engine::op::deduplication";
 
@@ -144,10 +144,10 @@ mod tests {
         RecognitionMethod, RecognitionMethodKind, RefinementMethod, TextLocation,
     };
     use nvisy_ontology::primitive::Confidence;
-    use nvisy_ontology::workflow::DeduplicationStrategy::*;
 
     use super::*;
     use crate::operation::Document;
+    use crate::workflow::DeduplicationStrategy::*;
 
     /// Test helper: build a `Confidence` from an `f64`, panicking on
     /// out-of-range. Kept short because every dedup test uses it.

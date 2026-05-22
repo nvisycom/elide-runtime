@@ -9,28 +9,31 @@
 //!
 //! # Construction
 //!
-//! Prefer the config-driven constructors — [`from_llm`] for
-//! localization-only verification and [`from_llm_refined`] for the
-//! two-pass verifier — so the pipeline is built internally and the
-//! caller never touches rig agent types. [`from_pipeline`] is
-//! retained as an escape hatch for callers that need to customize
-//! the verifier (e.g. [`UnresolvedCandidatePolicy`]) before
-//! attaching it.
+//! [`new`] consumes a single [`LlmDetection`] bundle and builds
+//! everything internally. The presence of [`LlmDetection::verifier`]
+//! decides whether the pipeline gets a localization-only verifier
+//! or the two-pass refinement verifier.
+//!
+//! [`from_pipeline`] is retained as an escape hatch for callers
+//! that need to customize the verifier (e.g.
+//! [`UnresolvedCandidatePolicy`]) before attaching it.
 //!
 //! [`DetectionContext`]: crate::DetectionContext
 //! [`NerPipeline`]: nvisy_rig::pipeline::NerPipeline
 //! [`NerPipeline::run`]: nvisy_rig::pipeline::NerPipeline::run
 //! [`Pipeline::reset`]: nvisy_rig::pipeline::Pipeline::reset
-//! [`from_llm`]: LlmRecognizer::from_llm
-//! [`from_llm_refined`]: LlmRecognizer::from_llm_refined
+//! [`new`]: LlmRecognizer::new
 //! [`from_pipeline`]: LlmRecognizer::from_pipeline
 //! [`UnresolvedCandidatePolicy`]: nvisy_rig::agent::UnresolvedCandidatePolicy
 
+mod params;
+
 use async_trait::async_trait;
 use nvisy_ontology::entity::Entities;
-use nvisy_rig::agent::{AgentConfig, AgentProvider, DetectionConfig, NerAgent, NerVerifier};
+use nvisy_rig::agent::{DetectionConfig, NerAgent, NerVerifier};
 use nvisy_rig::pipeline::{NerPipeline, Pipeline};
 
+pub use self::params::LlmDetection;
 use crate::error::{Error, Result};
 use crate::{DetectionContext, Recognizer};
 
@@ -48,43 +51,31 @@ pub struct LlmRecognizer {
 }
 
 impl LlmRecognizer {
-    /// Build a recognizer with a localization-only verifier (no
-    /// second-pass LLM refinement).
+    /// Build a recognizer from an [`LlmDetection`] config bundle.
     ///
-    /// One LLM call per text span: the detection agent. Verification
-    /// resolves each candidate's surface form into byte offsets but
-    /// does not re-prompt the model.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the rig agent cannot be constructed (bad
-    /// provider, invalid config).
-    pub fn from_llm(provider: &AgentProvider, config: AgentConfig) -> Result<Self> {
-        let agent = NerAgent::new(provider, config).map_err(Self::map_build_err)?;
-        let verifier = NerVerifier::new();
-        Self::assemble(agent, verifier)
-    }
-
-    /// Build a recognizer with a two-pass verifier: localize, then
-    /// LLM-refine each localized candidate.
-    ///
-    /// Two LLM calls per text span: the detection agent followed by
-    /// the verifier's refinement prompt. `detect` and `verify`
-    /// configs are independent so the verifier can use a
-    /// cheaper/stricter model than detection.
+    /// `cfg.verifier` toggles the second-pass verifier: `None` gives
+    /// a localization-only verifier (one LLM call per span), `Some`
+    /// enables the two-pass refinement verifier with the carried
+    /// agent config (two LLM calls per span; the verifier may use a
+    /// cheaper/stricter model than detection).
     ///
     /// # Errors
     ///
-    /// Returns an error if either rig agent cannot be constructed.
-    pub fn from_llm_refined(
-        provider: &AgentProvider,
-        detect: AgentConfig,
-        verify: AgentConfig,
-    ) -> Result<Self> {
-        let agent = NerAgent::new(provider, detect).map_err(Self::map_build_err)?;
-        let verifier = NerVerifier::new()
-            .with_refinement(provider, verify)
-            .map_err(Self::map_build_err)?;
+    /// Returns an error if the rig agent or verifier cannot be
+    /// constructed (bad provider, invalid config).
+    pub fn new(cfg: LlmDetection) -> Result<Self> {
+        let LlmDetection {
+            provider,
+            agent,
+            verifier,
+        } = cfg;
+        let agent = NerAgent::new(&provider, agent).map_err(Self::map_build_err)?;
+        let verifier = match verifier {
+            Some(verifier_cfg) => NerVerifier::new()
+                .with_refinement(&provider, verifier_cfg)
+                .map_err(Self::map_build_err)?,
+            None => NerVerifier::new(),
+        };
         Self::assemble(agent, verifier)
     }
 
@@ -92,13 +83,11 @@ impl LlmRecognizer {
     ///
     /// Escape hatch for callers that need to customize the verifier
     /// (e.g. [`UnresolvedCandidatePolicy`]) or share a pipeline
-    /// instance across recognizers. Prefer [`from_llm`] /
-    /// [`from_llm_refined`] for ordinary use.
+    /// instance across recognizers. Prefer [`new`] for ordinary use.
     ///
     /// [`NerPipeline`]: nvisy_rig::pipeline::NerPipeline
     /// [`UnresolvedCandidatePolicy`]: nvisy_rig::agent::UnresolvedCandidatePolicy
-    /// [`from_llm`]: Self::from_llm
-    /// [`from_llm_refined`]: Self::from_llm_refined
+    /// [`new`]: Self::new
     pub fn from_pipeline(pipeline: NerPipeline) -> Self {
         Self { pipeline }
     }

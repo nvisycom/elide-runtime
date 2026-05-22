@@ -7,3 +7,4 @@ pub mod operation;
 pub mod pipeline;
 pub mod registry;
 pub mod utility;
+pub mod workflow;

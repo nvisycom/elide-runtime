@@ -8,18 +8,17 @@
 mod export;
 mod import;
 
+use nvisy_ontology::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::export::ExportFile;
 pub use self::import::ImportFile;
-use crate::Error;
 
 /// Supported compression algorithms for import/export.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum CompressionAlgorithm {
     /// Gzip (.gz).
     Gzip,
@@ -31,7 +30,6 @@ pub enum CompressionAlgorithm {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum EncryptionAlgorithm {
     /// AES-256 in Galois/Counter Mode.
     Aes256Gcm,

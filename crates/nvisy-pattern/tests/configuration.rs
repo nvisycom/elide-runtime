@@ -1,7 +1,8 @@
 //! Integration tests for engine configuration: threshold, boost, pattern selection.
 
 use nvisy_ontology::entity::EntityKind;
-use nvisy_pattern::{PatternEngine, ScanContext};
+use nvisy_pattern::PatternEngine;
+use nvisy_pattern::filter::ScanContext;
 
 fn empty_ctx() -> ScanContext {
     ScanContext::default()

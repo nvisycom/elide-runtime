@@ -1,7 +1,7 @@
 //! Execution extensions for ontology workflow types.
 //!
 //! The graph data types (nodes, edges, kinds, policies) are defined in
-//! [`nvisy_ontology::workflow`]. This module adds:
+//! [`crate::workflow`]. This module adds:
 //!
 //! - [`GraphExt`]: petgraph conversion for topological sort / cycle detection.
 //! - [`RetryExt`]: automatic retry with configurable backoff.

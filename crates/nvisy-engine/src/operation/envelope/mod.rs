@@ -61,7 +61,7 @@ pub struct DocumentEnvelope {
 
     /// Reference-data contexts loaded by [`LoadContext`] nodes.
     ///
-    /// [`LoadContext`]: nvisy_ontology::workflow::LoadContext
+    /// [`LoadContext`]: crate::workflow::LoadContext
     pub contexts: Contexts,
 
     /// Per-document audit trail: entities, processing log, and

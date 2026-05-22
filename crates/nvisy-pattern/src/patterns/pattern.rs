@@ -1,10 +1,14 @@
 //! Core [`Pattern`] trait and [`MatchSource`] enum.
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
+use regex::Regex;
 use serde::Deserialize;
 
 use super::context_rule::ContextRule;
 use super::pattern_metadata::PatternMetadata;
+use crate::dictionaries::{Dictionary, DictionaryCompile};
+use crate::engine::PatternEngineError;
+use crate::engine::scan::entries::{CompiledPattern, DictEntry, RegexEntry};
 
 /// A regex-based match source with an optional post-match validator.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -198,6 +202,97 @@ pub trait Pattern: sealed::Sealed + Send + Sync {
         static EMPTY: std::sync::LazyLock<PatternMetadata> =
             std::sync::LazyLock::new(PatternMetadata::default);
         &EMPTY
+    }
+}
+
+/// Engine-internal extension that compiles a [`Pattern`] into the
+/// runtime entry the engine scans against.
+///
+/// Lives behind a crate-private trait so the public [`Pattern`]
+/// surface stays unaware of the engine-internal [`CompiledPattern`]
+/// type. Has a blanket impl over every `Pattern`; consumers only
+/// call this from inside the engine builder.
+pub(crate) trait PatternCompile {
+    /// Compile this pattern into the engine entry it'll be scanned
+    /// from. Regex patterns compile their regex; dictionary
+    /// patterns resolve their dictionary via `dict_lookup` and
+    /// build the Aho-Corasick automaton via the crate-private
+    /// `DictionaryCompile::build_automaton`.
+    ///
+    /// `dict_lookup` is a closure rather than a `&DictionaryRegistry`
+    /// so the engine builder can layer user-supplied dictionary
+    /// directories on top of the built-ins without cloning the
+    /// built-in registry into an owned one.
+    ///
+    /// Returns `Ok(None)` when a dictionary-backed pattern resolves
+    /// to a dictionary with zero terms — the engine treats that as
+    /// "nothing to scan for" rather than constructing a no-op
+    /// automaton.
+    fn compile_with<'a, F>(
+        &self,
+        dict_lookup: &F,
+    ) -> Result<Option<CompiledPattern>, PatternEngineError>
+    where
+        F: Fn(&str) -> Option<&'a dyn Dictionary>;
+}
+
+impl<P: Pattern + ?Sized> PatternCompile for P {
+    fn compile_with<'a, F>(
+        &self,
+        dict_lookup: &F,
+    ) -> Result<Option<CompiledPattern>, PatternEngineError>
+    where
+        F: Fn(&str) -> Option<&'a dyn Dictionary>,
+    {
+        match self.match_source() {
+            MatchSource::Regex(rp) => {
+                let effective = rp.effective_regex();
+                let regex =
+                    Regex::new(&effective).map_err(|e| PatternEngineError::RegexCompile {
+                        name: self.name().to_owned(),
+                        source: e,
+                    })?;
+                let entry = RegexEntry {
+                    pattern_name: self.name().to_owned(),
+                    category: self.category(),
+                    entity_kind: self.entity_kind(),
+                    confidence: rp.confidence,
+                    validator_name: rp.validator.clone(),
+                    regex,
+                    context: self.context().cloned(),
+                };
+                Ok(Some(CompiledPattern::Regex {
+                    entry,
+                    regex_source: effective,
+                }))
+            }
+            MatchSource::Dictionary(dp) => {
+                let dict =
+                    dict_lookup(&dp.name).ok_or_else(|| PatternEngineError::UnknownDictionary {
+                        name: self.name().to_owned(),
+                        dictionary: dp.name.clone(),
+                    })?;
+                let terms: Vec<_> = dict.terms().to_vec();
+                if terms.is_empty() {
+                    return Ok(None);
+                }
+                let automaton = dict.build_automaton(dp.case_sensitive).map_err(|e| {
+                    PatternEngineError::AhoCorasickBuild {
+                        name: self.name().to_owned(),
+                        source: e,
+                    }
+                })?;
+                Ok(Some(CompiledPattern::Dictionary(DictEntry {
+                    pattern_name: self.name().to_owned(),
+                    category: self.category(),
+                    entity_kind: self.entity_kind(),
+                    confidence: dp.confidence.clone(),
+                    automaton,
+                    terms,
+                    context: self.context().cloned(),
+                })))
+            }
+        }
     }
 }
 

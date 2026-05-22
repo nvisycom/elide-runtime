@@ -45,7 +45,7 @@ use serde::{Deserialize, Serialize};
 /// tag passes any language filter (it's considered universally
 /// applicable on that axis).
 ///
-/// [`PatternFilter`]: nvisy_ontology::workflow::PatternFilter
+/// [`PatternFilter`]: crate::PatternFilter
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PatternMetadata {
     /// Free-form human description.

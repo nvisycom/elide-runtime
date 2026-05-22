@@ -14,9 +14,6 @@ use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_detection::DetectionEngine;
-use nvisy_ontology::workflow::{
-    ConcurrencyPolicy, Detection as DetectionConfig, Extraction as ExtractionConfig,
-};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -27,6 +24,9 @@ use crate::graph::TimeoutExt;
 use crate::operation::{
     Deduplication, Detection, DocumentEnvelope, ExportFile, Extraction, GenerateContext,
     ImportFile, Operation, Redaction, SharedData, Validation,
+};
+use crate::workflow::{
+    ConcurrencyPolicy, Detection as DetectionConfig, Extraction as ExtractionConfig,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -257,22 +257,22 @@ impl DocumentPipeline {
             .await
     }
 
-    /// Run detection through the attached [`DetectionEngine`].
+    /// Run detection through the run-scoped [`DetectionEngine`].
     ///
-    /// The engine itself is constructed externally
-    /// (see [`Engine::with_detection_engine`]) with whatever
-    /// recognizers the user wants. When no engine is attached, the
-    /// detection phase is a no-op.
+    /// The engine is built once per run from `plan.detection` (see
+    /// [`Detection::into_engine`]) and stored on [`RunContext`]; it
+    /// is `None` when no recognizer is opted in (every per-slot
+    /// field on `plan.detection` is `None`), in which case the
+    /// detection phase is skipped.
     ///
     /// Per-call hints from the workflow [`DetectionConfig`] —
-    /// `cfg.ner.entity_kinds` (allowlist) and
-    /// `cfg.ner.confidence_threshold` — flow into the
-    /// `DetectionContext` for each text span. Pattern-side
-    /// settings (`cfg.pattern.patterns`, `filter`,
-    /// `confidence_threshold`) are baked into the
-    /// `PatternRecognizer` at engine-construction time.
+    /// `cfg.params.entity_kinds` (allowlist) and
+    /// `cfg.params.confidence_threshold` — flow into the
+    /// `DetectionContext` for each text span. Recognizer-specific
+    /// settings are baked into the matching recognizer at engine-
+    /// construction time.
     ///
-    /// [`Engine::with_detection_engine`]: crate::pipeline::Engine::with_detection_engine
+    /// [`Detection::into_engine`]: nvisy_detection::Detection::into_engine
     async fn run_detection(
         &self,
         cfg: &DetectionConfig,

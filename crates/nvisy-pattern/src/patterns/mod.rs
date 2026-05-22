@@ -20,9 +20,8 @@ mod pattern_error;
 mod pattern_metadata;
 mod pattern_registry;
 
-pub use self::context_rule::ContextRule;
-pub use self::json_pattern::{JsonPattern, JsonPatternWarning};
-pub use self::pattern::{DictionaryConfidence, MatchSource, Pattern};
+pub(crate) use self::context_rule::ContextRule;
+pub(crate) use self::json_pattern::{JsonPattern, JsonPatternWarning};
+pub(crate) use self::pattern::{DictionaryConfidence, MatchSource, Pattern, PatternCompile};
 pub(crate) use self::pattern_error::PatternLoadError;
-pub use self::pattern_metadata::PatternMetadata;
-pub use self::pattern_registry::{PatternRegistry, builtin_registry};
+pub(crate) use self::pattern_registry::{PatternRegistry, builtin_registry};

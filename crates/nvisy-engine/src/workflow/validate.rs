@@ -2,11 +2,11 @@
 
 use std::collections::{HashMap, HashSet};
 
+use nvisy_ontology::Error;
 use uuid::Uuid;
 use validator::Validate;
 
 use super::{Graph, GraphNode, GraphNodeKind};
-use crate::Error;
 
 /// Maps node ID → edge count (in-degree or out-degree).
 type DegreeMap = HashMap<Uuid, usize>;

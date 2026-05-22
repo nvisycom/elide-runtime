@@ -18,12 +18,12 @@ use std::sync::Arc;
 use nvisy_codec::ContentHandle;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData};
-use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 
 use crate::operation::DocumentEnvelope;
 use crate::operation::envelope::SharedData;
 use crate::utility::compression::CompressionService;
 use crate::utility::encryption::{CryptoService, EncryptedContent};
+use crate::workflow::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 

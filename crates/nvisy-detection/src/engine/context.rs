@@ -26,7 +26,7 @@ use derive_builder::Builder;
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::primitive::LanguageTag;
-use nvisy_pattern::ScanContext;
+use nvisy_pattern::filter::ScanContext;
 use uuid::Uuid;
 
 /// Per-call input to [`DetectionEngine::run`].

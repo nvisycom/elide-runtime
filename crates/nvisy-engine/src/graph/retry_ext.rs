@@ -4,7 +4,8 @@ use std::future::Future;
 use std::time::Duration;
 
 use nvisy_core::Error;
-use nvisy_ontology::workflow::{BackoffStrategy, RetryPolicy};
+
+use crate::workflow::{BackoffStrategy, RetryPolicy};
 
 /// Async retry execution for [`RetryPolicy`].
 #[allow(dead_code)] // wired when operations gain internal retry
@@ -38,7 +39,6 @@ impl RetryExt for RetryPolicy {
                 let jitter = Duration::from_millis(rand::random_range(0..jitter_range));
                 exp + jitter
             }
-            _ => base,
         }
     }
 

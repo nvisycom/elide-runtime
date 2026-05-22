@@ -2,7 +2,7 @@
 
 mod fixtures;
 
-use nvisy_ontology::workflow::*;
+use nvisy_engine::workflow::*;
 use uuid::Uuid;
 use validator::Validate;
 

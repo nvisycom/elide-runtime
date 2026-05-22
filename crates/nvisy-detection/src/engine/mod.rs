@@ -1,5 +1,11 @@
 //! [`DetectionEngine`]: orchestrates a list of [`Recognizer`]s
 //! against a [`DetectionContext`].
+//!
+//! Also home to [`Detection`] — the workflow config bundle that
+//! auto-assembles a `DetectionEngine` via [`Detection::into_engine`].
+//! This keeps "graph-config shape" and "runtime engine" in the same
+//! module so the assembly pathway is a one-liner: each per-recognizer
+//! params type drives its own constructor.
 
 mod context;
 
@@ -8,11 +14,17 @@ use std::sync::Arc;
 
 use derive_builder::Builder;
 use nvisy_ontology::entity::Entities;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
 
 pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
 use crate::Recognizer;
 use crate::error::{Error, Result};
+use crate::recognizer::{
+    DetectionParams, LlmDetection, LlmRecognizer, NerDetection, NerRecognizer, PatternDetection,
+    PatternRecognizer,
+};
 
 const TARGET: &str = "nvisy_detection::engine";
 
@@ -183,5 +195,80 @@ impl fmt::Debug for DetectionEngine {
         f.debug_struct("DetectionEngine")
             .field("recognizers", &self.recognizers.len())
             .finish_non_exhaustive()
+    }
+}
+
+/// Unified workflow detection config.
+///
+/// Every recognizer-specific field is optional — `Some` opts that
+/// recognizer in and supplies its params, `None` opts it out. The
+/// shared [`params`] field is honored by every recognizer that
+/// runs.
+///
+/// Calling [`into_engine`] auto-assembles a [`DetectionEngine`]
+/// with one recognizer per opted-in slot.
+///
+/// [`params`]: Self::params
+/// [`into_engine`]: Self::into_engine
+#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Detection {
+    /// Cross-recognizer hints (entity kinds, confidence threshold)
+    /// applied to every recognizer that runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub params: Option<DetectionParams>,
+    /// Opts the NER recognizer in. `None` skips it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ner: Option<NerDetection>,
+    /// Opts the LLM recognizer in. `None` skips it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub llm: Option<LlmDetection>,
+    /// Opts the pattern recognizer in. `None` skips it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<PatternDetection>,
+}
+
+impl Detection {
+    /// Validate every configured sub-section.
+    pub fn validate(&self) -> std::result::Result<(), validator::ValidationErrors> {
+        use validator::Validate;
+        if let Some(ref params) = self.params {
+            params.validate()?;
+        }
+        if let Some(ref pattern) = self.pattern {
+            pattern.validate()?;
+        }
+        Ok(())
+    }
+
+    /// Assemble a [`DetectionEngine`] with one recognizer per
+    /// opted-in slot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any recognizer fails to construct (NER
+    /// engine preset fails to build, LLM agent fails to construct),
+    /// or if no recognizers are opted in (an empty engine would
+    /// have nothing to dispatch).
+    pub fn into_engine(self) -> Result<DetectionEngine> {
+        let Detection {
+            params: _,
+            ner,
+            llm,
+            pattern,
+        } = self;
+        let mut builder = DetectionEngine::builder();
+        if let Some(ner_cfg) = ner {
+            builder = builder.with_recognizer(NerRecognizer::from_config(&ner_cfg)?);
+        }
+        if let Some(pattern_cfg) = pattern {
+            builder = builder.with_recognizer(PatternRecognizer::from_config(&pattern_cfg));
+        }
+        if let Some(llm_cfg) = llm {
+            builder = builder.with_recognizer(LlmRecognizer::new(llm_cfg)?);
+        }
+        builder
+            .build()
+            .map_err(|e| Error::Misconfigured(e.to_string()))
     }
 }

@@ -28,10 +28,10 @@ mod dictionary_metadata;
 mod dictionary_registry;
 mod text_dictionary;
 
-pub use self::csv_dictionary::CsvDictionary;
+pub(crate) use self::csv_dictionary::CsvDictionary;
 pub(crate) use self::csv_error::CsvDictionaryError;
-pub use self::dictionary::{Dictionary, DictionaryTerm};
+pub(crate) use self::dictionary::{Dictionary, DictionaryCompile, DictionaryTerm};
 pub(crate) use self::dictionary_error::DictionaryLoadError;
-pub use self::dictionary_metadata::DictionaryMetadata;
-pub use self::dictionary_registry::{DictionaryRegistry, builtin_registry};
-pub use self::text_dictionary::TxtDictionary;
+pub(crate) use self::dictionary_metadata::DictionaryMetadata;
+pub(crate) use self::dictionary_registry::{DictionaryRegistry, builtin_registry};
+pub(crate) use self::text_dictionary::TxtDictionary;

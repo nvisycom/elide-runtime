@@ -1,9 +1,9 @@
 //! Hash key for the first grouping phase of deduplication.
 
 use nvisy_ontology::entity::{Entity, EntityKind};
-use nvisy_ontology::workflow::GroupingCriteria;
 
 use crate::operation::Document;
+use crate::workflow::GroupingCriteria;
 
 /// Hash key for the first grouping phase.
 ///

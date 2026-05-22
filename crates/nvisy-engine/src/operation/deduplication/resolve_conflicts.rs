@@ -8,9 +8,9 @@
 use std::cmp::Ordering;
 
 use nvisy_ontology::entity::{Entities, Entity, Overlap};
-use nvisy_ontology::workflow::ConflictResolution;
 
 use super::span_size::SpanSize;
+use crate::workflow::ConflictResolution;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::conflict";
 
@@ -95,7 +95,6 @@ impl ConflictResolutionExt for ConflictResolution {
             Self::LongestSpan => {
                 a.location.span_cmp(&b.location).unwrap_or(Ordering::Equal) != Ordering::Less
             }
-            _ => true,
         }
     }
 }

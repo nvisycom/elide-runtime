@@ -15,11 +15,11 @@ use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::{HttpClient, HttpConfig};
 use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{Entities, ImageLocation};
-use nvisy_ontology::workflow::VisualExtraction as VisualExtractionCfg;
 use nvisy_rig::agent::{CvVerifier, VerificationCandidate};
 
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
+use crate::workflow::VisualExtraction as VisualExtractionCfg;
 
 const TARGET: &str = "nvisy_engine::op::extraction::visual";
 

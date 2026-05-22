@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 
 /// Provider that requires an API key (OpenAI, Anthropic, Gemini).
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AuthenticatedProvider {
     pub api_key: String,
     pub model: String,

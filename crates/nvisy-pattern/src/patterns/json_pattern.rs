@@ -38,6 +38,55 @@ pub enum JsonPatternWarning {
 ///
 /// Implements the [`Pattern`] trait and is the only concrete implementation
 /// shipped with this crate. Construct via `from_bytes`.
+///
+/// # JSON shape
+///
+/// Top-level fields:
+///
+/// - `name` (string, required): unique pattern identifier.
+/// - `category` (string, required): entity category (e.g.
+///   `personal_identity`, `financial`).
+/// - `entity_type` (string, required): specific [`EntityKind`].
+/// - `pattern` **or** `dictionary` (object, required, mutually
+///   exclusive): the match source. See [`RegexPattern`] / [`DictionaryPattern`].
+/// - `context` (object, optional): co-occurrence rule. See
+///   [`ContextRule`].
+/// - `metadata` (object, optional): tags + version + description.
+///   See [`PatternMetadata`].
+///
+/// Example (regex source with validator and context):
+///
+/// ```json
+/// {
+///   "name": "ssn",
+///   "category": "personal_identity",
+///   "entity_type": "government_id",
+///   "pattern": {
+///     "regex": "\\b(\\d{3})-(\\d{2})-(\\d{4})\\b",
+///     "validator": "ssn",
+///     "confidence": 0.9
+///   },
+///   "context": {
+///     "keywords": ["social security", "ssn", "tax id"],
+///     "window": 200,
+///     "boost": 0.1
+///   }
+/// }
+/// ```
+///
+/// Example (dictionary source):
+///
+/// ```json
+/// {
+///   "name": "nationalities",
+///   "category": "demographic",
+///   "entity_type": "nationality",
+///   "dictionary": { "name": "nationalities", "confidence": 0.85 }
+/// }
+/// ```
+///
+/// [`RegexPattern`]: super::RegexPattern
+/// [`DictionaryPattern`]: super::DictionaryPattern
 #[derive(Debug, Clone)]
 pub struct JsonPattern {
     name: String,

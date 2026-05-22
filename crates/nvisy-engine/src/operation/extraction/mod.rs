@@ -8,19 +8,19 @@
 //! - [`vision`]: OCR on images and scanned documents.
 //! - [`speech`]: speech-to-text on audio.
 //!
-//! [`Extraction`]: nvisy_ontology::workflow::Extraction
+//! [`Extraction`]: crate::workflow::Extraction
 
 mod speech;
 mod vision;
 
 use nvisy_codec::ContentHandle;
 use nvisy_core::Result;
-use nvisy_ontology::workflow::Extraction as ExtractionConfig;
 
 use self::speech::AudialExtraction;
 use self::vision::VisualExtraction;
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
+use crate::workflow::Extraction as ExtractionConfig;
 
 const TARGET: &str = "nvisy_engine::op::extraction";
 

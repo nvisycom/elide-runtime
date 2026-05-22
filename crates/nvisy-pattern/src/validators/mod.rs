@@ -24,12 +24,12 @@ pub type ValidatorFn = fn(&str) -> bool;
 
 /// Maps validator names to [`ValidatorFn`]s.
 ///
-/// Created with the built-in validators via [`builtins`]
-/// (or [`Default`]), then optionally extended with
-/// [`register`] for custom validators.
+/// Construct via [`builtins`] — the only path. Built-ins are the
+/// full set; custom registration is intentionally not exposed
+/// (validators are referenced from pattern JSON by name and the
+/// pattern-load path can't see runtime-registered names).
 ///
 /// [`builtins`]: Self::builtins
-/// [`register`]: Self::register
 #[derive(Debug, Clone)]
 pub struct ValidatorResolver {
     table: HashMap<&'static str, ValidatorFn>,
@@ -52,7 +52,7 @@ impl ValidatorResolver {
     /// Register a validator function under the given name.
     ///
     /// Overwrites any previously registered validator with the same name.
-    pub fn register(&mut self, name: &'static str, f: ValidatorFn) {
+    fn register(&mut self, name: &'static str, f: ValidatorFn) {
         self.table.insert(name, f);
     }
 
@@ -60,23 +60,5 @@ impl ValidatorResolver {
     #[must_use]
     pub fn resolve(&self, name: &str) -> Option<ValidatorFn> {
         self.table.get(name).copied()
-    }
-}
-
-impl Default for ValidatorResolver {
-    fn default() -> Self {
-        Self::builtins()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn resolver_custom() {
-        let mut r = ValidatorResolver::builtins();
-        r.register("always_true", |_| true);
-        assert!(r.resolve("always_true").unwrap()("anything"));
     }
 }

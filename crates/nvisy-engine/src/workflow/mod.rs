@@ -14,13 +14,16 @@ mod refinement;
 mod validate;
 
 use derive_more::{Display, From};
+use nvisy_ontology::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
 pub use self::context::{GenerateContext, LoadContext, SaveContext};
-pub use self::detection::{Detection, NerDetection, PatternDetection, PatternFilter};
+pub use self::detection::{
+    Detection, DetectionParams, LlmDetection, NerDetection, PatternDetection, PatternFilter,
+};
 pub use self::extraction::{AudialExtraction, Extraction, TextExtraction, VisualExtraction};
 pub use self::ingest::{
     CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig, ExportFile, ImportFile,
@@ -32,7 +35,6 @@ pub use self::refinement::{
     CalibrationMap, ConflictResolution, Deduplication, DeduplicationStrategy, GroupingCriteria,
     Redaction, Validation,
 };
-use crate::Error;
 
 /// The set of strongly-typed actions a pipeline node can perform.
 ///
@@ -41,7 +43,6 @@ use crate::Error;
 #[derive(Debug, Clone, PartialEq, Display, From)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "action", rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum GraphNodeKind {
     /// Loads reference-data contexts required by downstream actions.
     #[display("load_context")]
@@ -57,8 +58,12 @@ pub enum GraphNodeKind {
     #[display("extraction")]
     Extraction(Extraction),
     /// Detects entities via NER and/or pattern matching.
+    ///
+    /// Boxed because [`Detection`] embeds full LLM provider config
+    /// (`AgentProvider` + `AgentConfig`); inlining would inflate
+    /// every other [`GraphNodeKind`] variant.
     #[display("detection")]
-    Detection(Detection),
+    Detection(Box<Detection>),
 
     /// Merges and scores entities from multiple detection sources.
     #[display("deduplication")]
@@ -233,7 +238,7 @@ mod tests {
     }
 
     fn detection() -> GraphNodeKind {
-        GraphNodeKind::Detection(Detection::default())
+        GraphNodeKind::Detection(Box::default())
     }
 
     fn dedup() -> GraphNodeKind {

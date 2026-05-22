@@ -10,7 +10,14 @@
 /// per token, ~1 token per CJK/emoji character. This is intentionally
 /// conservative: over-splitting is harmless while exceeding the real limit
 /// causes provider errors.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema
+)]
 pub struct ContextWindow {
     /// Maximum tokens the model supports.
     max_tokens: usize,

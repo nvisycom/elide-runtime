@@ -12,4 +12,3 @@ pub use self::error::{Error, Result};
 
 pub mod policy;
 pub mod provenance;
-pub mod workflow;

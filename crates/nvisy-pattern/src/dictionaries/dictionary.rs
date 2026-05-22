@@ -1,5 +1,7 @@
 //! Core [`Dictionary`] trait and [`DictionaryTerm`].
 
+use aho_corasick::{AhoCorasick, AhoCorasickBuilder, BuildError};
+
 use super::DictionaryMetadata;
 
 /// A single matchable term within a [`Dictionary`].
@@ -50,6 +52,35 @@ pub trait Dictionary: sealed::Sealed + Send + Sync {
         static EMPTY: std::sync::LazyLock<DictionaryMetadata> =
             std::sync::LazyLock::new(DictionaryMetadata::default);
         &EMPTY
+    }
+}
+
+/// Engine-internal extension that compiles a [`Dictionary`] into an
+/// Aho-Corasick automaton.
+///
+/// Lives behind a crate-private trait so the public [`Dictionary`]
+/// surface stays unaware of the engine-internal `aho_corasick`
+/// types. Has a blanket impl over every `Dictionary`; consumers
+/// only call this from inside the engine builder.
+pub(crate) trait DictionaryCompile {
+    /// Compile this dictionary's terms into an Aho-Corasick automaton.
+    ///
+    /// `case_sensitive` (sourced per-use from the
+    /// `DictionaryPattern` that references this dictionary) controls
+    /// the automaton's `ascii_case_insensitive` setting (inverted:
+    /// `false` here produces a case-insensitive automaton). Term
+    /// order in the built automaton matches [`terms`]'s order, so
+    /// callers can resolve pattern ids by index.
+    ///
+    /// [`terms`]: Dictionary::terms
+    fn build_automaton(&self, case_sensitive: bool) -> Result<AhoCorasick, BuildError>;
+}
+
+impl<D: Dictionary + ?Sized> DictionaryCompile for D {
+    fn build_automaton(&self, case_sensitive: bool) -> Result<AhoCorasick, BuildError> {
+        AhoCorasickBuilder::new()
+            .ascii_case_insensitive(!case_sensitive)
+            .build(self.terms().iter().map(|t| t.value.as_str()))
     }
 }
 

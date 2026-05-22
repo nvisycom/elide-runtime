@@ -2,16 +2,14 @@
 
 use std::collections::HashMap;
 
+use nvisy_ontology::entity::RecognitionMethodKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-use crate::entity::RecognitionMethodKind;
 
 /// How entity values and locations are matched when grouping.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum GroupingCriteria {
     /// Exact value match + overlapping location.
     #[default]
@@ -61,7 +59,6 @@ impl GroupingCriteria {
 /// Strategy for combining confidence scores from multiple detectors.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum DeduplicationStrategy {
     /// Take the maximum confidence across all detectors.
     #[default]
@@ -80,7 +77,6 @@ pub enum DeduplicationStrategy {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-#[non_exhaustive]
 pub enum ConflictResolution {
     /// Keep only the entity with the highest confidence score.
     #[default]

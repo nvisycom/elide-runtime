@@ -4,7 +4,8 @@ use std::future::Future;
 use std::time::Duration;
 
 use nvisy_core::Error;
-use nvisy_ontology::workflow::TimeoutPolicy;
+
+use crate::workflow::TimeoutPolicy;
 
 /// Async timeout execution for [`TimeoutPolicy`].
 pub(crate) trait TimeoutExt {

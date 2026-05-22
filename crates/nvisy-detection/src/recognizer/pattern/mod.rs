@@ -6,17 +6,23 @@
 //! config. Forwards [`ScanContext`] from each [`DetectionContext`]
 //! so allow/deny lists and context hints work per-call.
 //!
-//! [`ScanContext`]: nvisy_pattern::ScanContext
+//! The [`PatternDetection`] workflow-params schema lives in the
+//! [`params`] submodule so the pattern runtime crate stays free of
+//! workflow types.
+//!
+//! [`ScanContext`]: nvisy_pattern::filter::ScanContext
 //! [`DetectionContext`]: crate::DetectionContext
+
+mod params;
 
 use std::ops::Deref;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::Entities;
-use nvisy_ontology::workflow::PatternDetection;
 use nvisy_pattern::PatternEngine;
 
+pub use self::params::PatternDetection;
 use crate::error::Result;
 use crate::{DetectionContext, Recognizer};
 

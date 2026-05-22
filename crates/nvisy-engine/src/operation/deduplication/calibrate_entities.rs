@@ -10,7 +10,8 @@
 
 use nvisy_ontology::entity::{Entities, RefinementMethod};
 use nvisy_ontology::primitive::Confidence;
-use nvisy_ontology::workflow::CalibrationMap;
+
+use crate::workflow::CalibrationMap;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::calibration";
 

@@ -13,7 +13,6 @@ use std::{fmt, mem};
 use nvisy_core::Error;
 use nvisy_ontology::policy::PolicyRef;
 use nvisy_ontology::provenance::Audit;
-use nvisy_ontology::workflow::Graph;
 use schemars::JsonSchema;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -26,6 +25,7 @@ use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
 use crate::registry::Registry;
 use crate::utility::encryption::SharedKeyProvider;
+use crate::workflow::Graph;
 
 /// Input required to execute a redaction pipeline.
 ///
@@ -43,7 +43,7 @@ pub struct EngineInput {
     /// Content identifiers live on [`ImportFile`] nodes within the
     /// graph, not as a top-level field.
     ///
-    /// [`ImportFile`]: nvisy_ontology::workflow::ImportFile
+    /// [`ImportFile`]: crate::workflow::ImportFile
     pub graph: Graph,
     /// Per-request configuration overrides, merged with engine defaults
     /// via [`RuntimeConfig::merge`] at the start of each run.
@@ -79,11 +79,6 @@ pub(super) struct EngineInner {
     pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
     pub key_provider: Option<SharedKeyProvider>,
-    /// Optional [`nvisy_detection::DetectionEngine`] shared across
-    /// runs. When `Some`, the detection phase dispatches every
-    /// text span through it. When `None`, the detection phase is a
-    /// no-op.
-    pub detection_engine: Option<Arc<nvisy_detection::DetectionEngine>>,
     /// In-memory run lifecycle tracker (volatile: lost on restart).
     pub runs: RunState,
     /// Background pipeline tasks spawned by [`Engine::submit`].
@@ -131,7 +126,6 @@ impl Engine {
                 runtime_config: config,
                 registry,
                 key_provider: None,
-                detection_engine: None,
                 runs: RunState::new(),
                 background_tasks: Mutex::new(JoinSet::new()),
             }),
@@ -170,25 +164,6 @@ impl Engine {
         self
     }
 
-    /// Attach a shared [`nvisy_detection::DetectionEngine`]
-    /// composed externally with whatever recognizers the user
-    /// wants (NER, pattern, LLM, custom).
-    ///
-    /// When set, the detection phase dispatches every text span
-    /// through this engine. When unset, the detection phase is a
-    /// no-op (e.g. for redaction-only pipelines with no
-    /// detection).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the engine has already been cloned (Arc is shared).
-    pub fn with_detection_engine(mut self, engine: Arc<nvisy_detection::DetectionEngine>) -> Self {
-        Arc::get_mut(&mut self.inner)
-            .expect("engine must not be shared during construction")
-            .detection_engine = Some(engine);
-        self
-    }
-
     /// Returns the base runtime configuration before per-request overrides.
     pub fn config(&self) -> &RuntimeConfig {
         &self.inner.runtime_config
@@ -209,7 +184,6 @@ impl Engine {
         Pipeline::new(
             self.inner.registry.clone(),
             self.inner.key_provider.clone(),
-            self.inner.detection_engine.clone(),
             self.inner.runs.clone(),
             self.inner.runtime_config.clone(),
         )

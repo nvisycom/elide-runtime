@@ -2,8 +2,9 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::workflow::{Graph, GraphEdge, GraphNode};
 use petgraph::graph::DiGraph;
+
+use crate::workflow::{Graph, GraphEdge, GraphNode};
 
 /// Extension trait adding petgraph conversion to [`Graph`].
 pub(crate) trait GraphExt {

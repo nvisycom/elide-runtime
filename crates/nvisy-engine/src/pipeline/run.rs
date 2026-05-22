@@ -13,9 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use nvisy_core::Error;
-use nvisy_detection::DetectionEngine;
 use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
-use nvisy_ontology::workflow::GraphNodeKind;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -28,6 +26,7 @@ use super::runs::state::{RunRecord, RunState};
 use crate::operation::SharedData;
 use crate::registry::Registry;
 use crate::utility::encryption::SharedKeyProvider;
+use crate::workflow::GraphNodeKind;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
 
@@ -40,7 +39,6 @@ pub(super) struct Pipeline {
     run_id: Uuid,
     registry: Registry,
     key_provider: Option<SharedKeyProvider>,
-    detection_engine: Option<Arc<DetectionEngine>>,
     runs: RunState,
     base_config: RuntimeConfig,
 }
@@ -50,7 +48,6 @@ impl Pipeline {
     pub fn new(
         registry: Registry,
         key_provider: Option<SharedKeyProvider>,
-        detection_engine: Option<Arc<DetectionEngine>>,
         runs: RunState,
         base_config: RuntimeConfig,
     ) -> Self {
@@ -58,7 +55,6 @@ impl Pipeline {
             run_id: Uuid::now_v7(),
             registry,
             key_provider,
-            detection_engine,
             runs,
             base_config,
         }
@@ -183,13 +179,29 @@ impl Pipeline {
             shared_data.key_provider = kp.clone();
         }
 
+        // Build the detection engine once per run from the compiled
+        // plan. `None` when no recognizer is opted in (every per-slot
+        // field is `None`), in which case `Detection::into_engine`
+        // returns a `Misconfigured` error — we treat that as "skip
+        // the detection phase" rather than failing the run.
+        let detection_engine = if compiled.detection.ner.is_some()
+            || compiled.detection.llm.is_some()
+            || compiled.detection.pattern.is_some()
+        {
+            Some(Arc::new(compiled.detection.clone().into_engine().map_err(
+                |e| Error::validation(format!("detection engine assembly: {e}"), "detection"),
+            )?))
+        } else {
+            None
+        };
+
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
         let ctx = RunContext {
             cancel,
             shared: Arc::new(shared_data),
             config: Arc::new(effective_config),
-            detection_engine: self.detection_engine.clone(),
+            detection_engine,
             concurrency,
             dry_run: input.dry_run,
         };
@@ -368,7 +380,7 @@ impl Pipeline {
         &self,
         actor_id: Uuid,
         retention_rules: &[RetentionPolicy],
-        graph: &nvisy_ontology::workflow::Graph,
+        graph: &crate::workflow::Graph,
         output: &mut EngineOutput,
     ) {
         if retention_rules.is_empty() {

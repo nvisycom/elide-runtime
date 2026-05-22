@@ -57,25 +57,17 @@ impl PatternRegistry {
 
     /// Iterate over all registered patterns as `&dyn Pattern` in
     /// deterministic (alphabetical) order.
-    pub fn iter(&self) -> impl Iterator<Item = &dyn Pattern> {
+    ///
+    /// Crate-private — the engine builder calls this to walk every
+    /// registered pattern when assembling.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &dyn Pattern> {
         self.inner.values().map(|b| b.as_ref())
-    }
-
-    /// Iterate over all registered pattern names.
-    pub fn names(&self) -> impl Iterator<Item = &str> {
-        self.inner.keys().map(|s| s.as_str())
     }
 
     /// Total number of registered patterns.
     #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
-    }
-
-    /// Whether the registry contains no patterns.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
     }
 
     /// Load all `.json` files from the embedded `assets/patterns/`
@@ -256,7 +248,6 @@ fn walk_embedded<'a>(dir: &'a Dir<'a>) -> Vec<&'a include_dir::File<'a>> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
     use std::fs;
 
     use super::super::pattern::{MatchSource, RegexPattern};
@@ -265,21 +256,6 @@ mod tests {
 
     fn registry() -> &'static PatternRegistry {
         builtin_registry()
-    }
-
-    #[test]
-    fn pattern_names_are_sorted() {
-        let names: Vec<&str> = registry().names().collect();
-        let mut sorted = names.clone();
-        sorted.sort();
-        assert_eq!(names, sorted);
-    }
-
-    #[test]
-    fn no_duplicate_pattern_names() {
-        let names: Vec<_> = registry().names().collect();
-        let unique: HashSet<_> = names.iter().collect();
-        assert_eq!(names.len(), unique.len(), "duplicate pattern names found");
     }
 
     #[test]

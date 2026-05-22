@@ -1,8 +1,8 @@
 //! Run request types.
 
 use nvisy_engine::pipeline::{RunStatus, RuntimeConfig};
+use nvisy_engine::workflow::Graph;
 use nvisy_ontology::policy::PolicyRef;
-use nvisy_ontology::workflow::Graph;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -15,7 +15,7 @@ use super::Pagination;
 /// previously uploaded policy and carries the precedence at which it
 /// should layer relative to other refs in the same run.
 ///
-/// [`Import`]: nvisy_ontology::workflow::ImportFile
+/// [`Import`]: nvisy_engine::workflow::ImportFile
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewRun {

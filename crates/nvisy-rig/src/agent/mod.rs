@@ -9,19 +9,17 @@
 
 mod base;
 mod cv;
-mod cv_verifier;
+mod cv_verify_agent;
 mod generate;
 mod ner;
-mod ner_verifier;
+mod ner_verify_agent;
 
-pub(crate) use self::base::{ALL_TYPES_HINT, BaseAgent};
-pub use self::base::{
-    AgentConfig, AgentProvider, AuthenticatedProvider, ContextWindow, DetectionConfig,
-    UnauthenticatedProvider, UsageStats, UsageTracker, VerificationOutput, VerificationStatus,
-    VerifiedEntity,
-};
-pub use self::cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
-pub use self::cv_verifier::{CvVerifier, ProposedEntity, VerificationCandidate};
-pub use self::generate::{GenAgent, GenOutput, GenRequest, GeneratedEntity};
+#[cfg(any(feature = "openai-whisper", feature = "openai-tts"))]
+pub(crate) use self::base::AuthenticatedProvider;
+pub(crate) use self::base::{ALL_TYPES_HINT, BaseAgent, UnauthenticatedProvider};
+pub use self::base::{AgentConfig, AgentProvider, DetectionConfig, UsageStats};
+pub use self::cv::{CvAgent, CvDetection, CvEntity};
+pub use self::cv_verify_agent::{CvVerifyAgent, VerificationCandidate};
+pub use self::generate::{GenAgent, GenRequest, GeneratedEntity};
 pub use self::ner::{KnownNerEntity, NerAgent, NerCandidate, NerContext};
-pub use self::ner_verifier::{NerVerifier, UnresolvedCandidatePolicy};
+pub use self::ner_verify_agent::{NerVerifyAgent, UnresolvedCandidatePolicy};

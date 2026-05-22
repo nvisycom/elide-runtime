@@ -1,4 +1,4 @@
-//! [`NerVerifier`]: localize + (optionally) refine LLM-produced NER
+//! [`NerVerifyAgent`]: localize + (optionally) refine LLM-produced NER
 //! candidates into [`Entity`] values.
 //!
 //! Two responsibilities:
@@ -13,7 +13,7 @@
 //!    [`with_refinement`], prompts the LLM a second time with the
 //!    localized candidates plus the source text and asks it to
 //!    correct/reject entries that don't survive a closer look.
-//!    Mirrors the [`CvVerifier`] verification flow; same
+//!    Mirrors the [`CvVerifyAgent`] verification flow; same
 //!    [`VerificationOutput`] shape.
 //!
 //! Output is `Vec<Entity>` ready for the deduplication phase.
@@ -21,8 +21,8 @@
 //! the agent's model provenance; refinement adds
 //! [`RefinementMethod::ModelVerification`].
 //!
-//! [`with_refinement`]: NerVerifier::with_refinement
-//! [`CvVerifier`]: crate::agent::CvVerifier
+//! [`with_refinement`]: NerVerifyAgent::with_refinement
+//! [`CvVerifyAgent`]: crate::agent::CvVerifyAgent
 //! [`RecognitionMethod::Ner`]: nvisy_ontology::entity::RecognitionMethod::Ner
 //! [`RefinementMethod::ModelVerification`]: nvisy_ontology::entity::RefinementMethod::ModelVerification
 
@@ -45,7 +45,7 @@ use crate::agent::base::UsageTracker;
 use crate::agent::ner::NerCandidate;
 use crate::agent::{AgentConfig, AgentProvider, BaseAgent};
 
-const TARGET: &str = "nvisy_rig::agent::ner_verifier";
+const TARGET: &str = "nvisy_rig::agent::ner_verify_agent";
 
 /// Default confidence assigned to a candidate when the LLM didn't
 /// score it.
@@ -53,7 +53,7 @@ const DEFAULT_CONFIDENCE: f64 = 0.5;
 
 /// Verifier for NER candidates.
 #[derive(Default)]
-pub struct NerVerifier {
+pub struct NerVerifyAgent {
     /// LLM agent for the optional refinement pass. `None` means
     /// pure-localization verification (no second LLM call).
     refiner: Option<BaseAgent>,
@@ -61,7 +61,7 @@ pub struct NerVerifier {
     unresolved: UnresolvedCandidatePolicy,
 }
 
-impl NerVerifier {
+impl NerVerifyAgent {
     /// Localization-only verifier. No second LLM call.
     pub fn new() -> Self {
         Self::default()
@@ -96,6 +96,18 @@ impl NerVerifier {
         self.refiner.as_ref().map(|a| a.tracker())
     }
 
+    /// UUID of the refiner agent, or `None` when no refiner is
+    /// configured.
+    pub fn id(&self) -> Option<uuid::Uuid> {
+        self.refiner.as_ref().map(|a| a.id())
+    }
+
+    /// Refiner agent's model name, or `None` when no refiner is
+    /// configured.
+    pub fn model_name(&self) -> Option<&str> {
+        self.refiner.as_ref().map(|a| a.model_name())
+    }
+
     /// Verify candidates against the source text.
     #[tracing::instrument(
         target = TARGET,
@@ -121,7 +133,7 @@ impl NerVerifier {
             .refiner
             .as_ref()
             .map(|a| a.model_name().to_string())
-            .unwrap_or_else(|| "ner_verifier".to_string());
+            .unwrap_or_else(|| "ner_verify_agent".to_string());
         let model = ModelProvenance::new(&model_name, ModelKind::Gateway);
 
         let mut out = Entities::new();

@@ -4,7 +4,7 @@
 //!
 //! 1. Ask the [`NerAgent`] for [`NerCandidate`]s, threading the
 //!    current coreference state as `NerContext::known_entities`.
-//! 2. Hand the candidates to the [`NerVerifier`] which localizes
+//! 2. Hand the candidates to the [`NerVerifyAgent`] which localizes
 //!    them into byte offsets and optionally LLM-refines them.
 //! 3. Filter the original candidate list by the set of
 //!    `entity_id`s that survived verification and merge the
@@ -15,39 +15,41 @@
 //! output). The verifier's optional refinement pass — a second LLM
 //! call that confirms/corrects/rejects each localized candidate —
 //! is configured on the verifier itself via
-//! [`NerVerifier::with_refinement`].
+//! [`NerVerifyAgent::with_refinement`].
 //!
 //! [`NerAgent`]: crate::agent::NerAgent
 //! [`NerCandidate`]: crate::agent::NerCandidate
-//! [`NerVerifier`]: crate::agent::NerVerifier
-//! [`NerVerifier::with_refinement`]: crate::agent::NerVerifier::with_refinement
+//! [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
+//! [`NerVerifyAgent::with_refinement`]: crate::agent::NerVerifyAgent::with_refinement
 
 use std::collections::HashSet;
 use std::mem;
 
-use async_trait::async_trait;
 use derive_builder::Builder;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
 use tokio::sync::Mutex;
 
-use super::Pipeline;
-use crate::agent::{DetectionConfig, KnownNerEntity, NerAgent, NerContext, NerVerifier};
+use crate::agent::{
+    AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
+    NerVerifyAgent, UnresolvedCandidatePolicy, UsageStats,
+};
 
 /// Composed NER pipeline.
 ///
-/// Holds the detection [`NerAgent`], the [`NerVerifier`] that
+/// Holds the detection [`NerAgent`], the [`NerVerifyAgent`] that
 /// localizes candidates into byte offsets, and the cross-call
 /// coreference state shared between successive `run()` calls. Use
-/// [`Pipeline::reset`] at document boundaries to clear the state.
+/// [`reset`] at document boundaries to clear the state.
 ///
-/// Construct via [`NerPipeline::builder`]; the agent and verifier
-/// are required, state is initialised empty.
+/// Construct via [`new`]; the agent and verifier are built
+/// internally from the LLM provider + configs, and state is
+/// initialised empty.
 ///
-/// [`Pipeline::reset`]: super::Pipeline::reset
-/// [`NerPipeline::builder`]: Self::builder
+/// [`reset`]: Self::reset
+/// [`new`]: Self::new
 /// [`NerAgent`]: crate::agent::NerAgent
-/// [`NerVerifier`]: crate::agent::NerVerifier
+/// [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
 #[derive(Builder)]
 #[builder(
     name = "NerPipelineBuilder",
@@ -58,7 +60,7 @@ pub struct NerPipeline {
     #[builder(setter(custom))]
     agent: NerAgent,
     #[builder(setter(custom))]
-    verifier: NerVerifier,
+    verifier: NerVerifyAgent,
     #[builder(setter(skip), default)]
     state: Mutex<Vec<KnownNerEntity>>,
 }
@@ -73,20 +75,21 @@ impl NerPipelineBuilder {
     /// Attach the verifier. Required. Localization always runs;
     /// the verifier's optional second-pass LLM refinement is
     /// configured on the verifier itself via
-    /// [`NerVerifier::with_refinement`].
+    /// [`NerVerifyAgent::with_refinement`].
     ///
-    /// [`NerVerifier::with_refinement`]: crate::agent::NerVerifier::with_refinement
-    pub fn with_verifier(mut self, verifier: NerVerifier) -> Self {
+    /// [`NerVerifyAgent::with_refinement`]: crate::agent::NerVerifyAgent::with_refinement
+    pub fn with_verifier(mut self, verifier: NerVerifyAgent) -> Self {
         self.verifier = Some(verifier);
         self
     }
 }
 
 /// Error returned by [`NerPipelineBuilder::build`] when a required
-/// component is missing.
+/// component is missing. Crate-internal — `NerPipeline::new` wraps
+/// the builder for external callers.
 #[derive(Debug, thiserror::Error)]
 #[error("NerPipeline build failed: {0}")]
-pub struct NerPipelineBuilderError(String);
+pub(crate) struct NerPipelineBuilderError(String);
 
 impl From<derive_builder::UninitializedFieldError> for NerPipelineBuilderError {
     fn from(err: derive_builder::UninitializedFieldError) -> Self {
@@ -95,8 +98,44 @@ impl From<derive_builder::UninitializedFieldError> for NerPipelineBuilderError {
 }
 
 impl NerPipeline {
+    /// Build a pipeline from an LLM provider plus agent configs.
+    ///
+    /// `agent_config` drives the detection-pass agent. `verifier_config`
+    /// is `Some` to enable the two-pass refinement verifier with the
+    /// carried config (two LLM calls per span), or `None` for
+    /// localization-only verification (one LLM call per span).
+    /// `unresolved_policy` controls what the verifier does with
+    /// candidates that can't be uniquely localized in the source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the detection agent or (when requested)
+    /// the verifier agent cannot be constructed.
+    pub fn new(
+        provider: &AgentProvider,
+        agent_config: AgentConfig,
+        verifier_config: Option<AgentConfig>,
+        unresolved_policy: UnresolvedCandidatePolicy,
+    ) -> Result<Self> {
+        let agent = NerAgent::new(provider, agent_config)?;
+        let verifier = match verifier_config {
+            Some(cfg) => NerVerifyAgent::new().with_refinement(provider, cfg)?,
+            None => NerVerifyAgent::new(),
+        };
+        let verifier = verifier.with_unresolved_policy(unresolved_policy);
+        Self::builder()
+            .with_agent(agent)
+            .with_verifier(verifier)
+            .build()
+            .map_err(|e| nvisy_core::Error::validation(e.to_string(), "ner-pipeline"))
+    }
+
     /// Start building a pipeline.
-    pub fn builder() -> NerPipelineBuilder {
+    ///
+    /// Crate-internal — external callers go through [`new`].
+    ///
+    /// [`new`]: Self::new
+    pub(crate) fn builder() -> NerPipelineBuilder {
         NerPipelineBuilder::default()
     }
 
@@ -140,9 +179,28 @@ impl NerPipeline {
     }
 }
 
-#[async_trait]
-impl Pipeline for NerPipeline {
-    async fn reset(&self) {
+impl NerPipeline {
+    /// Clear per-document state and reset cumulative usage
+    /// counters. Call at document boundaries so coreference and
+    /// per-document accounting don't bleed across runs.
+    pub async fn reset(&self) {
         self.state.lock().await.clear();
+        self.agent.tracker().reset();
+        if let Some(tracker) = self.verifier.tracker() {
+            tracker.reset();
+        }
+    }
+
+    /// Cumulative token usage since the last [`reset`], summed
+    /// across the detect agent and (when configured) the verifier
+    /// agent.
+    ///
+    /// [`reset`]: Self::reset
+    pub fn usage(&self) -> UsageStats {
+        let mut stats = self.agent.tracker().snapshot();
+        if let Some(tracker) = self.verifier.tracker() {
+            stats += tracker.snapshot();
+        }
+        stats
     }
 }

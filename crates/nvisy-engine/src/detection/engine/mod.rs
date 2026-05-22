@@ -1,38 +1,47 @@
-//! [`DetectionEngine`]: orchestrates a list of [`Recognizer`]s
-//! against a [`DetectionContext`].
+//! [`DetectionEngine`]: orchestrates a list of recognizers against a
+//! [`DetectionContext`].
 //!
 //! Also home to [`Detection`] — the workflow config bundle that
 //! auto-assembles a `DetectionEngine` via [`Detection::into_engine`].
 //! This keeps "graph-config shape" and "runtime engine" in the same
 //! module so the assembly pathway is a one-liner: each per-recognizer
 //! params type drives its own constructor.
+//!
+//! Recognizers implement [`nvisy_core::detection::Recognizer`] (with
+//! an associated `Context` type). The engine stores them as
+//! [`DynRecognizer`] trait objects so heterogeneous recognizers can
+//! share a single collection; the blanket bridge impl converts the
+//! shared [`DetectionContext`] into each recognizer's typed context
+//! via `From<&DetectionContext>`.
 
 mod context;
+mod dyn_recognizer;
 
 use std::fmt;
 use std::sync::Arc;
 
 use derive_builder::Builder;
+use nvisy_core::Result;
+use nvisy_core::detection::Recognizer;
 use nvisy_ontology::entity::Entities;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
 
 pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
-use crate::Recognizer;
-use crate::error::{Error, Result};
-use crate::recognizer::{
-    DetectionParams, LlmDetection, LlmRecognizer, NerDetection, NerRecognizer, PatternDetection,
-    PatternRecognizer,
+pub use self::dyn_recognizer::DynRecognizer;
+use crate::detection::recognizer::{
+    LlmDetection, LlmRecognizer, NerDetection, NerRecognizer, PatternDetection, PatternRecognizer,
 };
 
-const TARGET: &str = "nvisy_detection::engine";
+const TARGET: &str = "nvisy_engine::detection::engine";
 
 /// Composite detection engine.
 ///
-/// Holds an ordered list of [`Recognizer`]s and dispatches them in
-/// parallel against a shared [`DetectionContext`], returning every
-/// detected entity combined into a single [`Entities`] collection.
+/// Holds an ordered list of recognizers (stored as
+/// [`DynRecognizer`] trait objects) and dispatches them in parallel
+/// against a shared [`DetectionContext`], returning every detected
+/// entity combined into a single [`Entities`] collection.
 ///
 /// Parallelism uses [`tokio::task::JoinSet`]: each recognizer runs
 /// on its own task so CPU-bound work (ONNX inference inside the NER
@@ -64,15 +73,21 @@ const TARGET: &str = "nvisy_detection::engine";
 )]
 pub struct DetectionEngine {
     #[builder(setter(custom), default)]
-    recognizers: Vec<Arc<dyn Recognizer>>,
+    recognizers: Vec<Arc<dyn DynRecognizer>>,
 }
 
 impl DetectionEngineBuilder {
     /// Add a recognizer to the engine. May be called multiple
     /// times; recognizers run in the order they were attached.
+    ///
+    /// Accepts any [`Recognizer`] whose `Context` is convertible
+    /// from `&DetectionContext` — the standard set of built-in
+    /// recognizers satisfy this via their `From<&DetectionContext>`
+    /// impls in `crate::recognizer`.
     pub fn with_recognizer<R>(mut self, recognizer: R) -> Self
     where
         R: Recognizer + 'static,
+        R::Context: for<'a> From<&'a DetectionContext> + Send + Sync,
     {
         self.recognizers
             .get_or_insert_with(Vec::new)
@@ -139,7 +154,7 @@ impl DetectionEngine {
         let recognizers = self.recognizers.clone();
 
         async move {
-            let mut set: JoinSet<Result<Entities>> = JoinSet::new();
+            let mut set: JoinSet<nvisy_core::Result<Entities>> = JoinSet::new();
             for recognizer in recognizers {
                 let ctx = Arc::clone(&ctx);
                 set.spawn(async move { recognizer.run(&ctx).await });
@@ -162,10 +177,11 @@ impl DetectionEngine {
                     }
                     Err(join_err) => {
                         set.abort_all();
-                        return Err(Error::Recognizer {
-                            name: "detection-engine".into(),
-                            cause: format!("recognizer task panicked or was cancelled: {join_err}"),
-                        });
+                        return Err(nvisy_core::Error::runtime(
+                            format!("recognizer task panicked or was cancelled: {join_err}"),
+                            "detection-engine",
+                            false,
+                        ));
                     }
                 }
             }
@@ -176,7 +192,7 @@ impl DetectionEngine {
     }
 
     /// Borrow the attached recognizers, in attach order.
-    pub fn recognizers(&self) -> &[Arc<dyn Recognizer>] {
+    pub fn recognizers(&self) -> &[Arc<dyn DynRecognizer>] {
         &self.recognizers
     }
 
@@ -216,7 +232,7 @@ pub struct Detection {
     /// Cross-recognizer hints (entity kinds, confidence threshold)
     /// applied to every recognizer that runs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub params: Option<DetectionParams>,
+    pub params: Option<nvisy_core::detection::DetectionParams>,
     /// Opts the NER recognizer in. `None` skips it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ner: Option<NerDetection>,
@@ -269,6 +285,6 @@ impl Detection {
         }
         builder
             .build()
-            .map_err(|e| Error::Misconfigured(e.to_string()))
+            .map_err(|e| nvisy_core::Error::validation(e.to_string(), "detection-engine"))
     }
 }

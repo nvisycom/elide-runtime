@@ -64,6 +64,11 @@ impl GenAgent {
         self.base.id()
     }
 
+    /// Configured model name.
+    pub fn model_name(&self) -> &str {
+        self.base.model_name()
+    }
+
     /// Access the usage tracker for this agent's LLM calls.
     pub fn tracker(&self) -> &UsageTracker {
         self.base.tracker()

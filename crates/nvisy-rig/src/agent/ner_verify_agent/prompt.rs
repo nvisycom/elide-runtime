@@ -1,6 +1,6 @@
 //! NER-verifier-specific prompt construction.
 //!
-//! [`NerVerifierPromptBuilder`] constructs the user prompt that
+//! [`NerVerifyAgentPromptBuilder`] constructs the user prompt that
 //! lists each localized candidate plus a snippet of surrounding
 //! text for the LLM to vote keep/correct/reject against.
 
@@ -12,12 +12,12 @@ use super::localize::LocalizedCandidate;
 const SNIPPET_HALF_WIDTH: usize = 80;
 
 /// Builds user prompts for NER candidate verification.
-pub(super) struct NerVerifierPromptBuilder<'a> {
+pub(super) struct NerVerifyAgentPromptBuilder<'a> {
     text: &'a str,
     localized: &'a [LocalizedCandidate],
 }
 
-impl<'a> NerVerifierPromptBuilder<'a> {
+impl<'a> NerVerifyAgentPromptBuilder<'a> {
     /// Create a prompt builder for the given source text and
     /// localized candidates.
     pub(super) fn new(text: &'a str, localized: &'a [LocalizedCandidate]) -> Self {

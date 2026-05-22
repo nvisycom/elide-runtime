@@ -1,4 +1,4 @@
-//! [`CvVerifier`]: LLM-driven verification of proposed entities
+//! [`CvVerifyAgent`]: LLM-driven verification of proposed entities
 //! against an image.
 //!
 //! Given a list of [`ProposedEntity`] values (typically produced
@@ -19,19 +19,19 @@ use nvisy_ontology::entity::Entity;
 use uuid::Uuid;
 
 pub use self::input::{ProposedEntity, VerificationCandidate};
-use self::prompt::{CV_VERIFIER_SYSTEM_PROMPT, CvVerifierPromptBuilder};
+use self::prompt::{CV_VERIFIER_SYSTEM_PROMPT, CvVerifyAgentPromptBuilder};
 use crate::agent::base::{UsageTracker, VerificationOutput};
 use crate::agent::{AgentConfig, AgentProvider, BaseAgent};
 
-const TARGET: &str = "nvisy_rig::agent::cv_verifier";
+const TARGET: &str = "nvisy_rig::agent::cv_verify_agent";
 
 /// LLM-driven entity verifier. Wraps an internal `BaseAgent` with
 /// the entity-verification system prompt baked in.
-pub struct CvVerifier {
+pub struct CvVerifyAgent {
     base: BaseAgent,
 }
 
-impl CvVerifier {
+impl CvVerifyAgent {
     /// Construct a verifier from an LLM provider + agent config.
     ///
     /// The config's preamble defaults to the built-in
@@ -68,7 +68,7 @@ impl CvVerifier {
             "encoded image, building verification prompt"
         );
 
-        let prompt = CvVerifierPromptBuilder::new(entities).build(&image_b64);
+        let prompt = CvVerifyAgentPromptBuilder::new(entities).build(&image_b64);
         let output: VerificationOutput = self
             .base
             .prompt_structured_raw(&prompt)
@@ -116,5 +116,10 @@ impl CvVerifier {
     /// Unique identifier for the underlying agent instance.
     pub fn id(&self) -> Uuid {
         self.base.id()
+    }
+
+    /// Configured model name.
+    pub fn model_name(&self) -> &str {
+        self.base.model_name()
     }
 }

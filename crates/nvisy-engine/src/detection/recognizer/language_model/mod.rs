@@ -3,46 +3,70 @@
 //!
 //! All NER-specific orchestration — detect, verify, coreference
 //! merge — lives on [`NerPipeline`] in nvisy-rig. This recognizer
-//! is a thin adapter: translate [`DetectionContext`] into a rig
+//! is a thin adapter: translate [`LlmContext`] into a rig
 //! [`DetectionConfig`], call [`NerPipeline::run`], and forward
 //! `reset()` to [`Pipeline::reset`].
 //!
 //! # Construction
 //!
 //! [`new`] consumes a single [`LlmDetection`] bundle and builds
-//! everything internally. The presence of [`LlmDetection::verifier`]
-//! decides whether the pipeline gets a localization-only verifier
-//! or the two-pass refinement verifier.
+//! everything internally via [`NerPipeline::new`]. The presence of
+//! [`LlmDetection::verifier`] decides whether the pipeline gets a
+//! localization-only verifier or the two-pass refinement verifier.
 //!
 //! [`from_pipeline`] is retained as an escape hatch for callers
-//! that need to customize the verifier (e.g.
-//! [`UnresolvedCandidatePolicy`]) before attaching it.
+//! that already own a [`NerPipeline`].
 //!
-//! [`DetectionContext`]: crate::DetectionContext
 //! [`NerPipeline`]: nvisy_rig::pipeline::NerPipeline
+//! [`NerPipeline::new`]: nvisy_rig::pipeline::NerPipeline::new
 //! [`NerPipeline::run`]: nvisy_rig::pipeline::NerPipeline::run
-//! [`Pipeline::reset`]: nvisy_rig::pipeline::Pipeline::reset
+//! [`Pipeline::reset`]: nvisy_rig::pipeline::NerPipeline::reset
 //! [`new`]: LlmRecognizer::new
 //! [`from_pipeline`]: LlmRecognizer::from_pipeline
-//! [`UnresolvedCandidatePolicy`]: nvisy_rig::agent::UnresolvedCandidatePolicy
 
 mod params;
 
 use async_trait::async_trait;
-use nvisy_ontology::entity::Entities;
-use nvisy_rig::agent::{DetectionConfig, NerAgent, NerVerifier};
-use nvisy_rig::pipeline::{NerPipeline, Pipeline};
+use nvisy_codec::handler::TextData;
+use nvisy_core::Result;
+use nvisy_core::detection::Recognizer;
+use nvisy_ontology::entity::{Entities, EntityKind};
+use nvisy_rig::agent::DetectionConfig;
+use nvisy_rig::pipeline::NerPipeline;
+use uuid::Uuid;
 
 pub use self::params::LlmDetection;
-use crate::error::{Error, Result};
-use crate::{DetectionContext, Recognizer};
+use crate::detection::DetectionContext;
+
+/// Per-call input to [`LlmRecognizer::run`].
+#[derive(Debug, Clone)]
+pub struct LlmContext {
+    /// The text to analyze.
+    pub text: TextData,
+    /// Entity-kind allowlist. Empty = all kinds permitted.
+    pub entities: Option<Vec<EntityKind>>,
+    /// Minimum confidence threshold in `[0.0, 1.0]`.
+    pub score_threshold: Option<f64>,
+    /// Correlation UUID propagated through the tracing span.
+    pub correlation_id: Option<Uuid>,
+}
+
+impl From<&DetectionContext> for LlmContext {
+    fn from(ctx: &DetectionContext) -> Self {
+        Self {
+            text: ctx.text.clone(),
+            entities: ctx.entities.clone(),
+            score_threshold: ctx.score_threshold,
+            correlation_id: ctx.correlation_id,
+        }
+    }
+}
 
 /// LLM-backed entity recognizer.
 ///
 /// Wraps an internally-built [`NerPipeline`] and exposes it via the
-/// [`Recognizer`] trait. Per-call detection hints
-/// (`ctx.entities`, `ctx.score_threshold`) translate into the rig
-/// [`DetectionConfig`] passed to [`NerPipeline::run`].
+/// [`Recognizer`] trait. Per-call detection hints translate into the
+/// rig [`DetectionConfig`] passed to [`NerPipeline::run`].
 ///
 /// [`NerPipeline`]: nvisy_rig::pipeline::NerPipeline
 /// [`NerPipeline::run`]: nvisy_rig::pipeline::NerPipeline::run
@@ -68,54 +92,26 @@ impl LlmRecognizer {
             provider,
             agent,
             verifier,
+            unresolved_policy,
         } = cfg;
-        let agent = NerAgent::new(&provider, agent).map_err(Self::map_build_err)?;
-        let verifier = match verifier {
-            Some(verifier_cfg) => NerVerifier::new()
-                .with_refinement(&provider, verifier_cfg)
-                .map_err(Self::map_build_err)?,
-            None => NerVerifier::new(),
-        };
-        Self::assemble(agent, verifier)
+        let pipeline = NerPipeline::new(&provider, agent, verifier, unresolved_policy)
+            .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "llm", false))?;
+        Ok(Self::from_pipeline(pipeline))
     }
 
     /// Build from a pre-assembled [`NerPipeline`].
     ///
-    /// Escape hatch for callers that need to customize the verifier
-    /// (e.g. [`UnresolvedCandidatePolicy`]) or share a pipeline
-    /// instance across recognizers. Prefer [`new`] for ordinary use.
+    /// Escape hatch for callers that already own a pipeline (e.g.
+    /// to share an instance across recognizers). Prefer [`new`] for
+    /// ordinary use.
     ///
     /// [`NerPipeline`]: nvisy_rig::pipeline::NerPipeline
-    /// [`UnresolvedCandidatePolicy`]: nvisy_rig::agent::UnresolvedCandidatePolicy
     /// [`new`]: Self::new
     pub fn from_pipeline(pipeline: NerPipeline) -> Self {
         Self { pipeline }
     }
 
-    fn assemble(agent: NerAgent, verifier: NerVerifier) -> Result<Self> {
-        let pipeline = NerPipeline::builder()
-            .with_agent(agent)
-            .with_verifier(verifier)
-            .build()
-            .map_err(|e| Error::Recognizer {
-                name: "llm".into(),
-                cause: e.to_string(),
-            })?;
-        Ok(Self::from_pipeline(pipeline))
-    }
-
-    fn map_build_err(err: nvisy_core::Error) -> Error {
-        Error::Recognizer {
-            name: "llm".into(),
-            cause: err.to_string(),
-        }
-    }
-
-    /// Build the rig per-call [`DetectionConfig`] from the per-call
-    /// [`DetectionContext`].
-    ///
-    /// [`DetectionContext`]: crate::DetectionContext
-    fn build_config(ctx: &DetectionContext) -> DetectionConfig {
+    fn build_config(ctx: &LlmContext) -> DetectionConfig {
         DetectionConfig {
             entity_kinds: ctx.entities.clone().unwrap_or_default(),
             confidence_threshold: ctx.score_threshold,
@@ -126,6 +122,8 @@ impl LlmRecognizer {
 
 #[async_trait]
 impl Recognizer for LlmRecognizer {
+    type Context = LlmContext;
+
     #[tracing::instrument(
         skip_all,
         fields(
@@ -133,21 +131,18 @@ impl Recognizer for LlmRecognizer {
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, ctx: &DetectionContext) -> Result<Entities> {
+    async fn run(&self, ctx: &LlmContext) -> Result<Entities> {
         let config = Self::build_config(ctx);
         self.pipeline
             .run(&ctx.text, &config)
             .await
-            .map_err(|e| Error::Recognizer {
-                name: "llm".into(),
-                cause: e.to_string(),
-            })
+            .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "llm", false))
     }
 
     /// Clears coreference state at document boundaries by
     /// delegating to [`Pipeline::reset`].
     ///
-    /// [`Pipeline::reset`]: nvisy_rig::pipeline::Pipeline::reset
+    /// [`Pipeline::reset`]: nvisy_rig::pipeline::NerPipeline::reset
     async fn reset(&self) {
         self.pipeline.reset().await;
     }

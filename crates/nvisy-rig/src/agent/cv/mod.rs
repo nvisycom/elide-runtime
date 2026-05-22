@@ -1,36 +1,39 @@
-//! Computer vision agent for face, license plate, and signature detection.
+//! Computer-vision classification agent.
 //!
-//! [`CvAgent`] wraps a [`BaseAgent`] with a
-//! [`CvProvider`]-backed tool. It encodes an image as base64, prompts the
-//! VLM to call the CV tool, and returns classified entities with bounding
-//! boxes.
+//! [`CvAgent`] wraps a [`BaseAgent`] with a classification-only
+//! prompt: it takes pre-computed [`CvDetection`]s (produced
+//! upstream by a face/plate/signature detector) and asks the VLM to
+//! classify each one into an entity category and type.
 //!
-//! [`BaseAgent`]: crate::backend::BaseAgent
+//! Detection itself does not live in this crate — the caller runs
+//! their CV backend and passes the bboxes in. This keeps rig free
+//! of model/inference dependencies.
+//!
+//! [`BaseAgent`]: super::BaseAgent
 
 mod output;
 mod prompt;
-mod tool;
 
-use async_trait::async_trait;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use nvisy_core::Result;
 use serde::Serialize;
 use uuid::Uuid;
 
-pub use self::output::{CvEntities, CvEntity};
+pub(crate) use self::output::CvEntities;
+pub use self::output::CvEntity;
 use self::prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
-use self::tool::CvRigTool;
 use super::base::UsageTracker;
 use super::{AgentConfig, AgentProvider, BaseAgent, DetectionConfig};
 
 const TARGET: &str = "nvisy_rig::agent::cv";
 
-/// A single computer-vision detection result returned by a [`CvProvider`].
+/// A single computer-vision detection produced by an upstream CV
+/// backend (face detector, plate detector, etc.).
 ///
-/// This is the raw output from the CV backend before the VLM classifies
-/// detections into entity categories. It carries a human-readable label,
-/// a confidence score, and a pixel-space bounding box.
+/// This is the input shape for [`CvAgent::classify`]: the agent
+/// receives pre-computed bboxes and labels and decides what entity
+/// each one corresponds to. The detector lives outside `nvisy-rig`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CvDetection {
     /// Label for the detected object (e.g. `"face"`, `"license_plate"`).
@@ -41,46 +44,30 @@ pub struct CvDetection {
     pub bbox: [f64; 4],
 }
 
-/// Trait for computer-vision capabilities (face/plate/signature detection).
-///
-/// Consumers implement this trait to supply object detection from images.
-/// The trait is intentionally free of rig-core types so it can be
-/// implemented in any crate without pulling in the LLM framework.
-#[async_trait]
-pub trait CvProvider: Send + Sync {
-    /// Detect objects in raw image bytes (PNG, JPEG, etc.).
-    async fn detect_objects(&self, image_data: &[u8]) -> Result<Vec<CvDetection>>;
-}
-
-/// VLM agent that detects privacy-sensitive objects in images.
+/// VLM agent that classifies pre-computed CV detections into entity
+/// categories.
 ///
 /// # Workflow
 ///
-/// 1. Caller passes raw image bytes to [`detect`].
-/// 2. The agent base64-encodes the image and builds a user prompt via
-///    `CvPromptBuilder`.
-/// 3. The VLM is instructed to call the `cv_detect_objects` tool (backed
-///    by the [`CvProvider`]) and then classify each detection into an
-///    entity category and type.
-/// 4. Structured output is parsed into a `Vec<CvEntity>`.
+/// 1. Caller (or pipeline) runs a CV backend to produce
+///    [`CvDetection`]s with bboxes.
+/// 2. Caller passes the image and detections to [`classify`].
+/// 3. The agent encodes the image as base64, embeds the detections
+///    as JSON in the prompt, and asks the VLM to classify each.
+/// 4. Structured output is parsed into `Vec<CvEntity>`.
 ///
-/// [`detect`]: Self::detect
+/// [`classify`]: Self::classify
 pub struct CvAgent {
     base: BaseAgent,
 }
 
 impl CvAgent {
-    /// Create a new CV agent.
-    pub fn new(
-        provider: &AgentProvider,
-        mut config: AgentConfig,
-        cv: impl CvProvider + 'static,
-    ) -> Result<Self> {
+    /// Create a new CV classification agent.
+    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self> {
         config
             .preamble
             .get_or_insert_with(|| CV_SYSTEM_PROMPT.into());
         let base = BaseAgent::builder(provider, config)
-            .tool(CvRigTool::new(cv))
             .build()
             .map_err(crate::error::convert)?;
         Ok(Self { base })
@@ -91,31 +78,45 @@ impl CvAgent {
         self.base.id()
     }
 
+    /// Configured model name.
+    pub fn model_name(&self) -> &str {
+        self.base.model_name()
+    }
+
     /// Access the usage tracker for this agent's LLM calls.
     pub fn tracker(&self) -> &UsageTracker {
         self.base.tracker()
     }
 
-    /// Detect privacy-sensitive objects in an image.
+    /// Classify pre-computed CV detections into entity categories.
+    ///
+    /// `detections` come from an upstream CV backend. Returns the
+    /// detections as classified entities; an empty input returns an
+    /// empty output without prompting the LLM.
     #[tracing::instrument(
         target = "nvisy_rig::agent::cv",
         skip_all,
-        fields(image_bytes = image_data.len()),
+        fields(image_bytes = image_data.len(), detection_count = detections.len()),
     )]
-    pub async fn detect(
+    pub async fn classify(
         &self,
         image_data: &[u8],
+        detections: &[CvDetection],
         config: &DetectionConfig,
     ) -> Result<Vec<CvEntity>> {
+        if detections.is_empty() {
+            return Ok(Vec::new());
+        }
+
         let image_b64 = STANDARD.encode(image_data);
         tracing::debug!(
             target: TARGET,
             b64_len = image_b64.len(),
             entity_kinds = config.entity_kinds.len(),
-            "encoded image, building prompt"
+            "encoded image, building classification prompt"
         );
 
-        let prompt = CvPromptBuilder::new(config).build(&image_b64);
+        let prompt = CvPromptBuilder::new(config, detections).build(&image_b64);
 
         let result: CvEntities = self
             .base
@@ -126,7 +127,7 @@ impl CvAgent {
         tracing::info!(
             target: TARGET,
             entity_count = result.entities.len(),
-            "cv detection complete"
+            "cv classification complete"
         );
 
         Ok(result.entities)

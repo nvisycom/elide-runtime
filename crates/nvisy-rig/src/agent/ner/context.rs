@@ -8,12 +8,9 @@ use super::{KnownNerEntity, NerCandidate};
 /// entities so the LLM can assign consistent `entity_id` values across
 /// chunks or sequential calls.
 ///
-/// Use [`merge`] to accumulate entities from successive
-/// detection calls, then update the text with [`set_text`]
-/// before the next call.
+/// Use [`merge`] to accumulate entities from successive detection calls.
 ///
 /// [`merge`]: Self::merge
-/// [`set_text`]: Self::set_text
 pub struct NerContext<'a> {
     /// The text to analyse.
     pub text: &'a str,
@@ -22,25 +19,12 @@ pub struct NerContext<'a> {
 }
 
 impl<'a> NerContext<'a> {
-    /// Create a context with no known entities.
-    pub fn new(text: &'a str) -> Self {
-        Self {
-            text,
-            known_entities: Vec::new(),
-        }
-    }
-
     /// Create a context with previously identified entities.
     pub fn with_known(text: &'a str, known_entities: Vec<KnownNerEntity>) -> Self {
         Self {
             text,
             known_entities,
         }
-    }
-
-    /// Set the text to analyse, keeping accumulated known entities.
-    pub fn set_text(&mut self, text: &'a str) {
-        self.text = text;
     }
 
     /// Merge newly detected entities into the known set.
@@ -110,7 +94,7 @@ mod tests {
 
     #[test]
     fn merge_creates_new_known_entity() {
-        let mut ctx = NerContext::new("");
+        let mut ctx = NerContext::with_known("", vec![]);
         ctx.merge(vec![ner_candidate(
             "person_1",
             "John Smith",
@@ -125,7 +109,7 @@ mod tests {
 
     #[test]
     fn merge_accumulates_surface_forms() {
-        let mut ctx = NerContext::new("");
+        let mut ctx = NerContext::with_known("", vec![]);
         ctx.merge(vec![ner_candidate("person_1", "John Smith", None)]);
         ctx.merge(vec![ner_candidate("person_1", "John", None)]);
         ctx.merge(vec![ner_candidate("person_1", "Mr. Smith", None)]);
@@ -141,7 +125,7 @@ mod tests {
 
     #[test]
     fn merge_accumulates_descriptions() {
-        let mut ctx = NerContext::new("");
+        let mut ctx = NerContext::with_known("", vec![]);
         ctx.merge(vec![ner_candidate("person_1", "Alice", Some("the CEO"))]);
         ctx.merge(vec![ner_candidate(
             "person_1",
@@ -157,7 +141,7 @@ mod tests {
 
     #[test]
     fn merge_deduplicates_descriptions() {
-        let mut ctx = NerContext::new("");
+        let mut ctx = NerContext::with_known("", vec![]);
         ctx.merge(vec![ner_candidate("person_1", "Alice", Some("the CEO"))]);
         ctx.merge(vec![ner_candidate("person_1", "Alice", Some("the CEO"))]);
 
@@ -166,7 +150,7 @@ mod tests {
 
     #[test]
     fn merge_no_description() {
-        let mut ctx = NerContext::new("");
+        let mut ctx = NerContext::with_known("", vec![]);
         ctx.merge(vec![ner_candidate("person_1", "Alice", None)]);
 
         assert!(ctx.known_entities[0].descriptions.is_empty());
@@ -174,7 +158,7 @@ mod tests {
 
     #[test]
     fn merge_fills_missing_entity_type() {
-        let mut ctx = NerContext::new("");
+        let mut ctx = NerContext::with_known("", vec![]);
         let mut e = ner_candidate("org_1", "Acme", None);
         e.entity_type = None;
         ctx.merge(vec![e]);

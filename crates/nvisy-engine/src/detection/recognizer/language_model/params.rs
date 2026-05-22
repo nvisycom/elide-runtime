@@ -18,7 +18,7 @@
 //! [`agent`]: LlmDetection::agent
 //! [`verifier`]: LlmDetection::verifier
 
-use nvisy_rig::agent::{AgentConfig, AgentProvider};
+use nvisy_rig::agent::{AgentConfig, AgentProvider, UnresolvedCandidatePolicy};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -40,4 +40,9 @@ pub struct LlmDetection {
     /// or cheaper verifier model than detection).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verifier: Option<AgentConfig>,
+    /// How to handle NER candidates that can't be uniquely
+    /// localized in the source text. Defaults to
+    /// [`UnresolvedCandidatePolicy::Drop`].
+    #[serde(default)]
+    pub unresolved_policy: UnresolvedCandidatePolicy,
 }

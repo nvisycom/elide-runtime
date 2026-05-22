@@ -13,13 +13,13 @@ use std::future::Future;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_detection::DetectionEngine;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use super::config::RuntimeConfig;
 use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
+use crate::detection::DetectionEngine;
 use crate::graph::TimeoutExt;
 use crate::operation::{
     Deduplication, Detection, DocumentEnvelope, ExportFile, Extraction, GenerateContext,
@@ -272,7 +272,7 @@ impl DocumentPipeline {
     /// settings are baked into the matching recognizer at engine-
     /// construction time.
     ///
-    /// [`Detection::into_engine`]: nvisy_detection::Detection::into_engine
+    /// [`Detection::into_engine`]: crate::detection::Detection::into_engine
     async fn run_detection(
         &self,
         cfg: &DetectionConfig,

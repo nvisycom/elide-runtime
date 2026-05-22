@@ -3,11 +3,11 @@
 //! [`NerAgent`] wraps a [`BaseAgent`] with NER-specific prompts. It
 //! is a pure LLM agent (no tools) that analyses text and returns
 //! [`NerCandidate`]s — unresolved entity descriptions that a
-//! downstream [`NerVerifier`] localizes into the source text and
+//! downstream [`NerVerifyAgent`] localizes into the source text and
 //! lifts into [`Entity`] values.
 //!
 //! [`BaseAgent`]: super::BaseAgent
-//! [`NerVerifier`]: crate::agent::NerVerifier
+//! [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
 //! [`Entity`]: nvisy_ontology::entity::Entity
 
 mod context;
@@ -38,13 +38,13 @@ const TARGET: &str = "nvisy_rig::agent::ner";
 /// 3. Structured output is parsed into `Vec<NerCandidate>`.
 ///
 /// Localization of candidates into byte offsets and construction
-/// of [`Entity`] values is the responsibility of [`NerVerifier`].
+/// of [`Entity`] values is the responsibility of [`NerVerifyAgent`].
 /// Coreference state across successive calls is also a verifier
 /// concern; this agent is stateless.
 ///
 /// [`detect`]: Self::detect
 /// [`Entity`]: nvisy_ontology::entity::Entity
-/// [`NerVerifier`]: crate::agent::NerVerifier
+/// [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
 pub struct NerAgent {
     base: BaseAgent,
 }
@@ -83,9 +83,9 @@ impl NerAgent {
     /// instructed to reuse their `entity_id` values for coreferent
     /// mentions, enabling cross-chunk coreference resolution.
     /// Returned candidates carry no offsets; pass them to a
-    /// [`NerVerifier`] to localize.
+    /// [`NerVerifyAgent`] to localize.
     ///
-    /// [`NerVerifier`]: crate::agent::NerVerifier
+    /// [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
     #[tracing::instrument(target = TARGET, skip_all, fields(text_len = ctx.text.len()))]
     pub async fn detect(
         &self,

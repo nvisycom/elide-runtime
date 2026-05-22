@@ -1,5 +1,12 @@
 //! LLM providers that require an API key.
 
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "openai-whisper",
+    feature = "openai-tts",
+    feature = "anthropic-claude",
+    feature = "google-gemini"
+))]
 use std::fmt;
 
 #[cfg(any(
@@ -20,6 +27,13 @@ use rig::providers::gemini;
     feature = "openai-tts"
 ))]
 use rig::providers::openai;
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "openai-whisper",
+    feature = "openai-tts",
+    feature = "anthropic-claude",
+    feature = "google-gemini"
+))]
 use serde::{Deserialize, Serialize};
 
 #[cfg(any(
@@ -32,6 +46,13 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 
 /// Provider that requires an API key (OpenAI, Anthropic, Gemini).
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "openai-whisper",
+    feature = "openai-tts",
+    feature = "anthropic-claude",
+    feature = "google-gemini"
+))]
 #[derive(Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AuthenticatedProvider {
     pub api_key: String,
@@ -39,6 +60,13 @@ pub struct AuthenticatedProvider {
     pub base_url: Option<String>,
 }
 
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "openai-whisper",
+    feature = "openai-tts",
+    feature = "anthropic-claude",
+    feature = "google-gemini"
+))]
 impl fmt::Debug for AuthenticatedProvider {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AuthenticatedProvider")
@@ -49,6 +77,13 @@ impl fmt::Debug for AuthenticatedProvider {
     }
 }
 
+#[cfg(any(
+    feature = "openai-gpt",
+    feature = "openai-whisper",
+    feature = "openai-tts",
+    feature = "anthropic-claude",
+    feature = "google-gemini"
+))]
 impl AuthenticatedProvider {
     /// Build an OpenAI rig-core client.
     #[cfg(any(

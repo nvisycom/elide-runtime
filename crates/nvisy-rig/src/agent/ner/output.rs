@@ -17,7 +17,7 @@ pub(crate) struct NerCandidates {
 /// One entity candidate produced by an LLM NER pass.
 ///
 /// Carries everything the LLM saw plus enough grounding for a
-/// downstream [`NerVerifier`] to localize the surface form back
+/// downstream [`NerVerifyAgent`] to localize the surface form back
 /// into the source text. The candidate does **not** carry offsets
 /// — the LLM is not trusted to count bytes, and the verifier
 /// re-derives the location from [`context`] via search.
@@ -28,7 +28,7 @@ pub(crate) struct NerCandidates {
 /// participates in detection but not in cross-call coreference
 /// tracking.
 ///
-/// [`NerVerifier`]: crate::agent::NerVerifier
+/// [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
 /// [`context`]: Self::context
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct NerCandidate {

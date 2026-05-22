@@ -8,6 +8,6 @@
 //! `Detection::into_engine()` (on the detection crate) auto-assembles
 //! a `DetectionEngine` with one recognizer per opted-in slot.
 
-pub use nvisy_detection::{
+pub use crate::detection::{
     Detection, DetectionParams, LlmDetection, NerDetection, PatternDetection, PatternFilter,
 };

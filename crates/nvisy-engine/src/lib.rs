@@ -2,6 +2,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
+pub mod detection;
 pub(crate) mod graph;
 pub mod operation;
 pub mod pipeline;

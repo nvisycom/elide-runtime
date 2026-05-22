@@ -13,26 +13,57 @@
 //! they want to inject (custom backends, test fixtures, shared
 //! engines across recognizers).
 //!
-//! Shared cross-recognizer hints (`entity_kinds`,
-//! `confidence_threshold`) flow in via [`DetectionParams`] on the
-//! per-call [`DetectionContext`].
-//!
 //! [`from_config`]: NerRecognizer::from_config
 //! [`from_engine`]: NerRecognizer::from_engine
 //! [`engine`]: NerDetection::engine
-//! [`DetectionParams`]: crate::recognizer::DetectionParams
 
 mod params;
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use nvisy_codec::handler::TextData;
+use nvisy_core::Result;
+use nvisy_core::detection::Recognizer;
 use nvisy_nlp::{Context as NlpContext, Engine as NlpEngine};
-use nvisy_ontology::entity::Entities;
+use nvisy_ontology::entity::{Entities, EntityKind};
+use nvisy_ontology::primitive::LanguageTag;
+use uuid::Uuid;
 
 pub use self::params::NerDetection;
-use crate::error::{Error, Result};
-use crate::{DetectionContext, Recognizer};
+use crate::detection::DetectionContext;
+
+/// Per-call input to [`NerRecognizer::run`].
+#[derive(Debug, Clone)]
+pub struct NerContext {
+    /// The text to analyze.
+    pub text: TextData,
+    /// Caller-asserted language. When `Some`, NER skips per-call
+    /// language detection.
+    pub language: Option<LanguageTag>,
+    /// Restrict language detection to this subset. Ignored when
+    /// `language` is `Some`.
+    pub candidate_languages: Option<Vec<LanguageTag>>,
+    /// Entity-kind allowlist. Empty = all kinds permitted.
+    pub entities: Option<Vec<EntityKind>>,
+    /// Minimum confidence threshold in `[0.0, 1.0]`.
+    pub score_threshold: Option<f64>,
+    /// Correlation UUID propagated through the tracing span.
+    pub correlation_id: Option<Uuid>,
+}
+
+impl From<&DetectionContext> for NerContext {
+    fn from(ctx: &DetectionContext) -> Self {
+        Self {
+            text: ctx.text.clone(),
+            language: ctx.language.clone(),
+            candidate_languages: ctx.candidate_languages.clone(),
+            entities: ctx.entities.clone(),
+            score_threshold: ctx.score_threshold,
+            correlation_id: ctx.correlation_id,
+        }
+    }
+}
 
 /// NER recognizer backed by [`nvisy_nlp::Engine`].
 pub struct NerRecognizer {
@@ -52,10 +83,10 @@ impl NerRecognizer {
     ///
     /// [`engine`]: NerDetection::engine
     pub fn from_config(cfg: &NerDetection) -> Result<Self> {
-        let engine = cfg.engine.build().map_err(|e| Error::Recognizer {
-            name: "ner".into(),
-            cause: e.to_string(),
-        })?;
+        let engine = cfg
+            .engine
+            .build()
+            .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "ner", false))?;
         Ok(Self::from_engine(engine))
     }
 
@@ -73,6 +104,8 @@ impl NerRecognizer {
 
 #[async_trait]
 impl Recognizer for NerRecognizer {
+    type Context = NerContext;
+
     #[tracing::instrument(
         skip_all,
         fields(
@@ -80,7 +113,7 @@ impl Recognizer for NerRecognizer {
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, ctx: &DetectionContext) -> Result<Entities> {
+    async fn run(&self, ctx: &NerContext) -> Result<Entities> {
         let mut nlp_ctx = NlpContext::new(&ctx.text);
         if let Some(language) = ctx.language.clone() {
             nlp_ctx.language = Some(language);
@@ -102,10 +135,7 @@ impl Recognizer for NerRecognizer {
             .engine
             .analyze(nlp_ctx)
             .await
-            .map_err(|e| Error::Recognizer {
-                name: "ner".into(),
-                cause: e.to_string(),
-            })?;
+            .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "ner", false))?;
         Ok(artifacts.entities)
     }
 }

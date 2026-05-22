@@ -1,18 +1,18 @@
 //! LLM refinement pass for localized NER candidates.
 //!
 //! Sends the localized candidates plus a snippet of surrounding
-//! text (built by [`NerVerifierPromptBuilder`]) to the LLM, asks
+//! text (built by [`NerVerifyAgentPromptBuilder`]) to the LLM, asks
 //! it to vote keep/correct/reject per entry, and folds the
 //! verdicts back into the localized list.
 //!
-//! [`NerVerifierPromptBuilder`]: super::prompt::NerVerifierPromptBuilder
+//! [`NerVerifyAgentPromptBuilder`]: super::prompt::NerVerifyAgentPromptBuilder
 
 use std::collections::HashMap;
 
 use nvisy_core::Result;
 
 use super::localize::LocalizedCandidate;
-use super::prompt::NerVerifierPromptBuilder;
+use super::prompt::NerVerifyAgentPromptBuilder;
 use crate::agent::base::{BaseAgent, VerificationOutput, VerificationStatus};
 
 /// Run the refinement pass over a slice of localized candidates.
@@ -29,7 +29,7 @@ pub(super) async fn refine_localized(
         return Ok(localized);
     }
 
-    let prompt = NerVerifierPromptBuilder::new(text, &localized).build();
+    let prompt = NerVerifyAgentPromptBuilder::new(text, &localized).build();
     let output: VerificationOutput = agent
         .prompt_structured_raw(&prompt)
         .await

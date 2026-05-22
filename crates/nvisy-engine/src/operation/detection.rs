@@ -15,9 +15,9 @@ use std::sync::Arc;
 
 use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
-use nvisy_detection::{DetectionContext, DetectionEngine, RebaseEntities};
 
 use super::{DocumentEnvelope, Operation};
+use crate::detection::{DetectionContext, DetectionEngine, RebaseEntities};
 use crate::workflow::Detection as DetectionConfig;
 
 const TARGET: &str = "nvisy_engine::op::detection";
@@ -25,7 +25,7 @@ const TARGET: &str = "nvisy_engine::op::detection";
 /// Wraps a shared [`DetectionEngine`] as a pipeline operation.
 ///
 /// The engine is built once per run from the compiled workflow
-/// `Detection` (see [`nvisy_detection::Detection::into_engine`])
+/// `Detection` (see [`crate::detection::Detection::into_engine`])
 /// and shared across every document in the run. The op is cheap
 /// to build per-document — it only holds an `Arc` clone of the
 /// engine and the workflow detection config.

@@ -1,16 +1,16 @@
 //! Verification-specific prompt construction.
 //!
-//! [`CvVerifierPromptBuilder`] constructs the user prompt that lists proposed
+//! [`CvVerifyAgentPromptBuilder`] constructs the user prompt that lists proposed
 //! entities for the VLM to verify against the original image.
 
 use super::input::ProposedEntity;
 
 /// Builds user prompts for entity verification.
-pub(crate) struct CvVerifierPromptBuilder<'a> {
+pub(crate) struct CvVerifyAgentPromptBuilder<'a> {
     entities: &'a [ProposedEntity],
 }
 
-impl<'a> CvVerifierPromptBuilder<'a> {
+impl<'a> CvVerifyAgentPromptBuilder<'a> {
     /// Create a prompt builder from a slice of proposed entities.
     pub fn new(entities: &'a [ProposedEntity]) -> Self {
         Self { entities }
@@ -99,7 +99,7 @@ mod tests {
             },
         ];
 
-        let prompt = CvVerifierPromptBuilder::new(&entities).build("AAAA");
+        let prompt = CvVerifyAgentPromptBuilder::new(&entities).build("AAAA");
         assert!(prompt.contains("[0] category=personal_identity"));
         assert!(prompt.contains("person_name"));
         assert!(prompt.contains("John Doe"));
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn builds_prompt_with_no_entities() {
-        let prompt = CvVerifierPromptBuilder::new(&[]).build("BBBB");
+        let prompt = CvVerifyAgentPromptBuilder::new(&[]).build("BBBB");
         assert!(prompt.contains("Proposed entities:\n"));
         assert!(prompt.contains("Image (base64): BBBB"));
     }

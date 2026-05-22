@@ -68,6 +68,7 @@ unicode-normalization = { workspace = true, features = [] }
 
 # Derive macros and error handling
 derive_builder = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["add_assign"] }
 thiserror = { workspace = true, features = [] }
 
 # Observability

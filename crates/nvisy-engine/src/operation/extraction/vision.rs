@@ -2,11 +2,11 @@
 //!
 //! Extracts text and entities from image documents by running OCR
 //! against an [`OcrEngine`], optionally verifying detected entities
-//! against the source image via an [`CvVerifier`], and
-//! optionally running computer vision.
+//! against the source image via a verifier-only [`CvPipeline`],
+//! and optionally running computer vision.
 //!
 //! [`OcrEngine`]: nvisy_ocr::OcrEngine
-//! [`CvVerifier`]: nvisy_rig::agent::CvVerifier
+//! [`CvPipeline`]: nvisy_rig::pipeline::CvPipeline
 
 use bytes::Bytes;
 use nvisy_codec::Span;
@@ -15,7 +15,8 @@ use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::{HttpClient, HttpConfig};
 use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{Entities, ImageLocation};
-use nvisy_rig::agent::{CvVerifier, VerificationCandidate};
+use nvisy_rig::agent::VerificationCandidate;
+use nvisy_rig::pipeline::CvPipeline;
 
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;
@@ -27,7 +28,7 @@ const TARGET: &str = "nvisy_engine::op::extraction::visual";
 pub(super) struct VisualExtraction {
     engine: OcrEngine,
     params: RunParams,
-    verifier: Option<CvVerifier>,
+    cv: Option<CvPipeline>,
 }
 
 impl VisualExtraction {
@@ -54,14 +55,14 @@ impl VisualExtraction {
             .map_err(|e| Error::runtime(e.to_string(), "ocr-http-client", false))?;
         let engine = ocr_provider.into_engine_with_client(ocr_http_client);
 
-        let verifier = if cfg.verification {
+        let cv = if cfg.verification {
             let llm = config.llm.as_ref();
             match llm.and_then(|s| s.provider.as_ref()) {
                 Some(provider) => {
                     let llm_config = llm.and_then(|s| s.policy.clone()).unwrap_or_default();
-                    let v = CvVerifier::new(provider, llm_config)
-                        .map_err(|e| Error::runtime(e.to_string(), "cv-verifier", false))?;
-                    Some(v)
+                    let pipeline = CvPipeline::new(provider, None, llm_config)
+                        .map_err(|e| Error::runtime(e.to_string(), "cv-pipeline", false))?;
+                    Some(pipeline)
                 }
                 None => {
                     tracing::warn!(
@@ -82,11 +83,7 @@ impl VisualExtraction {
             );
         }
 
-        Ok(Self {
-            engine,
-            params,
-            verifier,
-        })
+        Ok(Self { engine, params, cv })
     }
 
     /// Run OCR extraction on a batch of image spans.
@@ -111,7 +108,7 @@ impl VisualExtraction {
     /// Verify detected entities against the source images.
     async fn verify(
         &self,
-        verifier: &CvVerifier,
+        cv: &CvPipeline,
         spans: &[Span<ImageLocation, ImageData>],
         entities: Entities,
         document: &crate::operation::Document,
@@ -136,10 +133,10 @@ impl VisualExtraction {
                 candidates.push(VerificationCandidate { entity, value });
             }
 
-            verified = verifier
-                .verify_entities(&png_bytes, candidates)
+            verified = cv
+                .verify(&png_bytes, candidates)
                 .await
-                .map_err(|e| Error::runtime(e.to_string(), "cv-verifier", e.is_retryable()))?;
+                .map_err(|e| Error::runtime(e.to_string(), "cv-pipeline", e.is_retryable()))?;
         }
         Ok(verified.into())
     }
@@ -181,13 +178,13 @@ impl Operation for VisualExtraction {
             }
         }
 
-        if let Some(ref verifier) = self.verifier
+        if let Some(ref cv) = self.cv
             && !envelope.audit.entities.is_empty()
         {
             let verify_spans = Self::collect_spans(&envelope.document).await;
             match self
                 .verify(
-                    verifier,
+                    cv,
                     &verify_spans,
                     envelope.audit.entities.clone(),
                     &envelope.document,

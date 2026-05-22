@@ -1,6 +1,6 @@
 //! Shared LLM-verification output shape.
 //!
-//! Both [`CvVerifier`] and [`NerVerifier`] prompt an LLM with a list
+//! Both [`CvVerifyAgent`] and [`NerVerifyAgent`] prompt an LLM with a list
 //! of proposed entities and ask it to vote confirm/correct/reject
 //! per entry. The verdict shape is identical across modalities;
 //! only the per-modality location update (bounding box vs. text
@@ -10,8 +10,8 @@
 //! Confirmed entities are omitted from [`VerificationOutput`]; only
 //! changed (corrected or rejected) entries appear.
 //!
-//! [`CvVerifier`]: crate::agent::CvVerifier
-//! [`NerVerifier`]: crate::agent::NerVerifier
+//! [`CvVerifyAgent`]: crate::agent::CvVerifyAgent
+//! [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use nvisy_ontology::primitive::{BoundingBox, Confidence};

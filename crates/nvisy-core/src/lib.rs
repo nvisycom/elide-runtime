@@ -3,6 +3,7 @@
 #![doc = include_str!("../README.md")]
 
 pub mod content;
+pub mod detection;
 pub mod media;
 
 mod error;

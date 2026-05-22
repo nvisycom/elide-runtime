@@ -21,6 +21,8 @@ pub(super) struct LocalizedCandidate {
 
 /// What to do with candidates that can't be uniquely localized.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "kebab-case")]
 pub enum UnresolvedCandidatePolicy {
     /// Drop the candidate silently. Default.
     #[default]

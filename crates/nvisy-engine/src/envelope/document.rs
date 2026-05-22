@@ -26,7 +26,7 @@ use nvisy_ontology::entity::{
 /// Created during import and carried through the entire pipeline via
 /// [`DocumentEnvelope`].
 ///
-/// [`DocumentEnvelope`]: crate::operation::DocumentEnvelope
+/// [`DocumentEnvelope`]: crate::envelope::DocumentEnvelope
 pub struct Document {
     /// The decoded content handle (text, image, audio, or rich).
     pub handle: ContentHandle,

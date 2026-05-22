@@ -18,11 +18,15 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use super::default::EngineInput;
+use crate::deduplication::Deduplicator;
 use crate::detection::{Detection as DetectionConfig, DetectionEngine};
+use crate::envelope::{DocumentEnvelope, SharedData};
 use crate::extraction::{Extraction as ExtractionConfig, Extractors};
-use crate::ingestion::{ExportFile as ExportFileConfig, ImportFile as ImportFileConfig};
-use crate::operation::{Deduplicator, DocumentEnvelope, Exporter, Importer, SharedData, Validator};
+use crate::ingestion::{
+    ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
+};
 use crate::redaction::{RedactionDefaults, Redactor};
+use crate::validation::Validator;
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 

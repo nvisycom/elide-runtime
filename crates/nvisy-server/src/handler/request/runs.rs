@@ -1,11 +1,12 @@
 //! Run request types.
 
+use nvisy_engine::deduplication::Deduplication;
 use nvisy_engine::detection::Detection;
 use nvisy_engine::extraction::Extraction;
 use nvisy_engine::ingestion::{ExportFile, ImportFile};
-use nvisy_engine::operation::{Deduplication, Validation};
 use nvisy_engine::pipeline::{RunStatus, RuntimeConfig};
 use nvisy_engine::redaction::Redaction;
+use nvisy_engine::validation::Validation;
 use nvisy_ontology::policy::PolicyRef;
 use schemars::JsonSchema;
 use serde::Deserialize;

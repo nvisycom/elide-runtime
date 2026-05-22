@@ -11,14 +11,14 @@ use nvisy_ontology::policy::{Policies, Policy};
 use uuid::Uuid;
 
 use crate::ingestion::encryption::SharedKeyProvider;
-use crate::registry::Registry;
+use crate::ingestion::registry::Registry;
 
 /// Immutable run-wide state shared across all envelopes via `Arc`.
 ///
 /// Constructed once at the start of a pipeline run and stored on each
 /// [`DocumentEnvelope`].
 ///
-/// [`DocumentEnvelope`]: crate::operation::DocumentEnvelope
+/// [`DocumentEnvelope`]: crate::envelope::DocumentEnvelope
 #[derive(Clone)]
 pub struct SharedData {
     /// Unique identifier for this pipeline run.

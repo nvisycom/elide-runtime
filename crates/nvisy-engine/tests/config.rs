@@ -2,6 +2,8 @@
 
 mod fixtures;
 
+use std::time::Duration;
+
 use nvisy_engine::pipeline::{EngineSection, ResourceLimits, RuntimeConfig};
 use validator::Validate;
 
@@ -49,7 +51,7 @@ fn merge_overrides_present_sections() {
     let base = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                run_timeout: Some(std::time::Duration::from_secs(30)),
+                run_timeout: Some(Duration::from_secs(30)),
             },
             ..Default::default()
         }),
@@ -58,7 +60,7 @@ fn merge_overrides_present_sections() {
     let overrides = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                run_timeout: Some(std::time::Duration::from_secs(5)),
+                run_timeout: Some(Duration::from_secs(5)),
             },
             ..Default::default()
         }),
@@ -68,7 +70,7 @@ fn merge_overrides_present_sections() {
     let merged = base.merge(&overrides);
     assert_eq!(
         merged.engine.unwrap().limits.run_timeout,
-        Some(std::time::Duration::from_secs(5))
+        Some(Duration::from_secs(5))
     );
 }
 
@@ -77,7 +79,7 @@ fn merge_falls_back_to_base() {
     let base = RuntimeConfig {
         engine: Some(EngineSection {
             limits: ResourceLimits {
-                run_timeout: Some(std::time::Duration::from_secs(60)),
+                run_timeout: Some(Duration::from_secs(60)),
             },
             ..Default::default()
         }),
@@ -88,6 +90,6 @@ fn merge_falls_back_to_base() {
     let merged = base.merge(&overrides);
     assert_eq!(
         merged.engine.unwrap().limits.run_timeout,
-        Some(std::time::Duration::from_secs(60))
+        Some(Duration::from_secs(60))
     );
 }

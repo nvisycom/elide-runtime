@@ -18,7 +18,7 @@ use aide::axum::routing::{get_with, post_with};
 use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use nvisy_engine::registry::Registry;
+use nvisy_engine::ingestion::registry::Registry;
 use nvisy_ontology::policy::Policy;
 
 use super::error::Result;

@@ -21,7 +21,7 @@ use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_core::content::{Content, ContentData, ContentMetadata};
-use nvisy_engine::registry::Registry;
+use nvisy_engine::ingestion::registry::Registry;
 
 use super::error::Result;
 use super::request::{ContentPath, NewFile, Pagination};

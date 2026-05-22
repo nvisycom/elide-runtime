@@ -22,7 +22,7 @@ use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::{Entities, ImageLocation};
 
 pub use self::params::VlmExtractorConfig;
-use crate::operation::{Document, DocumentEnvelope};
+use crate::envelope::{Document, DocumentEnvelope};
 
 const TARGET: &str = "nvisy_engine::extraction::vlm";
 

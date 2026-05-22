@@ -21,7 +21,7 @@ use nvisy_ontology::provenance::AuditEntryStatus;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::operation::DocumentEnvelope;
+use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::redaction::apply";
 
@@ -366,7 +366,7 @@ mod tests {
     use nvisy_ontology::provenance::{AuditEntry, RedactionMapping};
 
     use super::*;
-    use crate::operation::SharedData;
+    use crate::envelope::SharedData;
 
     fn text_entity(start: usize, end: usize) -> Entity {
         Entity::test_builder(start, end).test_build()
@@ -400,7 +400,7 @@ mod tests {
             Content::with_metadata(data, ContentMetadata::new().with_content_type(content_type));
         let handle = ContentHandle::decode(&content).await.unwrap();
         let dir = tempfile::tempdir().unwrap();
-        let registry = crate::registry::Registry::open(dir.path()).unwrap();
+        let registry = crate::ingestion::registry::Registry::open(dir.path()).unwrap();
         let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
         let mut envelope = DocumentEnvelope::new(handle, ContentMetadata::default(), shared);
         envelope.audit.entities = entities;

@@ -20,7 +20,7 @@ use std::{fmt, mem};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-const TARGET: &str = "nvisy_engine::registry::cache";
+const TARGET: &str = "nvisy_engine::ingestion::registry::cache";
 
 /// A cached entry with its value and reference count.
 struct CachedEntry<T> {

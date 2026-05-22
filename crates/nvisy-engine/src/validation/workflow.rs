@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// Controls how the post-redaction leak check affects the overall pipeline
 /// outcome.
 ///
-/// [`Validation`]: crate::operation::Validation
+/// [`Validation`]: crate::validation::Validation
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Validation {

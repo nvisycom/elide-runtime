@@ -6,8 +6,8 @@
 
 use std::path::{Path, PathBuf};
 
+use nvisy_engine::ingestion::registry::Registry;
 use nvisy_engine::pipeline::{Engine, RuntimeConfig};
-use nvisy_engine::registry::Registry;
 
 /// Shared application state threaded through all handlers.
 #[must_use = "state does nothing unless you use it"]

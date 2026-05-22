@@ -23,13 +23,14 @@ use super::config::RuntimeConfig;
 use super::run::Pipeline;
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
+use crate::deduplication::Deduplication;
 use crate::detection::{Detection, Recognizers};
 use crate::extraction::{Extraction, Extractors};
 use crate::ingestion::encryption::SharedKeyProvider;
+use crate::ingestion::registry::Registry;
 use crate::ingestion::{ExportFile, ImportFile};
-use crate::operation::{Deduplication, Validation};
 use crate::redaction::{Redaction, RedactionDefaults};
-use crate::registry::Registry;
+use crate::validation::Validation;
 
 /// Input required to execute a redaction pipeline.
 ///

@@ -16,7 +16,7 @@ use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 use nvisy_ontology::entity::ImageLocation;
 
 pub use self::params::OcrExtractorConfig;
-use crate::operation::{Document, DocumentEnvelope};
+use crate::envelope::{Document, DocumentEnvelope};
 
 const TARGET: &str = "nvisy_engine::extraction::ocr";
 

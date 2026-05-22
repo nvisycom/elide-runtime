@@ -10,15 +10,20 @@
 pub(crate) mod compression;
 pub mod encryption;
 mod export;
+mod exporter;
 mod import;
+mod importer;
 mod load_context;
+pub mod registry;
 
 use nvisy_ontology::Error;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::export::ExportFile;
+pub(crate) use self::exporter::Exporter;
 pub use self::import::ImportFile;
+pub(crate) use self::importer::Importer;
 pub use self::load_context::LoadContext;
 
 /// Supported compression algorithms for import/export.

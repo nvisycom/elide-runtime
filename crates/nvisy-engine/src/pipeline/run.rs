@@ -22,11 +22,11 @@ use super::orchestrator::{Orchestrator, RunContext};
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
 use crate::detection::Recognizers;
+use crate::envelope::SharedData;
 use crate::extraction::Extractors;
 use crate::ingestion::encryption::SharedKeyProvider;
-use crate::operation::SharedData;
+use crate::ingestion::registry::Registry;
 use crate::redaction::RedactionDefaults;
-use crate::registry::Registry;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
 
@@ -288,8 +288,8 @@ impl Pipeline {
         context_ids: &[Uuid],
         policy_ids: &[Uuid],
     ) -> (
-        crate::registry::ResourceGuard<nvisy_ontology::context::Context>,
-        crate::registry::ResourceGuard<nvisy_ontology::policy::Policy>,
+        crate::ingestion::registry::ResourceGuard<nvisy_ontology::context::Context>,
+        crate::ingestion::registry::ResourceGuard<nvisy_ontology::policy::Policy>,
     ) {
         let registry = &self.registry;
 

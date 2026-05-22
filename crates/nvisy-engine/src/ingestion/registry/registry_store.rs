@@ -18,7 +18,7 @@ use super::content_handle::ContentHandle;
 use super::fjall_ext::{FjallDatabaseExt, FjallKeyspaceExt, blocking, not_found};
 use super::resource_cache::ResourceCache;
 
-const TARGET: &str = "nvisy_engine::registry";
+const TARGET: &str = "nvisy_engine::ingestion::registry";
 
 /// Actor-scoped content, context, and policy store backed by fjall.
 ///

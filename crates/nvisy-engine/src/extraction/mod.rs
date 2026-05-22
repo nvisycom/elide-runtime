@@ -37,7 +37,7 @@ pub use self::ocr::{OcrExtractor, OcrExtractorConfig};
 pub use self::stt::{SttExtractor, SttExtractorConfig};
 pub use self::vlm::{VlmExtractor, VlmExtractorConfig};
 pub use self::workflow::{AudialExtraction, Extraction, TextExtraction, VisualExtraction};
-use crate::operation::DocumentEnvelope;
+use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::extraction";
 

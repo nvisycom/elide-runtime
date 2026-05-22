@@ -125,7 +125,7 @@ impl EntityBuilder {
 /// domain-specific filtering helpers. Used as the canonical entity
 /// container in both operation I/O and [`DocumentEnvelope`].
 ///
-/// [`DocumentEnvelope`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/operation/struct.DocumentEnvelope.html
+/// [`DocumentEnvelope`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/envelope/struct.DocumentEnvelope.html
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Deref, DerefMut, From, IntoIterator)]
 #[derive(Serialize, Deserialize, JsonSchema)]

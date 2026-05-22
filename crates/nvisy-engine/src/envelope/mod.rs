@@ -35,7 +35,7 @@ mod document;
 mod shared_data;
 
 pub use self::document::Document;
-pub use self::shared_data::SharedData;
+pub(crate) use self::shared_data::SharedData;
 
 /// Per-document state that flows through the entire pipeline.
 ///

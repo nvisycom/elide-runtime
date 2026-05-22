@@ -1,4 +1,4 @@
-//! Entity deduplication operation.
+//! Entity deduplication phase.
 //!
 //! Runs after detection. Combines multiple detection passes into a
 //! single, deduplicated set of entities with combined confidence
@@ -15,11 +15,6 @@
 //!    the configured [`ConflictResolution`] strategy.
 //! 4. **Threshold filter**: drop entities below the minimum
 //!    confidence threshold.
-//!
-//! [`CalibrationMap`]: crate::operation::CalibrationMap
-//! [`GroupingCriteria`]: crate::operation::GroupingCriteria
-//! [`DeduplicationStrategy`]: crate::operation::DeduplicationStrategy
-//! [`ConflictResolution`]: crate::operation::ConflictResolution
 
 mod calibrate_entities;
 mod fuse_entities;
@@ -27,7 +22,7 @@ mod group_entities;
 mod group_key;
 mod resolve_conflicts;
 pub(crate) mod span_size;
-pub(crate) mod workflow;
+mod workflow;
 
 use std::mem;
 
@@ -37,13 +32,13 @@ use nvisy_ontology::entity::Entities;
 use self::calibrate_entities::CalibrationExt;
 use self::fuse_entities::DeduplicationStrategyExt;
 use self::resolve_conflicts::ConflictResolutionExt;
-use self::workflow::{
-    CalibrationMap, ConflictResolution, Deduplication as DeduplicationConfig,
-    DeduplicationStrategy, GroupingCriteria,
+use self::workflow::Deduplication as DeduplicationConfig;
+pub use self::workflow::{
+    CalibrationMap, ConflictResolution, Deduplication, DeduplicationStrategy, GroupingCriteria,
 };
-use crate::operation::DocumentEnvelope;
+use crate::envelope::DocumentEnvelope;
 
-const TARGET: &str = "nvisy_engine::op::deduplication";
+const TARGET: &str = "nvisy_engine::deduplication";
 
 /// Combined calibration, deduplication, conflict resolution, and
 /// threshold filtering operation.
@@ -82,7 +77,7 @@ impl Deduplicator {
     pub(crate) async fn deduplicate(
         &self,
         mut entities: Entities,
-        document: &crate::operation::Document,
+        document: &crate::envelope::Document,
     ) -> Entities {
         if entities.is_empty() {
             return entities;
@@ -146,8 +141,8 @@ mod tests {
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
-    use crate::operation::DeduplicationStrategy::*;
-    use crate::operation::Document;
+    use crate::deduplication::DeduplicationStrategy::*;
+    use crate::envelope::Document;
 
     /// Test helper: build a `Confidence` from an `f64`, panicking on
     /// out-of-range. Kept short because every dedup test uses it.

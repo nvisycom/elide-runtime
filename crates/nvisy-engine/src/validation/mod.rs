@@ -5,17 +5,18 @@
 //!
 //! [`Redactor`]: crate::redaction::Redactor
 
-pub(crate) mod workflow;
+mod workflow;
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::AuditEntry;
 use uuid::Uuid;
 
+pub use self::workflow::Validation;
 use self::workflow::Validation as ValidationConfig;
-use crate::operation::DocumentEnvelope;
+use crate::envelope::DocumentEnvelope;
 
-const TARGET: &str = "nvisy_engine::op::validation";
+const TARGET: &str = "nvisy_engine::validation";
 
 /// A sensitive value that was not properly redacted.
 #[derive(Debug, Clone)]
@@ -53,7 +54,7 @@ impl Validator {
         entities: &Entities,
         records: &[AuditEntry],
         redacted_text: Option<&str>,
-        document: &crate::operation::Document,
+        document: &crate::envelope::Document,
     ) -> ValidationResult {
         let mut passed = 0usize;
         let mut leaked = Vec::new();

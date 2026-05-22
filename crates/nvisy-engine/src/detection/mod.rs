@@ -231,7 +231,7 @@ impl DetectionEngine {
     /// [`DetectionContext`].
     pub async fn detect_in(
         &self,
-        envelope: &mut crate::operation::DocumentEnvelope,
+        envelope: &mut crate::envelope::DocumentEnvelope,
         cfg: &Detection,
     ) -> Result<()> {
         const TARGET: &str = "nvisy_engine::detection::detect_in";

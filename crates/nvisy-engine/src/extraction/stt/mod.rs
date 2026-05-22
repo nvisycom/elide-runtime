@@ -15,7 +15,7 @@ use nvisy_ontology::artifacts::{TranscriptSegment, Transcription};
 use nvisy_ontology::primitive::TimeSpan;
 
 pub use self::params::SttExtractorConfig;
-use crate::operation::DocumentEnvelope;
+use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::extraction::stt";
 

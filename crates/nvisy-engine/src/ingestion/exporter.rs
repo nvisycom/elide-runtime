@@ -10,20 +10,15 @@ use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentSource};
 use uuid::Uuid;
 
+use crate::envelope::DocumentEnvelope;
 use crate::ingestion::compression::CompressionService;
 use crate::ingestion::encryption::CryptoService;
 use crate::ingestion::{CompressionAlgorithm, EncryptionConfig};
-use crate::operation::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::export_file";
 
 /// Exports processed content, optionally applying encryption and
 /// compression afterward.
-///
-/// Not an [`Operation`] — export *consumes* envelopes to produce
-/// registry artifacts rather than mutating them in place.
-///
-/// [`Operation`]: crate::operation::Operation
 #[derive(Default)]
 pub struct Exporter {
     encryption: Option<EncryptionConfig>,

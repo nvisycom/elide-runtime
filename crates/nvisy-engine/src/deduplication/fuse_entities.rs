@@ -13,7 +13,7 @@ use nvisy_ontology::primitive::Confidence;
 use super::group_entities::GroupEntities;
 use super::span_size::SpanSize;
 use super::workflow::{DeduplicationStrategy, GroupingCriteria};
-use crate::operation::Document;
+use crate::envelope::Document;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::strategy";
 

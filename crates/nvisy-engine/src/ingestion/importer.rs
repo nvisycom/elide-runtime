@@ -16,21 +16,15 @@ use nvisy_codec::ContentHandle;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData};
 
+use crate::envelope::{DocumentEnvelope, SharedData};
 use crate::ingestion::compression::CompressionService;
 use crate::ingestion::encryption::{CryptoService, EncryptedContent};
 use crate::ingestion::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
-use crate::operation::DocumentEnvelope;
-use crate::operation::envelope::SharedData;
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 
 /// Decodes raw content into a [`DocumentEnvelope`], optionally applying
 /// decompression and decryption beforehand.
-///
-/// Not an [`Operation`] — import *creates* envelopes rather than
-/// mutating them.
-///
-/// [`Operation`]: crate::operation::Operation
 #[derive(Default)]
 pub struct Importer {
     decompression: Option<CompressionAlgorithm>,
@@ -108,12 +102,12 @@ mod tests {
     use nvisy_core::content::{Content, ContentData};
 
     use super::*;
-    use crate::operation::envelope::SharedData;
+    use crate::envelope::SharedData;
 
     #[tokio::test]
     async fn unknown_format_errors() {
         let dir = tempfile::tempdir().unwrap();
-        let registry = crate::registry::Registry::open(dir.path()).unwrap();
+        let registry = crate::ingestion::registry::Registry::open(dir.path()).unwrap();
         let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
         let content = Content::new(ContentData::from("plain text has no magic bytes"));
         assert!(Importer::new().import(content, &shared).await.is_err());

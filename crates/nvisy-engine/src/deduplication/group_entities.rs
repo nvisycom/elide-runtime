@@ -17,7 +17,8 @@ use std::mem;
 use nvisy_ontology::entity::{Entities, Entity, EntityKind, Overlap};
 
 use super::group_key::GroupKey;
-use crate::operation::{Document, GroupingCriteria};
+use crate::deduplication::GroupingCriteria;
+use crate::envelope::Document;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::group_entities";
 

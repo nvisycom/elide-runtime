@@ -36,7 +36,7 @@ pub struct ResourceLimits {
 /// Controls resource cache behavior for contexts and policies held in
 /// the [`Registry`]. Not yet enforced — reserved for future use.
 ///
-/// [`Registry`]: crate::registry::Registry
+/// [`Registry`]: crate::ingestion::registry::Registry
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct CacheConfig {
     /// Maximum number of entries to keep in each resource cache.

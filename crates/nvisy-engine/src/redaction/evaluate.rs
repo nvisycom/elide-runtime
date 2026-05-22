@@ -5,7 +5,7 @@
 //! builds and applies redaction instructions across all modalities
 //! (text, image, audio) via [`RedactionApplicator`].
 //!
-//! [`GenerateContext`]: crate::operation::GenerateContext
+//! [`GenerateContext`]: GenerateContext (removed)
 
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use super::apply::RedactionApplicator;
 use super::defaults::RedactionDefaults;
-use crate::operation::{Document, DocumentEnvelope};
+use crate::envelope::{Document, DocumentEnvelope};
 use crate::redaction::Redaction as RedactionConfig;
 
 const TARGET: &str = "nvisy_engine::redaction";
@@ -306,7 +306,7 @@ mod tests {
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
-    use crate::operation::Document;
+    use crate::envelope::Document;
 
     fn test_entity(value: &str, confidence: f64) -> Entity {
         Entity::test_builder(0, value.len())

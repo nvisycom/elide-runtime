@@ -130,30 +130,31 @@ impl RuntimeConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
+
+    fn http(max_retries: u32) -> nvisy_http::HttpConfig {
+        nvisy_http::HttpConfig {
+            max_retries,
+            timeout: Duration::from_secs(120),
+            connect_timeout: Duration::from_secs(10),
+            idle_timeout: Duration::from_secs(90),
+        }
+    }
 
     #[test]
     fn merge_overrides_present_sections() {
         let base = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_http::HttpConfig {
-                    max_retries: 3,
-                    timeout: std::time::Duration::from_secs(120),
-                    connect_timeout: std::time::Duration::from_secs(10),
-                    idle_timeout: std::time::Duration::from_secs(90),
-                }),
+                http: Some(http(3)),
                 ..Default::default()
             }),
             ..Default::default()
         };
         let overrides = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_http::HttpConfig {
-                    max_retries: 1,
-                    timeout: std::time::Duration::from_secs(30),
-                    connect_timeout: std::time::Duration::from_secs(5),
-                    idle_timeout: std::time::Duration::from_secs(60),
-                }),
+                http: Some(http(1)),
                 ..Default::default()
             }),
             ..Default::default()
@@ -166,12 +167,7 @@ mod tests {
     fn merge_falls_back_to_base() {
         let base = RuntimeConfig {
             engine: Some(EngineSection {
-                http: Some(nvisy_http::HttpConfig {
-                    max_retries: 3,
-                    timeout: std::time::Duration::from_secs(120),
-                    connect_timeout: std::time::Duration::from_secs(10),
-                    idle_timeout: std::time::Duration::from_secs(90),
-                }),
+                http: Some(http(3)),
                 ..Default::default()
             }),
             ..Default::default()

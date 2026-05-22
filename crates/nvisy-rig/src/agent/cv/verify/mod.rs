@@ -20,8 +20,8 @@ use uuid::Uuid;
 
 pub use self::input::{ProposedEntity, VerificationCandidate};
 use self::prompt::{CV_VERIFIER_SYSTEM_PROMPT, CvVerifyAgentPromptBuilder};
-use crate::agent::base::{UsageTracker, VerificationOutput};
-use crate::agent::{AgentConfig, AgentProvider, BaseAgent};
+use crate::agent::base::{BaseAgent, UsageTracker, VerificationOutput};
+use crate::agent::{AgentConfig, AgentProvider};
 
 const TARGET: &str = "nvisy_rig::agent::cv_verify_agent";
 

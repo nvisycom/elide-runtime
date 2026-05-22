@@ -76,11 +76,7 @@ impl Operation for Detection {
         let mut all = nvisy_ontology::entity::Entities::new();
         for span in &spans {
             let ctx = self.build_context(span.data.clone(), run_id);
-            let detected = self
-                .engine
-                .run(ctx)
-                .await
-                .map_err(nvisy_core::Error::from)?;
+            let detected = self.engine.run(ctx).await?;
             all.extend(detected.rebase_offsets(span));
         }
 

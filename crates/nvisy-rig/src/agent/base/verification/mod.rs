@@ -10,8 +10,8 @@
 //! Confirmed entities are omitted from [`VerificationOutput`]; only
 //! changed (corrected or rejected) entries appear.
 //!
-//! [`CvVerifyAgent`]: crate::agent::CvVerifyAgent
-//! [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
+//! [`CvVerifyAgent`]: crate::agent::cv::CvVerifyAgent
+//! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use nvisy_ontology::primitive::{BoundingBox, Confidence};

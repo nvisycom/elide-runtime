@@ -2,31 +2,76 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-LLM agents over the [`rig`](https://github.com/0xPlaygrounds/rig)
-framework for the Nvisy runtime. Hosts `BaseAgent` scaffolding plus
-concrete agents for NER, computer vision, generation, OCR
-verification, and speech (STT/TTS).
+LLM agents and orchestrating pipelines over the
+[`rig`](https://github.com/0xPlaygrounds/rig) framework for the Nvisy
+runtime. Provides typed agents for NER, CV classification, CV
+verification, and synthetic-value generation, plus speech (STT/TTS)
+services.
 
-This crate replaces the LLM half of the former `nvisy-provider`. The
-non-LLM OCR providers (AWS Textract, Google Vision, Azure DocAI,
-Surya, PaddleX) live in `nvisy-ocr`.
+## Overview
 
-## Modules
+Agents live under `agent::*`, grouped by modality. Each modality
+bundles a detect-style and verify-style agent that share data shapes:
 
-- **`agent::base`** — `BaseAgent`, `AgentConfig`, `AgentProvider`,
-  context window, usage tracking.
-- **`agent::generate`** — generic text generation.
-- **`agent::ner`** — LLM-driven named-entity recognition. Consumed
-  by `nvisy-detection::LlmRecognizer`.
-- **`agent::cv`** — multimodal (image + text) LLM agents.
-- **`agent::ocr`** — LLM-mediated entity verification for OCR
-  output. Wraps an `nvisy_ocr::OcrEngine` for now; will be split
-  in a follow-up so the verifier becomes a pure LLM agent and the
-  OCR orchestration moves up to `nvisy-engine`.
-- **`audio::stt`** / **`audio::tts`** — speech-to-text and
-  text-to-speech via LLM providers (OpenAI Whisper, OpenAI TTS,
-  etc.).
+- `agent::ner` — `NerAgent` (detect candidates from text) +
+  `NerVerifyAgent` (localize to byte offsets, optionally LLM-refine).
+- `agent::cv` — `CvAgent` (classify pre-computed CV detections into
+  entity categories) + `CvVerifyAgent` (validate upstream entity
+  proposals against an image).
+- `agent::generate` — `GenAgent` (synthetic replacement values for
+  redaction).
+
+Cross-cutting infrastructure (`AgentConfig`, `AgentProvider`,
+`DetectionConfig`, `UsageStats`) is re-exported at `agent::*`.
+
+Pipelines under `pipeline::*` compose agents into end-to-end flows
+and own any cross-call state. `NerPipeline` chains
+`NerAgent → NerVerifyAgent → coreference merge`; `CvPipeline` holds
+the optional `CvAgent` and the always-present `CvVerifyAgent`,
+exposing `classify` and `verify` as independent methods. Both
+expose `reset()` (per-document state clear + cumulative usage zero)
+and `usage()` (token totals since the last reset).
+
+Audio services (`audio::stt::SttService`, `audio::tts::TtsService`)
+wrap whisper / TTS providers behind their own `SttProvider` /
+`TtsProvider` enums; same HTTP transport as the LLM agents.
 
 HTTP transport (`HttpClient`, `HttpConfig`, retry + tracing
-middleware) lives in the shared `nvisy-http` crate; agents accept
-clients built by callers.
+middleware) lives in the shared `nvisy-http` crate; rig agents
+build their own clients internally from `AgentConfig::max_retries`.
+
+```rust,ignore
+use nvisy_rig::agent::{AgentConfig, AgentProvider, DetectionConfig};
+use nvisy_rig::agent::ner::UnresolvedCandidatePolicy;
+use nvisy_rig::pipeline::NerPipeline;
+
+let provider = AgentProvider::openai("sk-...", "gpt-4o");
+let pipeline = NerPipeline::new(
+    &provider,
+    AgentConfig::default(),
+    None,                                    // no second-pass refiner
+    UnresolvedCandidatePolicy::Drop,
+)?;
+
+let config = DetectionConfig::default();
+let entities = pipeline.run("text to analyze", &config).await?;
+let used = pipeline.usage();
+```
+
+## Documentation
+
+See [`docs/`](../../docs/) for architecture, security, and API documentation.
+
+## Changelog
+
+See [CHANGELOG.md](../../CHANGELOG.md) for release notes and version history.
+
+## License
+
+Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
+
+## Support
+
+- **Documentation**: [docs.nvisy.com](https://docs.nvisy.com)
+- **Issues**: [GitHub Issues](https://github.com/nvisycom/runtime/issues)
+- **Email**: [support@nvisy.com](mailto:support@nvisy.com)

@@ -22,7 +22,7 @@
 //! [`RefinementMethod::ModelVerification`].
 //!
 //! [`with_refinement`]: NerVerifyAgent::with_refinement
-//! [`CvVerifyAgent`]: crate::agent::CvVerifyAgent
+//! [`CvVerifyAgent`]: crate::agent::cv::CvVerifyAgent
 //! [`RecognitionMethod::Ner`]: nvisy_ontology::entity::RecognitionMethod::Ner
 //! [`RefinementMethod::ModelVerification`]: nvisy_ontology::entity::RefinementMethod::ModelVerification
 
@@ -41,9 +41,9 @@ pub use self::localize::UnresolvedCandidatePolicy;
 use self::localize::{LocalizedCandidate, localize_all};
 use self::prompt::NER_VERIFIER_SYSTEM_PROMPT;
 use self::refine::refine_localized;
-use crate::agent::base::UsageTracker;
+use crate::agent::base::{BaseAgent, UsageTracker};
 use crate::agent::ner::NerCandidate;
-use crate::agent::{AgentConfig, AgentProvider, BaseAgent};
+use crate::agent::{AgentConfig, AgentProvider};
 
 const TARGET: &str = "nvisy_rig::agent::ner_verify_agent";
 

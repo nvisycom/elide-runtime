@@ -6,7 +6,7 @@
 //! logic — translating a bbox into an [`ImageLocation`] update on
 //! the original entity — lives here.
 //!
-//! [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
+//! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 //! [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
 
 use std::collections::HashMap;

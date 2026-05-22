@@ -1,9 +1,11 @@
 //! Luhn checksum validator.
 //!
-//! Implements the [Luhn algorithm](https://en.wikipedia.org/wiki/Luhn_algorithm)
-//! used to validate credit/debit card numbers and other identification
-//! numbers. Only digits, spaces, and dashes are accepted as input: any
-//! other character causes the check to fail.
+//! Implements the [Luhn algorithm] used to validate credit/debit card
+//! numbers and other identification numbers. Only digits, spaces, and
+//! dashes are accepted as input: any other character causes the check
+//! to fail.
+//!
+//! [Luhn algorithm]: https://en.wikipedia.org/wiki/Luhn_algorithm
 
 /// Return `true` if `num` passes the Luhn checksum.
 ///

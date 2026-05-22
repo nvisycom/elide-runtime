@@ -3,7 +3,7 @@
 use derive_more::{Display, FromStr};
 use serde::{Deserialize, Serialize};
 
-/// A validated [BCP-47](https://www.rfc-editor.org/info/bcp47) language tag.
+/// A validated [BCP-47] language tag.
 ///
 /// Wraps [`oxilangtag::LanguageTag`] with serde support. Use
 /// `#[schemars(with = "String")]` on fields of this type for JSON Schema
@@ -18,6 +18,8 @@ use serde::{Deserialize, Serialize};
 /// assert_eq!(tag.as_str(), "en-US");
 /// assert_eq!(tag.primary_language(), "en");
 /// ```
+///
+/// [BCP-47]: https://www.rfc-editor.org/info/bcp47
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Display, FromStr)]
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]

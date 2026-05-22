@@ -1,10 +1,8 @@
 //! Text generation agent for generating synthetic replacement values.
 //!
-//! [`GenAgent`] wraps a [`BaseAgent`] with
-//! generation-specific prompts. It is a pure LLM agent (no tools) that
-//! generates realistic fake values to replace detected PII/entities.
-//!
-//! [`BaseAgent`]: super::BaseAgent
+//! [`GenAgent`] wraps the crate-internal base agent with
+//! generation-specific prompts. Pure LLM, no tools — generates
+//! realistic fake values to replace detected PII/entities.
 
 mod output;
 mod prompt;
@@ -15,8 +13,8 @@ use uuid::Uuid;
 
 pub use self::output::{GenOutput, GeneratedEntity};
 use self::prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
-use super::base::UsageTracker;
-use super::{AgentConfig, AgentProvider, BaseAgent};
+use crate::agent::base::{BaseAgent, UsageTracker};
+use crate::agent::{AgentConfig, AgentProvider};
 
 const TARGET: &str = "nvisy_rig::agent::generate";
 

@@ -28,7 +28,7 @@ pub(crate) struct NerCandidates {
 /// participates in detection but not in cross-call coreference
 /// tracking.
 ///
-/// [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
+/// [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 /// [`context`]: Self::context
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 pub struct NerCandidate {

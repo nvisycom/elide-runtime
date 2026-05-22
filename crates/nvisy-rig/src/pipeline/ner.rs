@@ -17,10 +17,10 @@
 //! is configured on the verifier itself via
 //! [`NerVerifyAgent::with_refinement`].
 //!
-//! [`NerAgent`]: crate::agent::NerAgent
-//! [`NerCandidate`]: crate::agent::NerCandidate
-//! [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
-//! [`NerVerifyAgent::with_refinement`]: crate::agent::NerVerifyAgent::with_refinement
+//! [`NerAgent`]: crate::agent::ner::NerAgent
+//! [`NerCandidate`]: crate::agent::ner::NerCandidate
+//! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
+//! [`NerVerifyAgent::with_refinement`]: crate::agent::ner::NerVerifyAgent::with_refinement
 
 use std::collections::HashSet;
 use std::mem;
@@ -30,10 +30,10 @@ use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
 use tokio::sync::Mutex;
 
-use crate::agent::{
-    AgentConfig, AgentProvider, DetectionConfig, KnownNerEntity, NerAgent, NerContext,
-    NerVerifyAgent, UnresolvedCandidatePolicy, UsageStats,
+use crate::agent::ner::{
+    KnownNerEntity, NerAgent, NerContext, NerVerifyAgent, UnresolvedCandidatePolicy,
 };
+use crate::agent::{AgentConfig, AgentProvider, DetectionConfig, UsageStats};
 
 /// Composed NER pipeline.
 ///
@@ -48,8 +48,8 @@ use crate::agent::{
 ///
 /// [`reset`]: Self::reset
 /// [`new`]: Self::new
-/// [`NerAgent`]: crate::agent::NerAgent
-/// [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
+/// [`NerAgent`]: crate::agent::ner::NerAgent
+/// [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 #[derive(Builder)]
 #[builder(
     name = "NerPipelineBuilder",
@@ -77,7 +77,7 @@ impl NerPipelineBuilder {
     /// configured on the verifier itself via
     /// [`NerVerifyAgent::with_refinement`].
     ///
-    /// [`NerVerifyAgent::with_refinement`]: crate::agent::NerVerifyAgent::with_refinement
+    /// [`NerVerifyAgent::with_refinement`]: crate::agent::ner::NerVerifyAgent::with_refinement
     pub fn with_verifier(mut self, verifier: NerVerifyAgent) -> Self {
         self.verifier = Some(verifier);
         self

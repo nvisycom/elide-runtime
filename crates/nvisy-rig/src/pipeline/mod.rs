@@ -18,10 +18,10 @@
 //! accounting. Callers that want bare agents instead can construct
 //! them directly from [`crate::agent`].
 //!
-//! [`NerAgent`]: crate::agent::NerAgent
-//! [`NerVerifyAgent`]: crate::agent::NerVerifyAgent
-//! [`CvAgent`]: crate::agent::CvAgent
-//! [`CvVerifyAgent`]: crate::agent::CvVerifyAgent
+//! [`NerAgent`]: crate::agent::ner::NerAgent
+//! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
+//! [`CvAgent`]: crate::agent::cv::CvAgent
+//! [`CvVerifyAgent`]: crate::agent::cv::CvVerifyAgent
 
 mod cv;
 mod ner;

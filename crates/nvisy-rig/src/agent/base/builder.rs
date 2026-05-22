@@ -8,7 +8,6 @@ use rig::client::CompletionClient;
 use rig::completion::CompletionModel;
 #[cfg(feature = "google-gemini")]
 use rig::providers::gemini;
-use rig::tool::{Tool, ToolDyn};
 use uuid::Uuid;
 
 use super::{AgentConfig, AgentProvider, Agents, BaseAgent, UsageTracker};
@@ -16,15 +15,14 @@ use crate::error::Error;
 
 /// Builder for [`BaseAgent`].
 ///
-/// Created via [`BaseAgent::builder`]. Collects a provider reference, config,
-/// and optional tools, then constructs the concrete rig-core agent on
+/// Created via [`BaseAgent::builder`]. Collects a provider reference
+/// and config, then constructs the concrete rig-core agent on
 /// [`build`].
 ///
 /// [`build`]: Self::build
 pub(crate) struct BaseAgentBuilder {
     provider: AgentProvider,
     config: AgentConfig,
-    tools: Vec<Box<dyn ToolDyn>>,
 }
 
 impl BaseAgentBuilder {
@@ -32,23 +30,12 @@ impl BaseAgentBuilder {
         Self {
             provider: provider.clone(),
             config,
-            tools: Vec::new(),
         }
-    }
-
-    /// Register a tool the agent can call during prompts.
-    pub fn tool(mut self, tool: impl Tool + 'static) -> Self {
-        self.tools.push(Box::new(tool));
-        self
     }
 
     /// Build the [`BaseAgent`], constructing the provider-specific rig client.
     pub fn build(self) -> Result<BaseAgent, Error> {
-        let Self {
-            provider,
-            config,
-            tools,
-        } = self;
+        let Self { provider, config } = self;
 
         let http_client = HttpClient::new(&HttpConfig {
             max_retries: config.max_retries,
@@ -64,13 +51,13 @@ impl BaseAgentBuilder {
             AgentProvider::OpenAi(p) => {
                 let client = p.openai_client(raw_client)?;
                 let model = client.completions_api().completion_model(&p.model);
-                Agents::OpenAi(build_rig_agent(model, &config, preamble, tools))
+                Agents::OpenAi(build_rig_agent(model, &config, preamble))
             }
             #[cfg(feature = "anthropic-claude")]
             AgentProvider::Anthropic(p) => {
                 let client = p.anthropic_client(raw_client)?;
                 let model = client.completion_model(&p.model);
-                Agents::Anthropic(build_rig_agent(model, &config, preamble, tools))
+                Agents::Anthropic(build_rig_agent(model, &config, preamble))
             }
             #[cfg(feature = "google-gemini")]
             AgentProvider::Gemini(p) => {
@@ -78,12 +65,12 @@ impl BaseAgentBuilder {
                 // rig-core 0.31: Gemini's Capabilities doesn't propagate H,
                 // so CompletionClient is unavailable for non-default H.
                 let model = gemini::completion::CompletionModel::new(client, &p.model);
-                Agents::Gemini(build_rig_agent(model, &config, preamble, tools))
+                Agents::Gemini(build_rig_agent(model, &config, preamble))
             }
             AgentProvider::Ollama(p) => {
                 let client = p.ollama_client(raw_client)?;
                 let model = client.completion_model(&p.model);
-                Agents::Ollama(build_rig_agent(model, &config, preamble, tools))
+                Agents::Ollama(build_rig_agent(model, &config, preamble))
             }
         };
 
@@ -105,26 +92,12 @@ fn build_rig_agent<M: CompletionModel>(
     model: M,
     config: &AgentConfig,
     preamble: Option<&str>,
-    tools: Vec<Box<dyn ToolDyn>>,
 ) -> Agent<M> {
-    // AgentBuilder uses typestate: `.tools()` changes the type parameter,
-    // so the with-tools and without-tools paths cannot share a binding.
-    if tools.is_empty() {
-        let mut b = AgentBuilder::new(model)
-            .temperature(config.temperature)
-            .max_tokens(config.max_tokens);
-        if let Some(p) = preamble {
-            b = b.preamble(p);
-        }
-        b.build()
-    } else {
-        let mut b = AgentBuilder::new(model)
-            .temperature(config.temperature)
-            .max_tokens(config.max_tokens)
-            .tools(tools);
-        if let Some(p) = preamble {
-            b = b.preamble(p);
-        }
-        b.build()
+    let mut b = AgentBuilder::new(model)
+        .temperature(config.temperature)
+        .max_tokens(config.max_tokens);
+    if let Some(p) = preamble {
+        b = b.preamble(p);
     }
+    b.build()
 }

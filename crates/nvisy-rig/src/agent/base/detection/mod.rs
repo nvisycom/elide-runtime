@@ -4,8 +4,8 @@
 //! consume it; the type isn't detection-specific to one agent kind.
 //!
 //! [`base`]: super
-//! [`NerAgent`]: crate::agent::NerAgent
-//! [`CvAgent`]: crate::agent::CvAgent
+//! [`NerAgent`]: crate::agent::ner::NerAgent
+//! [`CvAgent`]: crate::agent::cv::CvAgent
 
 use nvisy_ontology::entity::EntityKind;
 

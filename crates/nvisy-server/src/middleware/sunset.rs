@@ -4,8 +4,10 @@
 //! from deprecated API versions, signalling to clients that the version
 //! will be removed after a specified date.
 //!
-//! Headers follow [RFC 8594](https://httpwg.org/specs/rfc8594.html) and
-//! the [Deprecation header draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-deprecation-header/).
+//! Headers follow [RFC 8594] and the [Deprecation header draft].
+//!
+//! [RFC 8594]: https://httpwg.org/specs/rfc8594.html
+//! [Deprecation header draft]: https://datatracker.ietf.org/doc/draft-ietf-httpapi-deprecation-header/
 
 use std::collections::HashMap;
 use std::num::NonZeroU16;

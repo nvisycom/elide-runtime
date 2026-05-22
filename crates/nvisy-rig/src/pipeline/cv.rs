@@ -18,10 +18,10 @@
 //! Both methods are stateless across calls, so [`reset`] only
 //! zeroes the cumulative usage trackers.
 //!
-//! [`CvAgent`]: crate::agent::CvAgent
-//! [`CvVerifyAgent`]: crate::agent::CvVerifyAgent
+//! [`CvAgent`]: crate::agent::cv::CvAgent
+//! [`CvVerifyAgent`]: crate::agent::cv::CvVerifyAgent
 //! [`reset`]: CvPipeline::reset
-//! [`CvEntity`]: crate::agent::CvEntity
+//! [`CvEntity`]: crate::agent::cv::CvEntity
 //! [`classify`]: CvPipeline::classify
 //! [`verify`]: CvPipeline::verify
 
@@ -29,10 +29,8 @@ use bytes::Bytes;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::Entity;
 
-use crate::agent::{
-    AgentConfig, AgentProvider, CvAgent, CvDetection, CvEntity, CvVerifyAgent, DetectionConfig,
-    UsageStats, VerificationCandidate,
-};
+use crate::agent::cv::{CvAgent, CvDetection, CvEntity, CvVerifyAgent, VerificationCandidate};
+use crate::agent::{AgentConfig, AgentProvider, DetectionConfig, UsageStats};
 
 /// Combined CV pipeline. Holds a [`CvVerifyAgent`] and an optional
 /// [`CvAgent`] for classification. See module docs for the two
@@ -87,9 +85,9 @@ impl CvPipeline {
     /// Returns an error if this pipeline was constructed without an
     /// `agent_config` (verifier-only mode).
     ///
-    /// [`CvAgent`]: crate::agent::CvAgent
+    /// [`CvAgent`]: crate::agent::cv::CvAgent
     /// [`verify`]: Self::verify
-    /// [`VerificationCandidate`]: crate::agent::VerificationCandidate
+    /// [`VerificationCandidate`]: crate::agent::cv::VerificationCandidate
     pub async fn classify(
         &self,
         image_data: &[u8],

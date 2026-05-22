@@ -15,7 +15,7 @@ use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::{HttpClient, HttpConfig};
 use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{Entities, ImageLocation};
-use nvisy_rig::agent::VerificationCandidate;
+use nvisy_rig::agent::cv::VerificationCandidate;
 use nvisy_rig::pipeline::CvPipeline;
 
 use crate::operation::{DocumentEnvelope, Operation};

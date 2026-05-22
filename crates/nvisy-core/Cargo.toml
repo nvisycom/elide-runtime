@@ -45,10 +45,6 @@ infer = { workspace = true, features = [] }
 thiserror = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["as_ref", "deref", "display", "is_variant"] }
 strum = { workspace = true, features = [] }
-validator = { workspace = true, features = ["derive"] }
-
-# Async traits
-async-trait = { workspace = true, features = [] }
 
 # Encoding and hashing
 sha2 = { workspace = true, features = [] }

@@ -3248,7 +3248,6 @@ dependencies = [
 name = "nvisy-core"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "bytes",
  "derive_more",
  "hex",
@@ -3267,7 +3266,6 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
- "validator",
 ]
 
 [[package]]

@@ -11,14 +11,14 @@
 //! `From<&DetectionContext>` impl. A blanket impl wraps every
 //! qualifying `Recognizer` automatically.
 //!
-//! [`Recognizer`]: nvisy_core::detection::Recognizer
+//! [`Recognizer`]: crate::detection::Recognizer
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_core::detection::Recognizer;
 use nvisy_ontology::entity::Entities;
 
 use super::DetectionContext;
+use crate::detection::Recognizer;
 
 /// Object-safe recognizer surface used by [`DetectionEngine`].
 ///
@@ -27,7 +27,7 @@ use super::DetectionContext;
 /// auto-implements this via a blanket impl.
 ///
 /// [`DetectionEngine`]: super::DetectionEngine
-/// [`Recognizer`]: nvisy_core::detection::Recognizer
+/// [`Recognizer`]: crate::detection::Recognizer
 #[async_trait]
 pub trait DynRecognizer: Send + Sync {
     /// Detect entities, taking the fat [`DetectionContext`] and

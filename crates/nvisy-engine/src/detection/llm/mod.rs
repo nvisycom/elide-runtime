@@ -24,43 +24,18 @@
 //! [`new`]: LlmRecognizer::new
 //! [`from_pipeline`]: LlmRecognizer::from_pipeline
 
+mod context;
 mod params;
 
 use async_trait::async_trait;
 use nvisy_agent::agent::DetectionConfig;
 use nvisy_agent::pipeline::NerPipeline;
-use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
-use nvisy_core::detection::Recognizer;
-use nvisy_ontology::entity::{Entities, EntityKind};
-use uuid::Uuid;
+use nvisy_ontology::entity::Entities;
 
+pub use self::context::LlmContext;
 pub use self::params::LlmDetection;
-use crate::detection::DetectionContext;
-
-/// Per-call input to [`LlmRecognizer::run`].
-#[derive(Debug, Clone)]
-pub struct LlmContext {
-    /// The text to analyze.
-    pub text: TextData,
-    /// Entity-kind allowlist. Empty = all kinds permitted.
-    pub entities: Option<Vec<EntityKind>>,
-    /// Minimum confidence threshold in `[0.0, 1.0]`.
-    pub score_threshold: Option<f64>,
-    /// Correlation UUID propagated through the tracing span.
-    pub correlation_id: Option<Uuid>,
-}
-
-impl From<&DetectionContext> for LlmContext {
-    fn from(ctx: &DetectionContext) -> Self {
-        Self {
-            text: ctx.text.clone(),
-            entities: ctx.entities.clone(),
-            score_threshold: ctx.score_threshold,
-            correlation_id: ctx.correlation_id,
-        }
-    }
-}
+use crate::detection::Recognizer;
 
 /// LLM-backed entity recognizer.
 ///

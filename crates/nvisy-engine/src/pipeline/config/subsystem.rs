@@ -34,7 +34,7 @@ pub struct LlmSection {
 /// Controls the STT provider used by [`Extraction`]
 /// nodes for audio transcription.
 ///
-/// [`Extraction`]: nvisy_ontology::workflow::Extraction
+/// [`Extraction`]: crate::workflow::Extraction
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SttSection {
     /// STT provider selection and connection settings.

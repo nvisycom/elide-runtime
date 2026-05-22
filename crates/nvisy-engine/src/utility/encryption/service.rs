@@ -5,12 +5,12 @@ use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use bytes::Bytes;
 use nvisy_core::content::ContentData;
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_ontology::workflow::EncryptionAlgorithm;
 use rand::RngExt;
 
 use super::provider::{KeyProvider, SharedKeyProvider};
 use super::wire::{EncryptedContent, NONCE_SIZE, WireEnvelope};
 use crate::operation::DocumentEnvelope;
+use crate::workflow::EncryptionAlgorithm;
 
 const TARGET: &str = "nvisy_engine::op::encryption";
 

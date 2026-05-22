@@ -21,6 +21,7 @@
 
 mod builder;
 mod error;
+mod pattern_filter;
 
 pub mod filter;
 pub(crate) mod scan;
@@ -33,7 +34,8 @@ use regex::RegexSet;
 
 pub use self::builder::PatternEngineBuilder;
 pub use self::error::PatternEngineError;
-pub use self::filter::{AllowList, ContextHint, DenyList, DenyRule, ScanContext};
+pub use self::filter::ScanContext;
+pub use self::pattern_filter::PatternFilter;
 use self::scan::dedup::{dedup_overlapping, sort_for_dedup};
 use self::scan::enhancer::ContextEnhancer;
 use self::scan::entries::{DictEntry, RegexEntry};
@@ -163,6 +165,7 @@ static DEFAULT_ENGINE: LazyLock<PatternEngine> = LazyLock::new(|| {
 mod tests {
     use nvisy_ontology::entity::{EntityCategory, EntityKind, ModelKind, RecognitionMethod};
 
+    use super::filter::{DenyList, DenyRule};
     use super::scan::dedup::{beats, dedup_overlapping, sort_for_dedup, spans_overlap};
     use super::scan::pattern_match::RawMatch;
     use super::*;

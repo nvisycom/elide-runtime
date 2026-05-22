@@ -31,6 +31,7 @@ nvisy-ontology = { workspace = true, features = [] }
 csv = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
+schemars = { workspace = true, features = [] }
 
 # Versioning (sidecar metadata)
 semver = { workspace = true, features = ["serde"] }

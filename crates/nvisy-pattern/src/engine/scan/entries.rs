@@ -11,7 +11,7 @@ use crate::patterns::{ContextRule, DictionaryConfidence};
 
 /// Metadata stored alongside each compiled regex.
 #[derive(Debug)]
-pub(in crate::engine) struct RegexEntry {
+pub(crate) struct RegexEntry {
     pub pattern_name: String,
     pub category: EntityCategory,
     pub entity_kind: EntityKind,
@@ -23,7 +23,7 @@ pub(in crate::engine) struct RegexEntry {
 
 /// Metadata stored alongside each compiled Aho-Corasick automaton.
 #[derive(Debug)]
-pub(in crate::engine) struct DictEntry {
+pub(crate) struct DictEntry {
     pub pattern_name: String,
     pub category: EntityCategory,
     pub entity_kind: EntityKind,
@@ -44,4 +44,25 @@ impl DictEntry {
             .unwrap_or(0) as usize;
         self.confidence.resolve(col)
     }
+}
+
+/// One compiled pattern, ready for insertion into the engine.
+///
+/// Produced by [`PatternCompile::compile`]; consumed by the
+/// [`PatternEngineBuilder`] when assembling the final engine. The
+/// regex variant also carries the effective regex string so the
+/// builder can fold every entry into a single `RegexSet` pre-filter.
+///
+/// [`PatternCompile::compile`]: crate::patterns::PatternCompile::compile
+/// [`PatternEngineBuilder`]: super::super::PatternEngineBuilder
+#[derive(Debug)]
+pub(crate) enum CompiledPattern {
+    /// A compiled regex pattern plus the original regex source —
+    /// the source is needed to populate the engine's `RegexSet`.
+    Regex {
+        entry: RegexEntry,
+        regex_source: String,
+    },
+    /// A compiled dictionary pattern.
+    Dictionary(DictEntry),
 }

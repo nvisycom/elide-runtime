@@ -12,11 +12,11 @@ use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::entity::{Entities, Entity};
 use nvisy_ontology::policy::{Action, Condition, Strategy, StrategyPolicy};
 use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, RedactionMapping};
-use nvisy_ontology::workflow::Redaction as RedactionConfig;
 use uuid::Uuid;
 
 use super::apply::RedactionApplicator;
 use crate::operation::{Document, DocumentEnvelope, Operation};
+use crate::workflow::Redaction as RedactionConfig;
 
 const TARGET: &str = "nvisy_engine::op::redaction";
 

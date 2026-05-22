@@ -4,7 +4,7 @@
 //!
 //! Hints are merged into the surrounding-words search performed by
 //! the context-aware enhancer. They cannot promote matches whose
-//! pattern definitions don't already declare a [`ContextRule`] —
+//! pattern definitions don't already declare a context rule —
 //! patterns must opt into context-aware scoring, and hints layer on
 //! top.
 //!
@@ -14,8 +14,6 @@
 //! kind-specific match. At most one bucket applies per match — this
 //! avoids "DOB" keywords accidentally boosting an SSN pattern that
 //! happens to be context-aware.
-//!
-//! [`ContextRule`]: crate::patterns::ContextRule
 
 use nvisy_ontology::entity::EntityKind;
 use serde::{Deserialize, Serialize};
@@ -23,15 +21,13 @@ use serde::{Deserialize, Serialize};
 /// Caller-supplied context for this scan, optionally scoped to a
 /// single [`EntityKind`].
 ///
-/// `keywords` are appended to whatever each match's
-/// [`ContextRule`] already declares (within the matching bucket).
+/// `keywords` are appended to whatever each match's pattern-level
+/// context rule already declares (within the matching bucket).
 /// `window` and `boost` are optional per-call overrides — they only
 /// take effect when `keywords` is non-empty.
 ///
 /// Set `kind` to `None` to make this a global fallback bucket,
 /// applied when no kind-specific hint matches the entity kind.
-///
-/// [`ContextRule`]: crate::patterns::ContextRule
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct ContextHint {
     /// The entity kind this hint applies to, or `None` for a

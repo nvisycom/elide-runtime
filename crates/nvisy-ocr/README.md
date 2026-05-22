@@ -28,6 +28,6 @@ works directly.
 
 ## HTTP
 
-Owns an internal `HttpClient` over `reqwest-middleware` with retry +
-tracing. Each backend constructs its own client from config; nothing
-is shared across providers or with `nvisy-rig`.
+HTTP transport (`HttpClient`, `HttpConfig`, retry + tracing
+middleware) lives in the shared `nvisy-http` crate. Each backend
+accepts an `HttpClient` from the caller; no global state.

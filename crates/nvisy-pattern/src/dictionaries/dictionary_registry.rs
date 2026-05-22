@@ -63,25 +63,16 @@ impl DictionaryRegistry {
     }
 
     /// Iterate over all registered dictionaries as `(name, &dyn Dictionary)` pairs.
-    pub fn iter(&self) -> impl Iterator<Item = (&str, &dyn Dictionary)> {
+    /// Test-only — used by integrity tests on the built-in registry.
+    #[cfg(test)]
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&str, &dyn Dictionary)> {
         self.inner.iter().map(|(k, v)| (k.as_str(), v.as_ref()))
-    }
-
-    /// Iterate over all registered dictionary names.
-    pub fn names(&self) -> impl Iterator<Item = &str> {
-        self.inner.keys().map(|s| s.as_str())
     }
 
     /// Total number of registered dictionaries.
     #[must_use]
     pub fn len(&self) -> usize {
         self.inner.len()
-    }
-
-    /// Whether the registry contains no dictionaries.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.inner.is_empty()
     }
 
     /// Load all dictionary files from the embedded `assets/dictionaries/`
@@ -151,43 +142,12 @@ impl DictionaryRegistry {
         tracing::debug!(target: TARGET, "built-in dictionaries loaded");
     }
 
-    /// Load a single `.txt` or `.csv` dictionary file and insert it.
-    ///
-    /// The dictionary name defaults to the file stem when called
-    /// directly. Use [`load_dir`](Self::load_dir) for path-based naming
-    /// across an entire tree.
-    ///
-    /// If a sibling `<stem>.json` sidecar exists it is parsed for
-    /// [`DictionaryMetadata`]; a malformed sidecar logs a warning and
-    /// the dictionary is loaded with default metadata. Files with
-    /// unrecognised extensions are logged as warnings and ignored.
-    ///
-    /// `.json` files are silently skipped here so callers can pass
-    /// them as part of a directory traversal without producing extra
-    /// dictionaries.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`nvisy_core::Error`] if the dictionary file itself
-    /// cannot be read, or a CSV file fails to parse.
-    #[tracing::instrument(target = TARGET, name = "dictionaries.load_file", skip_all, fields(path = %path.as_ref().display()))]
-    pub fn load_file(&mut self, path: impl AsRef<Path>) -> nvisy_core::Result<()> {
-        let path = path.as_ref();
-        let default_name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default()
-            .to_owned();
-        self.load_file_with_name(path, &default_name)
-    }
-
     /// Load all dictionary files from a filesystem directory tree.
     ///
     /// Recurses into subdirectories. The dictionary's default name is
     /// derived from its path relative to `dir`, with the extension
     /// stripped — `dir/healthcare/drugs.csv` becomes `healthcare/drugs`.
-    /// A sidecar's [`name`](DictionaryMetadata::name) field overrides
-    /// the default verbatim.
+    /// A sidecar's [`name`] field overrides the default verbatim.
     ///
     /// Files with unrecognised extensions are logged as warnings and
     /// skipped. Loaded dictionaries are inserted into `self`, so this
@@ -199,6 +159,7 @@ impl DictionaryRegistry {
     /// Returns [`nvisy_core::Error`] if the directory cannot be
     /// traversed, a file cannot be read, or a CSV file fails to parse.
     ///
+    /// [`name`]: DictionaryMetadata::name
     /// [`load_builtins`]: Self::load_builtins
     #[tracing::instrument(target = TARGET, name = "dictionaries.load_dir", skip_all, fields(path = %dir.as_ref().display(), count))]
     pub fn load_dir(&mut self, dir: impl AsRef<Path>) -> nvisy_core::Result<()> {
@@ -401,14 +362,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn registry_names_are_sorted() {
-        let keys: Vec<&str> = registry().names().collect();
-        let mut sorted = keys.clone();
-        sorted.sort();
-        assert_eq!(keys, sorted);
     }
 
     #[test]

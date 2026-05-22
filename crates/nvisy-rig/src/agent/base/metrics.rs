@@ -2,6 +2,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use derive_more::AddAssign;
 use rig::completion::Usage;
 
 /// Thread-safe accumulator for LLM token usage.
@@ -17,7 +18,10 @@ pub struct UsageTracker {
 }
 
 /// Point-in-time snapshot of accumulated usage counters.
-#[derive(Debug, Default, Clone)]
+///
+/// Field-wise `AddAssign` is derived so pipelines holding multiple
+/// agents can sum their snapshots into a single aggregate.
+#[derive(Debug, Default, Clone, AddAssign)]
 pub struct UsageStats {
     pub total_input_tokens: u64,
     pub total_output_tokens: u64,

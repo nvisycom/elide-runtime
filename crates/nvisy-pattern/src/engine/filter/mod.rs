@@ -1,6 +1,5 @@
 //! Per-scan filters and hints: suppression, forced detection,
-//! caller-supplied context, and the [`ScanContext`] that bundles
-//! them.
+//! caller-supplied context.
 //!
 //! All types are part of the public API and configured by the
 //! caller on each [`PatternEngine::scan_entities`] invocation.

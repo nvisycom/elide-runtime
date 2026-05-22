@@ -1,29 +1,21 @@
-//! Specialized LLM agents: NER (text), CV (vision), generation
-//! (synthetic replacement values), and entity verification
-//! (LLM-mediated check of upstream-proposed entities against an
-//! image).
+//! Specialized LLM agents, grouped by modality.
 //!
-//! Each agent composes a `BaseAgent` with domain-specific prompts
-//! and optional tools. Public types are re-exported from [`crate`]
-//! — consumer code should not reach into submodules.
+//! Each modality (CV, NER) bundles its detect-style and
+//! verify-style agents under a shared parent — they share data
+//! shapes ([`cv::CvEntity`], [`ner::NerCandidate`])
+//! and are meant to be used together by orchestrating pipelines.
+//!
+//! Cross-cutting infrastructure ([`AgentConfig`], [`AgentProvider`],
+//! [`DetectionConfig`], [`UsageStats`]) is re-exported at this
+//! level since every agent consumes it.
+
+pub mod cv;
+pub mod generate;
+pub mod ner;
 
 mod base;
-mod cv;
-mod entity_verifier;
-mod generate;
-mod ner;
 
-pub(crate) use self::base::{ALL_TYPES_HINT, BaseAgent};
-pub use self::base::{
-    AgentConfig, AgentProvider, AuthenticatedProvider, ContextWindow, DetectionConfig,
-    DetectionRequest, UnauthenticatedProvider, UsageStats, UsageTracker,
-};
-pub use self::cv::{CvAgent, CvDetection, CvEntities, CvEntity, CvProvider};
-pub use self::entity_verifier::{
-    EntityVerifier, ProposedEntity, VerificationCandidate, VerificationOutput, VerificationStatus,
-    VerifiedEntity,
-};
-pub use self::generate::{GenAgent, GenOutput, GenRequest, GeneratedEntity};
-pub use self::ner::{
-    KnownNerEntity, NerAgent, NerContext, NerEntities, NerEntity, ResolvedOffsets,
-};
+#[cfg(any(feature = "openai-whisper", feature = "openai-tts"))]
+pub(crate) use self::base::AuthenticatedProvider;
+pub(crate) use self::base::{ALL_TYPES_HINT, UnauthenticatedProvider};
+pub use self::base::{AgentConfig, AgentProvider, DetectionConfig, UsageStats};

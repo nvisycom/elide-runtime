@@ -12,12 +12,12 @@
 
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentSource};
-use nvisy_ontology::workflow::{CompressionAlgorithm, EncryptionConfig};
 use uuid::Uuid;
 
 use crate::operation::DocumentEnvelope;
 use crate::utility::compression::CompressionService;
 use crate::utility::encryption::CryptoService;
+use crate::workflow::{CompressionAlgorithm, EncryptionConfig};
 
 const TARGET: &str = "nvisy_engine::op::export_file";
 

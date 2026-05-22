@@ -1,10 +1,8 @@
 //! Text generation agent for generating synthetic replacement values.
 //!
-//! [`GenAgent`] wraps a [`BaseAgent`] with
-//! generation-specific prompts. It is a pure LLM agent (no tools) that
-//! generates realistic fake values to replace detected PII/entities.
-//!
-//! [`BaseAgent`]: super::BaseAgent
+//! [`GenAgent`] wraps the crate-internal base agent with
+//! generation-specific prompts. Pure LLM, no tools — generates
+//! realistic fake values to replace detected PII/entities.
 
 mod output;
 mod prompt;
@@ -15,9 +13,8 @@ use uuid::Uuid;
 
 pub use self::output::{GenOutput, GeneratedEntity};
 use self::prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
-use super::base::UsageTracker;
-use super::{AgentConfig, AgentProvider, BaseAgent};
-use crate::http::HttpClient;
+use crate::agent::base::{BaseAgent, UsageTracker};
+use crate::agent::{AgentConfig, AgentProvider};
 
 const TARGET: &str = "nvisy_rig::agent::generate";
 
@@ -47,29 +44,27 @@ pub struct GenAgent {
 }
 
 impl GenAgent {
-    /// Create a new generation agent.
-    ///
-    /// Pass an [`HttpClient`] to share a connection pool with other
-    /// services; otherwise a new client is created from the agent config.
-    pub fn new(
-        provider: &AgentProvider,
-        mut config: AgentConfig,
-        http_client: Option<HttpClient>,
-    ) -> Result<Self> {
+    /// Create a new generation agent. The HTTP client is built
+    /// internally from `config.max_retries` and otherwise-default
+    /// settings.
+    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self> {
         config
             .preamble
             .get_or_insert_with(|| GEN_SYSTEM_PROMPT.into());
-        let mut builder = BaseAgent::builder(provider, config);
-        if let Some(client) = http_client {
-            builder = builder.http_client(client);
-        }
-        let base = builder.build().map_err(crate::error::convert)?;
+        let base = BaseAgent::builder(provider, config)
+            .build()
+            .map_err(crate::error::convert)?;
         Ok(Self { base })
     }
 
     /// Unique identifier for this agent instance (UUIDv7).
     pub fn id(&self) -> Uuid {
         self.base.id()
+    }
+
+    /// Configured model name.
+    pub fn model_name(&self) -> &str {
+        self.base.model_name()
     }
 
     /// Access the usage tracker for this agent's LLM calls.

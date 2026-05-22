@@ -9,11 +9,11 @@ use std::collections::HashSet;
 
 use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
 use nvisy_ontology::primitive::Confidence;
-use nvisy_ontology::workflow::{DeduplicationStrategy, GroupingCriteria};
 
 use super::group_entities::GroupEntities;
 use super::span_size::SpanSize;
 use crate::operation::Document;
+use crate::workflow::{DeduplicationStrategy, GroupingCriteria};
 
 const TARGET: &str = "nvisy_engine::op::deduplication::strategy";
 
@@ -179,10 +179,6 @@ impl DeduplicationStrategyExt for DeduplicationStrategy {
                     });
                 if total_w > 0.0 { wsum / total_w } else { 0.0 }
             }
-            _ => group
-                .iter()
-                .map(|e| e.confidence.get())
-                .fold(f64::NEG_INFINITY, f64::max),
         }
     }
 }

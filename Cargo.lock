@@ -3223,6 +3223,7 @@ dependencies = [
 name = "nvisy-core"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "bytes",
  "derive_more",
  "hex",
@@ -3241,24 +3242,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "nvisy-detection"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "derive_builder",
- "nvisy-codec",
- "nvisy-core",
- "nvisy-nlp",
- "nvisy-ontology",
- "nvisy-pattern",
- "nvisy-rig",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "uuid",
+ "validator",
 ]
 
 [[package]]
@@ -3277,10 +3261,12 @@ dependencies = [
  "jiff",
  "nvisy-codec",
  "nvisy-core",
- "nvisy-detection",
  "nvisy-engine",
+ "nvisy-http",
+ "nvisy-nlp",
  "nvisy-ocr",
  "nvisy-ontology",
+ "nvisy-pattern",
  "nvisy-rig",
  "petgraph",
  "rand 0.10.1",
@@ -3302,6 +3288,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-http"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "humantime-serde",
+ "nvisy-core",
+ "reqwest-middleware",
+ "reqwest-retry",
+ "reqwest-tracing",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "nvisy-nlp"
 version = "0.1.0"
 dependencies = [
@@ -3312,6 +3312,8 @@ dependencies = [
  "nvisy-core",
  "nvisy-ontology",
  "ort",
+ "schemars 1.2.1",
+ "serde",
  "smallvec",
  "stop-words",
  "tempfile",
@@ -3330,15 +3332,12 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bytes",
- "derive_more",
  "futures",
  "hmac",
- "humantime-serde",
  "nvisy-core",
+ "nvisy-http",
  "nvisy-ontology",
  "reqwest-middleware",
- "reqwest-retry",
- "reqwest-tracing",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -3378,6 +3377,7 @@ dependencies = [
  "nvisy-core",
  "nvisy-ontology",
  "regex",
+ "schemars 1.2.1",
  "semver",
  "serde",
  "serde_json",
@@ -3395,14 +3395,13 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "bytes",
+ "derive_builder",
  "derive_more",
  "futures",
- "humantime-serde",
  "nvisy-core",
+ "nvisy-http",
  "nvisy-ontology",
  "reqwest-middleware",
- "reqwest-retry",
- "reqwest-tracing",
  "rig",
  "schemars 1.2.1",
  "serde",
@@ -3410,6 +3409,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "unicode-normalization",
  "uuid",
 ]
 

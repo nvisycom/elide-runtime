@@ -35,6 +35,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
+nvisy-http = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
 # Async runtime and parallelism
@@ -42,16 +43,13 @@ async-trait = { workspace = true, features = [] }
 futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "time"] }
 
-# HTTP client and middleware
+# HTTP middleware (multipart + JSON helpers used by backends directly)
 reqwest-middleware = { workspace = true, features = ["json", "multipart"] }
-reqwest-retry = { workspace = true, features = [] }
-reqwest-tracing = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
-humantime-serde = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
@@ -62,8 +60,7 @@ bytes = { workspace = true, features = [] }
 sha2 = { workspace = true, optional = true, features = [] }
 hmac = { workspace = true, optional = true, features = [] }
 
-# Derive macros and error handling
-derive_more = { workspace = true, features = ["deref"] }
+# Error handling
 thiserror = { workspace = true, features = [] }
 
 # Observability

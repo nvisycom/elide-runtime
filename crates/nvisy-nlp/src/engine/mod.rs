@@ -7,6 +7,7 @@
 //! [`Tokenizer`]: crate::tokenizer::Tokenizer
 
 mod context;
+mod preset;
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -14,6 +15,7 @@ use std::sync::Arc;
 use derive_builder::Builder;
 
 pub use self::context::{Context, ContextBuilder, ContextBuilderError};
+pub use self::preset::NerEngine;
 use crate::artifacts::{Artifacts, Token};
 use crate::error::Result;
 use crate::language::{DynLanguagePolicy, LanguageDetection, LanguagePolicy, LanguageProvenance};
@@ -55,7 +57,7 @@ pub struct Engine {
 
 impl EngineBuilder {
     /// Attach the NER backend. Required.
-    pub fn with_ner<B>(mut self, backend: B) -> Self
+    pub fn with_ner_backend<B>(mut self, backend: B) -> Self
     where
         B: NerBackend + 'static,
     {
@@ -66,9 +68,10 @@ impl EngineBuilder {
     /// Attach the language-detection policy. Required.
     ///
     /// The engine asks the policy for a fresh detector each
-    /// [`analyze`](Engine::analyze) call, restricted to whatever
-    /// language scope the caller supplied via
-    /// [`Context::candidate_languages`].
+    /// [`analyze`] call, restricted to whatever language scope the
+    /// caller supplied via [`Context::candidate_languages`].
+    ///
+    /// [`analyze`]: Engine::analyze
     pub fn with_language_policy<P>(mut self, policy: P) -> Self
     where
         P: LanguagePolicy + 'static,
@@ -228,7 +231,7 @@ mod tests {
 
     fn english_engine() -> Engine {
         Engine::builder()
-            .with_ner(NoopNerBackend)
+            .with_ner_backend(NoopNerBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap()
@@ -305,7 +308,7 @@ mod tests {
     #[test]
     fn engine_builder_errors_when_language_policy_missing() {
         let err = Engine::builder()
-            .with_ner(NoopNerBackend)
+            .with_ner_backend(NoopNerBackend)
             .build()
             .unwrap_err();
         assert!(
@@ -321,7 +324,7 @@ mod tests {
             canned(EntityKind::EmailAddress, 0.9),
         ]));
         let engine = Engine::builder()
-            .with_ner(canned)
+            .with_ner_backend(canned)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap();
@@ -343,7 +346,7 @@ mod tests {
             canned(EntityKind::PersonName, 0.40),
         ]));
         let engine = Engine::builder()
-            .with_ner(canned)
+            .with_ner_backend(canned)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap();
@@ -366,7 +369,7 @@ mod tests {
         // lingua feature, so an English candidate set on English
         // text resolves to English.
         let engine = Engine::builder()
-            .with_ner(NoopNerBackend)
+            .with_ner_backend(NoopNerBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap();
@@ -389,7 +392,7 @@ mod tests {
         // to detector_for_all (which still considers only English),
         // so English text still detects as English.
         let engine = Engine::builder()
-            .with_ner(NoopNerBackend)
+            .with_ner_backend(NoopNerBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap();
@@ -409,7 +412,7 @@ mod tests {
         let lang: LanguageTag = "en".parse().unwrap();
         let tok = UnicodeTokenizer::with_language(&lang).unwrap();
         let engine = Engine::builder()
-            .with_ner(NoopNerBackend)
+            .with_ner_backend(NoopNerBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .with_tokenizer(tok)
             .build()

@@ -6,9 +6,9 @@
 //! [`Redaction`]: crate::operation::Redaction
 
 use nvisy_core::Result;
-use nvisy_ontology::workflow::GenerateContext as GenerateContextConfig;
 
 use crate::operation::{DocumentEnvelope, Operation};
+use crate::workflow::GenerateContext as GenerateContextConfig;
 
 /// Generates contexts from detection results and content data.
 ///

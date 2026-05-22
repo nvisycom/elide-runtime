@@ -1,5 +1,7 @@
 //! Provider dispatch for text-to-speech models.
 
+#[cfg(feature = "openai-tts")]
+use nvisy_http::{HttpClient, HttpConfig};
 use reqwest_middleware::ClientWithMiddleware;
 #[cfg(feature = "openai-tts")]
 use rig::providers::openai;
@@ -9,8 +11,6 @@ use serde::{Deserialize, Serialize};
 use crate::agent::AuthenticatedProvider;
 use crate::agent::UnauthenticatedProvider;
 use crate::error::Error;
-#[cfg(feature = "openai-tts")]
-use crate::http::{HttpClient, HttpConfig};
 
 /// Supported providers for text-to-speech generation.
 #[derive(Debug, Clone, Serialize, Deserialize)]

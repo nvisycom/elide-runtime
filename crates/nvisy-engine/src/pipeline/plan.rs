@@ -11,19 +11,19 @@
 //! The plan is consumed by the [orchestrator] to drive per-document
 //! execution.
 //!
-//! [`Graph::validate`]: nvisy_ontology::workflow::Graph::validate
+//! [`Graph::validate`]: crate::workflow::Graph::validate
 //! [`toposort`]: petgraph::algo::toposort
 //! [orchestrator]: super::orchestrator
 
 use nvisy_core::{Error, Result};
-use nvisy_ontology::workflow::{
-    Deduplication, Detection, ExportFile, Extraction, Graph, GraphNodeKind, ImportFile, Redaction,
-    RetryPolicy, TimeoutPolicy, Validation,
-};
 use petgraph::algo::toposort;
 use uuid::Uuid;
 
 use crate::graph::GraphExt;
+use crate::workflow::{
+    Deduplication, Detection, ExportFile, Extraction, Graph, GraphNodeKind, ImportFile, Redaction,
+    RetryPolicy, TimeoutPolicy, Validation,
+};
 
 /// Import step — source node that creates envelopes.
 #[derive(Debug, Clone)]
@@ -166,7 +166,7 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
                         "compiler",
                     ));
                 }
-                detection = cfg.clone();
+                detection = (**cfg).clone();
                 detection_policy = PhasePolicy {
                     retry: node.retry.clone(),
                     timeout: node.timeout.clone(),
@@ -207,7 +207,6 @@ pub(crate) fn compile(graph: &Graph) -> Result<ExecutionPlan> {
                 validation = cfg.clone();
                 has_validation = true;
             }
-            _ => {}
         }
     }
 

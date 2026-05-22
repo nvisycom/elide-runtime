@@ -39,6 +39,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
+nvisy-http = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = [] }
 
 # LLM framework
@@ -49,16 +50,13 @@ async-trait = { workspace = true, features = [] }
 futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "time"] }
 
-# HTTP client and middleware
+# HTTP middleware (used for ClientWithMiddleware type passthrough)
 reqwest-middleware = { workspace = true, features = [] }
-reqwest-retry = { workspace = true, features = [] }
-reqwest-tracing = { workspace = true, features = [] }
 
 # (De)serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
-humantime-serde = { workspace = true, features = [] }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
@@ -66,9 +64,11 @@ uuid = { workspace = true, features = [] }
 # Encoding and hashing
 base64 = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
+unicode-normalization = { workspace = true, features = [] }
 
 # Derive macros and error handling
-derive_more = { workspace = true, features = ["deref"] }
+derive_builder = { workspace = true, features = [] }
+derive_more = { workspace = true, features = ["add_assign"] }
 thiserror = { workspace = true, features = [] }
 
 # Observability

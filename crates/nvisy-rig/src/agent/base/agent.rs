@@ -23,7 +23,7 @@ use crate::error::Error;
 const TARGET: &str = "nvisy_rig::agent::base";
 
 /// Sampling, retry, context-window, and preamble settings shared by all agents.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AgentConfig {
     /// Sampling temperature (default: 0.1).
     pub temperature: f64,

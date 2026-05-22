@@ -18,9 +18,9 @@ use super::UnauthenticatedProvider;
 /// # Example
 /// ```rust,ignore
 /// let provider = AgentProvider::openai("sk-...", "gpt-4o");
-/// let agent = NerAgent::new(&provider, config, None);
+/// let agent = NerAgent::new(&provider, config);
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum AgentProvider {
     /// OpenAI (GPT-4o, GPT-4, etc.)

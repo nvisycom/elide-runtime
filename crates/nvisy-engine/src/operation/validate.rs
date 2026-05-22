@@ -8,10 +8,10 @@
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::AuditEntry;
-use nvisy_ontology::workflow::Validation as ValidationConfig;
 use uuid::Uuid;
 
 use crate::operation::{DocumentEnvelope, Operation};
+use crate::workflow::Validation as ValidationConfig;
 
 const TARGET: &str = "nvisy_engine::op::validation";
 

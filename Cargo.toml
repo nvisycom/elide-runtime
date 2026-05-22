@@ -6,8 +6,8 @@ members = [
     "./crates/nvisy-cli",
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
-    "./crates/nvisy-detection",
     "./crates/nvisy-engine",
+    "./crates/nvisy-http",
     "./crates/nvisy-nlp",
     "./crates/nvisy-ocr",
     "./crates/nvisy-ontology",
@@ -37,8 +37,8 @@ documentation = "https://docs.rs/nvisy-runtime"
 # Internal crates
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
-nvisy-detection = { path = "./crates/nvisy-detection", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
+nvisy-http = { path = "./crates/nvisy-http", version = "0.1.0" }
 nvisy-nlp = { path = "./crates/nvisy-nlp", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
@@ -77,7 +77,7 @@ toml = { version = "1.1", features = [] }
 # Derive macros and error handling
 thiserror = { version = "2.0", features = [] }
 anyhow = { version = "1.0", features = [] }
-derive_more = { version = "2.0", features = ["as_ref", "deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator", "is_variant", "try_into"] }
+derive_more = { version = "2.0", features = ["add_assign", "as_ref", "deref", "deref_mut", "display", "from", "from_str", "into", "into_iterator", "is_variant", "try_into"] }
 derive_builder = { version = "0.20", features = [] }
 strum = { version = "0.28", features = ["derive"] }
 
@@ -109,6 +109,7 @@ tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 lingua = { version = "1.8", default-features = false, features = ["english"] }
 stop-words = { version = "0.10", features = ["iso"] }
 unicode-segmentation = { version = "1.13", features = [] }
+unicode-normalization = { version = "0.1", features = [] }
 
 # Graph data structures
 petgraph = { version = "0.8", features = [] }

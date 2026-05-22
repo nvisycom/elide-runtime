@@ -1,9 +1,10 @@
 //! Engine-level execution policies, networking, and resource limits.
 
-use nvisy_ontology::workflow::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
-use nvisy_rig::http::HttpConfig;
+use nvisy_http::HttpConfig;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
+
+use crate::workflow::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
 
 /// Hard limits on pipeline resource consumption.
 ///
@@ -98,7 +99,7 @@ pub struct EngineSection {
     /// failures. Overridden by [`GraphNode::retry`] when set on an
     /// individual node.
     ///
-    /// [`GraphNode::retry`]: nvisy_ontology::workflow::GraphNode::retry
+    /// [`GraphNode::retry`]: crate::workflow::GraphNode::retry
     #[validate(nested)]
     pub retry: Option<RetryPolicy>,
 
@@ -108,7 +109,7 @@ pub struct EngineSection {
     /// (fail or skip). Overridden by [`GraphNode::timeout`] when set
     /// on an individual node.
     ///
-    /// [`GraphNode::timeout`]: nvisy_ontology::workflow::GraphNode::timeout
+    /// [`GraphNode::timeout`]: crate::workflow::GraphNode::timeout
     #[validate(nested)]
     pub timeout: Option<TimeoutPolicy>,
 
@@ -118,7 +119,7 @@ pub struct EngineSection {
     /// a [`tokio::sync::Semaphore`]. Overridden by
     /// [`Graph::concurrency`] when set on the graph itself.
     ///
-    /// [`Graph::concurrency`]: nvisy_ontology::workflow::Graph::concurrency
+    /// [`Graph::concurrency`]: crate::workflow::Graph::concurrency
     #[serde(default)]
     pub concurrency: Option<ConcurrencyPolicy>,
 

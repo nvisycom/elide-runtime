@@ -104,8 +104,8 @@ impl<'a> ContextEnhancer<'a> {
             rule.boost
         };
 
-        let search_start = m.start.saturating_sub(window);
-        let search_end = (m.end + window).min(self.text.len());
+        let search_start = walk_chars_back(self.text, m.start, window);
+        let search_end = walk_chars_forward(self.text, m.end, window);
         let window_text = &self.text[search_start..search_end];
 
         // Search the rule's own keywords plus the selected hint's
@@ -154,6 +154,31 @@ impl<'a> ContextEnhancer<'a> {
                 }
             }
         }
+    }
+}
+
+/// Walk backward from `byte_anchor` by at most `chars` Unicode
+/// scalar values, returning the resulting byte offset. UTF-8 safe.
+fn walk_chars_back(text: &str, byte_anchor: usize, chars: usize) -> usize {
+    let anchor = byte_anchor.min(text.len());
+    text[..anchor]
+        .char_indices()
+        .rev()
+        .nth(chars.saturating_sub(1))
+        .map(|(idx, _)| idx)
+        .unwrap_or(0)
+}
+
+/// Walk forward from `byte_anchor` by at most `chars` Unicode
+/// scalar values, returning the resulting byte offset. UTF-8 safe.
+fn walk_chars_forward(text: &str, byte_anchor: usize, chars: usize) -> usize {
+    let anchor = byte_anchor.min(text.len());
+    // `nth(chars)` is the position *after* `chars` characters; if the
+    // tail has fewer characters than that we return the end of `text`.
+    let tail = &text[anchor..];
+    match tail.char_indices().nth(chars) {
+        Some((idx, _)) => anchor + idx,
+        None => text.len(),
     }
 }
 
@@ -400,6 +425,25 @@ mod tests {
         assert!(
             (matches[0].confidence - 0.3).abs() < 1e-9,
             "penalty should reduce confidence: got {}",
+            matches[0].confidence,
+        );
+    }
+
+    #[test]
+    fn window_in_chars_safe_for_multibyte_text() {
+        // Keyword "ssn" sits 4 chars left of the match, separated by
+        // 3 emojis (each 4 bytes in UTF-8). A byte-counting window
+        // of 4 would land mid-emoji and panic; the char-counting
+        // window walks scalar boundaries and finds the keyword.
+        let text = "ssn 🔥🔥🔥 MATCH";
+        let match_start = text.rfind("MATCH").unwrap();
+        let match_end = match_start + "MATCH".len();
+        let r = rule(&["ssn"], 8, 0.1, 0.0); // window = 8 chars
+        let mut matches = vec![ssn_match(Some(r), match_start, match_end, 0.5)];
+        ContextEnhancer::new(text, &[]).enhance(&mut matches);
+        assert!(
+            (matches[0].confidence - 0.6).abs() < 1e-9,
+            "char-window should include 'ssn' across multi-byte chars: got {}",
             matches[0].confidence,
         );
     }

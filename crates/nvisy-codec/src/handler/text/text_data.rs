@@ -1,5 +1,7 @@
 //! [`TextData`]: opaque wrapper around extracted text content.
 
+use std::ops::Deref;
+
 use derive_more::{AsRef, Display, From};
 use hipstr::HipStr;
 
@@ -26,6 +28,14 @@ impl TextData {
     /// Consume the wrapper and return the inner `String`.
     pub fn into_inner(self) -> String {
         self.0.into()
+    }
+}
+
+impl Deref for TextData {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        self.0.as_str()
     }
 }
 

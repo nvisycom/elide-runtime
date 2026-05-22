@@ -12,7 +12,7 @@
 //! - `orchestrator`: concurrent document processing through the plan.
 //! - `runs`: in-memory run lifecycle tracking.
 //!
-//! [`Graph`]: nvisy_ontology::workflow::Graph
+//! [`Graph`]: crate::workflow::Graph
 
 mod config;
 mod default;

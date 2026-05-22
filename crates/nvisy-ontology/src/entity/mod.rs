@@ -46,6 +46,13 @@ pub struct Entity {
     /// Unique identifier for this entity (UUIDv7).
     #[builder(default = "Uuid::now_v7()")]
     pub id: Uuid,
+    /// NER/LLM-assigned coreference identifier, stable across coreferent
+    /// mentions within one detection call. Two entities sharing
+    /// `entity_id` refer to the same real-world entity (different
+    /// surface mentions).
+    #[builder(default, setter(into = false))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entity_id: Option<String>,
     /// Broad classification of the sensitive data.
     pub category: EntityCategory,
     /// Specific entity kind (e.g. `GovernmentId`, `EmailAddress`, `PaymentCard`).

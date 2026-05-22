@@ -13,20 +13,20 @@ use std::future::Future;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_detection::DetectionEngine;
-use nvisy_ontology::workflow::{
-    ConcurrencyPolicy, Detection as DetectionConfig, Extraction as ExtractionConfig,
-};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use super::config::RuntimeConfig;
 use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
+use crate::detection::DetectionEngine;
 use crate::graph::TimeoutExt;
 use crate::operation::{
     Deduplication, Detection, DocumentEnvelope, ExportFile, Extraction, GenerateContext,
     ImportFile, Operation, Redaction, SharedData, Validation,
+};
+use crate::workflow::{
+    ConcurrencyPolicy, Detection as DetectionConfig, Extraction as ExtractionConfig,
 };
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -257,27 +257,29 @@ impl DocumentPipeline {
             .await
     }
 
-    /// Run detection through the attached
-    /// [`DetectionEngine`]. The engine is constructed externally
-    /// (see [`Engine::with_detection_engine`]) with whatever
-    /// recognizers the user wants. When no engine is attached,
-    /// the detection phase is a no-op.
+    /// Run detection through the run-scoped [`DetectionEngine`].
     ///
-    /// The workflow [`DetectionConfig`] is currently ignored at
-    /// this layer — recognizer composition (NER, pattern, LLM)
-    /// happens at engine-construction time. A future change may
-    /// thread per-call hints (`candidate_languages`,
-    /// `score_threshold`, `scan_context`) from the config into
-    /// the `DetectionContext`.
+    /// The engine is built once per run from `plan.detection` (see
+    /// [`Detection::into_engine`]) and stored on [`RunContext`]; it
+    /// is `None` when no recognizer is opted in (every per-slot
+    /// field on `plan.detection` is `None`), in which case the
+    /// detection phase is skipped.
     ///
-    /// [`Engine::with_detection_engine`]: crate::pipeline::Engine::with_detection_engine
+    /// Per-call hints from the workflow [`DetectionConfig`] —
+    /// `cfg.params.entity_kinds` (allowlist) and
+    /// `cfg.params.confidence_threshold` — flow into the
+    /// `DetectionContext` for each text span. Recognizer-specific
+    /// settings are baked into the matching recognizer at engine-
+    /// construction time.
+    ///
+    /// [`Detection::into_engine`]: crate::detection::Detection::into_engine
     async fn run_detection(
         &self,
-        _cfg: &DetectionConfig,
+        cfg: &DetectionConfig,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
         if let Some(ref engine) = self.ctx.detection_engine {
-            let op = Detection::new(Arc::clone(engine));
+            let op = Detection::new(Arc::clone(engine), cfg.clone());
             op.execute(envelope).await?;
         }
         Ok(())

@@ -3,13 +3,13 @@
 //! Each dictionary file may have an optional sidecar JSON with the same
 //! stem (e.g. `nationalities.txt` + `nationalities.json`) carrying
 //! language/industry/region tags and a free-form description. The
-//! engine uses these tags to filter the active dictionary set per scan;
-//! see [`PatternDetection::dictionary_filter`].
+//! engine uses these tags to filter the active dictionary set per
+//! scan via [`PatternFilter`].
 //!
 //! When the sidecar is absent the dictionary loads with
 //! [`DictionaryMetadata::default()`] (no tags).
 //!
-//! [`PatternDetection::dictionary_filter`]: nvisy_ontology::workflow::PatternDetection
+//! [`PatternFilter`]: crate::PatternFilter
 
 use nvisy_ontology::primitive::LanguageTag;
 use semver::Version;
@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 /// selects dictionaries that have English in `languages` *and* `healthcare`
 /// in `industries`.
 ///
-/// [`PatternFilter`]: nvisy_ontology::workflow::PatternFilter
+/// [`PatternFilter`]: crate::PatternFilter
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DictionaryMetadata {
     /// Override the dictionary's name in the registry. When present

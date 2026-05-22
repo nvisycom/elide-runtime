@@ -1,13 +1,15 @@
 //! [`PatternEngineBuilder`]: configures and compiles a [`PatternEngine`].
 
-use nvisy_ontology::workflow::PatternFilter;
-use regex::{Regex, RegexSet};
+use std::path::{Path, PathBuf};
+
+use regex::RegexSet;
 
 use super::PatternEngine;
 use super::error::PatternEngineError;
-use super::scan::entries::{DictEntry, RegexEntry};
-use crate::dictionaries;
-use crate::patterns::{MatchSource, Pattern};
+use super::pattern_filter::PatternFilter;
+use super::scan::entries::CompiledPattern;
+use crate::dictionaries::{self, DictionaryRegistry};
+use crate::patterns::{MatchSource, Pattern, PatternCompile, PatternRegistry};
 use crate::validators::ValidatorResolver;
 
 const TARGET: &str = "nvisy_pattern::engine";
@@ -15,16 +17,27 @@ const TARGET: &str = "nvisy_pattern::engine";
 /// Builder for [`PatternEngine`].
 ///
 /// By default all built-in patterns are included. Use
-/// [`with_patterns`] to restrict to a subset by name, or
-/// [`with_filter`] to narrow by metadata tags.
+/// [`with_patterns`] to restrict to a subset by name,
+/// [`with_dictionaries`] to restrict which backing dictionaries
+/// participate (only affects dictionary-backed patterns),
+/// [`with_filter`] to narrow by metadata tags, and
+/// [`with_pattern_dir`] / [`with_dictionary_dir`] to layer
+/// user-supplied patterns and dictionaries on top of the
+/// built-ins from filesystem paths.
 ///
 /// [`with_patterns`]: Self::with_patterns
+/// [`with_dictionaries`]: Self::with_dictionaries
 /// [`with_filter`]: Self::with_filter
+/// [`with_pattern_dir`]: Self::with_pattern_dir
+/// [`with_dictionary_dir`]: Self::with_dictionary_dir
 #[derive(Default)]
 pub struct PatternEngineBuilder {
     pattern_names: Option<Vec<String>>,
+    dictionary_names: Option<Vec<String>>,
     confidence_threshold: f64,
     filter: Option<PatternFilter>,
+    extra_pattern_dirs: Vec<PathBuf>,
+    extra_dictionary_dirs: Vec<PathBuf>,
 }
 
 impl PatternEngineBuilder {
@@ -35,6 +48,23 @@ impl PatternEngineBuilder {
     pub fn with_patterns(mut self, names: &[impl AsRef<str>]) -> Self {
         if !names.is_empty() {
             self.pattern_names = Some(names.iter().map(|n| n.as_ref().to_owned()).collect());
+        }
+        self
+    }
+
+    /// Restrict the engine to dictionary-backed patterns whose
+    /// underlying dictionary name is in `names`.
+    ///
+    /// Has no effect on regex patterns — they're included on the
+    /// strength of [`with_patterns`] and [`with_filter`] alone. If
+    /// not called (or called with an empty slice), every backing
+    /// dictionary is permitted.
+    ///
+    /// [`with_patterns`]: Self::with_patterns
+    /// [`with_filter`]: Self::with_filter
+    pub fn with_dictionaries(mut self, names: &[impl AsRef<str>]) -> Self {
+        if !names.is_empty() {
+            self.dictionary_names = Some(names.iter().map(|n| n.as_ref().to_owned()).collect());
         }
         self
     }
@@ -53,12 +83,12 @@ impl PatternEngineBuilder {
     /// Narrow the active pattern set by metadata tags.
     ///
     /// Applies to both regex and dictionary-backed patterns. A pattern
-    /// is included only when its [`PatternMetadata`] satisfies every
-    /// non-empty constraint in `filter`. A pattern with no tags on a
-    /// particular axis is treated as **universal** on that axis (it
-    /// passes any filter for that field).
-    ///
-    /// [`PatternMetadata`]: crate::patterns::PatternMetadata
+    /// is included only when its metadata satisfies every non-empty
+    /// constraint in `filter`. A pattern with no tags on a particular
+    /// axis is treated as **universal** on that axis (it passes any
+    /// filter for that field). Dictionary-backed patterns whose own
+    /// metadata is empty on an axis fall through to the backing
+    /// dictionary's sidecar metadata for that axis.
     pub fn with_filter(mut self, filter: PatternFilter) -> Self {
         if !filter.is_unconstrained() {
             self.filter = Some(filter);
@@ -66,7 +96,40 @@ impl PatternEngineBuilder {
         self
     }
 
+    /// Layer user-supplied patterns from `dir` on top of the built-ins.
+    ///
+    /// Recurses into subdirectories. Each `.json` file is parsed as a
+    /// pattern definition; non-JSON files are logged and skipped. May
+    /// be called multiple times to load several directories — each
+    /// invocation appends. External patterns are unioned with the
+    /// built-ins; duplicate names overwrite the built-in entry.
+    pub fn with_pattern_dir(mut self, dir: impl AsRef<Path>) -> Self {
+        self.extra_pattern_dirs.push(dir.as_ref().to_owned());
+        self
+    }
+
+    /// Layer user-supplied dictionaries from `dir` on top of the
+    /// built-ins.
+    ///
+    /// Recurses into subdirectories. Each `.txt` or `.csv` file is
+    /// loaded as a dictionary; an optional sibling `<stem>.json`
+    /// sidecar supplies metadata (language/industry/region/
+    /// compliance tags). May be called multiple times to load
+    /// several directories — each invocation appends. External
+    /// dictionaries are unioned with the built-ins; duplicate names
+    /// overwrite the built-in entry.
+    pub fn with_dictionary_dir(mut self, dir: impl AsRef<Path>) -> Self {
+        self.extra_dictionary_dirs.push(dir.as_ref().to_owned());
+        self
+    }
+
     /// Compile all selected patterns and build the engine.
+    ///
+    /// The per-pattern compilation (regex compile, dictionary lookup,
+    /// Aho-Corasick automaton build) lives on the crate-private
+    /// `PatternCompile::compile` and `DictionaryCompile::build_automaton`;
+    /// this method only orchestrates the filtering (name, tag,
+    /// dictionary allowlist) and collects the results.
     ///
     /// # Errors
     ///
@@ -75,12 +138,44 @@ impl PatternEngineBuilder {
     /// cannot be built.
     #[tracing::instrument(target = TARGET, name = "PatternEngine::build", skip(self))]
     pub fn build(self) -> nvisy_core::Result<PatternEngine> {
-        let pat_reg = crate::patterns::builtin_registry();
-        let dict_reg = dictionaries::builtin_registry();
+        let builtin_patterns = crate::patterns::builtin_registry();
+        let builtin_dicts = dictionaries::builtin_registry();
+
+        // Load any user-supplied dirs into freshly owned overlay
+        // registries; the built-ins stay shared via static reference.
+        let mut extra_patterns = PatternRegistry::new();
+        for dir in &self.extra_pattern_dirs {
+            extra_patterns.load_dir(dir)?;
+        }
+        let mut extra_dicts = DictionaryRegistry::new();
+        for dir in &self.extra_dictionary_dirs {
+            extra_dicts.load_dir(dir)?;
+        }
+
+        // Patterns to consider, in the order: extras first (so a
+        // user-supplied name wins the `pat_lookup` allowlist tie),
+        // then built-ins.
+        let pat_lookup = |name: &str| -> Option<&dyn Pattern> {
+            extra_patterns
+                .get(name)
+                .or_else(|| builtin_patterns.get(name))
+        };
 
         let active: Vec<&dyn Pattern> = match &self.pattern_names {
-            Some(names) => names.iter().filter_map(|n| pat_reg.get(n)).collect(),
-            None => pat_reg.iter().collect(),
+            Some(names) => names.iter().filter_map(|n| pat_lookup(n)).collect(),
+            None => extra_patterns
+                .iter()
+                .chain(
+                    builtin_patterns
+                        .iter()
+                        .filter(|p| extra_patterns.get(p.name()).is_none()),
+                )
+                .collect(),
+        };
+
+        // Dictionary lookup also prefers extras over built-ins.
+        let dict_lookup = |name: &str| -> Option<&dyn crate::dictionaries::Dictionary> {
+            extra_dicts.get(name).or_else(|| builtin_dicts.get(name))
         };
 
         let mut regex_entries = Vec::new();
@@ -89,7 +184,7 @@ impl PatternEngineBuilder {
 
         for p in &active {
             if let Some(ref filter) = self.filter
-                && !pattern_matches_filter(*p, filter)
+                && !pattern_matches_filter(*p, filter, &dict_lookup)
             {
                 tracing::trace!(
                     target: TARGET,
@@ -99,52 +194,36 @@ impl PatternEngineBuilder {
                 continue;
             }
 
-            match p.match_source() {
-                MatchSource::Regex(rp) => {
-                    let effective = rp.effective_regex();
-                    let compiled =
-                        Regex::new(&effective).map_err(|e| PatternEngineError::RegexCompile {
-                            name: p.name().to_owned(),
-                            source: e,
-                        })?;
-                    regex_strings.push(effective);
-                    regex_entries.push(RegexEntry {
-                        pattern_name: p.name().to_owned(),
-                        category: p.category(),
-                        entity_kind: p.entity_kind(),
-                        confidence: rp.confidence,
-                        validator_name: rp.validator.clone(),
-                        regex: compiled,
-                        context: p.context().cloned(),
-                    });
+            if let Some(ref allowed) = self.dictionary_names
+                && let MatchSource::Dictionary(dp) = p.match_source()
+                && !allowed.iter().any(|n| n == &dp.name)
+            {
+                tracing::trace!(
+                    target: TARGET,
+                    pattern = p.name(),
+                    dictionary = %dp.name,
+                    "skipped by dictionary allowlist",
+                );
+                continue;
+            }
+
+            match p.compile_with(&dict_lookup)? {
+                Some(CompiledPattern::Regex {
+                    entry,
+                    regex_source,
+                }) => {
+                    regex_strings.push(regex_source);
+                    regex_entries.push(entry);
                 }
-                MatchSource::Dictionary(dp) => {
-                    let dict = dict_reg.get(&dp.name).ok_or_else(|| {
-                        PatternEngineError::UnknownDictionary {
-                            name: p.name().to_owned(),
-                            dictionary: dp.name.clone(),
-                        }
-                    })?;
-                    let terms: Vec<_> = dict.terms().to_vec();
-                    if terms.is_empty() {
-                        continue;
-                    }
-                    let automaton = aho_corasick::AhoCorasickBuilder::new()
-                        .ascii_case_insensitive(!dp.case_sensitive)
-                        .build(terms.iter().map(|t| t.value.as_str()))
-                        .map_err(|e| PatternEngineError::AhoCorasickBuild {
-                            name: p.name().to_owned(),
-                            source: e,
-                        })?;
-                    dict_entries.push(DictEntry {
-                        pattern_name: p.name().to_owned(),
-                        category: p.category(),
-                        entity_kind: p.entity_kind(),
-                        confidence: dp.confidence.clone(),
-                        automaton,
-                        terms,
-                        context: p.context().cloned(),
-                    });
+                Some(CompiledPattern::Dictionary(entry)) => {
+                    dict_entries.push(entry);
+                }
+                None => {
+                    tracing::trace!(
+                        target: TARGET,
+                        pattern = p.name(),
+                        "skipped: compiled to no-op (e.g. empty dictionary)",
+                    );
                 }
             }
         }
@@ -174,35 +253,75 @@ impl PatternEngineBuilder {
 /// `filter`. Per axis the rule is:
 ///
 /// - filter field empty → unconstrained (always passes)
-/// - filter non-empty, pattern field empty → pattern is universal on
-///   this axis, always passes
-/// - both non-empty → tags must overlap (OR within field)
+/// - pattern field non-empty → pattern's tags decide
+/// - pattern field empty AND dictionary-backed → fall through to the
+///   backing dictionary's sidecar metadata for that axis (Pattern
+///   wins; dictionary fills in)
+/// - all sources empty → universal on that axis (passes)
 ///
-/// Across fields the test is AND.
-fn pattern_matches_filter(p: &dyn Pattern, filter: &PatternFilter) -> bool {
+/// Within a non-empty source field, tags must overlap with the
+/// filter (OR within field). Across fields the test is AND.
+fn pattern_matches_filter<'a, F>(p: &dyn Pattern, filter: &PatternFilter, dict_lookup: &F) -> bool
+where
+    F: Fn(&str) -> Option<&'a dyn crate::dictionaries::Dictionary>,
+{
+    // Fetch the backing dictionary's metadata once if this is a
+    // dictionary-backed pattern — used as the fall-through source
+    // for any axis the pattern itself doesn't tag.
+    let dict_md = if let MatchSource::Dictionary(dp) = p.match_source() {
+        dict_lookup(&dp.name).map(|d| d.metadata())
+    } else {
+        None
+    };
+
     let md = p.metadata();
 
+    // For each axis, the effective tag set is: the pattern's tags if
+    // non-empty, else the dictionary's tags. Empty → universal.
+    let langs = if !md.languages.is_empty() {
+        &md.languages[..]
+    } else {
+        dict_md.map(|m| &m.languages[..]).unwrap_or(&[])
+    };
     if !filter.languages.is_empty()
-        && !md.languages.is_empty()
-        && !filter.languages.iter().any(|l| md.languages.contains(l))
+        && !langs.is_empty()
+        && !filter.languages.iter().any(|l| langs.contains(l))
     {
         return false;
     }
+
+    let inds = if !md.industries.is_empty() {
+        &md.industries[..]
+    } else {
+        dict_md.map(|m| &m.industries[..]).unwrap_or(&[])
+    };
     if !filter.industries.is_empty()
-        && !md.industries.is_empty()
-        && !filter.industries.iter().any(|i| md.industries.contains(i))
+        && !inds.is_empty()
+        && !filter.industries.iter().any(|i| inds.contains(i))
     {
         return false;
     }
+
+    let regs = if !md.regions.is_empty() {
+        &md.regions[..]
+    } else {
+        dict_md.map(|m| &m.regions[..]).unwrap_or(&[])
+    };
     if !filter.regions.is_empty()
-        && !md.regions.is_empty()
-        && !filter.regions.iter().any(|r| md.regions.contains(r))
+        && !regs.is_empty()
+        && !filter.regions.iter().any(|r| regs.contains(r))
     {
         return false;
     }
+
+    let comp = if !md.compliance.is_empty() {
+        &md.compliance[..]
+    } else {
+        dict_md.map(|m| &m.compliance[..]).unwrap_or(&[])
+    };
     if !filter.compliance.is_empty()
-        && !md.compliance.is_empty()
-        && !filter.compliance.iter().any(|c| md.compliance.contains(c))
+        && !comp.is_empty()
+        && !filter.compliance.iter().any(|c| comp.contains(c))
     {
         return false;
     }
@@ -334,6 +453,55 @@ mod tests {
         assert!(
             !entities.iter().any(|e| e.entity_kind == EntityKind::Iban),
             "IBAN (eu/global, no us) should be filtered out",
+        );
+    }
+
+    #[test]
+    fn dictionary_allowlist_keeps_only_named_dicts() {
+        // `nationalities` is dictionary-backed by dictionary
+        // `nationalities`. Restricting the engine to the
+        // `nationalities` dictionary should still let it match;
+        // other dictionary-backed patterns (e.g. `languages`,
+        // `religions`) should be excluded.
+        let engine = PatternEngine::builder()
+            .with_dictionaries(&["nationalities"])
+            .build()
+            .unwrap();
+        let entities = engine.scan_entities(
+            "She is American and speaks English.",
+            &super::super::ScanContext::default(),
+        );
+        assert!(
+            entities
+                .iter()
+                .any(|e| e.entity_kind == EntityKind::Nationality),
+            "nationalities pattern (allowed dict) should still match",
+        );
+        assert!(
+            !entities
+                .iter()
+                .any(|e| e.entity_kind == EntityKind::Language),
+            "languages pattern (dict outside allowlist) should be filtered out",
+        );
+    }
+
+    #[test]
+    fn dictionary_allowlist_does_not_affect_regex_patterns() {
+        // Restricting dictionaries to an empty-impact name should
+        // leave regex patterns (like SSN) entirely untouched.
+        let engine = PatternEngine::builder()
+            .with_dictionaries(&["nationalities"])
+            .build()
+            .unwrap();
+        let entities = engine.scan_entities(
+            "SSN 123-45-6789 here",
+            &super::super::ScanContext::default(),
+        );
+        assert!(
+            entities
+                .iter()
+                .any(|e| e.entity_kind == EntityKind::GovernmentId),
+            "SSN regex should still match under a dictionary allowlist",
         );
     }
 

@@ -13,12 +13,31 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// NER-specific detection settings.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct NlpDetection {
+    /// Enable this recognizer. When `false`, the recognizer is
+    /// neither built nor dispatched, but the config is preserved
+    /// so operators can toggle without losing it. Defaults to
+    /// `true`.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
     /// Prebuilt NLP-engine preset to load. [`NlpPreset::Default`]
     /// for the placeholder no-op backend until real model bundles
     /// land.
     #[serde(default)]
     pub engine: NlpPreset,
+}
+
+impl Default for NlpDetection {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            engine: NlpPreset::default(),
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
 }

@@ -15,22 +15,36 @@ use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, RedactionMapping}
 use uuid::Uuid;
 
 use super::apply::RedactionApplicator;
+use super::defaults::RedactorDefaults;
 use crate::operation::{Document, DocumentEnvelope, Operation};
 use crate::workflow::Redaction as RedactionConfig;
 
-const TARGET: &str = "nvisy_engine::op::redaction";
+const TARGET: &str = "nvisy_engine::redaction";
 
 /// Redaction operation: evaluates policies and applies redaction instructions.
 pub struct Redaction {
     default_threshold: f64,
+    process_metadata: bool,
 }
 
 impl Redaction {
-    /// Build from graph config.
-    pub fn new(cfg: &RedactionConfig) -> Self {
+    /// Build from graph config + server-wide defaults.
+    ///
+    /// Each workflow field falls back to the matching
+    /// [`RedactorDefaults`] value when unset.
+    pub fn new(cfg: &RedactionConfig, defaults: &RedactorDefaults) -> Self {
         Self {
-            default_threshold: cfg.confidence_threshold.unwrap_or(0.5),
+            default_threshold: cfg
+                .confidence_threshold
+                .unwrap_or(defaults.confidence_threshold),
+            process_metadata: cfg.process_metadata.unwrap_or(defaults.process_metadata),
         }
+    }
+
+    /// `true` when metadata stripping is enabled.
+    #[must_use]
+    pub fn process_metadata(&self) -> bool {
+        self.process_metadata
     }
 }
 

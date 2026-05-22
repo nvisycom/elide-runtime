@@ -79,16 +79,19 @@ impl Recognizers {
         let llm = cfg
             .llm
             .as_ref()
+            .filter(|c| c.enabled)
             .map(|c| LlmRecognizer::new(c.clone()).map(Arc::new))
             .transpose()?;
         let nlp = cfg
             .nlp
             .as_ref()
+            .filter(|c| c.enabled)
             .map(|c| NlpRecognizer::from_config(c).map(Arc::new))
             .transpose()?;
         let pattern = cfg
             .pattern
             .as_ref()
+            .filter(|c| c.enabled)
             .map(|c| Arc::new(PatternRecognizer::from_config(c)));
         Ok(Self { llm, nlp, pattern })
     }

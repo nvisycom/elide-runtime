@@ -24,7 +24,9 @@ use super::plan::{self, ExecutionPlan};
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
 use crate::detection::Recognizers;
+use crate::extraction::Extractors;
 use crate::operation::SharedData;
+use crate::redaction::RedactorDefaults;
 use crate::registry::Registry;
 use crate::utility::encryption::SharedKeyProvider;
 use crate::workflow::GraphNodeKind;
@@ -42,7 +44,9 @@ pub(super) struct Pipeline {
     key_provider: Option<SharedKeyProvider>,
     runs: RunState,
     base_config: RuntimeConfig,
+    extractors: Arc<Extractors>,
     recognizers: Arc<Recognizers>,
+    redactor_defaults: Arc<RedactorDefaults>,
 }
 
 impl Pipeline {
@@ -52,7 +56,9 @@ impl Pipeline {
         key_provider: Option<SharedKeyProvider>,
         runs: RunState,
         base_config: RuntimeConfig,
+        extractors: Arc<Extractors>,
         recognizers: Arc<Recognizers>,
+        redactor_defaults: Arc<RedactorDefaults>,
     ) -> Self {
         Self {
             run_id: Uuid::now_v7(),
@@ -60,7 +66,9 @@ impl Pipeline {
             key_provider,
             runs,
             base_config,
+            extractors,
             recognizers,
+            redactor_defaults,
         }
     }
 
@@ -202,11 +210,22 @@ impl Pipeline {
 
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
+        // Per-request redactor overrides win; otherwise reuse the
+        // pre-built defaults. We always rebuild a fresh Arc when the
+        // effective config carries a section, since identity-equality
+        // doesn't tell us whether the section came from override or
+        // base. The defaults struct is small (two scalars + an
+        // Option), so the allocation is trivial.
+        let redactor_defaults = match &effective_config.redactor {
+            Some(d) => Arc::new(d.clone()),
+            None => Arc::clone(&self.redactor_defaults),
+        };
         let ctx = RunContext {
             cancel,
             shared: Arc::new(shared_data),
-            config: Arc::new(effective_config),
+            extractors: Arc::clone(&self.extractors),
             detection_engine,
+            redactor_defaults,
             concurrency,
             dry_run: input.dry_run,
         };

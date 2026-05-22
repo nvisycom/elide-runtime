@@ -1,12 +1,14 @@
 //! Pipeline runtime configuration, typically deserialized from TOML.
 //!
 //! [`RuntimeConfig`] is the top-level configuration object containing
-//! optional sections for each subsystem — [`EngineSection`],
-//! [`OcrSection`], [`LlmSection`], [`SttSection`], and [`TtsSection`].
+//! optional subsystem sections — [`EngineSection`],
+//! [`ExtractorSection`], and [`RecognizerSection`].
 //!
 //! Per-request overrides are supported via [`RuntimeConfig::merge`],
 //! which replaces entire sections (not individual fields) when the
-//! override provides a non-`None` value.
+//! override provides a non-`None` value — with the exception of
+//! `extractor` and `recognizer`, which are built once at engine
+//! startup and never per-request-overridden.
 //!
 //! # Post-load steps
 //!
@@ -16,15 +18,15 @@
 //! 2. Call [`RuntimeConfig::validate`] to check structural constraints.
 
 mod engine;
-mod subsystem;
 mod validate;
 
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
 pub use self::engine::{CacheConfig, EngineSection, ResourceLimits};
-pub use self::subsystem::{LlmSection, OcrSection, SttSection, TtsSection};
 use crate::detection::RecognizerSection;
+use crate::extraction::ExtractorSection;
+use crate::redaction::RedactorDefaults;
 use crate::workflow::{ConcurrencyPolicy, RetryPolicy, TimeoutPolicy};
 
 fn default_config_version() -> Version {
@@ -41,7 +43,9 @@ fn default_config_version() -> Version {
 ///
 /// [`RuntimeConfig::merge`] replaces entire sections — if the override
 /// provides a non-`None` section, it wins completely. Fields within a
-/// section are not merged individually.
+/// section are not merged individually. `extractor` and `recognizer`
+/// are NOT overridable per-request: both are built once at engine
+/// startup.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     /// Configuration schema version.
@@ -50,19 +54,19 @@ pub struct RuntimeConfig {
 
     /// Engine-level execution policies, networking, and resource limits.
     pub engine: Option<EngineSection>,
-    /// OCR subsystem (optical character recognition).
-    pub ocr: Option<OcrSection>,
-    /// LLM subsystem (language model inference).
-    pub llm: Option<LlmSection>,
-    /// STT subsystem (speech-to-text transcription).
-    pub stt: Option<SttSection>,
-    /// TTS subsystem (text-to-speech generation).
-    pub tts: Option<TtsSection>,
+    /// Extractor registry — `[extractor.visual]`, `[extractor.audial]`
+    /// sub-sections. Built once at engine startup; workflow
+    /// `Extraction` nodes carry per-call flags only.
+    pub extractor: Option<ExtractorSection>,
     /// Recognizer registry — `[recognizer.llm]`, `[recognizer.nlp]`,
     /// `[recognizer.pattern]` sub-sections. Built once at engine
     /// startup; workflow `Detection` nodes only reference these by
     /// kind.
     pub recognizer: Option<RecognizerSection>,
+    /// Server-wide redaction defaults — `[redactor]` section.
+    /// Workflow `Redaction` nodes fall back to these for any
+    /// `None` fields.
+    pub redactor: Option<RedactorDefaults>,
 }
 
 impl Default for RuntimeConfig {
@@ -70,11 +74,9 @@ impl Default for RuntimeConfig {
         Self {
             version: default_config_version(),
             engine: None,
-            ocr: None,
-            llm: None,
-            stt: None,
-            tts: None,
+            extractor: None,
             recognizer: None,
+            redactor: None,
         }
     }
 }
@@ -96,11 +98,9 @@ impl RuntimeConfig {
     #[must_use]
     pub fn is_default(&self) -> bool {
         self.engine.is_none()
-            && self.ocr.is_none()
-            && self.llm.is_none()
-            && self.stt.is_none()
-            && self.tts.is_none()
+            && self.extractor.is_none()
             && self.recognizer.is_none()
+            && self.redactor.is_none()
     }
 
     /// Resource limits from the engine section, or defaults.
@@ -119,22 +119,19 @@ impl RuntimeConfig {
     ///
     /// Non-`None` sections in `overrides` replace the corresponding
     /// section in `self`; `None` sections fall back to `self`. The
-    /// version is taken from the base config.
+    /// version is taken from the base config. `extractor` and
+    /// `recognizer` are intentionally NOT overridable: each is built
+    /// once at engine startup so per-request dispatch stays cheap.
+    /// Per-request override would force a rebuild (model loads,
+    /// HTTP client setup) and defeat the amortization.
     #[must_use]
     pub fn merge(&self, overrides: &RuntimeConfig) -> RuntimeConfig {
-        // `recognizer` is intentionally NOT overridable: the
-        // registry is built once at engine startup so per-request
-        // dispatch stays cheap. Per-request override would force a
-        // rebuild (model loads, HTTP client setup) and defeat the
-        // amortization.
         RuntimeConfig {
             version: self.version.clone(),
             engine: overrides.engine.clone().or_else(|| self.engine.clone()),
-            ocr: overrides.ocr.clone().or_else(|| self.ocr.clone()),
-            llm: overrides.llm.clone().or_else(|| self.llm.clone()),
-            stt: overrides.stt.clone().or_else(|| self.stt.clone()),
-            tts: overrides.tts.clone().or_else(|| self.tts.clone()),
+            extractor: self.extractor.clone(),
             recognizer: self.recognizer.clone(),
+            redactor: overrides.redactor.clone().or_else(|| self.redactor.clone()),
         }
     }
 }
@@ -190,20 +187,5 @@ mod tests {
         let overrides = RuntimeConfig::default();
         let merged = base.merge(&overrides);
         assert_eq!(merged.engine.unwrap().http.unwrap().max_retries, 3);
-    }
-
-    #[test]
-    fn fill_key_skips_nonempty() {
-        let mut key = "existing".to_string();
-        // Point at an env var that almost certainly doesn't exist.
-        super::validate::fill_key_from_env(&mut key, "NVISY_TEST_NONEXISTENT_VAR_12345");
-        assert_eq!(key, "existing");
-    }
-
-    #[test]
-    fn fill_key_leaves_empty_when_env_missing() {
-        let mut key = String::new();
-        super::validate::fill_key_from_env(&mut key, "NVISY_TEST_NONEXISTENT_VAR_12345");
-        assert!(key.is_empty());
     }
 }

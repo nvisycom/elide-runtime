@@ -12,19 +12,22 @@ use serde::{Deserialize, Serialize};
 
 /// Configuration for the [`Redaction`] graph node.
 ///
-/// Controls which supplementary sanitisation steps are performed in addition
-/// to span-level value replacement.
+/// Controls per-workflow knobs for the redaction phase. Unset
+/// fields fall back to `[redactor]` defaults in `Nvisy.toml`
+/// ([`crate::redaction::RedactorDefaults`]); if neither is set,
+/// hard-coded defaults apply (0.5 threshold, no metadata stripping).
 ///
 /// [`Redaction`]: crate::workflow::GraphNodeKind::Redaction
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Redaction {
     /// Minimum confidence threshold for default redaction (0.0 to 1.0).
-    /// Entities below this threshold that don't match a policy rule are
-    /// skipped. Defaults to 0.5.
+    /// Entities below this threshold that don't match a policy rule
+    /// are skipped. `None` falls back to `[redactor].confidence_threshold`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence_threshold: Option<f64>,
     /// Strip or redact document metadata (EXIF, PDF properties).
-    #[serde(default)]
-    pub process_metadata: bool,
+    /// `None` falls back to `[redactor].process_metadata`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub process_metadata: Option<bool>,
 }

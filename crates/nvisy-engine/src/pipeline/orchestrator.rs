@@ -17,14 +17,15 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
-use super::config::RuntimeConfig;
 use super::plan::{ExecutionPlan, ExportStep, ImportStep, PhasePolicy};
 use crate::detection::DetectionEngine;
+use crate::extraction::Extractors;
 use crate::graph::TimeoutExt;
 use crate::operation::{
-    Deduplication, Detection, DocumentEnvelope, ExportFile, Extraction, GenerateContext,
-    ImportFile, Operation, Redaction, SharedData, Validation,
+    Deduplication, Detection, DocumentEnvelope, ExportFile, GenerateContext, ImportFile, Operation,
+    SharedData, Validation,
 };
+use crate::redaction::{Redaction, RedactorDefaults};
 use crate::workflow::{
     ConcurrencyPolicy, Detection as DetectionConfig, Extraction as ExtractionConfig,
 };
@@ -37,12 +38,16 @@ pub(super) struct RunContext {
     pub cancel: CancellationToken,
     /// Shared run-wide state: run ID, actor, registry, policies.
     pub shared: Arc<SharedData>,
-    /// Effective configuration after merging per-request overrides.
-    pub config: Arc<RuntimeConfig>,
+    /// Pre-built extractor registry from `RuntimeConfig.extractor`.
+    /// Shared across every run.
+    pub extractors: Arc<Extractors>,
     /// Optional shared detection engine. `None` skips the
     /// detection phase entirely (e.g. for redaction-only or
     /// validation-only pipelines).
     pub detection_engine: Option<Arc<DetectionEngine>>,
+    /// Server-wide redaction defaults from `RuntimeConfig.redactor`.
+    /// Per-workflow `Redaction` fields fall back to these.
+    pub redactor_defaults: Arc<RedactorDefaults>,
     /// Optional limit on how many documents may process concurrently.
     pub concurrency: Option<ConcurrencyPolicy>,
     /// When `true`, skip redaction, validation, and export phases.
@@ -209,7 +214,9 @@ impl DocumentPipeline {
         // Phase 4: redaction + generate context.
         if !self.ctx.dry_run {
             self.run_phase(&plan.redaction_policy, async {
-                Redaction::new(&plan.redaction).execute(&mut envelope).await
+                Redaction::new(&plan.redaction, &self.ctx.redactor_defaults)
+                    .execute(&mut envelope)
+                    .await
             })
             .await?;
         }
@@ -246,15 +253,16 @@ impl DocumentPipeline {
         }
     }
 
-    /// Run extraction for all applicable modalities.
+    /// Run extraction by dispatching the document to the matching
+    /// pre-built extractor in [`Extractors`].
+    ///
+    /// [`Extractors`]: crate::extraction::Extractors
     async fn run_extraction(
         &self,
         cfg: &ExtractionConfig,
         envelope: &mut DocumentEnvelope,
     ) -> Result<(), Error> {
-        Extraction::new(cfg, &self.ctx.config)
-            .execute(envelope)
-            .await
+        self.ctx.extractors.run(envelope, cfg).await
     }
 
     /// Run detection through the run-scoped [`DetectionEngine`].

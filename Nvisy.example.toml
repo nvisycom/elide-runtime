@@ -4,14 +4,10 @@
 # The server loads Nvisy.toml by default; override with --config or NVISY_CONFIG.
 #
 # All sections are optional — omitted sections use runtime defaults.
-# Per-request overrides (in the JSON request body) replace entire sections
-# EXCEPT `[recognizer.*]`, which is built once at startup and shared
-# across runs (overrides would force model reloads and defeat the
-# amortization).
-#
-# Provider api_key fields can be set via environment variables instead
-# of hardcoding them here: NVISY_LLM_API_KEY, NVISY_STT_API_KEY,
-# NVISY_TTS_API_KEY, NVISY_OCR_API_KEY.
+# Per-request overrides (in the JSON request body) replace entire
+# [engine] sections; `[extractor.*]` and `[recognizer.*]` are built
+# once at startup and shared across runs (overrides would force model
+# reloads and defeat the amortization).
 
 version = "0.1.0"
 
@@ -51,54 +47,63 @@ timeout_secs = 120
 connect_timeout_secs = 10
 idle_timeout_secs = 90
 
-# OCR text extraction.
-# kind: surya | paddle-x | aws-textract | azure-docai | google-vision
-[ocr.provider]
+# Extractor registry.
+#
+# Each opted-in `[extractor.*]` section is built once at server
+# startup. Set `enabled = false` to keep the config but skip
+# construction and dispatch. Workflow `Extraction` nodes carry
+# per-call flags only.
+
+# OCR text extraction from image documents.
+[extractor.ocr]
+enabled = true
+
+[extractor.ocr.provider]
 kind = "paddle-x"
 base_url = "http://localhost:8003"
 
-[ocr.policy]
+[extractor.ocr.policy]
 confidence_threshold = 0.5
 
-# LLM for OCR entity verification (CV verifier path).
-# Detection-side LLM lives in [recognizer.llm], not here.
-# kind: open-ai | anthropic | gemini | ollama
-# api_key: set here or via NVISY_LLM_API_KEY env var.
-[llm.provider]
-kind = "open-ai"
-api_key = "sk-example-replace-me"
-model = "gpt-4o"
-
-[llm.policy]
-temperature = 0.1
-max_tokens = 4096
-max_retries = 3
-
 # Speech-to-text transcription.
-# kind: open-ai | local
-# api_key: set here or via NVISY_STT_API_KEY env var.
-[stt.provider]
+[extractor.stt]
+enabled = true
+
+[extractor.stt.provider]
 kind = "open-ai"
 api_key = "sk-example-replace-me"
 model = "whisper-1"
 
-# Text-to-speech synthesis.
-# kind: open-ai | local
-# api_key: set here or via NVISY_TTS_API_KEY env var.
-[tts.provider]
+[extractor.stt.agent]
+model = "whisper-1"
+max_retries = 3
+
+# VLM verifier — runs an LLM pass over OCR-detected entities to
+# confirm/correct them against the source image. Dispatched after
+# [extractor.ocr] when workflow extraction.visual.verification is set.
+[extractor.vlm]
+enabled = true
+
+[extractor.vlm.provider]
 kind = "open-ai"
 api_key = "sk-example-replace-me"
-model = "tts-1"
+model = "gpt-4o"
+
+[extractor.vlm.agent]
+temperature = 0.0
+max_tokens = 1024
 
 # Detection recognizer registry.
 #
 # Each opted-in `[recognizer.*]` section is built once at server
-# startup. Workflows enable recognizers by name via
-# `detection.kinds = ["llm", "nlp", "pattern"]` — recognizer-side
+# startup. Set `enabled = false` to keep the config but skip
+# construction and dispatch. Workflows enable recognizers by name
+# via `detection.kinds = ["llm", "nlp", "pattern"]` — recognizer-side
 # configuration lives here, never in the workflow.
 
 # LLM-backed recognizer.
 [recognizer.llm]
+enabled = true
 verify_pass = true # adds a second LLM call per span
 unresolved_policy = "drop" # drop | warn | error
 
@@ -113,9 +118,37 @@ max_tokens = 4096
 
 # NLP-engine recognizer (NER + language detection + tokenizer).
 [recognizer.nlp]
+enabled = true
 engine = "default"
 
 # Pattern-based recognizer (regex + dictionary + checksum).
 [recognizer.pattern]
+enabled = true
 patterns = [] # empty = all built-in patterns
 confidence_threshold = 0.5
+
+# Redaction defaults + audio redaction codec.
+#
+# Workflow `Redaction` nodes fall back to these for any field
+# they leave unset. Per-request overrides are honored (cheap config,
+# no expensive construction).
+[redactor]
+confidence_threshold = 0.5
+process_metadata = false
+
+# TTS provider for audio redaction codec — synthesizes replacement
+# audio for redacted spans in audio documents. Omit the section
+# entirely to fall back to non-TTS audio replacement (silence/beep).
+[redactor.tts]
+enabled = true
+
+[redactor.tts.provider]
+kind = "open-ai"
+api_key = "sk-example-replace-me"
+model = "tts-1"
+
+[redactor.tts.agent]
+model = "tts-1"
+voice = "alloy"
+speed = 1.0
+max_retries = 3

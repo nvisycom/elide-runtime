@@ -35,6 +35,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct LlmDetection {
+    /// Enable this recognizer. When `false`, the recognizer is
+    /// neither built nor dispatched, but the config is preserved
+    /// so operators can toggle without losing it. Defaults to
+    /// `true`.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
     /// Provider selection + credentials for the detection agent.
     pub provider: AgentProvider,
     /// Sampling and retry parameters. Reused for both the detection
@@ -55,4 +61,8 @@ pub struct LlmDetection {
     /// [`UnresolvedCandidatePolicy::Drop`].
     #[serde(default)]
     pub unresolved_policy: UnresolvedCandidatePolicy,
+}
+
+fn default_true() -> bool {
+    true
 }

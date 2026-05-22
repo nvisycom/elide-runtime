@@ -14,7 +14,14 @@ pub use self::provider::TtsProvider;
 const TARGET: &str = "nvisy_agent::tts";
 
 /// Configuration for the text-to-speech service.
-#[derive(Debug, Clone)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema
+)]
 pub struct TtsConfig {
     /// Model name (e.g. `"tts-1"`, `"tts-1-hd"`).
     pub model: String,

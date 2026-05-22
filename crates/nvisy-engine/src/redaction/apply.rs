@@ -366,7 +366,7 @@ mod tests {
     use nvisy_ontology::provenance::{AuditEntry, RedactionMapping};
 
     use super::*;
-    use crate::operation::envelope::SharedData;
+    use crate::operation::SharedData;
 
     fn text_entity(start: usize, end: usize) -> Entity {
         Entity::test_builder(start, end).test_build()

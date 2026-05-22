@@ -9,6 +9,8 @@ mod provider;
 use nvisy_core::{Error, Result};
 #[cfg(feature = "openai-whisper")]
 use rig::transcription::TranscriptionModel;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub(crate) use self::provider::SttModels;
@@ -18,7 +20,7 @@ pub use self::provider::SttProvider;
 const TARGET: &str = "nvisy_agent::stt";
 
 /// Configuration for the speech-to-text service.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct SttConfig {
     /// Model name (e.g. `"whisper-1"`).
     pub model: String,

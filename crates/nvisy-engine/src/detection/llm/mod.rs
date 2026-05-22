@@ -63,15 +63,14 @@ impl LlmRecognizer {
     /// Returns an error if the rig agent or verifier cannot be
     /// constructed (bad provider, invalid config).
     pub fn new(cfg: LlmDetection) -> Result<Self> {
-        let LlmDetection {
-            provider,
-            agent,
-            verify_pass,
-            unresolved_policy,
-        } = cfg;
-        let verifier_config = verify_pass.then(|| agent.clone());
-        let pipeline = NerPipeline::new(&provider, agent, verifier_config, unresolved_policy)
-            .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "llm", false))?;
+        let verifier_config = cfg.verify_pass.then(|| cfg.agent.clone());
+        let pipeline = NerPipeline::new(
+            &cfg.provider,
+            cfg.agent,
+            verifier_config,
+            cfg.unresolved_policy,
+        )
+        .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "llm", false))?;
         Ok(Self::from_pipeline(pipeline))
     }
 

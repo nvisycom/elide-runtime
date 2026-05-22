@@ -33,10 +33,8 @@ fn example_toml_parses() {
 fn empty_toml_uses_defaults() {
     let config: RuntimeConfig = toml::from_str("").unwrap();
     assert!(config.engine.is_none());
-    assert!(config.ocr.is_none());
-    assert!(config.llm.is_none());
-    assert!(config.stt.is_none());
-    assert!(config.tts.is_none());
+    assert!(config.extractor.is_none());
+    assert!(config.recognizer.is_none());
     assert!(config.validate().is_ok());
 }
 

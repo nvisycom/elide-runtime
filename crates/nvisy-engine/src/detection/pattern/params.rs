@@ -18,9 +18,15 @@ use validator::Validate;
 /// Pattern detection settings (regex, checksum, dictionary).
 ///
 /// Controls which patterns run and what confidence threshold applies.
-#[derive(Debug, Clone, Default, PartialEq, Validate)]
+#[derive(Debug, Clone, PartialEq, Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PatternDetection {
+    /// Enable this recognizer. When `false`, the recognizer is
+    /// neither built nor dispatched, but the config is preserved
+    /// so operators can toggle without losing it. Defaults to
+    /// `true`.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
     /// Restrict detection to the named patterns only. When empty, all
     /// built-in patterns are used.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -41,4 +47,19 @@ pub struct PatternDetection {
     /// When `None`, all patterns are eligible.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filter: Option<PatternFilter>,
+}
+
+impl Default for PatternDetection {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            patterns: Vec::new(),
+            confidence_threshold: None,
+            filter: None,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
 }

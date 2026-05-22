@@ -2,10 +2,10 @@
 
 use std::env;
 
+use nvisy_agent::agent::AgentProvider;
+use nvisy_agent::audio::{SttProvider, TtsProvider};
 use nvisy_core::Error;
 use nvisy_ocr::OcrProvider;
-use nvisy_rig::agent::AgentProvider;
-use nvisy_rig::audio::{SttProvider, TtsProvider};
 use validator::Validate;
 
 use super::RuntimeConfig;

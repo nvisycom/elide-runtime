@@ -1,8 +1,8 @@
 //! Provider subsystem configuration sections (OCR, LLM, STT, TTS).
 
+use nvisy_agent::agent::{AgentConfig, AgentProvider};
+use nvisy_agent::audio::{SttProvider, TtsProvider};
 use nvisy_ocr::{OcrProvider, RunParams as OcrRunParams};
-use nvisy_rig::agent::{AgentConfig, AgentProvider};
-use nvisy_rig::audio::{SttProvider, TtsProvider};
 use serde::{Deserialize, Serialize};
 
 /// OCR subsystem configuration.

@@ -11,7 +11,7 @@ pub(crate) use self::provider::TtsModels;
 pub use self::provider::TtsProvider;
 
 #[cfg(feature = "openai-tts")]
-const TARGET: &str = "nvisy_rig::tts";
+const TARGET: &str = "nvisy_agent::tts";
 
 /// Configuration for the text-to-speech service.
 #[derive(Debug, Clone)]
@@ -75,7 +75,7 @@ impl TtsService {
 
     /// Generate speech from text, returning raw audio bytes.
     #[tracing::instrument(
-        target = "nvisy_rig::tts",
+        target = "nvisy_agent::tts",
         skip_all,
         fields(service_id = %self.id, text_len = text.len()),
     )]

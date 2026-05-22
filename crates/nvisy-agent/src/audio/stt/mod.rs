@@ -15,7 +15,7 @@ pub(crate) use self::provider::SttModels;
 pub use self::provider::SttProvider;
 
 #[cfg(feature = "openai-whisper")]
-const TARGET: &str = "nvisy_rig::stt";
+const TARGET: &str = "nvisy_agent::stt";
 
 /// Configuration for the speech-to-text service.
 #[derive(Debug, Clone)]
@@ -96,7 +96,7 @@ impl SttService {
     /// * `audio_data` — raw audio bytes (MP3, WAV, etc.).
     /// * `filename` — original filename, used for MIME-type detection.
     #[tracing::instrument(
-        target = "nvisy_rig::stt",
+        target = "nvisy_agent::stt",
         skip_all,
         fields(service_id = %self.id, data_len = audio_data.len(), filename),
     )]

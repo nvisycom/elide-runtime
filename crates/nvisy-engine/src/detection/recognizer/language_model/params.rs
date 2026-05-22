@@ -18,8 +18,8 @@
 //! [`agent`]: LlmDetection::agent
 //! [`verifier`]: LlmDetection::verifier
 
-use nvisy_rig::agent::ner::UnresolvedCandidatePolicy;
-use nvisy_rig::agent::{AgentConfig, AgentProvider};
+use nvisy_agent::agent::ner::UnresolvedCandidatePolicy;
+use nvisy_agent::agent::{AgentConfig, AgentProvider};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

@@ -10,7 +10,7 @@ retry and OpenTelemetry tracing layers pre-installed.
 
 `HttpClient` wraps a middleware-configured `reqwest` client; consumers
 build their own from `HttpConfig` at agent/backend construction time
-(no global state). `nvisy-rig` (LLM agents, STT/TTS) and `nvisy-ocr`
+(no global state). `nvisy-agent` (LLM agents, STT/TTS) and `nvisy-ocr`
 (OCR providers) both depend on this crate so the retry policy and
 tracing layer are identical across every outbound HTTP call.
 

@@ -27,7 +27,7 @@ Feature-gated backends:
 
 LLM-mediated entity verification (the LLM-side counterpart that
 verifies OCR-proposed entities against the source image) lives in
-`nvisy-rig` as `CvVerifyAgent`. HTTP transport (`HttpClient`,
+`nvisy-agent` as `CvVerifyAgent`. HTTP transport (`HttpClient`,
 `HttpConfig`, retry + tracing middleware) lives in the shared
 `nvisy-http` crate.
 

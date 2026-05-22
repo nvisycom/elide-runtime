@@ -20,7 +20,7 @@ use uuid::Uuid;
 use super::{AgentProvider, BaseAgentBuilder, ContextWindow, ResponseParser, UsageTracker};
 use crate::error::Error;
 
-const TARGET: &str = "nvisy_rig::agent::base";
+const TARGET: &str = "nvisy_agent::agent::base";
 
 /// Sampling, retry, context-window, and preamble settings shared by all agents.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
@@ -157,7 +157,7 @@ impl BaseAgent {
     ///
     /// Automatically compacts the prompt if a context window is configured
     /// and the prompt exceeds the input budget.
-    #[tracing::instrument(target = "nvisy_rig::agent::base", skip_all, fields(agent_id = %self.id, mode = "text"))]
+    #[tracing::instrument(target = "nvisy_agent::agent::base", skip_all, fields(agent_id = %self.id, mode = "text"))]
     pub async fn prompt_text(&self, prompt: &str) -> Result<String, Error> {
         let prompt = self.maybe_compact(prompt).await?;
         self.prompt_text_raw(&prompt).await
@@ -171,7 +171,7 @@ impl BaseAgent {
     /// Sends a completion request with an `output_schema` so the provider
     /// constrains its response to valid JSON matching `T`. On deserialization
     /// failure the raw text is re-parsed via [`ResponseParser`].
-    #[tracing::instrument(target = "nvisy_rig::agent::base", skip_all, fields(agent_id = %self.id, mode = "structured"))]
+    #[tracing::instrument(target = "nvisy_agent::agent::base", skip_all, fields(agent_id = %self.id, mode = "structured"))]
     pub async fn prompt_structured<T>(&self, prompt: &str) -> Result<T, Error>
     where
         T: DeserializeOwned + Default + JsonSchema + Serialize + Send + Sync,
@@ -184,7 +184,7 @@ impl BaseAgent {
     ///
     /// Use this for prompts containing binary/encoded data (e.g. base64
     /// images) where LLM-based summarization would be nonsensical.
-    #[tracing::instrument(target = "nvisy_rig::agent::base", skip_all, fields(agent_id = %self.id, mode = "structured_raw"))]
+    #[tracing::instrument(target = "nvisy_agent::agent::base", skip_all, fields(agent_id = %self.id, mode = "structured_raw"))]
     pub async fn prompt_structured_raw<T>(&self, prompt: &str) -> Result<T, Error>
     where
         T: DeserializeOwned + Default + JsonSchema + Serialize + Send + Sync,

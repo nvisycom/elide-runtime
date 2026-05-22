@@ -3173,6 +3173,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-agent"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "derive_builder",
+ "derive_more",
+ "futures",
+ "nvisy-core",
+ "nvisy-http",
+ "nvisy-ontology",
+ "reqwest-middleware",
+ "rig",
+ "schemars 1.2.1",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "unicode-normalization",
+ "uuid",
+]
+
+[[package]]
 name = "nvisy-cli"
 version = "0.1.0"
 dependencies = [
@@ -3259,6 +3284,7 @@ dependencies = [
  "fjall",
  "futures",
  "jiff",
+ "nvisy-agent",
  "nvisy-codec",
  "nvisy-core",
  "nvisy-engine",
@@ -3267,7 +3293,6 @@ dependencies = [
  "nvisy-ocr",
  "nvisy-ontology",
  "nvisy-pattern",
- "nvisy-rig",
  "petgraph",
  "rand 0.10.1",
  "schemars 1.2.1",
@@ -3386,31 +3411,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "walkdir",
-]
-
-[[package]]
-name = "nvisy-rig"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "bytes",
- "derive_builder",
- "derive_more",
- "futures",
- "nvisy-core",
- "nvisy-http",
- "nvisy-ontology",
- "reqwest-middleware",
- "rig",
- "schemars 1.2.1",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "unicode-normalization",
- "uuid",
 ]
 
 [[package]]

@@ -24,7 +24,7 @@ use self::prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use crate::agent::base::{BaseAgent, UsageTracker};
 use crate::agent::{AgentConfig, AgentProvider, DetectionConfig};
 
-const TARGET: &str = "nvisy_rig::agent::ner";
+const TARGET: &str = "nvisy_agent::agent::ner";
 
 /// Agent for textual PII/entity detection using LLM-based NER.
 ///

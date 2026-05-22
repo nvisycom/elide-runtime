@@ -26,14 +26,14 @@ use self::prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use crate::agent::base::{BaseAgent, UsageTracker};
 use crate::agent::{AgentConfig, AgentProvider, DetectionConfig};
 
-const TARGET: &str = "nvisy_rig::agent::cv";
+const TARGET: &str = "nvisy_agent::agent::cv";
 
 /// A single computer-vision detection produced by an upstream CV
 /// backend (face detector, plate detector, etc.).
 ///
 /// This is the input shape for [`CvAgent::classify`]: the agent
 /// receives pre-computed bboxes and labels and decides what entity
-/// each one corresponds to. The detector lives outside `nvisy-rig`.
+/// each one corresponds to. The detector lives outside `nvisy-agent`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CvDetection {
     /// Label for the detected object (e.g. `"face"`, `"license_plate"`).
@@ -94,7 +94,7 @@ impl CvAgent {
     /// detections as classified entities; an empty input returns an
     /// empty output without prompting the LLM.
     #[tracing::instrument(
-        target = "nvisy_rig::agent::cv",
+        target = "nvisy_agent::agent::cv",
         skip_all,
         fields(image_bytes = image_data.len(), detection_count = detections.len()),
     )]

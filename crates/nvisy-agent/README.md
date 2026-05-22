@@ -1,4 +1,4 @@
-# nvisy-rig
+# nvisy-agent
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
@@ -41,9 +41,9 @@ middleware) lives in the shared `nvisy-http` crate; rig agents
 build their own clients internally from `AgentConfig::max_retries`.
 
 ```rust,ignore
-use nvisy_rig::agent::{AgentConfig, AgentProvider, DetectionConfig};
-use nvisy_rig::agent::ner::UnresolvedCandidatePolicy;
-use nvisy_rig::pipeline::NerPipeline;
+use nvisy_agent::agent::{AgentConfig, AgentProvider, DetectionConfig};
+use nvisy_agent::agent::ner::UnresolvedCandidatePolicy;
+use nvisy_agent::pipeline::NerPipeline;
 
 let provider = AgentProvider::openai("sk-...", "gpt-4o");
 let pipeline = NerPipeline::new(

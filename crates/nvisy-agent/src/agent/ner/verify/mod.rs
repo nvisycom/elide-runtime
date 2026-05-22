@@ -45,7 +45,7 @@ use crate::agent::base::{BaseAgent, UsageTracker};
 use crate::agent::ner::NerCandidate;
 use crate::agent::{AgentConfig, AgentProvider};
 
-const TARGET: &str = "nvisy_rig::agent::ner_verify_agent";
+const TARGET: &str = "nvisy_agent::agent::ner_verify_agent";
 
 /// Default confidence assigned to a candidate when the LLM didn't
 /// score it.

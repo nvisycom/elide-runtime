@@ -23,7 +23,7 @@ use self::prompt::{CV_VERIFIER_SYSTEM_PROMPT, CvVerifyAgentPromptBuilder};
 use crate::agent::base::{BaseAgent, UsageTracker, VerificationOutput};
 use crate::agent::{AgentConfig, AgentProvider};
 
-const TARGET: &str = "nvisy_rig::agent::cv_verify_agent";
+const TARGET: &str = "nvisy_agent::agent::cv_verify_agent";
 
 /// LLM-driven entity verifier. Wraps an internal `BaseAgent` with
 /// the entity-verification system prompt baked in.

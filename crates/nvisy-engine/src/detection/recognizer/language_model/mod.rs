@@ -2,7 +2,7 @@
 //! [`Recognizer`] trait.
 //!
 //! All NER-specific orchestration — detect, verify, coreference
-//! merge — lives on [`NerPipeline`] in nvisy-rig. This recognizer
+//! merge — lives on [`NerPipeline`] in nvisy-agent. This recognizer
 //! is a thin adapter: translate [`LlmContext`] into a rig
 //! [`DetectionConfig`], call [`NerPipeline::run`], and forward
 //! `reset()` to [`Pipeline::reset`].
@@ -17,22 +17,22 @@
 //! [`from_pipeline`] is retained as an escape hatch for callers
 //! that already own a [`NerPipeline`].
 //!
-//! [`NerPipeline`]: nvisy_rig::pipeline::NerPipeline
-//! [`NerPipeline::new`]: nvisy_rig::pipeline::NerPipeline::new
-//! [`NerPipeline::run`]: nvisy_rig::pipeline::NerPipeline::run
-//! [`Pipeline::reset`]: nvisy_rig::pipeline::NerPipeline::reset
+//! [`NerPipeline`]: nvisy_agent::pipeline::NerPipeline
+//! [`NerPipeline::new`]: nvisy_agent::pipeline::NerPipeline::new
+//! [`NerPipeline::run`]: nvisy_agent::pipeline::NerPipeline::run
+//! [`Pipeline::reset`]: nvisy_agent::pipeline::NerPipeline::reset
 //! [`new`]: LlmRecognizer::new
 //! [`from_pipeline`]: LlmRecognizer::from_pipeline
 
 mod params;
 
 use async_trait::async_trait;
+use nvisy_agent::agent::DetectionConfig;
+use nvisy_agent::pipeline::NerPipeline;
 use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
 use nvisy_core::detection::Recognizer;
 use nvisy_ontology::entity::{Entities, EntityKind};
-use nvisy_rig::agent::DetectionConfig;
-use nvisy_rig::pipeline::NerPipeline;
 use uuid::Uuid;
 
 pub use self::params::LlmDetection;
@@ -68,8 +68,8 @@ impl From<&DetectionContext> for LlmContext {
 /// [`Recognizer`] trait. Per-call detection hints translate into the
 /// rig [`DetectionConfig`] passed to [`NerPipeline::run`].
 ///
-/// [`NerPipeline`]: nvisy_rig::pipeline::NerPipeline
-/// [`NerPipeline::run`]: nvisy_rig::pipeline::NerPipeline::run
+/// [`NerPipeline`]: nvisy_agent::pipeline::NerPipeline
+/// [`NerPipeline::run`]: nvisy_agent::pipeline::NerPipeline::run
 pub struct LlmRecognizer {
     pipeline: NerPipeline,
 }
@@ -105,7 +105,7 @@ impl LlmRecognizer {
     /// to share an instance across recognizers). Prefer [`new`] for
     /// ordinary use.
     ///
-    /// [`NerPipeline`]: nvisy_rig::pipeline::NerPipeline
+    /// [`NerPipeline`]: nvisy_agent::pipeline::NerPipeline
     /// [`new`]: Self::new
     pub fn from_pipeline(pipeline: NerPipeline) -> Self {
         Self { pipeline }
@@ -142,7 +142,7 @@ impl Recognizer for LlmRecognizer {
     /// Clears coreference state at document boundaries by
     /// delegating to [`Pipeline::reset`].
     ///
-    /// [`Pipeline::reset`]: nvisy_rig::pipeline::NerPipeline::reset
+    /// [`Pipeline::reset`]: nvisy_agent::pipeline::NerPipeline::reset
     async fn reset(&self) {
         self.pipeline.reset().await;
     }

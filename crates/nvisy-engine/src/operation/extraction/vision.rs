@@ -6,17 +6,17 @@
 //! and optionally running computer vision.
 //!
 //! [`OcrEngine`]: nvisy_ocr::OcrEngine
-//! [`CvPipeline`]: nvisy_rig::pipeline::CvPipeline
+//! [`CvPipeline`]: nvisy_agent::pipeline::CvPipeline
 
 use bytes::Bytes;
+use nvisy_agent::agent::cv::VerificationCandidate;
+use nvisy_agent::pipeline::CvPipeline;
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_http::{HttpClient, HttpConfig};
 use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 use nvisy_ontology::entity::{Entities, ImageLocation};
-use nvisy_rig::agent::cv::VerificationCandidate;
-use nvisy_rig::pipeline::CvPipeline;
 
 use crate::operation::{DocumentEnvelope, Operation};
 use crate::pipeline::RuntimeConfig;

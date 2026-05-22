@@ -12,7 +12,7 @@ The crate hosts the trait surface (`NerBackend`, `LanguageDetector`,
 NER via `OrtNerBackend`, language detection via
 `LinguaLanguageDetector`, tokenization via `HfTokenizer` and
 `UnicodeTokenizer`). `Engine` composes one of each into an analysis
-pipeline; LLM-mediated NER lives in `nvisy-rig` instead, by
+pipeline; LLM-mediated NER lives in `nvisy-agent` instead, by
 deliberate crate split — a third-party backend can implement
 `NerBackend` over any transport (local model, HTTP, gRPC) and plug
 in here.

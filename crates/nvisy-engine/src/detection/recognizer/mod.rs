@@ -8,7 +8,7 @@
 //! - [`PatternRecognizer`] wraps `nvisy_pattern::PatternEngine`
 //!   (regex, dictionary, allow/deny, context-aware boosting).
 //!   Consumes [`PatternContext`].
-//! - [`LlmRecognizer`] wraps `nvisy_rig::pipeline::NerPipeline`
+//! - [`LlmRecognizer`] wraps `nvisy_agent::pipeline::NerPipeline`
 //!   (LLM-driven detection with coreference state). Consumes
 //!   [`LlmContext`].
 //!

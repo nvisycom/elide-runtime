@@ -16,7 +16,7 @@ use self::prompt::{GEN_SYSTEM_PROMPT, GenPromptBuilder};
 use crate::agent::base::{BaseAgent, UsageTracker};
 use crate::agent::{AgentConfig, AgentProvider};
 
-const TARGET: &str = "nvisy_rig::agent::generate";
+const TARGET: &str = "nvisy_agent::agent::generate";
 
 /// A request to generate a replacement value for a single entity.
 #[derive(Debug, Clone)]
@@ -74,7 +74,7 @@ impl GenAgent {
 
     /// Generate synthetic replacement values for a batch of entities.
     #[tracing::instrument(
-        target = "nvisy_rig::agent::generate",
+        target = "nvisy_agent::agent::generate",
         skip_all,
         fields(batch_size = requests.len()),
     )]
@@ -103,7 +103,7 @@ impl GenAgent {
     /// Uses plain-text completion instead of structured output, which is
     /// lighter-weight for a single value.
     #[tracing::instrument(
-        target = "nvisy_rig::agent::generate",
+        target = "nvisy_agent::agent::generate",
         skip_all,
         fields(entity_type = %request.entity_type),
     )]

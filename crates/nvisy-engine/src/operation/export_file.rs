@@ -1,11 +1,7 @@
 //! File export operation.
 //!
-//! Runs at **phase 6** alongside [`SaveContext`]. Delivers processed
-//! content, optionally applying encryption and compression.
-//!
-//! [`SaveContext`]: crate::operation::SaveContextOp
-
-//! The export pipeline applies optional post-processing steps in order:
+//! Delivers processed content to the registry, optionally applying
+//! encryption and compression in order:
 //!
 //! 1. **Encryption** — encrypt content (if config specified)
 //! 2. **Compression** — compress for storage or transfer (if format specified)

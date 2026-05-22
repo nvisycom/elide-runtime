@@ -1,6 +1,6 @@
 //! Import node configuration.
 //!
-//! [`ImportFile`] runs at **phase 0**, alongside [`LoadContext`]. It is always
+//! [`ImportFile`] runs, alongside [`LoadContext`]. It is always
 //! the first processing step: it resolves previously uploaded content by UUID,
 //! optionally decompresses and decrypts it, then feeds the raw bytes into the
 //! pipeline envelope for downstream extraction.
@@ -14,7 +14,7 @@ use validator::Validate;
 
 use super::{CompressionAlgorithm, EncryptionConfig};
 
-/// Configuration for the [`ImportFile`] graph node.
+/// Configuration for the [`ImportFile`] config.
 ///
 /// Identifies the content objects to load and specifies any decoding steps
 /// that must be applied before the bytes are passed to extraction nodes.

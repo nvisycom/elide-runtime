@@ -50,7 +50,6 @@ fn merge_overrides_present_sections() {
         engine: Some(EngineSection {
             limits: ResourceLimits {
                 run_timeout: Some(std::time::Duration::from_secs(30)),
-                ..Default::default()
             },
             ..Default::default()
         }),
@@ -60,7 +59,6 @@ fn merge_overrides_present_sections() {
         engine: Some(EngineSection {
             limits: ResourceLimits {
                 run_timeout: Some(std::time::Duration::from_secs(5)),
-                ..Default::default()
             },
             ..Default::default()
         }),
@@ -80,7 +78,6 @@ fn merge_falls_back_to_base() {
         engine: Some(EngineSection {
             limits: ResourceLimits {
                 run_timeout: Some(std::time::Duration::from_secs(60)),
-                ..Default::default()
             },
             ..Default::default()
         }),

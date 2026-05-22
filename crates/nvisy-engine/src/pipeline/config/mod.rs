@@ -20,13 +20,14 @@
 mod engine;
 mod validate;
 
+use std::num::NonZeroUsize;
+
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
 pub use self::engine::{CacheConfig, EngineSection, ResourceLimits};
 use crate::detection::DetectionSection;
 use crate::extraction::ExtractionSection;
-use crate::pipeline::ConcurrencyPolicy;
 use crate::redaction::RedactionDefaults;
 
 fn default_config_version() -> Version {
@@ -97,9 +98,9 @@ impl RuntimeConfig {
         self.engine.as_ref().map(|e| e.limits).unwrap_or_default()
     }
 
-    /// Concurrency policy from the engine section, if configured.
+    /// Concurrency limit from the engine section, if configured.
     #[must_use]
-    pub fn effective_concurrency(&self) -> Option<ConcurrencyPolicy> {
+    pub fn effective_concurrency(&self) -> Option<NonZeroUsize> {
         self.engine.as_ref().and_then(|e| e.concurrency)
     }
 

@@ -10,7 +10,6 @@ mod envelope;
 mod export_file;
 mod import_file;
 mod validate;
-mod validation_workflow;
 
 pub(crate) use self::deduplication::Deduplicator;
 pub use self::deduplication::workflow::{
@@ -21,4 +20,4 @@ pub use self::envelope::{Document, DocumentEnvelope};
 pub(crate) use self::export_file::Exporter;
 pub(crate) use self::import_file::Importer;
 pub(crate) use self::validate::Validator;
-pub use self::validation_workflow::Validation;
+pub use self::validate::workflow::Validation;

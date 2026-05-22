@@ -1,8 +1,8 @@
 //! Entity deduplication operation.
 //!
-//! Runs at **phase 3**, after detection. Combines multiple detection
-//! passes into a single, deduplicated set of entities with combined
-//! confidence scores.
+//! Runs after detection. Combines multiple detection passes into a
+//! single, deduplicated set of entities with combined confidence
+//! scores.
 //!
 //! The deduplication pipeline:
 //!

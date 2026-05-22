@@ -1,10 +1,7 @@
 //! File import operation.
 //!
-//! Runs at **phase 0**. Decodes raw content into a
-//! [`DocumentEnvelope`], optionally applying decompression and
-//! decryption.
-//!
-//! The import pipeline applies optional pre-processing steps in order:
+//! Decodes raw content into a [`DocumentEnvelope`], optionally
+//! applying pre-processing in order:
 //!
 //! 1. **Decompression** — decompress raw bytes (if format specified)
 //! 2. **Decryption** — decrypt content (if encryption config specified)

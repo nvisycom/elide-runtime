@@ -1,11 +1,11 @@
 //! Ingestion: the pipeline's edge — content + context I/O.
 //!
 //! These configs form the boundary between the outside world and the
-//! pipeline. [`ImportFile`] (phase 0) pulls content in and
-//! [`ExportFile`] (phase 6) pushes processed content out; both share
-//! the same [`CompressionAlgorithm`] / [`EncryptionConfig`] codec
-//! options. [`LoadContext`] (phase 0) loads reference-data contexts
-//! that downstream phases consume.
+//! pipeline. [`ImportFile`] pulls content in and [`ExportFile`]
+//! pushes processed content out; both share the same
+//! [`CompressionAlgorithm`] / [`EncryptionConfig`] codec options.
+//! [`LoadContext`] loads reference-data contexts before any phase
+//! runs.
 
 pub(crate) mod compression;
 pub mod encryption;

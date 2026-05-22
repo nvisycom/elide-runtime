@@ -9,6 +9,7 @@
 //! sequentially: extraction → detection → deduplication → redaction →
 //! validation.
 
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_core::Error;
@@ -21,7 +22,6 @@ use crate::detection::{Detection as DetectionConfig, DetectionEngine};
 use crate::extraction::{Extraction as ExtractionConfig, Extractors};
 use crate::ingestion::{ExportFile as ExportFileConfig, ImportFile as ImportFileConfig};
 use crate::operation::{Deduplicator, DocumentEnvelope, Exporter, Importer, SharedData, Validator};
-use crate::pipeline::ConcurrencyPolicy;
 use crate::redaction::{RedactionDefaults, Redactor};
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -43,7 +43,7 @@ pub(super) struct RunContext {
     /// Per-workflow `Redaction` fields fall back to these.
     pub redaction_defaults: Arc<RedactionDefaults>,
     /// Optional limit on how many documents may process concurrently.
-    pub concurrency: Option<ConcurrencyPolicy>,
+    pub concurrency: Option<NonZeroUsize>,
     /// When `true`, skip redaction, validation, and export phases.
     pub dry_run: bool,
 }
@@ -76,9 +76,7 @@ pub(super) struct Orchestrator {
 impl Orchestrator {
     /// Create an orchestrator for the given run.
     pub fn new(ctx: RunContext) -> Self {
-        let semaphore = ctx
-            .concurrency
-            .map(|c| Arc::new(Semaphore::new(c.max_nodes)));
+        let semaphore = ctx.concurrency.map(|c| Arc::new(Semaphore::new(c.get())));
         Self {
             ctx: Arc::new(ctx),
             semaphore,
@@ -188,21 +186,21 @@ impl DocumentPipeline {
     ) -> Result<DocumentEnvelope, Error> {
         self.check_cancelled()?;
 
-        // Phase 1: extraction.
+        // Extraction.
         self.run_extraction(&plan.extraction, &mut envelope).await?;
         self.check_cancelled()?;
 
-        // Phase 2: detection.
+        // Detection.
         self.run_detection(&plan.detection, &mut envelope).await?;
         self.check_cancelled()?;
 
-        // Phase 3: deduplication.
+        // Deduplication.
         Deduplicator::new(&plan.deduplication)
             .execute(&mut envelope)
             .await?;
         self.check_cancelled()?;
 
-        // Phase 4: redaction.
+        // Redaction.
         if !self.ctx.dry_run {
             Redactor::new(&plan.redaction, &self.ctx.redaction_defaults)
                 .execute(&mut envelope)
@@ -210,14 +208,14 @@ impl DocumentPipeline {
         }
         self.check_cancelled()?;
 
-        // Phase 5: validation (skipped in dry-run).
+        // Validation (skipped in dry-run).
         if !self.ctx.dry_run {
             Validator::new(&plan.validation)
                 .execute(&mut envelope)
                 .await?;
         }
 
-        // Phase 6: export (skipped in dry-run).
+        // Export (skipped in dry-run).
         if !self.ctx.dry_run {
             self.run_exports(&plan.exports, &envelope).await?;
         }

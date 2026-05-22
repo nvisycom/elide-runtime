@@ -1,12 +1,11 @@
 //! Engine-level configuration: networking, resource limits, concurrency.
 
+use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use nvisy_http::HttpConfig;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-
-use crate::pipeline::ConcurrencyPolicy;
 
 /// Hard limits on pipeline resource consumption.
 ///
@@ -30,21 +29,6 @@ pub struct ResourceLimits {
         skip_serializing_if = "Option::is_none"
     )]
     pub run_timeout: Option<Duration>,
-
-    /// Maximum number of content IDs per import.
-    ///
-    /// Caps the fan-out of a single import operation. `None` means no
-    /// limit (not yet enforced — reserved for future use).
-    #[serde(default)]
-    pub max_content_ids_per_import: Option<usize>,
-
-    /// Maximum envelope payload size in bytes.
-    ///
-    /// Documents exceeding this threshold are rejected at import time.
-    /// `None` means no limit (not yet enforced — reserved for future
-    /// use).
-    #[serde(default)]
-    pub max_envelope_size_bytes: Option<u64>,
 }
 
 /// Cache tuning parameters.
@@ -71,13 +55,11 @@ pub struct CacheConfig {
 /// explicitly noted as overridable.
 #[derive(Debug, Clone, Default, Validate, Serialize, Deserialize)]
 pub struct EngineSection {
-    /// Concurrency limit for parallel document execution.
-    ///
-    /// Caps the number of documents processed in parallel via
-    /// a [`tokio::sync::Semaphore`]. Server-wide; not overridable
-    /// per-request.
+    /// Maximum number of documents processed in parallel via a
+    /// shared [`tokio::sync::Semaphore`]. Server-wide; not
+    /// overridable per-request. `None` means unbounded.
     #[serde(default)]
-    pub concurrency: Option<ConcurrencyPolicy>,
+    pub concurrency: Option<NonZeroUsize>,
 
     /// Shared HTTP client configuration for all downstream API calls.
     ///

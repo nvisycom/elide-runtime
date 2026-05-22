@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use nvisy_server::middleware::{
-    DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE, DEFAULT_REQUEST_TIMEOUT_SECS, OpenApiConfig,
+    DEFAULT_MAX_BODY_SIZE, DEFAULT_MAX_FILE_BODY_SIZE, DEFAULT_REQUEST_TIMEOUT, OpenApiConfig,
     RecoveryConfig, SecurityConfig,
 };
 
@@ -32,31 +32,27 @@ pub fn security_config(toml: &Option<MiddlewareSection>) -> SecurityConfig {
         .map(|c| c.allowed_origins.clone())
         .unwrap_or_default();
 
-    let cors_max_age_secs = toml
-        .and_then(|m| m.cors.as_ref())
-        .and_then(|c| c.max_age_secs);
+    let cors_max_age = toml.and_then(|m| m.cors.as_ref()).and_then(|c| c.max_age);
 
     SecurityConfig {
         body_limit_bytes,
         file_body_limit_bytes: DEFAULT_MAX_FILE_BODY_SIZE,
         cors_allowed_origins,
-        cors_max_age_secs,
+        cors_max_age,
     }
 }
 
 /// Builds a [`RecoveryConfig`] from the TOML middleware section.
 ///
-/// Uses the configured `request_timeout_secs` or falls back to the
-/// `nvisy-server` default (300 s).
+/// Uses the configured `request_timeout` or falls back to the
+/// `nvisy-server` default (5 min).
 pub fn recovery_config(toml: &Option<MiddlewareSection>) -> RecoveryConfig {
-    let timeout_secs = toml
+    let request_timeout: Duration = toml
         .as_ref()
-        .and_then(|m| m.request_timeout_secs)
-        .unwrap_or(DEFAULT_REQUEST_TIMEOUT_SECS);
+        .and_then(|m| m.request_timeout)
+        .unwrap_or(DEFAULT_REQUEST_TIMEOUT);
 
-    RecoveryConfig {
-        request_timeout: Duration::from_secs(timeout_secs),
-    }
+    RecoveryConfig { request_timeout }
 }
 
 /// Returns the default [`OpenApiConfig`].

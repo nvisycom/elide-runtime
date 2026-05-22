@@ -1,11 +1,9 @@
-//! Export node configuration.
+//! Export sink configuration.
 //!
-//! [`ExportFile`] runs at **phase 6**, alongside [`SaveContext`]. It delivers
-//! the processed (and optionally redacted) content to one or more destination
-//! content objects, applying encryption and compression as requested before
-//! writing the bytes out.
-//!
-//! [`SaveContext`]: crate::ingestion::SaveContext
+//! [`ExportFile`] delivers the processed (and optionally redacted)
+//! content to one or more destination content objects, applying
+//! encryption and compression as requested before writing the bytes
+//! out.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -14,7 +12,7 @@ use validator::Validate;
 
 use super::{CompressionAlgorithm, EncryptionConfig};
 
-/// Configuration for the [`ExportFile`] graph node.
+/// Configuration for the [`ExportFile`] config.
 ///
 /// Identifies the destination content objects and specifies any encoding
 /// steps that must be applied before the bytes are written out.

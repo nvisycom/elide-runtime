@@ -25,7 +25,6 @@ fn open_with_custom_limits() -> anyhow::Result<()> {
         engine: Some(EngineSection {
             limits: ResourceLimits {
                 run_timeout: Some(std::time::Duration::from_secs(5)),
-                ..Default::default()
             },
             ..Default::default()
         }),

@@ -72,8 +72,9 @@ impl ServerConfig {
                 .unwrap_or(8080),
             shutdown_timeout: self
                 .shutdown_timeout
+                .map(Duration::from_secs)
                 .or_else(|| toml.and_then(|s| s.shutdown_timeout))
-                .unwrap_or(30),
+                .unwrap_or(Duration::from_secs(30)),
             data_dir: self
                 .data_dir
                 .clone()
@@ -95,8 +96,8 @@ pub struct ResolvedServer {
     pub host: IpAddr,
     /// Bind port.
     pub port: u16,
-    /// Graceful shutdown timeout in seconds.
-    pub shutdown_timeout: u64,
+    /// Graceful shutdown timeout.
+    pub shutdown_timeout: Duration,
     /// Directory for content and context storage.
     pub data_dir: PathBuf,
     /// Tracing filter directive (e.g. `"info"`, `"nvisy_server=debug"`).
@@ -109,10 +110,5 @@ impl ResolvedServer {
     /// Returns the socket address for binding.
     pub fn socket_addr(&self) -> SocketAddr {
         SocketAddr::new(self.host, self.port)
-    }
-
-    /// Returns the graceful shutdown timeout as a [`Duration`].
-    pub fn shutdown_timeout(&self) -> Duration {
-        Duration::from_secs(self.shutdown_timeout)
     }
 }

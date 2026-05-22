@@ -34,29 +34,29 @@ pub struct NewRun {
     #[serde(default)]
     pub dry_run: bool,
 
-    /// Phase 0: content imports (source).
+    /// Content sources to ingest at the start of the run.
     #[serde(default)]
     pub imports: Vec<ImportFile>,
-    /// Phase 0: context IDs to load into the cache.
+    /// Reference-data contexts to load into the cache before phases run.
     #[serde(default)]
     pub context_ids: Vec<Uuid>,
 
-    /// Phase 1: extraction settings per modality.
+    /// Extraction settings per modality.
     #[serde(default)]
     pub extraction: Extraction,
-    /// Phase 2: detection settings (which recognizer kinds + hints).
+    /// Detection settings (which recognizer kinds + per-call hints).
     #[serde(default)]
     pub detection: Detection,
-    /// Phase 3: deduplication settings.
+    /// Deduplication settings applied to combined detection results.
     #[serde(default)]
     pub deduplication: Deduplication,
-    /// Phase 4: redaction settings.
+    /// Redaction settings applied after policy evaluation.
     #[serde(default)]
     pub redaction: Redaction,
-    /// Phase 5: validation settings.
+    /// Validation settings for the post-redaction leak check.
     #[serde(default)]
     pub validation: Validation,
-    /// Phase 6: content exports (sink).
+    /// Sinks to export processed content to.
     #[serde(default)]
     pub exports: Vec<ExportFile>,
 }

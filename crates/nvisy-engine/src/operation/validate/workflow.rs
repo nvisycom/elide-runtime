@@ -1,14 +1,13 @@
-//! Validation node configuration.
+//! Validation phase configuration.
 //!
-//! [`Validation`] runs at **phase 5**, after redaction. It re-scans the
-//! redacted output to verify that no originally detected values remain
-//! visible, optionally failing the pipeline run if any leaks are found.
+//! [`Validation`] runs after redaction. It re-scans the redacted
+//! output to verify that no originally detected values remain
+//! visible, optionally failing the pipeline run if any leaks are
+//! found.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configuration for the [`Validation`] graph node.
-///
 /// Controls how the post-redaction leak check affects the overall pipeline
 /// outcome.
 ///

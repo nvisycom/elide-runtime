@@ -16,7 +16,7 @@ version = "0.1.0"
 [server]
 host = "0.0.0.0"
 port = 8080
-shutdown_timeout = 30
+shutdown_timeout = "30s"
 data_dir = "./data"
 
 [server.observability]
@@ -25,24 +25,23 @@ format = "json"              # json | text
 
 [server.middleware]
 body_limit_mb = 4
-request_timeout_secs = 300
-cors = { allowed_origins = ["*"], max_age_secs = 3600 }
+request_timeout = "5m"
+cors = { allowed_origins = ["*"], max_age = "1h" }
 
-# Engine-level execution policies and resource limits.
+# Engine-level resource limits and shared infrastructure.
 [engine]
-concurrency = { maxNodes = 4 }
+concurrency = 4              # max parallel documents in flight
 
 # Run-level resource limits.
 [engine.limits]
 run_timeout = "60s"
-max_envelope_size_bytes = 104857600  # 100 MB
 
 # Shared HTTP client for all downstream provider calls.
 [engine.http]
 max_retries = 3
-timeout_secs = 120
-connect_timeout_secs = 10
-idle_timeout_secs = 90
+timeout = "120s"
+connect_timeout = "10s"
+idle_timeout = "90s"
 
 # Extraction registry.
 #
@@ -89,6 +88,7 @@ model = "gpt-4o"
 [extraction.vlm.agent]
 temperature = 0.0
 max_tokens = 1024
+max_retries = 3
 
 # Detection recognizer registry.
 #
@@ -112,6 +112,7 @@ model = "gpt-4o"
 [detection.llm.agent]
 temperature = 0.1
 max_tokens = 4096
+max_retries = 3
 
 # NLP-engine recognizer (NER + language detection + tokenizer).
 [detection.nlp]

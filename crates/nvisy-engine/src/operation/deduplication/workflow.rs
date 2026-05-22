@@ -93,7 +93,7 @@ pub enum ConflictResolution {
 /// present in the map are left unchanged (implicit multiplier of 1.0).
 pub type CalibrationMap = HashMap<RecognitionMethodKind, f64>;
 
-/// Configuration for the deduplication graph node.
+/// Configuration for the deduplication config.
 ///
 /// Merges and scores entity candidates from multiple detection
 /// sources into a deduplicated, confidence-scored entity list.

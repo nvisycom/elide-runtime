@@ -10,7 +10,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configuration for the [`Redaction`] graph node.
+/// Configuration for the [`Redaction`] config.
 ///
 /// Controls per-workflow knobs for the redaction phase. Unset
 /// fields fall back to `[redactor]` defaults in `Nvisy.toml`

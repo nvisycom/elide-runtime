@@ -8,7 +8,6 @@
 //! # Submodules
 //!
 //! - `config`: [`RuntimeConfig`] and per-subsystem sections.
-//! - `policy`: per-phase + per-run policy types.
 //! - `run`: per-run lifecycle (`Pipeline`).
 //! - `orchestrator`: concurrent document processing through the plan.
 //! - `runs`: in-memory run lifecycle tracking.
@@ -16,13 +15,11 @@
 mod config;
 mod default;
 mod orchestrator;
-mod policy;
 mod run;
 mod runs;
 
 pub use self::config::{CacheConfig, EngineSection, ResourceLimits, RuntimeConfig};
 pub use self::default::{Engine, EngineInput, EngineOutput};
-pub use self::policy::ConcurrencyPolicy;
 pub use self::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
     RunStatus,

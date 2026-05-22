@@ -69,8 +69,8 @@ pub struct DocumentEnvelope {
     pub audit: Audit,
 
     /// Mapping of entity IDs to original and replacement values.
-    /// Populated during redaction (phase 4). Not included in the
-    /// public audit response, stored separately under access control.
+    /// Populated during redaction. Not included in the public audit
+    /// response, stored separately under access control.
     pub redaction_map: RedactionMap,
 
     /// Run-wide shared state (policies, registry, key provider, etc.).

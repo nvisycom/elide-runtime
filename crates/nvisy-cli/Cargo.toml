@@ -51,6 +51,7 @@ clap = { workspace = true, features = ["derive", "env"] }
 # (De)serialization
 serde = { workspace = true, features = [] }
 toml = { workspace = true, features = [] }
+humantime-serde = { workspace = true, features = [] }
 
 # Derive macros and error handling
 anyhow = { workspace = true, features = [] }

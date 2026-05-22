@@ -1,16 +1,19 @@
-//! Post-redaction validation operation.
+//! Post-redaction validator.
 //!
-//! Runs at **phase 5**, after [`Redaction`]. Re-scans redacted content
-//! to verify that no originally detected values remain visible.
+//! Re-scans redacted content to verify that no originally detected
+//! values remain visible. Runs after [`Redactor`].
 //!
-//! [`Redaction`]: crate::operation::Redaction
+//! [`Redactor`]: crate::redaction::Redactor
+
+pub(crate) mod workflow;
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::provenance::AuditEntry;
 use uuid::Uuid;
 
-use crate::operation::{DocumentEnvelope, Validation as ValidationConfig};
+use self::workflow::Validation as ValidationConfig;
+use crate::operation::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::validation";
 

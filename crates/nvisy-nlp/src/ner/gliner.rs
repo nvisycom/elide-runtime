@@ -1,6 +1,6 @@
 //! [`GlinerBackend`] — zero-shot NER via the [`gline-rs`] crate.
 //!
-//! Unlike [`OrtNerBackend`], whose label vector is baked into the
+//! Unlike [`OrtBackend`], whose label vector is baked into the
 //! exported ONNX file, GLiNER models accept the entity-label list at
 //! inference time. This makes it the only backend that can honor a
 //! per-tenant or per-request "detect these kinds for this call"
@@ -22,7 +22,7 @@
 //! identifiers.
 //!
 //! [`gline-rs`]: https://crates.io/crates/gline-rs
-//! [`OrtNerBackend`]: super::OrtNerBackend
+//! [`OrtBackend`]: super::OrtBackend
 //! [`NerBackend::recognize`]: super::NerBackend::recognize
 
 use std::collections::HashMap;

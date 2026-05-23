@@ -11,7 +11,7 @@
 //! Two backends ship today:
 //!
 //! - [`BackendConfig::OnnxBert`]: a BIO-tagged token-classification
-//!   model (e.g. `dslim/bert-base-NER`) loaded via [`OrtNerBackend`].
+//!   model (e.g. `dslim/bert-base-NER`) loaded via [`OrtBackend`].
 //!   Carries `id_to_label`, a BIO base → entity `label_map`, and a
 //!   `max_sequence_length`.
 //! - [`BackendConfig::GlinerSpan`] / [`BackendConfig::GlinerToken`]:
@@ -28,7 +28,7 @@
 //! Reference manifests live at `crates/nvisy-nlp/presets/`.
 //!
 //! [`NlpPreset::Manifest`]: super::NlpPreset::Manifest
-//! [`OrtNerBackend`]: crate::ner::OrtNerBackend
+//! [`OrtBackend`]: crate::ner::OrtBackend
 //! [`GlinerBackend`]: crate::ner::GlinerBackend
 
 use std::collections::HashMap;
@@ -94,9 +94,9 @@ pub struct PresetManifest {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum BackendConfig {
     /// BERT-family token-classification model loaded via
-    /// [`OrtNerBackend`]. Requires the `onnx` feature.
+    /// [`OrtBackend`]. Requires the `onnx` feature.
     ///
-    /// [`OrtNerBackend`]: crate::ner::OrtNerBackend
+    /// [`OrtBackend`]: crate::ner::OrtBackend
     OnnxBert {
         /// Ordered label vector matching the model's argmax indices,
         /// as shipped in the HF `config.json` `id2label` field.

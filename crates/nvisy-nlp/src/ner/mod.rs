@@ -21,10 +21,10 @@ use nvisy_ontology::primitive::LanguageTag;
 #[cfg(feature = "gliner")]
 #[cfg_attr(docsrs, doc(cfg(feature = "gliner")))]
 pub use self::gliner::{GlinerBackend, GlinerConfig, GlinerMode};
-pub use self::noop::NoopNerBackend;
+pub use self::noop::NoopBackend;
 #[cfg(feature = "onnx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
-pub use self::ort::{OrtNerBackend, OrtNerConfig, id_to_label_from_config_json};
+pub use self::ort::{OrtBackend, OrtParams, id_to_label_from_config_json};
 use crate::error::Result;
 
 /// Recognize entities in text.
@@ -40,13 +40,13 @@ use crate::error::Result;
 /// `requested_kinds` is **also advisory** and exists to let zero-shot
 /// backends (notably [`GlinerBackend`]) materialise the exact label
 /// set the caller is asking about. Backends with a fixed label vector
-/// ([`OrtNerBackend`], [`NoopNerBackend`]) ignore it — the
+/// ([`OrtBackend`], [`NoopBackend`]) ignore it — the
 /// [`NlpEngine`] still post-filters their output against the same
 /// allowlist, so passing it here is purely an optimisation hint.
 ///
 /// [`GlinerBackend`]: GlinerBackend
-/// [`OrtNerBackend`]: OrtNerBackend
-/// [`NoopNerBackend`]: NoopNerBackend
+/// [`OrtBackend`]: OrtBackend
+/// [`NoopBackend`]: NoopBackend
 /// [`Error::UnsupportedLanguage`]: crate::Error::UnsupportedLanguage
 /// [`NlpEngine`]: crate::NlpEngine
 #[async_trait]

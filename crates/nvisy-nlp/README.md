@@ -9,7 +9,7 @@ detection, and tokenization, composed behind a small set of traits.
 
 The crate hosts the trait surface (`NerBackend`, `LanguagePolicy`,
 `Tokenizer`) and pluggable implementations: BIO-tagged NER via
-`OrtNerBackend` (feature `onnx`), zero-shot NER via `GlinerBackend`
+`OrtBackend` (feature `onnx`), zero-shot NER via `GlinerBackend`
 (feature `gliner`), language detection via `LinguaLanguageDetector`,
 and tokenization via `HfTokenizer` (feature `onnx`) and
 `UnicodeTokenizer`. `NlpEngine` composes one of each into an analysis
@@ -19,9 +19,11 @@ deliberate crate split — a third-party backend can implement
 in here.
 
 ```rust,ignore
-use nvisy_nlp::{Context, NlpEngine, LinguaLanguagePolicy, OrtNerBackend, OrtNerConfig};
+use nvisy_nlp::{Context, NlpEngine};
+use nvisy_nlp::language::LinguaLanguagePolicy;
+use nvisy_nlp::ner::{OrtBackend, OrtParams};
 
-let ner = OrtNerBackend::new(OrtNerConfig {
+let ner = OrtBackend::new(OrtParams {
     model_path: "models/bert-base-NER.onnx".into(),
     tokenizer_path: "models/tokenizer.json".into(),
     label_map: /* "PER" -> EntityKind::PersonName, ... */,
@@ -43,9 +45,9 @@ let artifacts = engine.analyze(ctx).await?;
 
 ## Cargo features
 
-- `default = ["test-utils"]` — ships only `NoopNerBackend`, the
+- `default = ["test-utils"]` — ships only `NoopBackend`, the
   language policy, and the Unicode tokenizer.
-- `onnx` — enables `OrtNerBackend` (BIO-tagged BERT-family models)
+- `onnx` — enables `OrtBackend` (BIO-tagged BERT-family models)
   and `HfTokenizer`. Pulls in `ort = rc.12`, `tokenizers`, `ndarray`.
 - `gliner` — enables `GlinerBackend` (zero-shot NER via `gline-rs`).
   Pulls in `gline-rs` + `orp`, which transitively pin
@@ -53,11 +55,11 @@ let artifacts = engine.analyze(ctx).await?;
   produces a compile-time error.
 - `hf` — enables auto-download + SHA-256 verification of manifest-
   defined preset artifacts via `nvisy-core::hf`.
-- `test-utils` — exposes `NoopNerBackend` for downstream tests.
+- `test-utils` — exposes `NoopBackend` for downstream tests.
 
 ## Runtime requirements
 
-Both `OrtNerBackend` and `GlinerBackend` use `ort` with
+Both `OrtBackend` and `GlinerBackend` use `ort` with
 `load-dynamic`, which means **`libonnxruntime` must be installed on
 the host at runtime**:
 

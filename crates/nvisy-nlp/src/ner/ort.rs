@@ -1,4 +1,4 @@
-//! [`OrtNerBackend`] — runs a HuggingFace token-classification model
+//! [`OrtBackend`] — runs a HuggingFace token-classification model
 //! exported to ONNX via the [`ort`] crate.
 //!
 //! The backend is split into two layers so the heavy ML path can be
@@ -7,7 +7,7 @@
 //! - `Inferencer` (crate-private): tokenize-output-to-logits. The
 //!   production impl wraps an `ort::Session`; tests inject a
 //!   closure-based mock.
-//! - [`OrtNerBackend`]: orchestration — tokenize input, dispatch to
+//! - [`OrtBackend`]: orchestration — tokenize input, dispatch to
 //!   the inferencer, argmax + softmax over logits, fold BIO tags
 //!   into spans, build [`Entity`] values.
 //!
@@ -35,7 +35,7 @@ use crate::error::{Error, Result};
 
 const LABEL_OUTSIDE: &str = "O";
 
-/// Configuration for [`OrtNerBackend`].
+/// Configuration for [`OrtBackend`].
 ///
 /// The user provides paths to an ONNX model and its tokenizer, the
 /// model's full ordered label vector (the one HuggingFace stores as
@@ -47,7 +47,7 @@ const LABEL_OUTSIDE: &str = "O";
 ///
 /// [`id_to_label_from_config_json`]: id_to_label_from_config_json
 #[derive(Debug, Clone)]
-pub struct OrtNerConfig {
+pub struct OrtParams {
     /// Path to the `.onnx` model file.
     pub model_path: PathBuf,
     /// Path to the matching `tokenizer.json`.
@@ -75,7 +75,7 @@ pub struct OrtNerConfig {
 }
 
 /// Parse the standard HuggingFace `config.json` `id2label` field into
-/// an ordered label vector suitable for [`OrtNerConfig::id_to_label`].
+/// an ordered label vector suitable for [`OrtParams::id_to_label`].
 ///
 /// Expects the `id2label` keys to be integer strings (`"0"`, `"1"`, …)
 /// densely covering `0..num_labels`. Returns an error if the field is
@@ -232,7 +232,7 @@ impl fmt::Debug for OrtInferencer {
 
 /// A [`NerBackend`] that runs a HuggingFace token-classification model
 /// exported to ONNX.
-pub struct OrtNerBackend {
+pub struct OrtBackend {
     state: Arc<OrtState>,
 }
 
@@ -245,10 +245,10 @@ struct OrtState {
     supported_languages: Vec<LanguageTag>,
 }
 
-impl OrtNerBackend {
-    /// Construct from a [`OrtNerConfig`], loading the model and
+impl OrtBackend {
+    /// Construct from a [`OrtParams`], loading the model and
     /// tokenizer from disk.
-    pub fn new(config: OrtNerConfig) -> Result<Self> {
+    pub fn new(config: OrtParams) -> Result<Self> {
         let inferencer = Box::new(OrtInferencer::from_file(&config.model_path)?);
         Self::with_inferencer(config, inferencer)
     }
@@ -256,24 +256,24 @@ impl OrtNerBackend {
     /// Construct with an arbitrary [`Inferencer`]. Used by tests to
     /// inject canned logits without loading a real model.
     pub(crate) fn with_inferencer(
-        config: OrtNerConfig,
+        config: OrtParams,
         inferencer: Box<dyn Inferencer>,
     ) -> Result<Self> {
         if config.label_map.contains_key(LABEL_OUTSIDE) {
             return Err(Error::Backend(format!(
-                "OrtNerConfig.label_map must not contain the reserved '{LABEL_OUTSIDE}' label",
+                "OrtParams.label_map must not contain the reserved '{LABEL_OUTSIDE}' label",
             )));
         }
         if config.id_to_label.is_empty() {
             return Err(Error::Backend(
-                "OrtNerConfig.id_to_label must not be empty".to_owned(),
+                "OrtParams.id_to_label must not be empty".to_owned(),
             ));
         }
 
         let mut tokenizer = Tokenizer::from_file(&config.tokenizer_path)
             .map_err(|e| Error::Tokenizer(format!("{}: {e}", config.tokenizer_path.display())))?;
 
-        // Wire truncation so OrtNerConfig.max_sequence_length is
+        // Wire truncation so OrtParams.max_sequence_length is
         // actually respected. Encode/decode round-tripping is
         // unaffected because we only consult offsets relative to the
         // (truncated) encoding.
@@ -440,9 +440,9 @@ fn build_entity(
         .ok()
 }
 
-impl fmt::Debug for OrtNerBackend {
+impl fmt::Debug for OrtBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("OrtNerBackend")
+        f.debug_struct("OrtBackend")
             .field("model", &self.state.model_name)
             .field("labels", &self.state.id_to_label.len())
             .finish_non_exhaustive()
@@ -450,7 +450,7 @@ impl fmt::Debug for OrtNerBackend {
 }
 
 #[async_trait]
-impl NerBackend for OrtNerBackend {
+impl NerBackend for OrtBackend {
     async fn recognize(
         &self,
         text: &str,
@@ -473,7 +473,7 @@ impl NerBackend for OrtNerBackend {
         let state = Arc::clone(&self.state);
         let text = text.to_owned();
         tokio::task::spawn_blocking(move || {
-            let backend = OrtNerBackend { state };
+            let backend = OrtBackend { state };
             backend.recognize_blocking(&text)
         })
         .await

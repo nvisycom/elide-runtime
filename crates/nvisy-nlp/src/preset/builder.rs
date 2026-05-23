@@ -89,9 +89,9 @@ fn build_onnx_bert(
     model_path: PathBuf,
     tokenizer_path: PathBuf,
 ) -> Result<NlpEngine> {
-    use crate::ner::{OrtNerBackend, OrtNerConfig};
+    use crate::ner::{OrtBackend, OrtParams};
 
-    let cfg = OrtNerConfig {
+    let cfg = OrtParams {
         model_path,
         tokenizer_path,
         id_to_label,
@@ -102,7 +102,7 @@ fn build_onnx_bert(
         max_sequence_length,
         model_name,
     };
-    let mut backend = OrtNerBackend::new(cfg)?;
+    let mut backend = OrtBackend::new(cfg)?;
     if !languages.is_empty() {
         backend = backend.with_supported_languages(languages);
     }

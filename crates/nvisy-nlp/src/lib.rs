@@ -19,10 +19,10 @@ pub use self::language::{
     LanguageDetection, LanguagePolicy, LanguageProvenance, LanguageSpan, LinguaLanguageDetector,
     LinguaLanguagePolicy,
 };
-pub use self::ner::{NerBackend, NoopNerBackend};
 #[cfg(feature = "gliner")]
 #[cfg_attr(docsrs, doc(cfg(feature = "gliner")))]
 pub use self::ner::{GlinerBackend, GlinerConfig, GlinerMode};
+pub use self::ner::{NerBackend, NoopNerBackend};
 #[cfg(feature = "onnx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
 pub use self::ner::{OrtNerBackend, OrtNerConfig, id_to_label_from_config_json};

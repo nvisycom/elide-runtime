@@ -31,11 +31,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use gliner::model::GLiNER;
 use gliner::model::input::text::TextInput;
 use gliner::model::params::Parameters;
 use gliner::model::pipeline::span::SpanMode;
 use gliner::model::pipeline::token::TokenMode;
-use gliner::model::GLiNER;
 use nvisy_ontology::entity::{
     Entities, Entity, EntityCategory, EntityKind, Location, ModelKind, RecognitionMethod,
     TextLocation,

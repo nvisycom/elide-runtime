@@ -1,36 +1,30 @@
 //! [`OrtBackend`] — runs a HuggingFace token-classification model
 //! exported to ONNX via the [`ort`] crate.
 //!
-//! The backend is split into two layers so the heavy ML path can be
-//! mocked in unit tests:
-//!
-//! - `Inferencer` (crate-private): tokenize-output-to-logits. The
-//!   production impl wraps an `ort::Session`; tests inject a
-//!   closure-based mock.
-//! - [`OrtBackend`]: orchestration — tokenize input, dispatch to
-//!   the inferencer, argmax + softmax over logits, fold BIO tags
-//!   into spans, build [`Entity`] values.
+//! Tokenize input, run `ort::Session`, argmax + softmax over logits,
+//! fold BIO tags into spans, build [`Entity`] values. The pure-data
+//! span-folding step ([`fold_predictions`]) is extracted as a free
+//! function so its BIO-continuation logic can be unit-tested without
+//! loading a model.
 //!
 //! [`ort`]: https://crates.io/crates/ort
 //! [`Entity`]: nvisy_ontology::entity::Entity
 
-use std::collections::HashMap;
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use ndarray::Array2;
 use nvisy_ontology::entity::{
-    Entities, Entity, EntityCategory, EntityKind, Location, ModelKind, RecognitionMethod,
-    TextLocation,
+    Entities, Entity, EntityKind, Location, ModelKind, RecognitionMethod, TextLocation,
 };
 use nvisy_ontology::primitive::{Confidence, LanguageTag};
 use ort::session::Session;
 use ort::value::Value;
 use tokenizers::{Encoding, Tokenizer};
 
-use super::NerBackend;
+use super::{LabelMap, NerBackend};
 use crate::error::{Error, Result};
 
 const LABEL_OUTSIDE: &str = "O";
@@ -41,11 +35,6 @@ const LABEL_OUTSIDE: &str = "O";
 /// model's full ordered label vector (the one HuggingFace stores as
 /// `id2label` in `config.json`), and a map from base label
 /// (BIO prefix stripped) to [`EntityKind`].
-///
-/// Use [`id_to_label_from_config_json`] to parse the standard HF
-/// `config.json` next to a downloaded model.
-///
-/// [`id_to_label_from_config_json`]: id_to_label_from_config_json
 #[derive(Debug, Clone)]
 pub struct OrtParams {
     /// Path to the `.onnx` model file.
@@ -64,7 +53,7 @@ pub struct OrtParams {
     ///
     /// Must not contain the literal `"O"` key — it's reserved as the
     /// "outside" tag and is rejected at construction time.
-    pub label_map: HashMap<String, (EntityCategory, EntityKind)>,
+    pub label_map: LabelMap,
     /// Maximum sequence length the model accepts. Inputs longer than
     /// this are truncated by the tokenizer before inference.
     pub max_sequence_length: usize,
@@ -74,95 +63,106 @@ pub struct OrtParams {
     pub model_name: String,
 }
 
-/// Parse the standard HuggingFace `config.json` `id2label` field into
-/// an ordered label vector suitable for [`OrtParams::id_to_label`].
-///
-/// Expects the `id2label` keys to be integer strings (`"0"`, `"1"`, …)
-/// densely covering `0..num_labels`. Returns an error if the field is
-/// missing, malformed, or has gaps.
-pub fn id_to_label_from_config_json(path: impl AsRef<Path>) -> Result<Vec<String>> {
-    let path = path.as_ref();
-    let bytes = std::fs::read(path)
-        .map_err(|e| Error::Backend(format!("config.json read {}: {e}", path.display())))?;
-    let value: serde_json::Value = serde_json::from_slice(&bytes)
-        .map_err(|e| Error::Backend(format!("config.json parse {}: {e}", path.display())))?;
-    let map = value
-        .get("id2label")
-        .and_then(|v| v.as_object())
-        .ok_or_else(|| {
-            Error::Backend(format!("config.json missing id2label: {}", path.display()))
-        })?;
+/// A [`NerBackend`] that runs a HuggingFace token-classification model
+/// exported to ONNX.
+pub struct OrtBackend {
+    state: Arc<OrtState>,
+}
 
-    let mut entries: Vec<(usize, String)> = map
-        .iter()
-        .map(|(k, v)| {
-            let idx: usize = k
-                .parse()
-                .map_err(|_| Error::Backend(format!("id2label key '{k}' is not an integer")))?;
-            let label = v
-                .as_str()
-                .ok_or_else(|| Error::Backend(format!("id2label[{k}] is not a string")))?
-                .to_owned();
-            Ok((idx, label))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    entries.sort_by_key(|(idx, _)| *idx);
+struct OrtState {
+    tokenizer: Tokenizer,
+    session: Mutex<Session>,
+    id_to_label: Vec<String>,
+    label_map: LabelMap,
+    model_name: String,
+    supported_languages: Vec<LanguageTag>,
+}
 
-    for (expected, (actual, _)) in entries.iter().enumerate() {
-        if expected != *actual {
+impl OrtBackend {
+    /// Construct from a [`OrtParams`], loading the model and
+    /// tokenizer from disk.
+    pub fn new(config: OrtParams) -> Result<Self> {
+        if config.label_map.contains(LABEL_OUTSIDE) {
             return Err(Error::Backend(format!(
-                "id2label has gap at index {expected} (found {actual})",
+                "OrtParams.label_map must not contain the reserved '{LABEL_OUTSIDE}' label",
             )));
         }
-    }
-    Ok(entries.into_iter().map(|(_, label)| label).collect())
-}
+        if config.id_to_label.is_empty() {
+            return Err(Error::Backend(
+                "OrtParams.id_to_label must not be empty".to_owned(),
+            ));
+        }
 
-/// Inference interface that produces flat per-token logits.
-///
-/// Returned shape is `(seq_len * num_labels)` — flat row-major.
-/// `num_labels` is returned alongside so callers can iterate rows
-/// via `chunks_exact(num_labels)`.
-///
-/// Lives behind a trait so unit tests can inject canned logits
-/// without loading an ONNX model. Crate-private: external NER
-/// backends should implement [`NerBackend`] directly.
-pub(crate) trait Inferencer: Send + Sync {
-    /// Run inference and return per-token label logits.
-    ///
-    /// Returns `(logits, num_labels)` where `logits.len() ==
-    /// encoding.get_ids().len() * num_labels`.
-    fn infer(&self, encoding: &Encoding) -> Result<(Vec<f32>, usize)>;
-}
-
-/// ONNX-Runtime-backed inferencer.
-pub(crate) struct OrtInferencer {
-    session: Mutex<Session>,
-    model_path: PathBuf,
-}
-
-impl OrtInferencer {
-    /// Load a model from disk.
-    pub(crate) fn from_file(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref().to_owned();
         let session = Session::builder()
             .map_err(|e| Error::ModelLoad {
-                path: path.clone(),
+                path: config.model_path.clone(),
                 cause: e.to_string(),
             })?
-            .commit_from_file(&path)
+            .commit_from_file(&config.model_path)
             .map_err(|e| Error::ModelLoad {
-                path: path.clone(),
+                path: config.model_path.clone(),
                 cause: e.to_string(),
             })?;
+
+        let mut tokenizer = Tokenizer::from_file(&config.tokenizer_path)
+            .map_err(|e| Error::Tokenizer(format!("{}: {e}", config.tokenizer_path.display())))?;
+
+        // Wire truncation so OrtParams.max_sequence_length is
+        // actually respected. Encode/decode round-tripping is
+        // unaffected because we only consult offsets relative to the
+        // (truncated) encoding.
+        let truncation = tokenizers::TruncationParams {
+            max_length: config.max_sequence_length,
+            ..Default::default()
+        };
+        tokenizer
+            .with_truncation(Some(truncation))
+            .map_err(|e| Error::Tokenizer(format!("set truncation: {e}")))?;
+
         Ok(Self {
-            session: Mutex::new(session),
-            model_path: path,
+            state: Arc::new(OrtState {
+                tokenizer,
+                session: Mutex::new(session),
+                id_to_label: config.id_to_label,
+                label_map: config.label_map,
+                model_name: config.model_name,
+                supported_languages: Vec::new(),
+            }),
         })
     }
-}
 
-impl Inferencer for OrtInferencer {
+    /// Set the languages this backend was trained on. The default is
+    /// an empty list, treated as "any language" by
+    /// [`NerBackend::recognize`] — a non-empty list causes the
+    /// `language` hint to be validated and an
+    /// [`Error::UnsupportedLanguage`] returned on mismatch.
+    pub fn with_supported_languages(mut self, languages: Vec<LanguageTag>) -> Self {
+        Arc::get_mut(&mut self.state)
+            .expect("with_supported_languages must be called before any clone")
+            .supported_languages = languages;
+        self
+    }
+
+    fn recognize_blocking(&self, text: &str) -> Result<Entities> {
+        let encoding = self
+            .state
+            .tokenizer
+            .encode(text, true)
+            .map_err(|e| Error::Tokenizer(e.to_string()))?;
+        let (logits, num_labels) = self.infer(&encoding)?;
+        let predictions = argmax_softmax(&logits, num_labels);
+        Ok(fold_predictions(
+            encoding.get_offsets(),
+            encoding.get_special_tokens_mask(),
+            &predictions,
+            &self.state.id_to_label,
+            &self.state.label_map,
+            &self.state.model_name,
+        ))
+    }
+
+    /// Run the loaded ONNX session against an encoded input. Returns
+    /// `(logits, num_labels)` flat row-major.
     fn infer(&self, encoding: &Encoding) -> Result<(Vec<f32>, usize)> {
         let ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
         let attention: Vec<i64> = encoding
@@ -182,6 +182,7 @@ impl Inferencer for OrtInferencer {
         let token_type_ids = Array2::<i64>::zeros((1, seq_len));
 
         let session = self
+            .state
             .session
             .lock()
             .map_err(|_| Error::Inference("ORT session mutex poisoned".to_owned()))?;
@@ -222,113 +223,6 @@ impl Inferencer for OrtInferencer {
     }
 }
 
-impl fmt::Debug for OrtInferencer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("OrtInferencer")
-            .field("model_path", &self.model_path)
-            .finish_non_exhaustive()
-    }
-}
-
-/// A [`NerBackend`] that runs a HuggingFace token-classification model
-/// exported to ONNX.
-pub struct OrtBackend {
-    state: Arc<OrtState>,
-}
-
-struct OrtState {
-    tokenizer: Tokenizer,
-    inferencer: Box<dyn Inferencer>,
-    id_to_label: Vec<String>,
-    label_map: HashMap<String, (EntityCategory, EntityKind)>,
-    model_name: String,
-    supported_languages: Vec<LanguageTag>,
-}
-
-impl OrtBackend {
-    /// Construct from a [`OrtParams`], loading the model and
-    /// tokenizer from disk.
-    pub fn new(config: OrtParams) -> Result<Self> {
-        let inferencer = Box::new(OrtInferencer::from_file(&config.model_path)?);
-        Self::with_inferencer(config, inferencer)
-    }
-
-    /// Construct with an arbitrary [`Inferencer`]. Used by tests to
-    /// inject canned logits without loading a real model.
-    pub(crate) fn with_inferencer(
-        config: OrtParams,
-        inferencer: Box<dyn Inferencer>,
-    ) -> Result<Self> {
-        if config.label_map.contains_key(LABEL_OUTSIDE) {
-            return Err(Error::Backend(format!(
-                "OrtParams.label_map must not contain the reserved '{LABEL_OUTSIDE}' label",
-            )));
-        }
-        if config.id_to_label.is_empty() {
-            return Err(Error::Backend(
-                "OrtParams.id_to_label must not be empty".to_owned(),
-            ));
-        }
-
-        let mut tokenizer = Tokenizer::from_file(&config.tokenizer_path)
-            .map_err(|e| Error::Tokenizer(format!("{}: {e}", config.tokenizer_path.display())))?;
-
-        // Wire truncation so OrtParams.max_sequence_length is
-        // actually respected. Encode/decode round-tripping is
-        // unaffected because we only consult offsets relative to the
-        // (truncated) encoding.
-        let truncation = tokenizers::TruncationParams {
-            max_length: config.max_sequence_length,
-            ..Default::default()
-        };
-        tokenizer
-            .with_truncation(Some(truncation))
-            .map_err(|e| Error::Tokenizer(format!("set truncation: {e}")))?;
-
-        let state = OrtState {
-            tokenizer,
-            inferencer,
-            id_to_label: config.id_to_label,
-            label_map: config.label_map,
-            model_name: config.model_name,
-            supported_languages: Vec::new(),
-        };
-        Ok(Self {
-            state: Arc::new(state),
-        })
-    }
-
-    /// Set the languages this backend was trained on. The default is
-    /// an empty list, treated as "any language" by
-    /// [`NerBackend::recognize`] — a non-empty list causes the
-    /// `language` hint to be validated and an
-    /// [`Error::UnsupportedLanguage`] returned on mismatch.
-    pub fn with_supported_languages(mut self, languages: Vec<LanguageTag>) -> Self {
-        Arc::get_mut(&mut self.state)
-            .expect("with_supported_languages must be called before any clone")
-            .supported_languages = languages;
-        self
-    }
-
-    fn recognize_blocking(&self, text: &str) -> Result<Entities> {
-        let encoding = self
-            .state
-            .tokenizer
-            .encode(text, true)
-            .map_err(|e| Error::Tokenizer(e.to_string()))?;
-        let (logits, num_labels) = self.state.inferencer.infer(&encoding)?;
-        let predictions = argmax_softmax(&logits, num_labels);
-        Ok(fold_predictions(
-            encoding.get_offsets(),
-            encoding.get_special_tokens_mask(),
-            &predictions,
-            &self.state.id_to_label,
-            &self.state.label_map,
-            &self.state.model_name,
-        ))
-    }
-}
-
 /// Fold per-token BIO predictions into entity spans. Pure function so
 /// the BIO-continuation logic can be unit-tested without loading a
 /// tokenizer or a model.
@@ -341,7 +235,7 @@ fn fold_predictions(
     special_mask: &[u32],
     predictions: &[Prediction],
     id_to_label: &[String],
-    label_map: &HashMap<String, (EntityCategory, EntityKind)>,
+    label_map: &LabelMap,
     model_name: &str,
 ) -> Entities {
     let mut entities: Vec<Entity> = Vec::new();
@@ -400,7 +294,7 @@ fn fold_predictions(
 fn flush(
     current: &mut Option<CurrentSpan>,
     entities: &mut Vec<Entity>,
-    label_map: &HashMap<String, (EntityCategory, EntityKind)>,
+    label_map: &LabelMap,
     model_name: &str,
 ) {
     if let Some(span) = current.take()
@@ -410,12 +304,8 @@ fn flush(
     }
 }
 
-fn build_entity(
-    span: &CurrentSpan,
-    label_map: &HashMap<String, (EntityCategory, EntityKind)>,
-    model_name: &str,
-) -> Option<Entity> {
-    let (category, kind) = label_map.get(&span.base).copied()?;
+fn build_entity(span: &CurrentSpan, label_map: &LabelMap, model_name: &str) -> Option<Entity> {
+    let entry = label_map.classify(&span.base)?;
     let location = TextLocation::builder()
         .with_start_offset(span.start)
         .with_end_offset(span.end)
@@ -428,8 +318,8 @@ fn build_entity(
     };
     let confidence = Confidence::clamped(raw_confidence);
     Entity::builder()
-        .with_category(category)
-        .with_entity_kind(kind)
+        .with_category(entry.category)
+        .with_entity_kind(entry.kind)
         .with_recognition_methods(vec![RecognitionMethod::ner(
             model_name,
             ModelKind::SelfHosted,
@@ -545,13 +435,16 @@ fn split_bio(label: &str) -> (&str, &str) {
 
 #[cfg(test)]
 mod tests {
+    use nvisy_ontology::entity::EntityCategory;
+
     use super::*;
 
-    fn person_label_map() -> HashMap<String, (EntityCategory, EntityKind)> {
-        let mut m = HashMap::new();
+    fn person_label_map() -> LabelMap {
+        let mut m = LabelMap::new();
         m.insert(
-            "PER".to_owned(),
-            (EntityCategory::PersonalIdentity, EntityKind::PersonName),
+            "PER",
+            EntityCategory::PersonalIdentity,
+            EntityKind::PersonName,
         );
         m
     }
@@ -591,24 +484,6 @@ mod tests {
         assert_eq!(split_bio("I-PER"), ("I", "PER"));
         assert_eq!(split_bio("O"), ("", "O"));
         assert_eq!(split_bio("PER"), ("", "PER"));
-    }
-
-    #[test]
-    fn id_to_label_from_config_json_parses() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("config.json");
-        std::fs::write(&path, r#"{"id2label":{"0":"O","1":"B-PER","2":"I-PER"}}"#).unwrap();
-        let labels = id_to_label_from_config_json(&path).unwrap();
-        assert_eq!(labels, vec!["O", "B-PER", "I-PER"]);
-    }
-
-    #[test]
-    fn id_to_label_from_config_json_rejects_gap() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("config.json");
-        std::fs::write(&path, r#"{"id2label":{"0":"O","2":"I-PER"}}"#).unwrap();
-        let err = id_to_label_from_config_json(&path).unwrap_err();
-        assert!(matches!(err, Error::Backend(_)));
     }
 
     /// Two separate `B-PER` spans separated by `O` tokens fold into

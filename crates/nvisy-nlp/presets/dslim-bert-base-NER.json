@@ -8,12 +8,12 @@
   "supported_languages": ["en"],
   "backend": {
     "kind": "onnx-bert",
+    "max_sequence_length": 512,
     "id_to_label": ["O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC"],
     "label_map": {
       "PER": { "category": "personal_identity", "kind": "person_name" },
       "ORG": { "category": "organizational", "kind": "organization_name" },
       "LOC": { "category": "location", "kind": "geolocation_metadata" }
-    },
-    "max_sequence_length": 512
+    }
   }
 }

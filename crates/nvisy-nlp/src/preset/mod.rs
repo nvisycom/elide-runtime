@@ -48,7 +48,7 @@ use std::path::{Path, PathBuf};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::manifest::{BackendConfig, LabelMapEntry, PresetManifest};
+pub use self::manifest::{BackendConfig, PresetManifest};
 use crate::NlpEngine;
 use crate::error::{Error, Result};
 use crate::language::LinguaLanguagePolicy;

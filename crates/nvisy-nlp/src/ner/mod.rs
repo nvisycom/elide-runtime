@@ -9,10 +9,11 @@
 //! [`Entities`]: nvisy_ontology::entity::Entities
 
 #[cfg(feature = "gliner")]
-mod gliner;
-mod noop;
+mod gliner_backend;
+mod label_map;
+mod noop_backend;
 #[cfg(feature = "onnx")]
-mod ort;
+mod ort_backend;
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::{Entities, EntityKind};
@@ -20,11 +21,12 @@ use nvisy_ontology::primitive::LanguageTag;
 
 #[cfg(feature = "gliner")]
 #[cfg_attr(docsrs, doc(cfg(feature = "gliner")))]
-pub use self::gliner::{GlinerBackend, GlinerConfig, GlinerMode};
-pub use self::noop::NoopBackend;
+pub use self::gliner_backend::{GlinerBackend, GlinerConfig, GlinerMode};
+pub use self::label_map::{LabelMap, LabelMapEntry};
+pub use self::noop_backend::NoopBackend;
 #[cfg(feature = "onnx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
-pub use self::ort::{OrtBackend, OrtParams, id_to_label_from_config_json};
+pub use self::ort_backend::{OrtBackend, OrtParams};
 use crate::error::Result;
 
 /// Recognize entities in text.

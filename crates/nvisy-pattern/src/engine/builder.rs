@@ -133,9 +133,11 @@ impl PatternEngineBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`nvisy_core::Error`] if a regex fails to compile, a
+    /// Returns [`Error`] if a regex fails to compile, a
     /// referenced dictionary is missing, or the Aho-Corasick automaton
     /// cannot be built.
+    ///
+    /// [`Error`]: nvisy_core::Error
     #[tracing::instrument(target = TARGET, name = "PatternEngine::build", skip(self))]
     pub fn build(self) -> nvisy_core::Result<PatternEngine> {
         let builtin_patterns = crate::patterns::builtin_registry();

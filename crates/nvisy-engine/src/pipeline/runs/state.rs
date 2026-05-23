@@ -5,15 +5,15 @@
 //! (single `Arc` bump) and shared between the [`Engine`] and the
 //! [`orchestrator`].
 //!
-//! [`Engine`]: super::super::Engine
-//! [`orchestrator`]: super::super::orchestrator
-//!
 //! All queries are scoped by `actor_id` — an actor can only see and
 //! mutate their own runs. Finalization forces any still-pending or
 //! still-running nodes into `Failed` status to ensure every node reaches
 //! a terminal state.
 //!
 //! All data is lost on process restart.
+//!
+//! [`Engine`]: super::super::Engine
+//! [`orchestrator`]: super::super::orchestrator
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;

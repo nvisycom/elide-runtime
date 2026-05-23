@@ -6,8 +6,10 @@ use rig::transcription::TranscriptionError;
 
 /// Internal error type for LLM provider interactions.
 ///
-/// Converted to [`nvisy_core::Error`] at public API boundaries via
-/// the [`convert`] helper.
+/// Converted to [`CoreError`] at public API boundaries via the
+/// [`convert`] helper.
+///
+/// [`CoreError`]: nvisy_core::Error
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
     /// An HTTP / network error from the LLM provider.
@@ -104,8 +106,10 @@ impl From<AudioGenerationError> for Error {
 }
 
 /// Convert any error that can be turned into a provider [`Error`] into a
-/// [`nvisy_core::Error`]. Intended for `.map_err(crate::error::convert)` at
+/// [`CoreError`]. Intended for `.map_err(crate::error::convert)` at
 /// public API boundaries.
+///
+/// [`CoreError`]: nvisy_core::Error
 pub(crate) fn convert<E: Into<Error>>(e: E) -> nvisy_core::Error {
     nvisy_core::Error::from(e.into())
 }

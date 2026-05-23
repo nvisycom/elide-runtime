@@ -1,7 +1,7 @@
 //! JSON handler: holds parsed JSON content and provides location-based
 //! access via [`Handler`] + [`TextHandler`].
 //!
-//! The handler stores the parsed [`serde_json::Value`] tree together
+//! The handler stores the parsed [`Value`] tree together
 //! with formatting metadata captured during loading, so the original
 //! file can be reconstructed with identical whitespace after edits.
 //!
@@ -14,6 +14,8 @@
 //! Offsets are into the **serialized** form (including quotes and
 //! escapes). [`TextHandler::read`] returns the unescaped string value
 //! at a location.
+//!
+//! [`Value`]: serde_json::Value
 
 use std::num::NonZeroU32;
 

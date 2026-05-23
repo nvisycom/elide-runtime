@@ -1,10 +1,10 @@
 //! Custom `Path` extractor that converts rejections into [`Error`].
 //!
-//! Wraps [`axum::extract::Path`] so that invalid path parameters
-//! (e.g. a malformed UUID) produce our standard
-//! [`ErrorResponse`]
-//! instead of axum's default plain-text rejection.
+//! Wraps [`Path`] so that invalid path parameters (e.g. a malformed
+//! UUID) produce our standard [`ErrorResponse`] instead of axum's
+//! default plain-text rejection.
 //!
+//! [`Path`]: axum::extract::Path
 //! [`ErrorResponse`]: crate::handler::response::ErrorResponse
 
 use aide::OperationInput;
@@ -17,8 +17,10 @@ use crate::handler::error::{Error, ErrorKind};
 /// A path extractor that rejects with [`Error`] instead of axum's
 /// default [`PathRejection`].
 ///
-/// Delegates to [`axum::extract::Path`], mapping any rejection to
+/// Delegates to [`Path`], mapping any rejection to
 /// [`ErrorKind::MissingPathParam`].
+///
+/// [`Path`]: axum::extract::Path
 pub struct Path<T>(pub T);
 
 impl<S, T> FromRequestParts<S> for Path<T>

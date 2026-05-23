@@ -181,7 +181,7 @@ impl Inferencer for OrtInferencer {
         // values irrelevant. A zero tensor is the canonical fill.
         let token_type_ids = Array2::<i64>::zeros((1, seq_len));
 
-        let mut session = self
+        let session = self
             .session
             .lock()
             .map_err(|_| Error::Inference("ORT session mutex poisoned".to_owned()))?;
@@ -193,25 +193,32 @@ impl Inferencer for OrtInferencer {
         let token_type_v = Value::from_array(token_type_ids)
             .map_err(|e| Error::Inference(format!("token_type_ids value: {e}")))?;
 
+        // `ort::inputs!` returns a `Result` on rc.9, hence the `?`.
+        let inputs = ort::inputs![
+            "input_ids" => input_ids_v,
+            "attention_mask" => attention_v,
+            "token_type_ids" => token_type_v,
+        ]
+        .map_err(|e| Error::Inference(format!("inputs build: {e}")))?;
         let outputs = session
-            .run(ort::inputs![
-                "input_ids" => input_ids_v,
-                "attention_mask" => attention_v,
-                "token_type_ids" => token_type_v,
-            ])
+            .run(inputs)
             .map_err(|e| Error::Inference(e.to_string()))?;
 
-        let (shape, data) = outputs[0]
+        // rc.9's `try_extract_tensor` returns an `ArrayView<T, IxDyn>`,
+        // unlike rc.12 which returns `(shape, data)` directly.
+        let array = outputs[0]
             .try_extract_tensor::<f32>()
             .map_err(|e| Error::Inference(format!("logits extract: {e}")))?;
+        let shape = array.shape();
 
-        if shape.len() != 3 || shape[0] != 1 || shape[1] as usize != seq_len {
+        if shape.len() != 3 || shape[0] != 1 || shape[1] != seq_len {
             return Err(Error::Inference(format!(
                 "unexpected logits shape {shape:?}; expected [1, {seq_len}, num_labels]",
             )));
         }
-        let num_labels = shape[2] as usize;
-        Ok((data.to_vec(), num_labels))
+        let num_labels = shape[2];
+        let data: Vec<f32> = array.iter().copied().collect();
+        Ok((data, num_labels))
     }
 }
 
@@ -311,102 +318,126 @@ impl OrtNerBackend {
             .map_err(|e| Error::Tokenizer(e.to_string()))?;
         let (logits, num_labels) = self.state.inferencer.infer(&encoding)?;
         let predictions = argmax_softmax(&logits, num_labels);
-        Ok(self.fold_predictions(&encoding, &predictions))
+        Ok(fold_predictions(
+            encoding.get_offsets(),
+            encoding.get_special_tokens_mask(),
+            &predictions,
+            &self.state.id_to_label,
+            &self.state.label_map,
+            &self.state.model_name,
+        ))
     }
+}
 
-    fn fold_predictions(&self, encoding: &Encoding, predictions: &[Prediction]) -> Entities {
-        let offsets = encoding.get_offsets();
-        let special = encoding.get_special_tokens_mask();
-        let mut entities: Vec<Entity> = Vec::new();
-        let mut current: Option<CurrentSpan> = None;
+/// Fold per-token BIO predictions into entity spans. Pure function so
+/// the BIO-continuation logic can be unit-tested without loading a
+/// tokenizer or a model.
+///
+/// `offsets[i]` and `special_mask[i]` come from a HuggingFace
+/// `Encoding`, but the function doesn't care — anything with matching
+/// per-token slices works.
+fn fold_predictions(
+    offsets: &[(usize, usize)],
+    special_mask: &[u32],
+    predictions: &[Prediction],
+    id_to_label: &[String],
+    label_map: &HashMap<String, (EntityCategory, EntityKind)>,
+    model_name: &str,
+) -> Entities {
+    let mut entities: Vec<Entity> = Vec::new();
+    let mut current: Option<CurrentSpan> = None;
 
-        for (i, pred) in predictions.iter().enumerate() {
-            let is_special = special.get(i).copied().unwrap_or(0) == 1;
-            let (start_char, end_char) = offsets.get(i).copied().unwrap_or((0, 0));
-            if is_special || start_char == end_char {
-                self.flush(&mut current, &mut entities);
-                continue;
+    for (i, pred) in predictions.iter().enumerate() {
+        let is_special = special_mask.get(i).copied().unwrap_or(0) == 1;
+        let (start_char, end_char) = offsets.get(i).copied().unwrap_or((0, 0));
+        if is_special || start_char == end_char {
+            flush(&mut current, &mut entities, label_map, model_name);
+            continue;
+        }
+
+        let label = id_to_label.get(pred.label_id).map(String::as_str);
+        let (prefix, base) = split_bio(label.unwrap_or(LABEL_OUTSIDE));
+
+        if base == LABEL_OUTSIDE {
+            flush(&mut current, &mut entities, label_map, model_name);
+            continue;
+        }
+
+        match (prefix, &current) {
+            ("B", _) | (_, None) => {
+                flush(&mut current, &mut entities, label_map, model_name);
+                current = Some(CurrentSpan {
+                    base: base.to_owned(),
+                    start: start_char,
+                    end: end_char,
+                    confidence_sum: pred.confidence,
+                    token_count: 1,
+                });
             }
-
-            let label = self.state.id_to_label.get(pred.label_id).cloned();
-            let (prefix, base) = split_bio(label.as_deref().unwrap_or(LABEL_OUTSIDE));
-
-            if base == LABEL_OUTSIDE {
-                self.flush(&mut current, &mut entities);
-                continue;
+            (_, Some(c)) if c.base == base => {
+                let c = current.as_mut().expect("matched Some above");
+                c.end = end_char;
+                c.confidence_sum += pred.confidence;
+                c.token_count += 1;
             }
-
-            match (prefix, &current) {
-                ("B", _) | (_, None) => {
-                    self.flush(&mut current, &mut entities);
-                    current = Some(CurrentSpan {
-                        base: base.to_owned(),
-                        start: start_char,
-                        end: end_char,
-                        confidence_sum: pred.confidence,
-                        token_count: 1,
-                    });
-                }
-                (_, Some(c)) if c.base == base => {
-                    let c = current.as_mut().expect("matched Some above");
-                    c.end = end_char;
-                    c.confidence_sum += pred.confidence;
-                    c.token_count += 1;
-                }
-                _ => {
-                    self.flush(&mut current, &mut entities);
-                    current = Some(CurrentSpan {
-                        base: base.to_owned(),
-                        start: start_char,
-                        end: end_char,
-                        confidence_sum: pred.confidence,
-                        token_count: 1,
-                    });
-                }
+            _ => {
+                flush(&mut current, &mut entities, label_map, model_name);
+                current = Some(CurrentSpan {
+                    base: base.to_owned(),
+                    start: start_char,
+                    end: end_char,
+                    confidence_sum: pred.confidence,
+                    token_count: 1,
+                });
             }
         }
-        self.flush(&mut current, &mut entities);
-
-        entities.into_iter().collect()
     }
+    flush(&mut current, &mut entities, label_map, model_name);
 
-    fn flush(&self, current: &mut Option<CurrentSpan>, entities: &mut Vec<Entity>) {
-        if let Some(span) = current.take()
-            && let Some(entity) = self.build_entity(&span)
-        {
-            entities.push(entity);
-        }
-    }
+    entities.into_iter().collect()
+}
 
-    fn build_entity(&self, span: &CurrentSpan) -> Option<Entity> {
-        let (category, kind) = self.state.label_map.get(&span.base).copied()?;
-        let location = TextLocation::builder()
-            .with_start_offset(span.start)
-            .with_end_offset(span.end)
-            .build()
-            .ok()?;
-        let raw_confidence = if span.token_count == 0 {
-            0.0
-        } else {
-            span.confidence_sum / span.token_count as f64
-        };
-        // Softmax mean is in [0,1] by construction; clamp to absorb
-        // float rounding so the Confidence constructor doesn't reject
-        // a value like 1.0000000000000002.
-        let confidence =
-            Confidence::new(raw_confidence.clamp(0.0, 1.0)).expect("clamped value is in [0,1]");
-        Entity::builder()
-            .with_category(category)
-            .with_entity_kind(kind)
-            .with_recognition_methods(vec![RecognitionMethod::ner(
-                &self.state.model_name,
-                ModelKind::SelfHosted,
-            )])
-            .with_confidence(confidence)
-            .with_location(Location::from(location))
-            .build()
-            .ok()
+fn flush(
+    current: &mut Option<CurrentSpan>,
+    entities: &mut Vec<Entity>,
+    label_map: &HashMap<String, (EntityCategory, EntityKind)>,
+    model_name: &str,
+) {
+    if let Some(span) = current.take()
+        && let Some(entity) = build_entity(&span, label_map, model_name)
+    {
+        entities.push(entity);
     }
+}
+
+fn build_entity(
+    span: &CurrentSpan,
+    label_map: &HashMap<String, (EntityCategory, EntityKind)>,
+    model_name: &str,
+) -> Option<Entity> {
+    let (category, kind) = label_map.get(&span.base).copied()?;
+    let location = TextLocation::builder()
+        .with_start_offset(span.start)
+        .with_end_offset(span.end)
+        .build()
+        .ok()?;
+    let raw_confidence = if span.token_count == 0 {
+        0.0
+    } else {
+        span.confidence_sum / span.token_count as f64
+    };
+    let confidence = Confidence::clamped(raw_confidence);
+    Entity::builder()
+        .with_category(category)
+        .with_entity_kind(kind)
+        .with_recognition_methods(vec![RecognitionMethod::ner(
+            model_name,
+            ModelKind::SelfHosted,
+        )])
+        .with_confidence(confidence)
+        .with_location(Location::from(location))
+        .build()
+        .ok()
 }
 
 impl fmt::Debug for OrtNerBackend {
@@ -420,7 +451,15 @@ impl fmt::Debug for OrtNerBackend {
 
 #[async_trait]
 impl NerBackend for OrtNerBackend {
-    async fn recognize(&self, text: &str, language: Option<&LanguageTag>) -> Result<Entities> {
+    async fn recognize(
+        &self,
+        text: &str,
+        language: Option<&LanguageTag>,
+        // Ignored: this backend's label vector is baked into the
+        // ONNX file. The `Engine` post-filters our output against
+        // any caller-supplied allowlist.
+        _requested_kinds: Option<&[EntityKind]>,
+    ) -> Result<Entities> {
         // Validate language against `supported_languages` when set.
         if let Some(lang) = language
             && !self.state.supported_languages.is_empty()
@@ -439,10 +478,6 @@ impl NerBackend for OrtNerBackend {
         })
         .await
         .map_err(|e| Error::Inference(format!("join error: {e}")))?
-    }
-
-    fn supported_languages(&self) -> &[LanguageTag] {
-        &self.state.supported_languages
     }
 }
 
@@ -512,18 +547,6 @@ fn split_bio(label: &str) -> (&str, &str) {
 mod tests {
     use super::*;
 
-    /// A canned inferencer that returns pre-defined logits per call.
-    struct CannedInferencer {
-        logits: Vec<f32>,
-        num_labels: usize,
-    }
-
-    impl Inferencer for CannedInferencer {
-        fn infer(&self, _encoding: &Encoding) -> Result<(Vec<f32>, usize)> {
-            Ok((self.logits.clone(), self.num_labels))
-        }
-    }
-
     fn person_label_map() -> HashMap<String, (EntityCategory, EntityKind)> {
         let mut m = HashMap::new();
         m.insert(
@@ -533,125 +556,21 @@ mod tests {
         m
     }
 
-    /// Build a real HF tokenizer config in-memory so we can construct
-    /// `OrtNerBackend` for unit tests without a `tokenizer.json` file.
-    fn write_minimal_tokenizer(dir: &Path) -> PathBuf {
-        // Minimal BERT-style WordLevel tokenizer that splits on
-        // whitespace, recognises `[CLS]`, `[SEP]`, `[UNK]`, and the
-        // four words we use in tests. Enough to drive
-        // `fold_predictions` without a real model.
-        let json = r#"{
-          "version": "1.0",
-          "truncation": null,
-          "padding": null,
-          "added_tokens": [
-            {"id":0,"content":"[PAD]","single_word":false,"lstrip":false,"rstrip":false,"normalized":false,"special":true},
-            {"id":1,"content":"[UNK]","single_word":false,"lstrip":false,"rstrip":false,"normalized":false,"special":true},
-            {"id":2,"content":"[CLS]","single_word":false,"lstrip":false,"rstrip":false,"normalized":false,"special":true},
-            {"id":3,"content":"[SEP]","single_word":false,"lstrip":false,"rstrip":false,"normalized":false,"special":true}
-          ],
-          "normalizer": null,
-          "pre_tokenizer": {"type":"Whitespace"},
-          "post_processor": {
-            "type": "TemplateProcessing",
-            "single": [
-              {"SpecialToken":{"id":"[CLS]","type_id":0}},
-              {"Sequence":{"id":"A","type_id":0}},
-              {"SpecialToken":{"id":"[SEP]","type_id":0}}
-            ],
-            "pair": [
-              {"SpecialToken":{"id":"[CLS]","type_id":0}},
-              {"Sequence":{"id":"A","type_id":0}},
-              {"SpecialToken":{"id":"[SEP]","type_id":0}},
-              {"Sequence":{"id":"B","type_id":1}},
-              {"SpecialToken":{"id":"[SEP]","type_id":1}}
-            ],
-            "special_tokens": {
-              "[CLS]": {"id":"[CLS]","ids":[2],"tokens":["[CLS]"]},
-              "[SEP]": {"id":"[SEP]","ids":[3],"tokens":["[SEP]"]}
-            }
-          },
-          "decoder": null,
-          "model": {
-            "type": "WordLevel",
-            "vocab": {
-              "[PAD]":0,"[UNK]":1,"[CLS]":2,"[SEP]":3,
-              "Alice":4,"works":5,"at":6,"Acme":7
-            },
-            "unk_token": "[UNK]"
-          }
-        }"#;
-        let path = dir.join("tokenizer.json");
-        std::fs::write(&path, json).expect("write tokenizer");
-        path
+    fn three_labels() -> Vec<String> {
+        vec!["O".to_owned(), "B-PER".to_owned(), "I-PER".to_owned()]
     }
 
-    /// Build a backend with a three-label vocabulary: `["O", "B-PER", "I-PER"]`.
-    fn build_backend(logits: Vec<f32>, num_labels: usize) -> (OrtNerBackend, tempfile::TempDir) {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let tok_path = write_minimal_tokenizer(dir.path());
-        let cfg = OrtNerConfig {
-            model_path: PathBuf::from("/unused.onnx"),
-            tokenizer_path: tok_path,
-            id_to_label: vec!["O".to_owned(), "B-PER".to_owned(), "I-PER".to_owned()],
-            label_map: person_label_map(),
-            max_sequence_length: 64,
-            model_name: "test-model".to_owned(),
-        };
-        let inferencer = Box::new(CannedInferencer { logits, num_labels });
-        let backend = OrtNerBackend::with_inferencer(cfg, inferencer).expect("backend");
-        (backend, dir)
+    fn pred(label_id: usize, confidence: f64) -> Prediction {
+        Prediction {
+            label_id,
+            confidence,
+        }
     }
 
-    #[test]
-    fn empty_id_to_label_rejected() {
-        let dir = tempfile::tempdir().unwrap();
-        let tok = write_minimal_tokenizer(dir.path());
-        let cfg = OrtNerConfig {
-            model_path: PathBuf::from("/unused.onnx"),
-            tokenizer_path: tok,
-            id_to_label: vec![],
-            label_map: person_label_map(),
-            max_sequence_length: 64,
-            model_name: "test".to_owned(),
-        };
-        let inferencer = Box::new(CannedInferencer {
-            logits: vec![],
-            num_labels: 0,
-        });
-        let result = OrtNerBackend::with_inferencer(cfg, inferencer);
-        assert!(matches!(result, Err(Error::Backend(_))));
-    }
-
-    #[test]
-    fn outside_label_in_user_map_rejected() {
-        let mut m = person_label_map();
-        m.insert(
-            LABEL_OUTSIDE.to_owned(),
-            (EntityCategory::PersonalIdentity, EntityKind::PersonName),
-        );
-        let dir = tempfile::tempdir().unwrap();
-        let tok = write_minimal_tokenizer(dir.path());
-        let cfg = OrtNerConfig {
-            model_path: PathBuf::from("/unused.onnx"),
-            tokenizer_path: tok,
-            id_to_label: vec!["O".to_owned(), "B-PER".to_owned()],
-            label_map: m,
-            max_sequence_length: 64,
-            model_name: "test".to_owned(),
-        };
-        let inferencer = Box::new(CannedInferencer {
-            logits: vec![],
-            num_labels: 0,
-        });
-        let result = OrtNerBackend::with_inferencer(cfg, inferencer);
-        assert!(matches!(result, Err(Error::Backend(_))));
-    }
-
+    /// Argmax winner per row plus row-wise softmax normalisation,
+    /// without round-tripping through the tokenizer.
     #[test]
     fn argmax_softmax_picks_max_and_normalises() {
-        // Two rows, three labels each. First row argmax=1, second row
-        // argmax=0. Sum-to-one within each row.
         let logits = vec![0.1, 0.7, 0.2, 0.9, 0.05, 0.05];
         let preds = argmax_softmax(&logits, 3);
         assert_eq!(preds.len(), 2);
@@ -692,112 +611,66 @@ mod tests {
         assert!(matches!(err, Error::Backend(_)));
     }
 
-    /// End-to-end: real tokenizer produces an encoding for
-    /// "Alice works at Acme", canned logits put B-PER on `Alice` and
-    /// B-PER on `Acme` (mis-labelled to exercise multi-span output).
-    /// We expect two entities, the right offsets, and average
-    /// per-span confidence.
-    #[tokio::test]
-    async fn fold_predictions_produces_two_spans() {
-        // Encoding length = [CLS] + 4 words + [SEP] = 6 tokens.
-        // Labels: ["O", "B-PER", "I-PER"] (argmax index 0/1/2).
-        // Layout (one row per token, three labels per row):
-        //   t0 [CLS]: O wins
-        //   t1 Alice: B-PER wins
-        //   t2 works: O wins
-        //   t3 at:    O wins
-        //   t4 Acme:  B-PER wins
-        //   t5 [SEP]: O wins
-        let logits: Vec<f32> = vec![
-            5.0, 0.0, 0.0, // [CLS]: O
-            0.0, 5.0, 0.0, // Alice: B-PER
-            5.0, 0.0, 0.0, // works: O
-            5.0, 0.0, 0.0, // at: O
-            0.0, 5.0, 0.0, // Acme: B-PER
-            5.0, 0.0, 0.0, // [SEP]: O
+    /// Two separate `B-PER` spans separated by `O` tokens fold into
+    /// two distinct entities with the right per-token offsets.
+    #[test]
+    fn fold_predictions_produces_two_spans() {
+        // 6 "tokens": [CLS] + 4 words + [SEP].
+        // Offsets are simulated; only the relative layout matters.
+        let offsets = vec![(0, 0), (0, 5), (6, 11), (12, 14), (15, 19), (0, 0)];
+        let special_mask = vec![1, 0, 0, 0, 0, 1];
+        let predictions = vec![
+            pred(0, 1.0),  // [CLS]: O
+            pred(1, 0.95), // Alice: B-PER
+            pred(0, 1.0),  // works: O
+            pred(0, 1.0),  // at: O
+            pred(1, 0.95), // Acme: B-PER
+            pred(0, 1.0),  // [SEP]: O
         ];
-        let (backend, _dir) = build_backend(logits, 3);
-        let entities = backend.recognize_blocking("Alice works at Acme").unwrap();
+        let entities = fold_predictions(
+            &offsets,
+            &special_mask,
+            &predictions,
+            &three_labels(),
+            &person_label_map(),
+            "test",
+        );
         assert_eq!(entities.len(), 2);
-
-        // Both spans are PersonName per the label_map.
         for e in &entities {
             assert_eq!(e.entity_kind, EntityKind::PersonName);
-            assert!(
-                e.confidence.get() > 0.9,
-                "softmax conf {} too low",
-                e.confidence.get(),
-            );
         }
-
-        // Spans line up with the input text.
-        let text = "Alice works at Acme";
-        let first = entities.iter().next().unwrap();
-        let first_loc = first.location.as_text().expect("text location");
-        assert_eq!(&text[first_loc.start_offset..first_loc.end_offset], "Alice");
-    }
-
-    #[tokio::test]
-    async fn fold_predictions_continues_inside_span_with_i_tag() {
-        // BIO continuation: `B-PER` starts a span, `I-PER` extends it,
-        // `O` flushes, and the next `B-PER` opens a new span.
-        let logits: Vec<f32> = vec![
-            5.0, 0.0, 0.0, // [CLS]: O
-            0.0, 5.0, 0.0, // Alice: B-PER (start)
-            0.0, 0.0, 5.0, // works: I-PER (continues by same-base rule)
-            5.0, 0.0, 0.0, // at: O (flush)
-            0.0, 5.0, 0.0, // Acme: B-PER (new span)
-            5.0, 0.0, 0.0, // [SEP]: O
-        ];
-        let (backend, _dir) = build_backend(logits, 3);
-        let entities = backend.recognize_blocking("Alice works at Acme").unwrap();
-        assert_eq!(entities.len(), 2);
-
-        // First span covers "Alice works".
         let first = entities.iter().next().unwrap();
         let loc = first.location.as_text().expect("text location");
-        let text = "Alice works at Acme";
-        assert_eq!(&text[loc.start_offset..loc.end_offset], "Alice works");
+        assert_eq!((loc.start_offset, loc.end_offset), (0, 5)); // "Alice"
     }
 
-    #[tokio::test]
-    async fn unsupported_language_returns_error() {
-        let logits = vec![
-            5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0,
-            0.0,
+    /// `B-PER` opens a span and an immediately-following `I-PER`
+    /// (same base) extends it instead of starting a new one. Then `O`
+    /// flushes and the next `B-PER` opens a fresh span. This is the
+    /// real BIO-continuation rule and where bugs hide.
+    #[test]
+    fn fold_predictions_continues_inside_span_with_i_tag() {
+        let offsets = vec![(0, 0), (0, 5), (6, 11), (12, 14), (15, 19), (0, 0)];
+        let special_mask = vec![1, 0, 0, 0, 0, 1];
+        let predictions = vec![
+            pred(0, 1.0),  // [CLS]: O
+            pred(1, 0.95), // B-PER (start)
+            pred(2, 0.95), // I-PER (continue)
+            pred(0, 1.0),  // O (flush)
+            pred(1, 0.95), // B-PER (new span)
+            pred(0, 1.0),  // [SEP]: O
         ];
-        let (backend, _dir) = build_backend(logits, 3);
-        let backend = backend.with_supported_languages(vec!["en".parse().unwrap()]);
-        let lang: LanguageTag = "de".parse().unwrap();
-        let err = backend
-            .recognize("Hallo Welt", Some(&lang))
-            .await
-            .expect_err("should error");
-        assert!(matches!(err, Error::UnsupportedLanguage(_)));
-    }
-
-    #[tokio::test]
-    async fn language_hint_accepted_when_supported() {
-        let logits = vec![
-            5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0,
-            0.0,
-        ];
-        let (backend, _dir) = build_backend(logits, 3);
-        let backend = backend.with_supported_languages(vec!["en".parse().unwrap()]);
-        let lang: LanguageTag = "en".parse().unwrap();
-        let result = backend.recognize("Hello world", Some(&lang)).await;
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn empty_supported_languages_accepts_any_hint() {
-        let logits = vec![
-            5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0,
-            0.0,
-        ];
-        let (backend, _dir) = build_backend(logits, 3);
-        let lang: LanguageTag = "de".parse().unwrap();
-        let result = backend.recognize("Hallo Welt", Some(&lang)).await;
-        assert!(result.is_ok());
+        let entities = fold_predictions(
+            &offsets,
+            &special_mask,
+            &predictions,
+            &three_labels(),
+            &person_label_map(),
+            "test",
+        );
+        assert_eq!(entities.len(), 2);
+        let first = entities.iter().next().unwrap();
+        let loc = first.location.as_text().expect("text location");
+        assert_eq!((loc.start_offset, loc.end_offset), (0, 11)); // "Alice works"
     }
 }

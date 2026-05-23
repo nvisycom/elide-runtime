@@ -58,6 +58,11 @@ pub enum EntityCategory {
     /// Organizational identifiers: company names, departments,
     /// facilities, and institutional reference numbers.
     Organizational,
+    /// General-purpose entities surfaced by zero-shot models that
+    /// are not strictly PII but are routinely useful for policy
+    /// routing or document structuring: events, occupations,
+    /// products, quantities.
+    GeneralPurpose,
     /// Fallback bucket for entities a recognizer flagged as sensitive
     /// but could not place into a more specific category. Use sparingly
     /// — every recognizer should prefer a precise category when one

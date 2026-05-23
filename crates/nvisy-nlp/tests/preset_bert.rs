@@ -9,7 +9,7 @@
 //! # with Homebrew: brew install onnxruntime, then export this var.
 //! export ORT_DYLIB_PATH=/opt/homebrew/lib/libonnxruntime.dylib
 //!
-//! cargo test -p nvisy-nlp --features hf \
+//! cargo test -p nvisy-nlp --features hf,onnx \
 //!     --test preset_bert -- --ignored --nocapture
 //! ```
 //!
@@ -17,7 +17,7 @@
 //! drives a real download + ONNX load + recognition that produces a
 //! plausible person-name entity from a fixed sentence.
 
-#![cfg(feature = "hf")]
+#![cfg(all(feature = "hf", feature = "onnx"))]
 
 use std::path::PathBuf;
 

@@ -1,4 +1,6 @@
-//! Conversion from [`nvisy_core::Error`] to HTTP [`Error`].
+//! Conversion from [`CoreError`] to HTTP [`Error`].
+//!
+//! [`CoreError`]: nvisy_core::Error
 
 use super::http_error::Error;
 use super::http_kind::ErrorKind;

@@ -1,4 +1,6 @@
-//! [`PatternContext`]: per-call input to [`super::PatternRecognizer`].
+//! [`PatternContext`]: per-call input to [`PatternRecognizer`].
+//!
+//! [`PatternRecognizer`]: super::PatternRecognizer
 
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
@@ -7,10 +9,12 @@ use uuid::Uuid;
 
 use crate::detection::DetectionContext;
 
-/// Per-call input to [`super::PatternRecognizer`].
+/// Per-call input to [`PatternRecognizer`].
 ///
 /// Derived from a [`DetectionContext`] via `From<&DetectionContext>`
 /// in the bridge layer.
+///
+/// [`PatternRecognizer`]: super::PatternRecognizer
 #[derive(Debug, Clone)]
 pub struct PatternContext {
     /// The text to scan.

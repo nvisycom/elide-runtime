@@ -75,9 +75,6 @@ uuid = { workspace = true, features = [] }
 jiff = { workspace = true, features = [] }
 semver = { workspace = true, features = ["serde"] }
 
-# Graph data structures
-petgraph = { workspace = true, features = [] }
-
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
 anyhow = { workspace = true, features = [] }

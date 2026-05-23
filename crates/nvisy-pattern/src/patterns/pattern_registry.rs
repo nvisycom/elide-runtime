@@ -129,8 +129,10 @@ impl PatternRegistry {
     ///
     /// # Errors
     ///
-    /// Returns [`nvisy_core::Error`] if the file cannot be read or
+    /// Returns [`Error`] if the file cannot be read or
     /// the JSON content cannot be parsed.
+    ///
+    /// [`Error`]: nvisy_core::Error
     #[tracing::instrument(target = TARGET, name = "patterns.load_file", skip_all, fields(path = %path.as_ref().display()))]
     pub fn load_file(&mut self, path: impl AsRef<Path>) -> nvisy_core::Result<()> {
         let path = path.as_ref();
@@ -181,10 +183,11 @@ impl PatternRegistry {
     ///
     /// # Errors
     ///
-    /// Returns [`nvisy_core::Error`] if the directory cannot be
+    /// Returns [`Error`] if the directory cannot be
     /// traversed, a file cannot be read, or a JSON file fails to parse.
     ///
     /// [`load_builtins`]: Self::load_builtins
+    /// [`Error`]: nvisy_core::Error
     #[tracing::instrument(target = TARGET, name = "patterns.load_dir", skip_all, fields(path = %dir.as_ref().display(), count))]
     pub fn load_dir(&mut self, dir: impl AsRef<Path>) -> nvisy_core::Result<()> {
         let dir = dir.as_ref();

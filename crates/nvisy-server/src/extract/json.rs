@@ -1,9 +1,9 @@
 //! Custom `Json` extractor that converts rejections into [`Error`].
 //!
-//! Wraps [`axum::Json`] so that malformed JSON bodies produce our
-//! standard [`ErrorResponse`]
-//! instead of axum's default plain-text rejection.
+//! Wraps [`Json`] so that malformed JSON bodies produce our standard
+//! [`ErrorResponse`] instead of axum's default plain-text rejection.
 //!
+//! [`Json`]: axum::Json
 //! [`ErrorResponse`]: crate::handler::response::ErrorResponse
 
 use aide::OperationInput;
@@ -19,8 +19,10 @@ use crate::handler::error::{Error, ErrorKind};
 /// On the **request** side it deserialises `T` from the body, mapping
 /// any rejection to [`ErrorKind::BadRequest`].
 ///
-/// On the **response** side it delegates to [`axum::Json`], so
-/// handlers can use a single `Json` type for both input and output.
+/// On the **response** side it delegates to [`Json`], so handlers
+/// can use a single `Json` type for both input and output.
+///
+/// [`Json`]: axum::Json
 pub struct Json<T>(pub T);
 
 impl<S, T> FromRequest<S> for Json<T>

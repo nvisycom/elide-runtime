@@ -8,8 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 /// Construct with [`Confidence::new`]; the constructor returns
 /// [`None`] for values outside the valid range or non-finite floats
 /// (`NaN`, `±∞`). Read the inner score with [`Confidence::get`].
-/// The API mirrors [`std::num::NonZero::new`] /
-/// [`std::num::NonZero::get`].
+/// The API mirrors [`NonZero::new`] / [`NonZero::get`].
 ///
 /// `Confidence` is `Copy` and cheap to pass by value. Operations
 /// that combine confidences (averaging, multiplying) are not
@@ -34,8 +33,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 ///
 /// [`Confidence::new`]: Self::new
 /// [`Confidence::get`]: Self::get
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-#[derive(Serialize, JsonSchema)]
+/// [`NonZero::new`]: std::num::NonZero::new
+/// [`NonZero::get`]: std::num::NonZero::get
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Confidence(f64);
 
@@ -60,6 +60,21 @@ impl Confidence {
         } else {
             None
         }
+    }
+
+    /// Construct a [`Confidence`] by clamping a raw score into
+    /// `[0.0, 1.0]`. Use when the input is *known to be in range up
+    /// to float rounding* — e.g. a softmax mean that might come out
+    /// as `1.0000000000000002`. Non-finite inputs (`NaN`, `±∞`) map
+    /// to `0.0`: their presence almost always indicates an upstream
+    /// bug, so [`debug_assert!`] catches it during development while
+    /// release builds degrade safely.
+    pub fn clamped(value: f64) -> Self {
+        debug_assert!(value.is_finite(), "non-finite confidence: {value}");
+        if !value.is_finite() {
+            return Self(0.0);
+        }
+        Self(value.clamp(0.0, 1.0))
     }
 
     /// Returns the inner score.

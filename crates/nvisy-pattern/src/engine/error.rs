@@ -6,10 +6,11 @@ use nvisy_core::{Error, ErrorKind};
 
 /// Errors that can occur while building a [`PatternEngine`].
 ///
-/// Built engines surface these wrapped in [`nvisy_core::Error`] via
+/// Built engines surface these wrapped in [`CoreError`] via
 /// `From<PatternEngineError>`. Callers that need structured access can
 /// downcast through [`Error::source`].
 ///
+/// [`CoreError`]: nvisy_core::Error
 /// [`PatternEngine`]: super::PatternEngine
 /// [`Error::source`]: nvisy_core::Error::source
 #[derive(Debug, thiserror::Error)]

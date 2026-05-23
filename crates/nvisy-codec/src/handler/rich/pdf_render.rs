@@ -1,9 +1,11 @@
 //! PDF-to-image rendering via PDFium.
 //!
 //! PDFium is not thread-safe, so all rendering is serialised on a
-//! dedicated single-thread [`rayon::ThreadPool`]. The [`PdfRenderer`]
+//! dedicated single-thread [`ThreadPool`]. The [`PdfRenderer`]
 //! binding is created once on first use via a `thread_local!` and
 //! reused for all subsequent calls.
+//!
+//! [`ThreadPool`]: rayon::ThreadPool
 
 use std::cell::RefCell;
 use std::sync::LazyLock;

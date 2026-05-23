@@ -23,21 +23,29 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-# `NlpPreset::Default` is the no-op backend (`NoopNerBackend`), used
-# in tests and for deployments wiring detection through patterns/LLM
-# only. Real model presets live behind their own features.
-default = ["test-utils"]
+# A plain build of `nvisy-nlp` ships only the no-op NER backend
+# (`NoopNerBackend`), the Lingua language policy, and the Unicode
+# tokenizer. The two model-bearing NER backends are behind opt-in
+# features that pull in heavy ML deps.
+default = []
 
-# Exposes helpers intended for downstream tests.
-test-utils = []
+## Enables `OrtNerBackend` — runs a BERT-family token-classification
+## model exported to ONNX via the `ort` crate. Also enables the
+## `HfTokenizer` since its `tokenizers` dep is pulled in here
+## anyway.
+onnx = ["dep:ort", "dep:ndarray", "dep:tokenizers"]
 
-# Enables auto-download of manifest-defined preset artifacts from
-# HuggingFace Hub plus SHA-256 verification (downloaded or supplied).
-# Activates `nvisy-core/hf` for the shared `Downloader` and
-# `FetchRequest::verify_artifact`. Without it, `NlpPreset::Manifest`
-# still works as long as `model_path` and `tokenizer_path` overrides
-# are supplied, but `model_sha256` / `tokenizer_sha256` fields in the
-# manifest are not enforced.
+## Enables `GlinerBackend` — zero-shot NER via `gline-rs`.
+## Compatible with `onnx`; both backends can be enabled
+## simultaneously.
+gliner = ["dep:gline-rs", "dep:orp"]
+
+## Enables auto-download of manifest-defined preset artifacts from
+## HuggingFace Hub plus SHA-256 verification (downloaded or supplied).
+## Activates `nvisy-core/hf` for the shared `Downloader` and
+## `FetchRequest::verify_artifact`. Without it, `NlpPreset::Manifest`
+## still works as long as `model_path` and `tokenizer_path` overrides
+## are supplied, but `*_sha256` fields in the manifest are not enforced.
 hf = ["nvisy-core/hf"]
 
 [dependencies]
@@ -49,10 +57,16 @@ nvisy-ontology = { workspace = true, features = [] }
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 
-# NLP / NER
-ort = { workspace = true, features = [] }
-ndarray = { workspace = true, features = [] }
-tokenizers = { workspace = true, features = [] }
+# ONNX inference stack
+ort = { workspace = true, optional = true, features = [] }
+ndarray = { workspace = true, optional = true, features = [] }
+tokenizers = { workspace = true, optional = true, features = [] }
+
+# GLiNER zero-shot NER
+gline-rs = { workspace = true, optional = true, features = [] }
+orp = { workspace = true, optional = true, features = [] }
+
+# Language detection and text segmentation
 lingua = { workspace = true, features = [] }
 stop-words = { workspace = true, features = [] }
 unicode-segmentation = { workspace = true, features = [] }

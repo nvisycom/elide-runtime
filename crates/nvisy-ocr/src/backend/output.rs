@@ -1,8 +1,10 @@
 //! OCR output types.
 //!
 //! The structural types ([`Word`], [`Line`], [`Block`], [`Page`]) are
-//! re-exported from [`nvisy_ontology::artifacts`]. [`ImageOutput`]
+//! re-exported from [`artifacts`]. [`ImageOutput`]
 //! wraps them with a [`ContentSource`] for provenance tracking.
+//!
+//! [`artifacts`]: nvisy_ontology::artifacts
 
 use nvisy_core::content::ContentSource;
 use nvisy_ontology::artifacts::{Block, Line, Page, Word};

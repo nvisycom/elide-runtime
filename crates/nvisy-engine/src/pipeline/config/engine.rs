@@ -56,8 +56,10 @@ pub struct CacheConfig {
 #[derive(Debug, Clone, Default, Validate, Serialize, Deserialize)]
 pub struct EngineSection {
     /// Maximum number of documents processed in parallel via a
-    /// shared [`tokio::sync::Semaphore`]. Server-wide; not
+    /// shared [`Semaphore`]. Server-wide; not
     /// overridable per-request. `None` means unbounded.
+    ///
+    /// [`Semaphore`]: tokio::sync::Semaphore
     #[serde(default)]
     pub concurrency: Option<NonZeroUsize>,
 

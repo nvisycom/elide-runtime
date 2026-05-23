@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 
 /// A validated [BCP-47] language tag.
 ///
-/// Wraps [`oxilangtag::LanguageTag`] with serde support. Use
-/// `#[schemars(with = "String")]` on fields of this type for JSON Schema
-/// generation.
+/// Wraps [`LanguageTag`] with serde support. Use `#[schemars(with =
+/// "String")]` on fields of this type for JSON Schema generation.
+///
+/// [`LanguageTag`]: oxilangtag::LanguageTag
 ///
 /// # Examples
 ///

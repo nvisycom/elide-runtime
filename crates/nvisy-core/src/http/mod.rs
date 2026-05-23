@@ -3,16 +3,18 @@
 //! Available behind the `http` feature.
 //!
 //! [`HttpClient`] is a thin newtype over
-//! [`reqwest_middleware::ClientWithMiddleware`] with exponential-backoff
+//! [`ClientWithMiddleware`] with exponential-backoff
 //! retry and OpenTelemetry tracing layers pre-installed. [`HttpConfig`]
 //! carries durations + retry count and deserialises via
 //! [`humantime_serde`] so config files accept `"120s"`, `"2min"`, etc.
 //!
 //! [`RequestBuilderExt`] adds `.send_and_check("provider")` and
 //! `.send_and_parse::<T>("provider")` helpers that map transport and
-//! status errors to [`crate::Error`] with consistent retryability
+//! status errors to [`Error`] with consistent retryability
 //! classification (5xx + network errors are retryable; 4xx are not).
 //!
+//! [`ClientWithMiddleware`]: reqwest_middleware::ClientWithMiddleware
+//! [`Error`]: crate::Error
 //! [`humantime_serde`]: https://crates.io/crates/humantime-serde
 
 mod config;

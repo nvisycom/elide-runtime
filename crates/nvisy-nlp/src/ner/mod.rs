@@ -8,17 +8,22 @@
 //!
 //! [`Entities`]: nvisy_ontology::entity::Entities
 
-#[cfg(any(test, feature = "test-utils"))]
+#[cfg(feature = "gliner")]
+mod gliner;
 mod noop;
+#[cfg(feature = "onnx")]
 mod ort;
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::{Entities, EntityKind};
 use nvisy_ontology::primitive::LanguageTag;
 
-#[cfg(any(test, feature = "test-utils"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
+#[cfg(feature = "gliner")]
+#[cfg_attr(docsrs, doc(cfg(feature = "gliner")))]
+pub use self::gliner::{GlinerBackend, GlinerConfig, GlinerMode};
 pub use self::noop::NoopNerBackend;
+#[cfg(feature = "onnx")]
+#[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
 pub use self::ort::{OrtNerBackend, OrtNerConfig, id_to_label_from_config_json};
 use crate::error::Result;
 
@@ -29,31 +34,28 @@ use crate::error::Result;
 /// backends wrap the body in `async {}` cheaply.
 ///
 /// `language` is **advisory**. Multilingual models may ignore it;
-/// monolingual models should validate it against
-/// [`supported_languages`] and may return
-/// [`Error::UnsupportedLanguage`] if the hint disagrees.
+/// monolingual models may validate it against a configured allowlist
+/// and return [`Error::UnsupportedLanguage`] if the hint disagrees.
 ///
-/// [`supported_languages`]: Self::supported_languages
+/// `requested_kinds` is **also advisory** and exists to let zero-shot
+/// backends (notably [`GlinerBackend`]) materialise the exact label
+/// set the caller is asking about. Backends with a fixed label vector
+/// ([`OrtNerBackend`], [`NoopNerBackend`]) ignore it — the
+/// [`NlpEngine`] still post-filters their output against the same
+/// allowlist, so passing it here is purely an optimisation hint.
+///
+/// [`GlinerBackend`]: GlinerBackend
+/// [`OrtNerBackend`]: OrtNerBackend
+/// [`NoopNerBackend`]: NoopNerBackend
 /// [`Error::UnsupportedLanguage`]: crate::Error::UnsupportedLanguage
+/// [`NlpEngine`]: crate::NlpEngine
 #[async_trait]
 pub trait NerBackend: Send + Sync {
     /// Recognize entities in `text`.
-    async fn recognize(&self, text: &str, language: Option<&LanguageTag>) -> Result<Entities>;
-
-    /// Languages this backend was trained or configured for.
-    ///
-    /// An empty slice means the backend accepts any language (treat
-    /// as universal).
-    fn supported_languages(&self) -> &[LanguageTag] {
-        &[]
-    }
-
-    /// Entity kinds this backend can produce.
-    ///
-    /// An empty slice means the backend may produce any kind it can
-    /// detect — used when the label space is open or large enough to
-    /// make enumeration unhelpful.
-    fn supported_kinds(&self) -> &[EntityKind] {
-        &[]
-    }
+    async fn recognize(
+        &self,
+        text: &str,
+        language: Option<&LanguageTag>,
+        requested_kinds: Option<&[EntityKind]>,
+    ) -> Result<Entities>;
 }

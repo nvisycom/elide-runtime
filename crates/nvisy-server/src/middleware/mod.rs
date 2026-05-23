@@ -1,4 +1,6 @@
-//! Middleware for [`axum::Router`] and HTTP request processing.
+//! Middleware for [`Router`] and HTTP request processing.
+//!
+//! [`Router`]: axum::Router
 //!
 //! This module provides middleware for security, observability, error recovery,
 //! response compression, and API documentation. Each middleware category has its

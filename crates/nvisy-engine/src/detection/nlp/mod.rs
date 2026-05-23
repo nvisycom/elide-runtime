@@ -1,4 +1,4 @@
-//! [`NlpRecognizer`]: NER over `nvisy_nlp::Engine`.
+//! [`NlpRecognizer`]: NER over [`NlpEngine`].
 //!
 //! Wraps the NLP engine so every detection call goes through its
 //! orchestration: language detection (asserted-bypass-able), NER
@@ -7,12 +7,13 @@
 //! discarded — recognition returns only entities).
 //!
 //! Construct via [`from_config`] from a [`NlpDetection`] bundle —
-//! the bundle's [`engine`] field selects which prebuilt
-//! [`nvisy_nlp::Engine`] to load. [`from_engine`] is retained as
-//! an escape hatch for callers that already have an `Arc<NlpEngine>`
-//! they want to inject (custom backends, test fixtures, shared
-//! engines across recognizers).
+//! the bundle's [`engine`] field selects which prebuilt [`NlpEngine`]
+//! to load. [`from_engine`] is retained as an escape hatch for
+//! callers that already have a constructed engine they want to
+//! inject (custom backends, test fixtures, engines shared across
+//! recognizers).
 //!
+//! [`NlpEngine`]: nvisy_nlp::NlpEngine
 //! [`from_config`]: NlpRecognizer::from_config
 //! [`from_engine`]: NlpRecognizer::from_engine
 //! [`engine`]: NlpDetection::engine
@@ -20,35 +21,35 @@
 mod context;
 mod params;
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_nlp::{Context as InnerNlpContext, Engine as InnerNlpEngine};
+use nvisy_nlp::{Context as InnerNlpContext, NlpEngine};
 use nvisy_ontology::entity::Entities;
 
 pub use self::context::NlpContext;
 pub use self::params::NlpDetection;
 use crate::detection::Recognizer;
 
-/// NER recognizer backed by [`nvisy_nlp::Engine`].
+/// NER recognizer backed by [`NlpEngine`].
+///
+/// [`NlpEngine`]: nvisy_nlp::NlpEngine
 pub struct NlpRecognizer {
-    engine: Arc<InnerNlpEngine>,
+    engine: NlpEngine,
 }
 
 impl NlpRecognizer {
     /// Build a recognizer from a [`NlpDetection`] config bundle.
     ///
     /// The bundle's [`engine`] field picks which prebuilt
-    /// [`nvisy_nlp::Engine`] preset to load. Async because some
-    /// presets download model artifacts from HuggingFace on first
-    /// use.
+    /// [`NlpEngine`] preset to load. Async because some presets
+    /// download model artifacts from HuggingFace on first use.
     ///
     /// # Errors
     ///
     /// Returns an error if the underlying NLP engine cannot be
     /// constructed (model load failure for non-default presets).
     ///
+    /// [`NlpEngine`]: nvisy_nlp::NlpEngine
     /// [`engine`]: NlpDetection::engine
     pub async fn from_config(cfg: &NlpDetection) -> Result<Self> {
         let engine = cfg
@@ -59,14 +60,14 @@ impl NlpRecognizer {
         Ok(Self::from_engine(engine))
     }
 
-    /// Build from a pre-constructed shared NLP engine.
+    /// Build from a pre-constructed NLP engine.
     ///
     /// Escape hatch for callers that already own an engine (custom
     /// backend, test fixture, engine shared across recognizers).
     /// Prefer [`from_config`] for ordinary use.
     ///
     /// [`from_config`]: Self::from_config
-    pub fn from_engine(engine: Arc<InnerNlpEngine>) -> Self {
+    pub fn from_engine(engine: NlpEngine) -> Self {
         Self { engine }
     }
 }

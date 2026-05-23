@@ -156,11 +156,12 @@ impl DictionaryRegistry {
     ///
     /// # Errors
     ///
-    /// Returns [`nvisy_core::Error`] if the directory cannot be
+    /// Returns [`Error`] if the directory cannot be
     /// traversed, a file cannot be read, or a CSV file fails to parse.
     ///
     /// [`name`]: DictionaryMetadata::name
     /// [`load_builtins`]: Self::load_builtins
+    /// [`Error`]: nvisy_core::Error
     #[tracing::instrument(target = TARGET, name = "dictionaries.load_dir", skip_all, fields(path = %dir.as_ref().display(), count))]
     pub fn load_dir(&mut self, dir: impl AsRef<Path>) -> nvisy_core::Result<()> {
         let dir = dir.as_ref();

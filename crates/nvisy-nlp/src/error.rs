@@ -1,8 +1,11 @@
 //! Errors produced by `nvisy-nlp` backends and the composite engine.
 //!
-//! Backends surface these wrapped in [`nvisy_core::Error`] via
-//! `From<Error>`. Callers that need structured access can downcast
-//! through [`nvisy_core::Error::source`].
+//! Backends surface these wrapped in [`CoreError`] via `From<Error>`.
+//! Callers that need structured access can downcast through
+//! [`CoreError::source`].
+//!
+//! [`CoreError`]: nvisy_core::Error
+//! [`CoreError::source`]: nvisy_core::Error::source
 
 use std::path::PathBuf;
 

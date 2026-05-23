@@ -2,9 +2,10 @@
 //!
 //! Built once at engine startup from [`OcrExtractorConfig`] and
 //! shared across every run via [`Extractors`]. CV verification of
-//! detected entities lives in the sibling [`super::vlm`] module.
+//! detected entities lives in the sibling [`vlm`] module.
 //!
 //! [`Extractors`]: super::Extractors
+//! [`vlm`]: super::vlm
 
 mod params;
 

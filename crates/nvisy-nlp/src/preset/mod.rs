@@ -13,22 +13,12 @@
 //!   `crates/nvisy-nlp/presets/dslim-bert-base-NER.json`.
 //!
 //! Model downloads require the `hf` feature, which activates the
-//! shared [`nvisy_core::hf`] module. Without it,
-//! [`NlpPreset::Manifest`] still works as long as both `model_path`
-//! and `tokenizer_path` overrides are supplied.
+//! shared [`hf`] module. Without it, [`NlpPreset::Manifest`] still
+//! works as long as both `model_path` and `tokenizer_path` overrides
+//! are supplied.
 //!
-//! # Submodule layout
-//!
-//! - [`manifest`]: the JSON shape — pure data, no I/O beyond reading
-//!   the file itself.
-//! - [`verify`]: filesystem readability check for override paths.
-//!   SHA-256 verification of artifacts is delegated to
-//!   [`nvisy_core::hf::FetchRequest::verify_artifact`].
-//! - [`builder`]: compose a verified `(manifest, paths)` into an
-//!   [`Engine`].
-//!
-//! This module orchestrates them; it contains no business logic of
-//! its own.
+//! SHA-256 verification of downloaded or supplied artifacts is
+//! delegated to [`FetchRequest::verify_artifact`].
 //!
 //! # Override pattern for air-gapped deployments
 //!
@@ -46,19 +36,20 @@
 //!     tokenizer_path: Some(PathBuf::from("/srv/models/dslim/tokenizer.json")),
 //! };
 //! ```
+//!
+//! [`hf`]: nvisy_core::hf
+//! [`FetchRequest::verify_artifact`]: nvisy_core::hf::FetchRequest::verify_artifact
 
 mod builder;
 mod manifest;
-mod verify;
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::manifest::{LabelMapEntry, PresetManifest};
-use crate::Engine;
+pub use self::manifest::{BackendConfig, LabelMapEntry, PresetManifest};
+use crate::NlpEngine;
 use crate::error::{Error, Result};
 use crate::language::LinguaLanguagePolicy;
 use crate::ner::NoopNerBackend;
@@ -66,7 +57,7 @@ use crate::ner::NoopNerBackend;
 /// Prebuilt NLP-engine preset.
 ///
 /// Picked from workflow config; the recognizer layer calls [`build`]
-/// to materialise the corresponding [`Engine`].
+/// to materialise the corresponding [`NlpEngine`].
 ///
 /// [`build`]: Self::build
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
@@ -104,14 +95,15 @@ pub enum NlpPreset {
 }
 
 impl NlpPreset {
-    /// Construct the [`Engine`] this preset selects.
-    pub async fn build(&self) -> Result<Arc<Engine>> {
+    /// Construct the [`NlpEngine`] this preset selects. The returned
+    /// engine is cheap to [`Clone`] (three refcount bumps); callers
+    /// don't need to wrap it in `Arc` themselves.
+    pub async fn build(&self) -> Result<NlpEngine> {
         match self {
-            Self::Default => Engine::builder()
+            Self::Default => NlpEngine::builder()
                 .with_ner_backend(NoopNerBackend)
                 .with_language_policy(LinguaLanguagePolicy)
                 .build()
-                .map(Arc::new)
                 .map_err(|e| Error::Backend(e.to_string())),
 
             Self::Manifest {
@@ -139,8 +131,8 @@ async fn resolve_paths(
 ) -> Result<(PathBuf, PathBuf)> {
     match (model_path, tokenizer_path) {
         (Some(m), Some(t)) => {
-            verify::check_readable(m)?;
-            verify::check_readable(t)?;
+            check_readable(m)?;
+            check_readable(t)?;
             verify_supplied_hashes(manifest, m, t)?;
             Ok((m.to_owned(), t.to_owned()))
         }
@@ -149,6 +141,24 @@ async fn resolve_paths(
             "NlpPreset::Manifest: provide both model_path and tokenizer_path, or neither"
                 .to_owned(),
         )),
+    }
+}
+
+/// Validate that `path` refers to a readable regular file. Surfaces
+/// filesystem problems eagerly so an operator-supplied override path
+/// fails here with a clear error rather than deeper inside `ort` /
+/// `gline-rs`.
+fn check_readable(path: &Path) -> Result<()> {
+    match std::fs::metadata(path) {
+        Ok(meta) if meta.is_file() => Ok(()),
+        Ok(_) => Err(Error::Backend(format!(
+            "preset artifact is not a regular file: {}",
+            path.display(),
+        ))),
+        Err(e) => Err(Error::Backend(format!(
+            "preset artifact unreadable {}: {e}",
+            path.display(),
+        ))),
     }
 }
 
@@ -200,9 +210,11 @@ fn verify_supplied_hashes(
     Ok(())
 }
 
-/// Download both artifacts via a fresh
-/// [`nvisy_core::hf::Downloader`]. Progress is reported automatically
-/// as `tracing::info` events under the `nvisy_core::hf` target.
+/// Download both artifacts via a fresh [`Downloader`]. Progress is
+/// reported automatically as `tracing::info` events under the
+/// `nvisy_core::hf` target.
+///
+/// [`Downloader`]: nvisy_core::hf::Downloader
 #[cfg(feature = "hf")]
 async fn fetch_both(manifest: &PresetManifest) -> Result<(PathBuf, PathBuf)> {
     use nvisy_core::hf::{Downloader, FetchRequest};
@@ -252,7 +264,10 @@ mod tests {
             r#"{
                 "model_name": "x", "repo_id": "x/y", "revision": "abc",
                 "model_file": "m.onnx", "tokenizer_file": "t.json",
-                "id_to_label": ["O"], "label_map": {}
+                "backend": {
+                    "kind": "onnx-bert",
+                    "id_to_label": ["O"], "label_map": {}
+                }
             }"#,
         )
         .unwrap();
@@ -278,7 +293,10 @@ mod tests {
             r#"{
                 "model_name": "x", "repo_id": "x/y", "revision": "abc",
                 "model_file": "m.onnx", "tokenizer_file": "t.json",
-                "id_to_label": ["O"], "label_map": {}
+                "backend": {
+                    "kind": "onnx-bert",
+                    "id_to_label": ["O"], "label_map": {}
+                }
             }"#,
         )
         .unwrap();

@@ -2,11 +2,12 @@
 //!
 //! The verdict shape (`VerificationStatus`, `VerifiedEntity`,
 //! `VerificationOutput`) is shared with [`NerVerifyAgent`] and lives
-//! in [`crate::agent::base::verification`]. CV-specific *apply*
-//! logic — translating a bbox into an [`ImageLocation`] update on
-//! the original entity — lives here.
+//! in [`base::verification`]. CV-specific *apply* logic — translating
+//! a bbox into an [`ImageLocation`] update on the original entity —
+//! lives here.
 //!
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
+//! [`base::verification`]: crate::agent::base::verification
 //! [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
 
 use std::collections::HashMap;

@@ -1,21 +1,24 @@
-//! [`Artifacts`] — output of a single [`Engine::analyze`] call.
+//! [`Artifacts`] — output of a single [`NlpEngine::analyze`] call.
 //!
 //! Composed from the outputs of independently-configured backends.
-//! Fields are [`Option`] when produced by an optional component
-//! (tokenizer). [`entities`] is always populated; [`language`] reflects
-//! either caller-asserted or detected language, and may be `None` only
-//! when detection on short or ambiguous text was inconclusive.
+//! [`entities`] is always populated; [`languages`] preserves every
+//! detection the policy produced (one per region for mixed-language
+//! input, single-element for monolingual or caller-asserted answers,
+//! empty when detection was inconclusive).
 //!
-//! [`Engine::analyze`]: super::Engine::analyze
+//! [`NlpEngine::analyze`]: super::NlpEngine::analyze
 //! [`entities`]: Artifacts::entities
-//! [`language`]: Artifacts::language
+//! [`languages`]: Artifacts::languages
 
 use std::collections::HashSet;
 
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::primitive::LanguageTag;
 
-/// NLP output of one [`Engine::analyze`] call.
+use crate::language::LanguageDetection;
+use crate::tokenizer::Token;
+
+/// NLP output of one [`NlpEngine::analyze`] call.
 ///
 /// Mirrors the field set Presidio's `NlpArtifacts` actually exposes to
 /// downstream recognizers — entities + tokens + keywords + language —
@@ -26,7 +29,7 @@ use nvisy_ontology::primitive::LanguageTag;
 /// <https://github.com/nvisycom/runtime/issues/154> captures the
 /// rationale and trigger conditions for revisiting.
 ///
-/// [`Engine::analyze`]: super::Engine::analyze
+/// [`NlpEngine::analyze`]: super::NlpEngine::analyze
 #[derive(Debug, Clone)]
 pub struct Artifacts {
     /// Entities detected by the configured [`NerBackend`].
@@ -36,14 +39,22 @@ pub struct Artifacts {
     /// [`NerBackend`]: crate::ner::NerBackend
     pub entities: Entities,
 
-    /// Language asserted by the caller or detected by the engine's
+    /// Languages asserted by the caller or detected by the engine's
     /// [`LanguagePolicy`].
     ///
-    /// `None` when detection on short text was inconclusive *and*
-    /// the caller did not supply an asserted language.
+    /// One entry per region for backends that segment mixed-language
+    /// input (e.g. lingua's `detect_multiple_languages_of`); a single
+    /// entry for monolingual answers and for caller-asserted languages
+    /// (provenance [`LanguageProvenance::Asserted`]); empty when
+    /// detection was inconclusive *and* the caller didn't assert.
+    ///
+    /// Callers that only care about the dominant language can use
+    /// [`dominant_language`].
     ///
     /// [`LanguagePolicy`]: crate::language::LanguagePolicy
-    pub language: Option<LanguageTag>,
+    /// [`LanguageProvenance::Asserted`]: crate::language::LanguageProvenance::Asserted
+    /// [`dominant_language`]: Self::dominant_language
+    pub languages: Vec<LanguageDetection>,
 
     /// Token stream from the configured [`Tokenizer`], if any.
     ///
@@ -57,22 +68,50 @@ pub struct Artifacts {
     pub keywords: Option<HashSet<String>>,
 }
 
-/// A single token produced by a [`Tokenizer`].
-///
-/// Byte offsets index the original text passed to
-/// [`Engine::analyze`].
-///
-/// [`Tokenizer`]: crate::tokenizer::Tokenizer
-/// [`Engine::analyze`]: super::Engine::analyze
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Token {
-    /// Byte offset of the token start in the original text.
-    pub start: usize,
-    /// Byte offset of the token end in the original text.
-    pub end: usize,
-    /// Surface form of the token.
-    pub text: String,
-    /// Whether the token is a stopword per the tokenizer's configured
-    /// stopword set. Always `false` when no stopword set is configured.
-    pub is_stop: bool,
+impl Artifacts {
+    /// The language covering the most bytes of the source text,
+    /// breaking ties on detector confidence.
+    ///
+    /// Monolingual docs are trivial — the only detection wins.
+    /// Mixed-language docs return the language whose [`LanguageSpan`]
+    /// covers the most bytes; if two languages cover the same number
+    /// of bytes, the one with the higher [`Confidence`] wins (entries
+    /// without confidence sort below those with one).
+    ///
+    /// Detections without a `span` are treated as covering the whole
+    /// document — a single caller-asserted entry therefore always
+    /// wins. Returns `None` iff [`languages`] is empty.
+    ///
+    /// Clones the tag; the vec itself is untouched.
+    ///
+    /// [`languages`]: Self::languages
+    /// [`LanguageSpan`]: crate::language::LanguageSpan
+    /// [`Confidence`]: nvisy_ontology::primitive::Confidence
+    pub fn dominant_language(&self) -> Option<LanguageTag> {
+        self.languages
+            .iter()
+            .max_by(|a, b| {
+                span_bytes(a)
+                    .cmp(&span_bytes(b))
+                    .then_with(|| confidence_key(a).total_cmp(&confidence_key(b)))
+            })
+            .map(|d| d.language.clone())
+    }
+}
+
+/// Bytes a detection covers. `None`-span detections are treated as
+/// covering the whole document (a sensible default for caller-
+/// asserted and single-language detectors that don't track regions).
+fn span_bytes(d: &LanguageDetection) -> usize {
+    match d.span {
+        Some(s) => s.end.saturating_sub(s.start),
+        None => usize::MAX,
+    }
+}
+
+/// Sortable confidence key. Missing confidence sorts below any real
+/// value so a detection that *has* a score wins ties over one that
+/// doesn't.
+fn confidence_key(d: &LanguageDetection) -> f64 {
+    d.confidence.map(|c| c.get()).unwrap_or(f64::NEG_INFINITY)
 }

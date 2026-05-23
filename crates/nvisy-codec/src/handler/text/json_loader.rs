@@ -22,8 +22,10 @@ pub struct JsonParams {
 /// Loader that validates and parses JSON files.
 ///
 /// Produces a single [`JsonHandler`] per input.  The
-/// loaded handler stores the parsed [`serde_json::Value`] tree
+/// loaded handler stores the parsed [`Value`] tree
 /// together with formatting metadata for round-trip fidelity.
+///
+/// [`Value`]: serde_json::Value
 #[derive(Debug, Default)]
 pub struct JsonLoader;
 

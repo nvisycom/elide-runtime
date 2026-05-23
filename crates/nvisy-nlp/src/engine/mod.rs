@@ -6,17 +6,16 @@
 //! [`LanguagePolicy`]: crate::language::LanguagePolicy
 //! [`Tokenizer`]: crate::tokenizer::Tokenizer
 
+mod artifacts;
 mod context;
-mod preset;
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
 use derive_builder::Builder;
 
+pub use self::artifacts::{Artifacts, Token};
 pub use self::context::{Context, ContextBuilder, ContextBuilderError};
-pub use self::preset::NlpPreset;
-use crate::artifacts::{Artifacts, Token};
 use crate::error::Result;
 use crate::language::{DynLanguagePolicy, LanguageDetection, LanguagePolicy, LanguageProvenance};
 use crate::ner::NerBackend;

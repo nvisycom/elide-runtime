@@ -13,7 +13,7 @@ mod unicode;
 
 pub use self::hugging_face::HfTokenizer;
 pub use self::unicode::UnicodeTokenizer;
-use crate::artifacts::Token;
+use crate::engine::Token;
 use crate::error::Result;
 
 /// ISO 639-1 codes the `iso`-featured `stop-words` build recognises.

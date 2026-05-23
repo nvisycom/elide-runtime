@@ -1,26 +1,19 @@
-//! [`Artifacts`] — output of a single [`Engine::analyze`] call,
-//! plus the [`Token`] type produced by [`Tokenizer`] impls.
+//! [`Artifacts`] — output of a single [`Engine::analyze`] call.
 //!
 //! Composed from the outputs of independently-configured backends.
 //! Fields are [`Option`] when produced by an optional component
-//! (tokenizer). [`entities`] is always populated; [`language`]
-//! reflects either caller-asserted or detected language, and may be
-//! `None` only when detection on short or ambiguous text was
-//! inconclusive.
+//! (tokenizer). [`entities`] is always populated; [`language`] reflects
+//! either caller-asserted or detected language, and may be `None` only
+//! when detection on short or ambiguous text was inconclusive.
 //!
-//! [`Engine::analyze`]: crate::engine::Engine::analyze
-//! [`Tokenizer`]: crate::tokenizer::Tokenizer
+//! [`Engine::analyze`]: super::Engine::analyze
 //! [`entities`]: Artifacts::entities
 //! [`language`]: Artifacts::language
-
-mod token;
 
 use std::collections::HashSet;
 
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::primitive::LanguageTag;
-
-pub use self::token::Token;
 
 /// NLP output of one [`Engine::analyze`] call.
 ///
@@ -33,7 +26,7 @@ pub use self::token::Token;
 /// <https://github.com/nvisycom/runtime/issues/154> captures the
 /// rationale and trigger conditions for revisiting.
 ///
-/// [`Engine::analyze`]: crate::engine::Engine::analyze
+/// [`Engine::analyze`]: super::Engine::analyze
 #[derive(Debug, Clone)]
 pub struct Artifacts {
     /// Entities detected by the configured [`NerBackend`].
@@ -62,4 +55,24 @@ pub struct Artifacts {
     /// Derived from `tokens` when both tokens and a stopword set are
     /// available. Useful for context-keyword lookup downstream.
     pub keywords: Option<HashSet<String>>,
+}
+
+/// A single token produced by a [`Tokenizer`].
+///
+/// Byte offsets index the original text passed to
+/// [`Engine::analyze`].
+///
+/// [`Tokenizer`]: crate::tokenizer::Tokenizer
+/// [`Engine::analyze`]: super::Engine::analyze
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Token {
+    /// Byte offset of the token start in the original text.
+    pub start: usize,
+    /// Byte offset of the token end in the original text.
+    pub end: usize,
+    /// Surface form of the token.
+    pub text: String,
+    /// Whether the token is a stopword per the tokenizer's configured
+    /// stopword set. Always `false` when no stopword set is configured.
+    pub is_stop: bool,
 }

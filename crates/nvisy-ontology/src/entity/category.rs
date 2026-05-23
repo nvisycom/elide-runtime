@@ -58,4 +58,9 @@ pub enum EntityCategory {
     /// Organizational identifiers: company names, departments,
     /// facilities, and institutional reference numbers.
     Organizational,
+    /// Fallback bucket for entities a recognizer flagged as sensitive
+    /// but could not place into a more specific category. Use sparingly
+    /// — every recognizer should prefer a precise category when one
+    /// exists.
+    Unresolved,
 }

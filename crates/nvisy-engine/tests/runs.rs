@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 #[tokio::test]
 async fn dry_run_returns_without_exporting() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "dry run test").await;
 
@@ -26,7 +26,7 @@ async fn dry_run_returns_without_exporting() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn successful_run_has_succeeded_status() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "run test").await;
 
@@ -41,7 +41,7 @@ async fn successful_run_has_succeeded_status() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn successful_run_appears_in_listing() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "listing test").await;
 
@@ -56,7 +56,7 @@ async fn successful_run_appears_in_listing() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn filter_runs_by_status() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "filter test").await;
 
@@ -88,7 +88,7 @@ async fn filter_runs_by_status() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn analytics_reflects_successful_run() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "analytics test").await;
 
@@ -105,7 +105,7 @@ async fn analytics_reflects_successful_run() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn list_runs_empty() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
 
     let runs = engine.list_runs(actor, RunFilter { status: None }).await;
@@ -115,7 +115,7 @@ async fn list_runs_empty() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn get_nonexistent_run_returns_none() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
 
     let run = engine.get_run(actor, Uuid::new_v4()).await;
@@ -125,7 +125,7 @@ async fn get_nonexistent_run_returns_none() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn delete_nonexistent_run_returns_error() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
 
     let result = engine.delete_run(actor, Uuid::new_v4()).await;
@@ -135,7 +135,7 @@ async fn delete_nonexistent_run_returns_error() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn cancel_nonexistent_run_returns_error() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
 
     let result = engine.cancel_run(actor, Uuid::new_v4()).await;
@@ -145,7 +145,7 @@ async fn cancel_nonexistent_run_returns_error() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn analytics_empty_engine() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
 
     let snap = engine.snapshot().await;
     assert_eq!(snap.current_runs, 0);
@@ -159,7 +159,7 @@ async fn analytics_empty_engine() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn failed_run_appears_in_listing() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
 
     // A non-existent content ID fails at import, creating a Failed run entry.
@@ -176,7 +176,7 @@ async fn failed_run_appears_in_listing() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn failed_run_can_be_deleted() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
 
     let input = fixtures::failing_input(actor);
@@ -193,7 +193,7 @@ async fn failed_run_can_be_deleted() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn delete_all_runs_clears_finished() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
 
     for _ in 0..2 {
@@ -213,7 +213,7 @@ async fn delete_all_runs_clears_finished() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn runs_isolated_between_actors() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor_a = fixtures::actor();
     let actor_b = fixtures::other_actor();
 
@@ -228,7 +228,7 @@ async fn runs_isolated_between_actors() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn analytics_reflects_failed_run() -> anyhow::Result<()> {
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
 
     let _ = engine.run(fixtures::failing_input(actor)).await;
@@ -243,7 +243,7 @@ async fn analytics_reflects_failed_run() -> anyhow::Result<()> {
 async fn detection_kinds_with_unconfigured_recognizer_fails_validation() -> anyhow::Result<()> {
     use nvisy_engine::detection::{Detection, RecognizerKind};
 
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "test").await;
 
@@ -268,7 +268,7 @@ async fn detection_kinds_with_unconfigured_recognizer_fails_validation() -> anyh
 async fn empty_extraction_succeeds() -> anyhow::Result<()> {
     // Default Extraction config (no per-modality flags) is valid;
     // text content needs no extractor so the phase is a no-op.
-    let (engine, _dir) = fixtures::engine();
+    let (engine, _dir) = fixtures::engine().await;
     let actor = fixtures::actor();
     let content_id = fixtures::upload_text(&engine, actor, "no extraction needed").await;
 

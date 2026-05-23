@@ -102,6 +102,9 @@ regex = { version = "1.0", features = [] }
 aho-corasick = { version = "1.0", features = [] }
 smallvec = { version = "1.13", features = [] }
 
+# Graph data structures
+petgraph = { version = "0.8", features = [] }
+
 # NLP / NER
 ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "load-dynamic", "api-24"] }
 ndarray = { version = "0.17", features = [] }
@@ -110,9 +113,8 @@ lingua = { version = "1.8", default-features = false, features = ["english"] }
 stop-words = { version = "0.10", features = ["iso"] }
 unicode-segmentation = { version = "1.13", features = [] }
 unicode-normalization = { version = "0.1", features = [] }
-
-# Graph data structures
-petgraph = { version = "0.8", features = [] }
+hf-hub = { version = "0.5", default-features = false, features = ["tokio", "rustls-tls"] }
+dirs = { version = "6.0", features = [] }
 
 # PDF processing (parsing, text extraction, page-to-image rendering)
 lopdf = { version = "0.40", features = [] }

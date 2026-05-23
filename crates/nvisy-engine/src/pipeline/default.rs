@@ -141,12 +141,14 @@ impl Engine {
     ///
     /// Constructs the registry and run state. HTTP clients are now
     /// the responsibility of individual extraction ops, which build
-    /// them per-call from `RuntimeConfig`.
+    /// them per-call from `RuntimeConfig`. Async because the
+    /// recognizer registry may need to download model artifacts
+    /// (e.g. for `NlpPreset::Manifest`) on first use.
     ///
     /// # Errors
     ///
     /// Returns an error if the registry database cannot be opened.
-    pub fn open(data_dir: impl AsRef<Path>, config: RuntimeConfig) -> Result<Self, Error> {
+    pub async fn open(data_dir: impl AsRef<Path>, config: RuntimeConfig) -> Result<Self, Error> {
         let registry = Registry::open(data_dir.as_ref())?;
         let extractors = Arc::new(
             config
@@ -156,14 +158,10 @@ impl Engine {
                 .transpose()?
                 .unwrap_or_default(),
         );
-        let recognizers = Arc::new(
-            config
-                .detection
-                .as_ref()
-                .map(Recognizers::from_config)
-                .transpose()?
-                .unwrap_or_default(),
-        );
+        let recognizers = Arc::new(match config.detection.as_ref() {
+            Some(section) => Recognizers::from_config(section).await?,
+            None => Recognizers::default(),
+        });
         let redaction_defaults = Arc::new(config.redaction.clone().unwrap_or_default());
 
         Ok(Self {
@@ -193,9 +191,10 @@ impl Engine {
     /// [`tempfile`]: https://docs.rs/tempfile
     /// [`TempDir`]: tempfile::TempDir
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn temp() -> (Self, tempfile::TempDir) {
+    pub async fn temp() -> (Self, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("failed to create temp directory");
         let engine = Self::open(dir.path(), RuntimeConfig::default())
+            .await
             .expect("failed to open engine in temp directory");
         (engine, dir)
     }

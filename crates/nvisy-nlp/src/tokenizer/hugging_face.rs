@@ -15,7 +15,7 @@ use nvisy_ontology::primitive::LanguageTag;
 use tokenizers::Tokenizer as InnerTokenizer;
 
 use super::{Tokenizer, is_stopword_language_supported};
-use crate::artifacts::Token;
+use crate::engine::Token;
 use crate::error::{Error, Result};
 
 /// A [`Tokenizer`] backed by a HuggingFace `tokenizer.json` file.

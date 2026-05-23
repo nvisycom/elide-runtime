@@ -1,13 +1,16 @@
 //! Specialized LLM agents, grouped by modality.
 //!
-//! Each modality (CV, NER) bundles its detect-style and
-//! verify-style agents under a shared parent — they share data
-//! shapes ([`cv::CvEntity`], [`ner::NerCandidate`])
-//! and are meant to be used together by orchestrating pipelines.
+//! Each modality (CV, NER) bundles its detect-style and verify-style
+//! agents under a shared parent — they share data shapes
+//! ([`CvEntity`], [`NerCandidate`]) and are meant to be used together
+//! by orchestrating pipelines.
 //!
 //! Cross-cutting infrastructure ([`AgentConfig`], [`AgentProvider`],
-//! [`DetectionConfig`], [`UsageStats`]) is re-exported at this
-//! level since every agent consumes it.
+//! [`DetectionConfig`], [`UsageStats`]) is re-exported at this level
+//! since every agent consumes it.
+//!
+//! [`CvEntity`]: cv::CvEntity
+//! [`NerCandidate`]: ner::NerCandidate
 
 pub mod cv;
 pub mod generate;

@@ -41,14 +41,14 @@ use crate::error::Result;
 /// backends (notably [`GlinerBackend`]) materialise the exact label
 /// set the caller is asking about. Backends with a fixed label vector
 /// ([`OrtNerBackend`], [`NoopNerBackend`]) ignore it — the
-/// [`Engine`] still post-filters their output against the same
+/// [`NlpEngine`] still post-filters their output against the same
 /// allowlist, so passing it here is purely an optimisation hint.
 ///
 /// [`GlinerBackend`]: GlinerBackend
 /// [`OrtNerBackend`]: OrtNerBackend
 /// [`NoopNerBackend`]: NoopNerBackend
 /// [`Error::UnsupportedLanguage`]: crate::Error::UnsupportedLanguage
-/// [`Engine`]: crate::Engine
+/// [`NlpEngine`]: crate::NlpEngine
 #[async_trait]
 pub trait NerBackend: Send + Sync {
     /// Recognize entities in `text`.

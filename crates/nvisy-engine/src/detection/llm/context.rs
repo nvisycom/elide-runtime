@@ -1,4 +1,6 @@
-//! [`LlmContext`]: per-call input to [`super::LlmRecognizer`].
+//! [`LlmContext`]: per-call input to [`LlmRecognizer`].
+//!
+//! [`LlmRecognizer`]: super::LlmRecognizer
 
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
@@ -6,7 +8,9 @@ use uuid::Uuid;
 
 use crate::detection::DetectionContext;
 
-/// Per-call input to [`super::LlmRecognizer`].
+/// Per-call input to [`LlmRecognizer`].
+///
+/// [`LlmRecognizer`]: super::LlmRecognizer
 #[derive(Debug, Clone)]
 pub struct LlmContext {
     /// The text to analyze.

@@ -6,8 +6,10 @@ use serde::{Deserialize, Serialize};
 
 /// A time-of-day or time range reference for temporal matching.
 ///
-/// Uses naive (timezone-unaware) times from [`jiff::civil::Time`].
+/// Uses naive (timezone-unaware) times from [`Time`].
 /// Useful for matching recurring time patterns (e.g. business hours).
+///
+/// [`Time`]: jiff::civil::Time
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TimeData {

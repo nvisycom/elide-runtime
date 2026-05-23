@@ -45,7 +45,7 @@ const TARGET: &str = "nvisy_engine::detection";
 /// against a shared [`DetectionContext`], returning every detected
 /// entity combined into a single [`Entities`] collection.
 ///
-/// Parallelism uses [`tokio::task::JoinSet`]: each recognizer runs
+/// Parallelism uses [`JoinSet`]: each recognizer runs
 /// on its own task so CPU-bound work (ONNX inference inside the NER
 /// backend) and I/O-bound work (LLM HTTP calls inside the LLM
 /// backend) overlap. The context is wrapped in an [`Arc`] once and
@@ -64,6 +64,7 @@ const TARGET: &str = "nvisy_engine::detection";
 /// attached; calling [`build`] without one returns a
 /// `Misconfigured` error.
 ///
+/// [`JoinSet`]: tokio::task::JoinSet
 /// [`TextData`]: nvisy_codec::handler::TextData
 /// [`builder`]: Self::builder
 /// [`build`]: DetectionEngineBuilder::build
@@ -145,7 +146,7 @@ impl DetectionEngine {
     /// Run every attached recognizer against `ctx` in parallel and
     /// return the combined entity set.
     ///
-    /// Each recognizer runs on its own [`tokio::task::JoinSet`]
+    /// Each recognizer runs on its own [`JoinSet`]
     /// task. The first error aborts the remaining in-flight tasks
     /// and is returned to the caller (fail-fast). On success the
     /// outputs are merged in completion order — recognizer
@@ -154,6 +155,8 @@ impl DetectionEngine {
     /// Recognizer offsets are context-local. The caller (typically
     /// `nvisy-engine`'s `Detection` operation) rebases them onto
     /// document coordinates after this returns.
+    ///
+    /// [`JoinSet`]: tokio::task::JoinSet
     pub async fn run(&self, ctx: DetectionContext) -> Result<Entities> {
         use tracing::Instrument;
 

@@ -3,19 +3,19 @@
 //!
 //! Two layers:
 //!
-//! - **`LanguagePolicy`** (public) is the abstraction the [`Engine`]
-//!   plugs into. A policy is a factory: per call it builds a fresh
-//!   detector restricted to a caller-supplied language set (or to
-//!   every language the policy can produce when the caller has no
+//! - **`LanguagePolicy`** is the abstraction the [`NlpEngine`] plugs
+//!   into. A policy is a factory: per call it builds a fresh detector
+//!   restricted to a caller-supplied language set (or to every
+//!   language the policy can produce when the caller has no
 //!   preference).
-//! - **`LanguageDetector`** (crate-private) is what a policy
-//!   produces. It exposes a single `detect` method. Language scope
-//!   is baked into the detector at construction time — the engine
-//!   never asks a detector to re-narrow.
+//! - **`LanguageDetector`** is what a policy produces. It exposes a
+//!   single `detect` method. Language scope is baked into the detector
+//!   at construction time — the engine never asks a detector to
+//!   re-narrow.
 //!
 //! Built-in: [`LinguaLanguagePolicy`] wraps the [`lingua`] crate.
 //!
-//! [`Engine`]: crate::engine::Engine
+//! [`NlpEngine`]: crate::engine::NlpEngine
 //! [`lingua`]: https://crates.io/crates/lingua
 
 mod detection;
@@ -34,14 +34,13 @@ use crate::error::Result;
 ///
 /// Implementations bake their language scope in at construction
 /// time — the engine never asks a detector to re-narrow. To detect
-/// against a different language set, the engine asks the
-/// [`LanguagePolicy`] for a fresh detector via
-/// [`LanguagePolicy::detector_for`] /
+/// against a different language set, ask the [`LanguagePolicy`] for
+/// a fresh detector via [`LanguagePolicy::detector_for`] or
 /// [`LanguagePolicy::detector_for_all`].
 ///
-/// Crate-private: external code interacts with policies, not the
-/// detectors they produce.
-pub(crate) trait LanguageDetector: Send + Sync {
+/// Third-party policies need this trait public so their `Detector`
+/// associated type can satisfy the bound on [`LanguagePolicy`].
+pub trait LanguageDetector: Send + Sync {
     /// Detect languages in `text`.
     ///
     /// Single-language detectors return a one-element vec; backends
@@ -70,12 +69,7 @@ pub trait LanguagePolicy: Send + Sync {
     /// Concrete detector type this policy produces. Surfaced as an
     /// associated type so impls advertise their detector kind and
     /// callers that go through the policy directly (rather than via
-    /// the engine) get a typed handle. The bound on the
-    /// crate-private `LanguageDetector` trait is intentional —
-    /// external code can name the detector type but cannot call
-    /// methods on it directly; routing through the policy / engine
-    /// is the only supported path.
-    #[allow(private_bounds)]
+    /// the engine) get a typed handle.
     type Detector: LanguageDetector + 'static;
 
     /// Build a detector that considers every language the policy

@@ -1,4 +1,6 @@
-//! [`NlpContext`]: per-call input to [`super::NlpRecognizer`].
+//! [`NlpContext`]: per-call input to [`NlpRecognizer`].
+//!
+//! [`NlpRecognizer`]: super::NlpRecognizer
 
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
@@ -7,7 +9,9 @@ use uuid::Uuid;
 
 use crate::detection::DetectionContext;
 
-/// Per-call input to [`super::NlpRecognizer`].
+/// Per-call input to [`NlpRecognizer`].
+///
+/// [`NlpRecognizer`]: super::NlpRecognizer
 #[derive(Debug, Clone)]
 pub struct NlpContext {
     /// The text to analyze.

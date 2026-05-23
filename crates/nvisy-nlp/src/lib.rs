@@ -11,13 +11,13 @@ pub mod preset;
 pub mod tokenizer;
 
 pub use self::engine::{
-    Artifacts, Context, ContextBuilder, ContextBuilderError, Engine, EngineBuilder,
-    EngineBuilderError, Token,
+    Artifacts, Context, ContextBuilder, ContextBuilderError, NlpEngine, NlpEngineBuilder,
+    NlpEngineBuilderError,
 };
 pub use self::error::{Error, Result};
 pub use self::language::{
-    LanguageDetection, LanguagePolicy, LanguageProvenance, LanguageSpan, LinguaLanguageDetector,
-    LinguaLanguagePolicy,
+    LanguageDetection, LanguageDetector, LanguagePolicy, LanguageProvenance, LanguageSpan,
+    LinguaLanguageDetector, LinguaLanguagePolicy,
 };
 #[cfg(feature = "gliner")]
 #[cfg_attr(docsrs, doc(cfg(feature = "gliner")))]
@@ -30,4 +30,4 @@ pub use self::preset::{BackendConfig, LabelMapEntry, NlpPreset, PresetManifest};
 #[cfg(feature = "onnx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
 pub use self::tokenizer::HfTokenizer;
-pub use self::tokenizer::{Tokenizer, UnicodeTokenizer};
+pub use self::tokenizer::{Token, Tokenizer, UnicodeTokenizer};

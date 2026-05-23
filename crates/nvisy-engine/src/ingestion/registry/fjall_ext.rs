@@ -2,7 +2,9 @@
 //!
 //! [`FjallKeyspaceExt`] and [`FjallDatabaseExt`] wrap raw fjall
 //! operations with [`CompositeKey`] support and consistent error
-//! mapping to [`nvisy_core::Error`].
+//! mapping to [`Error`].
+//!
+//! [`Error`]: nvisy_core::Error
 
 use std::error;
 use std::path::Path;
@@ -18,7 +20,9 @@ const COMPONENT: &str = "registry";
 /// Extension trait for fjall [`Keyspace`] with consistent error mapping.
 ///
 /// Wraps raw fjall operations to accept [`CompositeKey`] and return
-/// [`nvisy_core::Result`] with standardized error context.
+/// [`Result`] with standardized error context.
+///
+/// [`Result`]: nvisy_core::Result
 pub(crate) trait FjallKeyspaceExt {
     /// Insert a value at the given composite key.
     fn put(&self, key: CompositeKey, value: &[u8]) -> Result<()>;
@@ -82,7 +86,9 @@ impl FjallKeyspaceExt for Keyspace {
 /// Extension trait for fjall [`Database`] with consistent error mapping.
 ///
 /// Provides ergonomic database and keyspace creation methods that
-/// map fjall errors to [`nvisy_core::Error`].
+/// map fjall errors to [`Error`].
+///
+/// [`Error`]: nvisy_core::Error
 pub(crate) trait FjallDatabaseExt {
     /// Open (or create) a database at the given path.
     fn open_at(path: &Path) -> Result<Database>;

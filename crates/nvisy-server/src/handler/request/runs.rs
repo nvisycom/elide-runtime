@@ -63,8 +63,10 @@ pub struct NewRun {
 }
 
 impl NewRun {
-    /// Convert the request into an [`nvisy_engine::pipeline::EngineInput`]
+    /// Convert the request into an [`EngineInput`]
     /// for the given actor.
+    ///
+    /// [`EngineInput`]: nvisy_engine::pipeline::EngineInput
     #[must_use]
     pub fn into_engine_input(self, actor_id: Uuid) -> nvisy_engine::pipeline::EngineInput {
         nvisy_engine::pipeline::EngineInput {

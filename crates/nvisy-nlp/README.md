@@ -12,14 +12,14 @@ The crate hosts the trait surface (`NerBackend`, `LanguagePolicy`,
 `OrtNerBackend` (feature `onnx`), zero-shot NER via `GlinerBackend`
 (feature `gliner`), language detection via `LinguaLanguageDetector`,
 and tokenization via `HfTokenizer` (feature `onnx`) and
-`UnicodeTokenizer`. `Engine` composes one of each into an analysis
+`UnicodeTokenizer`. `NlpEngine` composes one of each into an analysis
 pipeline; LLM-mediated NER lives in `nvisy-agent` instead, by
 deliberate crate split — a third-party backend can implement
 `NerBackend` over any transport (local model, HTTP, gRPC) and plug
 in here.
 
 ```rust,ignore
-use nvisy_nlp::{Context, Engine, LinguaLanguagePolicy, OrtNerBackend, OrtNerConfig};
+use nvisy_nlp::{Context, NlpEngine, LinguaLanguagePolicy, OrtNerBackend, OrtNerConfig};
 
 let ner = OrtNerBackend::new(OrtNerConfig {
     model_path: "models/bert-base-NER.onnx".into(),
@@ -29,7 +29,7 @@ let ner = OrtNerBackend::new(OrtNerConfig {
     model_name: "dslim/bert-base-NER".into(),
 })?;
 
-let engine = Engine::builder()
+let engine = NlpEngine::builder()
     .with_ner(ner)
     .with_language_policy(LinguaLanguagePolicy)
     .build()?;

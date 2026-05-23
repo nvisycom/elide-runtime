@@ -1,5 +1,5 @@
 //! Compose a [`PresetManifest`] + resolved artifact paths into an
-//! [`Engine`].
+//! [`NlpEngine`].
 //!
 //! Pure composition: this module assumes the artifacts have already
 //! been downloaded (or supplied) and verified. It validates the
@@ -10,17 +10,17 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use nvisy_ontology::primitive::LanguageTag;
 
 use super::manifest::{BackendConfig, LabelMapEntry, PresetManifest};
-use crate::Engine;
+use crate::NlpEngine;
 use crate::error::{Error, Result};
 #[cfg(any(feature = "onnx", feature = "gliner"))]
 use crate::language::LinguaLanguagePolicy;
 
-/// Build an [`Engine`] from `manifest` plus resolved artifact paths.
+/// Build an [`NlpEngine`] from `manifest` plus resolved artifact
+/// paths.
 ///
 /// Dispatches on the manifest's [`BackendConfig`] to the matching
 /// backend crate feature. Returns [`Error::Backend`] when the
@@ -31,7 +31,7 @@ pub(super) fn build_engine(
     manifest: PresetManifest,
     model_path: PathBuf,
     tokenizer_path: PathBuf,
-) -> Result<Arc<Engine>> {
+) -> Result<NlpEngine> {
     manifest.validate_label_map()?;
     let languages = manifest.parsed_languages();
     match manifest.backend {
@@ -88,7 +88,7 @@ fn build_onnx_bert(
     max_sequence_length: usize,
     model_path: PathBuf,
     tokenizer_path: PathBuf,
-) -> Result<Arc<Engine>> {
+) -> Result<NlpEngine> {
     use crate::ner::{OrtNerBackend, OrtNerConfig};
 
     let cfg = OrtNerConfig {
@@ -106,11 +106,10 @@ fn build_onnx_bert(
     if !languages.is_empty() {
         backend = backend.with_supported_languages(languages);
     }
-    Engine::builder()
+    NlpEngine::builder()
         .with_ner_backend(backend)
         .with_language_policy(LinguaLanguagePolicy)
         .build()
-        .map(Arc::new)
         .map_err(|e| Error::Backend(e.to_string()))
 }
 
@@ -123,7 +122,7 @@ fn build_onnx_bert(
     _max_sequence_length: usize,
     _model_path: PathBuf,
     _tokenizer_path: PathBuf,
-) -> Result<Arc<Engine>> {
+) -> Result<NlpEngine> {
     Err(Error::Backend(
         "preset manifest targets the `onnx-bert` backend but `nvisy-nlp` \
          was built without the `onnx` feature"
@@ -139,7 +138,7 @@ fn build_gliner(
     mode: GlinerMode,
     model_path: PathBuf,
     tokenizer_path: PathBuf,
-) -> Result<Arc<Engine>> {
+) -> Result<NlpEngine> {
     use crate::ner::{GlinerBackend, GlinerConfig};
 
     let cfg = GlinerConfig {
@@ -156,11 +155,10 @@ fn build_gliner(
     if !languages.is_empty() {
         backend = backend.with_supported_languages(languages);
     }
-    Engine::builder()
+    NlpEngine::builder()
         .with_ner_backend(backend)
         .with_language_policy(LinguaLanguagePolicy)
         .build()
-        .map(Arc::new)
         .map_err(|e| Error::Backend(e.to_string()))
 }
 
@@ -172,7 +170,7 @@ fn build_gliner(
     _mode: GlinerMode,
     _model_path: PathBuf,
     _tokenizer_path: PathBuf,
-) -> Result<Arc<Engine>> {
+) -> Result<NlpEngine> {
     Err(Error::Backend(
         "preset manifest targets a GLiNER backend but `nvisy-nlp` was \
          built without the `gliner` feature"

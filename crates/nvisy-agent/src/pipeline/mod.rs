@@ -16,8 +16,9 @@
 //! own `run` / `classify` / `verify` methods plus `reset()` for
 //! per-document state clearing and `usage()` for cumulative token
 //! accounting. Callers that want bare agents instead can construct
-//! them directly from [`crate::agent`].
+//! them directly from [`agent`].
 //!
+//! [`agent`]: crate::agent
 //! [`NerAgent`]: crate::agent::ner::NerAgent
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 //! [`CvAgent`]: crate::agent::cv::CvAgent

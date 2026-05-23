@@ -1,6 +1,6 @@
-//! [`Engine`] — composes a [`NerBackend`] and a [`LanguagePolicy`]
+//! [`NlpEngine`] — composes a [`NerBackend`] and a [`LanguagePolicy`]
 //! (both required) with an optional [`Tokenizer`] into a single
-//! entrypoint, plus the [`EngineBuilder`] that constructs it.
+//! entrypoint, plus the [`NlpEngineBuilder`] that constructs it.
 //!
 //! [`NerBackend`]: crate::ner::NerBackend
 //! [`LanguagePolicy`]: crate::language::LanguagePolicy
@@ -14,12 +14,12 @@ use std::sync::Arc;
 
 use derive_builder::Builder;
 
-pub use self::artifacts::{Artifacts, Token};
+pub use self::artifacts::Artifacts;
 pub use self::context::{Context, ContextBuilder, ContextBuilderError};
 use crate::error::Result;
 use crate::language::{DynLanguagePolicy, LanguageDetection, LanguagePolicy, LanguageProvenance};
 use crate::ner::NerBackend;
-use crate::tokenizer::Tokenizer;
+use crate::tokenizer::{Token, Tokenizer};
 
 /// Composite NLP engine.
 ///
@@ -34,18 +34,22 @@ use crate::tokenizer::Tokenizer;
 /// candidate languages, allowed entity kinds, score threshold,
 /// correlation id) ride on [`Context`].
 ///
+/// `Clone` is cheap — every field is already an `Arc`, so cloning is
+/// three refcount bumps. Pass the engine by value across tasks and
+/// keep it in `State` containers freely.
+///
 /// [`NerBackend`]: crate::ner::NerBackend
 /// [`LanguagePolicy`]: crate::language::LanguagePolicy
 /// [`Tokenizer`]: crate::tokenizer::Tokenizer
 /// [`analyze`]: Self::analyze
 /// [`builder`]: Self::builder
-#[derive(Builder)]
+#[derive(Clone, Builder)]
 #[builder(
-    name = "EngineBuilder",
+    name = "NlpEngineBuilder",
     pattern = "owned",
-    build_fn(error = "EngineBuilderError")
+    build_fn(error = "NlpEngineBuilderError")
 )]
-pub struct Engine {
+pub struct NlpEngine {
     #[builder(setter(custom))]
     pub(super) ner: Arc<dyn NerBackend>,
     #[builder(setter(custom))]
@@ -54,7 +58,7 @@ pub struct Engine {
     pub(super) tokenizer: Option<Arc<dyn Tokenizer>>,
 }
 
-impl EngineBuilder {
+impl NlpEngineBuilder {
     /// Attach the NER backend. Required.
     pub fn with_ner_backend<B>(mut self, backend: B) -> Self
     where
@@ -70,7 +74,7 @@ impl EngineBuilder {
     /// [`analyze`] call, restricted to whatever language scope the
     /// caller supplied via [`Context::candidate_languages`].
     ///
-    /// [`analyze`]: Engine::analyze
+    /// [`analyze`]: NlpEngine::analyze
     pub fn with_language_policy<P>(mut self, policy: P) -> Self
     where
         P: LanguagePolicy + 'static,
@@ -89,13 +93,13 @@ impl EngineBuilder {
     }
 }
 
-/// Error returned by [`EngineBuilder::build`] when a required
+/// Error returned by [`NlpEngineBuilder::build`] when a required
 /// component (NER backend or language policy) is missing.
 #[derive(Debug, thiserror::Error)]
-#[error("Engine build failed: {0}")]
-pub struct EngineBuilderError(String);
+#[error("NlpEngine build failed: {0}")]
+pub struct NlpEngineBuilderError(String);
 
-impl From<derive_builder::UninitializedFieldError> for EngineBuilderError {
+impl From<derive_builder::UninitializedFieldError> for NlpEngineBuilderError {
     fn from(err: derive_builder::UninitializedFieldError) -> Self {
         let field = err.field_name();
         // Rename the storage field `language` back to what the
@@ -108,10 +112,10 @@ impl From<derive_builder::UninitializedFieldError> for EngineBuilderError {
     }
 }
 
-impl Engine {
+impl NlpEngine {
     /// Start building an engine.
-    pub fn builder() -> EngineBuilder {
-        EngineBuilder::default()
+    pub fn builder() -> NlpEngineBuilder {
+        NlpEngineBuilder::default()
     }
 
     /// Run all configured components against `context`.
@@ -149,11 +153,10 @@ impl Engine {
                 None => None,
             };
             let keywords = tokens.as_deref().map(derive_keywords);
-            let language = detections.into_iter().next().map(|d| d.language);
 
             Ok(Artifacts {
                 entities,
-                language,
+                languages: detections,
                 tokens,
                 keywords,
             })
@@ -179,9 +182,9 @@ impl Engine {
     }
 }
 
-impl std::fmt::Debug for Engine {
+impl std::fmt::Debug for NlpEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Engine")
+        f.debug_struct("NlpEngine")
             .field("tokenizer", &self.tokenizer.is_some())
             .finish_non_exhaustive()
     }
@@ -232,8 +235,8 @@ mod tests {
             .test_build()
     }
 
-    fn english_engine() -> Engine {
-        Engine::builder()
+    fn english_engine() -> NlpEngine {
+        NlpEngine::builder()
             .with_ner_backend(NoopNerBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
@@ -248,7 +251,7 @@ mod tests {
             .await
             .unwrap();
         assert!(out.entities.is_empty());
-        assert_eq!(out.language.unwrap().primary_language(), "en");
+        assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
         assert!(out.tokens.is_none());
         assert!(out.keywords.is_none());
     }
@@ -264,14 +267,14 @@ mod tests {
             .unwrap();
         let out = engine.analyze(req).await.unwrap();
         // Caller-asserted German wins over detected English.
-        assert_eq!(out.language.unwrap().primary_language(), "de");
+        assert_eq!(out.dominant_language().unwrap().primary_language(), "de");
     }
 
     #[tokio::test]
     async fn str_into_context_works() {
         let engine = english_engine();
         let out = engine.analyze("The quick brown fox").await.unwrap();
-        assert_eq!(out.language.unwrap().primary_language(), "en");
+        assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
     }
 
     #[tokio::test]
@@ -284,7 +287,7 @@ mod tests {
             .build()
             .unwrap();
         let out = engine.analyze(ctx).await.unwrap();
-        assert_eq!(out.language.unwrap().primary_language(), "en");
+        assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
     }
 
     #[test]
@@ -298,7 +301,7 @@ mod tests {
 
     #[test]
     fn engine_builder_errors_when_ner_missing() {
-        let err = Engine::builder()
+        let err = NlpEngine::builder()
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap_err();
@@ -310,7 +313,7 @@ mod tests {
 
     #[test]
     fn engine_builder_errors_when_language_policy_missing() {
-        let err = Engine::builder()
+        let err = NlpEngine::builder()
             .with_ner_backend(NoopNerBackend)
             .build()
             .unwrap_err();
@@ -326,7 +329,7 @@ mod tests {
             canned(EntityKind::PersonName, 0.9),
             canned(EntityKind::EmailAddress, 0.9),
         ]));
-        let engine = Engine::builder()
+        let engine = NlpEngine::builder()
             .with_ner_backend(canned)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
@@ -348,7 +351,7 @@ mod tests {
             canned(EntityKind::PersonName, 0.95),
             canned(EntityKind::PersonName, 0.40),
         ]));
-        let engine = Engine::builder()
+        let engine = NlpEngine::builder()
             .with_ner_backend(canned)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
@@ -371,7 +374,7 @@ mod tests {
         // only language enabled via the workspace's `english`
         // lingua feature, so an English candidate set on English
         // text resolves to English.
-        let engine = Engine::builder()
+        let engine = NlpEngine::builder()
             .with_ner_backend(NoopNerBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
@@ -384,7 +387,7 @@ mod tests {
             .build()
             .unwrap();
         let out = engine.analyze(req).await.unwrap();
-        assert_eq!(out.language.unwrap().primary_language(), "en");
+        assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
     }
 
     #[tokio::test]
@@ -394,7 +397,7 @@ mod tests {
         // and a German-only candidate list, the policy falls back
         // to detector_for_all (which still considers only English),
         // so English text still detects as English.
-        let engine = Engine::builder()
+        let engine = NlpEngine::builder()
             .with_ner_backend(NoopNerBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
@@ -407,14 +410,14 @@ mod tests {
             .build()
             .unwrap();
         let out = engine.analyze(req).await.unwrap();
-        assert_eq!(out.language.unwrap().primary_language(), "en");
+        assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
     }
 
     #[tokio::test]
     async fn analyze_with_tokenizer_produces_tokens_and_keywords() {
         let lang: LanguageTag = "en".parse().unwrap();
         let tok = UnicodeTokenizer::with_language(&lang).unwrap();
-        let engine = Engine::builder()
+        let engine = NlpEngine::builder()
             .with_ner_backend(NoopNerBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .with_tokenizer(tok)

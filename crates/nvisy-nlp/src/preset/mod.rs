@@ -13,22 +13,12 @@
 //!   `crates/nvisy-nlp/presets/dslim-bert-base-NER.json`.
 //!
 //! Model downloads require the `hf` feature, which activates the
-//! shared [`nvisy_core::hf`] module. Without it,
-//! [`NlpPreset::Manifest`] still works as long as both `model_path`
-//! and `tokenizer_path` overrides are supplied.
+//! shared [`hf`] module. Without it, [`NlpPreset::Manifest`] still
+//! works as long as both `model_path` and `tokenizer_path` overrides
+//! are supplied.
 //!
-//! # Submodule layout
-//!
-//! - [`manifest`]: the JSON shape — pure data, no I/O beyond reading
-//!   the file itself.
-//! - [`verify`]: filesystem readability check for override paths.
-//!   SHA-256 verification of artifacts is delegated to
-//!   [`nvisy_core::hf::FetchRequest::verify_artifact`].
-//! - [`builder`]: compose a verified `(manifest, paths)` into an
-//!   [`Engine`].
-//!
-//! This module orchestrates them; it contains no business logic of
-//! its own.
+//! SHA-256 verification of downloaded or supplied artifacts is
+//! delegated to [`FetchRequest::verify_artifact`].
 //!
 //! # Override pattern for air-gapped deployments
 //!
@@ -46,18 +36,20 @@
 //!     tokenizer_path: Some(PathBuf::from("/srv/models/dslim/tokenizer.json")),
 //! };
 //! ```
+//!
+//! [`hf`]: nvisy_core::hf
+//! [`FetchRequest::verify_artifact`]: nvisy_core::hf::FetchRequest::verify_artifact
 
 mod builder;
 mod manifest;
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub use self::manifest::{BackendConfig, LabelMapEntry, PresetManifest};
-use crate::Engine;
+use crate::NlpEngine;
 use crate::error::{Error, Result};
 use crate::language::LinguaLanguagePolicy;
 use crate::ner::NoopNerBackend;
@@ -65,7 +57,7 @@ use crate::ner::NoopNerBackend;
 /// Prebuilt NLP-engine preset.
 ///
 /// Picked from workflow config; the recognizer layer calls [`build`]
-/// to materialise the corresponding [`Engine`].
+/// to materialise the corresponding [`NlpEngine`].
 ///
 /// [`build`]: Self::build
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
@@ -103,14 +95,15 @@ pub enum NlpPreset {
 }
 
 impl NlpPreset {
-    /// Construct the [`Engine`] this preset selects.
-    pub async fn build(&self) -> Result<Arc<Engine>> {
+    /// Construct the [`NlpEngine`] this preset selects. The returned
+    /// engine is cheap to [`Clone`] (three refcount bumps); callers
+    /// don't need to wrap it in `Arc` themselves.
+    pub async fn build(&self) -> Result<NlpEngine> {
         match self {
-            Self::Default => Engine::builder()
+            Self::Default => NlpEngine::builder()
                 .with_ner_backend(NoopNerBackend)
                 .with_language_policy(LinguaLanguagePolicy)
                 .build()
-                .map(Arc::new)
                 .map_err(|e| Error::Backend(e.to_string())),
 
             Self::Manifest {
@@ -217,9 +210,11 @@ fn verify_supplied_hashes(
     Ok(())
 }
 
-/// Download both artifacts via a fresh
-/// [`nvisy_core::hf::Downloader`]. Progress is reported automatically
-/// as `tracing::info` events under the `nvisy_core::hf` target.
+/// Download both artifacts via a fresh [`Downloader`]. Progress is
+/// reported automatically as `tracing::info` events under the
+/// `nvisy_core::hf` target.
+///
+/// [`Downloader`]: nvisy_core::hf::Downloader
 #[cfg(feature = "hf")]
 async fn fetch_both(manifest: &PresetManifest) -> Result<(PathBuf, PathBuf)> {
     use nvisy_core::hf::{Downloader, FetchRequest};

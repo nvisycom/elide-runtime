@@ -14,8 +14,7 @@ use std::collections::HashSet;
 use nvisy_ontology::primitive::LanguageTag;
 use unicode_segmentation::UnicodeSegmentation;
 
-use super::{Tokenizer, is_stopword_language_supported};
-use crate::engine::Token;
+use super::{Token, Tokenizer, is_stopword_language_supported};
 use crate::error::Result;
 
 /// Unicode-segmentation tokenizer.

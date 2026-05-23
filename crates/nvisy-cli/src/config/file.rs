@@ -1,21 +1,12 @@
 //! TOML configuration file types.
 //!
 //! Every struct in this module maps 1:1 to a section in `Nvisy.toml` and
-//! exists solely for [`serde::Deserialize`]. CLI flags and fully-resolved
-//! types live in [`super::server`] and [`super::middleware`].
+//! exists solely for [`Deserialize`]. CLI flags and fully-resolved
+//! types live in [`server`] and [`middleware`].
 //!
-//! # File layout
-//!
-//! ```toml
-//! [server]                        # → ServerSection
-//! [server.observability]          # → ObservabilitySection
-//! [server.middleware]             # → MiddlewareSection
-//! [server.middleware.cors]        # → CorsConfig
-//!
-//! [engine]                        # ┐
-//! [engine.http]                   # │
-//! [ocr] / [llm] / [stt] / [tts]  # ┘ → RuntimeConfig (flattened)
-//! ```
+//! [`Deserialize`]: serde::Deserialize
+//! [`server`]: super::server
+//! [`middleware`]: super::middleware
 
 use std::fs;
 use std::net::IpAddr;
@@ -38,9 +29,11 @@ pub enum LogFormat {
 
 /// `[server.observability]` — logging level and format.
 ///
-/// The `level` field accepts any valid [`tracing_subscriber::EnvFilter`]
-/// directive (e.g. `"info"`, `"nvisy_server=debug,tower_http=trace"`).
-/// `RUST_LOG` always takes priority when set.
+/// The `level` field accepts any valid [`EnvFilter`] directive (e.g.
+/// `"info"`, `"nvisy_server=debug,tower_http=trace"`). `RUST_LOG`
+/// always takes priority when set.
+///
+/// [`EnvFilter`]: tracing_subscriber::EnvFilter
 #[derive(Debug, Clone, Deserialize)]
 pub struct ObservabilitySection {
     /// Filter directive. Defaults to `"info"`.

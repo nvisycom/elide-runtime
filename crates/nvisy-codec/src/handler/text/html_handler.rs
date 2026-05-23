@@ -5,7 +5,9 @@
 //! document order; offsets are cumulative over the text-node sequence
 //! (not raw HTML bytes). [`Handler::encode`] reconstructs the HTML by
 //! re-parsing the original source into a DOM, applying mutations, and
-//! serializing back with [`scraper::Html::html`].
+//! serializing back with [`Html::html`].
+//!
+//! [`Html::html`]: scraper::Html::html
 
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};

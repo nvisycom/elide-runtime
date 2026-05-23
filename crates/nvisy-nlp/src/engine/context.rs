@@ -1,4 +1,4 @@
-//! [`Context`] — per-call input to [`Engine::analyze`].
+//! [`Context`] — per-call input to [`NlpEngine::analyze`].
 //!
 //! Packages the text to analyze with optional knobs that Presidio's
 //! `AnalyzerEngine.analyze()` accepts per call: an asserted language
@@ -20,20 +20,20 @@
 //!   knobs need to be set. The builder uses `with_*` setters to
 //!   match other builders in this crate.
 //!
-//! [`Engine::analyze`]: super::Engine::analyze
+//! [`NlpEngine::analyze`]: super::NlpEngine::analyze
 
 use derive_builder::Builder;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::primitive::LanguageTag;
 use uuid::Uuid;
 
-/// Per-call input to [`Engine::analyze`].
+/// Per-call input to [`NlpEngine::analyze`].
 ///
 /// Construct via `Context::from(text)` for the bare "analyze this
 /// text" case, or via [`Context::builder`] when several fields need
 /// to be set explicitly.
 ///
-/// [`Engine::analyze`]: super::Engine::analyze
+/// [`NlpEngine::analyze`]: super::NlpEngine::analyze
 #[derive(Debug, Clone, Builder)]
 #[builder(
     name = "ContextBuilder",
@@ -46,9 +46,12 @@ pub struct Context<'a> {
     pub text: &'a str,
 
     /// Caller-asserted language. When `Some`, detection is skipped
-    /// and the asserted value is attached to [`Artifacts::language`].
+    /// and the asserted value becomes the sole entry in
+    /// [`Artifacts::languages`] with provenance
+    /// [`LanguageProvenance::Asserted`].
     ///
-    /// [`Artifacts::language`]: crate::Artifacts::language
+    /// [`Artifacts::languages`]: crate::Artifacts::languages
+    /// [`LanguageProvenance::Asserted`]: crate::language::LanguageProvenance::Asserted
     #[builder(default)]
     pub language: Option<LanguageTag>,
 

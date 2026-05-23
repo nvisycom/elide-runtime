@@ -1,5 +1,5 @@
 //! [`PatternRecognizer`]: regex + dictionary detection over
-//! [`nvisy_pattern::PatternEngine`].
+//! [`PatternEngine`].
 //!
 //! Wraps either the shared `PatternEngine::instance()` singleton
 //! (when default-shaped) or an owned engine built from custom
@@ -10,6 +10,7 @@
 //! [`params`] submodule so the pattern runtime crate stays free of
 //! workflow types.
 //!
+//! [`PatternEngine`]: nvisy_pattern::PatternEngine
 //! [`ScanContext`]: nvisy_pattern::filter::ScanContext
 
 mod context;

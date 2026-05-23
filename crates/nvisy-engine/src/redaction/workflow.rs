@@ -14,10 +14,11 @@ use serde::{Deserialize, Serialize};
 ///
 /// Controls per-workflow knobs for the redaction phase. Unset
 /// fields fall back to `[redactor]` defaults in `Nvisy.toml`
-/// ([`crate::redaction::RedactionDefaults`]); if neither is set,
-/// hard-coded defaults apply (0.5 threshold, no metadata stripping).
+/// ([`RedactionDefaults`]); if neither is set, hard-coded defaults
+/// apply (0.5 threshold, no metadata stripping).
 ///
 /// [`Redaction`]: crate::redaction::Redaction
+/// [`RedactionDefaults`]: crate::redaction::RedactionDefaults
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Redaction {

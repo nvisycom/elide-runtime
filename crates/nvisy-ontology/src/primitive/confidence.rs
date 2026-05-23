@@ -8,8 +8,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 /// Construct with [`Confidence::new`]; the constructor returns
 /// [`None`] for values outside the valid range or non-finite floats
 /// (`NaN`, `±∞`). Read the inner score with [`Confidence::get`].
-/// The API mirrors [`std::num::NonZero::new`] /
-/// [`std::num::NonZero::get`].
+/// The API mirrors [`NonZero::new`] / [`NonZero::get`].
 ///
 /// `Confidence` is `Copy` and cheap to pass by value. Operations
 /// that combine confidences (averaging, multiplying) are not
@@ -34,8 +33,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 ///
 /// [`Confidence::new`]: Self::new
 /// [`Confidence::get`]: Self::get
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-#[derive(Serialize, JsonSchema)]
+/// [`NonZero::new`]: std::num::NonZero::new
+/// [`NonZero::get`]: std::num::NonZero::get
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Confidence(f64);
 

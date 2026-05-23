@@ -241,10 +241,12 @@ impl DocumentPipeline {
 
     /// Run detection through the shared [`DetectionEngine`].
     ///
-    /// The engine is built once per run by [`super::run::Pipeline`]
+    /// The engine is built once per run by [`Pipeline`]
     /// from `input.detection` and stored on [`RunContext`]; it is
     /// `None` when no recognizer is opted in (`detection.kinds` is
     /// empty), in which case detection is skipped.
+    ///
+    /// [`Pipeline`]: super::run::Pipeline
     async fn run_detection(
         &self,
         cfg: &DetectionConfig,

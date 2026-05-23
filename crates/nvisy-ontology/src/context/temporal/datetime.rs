@@ -6,11 +6,12 @@ use serde::{Deserialize, Serialize};
 
 /// A date-time or date-time range reference for temporal matching.
 ///
-/// Uses naive (timezone-unaware) date-times from [`jiff::civil::DateTime`].
+/// Uses naive (timezone-unaware) date-times from [`DateTime`].
 /// For timezone-aware timestamps, use the entry-level `created_at` /
 /// `expires_at` fields on [`ContextEntry`].
 ///
 /// [`ContextEntry`]: crate::context::ContextEntry
+/// [`DateTime`]: jiff::civil::DateTime
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DateTimeData {

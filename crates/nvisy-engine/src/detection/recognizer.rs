@@ -57,10 +57,16 @@ pub trait Recognizer: Send + Sync {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum RecognizerKind {
-    /// LLM-backed recognizer (see [`super::LlmRecognizer`]).
+    /// LLM-backed recognizer (see [`LlmRecognizer`]).
+    ///
+    /// [`LlmRecognizer`]: super::LlmRecognizer
     Llm,
-    /// NLP-engine recognizer (see [`super::NlpRecognizer`]).
+    /// NLP-engine recognizer (see [`NlpRecognizer`]).
+    ///
+    /// [`NlpRecognizer`]: super::NlpRecognizer
     Nlp,
-    /// Pattern-based recognizer (see [`super::PatternRecognizer`]).
+    /// Pattern-based recognizer (see [`PatternRecognizer`]).
+    ///
+    /// [`PatternRecognizer`]: super::PatternRecognizer
     Pattern,
 }

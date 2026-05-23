@@ -23,7 +23,7 @@ use nvisy_ontology::primitive::LanguageTag;
 
 #[cfg(feature = "gliner")]
 #[cfg_attr(docsrs, doc(cfg(feature = "gliner")))]
-pub use self::gliner_backend::{GlinerBackend, GlinerParams, GlinerMode};
+pub use self::gliner_backend::{GlinerBackend, GlinerMode, GlinerParams};
 pub use self::label_map::{LabelMap, LabelMapEntry};
 pub use self::noop_backend::NoopBackend;
 #[cfg(feature = "onnx")]

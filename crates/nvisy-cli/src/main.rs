@@ -36,7 +36,7 @@ async fn run() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let (resolved, config, mw_section) = cli.load()?;
     Cli::init_tracing(&resolved);
-    let state = ServiceState::new(config, resolved.data_dir.clone())?;
+    let state = ServiceState::new(config, resolved.data_dir.clone()).await?;
     let router = create_router(&mw_section, state);
     server::run(&resolved, router).await
 }

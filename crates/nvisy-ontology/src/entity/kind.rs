@@ -167,6 +167,11 @@ pub enum EntityKind {
     // Temporal
     /// Date, time, or datetime value.
     DateTime,
+
+    /// Fallback kind for entities a recognizer flagged as sensitive
+    /// but could not classify into a more specific kind. Pairs with
+    /// [`EntityCategory::Unresolved`].
+    Unresolved,
 }
 
 impl EntityKind {
@@ -252,6 +257,8 @@ impl EntityKind {
             // commonly appear alongside personal data and are regulated
             // as PII by GDPR/CCPA)
             Self::DateTime => EntityCategory::PersonalIdentity,
+
+            Self::Unresolved => EntityCategory::Unresolved,
         }
     }
 
@@ -324,7 +331,8 @@ impl EntityKind {
             | Self::DepartmentName
             | Self::FacilityName
             | Self::Logo
-            | Self::Barcode => EntitySensitivity::Low,
+            | Self::Barcode
+            | Self::Unresolved => EntitySensitivity::Low,
         }
     }
 }

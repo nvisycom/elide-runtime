@@ -20,11 +20,14 @@ pub struct ServiceState {
 impl ServiceState {
     /// Creates a new service state from a resolved [`RuntimeConfig`] and data directory.
     ///
+    /// Async because engine construction may download model
+    /// artifacts on first use.
+    ///
     /// # Errors
     ///
     /// Returns an error if the registry database cannot be opened.
-    pub fn new(config: RuntimeConfig, data_dir: PathBuf) -> nvisy_core::Result<Self> {
-        let engine = Engine::open(data_dir, config)?;
+    pub async fn new(config: RuntimeConfig, data_dir: PathBuf) -> nvisy_core::Result<Self> {
+        let engine = Engine::open(data_dir, config).await?;
         let registry = engine.registry().clone();
         Ok(Self { engine, registry })
     }

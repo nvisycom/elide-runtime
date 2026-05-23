@@ -40,7 +40,9 @@ impl NlpRecognizer {
     /// Build a recognizer from a [`NlpDetection`] config bundle.
     ///
     /// The bundle's [`engine`] field picks which prebuilt
-    /// [`nvisy_nlp::Engine`] preset to load.
+    /// [`nvisy_nlp::Engine`] preset to load. Async because some
+    /// presets download model artifacts from HuggingFace on first
+    /// use.
     ///
     /// # Errors
     ///
@@ -48,10 +50,11 @@ impl NlpRecognizer {
     /// constructed (model load failure for non-default presets).
     ///
     /// [`engine`]: NlpDetection::engine
-    pub fn from_config(cfg: &NlpDetection) -> Result<Self> {
+    pub async fn from_config(cfg: &NlpDetection) -> Result<Self> {
         let engine = cfg
             .engine
             .build()
+            .await
             .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "ner", false))?;
         Ok(Self::from_engine(engine))
     }

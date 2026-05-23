@@ -10,8 +10,8 @@ use nvisy_engine::pipeline::{Engine, EngineInput};
 use uuid::Uuid;
 
 /// Creates a temporary [`Engine`] for testing.
-pub fn engine() -> (Engine, tempfile::TempDir) {
-    Engine::temp()
+pub async fn engine() -> (Engine, tempfile::TempDir) {
+    Engine::temp().await
 }
 
 /// Returns a fixed actor UUID.

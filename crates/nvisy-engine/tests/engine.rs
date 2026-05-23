@@ -6,22 +6,22 @@ use std::time::Duration;
 
 use nvisy_engine::pipeline::{Engine, EngineSection, ResourceLimits, RuntimeConfig};
 
-#[test]
-fn temp_engine_points_to_temp_dir() {
-    let (engine, dir) = fixtures::engine();
+#[tokio::test]
+async fn temp_engine_points_to_temp_dir() {
+    let (engine, dir) = fixtures::engine().await;
     assert_eq!(engine.data_dir(), dir.path());
 }
 
-#[test]
-fn open_with_default_config() -> anyhow::Result<()> {
+#[tokio::test]
+async fn open_with_default_config() -> anyhow::Result<()> {
     let dir = tempfile::tempdir()?;
-    let engine = Engine::open(dir.path(), RuntimeConfig::default())?;
+    let engine = Engine::open(dir.path(), RuntimeConfig::default()).await?;
     assert_eq!(engine.data_dir(), dir.path());
     Ok(())
 }
 
-#[test]
-fn open_with_custom_limits() -> anyhow::Result<()> {
+#[tokio::test]
+async fn open_with_custom_limits() -> anyhow::Result<()> {
     let dir = tempfile::tempdir()?;
     let config = RuntimeConfig {
         engine: Some(EngineSection {
@@ -32,7 +32,7 @@ fn open_with_custom_limits() -> anyhow::Result<()> {
         }),
         ..Default::default()
     };
-    let engine = Engine::open(dir.path(), config)?;
+    let engine = Engine::open(dir.path(), config).await?;
     assert_eq!(
         engine.config().engine.as_ref().unwrap().limits.run_timeout,
         Some(Duration::from_secs(5))

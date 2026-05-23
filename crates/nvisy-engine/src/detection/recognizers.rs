@@ -68,26 +68,25 @@ impl Recognizers {
     /// Each opted-in section drives one recognizer construction.
     /// Construction is eager — model loads, HTTP-client setup, and
     /// regex compilation all happen here so per-run dispatch is
-    /// cheap.
+    /// cheap. Async because some NLP presets download model
+    /// artifacts on first use.
     ///
     /// # Errors
     ///
     /// Returns the first construction error encountered (NLP model
     /// load failure, LLM provider misconfiguration). Pattern
     /// construction is infallible.
-    pub fn from_config(cfg: &DetectionSection) -> Result<Self> {
+    pub async fn from_config(cfg: &DetectionSection) -> Result<Self> {
         let llm = cfg
             .llm
             .as_ref()
             .filter(|c| c.enabled)
             .map(|c| LlmRecognizer::new(c.clone()).map(Arc::new))
             .transpose()?;
-        let nlp = cfg
-            .nlp
-            .as_ref()
-            .filter(|c| c.enabled)
-            .map(|c| NlpRecognizer::from_config(c).map(Arc::new))
-            .transpose()?;
+        let nlp = match cfg.nlp.as_ref().filter(|c| c.enabled) {
+            Some(c) => Some(Arc::new(NlpRecognizer::from_config(c).await?)),
+            None => None,
+        };
         let pattern = cfg
             .pattern
             .as_ref()

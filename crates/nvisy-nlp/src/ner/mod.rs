@@ -19,7 +19,7 @@ use nvisy_ontology::primitive::LanguageTag;
 #[cfg(any(test, feature = "test-utils"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub use self::noop::NoopNerBackend;
-pub use self::ort::{OrtNerBackend, OrtNerConfig};
+pub use self::ort::{OrtNerBackend, OrtNerConfig, id_to_label_from_config_json};
 use crate::error::Result;
 
 /// Recognize entities in text.

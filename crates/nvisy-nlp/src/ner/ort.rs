@@ -37,24 +37,30 @@ const LABEL_OUTSIDE: &str = "O";
 
 /// Configuration for [`OrtNerBackend`].
 ///
-/// The user provides paths to an ONNX model and its tokenizer, plus a
-/// map from the model's emitted labels to [`EntityKind`]s. Labels are
-/// expected to follow BIO conventions (`B-PER`, `I-PER`, `O`, etc.);
-/// the prefix is stripped before lookup.
+/// The user provides paths to an ONNX model and its tokenizer, the
+/// model's full ordered label vector (the one HuggingFace stores as
+/// `id2label` in `config.json`), and a map from base label
+/// (BIO prefix stripped) to [`EntityKind`].
 ///
-/// Use [`with_conll03_english`] for the common `dslim/bert-base-NER`
-/// label set.
+/// Use [`id_to_label_from_config_json`] to parse the standard HF
+/// `config.json` next to a downloaded model.
 ///
-/// [`with_conll03_english`]: Self::with_conll03_english
+/// [`id_to_label_from_config_json`]: id_to_label_from_config_json
 #[derive(Debug, Clone)]
 pub struct OrtNerConfig {
     /// Path to the `.onnx` model file.
     pub model_path: PathBuf,
     /// Path to the matching `tokenizer.json`.
     pub tokenizer_path: PathBuf,
-    /// Map from base label (BIO prefix stripped, uppercased) to
-    /// [`EntityKind`]. Labels that don't appear in this map cause
-    /// detections to be dropped.
+    /// Ordered label vector matching the model's argmax indices, as
+    /// shipped in the HF `config.json` `id2label` field. Index 0 is
+    /// commonly the "outside" tag (`"O"`) but the position is whatever
+    /// the model exports.
+    pub id_to_label: Vec<String>,
+    /// Map from base label (BIO prefix stripped, e.g. `"PER"` for
+    /// `"B-PER"`/`"I-PER"`) to the entity it represents. Bases that
+    /// don't appear in this map cause detections to be dropped — use
+    /// this to filter the model's noisier labels (e.g. CoNLL `MISC`).
     ///
     /// Must not contain the literal `"O"` key — it's reserved as the
     /// "outside" tag and is rejected at construction time.
@@ -68,34 +74,48 @@ pub struct OrtNerConfig {
     pub model_name: String,
 }
 
-impl OrtNerConfig {
-    /// Construct a config for the standard CoNLL-03 English label set
-    /// (`PER`, `ORG`, `LOC`, `MISC`) used by `dslim/bert-base-NER`
-    /// and similar models. The user still picks how each label maps
-    /// to a [`EntityKind`]; this only fills in the four standard
-    /// keys with the user's chosen kinds.
-    pub fn with_conll03_english(
-        model_path: PathBuf,
-        tokenizer_path: PathBuf,
-        model_name: impl Into<String>,
-        per: (EntityCategory, EntityKind),
-        org: (EntityCategory, EntityKind),
-        loc: (EntityCategory, EntityKind),
-        misc: (EntityCategory, EntityKind),
-    ) -> Self {
-        let mut label_map = HashMap::new();
-        label_map.insert("PER".to_owned(), per);
-        label_map.insert("ORG".to_owned(), org);
-        label_map.insert("LOC".to_owned(), loc);
-        label_map.insert("MISC".to_owned(), misc);
-        Self {
-            model_path,
-            tokenizer_path,
-            label_map,
-            max_sequence_length: 512,
-            model_name: model_name.into(),
+/// Parse the standard HuggingFace `config.json` `id2label` field into
+/// an ordered label vector suitable for [`OrtNerConfig::id_to_label`].
+///
+/// Expects the `id2label` keys to be integer strings (`"0"`, `"1"`, …)
+/// densely covering `0..num_labels`. Returns an error if the field is
+/// missing, malformed, or has gaps.
+pub fn id_to_label_from_config_json(path: impl AsRef<Path>) -> Result<Vec<String>> {
+    let path = path.as_ref();
+    let bytes = std::fs::read(path)
+        .map_err(|e| Error::Backend(format!("config.json read {}: {e}", path.display())))?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|e| Error::Backend(format!("config.json parse {}: {e}", path.display())))?;
+    let map = value
+        .get("id2label")
+        .and_then(|v| v.as_object())
+        .ok_or_else(|| {
+            Error::Backend(format!("config.json missing id2label: {}", path.display()))
+        })?;
+
+    let mut entries: Vec<(usize, String)> = map
+        .iter()
+        .map(|(k, v)| {
+            let idx: usize = k
+                .parse()
+                .map_err(|_| Error::Backend(format!("id2label key '{k}' is not an integer")))?;
+            let label = v
+                .as_str()
+                .ok_or_else(|| Error::Backend(format!("id2label[{k}] is not a string")))?
+                .to_owned();
+            Ok((idx, label))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    entries.sort_by_key(|(idx, _)| *idx);
+
+    for (expected, (actual, _)) in entries.iter().enumerate() {
+        if expected != *actual {
+            return Err(Error::Backend(format!(
+                "id2label has gap at index {expected} (found {actual})",
+            )));
         }
     }
+    Ok(entries.into_iter().map(|(_, label)| label).collect())
 }
 
 /// Inference interface that produces flat per-token logits.
@@ -156,6 +176,10 @@ impl Inferencer for OrtInferencer {
             .map_err(|e| Error::Inference(format!("input_ids shape: {e}")))?;
         let attention_mask = Array2::from_shape_vec((1, seq_len), attention)
             .map_err(|e| Error::Inference(format!("attention_mask shape: {e}")))?;
+        // Standard BERT-family exports declare `token_type_ids` as a
+        // required input even when single-sequence inference makes the
+        // values irrelevant. A zero tensor is the canonical fill.
+        let token_type_ids = Array2::<i64>::zeros((1, seq_len));
 
         let mut session = self
             .session
@@ -166,11 +190,14 @@ impl Inferencer for OrtInferencer {
             .map_err(|e| Error::Inference(format!("input_ids value: {e}")))?;
         let attention_v = Value::from_array(attention_mask)
             .map_err(|e| Error::Inference(format!("attention_mask value: {e}")))?;
+        let token_type_v = Value::from_array(token_type_ids)
+            .map_err(|e| Error::Inference(format!("token_type_ids value: {e}")))?;
 
         let outputs = session
             .run(ort::inputs![
                 "input_ids" => input_ids_v,
                 "attention_mask" => attention_v,
+                "token_type_ids" => token_type_v,
             ])
             .map_err(|e| Error::Inference(e.to_string()))?;
 
@@ -230,6 +257,11 @@ impl OrtNerBackend {
                 "OrtNerConfig.label_map must not contain the reserved '{LABEL_OUTSIDE}' label",
             )));
         }
+        if config.id_to_label.is_empty() {
+            return Err(Error::Backend(
+                "OrtNerConfig.id_to_label must not be empty".to_owned(),
+            ));
+        }
 
         let mut tokenizer = Tokenizer::from_file(&config.tokenizer_path)
             .map_err(|e| Error::Tokenizer(format!("{}: {e}", config.tokenizer_path.display())))?;
@@ -246,11 +278,10 @@ impl OrtNerBackend {
             .with_truncation(Some(truncation))
             .map_err(|e| Error::Tokenizer(format!("set truncation: {e}")))?;
 
-        let id_to_label = label_order(&config.label_map);
         let state = OrtState {
             tokenizer,
             inferencer,
-            id_to_label,
+            id_to_label: config.id_to_label,
             label_map: config.label_map,
             model_name: config.model_name,
             supported_languages: Vec::new(),
@@ -477,21 +508,6 @@ fn split_bio(label: &str) -> (&str, &str) {
     }
 }
 
-/// Deterministic vector of label names for argmax indexing.
-///
-/// The user-supplied [`OrtNerConfig::label_map`] keys are sorted
-/// alphabetically; `"O"` is placed at index 0. Real models export a
-/// `config.json` with the `id2label` map — wiring that is deferred
-/// until it's needed.
-fn label_order(map: &HashMap<String, (EntityCategory, EntityKind)>) -> Vec<String> {
-    let mut labels: Vec<String> = map.keys().cloned().collect();
-    labels.sort();
-    let mut out = Vec::with_capacity(labels.len() + 1);
-    out.push(LABEL_OUTSIDE.to_owned());
-    out.extend(labels);
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -570,12 +586,14 @@ mod tests {
         path
     }
 
+    /// Build a backend with a three-label vocabulary: `["O", "B-PER", "I-PER"]`.
     fn build_backend(logits: Vec<f32>, num_labels: usize) -> (OrtNerBackend, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("tempdir");
         let tok_path = write_minimal_tokenizer(dir.path());
         let cfg = OrtNerConfig {
             model_path: PathBuf::from("/unused.onnx"),
             tokenizer_path: tok_path,
+            id_to_label: vec!["O".to_owned(), "B-PER".to_owned(), "I-PER".to_owned()],
             label_map: person_label_map(),
             max_sequence_length: 64,
             model_name: "test-model".to_owned(),
@@ -586,14 +604,27 @@ mod tests {
     }
 
     #[test]
-    fn label_order_puts_o_first() {
-        let labels = label_order(&person_label_map());
-        assert_eq!(labels[0], LABEL_OUTSIDE);
-        assert!(labels.contains(&"PER".to_owned()));
+    fn empty_id_to_label_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let tok = write_minimal_tokenizer(dir.path());
+        let cfg = OrtNerConfig {
+            model_path: PathBuf::from("/unused.onnx"),
+            tokenizer_path: tok,
+            id_to_label: vec![],
+            label_map: person_label_map(),
+            max_sequence_length: 64,
+            model_name: "test".to_owned(),
+        };
+        let inferencer = Box::new(CannedInferencer {
+            logits: vec![],
+            num_labels: 0,
+        });
+        let result = OrtNerBackend::with_inferencer(cfg, inferencer);
+        assert!(matches!(result, Err(Error::Backend(_))));
     }
 
     #[test]
-    fn label_order_rejects_outside_in_user_map() {
+    fn outside_label_in_user_map_rejected() {
         let mut m = person_label_map();
         m.insert(
             LABEL_OUTSIDE.to_owned(),
@@ -604,6 +635,7 @@ mod tests {
         let cfg = OrtNerConfig {
             model_path: PathBuf::from("/unused.onnx"),
             tokenizer_path: tok,
+            id_to_label: vec!["O".to_owned(), "B-PER".to_owned()],
             label_map: m,
             max_sequence_length: 64,
             model_name: "test".to_owned(),
@@ -642,6 +674,24 @@ mod tests {
         assert_eq!(split_bio("PER"), ("", "PER"));
     }
 
+    #[test]
+    fn id_to_label_from_config_json_parses() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, r#"{"id2label":{"0":"O","1":"B-PER","2":"I-PER"}}"#).unwrap();
+        let labels = id_to_label_from_config_json(&path).unwrap();
+        assert_eq!(labels, vec!["O", "B-PER", "I-PER"]);
+    }
+
+    #[test]
+    fn id_to_label_from_config_json_rejects_gap() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        std::fs::write(&path, r#"{"id2label":{"0":"O","2":"I-PER"}}"#).unwrap();
+        let err = id_to_label_from_config_json(&path).unwrap_err();
+        assert!(matches!(err, Error::Backend(_)));
+    }
+
     /// End-to-end: real tokenizer produces an encoding for
     /// "Alice works at Acme", canned logits put B-PER on `Alice` and
     /// B-PER on `Acme` (mis-labelled to exercise multi-span output).
@@ -650,23 +700,23 @@ mod tests {
     #[tokio::test]
     async fn fold_predictions_produces_two_spans() {
         // Encoding length = [CLS] + 4 words + [SEP] = 6 tokens.
-        // Labels: [O, PER] (order from label_order: "O" at 0, "PER" at 1).
-        // Layout (one row per token, two labels per row):
+        // Labels: ["O", "B-PER", "I-PER"] (argmax index 0/1/2).
+        // Layout (one row per token, three labels per row):
         //   t0 [CLS]: O wins
-        //   t1 Alice: PER wins
+        //   t1 Alice: B-PER wins
         //   t2 works: O wins
         //   t3 at:    O wins
-        //   t4 Acme:  PER wins
+        //   t4 Acme:  B-PER wins
         //   t5 [SEP]: O wins
         let logits: Vec<f32> = vec![
-            5.0, 0.0, // [CLS]: O
-            0.0, 5.0, // Alice: PER
-            5.0, 0.0, // works: O
-            5.0, 0.0, // at: O
-            0.0, 5.0, // Acme: PER
-            5.0, 0.0, // [SEP]: O
+            5.0, 0.0, 0.0, // [CLS]: O
+            0.0, 5.0, 0.0, // Alice: B-PER
+            5.0, 0.0, 0.0, // works: O
+            5.0, 0.0, 0.0, // at: O
+            0.0, 5.0, 0.0, // Acme: B-PER
+            5.0, 0.0, 0.0, // [SEP]: O
         ];
-        let (backend, _dir) = build_backend(logits, 2);
+        let (backend, _dir) = build_backend(logits, 3);
         let entities = backend.recognize_blocking("Alice works at Acme").unwrap();
         assert_eq!(entities.len(), 2);
 
@@ -688,24 +738,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fold_predictions_continues_inside_span() {
-        // Encoding: [CLS] Alice works at Acme [SEP]
-        // Labels:    O    B    I     O  B    O
-        // Expect: one span [Alice, works], one span [Acme].
-        // id_to_label: ["O", "I-PER", "B-PER"] ? — actually our
-        // label_order only knows base labels. We need to expand the
-        // label_map to include I-/B- to drive this. Easiest: keep
-        // base mapping, and have the test verify single-span case
-        // with B at start.
+    async fn fold_predictions_continues_inside_span_with_i_tag() {
+        // BIO continuation: `B-PER` starts a span, `I-PER` extends it,
+        // `O` flushes, and the next `B-PER` opens a new span.
         let logits: Vec<f32> = vec![
-            5.0, 0.0, // [CLS]: O
-            0.0, 5.0, // Alice: PER (label_id 1 == "PER", treated as B since no current span)
-            0.0, 5.0, // works: PER (same base — continues the span)
-            5.0, 0.0, // at: O (flush)
-            0.0, 5.0, // Acme: PER (new B-style)
-            5.0, 0.0, // [SEP]: O
+            5.0, 0.0, 0.0, // [CLS]: O
+            0.0, 5.0, 0.0, // Alice: B-PER (start)
+            0.0, 0.0, 5.0, // works: I-PER (continues by same-base rule)
+            5.0, 0.0, 0.0, // at: O (flush)
+            0.0, 5.0, 0.0, // Acme: B-PER (new span)
+            5.0, 0.0, 0.0, // [SEP]: O
         ];
-        let (backend, _dir) = build_backend(logits, 2);
+        let (backend, _dir) = build_backend(logits, 3);
         let entities = backend.recognize_blocking("Alice works at Acme").unwrap();
         assert_eq!(entities.len(), 2);
 
@@ -718,8 +762,11 @@ mod tests {
 
     #[tokio::test]
     async fn unsupported_language_returns_error() {
-        let logits = vec![5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0];
-        let (backend, _dir) = build_backend(logits, 2);
+        let logits = vec![
+            5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0,
+            0.0,
+        ];
+        let (backend, _dir) = build_backend(logits, 3);
         let backend = backend.with_supported_languages(vec!["en".parse().unwrap()]);
         let lang: LanguageTag = "de".parse().unwrap();
         let err = backend
@@ -731,8 +778,11 @@ mod tests {
 
     #[tokio::test]
     async fn language_hint_accepted_when_supported() {
-        let logits = vec![5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0];
-        let (backend, _dir) = build_backend(logits, 2);
+        let logits = vec![
+            5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0,
+            0.0,
+        ];
+        let (backend, _dir) = build_backend(logits, 3);
         let backend = backend.with_supported_languages(vec!["en".parse().unwrap()]);
         let lang: LanguageTag = "en".parse().unwrap();
         let result = backend.recognize("Hello world", Some(&lang)).await;
@@ -741,8 +791,11 @@ mod tests {
 
     #[tokio::test]
     async fn empty_supported_languages_accepts_any_hint() {
-        let logits = vec![5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0];
-        let (backend, _dir) = build_backend(logits, 2);
+        let logits = vec![
+            5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0, 0.0, 5.0, 0.0,
+            0.0,
+        ];
+        let (backend, _dir) = build_backend(logits, 3);
         let lang: LanguageTag = "de".parse().unwrap();
         let result = backend.recognize("Hallo Welt", Some(&lang)).await;
         assert!(result.is_ok());

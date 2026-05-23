@@ -34,9 +34,8 @@ use crate::error::Result;
 /// backends wrap the body in `async {}` cheaply.
 ///
 /// `language` is **advisory**. Multilingual models may ignore it;
-/// monolingual models should validate it against
-/// [`supported_languages`] and may return
-/// [`Error::UnsupportedLanguage`] if the hint disagrees.
+/// monolingual models may validate it against a configured allowlist
+/// and return [`Error::UnsupportedLanguage`] if the hint disagrees.
 ///
 /// `requested_kinds` is **also advisory** and exists to let zero-shot
 /// backends (notably [`GlinerBackend`]) materialise the exact label
@@ -48,7 +47,6 @@ use crate::error::Result;
 /// [`GlinerBackend`]: GlinerBackend
 /// [`OrtNerBackend`]: OrtNerBackend
 /// [`NoopNerBackend`]: NoopNerBackend
-/// [`supported_languages`]: Self::supported_languages
 /// [`Error::UnsupportedLanguage`]: crate::Error::UnsupportedLanguage
 /// [`Engine`]: crate::Engine
 #[async_trait]
@@ -60,21 +58,4 @@ pub trait NerBackend: Send + Sync {
         language: Option<&LanguageTag>,
         requested_kinds: Option<&[EntityKind]>,
     ) -> Result<Entities>;
-
-    /// Languages this backend was trained or configured for.
-    ///
-    /// An empty slice means the backend accepts any language (treat
-    /// as universal).
-    fn supported_languages(&self) -> &[LanguageTag] {
-        &[]
-    }
-
-    /// Entity kinds this backend can produce.
-    ///
-    /// An empty slice means the backend may produce any kind it can
-    /// detect — used when the label space is open or large enough to
-    /// make enumeration unhelpful.
-    fn supported_kinds(&self) -> &[EntityKind] {
-        &[]
-    }
 }

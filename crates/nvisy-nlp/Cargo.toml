@@ -57,12 +57,16 @@ nvisy-ontology = { workspace = true, features = [] }
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 
-# NLP / NER — optional, gated by the `onnx` / `gliner` features.
+# ONNX inference stack
 ort = { workspace = true, optional = true, features = [] }
 ndarray = { workspace = true, optional = true, features = [] }
 tokenizers = { workspace = true, optional = true, features = [] }
+
+# GLiNER zero-shot NER
 gline-rs = { workspace = true, optional = true, features = [] }
 orp = { workspace = true, optional = true, features = [] }
+
+# Language detection and text segmentation
 lingua = { workspace = true, features = [] }
 stop-words = { workspace = true, features = [] }
 unicode-segmentation = { workspace = true, features = [] }

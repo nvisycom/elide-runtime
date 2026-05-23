@@ -62,6 +62,21 @@ impl Confidence {
         }
     }
 
+    /// Construct a [`Confidence`] by clamping a raw score into
+    /// `[0.0, 1.0]`. Use when the input is *known to be in range up
+    /// to float rounding* — e.g. a softmax mean that might come out
+    /// as `1.0000000000000002`. Non-finite inputs (`NaN`, `±∞`) map
+    /// to `0.0`: their presence almost always indicates an upstream
+    /// bug, so [`debug_assert!`] catches it during development while
+    /// release builds degrade safely.
+    pub fn clamped(value: f64) -> Self {
+        debug_assert!(value.is_finite(), "non-finite confidence: {value}");
+        if !value.is_finite() {
+            return Self(0.0);
+        }
+        Self(value.clamp(0.0, 1.0))
+    }
+
     /// Returns the inner score.
     pub fn get(&self) -> f64 {
         self.0

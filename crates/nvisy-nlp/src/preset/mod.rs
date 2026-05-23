@@ -49,7 +49,6 @@
 
 mod builder;
 mod manifest;
-mod verify;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -139,8 +138,8 @@ async fn resolve_paths(
 ) -> Result<(PathBuf, PathBuf)> {
     match (model_path, tokenizer_path) {
         (Some(m), Some(t)) => {
-            verify::check_readable(m)?;
-            verify::check_readable(t)?;
+            check_readable(m)?;
+            check_readable(t)?;
             verify_supplied_hashes(manifest, m, t)?;
             Ok((m.to_owned(), t.to_owned()))
         }
@@ -149,6 +148,24 @@ async fn resolve_paths(
             "NlpPreset::Manifest: provide both model_path and tokenizer_path, or neither"
                 .to_owned(),
         )),
+    }
+}
+
+/// Validate that `path` refers to a readable regular file. Surfaces
+/// filesystem problems eagerly so an operator-supplied override path
+/// fails here with a clear error rather than deeper inside `ort` /
+/// `gline-rs`.
+fn check_readable(path: &Path) -> Result<()> {
+    match std::fs::metadata(path) {
+        Ok(meta) if meta.is_file() => Ok(()),
+        Ok(_) => Err(Error::Backend(format!(
+            "preset artifact is not a regular file: {}",
+            path.display(),
+        ))),
+        Err(e) => Err(Error::Backend(format!(
+            "preset artifact unreadable {}: {e}",
+            path.display(),
+        ))),
     }
 }
 

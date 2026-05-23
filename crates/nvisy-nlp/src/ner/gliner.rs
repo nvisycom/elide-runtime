@@ -228,8 +228,7 @@ impl GlinerBackend {
             .with_end_offset(end)
             .build()
             .ok()?;
-        let confidence = Confidence::new(f64::from(span.probability()).clamp(0.0, 1.0))
-            .expect("clamped value is in [0,1]");
+        let confidence = Confidence::clamped(f64::from(span.probability()));
         Entity::builder()
             .with_category(category)
             .with_entity_kind(kind)
@@ -303,19 +302,6 @@ impl NerBackend for GlinerBackend {
         })
         .await
         .map_err(|e| Error::Inference(format!("join error: {e}")))?
-    }
-
-    fn supported_languages(&self) -> &[LanguageTag] {
-        &self.state.supported_languages
-    }
-
-    fn supported_kinds(&self) -> &[EntityKind] {
-        // We could expose the configured kinds, but the slice would
-        // need to be stored alongside `kind_to_labels` (the map
-        // doesn't preserve insertion order). Falling back to "any"
-        // keeps the trait contract honest: the engine post-filters
-        // on `Context::entities` regardless.
-        &[]
     }
 }
 

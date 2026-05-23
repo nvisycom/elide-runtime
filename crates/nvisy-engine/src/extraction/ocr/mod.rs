@@ -10,8 +10,8 @@ mod params;
 
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
+use nvisy_core::http::{HttpClient, HttpConfig};
 use nvisy_core::{Error, Result};
-use nvisy_http::{HttpClient, HttpConfig};
 use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
 use nvisy_ontology::entity::ImageLocation;
 

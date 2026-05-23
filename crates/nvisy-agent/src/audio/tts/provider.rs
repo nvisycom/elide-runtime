@@ -1,7 +1,7 @@
 //! Provider dispatch for text-to-speech models.
 
 #[cfg(feature = "openai-tts")]
-use nvisy_http::{HttpClient, HttpConfig};
+use nvisy_core::http::{HttpClient, HttpConfig};
 use reqwest_middleware::ClientWithMiddleware;
 #[cfg(feature = "openai-tts")]
 use rig::providers::openai;

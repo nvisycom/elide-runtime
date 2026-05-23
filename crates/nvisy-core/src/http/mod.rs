@@ -1,6 +1,19 @@
-#![forbid(unsafe_code)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
-#![doc = include_str!("../README.md")]
+//! Shared HTTP client (reqwest + retry + tracing middleware).
+//!
+//! Available behind the `http` feature.
+//!
+//! [`HttpClient`] is a thin newtype over
+//! [`reqwest_middleware::ClientWithMiddleware`] with exponential-backoff
+//! retry and OpenTelemetry tracing layers pre-installed. [`HttpConfig`]
+//! carries durations + retry count and deserialises via
+//! [`humantime_serde`] so config files accept `"120s"`, `"2min"`, etc.
+//!
+//! [`RequestBuilderExt`] adds `.send_and_check("provider")` and
+//! `.send_and_parse::<T>("provider")` helpers that map transport and
+//! status errors to [`crate::Error`] with consistent retryability
+//! classification (5xx + network errors are retryable; 4xx are not).
+//!
+//! [`humantime_serde`]: https://crates.io/crates/humantime-serde
 
 mod config;
 mod middleware;
@@ -8,13 +21,13 @@ mod middleware;
 use std::fmt;
 
 use derive_more::Deref;
-use nvisy_core::{Error, Result};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
 
 pub use self::config::HttpConfig;
 use self::middleware::{backoff_policy, retry_layer, tracing_layer};
+use crate::{Error, Result};
 
-const TARGET: &str = "nvisy_http";
+const TARGET: &str = "nvisy_core::http";
 
 /// Newtype around [`ClientWithMiddleware`] with retry and tracing
 /// middleware pre-installed.

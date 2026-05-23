@@ -1,5 +1,5 @@
 use nvisy_core::Result;
-use nvisy_http::HttpClient;
+use nvisy_core::http::HttpClient;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "aws-textract")]

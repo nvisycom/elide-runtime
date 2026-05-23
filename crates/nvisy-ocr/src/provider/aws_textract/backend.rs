@@ -7,8 +7,8 @@ use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use hmac::{Hmac, KeyInit, Mac};
+use nvisy_core::http::{HttpClient, HttpConfig, RequestBuilderExt};
 use nvisy_core::{Error, Result};
-use nvisy_http::{HttpClient, HttpConfig, RequestBuilderExt};
 use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
 use nvisy_ontology::primitive::{BoundingBox, Polygon, Vertex};
 use serde::Deserialize;

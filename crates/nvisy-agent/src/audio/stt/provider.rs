@@ -1,7 +1,7 @@
 //! Provider dispatch for speech-to-text models.
 
 #[cfg(feature = "openai-whisper")]
-use nvisy_http::{HttpClient, HttpConfig};
+use nvisy_core::http::{HttpClient, HttpConfig};
 use reqwest_middleware::ClientWithMiddleware;
 #[cfg(feature = "openai-whisper")]
 use rig::providers::openai;

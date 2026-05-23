@@ -2,8 +2,8 @@
 //!
 //! [`Backend`]: crate::Backend
 
+use nvisy_core::http::{HttpClient, HttpConfig, RequestBuilderExt};
 use nvisy_core::{Error, Result};
-use nvisy_http::{HttpClient, HttpConfig, RequestBuilderExt};
 use nvisy_ontology::artifacts::{Block, BlockKind, Line, Page, Word};
 use nvisy_ontology::primitive::{BoundingBox, Polygon, Vertex};
 use reqwest_middleware::reqwest::multipart::Form;

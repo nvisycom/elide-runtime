@@ -22,6 +22,25 @@ documentation = { workspace = true }
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[features]
+default = []
+
+# Shared HTTP client (reqwest + retry + tracing middleware), exposed
+# under `nvisy_core::http`. Enabled by any crate that makes outbound
+# HTTP calls (LLM agents, OCR providers, ...).
+http = [
+    "dep:reqwest-middleware",
+    "dep:reqwest-retry",
+    "dep:reqwest-tracing",
+    "dep:humantime-serde",
+]
+
+# HuggingFace Hub model downloader with stage-level progress
+# reporting and optional SHA-256 verification, exposed under
+# `nvisy_core::hf`. Enabled by any crate that pulls model artifacts
+# from HuggingFace (NLP presets, future OCR/embedding models).
+hf = ["dep:hf-hub", "dep:dirs"]
+
 [dependencies]
 # Internal crates
 nvisy-ontology = { workspace = true, features = [] }
@@ -30,6 +49,7 @@ nvisy-ontology = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
+humantime-serde = { workspace = true, features = [], optional = true }
 
 # Primitive datatypes
 uuid = { workspace = true, features = [] }
@@ -49,6 +69,15 @@ strum = { workspace = true, features = [] }
 # Encoding and hashing
 sha2 = { workspace = true, features = [] }
 hex = { workspace = true, features = [] }
+
+# HTTP client (optional; enabled by the `http` feature)
+reqwest-middleware = { workspace = true, features = [], optional = true }
+reqwest-retry = { workspace = true, features = [], optional = true }
+reqwest-tracing = { workspace = true, features = [], optional = true }
+
+# HuggingFace Hub (optional; enabled by the `hf` feature)
+hf-hub = { workspace = true, optional = true }
+dirs = { workspace = true, optional = true }
 
 # Observability
 tracing = { workspace = true, features = [] }

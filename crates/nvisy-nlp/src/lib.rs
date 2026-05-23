@@ -23,10 +23,5 @@ pub use self::language::{
 #[cfg_attr(docsrs, doc(cfg(feature = "test-utils")))]
 pub use self::ner::NoopNerBackend;
 pub use self::ner::{NerBackend, OrtNerBackend, OrtNerConfig, id_to_label_from_config_json};
-#[cfg(feature = "preset-download")]
-#[cfg_attr(docsrs, doc(cfg(feature = "preset-download")))]
-pub use self::preset::downloader::{
-    DownloadStage, Downloader, NoopReporter, ProgressReporter, TracingReporter,
-};
 pub use self::preset::{LabelMapEntry, NlpPreset, PresetManifest};
 pub use self::tokenizer::{HfTokenizer, Tokenizer, UnicodeTokenizer};

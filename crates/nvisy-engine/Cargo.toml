@@ -40,10 +40,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
-nvisy-core = { workspace = true, features = [] }
+nvisy-core = { workspace = true, features = ["http"] }
 nvisy-ontology = { workspace = true, features = [] }
 nvisy-codec = { workspace = true, features = [] }
-nvisy-http = { workspace = true, features = [] }
 
 # Detection & redaction
 nvisy-nlp = { workspace = true, features = [] }

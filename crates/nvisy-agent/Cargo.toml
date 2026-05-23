@@ -38,8 +38,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 # Internal crates
-nvisy-core = { workspace = true, features = [] }
-nvisy-http = { workspace = true, features = [] }
+nvisy-core = { workspace = true, features = ["http"] }
 nvisy-ontology = { workspace = true, features = [] }
 
 # LLM framework

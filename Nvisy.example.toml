@@ -120,7 +120,7 @@ enabled = true
 engine = { kind = "default" }
 # Alternative: load a manifest-defined preset. The manifest pins
 # the HuggingFace repo + revision and supplies the id_to_label
-# vector and label map. With the `preset-download` feature enabled,
+# vector and label map. With the `hf` feature enabled,
 # artifacts are fetched from HuggingFace on first use; otherwise
 # supply `model_path` and `tokenizer_path` explicitly.
 # engine = { kind = "manifest", manifest_path = "./crates/nvisy-nlp/presets/dslim-bert-base-NER.json" }

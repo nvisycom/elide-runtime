@@ -8,7 +8,6 @@ members = [
     "./crates/nvisy-codec",
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
-    "./crates/nvisy-http",
     "./crates/nvisy-nlp",
     "./crates/nvisy-ocr",
     "./crates/nvisy-ontology",
@@ -39,7 +38,6 @@ nvisy-agent = { path = "./crates/nvisy-agent", version = "0.1.0" }
 nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
-nvisy-http = { path = "./crates/nvisy-http", version = "0.1.0" }
 nvisy-nlp = { path = "./crates/nvisy-nlp", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }

@@ -32,12 +32,13 @@ default = ["test-utils"]
 test-utils = []
 
 # Enables auto-download of manifest-defined preset artifacts from
-# HuggingFace Hub plus SHA-256 verification of downloaded or supplied
-# artifacts. Without it, `NlpPreset::Manifest` still works as long as
-# `model_path` and `tokenizer_path` overrides are supplied, but
-# `model_sha256` / `tokenizer_sha256` fields in the manifest are not
-# enforced.
-preset-download = ["dep:hf-hub", "dep:dirs", "dep:sha2"]
+# HuggingFace Hub plus SHA-256 verification (downloaded or supplied).
+# Activates `nvisy-core/hf` for the shared `Downloader` and
+# `FetchRequest::verify_artifact`. Without it, `NlpPreset::Manifest`
+# still works as long as `model_path` and `tokenizer_path` overrides
+# are supplied, but `model_sha256` / `tokenizer_sha256` fields in the
+# manifest are not enforced.
+hf = ["nvisy-core/hf"]
 
 [dependencies]
 # Internal crates
@@ -55,11 +56,6 @@ tokenizers = { workspace = true, features = [] }
 lingua = { workspace = true, features = [] }
 stop-words = { workspace = true, features = [] }
 unicode-segmentation = { workspace = true, features = [] }
-
-# Model download + hash verification (optional; enabled by preset features)
-hf-hub = { workspace = true, optional = true }
-dirs = { workspace = true, optional = true }
-sha2 = { workspace = true, optional = true }
 
 # (De)serialization
 serde = { workspace = true, features = [] }

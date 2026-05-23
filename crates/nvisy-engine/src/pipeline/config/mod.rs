@@ -134,8 +134,8 @@ mod tests {
 
     use super::*;
 
-    fn http(max_retries: u32) -> nvisy_http::HttpConfig {
-        nvisy_http::HttpConfig {
+    fn http(max_retries: u32) -> nvisy_core::http::HttpConfig {
+        nvisy_core::http::HttpConfig {
             max_retries,
             timeout: Duration::from_secs(120),
             connect_timeout: Duration::from_secs(10),

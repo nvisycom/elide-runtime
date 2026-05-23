@@ -12,20 +12,20 @@
 //!   manifest for `dslim/bert-base-NER` lives at
 //!   `crates/nvisy-nlp/presets/dslim-bert-base-NER.json`.
 //!
-//! Model downloads require the `preset-download` feature, which
-//! pulls in `hf-hub`. Without it, [`NlpPreset::Manifest`] still works
-//! as long as both `model_path` and `tokenizer_path` overrides are
-//! supplied.
+//! Model downloads require the `hf` feature, which activates the
+//! shared [`nvisy_core::hf`] module. Without it,
+//! [`NlpPreset::Manifest`] still works as long as both `model_path`
+//! and `tokenizer_path` overrides are supplied.
 //!
 //! # Submodule layout
 //!
 //! - [`manifest`]: the JSON shape — pure data, no I/O beyond reading
 //!   the file itself.
-//! - [`verify`]: SHA-256 + filesystem-readable checks.
+//! - [`verify`]: filesystem readability check for override paths.
+//!   SHA-256 verification of artifacts is delegated to
+//!   [`nvisy_core::hf::FetchRequest::verify_artifact`].
 //! - [`builder`]: compose a verified `(manifest, paths)` into an
 //!   [`Engine`].
-//! - [`downloader`]: the stateful HuggingFace fetcher with
-//!   stage-level progress reporting (feature-gated).
 //!
 //! This module orchestrates them; it contains no business logic of
 //! its own.
@@ -34,8 +34,7 @@
 //!
 //! Set `model_path` and `tokenizer_path` together to skip the
 //! HuggingFace download entirely. The manifest's `model_sha256` /
-//! `tokenizer_sha256` (when set, and the `preset-download` feature
-//! is on for the sha2 dep) still validate the supplied files.
+//! `tokenizer_sha256` (when set) still validate the supplied files.
 //!
 //! ```no_run
 //! use std::path::PathBuf;
@@ -51,10 +50,6 @@
 mod builder;
 mod manifest;
 mod verify;
-
-#[cfg(feature = "preset-download")]
-#[cfg_attr(docsrs, doc(cfg(feature = "preset-download")))]
-pub mod downloader;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -90,10 +85,10 @@ pub enum NlpPreset {
     ///
     /// `manifest_path` is the path to a JSON [`PresetManifest`].
     /// `model_path` and `tokenizer_path` are optional overrides; when
-    /// absent (and the `preset-download` feature is enabled), the
-    /// artifacts are downloaded from HuggingFace per the manifest's
-    /// `repo_id` + `revision`. Both overrides must be supplied
-    /// together or both omitted.
+    /// absent (and the `hf` feature is enabled), the artifacts are
+    /// downloaded from HuggingFace per the manifest's `repo_id` +
+    /// `revision`. Both overrides must be supplied together or both
+    /// omitted.
     Manifest {
         /// Path to the JSON manifest file.
         manifest_path: PathBuf,
@@ -128,15 +123,15 @@ impl NlpPreset {
                 let (model, tokenizer) =
                     resolve_paths(&manifest, model_path.as_deref(), tokenizer_path.as_deref())
                         .await?;
-                verify_hashes(&manifest, &model, &tokenizer)?;
                 builder::build_engine(manifest, model, tokenizer)
             }
         }
     }
 }
 
-/// Pick artifacts: either both overrides (no download) or auto-fetch
-/// both via [`downloader`] (when the `preset-download` feature is on).
+/// Pick artifacts: either both overrides (no download, verify hashes
+/// against supplied files) or auto-fetch both via the shared
+/// `nvisy_core::hf::Downloader` (which verifies inside `fetch`).
 async fn resolve_paths(
     manifest: &PresetManifest,
     model_path: Option<&Path>,
@@ -146,6 +141,7 @@ async fn resolve_paths(
         (Some(m), Some(t)) => {
             verify::check_readable(m)?;
             verify::check_readable(t)?;
+            verify_supplied_hashes(manifest, m, t)?;
             Ok((m.to_owned(), t.to_owned()))
         }
         (None, None) => fetch_both(manifest).await,
@@ -156,27 +152,40 @@ async fn resolve_paths(
     }
 }
 
-/// Verify SHA-256 hashes after artifacts are on disk. Skipped when no
-/// hash is set, or when the `preset-download` feature (and with it
-/// `sha2`) is disabled — in which case we warn so operators don't
-/// quietly skip verification they thought was active.
-#[cfg(feature = "preset-download")]
-fn verify_hashes(
+/// Verify the user-supplied artifact paths against the manifest's
+/// `model_sha256` / `tokenizer_sha256` (when set). Skipped silently
+/// when no hash is recorded; warns and skips when the `hf` feature
+/// is off so operators don't quietly skip verification they thought
+/// was active.
+#[cfg(feature = "hf")]
+fn verify_supplied_hashes(
     manifest: &PresetManifest,
     model_path: &Path,
     tokenizer_path: &Path,
 ) -> Result<()> {
-    if let Some(expected) = manifest.model_sha256.as_deref() {
-        verify::verify_sha256(model_path, expected)?;
+    use nvisy_core::hf::FetchRequest;
+
+    FetchRequest {
+        repo_id: &manifest.repo_id,
+        revision: &manifest.revision,
+        file: &manifest.model_file,
+        expected_sha256: manifest.model_sha256.as_deref(),
     }
-    if let Some(expected) = manifest.tokenizer_sha256.as_deref() {
-        verify::verify_sha256(tokenizer_path, expected)?;
+    .verify_artifact(model_path)
+    .map_err(|e| Error::Backend(e.to_string()))?;
+    FetchRequest {
+        repo_id: &manifest.repo_id,
+        revision: &manifest.revision,
+        file: &manifest.tokenizer_file,
+        expected_sha256: manifest.tokenizer_sha256.as_deref(),
     }
+    .verify_artifact(tokenizer_path)
+    .map_err(|e| Error::Backend(e.to_string()))?;
     Ok(())
 }
 
-#[cfg(not(feature = "preset-download"))]
-fn verify_hashes(
+#[cfg(not(feature = "hf"))]
+fn verify_supplied_hashes(
     manifest: &PresetManifest,
     _model_path: &Path,
     _tokenizer_path: &Path,
@@ -184,49 +193,48 @@ fn verify_hashes(
     if manifest.model_sha256.is_some() || manifest.tokenizer_sha256.is_some() {
         tracing::warn!(
             target: "nvisy_nlp::preset",
-            "manifest specifies sha256 hashes but the `preset-download` \
-             feature is disabled; skipping hash verification"
+            "manifest specifies sha256 hashes but the `hf` feature is \
+             disabled; skipping hash verification"
         );
     }
     Ok(())
 }
 
-/// Download both artifacts via a fresh [`Downloader`]. Logs each
-/// stage through [`TracingReporter`] so operators see startup
-/// progress in their logs without configuring anything.
-///
-/// [`Downloader`]: downloader::Downloader
-/// [`TracingReporter`]: downloader::TracingReporter
-#[cfg(feature = "preset-download")]
+/// Download both artifacts via a fresh
+/// [`nvisy_core::hf::Downloader`]. Progress is reported automatically
+/// as `tracing::info` events under the `nvisy_core::hf` target.
+#[cfg(feature = "hf")]
 async fn fetch_both(manifest: &PresetManifest) -> Result<(PathBuf, PathBuf)> {
-    use self::downloader::{Downloader, TracingReporter};
+    use nvisy_core::hf::{Downloader, FetchRequest};
 
-    let downloader = Downloader::new()?.with_reporter(TracingReporter);
+    let downloader = Downloader::new().map_err(|e| Error::Backend(e.to_string()))?;
     let model = downloader
-        .fetch(
-            &manifest.repo_id,
-            &manifest.revision,
-            &manifest.model_file,
-            manifest.model_sha256.as_deref(),
-        )
-        .await?;
+        .fetch(&FetchRequest {
+            repo_id: &manifest.repo_id,
+            revision: &manifest.revision,
+            file: &manifest.model_file,
+            expected_sha256: manifest.model_sha256.as_deref(),
+        })
+        .await
+        .map_err(|e| Error::Backend(e.to_string()))?;
     let tokenizer = downloader
-        .fetch(
-            &manifest.repo_id,
-            &manifest.revision,
-            &manifest.tokenizer_file,
-            manifest.tokenizer_sha256.as_deref(),
-        )
-        .await?;
+        .fetch(&FetchRequest {
+            repo_id: &manifest.repo_id,
+            revision: &manifest.revision,
+            file: &manifest.tokenizer_file,
+            expected_sha256: manifest.tokenizer_sha256.as_deref(),
+        })
+        .await
+        .map_err(|e| Error::Backend(e.to_string()))?;
     Ok((model, tokenizer))
 }
 
-#[cfg(not(feature = "preset-download"))]
+#[cfg(not(feature = "hf"))]
 async fn fetch_both(_manifest: &PresetManifest) -> Result<(PathBuf, PathBuf)> {
     Err(Error::Backend(
-        "NlpPreset::Manifest requires the `preset-download` feature \
-         to fetch artifacts, or both model_path and tokenizer_path \
-         must be supplied explicitly"
+        "NlpPreset::Manifest requires the `hf` feature to fetch \
+         artifacts, or both model_path and tokenizer_path must be \
+         supplied explicitly"
             .to_owned(),
     ))
 }

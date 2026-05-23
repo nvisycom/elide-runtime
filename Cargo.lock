@@ -3294,7 +3294,6 @@ dependencies = [
  "derive_more",
  "futures",
  "nvisy-core",
- "nvisy-http",
  "nvisy-ontology",
  "reqwest-middleware",
  "rig",
@@ -3362,11 +3361,17 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "derive_more",
+ "dirs",
  "hex",
+ "hf-hub",
  "hipstr",
+ "humantime-serde",
  "infer",
  "jiff",
  "nvisy-ontology",
+ "reqwest-middleware",
+ "reqwest-retry",
+ "reqwest-tracing",
  "schemars 1.2.1",
  "semver",
  "serde",
@@ -3399,7 +3404,6 @@ dependencies = [
  "nvisy-codec",
  "nvisy-core",
  "nvisy-engine",
- "nvisy-http",
  "nvisy-nlp",
  "nvisy-ocr",
  "nvisy-ontology",
@@ -3424,27 +3428,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-http"
-version = "0.1.0"
-dependencies = [
- "derive_more",
- "humantime-serde",
- "nvisy-core",
- "reqwest-middleware",
- "reqwest-retry",
- "reqwest-tracing",
- "serde",
- "tracing",
-]
-
-[[package]]
 name = "nvisy-nlp"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "derive_builder",
- "dirs",
- "hf-hub",
  "lingua",
  "ndarray",
  "nvisy-core",
@@ -3453,7 +3441,6 @@ dependencies = [
  "schemars 1.2.1",
  "serde",
  "serde_json",
- "sha2 0.11.0",
  "smallvec",
  "stop-words",
  "tempfile",
@@ -3475,7 +3462,6 @@ dependencies = [
  "futures",
  "hmac",
  "nvisy-core",
- "nvisy-http",
  "nvisy-ontology",
  "reqwest-middleware",
  "schemars 1.2.1",

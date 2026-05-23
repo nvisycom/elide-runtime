@@ -2,7 +2,7 @@
 //!
 //! [`BaseAgent`]: super::BaseAgent
 
-use nvisy_http::{HttpClient, HttpConfig};
+use nvisy_core::http::{HttpClient, HttpConfig};
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
 use rig::completion::CompletionModel;

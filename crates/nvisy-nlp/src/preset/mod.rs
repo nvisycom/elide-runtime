@@ -28,7 +28,7 @@
 //!
 //! ```no_run
 //! use std::path::PathBuf;
-//! use nvisy_nlp::NlpPreset;
+//! use nvisy_nlp::preset::NlpPreset;
 //!
 //! let preset = NlpPreset::Manifest {
 //!     manifest_path: PathBuf::from("./presets/dslim-bert-base-NER.json"),
@@ -48,11 +48,11 @@ use std::path::{Path, PathBuf};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::manifest::{BackendConfig, LabelMapEntry, PresetManifest};
+pub use self::manifest::{BackendConfig, PresetManifest};
 use crate::NlpEngine;
 use crate::error::{Error, Result};
 use crate::language::LinguaLanguagePolicy;
-use crate::ner::NoopNerBackend;
+use crate::ner::NoopBackend;
 
 /// Prebuilt NLP-engine preset.
 ///
@@ -65,10 +65,10 @@ use crate::ner::NoopNerBackend;
 #[serde(rename_all = "kebab-case", tag = "kind")]
 pub enum NlpPreset {
     /// No-op engine — returns no entities. Backed by
-    /// [`NoopNerBackend`]. Useful for tests and for deployments that
+    /// [`NoopBackend`]. Useful for tests and for deployments that
     /// detect via patterns / LLM only.
     ///
-    /// [`NoopNerBackend`]: crate::ner::NoopNerBackend
+    /// [`NoopBackend`]: crate::ner::NoopBackend
     #[default]
     Default,
 
@@ -101,7 +101,7 @@ impl NlpPreset {
     pub async fn build(&self) -> Result<NlpEngine> {
         match self {
             Self::Default => NlpEngine::builder()
-                .with_ner_backend(NoopNerBackend)
+                .with_ner_backend(NoopBackend)
                 .with_language_policy(LinguaLanguagePolicy)
                 .build()
                 .map_err(|e| Error::Backend(e.to_string())),

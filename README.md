@@ -21,7 +21,8 @@ industries such as healthcare, legal, government, and financial services.
 The fastest way to get started is with [Nvisy Cloud](https://nvisy.com).
 
 For self-hosted deployments, refer to [`docker/`](docker/) for compose files and
-infrastructure requirements, and [`.env.example`](.env.example) for configuration.
+infrastructure requirements, and [`Nvisy.example.toml`](Nvisy.example.toml) for
+the configuration schema.
 
 ## Documentation
 

@@ -21,7 +21,7 @@
 
 use std::path::PathBuf;
 
-use nvisy_nlp::NlpPreset;
+use nvisy_nlp::preset::NlpPreset;
 use nvisy_ontology::entity::EntityKind;
 
 /// Workspace-root-relative path to the reference manifest.

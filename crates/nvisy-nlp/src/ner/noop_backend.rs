@@ -1,4 +1,4 @@
-//! [`NoopNerBackend`] — returns no entities. Used by the
+//! [`NoopBackend`] — returns no entities. Used by the
 //! [`NlpPreset::Default`] preset and as a placeholder when a pipeline
 //! is wired through patterns or LLM only, with NER deliberately
 //! off.
@@ -19,9 +19,9 @@ use crate::error::Result;
 /// model, and as a placeholder in pipelines where NER is opt-in and
 /// the caller chose to opt out.
 #[derive(Debug, Default, Clone, Copy)]
-pub struct NoopNerBackend;
+pub struct NoopBackend;
 
-impl NoopNerBackend {
+impl NoopBackend {
     /// Construct an empty backend.
     pub fn new() -> Self {
         Self
@@ -29,7 +29,7 @@ impl NoopNerBackend {
 }
 
 #[async_trait]
-impl NerBackend for NoopNerBackend {
+impl NerBackend for NoopBackend {
     async fn recognize(
         &self,
         _text: &str,

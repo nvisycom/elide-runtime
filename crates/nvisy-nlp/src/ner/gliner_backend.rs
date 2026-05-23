@@ -1,12 +1,12 @@
 //! [`GlinerBackend`] — zero-shot NER via the [`gline-rs`] crate.
 //!
-//! Unlike [`OrtNerBackend`], whose label vector is baked into the
+//! Unlike [`OrtBackend`], whose label vector is baked into the
 //! exported ONNX file, GLiNER models accept the entity-label list at
 //! inference time. This makes it the only backend that can honor a
 //! per-tenant or per-request "detect these kinds for this call"
 //! request without retraining.
 //!
-//! The label space is bridged through [`GlinerConfig::label_map`]:
+//! The label space is bridged through [`GlinerParams::label_map`]:
 //! operators declare which GLiNER label string (e.g. `"person"`)
 //! maps to which `(EntityCategory, EntityKind)` in our ontology. The
 //! `requested_kinds` hint passed to [`NerBackend::recognize`] is then
@@ -22,7 +22,7 @@
 //! identifiers.
 //!
 //! [`gline-rs`]: https://crates.io/crates/gline-rs
-//! [`OrtNerBackend`]: super::OrtNerBackend
+//! [`OrtBackend`]: super::OrtBackend
 //! [`NerBackend::recognize`]: super::NerBackend::recognize
 
 use std::collections::HashMap;
@@ -37,13 +37,11 @@ use gliner::model::params::Parameters;
 use gliner::model::pipeline::span::SpanMode;
 use gliner::model::pipeline::token::TokenMode;
 use nvisy_ontology::entity::{
-    Entities, Entity, EntityCategory, EntityKind, Location, ModelKind, RecognitionMethod,
-    TextLocation,
+    Entities, Entity, EntityKind, Location, ModelKind, RecognitionMethod, TextLocation,
 };
 use nvisy_ontology::primitive::{Confidence, LanguageTag};
-use orp::params::RuntimeParameters;
 
-use super::NerBackend;
+use super::{LabelMap, NerBackend, runtime};
 use crate::error::{Error, Result};
 
 /// Which GLiNER decoding pipeline a model uses.
@@ -65,7 +63,7 @@ pub enum GlinerMode {
 
 /// Configuration for [`GlinerBackend`].
 #[derive(Debug, Clone)]
-pub struct GlinerConfig {
+pub struct GlinerParams {
     /// Path to the `.onnx` model file.
     pub model_path: PathBuf,
     /// Path to the matching `tokenizer.json`.
@@ -75,10 +73,22 @@ pub struct GlinerConfig {
     /// Map from GLiNER label string (lowercase, e.g. `"person"`) to
     /// the entity it represents. Labels not present here are dropped
     /// at recognition time, even if the model returns spans for them.
-    pub label_map: HashMap<String, (EntityCategory, EntityKind)>,
+    pub label_map: LabelMap,
     /// Model identifier surfaced through [`RecognitionMethod::ner`]
     /// on every produced entity. Useful for provenance tracking.
     pub model_name: String,
+}
+
+impl Default for GlinerParams {
+    fn default() -> Self {
+        Self {
+            model_path: PathBuf::new(),
+            tokenizer_path: PathBuf::new(),
+            mode: GlinerMode::Span,
+            label_map: LabelMap::new(),
+            model_name: String::new(),
+        }
+    }
 }
 
 /// A [`NerBackend`] that runs a GLiNER model via `gline-rs`.
@@ -86,7 +96,7 @@ pub struct GlinerConfig {
 /// GLiNER is zero-shot: the entity-label list is supplied at
 /// inference time, not at training time. When [`recognize`] is given
 /// a `requested_kinds` hint, this backend reverse-maps it through
-/// [`GlinerConfig::label_map`] and only asks the model about the
+/// [`GlinerParams::label_map`] and only asks the model about the
 /// matching labels — keeping inference cost proportional to caller
 /// intent. With no hint, every label in the configured map is asked
 /// about.
@@ -98,7 +108,7 @@ pub struct GlinerBackend {
 
 struct GlinerState {
     inner: GlinerInner,
-    label_map: HashMap<String, (EntityCategory, EntityKind)>,
+    label_map: LabelMap,
     /// Reverse index: `EntityKind` → all GLiNER labels that map to
     /// it. Populated once at construction so per-call filtering
     /// doesn't re-scan `label_map`.
@@ -116,18 +126,21 @@ enum GlinerInner {
 
 impl GlinerBackend {
     /// Load the model and tokenizer eagerly.
-    pub fn new(config: GlinerConfig) -> Result<Self> {
+    pub fn new(config: GlinerParams) -> Result<Self> {
         if config.label_map.is_empty() {
             return Err(Error::Backend(
-                "GlinerConfig.label_map must contain at least one entry".to_owned(),
+                "GlinerParams.label_map must contain at least one entry".to_owned(),
             ));
         }
+
+        let runtime = runtime::auto_for_platform();
+        runtime::log_runtime(&config.model_name, &runtime);
 
         let inner = match config.mode {
             GlinerMode::Span => {
                 let model = GLiNER::<SpanMode>::new(
                     Parameters::default(),
-                    RuntimeParameters::default(),
+                    runtime,
                     &config.tokenizer_path,
                     &config.model_path,
                 )
@@ -140,7 +153,7 @@ impl GlinerBackend {
             GlinerMode::Token => {
                 let model = GLiNER::<TokenMode>::new(
                     Parameters::default(),
-                    RuntimeParameters::default(),
+                    runtime,
                     &config.tokenizer_path,
                     &config.model_path,
                 )
@@ -190,7 +203,7 @@ impl GlinerBackend {
                 .flatten()
                 .cloned()
                 .collect(),
-            _ => self.state.label_map.keys().cloned().collect(),
+            _ => self.state.label_map.labels().map(str::to_owned).collect(),
         }
     }
 
@@ -221,7 +234,7 @@ impl GlinerBackend {
     }
 
     fn build_entity(&self, span: &gliner::text::span::Span) -> Option<Entity> {
-        let (category, kind) = self.state.label_map.get(span.class()).copied()?;
+        let entry = self.state.label_map.classify(span.class())?;
         let (start, end) = span.offsets();
         let location = TextLocation::builder()
             .with_start_offset(start)
@@ -230,8 +243,8 @@ impl GlinerBackend {
             .ok()?;
         let confidence = Confidence::clamped(f64::from(span.probability()));
         Entity::builder()
-            .with_category(category)
-            .with_entity_kind(kind)
+            .with_category(entry.category)
+            .with_entity_kind(entry.kind)
             .with_recognition_methods(vec![RecognitionMethod::ner(
                 &self.state.model_name,
                 ModelKind::SelfHosted,
@@ -246,12 +259,10 @@ impl GlinerBackend {
 /// Invert the label-map into `EntityKind` → all GLiNER labels that
 /// resolve to it. Used to scope per-call inference to the labels
 /// matching `Context::entities`.
-fn build_kind_index(
-    label_map: &HashMap<String, (EntityCategory, EntityKind)>,
-) -> HashMap<EntityKind, Vec<String>> {
+fn build_kind_index(label_map: &LabelMap) -> HashMap<EntityKind, Vec<String>> {
     let mut index: HashMap<EntityKind, Vec<String>> = HashMap::new();
-    for (label, (_, kind)) in label_map {
-        index.entry(*kind).or_default().push(label.clone());
+    for (label, entry) in label_map.iter() {
+        index.entry(entry.kind).or_default().push(label.to_owned());
     }
     index
 }
@@ -307,6 +318,8 @@ impl NerBackend for GlinerBackend {
 
 #[cfg(test)]
 mod tests {
+    use nvisy_ontology::entity::EntityCategory;
+
     use super::*;
 
     /// `GlinerBackend::new` rejects an empty `label_map` rather than
@@ -315,11 +328,11 @@ mod tests {
     /// helpfully).
     #[test]
     fn empty_label_map_rejected() {
-        let cfg = GlinerConfig {
+        let cfg = GlinerParams {
             model_path: PathBuf::from("/unused.onnx"),
             tokenizer_path: PathBuf::from("/unused.json"),
             mode: GlinerMode::Span,
-            label_map: HashMap::new(),
+            label_map: LabelMap::new(),
             model_name: "test".to_owned(),
         };
         let err = GlinerBackend::new(cfg).expect_err("empty label map should fail");
@@ -332,18 +345,21 @@ mod tests {
     /// asking for that kind activates every matching label.
     #[test]
     fn build_kind_index_groups_aliased_labels() {
-        let mut label_map = HashMap::new();
+        let mut label_map = LabelMap::new();
         label_map.insert(
-            "location".to_owned(),
-            (EntityCategory::Location, EntityKind::GeolocationMetadata),
+            "location",
+            EntityCategory::Location,
+            EntityKind::GeolocationMetadata,
         );
         label_map.insert(
-            "address".to_owned(),
-            (EntityCategory::Location, EntityKind::GeolocationMetadata),
+            "address",
+            EntityCategory::Location,
+            EntityKind::GeolocationMetadata,
         );
         label_map.insert(
-            "person".to_owned(),
-            (EntityCategory::PersonalIdentity, EntityKind::PersonName),
+            "person",
+            EntityCategory::PersonalIdentity,
+            EntityKind::PersonName,
         );
         let index = build_kind_index(&label_map);
 

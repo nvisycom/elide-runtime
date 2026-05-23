@@ -11,7 +11,7 @@
 //! Two backends ship today:
 //!
 //! - [`BackendConfig::OnnxBert`]: a BIO-tagged token-classification
-//!   model (e.g. `dslim/bert-base-NER`) loaded via [`OrtNerBackend`].
+//!   model (e.g. `dslim/bert-base-NER`) loaded via [`OrtBackend`].
 //!   Carries `id_to_label`, a BIO base → entity `label_map`, and a
 //!   `max_sequence_length`.
 //! - [`BackendConfig::GlinerSpan`] / [`BackendConfig::GlinerToken`]:
@@ -28,17 +28,16 @@
 //! Reference manifests live at `crates/nvisy-nlp/presets/`.
 //!
 //! [`NlpPreset::Manifest`]: super::NlpPreset::Manifest
-//! [`OrtNerBackend`]: crate::ner::OrtNerBackend
+//! [`OrtBackend`]: crate::ner::OrtBackend
 //! [`GlinerBackend`]: crate::ner::GlinerBackend
 
-use std::collections::HashMap;
 use std::path::Path;
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use nvisy_ontology::primitive::LanguageTag;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
+use crate::ner::LabelMap;
 
 /// JSON-defined preset describing a downloadable HuggingFace model.
 ///
@@ -94,10 +93,14 @@ pub struct PresetManifest {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum BackendConfig {
     /// BERT-family token-classification model loaded via
-    /// [`OrtNerBackend`]. Requires the `onnx` feature.
+    /// [`OrtBackend`]. Requires the `onnx` feature.
     ///
-    /// [`OrtNerBackend`]: crate::ner::OrtNerBackend
+    /// [`OrtBackend`]: crate::ner::OrtBackend
     OnnxBert {
+        /// Maximum sequence length the model accepts. Defaults to
+        /// 512 (BERT-base typical).
+        #[serde(default = "default_max_sequence_length")]
+        max_sequence_length: usize,
         /// Ordered label vector matching the model's argmax indices,
         /// as shipped in the HF `config.json` `id2label` field.
         id_to_label: Vec<String>,
@@ -105,11 +108,7 @@ pub enum BackendConfig {
         /// for `"B-PER"`/`"I-PER"`) to the entity it represents.
         /// Bases that don't appear in this map are dropped during
         /// recognition.
-        label_map: HashMap<String, LabelMapEntry>,
-        /// Maximum sequence length the model accepts. Defaults to
-        /// 512 (BERT-base typical).
-        #[serde(default = "default_max_sequence_length")]
-        max_sequence_length: usize,
+        label_map: LabelMap,
     },
 
     /// GLiNER zero-shot model decoded via the span pipeline (e.g.
@@ -118,7 +117,7 @@ pub enum BackendConfig {
     GlinerSpan {
         /// Map from GLiNER label string (e.g. `"person"`) to the
         /// entity it represents.
-        label_map: HashMap<String, LabelMapEntry>,
+        label_map: LabelMap,
     },
 
     /// GLiNER zero-shot model decoded via the token pipeline (e.g.
@@ -126,20 +125,8 @@ pub enum BackendConfig {
     /// `gliner` feature.
     GlinerToken {
         /// Map from GLiNER label string to the entity it represents.
-        label_map: HashMap<String, LabelMapEntry>,
+        label_map: LabelMap,
     },
-}
-
-/// `(EntityCategory, EntityKind)` pair as serialised in a manifest's
-/// `label_map`.
-///
-/// JSON shape: `{"category": "personal_identity", "kind": "person_name"}`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LabelMapEntry {
-    /// Broad bucket the entity belongs to.
-    pub category: EntityCategory,
-    /// Specific entity kind.
-    pub kind: EntityKind,
 }
 
 fn default_max_sequence_length() -> usize {
@@ -198,11 +185,7 @@ impl PresetManifest {
         };
         let bases: std::collections::HashSet<&str> =
             id_to_label.iter().map(|l| split_bio_base(l)).collect();
-        let unknown: Vec<&str> = label_map
-            .keys()
-            .filter(|k| !bases.contains(k.as_str()))
-            .map(String::as_str)
-            .collect();
+        let unknown: Vec<&str> = label_map.labels().filter(|k| !bases.contains(k)).collect();
         if unknown.is_empty() {
             Ok(())
         } else {
@@ -222,24 +205,18 @@ fn split_bio_base(label: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
+    use nvisy_ontology::entity::{EntityCategory, EntityKind};
+
     use super::*;
 
     /// Build an OnnxBert manifest with the given `id_to_label` and
     /// `label_map`, leaving everything else minimal. Used to exercise
     /// `validate_label_map`.
     fn onnx_bert(id_to_label: &[&str], label_map: &[(&str, EntityKind)]) -> PresetManifest {
-        let label_map = label_map
-            .iter()
-            .map(|(k, kind)| {
-                (
-                    (*k).to_owned(),
-                    LabelMapEntry {
-                        category: kind.category(),
-                        kind: *kind,
-                    },
-                )
-            })
-            .collect();
+        let mut lm = LabelMap::new();
+        for (k, kind) in label_map {
+            lm.insert(*k, kind.category(), *kind);
+        }
         PresetManifest {
             model_name: "x".into(),
             repo_id: "x/y".into(),
@@ -251,7 +228,7 @@ mod tests {
             supported_languages: vec![],
             backend: BackendConfig::OnnxBert {
                 id_to_label: id_to_label.iter().map(|s| (*s).to_owned()).collect(),
-                label_map,
+                label_map: lm,
                 max_sequence_length: 64,
             },
         }
@@ -284,6 +261,14 @@ mod tests {
 
     #[test]
     fn validate_label_map_is_noop_for_gliner() {
+        // GLiNER accepts arbitrary labels: even a nonsense key like
+        // this should pass validation.
+        let mut lm = LabelMap::new();
+        lm.insert(
+            "literally anything",
+            EntityCategory::PersonalIdentity,
+            EntityKind::PersonName,
+        );
         let manifest = PresetManifest {
             model_name: "x".into(),
             repo_id: "x/y".into(),
@@ -293,19 +278,7 @@ mod tests {
             tokenizer_file: "t.json".into(),
             tokenizer_sha256: None,
             supported_languages: vec![],
-            backend: BackendConfig::GlinerSpan {
-                // GLiNER accepts arbitrary labels: even a nonsense
-                // key like this should pass validation.
-                label_map: [(
-                    "literally anything".to_owned(),
-                    LabelMapEntry {
-                        category: EntityCategory::PersonalIdentity,
-                        kind: EntityKind::PersonName,
-                    },
-                )]
-                .into_iter()
-                .collect(),
-            },
+            backend: BackendConfig::GlinerSpan { label_map: lm },
         };
         manifest.validate_label_map().unwrap();
     }

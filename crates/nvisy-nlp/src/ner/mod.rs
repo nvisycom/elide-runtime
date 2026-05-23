@@ -9,10 +9,13 @@
 //! [`Entities`]: nvisy_ontology::entity::Entities
 
 #[cfg(feature = "gliner")]
-mod gliner;
-mod noop;
+mod gliner_backend;
+mod label_map;
+mod noop_backend;
 #[cfg(feature = "onnx")]
-mod ort;
+mod ort_backend;
+#[cfg(any(feature = "onnx", feature = "gliner"))]
+mod runtime;
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::{Entities, EntityKind};
@@ -20,11 +23,12 @@ use nvisy_ontology::primitive::LanguageTag;
 
 #[cfg(feature = "gliner")]
 #[cfg_attr(docsrs, doc(cfg(feature = "gliner")))]
-pub use self::gliner::{GlinerBackend, GlinerConfig, GlinerMode};
-pub use self::noop::NoopNerBackend;
+pub use self::gliner_backend::{GlinerBackend, GlinerMode, GlinerParams};
+pub use self::label_map::{LabelMap, LabelMapEntry};
+pub use self::noop_backend::NoopBackend;
 #[cfg(feature = "onnx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
-pub use self::ort::{OrtNerBackend, OrtNerConfig, id_to_label_from_config_json};
+pub use self::ort_backend::{OrtBackend, OrtParams};
 use crate::error::Result;
 
 /// Recognize entities in text.
@@ -40,13 +44,13 @@ use crate::error::Result;
 /// `requested_kinds` is **also advisory** and exists to let zero-shot
 /// backends (notably [`GlinerBackend`]) materialise the exact label
 /// set the caller is asking about. Backends with a fixed label vector
-/// ([`OrtNerBackend`], [`NoopNerBackend`]) ignore it — the
+/// ([`OrtBackend`], [`NoopBackend`]) ignore it — the
 /// [`NlpEngine`] still post-filters their output against the same
 /// allowlist, so passing it here is purely an optimisation hint.
 ///
 /// [`GlinerBackend`]: GlinerBackend
-/// [`OrtNerBackend`]: OrtNerBackend
-/// [`NoopNerBackend`]: NoopNerBackend
+/// [`OrtBackend`]: OrtBackend
+/// [`NoopBackend`]: NoopBackend
 /// [`Error::UnsupportedLanguage`]: crate::Error::UnsupportedLanguage
 /// [`NlpEngine`]: crate::NlpEngine
 #[async_trait]

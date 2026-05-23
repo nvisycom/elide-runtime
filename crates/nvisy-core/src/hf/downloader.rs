@@ -56,13 +56,15 @@ impl Downloader {
     /// after download (via [`FetchRequest::verify_artifact`]) and a
     /// mismatch returns an error.
     pub async fn fetch(&self, request: &FetchRequest<'_>) -> Result<PathBuf> {
+        let repo = Repo::with_revision(
+            request.repo_id.to_owned(),
+            RepoType::Model,
+            request.revision.to_owned(),
+        );
+
         let path = self
             .api
-            .repo(Repo::with_revision(
-                request.repo_id.to_owned(),
-                RepoType::Model,
-                request.revision.to_owned(),
-            ))
+            .repo(repo)
             .download_with_progress(request.file, TracingProgress::default())
             .await
             .map_err(|e| {
@@ -75,6 +77,7 @@ impl Downloader {
                     true,
                 )
             })?;
+
         request.verify_artifact(&path)?;
         Ok(path)
     }

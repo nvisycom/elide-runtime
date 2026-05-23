@@ -207,7 +207,7 @@ mod tests {
 
     use super::*;
     use crate::language::LinguaLanguagePolicy;
-    use crate::ner::{NerBackend, NoopNerBackend};
+    use crate::ner::{NerBackend, NoopBackend};
     use crate::tokenizer::UnicodeTokenizer;
 
     /// NER backend that returns a fixed list of entities ignoring
@@ -237,7 +237,7 @@ mod tests {
 
     fn english_engine() -> NlpEngine {
         NlpEngine::builder()
-            .with_ner_backend(NoopNerBackend)
+            .with_ner_backend(NoopBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap()
@@ -314,7 +314,7 @@ mod tests {
     #[test]
     fn engine_builder_errors_when_language_policy_missing() {
         let err = NlpEngine::builder()
-            .with_ner_backend(NoopNerBackend)
+            .with_ner_backend(NoopBackend)
             .build()
             .unwrap_err();
         assert!(
@@ -375,7 +375,7 @@ mod tests {
         // lingua feature, so an English candidate set on English
         // text resolves to English.
         let engine = NlpEngine::builder()
-            .with_ner_backend(NoopNerBackend)
+            .with_ner_backend(NoopBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap();
@@ -398,7 +398,7 @@ mod tests {
         // to detector_for_all (which still considers only English),
         // so English text still detects as English.
         let engine = NlpEngine::builder()
-            .with_ner_backend(NoopNerBackend)
+            .with_ner_backend(NoopBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap();
@@ -418,7 +418,7 @@ mod tests {
         let lang: LanguageTag = "en".parse().unwrap();
         let tok = UnicodeTokenizer::with_language(&lang).unwrap();
         let engine = NlpEngine::builder()
-            .with_ner_backend(NoopNerBackend)
+            .with_ner_backend(NoopBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .with_tokenizer(tok)
             .build()

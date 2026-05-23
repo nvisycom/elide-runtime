@@ -8,7 +8,7 @@
 //!
 //! [`Detection`]: crate::detection::Detection
 
-use nvisy_nlp::NlpPreset;
+use nvisy_nlp::preset::NlpPreset;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

@@ -8,16 +8,16 @@
 //! dropped entities at recognition time, then dispatches to the
 //! matching backend feature.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use nvisy_ontology::primitive::LanguageTag;
 
-use super::manifest::{BackendConfig, LabelMapEntry, PresetManifest};
+use super::manifest::{BackendConfig, PresetManifest};
 use crate::NlpEngine;
 use crate::error::{Error, Result};
 #[cfg(any(feature = "onnx", feature = "gliner"))]
 use crate::language::LinguaLanguagePolicy;
+use crate::ner::LabelMap;
 
 /// Build an [`NlpEngine`] from `manifest` plus resolved artifact
 /// paths.
@@ -84,25 +84,22 @@ fn build_onnx_bert(
     model_name: String,
     languages: Vec<LanguageTag>,
     id_to_label: Vec<String>,
-    label_map: HashMap<String, LabelMapEntry>,
+    label_map: LabelMap,
     max_sequence_length: usize,
     model_path: PathBuf,
     tokenizer_path: PathBuf,
 ) -> Result<NlpEngine> {
-    use crate::ner::{OrtNerBackend, OrtNerConfig};
+    use crate::ner::{OrtBackend, OrtParams};
 
-    let cfg = OrtNerConfig {
+    let cfg = OrtParams {
         model_path,
         tokenizer_path,
         id_to_label,
-        label_map: label_map
-            .into_iter()
-            .map(|(k, v)| (k, (v.category, v.kind)))
-            .collect(),
+        label_map,
         max_sequence_length,
         model_name,
     };
-    let mut backend = OrtNerBackend::new(cfg)?;
+    let mut backend = OrtBackend::new(cfg)?;
     if !languages.is_empty() {
         backend = backend.with_supported_languages(languages);
     }
@@ -118,7 +115,7 @@ fn build_onnx_bert(
     _model_name: String,
     _languages: Vec<LanguageTag>,
     _id_to_label: Vec<String>,
-    _label_map: HashMap<String, LabelMapEntry>,
+    _label_map: LabelMap,
     _max_sequence_length: usize,
     _model_path: PathBuf,
     _tokenizer_path: PathBuf,
@@ -134,21 +131,18 @@ fn build_onnx_bert(
 fn build_gliner(
     model_name: String,
     languages: Vec<LanguageTag>,
-    label_map: HashMap<String, LabelMapEntry>,
+    label_map: LabelMap,
     mode: GlinerMode,
     model_path: PathBuf,
     tokenizer_path: PathBuf,
 ) -> Result<NlpEngine> {
-    use crate::ner::{GlinerBackend, GlinerConfig};
+    use crate::ner::{GlinerBackend, GlinerParams};
 
-    let cfg = GlinerConfig {
+    let cfg = GlinerParams {
         model_path,
         tokenizer_path,
         mode,
-        label_map: label_map
-            .into_iter()
-            .map(|(k, v)| (k, (v.category, v.kind)))
-            .collect(),
+        label_map,
         model_name,
     };
     let mut backend = GlinerBackend::new(cfg)?;
@@ -166,7 +160,7 @@ fn build_gliner(
 fn build_gliner(
     _model_name: String,
     _languages: Vec<LanguageTag>,
-    _label_map: HashMap<String, LabelMapEntry>,
+    _label_map: LabelMap,
     _mode: GlinerMode,
     _model_path: PathBuf,
     _tokenizer_path: PathBuf,

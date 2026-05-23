@@ -2,10 +2,10 @@
 //!
 //! Useful when downstream code needs token offsets aligned with a
 //! specific model's tokenization (the canonical case being
-//! [`OrtNerBackend`]'s alignment). For dependency-free tokenization
+//! [`OrtBackend`]'s alignment). For dependency-free tokenization
 //! over Unicode word boundaries, use [`UnicodeTokenizer`] instead.
 //!
-//! [`OrtNerBackend`]: crate::ner::OrtNerBackend
+//! [`OrtBackend`]: crate::ner::OrtBackend
 //! [`UnicodeTokenizer`]: super::UnicodeTokenizer
 
 use std::collections::HashSet;

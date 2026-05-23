@@ -48,13 +48,18 @@ let artifacts = engine.analyze(ctx).await?;
 - `default = ["test-utils"]` — ships only `NoopBackend`, the
   language policy, and the Unicode tokenizer.
 - `onnx` — enables `OrtBackend` (BIO-tagged BERT-family models)
-  and `HfTokenizer`. Pulls in `ort = rc.12`, `tokenizers`, `ndarray`.
+  and `HfTokenizer`. Pulls in `ort = =rc.9`, `tokenizers`, `ndarray`,
+  and `orp` (shared with `gliner`).
 - `gliner` — enables `GlinerBackend` (zero-shot NER via `gline-rs`).
-  Pulls in `gline-rs` + `orp`, which transitively pin
-  `ort = =rc.9`. **Mutually exclusive with `onnx`** — enabling both
-  produces a compile-time error.
+  Pulls in `gline-rs` + `orp`, which transitively pin `ort = =rc.9`.
+  Can be enabled alongside `onnx`; both backends then share the same
+  `ort` runtime and execution-provider auto-detect.
 - `hf` — enables auto-download + SHA-256 verification of manifest-
   defined preset artifacts via `nvisy-core::hf`.
+- `coreml`, `cuda`, `tensorrt`, `directml` — pass-through to the
+  matching `ort` and `gline-rs` features. Auto-registered per host
+  OS by `ner::runtime::auto_for_platform()` when the backend
+  initialises. With no EP feature on, both backends run on CPU.
 - `test-utils` — exposes `NoopBackend` for downstream tests.
 
 ## Runtime requirements
@@ -65,6 +70,13 @@ the host at runtime**:
 
 - macOS: `brew install onnxruntime`
 - Debian/Ubuntu: download from [ONNX Runtime releases]
+
+The installed `libonnxruntime` major/minor must match the C API
+version the pinned `ort` was built against. Today that's `ort =
+=rc.9` against onnxruntime **1.20.x**. A mismatched dylib loads and
+runs on CPU but crashes inside execution-provider code paths (e.g.
+CoreML `SIGABRT` on session creation). Point `ORT_DYLIB_PATH` at a
+matching dylib if your distro ships a newer one.
 
 Model files (`.onnx` + `tokenizer.json`) are user-provided. For the
 BERT path, convert a HuggingFace token-classification model with

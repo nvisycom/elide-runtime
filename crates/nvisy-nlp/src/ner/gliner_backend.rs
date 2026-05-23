@@ -6,7 +6,7 @@
 //! per-tenant or per-request "detect these kinds for this call"
 //! request without retraining.
 //!
-//! The label space is bridged through [`GlinerConfig::label_map`]:
+//! The label space is bridged through [`GlinerParams::label_map`]:
 //! operators declare which GLiNER label string (e.g. `"person"`)
 //! maps to which `(EntityCategory, EntityKind)` in our ontology. The
 //! `requested_kinds` hint passed to [`NerBackend::recognize`] is then
@@ -40,9 +40,8 @@ use nvisy_ontology::entity::{
     Entities, Entity, EntityKind, Location, ModelKind, RecognitionMethod, TextLocation,
 };
 use nvisy_ontology::primitive::{Confidence, LanguageTag};
-use orp::params::RuntimeParameters;
 
-use super::{LabelMap, NerBackend};
+use super::{LabelMap, NerBackend, runtime};
 use crate::error::{Error, Result};
 
 /// Which GLiNER decoding pipeline a model uses.
@@ -64,7 +63,7 @@ pub enum GlinerMode {
 
 /// Configuration for [`GlinerBackend`].
 #[derive(Debug, Clone)]
-pub struct GlinerConfig {
+pub struct GlinerParams {
     /// Path to the `.onnx` model file.
     pub model_path: PathBuf,
     /// Path to the matching `tokenizer.json`.
@@ -80,12 +79,24 @@ pub struct GlinerConfig {
     pub model_name: String,
 }
 
+impl Default for GlinerParams {
+    fn default() -> Self {
+        Self {
+            model_path: PathBuf::new(),
+            tokenizer_path: PathBuf::new(),
+            mode: GlinerMode::Span,
+            label_map: LabelMap::new(),
+            model_name: String::new(),
+        }
+    }
+}
+
 /// A [`NerBackend`] that runs a GLiNER model via `gline-rs`.
 ///
 /// GLiNER is zero-shot: the entity-label list is supplied at
 /// inference time, not at training time. When [`recognize`] is given
 /// a `requested_kinds` hint, this backend reverse-maps it through
-/// [`GlinerConfig::label_map`] and only asks the model about the
+/// [`GlinerParams::label_map`] and only asks the model about the
 /// matching labels — keeping inference cost proportional to caller
 /// intent. With no hint, every label in the configured map is asked
 /// about.
@@ -115,18 +126,21 @@ enum GlinerInner {
 
 impl GlinerBackend {
     /// Load the model and tokenizer eagerly.
-    pub fn new(config: GlinerConfig) -> Result<Self> {
+    pub fn new(config: GlinerParams) -> Result<Self> {
         if config.label_map.is_empty() {
             return Err(Error::Backend(
-                "GlinerConfig.label_map must contain at least one entry".to_owned(),
+                "GlinerParams.label_map must contain at least one entry".to_owned(),
             ));
         }
+
+        let runtime = runtime::auto_for_platform();
+        runtime::log_runtime(&config.model_name, &runtime);
 
         let inner = match config.mode {
             GlinerMode::Span => {
                 let model = GLiNER::<SpanMode>::new(
                     Parameters::default(),
-                    RuntimeParameters::default(),
+                    runtime,
                     &config.tokenizer_path,
                     &config.model_path,
                 )
@@ -139,7 +153,7 @@ impl GlinerBackend {
             GlinerMode::Token => {
                 let model = GLiNER::<TokenMode>::new(
                     Parameters::default(),
-                    RuntimeParameters::default(),
+                    runtime,
                     &config.tokenizer_path,
                     &config.model_path,
                 )
@@ -314,7 +328,7 @@ mod tests {
     /// helpfully).
     #[test]
     fn empty_label_map_rejected() {
-        let cfg = GlinerConfig {
+        let cfg = GlinerParams {
             model_path: PathBuf::from("/unused.onnx"),
             tokenizer_path: PathBuf::from("/unused.json"),
             mode: GlinerMode::Span,

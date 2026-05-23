@@ -136,9 +136,9 @@ fn build_gliner(
     model_path: PathBuf,
     tokenizer_path: PathBuf,
 ) -> Result<NlpEngine> {
-    use crate::ner::{GlinerBackend, GlinerConfig};
+    use crate::ner::{GlinerBackend, GlinerParams};
 
-    let cfg = GlinerConfig {
+    let cfg = GlinerParams {
         model_path,
         tokenizer_path,
         mode,

@@ -14,6 +14,8 @@ mod label_map;
 mod noop_backend;
 #[cfg(feature = "onnx")]
 mod ort_backend;
+#[cfg(any(feature = "onnx", feature = "gliner"))]
+mod runtime;
 
 use async_trait::async_trait;
 use nvisy_ontology::entity::{Entities, EntityKind};
@@ -21,7 +23,7 @@ use nvisy_ontology::primitive::LanguageTag;
 
 #[cfg(feature = "gliner")]
 #[cfg_attr(docsrs, doc(cfg(feature = "gliner")))]
-pub use self::gliner_backend::{GlinerBackend, GlinerConfig, GlinerMode};
+pub use self::gliner_backend::{GlinerBackend, GlinerParams, GlinerMode};
 pub use self::label_map::{LabelMap, LabelMapEntry};
 pub use self::noop_backend::NoopBackend;
 #[cfg(feature = "onnx")]

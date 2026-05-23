@@ -32,6 +32,22 @@ microsoft = ["nvisy-engine/microsoft"]
 ## Enable AWS Textract OCR.
 amazon = ["nvisy-engine/amazon"]
 
+## Enable the ONNX-backed BIO-tagging NER backend.
+onnx = ["nvisy-engine/onnx"]
+## Enable the zero-shot GLiNER NER backend.
+gliner = ["nvisy-engine/gliner"]
+## Enable HuggingFace Hub auto-download for NLP preset artifacts.
+hf = ["nvisy-engine/hf"]
+
+## CoreML execution provider — macOS / Apple Silicon.
+coreml = ["nvisy-engine/coreml"]
+## CUDA execution provider — NVIDIA GPUs.
+cuda = ["nvisy-engine/cuda"]
+## TensorRT execution provider — NVIDIA inference optimization.
+tensorrt = ["nvisy-engine/tensorrt"]
+## DirectML execution provider — Windows GPU compute.
+directml = ["nvisy-engine/directml"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

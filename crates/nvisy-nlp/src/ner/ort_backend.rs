@@ -24,7 +24,7 @@ use ort::session::Session;
 use ort::value::Value;
 use tokenizers::{Encoding, Tokenizer};
 
-use super::{LabelMap, NerBackend};
+use super::{LabelMap, NerBackend, runtime};
 use crate::error::{Error, Result};
 
 const LABEL_OUTSIDE: &str = "O";
@@ -63,6 +63,19 @@ pub struct OrtParams {
     pub model_name: String,
 }
 
+impl Default for OrtParams {
+    fn default() -> Self {
+        Self {
+            model_path: PathBuf::new(),
+            tokenizer_path: PathBuf::new(),
+            id_to_label: Vec::new(),
+            label_map: LabelMap::new(),
+            max_sequence_length: 512,
+            model_name: String::new(),
+        }
+    }
+}
+
 /// A [`NerBackend`] that runs a HuggingFace token-classification model
 /// exported to ONNX.
 pub struct OrtBackend {
@@ -93,7 +106,20 @@ impl OrtBackend {
             ));
         }
 
+        let runtime = runtime::auto_for_platform();
+        runtime::log_runtime(&config.model_name, &runtime);
+
         let session = Session::builder()
+            .map_err(|e| Error::ModelLoad {
+                path: config.model_path.clone(),
+                cause: e.to_string(),
+            })?
+            .with_intra_threads(runtime.threads())
+            .map_err(|e| Error::ModelLoad {
+                path: config.model_path.clone(),
+                cause: e.to_string(),
+            })?
+            .with_execution_providers(runtime.execution_providers().iter().cloned())
             .map_err(|e| Error::ModelLoad {
                 path: config.model_path.clone(),
                 cause: e.to_string(),

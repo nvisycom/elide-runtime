@@ -5,22 +5,15 @@
   "model_file": "onnx/model.onnx",
   "model_sha256": "963039b81eec5b33e23d84826ccdf1e8f8ada776f320e692113034cfae384617",
   "tokenizer_file": "onnx/tokenizer.json",
-  "id_to_label": [
-    "O",
-    "B-MISC",
-    "I-MISC",
-    "B-PER",
-    "I-PER",
-    "B-ORG",
-    "I-ORG",
-    "B-LOC",
-    "I-LOC"
-  ],
-  "label_map": {
-    "PER": {"category": "personal_identity", "kind": "person_name"},
-    "ORG": {"category": "organizational", "kind": "organization_name"},
-    "LOC": {"category": "location", "kind": "geolocation_metadata"}
-  },
   "supported_languages": ["en"],
-  "max_sequence_length": 512
+  "backend": {
+    "kind": "onnx-bert",
+    "id_to_label": ["O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC"],
+    "label_map": {
+      "PER": { "category": "personal_identity", "kind": "person_name" },
+      "ORG": { "category": "organizational", "kind": "organization_name" },
+      "LOC": { "category": "location", "kind": "geolocation_metadata" }
+    },
+    "max_sequence_length": 512
+  }
 }

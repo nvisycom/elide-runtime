@@ -132,7 +132,10 @@ impl Engine {
         async move {
             let detections = self.resolve_language(&context)?;
             let language_hint = detections.first().map(|d| &d.language);
-            let mut entities = self.ner.recognize(context.text, language_hint).await?;
+            let mut entities = self
+                .ner
+                .recognize(context.text, language_hint, context.entities.as_deref())
+                .await?;
 
             if let Some(allowed) = context.entities.as_deref() {
                 entities.retain(|e| allowed.contains(&e.entity_kind));
@@ -214,6 +217,7 @@ mod tests {
             &self,
             _text: &str,
             _language: Option<&LanguageTag>,
+            _requested_kinds: Option<&[EntityKind]>,
         ) -> Result<Entities> {
             Ok(self.0.clone())
         }

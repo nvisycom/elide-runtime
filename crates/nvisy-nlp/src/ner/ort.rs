@@ -181,7 +181,7 @@ impl Inferencer for OrtInferencer {
         // values irrelevant. A zero tensor is the canonical fill.
         let token_type_ids = Array2::<i64>::zeros((1, seq_len));
 
-        let mut session = self
+        let session = self
             .session
             .lock()
             .map_err(|_| Error::Inference("ORT session mutex poisoned".to_owned()))?;
@@ -193,25 +193,32 @@ impl Inferencer for OrtInferencer {
         let token_type_v = Value::from_array(token_type_ids)
             .map_err(|e| Error::Inference(format!("token_type_ids value: {e}")))?;
 
+        // `ort::inputs!` returns a `Result` on rc.9, hence the `?`.
+        let inputs = ort::inputs![
+            "input_ids" => input_ids_v,
+            "attention_mask" => attention_v,
+            "token_type_ids" => token_type_v,
+        ]
+        .map_err(|e| Error::Inference(format!("inputs build: {e}")))?;
         let outputs = session
-            .run(ort::inputs![
-                "input_ids" => input_ids_v,
-                "attention_mask" => attention_v,
-                "token_type_ids" => token_type_v,
-            ])
+            .run(inputs)
             .map_err(|e| Error::Inference(e.to_string()))?;
 
-        let (shape, data) = outputs[0]
+        // rc.9's `try_extract_tensor` returns an `ArrayView<T, IxDyn>`,
+        // unlike rc.12 which returns `(shape, data)` directly.
+        let array = outputs[0]
             .try_extract_tensor::<f32>()
             .map_err(|e| Error::Inference(format!("logits extract: {e}")))?;
+        let shape = array.shape();
 
-        if shape.len() != 3 || shape[0] != 1 || shape[1] as usize != seq_len {
+        if shape.len() != 3 || shape[0] != 1 || shape[1] != seq_len {
             return Err(Error::Inference(format!(
                 "unexpected logits shape {shape:?}; expected [1, {seq_len}, num_labels]",
             )));
         }
-        let num_labels = shape[2] as usize;
-        Ok((data.to_vec(), num_labels))
+        let num_labels = shape[2];
+        let data: Vec<f32> = array.iter().copied().collect();
+        Ok((data, num_labels))
     }
 }
 
@@ -420,7 +427,15 @@ impl fmt::Debug for OrtNerBackend {
 
 #[async_trait]
 impl NerBackend for OrtNerBackend {
-    async fn recognize(&self, text: &str, language: Option<&LanguageTag>) -> Result<Entities> {
+    async fn recognize(
+        &self,
+        text: &str,
+        language: Option<&LanguageTag>,
+        // Ignored: this backend's label vector is baked into the
+        // ONNX file. The `Engine` post-filters our output against
+        // any caller-supplied allowlist.
+        _requested_kinds: Option<&[EntityKind]>,
+    ) -> Result<Entities> {
         // Validate language against `supported_languages` when set.
         if let Some(lang) = language
             && !self.state.supported_languages.is_empty()
@@ -770,7 +785,7 @@ mod tests {
         let backend = backend.with_supported_languages(vec!["en".parse().unwrap()]);
         let lang: LanguageTag = "de".parse().unwrap();
         let err = backend
-            .recognize("Hallo Welt", Some(&lang))
+            .recognize("Hallo Welt", Some(&lang), None)
             .await
             .expect_err("should error");
         assert!(matches!(err, Error::UnsupportedLanguage(_)));
@@ -785,7 +800,7 @@ mod tests {
         let (backend, _dir) = build_backend(logits, 3);
         let backend = backend.with_supported_languages(vec!["en".parse().unwrap()]);
         let lang: LanguageTag = "en".parse().unwrap();
-        let result = backend.recognize("Hello world", Some(&lang)).await;
+        let result = backend.recognize("Hello world", Some(&lang), None).await;
         assert!(result.is_ok());
     }
 
@@ -797,7 +812,7 @@ mod tests {
         ];
         let (backend, _dir) = build_backend(logits, 3);
         let lang: LanguageTag = "de".parse().unwrap();
-        let result = backend.recognize("Hallo Welt", Some(&lang)).await;
+        let result = backend.recognize("Hallo Welt", Some(&lang), None).await;
         assert!(result.is_ok());
     }
 }

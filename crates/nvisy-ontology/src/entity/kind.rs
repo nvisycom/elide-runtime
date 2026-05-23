@@ -168,6 +168,22 @@ pub enum EntityKind {
     /// Date, time, or datetime value.
     DateTime,
 
+    // General-purpose NER labels (commonly emitted by zero-shot
+    // models like GLiNER): not strictly PII but useful to flag for
+    // policy routing, redaction overrides, or downstream
+    // structuring.
+    /// Event reference (conferences, weddings, public happenings).
+    Event,
+    /// Occupation, role, or job title.
+    Occupation,
+    /// Product, service, or model name.
+    Product,
+    /// Numeric quantity or measurement (distinct from monetary
+    /// [`Amount`]).
+    ///
+    /// [`Amount`]: Self::Amount
+    Quantity,
+
     /// Fallback kind for entities a recognizer flagged as sensitive
     /// but could not classify into a more specific kind. Pairs with
     /// [`EntityCategory::Unresolved`].
@@ -258,6 +274,11 @@ impl EntityKind {
             // as PII by GDPR/CCPA)
             Self::DateTime => EntityCategory::PersonalIdentity,
 
+            // General-purpose
+            Self::Event | Self::Occupation | Self::Product | Self::Quantity => {
+                EntityCategory::GeneralPurpose
+            }
+
             Self::Unresolved => EntityCategory::Unresolved,
         }
     }
@@ -332,6 +353,10 @@ impl EntityKind {
             | Self::FacilityName
             | Self::Logo
             | Self::Barcode
+            | Self::Event
+            | Self::Occupation
+            | Self::Product
+            | Self::Quantity
             | Self::Unresolved => EntitySensitivity::Low,
         }
     }

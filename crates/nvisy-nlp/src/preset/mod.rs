@@ -57,7 +57,7 @@ use std::sync::Arc;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use self::manifest::{LabelMapEntry, PresetManifest};
+pub use self::manifest::{BackendConfig, LabelMapEntry, PresetManifest};
 use crate::Engine;
 use crate::error::{Error, Result};
 use crate::language::LinguaLanguagePolicy;
@@ -252,7 +252,10 @@ mod tests {
             r#"{
                 "model_name": "x", "repo_id": "x/y", "revision": "abc",
                 "model_file": "m.onnx", "tokenizer_file": "t.json",
-                "id_to_label": ["O"], "label_map": {}
+                "backend": {
+                    "kind": "onnx-bert",
+                    "id_to_label": ["O"], "label_map": {}
+                }
             }"#,
         )
         .unwrap();
@@ -278,7 +281,10 @@ mod tests {
             r#"{
                 "model_name": "x", "repo_id": "x/y", "revision": "abc",
                 "model_file": "m.onnx", "tokenizer_file": "t.json",
-                "id_to_label": ["O"], "label_map": {}
+                "backend": {
+                    "kind": "onnx-bert",
+                    "id_to_label": ["O"], "label_map": {}
+                }
             }"#,
         )
         .unwrap();

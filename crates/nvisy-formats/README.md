@@ -41,10 +41,10 @@ Two layers of features:
 | Audio | `audio` | `wav`, `mp3` |
 | Rich | `rich` | `pdf`, `docx` |
 
-Selecting a single format (e.g. `--features pdf`) compiles only that
-loader and pulls only its specific deps (`lopdf` + `pdfium-render`
-+ `rayon` for PDF). The umbrella feature is just shorthand for
-"enable every format in this modality".
+Selecting a single format (e.g. `--features pdf`) compiles only
+that loader and pulls only its specific deps (`lopdf`,
+`pdfium-render`, `rayon` for PDF). The umbrella feature is just
+shorthand for "enable every format in this modality".
 
 ## Documentation
 

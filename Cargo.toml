@@ -1,7 +1,7 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-resolver = "2"
+resolver = "3"
 members = [
     "./crates/nvisy-agent",
     "./crates/nvisy-cli",
@@ -98,7 +98,6 @@ hex = { version = "0.4", features = [] }
 # Pattern matching
 regex = { version = "1.0", features = [] }
 aho-corasick = { version = "1.0", features = [] }
-globset = { version = "0.4", features = [] }
 smallvec = { version = "1.13", features = [] }
 
 # ONNX inference stack

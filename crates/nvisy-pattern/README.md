@@ -8,10 +8,9 @@ Nvisy runtime.
 ## Overview
 
 A pre-compiled pattern engine for PII/PHI detection. Each scan runs
-regex (`RegexSet`-prefiltered), per-token glob, dictionary lookup
-(Aho-Corasick), and deny-list injection into a single deduplicated
-result. Built-in patterns and dictionaries live as JSON under
-`assets/` and are embedded at compile time.
+regex (`RegexSet`-prefiltered), dictionary lookup (Aho-Corasick),
+and deny-list injection. Built-in patterns and dictionaries live as
+JSON under `assets/` and are embedded at compile time.
 
 Per-scan inputs (allow / deny lists, context-keyword hints,
 caller-supplied ad-hoc patterns) flow through `ScanContext` without

@@ -1,12 +1,12 @@
 //! [`ContextEnhancer`]: post-scan confidence adjustment using each
-//! match's per-pattern [`ContextRule`] plus caller-supplied
+//! candidate's per-pattern [`ContextRule`] plus caller-supplied
 //! [`ContextHint`]s.
 //!
-//! Lives next to [`RawMatch`] because it operates on a slice of raw
-//! matches before dedup. Kept crate-private; the orchestration goes
-//! through [`PatternEngine::scan_entities`].
+//! Lives next to [`EntityCandidate`] because it operates on a slice
+//! of candidates before the threshold filter. Kept crate-private;
+//! the orchestration goes through [`PatternEngine::scan_entities`].
 //!
-//! [`RawMatch`]: super::pattern_match::RawMatch
+//! [`EntityCandidate`]: super::candidate::EntityCandidate
 //!
 //! # Semantics
 //!
@@ -42,11 +42,11 @@
 
 use nvisy_ontology::entity::RecognitionMethod;
 
-use super::pattern_match::RawMatch;
+use super::candidate::EntityCandidate;
 use crate::engine::filter::ContextHint;
 
-/// Apply context-aware confidence adjustments to a slice of raw
-/// matches.
+/// Apply context-aware confidence adjustments to a slice of
+/// candidates.
 pub(crate) struct ContextEnhancer<'a> {
     text: &'a str,
     hints: &'a [ContextHint],
@@ -60,33 +60,34 @@ impl<'a> ContextEnhancer<'a> {
     }
 
     /// Apply the enhancement pass in place.
-    pub(crate) fn enhance(&self, matches: &mut [RawMatch]) {
-        for m in matches {
-            self.enhance_one(m);
+    pub(crate) fn enhance(&self, candidates: &mut [EntityCandidate]) {
+        for c in candidates {
+            self.enhance_one(c);
         }
     }
 
-    /// Find the most-specific hint bucket for this match: prefer a
-    /// kind-specific entry, fall back to the first global entry
+    /// Find the most-specific hint bucket for this candidate: prefer
+    /// a kind-specific entry, fall back to the first global entry
     /// (`kind == None`), or `None` if neither exists.
-    fn select_hint(&self, m: &RawMatch) -> Option<&ContextHint> {
-        let kind_specific = self.hints.iter().find(|h| h.kind == Some(m.entity_kind));
+    fn select_hint(&self, c: &EntityCandidate) -> Option<&ContextHint> {
+        let kind = c.entity.entity_kind;
+        let kind_specific = self.hints.iter().find(|h| h.kind == Some(kind));
         if kind_specific.is_some() {
             return kind_specific;
         }
         self.hints.iter().find(|h| h.kind.is_none())
     }
 
-    fn enhance_one(&self, m: &mut RawMatch) {
+    fn enhance_one(&self, c: &mut EntityCandidate) {
         // Strict-Presidio: patterns without a ContextRule opt out.
-        let rule = match &m.context {
+        let rule = match &c.context {
             Some(r) => r,
             None => return,
         };
 
         // Pick at most one applicable hint bucket. None still means
         // "apply the rule's own behavior."
-        let hint = self.select_hint(m);
+        let hint = self.select_hint(c);
 
         // Per-call overrides only kick in when the selected hint
         // actually supplied keywords. Empty keywords + Some window
@@ -104,8 +105,13 @@ impl<'a> ContextEnhancer<'a> {
             rule.boost
         };
 
-        let search_start = walk_chars_back(self.text, m.start, window);
-        let search_end = walk_chars_forward(self.text, m.end, window);
+        let span = c
+            .entity
+            .location
+            .as_text()
+            .expect("pattern engine emits text-located entities");
+        let search_start = walk_chars_back(self.text, span.start_offset, window);
+        let search_end = walk_chars_forward(self.text, span.end_offset, window);
         let window_text = &self.text[search_start..search_end];
 
         // Search the rule's own keywords plus the selected hint's
@@ -133,17 +139,17 @@ impl<'a> ContextEnhancer<'a> {
         };
 
         let adjusted = if found {
-            m.confidence = (m.confidence + boost).clamp(0.0, 1.0);
+            c.entity.confidence = c.entity.confidence.saturating_add(boost);
             true
         } else if rule.penalty > 0.0 {
-            m.confidence = (m.confidence - rule.penalty).clamp(0.0, 1.0);
+            c.entity.confidence = c.entity.confidence.saturating_sub(rule.penalty);
             true
         } else {
             false
         };
 
         if adjusted {
-            for method in &mut m.recognition_methods {
+            for method in &mut c.entity.recognition_methods {
                 if let RecognitionMethod::Pattern(p) = method {
                     p.contextual = true;
                 }
@@ -179,8 +185,8 @@ fn walk_chars_forward(text: &str, byte_anchor: usize, chars: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
-    use smallvec::smallvec;
+    use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
+    use nvisy_ontology::primitive::Confidence;
 
     use super::*;
     use crate::patterns::ContextRule;
@@ -201,21 +207,26 @@ mod tests {
         start: usize,
         end: usize,
         conf: f64,
-    ) -> RawMatch {
-        RawMatch {
-            pattern_name: Some("test".into()),
-            category: EntityCategory::PersonalIdentity,
-            entity_kind: kind,
-            value: "x".into(),
-            start,
-            end,
-            confidence: conf,
-            recognition_methods: smallvec![RecognitionMethod::regex("test")],
-            context: rule,
-        }
+    ) -> EntityCandidate {
+        EntityCandidate::new(
+            Entity::for_text_span(
+                EntityCategory::PersonalIdentity,
+                kind,
+                vec![RecognitionMethod::regex("test")],
+                Confidence::clamped(conf),
+                start,
+                end,
+            ),
+            rule,
+        )
     }
 
-    fn ssn_match(rule: Option<ContextRule>, start: usize, end: usize, conf: f64) -> RawMatch {
+    fn ssn_match(
+        rule: Option<ContextRule>,
+        start: usize,
+        end: usize,
+        conf: f64,
+    ) -> EntityCandidate {
         match_with(rule, EntityKind::GovernmentId, start, end, conf)
     }
 
@@ -230,7 +241,11 @@ mod tests {
         let mut matches = vec![ssn_match(None, 10, 20, 0.5)];
         let text = "foo lorem ipsum foo dolor sit foo";
         ContextEnhancer::new(text, &hints).enhance(&mut matches);
-        assert_eq!(matches[0].confidence, 0.5, "no rule = no change");
+        assert_eq!(
+            matches[0].entity.confidence.get(),
+            0.5,
+            "no rule = no change"
+        );
     }
 
     #[test]
@@ -240,9 +255,9 @@ mod tests {
         let mut matches = vec![ssn_match(Some(r), 11, 22, 0.5)];
         ContextEnhancer::new(text, &[]).enhance(&mut matches);
         assert!(
-            (matches[0].confidence - 0.6).abs() < 1e-9,
+            (matches[0].entity.confidence.get() - 0.6).abs() < 1e-9,
             "boost should apply: got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 
@@ -258,9 +273,9 @@ mod tests {
         }];
         ContextEnhancer::new(text, &hints).enhance(&mut matches);
         assert!(
-            matches[0].confidence > 0.5,
+            matches[0].entity.confidence.get() > 0.5,
             "hint keyword should trigger boost: got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 
@@ -282,9 +297,9 @@ mod tests {
         // own keywords still trigger the boost; the dob hint
         // contributed nothing. Confidence rises by rule.boost only.
         assert!(
-            (matches[0].confidence - 0.6).abs() < 1e-9,
+            (matches[0].entity.confidence.get() - 0.6).abs() < 1e-9,
             "only rule.boost should apply (dob hint targets wrong kind): got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 
@@ -302,9 +317,9 @@ mod tests {
         }];
         ContextEnhancer::new(text, &hints).enhance(&mut matches);
         assert!(
-            matches[0].confidence > 0.5,
+            matches[0].entity.confidence.get() > 0.5,
             "global hint should trigger boost: got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 
@@ -332,9 +347,9 @@ mod tests {
         // (boost=0.05); both "social" and "medical" are in window
         // but only the kind-specific bucket is considered.
         assert!(
-            (matches[0].confidence - 1.0).abs() < 1e-9,
+            (matches[0].entity.confidence.get() - 1.0).abs() < 1e-9,
             "kind-specific boost (0.5) should apply, clamped to 1.0: got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 
@@ -355,7 +370,11 @@ mod tests {
             ..ContextHint::default()
         }];
         ContextEnhancer::new(&text, &narrow).enhance(&mut matches);
-        assert_eq!(matches[0].confidence, 0.5, "narrow window finds nothing");
+        assert_eq!(
+            matches[0].entity.confidence.get(),
+            0.5,
+            "narrow window finds nothing"
+        );
 
         // With window override -> boost applies.
         let mut matches = vec![ssn_match(Some(r), match_start, match_end, 0.5)];
@@ -367,9 +386,9 @@ mod tests {
         }];
         ContextEnhancer::new(&text, &wide).enhance(&mut matches);
         assert!(
-            matches[0].confidence > 0.5,
+            matches[0].entity.confidence.get() > 0.5,
             "window override should find keyword: got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 
@@ -386,9 +405,9 @@ mod tests {
         }];
         ContextEnhancer::new(text, &hints).enhance(&mut matches);
         assert!(
-            (matches[0].confidence - 0.9).abs() < 1e-9,
+            (matches[0].entity.confidence.get() - 0.9).abs() < 1e-9,
             "boost override should be 0.4: got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 
@@ -405,9 +424,9 @@ mod tests {
         }];
         ContextEnhancer::new(text, &hints).enhance(&mut matches);
         assert!(
-            (matches[0].confidence - 0.6).abs() < 1e-9,
+            (matches[0].entity.confidence.get() - 0.6).abs() < 1e-9,
             "should use rule.boost=0.1, not hint.boost=0.9: got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 
@@ -418,9 +437,9 @@ mod tests {
         let text = "nothing relevant here at all yes";
         ContextEnhancer::new(text, &[]).enhance(&mut matches);
         assert!(
-            (matches[0].confidence - 0.3).abs() < 1e-9,
+            (matches[0].entity.confidence.get() - 0.3).abs() < 1e-9,
             "penalty should reduce confidence: got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 
@@ -437,9 +456,9 @@ mod tests {
         let mut matches = vec![ssn_match(Some(r), match_start, match_end, 0.5)];
         ContextEnhancer::new(text, &[]).enhance(&mut matches);
         assert!(
-            (matches[0].confidence - 0.6).abs() < 1e-9,
+            (matches[0].entity.confidence.get() - 0.6).abs() < 1e-9,
             "char-window should include 'ssn' across multi-byte chars: got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 
@@ -455,9 +474,9 @@ mod tests {
         }];
         ContextEnhancer::new(text, &hints).enhance(&mut matches);
         assert!(
-            matches[0].confidence > 0.5,
+            matches[0].entity.confidence.get() > 0.5,
             "hint match should boost, not penalize: got {}",
-            matches[0].confidence,
+            matches[0].entity.confidence.get(),
         );
     }
 }

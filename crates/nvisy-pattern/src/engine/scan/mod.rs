@@ -8,7 +8,7 @@
 //!
 //! [`PatternEngine::scan_entities`]: super::PatternEngine::scan_entities
 
+pub(super) mod candidate;
 pub(super) mod enhancer;
 pub(crate) mod entries;
-pub(super) mod pattern_match;
 pub(super) mod phases;

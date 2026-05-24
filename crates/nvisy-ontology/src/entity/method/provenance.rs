@@ -34,16 +34,14 @@ pub enum ModelKind {
 pub enum PatternKind {
     /// Regular expression matched against the full text.
     Regex,
-    /// Glob expression evaluated per token.
-    Glob,
     /// Exact-match lookup in a curated dictionary.
     Dictionary,
     /// Caller-supplied deny-list value forced into results.
     DenyList,
 }
 
-/// Provenance for a pattern-based detection (regex, glob,
-/// dictionary, deny-list). The matcher subtype lives in
+/// Provenance for a pattern-based detection (regex, dictionary,
+/// deny-list). The matcher subtype lives in
 /// [`PatternProvenance::kind`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]

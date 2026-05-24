@@ -12,5 +12,5 @@ pub use self::engine::{
     filter,
 };
 pub use self::patterns::{
-    DictionaryConfidence, DictionaryPattern, GlobPattern, MatchSource, RegexPattern, RuntimePattern,
+    DictionaryConfidence, DictionaryPattern, MatchSource, RegexPattern, RuntimePattern,
 };

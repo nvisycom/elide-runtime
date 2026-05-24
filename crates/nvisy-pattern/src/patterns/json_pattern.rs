@@ -11,7 +11,7 @@ use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use serde::Deserialize;
 
 use super::context_rule::ContextRule;
-use super::pattern::{DictionaryPattern, GlobPattern, MatchSource, Pattern, RegexPattern};
+use super::pattern::{DictionaryPattern, MatchSource, Pattern, RegexPattern};
 use super::pattern_metadata::PatternMetadata;
 use crate::validators::ValidatorResolver;
 
@@ -47,9 +47,9 @@ pub enum JsonPatternWarning {
 /// - `category` (string, required): entity category (e.g.
 ///   `personal_identity`, `financial`).
 /// - `entity_type` (string, required): specific [`EntityKind`].
-/// - `regex` **or** `glob` **or** `dictionary` (object, required,
-///   mutually exclusive): the match source. See [`RegexPattern`] /
-///   [`GlobPattern`] / [`DictionaryPattern`].
+/// - `regex` **or** `dictionary` (object, required, mutually
+///   exclusive): the match source. See [`RegexPattern`] /
+///   [`DictionaryPattern`].
 /// - `context` (object, optional): co-occurrence rule. See
 ///   [`ContextRule`].
 /// - `metadata` (object, optional): tags + version + description.
@@ -117,13 +117,12 @@ impl JsonPattern {
         bytes: &[u8],
         validators: &ValidatorResolver,
     ) -> Result<(Self, Vec<JsonPatternWarning>), JsonPatternError> {
-        /// Serde helper: exactly one of `regex`, `glob`, or
-        /// `dictionary` must be present.
+        /// Serde helper: exactly one of `regex` or `dictionary`
+        /// must be present.
         #[derive(Deserialize)]
         #[serde(untagged)]
         enum RawSource {
             Regex { regex: RegexPattern },
-            Glob { glob: GlobPattern },
             Dictionary { dictionary: DictionaryPattern },
         }
 
@@ -146,7 +145,6 @@ impl JsonPattern {
 
         let match_source = match raw.source {
             RawSource::Regex { regex } => MatchSource::Regex(regex),
-            RawSource::Glob { glob } => MatchSource::Glob(glob),
             RawSource::Dictionary { dictionary } => MatchSource::Dictionary(dictionary),
         };
 

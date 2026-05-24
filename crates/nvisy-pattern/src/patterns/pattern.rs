@@ -1,6 +1,5 @@
 //! Core [`Pattern`] trait and [`MatchSource`] enum.
 
-use globset::Glob;
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -9,7 +8,7 @@ use super::context_rule::ContextRule;
 use super::pattern_metadata::PatternMetadata;
 use crate::dictionaries::{Dictionary, DictionaryCompile};
 use crate::engine::PatternEngineError;
-use crate::engine::scan::entries::{CompiledPattern, DictEntry, GlobEntry, RegexEntry};
+use crate::engine::scan::entries::{CompiledPattern, DictEntry, RegexEntry};
 
 /// A regex-based match source with an optional post-match validator.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -103,31 +102,6 @@ mod confidence_serde {
     }
 }
 
-/// A glob-based match source.
-///
-/// Matched token-by-token: input text is split on Unicode word
-/// boundaries and each token is checked against the compiled
-/// [`globset::GlobSet`]. Use this for shapes that are easier to
-/// express as a glob than a regex (`INV-*`, `cust_[0-9][0-9][0-9]`)
-/// without escaping regex metacharacters. For substring or
-/// cross-token matches use [`RegexPattern`] instead.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GlobPattern {
-    /// The glob expression (gitignore dialect: `*`, `?`, `[...]`,
-    /// `**`).
-    pub glob: String,
-    /// Whether matching is case-sensitive.
-    ///
-    /// Defaults to `true`. When `false`, both the glob and each
-    /// token are lower-cased before matching.
-    #[serde(default = "default_case_sensitive")]
-    pub case_sensitive: bool,
-    /// Confidence score (0.0–1.0) assigned to matches from this
-    /// pattern. Defaults to `1.0` when not specified.
-    #[serde(default = "default_confidence")]
-    pub confidence: f64,
-}
-
 /// A dictionary-based match source.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DictionaryPattern {
@@ -154,16 +128,14 @@ pub struct DictionaryPattern {
 
 /// How a pattern finds matches in text.
 ///
-/// Each pattern uses exactly one source: a regular expression compiled
-/// and run against the whole text, a glob matched per-token, or a
-/// named dictionary whose entries are matched literally.
+/// Each pattern uses exactly one source: a regular expression
+/// compiled and run against the whole text, or a named dictionary
+/// whose entries are matched literally.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MatchSource {
     /// Match via a compiled regular expression.
     Regex(RegexPattern),
-    /// Match via a glob expression evaluated per token.
-    Glob(GlobPattern),
     /// Match via a named dictionary from the built-in dictionary
     /// registry.
     Dictionary(DictionaryPattern),
@@ -294,26 +266,6 @@ impl<P: Pattern + ?Sized> PatternCompile for P {
                     entry,
                     regex_source: effective,
                 }))
-            }
-            MatchSource::Glob(gp) => {
-                let effective = if gp.case_sensitive {
-                    gp.glob.clone()
-                } else {
-                    gp.glob.to_lowercase()
-                };
-                let glob = Glob::new(&effective).map_err(|e| PatternEngineError::GlobCompile {
-                    name: self.name().to_owned(),
-                    source: e,
-                })?;
-                let entry = GlobEntry {
-                    pattern_name: self.name().to_owned(),
-                    category: self.category(),
-                    entity_kind: self.entity_kind(),
-                    confidence: gp.confidence,
-                    case_sensitive: gp.case_sensitive,
-                    context: self.context().cloned(),
-                };
-                Ok(Some(CompiledPattern::Glob { entry, glob }))
             }
             MatchSource::Dictionary(dp) => {
                 let dict =

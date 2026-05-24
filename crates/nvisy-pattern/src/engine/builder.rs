@@ -214,8 +214,6 @@ impl PatternEngineBuilder {
         tracing::debug!(
             target: TARGET,
             regex_count = compiled.regex_entries.len(),
-            glob_count = compiled.globs.case_sensitive.entries.len()
-                + compiled.globs.case_insensitive.entries.len(),
             dict_count = compiled.dict_entries.len(),
             "PatternEngine built",
         );
@@ -223,7 +221,6 @@ impl PatternEngineBuilder {
         Ok(PatternEngine {
             regex_set: compiled.regex_set,
             regex_entries: compiled.regex_entries,
-            globs: compiled.globs,
             dict_entries: compiled.dict_entries,
             validators: ValidatorResolver::builtins(),
             confidence_threshold: self.confidence_threshold,

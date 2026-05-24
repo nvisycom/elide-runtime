@@ -54,16 +54,6 @@ impl RecognitionMethod {
         })
     }
 
-    /// Create a `Pattern` method tagged as a glob match.
-    pub fn glob(pattern: impl Into<String>) -> Self {
-        Self::Pattern(PatternProvenance {
-            kind: PatternKind::Glob,
-            pattern: Some(pattern.into()),
-            validator: None,
-            contextual: false,
-        })
-    }
-
     /// Create a `Pattern` method tagged as a dictionary match.
     pub fn dictionary(pattern: impl Into<String>) -> Self {
         Self::Pattern(PatternProvenance {

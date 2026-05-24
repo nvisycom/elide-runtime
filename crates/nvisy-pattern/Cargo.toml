@@ -48,9 +48,6 @@ thiserror = { workspace = true, features = [] }
 # Pattern matching
 regex = { workspace = true, features = [] }
 aho-corasick = { workspace = true, features = [] }
-globset = { workspace = true, features = [] }
-smallvec = { workspace = true, features = [] }
-unicode-segmentation = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

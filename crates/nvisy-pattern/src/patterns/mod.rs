@@ -24,9 +24,7 @@ mod runtime_pattern;
 
 pub(crate) use self::context_rule::ContextRule;
 pub(crate) use self::json_pattern::{JsonPattern, JsonPatternWarning};
-pub use self::pattern::{
-    DictionaryConfidence, DictionaryPattern, GlobPattern, MatchSource, RegexPattern,
-};
+pub use self::pattern::{DictionaryConfidence, DictionaryPattern, MatchSource, RegexPattern};
 pub(crate) use self::pattern::{Pattern, PatternCompile};
 pub(crate) use self::pattern_error::PatternLoadError;
 pub(crate) use self::pattern_registry::{PatternRegistry, builtin_registry};

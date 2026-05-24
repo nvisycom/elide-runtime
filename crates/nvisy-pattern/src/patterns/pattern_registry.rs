@@ -271,11 +271,6 @@ mod tests {
                     assert!(rp.confidence > 0.0, "confidence is 0 for {}", p.name());
                     assert!(rp.confidence <= 1.0, "confidence > 1 for {}", p.name());
                 }
-                MatchSource::Glob(gp) => {
-                    assert!(!gp.glob.is_empty(), "glob is empty for {}", p.name());
-                    assert!(gp.confidence > 0.0, "confidence is 0 for {}", p.name());
-                    assert!(gp.confidence <= 1.0, "confidence > 1 for {}", p.name());
-                }
                 MatchSource::Dictionary(dp) => {
                     assert!(!dp.name.is_empty(), "dictionary is empty for {}", p.name());
                     let c = dp.confidence.resolve(0);

@@ -146,7 +146,7 @@ mod tests {
     use nvisy_codec::handler::TextData;
     use nvisy_ontology::entity::{EntityCategory, EntityKind};
     use nvisy_pattern::filter::ScanContext;
-    use nvisy_pattern::{GlobPattern, MatchSource, RuntimePattern};
+    use nvisy_pattern::{MatchSource, RegexPattern, RuntimePattern};
 
     use super::*;
 
@@ -155,8 +155,9 @@ mod tests {
         let recognizer = PatternRecognizer::shared();
         let extra = RuntimePattern::new(
             "internal-invoice",
-            MatchSource::Glob(GlobPattern {
-                glob: "INV-*".into(),
+            MatchSource::Regex(RegexPattern {
+                regex: r"\bINV-\d{4}\b".into(),
+                validator: None,
                 case_sensitive: true,
                 confidence: 0.8,
             }),
@@ -179,7 +180,7 @@ mod tests {
             entities
                 .iter()
                 .any(|e| matches!(e.entity_kind, EntityKind::PaymentCard)),
-            "extra_patterns glob should flow through the recognizer and produce an entity",
+            "extra_patterns regex should flow through the recognizer and produce an entity",
         );
     }
 }

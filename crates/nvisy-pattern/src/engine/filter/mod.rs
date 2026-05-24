@@ -57,11 +57,11 @@ pub struct ScanContext {
     ///
     /// Compile errors against a malformed extra are silently
     /// dropped during scanning — call
-    /// [`PatternEngine::validate_runtime_patterns`] beforehand if
+    /// [`PatternEngine::validate_patterns`] beforehand if
     /// you need to surface them.
     ///
     /// [`PatternFilter`]: super::PatternFilter
-    /// [`PatternEngine::validate_runtime_patterns`]: super::PatternEngine::validate_runtime_patterns
+    /// [`PatternEngine::validate_patterns`]: super::PatternEngine::validate_patterns
     /// [#188]: https://github.com/nvisycom/runtime/issues/188
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_patterns: Vec<RuntimePattern>,

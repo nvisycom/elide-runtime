@@ -1,9 +1,10 @@
 //! Pre-compiled pattern matching engine.
 //!
 //! [`PatternEngine`] compiles all built-in (and optionally user-selected)
-//! regex patterns and dictionary automata into a single unit that can
-//! scan text in one call. Use [`PatternEngine::builder`] for configuration
-//! or [`PatternEngine::instance`] for an out-of-the-box singleton.
+//! regex patterns, glob patterns, and dictionary automata into a single
+//! unit that can scan text in one call. Use [`PatternEngine::builder`]
+//! for configuration or [`PatternEngine::instance`] for an out-of-the-box
+//! singleton.
 //!
 //! # Layout
 //!
@@ -16,8 +17,9 @@
 //!   [`ScanContext`] that bundles them.
 //! - `scan` (crate-private) holds the internal matching machinery:
 //!   compiled per-pattern entries, the `RawMatch` exchange type,
-//!   the per-phase scan logic, overlap-aware dedup, and the
-//!   context-aware `ContextEnhancer`.
+//!   the per-phase scan logic, and the context-aware
+//!   `ContextEnhancer`. Cross-recognizer deduplication is the
+//!   engine layer's responsibility, not this crate's.
 
 mod builder;
 mod error;
@@ -36,11 +38,11 @@ pub use self::builder::PatternEngineBuilder;
 pub use self::error::{ExtraPatternError, PatternEngineError};
 pub use self::filter::ScanContext;
 pub use self::pattern_filter::PatternFilter;
-use self::scan::dedup::{dedup_overlapping, sort_for_dedup};
 use self::scan::enhancer::ContextEnhancer;
-use self::scan::entries::{CompiledPattern, DictEntry, GlobEntry, RegexEntry};
+use self::scan::entries::{CompiledBuckets, CompiledGlobs, DictEntry, RegexEntry};
 use self::scan::pattern_match::RawMatch;
 use self::scan::phases::{scan_deny_list, scan_dict, scan_glob, scan_regex};
+use crate::dictionaries::{self, Dictionary};
 use crate::patterns::{Pattern, PatternCompile, RuntimePattern};
 use crate::validators::ValidatorResolver;
 
@@ -48,23 +50,25 @@ const TARGET: &str = "nvisy_pattern::engine";
 
 /// Pre-compiled engine that scans text against all registered patterns.
 ///
-/// Scanning runs in three phases:
+/// Scanning runs in four phases:
 ///
 /// 1. **Regex**: a [`RegexSet`] pre-filter selects candidate patterns,
 ///    then each matching regex extracts offsets and values.
-/// 2. **Dictionary**: Aho-Corasick automata perform literal multi-pattern
+/// 2. **Glob**: per-token matching against a shared
+///    [`globset::GlobSet`] (one per case-sensitivity bucket).
+/// 3. **Dictionary**: Aho-Corasick automata perform literal multi-pattern
 ///    matching against known-value dictionaries.
-/// 3. **Deny list**: known sensitive values not already matched are
+/// 4. **Deny list**: known sensitive values not already matched are
 ///    injected as synthetic matches with confidence `1.0`.
 ///
-/// Allow-list filtering is applied inline during phases 1 and 2.
+/// Allow-list filtering is applied inline during phases 1-3.
 ///
 /// Build via [`PatternEngine::builder`] or use [`PatternEngine::instance`]
 /// for the singleton with all built-in patterns.
 pub struct PatternEngine {
     pub(in crate::engine) regex_set: RegexSet,
     pub(in crate::engine) regex_entries: Vec<RegexEntry>,
-    pub(in crate::engine) glob_entries: Vec<GlobEntry>,
+    pub(in crate::engine) globs: CompiledGlobs,
     pub(in crate::engine) dict_entries: Vec<DictEntry>,
     pub(in crate::engine) validators: ValidatorResolver,
     pub(in crate::engine) confidence_threshold: f64,
@@ -74,7 +78,11 @@ impl fmt::Debug for PatternEngine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PatternEngine")
             .field("regex_patterns", &self.regex_entries.len())
-            .field("glob_patterns", &self.glob_entries.len())
+            .field(
+                "glob_patterns",
+                &(self.globs.case_sensitive.entries.len()
+                    + self.globs.case_insensitive.entries.len()),
+            )
             .field("dict_patterns", &self.dict_entries.len())
             .field("confidence_threshold", &self.confidence_threshold)
             .finish()
@@ -112,11 +120,8 @@ impl PatternEngine {
         // keyword co-occurrence.
         ContextEnhancer::new(text, &ctx.hints).enhance(&mut raw);
 
-        sort_for_dedup(&mut raw);
-        let deduped = dedup_overlapping(&raw);
-
         let threshold = self.confidence_threshold;
-        let entities: Vec<Entity> = deduped
+        let entities: Vec<Entity> = raw
             .into_iter()
             .filter(|m| m.confidence >= threshold)
             .map(|m| {
@@ -146,13 +151,10 @@ impl PatternEngine {
     /// are silently dropped.
     ///
     /// [`ExtraPatternError`]: crate::ExtraPatternError
-    pub fn validate_runtime_patterns(&self, patterns: &[RuntimePattern]) -> Vec<ExtraPatternError> {
-        let dict_lookup = |name: &str| -> Option<&dyn crate::dictionaries::Dictionary> {
-            crate::dictionaries::builtin_registry().get(name)
-        };
+    pub fn validate_patterns(&self, patterns: &[RuntimePattern]) -> Vec<ExtraPatternError> {
         patterns
             .iter()
-            .filter_map(|p| match p.compile_with(&dict_lookup) {
+            .filter_map(|p| match p.compile_with(&builtin_dict_lookup) {
                 Ok(_) => None,
                 Err(source) => Some(ExtraPatternError {
                     name: p.name().to_owned(),
@@ -162,55 +164,36 @@ impl PatternEngine {
             .collect()
     }
 
-    /// Internal: scan and return raw matches.
-    pub(in crate::engine) fn scan_raw(&self, text: &str, ctx: &ScanContext) -> Vec<RawMatch> {
+    /// Scan and return raw matches from every phase plus any
+    /// caller-supplied extras.
+    fn scan_raw(&self, text: &str, ctx: &ScanContext) -> Vec<RawMatch> {
         let mut results = Vec::new();
-
-        let candidates = self.regex_set.matches(text).into_iter();
         scan_regex(
-            candidates,
+            self.regex_set.matches(text).into_iter(),
             &self.regex_entries,
             &self.validators,
             text,
             &ctx.allow,
             &mut results,
         );
-        scan_glob(&self.glob_entries, text, &ctx.allow, &mut results);
+        scan_glob(&self.globs, text, &ctx.allow, &mut results);
         scan_dict(&self.dict_entries, text, &ctx.allow, &mut results);
         scan_deny_list(text, &ctx.deny, &mut results);
-
         if !ctx.extra_patterns.is_empty() {
             self.scan_extra_patterns(text, ctx, &mut results);
         }
-
         results
     }
 
     /// Compile + scan `ctx.extra_patterns` on the hot path. Compile
     /// failures are dropped silently (logged at TRACE) — operators
     /// who need them surfaced should call
-    /// [`Self::validate_runtime_patterns`] before scanning.
+    /// [`Self::validate_patterns`] before scanning.
     fn scan_extra_patterns(&self, text: &str, ctx: &ScanContext, results: &mut Vec<RawMatch>) {
-        let dict_lookup = |name: &str| -> Option<&dyn crate::dictionaries::Dictionary> {
-            crate::dictionaries::builtin_registry().get(name)
-        };
-
-        let mut extra_regex_entries = Vec::new();
-        let mut extra_regex_sources = Vec::new();
-        let mut extra_glob_entries = Vec::new();
-        let mut extra_dict_entries = Vec::new();
-
+        let mut buckets = CompiledBuckets::default();
         for p in &ctx.extra_patterns {
-            match p.compile_with(&dict_lookup) {
-                Ok(Some(CompiledPattern::Regex {
-                    entry,
-                    regex_source,
-                })) => {
-                    extra_regex_sources.push(regex_source);
-                    extra_regex_entries.push(entry);
-                }
-                Ok(Some(CompiledPattern::Glob(entry))) => extra_glob_entries.push(entry),
-                Ok(Some(CompiledPattern::Dictionary(entry))) => extra_dict_entries.push(entry),
+            match p.compile_with(&builtin_dict_lookup) {
+                Ok(Some(compiled)) => buckets.insert(compiled),
                 Ok(None) => {}
                 Err(source) => tracing::trace!(
                     target: TARGET,
@@ -220,31 +203,35 @@ impl PatternEngine {
                 ),
             }
         }
-
-        if !extra_regex_entries.is_empty() {
-            match RegexSet::new(&extra_regex_sources) {
-                Ok(set) => {
-                    let candidates = set.matches(text).into_iter();
-                    scan_regex(
-                        candidates,
-                        &extra_regex_entries,
-                        &self.validators,
-                        text,
-                        &ctx.allow,
-                        results,
-                    );
-                }
-                Err(source) => tracing::trace!(
+        let compiled = match buckets.finish() {
+            Ok(c) => c,
+            Err(source) => {
+                tracing::trace!(
                     target: TARGET,
                     error = %source,
-                    "skipped extra_patterns: RegexSet build failed",
-                ),
+                    "skipped extra_patterns: prefilter build failed",
+                );
+                return;
             }
-        }
-
-        scan_glob(&extra_glob_entries, text, &ctx.allow, results);
-        scan_dict(&extra_dict_entries, text, &ctx.allow, results);
+        };
+        scan_regex(
+            compiled.regex_set.matches(text).into_iter(),
+            &compiled.regex_entries,
+            &self.validators,
+            text,
+            &ctx.allow,
+            results,
+        );
+        scan_glob(&compiled.globs, text, &ctx.allow, results);
+        scan_dict(&compiled.dict_entries, text, &ctx.allow, results);
     }
+}
+
+/// Dictionary lookup for the hot-path extras compile — consults only
+/// the process-wide builtin registry. The builder supplies a richer
+/// lookup that also overlays user-loaded dirs.
+fn builtin_dict_lookup(name: &str) -> Option<&'static dyn Dictionary> {
+    dictionaries::builtin_registry().get(name)
 }
 
 static DEFAULT_ENGINE: LazyLock<PatternEngine> = LazyLock::new(|| {
@@ -258,7 +245,6 @@ mod tests {
     use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
 
     use super::filter::{DenyList, DenyRule};
-    use super::scan::dedup::{beats, dedup_overlapping, sort_for_dedup, spans_overlap};
     use super::scan::pattern_match::RawMatch;
     use super::*;
     use crate::patterns::{GlobPattern, MatchSource, RegexPattern, RuntimePattern};
@@ -372,74 +358,6 @@ mod tests {
     }
 
     #[test]
-    fn dedup_prefers_tighter_higher_confidence_match() {
-        let wide = RawMatch {
-            pattern_name: Some("wide".into()),
-            category: EntityCategory::PersonalIdentity,
-            entity_kind: EntityKind::GovernmentId,
-            value: "wide".into(),
-            start: 10,
-            end: 30,
-            confidence: 0.7,
-            recognition_methods: smallvec::smallvec![RecognitionMethod::regex("wide")],
-            context: None,
-        };
-        let tight = RawMatch {
-            pattern_name: Some("tight".into()),
-            category: EntityCategory::PersonalIdentity,
-            entity_kind: EntityKind::GovernmentId,
-            value: "tight".into(),
-            start: 15,
-            end: 20,
-            confidence: 0.9,
-            recognition_methods: smallvec::smallvec![RecognitionMethod::regex("tight")],
-            context: None,
-        };
-        let mut raw = vec![wide, tight];
-        sort_for_dedup(&mut raw);
-        let kept = dedup_overlapping(&raw);
-        assert_eq!(kept.len(), 1);
-        assert_eq!(kept[0].pattern_name.as_deref(), Some("tight"));
-    }
-
-    #[test]
-    fn spans_overlap_basic() {
-        assert!(spans_overlap(0, 10, 5, 15));
-        assert!(spans_overlap(5, 15, 0, 10));
-        assert!(!spans_overlap(0, 5, 5, 10));
-        assert!(!spans_overlap(5, 10, 0, 5));
-    }
-
-    #[test]
-    fn beats_prefers_higher_confidence_then_tighter_span() {
-        let mk = |start, end, conf| RawMatch {
-            pattern_name: None,
-            category: EntityCategory::PersonalIdentity,
-            entity_kind: EntityKind::PersonName,
-            value: "x".into(),
-            start,
-            end,
-            confidence: conf,
-            recognition_methods: smallvec::smallvec![],
-            context: None,
-        };
-        let high = mk(0, 10, 0.9);
-        let low = mk(0, 10, 0.5);
-        assert!(beats(&high, &low, true));
-        assert!(!beats(&low, &high, true));
-
-        let tight = mk(0, 5, 0.7);
-        let wide = mk(0, 10, 0.7);
-        assert!(beats(&tight, &wide, true));
-        assert!(!beats(&wide, &tight, true));
-
-        let a = mk(0, 5, 0.7);
-        let b = mk(0, 5, 0.7);
-        assert!(beats(&a, &b, true));
-        assert!(!beats(&a, &b, false));
-    }
-
-    #[test]
     fn glob_extra_pattern_matches_token() {
         let engine = PatternEngine::builder()
             .with_patterns(&["email"])
@@ -545,7 +463,7 @@ mod tests {
                 confidence: 1.0,
             }),
         );
-        let errors = engine.validate_runtime_patterns(&[bad]);
+        let errors = engine.validate_patterns(&[bad]);
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].name, "bad");
     }

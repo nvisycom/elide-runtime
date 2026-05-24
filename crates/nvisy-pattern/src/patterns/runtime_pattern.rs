@@ -24,28 +24,24 @@ use super::pattern_metadata::PatternMetadata;
 /// crate-private `Pattern` trait so the engine's compile + scan path
 /// treats it identically to a registry-defined pattern.
 ///
-/// Construct via [`RuntimePattern::new`], then layer optional
-/// [`with_context`] / [`with_metadata`].
+/// Construct via [`RuntimePattern::new`], then layer an optional
+/// co-occurrence rule with [`with_context`].
 ///
 /// [`ScanContext::extra_patterns`]: crate::engine::ScanContext::extra_patterns
 /// [`with_context`]: Self::with_context
-/// [`with_metadata`]: Self::with_metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimePattern {
     /// Unique name identifying this pattern.
     pub name: String,
-    /// High-level entity category. `None` falls back to
-    /// [`EntityCategory::Unresolved`] when the engine emits an entity.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub category: Option<EntityCategory>,
-    /// Specific entity kind. `None` falls back to
-    /// [`EntityKind::Unresolved`] when the engine emits an entity.
-    #[serde(
-        default,
-        rename = "entity_type",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub entity_kind: Option<EntityKind>,
+    /// High-level entity category. Defaults to
+    /// [`EntityCategory::Unresolved`] when the caller doesn't tag
+    /// the pattern with anything more specific.
+    #[serde(default = "default_category")]
+    pub category: EntityCategory,
+    /// Specific entity kind. Defaults to [`EntityKind::Unresolved`]
+    /// when untagged.
+    #[serde(default = "default_kind", rename = "entity_type")]
+    pub entity_kind: EntityKind,
     /// Match source: regex, glob, or dictionary lookup.
     #[serde(flatten)]
     pub match_source: MatchSource,
@@ -57,18 +53,28 @@ pub struct RuntimePattern {
     pub metadata: PatternMetadata,
 }
 
+fn default_category() -> EntityCategory {
+    EntityCategory::Unresolved
+}
+
+fn default_kind() -> EntityKind {
+    EntityKind::Unresolved
+}
+
 impl RuntimePattern {
-    /// Construct a new runtime pattern with no category or kind tag.
-    /// Both default to `Unresolved` at scan time. Use
-    /// [`with_category`] / [`with_kind`] to set them.
+    /// Construct a new runtime pattern with both `category` and
+    /// `entity_kind` set to `Unresolved`. Use [`with_category`] /
+    /// [`with_kind`] to tag, and [`with_context`] for an optional
+    /// co-occurrence rule.
     ///
     /// [`with_category`]: Self::with_category
     /// [`with_kind`]: Self::with_kind
+    /// [`with_context`]: Self::with_context
     pub fn new(name: impl Into<String>, match_source: MatchSource) -> Self {
         Self {
             name: name.into(),
-            category: None,
-            entity_kind: None,
+            category: EntityCategory::Unresolved,
+            entity_kind: EntityKind::Unresolved,
             match_source,
             context: None,
             metadata: PatternMetadata::default(),
@@ -77,25 +83,19 @@ impl RuntimePattern {
 
     /// Tag this pattern with an entity category.
     pub fn with_category(mut self, category: EntityCategory) -> Self {
-        self.category = Some(category);
+        self.category = category;
         self
     }
 
     /// Tag this pattern with a specific entity kind.
     pub fn with_kind(mut self, entity_kind: EntityKind) -> Self {
-        self.entity_kind = Some(entity_kind);
+        self.entity_kind = entity_kind;
         self
     }
 
     /// Attach a co-occurrence rule.
     pub fn with_context(mut self, ctx: ContextRule) -> Self {
         self.context = Some(ctx);
-        self
-    }
-
-    /// Attach metadata.
-    pub fn with_metadata(mut self, metadata: PatternMetadata) -> Self {
-        self.metadata = metadata;
         self
     }
 }
@@ -106,11 +106,11 @@ impl Pattern for RuntimePattern {
     }
 
     fn category(&self) -> EntityCategory {
-        self.category.unwrap_or(EntityCategory::Unresolved)
+        self.category
     }
 
     fn entity_kind(&self) -> EntityKind {
-        self.entity_kind.unwrap_or(EntityKind::Unresolved)
+        self.entity_kind
     }
 
     fn match_source(&self) -> &MatchSource {

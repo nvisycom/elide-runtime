@@ -2,12 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
-use regex::RegexSet;
-
 use super::PatternEngine;
-use super::error::PatternEngineError;
 use super::pattern_filter::PatternFilter;
-use super::scan::entries::CompiledPattern;
+use super::scan::entries::CompiledBuckets;
 use crate::dictionaries::{self, DictionaryRegistry};
 use crate::patterns::{MatchSource, Pattern, PatternCompile, PatternRegistry};
 use crate::validators::ValidatorResolver;
@@ -180,20 +177,13 @@ impl PatternEngineBuilder {
             extra_dicts.get(name).or_else(|| builtin_dicts.get(name))
         };
 
-        let mut regex_entries = Vec::new();
-        let mut regex_strings = Vec::new();
-        let mut glob_entries = Vec::new();
-        let mut dict_entries = Vec::new();
+        let mut buckets = CompiledBuckets::default();
 
         for p in &active {
             if let Some(ref filter) = self.filter
                 && !pattern_matches_filter(*p, filter, &dict_lookup)
             {
-                tracing::trace!(
-                    target: TARGET,
-                    pattern = p.name(),
-                    "skipped by pattern filter",
-                );
+                log_skip(p.name(), "skipped by pattern filter");
                 continue;
             }
 
@@ -211,50 +201,38 @@ impl PatternEngineBuilder {
             }
 
             match p.compile_with(&dict_lookup)? {
-                Some(CompiledPattern::Regex {
-                    entry,
-                    regex_source,
-                }) => {
-                    regex_strings.push(regex_source);
-                    regex_entries.push(entry);
-                }
-                Some(CompiledPattern::Glob(entry)) => {
-                    glob_entries.push(entry);
-                }
-                Some(CompiledPattern::Dictionary(entry)) => {
-                    dict_entries.push(entry);
-                }
-                None => {
-                    tracing::trace!(
-                        target: TARGET,
-                        pattern = p.name(),
-                        "skipped: compiled to no-op (e.g. empty dictionary)",
-                    );
-                }
+                Some(compiled) => buckets.insert(compiled),
+                None => log_skip(
+                    p.name(),
+                    "skipped: compiled to no-op (e.g. empty dictionary)",
+                ),
             }
         }
 
-        let regex_set = RegexSet::new(&regex_strings).map_err(PatternEngineError::RegexSetBuild)?;
-
-        let validators = ValidatorResolver::builtins();
+        let compiled = buckets.finish()?;
 
         tracing::debug!(
             target: TARGET,
-            regex_count = regex_entries.len(),
-            glob_count = glob_entries.len(),
-            dict_count = dict_entries.len(),
+            regex_count = compiled.regex_entries.len(),
+            glob_count = compiled.globs.case_sensitive.entries.len()
+                + compiled.globs.case_insensitive.entries.len(),
+            dict_count = compiled.dict_entries.len(),
             "PatternEngine built",
         );
 
         Ok(PatternEngine {
-            regex_set,
-            regex_entries,
-            glob_entries,
-            dict_entries,
-            validators,
+            regex_set: compiled.regex_set,
+            regex_entries: compiled.regex_entries,
+            globs: compiled.globs,
+            dict_entries: compiled.dict_entries,
+            validators: ValidatorResolver::builtins(),
             confidence_threshold: self.confidence_threshold,
         })
     }
+}
+
+fn log_skip(pattern: &str, reason: &'static str) {
+    tracing::trace!(target: TARGET, pattern, "{reason}");
 }
 
 /// Whether `p`'s metadata satisfies every non-empty constraint in

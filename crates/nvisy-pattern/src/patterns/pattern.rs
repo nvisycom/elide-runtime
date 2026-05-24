@@ -1,8 +1,6 @@
 //! Core [`Pattern`] trait and [`MatchSource`] enum.
 
-use std::borrow::Cow;
-
-use globset::{Glob, GlobSetBuilder};
+use globset::Glob;
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -174,6 +172,8 @@ pub enum MatchSource {
 /// Default confidence score when `"confidence"` is omitted from JSON.
 pub const DEFAULT_CONFIDENCE: f64 = 1.0;
 
+// serde's `#[serde(default = "fn")]` attribute takes a function path,
+// not a constant — this tiny wrapper exists only to satisfy that.
 fn default_confidence() -> f64 {
     DEFAULT_CONFIDENCE
 }
@@ -297,32 +297,23 @@ impl<P: Pattern + ?Sized> PatternCompile for P {
             }
             MatchSource::Glob(gp) => {
                 let effective = if gp.case_sensitive {
-                    Cow::Borrowed(gp.glob.as_str())
+                    gp.glob.clone()
                 } else {
-                    Cow::Owned(gp.glob.to_lowercase())
+                    gp.glob.to_lowercase()
                 };
-                let mut builder = GlobSetBuilder::new();
-                builder.add(Glob::new(effective.as_ref()).map_err(|e| {
-                    PatternEngineError::GlobCompile {
-                        name: self.name().to_owned(),
-                        source: e,
-                    }
-                })?);
-                let set = builder
-                    .build()
-                    .map_err(|e| PatternEngineError::GlobCompile {
-                        name: self.name().to_owned(),
-                        source: e,
-                    })?;
-                Ok(Some(CompiledPattern::Glob(GlobEntry {
+                let glob = Glob::new(&effective).map_err(|e| PatternEngineError::GlobCompile {
+                    name: self.name().to_owned(),
+                    source: e,
+                })?;
+                let entry = GlobEntry {
                     pattern_name: self.name().to_owned(),
                     category: self.category(),
                     entity_kind: self.entity_kind(),
                     confidence: gp.confidence,
                     case_sensitive: gp.case_sensitive,
-                    set,
                     context: self.context().cloned(),
-                })))
+                };
+                Ok(Some(CompiledPattern::Glob { entry, glob }))
             }
             MatchSource::Dictionary(dp) => {
                 let dict =

@@ -1,11 +1,12 @@
 //! Per-phase scan primitives used by [`PatternEngine::scan_entities`].
 //!
-//! Three phases, each appending [`RawMatch`]es into the shared result
+//! Four phases, each appending [`RawMatch`]es into the shared result
 //! buffer:
 //!
 //! 1. [`scan_regex`] — `RegexSet`-filtered regex candidates.
-//! 2. [`scan_dict`] — dictionary Aho-Corasick matches.
-//! 3. [`scan_deny_list`] — forced detection of known sensitive values.
+//! 2. [`scan_glob`] — per-token `GlobSet` candidates.
+//! 3. [`scan_dict`] — dictionary Aho-Corasick matches.
+//! 4. [`scan_deny_list`] — forced detection of known sensitive values.
 //!
 //! [`PatternEngine::scan_entities`]: super::super::PatternEngine::scan_entities
 
@@ -13,7 +14,7 @@ use std::collections::HashSet;
 
 use nvisy_ontology::entity::RecognitionMethod;
 
-use super::entries::{DictEntry, GlobEntry, RegexEntry};
+use super::entries::{CompiledGlobs, DictEntry, GlobBucket, RegexEntry};
 use super::pattern_match::RawMatch;
 use crate::engine::filter::{AllowList, DenyList};
 use crate::validators::ValidatorResolver;
@@ -39,6 +40,10 @@ pub(in crate::engine) fn scan_regex(
                 continue;
             }
 
+            // Unknown validator names fall through (match is kept) —
+            // the load-time `JsonPatternWarning::UnknownValidator`
+            // already signals the typo, so degrading gracefully here
+            // beats silently dropping every match.
             if let Some(ref vname) = entry.validator_name
                 && let Some(validate) = validators.resolve(vname)
                 && !validate(value)
@@ -100,9 +105,11 @@ pub(in crate::engine) fn scan_dict(
     }
 }
 
-/// Phase 2b: glob matches. Tokenizes `text` on whitespace, trims
-/// surrounding ASCII punctuation from each token, then matches the
-/// remaining token against each entry's compiled [`globset::GlobSet`].
+/// Phase 2: glob matches. Tokenizes `text` on whitespace, trims
+/// surrounding ASCII punctuation from each token, then matches every
+/// token against the shared [`GlobSet`] in one batched call.
+/// `GlobSet::matches` returns the indices of the per-token-matching
+/// globs; each index maps back into `glob_entries` for the metadata.
 ///
 /// **Span policy**: the emitted span covers the *trimmed* token —
 /// surrounding punctuation that was stripped before matching is
@@ -118,65 +125,71 @@ pub(in crate::engine) fn scan_dict(
 /// Globs are token-shaped by design — use [`RegexEntry`] for
 /// substring or cross-token matches.
 pub(in crate::engine) fn scan_glob(
-    glob_entries: &[GlobEntry],
+    globs: &CompiledGlobs,
     text: &str,
     allow: &AllowList,
     results: &mut Vec<RawMatch>,
 ) {
-    if glob_entries.is_empty() {
+    let has_cs = !globs.case_sensitive.entries.is_empty();
+    let has_ci = !globs.case_insensitive.entries.is_empty();
+    if !has_cs && !has_ci {
         return;
     }
-
-    let any_ci = glob_entries.iter().any(|e| !e.case_sensitive);
 
     for (raw, start, end) in tokenize(text) {
         if allow.contains(raw) {
             continue;
         }
-
-        // Lowercase the token at most once per token even when many
-        // case-insensitive globs are active. Skipped entirely when
-        // every active glob is case-sensitive.
-        let lowered = if any_ci {
-            Some(raw.to_lowercase())
-        } else {
-            None
-        };
-
-        for entry in glob_entries {
-            let candidate: &str = if entry.case_sensitive {
-                raw
-            } else {
-                lowered.as_deref().unwrap_or(raw)
-            };
-
-            if !entry.set.is_match(candidate) {
-                continue;
-            }
-
-            results.push(RawMatch {
-                pattern_name: Some(entry.pattern_name.clone()),
-                category: entry.category,
-                entity_kind: entry.entity_kind,
-                value: raw.to_owned(),
-                start,
-                end,
-                confidence: entry.confidence,
-                recognition_methods: smallvec::smallvec![RecognitionMethod::glob(
-                    &entry.pattern_name
-                )],
-                context: entry.context.clone(),
-            });
+        if has_cs {
+            match_bucket(&globs.case_sensitive, raw, raw, start, end, results);
+        }
+        if has_ci {
+            let lowered = raw.to_lowercase();
+            match_bucket(&globs.case_insensitive, &lowered, raw, start, end, results);
         }
     }
 }
+
+/// Match `candidate` against `bucket`'s shared [`globset::GlobSet`]
+/// and push one raw match per hit. `raw` is the original substring
+/// used for the entity's `value`; `candidate` may differ when the
+/// bucket is case-insensitive (lowercased copy).
+fn match_bucket(
+    bucket: &GlobBucket,
+    candidate: &str,
+    raw: &str,
+    start: usize,
+    end: usize,
+    results: &mut Vec<RawMatch>,
+) {
+    for idx in bucket.set.matches(candidate) {
+        let entry = &bucket.entries[idx];
+        results.push(RawMatch {
+            pattern_name: Some(entry.pattern_name.clone()),
+            category: entry.category,
+            entity_kind: entry.entity_kind,
+            value: raw.to_owned(),
+            start,
+            end,
+            confidence: entry.confidence,
+            recognition_methods: smallvec::smallvec![RecognitionMethod::glob(&entry.pattern_name)],
+            context: entry.context.clone(),
+        });
+    }
+}
+
+/// Set of ASCII punctuation characters trimmed off token edges
+/// before glob matching.
+const TOKEN_TRIM_CHARS: &[char] = &[
+    '.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '{', '}', '<', '>', '"', '\'', '`',
+];
 
 /// Split `text` into token slices yielding `(slice, start, end)` byte
 /// offsets into the original string. Tokens are produced by:
 ///
 /// 1. Splitting on whitespace.
-/// 2. Trimming leading + trailing ASCII punctuation
-///    (`.,;:!?()[]{}<>\"'` and friends) from each token.
+/// 2. Trimming leading + trailing ASCII punctuation from each token
+///    (see [`TOKEN_TRIM_CHARS`]).
 ///
 /// Empty resulting tokens are dropped. The returned offsets always
 /// point at the trimmed substring inside the original string, so
@@ -184,32 +197,12 @@ pub(in crate::engine) fn scan_glob(
 fn tokenize(text: &str) -> impl Iterator<Item = (&str, usize, usize)> {
     text.split_whitespace().filter_map(move |word| {
         let offset = word.as_ptr() as usize - text.as_ptr() as usize;
-        let trim_punct = |c: char| {
-            matches!(
-                c,
-                '.' | ','
-                    | ';'
-                    | ':'
-                    | '!'
-                    | '?'
-                    | '('
-                    | ')'
-                    | '['
-                    | ']'
-                    | '{'
-                    | '}'
-                    | '<'
-                    | '>'
-                    | '"'
-                    | '\''
-                    | '`'
-            )
-        };
-        let trimmed = word.trim_matches(trim_punct);
+        let trimmed_start = word.trim_start_matches(TOKEN_TRIM_CHARS);
+        let lead = word.len() - trimmed_start.len();
+        let trimmed = trimmed_start.trim_end_matches(TOKEN_TRIM_CHARS);
         if trimmed.is_empty() {
             return None;
         }
-        let lead = word.len() - word.trim_start_matches(trim_punct).len();
         Some((trimmed, offset + lead, offset + lead + trimmed.len()))
     })
 }

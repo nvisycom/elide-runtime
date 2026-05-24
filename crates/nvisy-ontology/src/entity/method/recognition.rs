@@ -18,7 +18,6 @@ use super::provenance::{
 #[serde(tag = "method", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum RecognitionMethod {
-    // Pattern-based
     /// Text-pattern matching: regex, glob, dictionary lookup, or
     /// deny-list. The specific matcher lives in
     /// [`PatternProvenance::kind`].
@@ -26,14 +25,10 @@ pub enum RecognitionMethod {
     /// Matching extracted values against an external identity or
     /// record database.
     CrossReference(CrossReferenceProvenance),
-
-    // Model-based
     /// Named-entity recognition via language model.
     Ner(ModelProvenance),
     /// Semantic similarity search via vector embeddings.
     Embedding(ModelProvenance),
-
-    // Human
     /// Pre-identified region supplied alongside the uploaded file.
     Annotation(AnnotationProvenance),
 }
@@ -132,14 +127,9 @@ impl RecognitionMethod {
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum RecognitionMethodKind {
-    // Pattern-based
     Pattern,
     CrossReference,
-
-    // Model-based
     Ner,
     Embedding,
-
-    // Human
     Annotation,
 }

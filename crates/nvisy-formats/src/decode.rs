@@ -30,6 +30,8 @@ use nvisy_core::content::Content;
     feature = "internal_rich",
 ))]
 use nvisy_core::content::ContentData;
+#[cfg(feature = "internal_audio")]
+use nvisy_core::media::AudioFormat;
 #[cfg(any(
     feature = "internal_text",
     feature = "internal_tabular",
@@ -38,8 +40,6 @@ use nvisy_core::content::ContentData;
     feature = "internal_rich",
 ))]
 use nvisy_core::media::DocumentType;
-#[cfg(feature = "internal_audio")]
-use nvisy_core::media::AudioFormat;
 #[cfg(feature = "internal_image")]
 use nvisy_core::media::ImageFormat;
 #[cfg(feature = "internal_tabular")]

@@ -4,10 +4,10 @@
 //! The loader auto-detects the field delimiter (comma, tab, semicolon,
 //! pipe) by inspecting the first line.
 
+use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
 
-use nvisy_codec::handler::Loader;
 use super::{CsvData, CsvHandler};
 
 const TARGET: &str = "nvisy_codec::handler::csv";
@@ -135,12 +135,12 @@ fn detect_delimiter(text: &str) -> u8 {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
+    use nvisy_codec::handler::Handler;
     use nvisy_core::Error;
     use nvisy_core::content::ContentSource;
     use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 
     use super::*;
-    use nvisy_codec::handler::Handler;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

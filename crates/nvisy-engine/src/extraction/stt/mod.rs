@@ -10,8 +10,8 @@ mod params;
 use nvisy_agent::audio::stt::SttService;
 use nvisy_codec::ContentHandle;
 use nvisy_codec::handler::{BoxedTextHandler, Handler};
-use nvisy_formats::text::TxtHandler;
 use nvisy_core::Result;
+use nvisy_formats::text::TxtHandler;
 use nvisy_ontology::artifacts::{TranscriptSegment, Transcription};
 use nvisy_ontology::primitive::TimeSpan;
 

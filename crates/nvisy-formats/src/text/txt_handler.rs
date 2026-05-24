@@ -10,15 +10,12 @@
 //! [`TextHandler::redact`] applies redactions in place, mutating the
 //! affected lines directly.
 
+use nvisy_codec::document::{Located, LocationStream};
+use nvisy_codec::handler::{Handler, TextData, TextHandler, TextRedaction, apply_text_redaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
 use nvisy_ontology::entity::TextLocation;
-
-use nvisy_codec::handler::{TextRedaction, apply_text_redaction};
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::TextData;
-use nvisy_codec::handler::{Handler, TextHandler};
 
 const TARGET: &str = "txt-handler";
 
@@ -167,10 +164,10 @@ impl TxtHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
+    use nvisy_codec::handler::{ConflictPolicy, Redactions, TextHandler, TextOutput};
     use nvisy_core::Error;
 
     use super::*;
-    use nvisy_codec::handler::{ConflictPolicy, Redactions, TextHandler, TextOutput};
 
     fn handler(text: &str) -> TxtHandler {
         let trailing_newline = text.ends_with('\n');

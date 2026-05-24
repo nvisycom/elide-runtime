@@ -11,15 +11,14 @@
 //!
 //! [`TabularLocation`]: nvisy_ontology::entity::TabularLocation
 
+use nvisy_codec::document::{Located, LocationStream};
+use nvisy_codec::handler::{
+    Handler, TabularHandler, TabularRedaction, TextData, apply_tabular_redaction,
+};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 use nvisy_ontology::entity::TabularLocation;
-
-use nvisy_codec::handler::{TabularRedaction, apply_tabular_redaction};
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::TextData;
-use nvisy_codec::handler::{Handler, TabularHandler};
 
 const TARGET: &str = "csv-handler";
 
@@ -269,10 +268,10 @@ impl CsvHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
+    use nvisy_codec::handler::{ConflictPolicy, Redactions, TabularHandler, TextOutput};
     use nvisy_core::Error;
 
     use super::*;
-    use nvisy_codec::handler::{ConflictPolicy, Redactions, TabularHandler, TextOutput};
 
     fn handler_with_headers(headers: Vec<&str>, rows: Vec<Vec<&str>>) -> CsvHandler {
         CsvHandler::new(CsvData {

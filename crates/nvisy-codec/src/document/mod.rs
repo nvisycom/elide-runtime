@@ -22,12 +22,12 @@ use nvisy_ontology::entity::TextLocation;
 pub use self::located::Located;
 pub use self::span::Span;
 pub use self::stream::LocationStream;
+#[cfg(feature = "rich")]
+use crate::handler::BoxedRichHandler;
 #[cfg(feature = "audio")]
 use crate::handler::{AudioData, AudioHandler, AudioRedaction, BoxedAudioHandler};
 #[cfg(feature = "image")]
 use crate::handler::{BoxedImageHandler, ImageData, ImageHandler, ImageRedaction};
-#[cfg(feature = "rich")]
-use crate::handler::BoxedRichHandler;
 #[cfg(feature = "tabular")]
 use crate::handler::{BoxedTabularHandler, TabularHandler, TabularRedaction};
 #[cfg(feature = "text")]

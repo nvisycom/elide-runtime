@@ -6,11 +6,11 @@
 //!
 //! [`scraper`]: https://docs.rs/scraper
 
+use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use scraper::Html;
 
-use nvisy_codec::handler::Loader;
 use super::{HtmlData, HtmlHandler};
 
 /// Parameters for [`HtmlLoader`].

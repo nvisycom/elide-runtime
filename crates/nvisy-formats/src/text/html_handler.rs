@@ -9,15 +9,12 @@
 //!
 //! [`Html::html`]: scraper::Html::html
 
+use nvisy_codec::document::{Located, LocationStream};
+use nvisy_codec::handler::{Handler, TextData, TextHandler, TextRedaction, apply_text_redaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::entity::TextLocation;
-
-use nvisy_codec::handler::{TextRedaction, apply_text_redaction};
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::TextData;
-use nvisy_codec::handler::{Handler, TextHandler};
 
 const TARGET: &str = "html-handler";
 
@@ -192,10 +189,10 @@ impl HtmlHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
+    use nvisy_codec::handler::{ConflictPolicy, Redactions, TextHandler, TextOutput};
     use nvisy_core::Error;
 
     use super::*;
-    use nvisy_codec::handler::{ConflictPolicy, Redactions, TextHandler, TextOutput};
 
     fn handler_from_html(raw: &str) -> HtmlHandler {
         let dom = scraper::Html::parse_document(raw);

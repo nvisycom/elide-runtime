@@ -12,6 +12,11 @@
 //! content streams.
 
 use bytes::Bytes;
+use nvisy_codec::document::{Located, LocationStream};
+use nvisy_codec::handler::{
+    Handler, ImageData, ImageHandler, ImageRedaction, TextData, TextHandler, TextRedaction,
+    apply_text_redaction,
+};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
@@ -19,10 +24,6 @@ use nvisy_ontology::entity::{ImageLocation, TextLocation};
 use nvisy_ontology::primitive::Dpi;
 
 use super::pdf_render::PdfRenderer;
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::ImageData;
-use nvisy_codec::handler::{TextData, apply_text_redaction};
-use nvisy_codec::handler::{Handler, ImageHandler, ImageRedaction, TextHandler, TextRedaction};
 
 const TARGET: &str = "rich-text-handler";
 
@@ -313,9 +314,9 @@ impl nvisy_codec::handler::RichHandler for RichTextHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
+    use nvisy_codec::handler::TextHandler;
 
     use super::*;
-    use nvisy_codec::handler::TextHandler;
 
     fn handler(pages: &[&str]) -> RichTextHandler {
         RichTextHandler::new(

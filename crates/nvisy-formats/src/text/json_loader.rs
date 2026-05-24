@@ -7,10 +7,10 @@
 
 use std::num::NonZeroU32;
 
+use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
 
-use nvisy_codec::handler::Loader;
 use super::{JsonData, JsonHandler, JsonIndent};
 
 /// Parameters for [`JsonLoader`].
@@ -93,13 +93,13 @@ fn detect_formatting(source: &str) -> (JsonIndent, bool) {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
+    use nvisy_codec::handler::Handler;
     use nvisy_core::Error;
     use nvisy_core::content::ContentSource;
     use nvisy_core::media::{DocumentType, TextFormat};
     use serde_json::json;
 
     use super::*;
-    use nvisy_codec::handler::Handler;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

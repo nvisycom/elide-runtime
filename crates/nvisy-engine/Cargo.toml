@@ -29,10 +29,10 @@ tabular = ["nvisy-codec/tabular", "nvisy-formats/tabular"]
 image = ["nvisy-codec/image", "nvisy-formats/image"]
 ## Audio modality — wav, mp3. Defaults on.
 audio = ["nvisy-codec/audio", "nvisy-formats/audio"]
-## Rich-document modality — pdf, docx. Implicitly enables `image`
-## because rich documents expose embedded images and codec's `rich`
-## trait surface unconditionally pulls codec's `image` trait
-## surface. Defaults on.
+## Rich-document modality — pdf, docx. Pulls `image` because
+## codec's `ContentHandle::Rich` arm carries a handler that
+## implements both text and image capabilities, so engine's source
+## must also compile its image arm when rich is on. Defaults on.
 rich = ["image", "nvisy-codec/rich", "nvisy-formats/rich"]
 
 ## Enable all OpenAI providers (GPT, Whisper STT, TTS).

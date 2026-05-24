@@ -7,13 +7,12 @@
 //! [`TabularHandler`]: nvisy_codec::handler::TabularHandler
 //! [`TextHandler`]: nvisy_codec::handler::TextHandler
 
+use nvisy_codec::document::LocationStream;
+use nvisy_codec::handler::{Handler, TabularHandler, TabularRedaction, TextData};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 use nvisy_ontology::entity::TabularLocation;
-
-use nvisy_codec::document::LocationStream;
-use nvisy_codec::handler::{Handler, TabularHandler, TabularRedaction, TextData};
 
 #[derive(Debug, Default)]
 pub struct XlsxHandler {

@@ -2,11 +2,11 @@
 //!
 //! Currently produces an empty [`RichTextHandler`] with no pages.
 
+use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, WordFormat};
 
-use nvisy_codec::handler::Loader;
 use super::RichTextHandler;
 
 /// Parameters for [`DocxLoader`].

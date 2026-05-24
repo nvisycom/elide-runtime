@@ -13,14 +13,13 @@
 //! [`AudioHandler::redact`]: nvisy_codec::handler::AudioHandler::redact
 
 use bytes::Bytes;
+use nvisy_codec::document::{Located, LocationStream};
+use nvisy_codec::handler::{AudioData, AudioHandler, AudioRedaction, Handler};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{AudioFormat, DocumentType};
 use nvisy_ontology::entity::AudioLocation;
 use nvisy_ontology::primitive::TimeSpan;
-
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{AudioData, AudioHandler, AudioRedaction, Handler};
 
 const TARGET: &str = "mp3-handler";
 
@@ -104,10 +103,10 @@ impl AudioHandler for Mp3Handler {
 
 #[cfg(test)]
 mod tests {
+    use nvisy_codec::handler::{AudioHandler, AudioOutput, ConflictPolicy, Redactions};
     use nvisy_ontology::primitive::TimeSpan;
 
     use super::*;
-    use nvisy_codec::handler::{AudioHandler, AudioOutput, ConflictPolicy, Redactions};
 
     #[tokio::test]
     async fn redact_with_entries_errors() {

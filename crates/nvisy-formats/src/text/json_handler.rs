@@ -19,16 +19,13 @@
 
 use std::num::NonZeroU32;
 
+use nvisy_codec::document::{Located, LocationStream};
+use nvisy_codec::handler::{Handler, TextData, TextHandler, TextRedaction, apply_text_redaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
 use nvisy_ontology::entity::TextLocation;
 use serde::{Deserialize, Serialize};
-
-use nvisy_codec::handler::{TextRedaction, apply_text_redaction};
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::TextData;
-use nvisy_codec::handler::{Handler, TextHandler};
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 const TARGET: &str = "json-handler";

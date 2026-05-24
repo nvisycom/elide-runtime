@@ -8,10 +8,10 @@
 //!
 //! [`DocumentType`]: nvisy_core::media::DocumentType
 
+use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
 
-use nvisy_codec::handler::Loader;
 use super::TxtHandler;
 
 /// Parameters for [`MarkdownLoader`].

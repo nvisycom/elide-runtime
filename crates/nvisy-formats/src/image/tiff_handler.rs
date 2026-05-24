@@ -3,9 +3,8 @@
 //!
 //! [`ImageHandler`]: nvisy_codec::handler::ImageHandler
 
-use nvisy_core::content::ContentSource;
-
 use nvisy_codec::impl_image_handler;
+use nvisy_core::content::ContentSource;
 
 /// Handler for loaded TIFF content.
 #[derive(Debug)]

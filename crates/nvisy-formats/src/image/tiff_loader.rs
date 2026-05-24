@@ -1,10 +1,10 @@
 //! TIFF loader: validates and decodes raw TIFF bytes into a
 //! [`TiffHandler`].
 
+use nvisy_codec::handler::{ImageData, Loader};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 
-use nvisy_codec::handler::{ImageData, Loader};
 use super::TiffHandler;
 
 /// Parameters for [`TiffLoader`].

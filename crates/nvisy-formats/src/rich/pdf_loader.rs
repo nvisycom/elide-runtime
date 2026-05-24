@@ -5,9 +5,9 @@
 //!
 //! [`lopdf`]: https://docs.rs/lopdf
 
+use nvisy_codec::handler::Loader;
 use nvisy_core::content::{ContentData, ContentSource};
 
-use nvisy_codec::handler::Loader;
 use super::RichTextHandler;
 
 /// Parameters for [`PdfLoader`].
@@ -51,11 +51,11 @@ impl Loader for PdfLoader {
 mod tests {
     use bytes::Bytes;
     use lopdf::{Dictionary, Document, Object, Stream, dictionary};
+    use nvisy_codec::handler::Handler;
     use nvisy_core::content::ContentSource;
     use nvisy_core::media::DocumentType;
 
     use super::*;
-    use nvisy_codec::handler::Handler;
 
     fn content_from_bytes(bytes: &[u8]) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(bytes.to_vec()))

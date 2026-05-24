@@ -19,15 +19,15 @@ use std::io::Cursor;
 
 use bytes::Bytes;
 use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
+use nvisy_codec::document::{Located, LocationStream};
+use nvisy_codec::handler::{
+    AudioData, AudioHandler, AudioRedaction, Handler, apply_audio_redaction,
+};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{AudioFormat, DocumentType};
 use nvisy_ontology::entity::AudioLocation;
 use nvisy_ontology::primitive::TimeSpan;
-
-use nvisy_codec::handler::{AudioRedaction, apply_audio_redaction};
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{AudioData, AudioHandler, Handler};
 
 const TARGET: &str = "wav-handler";
 
@@ -189,9 +189,9 @@ where
 #[cfg(test)]
 mod tests {
     use hound::SampleFormat;
+    use nvisy_codec::handler::{AudioHandler, AudioOutput, ConflictPolicy, Redactions};
 
     use super::*;
-    use nvisy_codec::handler::{AudioHandler, AudioOutput, ConflictPolicy, Redactions};
 
     /// Encode a mono i16 PCM WAV with the given samples at 1 kHz.
     fn encode_wav_mono_i16(samples: &[i16]) -> Bytes {

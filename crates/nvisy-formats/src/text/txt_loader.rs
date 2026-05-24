@@ -5,10 +5,10 @@
 //! source ended with a trailing newline so the file can be
 //! reconstructed after edits.
 
+use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
 
-use nvisy_codec::handler::Loader;
 use super::TxtHandler;
 
 /// Parameters for [`TxtLoader`].
@@ -51,12 +51,12 @@ impl Loader for TxtLoader {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
+    use nvisy_codec::handler::Handler;
     use nvisy_core::Error;
     use nvisy_core::content::ContentSource;
     use nvisy_core::media::{DocumentType, TextFormat};
 
     use super::*;
-    use nvisy_codec::handler::Handler;
 
     fn content_from_str(s: &str) -> ContentData {
         ContentData::new(ContentSource::new(), Bytes::from(s.to_owned()))

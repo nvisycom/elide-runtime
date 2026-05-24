@@ -8,21 +8,21 @@
 
 use std::collections::HashMap;
 
-#[cfg(feature = "audio")]
-use nvisy_codec::handler::{AudioOutput, AudioRedaction};
-#[cfg(feature = "image")]
-use nvisy_codec::handler::{ImageOutput, ImageRedaction};
-use nvisy_codec::handler::{ConflictPolicy, Redactions, TextOutput, TextRedaction};
 #[cfg(feature = "tabular")]
 use nvisy_codec::handler::TabularRedaction;
+#[cfg(feature = "audio")]
+use nvisy_codec::handler::{AudioOutput, AudioRedaction};
+use nvisy_codec::handler::{ConflictPolicy, Redactions, TextOutput, TextRedaction};
+#[cfg(feature = "image")]
+use nvisy_codec::handler::{ImageOutput, ImageRedaction};
 use nvisy_core::{Error, Result};
 #[cfg(feature = "audio")]
 use nvisy_ontology::entity::AudioLocation;
 #[cfg(feature = "image")]
 use nvisy_ontology::entity::ImageLocation;
-use nvisy_ontology::entity::{Entity, EntityKind, Location, TextLocation};
 #[cfg(feature = "tabular")]
 use nvisy_ontology::entity::TabularLocation;
+use nvisy_ontology::entity::{Entity, EntityKind, Location, TextLocation};
 #[cfg(feature = "audio")]
 use nvisy_ontology::policy::AudioStrategy;
 #[cfg(feature = "image")]

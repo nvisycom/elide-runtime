@@ -10,11 +10,10 @@
 use std::cell::RefCell;
 use std::sync::LazyLock;
 
+use nvisy_codec::handler::ImageData;
 use nvisy_core::Error;
 use nvisy_ontology::primitive::Dpi;
 use pdfium_render::prelude::*;
-
-use nvisy_codec::handler::ImageData;
 
 /// Dedicated single-thread pool for PDFium operations.
 static PDF_POOL: LazyLock<rayon::ThreadPool> = LazyLock::new(|| {

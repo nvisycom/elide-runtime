@@ -1,9 +1,9 @@
 //! WAV loader: wraps raw audio bytes into a [`WavHandler`].
 
+use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 
-use nvisy_codec::handler::Loader;
 use super::WavHandler;
 
 /// Parameters for [`WavLoader`].

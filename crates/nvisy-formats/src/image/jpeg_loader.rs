@@ -1,10 +1,10 @@
 //! JPEG loader: validates and decodes raw JPEG bytes into a
 //! [`JpegHandler`].
 
+use nvisy_codec::handler::{ImageData, Loader};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 
-use nvisy_codec::handler::{ImageData, Loader};
 use super::JpegHandler;
 
 /// Parameters for [`JpegLoader`].

@@ -61,4 +61,3 @@ impl TextHandler for BoxedTextHandler {
         self.0.redact_at(location, redaction).await
     }
 }
-

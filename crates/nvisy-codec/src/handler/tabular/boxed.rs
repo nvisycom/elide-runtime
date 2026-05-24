@@ -61,4 +61,3 @@ impl TabularHandler for BoxedTabularHandler {
         self.0.redact_at(location, redaction).await
     }
 }
-

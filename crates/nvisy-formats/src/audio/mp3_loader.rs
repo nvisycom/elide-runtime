@@ -1,9 +1,9 @@
 //! MP3 loader: wraps raw audio bytes into a [`Mp3Handler`].
 
+use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 
-use nvisy_codec::handler::Loader;
 use super::Mp3Handler;
 
 /// Parameters for [`Mp3Loader`].

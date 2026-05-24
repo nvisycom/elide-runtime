@@ -1,0 +1,121 @@
+# https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "nvisy-formats"
+description = "Format-specific loaders and handlers (PDF, DOCX, HTML, XLSX, PNG, JPEG, …) for the Nvisy multimodal redaction platform"
+keywords = ["nvisy", "loader", "pdf", "docx", "xlsx"]
+categories = ["parser-implementations", "encoding"]
+readme = "README.md"
+
+version = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
+
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[features]
+default = ["text", "tabular"]
+
+## Plain-text (`.txt`, `.log`) loader and handler.
+txt = ["nvisy-codec/text", "internal_text"]
+## JSON loader and handler.
+json = ["nvisy-codec/text", "internal_text"]
+## Markdown loader.
+markdown = ["nvisy-codec/text", "internal_text"]
+## HTML loader and handler via `scraper`.
+html = ["nvisy-codec/text", "internal_text", "dep:scraper"]
+## CSV loader and handler via the `csv` crate.
+csv = ["nvisy-codec/tabular", "internal_tabular", "dep:csv"]
+## Excel (`.xlsx`) loader and handler via `calamine`.
+xlsx = ["nvisy-codec/tabular", "internal_tabular", "dep:calamine"]
+## PNG loader and handler.
+png = ["nvisy-codec/image", "internal_image"]
+## JPEG loader and handler.
+jpeg = ["nvisy-codec/image", "internal_image"]
+## TIFF loader and handler.
+tiff = ["nvisy-codec/image", "internal_image"]
+## WAV audio loader and handler via `hound` (read + write).
+wav = ["nvisy-codec/audio", "internal_audio", "dep:hound"]
+## MP3 audio loader and handler (read-only — no pure-Rust encoder).
+mp3 = ["nvisy-codec/audio", "internal_audio"]
+## PDF loader, handler, and page-to-image rendering via `lopdf` + `pdfium-render`.
+pdf = ["nvisy-codec/rich", "internal_rich", "dep:lopdf", "dep:pdfium-render", "dep:rayon"]
+## DOCX loader via `zip` + `quick-xml`.
+docx = ["nvisy-codec/rich", "internal_rich", "dep:zip", "dep:quick-xml"]
+
+## All text formats: `txt` + `json` + `markdown` + `html`.
+text = ["txt", "json", "markdown", "html"]
+## All tabular formats: `csv` + `xlsx`.
+tabular = ["csv", "xlsx"]
+## All image formats: `png` + `jpeg` + `tiff`.
+image = ["png", "jpeg", "tiff"]
+## All audio formats: `wav` + `mp3`.
+audio = ["wav", "mp3"]
+## All rich-document formats: `pdf` + `docx`.
+rich = ["pdf", "docx"]
+
+# Internal helpers — set automatically by any format feature above.
+# Library code uses `#[cfg(feature = "internal_text")]` to mean
+# "any text format is enabled", the right gate for shared
+# infrastructure like the modality's `try_decode_*` dispatcher.
+internal_text = []
+internal_tabular = []
+internal_image = []
+internal_audio = []
+internal_rich = []
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+# Internal crates
+nvisy-codec = { workspace = true, features = [] }
+nvisy-core = { workspace = true, features = [] }
+nvisy-ontology = { workspace = true, features = [] }
+
+# Async runtime and parallelism
+async-trait = { workspace = true, features = [] }
+futures = { workspace = true, features = [] }
+tokio = { workspace = true, features = ["sync"] }
+
+# (De)serialization
+serde = { workspace = true, features = [] }
+serde_json = { workspace = true, features = [] }
+
+# Primitive datatypes
+bytes = { workspace = true, features = [] }
+
+# Error handling
+thiserror = { workspace = true, features = [] }
+
+# Image processing — pulled in unconditionally because the image
+# handler structs reference `image::DynamicImage` directly. The
+# workspace dep already enables png/jpeg/tiff decoders.
+image = { workspace = true, features = [] }
+
+# Audio processing (feature-gated)
+hound = { workspace = true, optional = true, features = [] }
+
+# PDF processing (feature-gated)
+lopdf = { workspace = true, optional = true, features = [] }
+pdfium-render = { workspace = true, optional = true, features = [] }
+rayon = { workspace = true, optional = true, features = [] }
+
+# Document parsing (feature-gated)
+calamine = { workspace = true, optional = true, features = [] }
+csv = { workspace = true, optional = true, features = [] }
+quick-xml = { workspace = true, optional = true, features = [] }
+scraper = { workspace = true, optional = true, features = [] }
+zip = { workspace = true, optional = true, features = [] }
+
+# Observability
+tracing = { workspace = true, features = [] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

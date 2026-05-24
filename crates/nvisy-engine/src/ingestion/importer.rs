@@ -12,7 +12,6 @@
 use std::mem;
 use std::sync::Arc;
 
-use nvisy_codec::ContentHandle;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData};
 
@@ -73,7 +72,7 @@ impl Importer {
             content = replace_data(content, decrypted_data);
         }
 
-        let doc = ContentHandle::decode(&content).await?;
+        let doc = nvisy_formats::decode(&content).await?;
         tracing::debug!(target: TARGET, doc_type = %doc.document_type(), "decoded document");
         let mut metadata = content.into_parts().1.unwrap_or_default();
 

@@ -19,7 +19,16 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = []
+default = ["tabular", "image", "audio", "rich"]
+
+## Tabular modality — csv, xlsx.
+tabular = ["nvisy-engine/tabular"]
+## Image modality — png, jpeg, tiff.
+image = ["nvisy-engine/image"]
+## Audio modality — wav, mp3.
+audio = ["nvisy-engine/audio"]
+## Rich-document modality — pdf, docx.
+rich = ["nvisy-engine/rich"]
 
 ## Enable all OpenAI providers (GPT, Whisper STT, TTS).
 openai = ["nvisy-engine/openai"]

@@ -1,34 +1,47 @@
-//! Loader and handler traits.
+//! Modality-keyed handler traits and supporting infrastructure.
 //!
-//! A [`Loader`] validates and parses raw content, producing the
-//! corresponding [`Handler`]. The handler holds the loaded data and
-//! provides methods to read and manipulate it.
+//! Each capability trait — [`TextHandler`], [`TabularHandler`],
+//! [`ImageHandler`], [`AudioHandler`], [`RichHandler`] — extends the
+//! base [`Handler`] trait with one modality's location streaming,
+//! reading, and redaction surface. The concrete per-format
+//! implementations live in `nvisy-formats`.
 //!
-//! Each handler implements the base [`Handler`] trait (identity + encode)
-//! and one or more capability traits: [`TextHandler`], [`ImageHandler`],
-//! [`AudioHandler`].
+//! Modality features control which traits and helpers are compiled
+//! in. The default set (`text`, `tabular`) covers the lightweight
+//! cases; opt into `image`, `audio`, or `rich` for the heavier
+//! modalities that pull additional dependencies.
 
 use nvisy_core::Error;
 use nvisy_core::content::ContentData;
 use nvisy_core::media::DocumentType;
 
+#[cfg(feature = "audio")]
 mod audio;
+#[cfg(feature = "image")]
 mod image;
 mod policy;
 mod redactions;
+#[cfg(feature = "rich")]
 mod rich;
+#[cfg(feature = "tabular")]
 mod tabular;
+#[cfg(feature = "text")]
 mod text;
 
 use nvisy_core::content::ContentSource;
 pub use nvisy_ontology::entity::Mergeable;
 
+#[cfg(feature = "audio")]
 pub use self::audio::*;
+#[cfg(feature = "image")]
 pub use self::image::*;
 pub use self::policy::{ConflictPolicy, InsertError};
 pub use self::redactions::Redactions;
+#[cfg(feature = "rich")]
 pub use self::rich::*;
+#[cfg(feature = "tabular")]
 pub use self::tabular::*;
+#[cfg(feature = "text")]
 pub use self::text::*;
 
 /// Base trait implemented by all format handlers.
@@ -38,7 +51,7 @@ pub use self::text::*;
 /// corresponding [`Loader`].
 ///
 /// Capability-specific access is provided by the opt-in traits
-/// [`TextHandler`], [`ImageHandler`], and [`AudioHandler`].
+/// per modality (e.g. [`TextHandler`], [`ImageHandler`]).
 pub trait Handler: Send + Sync + 'static {
     /// The document type this handler represents.
     fn document_type(&self) -> DocumentType;

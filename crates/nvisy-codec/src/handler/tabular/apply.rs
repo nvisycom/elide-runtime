@@ -14,7 +14,7 @@ use crate::handler::TabularRedaction;
 /// from the redaction itself.
 ///
 /// [`TabularLocation`]: nvisy_ontology::entity::TabularLocation
-pub(crate) fn apply_tabular_redaction(
+pub fn apply_tabular_redaction(
     cell: &mut String,
     redaction: &TabularRedaction,
     start: usize,

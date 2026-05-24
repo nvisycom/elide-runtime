@@ -1,4 +1,8 @@
-//! Audio format handlers and loaders.
+//! Audio-handler trait + supporting infrastructure.
+//!
+//! The trait, redaction shape, and `apply_audio_redaction` helper
+//! live here; concrete per-format implementations (WAV, MP3) live
+//! in `nvisy-formats`.
 
 use std::cmp::Reverse;
 
@@ -11,21 +15,13 @@ use crate::handler::Redactions;
 
 mod apply;
 mod audio_data;
-mod audio_handler;
+mod boxed;
 mod instruction;
-mod mp3_handler;
-mod mp3_loader;
-mod wav_handler;
-mod wav_loader;
 
-pub(crate) use self::apply::apply_audio_redaction;
+pub use self::apply::apply_audio_redaction;
 pub use self::audio_data::AudioData;
-pub use self::audio_handler::BoxedAudioHandler;
+pub use self::boxed::BoxedAudioHandler;
 pub use self::instruction::{AudioOutput, AudioRedaction};
-pub use self::mp3_handler::Mp3Handler;
-pub use self::mp3_loader::{Mp3Loader, Mp3Params};
-pub use self::wav_handler::WavHandler;
-pub use self::wav_loader::{WavLoader, WavParams};
 
 /// Capability trait for handlers that expose audio content.
 ///

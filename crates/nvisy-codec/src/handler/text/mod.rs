@@ -1,4 +1,8 @@
-//! Text-based format handlers.
+//! Text-handler trait + supporting infrastructure.
+//!
+//! The trait, redaction shape, and `apply_text_redaction` helper
+//! live here; concrete per-format implementations (TXT, JSON,
+//! Markdown, HTML) live in `nvisy-formats`.
 
 use nvisy_core::Error;
 use nvisy_ontology::entity::TextLocation;
@@ -8,32 +12,14 @@ use crate::document::LocationStream;
 use crate::handler::Redactions;
 
 mod apply;
-#[cfg(feature = "html")]
-mod html_handler;
-#[cfg(feature = "html")]
-mod html_loader;
+mod boxed;
 mod instruction;
-mod json_handler;
-mod json_loader;
-mod markdown_loader;
 mod text_data;
-mod text_handler;
-mod txt_handler;
-mod txt_loader;
 
-pub(crate) use self::apply::apply_text_redaction;
-#[cfg(feature = "html")]
-pub use self::html_handler::{HtmlData, HtmlHandler};
-#[cfg(feature = "html")]
-pub use self::html_loader::{HtmlLoader, HtmlParams};
+pub use self::apply::apply_text_redaction;
+pub use self::boxed::BoxedTextHandler;
 pub use self::instruction::{TextOutput, TextRedaction};
-pub use self::json_handler::{JsonData, JsonHandler, JsonIndent};
-pub use self::json_loader::{JsonLoader, JsonParams};
-pub use self::markdown_loader::{MarkdownLoader, MarkdownParams};
 pub use self::text_data::TextData;
-pub use self::text_handler::BoxedTextHandler;
-pub use self::txt_handler::TxtHandler;
-pub use self::txt_loader::{TxtLoader, TxtParams};
 
 /// Capability trait for handlers that expose text content.
 ///

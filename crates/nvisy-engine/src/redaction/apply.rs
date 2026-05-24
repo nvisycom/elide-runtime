@@ -8,15 +8,26 @@
 
 use std::collections::HashMap;
 
-use nvisy_codec::handler::{
-    AudioOutput, AudioRedaction, ConflictPolicy, ImageOutput, ImageRedaction, Redactions,
-    TabularRedaction, TextOutput, TextRedaction,
-};
+#[cfg(feature = "tabular")]
+use nvisy_codec::handler::TabularRedaction;
+#[cfg(feature = "audio")]
+use nvisy_codec::handler::{AudioOutput, AudioRedaction};
+use nvisy_codec::handler::{ConflictPolicy, Redactions, TextOutput, TextRedaction};
+#[cfg(feature = "image")]
+use nvisy_codec::handler::{ImageOutput, ImageRedaction};
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::{
-    AudioLocation, Entity, EntityKind, ImageLocation, Location, TabularLocation, TextLocation,
-};
-use nvisy_ontology::policy::{AudioStrategy, ImageStrategy, TextStrategy};
+#[cfg(feature = "audio")]
+use nvisy_ontology::entity::AudioLocation;
+#[cfg(feature = "image")]
+use nvisy_ontology::entity::ImageLocation;
+#[cfg(feature = "tabular")]
+use nvisy_ontology::entity::TabularLocation;
+use nvisy_ontology::entity::{Entity, EntityKind, Location, TextLocation};
+#[cfg(feature = "audio")]
+use nvisy_ontology::policy::AudioStrategy;
+#[cfg(feature = "image")]
+use nvisy_ontology::policy::ImageStrategy;
+use nvisy_ontology::policy::TextStrategy;
 use nvisy_ontology::provenance::AuditEntryStatus;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -44,24 +55,32 @@ impl<'a> RedactionApplicator<'a> {
         let entity_map = entity_map(&self.envelope.audit.entities);
 
         let text = self.build_text_redactions(&entity_map).await?;
-        let tabular = self.build_tabular_redactions(&entity_map).await?;
-        let image = self.build_image_redactions(&entity_map)?;
-        let audio = self.build_audio_redactions(&entity_map)?;
-
         if !text.is_empty() {
             self.envelope.document.apply_text_redactions(text).await?;
         }
-        if !tabular.is_empty() {
-            self.envelope
-                .document
-                .apply_tabular_redactions(tabular)
-                .await?;
+        #[cfg(feature = "tabular")]
+        {
+            let tabular = self.build_tabular_redactions(&entity_map).await?;
+            if !tabular.is_empty() {
+                self.envelope
+                    .document
+                    .apply_tabular_redactions(tabular)
+                    .await?;
+            }
         }
-        if !image.is_empty() {
-            self.envelope.document.apply_image_redactions(image).await?;
+        #[cfg(feature = "image")]
+        {
+            let image = self.build_image_redactions(&entity_map)?;
+            if !image.is_empty() {
+                self.envelope.document.apply_image_redactions(image).await?;
+            }
         }
-        if !audio.is_empty() {
-            self.envelope.document.apply_audio_redactions(audio).await?;
+        #[cfg(feature = "audio")]
+        {
+            let audio = self.build_audio_redactions(&entity_map)?;
+            if !audio.is_empty() {
+                self.envelope.document.apply_audio_redactions(audio).await?;
+            }
         }
 
         Ok(())
@@ -116,6 +135,7 @@ impl<'a> RedactionApplicator<'a> {
         Ok(redactions)
     }
 
+    #[cfg(feature = "tabular")]
     async fn build_tabular_redactions(
         &mut self,
         entity_map: &HashMap<Uuid, Entity>,
@@ -167,6 +187,7 @@ impl<'a> RedactionApplicator<'a> {
         Ok(redactions)
     }
 
+    #[cfg(feature = "image")]
     fn build_image_redactions(
         &mut self,
         entity_map: &HashMap<Uuid, Entity>,
@@ -213,6 +234,7 @@ impl<'a> RedactionApplicator<'a> {
         Ok(redactions)
     }
 
+    #[cfg(feature = "audio")]
     fn build_audio_redactions(
         &mut self,
         entity_map: &HashMap<Uuid, Entity>,
@@ -307,6 +329,7 @@ fn text_output(value: &str, entity: &Entity, strategy: &TextStrategy) -> TextOut
 /// human-readable placeholder for the audit trail.
 ///
 /// Returns `None` when the strategy has no defined codec output.
+#[cfg(feature = "image")]
 fn image_output(strategy: &ImageStrategy) -> Option<(ImageOutput, String)> {
     match strategy {
         ImageStrategy::Blur { sigma } => Some((
@@ -333,6 +356,7 @@ fn image_output(strategy: &ImageStrategy) -> Option<(ImageOutput, String)> {
 /// human-readable placeholder for the audit trail.
 ///
 /// Returns `None` when the strategy has no defined codec output.
+#[cfg(feature = "audio")]
 fn audio_output(strategy: &AudioStrategy) -> Option<(AudioOutput, String)> {
     match strategy {
         AudioStrategy::Silence => Some((AudioOutput::Silence, "[AUDIO_SILENCE]".to_string())),
@@ -359,7 +383,6 @@ fn pseudonymize(entity_kind: &EntityKind, value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::ContentHandle;
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
     use nvisy_ontology::entity::{Entities, Entity, EntityKind, Location, TabularLocation};
     use nvisy_ontology::policy::{ImageStrategy, Strategy};
@@ -398,7 +421,7 @@ mod tests {
         let data = ContentData::from_text(ContentSource::new(), body);
         let content =
             Content::with_metadata(data, ContentMetadata::new().with_content_type(content_type));
-        let handle = ContentHandle::decode(&content).await.unwrap();
+        let handle = nvisy_formats::decode(&content).await.unwrap();
         let dir = tempfile::tempdir().unwrap();
         let registry = crate::ingestion::registry::Registry::open(dir.path()).unwrap();
         let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);

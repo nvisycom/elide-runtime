@@ -18,7 +18,7 @@ use crate::handler::TextRedaction;
 /// Apply a single redaction to `content` in place, restricted to byte
 /// range `start..end` (clamped to `content.len()`). Returns an error
 /// if either offset falls mid-character.
-pub(crate) fn apply_text_redaction(
+pub fn apply_text_redaction(
     content: &mut String,
     redaction: &TextRedaction,
     start: usize,

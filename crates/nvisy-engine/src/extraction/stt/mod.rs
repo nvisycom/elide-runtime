@@ -9,8 +9,9 @@ mod params;
 
 use nvisy_agent::audio::stt::SttService;
 use nvisy_codec::ContentHandle;
-use nvisy_codec::handler::{BoxedTextHandler, Handler, TxtHandler};
+use nvisy_codec::handler::{BoxedTextHandler, Handler};
 use nvisy_core::Result;
+use nvisy_formats::text::TxtHandler;
 use nvisy_ontology::artifacts::{TranscriptSegment, Transcription};
 use nvisy_ontology::primitive::TimeSpan;
 
@@ -85,7 +86,7 @@ impl SttExtractor {
         let trailing = stt_result.text.ends_with('\n');
         let source = envelope.document.source();
         let handler = TxtHandler::new(lines, trailing).with_source(source);
-        envelope.document.handle = ContentHandle::from(BoxedTextHandler::from(handler));
+        envelope.document.handle = ContentHandle::from(BoxedTextHandler::new(handler));
         tracing::debug!(target: TARGET, "replaced audio with transcript");
         Ok(())
     }

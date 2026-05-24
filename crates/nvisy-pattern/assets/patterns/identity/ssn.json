@@ -2,7 +2,7 @@
   "name": "ssn",
   "category": "personal_identity",
   "entity_type": "government_id",
-  "pattern": {
+  "regex": {
     "regex": "\\b(\\d{3})-(\\d{2})-(\\d{4})\\b",
     "validator": "ssn",
     "confidence": 0.9

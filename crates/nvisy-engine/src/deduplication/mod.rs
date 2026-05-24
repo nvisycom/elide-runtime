@@ -328,7 +328,7 @@ mod tests {
     async fn weighted_average_strategy() {
         let doc = Document::from_text(TEST_TEXT).await;
         let mut weights = HashMap::new();
-        weights.insert(RecognitionMethodKind::Regex, 1.0);
+        weights.insert(RecognitionMethodKind::Pattern, 1.0);
         weights.insert(RecognitionMethodKind::Ner, 2.0);
 
         let entities: Entities = vec![
@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn calibration_scales_confidence() {
         let mut calibration = CalibrationMap::new();
-        calibration.insert(RecognitionMethodKind::Regex, 0.5);
+        calibration.insert(RecognitionMethodKind::Pattern, 0.5);
 
         let mut entities: Entities = vec![
             Entity::test_builder(0, 4)
@@ -373,7 +373,7 @@ mod tests {
     #[test]
     fn calibration_clamps_to_one() {
         let mut calibration = CalibrationMap::new();
-        calibration.insert(RecognitionMethodKind::Regex, 2.0);
+        calibration.insert(RecognitionMethodKind::Pattern, 2.0);
 
         let mut entities: Entities = vec![
             Entity::test_builder(0, 4)
@@ -556,7 +556,7 @@ mod tests {
     #[test]
     fn calibration_uses_max_across_multiple_methods() {
         let mut calibration = CalibrationMap::new();
-        calibration.insert(RecognitionMethodKind::Regex, 0.5);
+        calibration.insert(RecognitionMethodKind::Pattern, 0.5);
         calibration.insert(RecognitionMethodKind::Ner, 0.8);
 
         let entity = Entity::builder()

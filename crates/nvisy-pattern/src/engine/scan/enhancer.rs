@@ -144,13 +144,8 @@ impl<'a> ContextEnhancer<'a> {
 
         if adjusted {
             for method in &mut m.recognition_methods {
-                match method {
-                    RecognitionMethod::Regex(p)
-                    | RecognitionMethod::Dictionary(p)
-                    | RecognitionMethod::CrossReference(p) => {
-                        p.contextual_analysis = true;
-                    }
-                    _ => {}
+                if let RecognitionMethod::Pattern(p) = method {
+                    p.contextual = true;
                 }
             }
         }

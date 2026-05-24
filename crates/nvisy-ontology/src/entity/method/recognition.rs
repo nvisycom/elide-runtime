@@ -3,7 +3,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::provenance::{AnnotationProvenance, ModelKind, ModelProvenance, PatternProvenance};
+use super::provenance::{
+    AnnotationProvenance, CrossReferenceProvenance, ModelKind, ModelProvenance, PatternKind,
+    PatternProvenance,
+};
 
 /// Technique used to identify a sensitive entity within extracted content.
 ///
@@ -16,24 +19,19 @@ use super::provenance::{AnnotationProvenance, ModelKind, ModelProvenance, Patter
 #[non_exhaustive]
 pub enum RecognitionMethod {
     // Pattern-based
-    /// Regular expression matching against known PII formats.
-    Regex(PatternProvenance),
-    /// Exact-match lookup in a curated value list.
-    Dictionary(PatternProvenance),
+    /// Text-pattern matching: regex, glob, dictionary lookup, or
+    /// deny-list. The specific matcher lives in
+    /// [`PatternProvenance::kind`].
+    Pattern(PatternProvenance),
     /// Matching extracted values against an external identity or
     /// record database.
-    CrossReference(PatternProvenance),
+    CrossReference(CrossReferenceProvenance),
 
     // Model-based
     /// Named-entity recognition via language model.
     Ner(ModelProvenance),
-    /// Document or field-level classification.
-    Classification(ModelProvenance),
     /// Semantic similarity search via vector embeddings.
     Embedding(ModelProvenance),
-    /// Biometric identification: face recognition, voiceprint
-    /// matching, or other physiological/behavioral trait analysis.
-    Biometric(ModelProvenance),
 
     // Human
     /// Pre-identified region supplied alongside the uploaded file.
@@ -41,55 +39,68 @@ pub enum RecognitionMethod {
 }
 
 impl RecognitionMethod {
-    /// Create a `Regex` method with the given pattern name.
+    /// Create a `Pattern` method tagged as a regex match.
     pub fn regex(pattern: impl Into<String>) -> Self {
-        Self::Regex(PatternProvenance {
+        Self::Pattern(PatternProvenance {
+            kind: PatternKind::Regex,
             pattern: Some(pattern.into()),
             validator: None,
-            contextual_analysis: false,
+            contextual: false,
         })
     }
 
-    /// Create a `Regex` method with pattern name and validator.
+    /// Create a `Pattern` method tagged as a regex match with a validator.
     pub fn regex_validated(pattern: impl Into<String>, validator: impl Into<String>) -> Self {
-        Self::Regex(PatternProvenance {
+        Self::Pattern(PatternProvenance {
+            kind: PatternKind::Regex,
             pattern: Some(pattern.into()),
             validator: Some(validator.into()),
-            contextual_analysis: false,
+            contextual: false,
         })
     }
 
-    /// Create a `Dictionary` method with the given dictionary name.
-    pub fn dictionary(pattern: impl Into<String>) -> Self {
-        Self::Dictionary(PatternProvenance {
+    /// Create a `Pattern` method tagged as a glob match.
+    pub fn glob(pattern: impl Into<String>) -> Self {
+        Self::Pattern(PatternProvenance {
+            kind: PatternKind::Glob,
             pattern: Some(pattern.into()),
             validator: None,
-            contextual_analysis: false,
+            contextual: false,
+        })
+    }
+
+    /// Create a `Pattern` method tagged as a dictionary match.
+    pub fn dictionary(pattern: impl Into<String>) -> Self {
+        Self::Pattern(PatternProvenance {
+            kind: PatternKind::Dictionary,
+            pattern: Some(pattern.into()),
+            validator: None,
+            contextual: false,
+        })
+    }
+
+    /// Create a `Pattern` method tagged as a deny-list match. The
+    /// pattern name is `None` because deny-list rules don't carry a
+    /// named matcher.
+    pub fn deny_list() -> Self {
+        Self::Pattern(PatternProvenance {
+            kind: PatternKind::DenyList,
+            pattern: None,
+            validator: None,
+            contextual: false,
         })
     }
 
     /// Create a `CrossReference` method with the given source name.
-    pub fn cross_reference(pattern: impl Into<String>) -> Self {
-        Self::CrossReference(PatternProvenance {
-            pattern: Some(pattern.into()),
-            validator: None,
-            contextual_analysis: false,
+    pub fn cross_reference(source: impl Into<String>) -> Self {
+        Self::CrossReference(CrossReferenceProvenance {
+            source: Some(source.into()),
         })
     }
 
     /// Create a `Ner` method with the given model name and kind.
     pub fn ner(name: impl Into<String>, kind: ModelKind) -> Self {
         Self::Ner(ModelProvenance::new(name, kind))
-    }
-
-    /// Create a `Classification` method with the given model name and kind.
-    pub fn classification(name: impl Into<String>, kind: ModelKind) -> Self {
-        Self::Classification(ModelProvenance::new(name, kind))
-    }
-
-    /// Create a `Biometric` method with the given model name and kind.
-    pub fn biometric(name: impl Into<String>, kind: ModelKind) -> Self {
-        Self::Biometric(ModelProvenance::new(name, kind))
     }
 
     /// Create an `Annotation` method with an optional annotator ID.
@@ -102,13 +113,10 @@ impl RecognitionMethod {
     /// (e.g. calibration maps, weight tables).
     pub fn kind(&self) -> RecognitionMethodKind {
         match self {
-            Self::Regex(_) => RecognitionMethodKind::Regex,
-            Self::Dictionary(_) => RecognitionMethodKind::Dictionary,
+            Self::Pattern(_) => RecognitionMethodKind::Pattern,
             Self::CrossReference(_) => RecognitionMethodKind::CrossReference,
             Self::Ner(_) => RecognitionMethodKind::Ner,
-            Self::Classification(_) => RecognitionMethodKind::Classification,
             Self::Embedding(_) => RecognitionMethodKind::Embedding,
-            Self::Biometric(_) => RecognitionMethodKind::Biometric,
             Self::Annotation(_) => RecognitionMethodKind::Annotation,
         }
     }
@@ -125,15 +133,12 @@ impl RecognitionMethod {
 #[non_exhaustive]
 pub enum RecognitionMethodKind {
     // Pattern-based
-    Regex,
-    Dictionary,
+    Pattern,
     CrossReference,
 
     // Model-based
     Ner,
-    Classification,
     Embedding,
-    Biometric,
 
     // Human
     Annotation,

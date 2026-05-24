@@ -8,7 +8,8 @@
 //!
 //! - [`Pattern`]: trait implemented by every pattern.
 //! - [`JsonPattern`]: concrete implementation deserialized from JSON.
-//! - [`MatchSource`]: whether matching is regex-based or dictionary-based.
+//! - [`RuntimePattern`]: programmatic pattern for per-call extras.
+//! - [`MatchSource`]: regex, glob, or dictionary matching.
 //! - [`ContextRule`]: optional co-occurrence keywords for confidence boosting.
 //! - [`PatternRegistry`]: sorted collection with O(log n) lookup.
 //! - [`JsonPatternWarning`]: non-fatal load-time diagnostics.
@@ -19,9 +20,14 @@ mod pattern;
 mod pattern_error;
 mod pattern_metadata;
 mod pattern_registry;
+mod runtime_pattern;
 
 pub(crate) use self::context_rule::ContextRule;
 pub(crate) use self::json_pattern::{JsonPattern, JsonPatternWarning};
-pub(crate) use self::pattern::{DictionaryConfidence, MatchSource, Pattern, PatternCompile};
+pub use self::pattern::{
+    DictionaryConfidence, DictionaryPattern, GlobPattern, MatchSource, RegexPattern,
+};
+pub(crate) use self::pattern::{Pattern, PatternCompile};
 pub(crate) use self::pattern_error::PatternLoadError;
 pub(crate) use self::pattern_registry::{PatternRegistry, builtin_registry};
+pub use self::runtime_pattern::RuntimePattern;

@@ -1,6 +1,6 @@
 //! [`ContextRule`]: co-occurrence context for confidence adjustment.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Co-occurrence context rule for confidence adjustment.
 ///
@@ -9,7 +9,7 @@ use serde::Deserialize;
 /// keyword is found, the match confidence is increased by `boost`. If
 /// no keywords are found, the confidence is decreased by `penalty`.
 /// Both adjustments are clamped to `[0.0, 1.0]`.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(try_from = "RawContextRule")]
 pub struct ContextRule {
     /// Keywords to look for in surrounding text.

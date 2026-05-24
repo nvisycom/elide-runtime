@@ -2,7 +2,7 @@
   "name": "credit-card",
   "category": "financial",
   "entity_type": "payment_card",
-  "pattern": {
+  "regex": {
     "regex": "\\b(?:\\d[ \\-]*?){13,19}\\b",
     "validator": "luhn",
     "confidence": 0.85

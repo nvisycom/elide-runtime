@@ -3,6 +3,7 @@
 //! [`PatternEngine`]: super::PatternEngine
 
 use aho_corasick::AhoCorasick;
+use globset::GlobSet;
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use regex::Regex;
 
@@ -46,6 +47,23 @@ impl DictEntry {
     }
 }
 
+/// Metadata stored alongside each compiled glob.
+///
+/// Each entry holds a single-glob [`GlobSet`] rather than a `Glob`
+/// directly so per-token matching uses the same batched matcher path
+/// the engine would use if multiple globs were ever folded into one
+/// set.
+#[derive(Debug)]
+pub(crate) struct GlobEntry {
+    pub pattern_name: String,
+    pub category: EntityCategory,
+    pub entity_kind: EntityKind,
+    pub confidence: f64,
+    pub case_sensitive: bool,
+    pub set: GlobSet,
+    pub context: Option<ContextRule>,
+}
+
 /// One compiled pattern, ready for insertion into the engine.
 ///
 /// Produced by [`PatternCompile::compile`]; consumed by the
@@ -63,6 +81,8 @@ pub(crate) enum CompiledPattern {
         entry: RegexEntry,
         regex_source: String,
     },
+    /// A compiled glob pattern.
+    Glob(GlobEntry),
     /// A compiled dictionary pattern.
     Dictionary(DictEntry),
 }

@@ -3,20 +3,21 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
+use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use serde::{Deserialize, Serialize};
 
 use super::deny_scanner::DenyScanner;
 
 /// A deny-list rule: a known sensitive value that must always be detected.
+///
+/// Matches inject as synthetic detections with confidence `1.0` and
+/// `RecognitionMethod::Pattern { kind: DenyList, .. }`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DenyRule {
     /// Entity category for the injected match.
     pub category: EntityCategory,
     /// Entity kind for the injected match.
     pub entity_kind: EntityKind,
-    /// Recognition method carried from the original detection source.
-    pub method: RecognitionMethod,
 }
 
 /// Exact-match deny list for forcing detection of known sensitive values.

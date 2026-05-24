@@ -1,24 +1,26 @@
 //! Core [`Pattern`] trait and [`MatchSource`] enum.
 
+use std::borrow::Cow;
+
+use globset::{Glob, GlobSetBuilder};
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::context_rule::ContextRule;
 use super::pattern_metadata::PatternMetadata;
 use crate::dictionaries::{Dictionary, DictionaryCompile};
 use crate::engine::PatternEngineError;
-use crate::engine::scan::entries::{CompiledPattern, DictEntry, RegexEntry};
+use crate::engine::scan::entries::{CompiledPattern, DictEntry, GlobEntry, RegexEntry};
 
 /// A regex-based match source with an optional post-match validator.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RegexPattern {
     /// The regular expression string.
     pub regex: String,
     /// Optional validator name (e.g. `"luhn"`, `"ssn"`, `"iban"`):
-    /// resolved at detection time via [`ValidatorResolver`].
-    ///
-    /// [`ValidatorResolver`]: crate::validators::ValidatorResolver
+    /// resolved at detection time by the built-in validator
+    /// registry.
     #[serde(default)]
     pub validator: Option<String>,
     /// Whether the regex is case-sensitive.
@@ -51,7 +53,8 @@ impl RegexPattern {
 
 /// Confidence for a dictionary pattern: either a single uniform score
 /// or per-column scores for CSV dictionaries.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum DictionaryConfidence {
     /// Single confidence score applied to all entries.
     Uniform(f64),
@@ -102,12 +105,36 @@ mod confidence_serde {
     }
 }
 
-/// A dictionary-based match source.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct DictionaryPattern {
-    /// Named dictionary from the [`DictionaryRegistry`].
+/// A glob-based match source.
+///
+/// Matched token-by-token: input text is split on Unicode word
+/// boundaries and each token is checked against the compiled
+/// [`globset::GlobSet`]. Use this for shapes that are easier to
+/// express as a glob than a regex (`INV-*`, `cust_[0-9][0-9][0-9]`)
+/// without escaping regex metacharacters. For substring or
+/// cross-token matches use [`RegexPattern`] instead.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GlobPattern {
+    /// The glob expression (gitignore dialect: `*`, `?`, `[...]`,
+    /// `**`).
+    pub glob: String,
+    /// Whether matching is case-sensitive.
     ///
-    /// [`DictionaryRegistry`]: crate::dictionaries::DictionaryRegistry
+    /// Defaults to `true`. When `false`, both the glob and each
+    /// token are lower-cased before matching.
+    #[serde(default = "default_case_sensitive")]
+    pub case_sensitive: bool,
+    /// Confidence score (0.0–1.0) assigned to matches from this
+    /// pattern. Defaults to `1.0` when not specified.
+    #[serde(default = "default_confidence")]
+    pub confidence: f64,
+}
+
+/// A dictionary-based match source.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DictionaryPattern {
+    /// Named dictionary loaded from the built-in dictionary
+    /// registry under `assets/dictionaries/`.
     pub name: String,
     /// Whether matching is case-sensitive.
     ///
@@ -129,16 +156,18 @@ pub struct DictionaryPattern {
 
 /// How a pattern finds matches in text.
 ///
-/// Each pattern uses exactly one source: either a regular expression that
-/// is compiled and run against text spans, or a named dictionary whose
-/// entries are matched literally.
-#[derive(Debug, Clone, PartialEq)]
+/// Each pattern uses exactly one source: a regular expression compiled
+/// and run against the whole text, a glob matched per-token, or a
+/// named dictionary whose entries are matched literally.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MatchSource {
     /// Match via a compiled regular expression.
     Regex(RegexPattern),
-    /// Match via a named dictionary from the [`DictionaryRegistry`].
-    ///
-    /// [`DictionaryRegistry`]: crate::dictionaries::DictionaryRegistry
+    /// Match via a glob expression evaluated per token.
+    Glob(GlobPattern),
+    /// Match via a named dictionary from the built-in dictionary
+    /// registry.
     Dictionary(DictionaryPattern),
 }
 
@@ -266,6 +295,35 @@ impl<P: Pattern + ?Sized> PatternCompile for P {
                     regex_source: effective,
                 }))
             }
+            MatchSource::Glob(gp) => {
+                let effective = if gp.case_sensitive {
+                    Cow::Borrowed(gp.glob.as_str())
+                } else {
+                    Cow::Owned(gp.glob.to_lowercase())
+                };
+                let mut builder = GlobSetBuilder::new();
+                builder.add(Glob::new(effective.as_ref()).map_err(|e| {
+                    PatternEngineError::GlobCompile {
+                        name: self.name().to_owned(),
+                        source: e,
+                    }
+                })?);
+                let set = builder
+                    .build()
+                    .map_err(|e| PatternEngineError::GlobCompile {
+                        name: self.name().to_owned(),
+                        source: e,
+                    })?;
+                Ok(Some(CompiledPattern::Glob(GlobEntry {
+                    pattern_name: self.name().to_owned(),
+                    category: self.category(),
+                    entity_kind: self.entity_kind(),
+                    confidence: gp.confidence,
+                    case_sensitive: gp.case_sensitive,
+                    set,
+                    context: self.context().cloned(),
+                })))
+            }
             MatchSource::Dictionary(dp) => {
                 let dict =
                     dict_lookup(&dp.name).ok_or_else(|| PatternEngineError::UnknownDictionary {
@@ -299,4 +357,5 @@ impl<P: Pattern + ?Sized> PatternCompile for P {
 pub(crate) mod sealed {
     pub trait Sealed {}
     impl Sealed for super::super::json_pattern::JsonPattern {}
+    impl Sealed for super::super::runtime_pattern::RuntimePattern {}
 }

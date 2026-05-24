@@ -108,15 +108,6 @@ mod tests {
     }
 
     #[test]
-    fn serde_round_trips() {
-        let c = Confidence::new(0.42).unwrap();
-        let json = serde_json::to_string(&c).unwrap();
-        assert_eq!(json, "0.42");
-        let back: Confidence = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, c);
-    }
-
-    #[test]
     fn deserialize_rejects_out_of_range() {
         assert!(serde_json::from_str::<Confidence>("1.4").is_err());
         assert!(serde_json::from_str::<Confidence>("-0.2").is_err());

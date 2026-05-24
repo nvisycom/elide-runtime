@@ -140,3 +140,46 @@ impl Deref for PatternEngineRef {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use nvisy_codec::handler::TextData;
+    use nvisy_ontology::entity::{EntityCategory, EntityKind};
+    use nvisy_pattern::filter::ScanContext;
+    use nvisy_pattern::{GlobPattern, MatchSource, RuntimePattern};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn extra_patterns_flow_through_recognizer() {
+        let recognizer = PatternRecognizer::shared();
+        let extra = RuntimePattern::new(
+            "internal-invoice",
+            MatchSource::Glob(GlobPattern {
+                glob: "INV-*".into(),
+                case_sensitive: true,
+                confidence: 0.8,
+            }),
+        )
+        .with_category(EntityCategory::Financial)
+        .with_kind(EntityKind::PaymentCard);
+        let ctx = PatternContext {
+            text: TextData::from("See INV-4242 attached"),
+            scan_context: ScanContext {
+                extra_patterns: vec![extra],
+                ..Default::default()
+            },
+            entities: None,
+            score_threshold: None,
+            correlation_id: None,
+        };
+
+        let entities = recognizer.run(&ctx).await.expect("recognize");
+        assert!(
+            entities
+                .iter()
+                .any(|e| matches!(e.entity_kind, EntityKind::PaymentCard)),
+            "extra_patterns glob should flow through the recognizer and produce an entity",
+        );
+    }
+}

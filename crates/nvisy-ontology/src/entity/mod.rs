@@ -26,8 +26,8 @@ pub use self::location::{
     Overlap, TabularLocation, TabularLocationBuilder, TextLocation, TextLocationBuilder,
 };
 pub use self::method::{
-    AnnotationProvenance, ExtractionMethod, ModelKind, ModelProvenance, PatternProvenance,
-    RecognitionMethod, RecognitionMethodKind, RefinementMethod,
+    AnnotationProvenance, CrossReferenceProvenance, ExtractionMethod, ModelKind, ModelProvenance,
+    PatternKind, PatternProvenance, RecognitionMethod, RecognitionMethodKind, RefinementMethod,
 };
 pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;

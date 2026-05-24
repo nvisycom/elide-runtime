@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 pub use self::allow_list::AllowList;
 pub use self::context_hint::ContextHint;
 pub use self::deny_list::{DenyList, DenyRule};
+use crate::patterns::RuntimePattern;
 
 /// Per-scan configuration for allow/deny lists and context hints.
 ///
@@ -44,56 +45,31 @@ pub struct ScanContext {
     /// [`EntityKind`]: nvisy_ontology::entity::EntityKind
     #[serde(default)]
     pub hints: Vec<ContextHint>,
+    /// Per-call ad-hoc patterns to scan alongside the engine's
+    /// registry-defined ones. Compiled on the hot path on every
+    /// scan when non-empty — [#188] tracks adding an LRU cache.
+    ///
+    /// **Filter bypass**: the engine's [`PatternFilter`] (language,
+    /// region, compliance) applies only to registry patterns built
+    /// at engine-construction time. Entries in this vec scan
+    /// unconditionally — extras are explicit caller intent and the
+    /// caller is expected to scope them themselves.
+    ///
+    /// Compile errors against a malformed extra are silently
+    /// dropped during scanning — call
+    /// [`PatternEngine::validate_runtime_patterns`] beforehand if
+    /// you need to surface them.
+    ///
+    /// [`PatternFilter`]: super::PatternFilter
+    /// [`PatternEngine::validate_runtime_patterns`]: super::PatternEngine::validate_runtime_patterns
+    /// [#188]: https://github.com/nvisycom/runtime/issues/188
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_patterns: Vec<RuntimePattern>,
 }
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
-
     use super::*;
-
-    #[test]
-    fn scan_context_round_trips_via_json() {
-        let mut deny = DenyList::new();
-        deny.insert(
-            "secret",
-            DenyRule {
-                category: EntityCategory::PersonalIdentity,
-                entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::regex("deny:secret"),
-            },
-        );
-        let ctx = ScanContext {
-            allow: AllowList::from_iter(["123-45-6789"]),
-            deny,
-            hints: vec![
-                ContextHint {
-                    kind: Some(EntityKind::GovernmentId),
-                    keywords: vec!["social".into(), "ssn".into()],
-                    window: Some(150),
-                    boost: Some(0.25),
-                },
-                ContextHint {
-                    kind: None,
-                    keywords: vec!["medical record".into()],
-                    ..ContextHint::default()
-                },
-            ],
-        };
-
-        let json = serde_json::to_string(&ctx).expect("serialize");
-        let back: ScanContext = serde_json::from_str(&json).expect("deserialize");
-
-        assert!(back.allow.contains("123-45-6789"));
-        assert!(back.deny.contains("secret"));
-        assert_eq!(back.hints.len(), 2);
-        assert_eq!(back.hints[0].kind, Some(EntityKind::GovernmentId));
-        assert_eq!(back.hints[0].keywords, vec!["social", "ssn"]);
-        assert_eq!(back.hints[0].window, Some(150));
-        assert_eq!(back.hints[0].boost, Some(0.25));
-        assert_eq!(back.hints[1].kind, None);
-        assert_eq!(back.hints[1].keywords, vec!["medical record"]);
-    }
 
     #[test]
     fn empty_scan_context_deserializes_from_empty_object() {

@@ -182,6 +182,7 @@ impl PatternEngineBuilder {
 
         let mut regex_entries = Vec::new();
         let mut regex_strings = Vec::new();
+        let mut glob_entries = Vec::new();
         let mut dict_entries = Vec::new();
 
         for p in &active {
@@ -217,6 +218,9 @@ impl PatternEngineBuilder {
                     regex_strings.push(regex_source);
                     regex_entries.push(entry);
                 }
+                Some(CompiledPattern::Glob(entry)) => {
+                    glob_entries.push(entry);
+                }
                 Some(CompiledPattern::Dictionary(entry)) => {
                     dict_entries.push(entry);
                 }
@@ -237,6 +241,7 @@ impl PatternEngineBuilder {
         tracing::debug!(
             target: TARGET,
             regex_count = regex_entries.len(),
+            glob_count = glob_entries.len(),
             dict_count = dict_entries.len(),
             "PatternEngine built",
         );
@@ -244,6 +249,7 @@ impl PatternEngineBuilder {
         Ok(PatternEngine {
             regex_set,
             regex_entries,
+            glob_entries,
             dict_entries,
             validators,
             confidence_threshold: self.confidence_threshold,

@@ -24,30 +24,27 @@ ready-to-use [`ContentHandle`].
 
 ## Feature Flags
 
-Each format is its own feature. Modality features (`text`,
-`tabular`, `image`, `audio`, `rich`) are usually pulled in
-transitively by the per-format features but can also be enabled
-directly to compile just the modality infrastructure in
-`nvisy-codec`.
+Two layers of features:
 
-The default set covers the four lightweight formats whose modalities
-are also `nvisy-codec`'s defaults (`text` + `tabular`):
+- **Per-format** (`txt`, `json`, `csv`, `pdf`, …): the granular knob.
+  Each pulls just its parent modality's trait surface on
+  `nvisy-codec` and that format's specific deps.
+- **Per-modality umbrellas** (`text`, `tabular`, `image`, `audio`,
+  `rich`): convenience aliases that enable every format in that
+  modality. Defaults are `text` + `tabular`.
 
-| Feature | Default | Pulls |
-|---------|---------|-------|
-| `txt` | yes | `nvisy-codec/text` |
-| `json` | yes | `nvisy-codec/text` |
-| `markdown` | yes | `nvisy-codec/text` |
-| `csv` | yes | `nvisy-codec/tabular`, `csv` |
-| `html` | no | `nvisy-codec/text`, `scraper` |
-| `xlsx` | no | `nvisy-codec/tabular`, `calamine` |
-| `png` | no | `nvisy-codec/image`, `image/png` |
-| `jpeg` | no | `nvisy-codec/image`, `image/jpeg` |
-| `tiff` | no | `nvisy-codec/image`, `image/tiff` |
-| `wav` | no | `nvisy-codec/audio`, `hound` |
-| `mp3` | no | `nvisy-codec/audio`, `hound` |
-| `pdf` | no | `nvisy-codec/rich`, `lopdf`, `pdfium-render`, `rayon` |
-| `docx` | no | `nvisy-codec/rich`, `zip`, `quick-xml` |
+| Modality | Umbrella | Format features |
+|----------|----------|-----------------|
+| Text | `text` (default) | `txt`, `json`, `markdown`, `html` |
+| Tabular | `tabular` (default) | `csv`, `xlsx` |
+| Image | `image` | `png`, `jpeg`, `tiff` |
+| Audio | `audio` | `wav`, `mp3` |
+| Rich | `rich` | `pdf`, `docx` |
+
+Selecting a single format (e.g. `--features pdf`) compiles only that
+loader and pulls only its specific deps (`lopdf` + `pdfium-render`
++ `rayon` for PDF). The umbrella feature is just shorthand for
+"enable every format in this modality".
 
 ## Documentation
 

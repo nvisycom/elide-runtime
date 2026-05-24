@@ -19,41 +19,55 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["txt", "json", "markdown", "csv"]
+default = ["text", "tabular"]
 
-# Modality aliases — usually selected transitively by a format feature
-# below, but consumers can enable them directly to compile the
-# corresponding modality's infra in `nvisy-codec` without any concrete
-# loader.
-text = ["nvisy-codec/text"]
-tabular = ["nvisy-codec/tabular"]
-image = ["nvisy-codec/image"]
-audio = ["nvisy-codec/audio"]
-rich = ["nvisy-codec/rich"]
+## Plain-text (`.txt`, `.log`) loader and handler.
+txt = ["nvisy-codec/text", "internal_text"]
+## JSON loader and handler.
+json = ["nvisy-codec/text", "internal_text"]
+## Markdown loader.
+markdown = ["nvisy-codec/text", "internal_text"]
+## HTML loader and handler via `scraper`.
+html = ["nvisy-codec/text", "internal_text", "dep:scraper"]
+## CSV loader and handler via the `csv` crate.
+csv = ["nvisy-codec/tabular", "internal_tabular", "dep:csv"]
+## Excel (`.xlsx`) loader and handler via `calamine`.
+xlsx = ["nvisy-codec/tabular", "internal_tabular", "dep:calamine"]
+## PNG loader and handler.
+png = ["nvisy-codec/image", "internal_image"]
+## JPEG loader and handler.
+jpeg = ["nvisy-codec/image", "internal_image"]
+## TIFF loader and handler.
+tiff = ["nvisy-codec/image", "internal_image"]
+## WAV audio loader and handler via `hound` (read + write).
+wav = ["nvisy-codec/audio", "internal_audio", "dep:hound"]
+## MP3 audio loader and handler (read-only — no pure-Rust encoder).
+mp3 = ["nvisy-codec/audio", "internal_audio"]
+## PDF loader, handler, and page-to-image rendering via `lopdf` + `pdfium-render`.
+pdf = ["nvisy-codec/rich", "internal_rich", "dep:lopdf", "dep:pdfium-render", "dep:rayon"]
+## DOCX loader via `zip` + `quick-xml`.
+docx = ["nvisy-codec/rich", "internal_rich", "dep:zip", "dep:quick-xml"]
 
-# Text formats.
-txt = ["text"]
-json = ["text"]
-markdown = ["text"]
-html = ["text", "dep:scraper"]
+## All text formats: `txt` + `json` + `markdown` + `html`.
+text = ["txt", "json", "markdown", "html"]
+## All tabular formats: `csv` + `xlsx`.
+tabular = ["csv", "xlsx"]
+## All image formats: `png` + `jpeg` + `tiff`.
+image = ["png", "jpeg", "tiff"]
+## All audio formats: `wav` + `mp3`.
+audio = ["wav", "mp3"]
+## All rich-document formats: `pdf` + `docx`.
+rich = ["pdf", "docx"]
 
-# Tabular formats.
-csv = ["tabular", "dep:csv"]
-xlsx = ["tabular", "dep:calamine"]
-
-# Image formats. All three image formats are bundled with the `image`
-# crate's matching feature so each opts-in to the necessary decoder.
-png = ["image", "image/png"]
-jpeg = ["image", "image/jpeg"]
-tiff = ["image", "image/tiff"]
-
-# Audio formats.
-wav = ["audio", "dep:hound"]
-mp3 = ["audio", "dep:hound"]
-
-# Rich-document formats.
-pdf = ["rich", "dep:lopdf", "dep:pdfium-render", "dep:rayon"]
-docx = ["rich", "dep:zip", "dep:quick-xml"]
+# Internal helpers — set automatically by any format feature above.
+# Library code uses `#[cfg(feature = "internal_text")]` to mean
+# "any text format is enabled", the right gate for shared
+# infrastructure like the modality's `try_decode_*` dispatcher.
+internal_text = []
+internal_tabular = []
+internal_image = []
+internal_audio = []
+internal_rich = []
 
 [package.metadata.docs.rs]
 all-features = true
@@ -73,20 +87,17 @@ tokio = { workspace = true, features = ["sync"] }
 # (De)serialization
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
-schemars = { workspace = true, features = [] }
 
 # Primitive datatypes
 bytes = { workspace = true, features = [] }
-hipstr = { workspace = true, features = [] }
 
-# Derive macros and error handling
-derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from"] }
+# Error handling
 thiserror = { workspace = true, features = [] }
 
-# Image processing — image transitively from `nvisy-codec/image` when
-# any image format is enabled; we need a direct dep so the
-# `image/png` etc. feature toggles resolve.
-image = { workspace = true, optional = true, features = [] }
+# Image processing — pulled in unconditionally because the image
+# handler structs reference `image::DynamicImage` directly. The
+# workspace dep already enables png/jpeg/tiff decoders.
+image = { workspace = true, features = [] }
 
 # Audio processing (feature-gated)
 hound = { workspace = true, optional = true, features = [] }

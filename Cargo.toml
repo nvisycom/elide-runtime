@@ -36,15 +36,15 @@ documentation = "https://docs.rs/nvisy-runtime"
 
 # Internal crates
 nvisy-agent = { path = "./crates/nvisy-agent", version = "0.1.0" }
-nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0" }
+nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-features = false }
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
-nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
-nvisy-formats = { path = "./crates/nvisy-formats", version = "0.1.0" }
+nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0", default-features = false }
+nvisy-formats = { path = "./crates/nvisy-formats", version = "0.1.0", default-features = false }
 nvisy-nlp = { path = "./crates/nvisy-nlp", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
-nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
+nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0", default-features = false }
 
 # LLM framework
 rig = { version = "0.37", features = [], default-features = false }

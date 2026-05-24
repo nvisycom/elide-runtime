@@ -2,16 +2,16 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
-#[cfg(any(feature = "wav", feature = "mp3"))]
+#[cfg(feature = "internal_audio")]
 pub mod audio;
 mod decode;
-#[cfg(any(feature = "png", feature = "jpeg", feature = "tiff"))]
+#[cfg(feature = "internal_image")]
 pub mod image;
-#[cfg(any(feature = "pdf", feature = "docx"))]
+#[cfg(feature = "internal_rich")]
 pub mod rich;
-#[cfg(any(feature = "csv", feature = "xlsx"))]
+#[cfg(feature = "internal_tabular")]
 pub mod tabular;
-#[cfg(any(feature = "txt", feature = "json", feature = "markdown", feature = "html"))]
+#[cfg(feature = "internal_text")]
 pub mod text;
 
 pub use self::decode::decode;

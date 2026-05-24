@@ -19,9 +19,21 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = []
+default = ["tabular", "image", "audio", "rich"]
 ## Test utilities (Engine::temp, etc.).
 test-utils = ["dep:tempfile"]
+
+## Tabular modality — csv, xlsx. Defaults on.
+tabular = ["nvisy-codec/tabular", "nvisy-formats/tabular"]
+## Image modality — png, jpeg, tiff. Defaults on.
+image = ["nvisy-codec/image", "nvisy-formats/image"]
+## Audio modality — wav, mp3. Defaults on.
+audio = ["nvisy-codec/audio", "nvisy-formats/audio"]
+## Rich-document modality — pdf, docx. Implicitly enables `image`
+## because rich documents expose embedded images and codec's `rich`
+## trait surface unconditionally pulls codec's `image` trait
+## surface. Defaults on.
+rich = ["image", "nvisy-codec/rich", "nvisy-formats/rich"]
 
 ## Enable all OpenAI providers (GPT, Whisper STT, TTS).
 openai = ["nvisy-agent/openai-gpt", "nvisy-agent/openai-whisper", "nvisy-agent/openai-tts"]
@@ -58,8 +70,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = ["http"] }
 nvisy-ontology = { workspace = true, features = [] }
-nvisy-codec = { workspace = true, features = ["text", "tabular", "image", "audio", "rich"] }
-nvisy-formats = { workspace = true, features = ["txt", "json", "markdown", "html", "csv", "xlsx", "png", "jpeg", "tiff", "wav", "mp3", "pdf", "docx"] }
+nvisy-codec = { workspace = true, features = ["text"] }
+nvisy-formats = { workspace = true, features = ["text"] }
 
 # Detection & redaction
 nvisy-nlp = { workspace = true, features = [] }

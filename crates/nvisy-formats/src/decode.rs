@@ -2,27 +2,49 @@
 //! its detected document type and return a [`ContentHandle`].
 
 use nvisy_codec::ContentHandle;
-#[cfg(feature = "audio")]
+#[cfg(feature = "internal_audio")]
 use nvisy_codec::handler::BoxedAudioHandler;
-#[cfg(feature = "image")]
+#[cfg(feature = "internal_image")]
 use nvisy_codec::handler::BoxedImageHandler;
-#[cfg(feature = "rich")]
+#[cfg(feature = "internal_rich")]
 use nvisy_codec::handler::BoxedRichHandler;
-#[cfg(feature = "tabular")]
+#[cfg(feature = "internal_tabular")]
 use nvisy_codec::handler::BoxedTabularHandler;
-#[cfg(any(feature = "txt", feature = "json", feature = "markdown", feature = "html"))]
+#[cfg(feature = "internal_text")]
 use nvisy_codec::handler::BoxedTextHandler;
+#[cfg(any(
+    feature = "internal_text",
+    feature = "internal_tabular",
+    feature = "internal_image",
+    feature = "internal_audio",
+    feature = "internal_rich",
+))]
 use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
-use nvisy_core::content::{Content, ContentData};
+use nvisy_core::content::Content;
+#[cfg(any(
+    feature = "internal_text",
+    feature = "internal_tabular",
+    feature = "internal_image",
+    feature = "internal_audio",
+    feature = "internal_rich",
+))]
+use nvisy_core::content::ContentData;
+#[cfg(any(
+    feature = "internal_text",
+    feature = "internal_tabular",
+    feature = "internal_image",
+    feature = "internal_audio",
+    feature = "internal_rich",
+))]
 use nvisy_core::media::DocumentType;
-#[cfg(any(feature = "wav", feature = "mp3"))]
+#[cfg(feature = "internal_audio")]
 use nvisy_core::media::AudioFormat;
-#[cfg(any(feature = "png", feature = "jpeg", feature = "tiff"))]
+#[cfg(feature = "internal_image")]
 use nvisy_core::media::ImageFormat;
-#[cfg(any(feature = "csv", feature = "xlsx"))]
+#[cfg(feature = "internal_tabular")]
 use nvisy_core::media::SpreadsheetFormat;
-#[cfg(any(feature = "txt", feature = "json", feature = "markdown"))]
+#[cfg(feature = "internal_text")]
 use nvisy_core::media::TextFormat;
 #[cfg(feature = "docx")]
 use nvisy_core::media::WordFormat;
@@ -40,42 +62,41 @@ pub async fn decode(content: &Content) -> Result<ContentHandle, Error> {
             "nvisy_formats::decode",
         )
     })?;
-    let data = content.data();
+    let _data = content.data();
 
-    match doc_type {
-        #[cfg(any(feature = "txt", feature = "json", feature = "markdown", feature = "html"))]
-        DocumentType::Text(_) | DocumentType::Html => decode_text(doc_type, data).await,
-        #[cfg(any(feature = "csv", feature = "xlsx"))]
-        DocumentType::Spreadsheet(_) => decode_tabular(doc_type, data).await,
-        #[cfg(any(feature = "png", feature = "jpeg", feature = "tiff"))]
-        DocumentType::Image(_) => decode_image(doc_type, data).await,
-        #[cfg(any(feature = "wav", feature = "mp3"))]
-        DocumentType::Audio(_) => decode_audio(doc_type, data).await,
-        #[cfg(any(feature = "pdf", feature = "docx"))]
-        DocumentType::Pdf | DocumentType::Word(_) | DocumentType::Presentation(_) => {
-            decode_rich(doc_type, data).await
-        }
-        // Fallback only kicks in when one or more modality
-        // feature-sets are off — with every text / tabular / image /
-        // audio / rich format enabled, every `DocumentType` variant
-        // matches an arm above.
-        #[cfg(not(all(
-            any(feature = "txt", feature = "json", feature = "markdown", feature = "html"),
-            any(feature = "csv", feature = "xlsx"),
-            any(feature = "png", feature = "jpeg", feature = "tiff"),
-            any(feature = "wav", feature = "mp3"),
-            any(feature = "pdf", feature = "docx"),
-        )))]
-        _ => Err(Error::validation(
-            format!("no loader enabled for: {doc_type}"),
-            "nvisy_formats::decode",
-        )),
+    #[cfg(feature = "internal_text")]
+    if let Some(h) = try_decode_text(doc_type, _data).await? {
+        return Ok(ContentHandle::from(h));
     }
+    #[cfg(feature = "internal_tabular")]
+    if let Some(h) = try_decode_tabular(doc_type, _data).await? {
+        return Ok(ContentHandle::from(h));
+    }
+    #[cfg(feature = "internal_image")]
+    if let Some(h) = try_decode_image(doc_type, _data).await? {
+        return Ok(ContentHandle::from(h));
+    }
+    #[cfg(feature = "internal_audio")]
+    if let Some(h) = try_decode_audio(doc_type, _data).await? {
+        return Ok(ContentHandle::from(h));
+    }
+    #[cfg(feature = "internal_rich")]
+    if let Some(h) = try_decode_rich(doc_type, _data).await? {
+        return Ok(ContentHandle::from(h));
+    }
+
+    Err(Error::validation(
+        format!("no loader enabled for: {doc_type}"),
+        "nvisy_formats::decode",
+    ))
 }
 
-#[cfg(any(feature = "txt", feature = "json", feature = "markdown", feature = "html"))]
-async fn decode_text(doc_type: DocumentType, content: &ContentData) -> Result<ContentHandle, Error> {
-    let handler: BoxedTextHandler = match doc_type {
+#[cfg(feature = "internal_text")]
+async fn try_decode_text(
+    doc_type: DocumentType,
+    content: &ContentData,
+) -> Result<Option<BoxedTextHandler>, Error> {
+    let handler = match doc_type {
         #[cfg(feature = "txt")]
         DocumentType::Text(TextFormat::Txt | TextFormat::Log) => {
             let h = crate::text::TxtLoader
@@ -104,22 +125,17 @@ async fn decode_text(doc_type: DocumentType, content: &ContentData) -> Result<Co
                 .await?;
             BoxedTextHandler::new(h)
         }
-        _ => {
-            return Err(Error::validation(
-                format!("no text loader for: {doc_type}"),
-                "nvisy_formats::decode_text",
-            ));
-        }
+        _ => return Ok(None),
     };
-    Ok(ContentHandle::from(handler))
+    Ok(Some(handler))
 }
 
-#[cfg(any(feature = "csv", feature = "xlsx"))]
-async fn decode_tabular(
+#[cfg(feature = "internal_tabular")]
+async fn try_decode_tabular(
     doc_type: DocumentType,
     content: &ContentData,
-) -> Result<ContentHandle, Error> {
-    let handler: BoxedTabularHandler = match doc_type {
+) -> Result<Option<BoxedTabularHandler>, Error> {
+    let handler = match doc_type {
         #[cfg(feature = "csv")]
         DocumentType::Spreadsheet(SpreadsheetFormat::Csv) => {
             let h = crate::tabular::CsvLoader
@@ -134,22 +150,17 @@ async fn decode_tabular(
                 .await?;
             BoxedTabularHandler::new(h)
         }
-        _ => {
-            return Err(Error::validation(
-                format!("no tabular loader for: {doc_type}"),
-                "nvisy_formats::decode_tabular",
-            ));
-        }
+        _ => return Ok(None),
     };
-    Ok(ContentHandle::from(handler))
+    Ok(Some(handler))
 }
 
-#[cfg(any(feature = "png", feature = "jpeg", feature = "tiff"))]
-async fn decode_image(
+#[cfg(feature = "internal_image")]
+async fn try_decode_image(
     doc_type: DocumentType,
     content: &ContentData,
-) -> Result<ContentHandle, Error> {
-    let handler: BoxedImageHandler = match doc_type {
+) -> Result<Option<BoxedImageHandler>, Error> {
+    let handler = match doc_type {
         #[cfg(feature = "png")]
         DocumentType::Image(ImageFormat::Png) => {
             let h = crate::image::PngLoader
@@ -171,22 +182,17 @@ async fn decode_image(
                 .await?;
             BoxedImageHandler::new(h)
         }
-        _ => {
-            return Err(Error::validation(
-                format!("no image loader for: {doc_type}"),
-                "nvisy_formats::decode_image",
-            ));
-        }
+        _ => return Ok(None),
     };
-    Ok(ContentHandle::from(handler))
+    Ok(Some(handler))
 }
 
-#[cfg(any(feature = "wav", feature = "mp3"))]
-async fn decode_audio(
+#[cfg(feature = "internal_audio")]
+async fn try_decode_audio(
     doc_type: DocumentType,
     content: &ContentData,
-) -> Result<ContentHandle, Error> {
-    let handler: BoxedAudioHandler = match doc_type {
+) -> Result<Option<BoxedAudioHandler>, Error> {
+    let handler = match doc_type {
         #[cfg(feature = "wav")]
         DocumentType::Audio(AudioFormat::Wav) => {
             let h = crate::audio::WavLoader
@@ -201,39 +207,32 @@ async fn decode_audio(
                 .await?;
             BoxedAudioHandler::new(h)
         }
-        _ => {
-            return Err(Error::validation(
-                format!("no audio loader for: {doc_type}"),
-                "nvisy_formats::decode_audio",
-            ));
-        }
+        _ => return Ok(None),
     };
-    Ok(ContentHandle::from(handler))
+    Ok(Some(handler))
 }
 
-#[cfg(any(feature = "pdf", feature = "docx"))]
-async fn decode_rich(
+#[cfg(feature = "internal_rich")]
+async fn try_decode_rich(
     doc_type: DocumentType,
     content: &ContentData,
-) -> Result<ContentHandle, Error> {
-    match doc_type {
+) -> Result<Option<BoxedRichHandler>, Error> {
+    let handler = match doc_type {
         #[cfg(feature = "pdf")]
         DocumentType::Pdf => {
             let h = crate::rich::PdfLoader
                 .decode(content, &crate::rich::PdfParams::default())
                 .await?;
-            Ok(ContentHandle::from(BoxedRichHandler::new(h)))
+            BoxedRichHandler::new(h)
         }
         #[cfg(feature = "docx")]
         DocumentType::Word(WordFormat::Docx) => {
             let h = crate::rich::DocxLoader
                 .decode(content, &crate::rich::DocxParams)
                 .await?;
-            Ok(ContentHandle::from(BoxedRichHandler::new(h)))
+            BoxedRichHandler::new(h)
         }
-        _ => Err(Error::validation(
-            format!("no rich loader for: {doc_type}"),
-            "nvisy_formats::decode_rich",
-        )),
-    }
+        _ => return Ok(None),
+    };
+    Ok(Some(handler))
 }

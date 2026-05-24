@@ -6,7 +6,7 @@
 //! by orchestrating pipelines.
 //!
 //! Cross-cutting infrastructure ([`AgentConfig`], [`AgentProvider`],
-//! [`DetectionConfig`], [`UsageStats`]) is re-exported at this level
+//! [`LlmNerContext`], [`UsageStats`]) is re-exported at this level
 //! since every agent consumes it.
 //!
 //! [`CvEntity`]: cv::CvEntity

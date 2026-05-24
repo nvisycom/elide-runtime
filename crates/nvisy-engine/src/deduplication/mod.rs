@@ -17,9 +17,9 @@
 //!    confidence threshold.
 
 mod calibrate;
-mod params;
 mod filter;
 mod fuse;
+mod params;
 mod resolve;
 mod span_size;
 
@@ -28,15 +28,14 @@ use std::mem;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
 
-pub use self::calibrate::CalibrationMap;
-pub use self::params::DeduplicationParams;
-pub use self::filter::FilterParams;
-pub use self::fuse::{DeduplicationStrategy, GroupingCriteria};
-pub use self::resolve::ConflictResolution;
-
 use self::calibrate::Calibrate;
+pub use self::calibrate::CalibrationMap;
 use self::filter::Filter;
+pub use self::filter::FilterParams;
 use self::fuse::Fuse;
+pub use self::fuse::{DeduplicationStrategy, GroupingCriteria};
+pub use self::params::DeduplicationParams;
+pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
 use crate::envelope::{Document, DocumentEnvelope};
 
@@ -200,5 +199,4 @@ mod tests {
             .await;
         assert!(result.is_empty());
     }
-
 }

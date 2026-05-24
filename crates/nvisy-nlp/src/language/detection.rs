@@ -15,9 +15,9 @@ pub enum LanguageProvenance {
     /// Produced by a language-detection backend.
     Detected,
     /// Asserted by the caller (e.g. via
-    /// [`ContextBuilder::with_language`]).
+    /// [`NlpContextBuilder::with_language`]).
     ///
-    /// [`ContextBuilder::with_language`]: crate::engine::ContextBuilder::with_language
+    /// [`NlpContextBuilder::with_language`]: crate::engine::NlpContextBuilder::with_language
     Asserted,
 }
 

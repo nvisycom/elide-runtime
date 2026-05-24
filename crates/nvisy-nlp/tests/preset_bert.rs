@@ -22,7 +22,7 @@
 use std::path::PathBuf;
 
 use nvisy_nlp::preset::NlpPreset;
-use nvisy_ontology::entity::EntityKind;
+use nvisy_ontology::entity::{EntityKind, Location};
 
 /// Workspace-root-relative path to the reference manifest.
 fn manifest_path() -> PathBuf {
@@ -30,6 +30,8 @@ fn manifest_path() -> PathBuf {
     // built — the manifest lives next to `src/`.
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("presets/dslim-bert-base-NER.json")
 }
+
+const TEXT: &str = "Alice Johnson works at Acme Corp in Berlin.";
 
 #[tokio::test]
 #[ignore = "downloads ~411 MiB model from HuggingFace; run with --ignored"]
@@ -39,24 +41,42 @@ async fn bert_base_ner_detects_a_person_name() {
         model_path: None,
         tokenizer_path: None,
     };
-    let engine = preset
-        .build()
-        .await
-        .expect("preset build should succeed: download + load + label_map validation");
+    let engine = preset.build().await.expect("preset build");
 
-    let artifacts = engine
-        .analyze("My name is Wolfgang and I live in Berlin.")
-        .await
-        .expect("analyze succeeds");
+    let ctx = nvisy_nlp::NlpContext::default();
+    let artifacts = engine.analyze(TEXT, &ctx).await.expect("analyze");
 
-    // The model is CoNLL-2003 English: it should pick `Wolfgang` as
-    // PER (PersonName) and `Berlin` as LOC (GeolocationMetadata).
-    // We check the strong claim (a PersonName appears) rather than
-    // asserting on every kind, so test brittleness stays bounded if
-    // the model marginally disagrees on `Berlin`.
-    let kinds: Vec<EntityKind> = artifacts.entities.iter().map(|e| e.entity_kind).collect();
+    // The model is CoNLL-2003 English: PER (PersonName), ORG
+    // (OrganizationName), LOC (GeolocationMetadata), MISC. We check
+    // the strong claim (a PersonName appears at the right span) and
+    // leave ORG/LOC as best-effort so the test stays robust to
+    // marginal model disagreement.
+    assert_span(&artifacts.entities, EntityKind::PersonName, "Alice Johnson");
+}
+
+/// Find an entity of `kind` whose text span resolves to `expected`
+/// against `TEXT`; panic otherwise.
+fn assert_span(entities: &[nvisy_ontology::entity::Entity], kind: EntityKind, expected: &str) {
+    let hit = entities.iter().find(|e| {
+        e.entity_kind == kind
+            && matches!(
+                &e.location,
+                Location::Text(loc)
+                    if TEXT.get(loc.start_offset..loc.end_offset) == Some(expected),
+            )
+    });
     assert!(
-        kinds.contains(&EntityKind::PersonName),
-        "expected at least one PersonName entity, got {kinds:?}",
+        hit.is_some(),
+        "expected {kind:?} entity covering {expected:?}; got {:?}",
+        entities
+            .iter()
+            .map(|e| (
+                e.entity_kind,
+                match &e.location {
+                    Location::Text(l) => TEXT.get(l.start_offset..l.end_offset).unwrap_or("?"),
+                    _ => "(non-text)",
+                }
+            ))
+            .collect::<Vec<_>>(),
     );
 }

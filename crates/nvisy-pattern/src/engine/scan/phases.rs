@@ -1,13 +1,16 @@
 //! Per-phase scan primitives used by [`PatternEngine::scan_entities`].
 //!
-//! Three phases, each appending [`EntityCandidate`]s into the shared
-//! result buffer:
+//! Three phases, each returning the [`EntityCandidate`]s it produced;
+//! the caller chains them via [`Vec::extend`]:
 //!
 //! 1. [`scan_regex`] — `RegexSet`-filtered regex candidates.
 //! 2. [`scan_dict`] — dictionary Aho-Corasick matches.
-//! 3. [`scan_deny_list`] — forced detection of known sensitive values.
+//! 3. [`scan_deny_list`] — forced detection of known sensitive values,
+//!    suppressed against prior-phase output.
 //!
 //! [`PatternEngine::scan_entities`]: super::super::PatternEngine::scan_entities
+
+use std::collections::HashSet;
 
 use nvisy_ontology::entity::{Entity, RecognitionMethod};
 use nvisy_ontology::primitive::Confidence;
@@ -26,8 +29,8 @@ pub(in crate::engine) fn scan_regex(
     validators: &ValidatorResolver,
     text: &str,
     allow: &AllowList,
-    results: &mut Vec<EntityCandidate>,
-) {
+) -> Vec<EntityCandidate> {
+    let mut results = Vec::new();
     for idx in candidates {
         let entry = &regex_entries[idx];
 
@@ -68,6 +71,7 @@ pub(in crate::engine) fn scan_regex(
             ));
         }
     }
+    results
 }
 
 /// Phase 2: dictionary matches via Aho-Corasick automata.
@@ -75,8 +79,8 @@ pub(in crate::engine) fn scan_dict(
     dict_entries: &[DictEntry],
     text: &str,
     allow: &AllowList,
-    results: &mut Vec<EntityCandidate>,
-) {
+) -> Vec<EntityCandidate> {
+    let mut results = Vec::new();
     for entry in dict_entries {
         for mat in entry.automaton.find_iter(text) {
             let pat_idx = mat.pattern().as_usize();
@@ -99,33 +103,35 @@ pub(in crate::engine) fn scan_dict(
             ));
         }
     }
+    results
 }
 
 /// Phase 3: inject deny-list values found in `text` not already
-/// matched by regex / dictionary. Total scan is O(n + matches) via
-/// the pre-compiled Aho-Corasick automaton on [`DenyList`].
+/// matched by `prior`. Total scan is O(n + matches) via the
+/// pre-compiled Aho-Corasick automaton on [`DenyList`].
 ///
 /// Suppresses any deny-list value whose matched substring already
-/// appears as a candidate at the same span — comparison is on the
-/// candidate's `Location` slice in `text`.
+/// appears in `prior` — comparison is on each candidate's
+/// `Location` slice in `text`.
 pub(in crate::engine) fn scan_deny_list(
     text: &str,
     deny: &DenyList,
-    results: &mut Vec<EntityCandidate>,
-) {
+    prior: &[EntityCandidate],
+) -> Vec<EntityCandidate> {
     let Some(scanner) = deny.scanner() else {
-        return;
+        return Vec::new();
     };
 
     // Collect substrings already matched by earlier phases so we can
     // suppress a deny-list injection that would just re-name what's
     // already been detected.
-    let already_matched: std::collections::HashSet<&str> = results
+    let already_matched: HashSet<&str> = prior
         .iter()
         .filter_map(|c| c.entity.location.as_text())
         .map(|t| &text[t.start_offset..t.end_offset])
         .collect();
 
+    let mut results = Vec::new();
     for mat in scanner.automaton.find_iter(text) {
         let (value, rule) = &scanner.entries[mat.pattern().as_usize()];
         if already_matched.contains(value.as_str()) {
@@ -144,4 +150,5 @@ pub(in crate::engine) fn scan_deny_list(
             None,
         ));
     }
+    results
 }

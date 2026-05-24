@@ -155,19 +155,18 @@ impl PatternEngine {
     /// Scan and return raw matches from every phase plus any
     /// caller-supplied extras.
     fn scan_raw(&self, text: &str, ctx: &PatternContext) -> Vec<EntityCandidate> {
-        let mut results = Vec::new();
-        scan_regex(
-            self.regex_set.matches(text).into_iter(),
+        let mut results = scan_regex(
+            self.regex_set.matches(text),
             &self.regex_entries,
             &self.validators,
             text,
             &ctx.allow,
-            &mut results,
         );
-        scan_dict(&self.dict_entries, text, &ctx.allow, &mut results);
-        scan_deny_list(text, &ctx.deny, &mut results);
+        results.extend(scan_dict(&self.dict_entries, text, &ctx.allow));
+        let deny_hits = scan_deny_list(text, &ctx.deny, &results);
+        results.extend(deny_hits);
         if !ctx.extra_patterns.is_empty() {
-            self.scan_extra_patterns(text, ctx, &mut results);
+            results.extend(self.scan_extra_patterns(text, ctx));
         }
         results
     }
@@ -176,12 +175,7 @@ impl PatternEngine {
     /// failures are dropped silently (logged at TRACE) — operators
     /// who need them surfaced should call
     /// [`Self::validate_patterns`] before scanning.
-    fn scan_extra_patterns(
-        &self,
-        text: &str,
-        ctx: &PatternContext,
-        results: &mut Vec<EntityCandidate>,
-    ) {
+    fn scan_extra_patterns(&self, text: &str, ctx: &PatternContext) -> Vec<EntityCandidate> {
         let mut buckets = CompiledBuckets::default();
         for p in &ctx.extra_patterns {
             match p.compile_with(&builtin_dict_lookup) {
@@ -203,18 +197,18 @@ impl PatternEngine {
                     error = %source,
                     "skipped extra_patterns: prefilter build failed",
                 );
-                return;
+                return Vec::new();
             }
         };
-        scan_regex(
-            compiled.regex_set.matches(text).into_iter(),
+        let mut results = scan_regex(
+            compiled.regex_set.matches(text),
             &compiled.regex_entries,
             &self.validators,
             text,
             &ctx.allow,
-            results,
         );
-        scan_dict(&compiled.dict_entries, text, &ctx.allow, results);
+        results.extend(scan_dict(&compiled.dict_entries, text, &ctx.allow));
+        results
     }
 }
 

@@ -3,7 +3,7 @@
 //!
 //! All NER-specific orchestration — detect, verify, coreference
 //! merge — lives on [`NerPipeline`] in nvisy-agent. This recognizer
-//! is a thin adapter that forwards the [`DetectionConfig`] derived
+//! is a thin adapter that forwards the [`LlmNerContext`] derived
 //! from a [`DetectionContext`] into [`NerPipeline::run`], and
 //! forwards `reset()` to [`Pipeline::reset`].
 //!
@@ -39,7 +39,7 @@ use crate::detection::{DetectionContext, Recognizer};
 ///
 /// Wraps an internally-built [`NerPipeline`] and exposes it via the
 /// [`Recognizer`] trait. The per-call configuration is
-/// [`DetectionConfig`] directly — derived from
+/// [`LlmNerContext`] directly — derived from
 /// [`DetectionContext`] via [`From`].
 ///
 /// [`NerPipeline`]: nvisy_agent::pipeline::NerPipeline

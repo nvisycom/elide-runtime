@@ -32,7 +32,7 @@ use crate::tokenizer::{Token, Tokenizer};
 ///
 /// Construct via [`builder`]. Per-call options (asserted language,
 /// candidate languages, allowed entity kinds, score threshold,
-/// correlation id) ride on [`Context`].
+/// correlation id) ride on [`NlpContext`].
 ///
 /// `Clone` is cheap — every field is already an `Arc`, so cloning is
 /// three refcount bumps. Pass the engine by value across tasks and
@@ -72,7 +72,7 @@ impl NlpEngineBuilder {
     ///
     /// The engine asks the policy for a fresh detector each
     /// [`analyze`] call, restricted to whatever language scope the
-    /// caller supplied via [`Context::candidate_languages`].
+    /// caller supplied via [`NlpContext::candidate_languages`].
     ///
     /// [`analyze`]: NlpEngine::analyze
     pub fn with_language_policy<P>(mut self, policy: P) -> Self

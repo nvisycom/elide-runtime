@@ -3511,6 +3511,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvisy-formats"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "calamine",
+ "csv",
+ "derive_more",
+ "futures",
+ "hipstr",
+ "hound",
+ "image",
+ "lopdf",
+ "nvisy-codec",
+ "nvisy-core",
+ "nvisy-ontology",
+ "pdfium-render",
+ "quick-xml",
+ "rayon",
+ "schemars 1.2.1",
+ "scraper",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "zip 8.6.0",
+]
+
+[[package]]
 name = "nvisy-nlp"
 version = "0.1.0"
 dependencies = [

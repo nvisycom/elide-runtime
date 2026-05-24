@@ -1,14 +1,13 @@
-//! Tabular (spreadsheet) handlers and capability trait.
+//! Tabular-handler trait + supporting infrastructure.
 //!
 //! Tabular handlers address content by cell coordinate
 //! ([`TabularLocation`] = row + column, optionally with intra-cell
 //! byte offsets), distinct from text handlers that address content by
-//! byte offset in a serialized stream. CSV decodes into a handler
-//! that implements **both** capabilities — the same parsed rows are
-//! readable either by byte offset (as text) or by `(row, col)` (as a
-//! cell). XLSX decodes into a handler that implements **only** the
-//! tabular capability — the underlying ZIP-of-XML structure does not
-//! map to flat byte offsets.
+//! byte offset in a serialized stream.
+//!
+//! The trait, redaction shape, and `apply_tabular_redaction` helper
+//! live here; concrete per-format implementations (CSV, XLSX) live
+//! in `nvisy-formats`.
 //!
 //! [`TabularLocation`]: nvisy_ontology::entity::TabularLocation
 
@@ -20,20 +19,12 @@ use crate::document::LocationStream;
 use crate::handler::{Redactions, TextData};
 
 mod apply;
-mod csv_handler;
-mod csv_loader;
+mod boxed;
 mod instruction;
-mod tabular_handler;
-mod xlsx_handler;
-mod xlsx_loader;
 
-pub(crate) use self::apply::apply_tabular_redaction;
-pub use self::csv_handler::{CsvData, CsvHandler};
-pub use self::csv_loader::{CsvLoader, CsvParams};
+pub use self::apply::apply_tabular_redaction;
+pub use self::boxed::BoxedTabularHandler;
 pub use self::instruction::TabularRedaction;
-pub use self::tabular_handler::BoxedTabularHandler;
-pub use self::xlsx_handler::XlsxHandler;
-pub use self::xlsx_loader::{XlsxLoader, XlsxParams};
 
 /// Capability trait for handlers that expose content by cell coordinate.
 ///

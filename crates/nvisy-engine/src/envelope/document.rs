@@ -193,7 +193,7 @@ impl Document {
         let data = ContentData::from_text(ContentSource::new(), text);
         let meta = ContentMetadata::new().with_content_type("text/plain");
         let content = nvisy_core::content::Content::with_metadata(data, meta.clone());
-        let handle = ContentHandle::decode(&content).await.expect("decode text");
+        let handle = nvisy_formats::decode(&content).await.expect("decode text");
         Self::new(handle, meta)
     }
 }

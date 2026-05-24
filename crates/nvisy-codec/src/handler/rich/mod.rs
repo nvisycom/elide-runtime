@@ -1,21 +1,15 @@
-//! Rich document format handlers and loaders.
+//! Rich-document handler trait + boxed wrapper.
+//!
+//! Rich documents (PDF, DOCX, …) expose both text and image
+//! content; [`RichHandler`] combines the [`TextHandler`] and
+//! [`ImageHandler`] capabilities into a single trait object so the
+//! wrapper can route operations to either modality.
+//!
+//! Concrete per-format implementations live in `nvisy-formats`.
+//!
+//! [`TextHandler`]: crate::handler::TextHandler
+//! [`ImageHandler`]: crate::handler::ImageHandler
 
-#[cfg(feature = "pdf")]
-mod pdf_handler;
-#[cfg(feature = "pdf")]
-mod pdf_loader;
-#[cfg(feature = "pdf")]
-mod pdf_render;
+mod boxed;
 
-#[cfg(feature = "docx")]
-mod docx_loader;
-
-mod rich_handler;
-
-#[cfg(feature = "docx")]
-pub use self::docx_loader::{DocxLoader, DocxParams};
-#[cfg(feature = "pdf")]
-pub use self::pdf_handler::RichTextHandler;
-#[cfg(feature = "pdf")]
-pub use self::pdf_loader::{PdfLoader, PdfParams};
-pub use self::rich_handler::BoxedRichHandler;
+pub use self::boxed::{BoxedRichHandler, RichHandler};

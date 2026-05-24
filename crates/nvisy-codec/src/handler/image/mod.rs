@@ -1,4 +1,9 @@
-//! Image format handlers and loaders.
+//! Image-handler trait + supporting infrastructure.
+//!
+//! The trait, redaction shape, `ImageData`, ops helpers, and the
+//! `apply_image_redaction` + `impl_image_handler!` shared utilities
+//! live here; concrete per-format implementations (PNG, JPEG, TIFF)
+//! live in `nvisy-formats`.
 
 use nvisy_core::Error;
 use nvisy_ontology::entity::ImageLocation;
@@ -8,32 +13,18 @@ use crate::document::LocationStream;
 use crate::handler::Redactions;
 
 mod apply;
+mod boxed;
 mod image_data;
-mod image_handler;
 mod image_handler_macro;
 mod instruction;
 mod ops;
 
-mod jpeg_handler;
-mod jpeg_loader;
-
-mod png_handler;
-mod png_loader;
-
-mod tiff_handler;
-mod tiff_loader;
-
-pub(crate) use self::apply::apply_image_redaction;
+pub use self::apply::apply_image_redaction;
+pub use self::boxed::BoxedImageHandler;
 pub use self::image_data::ImageData;
-pub use self::image_handler::BoxedImageHandler;
-pub(crate) use self::image_handler_macro::impl_image_handler;
 pub use self::instruction::{ImageOutput, ImageRedaction};
-pub use self::jpeg_handler::JpegHandler;
-pub use self::jpeg_loader::{JpegLoader, JpegParams};
-pub use self::png_handler::PngHandler;
-pub use self::png_loader::{PngLoader, PngParams};
-pub use self::tiff_handler::TiffHandler;
-pub use self::tiff_loader::{TiffLoader, TiffParams};
+// `impl_image_handler!` is `#[macro_export]`-ed in
+// `image_handler_macro.rs`, so it lives at `::nvisy_codec::impl_image_handler`.
 
 /// Capability trait for handlers that expose image content.
 ///

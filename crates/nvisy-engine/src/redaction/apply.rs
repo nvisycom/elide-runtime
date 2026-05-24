@@ -359,7 +359,6 @@ fn pseudonymize(entity_kind: &EntityKind, value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::ContentHandle;
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
     use nvisy_ontology::entity::{Entities, Entity, EntityKind, Location, TabularLocation};
     use nvisy_ontology::policy::{ImageStrategy, Strategy};
@@ -398,7 +397,7 @@ mod tests {
         let data = ContentData::from_text(ContentSource::new(), body);
         let content =
             Content::with_metadata(data, ContentMetadata::new().with_content_type(content_type));
-        let handle = ContentHandle::decode(&content).await.unwrap();
+        let handle = nvisy_formats::decode(&content).await.unwrap();
         let dir = tempfile::tempdir().unwrap();
         let registry = crate::ingestion::registry::Registry::open(dir.path()).unwrap();
         let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);

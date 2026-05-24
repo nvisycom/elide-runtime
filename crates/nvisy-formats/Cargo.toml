@@ -19,16 +19,41 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["pdf", "docx", "html", "xlsx"]
+default = ["txt", "json", "markdown", "csv"]
 
-## PDF parsing, text extraction, and page-to-image rendering.
-pdf = ["dep:lopdf", "dep:pdfium-render", "dep:rayon"]
-## Microsoft Word (.docx) parsing via zip + quick-xml.
-docx = ["dep:zip", "dep:quick-xml"]
-## HTML parsing and text extraction via scraper.
-html = ["dep:scraper"]
-## Excel (.xlsx) spreadsheet parsing via calamine.
-xlsx = ["dep:calamine"]
+# Modality aliases — usually selected transitively by a format feature
+# below, but consumers can enable them directly to compile the
+# corresponding modality's infra in `nvisy-codec` without any concrete
+# loader.
+text = ["nvisy-codec/text"]
+tabular = ["nvisy-codec/tabular"]
+image = ["nvisy-codec/image"]
+audio = ["nvisy-codec/audio"]
+rich = ["nvisy-codec/rich"]
+
+# Text formats.
+txt = ["text"]
+json = ["text"]
+markdown = ["text"]
+html = ["text", "dep:scraper"]
+
+# Tabular formats.
+csv = ["tabular", "dep:csv"]
+xlsx = ["tabular", "dep:calamine"]
+
+# Image formats. All three image formats are bundled with the `image`
+# crate's matching feature so each opts-in to the necessary decoder.
+png = ["image", "image/png"]
+jpeg = ["image", "image/jpeg"]
+tiff = ["image", "image/tiff"]
+
+# Audio formats.
+wav = ["audio", "dep:hound"]
+mp3 = ["audio", "dep:hound"]
+
+# Rich-document formats.
+pdf = ["rich", "dep:lopdf", "dep:pdfium-render", "dep:rayon"]
+docx = ["rich", "dep:zip", "dep:quick-xml"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -46,7 +71,6 @@ futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["sync"] }
 
 # (De)serialization
-csv = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
@@ -59,11 +83,13 @@ hipstr = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from"] }
 thiserror = { workspace = true, features = [] }
 
-# Image processing
-image = { workspace = true, features = [] }
+# Image processing — image transitively from `nvisy-codec/image` when
+# any image format is enabled; we need a direct dep so the
+# `image/png` etc. feature toggles resolve.
+image = { workspace = true, optional = true, features = [] }
 
-# Audio processing
-hound = { workspace = true, features = [] }
+# Audio processing (feature-gated)
+hound = { workspace = true, optional = true, features = [] }
 
 # PDF processing (feature-gated)
 lopdf = { workspace = true, optional = true, features = [] }
@@ -72,6 +98,7 @@ rayon = { workspace = true, optional = true, features = [] }
 
 # Document parsing (feature-gated)
 calamine = { workspace = true, optional = true, features = [] }
+csv = { workspace = true, optional = true, features = [] }
 quick-xml = { workspace = true, optional = true, features = [] }
 scraper = { workspace = true, optional = true, features = [] }
 zip = { workspace = true, optional = true, features = [] }

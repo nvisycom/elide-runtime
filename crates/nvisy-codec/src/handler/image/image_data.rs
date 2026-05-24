@@ -42,7 +42,7 @@ impl ImageData {
     }
 
     /// Unwrap into the inner `DynamicImage`.
-    pub(crate) fn into_inner(self) -> DynamicImage {
+    pub fn into_inner(self) -> DynamicImage {
         self.0
     }
 }

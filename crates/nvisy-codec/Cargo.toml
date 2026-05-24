@@ -2,8 +2,8 @@
 
 [package]
 name = "nvisy-codec"
-description = "File-format codecs — read, edit, and write documents for the Nvisy multimodal redaction platform"
-keywords = ["nvisy", "codec", "loader", "pdf", "docx"]
+description = "Modality-keyed traits and infrastructure for document handlers in the Nvisy multimodal redaction platform"
+keywords = ["nvisy", "codec", "traits", "redaction"]
 categories = ["parser-implementations", "encoding"]
 readme = "README.md"
 
@@ -19,16 +19,21 @@ homepage = { workspace = true }
 documentation = { workspace = true }
 
 [features]
-default = ["pdf", "docx", "html", "xlsx"]
+default = ["text", "tabular"]
 
-## PDF parsing, text extraction, and page-to-image rendering.
-pdf = ["dep:lopdf", "dep:pdfium-render", "dep:rayon"]
-## Microsoft Word (.docx) parsing via zip + quick-xml.
-docx = ["dep:zip", "dep:quick-xml"]
-## HTML parsing and text extraction via scraper.
-html = ["dep:scraper"]
-## Excel (.xlsx) spreadsheet parsing via calamine.
-xlsx = ["dep:calamine"]
+## Text-handler trait, TextData, TextRedaction, apply_text_redaction.
+text = []
+## Tabular-handler trait, TabularRedaction, apply_tabular_redaction.
+## Pulls in text infra for TextData (cell values are textual).
+tabular = ["text"]
+## Image-handler trait, ImageData, ImageRedaction, apply_image_redaction.
+## Pulls the `image` + `imageproc` crates.
+image = ["dep:image", "dep:imageproc"]
+## Audio-handler trait, AudioData, AudioRedaction, apply_audio_redaction.
+audio = []
+## Rich-document handler trait (multi-modal containers like PDF / DOCX).
+## Requires both text and image since rich documents expose both.
+rich = ["text", "image"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -45,7 +50,6 @@ futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["sync"] }
 
 # (De)serialization
-csv = { workspace = true, features = [] }
 serde = { workspace = true, features = [] }
 serde_json = { workspace = true, features = [] }
 schemars = { workspace = true, features = [] }
@@ -59,23 +63,9 @@ hipstr = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from", "into_iterator"] }
 thiserror = { workspace = true, features = [] }
 
-# Image processing
-image = { workspace = true, features = [] }
-imageproc = { workspace = true, features = [] }
-
-# Audio processing
-hound = { workspace = true, features = [] }
-
-# PDF processing (feature-gated)
-lopdf = { workspace = true, optional = true, features = [] }
-pdfium-render = { workspace = true, optional = true, features = [] }
-rayon = { workspace = true, optional = true, features = [] }
-
-# Document parsing (feature-gated)
-calamine = { workspace = true, optional = true, features = [] }
-quick-xml = { workspace = true, optional = true, features = [] }
-scraper = { workspace = true, optional = true, features = [] }
-zip = { workspace = true, optional = true, features = [] }
+# Image processing (feature-gated)
+image = { workspace = true, optional = true, features = [] }
+imageproc = { workspace = true, optional = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

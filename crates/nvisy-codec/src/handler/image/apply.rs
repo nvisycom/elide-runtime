@@ -18,7 +18,7 @@ const TARGET: &str = "nvisy_codec::handler::image";
 /// skipped with a warning.
 ///
 /// [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
-pub(crate) fn apply_image_redaction(
+pub fn apply_image_redaction(
     img: &mut DynamicImage,
     redaction: &ImageRedaction,
     bounding_box: BoundingBox,

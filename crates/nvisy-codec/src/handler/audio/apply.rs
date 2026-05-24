@@ -23,7 +23,7 @@ const TARGET: &str = "nvisy_codec::handler::audio";
 ///
 /// [`AudioLocation`]: nvisy_ontology::entity::AudioLocation
 /// [`AudioHandler::redact`]: crate::handler::AudioHandler::redact
-pub(crate) fn apply_audio_redaction<S>(
+pub fn apply_audio_redaction<S>(
     samples: &mut Vec<S>,
     time_span: TimeSpan,
     redaction: &AudioRedaction,

@@ -58,7 +58,7 @@ pub struct OrtParams {
     /// this are truncated by the tokenizer before inference.
     pub max_sequence_length: usize,
     /// Model identifier surfaced through
-    /// [`RecognitionMethod::ner`] on every produced entity. Useful
+    /// [`RecognitionMethod::nlp_ner`] on every produced entity. Useful
     /// for provenance tracking.
     pub model_name: String,
 }
@@ -346,7 +346,7 @@ fn build_entity(span: &CurrentSpan, label_map: &LabelMap, model_name: &str) -> O
     Entity::builder()
         .with_category(entry.category)
         .with_entity_kind(entry.kind)
-        .with_recognition_methods(vec![RecognitionMethod::ner(
+        .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
             model_name,
             ModelKind::SelfHosted,
         )])

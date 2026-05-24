@@ -332,7 +332,7 @@ mod tests {
             .build()
             .unwrap();
         let entities =
-            engine.scan_entities("SSN: 123-45-6789", &super::super::ScanContext::default());
+            engine.scan_entities("SSN: 123-45-6789", &super::super::PatternContext::default());
         assert!(
             entities
                 .iter()
@@ -354,7 +354,7 @@ mod tests {
             .build()
             .unwrap();
         let entities =
-            engine.scan_entities("She is American.", &super::super::ScanContext::default());
+            engine.scan_entities("She is American.", &super::super::PatternContext::default());
         assert!(
             !entities
                 .iter()
@@ -374,7 +374,7 @@ mod tests {
             .build()
             .unwrap();
         let entities =
-            engine.scan_entities("She is American.", &super::super::ScanContext::default());
+            engine.scan_entities("She is American.", &super::super::PatternContext::default());
         assert!(
             entities
                 .iter()
@@ -396,7 +396,7 @@ mod tests {
             .unwrap();
         let entities = engine.scan_entities(
             "Card 4539 1488 0343 6467 and SSN 123-45-6789.",
-            &super::super::ScanContext::default(),
+            &super::super::PatternContext::default(),
         );
         assert!(
             entities
@@ -425,7 +425,7 @@ mod tests {
             .unwrap();
         let entities = engine.scan_entities(
             "SSN 123-45-6789, IBAN GB29NWBK60161331926819.",
-            &super::super::ScanContext::default(),
+            &super::super::PatternContext::default(),
         );
         assert!(
             entities
@@ -452,7 +452,7 @@ mod tests {
             .unwrap();
         let entities = engine.scan_entities(
             "She is American and speaks English.",
-            &super::super::ScanContext::default(),
+            &super::super::PatternContext::default(),
         );
         assert!(
             entities
@@ -478,7 +478,7 @@ mod tests {
             .unwrap();
         let entities = engine.scan_entities(
             "SSN 123-45-6789 here",
-            &super::super::ScanContext::default(),
+            &super::super::PatternContext::default(),
         );
         assert!(
             entities
@@ -497,7 +497,7 @@ mod tests {
             .unwrap();
         let entities = engine.scan_entities(
             "SSN: 123-45-6789 and she is American.",
-            &super::super::ScanContext::default(),
+            &super::super::PatternContext::default(),
         );
         assert!(
             entities

@@ -2,6 +2,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 use super::provenance::{
     AnnotationProvenance, CrossReferenceProvenance, ModelKind, ModelProvenance, PatternKind,
@@ -25,8 +26,10 @@ pub enum RecognitionMethod {
     /// Matching extracted values against an external identity or
     /// record database.
     CrossReference(CrossReferenceProvenance),
-    /// Named-entity recognition via language model.
-    Ner(ModelProvenance),
+    /// Named-entity recognition via NLP (BERT / GLiNER etc.).
+    NlpNer(ModelProvenance),
+    /// Named-entity recognition via LLM (prompted detection).
+    LlmNer(ModelProvenance),
     /// Semantic similarity search via vector embeddings.
     Embedding(ModelProvenance),
     /// Pre-identified region supplied alongside the uploaded file.
@@ -83,9 +86,16 @@ impl RecognitionMethod {
         })
     }
 
-    /// Create a `Ner` method with the given model name and kind.
-    pub fn ner(name: impl Into<String>, kind: ModelKind) -> Self {
-        Self::Ner(ModelProvenance::new(name, kind))
+    /// Create a `NlpNer` method (NLP backend: BERT, GLiNER, etc.)
+    /// with the given model name and kind.
+    pub fn nlp_ner(name: impl Into<String>, kind: ModelKind) -> Self {
+        Self::NlpNer(ModelProvenance::new(name, kind))
+    }
+
+    /// Create a `LlmNer` method (LLM-prompted detection) with the
+    /// given model name and kind.
+    pub fn llm_ner(name: impl Into<String>, kind: ModelKind) -> Self {
+        Self::LlmNer(ModelProvenance::new(name, kind))
     }
 
     /// Create an `Annotation` method with an optional annotator ID.
@@ -100,7 +110,8 @@ impl RecognitionMethod {
         match self {
             Self::Pattern(_) => RecognitionMethodKind::Pattern,
             Self::CrossReference(_) => RecognitionMethodKind::CrossReference,
-            Self::Ner(_) => RecognitionMethodKind::Ner,
+            Self::NlpNer(_) => RecognitionMethodKind::NlpNer,
+            Self::LlmNer(_) => RecognitionMethodKind::LlmNer,
             Self::Embedding(_) => RecognitionMethodKind::Embedding,
             Self::Annotation(_) => RecognitionMethodKind::Annotation,
         }
@@ -112,14 +123,15 @@ impl RecognitionMethod {
 /// Used as a lightweight key for calibration maps and weight tables
 /// where the specific pattern/model identity doesn't matter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(strum::Display, strum::EnumString, Serialize, Deserialize, JsonSchema)]
+#[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum RecognitionMethodKind {
     Pattern,
     CrossReference,
-    Ner,
+    NlpNer,
+    LlmNer,
     Embedding,
     Annotation,
 }

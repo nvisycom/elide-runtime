@@ -28,13 +28,16 @@ use serde::{Deserialize, Serialize};
 /// [`DetectionEngine`]: super::DetectionEngine
 #[async_trait]
 pub trait Recognizer: Send + Sync {
-    /// The per-call context this recognizer consumes.
+    /// The per-call configuration this recognizer consumes. Text is
+    /// passed separately to [`run`] — every recognizer needs it.
+    ///
+    /// [`run`]: Self::run
     type Context;
 
-    /// Detect entities in `ctx`. Offsets in returned entities are
-    /// relative to whatever text `ctx` carries — callers rebase
-    /// when integrating into a larger document.
-    async fn run(&self, ctx: &Self::Context) -> Result<Entities>;
+    /// Detect entities in `text` using `ctx` for per-call
+    /// configuration. Offsets in returned entities are relative to
+    /// `text`; callers rebase when integrating into a larger document.
+    async fn run(&self, text: &str, ctx: &Self::Context) -> Result<Entities>;
 
     /// Reset per-document state, called by the orchestrator at
     /// document boundaries. The default is a no-op — stateless

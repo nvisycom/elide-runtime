@@ -12,25 +12,27 @@ mod deny_list;
 mod deny_scanner;
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub use self::allow_list::AllowList;
 pub use self::context_hint::ContextHint;
 pub use self::deny_list::{DenyList, DenyRule};
 use crate::patterns::RuntimePattern;
 
-/// Per-scan configuration for allow/deny lists and context hints.
+/// Per-scan configuration for allow/deny lists, context hints, and
+/// caller-supplied ad-hoc patterns.
 ///
 /// Passed to [`PatternEngine::scan_entities`] to control
 /// per-invocation suppression, forced detection, and context-aware
 /// confidence boosting without rebuilding the engine.
 ///
-/// All fields default to empty, so `ScanContext::default()` is a
+/// All fields default to empty, so `PatternContext::default()` is a
 /// no-op context. The type is `Serialize + Deserialize` so an HTTP
-/// API can accept a `ScanContext` as JSON request body.
+/// API can accept a `PatternContext` as JSON request body.
 ///
 /// [`PatternEngine::scan_entities`]: super::PatternEngine::scan_entities
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct ScanContext {
+pub struct PatternContext {
     /// Values to silently drop from results.
     #[serde(default)]
     pub allow: AllowList,
@@ -65,6 +67,10 @@ pub struct ScanContext {
     /// [#188]: https://github.com/nvisycom/runtime/issues/188
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_patterns: Vec<RuntimePattern>,
+    /// Correlation UUID propagated through the tracing span for this
+    /// scan. Not used for detection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<Uuid>,
 }
 
 #[cfg(test)]
@@ -72,10 +78,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_scan_context_deserializes_from_empty_object() {
-        let ctx: ScanContext = serde_json::from_str("{}").expect("empty object");
+    fn empty_pattern_context_deserializes_from_empty_object() {
+        let ctx: PatternContext = serde_json::from_str("{}").expect("empty object");
         assert!(ctx.allow.is_empty());
         assert!(ctx.deny.is_empty());
         assert!(ctx.hints.is_empty());
+        assert!(ctx.correlation_id.is_none());
     }
 }

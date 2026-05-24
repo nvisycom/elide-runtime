@@ -42,14 +42,14 @@ impl From<PatternEngineError> for Error {
 
 /// Per-extra compile error surfaced by
 /// [`PatternEngine::validate_patterns`] when a
-/// [`ScanContext::extra_patterns`] entry fails to compile.
+/// [`PatternContext::extra_patterns`] entry fails to compile.
 ///
 /// Carries the offending pattern's name plus the underlying
 /// [`PatternEngineError`] so callers can decide whether to fail the
 /// request or log and continue.
 ///
 /// [`PatternEngine::validate_patterns`]: super::PatternEngine::validate_patterns
-/// [`ScanContext::extra_patterns`]: super::filter::ScanContext::extra_patterns
+/// [`PatternContext::extra_patterns`]: super::filter::PatternContext::extra_patterns
 #[derive(Debug, thiserror::Error)]
 #[error("extra_pattern '{name}' failed: {source}")]
 pub struct ExtraPatternError {

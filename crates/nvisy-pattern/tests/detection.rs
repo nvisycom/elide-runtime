@@ -2,10 +2,10 @@
 
 use nvisy_ontology::entity::{EntityKind, PatternKind, RecognitionMethod};
 use nvisy_pattern::PatternEngine;
-use nvisy_pattern::filter::ScanContext;
+use nvisy_pattern::filter::PatternContext;
 
-fn empty_ctx() -> ScanContext {
-    ScanContext::default()
+fn empty_ctx() -> PatternContext {
+    PatternContext::default()
 }
 
 #[test]

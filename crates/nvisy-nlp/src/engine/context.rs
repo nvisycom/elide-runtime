@@ -1,24 +1,16 @@
-//! [`Context`] — per-call input to [`NlpEngine::analyze`].
+//! [`NlpContext`] — per-call configuration for [`NlpEngine::analyze`].
 //!
-//! Packages the text to analyze with optional knobs that Presidio's
-//! `AnalyzerEngine.analyze()` accepts per call: an asserted language
-//! (skips detection), a candidate-language set (restricts detection),
-//! an entity-kind allowlist (post-filters the NER output), a
-//! confidence floor (drops low-score entities), and a correlation
-//! UUID for tracing.
+//! Packages the per-call knobs that `analyze()` accepts: an asserted
+//! language (skips detection), a candidate-language set (restricts
+//! detection), an entity-kind allowlist (post-filters the NER
+//! output), a confidence floor, and a correlation UUID for tracing.
 //!
-//! Lifetimes are hybrid: `text` is borrowed because it can be large
-//! and is call-scoped; the small option lists are owned so the
-//! context can be passed around without lifetime annotations on every
-//! caller.
+//! `text` is **not** a field — it's a separate argument to
+//! [`NlpEngine::analyze`]. Keeps the context cheap to clone and
+//! reusable across multiple `analyze` calls.
 //!
-//! Construct via:
-//!
-//! - `Context::from(text)` / `engine.analyze("text")` for the
-//!   default "just analyze this text" case.
-//! - [`ContextBuilder`] (via [`Context::builder`]) when one or more
-//!   knobs need to be set. The builder uses `with_*` setters to
-//!   match other builders in this crate.
+//! Construct via [`NlpContext::default`] for the bare case, or via
+//! [`NlpContextBuilder`] when several fields need to be set.
 //!
 //! [`NlpEngine::analyze`]: super::NlpEngine::analyze
 
@@ -27,24 +19,18 @@ use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::primitive::LanguageTag;
 use uuid::Uuid;
 
-/// Per-call input to [`NlpEngine::analyze`].
-///
-/// Construct via `Context::from(text)` for the bare "analyze this
-/// text" case, or via [`Context::builder`] when several fields need
-/// to be set explicitly.
+/// Per-call configuration for [`NlpEngine::analyze`].
 ///
 /// [`NlpEngine::analyze`]: super::NlpEngine::analyze
-#[derive(Debug, Clone, Builder)]
+#[derive(Debug, Default, Clone, Builder)]
 #[builder(
-    name = "ContextBuilder",
+    name = "NlpContextBuilder",
     pattern = "owned",
     setter(into, strip_option, prefix = "with"),
-    build_fn(error = "ContextBuilderError")
+    default,
+    build_fn(error = "NlpContextBuilderError")
 )]
-pub struct Context<'a> {
-    /// The text to analyze.
-    pub text: &'a str,
-
+pub struct NlpContext {
     /// Caller-asserted language. When `Some`, detection is skipped
     /// and the asserted value becomes the sole entry in
     /// [`Artifacts::languages`] with provenance
@@ -52,7 +38,6 @@ pub struct Context<'a> {
     ///
     /// [`Artifacts::languages`]: crate::Artifacts::languages
     /// [`LanguageProvenance::Asserted`]: crate::language::LanguageProvenance::Asserted
-    #[builder(default)]
     pub language: Option<LanguageTag>,
 
     /// Restrict language detection to this subset. Ignored when
@@ -61,69 +46,46 @@ pub struct Context<'a> {
     /// decides what "restricted to this set" means concretely.
     ///
     /// [`LanguagePolicy::detector_for`]: crate::language::LanguagePolicy::detector_for
-    #[builder(default)]
     pub candidate_languages: Option<Vec<LanguageTag>>,
 
-    /// Entity-kind allowlist. When `Some`, entities of any kind
-    /// outside this set are dropped after the NER backend runs.
-    /// `None` keeps every entity the backend produced.
-    #[builder(default)]
+    /// Entity-kind allowlist. Threaded into zero-shot backends
+    /// (notably [`GlinerBackend`]) as the `requested_kinds` hint so
+    /// the backend materialises labels for the asked-about kinds.
+    ///
+    /// Post-filtering on this list is the caller's responsibility —
+    /// `analyze` returns whatever the backend produced for the
+    /// requested kinds.
+    ///
+    /// [`GlinerBackend`]: crate::ner::GlinerBackend
     pub entities: Option<Vec<EntityKind>>,
 
-    /// Minimum confidence threshold in `[0.0, 1.0]`. Entities below
-    /// this score are dropped. `None` keeps everything.
-    #[builder(default)]
+    /// Minimum confidence threshold in `[0.0, 1.0]`. Carried as
+    /// caller-facing metadata; post-filtering is the caller's
+    /// responsibility.
     pub score_threshold: Option<f64>,
 
     /// Correlation UUID propagated through the tracing span for this
     /// call. Not used for detection.
-    #[builder(default)]
     pub correlation_id: Option<Uuid>,
 }
 
-impl<'a> Context<'a> {
-    /// Construct a context with only `text` set. Equivalent to
-    /// `Context::from(text)`; kept as a named constructor for
-    /// callers that prefer it.
-    pub fn new(text: &'a str) -> Self {
-        Self {
-            text,
-            language: None,
-            candidate_languages: None,
-            entities: None,
-            score_threshold: None,
-            correlation_id: None,
-        }
-    }
-
+impl NlpContext {
     /// Start a typed builder.
     ///
-    /// Equivalent to `ContextBuilder::default()` but more
+    /// Equivalent to `NlpContextBuilder::default()` but more
     /// discoverable from the context type.
-    pub fn builder() -> ContextBuilder<'a> {
-        ContextBuilder::default()
+    pub fn builder() -> NlpContextBuilder {
+        NlpContextBuilder::default()
     }
 }
 
-impl<'a> From<&'a str> for Context<'a> {
-    fn from(text: &'a str) -> Self {
-        Self::new(text)
-    }
-}
-
-impl<'a> From<&'a String> for Context<'a> {
-    fn from(text: &'a String) -> Self {
-        Self::new(text.as_str())
-    }
-}
-
-/// Error returned by [`ContextBuilder::build`] when a required
+/// Error returned by [`NlpContextBuilder::build`] when a required
 /// field is missing.
 #[derive(Debug, thiserror::Error)]
-#[error("Context build failed: {0}")]
-pub struct ContextBuilderError(String);
+#[error("NlpContext build failed: {0}")]
+pub struct NlpContextBuilderError(String);
 
-impl From<derive_builder::UninitializedFieldError> for ContextBuilderError {
+impl From<derive_builder::UninitializedFieldError> for NlpContextBuilderError {
     fn from(err: derive_builder::UninitializedFieldError) -> Self {
         Self(format!("missing required field `{}`", err.field_name()))
     }

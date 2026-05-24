@@ -3,17 +3,16 @@
 //!
 //! Wraps either the shared `PatternEngine::instance()` singleton
 //! (when default-shaped) or an owned engine built from custom
-//! config. Forwards [`ScanContext`] from each [`PatternContext`]
-//! so allow/deny lists and context hints work per-call.
+//! config. Forwards [`PatternContext`] from each detection call so
+//! allow/deny lists and context hints work per-call.
 //!
 //! The [`PatternDetection`] workflow-params schema lives in the
 //! [`params`] submodule so the pattern runtime crate stays free of
 //! workflow types.
 //!
 //! [`PatternEngine`]: nvisy_pattern::PatternEngine
-//! [`ScanContext`]: nvisy_pattern::filter::ScanContext
+//! [`PatternContext`]: nvisy_pattern::PatternContext
 
-mod context;
 mod params;
 
 use std::ops::Deref;
@@ -22,11 +21,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
-use nvisy_pattern::PatternEngine;
+use nvisy_pattern::{PatternContext, PatternEngine};
 
-pub use self::context::PatternContext;
 pub use self::params::PatternDetection;
-use crate::detection::Recognizer;
+use crate::detection::{DetectionContext, Recognizer};
 
 /// Pattern-based recognizer.
 ///
@@ -71,25 +69,21 @@ impl Recognizer for PatternRecognizer {
     #[tracing::instrument(
         skip_all,
         fields(
-            text_len = ctx.text.len(),
+            text_len = text.len(),
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, ctx: &PatternContext) -> Result<Entities> {
-        let mut entities: Entities = self
-            .engine
-            .scan_entities(&ctx.text, &ctx.scan_context)
-            .into_iter()
-            .collect();
-
-        if let Some(ref allowed) = ctx.entities {
-            entities.retain(|e| allowed.contains(&e.entity_kind));
-        }
-        if let Some(threshold) = ctx.score_threshold {
-            entities.retain(|e| e.confidence.get() >= threshold);
-        }
-
+    async fn run(&self, text: &str, ctx: &PatternContext) -> Result<Entities> {
+        let entities: Entities = self.engine.scan_entities(text, ctx).into_iter().collect();
         Ok(entities)
+    }
+}
+
+impl From<&DetectionContext> for PatternContext {
+    fn from(ctx: &DetectionContext) -> Self {
+        let mut out = ctx.scan_context.clone();
+        out.correlation_id = ctx.correlation_id;
+        out
     }
 }
 
@@ -143,10 +137,8 @@ impl Deref for PatternEngineRef {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::handler::TextData;
     use nvisy_ontology::entity::{EntityCategory, EntityKind};
-    use nvisy_pattern::filter::ScanContext;
-    use nvisy_pattern::{MatchSource, RegexPattern, RuntimePattern};
+    use nvisy_pattern::{MatchSource, PatternContext, RegexPattern, RuntimePattern};
 
     use super::*;
 
@@ -165,17 +157,14 @@ mod tests {
         .with_category(EntityCategory::Financial)
         .with_kind(EntityKind::PaymentCard);
         let ctx = PatternContext {
-            text: TextData::from("See INV-4242 attached"),
-            scan_context: ScanContext {
-                extra_patterns: vec![extra],
-                ..Default::default()
-            },
-            entities: None,
-            score_threshold: None,
-            correlation_id: None,
+            extra_patterns: vec![extra],
+            ..Default::default()
         };
 
-        let entities = recognizer.run(&ctx).await.expect("recognize");
+        let entities = recognizer
+            .run("See INV-4242 attached", &ctx)
+            .await
+            .expect("recognize");
         assert!(
             entities
                 .iter()

@@ -24,7 +24,7 @@ pub(crate) use self::output::CvEntities;
 pub use self::output::CvEntity;
 use self::prompt::{CV_SYSTEM_PROMPT, CvPromptBuilder};
 use crate::agent::base::{BaseAgent, UsageTracker};
-use crate::agent::{AgentConfig, AgentProvider, DetectionConfig};
+use crate::agent::{AgentConfig, AgentProvider, LlmNerContext};
 
 const TARGET: &str = "nvisy_agent::agent::cv";
 
@@ -102,7 +102,7 @@ impl CvAgent {
         &self,
         image_data: &[u8],
         detections: &[CvDetection],
-        config: &DetectionConfig,
+        config: &LlmNerContext,
     ) -> Result<Vec<CvEntity>> {
         if detections.is_empty() {
             return Ok(Vec::new());

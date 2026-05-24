@@ -18,7 +18,7 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use super::default::EngineInput;
-use crate::deduplication::Deduplicator;
+use crate::deduplication::{Deduplicator, FilterParams};
 use crate::detection::{Detection as DetectionConfig, DetectionEngine};
 use crate::envelope::{DocumentEnvelope, SharedData};
 use crate::extraction::{Extraction as ExtractionConfig, Extractors};
@@ -198,10 +198,14 @@ impl DocumentPipeline {
         self.run_detection(&plan.detection, &mut envelope).await?;
         self.check_cancelled()?;
 
-        // Deduplication.
-        Deduplicator::new(&plan.deduplication)
-            .execute(&mut envelope)
-            .await?;
+        // DeduplicationParams.
+        let dedup = Deduplicator::new(&plan.deduplication);
+        let params = FilterParams {
+            allowed_kinds: (!plan.detection.entity_kinds.is_empty())
+                .then(|| plan.detection.entity_kinds.clone()),
+            confidence_threshold: plan.detection.confidence_threshold,
+        };
+        dedup.execute(&mut envelope, &params).await?;
         self.check_cancelled()?;
 
         // Redaction.

@@ -1,12 +1,12 @@
-//! Runtime-constructed [`RuntimePattern`] for per-call [`ScanContext`] extras.
+//! Runtime-constructed [`RuntimePattern`] for per-call [`PatternContext`] extras.
 //!
 //! Built programmatically rather than from JSON — used by callers
 //! who want to inject ad-hoc patterns on a single
 //! [`PatternEngine::scan_entities`] call via
-//! [`ScanContext::extra_patterns`] without rebuilding the engine.
+//! [`PatternContext::extra_patterns`] without rebuilding the engine.
 //!
-//! [`ScanContext`]: crate::ScanContext
-//! [`ScanContext::extra_patterns`]: crate::ScanContext::extra_patterns
+//! [`PatternContext`]: crate::PatternContext
+//! [`PatternContext::extra_patterns`]: crate::PatternContext::extra_patterns
 //! [`PatternEngine::scan_entities`]: crate::PatternEngine::scan_entities
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
@@ -17,7 +17,7 @@ use super::pattern::{MatchSource, Pattern};
 use super::pattern_metadata::PatternMetadata;
 
 /// A pattern constructed at runtime, suitable for per-call injection
-/// through [`ScanContext::extra_patterns`].
+/// through [`PatternContext::extra_patterns`].
 ///
 /// Same shape as the built-in `JsonPattern` but reachable from code
 /// without going through JSON deserialization. Implements the
@@ -27,7 +27,7 @@ use super::pattern_metadata::PatternMetadata;
 /// Construct via [`RuntimePattern::new`], then layer an optional
 /// co-occurrence rule with [`with_context`].
 ///
-/// [`ScanContext::extra_patterns`]: crate::engine::ScanContext::extra_patterns
+/// [`PatternContext::extra_patterns`]: crate::engine::PatternContext::extra_patterns
 /// [`with_context`]: Self::with_context
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimePattern {

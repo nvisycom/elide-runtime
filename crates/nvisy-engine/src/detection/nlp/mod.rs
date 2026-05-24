@@ -2,9 +2,12 @@
 //!
 //! Wraps the NLP engine so every detection call goes through its
 //! orchestration: language detection (asserted-bypass-able), NER
-//! backend dispatch, post-filtering by entity-kind allowlist and
-//! score threshold, and the tokens/keywords side effects (currently
+//! backend dispatch, and the tokens/keywords side effects (currently
 //! discarded — recognition returns only entities).
+//!
+//! Post-filtering (entity-kind allowlist, score threshold) is
+//! applied centrally at the detection layer, not inside this
+//! recognizer.
 //!
 //! Construct via [`from_config`] from a [`NlpDetection`] bundle —
 //! the bundle's [`engine`] field selects which prebuilt [`NlpEngine`]
@@ -18,17 +21,15 @@
 //! [`from_engine`]: NlpRecognizer::from_engine
 //! [`engine`]: NlpDetection::engine
 
-mod context;
 mod params;
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_nlp::{Context as InnerNlpContext, NlpEngine};
+use nvisy_nlp::{NlpContext, NlpEngine};
 use nvisy_ontology::entity::Entities;
 
-pub use self::context::NlpContext;
 pub use self::params::NlpDetection;
-use crate::detection::Recognizer;
+use crate::detection::{DetectionContext, Recognizer};
 
 /// NER recognizer backed by [`NlpEngine`].
 ///
@@ -79,33 +80,33 @@ impl Recognizer for NlpRecognizer {
     #[tracing::instrument(
         skip_all,
         fields(
-            text_len = ctx.text.len(),
+            text_len = text.len(),
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, ctx: &NlpContext) -> Result<Entities> {
-        let mut nlp_ctx = InnerNlpContext::new(&ctx.text);
-        if let Some(language) = ctx.language.clone() {
-            nlp_ctx.language = Some(language);
-        }
-        if let Some(candidates) = ctx.candidate_languages.clone() {
-            nlp_ctx.candidate_languages = Some(candidates);
-        }
-        if let Some(entities) = ctx.entities.clone() {
-            nlp_ctx.entities = Some(entities);
-        }
-        if let Some(threshold) = ctx.score_threshold {
-            nlp_ctx.score_threshold = Some(threshold);
-        }
-        if let Some(id) = ctx.correlation_id {
-            nlp_ctx.correlation_id = Some(id);
-        }
-
+    async fn run(&self, text: &str, ctx: &NlpContext) -> Result<Entities> {
         let artifacts = self
             .engine
-            .analyze(nlp_ctx)
+            .analyze(text, ctx)
             .await
             .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "ner", false))?;
         Ok(artifacts.entities)
+    }
+}
+
+impl From<&DetectionContext> for NlpContext {
+    fn from(ctx: &DetectionContext) -> Self {
+        Self {
+            language: ctx.language.clone(),
+            candidate_languages: ctx.candidate_languages.clone(),
+            // GLiNER consumes this as `requested_kinds` (detection-
+            // shaping). The post-filter pass at the detection layer
+            // re-applies the allowlist on the produced entities.
+            entities: ctx.entities.clone(),
+            // score_threshold is *not* threaded in — applied
+            // centrally at the detection layer instead.
+            score_threshold: None,
+            correlation_id: ctx.correlation_id,
+        }
     }
 }

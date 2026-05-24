@@ -49,6 +49,9 @@ thiserror = { workspace = true, features = [] }
 regex = { workspace = true, features = [] }
 aho-corasick = { workspace = true, features = [] }
 
+# Identifiers
+uuid = { workspace = true, features = [] }
+
 # Observability
 tracing = { workspace = true, features = [] }
 

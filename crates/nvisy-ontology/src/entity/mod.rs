@@ -128,7 +128,7 @@ impl Entity {
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(Confidence::new(0.9).expect("0.9 in range"))
+            .with_confidence(Confidence::clamped(0.9))
             .with_location(Location::from(
                 TextLocation::builder()
                     .with_start_offset(start)

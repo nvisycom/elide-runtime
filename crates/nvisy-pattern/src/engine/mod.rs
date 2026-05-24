@@ -14,7 +14,7 @@
 //!   sibling files.
 //! - [`filter`] groups the per-scan inputs callers configure:
 //!   [`AllowList`], [`DenyList`], [`ContextHint`], and the
-//!   [`ScanContext`] that bundles them.
+//!   [`PatternContext`] that bundles them.
 //! - `scan` (crate-private) holds the internal matching machinery:
 //!   compiled per-pattern entries, the `EntityCandidate` exchange
 //!   type, the per-phase scan logic, and the context-aware
@@ -36,7 +36,7 @@ use regex::RegexSet;
 
 pub use self::builder::PatternEngineBuilder;
 pub use self::error::{ExtraPatternError, PatternEngineError};
-pub use self::filter::ScanContext;
+pub use self::filter::PatternContext;
 pub use self::pattern_filter::PatternFilter;
 use self::scan::candidate::EntityCandidate;
 use self::scan::enhancer::ContextEnhancer;
@@ -104,7 +104,7 @@ impl PatternEngine {
     ///
     /// [`TextLocation`]: nvisy_ontology::entity::TextLocation
     #[tracing::instrument(level = "trace", target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), entities = tracing::field::Empty))]
-    pub fn scan_entities(&self, text: &str, ctx: &ScanContext) -> Vec<Entity> {
+    pub fn scan_entities(&self, text: &str, ctx: &PatternContext) -> Vec<Entity> {
         let mut candidates = self.scan_raw(text, ctx);
 
         // Apply context-based confidence adjustment before threshold
@@ -154,7 +154,7 @@ impl PatternEngine {
 
     /// Scan and return raw matches from every phase plus any
     /// caller-supplied extras.
-    fn scan_raw(&self, text: &str, ctx: &ScanContext) -> Vec<EntityCandidate> {
+    fn scan_raw(&self, text: &str, ctx: &PatternContext) -> Vec<EntityCandidate> {
         let mut results = Vec::new();
         scan_regex(
             self.regex_set.matches(text).into_iter(),
@@ -179,7 +179,7 @@ impl PatternEngine {
     fn scan_extra_patterns(
         &self,
         text: &str,
-        ctx: &ScanContext,
+        ctx: &PatternContext,
         results: &mut Vec<EntityCandidate>,
     ) {
         let mut buckets = CompiledBuckets::default();
@@ -240,8 +240,8 @@ mod tests {
     use super::*;
     use crate::patterns::{MatchSource, RegexPattern, RuntimePattern};
 
-    fn empty_ctx() -> ScanContext {
-        ScanContext::default()
+    fn empty_ctx() -> PatternContext {
+        PatternContext::default()
     }
 
     /// Pull the pattern name from a candidate's first
@@ -279,7 +279,7 @@ mod tests {
             .with_patterns(&["ssn"])
             .build()
             .unwrap();
-        let ctx = ScanContext {
+        let ctx = PatternContext {
             allow: ["123-45-6789"].into_iter().collect(),
             ..Default::default()
         };
@@ -304,7 +304,7 @@ mod tests {
             .with_patterns(&["email"])
             .build()
             .unwrap();
-        let ctx = ScanContext {
+        let ctx = PatternContext {
             deny,
             ..Default::default()
         };
@@ -338,7 +338,7 @@ mod tests {
             .with_patterns(&["email"])
             .build()
             .unwrap();
-        let ctx = ScanContext {
+        let ctx = PatternContext {
             deny,
             ..Default::default()
         };
@@ -396,7 +396,7 @@ mod tests {
             .with_patterns(&["email"])
             .build()
             .unwrap();
-        let ctx = ScanContext {
+        let ctx = PatternContext {
             extra_patterns: vec![
                 RuntimePattern::new(
                     "emp-id",

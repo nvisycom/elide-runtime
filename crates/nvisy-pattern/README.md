@@ -13,7 +13,7 @@ and deny-list injection. Built-in patterns and dictionaries live as
 JSON under `assets/` and are embedded at compile time.
 
 Per-scan inputs (allow / deny lists, context-keyword hints,
-caller-supplied ad-hoc patterns) flow through `ScanContext` without
+caller-supplied ad-hoc patterns) flow through `PatternContext` without
 rebuilding the engine. Regex patterns can opt into post-match
 validation by name (e.g. `"luhn"`, `"ssn"`, `"iban"`).
 

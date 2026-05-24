@@ -1,6 +1,6 @@
 //! Run request types.
 
-use nvisy_engine::deduplication::Deduplication;
+use nvisy_engine::deduplication::DeduplicationParams;
 use nvisy_engine::detection::Detection;
 use nvisy_engine::extraction::Extraction;
 use nvisy_engine::ingestion::{ExportFile, ImportFile};
@@ -50,7 +50,7 @@ pub struct NewRun {
     pub detection: Detection,
     /// Deduplication settings applied to combined detection results.
     #[serde(default)]
-    pub deduplication: Deduplication,
+    pub deduplication: DeduplicationParams,
     /// Redaction settings applied after policy evaluation.
     #[serde(default)]
     pub redaction: Redaction,

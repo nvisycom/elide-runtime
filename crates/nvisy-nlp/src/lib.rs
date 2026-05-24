@@ -11,7 +11,7 @@ pub mod preset;
 pub mod tokenizer;
 
 pub use self::engine::{
-    Artifacts, Context, ContextBuilder, ContextBuilderError, NlpEngine, NlpEngineBuilder,
+    Artifacts, NlpContext, NlpContextBuilder, NlpContextBuilderError, NlpEngine, NlpEngineBuilder,
     NlpEngineBuilderError,
 };
 pub use self::error::{Error, Result};

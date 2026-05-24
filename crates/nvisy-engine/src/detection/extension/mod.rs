@@ -5,4 +5,4 @@
 
 mod rebase;
 
-pub use self::rebase::RebaseEntities;
+pub use self::rebase::Rebase;

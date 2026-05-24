@@ -30,7 +30,7 @@ use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::Entity;
 
 use crate::agent::cv::{CvAgent, CvDetection, CvEntity, CvVerifyAgent, VerificationCandidate};
-use crate::agent::{AgentConfig, AgentProvider, DetectionConfig, UsageStats};
+use crate::agent::{AgentConfig, AgentProvider, LlmNerContext, UsageStats};
 
 /// Combined CV pipeline. Holds a [`CvVerifyAgent`] and an optional
 /// [`CvAgent`] for classification. See module docs for the two
@@ -92,7 +92,7 @@ impl CvPipeline {
         &self,
         image_data: &[u8],
         detections: &[CvDetection],
-        config: &DetectionConfig,
+        config: &LlmNerContext,
     ) -> Result<Vec<CvEntity>> {
         let agent = self.agent.as_ref().ok_or_else(|| {
             Error::new(

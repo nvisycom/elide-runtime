@@ -6,7 +6,7 @@
 //! category. CV detection itself runs upstream of the pipeline.
 
 use super::CvDetection;
-use crate::agent::DetectionConfig;
+use crate::agent::LlmNerContext;
 
 /// Fallback when no specific entity types are requested.
 const ALL_CV_TYPES_HINT: &str = "all detectable object types";
@@ -14,14 +14,14 @@ const ALL_CV_TYPES_HINT: &str = "all detectable object types";
 /// Builds user prompts for VLM-side classification of pre-computed
 /// CV detections.
 pub(crate) struct CvPromptBuilder<'a> {
-    config: &'a DetectionConfig,
+    config: &'a LlmNerContext,
     detections: &'a [CvDetection],
 }
 
 impl<'a> CvPromptBuilder<'a> {
     /// Create a prompt builder from a [`DetectionConfig`] and the
     /// detections to classify.
-    pub fn new(config: &'a DetectionConfig, detections: &'a [CvDetection]) -> Self {
+    pub fn new(config: &'a LlmNerContext, detections: &'a [CvDetection]) -> Self {
         Self { config, detections }
     }
 

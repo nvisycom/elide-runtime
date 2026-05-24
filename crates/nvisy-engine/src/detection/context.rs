@@ -2,7 +2,7 @@
 //! [`DetectionEngine::run`] and every [`Recognizer`].
 //!
 //! Bundles the same shape `nvisy_nlp::Context` carries, plus the
-//! [`ScanContext`] needed by pattern-backed recognizers. Each
+//! [`PatternContext`] needed by pattern-backed recognizers. Each
 //! recognizer reads the subset it cares about:
 //!
 //! - [`NlpRecognizer`] honors `text`, `language`,
@@ -26,7 +26,7 @@ use derive_builder::Builder;
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::primitive::LanguageTag;
-use nvisy_pattern::filter::ScanContext;
+use nvisy_pattern::filter::PatternContext;
 use uuid::Uuid;
 
 /// Per-call input to [`DetectionEngine::run`].
@@ -75,7 +75,7 @@ pub struct DetectionContext {
     /// Allow/deny/hints for pattern-backed recognizers.
     /// Non-pattern recognizers ignore this field.
     #[builder(default)]
-    pub scan_context: ScanContext,
+    pub scan_context: PatternContext,
 
     /// Correlation UUID propagated through the tracing span for
     /// this detection call.
@@ -92,7 +92,7 @@ impl DetectionContext {
             candidate_languages: None,
             entities: None,
             score_threshold: None,
-            scan_context: ScanContext::default(),
+            scan_context: PatternContext::default(),
             correlation_id: None,
         }
     }

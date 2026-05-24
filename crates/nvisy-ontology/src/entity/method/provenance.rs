@@ -21,20 +21,55 @@ pub enum ModelKind {
     SelfHosted,
 }
 
-/// Provenance for a pattern-based detection (regex, dictionary, cross-reference).
+/// Sub-classification within [`PatternProvenance::kind`] —
+/// distinguishes the specific matcher that produced a
+/// [`RecognitionMethod::Pattern`] detection.
+///
+/// [`RecognitionMethod::Pattern`]: super::recognition::RecognitionMethod::Pattern
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
+pub enum PatternKind {
+    /// Regular expression matched against the full text.
+    Regex,
+    /// Exact-match lookup in a curated dictionary.
+    Dictionary,
+    /// Caller-supplied deny-list value forced into results.
+    DenyList,
+}
+
+/// Provenance for a pattern-based detection (regex, dictionary,
+/// deny-list). The matcher subtype lives in
+/// [`PatternProvenance::kind`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PatternProvenance {
-    /// Name of the pattern that matched (e.g. "ssn", "email").
+    /// Which matcher produced this detection.
+    pub kind: PatternKind,
+    /// Name of the pattern that matched (e.g. "ssn", "email"). May
+    /// be absent for deny-list synthetic matches.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pattern: Option<String>,
-    /// Name of the validator that confirmed the match (e.g. "luhn", "iban").
+    /// Name of the validator that confirmed the match (e.g. "luhn",
+    /// "iban"). Only meaningful when `kind == Regex`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub validator: Option<String>,
     /// Whether contextual analysis (keyword co-occurrence) adjusted
     /// the confidence score for this match.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub contextual_analysis: bool,
+    pub contextual: bool,
+}
+
+/// Provenance for a cross-reference detection — matching extracted
+/// values against an external identity or record database.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct CrossReferenceProvenance {
+    /// Name of the cross-reference source.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 /// Provenance for a model-based detection.

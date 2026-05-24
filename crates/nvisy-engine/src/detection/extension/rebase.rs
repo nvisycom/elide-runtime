@@ -18,7 +18,7 @@ use nvisy_ontology::entity::{Entities, Location, TextLocation};
 /// Extension trait on [`Entities`] for the per-context →
 /// document-relative offset shift detection callers apply to
 /// recognizer output.
-pub trait RebaseEntities {
+pub trait Rebase {
     /// Translate per-context byte offsets on every text-located
     /// entity into document-relative offsets by adding
     /// `span.location.start_offset`.
@@ -29,7 +29,7 @@ pub trait RebaseEntities {
     fn rebase_offsets(self, span: &Span<TextLocation, TextData>) -> Self;
 }
 
-impl RebaseEntities for Entities {
+impl Rebase for Entities {
     fn rebase_offsets(self, span: &Span<TextLocation, TextData>) -> Self {
         let shift = span.location.start_offset;
         self.into_iter()

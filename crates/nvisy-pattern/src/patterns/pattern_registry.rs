@@ -323,7 +323,7 @@ mod tests {
                 "name": "test_fs",
                 "category": "personal_identity",
                 "entity_type": "government_id",
-                "pattern": { "regex": "\\d{3}", "confidence": 0.8 }
+                "regex": { "regex": "\\d{3}", "confidence": 0.8 }
             }"#,
         )
         .unwrap();
@@ -348,7 +348,7 @@ mod tests {
                 "name": "email_nested",
                 "category": "contact_info",
                 "entity_type": "email_address",
-                "pattern": { "regex": ".+@.+", "confidence": 0.7 }
+                "regex": { "regex": ".+@.+", "confidence": 0.7 }
             }"#,
         )
         .unwrap();
@@ -358,7 +358,7 @@ mod tests {
                 "name": "top",
                 "category": "personal_identity",
                 "entity_type": "government_id",
-                "pattern": { "regex": "\\d{3}", "confidence": 0.8 }
+                "regex": { "regex": "\\d{3}", "confidence": 0.8 }
             }"#,
         )
         .unwrap();
@@ -391,7 +391,7 @@ mod tests {
                 "name": "single_test",
                 "category": "contact_info",
                 "entity_type": "email_address",
-                "pattern": { "regex": ".+@.+", "confidence": 0.7 }
+                "regex": { "regex": ".+@.+", "confidence": 0.7 }
             }"#,
         )
         .unwrap();

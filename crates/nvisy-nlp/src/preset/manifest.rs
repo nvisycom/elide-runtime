@@ -50,7 +50,7 @@ use crate::ner::LabelMap;
 /// [`NlpPreset::Manifest`]: super::NlpPreset::Manifest
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PresetManifest {
-    /// Identifier surfaced through `RecognitionMethod::ner` on every
+    /// Identifier surfaced through `RecognitionMethod::nlp_ner` on every
     /// produced entity. Usually the HF repo id.
     pub model_name: String,
     /// HuggingFace repo id (e.g. `"dslim/bert-base-NER"`).

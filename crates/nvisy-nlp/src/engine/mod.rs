@@ -15,7 +15,7 @@ use std::sync::Arc;
 use derive_builder::Builder;
 
 pub use self::artifacts::Artifacts;
-pub use self::context::{Context, ContextBuilder, ContextBuilderError};
+pub use self::context::{NlpContext, NlpContextBuilder, NlpContextBuilderError};
 use crate::error::Result;
 use crate::language::{DynLanguagePolicy, LanguageDetection, LanguagePolicy, LanguageProvenance};
 use crate::ner::NerBackend;
@@ -32,7 +32,7 @@ use crate::tokenizer::{Token, Tokenizer};
 ///
 /// Construct via [`builder`]. Per-call options (asserted language,
 /// candidate languages, allowed entity kinds, score threshold,
-/// correlation id) ride on [`Context`].
+/// correlation id) ride on [`NlpContext`].
 ///
 /// `Clone` is cheap — every field is already an `Arc`, so cloning is
 /// three refcount bumps. Pass the engine by value across tasks and
@@ -72,7 +72,7 @@ impl NlpEngineBuilder {
     ///
     /// The engine asks the policy for a fresh detector each
     /// [`analyze`] call, restricted to whatever language scope the
-    /// caller supplied via [`Context::candidate_languages`].
+    /// caller supplied via [`NlpContext::candidate_languages`].
     ///
     /// [`analyze`]: NlpEngine::analyze
     pub fn with_language_policy<P>(mut self, policy: P) -> Self
@@ -118,38 +118,30 @@ impl NlpEngine {
         NlpEngineBuilder::default()
     }
 
-    /// Run all configured components against `context`.
+    /// Run all configured components against `text` with `context`.
     ///
-    /// Accepts anything convertible into [`Context`] —
-    /// `engine.analyze("text")` works via the blanket `From<&str>`
-    /// impl, and `engine.analyze(context)` works when the caller
-    /// built a context explicitly.
-    pub async fn analyze<'a>(&self, context: impl Into<Context<'a>>) -> Result<Artifacts> {
+    /// Post-filtering by `entities` allowlist or `score_threshold`
+    /// is the caller's responsibility — `analyze` returns whatever
+    /// the configured backend produced. Routed callers (the engine's
+    /// `NlpRecognizer`) defer to the central detection-layer filter.
+    pub async fn analyze(&self, text: &str, context: &NlpContext) -> Result<Artifacts> {
         use tracing::Instrument;
 
-        let context = context.into();
         let span = tracing::debug_span!(
             "nvisy_nlp::analyze",
             correlation_id = context.correlation_id.as_ref().map(|id| id.to_string()),
         );
 
         async move {
-            let detections = self.resolve_language(&context)?;
+            let detections = self.resolve_language(text, context)?;
             let language_hint = detections.first().map(|d| &d.language);
-            let mut entities = self
+            let entities = self
                 .ner
-                .recognize(context.text, language_hint, context.entities.as_deref())
+                .recognize(text, language_hint, context.entities.as_deref())
                 .await?;
 
-            if let Some(allowed) = context.entities.as_deref() {
-                entities.retain(|e| allowed.contains(&e.entity_kind));
-            }
-            if let Some(threshold) = context.score_threshold {
-                entities.retain(|e| e.confidence.get() >= threshold);
-            }
-
             let tokens = match &self.tokenizer {
-                Some(t) => Some(t.tokenize(context.text)?),
+                Some(t) => Some(t.tokenize(text)?),
                 None => None,
             };
             let keywords = tokens.as_deref().map(derive_keywords);
@@ -165,7 +157,7 @@ impl NlpEngine {
         .await
     }
 
-    fn resolve_language(&self, context: &Context<'_>) -> Result<Vec<LanguageDetection>> {
+    fn resolve_language(&self, text: &str, context: &NlpContext) -> Result<Vec<LanguageDetection>> {
         if let Some(language) = context.language.clone() {
             return Ok(vec![LanguageDetection {
                 language,
@@ -178,7 +170,7 @@ impl NlpEngine {
             Some(candidates) if !candidates.is_empty() => self.language.detector_for(candidates),
             _ => self.language.detector_for_all(),
         };
-        detector.detect(context.text)
+        detector.detect(text)
     }
 }
 
@@ -200,40 +192,13 @@ fn derive_keywords(tokens: &[Token]) -> HashSet<String> {
 
 #[cfg(test)]
 mod tests {
-    use async_trait::async_trait;
-    use nvisy_ontology::entity::{Entities, EntityKind};
     use nvisy_ontology::primitive::LanguageTag;
     use uuid::Uuid;
 
     use super::*;
     use crate::language::LinguaLanguagePolicy;
-    use crate::ner::{NerBackend, NoopBackend};
+    use crate::ner::NoopBackend;
     use crate::tokenizer::UnicodeTokenizer;
-
-    /// NER backend that returns a fixed list of entities ignoring
-    /// input. Used to exercise the engine's post-filtering.
-    struct CannedNerBackend(Entities);
-
-    #[async_trait]
-    impl NerBackend for CannedNerBackend {
-        async fn recognize(
-            &self,
-            _text: &str,
-            _language: Option<&LanguageTag>,
-            _requested_kinds: Option<&[EntityKind]>,
-        ) -> Result<Entities> {
-            Ok(self.0.clone())
-        }
-    }
-
-    fn canned(kind: EntityKind, confidence: f64) -> nvisy_ontology::entity::Entity {
-        nvisy_ontology::entity::Entity::test_builder(0, 4)
-            .with_entity_kind(kind)
-            .with_confidence(
-                nvisy_ontology::primitive::Confidence::new(confidence).expect("in range"),
-            )
-            .test_build()
-    }
 
     fn english_engine() -> NlpEngine {
         NlpEngine::builder()
@@ -247,7 +212,10 @@ mod tests {
     async fn analyze_detects_language() {
         let engine = english_engine();
         let out = engine
-            .analyze("The quick brown fox jumps over the lazy dog.")
+            .analyze(
+                "The quick brown fox jumps over the lazy dog.",
+                &NlpContext::default(),
+            )
             .await
             .unwrap();
         assert!(out.entities.is_empty());
@@ -260,43 +228,25 @@ mod tests {
     async fn asserted_language_bypasses_detection() {
         let engine = english_engine();
         let asserted: LanguageTag = "de".parse().unwrap();
-        let req = Context::builder()
-            .with_text("The quick brown fox")
+        let ctx = NlpContext::builder()
             .with_language(asserted)
             .build()
             .unwrap();
-        let out = engine.analyze(req).await.unwrap();
+        let out = engine.analyze("The quick brown fox", &ctx).await.unwrap();
         // Caller-asserted German wins over detected English.
         assert_eq!(out.dominant_language().unwrap().primary_language(), "de");
-    }
-
-    #[tokio::test]
-    async fn str_into_context_works() {
-        let engine = english_engine();
-        let out = engine.analyze("The quick brown fox").await.unwrap();
-        assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
     }
 
     #[tokio::test]
     async fn correlation_id_is_accepted() {
         let engine = english_engine();
         let id = Uuid::new_v4();
-        let ctx = Context::builder()
-            .with_text("The quick brown fox")
+        let ctx = NlpContext::builder()
             .with_correlation_id(id)
             .build()
             .unwrap();
-        let out = engine.analyze(ctx).await.unwrap();
+        let out = engine.analyze("The quick brown fox", &ctx).await.unwrap();
         assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
-    }
-
-    #[test]
-    fn builder_errors_when_text_missing() {
-        let err = Context::builder().build().unwrap_err();
-        assert!(
-            err.to_string().contains("text"),
-            "error should mention `text`: {err}",
-        );
     }
 
     #[test]
@@ -324,50 +274,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn entities_allowlist_drops_other_kinds() {
-        let canned = CannedNerBackend(Entities::from(vec![
-            canned(EntityKind::PersonName, 0.9),
-            canned(EntityKind::EmailAddress, 0.9),
-        ]));
-        let engine = NlpEngine::builder()
-            .with_ner_backend(canned)
-            .with_language_policy(LinguaLanguagePolicy)
-            .build()
-            .unwrap();
-
-        let req = Context::builder()
-            .with_text("anything")
-            .with_entities(vec![EntityKind::PersonName])
-            .build()
-            .unwrap();
-        let out = engine.analyze(req).await.unwrap();
-        assert_eq!(out.entities.len(), 1);
-        assert_eq!(out.entities.0[0].entity_kind, EntityKind::PersonName);
-    }
-
-    #[tokio::test]
-    async fn score_threshold_drops_low_confidence() {
-        let canned = CannedNerBackend(Entities::from(vec![
-            canned(EntityKind::PersonName, 0.95),
-            canned(EntityKind::PersonName, 0.40),
-        ]));
-        let engine = NlpEngine::builder()
-            .with_ner_backend(canned)
-            .with_language_policy(LinguaLanguagePolicy)
-            .build()
-            .unwrap();
-
-        let req = Context::builder()
-            .with_text("anything")
-            .with_score_threshold(0.5)
-            .build()
-            .unwrap();
-        let out = engine.analyze(req).await.unwrap();
-        assert_eq!(out.entities.len(), 1);
-        assert!(out.entities.0[0].confidence.get() >= 0.5);
-    }
-
-    #[tokio::test]
     async fn candidate_languages_supported_by_policy_detect() {
         // LinguaLanguagePolicy honours candidate_languages by
         // building a detector restricted to them. English is the
@@ -381,12 +287,14 @@ mod tests {
             .unwrap();
 
         let en: LanguageTag = "en".parse().unwrap();
-        let req = Context::builder()
-            .with_text("The quick brown fox jumps over the lazy dog.")
+        let ctx = NlpContext::builder()
             .with_candidate_languages(vec![en])
             .build()
             .unwrap();
-        let out = engine.analyze(req).await.unwrap();
+        let out = engine
+            .analyze("The quick brown fox jumps over the lazy dog.", &ctx)
+            .await
+            .unwrap();
         assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
     }
 
@@ -404,12 +312,14 @@ mod tests {
             .unwrap();
 
         let de: LanguageTag = "de".parse().unwrap();
-        let req = Context::builder()
-            .with_text("The quick brown fox jumps over the lazy dog.")
+        let ctx = NlpContext::builder()
             .with_candidate_languages(vec![de])
             .build()
             .unwrap();
-        let out = engine.analyze(req).await.unwrap();
+        let out = engine
+            .analyze("The quick brown fox jumps over the lazy dog.", &ctx)
+            .await
+            .unwrap();
         assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
     }
 
@@ -424,7 +334,10 @@ mod tests {
             .build()
             .unwrap();
 
-        let out = engine.analyze("The quick brown fox").await.unwrap();
+        let out = engine
+            .analyze("The quick brown fox", &NlpContext::default())
+            .await
+            .unwrap();
         let tokens = out.tokens.expect("tokens present");
         assert_eq!(tokens.len(), 4);
         let keywords = out.keywords.expect("keywords present");

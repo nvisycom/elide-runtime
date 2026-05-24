@@ -47,7 +47,7 @@ where
 {
     async fn run(&self, ctx: &DetectionContext) -> Result<Entities> {
         let typed = <R::Context>::from(ctx);
-        Recognizer::run(self, &typed).await
+        Recognizer::run(self, &ctx.text, &typed).await
     }
 
     async fn reset(&self) {

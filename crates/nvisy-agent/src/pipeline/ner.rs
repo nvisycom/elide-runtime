@@ -33,7 +33,7 @@ use tokio::sync::Mutex;
 use crate::agent::ner::{
     KnownNerEntity, NerAgent, NerContext, NerVerifyAgent, UnresolvedCandidatePolicy,
 };
-use crate::agent::{AgentConfig, AgentProvider, DetectionConfig, UsageStats};
+use crate::agent::{AgentConfig, AgentProvider, LlmNerContext, UsageStats};
 
 /// Composed NER pipeline.
 ///
@@ -142,7 +142,7 @@ impl NerPipeline {
     /// Run the pipeline once: detect candidates, verify them into
     /// [`Entities`], and merge surviving candidates into the
     /// coreference state for the next call.
-    pub async fn run(&self, text: &str, config: &DetectionConfig) -> Result<Entities> {
+    pub async fn run(&self, text: &str, config: &LlmNerContext) -> Result<Entities> {
         // 1. Detect — agent sees the accumulated known entities so
         //    it can reuse stable entity_ids for coreferent mentions.
         let known = self.state.lock().await.clone();

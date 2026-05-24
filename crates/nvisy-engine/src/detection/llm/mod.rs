@@ -3,9 +3,9 @@
 //!
 //! All NER-specific orchestration — detect, verify, coreference
 //! merge — lives on [`NerPipeline`] in nvisy-agent. This recognizer
-//! is a thin adapter: translate [`LlmContext`] into a rig
-//! [`DetectionConfig`], call [`NerPipeline::run`], and forward
-//! `reset()` to [`Pipeline::reset`].
+//! is a thin adapter that forwards the [`LlmNerContext`] derived
+//! from a [`DetectionContext`] into [`NerPipeline::run`], and
+//! forwards `reset()` to [`Pipeline::reset`].
 //!
 //! # Construction
 //!
@@ -24,27 +24,25 @@
 //! [`new`]: LlmRecognizer::new
 //! [`from_pipeline`]: LlmRecognizer::from_pipeline
 
-mod context;
 mod params;
 
 use async_trait::async_trait;
-use nvisy_agent::agent::DetectionConfig;
+use nvisy_agent::agent::LlmNerContext;
 use nvisy_agent::pipeline::NerPipeline;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
 
-pub use self::context::LlmContext;
 pub use self::params::LlmDetection;
-use crate::detection::Recognizer;
+use crate::detection::{DetectionContext, Recognizer};
 
 /// LLM-backed entity recognizer.
 ///
 /// Wraps an internally-built [`NerPipeline`] and exposes it via the
-/// [`Recognizer`] trait. Per-call detection hints translate into the
-/// rig [`DetectionConfig`] passed to [`NerPipeline::run`].
+/// [`Recognizer`] trait. The per-call configuration is
+/// [`LlmNerContext`] directly — derived from
+/// [`DetectionContext`] via [`From`].
 ///
 /// [`NerPipeline`]: nvisy_agent::pipeline::NerPipeline
-/// [`NerPipeline::run`]: nvisy_agent::pipeline::NerPipeline::run
 pub struct LlmRecognizer {
     pipeline: NerPipeline,
 }
@@ -85,31 +83,22 @@ impl LlmRecognizer {
     pub fn from_pipeline(pipeline: NerPipeline) -> Self {
         Self { pipeline }
     }
-
-    fn build_config(ctx: &LlmContext) -> DetectionConfig {
-        DetectionConfig {
-            entity_kinds: ctx.entities.clone().unwrap_or_default(),
-            confidence_threshold: ctx.score_threshold,
-            system_prompt: None,
-        }
-    }
 }
 
 #[async_trait]
 impl Recognizer for LlmRecognizer {
-    type Context = LlmContext;
+    type Context = LlmNerContext;
 
     #[tracing::instrument(
         skip_all,
         fields(
-            text_len = ctx.text.len(),
+            text_len = text.len(),
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, ctx: &LlmContext) -> Result<Entities> {
-        let config = Self::build_config(ctx);
+    async fn run(&self, text: &str, ctx: &LlmNerContext) -> Result<Entities> {
         self.pipeline
-            .run(&ctx.text, &config)
+            .run(text, ctx)
             .await
             .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "llm", false))
     }
@@ -120,5 +109,16 @@ impl Recognizer for LlmRecognizer {
     /// [`Pipeline::reset`]: nvisy_agent::pipeline::NerPipeline::reset
     async fn reset(&self) {
         self.pipeline.reset().await;
+    }
+}
+
+impl From<&DetectionContext> for LlmNerContext {
+    fn from(ctx: &DetectionContext) -> Self {
+        Self {
+            entity_kinds: ctx.entities.clone().unwrap_or_default(),
+            confidence_threshold: ctx.score_threshold,
+            system_prompt: None,
+            correlation_id: ctx.correlation_id,
+        }
     }
 }

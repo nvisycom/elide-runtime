@@ -17,13 +17,13 @@
 //!    [`VerificationOutput`] shape.
 //!
 //! Output is `Vec<Entity>` ready for the deduplication phase.
-//! Recognition method is set to [`RecognitionMethod::Ner`] with
+//! Recognition method is set to [`RecognitionMethod::LlmNer`] with
 //! the agent's model provenance; refinement adds
 //! [`RefinementMethod::ModelVerification`].
 //!
 //! [`with_refinement`]: NerVerifyAgent::with_refinement
 //! [`CvVerifyAgent`]: crate::agent::cv::CvVerifyAgent
-//! [`RecognitionMethod::Ner`]: nvisy_ontology::entity::RecognitionMethod::Ner
+//! [`RecognitionMethod::LlmNer`]: nvisy_ontology::entity::RecognitionMethod::LlmNer
 //! [`RefinementMethod::ModelVerification`]: nvisy_ontology::entity::RefinementMethod::ModelVerification
 
 mod localize;
@@ -179,7 +179,7 @@ impl NerVerifyAgent {
             let mut b = Entity::builder()
                 .with_category(category)
                 .with_entity_kind(entity_kind)
-                .with_recognition_methods(vec![RecognitionMethod::Ner(model.clone())])
+                .with_recognition_methods(vec![RecognitionMethod::LlmNer(model.clone())])
                 .with_refinement_methods(refinement_methods)
                 .with_confidence(confidence)
                 .with_location(Location::from(loc));

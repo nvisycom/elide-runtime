@@ -1,7 +1,7 @@
 //! NER-specific prompt construction.
 
 use super::KnownNerEntity;
-use crate::agent::{ALL_TYPES_HINT, DetectionConfig};
+use crate::agent::{ALL_TYPES_HINT, LlmNerContext};
 
 /// Instruction prefix for the user prompt.
 const DETECT_PREFIX: &str = "Detect entities of types";
@@ -13,13 +13,13 @@ entity_id, category, entity_type, value, confidence, context.";
 
 /// Builds user prompts for NER entity detection.
 pub(crate) struct NerPromptBuilder<'a> {
-    config: &'a DetectionConfig,
+    config: &'a LlmNerContext,
     known_entities: &'a [KnownNerEntity],
 }
 
 impl<'a> NerPromptBuilder<'a> {
-    /// Create a prompt builder from a [`DetectionConfig`].
-    pub fn new(config: &'a DetectionConfig, known_entities: &'a [KnownNerEntity]) -> Self {
+    /// Create a prompt builder from a [`LlmNerContext`].
+    pub fn new(config: &'a LlmNerContext, known_entities: &'a [KnownNerEntity]) -> Self {
         Self {
             config,
             known_entities,
@@ -105,10 +105,10 @@ mod tests {
 
     #[test]
     fn builds_prompt_with_entity_kinds() {
-        let config = DetectionConfig {
+        let config = LlmNerContext {
             entity_kinds: vec![EntityKind::PersonName, EntityKind::GovernmentId],
             confidence_threshold: Some(0.7),
-            system_prompt: None,
+            ..Default::default()
         };
         let prompt = NerPromptBuilder::new(&config, &[]).build("Hello world");
         assert!(prompt.contains("person_name, government_id"));
@@ -118,10 +118,9 @@ mod tests {
 
     #[test]
     fn builds_prompt_without_entity_kinds() {
-        let config = DetectionConfig {
-            entity_kinds: vec![],
+        let config = LlmNerContext {
             confidence_threshold: Some(0.5),
-            system_prompt: None,
+            ..Default::default()
         };
         let prompt = NerPromptBuilder::new(&config, &[]).build("test");
         assert!(prompt.contains("all entity types"));
@@ -129,10 +128,9 @@ mod tests {
 
     #[test]
     fn builds_prompt_with_known_entities() {
-        let config = DetectionConfig {
-            entity_kinds: vec![],
+        let config = LlmNerContext {
             confidence_threshold: Some(0.8),
-            system_prompt: None,
+            ..Default::default()
         };
         let known = vec![KnownNerEntity {
             entity_id: "person_1".to_string(),

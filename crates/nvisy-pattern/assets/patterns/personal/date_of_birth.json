@@ -2,7 +2,7 @@
   "name": "date_of_birth",
   "category": "personal_identity",
   "entity_type": "date_of_birth",
-  "pattern": {
+  "regex": {
     "regex": "\\b(?:(?:0[1-9]|1[0-2]|[1-9])[/\\-](?:0[1-9]|[12]\\d|3[01]|[1-9])[/\\-](?:19|20)\\d{2}|(?:19|20)\\d{2}[/\\-](?:0[1-9]|1[0-2])[/\\-](?:0[1-9]|[12]\\d|3[01]))\\b",
     "confidence": 0.6,
     "validator": "date"

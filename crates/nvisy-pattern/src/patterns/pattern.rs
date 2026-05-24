@@ -2,7 +2,7 @@
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::context_rule::ContextRule;
 use super::pattern_metadata::PatternMetadata;
@@ -11,14 +11,13 @@ use crate::engine::PatternEngineError;
 use crate::engine::scan::entries::{CompiledPattern, DictEntry, RegexEntry};
 
 /// A regex-based match source with an optional post-match validator.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RegexPattern {
     /// The regular expression string.
     pub regex: String,
     /// Optional validator name (e.g. `"luhn"`, `"ssn"`, `"iban"`):
-    /// resolved at detection time via [`ValidatorResolver`].
-    ///
-    /// [`ValidatorResolver`]: crate::validators::ValidatorResolver
+    /// resolved at detection time by the built-in validator
+    /// registry.
     #[serde(default)]
     pub validator: Option<String>,
     /// Whether the regex is case-sensitive.
@@ -51,7 +50,8 @@ impl RegexPattern {
 
 /// Confidence for a dictionary pattern: either a single uniform score
 /// or per-column scores for CSV dictionaries.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum DictionaryConfidence {
     /// Single confidence score applied to all entries.
     Uniform(f64),
@@ -103,11 +103,10 @@ mod confidence_serde {
 }
 
 /// A dictionary-based match source.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DictionaryPattern {
-    /// Named dictionary from the [`DictionaryRegistry`].
-    ///
-    /// [`DictionaryRegistry`]: crate::dictionaries::DictionaryRegistry
+    /// Named dictionary loaded from the built-in dictionary
+    /// registry under `assets/dictionaries/`.
     pub name: String,
     /// Whether matching is case-sensitive.
     ///
@@ -129,22 +128,24 @@ pub struct DictionaryPattern {
 
 /// How a pattern finds matches in text.
 ///
-/// Each pattern uses exactly one source: either a regular expression that
-/// is compiled and run against text spans, or a named dictionary whose
-/// entries are matched literally.
-#[derive(Debug, Clone, PartialEq)]
+/// Each pattern uses exactly one source: a regular expression
+/// compiled and run against the whole text, or a named dictionary
+/// whose entries are matched literally.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MatchSource {
     /// Match via a compiled regular expression.
     Regex(RegexPattern),
-    /// Match via a named dictionary from the [`DictionaryRegistry`].
-    ///
-    /// [`DictionaryRegistry`]: crate::dictionaries::DictionaryRegistry
+    /// Match via a named dictionary from the built-in dictionary
+    /// registry.
     Dictionary(DictionaryPattern),
 }
 
 /// Default confidence score when `"confidence"` is omitted from JSON.
 pub const DEFAULT_CONFIDENCE: f64 = 1.0;
 
+// serde's `#[serde(default = "fn")]` attribute takes a function path,
+// not a constant — this tiny wrapper exists only to satisfy that.
 fn default_confidence() -> f64 {
     DEFAULT_CONFIDENCE
 }
@@ -299,4 +300,5 @@ impl<P: Pattern + ?Sized> PatternCompile for P {
 pub(crate) mod sealed {
     pub trait Sealed {}
     impl Sealed for super::super::json_pattern::JsonPattern {}
+    impl Sealed for super::super::runtime_pattern::RuntimePattern {}
 }

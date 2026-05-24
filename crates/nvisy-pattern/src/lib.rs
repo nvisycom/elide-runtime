@@ -8,5 +8,9 @@ pub(crate) mod patterns;
 pub(crate) mod validators;
 
 pub use self::engine::{
-    PatternEngine, PatternEngineBuilder, PatternEngineError, PatternFilter, filter,
+    ExtraPatternError, PatternContext, PatternEngine, PatternEngineBuilder, PatternEngineError,
+    PatternFilter, filter,
+};
+pub use self::patterns::{
+    DictionaryConfidence, DictionaryPattern, MatchSource, RegexPattern, RuntimePattern,
 };

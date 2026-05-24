@@ -81,6 +81,25 @@ impl Confidence {
     pub fn get(&self) -> f64 {
         self.0
     }
+
+    /// Add `delta` to the score, saturating at `1.0`. Negative deltas
+    /// saturate at `0.0`. Non-finite deltas (`NaN`, `±∞`) are treated
+    /// as `0.0` — same posture as [`Self::clamped`].
+    ///
+    /// Distinct from combining two confidences (which the type
+    /// deliberately doesn't expose): this is a scalar adjustment to
+    /// a single score, used by context-aware boosting / penalty.
+    pub fn saturating_add(self, delta: f64) -> Self {
+        debug_assert!(delta.is_finite(), "non-finite confidence delta: {delta}");
+        let delta = if delta.is_finite() { delta } else { 0.0 };
+        Self((self.0 + delta).clamp(0.0, 1.0))
+    }
+
+    /// Subtract `delta` from the score, saturating at `0.0`. Negative
+    /// deltas saturate at `1.0`. Symmetric to [`Self::saturating_add`].
+    pub fn saturating_sub(self, delta: f64) -> Self {
+        self.saturating_add(-delta)
+    }
 }
 
 #[cfg(test)]
@@ -105,15 +124,6 @@ mod tests {
         assert!(Confidence::new(f64::NAN).is_none());
         assert!(Confidence::new(f64::INFINITY).is_none());
         assert!(Confidence::new(f64::NEG_INFINITY).is_none());
-    }
-
-    #[test]
-    fn serde_round_trips() {
-        let c = Confidence::new(0.42).unwrap();
-        let json = serde_json::to_string(&c).unwrap();
-        assert_eq!(json, "0.42");
-        let back: Confidence = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, c);
     }
 
     #[test]

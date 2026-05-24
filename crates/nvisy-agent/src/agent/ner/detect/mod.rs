@@ -22,7 +22,7 @@ use self::output::NerCandidates;
 pub use self::output::{KnownNerEntity, NerCandidate};
 use self::prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use crate::agent::base::{BaseAgent, UsageTracker};
-use crate::agent::{AgentConfig, AgentProvider, DetectionConfig};
+use crate::agent::{AgentConfig, AgentProvider, LlmNerContext};
 
 const TARGET: &str = "nvisy_agent::agent::ner";
 
@@ -30,7 +30,7 @@ const TARGET: &str = "nvisy_agent::agent::ner";
 ///
 /// # Workflow
 ///
-/// 1. Caller passes a [`NerContext`] and a [`DetectionConfig`] to
+/// 1. Caller passes a [`NerContext`] and a [`LlmNerContext`] to
 ///    [`detect`].
 /// 2. The agent builds a user prompt via `NerPromptBuilder` that
 ///    specifies entity types, confidence thresholds, and known
@@ -90,7 +90,7 @@ impl NerAgent {
     pub async fn detect(
         &self,
         ctx: &NerContext<'_>,
-        config: &DetectionConfig,
+        config: &LlmNerContext,
     ) -> Result<Vec<NerCandidate>> {
         let prompt = NerPromptBuilder::new(config, &ctx.known_entities).build(ctx.text);
 

@@ -74,7 +74,7 @@ pub struct GlinerParams {
     /// the entity it represents. Labels not present here are dropped
     /// at recognition time, even if the model returns spans for them.
     pub label_map: LabelMap,
-    /// Model identifier surfaced through [`RecognitionMethod::ner`]
+    /// Model identifier surfaced through [`RecognitionMethod::nlp_ner`]
     /// on every produced entity. Useful for provenance tracking.
     pub model_name: String,
 }
@@ -245,7 +245,7 @@ impl GlinerBackend {
         Entity::builder()
             .with_category(entry.category)
             .with_entity_kind(entry.kind)
-            .with_recognition_methods(vec![RecognitionMethod::ner(
+            .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
                 &self.state.model_name,
                 ModelKind::SelfHosted,
             )])

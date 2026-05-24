@@ -1,7 +1,7 @@
 # https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-resolver = "2"
+resolver = "3"
 members = [
     "./crates/nvisy-agent",
     "./crates/nvisy-cli",

@@ -4,20 +4,16 @@
 //! whether text fits within a model's input budget and, when it doesn't,
 //! to split or truncate it at sentence boundaries while staying UTF-8 safe.
 
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 /// Token budget manager for a single model context window.
 ///
 /// Token estimation uses a script-aware heuristic: ~4 Latin/ASCII characters
 /// per token, ~1 token per CJK/emoji character. This is intentionally
 /// conservative: over-splitting is harmless while exceeding the real limit
 /// causes provider errors.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    serde::Serialize,
-    serde::Deserialize,
-    schemars::JsonSchema
-)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ContextWindow {
     /// Maximum tokens the model supports.
     max_tokens: usize,

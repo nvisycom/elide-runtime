@@ -26,8 +26,8 @@ pub use self::location::{
     Overlap, TabularLocation, TabularLocationBuilder, TextLocation, TextLocationBuilder,
 };
 pub use self::method::{
-    AnnotationProvenance, ExtractionMethod, ModelKind, ModelProvenance, PatternProvenance,
-    RecognitionMethod, RecognitionMethodKind, RefinementMethod,
+    AnnotationProvenance, CrossReferenceProvenance, ExtractionMethod, ModelKind, ModelProvenance,
+    PatternKind, PatternProvenance, RecognitionMethod, RecognitionMethodKind, RefinementMethod,
 };
 pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;
@@ -88,6 +88,36 @@ impl Entity {
         EntityBuilder::default()
     }
 
+    /// Construct an entity located at the given byte span in source
+    /// text. Convenience for recognizers that always produce
+    /// text-located entities (pattern, NER, etc.). Confidence is
+    /// clamped to `[0, 1]`; missing required fields panic, since
+    /// every parameter is supplied.
+    pub fn for_text_span(
+        category: EntityCategory,
+        entity_kind: EntityKind,
+        recognition_methods: Vec<RecognitionMethod>,
+        confidence: Confidence,
+        start: usize,
+        end: usize,
+    ) -> Self {
+        let location = Location::from(
+            TextLocation::builder()
+                .with_start_offset(start)
+                .with_end_offset(end)
+                .build()
+                .expect("required fields provided"),
+        );
+        Entity::builder()
+            .with_category(category)
+            .with_entity_kind(entity_kind)
+            .with_recognition_methods(recognition_methods)
+            .with_confidence(confidence)
+            .with_location(location)
+            .build()
+            .expect("required fields provided")
+    }
+
     /// Create a pre-filled [`EntityBuilder`] for tests.
     ///
     /// Defaults: `PersonalIdentity` / `PersonName` / `regex("test")` /
@@ -98,7 +128,7 @@ impl Entity {
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(Confidence::new(0.9).expect("0.9 in range"))
+            .with_confidence(Confidence::clamped(0.9))
             .with_location(Location::from(
                 TextLocation::builder()
                     .with_start_offset(start)

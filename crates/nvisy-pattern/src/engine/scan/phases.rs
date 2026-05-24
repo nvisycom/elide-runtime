@@ -1,20 +1,22 @@
 //! Per-phase scan primitives used by [`PatternEngine::scan_entities`].
 //!
-//! Three phases, each appending [`RawMatch`]es into the shared result
-//! buffer:
+//! Three phases, each returning the [`EntityCandidate`]s it produced;
+//! the caller chains them via [`Vec::extend`]:
 //!
 //! 1. [`scan_regex`] — `RegexSet`-filtered regex candidates.
 //! 2. [`scan_dict`] — dictionary Aho-Corasick matches.
-//! 3. [`scan_deny_list`] — forced detection of known sensitive values.
+//! 3. [`scan_deny_list`] — forced detection of known sensitive values,
+//!    suppressed against prior-phase output.
 //!
 //! [`PatternEngine::scan_entities`]: super::super::PatternEngine::scan_entities
 
 use std::collections::HashSet;
 
-use nvisy_ontology::entity::RecognitionMethod;
+use nvisy_ontology::entity::{Entity, RecognitionMethod};
+use nvisy_ontology::primitive::Confidence;
 
+use super::candidate::EntityCandidate;
 use super::entries::{DictEntry, RegexEntry};
-use super::pattern_match::RawMatch;
 use crate::engine::filter::{AllowList, DenyList};
 use crate::validators::ValidatorResolver;
 
@@ -27,8 +29,8 @@ pub(in crate::engine) fn scan_regex(
     validators: &ValidatorResolver,
     text: &str,
     allow: &AllowList,
-    results: &mut Vec<RawMatch>,
-) {
+) -> Vec<EntityCandidate> {
+    let mut results = Vec::new();
     for idx in candidates {
         let entry = &regex_entries[idx];
 
@@ -39,6 +41,10 @@ pub(in crate::engine) fn scan_regex(
                 continue;
             }
 
+            // Unknown validator names fall through (match is kept) —
+            // the load-time `JsonPatternWarning::UnknownValidator`
+            // already signals the typo, so degrading gracefully here
+            // beats silently dropping every match.
             if let Some(ref vname) = entry.validator_name
                 && let Some(validate) = validators.resolve(vname)
                 && !validate(value)
@@ -52,19 +58,20 @@ pub(in crate::engine) fn scan_regex(
                 RecognitionMethod::regex(&entry.pattern_name)
             };
 
-            results.push(RawMatch {
-                pattern_name: Some(entry.pattern_name.clone()),
-                category: entry.category,
-                entity_kind: entry.entity_kind,
-                value: value.to_owned(),
-                start: mat.start(),
-                end: mat.end(),
-                confidence: entry.confidence,
-                recognition_methods: smallvec::smallvec![method],
-                context: entry.context.clone(),
-            });
+            results.push(EntityCandidate::new(
+                Entity::for_text_span(
+                    entry.category,
+                    entry.entity_kind,
+                    vec![method],
+                    Confidence::clamped(entry.confidence),
+                    mat.start(),
+                    mat.end(),
+                ),
+                entry.context.clone(),
+            ));
         }
     }
+    results
 }
 
 /// Phase 2: dictionary matches via Aho-Corasick automata.
@@ -72,8 +79,8 @@ pub(in crate::engine) fn scan_dict(
     dict_entries: &[DictEntry],
     text: &str,
     allow: &AllowList,
-    results: &mut Vec<RawMatch>,
-) {
+) -> Vec<EntityCandidate> {
+    let mut results = Vec::new();
     for entry in dict_entries {
         for mat in entry.automaton.find_iter(text) {
             let pat_idx = mat.pattern().as_usize();
@@ -83,48 +90,65 @@ pub(in crate::engine) fn scan_dict(
                 continue;
             }
 
-            results.push(RawMatch {
-                pattern_name: Some(entry.pattern_name.clone()),
-                category: entry.category,
-                entity_kind: entry.entity_kind,
-                value: term.value.clone(),
-                start: mat.start(),
-                end: mat.end(),
-                confidence: entry.resolve_confidence(pat_idx),
-                recognition_methods: smallvec::smallvec![RecognitionMethod::dictionary(
-                    &entry.pattern_name
-                )],
-                context: entry.context.clone(),
-            });
+            results.push(EntityCandidate::new(
+                Entity::for_text_span(
+                    entry.category,
+                    entry.entity_kind,
+                    vec![RecognitionMethod::dictionary(&entry.pattern_name)],
+                    Confidence::clamped(entry.resolve_confidence(pat_idx)),
+                    mat.start(),
+                    mat.end(),
+                ),
+                entry.context.clone(),
+            ));
         }
     }
+    results
 }
 
-/// Phase 3: inject deny-list values found in `text` not already matched
-/// by regex or dictionary. Total scan is O(n + matches) via the
+/// Phase 3: inject deny-list values found in `text` not already
+/// matched by `prior`. Total scan is O(n + matches) via the
 /// pre-compiled Aho-Corasick automaton on [`DenyList`].
-pub(in crate::engine) fn scan_deny_list(text: &str, deny: &DenyList, results: &mut Vec<RawMatch>) {
+///
+/// Suppresses any deny-list value whose matched substring already
+/// appears in `prior` — comparison is on each candidate's
+/// `Location` slice in `text`.
+pub(in crate::engine) fn scan_deny_list(
+    text: &str,
+    deny: &DenyList,
+    prior: &[EntityCandidate],
+) -> Vec<EntityCandidate> {
     let Some(scanner) = deny.scanner() else {
-        return;
+        return Vec::new();
     };
 
-    let matched_values: HashSet<String> = results.iter().map(|r| r.value.clone()).collect();
+    // Collect substrings already matched by earlier phases so we can
+    // suppress a deny-list injection that would just re-name what's
+    // already been detected.
+    let already_matched: HashSet<&str> = prior
+        .iter()
+        .filter_map(|c| c.entity.location.as_text())
+        .map(|t| &text[t.start_offset..t.end_offset])
+        .collect();
 
+    let mut results = Vec::new();
     for mat in scanner.automaton.find_iter(text) {
         let (value, rule) = &scanner.entries[mat.pattern().as_usize()];
-        if matched_values.contains(value) {
+        if already_matched.contains(value.as_str()) {
             continue;
         }
-        results.push(RawMatch {
-            pattern_name: None,
-            category: rule.category,
-            entity_kind: rule.entity_kind,
-            value: value.clone(),
-            start: mat.start(),
-            end: mat.end(),
-            confidence: 1.0,
-            recognition_methods: smallvec::smallvec![rule.method.clone()],
-            context: None,
-        });
+
+        results.push(EntityCandidate::new(
+            Entity::for_text_span(
+                rule.category,
+                rule.entity_kind,
+                vec![RecognitionMethod::deny_list()],
+                Confidence::clamped(1.0),
+                mat.start(),
+                mat.end(),
+            ),
+            None,
+        ));
     }
+    results
 }

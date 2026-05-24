@@ -1,12 +1,13 @@
 //! Compiled per-pattern metadata stored inside [`PatternEngine`].
 //!
-//! [`PatternEngine`]: super::PatternEngine
+//! [`PatternEngine`]: super::super::PatternEngine
 
 use aho_corasick::AhoCorasick;
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
-use regex::Regex;
+use regex::{Regex, RegexSet};
 
 use crate::dictionaries::DictionaryTerm;
+use crate::engine::error::PatternEngineError;
 use crate::patterns::{ContextRule, DictionaryConfidence};
 
 /// Metadata stored alongside each compiled regex.
@@ -46,23 +47,68 @@ impl DictEntry {
     }
 }
 
-/// One compiled pattern, ready for insertion into the engine.
+/// One compiled pattern, ready for insertion into a
+/// [`CompiledBuckets`] via [`CompiledBuckets::insert`].
 ///
-/// Produced by [`PatternCompile::compile`]; consumed by the
-/// [`PatternEngineBuilder`] when assembling the final engine. The
-/// regex variant also carries the effective regex string so the
-/// builder can fold every entry into a single `RegexSet` pre-filter.
+/// The regex variant carries its source string so the builder can
+/// fold every entry into a single [`RegexSet`] pre-filter.
 ///
 /// [`PatternCompile::compile`]: crate::patterns::PatternCompile::compile
-/// [`PatternEngineBuilder`]: super::super::PatternEngineBuilder
 #[derive(Debug)]
 pub(crate) enum CompiledPattern {
-    /// A compiled regex pattern plus the original regex source —
-    /// the source is needed to populate the engine's `RegexSet`.
     Regex {
         entry: RegexEntry,
         regex_source: String,
     },
-    /// A compiled dictionary pattern.
     Dictionary(DictEntry),
+}
+
+/// Output of [`CompiledBuckets::finish`]: ready-to-scan engine
+/// state.
+#[derive(Debug)]
+pub(in crate::engine) struct CompiledEngine {
+    pub regex_set: RegexSet,
+    pub regex_entries: Vec<RegexEntry>,
+    pub dict_entries: Vec<DictEntry>,
+}
+
+/// Result of compiling a set of patterns: per-kind entry vectors
+/// plus the shared [`RegexSet`] sources collected alongside.
+///
+/// Built up via [`Self::insert`] (one [`CompiledPattern`] at a time)
+/// and finalized via [`Self::finish`], which builds the prefilter
+/// and surrenders a [`CompiledEngine`].
+#[derive(Debug, Default)]
+pub(in crate::engine) struct CompiledBuckets {
+    regex_entries: Vec<RegexEntry>,
+    regex_sources: Vec<String>,
+    dict_entries: Vec<DictEntry>,
+}
+
+impl CompiledBuckets {
+    /// Route a freshly compiled pattern into the matching bucket.
+    pub(in crate::engine) fn insert(&mut self, pattern: CompiledPattern) {
+        match pattern {
+            CompiledPattern::Regex {
+                entry,
+                regex_source,
+            } => {
+                self.regex_entries.push(entry);
+                self.regex_sources.push(regex_source);
+            }
+            CompiledPattern::Dictionary(entry) => self.dict_entries.push(entry),
+        }
+    }
+
+    /// Build the shared prefilter. Failures wrap the underlying
+    /// compiler error in [`PatternEngineError`].
+    pub(in crate::engine) fn finish(self) -> Result<CompiledEngine, PatternEngineError> {
+        let regex_set =
+            RegexSet::new(&self.regex_sources).map_err(PatternEngineError::RegexSetBuild)?;
+        Ok(CompiledEngine {
+            regex_set,
+            regex_entries: self.regex_entries,
+            dict_entries: self.dict_entries,
+        })
+    }
 }

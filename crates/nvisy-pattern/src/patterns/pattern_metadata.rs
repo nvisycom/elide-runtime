@@ -18,7 +18,7 @@
 //!     "compliance": ["hipaa", "ssn-protection"],
 //!     "references": ["https://www.ssa.gov/employer/randomization.html"]
 //!   },
-//!   "pattern": { ... },
+//!   "regex": { ... },
 //!   "context": { ... }
 //! }
 //! ```

@@ -25,7 +25,7 @@ use nvisy_ontology::entity::Location;
 /// - **Tabular**: cell text length.
 ///
 /// [`Ordering`]: std::cmp::Ordering
-pub(crate) trait SpanSize {
+pub(super) trait SpanSize {
     /// Compare the extent of two locations.
     ///
     /// Returns `None` if the locations are different modalities.

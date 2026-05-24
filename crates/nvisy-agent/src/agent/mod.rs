@@ -6,7 +6,7 @@
 //! by orchestrating pipelines.
 //!
 //! Cross-cutting infrastructure ([`AgentConfig`], [`AgentProvider`],
-//! [`DetectionConfig`], [`UsageStats`]) is re-exported at this level
+//! [`LlmNerContext`], [`UsageStats`]) is re-exported at this level
 //! since every agent consumes it.
 //!
 //! [`CvEntity`]: cv::CvEntity
@@ -21,4 +21,4 @@ mod base;
 #[cfg(any(feature = "openai-whisper", feature = "openai-tts"))]
 pub(crate) use self::base::AuthenticatedProvider;
 pub(crate) use self::base::{ALL_TYPES_HINT, UnauthenticatedProvider};
-pub use self::base::{AgentConfig, AgentProvider, DetectionConfig, UsageStats};
+pub use self::base::{AgentConfig, AgentProvider, LlmNerContext, UsageStats};

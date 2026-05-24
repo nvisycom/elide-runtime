@@ -47,8 +47,9 @@ pub enum JsonPatternWarning {
 /// - `category` (string, required): entity category (e.g.
 ///   `personal_identity`, `financial`).
 /// - `entity_type` (string, required): specific [`EntityKind`].
-/// - `pattern` **or** `dictionary` (object, required, mutually
-///   exclusive): the match source. See [`RegexPattern`] / [`DictionaryPattern`].
+/// - `regex` **or** `dictionary` (object, required, mutually
+///   exclusive): the match source. See [`RegexPattern`] /
+///   [`DictionaryPattern`].
 /// - `context` (object, optional): co-occurrence rule. See
 ///   [`ContextRule`].
 /// - `metadata` (object, optional): tags + version + description.
@@ -61,7 +62,7 @@ pub enum JsonPatternWarning {
 ///   "name": "ssn",
 ///   "category": "personal_identity",
 ///   "entity_type": "government_id",
-///   "pattern": {
+///   "regex": {
 ///     "regex": "\\b(\\d{3})-(\\d{2})-(\\d{4})\\b",
 ///     "validator": "ssn",
 ///     "confidence": 0.9
@@ -116,11 +117,12 @@ impl JsonPattern {
         bytes: &[u8],
         validators: &ValidatorResolver,
     ) -> Result<(Self, Vec<JsonPatternWarning>), JsonPatternError> {
-        /// Serde helper: exactly one of `pattern` or `dictionary` must be present.
+        /// Serde helper: exactly one of `regex` or `dictionary`
+        /// must be present.
         #[derive(Deserialize)]
         #[serde(untagged)]
         enum RawSource {
-            Regex { pattern: RegexPattern },
+            Regex { regex: RegexPattern },
             Dictionary { dictionary: DictionaryPattern },
         }
 
@@ -142,7 +144,7 @@ impl JsonPattern {
         let raw: Raw = serde_json::from_slice(bytes)?;
 
         let match_source = match raw.source {
-            RawSource::Regex { pattern } => MatchSource::Regex(pattern),
+            RawSource::Regex { regex } => MatchSource::Regex(regex),
             RawSource::Dictionary { dictionary } => MatchSource::Dictionary(dictionary),
         };
 

@@ -23,7 +23,7 @@ use super::config::RuntimeConfig;
 use super::run::Pipeline;
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
-use crate::deduplication::Deduplication;
+use crate::deduplication::DeduplicationParams;
 use crate::detection::{Detection, Recognizers};
 use crate::extraction::{Extraction, Extractors};
 use crate::ingestion::encryption::SharedKeyProvider;
@@ -62,7 +62,7 @@ pub struct EngineInput {
     pub detection: Detection,
 
     /// Deduplication settings applied to combined detection results.
-    pub deduplication: Deduplication,
+    pub deduplication: DeduplicationParams,
 
     /// Redaction settings applied after policy evaluation.
     pub redaction: Redaction,

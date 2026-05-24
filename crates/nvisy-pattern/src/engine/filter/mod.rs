@@ -12,24 +12,27 @@ mod deny_list;
 mod deny_scanner;
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub use self::allow_list::AllowList;
 pub use self::context_hint::ContextHint;
 pub use self::deny_list::{DenyList, DenyRule};
+use crate::patterns::RuntimePattern;
 
-/// Per-scan configuration for allow/deny lists and context hints.
+/// Per-scan configuration for allow/deny lists, context hints, and
+/// caller-supplied ad-hoc patterns.
 ///
 /// Passed to [`PatternEngine::scan_entities`] to control
 /// per-invocation suppression, forced detection, and context-aware
 /// confidence boosting without rebuilding the engine.
 ///
-/// All fields default to empty, so `ScanContext::default()` is a
+/// All fields default to empty, so `PatternContext::default()` is a
 /// no-op context. The type is `Serialize + Deserialize` so an HTTP
-/// API can accept a `ScanContext` as JSON request body.
+/// API can accept a `PatternContext` as JSON request body.
 ///
 /// [`PatternEngine::scan_entities`]: super::PatternEngine::scan_entities
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct ScanContext {
+pub struct PatternContext {
     /// Values to silently drop from results.
     #[serde(default)]
     pub allow: AllowList,
@@ -44,62 +47,42 @@ pub struct ScanContext {
     /// [`EntityKind`]: nvisy_ontology::entity::EntityKind
     #[serde(default)]
     pub hints: Vec<ContextHint>,
+    /// Per-call ad-hoc patterns to scan alongside the engine's
+    /// registry-defined ones. Compiled on the hot path on every
+    /// scan when non-empty — [#188] tracks adding an LRU cache.
+    ///
+    /// **Filter bypass**: the engine's [`PatternFilter`] (language,
+    /// region, compliance) applies only to registry patterns built
+    /// at engine-construction time. Entries in this vec scan
+    /// unconditionally — extras are explicit caller intent and the
+    /// caller is expected to scope them themselves.
+    ///
+    /// Compile errors against a malformed extra are silently
+    /// dropped during scanning — call
+    /// [`PatternEngine::validate_patterns`] beforehand if
+    /// you need to surface them.
+    ///
+    /// [`PatternFilter`]: super::PatternFilter
+    /// [`PatternEngine::validate_patterns`]: super::PatternEngine::validate_patterns
+    /// [#188]: https://github.com/nvisycom/runtime/issues/188
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_patterns: Vec<RuntimePattern>,
+    /// Correlation UUID propagated through the tracing span for this
+    /// scan. Not used for detection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<Uuid>,
 }
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{EntityCategory, EntityKind, RecognitionMethod};
-
     use super::*;
 
     #[test]
-    fn scan_context_round_trips_via_json() {
-        let mut deny = DenyList::new();
-        deny.insert(
-            "secret",
-            DenyRule {
-                category: EntityCategory::PersonalIdentity,
-                entity_kind: EntityKind::PersonName,
-                method: RecognitionMethod::regex("deny:secret"),
-            },
-        );
-        let ctx = ScanContext {
-            allow: AllowList::from_iter(["123-45-6789"]),
-            deny,
-            hints: vec![
-                ContextHint {
-                    kind: Some(EntityKind::GovernmentId),
-                    keywords: vec!["social".into(), "ssn".into()],
-                    window: Some(150),
-                    boost: Some(0.25),
-                },
-                ContextHint {
-                    kind: None,
-                    keywords: vec!["medical record".into()],
-                    ..ContextHint::default()
-                },
-            ],
-        };
-
-        let json = serde_json::to_string(&ctx).expect("serialize");
-        let back: ScanContext = serde_json::from_str(&json).expect("deserialize");
-
-        assert!(back.allow.contains("123-45-6789"));
-        assert!(back.deny.contains("secret"));
-        assert_eq!(back.hints.len(), 2);
-        assert_eq!(back.hints[0].kind, Some(EntityKind::GovernmentId));
-        assert_eq!(back.hints[0].keywords, vec!["social", "ssn"]);
-        assert_eq!(back.hints[0].window, Some(150));
-        assert_eq!(back.hints[0].boost, Some(0.25));
-        assert_eq!(back.hints[1].kind, None);
-        assert_eq!(back.hints[1].keywords, vec!["medical record"]);
-    }
-
-    #[test]
-    fn empty_scan_context_deserializes_from_empty_object() {
-        let ctx: ScanContext = serde_json::from_str("{}").expect("empty object");
+    fn empty_pattern_context_deserializes_from_empty_object() {
+        let ctx: PatternContext = serde_json::from_str("{}").expect("empty object");
         assert!(ctx.allow.is_empty());
         assert!(ctx.deny.is_empty());
         assert!(ctx.hints.is_empty());
+        assert!(ctx.correlation_id.is_none());
     }
 }

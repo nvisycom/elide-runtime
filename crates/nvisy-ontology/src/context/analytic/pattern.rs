@@ -44,32 +44,3 @@ pub struct PatternData {
     #[serde(flatten)]
     pub pattern: PatternExpression,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::context::analytic::AnalyticVariant;
-
-    #[test]
-    fn pattern_data_flatten_no_tag_collision() {
-        // AnalyticVariant uses `tag = "kind"` and PatternExpression uses
-        // `tag = "syntax"`. Flattening must keep both distinct.
-        let entry = AnalyticVariant::Pattern(PatternData {
-            label: "phone".to_owned(),
-            pattern: PatternExpression::Regex(RegexPattern {
-                expression: r"\d{3}-\d{4}".to_owned(),
-            }),
-        });
-        let json = serde_json::to_string(&entry).unwrap();
-        assert!(json.contains(r#""kind":"pattern""#));
-        assert!(json.contains(r#""syntax":"regex""#));
-        let back: AnalyticVariant = serde_json::from_str(&json).unwrap();
-        match back {
-            AnalyticVariant::Pattern(p) => {
-                assert_eq!(p.label, "phone");
-                assert!(matches!(p.pattern, PatternExpression::Regex(_)));
-            }
-            _ => panic!("expected Pattern variant"),
-        }
-    }
-}

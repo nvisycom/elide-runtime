@@ -2,7 +2,7 @@
   "name": "us-passport",
   "category": "personal_identity",
   "entity_type": "passport_number",
-  "pattern": {
+  "regex": {
     "regex": "\\b[A-Z]\\d{8}\\b",
     "confidence": 0.5
   },

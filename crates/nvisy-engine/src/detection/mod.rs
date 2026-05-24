@@ -20,19 +20,21 @@ use std::fmt;
 use std::sync::Arc;
 
 use derive_builder::Builder;
+pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
+pub use nvisy_nlp::NlpContext;
 use nvisy_ontology::entity::Entities;
-pub use nvisy_pattern::PatternFilter;
+pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
 
 pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
 pub use self::dyn_recognizer::DynRecognizer;
-pub use self::extension::RebaseEntities;
-pub use self::llm::{LlmContext, LlmDetection, LlmRecognizer};
-pub use self::nlp::{NlpContext, NlpDetection, NlpRecognizer};
-pub use self::pattern::{PatternContext, PatternDetection, PatternRecognizer};
+pub use self::extension::Rebase;
+pub use self::llm::{LlmDetection, LlmRecognizer};
+pub use self::nlp::{NlpDetection, NlpRecognizer};
+pub use self::pattern::{PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
 pub use self::recognizers::{DetectionSection, Recognizers};
 

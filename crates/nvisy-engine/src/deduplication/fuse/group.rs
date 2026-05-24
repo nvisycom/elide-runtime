@@ -15,12 +15,63 @@ use std::collections::{HashMap, HashSet};
 use std::mem;
 
 use nvisy_ontology::entity::{Entities, Entity, EntityKind, Overlap};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
-use super::group_key::GroupKey;
-use crate::deduplication::GroupingCriteria;
+use super::key::GroupKey;
 use crate::envelope::Document;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::group_entities";
+
+/// How entity values and locations are matched when grouping.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum GroupingCriteria {
+    /// Exact value match + overlapping location.
+    #[default]
+    Strict,
+    /// Case-insensitive, trimmed value match + overlapping location.
+    Normalized,
+    /// Substring containment (shorter value is prefix/substring of longer)
+    /// + overlapping location. Groups "John" with "John Smith".
+    Narrowing,
+    /// Same as narrowing but ignores location — groups the same entity
+    /// across non-overlapping regions (e.g. cross-chunk deduplication).
+    Widening,
+}
+
+impl GroupingCriteria {
+    /// Whether two values match under this criteria.
+    pub fn values_match(self, a: &str, b: &str) -> bool {
+        match self {
+            Self::Strict => a == b,
+            Self::Normalized => a.trim().eq_ignore_ascii_case(b.trim()),
+            Self::Narrowing | Self::Widening => {
+                let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+                long.contains(short)
+            }
+        }
+    }
+
+    /// Whether this criteria requires overlapping locations for grouping.
+    pub fn requires_location_overlap(self) -> bool {
+        !matches!(self, Self::Widening)
+    }
+
+    /// Whether this criteria uses substring containment for value matching.
+    pub fn is_substring(self) -> bool {
+        matches!(self, Self::Narrowing | Self::Widening)
+    }
+
+    /// Normalise a value for HashMap bucketing under this criteria.
+    pub fn bucket_value(self, value: &str) -> String {
+        match self {
+            Self::Normalized => value.trim().to_lowercase(),
+            _ => value.to_owned(),
+        }
+    }
+}
 
 /// Extension trait that groups entities for deduplication.
 pub(super) trait GroupEntities {

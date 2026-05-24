@@ -1,11 +1,11 @@
 //! Integration tests for entity detection via the public scan API.
 
-use nvisy_ontology::entity::{EntityKind, RecognitionMethod};
+use nvisy_ontology::entity::{EntityKind, PatternKind, RecognitionMethod};
 use nvisy_pattern::PatternEngine;
-use nvisy_pattern::filter::ScanContext;
+use nvisy_pattern::filter::PatternContext;
 
-fn empty_ctx() -> ScanContext {
-    ScanContext::default()
+fn empty_ctx() -> PatternContext {
+    PatternContext::default()
 }
 
 #[test]
@@ -39,10 +39,12 @@ fn dictionary_matches_are_found() {
     let engine = PatternEngine::instance();
     let entities = engine.scan_entities("She is American and speaks English.", &empty_ctx());
     assert!(
-        entities.iter().any(|e| e
-            .recognition_methods
+        entities
             .iter()
-            .any(|m| matches!(m, RecognitionMethod::Dictionary(_)))),
+            .any(|e| e.recognition_methods.iter().any(|m| matches!(
+                m,
+                RecognitionMethod::Pattern(p) if p.kind == PatternKind::Dictionary,
+            ))),
         "expected dictionary match, got: {:?}",
         entities
             .iter()

@@ -129,7 +129,7 @@ pdfium-render = { version = "0.8", features = [] }
 scraper = { version = "0.26", features = [] }
 calamine = { version = "0.34", features = [] }
 zip = { version = "8.4", features = [] }
-quick-xml = { version = "0.39", features = [] }
+quick-xml = { version = "0.40", features = [] }
 
 # Image processing
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }

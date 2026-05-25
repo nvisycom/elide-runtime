@@ -8,13 +8,8 @@
 //! Pure-Unicode implementations cannot fail; their `tokenize` always
 //! returns `Ok`.
 
-#[cfg(feature = "onnx")]
-mod hugging_face;
 mod unicode;
 
-#[cfg(feature = "onnx")]
-#[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
-pub use self::hugging_face::HfTokenizer;
 pub use self::unicode::UnicodeTokenizer;
 use crate::error::Result;
 

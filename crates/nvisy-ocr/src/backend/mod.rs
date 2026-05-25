@@ -5,19 +5,9 @@ mod output;
 
 use nvisy_core::Error;
 pub use nvisy_core::media::ImageFormat;
-use reqwest_middleware::reqwest::multipart::Part;
 
 pub use self::input::ImageInput;
 pub use self::output::ImageOutput;
-
-/// Build a multipart [`Part`] from an [`ImageInput`].
-pub(crate) fn image_part(image: &ImageInput) -> Result<Part, Error> {
-    let filename = format!("image.{}", image.format.extension());
-    Part::bytes(image.data.to_vec())
-        .file_name(filename)
-        .mime_str(image.mime_type())
-        .map_err(|e| Error::runtime(format!("invalid mime type: {e}"), "ocr", false))
-}
 
 /// Parameters passed to a [`Backend`] implementation.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]

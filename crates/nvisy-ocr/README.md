@@ -14,22 +14,27 @@ backend implements the crate-internal `Backend` trait, accepts an
 unified `ImageOutput` (text + line/word geometry) regardless of
 provider.
 
-Built-in backends (default features):
+Cloud backends, each behind a feature flag:
 
-- **Surya** (`SuryaBackend`) — Datalab Surya HTTP backend.
-- **PaddleX** (`PaddleXBackend`) — Baidu PaddleX HTTP backend.
+- **AWS Textract** (`aws-textract`) — `AwsTextractBackend`.
+- **Google Cloud Vision** (`google-vision`) — `GoogleVisionBackend`.
+- **Azure Document Intelligence** (`azure-docai`) — `AzureDocaiBackend`.
 
-Feature-gated backends:
-
-- **AWS Textract** (`aws-textract` feature) — `AwsTextractBackend`.
-- **Google Cloud Vision** (`google-vision` feature) — `GoogleVisionBackend`.
-- **Azure Document Intelligence** (`azure-docai` feature) — `AzureDocaiBackend`.
+Two self-hosted HTTP sidecar backends (Surya, PaddleX) were removed
+pending the externalized inference layer landing (see
+[`nvisycom/runtime#194`]). An HTTP backend pointing at
+[`nvisycom/inference`]'s `inference-ocr` service lands in a
+follow-up PR — it will be the canonical self-hosted PaddleOCR path,
+replacing the sidecar.
 
 LLM-mediated entity verification (the LLM-side counterpart that
 verifies OCR-proposed entities against the source image) lives in
 `nvisy-agent` as `CvVerifyAgent`. HTTP transport (`HttpClient`,
 `HttpConfig`, retry + tracing middleware) lives in the shared
-`nvisy-http` crate.
+`nvisy-core::http` module.
+
+[`nvisycom/runtime#194`]: https://github.com/nvisycom/runtime/issues/194
+[`nvisycom/inference`]: https://github.com/nvisycom/inference
 
 ## Documentation
 

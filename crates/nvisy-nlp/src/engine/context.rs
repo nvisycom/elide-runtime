@@ -48,15 +48,13 @@ pub struct NlpContext {
     /// [`LanguagePolicy::detector_for`]: crate::language::LanguagePolicy::detector_for
     pub candidate_languages: Option<Vec<LanguageTag>>,
 
-    /// Entity-kind allowlist. Threaded into zero-shot backends
-    /// (notably [`GlinerBackend`]) as the `requested_kinds` hint so
-    /// the backend materialises labels for the asked-about kinds.
+    /// Entity-kind allowlist. Threaded into zero-shot backends as
+    /// the `requested_kinds` hint so the backend materialises
+    /// labels for the asked-about kinds.
     ///
     /// Post-filtering on this list is the caller's responsibility —
     /// `analyze` returns whatever the backend produced for the
     /// requested kinds.
-    ///
-    /// [`GlinerBackend`]: crate::ner::GlinerBackend
     pub entities: Option<Vec<EntityKind>>,
 
     /// Minimum confidence threshold in `[0.0, 1.0]`. Carried as

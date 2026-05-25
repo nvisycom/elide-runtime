@@ -5,10 +5,6 @@
 pub mod content;
 pub mod media;
 
-#[cfg(feature = "hf")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hf")))]
-pub mod hf;
-
 #[cfg(feature = "http")]
 #[cfg_attr(docsrs, doc(cfg(feature = "http")))]
 pub mod http;

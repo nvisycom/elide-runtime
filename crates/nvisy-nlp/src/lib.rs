@@ -7,7 +7,6 @@ mod error;
 
 pub mod language;
 pub mod ner;
-pub mod preset;
 pub mod tokenizer;
 
 pub use self::engine::{

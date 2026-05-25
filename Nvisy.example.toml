@@ -51,15 +51,23 @@ idle_timeout = "90s"
 # per-call flags only.
 
 # OCR text extraction from image documents.
-[extraction.ocr]
-enabled = true
-
-[extraction.ocr.provider]
-kind = "paddle-x"
-base_url = "http://localhost:8003"
-
-[extraction.ocr.policy]
-confidence_threshold = 0.5
+#
+# Self-hosted PaddleOCR via HTTP sidecar (Surya, PaddleX) was
+# removed pending the externalized inference layer landing — see
+# https://github.com/nvisycom/runtime/issues/194. An HTTP backend
+# pointing at https://github.com/nvisycom/inference replaces it in
+# a follow-up. For cloud OCR, enable one of the `aws-textract`,
+# `google-vision`, `azure-docai` features and add a section like:
+#
+# [extraction.ocr]
+# enabled = true
+#
+# [extraction.ocr.provider]
+# kind = "google-vision"
+# api_key = "AIza-replace-me"
+#
+# [extraction.ocr.policy]
+# confidence_threshold = 0.5
 
 # Speech-to-text transcription.
 [extraction.stt]
@@ -115,15 +123,16 @@ max_tokens = 4096
 max_retries = 3
 
 # NLP-engine recognizer (NER + language detection + tokenizer).
+#
+# Today only the no-op NER backend ships in-process; the recognizer
+# is constructed but detects nothing. Model-bearing NER backends
+# (BERT-NER over `ort`, GLiNER) were removed pending the
+# externalized inference layer landing — see
+# https://github.com/nvisycom/runtime/issues/194. An HTTP backend
+# pointing at https://github.com/nvisycom/inference replaces them
+# in a follow-up.
 [detection.nlp]
 enabled = true
-engine = { kind = "default" }
-# Alternative: load a manifest-defined preset. The manifest pins
-# the HuggingFace repo + revision and supplies the id_to_label
-# vector and label map. With the `hf` feature enabled,
-# artifacts are fetched from HuggingFace on first use; otherwise
-# supply `model_path` and `tokenizer_path` explicitly.
-# engine = { kind = "manifest", manifest_path = "./crates/nvisy-nlp/presets/dslim-bert-base-NER.json" }
 
 # Pattern-based recognizer (regex + dictionary + checksum).
 [detection.pattern]

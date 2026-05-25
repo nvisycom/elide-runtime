@@ -2,7 +2,7 @@
 
 [package]
 name = "nvisy-ocr"
-description = "OCR provider integrations (AWS Textract, Google Vision, Azure DocAI, Surya, PaddleX) for the Nvisy runtime"
+description = "OCR provider integrations (AWS Textract, Google Vision, Azure DocAI) for the Nvisy runtime"
 keywords = ["nvisy", "ocr", "textract", "vision"]
 categories = ["text-processing", "computer-vision"]
 readme = "README.md"
@@ -42,8 +42,8 @@ async-trait = { workspace = true, features = [] }
 futures = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "time"] }
 
-# HTTP middleware (multipart + JSON helpers used by backends directly)
-reqwest-middleware = { workspace = true, features = ["json", "multipart"] }
+# HTTP middleware (JSON helpers used by backends directly)
+reqwest-middleware = { workspace = true, features = ["json"] }
 
 # (De)serialization
 serde = { workspace = true, features = [] }

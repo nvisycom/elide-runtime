@@ -9,22 +9,30 @@
 //! applied centrally at the detection layer, not inside this
 //! recognizer.
 //!
-//! Construct via [`from_config`] from a [`NlpDetection`] bundle —
-//! the bundle's [`engine`] field selects which prebuilt [`NlpEngine`]
-//! to load. [`from_engine`] is retained as an escape hatch for
-//! callers that already have a constructed engine they want to
-//! inject (custom backends, test fixtures, engines shared across
-//! recognizers).
+//! Today only [`NoopBackend`] is available — in-process model
+//! backends were removed pending ecosystem stability (see
+//! `nvisycom/runtime#192`, `#193`). Inference is being externalized
+//! to a separate service in a follow-up PR; that path will plug an
+//! HTTP backend into [`NlpEngineBuilder`] instead.
+//!
+//! Construct via [`from_config`] for the default no-op pipeline, or
+//! [`from_engine`] to inject a pre-built engine with a custom
+//! backend (tests, future HTTP backend, anything that implements
+//! [`NerBackend`]).
 //!
 //! [`NlpEngine`]: nvisy_nlp::NlpEngine
+//! [`NlpEngineBuilder`]: nvisy_nlp::NlpEngineBuilder
+//! [`NoopBackend`]: nvisy_nlp::ner::NoopBackend
+//! [`NerBackend`]: nvisy_nlp::ner::NerBackend
 //! [`from_config`]: NlpRecognizer::from_config
 //! [`from_engine`]: NlpRecognizer::from_engine
-//! [`engine`]: NlpDetection::engine
 
 mod params;
 
 use async_trait::async_trait;
 use nvisy_core::Result;
+use nvisy_nlp::language::LinguaLanguagePolicy;
+use nvisy_nlp::ner::NoopBackend;
 use nvisy_nlp::{NlpContext, NlpEngine};
 use nvisy_ontology::entity::Entities;
 
@@ -41,22 +49,22 @@ pub struct NlpRecognizer {
 impl NlpRecognizer {
     /// Build a recognizer from a [`NlpDetection`] config bundle.
     ///
-    /// The bundle's [`engine`] field picks which prebuilt
-    /// [`NlpEngine`] preset to load. Async because some presets
-    /// download model artifacts from HuggingFace on first use.
+    /// Constructs an [`NlpEngine`] with [`NoopBackend`] — the only
+    /// in-process backend that ships today. An externalized HTTP
+    /// backend lands in a follow-up PR.
     ///
     /// # Errors
     ///
     /// Returns an error if the underlying NLP engine cannot be
-    /// constructed (model load failure for non-default presets).
+    /// constructed.
     ///
     /// [`NlpEngine`]: nvisy_nlp::NlpEngine
-    /// [`engine`]: NlpDetection::engine
-    pub async fn from_config(cfg: &NlpDetection) -> Result<Self> {
-        let engine = cfg
-            .engine
+    /// [`NoopBackend`]: nvisy_nlp::ner::NoopBackend
+    pub async fn from_config(_cfg: &NlpDetection) -> Result<Self> {
+        let engine = NlpEngine::builder()
+            .with_ner_backend(NoopBackend)
+            .with_language_policy(LinguaLanguagePolicy)
             .build()
-            .await
             .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "ner", false))?;
         Ok(Self::from_engine(engine))
     }
@@ -99,9 +107,10 @@ impl From<&DetectionContext> for NlpContext {
         Self {
             language: ctx.language.clone(),
             candidate_languages: ctx.candidate_languages.clone(),
-            // GLiNER consumes this as `requested_kinds` (detection-
-            // shaping). The post-filter pass at the detection layer
-            // re-applies the allowlist on the produced entities.
+            // Zero-shot backends consume this as `requested_kinds`
+            // (detection-shaping). The post-filter pass at the
+            // detection layer re-applies the allowlist on the
+            // produced entities.
             entities: ctx.entities.clone(),
             // score_threshold is *not* threaded in — applied
             // centrally at the detection layer instead.

@@ -141,9 +141,9 @@ impl Engine {
     ///
     /// Constructs the registry and run state. HTTP clients are now
     /// the responsibility of individual extraction ops, which build
-    /// them per-call from `RuntimeConfig`. Async because the
-    /// recognizer registry may need to download model artifacts
-    /// (e.g. for `NlpPreset::Manifest`) on first use.
+    /// them per-call from `RuntimeConfig`. Async because future
+    /// recognizer registrations may need to connect to externalized
+    /// inference services on first use.
     ///
     /// # Errors
     ///

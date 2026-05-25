@@ -35,12 +35,6 @@ http = [
     "dep:humantime-serde",
 ]
 
-# HuggingFace Hub model downloader with stage-level progress
-# reporting and optional SHA-256 verification, exposed under
-# `nvisy_core::hf`. Enabled by any crate that pulls model artifacts
-# from HuggingFace (NLP presets, future OCR/embedding models).
-hf = ["dep:hf-hub", "dep:dirs"]
-
 [dependencies]
 # Internal crates
 nvisy-ontology = { workspace = true, features = [] }
@@ -74,10 +68,6 @@ hex = { workspace = true, features = [] }
 reqwest-middleware = { workspace = true, features = [], optional = true }
 reqwest-retry = { workspace = true, features = [], optional = true }
 reqwest-tracing = { workspace = true, features = [], optional = true }
-
-# HuggingFace Hub (optional; enabled by the `hf` feature)
-hf-hub = { workspace = true, optional = true }
-dirs = { workspace = true, optional = true }
 
 # Observability
 tracing = { workspace = true, features = [] }

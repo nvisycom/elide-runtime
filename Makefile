@@ -66,7 +66,10 @@ docker: ## Builds the Docker image.
 	@docker build -f docker/Dockerfile -t nvisy-runtime .
 	@$(call log,Docker image built.)
 
+# `help` parses the `## …` doc comment after each target name and
+# prints `target — description`. Keeping help auto-generated from
+# the targets themselves means new targets don't need a manual
+# entry to show up.
 .PHONY: help
-help: ## Shows this help message.
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
+help:  ## Show this help.
+	@awk 'BEGIN { FS = ":.*## " } /^[a-zA-Z0-9_.-]+:.*## / { printf "  %-14s  %s\n", $$1, $$2 }' $(MAKEFILE_LIST)

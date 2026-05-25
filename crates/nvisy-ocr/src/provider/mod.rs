@@ -1,10 +1,9 @@
 //! All OCR backend implementations and their parameter types.
-
-mod datalab_surya;
-mod paddle_paddlex;
-
-pub use self::datalab_surya::{SuryaBackend, SuryaParams};
-pub use self::paddle_paddlex::{PaddleXBackend, PaddleXParams};
+//!
+//! Two HTTP sidecar backends (`PaddleXBackend`, `SuryaBackend`) were
+//! removed pending the externalized inference layer landing (see
+//! `nvisycom/runtime#194`). An HTTP backend pointing at
+//! `nvisycom/inference` lands in a follow-up PR.
 
 #[cfg(feature = "aws-textract")]
 #[cfg_attr(docsrs, doc(cfg(feature = "aws-textract")))]

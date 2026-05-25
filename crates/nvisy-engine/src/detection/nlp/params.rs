@@ -3,12 +3,12 @@
 //!
 //! Cross-recognizer hints (`entity_kinds`, `confidence_threshold`)
 //! live directly on [`Detection`] because every recognizer honors
-//! them. This struct carries the bits that only mean something for
-//! the ONNX NER path — today, the prebuilt engine preset.
+//! them. This struct exists for any future NER-specific knobs and
+//! to carry the enable/disable toggle so operators can opt the
+//! recognizer in or out independently.
 //!
 //! [`Detection`]: crate::detection::Detection
 
-use nvisy_nlp::preset::NlpPreset;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -22,19 +22,11 @@ pub struct NlpDetection {
     /// `true`.
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// Prebuilt NLP-engine preset to load. [`NlpPreset::Default`]
-    /// for the placeholder no-op backend until real model bundles
-    /// land.
-    #[serde(default)]
-    pub engine: NlpPreset,
 }
 
 impl Default for NlpDetection {
     fn default() -> Self {
-        Self {
-            enabled: true,
-            engine: NlpPreset::default(),
-        }
+        Self { enabled: true }
     }
 }
 

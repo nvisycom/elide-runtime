@@ -2,7 +2,7 @@
 
 [package]
 name = "nvisy-nlp"
-description = "NLP / NER backends and a composable engine for the Nvisy runtime"
+description = "NLP traits, language detection, and tokenization for the Nvisy runtime"
 keywords = ["nvisy", "nlp", "ner", "pii"]
 categories = ["text-processing"]
 readme = "README.md"
@@ -22,43 +22,6 @@ documentation = { workspace = true }
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[features]
-# A plain build of `nvisy-nlp` ships only the no-op NER backend
-# (`NoopNerBackend`), the Lingua language policy, and the Unicode
-# tokenizer. The two model-bearing NER backends are behind opt-in
-# features that pull in heavy ML deps.
-default = []
-
-## Enables `OrtBackend` — runs a BERT-family token-classification
-## model exported to ONNX via the `ort` crate. Also enables the
-## `HfTokenizer` since its `tokenizers` dep is pulled in here
-## anyway. Pulls `orp` for `RuntimeParameters` (shared with `gliner`).
-onnx = ["dep:ort", "dep:ndarray", "dep:tokenizers", "dep:orp"]
-
-## Enables `GlinerBackend` — zero-shot NER via `gline-rs`.
-## Compatible with `onnx`; both backends can be enabled
-## simultaneously. Pulls `ort` directly because the EP auto-detect
-## logic in `ner::runtime` constructs `ort::execution_providers::*`
-## types that `gline-rs` then receives through `RuntimeParameters`.
-gliner = ["dep:gline-rs", "dep:orp", "dep:ort"]
-
-## Enables auto-download of manifest-defined preset artifacts from
-## HuggingFace Hub plus SHA-256 verification (downloaded or supplied).
-## Activates `nvisy-core/hf` for the shared `Downloader` and
-## `FetchRequest::verify_artifact`. Without it, `NlpPreset::Manifest`
-## still works as long as `model_path` and `tokenizer_path` overrides
-## are supplied, but `*_sha256` fields in the manifest are not enforced.
-hf = ["nvisy-core/hf"]
-
-## CoreML execution provider — Apple Neural Engine + GPU on macOS.
-coreml = ["ort?/coreml", "gline-rs?/coreml"]
-## CUDA execution provider — NVIDIA GPUs (Linux/Windows).
-cuda = ["ort?/cuda", "gline-rs?/cuda"]
-## TensorRT execution provider — NVIDIA inference optimization.
-tensorrt = ["ort?/tensorrt", "gline-rs?/tensorrt"]
-## DirectML execution provider — Windows GPU compute.
-directml = ["ort?/directml", "gline-rs?/directml"]
-
 [dependencies]
 # Internal crates
 nvisy-core = { workspace = true, features = [] }
@@ -67,15 +30,6 @@ nvisy-ontology = { workspace = true, features = [] }
 # Async
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
-
-# ONNX inference stack
-ort = { workspace = true, optional = true, features = [] }
-ndarray = { workspace = true, optional = true, features = [] }
-tokenizers = { workspace = true, optional = true, features = [] }
-
-# GLiNER zero-shot NER
-gline-rs = { workspace = true, optional = true, features = [] }
-orp = { workspace = true, optional = true, features = [] }
 
 # Language detection and text segmentation
 lingua = { workspace = true, features = [] }
@@ -102,5 +56,4 @@ tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
-tempfile = { workspace = true, features = [] }
 nvisy-ontology = { workspace = true, features = ["test-utils"] }

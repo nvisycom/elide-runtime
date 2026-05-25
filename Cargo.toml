@@ -105,7 +105,7 @@ smallvec = { version = "1.13", features = [] }
 # ONNX inference stack
 ort = { version = "=2.0.0-rc.9", default-features = false, features = ["ndarray", "load-dynamic"] }
 ndarray = { version = "0.16", features = [] }
-tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 
 # GLiNER zero-shot NER
 gline-rs = { version = "1.0.1", default-features = false }

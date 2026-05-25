@@ -1,7 +1,9 @@
-//! Axis-aligned bounding box type.
+//! Floating-point axis-aligned bounding box.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use super::IBoundingBox;
 
 /// Axis-aligned bounding box for image-based entity locations.
 ///
@@ -110,8 +112,8 @@ impl BoundingBox {
     }
 
     /// Convert to integer pixel coordinates by rounding each field.
-    pub fn to_pixel(&self) -> super::BoundingBoxPixel {
-        super::BoundingBoxPixel {
+    pub fn to_pixel(&self) -> IBoundingBox {
+        IBoundingBox {
             x: self.x.round() as u32,
             y: self.y.round() as u32,
             width: self.width.round() as u32,

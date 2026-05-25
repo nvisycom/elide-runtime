@@ -18,13 +18,11 @@
 //! [`NlpEngine`]: crate::engine::NlpEngine
 //! [`lingua`]: https://crates.io/crates/lingua
 
-mod detection;
 mod dyn_policy;
 mod lingua;
 
-use nvisy_ontology::primitive::LanguageTag;
+use nvisy_ontology::primitive::{LanguageDetection, LanguageTag};
 
-pub use self::detection::{LanguageDetection, LanguageProvenance, LanguageSpan};
 pub(crate) use self::dyn_policy::DynLanguagePolicy;
 pub use self::lingua::{LinguaLanguageDetector, LinguaLanguagePolicy};
 use crate::error::Result;

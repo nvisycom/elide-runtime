@@ -1,16 +1,13 @@
-//! [`NoopBackend`] — returns no entities. Used by the
-//! [`NlpPreset::Default`] preset and as a placeholder when a pipeline
-//! is wired through patterns or LLM only, with NER deliberately
-//! off.
+//! [`NoopBackend`] — returns no entities. Default selection in
+//! [`NlpDetection`], and the placeholder backend for tests and
+//! pipelines where NER is opt-in and the caller chose to opt out.
 //!
-//! [`Engine`]: crate::engine::Engine
-//! [`NlpPreset::Default`]: crate::preset::NlpPreset::Default
+//! [`NlpDetection`]: ../../../nvisy_engine/detection/nlp/struct.NlpDetection.html
 
 use async_trait::async_trait;
-use nvisy_ontology::entity::{Entities, EntityKind};
-use nvisy_ontology::primitive::LanguageTag;
+use nvisy_ontology::entity::Entities;
 
-use super::NerBackend;
+use super::{NerBackend, NerParams};
 use crate::error::Result;
 
 /// A [`NerBackend`] that produces no entities.
@@ -30,12 +27,7 @@ impl NoopBackend {
 
 #[async_trait]
 impl NerBackend for NoopBackend {
-    async fn recognize(
-        &self,
-        _text: &str,
-        _language: Option<&LanguageTag>,
-        _requested_kinds: Option<&[EntityKind]>,
-    ) -> Result<Entities> {
+    async fn recognize(&self, _text: &str, _params: NerParams<'_>) -> Result<Entities> {
         Ok(Entities::new())
     }
 }

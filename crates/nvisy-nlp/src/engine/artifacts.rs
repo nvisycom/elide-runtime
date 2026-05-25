@@ -10,26 +10,17 @@
 //! [`entities`]: Artifacts::entities
 //! [`languages`]: Artifacts::languages
 
-use std::collections::HashSet;
-
 use nvisy_ontology::entity::Entities;
-use nvisy_ontology::primitive::LanguageTag;
-
-use crate::language::LanguageDetection;
-use crate::tokenizer::Token;
+use nvisy_ontology::primitive::{LanguageDetection, LanguageTag};
 
 /// NLP output of one [`NlpEngine::analyze`] call.
 ///
-/// Mirrors the field set Presidio's `NlpArtifacts` actually exposes to
-/// downstream recognizers — entities + tokens + keywords + language —
-/// stripped to what is consumed in practice and reshaped for typed
-/// access.
-///
-/// Lemmas are intentionally absent in v1;
-/// <https://github.com/nvisycom/runtime/issues/154> captures the
-/// rationale and trigger conditions for revisiting.
+/// Carries the recognized entities plus the languages the engine
+/// resolved for the input — either detected by the configured
+/// [`LanguagePolicy`] or asserted by the caller.
 ///
 /// [`NlpEngine::analyze`]: super::NlpEngine::analyze
+/// [`LanguagePolicy`]: crate::language::LanguagePolicy
 #[derive(Debug, Clone)]
 pub struct Artifacts {
     /// Entities detected by the configured [`NerBackend`].
@@ -52,20 +43,9 @@ pub struct Artifacts {
     /// [`dominant_language`].
     ///
     /// [`LanguagePolicy`]: crate::language::LanguagePolicy
-    /// [`LanguageProvenance::Asserted`]: crate::language::LanguageProvenance::Asserted
+    /// [`LanguageProvenance::Asserted`]: nvisy_ontology::primitive::LanguageProvenance::Asserted
     /// [`dominant_language`]: Self::dominant_language
     pub languages: Vec<LanguageDetection>,
-
-    /// Token stream from the configured [`Tokenizer`], if any.
-    ///
-    /// [`Tokenizer`]: crate::tokenizer::Tokenizer
-    pub tokens: Option<Vec<Token>>,
-
-    /// Lowercase surface forms of non-stopword tokens.
-    ///
-    /// Derived from `tokens` when both tokens and a stopword set are
-    /// available. Useful for context-keyword lookup downstream.
-    pub keywords: Option<HashSet<String>>,
 }
 
 impl Artifacts {
@@ -85,7 +65,7 @@ impl Artifacts {
     /// Clones the tag; the vec itself is untouched.
     ///
     /// [`languages`]: Self::languages
-    /// [`LanguageSpan`]: crate::language::LanguageSpan
+    /// [`LanguageSpan`]: nvisy_ontology::primitive::LanguageSpan
     /// [`Confidence`]: nvisy_ontology::primitive::Confidence
     pub fn dominant_language(&self) -> Option<LanguageTag> {
         self.languages

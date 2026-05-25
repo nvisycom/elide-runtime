@@ -1,46 +1,40 @@
 //! [`NlpEngine`] — composes a [`NerBackend`] and a [`LanguagePolicy`]
-//! (both required) with an optional [`Tokenizer`] into a single
-//! entrypoint, plus the [`NlpEngineBuilder`] that constructs it.
+//! into a single entrypoint, plus the [`NlpEngineBuilder`] that
+//! constructs it.
 //!
 //! [`NerBackend`]: crate::ner::NerBackend
 //! [`LanguagePolicy`]: crate::language::LanguagePolicy
-//! [`Tokenizer`]: crate::tokenizer::Tokenizer
 
 mod artifacts;
 mod context;
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use derive_builder::Builder;
+use nvisy_ontology::primitive::{LanguageDetection, LanguageProvenance};
 
 pub use self::artifacts::Artifacts;
 pub use self::context::{NlpContext, NlpContextBuilder, NlpContextBuilderError};
 use crate::error::Result;
-use crate::language::{DynLanguagePolicy, LanguageDetection, LanguagePolicy, LanguageProvenance};
-use crate::ner::NerBackend;
-use crate::tokenizer::{Token, Tokenizer};
+use crate::language::{DynLanguagePolicy, LanguagePolicy};
+use crate::ner::{NerBackend, NerParams};
 
 /// Composite NLP engine.
 ///
-/// Holds a [`NerBackend`] and a [`LanguagePolicy`] (both required)
-/// plus an optional [`Tokenizer`]. The [`analyze`] entrypoint matches
-/// Microsoft Presidio's `AnalyzerEngine` ordering: resolve language
-/// (asserted or detected), run NER with the language as a hint,
-/// tokenize, derive keywords, then post-filter by entity-kind
-/// allowlist and confidence threshold.
+/// Holds a [`NerBackend`] and a [`LanguagePolicy`] (both required).
+/// The [`analyze`] entrypoint resolves the language (asserted or
+/// detected) and then runs NER with the language as a hint.
 ///
 /// Construct via [`builder`]. Per-call options (asserted language,
 /// candidate languages, allowed entity kinds, score threshold,
 /// correlation id) ride on [`NlpContext`].
 ///
 /// `Clone` is cheap — every field is already an `Arc`, so cloning is
-/// three refcount bumps. Pass the engine by value across tasks and
+/// two refcount bumps. Pass the engine by value across tasks and
 /// keep it in `State` containers freely.
 ///
 /// [`NerBackend`]: crate::ner::NerBackend
 /// [`LanguagePolicy`]: crate::language::LanguagePolicy
-/// [`Tokenizer`]: crate::tokenizer::Tokenizer
 /// [`analyze`]: Self::analyze
 /// [`builder`]: Self::builder
 #[derive(Clone, Builder)]
@@ -54,8 +48,6 @@ pub struct NlpEngine {
     pub(super) ner: Arc<dyn NerBackend>,
     #[builder(setter(custom))]
     pub(super) language: Arc<dyn DynLanguagePolicy>,
-    #[builder(setter(custom), default)]
-    pub(super) tokenizer: Option<Arc<dyn Tokenizer>>,
 }
 
 impl NlpEngineBuilder {
@@ -82,15 +74,6 @@ impl NlpEngineBuilder {
         self.language = Some(Arc::new(policy));
         self
     }
-
-    /// Attach a tokenizer. Optional.
-    pub fn with_tokenizer<T>(mut self, tokenizer: T) -> Self
-    where
-        T: Tokenizer + 'static,
-    {
-        self.tokenizer = Some(Some(Arc::new(tokenizer)));
-        self
-    }
 }
 
 /// Error returned by [`NlpEngineBuilder::build`] when a required
@@ -102,8 +85,6 @@ pub struct NlpEngineBuilderError(String);
 impl From<derive_builder::UninitializedFieldError> for NlpEngineBuilderError {
     fn from(err: derive_builder::UninitializedFieldError) -> Self {
         let field = err.field_name();
-        // Rename the storage field `language` back to what the
-        // public setter is called.
         let component = match field {
             "language" => "language policy",
             other => other,
@@ -134,23 +115,18 @@ impl NlpEngine {
 
         async move {
             let detections = self.resolve_language(text, context)?;
-            let language_hint = detections.first().map(|d| &d.language);
-            let entities = self
-                .ner
-                .recognize(text, language_hint, context.entities.as_deref())
-                .await?;
-
-            let tokens = match &self.tokenizer {
-                Some(t) => Some(t.tokenize(text)?),
-                None => None,
-            };
-            let keywords = tokens.as_deref().map(derive_keywords);
+            let mut params = NerParams::new();
+            if let Some(lang) = detections.first().map(|d| &d.language) {
+                params = params.with_language(lang);
+            }
+            if let Some(kinds) = context.entities.as_deref() {
+                params = params.with_requested_kinds(kinds);
+            }
+            let entities = self.ner.recognize(text, params).await?;
 
             Ok(Artifacts {
                 entities,
                 languages: detections,
-                tokens,
-                keywords,
             })
         }
         .instrument(span)
@@ -176,18 +152,8 @@ impl NlpEngine {
 
 impl std::fmt::Debug for NlpEngine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NlpEngine")
-            .field("tokenizer", &self.tokenizer.is_some())
-            .finish_non_exhaustive()
+        f.debug_struct("NlpEngine").finish_non_exhaustive()
     }
-}
-
-fn derive_keywords(tokens: &[Token]) -> HashSet<String> {
-    tokens
-        .iter()
-        .filter(|t| !t.is_stop)
-        .map(|t| t.text.to_lowercase())
-        .collect()
 }
 
 #[cfg(test)]
@@ -198,7 +164,6 @@ mod tests {
     use super::*;
     use crate::language::LinguaLanguagePolicy;
     use crate::ner::NoopBackend;
-    use crate::tokenizer::UnicodeTokenizer;
 
     fn english_engine() -> NlpEngine {
         NlpEngine::builder()
@@ -220,8 +185,6 @@ mod tests {
             .unwrap();
         assert!(out.entities.is_empty());
         assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
-        assert!(out.tokens.is_none());
-        assert!(out.keywords.is_none());
     }
 
     #[tokio::test]
@@ -321,30 +284,5 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
-    }
-
-    #[tokio::test]
-    async fn analyze_with_tokenizer_produces_tokens_and_keywords() {
-        let lang: LanguageTag = "en".parse().unwrap();
-        let tok = UnicodeTokenizer::with_language(&lang).unwrap();
-        let engine = NlpEngine::builder()
-            .with_ner_backend(NoopBackend)
-            .with_language_policy(LinguaLanguagePolicy)
-            .with_tokenizer(tok)
-            .build()
-            .unwrap();
-
-        let out = engine
-            .analyze("The quick brown fox", &NlpContext::default())
-            .await
-            .unwrap();
-        let tokens = out.tokens.expect("tokens present");
-        assert_eq!(tokens.len(), 4);
-        let keywords = out.keywords.expect("keywords present");
-        assert!(
-            !keywords.contains("the"),
-            "stopword 'the' should be filtered from keywords",
-        );
-        assert!(keywords.contains("quick"));
     }
 }

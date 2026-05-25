@@ -51,6 +51,7 @@ fn apply(verified: VerifiedEntity, entity: Entity) -> Option<Entity> {
             let location = if let Some(bbox) = verified.bbox {
                 ImageLocation {
                     bounding_box: bbox,
+                    polygon: None,
                     image_id: None,
                     page_number: None,
                 }

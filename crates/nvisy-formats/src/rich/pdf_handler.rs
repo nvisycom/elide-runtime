@@ -252,6 +252,7 @@ impl ImageHandler for RichTextHandler {
                     source,
                     ImageLocation {
                         bounding_box: nvisy_ontology::primitive::BoundingBox::default(),
+                        polygon: None,
                         image_id: None,
                         page_number: Some((i + 1) as u32),
                     },

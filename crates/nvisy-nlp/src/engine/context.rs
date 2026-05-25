@@ -37,7 +37,7 @@ pub struct NlpContext {
     /// [`LanguageProvenance::Asserted`].
     ///
     /// [`Artifacts::languages`]: crate::Artifacts::languages
-    /// [`LanguageProvenance::Asserted`]: crate::language::LanguageProvenance::Asserted
+    /// [`LanguageProvenance::Asserted`]: nvisy_ontology::primitive::LanguageProvenance::Asserted
     pub language: Option<LanguageTag>,
 
     /// Restrict language detection to this subset. Ignored when

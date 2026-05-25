@@ -2,7 +2,7 @@
 
 [package]
 name = "nvisy-nlp"
-description = "NLP traits, language detection, and tokenization for the Nvisy runtime"
+description = "NLP traits and language detection for the Nvisy runtime"
 keywords = ["nvisy", "nlp", "ner", "pii"]
 categories = ["text-processing"]
 readme = "README.md"
@@ -18,6 +18,14 @@ repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 
+[features]
+default = []
+
+## Enables [`BentoNerBackend`]: zero-shot NER over an externalized
+## HTTP inference service (the `inference-gliner` Bento in
+## https://github.com/nvisycom/inference).
+bento = ["dep:bentoml", "dep:serde"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
@@ -31,25 +39,21 @@ nvisy-ontology = { workspace = true, features = [] }
 async-trait = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 
-# Language detection and text segmentation
+# Inference & AI frameworks
+bentoml = { workspace = true, optional = true }
+
+# Language detection
 lingua = { workspace = true, features = [] }
-stop-words = { workspace = true, features = [] }
-unicode-segmentation = { workspace = true, features = [] }
 
 # (De)serialization
-serde = { workspace = true, features = [] }
-serde_json = { workspace = true, features = [] }
-schemars = { workspace = true, features = [] }
+serde = { workspace = true, features = [], optional = true }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
 derive_builder = { workspace = true, features = [] }
 
 # Identifiers
-uuid = { workspace = true, features = ["v4"] }
-
-# Collections / utility
-smallvec = { workspace = true, features = [] }
+uuid = { workspace = true, features = ["v4", "v7"] }
 
 # Observability
 tracing = { workspace = true, features = [] }

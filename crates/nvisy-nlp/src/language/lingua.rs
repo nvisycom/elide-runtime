@@ -15,11 +15,11 @@ use std::str::FromStr;
 use std::sync::{Mutex, OnceLock};
 
 use lingua::{IsoCode639_1, Language, LanguageDetector as LinguaDetector, LanguageDetectorBuilder};
-use nvisy_ontology::primitive::{Confidence, LanguageTag};
-
-use super::{
-    LanguageDetection, LanguageDetector, LanguagePolicy, LanguageProvenance, LanguageSpan,
+use nvisy_ontology::primitive::{
+    Confidence, LanguageDetection, LanguageProvenance, LanguageSpan, LanguageTag,
 };
+
+use super::{LanguageDetector, LanguagePolicy};
 use crate::error::Result;
 
 /// Language detector backed by the [`lingua`] crate.

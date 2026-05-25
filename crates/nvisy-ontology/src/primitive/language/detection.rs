@@ -3,7 +3,10 @@
 //! caller-asserted answers, plus the [`LanguageSpan`] byte-offset
 //! range it applies to when the detector reports per-region results.
 
-use nvisy_ontology::primitive::{Confidence, LanguageTag};
+use serde::{Deserialize, Serialize};
+
+use super::LanguageTag;
+use crate::primitive::Confidence;
 
 /// Provenance of a [`LanguageDetection`].
 ///
@@ -11,13 +14,12 @@ use nvisy_ontology::primitive::{Confidence, LanguageTag};
 /// this answer" from "the caller asserted this language and bypassed
 /// detection" — without overloading `confidence: None`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum LanguageProvenance {
     /// Produced by a language-detection backend.
     Detected,
-    /// Asserted by the caller (e.g. via
-    /// [`NlpContextBuilder::with_language`]).
-    ///
-    /// [`NlpContextBuilder::with_language`]: crate::engine::NlpContextBuilder::with_language
+    /// Asserted by the caller, bypassing detection.
     Asserted,
 }
 
@@ -29,6 +31,7 @@ pub enum LanguageProvenance {
 /// detections from non-segmenting backends, and caller-asserted
 /// answers, typically leave the span as `None`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize)]
 pub struct LanguageSpan {
     /// Byte offset of the span start in the original text.
     pub start: usize,
@@ -47,18 +50,22 @@ pub struct LanguageSpan {
 /// The `provenance` field records whether this answer came from a
 /// real detector run or was asserted by the caller; backends only
 /// ever produce [`LanguageProvenance::Detected`], with `Asserted`
-/// reserved for the engine when bypassing detection.
-#[derive(Debug, Clone)]
+/// reserved for callers that bypass detection.
+#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LanguageDetection {
     /// The detected language.
     pub language: LanguageTag,
     /// Optional confidence score. `None` when the backend doesn't
     /// expose one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence: Option<Confidence>,
     /// How this language was obtained: detected or caller-asserted.
     pub provenance: LanguageProvenance,
     /// Byte-offset range this detection applies to, when the backend
     /// reports per-region detections. Single-language detectors that
     /// answer "the whole text is X" leave this `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<LanguageSpan>,
 }

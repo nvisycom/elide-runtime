@@ -46,11 +46,12 @@ nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
-# LLM framework
+# Inference & AI frameworks
+bentoml = { version = "0.3", default-features = false, features = ["rustls-tls", "tracing"] }
 rig = { version = "0.37", features = [], default-features = false }
 
 # HTTP client and middleware
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "multipart"] }
 reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
 reqwest-retry = { version = "0.9", features = [] }
 reqwest-tracing = { version = "0.7", features = [] }

@@ -7,8 +7,6 @@
 //! [`CoreError`]: nvisy_core::Error
 //! [`CoreError::source`]: nvisy_core::Error::source
 
-use std::path::PathBuf;
-
 use nvisy_core::{Error as CoreError, ErrorKind};
 use nvisy_ontology::primitive::LanguageTag;
 
@@ -22,18 +20,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Errors that can occur during NLP backend construction or inference.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// Failed to load an ONNX model file.
-    #[error("failed to load ONNX model at '{}': {cause}", path.display())]
-    ModelLoad { path: PathBuf, cause: String },
-
-    /// Failed to load or apply a HuggingFace tokenizer.
-    #[error("tokenizer error: {0}")]
-    Tokenizer(String),
-
-    /// Model inference itself failed (post-load, post-tokenize).
-    #[error("inference failed: {0}")]
-    Inference(String),
-
     /// The backend cannot handle the requested language.
     #[error("backend does not support language '{0}'")]
     UnsupportedLanguage(LanguageTag),
@@ -46,8 +32,7 @@ pub enum Error {
 impl From<Error> for CoreError {
     fn from(err: Error) -> Self {
         let kind = match &err {
-            Error::ModelLoad { .. } | Error::Tokenizer(_) => ErrorKind::Internal,
-            Error::Inference(_) | Error::Backend(_) => ErrorKind::Runtime,
+            Error::Backend(_) => ErrorKind::Runtime,
             Error::UnsupportedLanguage(_) => ErrorKind::Validation,
         };
         CoreError::new(kind, err.to_string())

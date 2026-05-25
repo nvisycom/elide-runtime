@@ -8,7 +8,7 @@ use super::BoundingBox;
 /// integer. Use this at the rendering boundary where pixel-exact
 /// coordinates are required.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BoundingBoxPixel {
+pub struct IBoundingBox {
     /// Horizontal offset of the top-left corner in pixels.
     pub x: u32,
     /// Vertical offset of the top-left corner in pixels.
@@ -19,13 +19,13 @@ pub struct BoundingBoxPixel {
     pub height: u32,
 }
 
-impl From<&BoundingBox> for BoundingBoxPixel {
+impl From<&BoundingBox> for IBoundingBox {
     fn from(bb: &BoundingBox) -> Self {
         bb.to_pixel()
     }
 }
 
-impl From<BoundingBox> for BoundingBoxPixel {
+impl From<BoundingBox> for IBoundingBox {
     fn from(bb: BoundingBox) -> Self {
         Self::from(&bb)
     }
@@ -38,7 +38,7 @@ mod tests {
     #[test]
     fn from_bounding_box_rounds() {
         let bb = BoundingBox::new(1.4, 2.6, 3.5, 4.4);
-        let px = BoundingBoxPixel::from(bb);
+        let px = IBoundingBox::from(bb);
         assert_eq!(px.x, 1);
         assert_eq!(px.y, 3);
         assert_eq!(px.width, 4);

@@ -7,7 +7,6 @@ mod error;
 
 pub mod language;
 pub mod ner;
-pub mod tokenizer;
 
 pub use self::engine::{
     Artifacts, NlpContext, NlpContextBuilder, NlpContextBuilderError, NlpEngine, NlpEngineBuilder,

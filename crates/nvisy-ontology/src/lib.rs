@@ -4,6 +4,7 @@
 
 pub mod artifacts;
 pub mod context;
+pub mod document;
 pub mod entity;
 pub mod primitive;
 

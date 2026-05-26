@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{Mergeable, Modality, Overlap};
-use crate::document::Span;
 use crate::primitive::{LanguageDetection, TimeSpan};
 
 /// A time interval within audio content.
@@ -57,9 +56,12 @@ impl Modality for Audio {
 }
 
 /// Per-modality block payload for [`Audio`].
-/// [`Speech`](Self::Speech) carries the transcript text plus per-word
-/// spans and optional speaker; [`Silence`](Self::Silence) carries no
-/// payload. Every variant carries the segment `time_span`.
+/// [`Speech`](Self::Speech) carries the transcript text and optional
+/// speaker; per-word source spans live on the wrapping
+/// [`Block<Audio>`]. [`Silence`](Self::Silence) carries no payload.
+/// Every variant carries the segment `time_span`.
+///
+/// [`Block<Audio>`]: crate::document::Block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
@@ -68,7 +70,6 @@ pub enum AudioBlock {
     Speech {
         time_span: TimeSpan,
         text: String,
-        spans: Vec<Span<Audio>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         speaker_id: Option<String>,
     },
@@ -90,14 +91,6 @@ impl AudioBlock {
         match self {
             Self::Speech { text, .. } => Some(text),
             Self::Silence { .. } => None,
-        }
-    }
-
-    /// Per-word spans for [`Speech`](Self::Speech), empty for silence.
-    pub fn spans(&self) -> &[Span<Audio>] {
-        match self {
-            Self::Speech { spans, .. } => spans,
-            Self::Silence { .. } => &[],
         }
     }
 }

@@ -30,12 +30,12 @@ mod stt;
 mod vlm;
 mod workflow;
 
-#[cfg(any(feature = "image", feature = "audio"))]
-use nvisy_ontology::modality::Text;
 use std::sync::Arc;
 
 #[cfg(any(feature = "image", feature = "rich", feature = "audio"))]
 use nvisy_core::Result;
+#[cfg(any(feature = "image", feature = "audio"))]
+use nvisy_ontology::modality::Text;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "image")]
@@ -46,7 +46,6 @@ pub use self::stt::{SttExtractor, SttExtractorConfig};
 pub use self::vlm::{VlmExtractor, VlmExtractorConfig};
 pub use self::workflow::{AudialExtraction, Extraction, TextExtraction, VisualExtraction};
 use crate::envelope::DocumentEnvelope;
-
 
 /// Registry of pre-built extractors, one per technique.
 ///
@@ -193,4 +192,3 @@ impl Extractors {
         Ok(())
     }
 }
-

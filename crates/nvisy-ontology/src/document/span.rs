@@ -1,9 +1,6 @@
 //! [`Span`] — a range within a block's flat text, tagged with its
 //! source coordinates.
 
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 use crate::modality::Modality;
 use crate::primitive::Confidence;
 
@@ -17,15 +14,6 @@ use crate::primitive::Confidence;
 /// - one span per transcribed word for audio,
 /// - one span per text run for natively-extracted text.
 #[derive(Debug, Clone, PartialEq)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(
-    rename_all = "camelCase",
-    bound(
-        serialize = "M: Serialize",
-        deserialize = "M: serde::de::DeserializeOwned",
-    )
-)]
-#[schemars(bound = "M: JsonSchema")]
 pub struct Span<M: Modality> {
     /// Byte offset into the block's `text` where this span starts.
     pub text_start: usize,
@@ -35,7 +23,6 @@ pub struct Span<M: Modality> {
     /// Recognition confidence in this span. Populated for OCR and STT
     /// spans; absent for native text-layer extractions where the
     /// source already provides the text directly.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence: Option<Confidence>,
     /// Source coordinates of where this text came from.
     pub source: M,

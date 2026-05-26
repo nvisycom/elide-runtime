@@ -9,12 +9,12 @@
 //!
 //! [`DocumentHandle`]: nvisy_codec::DocumentHandle
 
-use nvisy_ontology::modality::Text;
 use std::mem;
 use std::sync::Arc;
 
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData};
+use nvisy_ontology::modality::Text;
 
 use crate::envelope::{DocumentEnvelope, SharedData};
 use crate::ingestion::compression::CompressionService;

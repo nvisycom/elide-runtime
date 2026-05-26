@@ -9,11 +9,11 @@
 //! sequentially: extraction → detection → deduplication → redaction →
 //! validation.
 
-use nvisy_ontology::modality::Text;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_core::Error;
+use nvisy_ontology::modality::Text;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;

@@ -1,6 +1,5 @@
 //! [`Registry`]: actor-scoped content, context, and policy store.
 
-use nvisy_ontology::modality::Text;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -9,6 +8,7 @@ use fjall::{Database, Keyspace};
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentMetadata, ContentSource};
 use nvisy_ontology::context::Context;
+use nvisy_ontology::modality::Text;
 use nvisy_ontology::policy::Policy;
 use nvisy_ontology::provenance::Audit;
 use serde::{Deserialize, Serialize};

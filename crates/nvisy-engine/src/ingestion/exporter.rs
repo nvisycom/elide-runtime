@@ -6,9 +6,9 @@
 //! 1. **Encryption** — encrypt content (if config specified)
 //! 2. **Compression** — compress for storage or transfer (if format specified)
 
-use nvisy_ontology::modality::Text;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentSource};
+use nvisy_ontology::modality::Text;
 use uuid::Uuid;
 
 use crate::envelope::DocumentEnvelope;

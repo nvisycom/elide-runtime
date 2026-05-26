@@ -8,10 +8,10 @@
 //!
 //! Each modality also defines its own [`Block`](Modality::Block) shape
 //! (via the associated type) so block payloads can diverge across
-//! modalities — a [`TextBlock`] is "just text + spans", an
-//! [`ImageBlock`] carries an [`Image`] region per variant, an
-//! [`AudioBlock`] carries a time span and optional speaker, a
-//! [`TabularBlock`] carries the row index.
+//! modalities — a [`TextBlock`] is just text, an [`ImageBlock`]
+//! carries an [`Image`] region per variant, an [`AudioBlock`] carries
+//! a time span and optional speaker, a [`TabularBlock`] carries the
+//! row index.
 //!
 //! [`Document`]: crate::document::Document
 //! [`Span`]: crate::document::Span
@@ -24,10 +24,6 @@ mod text;
 
 use std::fmt::Debug;
 
-use schemars::JsonSchema;
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-
 pub use self::audio::{Audio, AudioBlock, AudioBuilder, AudioMetadata};
 pub use self::image::{Image, ImageBlock, ImageBuilder, ImageMetadata, PageDimensions};
 pub use self::tabular::{ColumnHeader, Tabular, TabularBlock, TabularBuilder, TabularMetadata};
@@ -35,43 +31,29 @@ pub use self::text::{Text, TextBlock, TextBuilder, TextMetadata};
 
 /// Marker trait implemented by every per-modality coordinate type.
 ///
-/// The trait bounds match what generic containers need to derive
-/// `Clone`, `Debug`, `PartialEq`, `Serialize`, `Deserialize`,
-/// `JsonSchema`, and to be shared across async boundaries.
+/// The trait keeps only the structural bounds every generic
+/// container needs (`Clone`, `Debug`, `PartialEq`, thread-safety).
+/// Serialization is intentionally *not* required at the trait level
+/// — concrete modality types (`Text`, `Image`, `Audio`, `Tabular`)
+/// happen to implement `Serialize`/`Deserialize`/`JsonSchema`, and
+/// containers that need them (like [`Entity<M>`], [`Audit<M>`])
+/// gate their own serde derives on those bounds at the impl level.
 ///
 /// Associated types describe per-modality shape:
 ///
-/// - [`Block`](Self::Block) — the modality's block variant. Owns
-///   text+spans for text-bearing variants, region/time-span for
-///   non-textual ones.
+/// - [`Block`](Self::Block) — the modality's block variant.
 /// - [`Metadata`](Self::Metadata) — document-level metadata
 ///   (languages, page dimensions, column headers).
-pub trait Modality:
-    Clone + Debug + PartialEq + Serialize + DeserializeOwned + JsonSchema + Send + Sync + 'static
-{
+///
+/// [`Entity<M>`]: crate::entity::Entity
+/// [`Audit<M>`]: crate::provenance::Audit
+pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// The modality's block payload. See per-modality types:
     /// [`TextBlock`], [`ImageBlock`], [`AudioBlock`], [`TabularBlock`].
-    type Block: Clone
-        + Debug
-        + PartialEq
-        + Serialize
-        + DeserializeOwned
-        + JsonSchema
-        + Send
-        + Sync
-        + 'static;
+    type Block: Clone + Debug + PartialEq + Send + Sync + 'static;
 
     /// Document-level metadata.
-    type Metadata: Clone
-        + Debug
-        + Default
-        + PartialEq
-        + Serialize
-        + DeserializeOwned
-        + JsonSchema
-        + Send
-        + Sync
-        + 'static;
+    type Metadata: Clone + Debug + Default + PartialEq + Send + Sync + 'static;
 }
 
 /// Methods every per-modality redaction strategy must expose.

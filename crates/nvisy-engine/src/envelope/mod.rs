@@ -166,13 +166,25 @@ impl DocumentEnvelope<Tabular> {
 
 /// Image-specific accessors that look up text via the OCR document.
 impl DocumentEnvelope<Image> {
-    /// Resolve an [`Image`] location to its OCR'd text by exact
-    /// bounding-box equality against the extraction document.
+    /// Resolve an [`Image`] location to its OCR'd text — exact
+    /// bounding-box match against a block's `region` returns the
+    /// whole block text; sub-region matches consult the block's
+    /// `spans`.
     pub async fn value_at(&self, location: &Image) -> Option<String> {
+        use nvisy_ontology::modality::ImageBlock;
         let doc = self.document.as_ref()?;
         for block in &doc.blocks {
-            if let Some(text) = lookup_image_block(&block.kind, location) {
-                return Some(text);
+            let (text, region) = match &block.kind {
+                ImageBlock::Text { text, region }
+                | ImageBlock::Heading { text, region }
+                | ImageBlock::Table { text, region } => (text, region),
+                _ => continue,
+            };
+            if region == location {
+                return Some(text.clone());
+            }
+            if let Some(s) = block.spans.iter().find(|s| s.source == *location) {
+                return Some(text[s.text_start..s.text_end].to_owned());
             }
         }
         None
@@ -181,72 +193,28 @@ impl DocumentEnvelope<Image> {
 
 /// Audio-specific accessors that look up text via the STT document.
 impl DocumentEnvelope<Audio> {
-    /// Resolve an [`Audio`] location to its transcribed text by exact
-    /// time-span equality against the extraction document.
+    /// Resolve an [`Audio`] location to its transcribed text — exact
+    /// time-span match against a `Speech` block returns the whole
+    /// transcript; sub-segment matches consult the block's `spans`.
     pub async fn value_at(&self, location: &Audio) -> Option<String> {
+        use nvisy_ontology::modality::AudioBlock;
         let doc = self.document.as_ref()?;
         for block in &doc.blocks {
-            if let Some(text) = lookup_audio_block(&block.kind, location) {
-                return Some(text);
+            let AudioBlock::Speech {
+                text, time_span, ..
+            } = &block.kind
+            else {
+                continue;
+            };
+            if time_span == &location.time_span {
+                return Some(text.clone());
+            }
+            if let Some(s) = block.spans.iter().find(|s| s.source == *location) {
+                return Some(text[s.text_start..s.text_end].to_owned());
             }
         }
         None
     }
-}
-
-fn lookup_image_block(
-    kind: &nvisy_ontology::modality::ImageBlock,
-    location: &Image,
-) -> Option<String> {
-    use nvisy_ontology::modality::ImageBlock;
-    let (text, spans, region) = match kind {
-        ImageBlock::Text {
-            text,
-            spans,
-            region,
-        }
-        | ImageBlock::Heading {
-            text,
-            spans,
-            region,
-        }
-        | ImageBlock::Table {
-            text,
-            spans,
-            region,
-        } => (text, spans, region),
-        _ => return None,
-    };
-    if region == location {
-        return Some(text.clone());
-    }
-    spans
-        .iter()
-        .find(|s| s.source == *location)
-        .map(|s| text[s.text_start..s.text_end].to_owned())
-}
-
-fn lookup_audio_block(
-    kind: &nvisy_ontology::modality::AudioBlock,
-    location: &Audio,
-) -> Option<String> {
-    use nvisy_ontology::modality::AudioBlock;
-    let AudioBlock::Speech {
-        text,
-        spans,
-        time_span,
-        ..
-    } = kind
-    else {
-        return None;
-    };
-    if time_span == &location.time_span {
-        return Some(text.clone());
-    }
-    spans
-        .iter()
-        .find(|s| s.source == *location)
-        .map(|s| text[s.text_start..s.text_end].to_owned())
 }
 
 impl<M: Modality> fmt::Debug for DocumentEnvelope<M> {

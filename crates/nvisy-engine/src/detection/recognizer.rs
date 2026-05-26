@@ -5,9 +5,9 @@
 //!
 //! [`DetectionEngine`]: super::DetectionEngine
 
-use nvisy_ontology::entity::Entity;
 use async_trait::async_trait;
 use nvisy_core::Result;
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

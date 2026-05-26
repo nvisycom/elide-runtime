@@ -1,11 +1,11 @@
 //! AES-256-GCM encryption and decryption service.
 
-use nvisy_ontology::modality::Text;
 use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use bytes::Bytes;
 use nvisy_core::content::ContentData;
 use nvisy_core::{Error, ErrorKind, Result};
+use nvisy_ontology::modality::Text;
 use rand::RngExt;
 
 use super::provider::{KeyProvider, SharedKeyProvider};

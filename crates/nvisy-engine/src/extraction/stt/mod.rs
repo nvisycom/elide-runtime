@@ -43,7 +43,11 @@ impl SttExtractor {
     ///
     /// `diarization` is currently advisory — diarization is not yet
     /// implemented; a warning is logged when requested.
-    pub async fn run(&self, envelope: &mut DocumentEnvelope<Audio>, diarization: bool) -> Result<()> {
+    pub async fn run(
+        &self,
+        envelope: &mut DocumentEnvelope<Audio>,
+        diarization: bool,
+    ) -> Result<()> {
         let audio_data = {
             let handle = envelope.handle.lock().await;
             let DocumentHandle::Audio(ref handler) = *handle else {
@@ -80,7 +84,6 @@ impl SttExtractor {
             vec![Block::new(AudioBlock::Speech {
                 time_span,
                 text: stt_result.text.clone(),
-                spans: Vec::new(),
                 speaker_id: None,
             })],
         ));

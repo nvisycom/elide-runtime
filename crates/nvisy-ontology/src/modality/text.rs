@@ -5,7 +5,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{Mergeable, Modality, Overlap};
-use crate::document::Span;
 use crate::primitive::LanguageDetection;
 
 /// A range within text content.
@@ -77,62 +76,41 @@ impl Modality for Text {
 
 /// Per-modality block payload for [`Text`]. Each variant is a
 /// structural kind (paragraph, heading, list item, code, quote);
-/// every variant carries flat text plus per-word [`Span<Text>`]s.
+/// every variant carries flat text. Per-word source spans live on
+/// the wrapping [`Block<Text>`].
+///
+/// [`Block<Text>`]: crate::document::Block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum TextBlock {
     /// A regular paragraph or text run.
-    Paragraph {
-        text: String,
-        spans: Vec<Span<Text>>,
-    },
+    Paragraph { text: String },
     /// A heading.
     Heading {
         text: String,
-        spans: Vec<Span<Text>>,
         /// Heading depth (1 = h1, 2 = h2, …). `None` when the source
         /// doesn't expose a level.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         level: Option<u8>,
     },
     /// A list item.
-    ListItem {
-        text: String,
-        spans: Vec<Span<Text>>,
-    },
+    ListItem { text: String },
     /// A code block or pre-formatted text.
-    Code {
-        text: String,
-        spans: Vec<Span<Text>>,
-    },
+    Code { text: String },
     /// A blockquote.
-    Quote {
-        text: String,
-        spans: Vec<Span<Text>>,
-    },
+    Quote { text: String },
 }
 
 impl TextBlock {
     /// The block's text.
     pub fn text(&self) -> &str {
         match self {
-            Self::Paragraph { text, .. }
+            Self::Paragraph { text }
             | Self::Heading { text, .. }
-            | Self::ListItem { text, .. }
-            | Self::Code { text, .. }
-            | Self::Quote { text, .. } => text,
-        }
-    }
-
-    /// The block's spans (per-word source mapping).
-    pub fn spans(&self) -> &[Span<Text>] {
-        match self {
-            Self::Paragraph { spans, .. }
-            | Self::Heading { spans, .. }
-            | Self::ListItem { spans, .. }
-            | Self::Code { spans, .. }
-            | Self::Quote { spans, .. } => spans,
+            | Self::ListItem { text }
+            | Self::Code { text }
+            | Self::Quote { text } => text,
         }
     }
 }

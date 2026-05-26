@@ -19,8 +19,8 @@
 mod analytics;
 pub(crate) mod state;
 
-use nvisy_ontology::modality::Text;
 use jiff::Timestamp;
+use nvisy_ontology::modality::Text;
 use nvisy_ontology::provenance::Audit;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

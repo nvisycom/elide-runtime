@@ -5,7 +5,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{Mergeable, Modality, Overlap};
-use crate::document::Span;
 
 /// A cell (or sub-cell range) within tabular content.
 #[derive(Debug, Clone, PartialEq, Eq, Builder)]
@@ -70,8 +69,10 @@ impl Modality for Tabular {
 }
 
 /// Per-modality block payload for [`Tabular`]. Today only
-/// [`Row`](Self::Row) — carries the flat row text plus per-cell
-/// [`Span<Tabular>`]s.
+/// [`Row`](Self::Row) — carries the flat row text and its index.
+/// Per-cell source spans live on the wrapping [`Block<Tabular>`].
+///
+/// [`Block<Tabular>`]: crate::document::Block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
@@ -79,7 +80,6 @@ pub enum TabularBlock {
     /// A row.
     Row {
         text: String,
-        spans: Vec<Span<Tabular>>,
         /// 0-based row index.
         row_index: usize,
     },
@@ -90,13 +90,6 @@ impl TabularBlock {
     pub fn text(&self) -> &str {
         match self {
             Self::Row { text, .. } => text,
-        }
-    }
-
-    /// The row's per-cell spans.
-    pub fn spans(&self) -> &[Span<Tabular>] {
-        match self {
-            Self::Row { spans, .. } => spans,
         }
     }
 }

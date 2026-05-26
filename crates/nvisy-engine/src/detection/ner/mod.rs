@@ -30,11 +30,11 @@
 
 mod params;
 
-use nvisy_ontology::entity::Entity;
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ner::language::LinguaLanguagePolicy;
 use nvisy_ner::{Context as NerContext, RecognizerBuilder};
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 
 pub use self::params::NerDetection;

@@ -5,15 +5,14 @@
 //! for the envelope's modality via [`RedactionApplicator`].
 
 use nvisy_core::Result;
+#[allow(unused_imports)] // for future per-modality apply blocks
+use nvisy_ontology::modality::{Audio, Image, Tabular};
 use nvisy_ontology::modality::{Modality, Text};
 
 use super::apply::RedactionApplicator;
 use super::defaults::RedactionDefaults;
 use crate::envelope::DocumentEnvelope;
 use crate::redaction::Redaction as RedactionConfig;
-
-#[allow(unused_imports)] // for future per-modality apply blocks
-use nvisy_ontology::modality::{Audio, Image, Tabular};
 
 const TARGET: &str = "nvisy_engine::redaction";
 

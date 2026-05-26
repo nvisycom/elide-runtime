@@ -6,12 +6,12 @@
 //!
 //! [`Pipeline`]: super::run::Pipeline
 
-use nvisy_ontology::modality::Text;
 use std::path::Path;
 use std::sync::Arc;
 use std::{fmt, mem};
 
 use nvisy_core::Error;
+use nvisy_ontology::modality::Text;
 use nvisy_ontology::policy::PolicyRef;
 use nvisy_ontology::provenance::Audit;
 use schemars::JsonSchema;

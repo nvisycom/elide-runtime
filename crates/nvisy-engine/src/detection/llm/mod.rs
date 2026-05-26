@@ -26,11 +26,11 @@
 
 mod params;
 
-use nvisy_ontology::entity::Entity;
 use async_trait::async_trait;
 use nvisy_agent::agent::LlmNerContext;
 use nvisy_agent::pipeline::NerPipeline;
 use nvisy_core::Result;
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 
 pub use self::params::LlmDetection;

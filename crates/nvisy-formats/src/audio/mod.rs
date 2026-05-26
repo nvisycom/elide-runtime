@@ -1,5 +1,8 @@
 //! Audio-format implementations: WAV, MP3.
 
+#[cfg(feature = "wav")]
+pub(crate) mod redact;
+
 #[cfg(feature = "mp3")]
 mod mp3_handler;
 #[cfg(feature = "mp3")]

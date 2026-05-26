@@ -137,7 +137,14 @@ impl PdfRenderer {
                     false,
                 )
             })?;
-            images.push(ImageData::from(bitmap.as_image()));
+            let image = bitmap.as_image().map_err(|e| {
+                Error::runtime(
+                    format!("failed to convert PDF page bitmap: {e}"),
+                    "pdf_render",
+                    false,
+                )
+            })?;
+            images.push(ImageData::from(image));
         }
 
         Ok(images)

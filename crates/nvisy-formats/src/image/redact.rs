@@ -1,30 +1,26 @@
-//! Helper for applying a single [`ImageRedaction`] to a
-//! [`DynamicImage`] in place.
+//! Per-region image redaction helper shared by every image handler
+//! (PNG, JPEG, TIFF — all reduce to single-image `DynamicImage`s).
+//!
+//! Applies one [`ImageRedaction`] in place against a bounding box.
+//! The per-output pixel transforms (blur, block, pixelate) live on
+//! the [`ImageOps`] trait in [`super::image_ops`].
 
 use image::DynamicImage;
+use nvisy_codec::handler::{ImageOutput, ImageRedaction};
 use nvisy_ontology::primitive::BoundingBox;
 
-use super::ops::ImageOps;
-use crate::handler::{ImageOutput, ImageRedaction};
+use super::image_ops::ImageOps;
 
-const TARGET: &str = "nvisy_codec::handler::image";
+const TARGET: &str = "nvisy_formats::image";
 
 /// Apply a single redaction to `img` in place at the given bounding
-/// box. The bounding box comes from the redaction's containing
-/// [`Image`] under the `(location, redaction)` shape — not from
-/// the redaction itself.
+/// box.
 ///
-/// Replace outputs whose embedded image data fails to decode are
+/// `Replace` outputs whose embedded image data fails to decode are
 /// skipped with a warning.
-///
-/// [`Image`]: nvisy_ontology::modality::Image
-pub fn apply_image_redaction(
-    img: &mut DynamicImage,
-    redaction: &ImageRedaction,
-    bounding_box: BoundingBox,
-) {
+pub(crate) fn apply(img: &mut DynamicImage, redaction: &ImageRedaction, bounding_box: BoundingBox) {
     let region = bounding_box.to_pixel();
-    match &redaction.output {
+    match redaction.output() {
         ImageOutput::Blur { sigma } => {
             img.apply_gaussian_blur(&region, *sigma);
         }

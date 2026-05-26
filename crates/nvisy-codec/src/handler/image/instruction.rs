@@ -4,7 +4,7 @@ use nvisy_ontology::primitive::Color;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::handler::Mergeable;
+use crate::core::Mergeable;
 
 /// An image redaction: the *how*. The *where* (bounding box, page
 /// number, image id) lives on the containing [`Image`] via
@@ -22,6 +22,11 @@ impl ImageRedaction {
     /// Create a new image redaction with the given output.
     pub fn new(output: ImageOutput) -> Self {
         Self { output }
+    }
+
+    /// The redaction output that determines the rendering method.
+    pub fn output(&self) -> &ImageOutput {
+        &self.output
     }
 }
 

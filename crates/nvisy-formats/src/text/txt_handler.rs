@@ -10,12 +10,14 @@
 //! [`Handle::redact`] applies redactions in place, mutating the
 //! affected lines directly.
 
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{Handle, Handler, TextData, TextRedaction, apply_text_redaction};
+use nvisy_codec::core::{Handle, Located, LocationStream};
+use nvisy_codec::handler::{Handler, TextData, TextRedaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
 use nvisy_ontology::modality::Text;
+
+use super::redact;
 
 const TARGET: &str = "txt-handler";
 
@@ -97,7 +99,8 @@ impl Handle<Text> for TxtHandler {
         let line_start = offsets[line_idx].0;
         let start = location.start_offset - line_start;
         let end = location.end_offset - line_start;
-        apply_text_redaction(&mut self.lines[line_idx], &redaction, start, end, TARGET)
+        let value = redaction.output().replacement_value().unwrap_or_default();
+        redact::replace_range(&mut self.lines[line_idx], value, start, end, TARGET)
     }
 }
 
@@ -160,7 +163,8 @@ impl TxtHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::{ConflictPolicy, Handle, Redactions, TextOutput};
+    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
     use super::*;

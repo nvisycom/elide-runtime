@@ -21,15 +21,15 @@ documentation = { workspace = true }
 [features]
 default = ["text", "tabular"]
 
-## Text-handler trait, TextData, TextRedaction, apply_text_redaction.
+## Text modality wire types: TextData, TextOutput, TextRedaction.
 text = []
-## Tabular-handler trait, TabularRedaction, apply_tabular_redaction.
+## Tabular modality wire types: TabularRedaction.
 ## Pulls in text infra for TextData (cell values are textual).
 tabular = ["text"]
-## Image-handler trait, ImageData, ImageRedaction, apply_image_redaction.
-## Pulls the `image` + `imageproc` crates.
-image = ["dep:image", "dep:imageproc"]
-## Audio-handler trait, AudioData, AudioRedaction, apply_audio_redaction.
+## Image modality wire types: ImageData, ImageOutput, ImageRedaction.
+## Pulls the `image` crate for `DynamicImage`.
+image = ["dep:image"]
+## Audio modality wire types: AudioData, AudioOutput, AudioRedaction.
 audio = []
 ## Rich-document handler trait (multi-modal containers like PDF / DOCX).
 ## Requires both text and image since rich documents expose both.
@@ -63,9 +63,10 @@ hipstr = { workspace = true, features = [] }
 derive_more = { workspace = true, features = ["as_ref", "deref", "deref_mut", "display", "from", "into_iterator"] }
 thiserror = { workspace = true, features = [] }
 
-# Image processing (feature-gated)
+# Image processing (feature-gated) — `DynamicImage` is referenced by
+# the image handler's wire types; the per-region pixel ops live in
+# `nvisy-formats` and pull `imageproc` themselves.
 image = { workspace = true, optional = true, features = [] }
-imageproc = { workspace = true, optional = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

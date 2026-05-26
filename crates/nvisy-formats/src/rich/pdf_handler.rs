@@ -11,15 +11,13 @@
 //! applied via [`Handle<Text>::redact`] are baked into the raw PDF
 //! content streams.
 //!
-//! [`Handle<Text>::locations`]: nvisy_codec::handler::Handle::locations
-//! [`Handle<Image>::locations`]: nvisy_codec::handler::Handle::locations
-//! [`Handle<Text>::redact`]: nvisy_codec::handler::Handle::redact
+//! [`Handle<Text>::locations`]: nvisy_codec::core::Handle::locations
+//! [`Handle<Image>::locations`]: nvisy_codec::core::Handle::locations
+//! [`Handle<Text>::redact`]: nvisy_codec::core::Handle::redact
 
 use bytes::Bytes;
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{
-    Handle, Handler, ImageData, ImageRedaction, TextData, TextRedaction, apply_text_redaction,
-};
+use nvisy_codec::core::{Handle, Located, LocationStream};
+use nvisy_codec::handler::{Handler, ImageData, ImageRedaction, TextData, TextRedaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
@@ -27,6 +25,7 @@ use nvisy_ontology::modality::{Image, Text};
 use nvisy_ontology::primitive::Dpi;
 
 use super::pdf_render::PdfRenderer;
+use crate::text::redact;
 
 const TARGET: &str = "rich-text-handler";
 
@@ -90,36 +89,9 @@ impl RichTextHandler {
         })
     }
 
-    /// All per-page text extractions.
-    pub fn pages(&self) -> &[String] {
-        &self.pages
-    }
-
-    /// Text for a specific page by 0-based index.
-    pub fn page(&self, index: usize) -> Option<&str> {
-        self.pages.get(index).map(|s| s.as_str())
-    }
-
-    /// Total number of pages.
-    pub fn page_count(&self) -> usize {
-        self.pages.len()
-    }
-
     /// The raw document bytes.
     pub fn raw(&self) -> &[u8] {
         &self.raw
-    }
-
-    /// Total number of pages (alias for [`page_count`]).
-    ///
-    /// [`page_count`]: Self::page_count
-    pub fn len(&self) -> usize {
-        self.pages.len()
-    }
-
-    /// Whether the document has no pages.
-    pub fn is_empty(&self) -> bool {
-        self.pages.is_empty()
     }
 
     /// Render all pages of the PDF to images at the given DPI.
@@ -202,7 +174,8 @@ impl Handle<Text> for RichTextHandler {
         let end = location.end_offset - page_start;
 
         let mut content = self.pages[page_idx].clone();
-        apply_text_redaction(&mut content, &redaction, start, end, TARGET)?;
+        let value = redaction.output().replacement_value().unwrap_or_default();
+        redact::replace_range(&mut content, value, start, end, TARGET)?;
 
         if self.document_type == DocumentType::Pdf {
             let mut doc = lopdf::Document::load_mem(&self.raw).map_err(|e| {
@@ -279,7 +252,7 @@ impl Handle<Image> for RichTextHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::Handle;
+    use nvisy_codec::core::Handle;
     use nvisy_ontology::modality::Text;
 
     use super::*;

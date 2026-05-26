@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::handler::Mergeable;
+use crate::core::Mergeable;
 
 /// An audio redaction: the *how*. The *where* (time span, speaker,
 /// audio id) lives on the containing [`Audio`] via
@@ -21,6 +21,11 @@ impl AudioRedaction {
     /// Create a new audio redaction.
     pub fn new(output: AudioOutput) -> Self {
         Self { output }
+    }
+
+    /// The redaction output that determines the rendering method.
+    pub fn output(&self) -> &AudioOutput {
+        &self.output
     }
 }
 

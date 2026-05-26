@@ -1,5 +1,7 @@
 //! Text-format implementations: TXT, JSON, Markdown, HTML.
 
+pub(crate) mod redact;
+
 #[cfg(feature = "html")]
 mod html_handler;
 #[cfg(feature = "html")]

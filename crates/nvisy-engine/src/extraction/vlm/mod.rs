@@ -16,7 +16,7 @@ mod params;
 use bytes::Bytes;
 use nvisy_agent::agent::cv::VerificationCandidate;
 use nvisy_agent::pipeline::CvPipeline;
-use nvisy_codec::Span;
+use nvisy_codec::core::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entity;

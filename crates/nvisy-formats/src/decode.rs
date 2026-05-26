@@ -2,8 +2,6 @@
 //! its detected document type and return a [`DocumentHandle`].
 
 use nvisy_codec::DocumentHandle;
-#[cfg(feature = "internal_rich")]
-use nvisy_codec::handler::RichHandle;
 #[cfg(any(
     feature = "internal_text",
     feature = "internal_tabular",
@@ -11,7 +9,17 @@ use nvisy_codec::handler::RichHandle;
     feature = "internal_audio",
     feature = "internal_rich",
 ))]
-use nvisy_codec::handler::{Handle, Loader};
+use nvisy_codec::core::Handle;
+#[cfg(any(
+    feature = "internal_text",
+    feature = "internal_tabular",
+    feature = "internal_image",
+    feature = "internal_audio",
+    feature = "internal_rich",
+))]
+use nvisy_codec::handler::Loader;
+#[cfg(feature = "internal_rich")]
+use nvisy_codec::handler::RichHandle;
 use nvisy_core::Error;
 use nvisy_core::content::Content;
 #[cfg(any(

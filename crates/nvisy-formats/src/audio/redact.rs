@@ -1,31 +1,26 @@
-//! Helper for applying a single [`AudioRedaction`] to a typed sample
-//! buffer in place.
+//! Per-sample-buffer audio redaction helper shared by every audio
+//! handler (WAV today; MP3 doesn't redact and so doesn't use it).
+//!
+//! Applies one [`AudioRedaction`] to a flat, channel-interleaved
+//! `Vec<S>` sample buffer in place, given the redaction's containing
+//! time span and the buffer's sample rate + channel count.
+//!
+//! Ordering across multiple redactions is the caller's
+//! responsibility: an [`AudioOutput::Remove`] shrinks the buffer, so
+//! later time spans must be applied first to keep earlier ones'
+//! indices valid. Audio handlers typically override
+//! [`Handle::redact`] to use
+//! [`nvisy_codec::handler::sort_redactions_for_audio`].
+//!
+//! [`Handle::redact`]: nvisy_codec::core::Handle::redact
 
+use nvisy_codec::handler::{AudioOutput, AudioRedaction};
 use nvisy_ontology::primitive::TimeSpan;
 
-use crate::handler::{AudioOutput, AudioRedaction};
-
-const TARGET: &str = "nvisy_codec::handler::audio";
+const TARGET: &str = "nvisy_formats::audio";
 
 /// Apply a single redaction to `samples` in place.
-///
-/// `samples` is a flat, channel-interleaved buffer of `S`. `channels`
-/// is the number of channels (1 for mono, 2 for stereo). `sample_rate`
-/// is the sample rate in Hz. The redaction expresses its range as a
-/// [`TimeSpan`] supplied separately by the caller — under the
-/// `(location, redaction)` shape the time span lives on the
-/// [`Audio`], not the redaction.
-///
-/// Ordering across multiple redactions is the caller's
-/// responsibility: an [`AudioOutput::Remove`] shrinks the buffer, so
-/// later time spans must be applied first to keep earlier ones'
-/// indices valid. Audio handlers typically override
-/// [`Handle::redact`] to use [`sort_redactions_for_audio`].
-///
-/// [`Audio`]: nvisy_ontology::modality::Audio
-/// [`Handle::redact`]: crate::handler::Handle::redact
-/// [`sort_redactions_for_audio`]: crate::handler::sort_redactions_for_audio
-pub fn apply_audio_redaction<S>(
+pub(crate) fn apply<S>(
     samples: &mut Vec<S>,
     time_span: TimeSpan,
     redaction: &AudioRedaction,
@@ -34,14 +29,13 @@ pub fn apply_audio_redaction<S>(
 ) where
     S: Default + Clone,
 {
-    let (start_sample, end_sample) =
-        samples_for_time_span(time_span.start_us, time_span.end_us, sample_rate, channels);
+    let (start_sample, end_sample) = time_span.sample_range(sample_rate, channels);
     let start = start_sample.min(samples.len());
     let end = end_sample.min(samples.len());
     if start >= end {
         return;
     }
-    match &redaction.output {
+    match redaction.output() {
         AudioOutput::Silence => {
             for s in &mut samples[start..end] {
                 *s = S::default();
@@ -61,34 +55,6 @@ pub fn apply_audio_redaction<S>(
     }
 }
 
-/// Convert a `[start_us, end_us)` time span to a `[start_sample,
-/// end_sample)` index range into a channel-interleaved sample buffer.
-///
-/// Rounds half-up at the frame boundary, then multiplies by `channels`
-/// so the returned indices land on frame boundaries (no stereo channel
-/// swap on [`AudioOutput::Remove`]).
-fn samples_for_time_span(
-    start_us: i64,
-    end_us: i64,
-    sample_rate: u32,
-    channels: u16,
-) -> (usize, usize) {
-    let start_frame = us_to_frame(start_us, sample_rate);
-    let end_frame = us_to_frame(end_us, sample_rate);
-    (
-        start_frame.saturating_mul(channels as usize),
-        end_frame.saturating_mul(channels as usize),
-    )
-}
-
-fn us_to_frame(us: i64, sample_rate: u32) -> usize {
-    if us <= 0 {
-        return 0;
-    }
-    let num = (us as u128) * (sample_rate as u128) + 500_000;
-    (num / 1_000_000) as usize
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,7 +62,7 @@ mod tests {
     #[test]
     fn silence_zeroes_range_mono() {
         let mut samples: Vec<i16> = (1..=10).collect();
-        apply_audio_redaction(
+        apply(
             &mut samples,
             TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Silence),
@@ -109,7 +75,7 @@ mod tests {
     #[test]
     fn remove_shrinks_range_mono() {
         let mut samples: Vec<i16> = (1..=10).collect();
-        apply_audio_redaction(
+        apply(
             &mut samples,
             TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Remove),
@@ -122,7 +88,7 @@ mod tests {
     #[test]
     fn stereo_silence_aligns_to_frames() {
         let mut samples: Vec<i16> = (1..=20).collect();
-        apply_audio_redaction(
+        apply(
             &mut samples,
             TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Silence),
@@ -140,7 +106,7 @@ mod tests {
     #[test]
     fn stereo_remove_drops_frames_not_samples() {
         let mut samples: Vec<i16> = (1..=20).collect();
-        apply_audio_redaction(
+        apply(
             &mut samples,
             TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Remove),
@@ -157,7 +123,7 @@ mod tests {
     #[test]
     fn out_of_bounds_clipped() {
         let mut samples: Vec<i16> = (1..=5).collect();
-        apply_audio_redaction(
+        apply(
             &mut samples,
             TimeSpan::new(0, 999_999_000),
             &AudioRedaction::new(AudioOutput::Silence),
@@ -170,7 +136,7 @@ mod tests {
     #[test]
     fn replace_is_warned_and_skipped() {
         let mut samples: Vec<i16> = (1..=5).collect();
-        apply_audio_redaction(
+        apply(
             &mut samples,
             TimeSpan::new(0, 3_000),
             &AudioRedaction::new(AudioOutput::Replace { data: vec![] }),

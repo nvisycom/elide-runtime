@@ -9,7 +9,7 @@
 
 mod params;
 
-use nvisy_codec::Span;
+use nvisy_codec::core::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::Result;
 use nvisy_ocr::{Context as OcrContext, ImageFormat, ImageInput};

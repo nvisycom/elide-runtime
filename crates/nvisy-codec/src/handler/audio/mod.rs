@@ -1,29 +1,27 @@
-//! Audio-modality codec types: [`Codable`] impl, redaction shapes,
-//! and the `apply_audio_redaction` helper.
+//! Audio-modality wire types: [`Codable`] impl, [`AudioData`], and
+//! the redaction shapes.
 //!
 //! The per-modality capability surface lives on the generic
-//! [`Handle<Audio>`] trait in [`super::handle`]. Concrete per-format
+//! [`Handle<Audio>`] trait in [`crate::core`]. Concrete per-format
 //! implementations (WAV, MP3) live in `nvisy-formats`. Audio handlers
 //! override [`Handle::redact`] to call [`sort_redactions_for_audio`]
-//! so spans are applied right-to-left (an
-//! [`AudioOutput::Remove`] shrinks the buffer and shifts every later
-//! sample index; right-to-left order keeps earlier indices valid).
+//! so spans are applied right-to-left (an [`AudioOutput::Remove`]
+//! shrinks the buffer and shifts every later sample index;
+//! right-to-left order keeps earlier indices valid).
 //!
-//! [`Handle<Audio>`]: super::Handle
-//! [`Handle::redact`]: super::Handle::redact
+//! [`Handle<Audio>`]: crate::core::Handle
+//! [`Handle::redact`]: crate::core::Handle::redact
 //! [`AudioOutput::Remove`]: AudioOutput::Remove
 
 use std::cmp::Reverse;
 
 use nvisy_ontology::modality::Audio;
 
-use super::{Codable, Redactions};
+use crate::core::{Codable, Redactions};
 
-mod apply;
 mod audio_data;
 mod instruction;
 
-pub use self::apply::apply_audio_redaction;
 pub use self::audio_data::AudioData;
 pub use self::instruction::{AudioOutput, AudioRedaction};
 

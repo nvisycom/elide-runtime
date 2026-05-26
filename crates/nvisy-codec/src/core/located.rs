@@ -11,7 +11,7 @@ use nvisy_core::content::ContentSource;
 /// [`Redactions`] — the source is metadata about how the location
 /// was produced, not part of its identity.
 ///
-/// [`Redactions`]: crate::handler::Redactions
+/// [`Redactions`]: crate::core::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct Located<L> {
     /// The handler-level source that produced this location.

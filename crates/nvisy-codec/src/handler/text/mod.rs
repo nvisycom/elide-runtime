@@ -1,22 +1,20 @@
-//! Text-modality codec types: [`Codable`] impl, redaction shapes,
-//! and the `apply_text_redaction` helper.
+//! Text-modality wire types: [`Codable`] impl + redaction shapes.
 //!
 //! The per-modality capability surface lives on the generic
-//! [`Handle<Text>`] trait in [`super::handle`]. Concrete per-format
+//! [`Handle<Text>`] trait in [`crate::core`]. Concrete per-format
 //! implementations (TXT, JSON, Markdown, HTML) live in
-//! `nvisy-formats`.
+//! `nvisy-formats`; the byte-level `&mut String` redaction helper
+//! they share lives there too.
 //!
-//! [`Handle<Text>`]: super::Handle
+//! [`Handle<Text>`]: crate::core::Handle
 
 use nvisy_ontology::modality::Text;
 
-use super::Codable;
+use crate::core::Codable;
 
-mod apply;
 mod instruction;
 mod text_data;
 
-pub use self::apply::apply_text_redaction;
 pub use self::instruction::{TextOutput, TextRedaction};
 pub use self::text_data::TextData;
 

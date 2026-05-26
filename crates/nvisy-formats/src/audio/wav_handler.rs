@@ -11,24 +11,23 @@
 //! [`AudioOutput::Remove`] operations don't shift the indices of
 //! pending redactions.
 //!
-//! [`Handle`]: nvisy_codec::handler::Handle
-//! [`Handle::redact`]: nvisy_codec::handler::Handle::redact
+//! [`Handle`]: nvisy_codec::core::Handle
+//! [`Handle::redact`]: nvisy_codec::core::Handle::redact
 //! [`AudioOutput::Remove`]: nvisy_codec::handler::AudioOutput::Remove
 
 use std::io::Cursor;
 
 use bytes::Bytes;
 use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{
-    AudioData, AudioRedaction, Handle, Handler, Redactions, apply_audio_redaction,
-    sort_redactions_for_audio,
-};
+use nvisy_codec::core::{Handle, Located, LocationStream, Redactions};
+use nvisy_codec::handler::{AudioData, AudioRedaction, Handler, sort_redactions_for_audio};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{AudioFormat, DocumentType};
 use nvisy_ontology::modality::Audio;
 use nvisy_ontology::primitive::TimeSpan;
+
+use super::redact;
 
 const TARGET: &str = "wav-handler";
 
@@ -165,7 +164,7 @@ where
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| Error::validation(format!("WAV sample decode error: {e}"), TARGET))?;
 
-    apply_audio_redaction(
+    redact::apply(
         &mut samples,
         time_span,
         redaction,
@@ -192,7 +191,8 @@ where
 #[cfg(test)]
 mod tests {
     use hound::SampleFormat;
-    use nvisy_codec::handler::{AudioOutput, ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::handler::AudioOutput;
 
     use super::*;
 

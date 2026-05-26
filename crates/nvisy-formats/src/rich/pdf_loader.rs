@@ -28,7 +28,7 @@ impl Loader for PdfLoader {
     type Handler = RichTextHandler;
     type Params = PdfParams;
 
-    #[tracing::instrument(name = "pdf.decode", skip_all, fields(input_bytes, pages))]
+    #[tracing::instrument(name = "pdf.decode", skip_all, fields(input_bytes))]
     async fn decode(
         &self,
         content: &ContentData,
@@ -41,8 +41,6 @@ impl Loader for PdfLoader {
         let handler =
             RichTextHandler::from_pdf(raw, params.password.as_deref())?.with_source(source);
 
-        tracing::Span::current().record("pages", handler.page_count());
-
         Ok(handler)
     }
 }
@@ -50,10 +48,13 @@ impl Loader for PdfLoader {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
+    use futures::StreamExt;
     use lopdf::{Dictionary, Document, Object, Stream, dictionary};
+    use nvisy_codec::core::Handle;
     use nvisy_codec::handler::Handler;
     use nvisy_core::content::ContentSource;
     use nvisy_core::media::DocumentType;
+    use nvisy_ontology::modality::Text;
 
     use super::*;
 
@@ -119,7 +120,13 @@ mod tests {
             .unwrap();
 
         assert_eq!(doc.document_type(), DocumentType::Pdf);
-        assert_eq!(doc.page_count(), 1);
-        assert!(doc.page(0).unwrap().trim().is_empty());
+        let pages: Vec<_> = <RichTextHandler as Handle<Text>>::locations(&doc)
+            .collect()
+            .await;
+        assert_eq!(pages.len(), 1);
+        let text = <RichTextHandler as Handle<Text>>::read(&doc, &pages[0].location)
+            .await
+            .unwrap();
+        assert!(text.as_str().trim().is_empty());
     }
 }

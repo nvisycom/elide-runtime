@@ -10,7 +10,7 @@
 //!
 //! [`DetectionContext::text`]: crate::DetectionContext::text
 
-use nvisy_codec::Span;
+use nvisy_codec::core::Span;
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;

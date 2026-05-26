@@ -22,6 +22,7 @@ documentation = { workspace = true }
 default = [
     "tabular", "image", "audio", "rich",
     "openai", "anthropic", "google", "microsoft", "amazon",
+    "bento",
 ]
 
 ## Tabular modality — csv, xlsx.
@@ -43,6 +44,10 @@ google = ["nvisy-server/google"]
 microsoft = ["nvisy-server/microsoft"]
 ## Enable AWS Textract OCR.
 amazon = ["nvisy-server/amazon"]
+
+## Enable the externalized GLiNER NER backend (forwards to
+## `nvisy-server/bento`).
+bento = ["nvisy-server/bento"]
 
 [package.metadata.docs.rs]
 all-features = true

@@ -1,0 +1,64 @@
+# Self-contained example pairing the nvisy runtime with the
+# externalised inference-gliner Bento for NER.
+#
+# - `inference-gliner` hosts the GLiNER model behind an HTTP service
+#   (see https://github.com/nvisycom/inference).
+# - `nvisy-server` runs the runtime, configured via `Nvisy.toml` to
+#   call the bento at `http://inference-gliner:3000` from within the
+#   compose network.
+#
+# Usage:
+#   1. Copy `Nvisy.example.toml` to `Nvisy.toml` at the repo root,
+#      switch `[detection.nlp.backend]` to:
+#
+#          kind = "bento"
+#          base_url = "http://inference-gliner:3000"
+#
+#   2. From the repo root:
+#
+#          docker compose -f docker/docker-compose.yml up --build
+#
+#   3. The runtime listens on http://localhost:8080.
+#
+# The runtime image is built locally from `docker/Dockerfile` with
+# the default cargo features (which include `bento`); pin a specific
+# tag once images publish.
+
+services:
+  inference-gliner:
+    image: ghcr.io/nvisycom/inference-gliner:latest
+    # First-party model server; see https://github.com/nvisycom/inference.
+    # Replace with a pinned tag in production.
+    restart: unless-stopped
+    expose:
+      - "3000"
+    # Healthcheck wires runtime startup to model readiness so the
+    # first request doesn't race the model load.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  nvisy-server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      inference-gliner:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      NVISY_CONFIG: "/etc/nvisy/Nvisy.toml"
+      DATA_DIR: "/var/lib/nvisy"
+    volumes:
+      - ../Nvisy.toml:/etc/nvisy/Nvisy.toml:ro
+      - nvisy-data:/var/lib/nvisy
+
+volumes:
+  nvisy-data:

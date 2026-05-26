@@ -41,6 +41,10 @@ microsoft = ["nvisy-engine/microsoft"]
 ## Enable AWS Textract OCR.
 amazon = ["nvisy-engine/amazon"]
 
+## Enable the externalized GLiNER NER backend (forwards to
+## `nvisy-engine/bento`).
+bento = ["nvisy-engine/bento"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

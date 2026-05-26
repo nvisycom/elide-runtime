@@ -33,7 +33,7 @@ pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionCont
 pub use self::dyn_recognizer::DynRecognizer;
 pub use self::extension::Rebase;
 pub use self::llm::{LlmDetection, LlmRecognizer};
-pub use self::nlp::{NlpDetection, NlpRecognizer};
+pub use self::nlp::{NlpBackend, NlpDetection, NlpRecognizer};
 pub use self::pattern::{PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
 pub use self::recognizers::{DetectionSection, Recognizers};

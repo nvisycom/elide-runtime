@@ -122,17 +122,33 @@ temperature = 0.1
 max_tokens = 4096
 max_retries = 3
 
-# NLP-engine recognizer (NER + language detection + tokenizer).
+# NLP-engine recognizer (NER + language detection).
 #
-# Today only the no-op NER backend ships in-process; the recognizer
-# is constructed but detects nothing. Model-bearing NER backends
-# (BERT-NER over `ort`, GLiNER) were removed pending the
-# externalized inference layer landing — see
-# https://github.com/nvisycom/runtime/issues/194. An HTTP backend
-# pointing at https://github.com/nvisycom/inference replaces them
-# in a follow-up.
+# Backend selection lives under `[detection.nlp.backend]`. Two
+# backends ship today:
+#
+#   kind = "noop"
+#     Produces zero entities. The default. Use this when detection
+#     happens via patterns / LLM only.
+#
+#   kind = "bento"
+#     Calls the externalised `inference-gliner` Bento at `base_url`.
+#     Requires the runtime to be built with the `bento` feature
+#     (on by default in the `nvisy-cli` binary). Pair with the
+#     service in https://github.com/nvisycom/inference — see the
+#     repo's `docker-compose.yml` for a self-contained example.
 [detection.nlp]
 enabled = true
+
+[detection.nlp.backend]
+kind = "noop"
+
+# To use the externalised GLiNER service, replace the block above
+# with:
+#
+#   [detection.nlp.backend]
+#   kind = "bento"
+#   base_url = "http://localhost:3000"
 
 # Pattern-based recognizer (regex + dictionary + checksum).
 [detection.pattern]

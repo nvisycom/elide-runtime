@@ -15,7 +15,7 @@
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_ontology::entity::{Entities, Entity};
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::AnyModality;
 
 use super::DetectionContext;
@@ -33,7 +33,7 @@ use crate::detection::Recognizer;
 pub trait DynRecognizer: Send + Sync {
     /// Detect entities, taking the fat [`DetectionContext`] and
     /// extracting the recognizer's typed slice internally.
-    async fn run(&self, ctx: &DetectionContext) -> Result<Entities<AnyModality>>;
+    async fn run(&self, ctx: &DetectionContext) -> Result<Vec<Entity<AnyModality>>>;
 
     /// Reset per-document state. Forwarded to the underlying
     /// recognizer.
@@ -46,7 +46,7 @@ where
     R: Recognizer + Send + Sync,
     R::Context: for<'a> From<&'a DetectionContext> + Send + Sync,
 {
-    async fn run(&self, ctx: &DetectionContext) -> Result<Entities<AnyModality>> {
+    async fn run(&self, ctx: &DetectionContext) -> Result<Vec<Entity<AnyModality>>> {
         let typed = <R::Context>::from(ctx);
         let entities = Recognizer::run(self, &ctx.text, &typed).await?;
         Ok(entities.into_iter().map(Entity::erase).collect())

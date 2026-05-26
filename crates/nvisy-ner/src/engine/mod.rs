@@ -195,7 +195,10 @@ mod tests {
         let recognizer = english_recognizer();
         let asserted: LanguageTag = "de".parse().unwrap();
         let ctx = Context::new().with_language(asserted);
-        let out = recognizer.recognize("The quick brown fox", &ctx).await.unwrap();
+        let out = recognizer
+            .recognize("The quick brown fox", &ctx)
+            .await
+            .unwrap();
         // Caller-asserted German wins over detected English.
         assert_eq!(out.dominant_language().unwrap().primary_language(), "de");
     }
@@ -205,7 +208,10 @@ mod tests {
         let recognizer = english_recognizer();
         let id = Uuid::new_v4();
         let ctx = Context::new().with_correlation_id(id);
-        let out = recognizer.recognize("The quick brown fox", &ctx).await.unwrap();
+        let out = recognizer
+            .recognize("The quick brown fox", &ctx)
+            .await
+            .unwrap();
         assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
     }
 

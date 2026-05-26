@@ -71,20 +71,14 @@ impl BentoBackend {
         Client::builder()
             .with_base_url(&params.base_url)
             .build()
-            .map_err(|e| {
-                Error::runtime(format!("bentoml client init: {e}"), "ocr-bento", false)
-            })?;
+            .map_err(|e| Error::runtime(format!("bentoml client init: {e}"), "ocr-bento", false))?;
         Ok(Self)
     }
 }
 
 #[async_trait]
 impl Backend for BentoBackend {
-    async fn run(
-        &self,
-        _image: &ImageInput,
-        _ctx: Context<'_>,
-    ) -> Result<Document<Image>, Error> {
+    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<Document<Image>, Error> {
         Err(Error::runtime(
             "BentoBackend is scaffolded; the inference-ocr wire \
              contract has not been finalised yet — see \

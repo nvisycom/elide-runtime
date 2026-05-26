@@ -104,8 +104,7 @@ impl CvVerifyAgent {
             .enumerate()
             .map(|(i, c)| ProposedEntity::from_entity(i, &c.entity, &c.value))
             .collect();
-        let entities_only: Vec<Entity<Image>> =
-            candidates.into_iter().map(|c| c.entity).collect();
+        let entities_only: Vec<Entity<Image>> = candidates.into_iter().map(|c| c.entity).collect();
         let output = self.verify(image_data, &proposed).await?;
         Ok(output::merge(output, entities_only))
     }

@@ -21,11 +21,11 @@
 mod dyn_policy;
 mod lingua;
 
+use nvisy_core::Result;
 use nvisy_ontology::primitive::{LanguageDetection, LanguageTag};
 
 pub(crate) use self::dyn_policy::DynLanguagePolicy;
 pub use self::lingua::{LinguaLanguageDetector, LinguaLanguagePolicy};
-use nvisy_core::Result;
 
 /// A produced detector that recognises language(s) within a text
 /// string.

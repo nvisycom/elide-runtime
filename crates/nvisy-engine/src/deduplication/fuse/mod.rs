@@ -12,7 +12,7 @@ mod strategy;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
-use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
+use nvisy_ontology::entity::{Entity, RefinementMethod};
 use nvisy_ontology::modality::AnyModality;
 use nvisy_ontology::primitive::Confidence;
 
@@ -37,7 +37,7 @@ pub(crate) trait Fuse {
     ) -> impl Future<Output = ()> + Send;
 }
 
-impl Fuse for Entities<AnyModality> {
+impl Fuse for Vec<Entity<AnyModality>> {
     async fn fuse(
         &mut self,
         strategy: &DeduplicationStrategy,
@@ -194,7 +194,7 @@ mod tests {
     #[tokio::test]
     async fn strict_groups_exact_overlap() {
         let doc = Document::from_text(TEXT).await;
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
@@ -215,7 +215,7 @@ mod tests {
     #[tokio::test]
     async fn narrowing_groups_substring_with_overlap() {
         let doc = Document::from_text(TEXT).await;
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
@@ -243,7 +243,7 @@ mod tests {
     async fn widening_groups_across_non_overlapping_locations() {
         let text = format!("{:<100}John Smith", TEXT);
         let doc = Document::from_text(&text).await;
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(100, 110)
                 .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
@@ -266,7 +266,7 @@ mod tests {
     #[tokio::test]
     async fn noisy_or_strategy() {
         let doc = Document::from_text(TEXT).await;
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
                 .test_build(),
@@ -298,7 +298,7 @@ mod tests {
         weights.insert(RecognitionMethodKind::Pattern, 1.0);
         weights.insert(RecognitionMethodKind::NlpNer, 2.0);
 
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.6))
                 .test_build(),
@@ -325,7 +325,7 @@ mod tests {
     #[tokio::test]
     async fn different_detector_tagged_as_ensemble_fusion() {
         let doc = Document::from_text(TEXT).await;
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),

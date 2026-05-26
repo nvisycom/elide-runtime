@@ -1,18 +1,22 @@
 //! Per-modality coordinate types and the [`Modality`] marker trait.
 //!
-//! Generic containers ([`Document`], [`Block`], [`Span`], [`Artefact`],
-//! [`Entity`]) are parameterised over `M: Modality`, where `M` is one
-//! of [`Text`], [`Image`], [`Audio`], or [`Tabular`]. This enforces at
-//! compile time that a recognizer wired for text cannot be passed an
-//! audio document.
+//! Generic containers ([`Document`], [`Span`], [`Entity`]) are
+//! parameterised over `M: Modality`, where `M` is one of [`Text`],
+//! [`Image`], [`Audio`], or [`Tabular`]. This enforces at compile
+//! time that a recognizer wired for text cannot be passed an audio
+//! document.
+//!
+//! Each modality also defines its own [`Block`](Modality::Block) shape
+//! (via the associated type) so block payloads can diverge across
+//! modalities — a [`TextBlock`] is "just text + spans", an
+//! [`ImageBlock`] carries an [`Image`] region per variant, an
+//! [`AudioBlock`] carries a time span and optional speaker, a
+//! [`TabularBlock`] carries the row index.
 //!
 //! [`Document`]: crate::document::Document
-//! [`Block`]: crate::document::Block
 //! [`Span`]: crate::document::Span
-//! [`Artefact`]: crate::document::Artefact
 //! [`Entity`]: crate::entity::Entity
 
-mod any;
 mod audio;
 mod image;
 mod tabular;
@@ -24,32 +28,34 @@ use schemars::JsonSchema;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-pub use self::any::AnyModality;
-pub use self::audio::{Audio, AudioBlockKind, AudioBuilder, AudioMetadata};
+pub use self::audio::{Audio, AudioBlock, AudioBlockKind, AudioBuilder, AudioMetadata};
 pub use self::image::{
-    Image, ImageArtefact, ImageArtefactKind, ImageBlockKind, ImageBuilder, ImageMetadata,
-    PageDimensions,
+    Image, ImageBlock, ImageBlockKind, ImageBuilder, ImageMetadata, PageDimensions,
 };
-pub use self::tabular::{ColumnHeader, Tabular, TabularBuilder, TabularMetadata};
-pub use self::text::{Text, TextBlockKind, TextBuilder, TextMetadata};
+pub use self::tabular::{
+    ColumnHeader, Tabular, TabularBlock, TabularBlockKind, TabularBuilder, TabularMetadata,
+};
+pub use self::text::{Text, TextBlock, TextBlockKind, TextBuilder, TextMetadata};
 
 /// Marker trait implemented by every per-modality coordinate type.
 ///
 /// The trait bounds match what generic containers need to derive
-/// `Serialize`, `Deserialize`, `JsonSchema`, `Clone`, `Debug`,
-/// `PartialEq` and to be shared across async boundaries.
+/// `Clone`, `Debug`, `PartialEq`, `Serialize`, `Deserialize`,
+/// `JsonSchema`, and to be shared across async boundaries.
 ///
-/// The associated types describe what each modality carries *beyond*
-/// the source coordinates: per-block classification, non-textual
-/// artefacts, and document-level metadata. Modalities that don't need
-/// one of these set it to `()`.
+/// Associated types describe per-modality shape:
+///
+/// - [`Block`](Self::Block) — the modality's block variant. Owns
+///   text+spans for text-bearing variants, region/time-span for
+///   non-textual ones.
+/// - [`Metadata`](Self::Metadata) — document-level metadata
+///   (languages, page dimensions, column headers).
 pub trait Modality:
     Clone + Debug + PartialEq + Serialize + DeserializeOwned + JsonSchema + Send + Sync + 'static
 {
-    /// Per-block classification (e.g. paragraph vs heading for text,
-    /// text region vs figure for image). Use `()` when the modality
-    /// doesn't have multiple kinds of blocks.
-    type BlockKind: Clone
+    /// The modality's block payload. See per-modality types:
+    /// [`TextBlock`], [`ImageBlock`], [`AudioBlock`], [`TabularBlock`].
+    type Block: Clone
         + Debug
         + PartialEq
         + Serialize
@@ -59,22 +65,7 @@ pub trait Modality:
         + Sync
         + 'static;
 
-    /// Non-textual elements detected alongside text in a block (e.g.
-    /// figures, separators for image OCR). Use `()` when the modality
-    /// has no notion of artefacts.
-    type Artefact: Clone
-        + Debug
-        + PartialEq
-        + Serialize
-        + DeserializeOwned
-        + JsonSchema
-        + Send
-        + Sync
-        + 'static;
-
-    /// Document-level metadata (e.g. languages, column headers, page
-    /// dimensions). Carries `Default` so an empty document can be
-    /// constructed.
+    /// Document-level metadata.
     type Metadata: Clone
         + Debug
         + Default
@@ -85,6 +76,28 @@ pub trait Modality:
         + Send
         + Sync
         + 'static;
+
+    /// The modality's redaction strategy shape. Each modality picks
+    /// the redaction methods that make sense for its data — text gets
+    /// mask/replace/encrypt/etc., image gets blur/block/pixelate,
+    /// audio gets silence/remove.
+    type Strategy: Clone
+        + Debug
+        + Default
+        + PartialEq
+        + Serialize
+        + DeserializeOwned
+        + JsonSchema
+        + Send
+        + Sync
+        + 'static;
+}
+
+/// Methods every per-modality redaction strategy must expose.
+pub trait RedactionStrategy {
+    /// Whether the strategy is reversible (the original value can be
+    /// recovered from the redacted output).
+    fn is_reversible(&self) -> bool;
 }
 
 /// Combine two values into one when they can be reconciled.

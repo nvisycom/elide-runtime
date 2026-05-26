@@ -66,8 +66,7 @@ pub trait Backend: Send + Sync + 'static {
         ctx: Context<'_>,
     ) -> Result<Document<Image>, Error> {
         let pending: Vec<_> = images.iter().map(|img| self.run(img, ctx)).collect();
-        let results: Vec<Result<Document<Image>, Error>> =
-            futures::future::join_all(pending).await;
+        let results: Vec<Result<Document<Image>, Error>> = futures::future::join_all(pending).await;
         let mut merged: Document<Image> = Document::new(Default::default(), Vec::new());
         for r in results {
             merged.blocks.extend(r?.blocks);

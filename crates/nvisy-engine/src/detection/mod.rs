@@ -23,7 +23,6 @@ use derive_builder::Builder;
 pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
 pub use nvisy_ner::Context as NerContext;
-use nvisy_ontology::entity::Entities;
 use nvisy_ontology::modality::AnyModality;
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
@@ -160,7 +159,7 @@ impl DetectionEngine {
     /// document coordinates after this returns.
     ///
     /// [`JoinSet`]: tokio::task::JoinSet
-    pub async fn run(&self, ctx: DetectionContext) -> Result<Entities<AnyModality>> {
+    pub async fn run(&self, ctx: DetectionContext) -> Result<Vec<Entity<AnyModality>>> {
         use tracing::Instrument;
 
         let span = tracing::debug_span!(
@@ -175,13 +174,13 @@ impl DetectionEngine {
         let recognizers = self.recognizers.clone();
 
         async move {
-            let mut set: JoinSet<nvisy_core::Result<Entities<AnyModality>>> = JoinSet::new();
+            let mut set: JoinSet<nvisy_core::Result<Vec<Entity<AnyModality>>>> = JoinSet::new();
             for recognizer in recognizers {
                 let ctx = Arc::clone(&ctx);
                 set.spawn(async move { recognizer.run(&ctx).await });
             }
 
-            let mut all = Entities::new();
+            let mut all = Vec::new();
             while let Some(joined) = set.join_next().await {
                 match joined {
                     Ok(Ok(entities)) => {
@@ -247,7 +246,7 @@ impl DetectionEngine {
         }
 
         let run_id = envelope.shared.run_id;
-        let mut all = nvisy_ontology::entity::Entities::new();
+        let mut all = nvisy_ontology::entity::Vec::new();
         for span in &spans {
             let mut ctx = DetectionContext::new(span.data.clone());
             ctx.correlation_id = Some(run_id);

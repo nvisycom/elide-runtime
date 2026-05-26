@@ -5,8 +5,7 @@
 //! as the codec handler variants.
 
 use futures::StreamExt;
-use nvisy_codec::Span;
-use nvisy_codec::{Located, handler};
+use nvisy_codec::{Located, Span, handler};
 use nvisy_core::Error;
 use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
 

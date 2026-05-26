@@ -8,8 +8,8 @@
 
 use std::path::{Path, PathBuf};
 
-use nvisy_ontology::entity::Annotations;
-use nvisy_ontology::modality::AnyModality;
+use nvisy_ontology::entity::Annotation;
+use nvisy_ontology::modality::Text;
 use serde::{Deserialize, Serialize};
 
 use crate::media::DocumentType;
@@ -46,8 +46,12 @@ pub struct ContentMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Map<String, serde_json::Value>>,
     /// Pre-identified regions and classification labels for this content.
-    #[serde(default, skip_serializing_if = "Annotations::is_empty")]
-    pub annotations: Annotations<AnyModality>,
+    ///
+    /// Currently typed over [`Text`] since user-supplied annotations
+    /// at upload time are most naturally text-shaped. Image/audio
+    /// annotation flows are out of scope for now.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub annotations: Vec<Annotation<Text>>,
 }
 
 impl ContentMetadata {
@@ -67,13 +71,13 @@ impl ContentMetadata {
             size: None,
             sha256: None,
             metadata: None,
-            annotations: Annotations::new(),
+            annotations: Vec::new(),
         }
     }
 
     /// Set annotations (builder pattern).
     #[must_use]
-    pub fn with_annotations(mut self, annotations: Annotations<AnyModality>) -> Self {
+    pub fn with_annotations(mut self, annotations: Vec<Annotation<Text>>) -> Self {
         self.annotations = annotations;
         self
     }

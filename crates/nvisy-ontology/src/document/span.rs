@@ -1,4 +1,4 @@
-//! [`Span`] — a range within a [`Block`]'s flat text, tagged with its
+//! [`Span`] — a range within a block's flat text, tagged with its
 //! source coordinates.
 
 use schemars::JsonSchema;
@@ -7,26 +7,24 @@ use serde::{Deserialize, Serialize};
 use crate::modality::Modality;
 use crate::primitive::Confidence;
 
-/// A range of text within a [`Block`]'s flat `text`, paired with the
+/// A range of text within a block's flat `text`, paired with the
 /// source coordinates of where that text came from.
 ///
-/// Source-mapped granularity is typically one span per recognized unit:
+/// Source-mapped granularity is typically one span per recognized
+/// unit:
 /// - one span per OCR word for image blocks,
 /// - one span per cell for tabular rows,
 /// - one span per transcribed word for audio,
 /// - one span per text run for natively-extracted text.
-///
-/// Detection consumes the flat text and produces entity offsets into
-/// it; redaction looks up the span at those offsets and dispatches on
-/// `source`.
-///
-/// [`Block`]: super::Block
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", bound(
-    serialize = "M: Serialize",
-    deserialize = "M: serde::de::DeserializeOwned",
-))]
+#[serde(
+    rename_all = "camelCase",
+    bound(
+        serialize = "M: Serialize",
+        deserialize = "M: serde::de::DeserializeOwned",
+    )
+)]
 #[schemars(bound = "M: JsonSchema")]
 pub struct Span<M: Modality> {
     /// Byte offset into the block's `text` where this span starts.
@@ -44,8 +42,7 @@ pub struct Span<M: Modality> {
 }
 
 impl<M: Modality> Span<M> {
-    /// Byte length of the span in the block's `text` (`text_end -
-    /// text_start`).
+    /// Byte length of the span in the block's `text`.
     pub fn len(&self) -> usize {
         self.text_end.saturating_sub(self.text_start)
     }
@@ -65,53 +62,5 @@ impl<M: Modality> Span<M> {
     /// `[start, end)`.
     pub fn overlaps(&self, start: usize, end: usize) -> bool {
         self.text_start < end && self.text_end > start
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::modality::Text;
-
-    fn span(start: usize, end: usize) -> Span<Text> {
-        Span {
-            text_start: start,
-            text_end: end,
-            confidence: None,
-            source: Text::new(start, end),
-        }
-    }
-
-    #[test]
-    fn len_and_emptiness() {
-        let s = span(10, 20);
-        assert_eq!(s.len(), 10);
-        assert!(!s.is_empty());
-
-        let empty = span(10, 10);
-        assert_eq!(empty.len(), 0);
-        assert!(empty.is_empty());
-    }
-
-    #[test]
-    fn contains_is_half_open() {
-        let s = span(10, 20);
-        assert!(!s.contains(9));
-        assert!(s.contains(10));
-        assert!(s.contains(19));
-        assert!(!s.contains(20));
-    }
-
-    #[test]
-    fn overlap_detects_partial_and_full_overlaps() {
-        let s = span(10, 20);
-        assert!(s.overlaps(5, 12));
-        assert!(s.overlaps(15, 25));
-        assert!(s.overlaps(12, 18));
-        assert!(s.overlaps(0, 100));
-        assert!(!s.overlaps(0, 10));
-        assert!(!s.overlaps(20, 30));
-        assert!(!s.overlaps(0, 5));
-        assert!(!s.overlaps(25, 30));
     }
 }

@@ -13,7 +13,6 @@
 
 use nvisy_codec::Span;
 use nvisy_codec::handler::TextData;
-use nvisy_ontology::entity::Entities;
 use nvisy_ontology::modality::{AnyModality, Text};
 
 /// Extension trait on [`Entities`] for the per-context →
@@ -30,7 +29,7 @@ pub trait Rebase {
     fn rebase_offsets(self, span: &Span<Text, TextData>) -> Self;
 }
 
-impl Rebase for Entities<AnyModality> {
+impl Rebase for Vec<Entity<AnyModality>> {
     fn rebase_offsets(self, span: &Span<Text, TextData>) -> Self {
         let shift = span.location.start_offset;
         self.into_iter()

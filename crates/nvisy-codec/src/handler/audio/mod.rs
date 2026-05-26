@@ -56,19 +56,13 @@ pub trait AudioHandler: Handler {
 
     /// Apply a single redaction to the time range identified by
     /// `location`, mutating in place.
-    async fn redact_at(
-        &mut self,
-        location: &Audio,
-        redaction: AudioRedaction,
-    ) -> Result<(), Error>;
+    async fn redact_at(&mut self, location: &Audio, redaction: AudioRedaction)
+    -> Result<(), Error>;
 
     /// Apply every `(location, redaction)` pair in `redactions` to the
     /// handler, sorted right-to-left by `time_span.start_us`. The first
     /// error aborts the batch.
-    async fn redact(
-        &mut self,
-        redactions: Redactions<Audio, AudioRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Audio, AudioRedaction>) -> Result<(), Error> {
         let mut items: Vec<_> = redactions.into_iter().collect();
         items.sort_by_key(|(loc, _)| Reverse(loc.time_span.start_us));
         for (location, redaction) in items {

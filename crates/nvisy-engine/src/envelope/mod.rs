@@ -11,7 +11,7 @@
 //!   ↓ OCR / STT extraction
 //! DocumentEnvelope { handle, image|audio: Some(Document<M>), … }
 //!   ↓ NER / CV / PatternMatch detection
-//! DocumentEnvelope { …, audit { entities: Entities<AnyModality>, … } }
+//! DocumentEnvelope { …, audit { entities: Vec<Entity<AnyModality>>, … } }
 //!   ↓ Deduplication / Ensemble
 //! DocumentEnvelope { …, audit { entities (merged), … } }
 //!   ↓ Policy Evaluation + Redaction
@@ -51,7 +51,7 @@ pub(crate) use self::shared_data::SharedData;
 /// audit, and run-wide shared state.
 ///
 /// Detected entities live on [`audit.entities`] as
-/// `Entities<AnyModality>` — recognizers lift their typed
+/// `Vec<Entity<AnyModality>>` — recognizers lift their typed
 /// `Entity<M>` outputs via [`Entity::erase`] at the audit boundary.
 ///
 /// [`audit.entities`]: nvisy_ontology::provenance::Audit::entities
@@ -110,11 +110,7 @@ pub struct DocumentEnvelope {
 
 impl DocumentEnvelope {
     /// Create a new envelope from a content handle and metadata.
-    pub fn new(
-        handle: DocumentHandle,
-        metadata: ContentMetadata,
-        shared: Arc<SharedData>,
-    ) -> Self {
+    pub fn new(handle: DocumentHandle, metadata: ContentMetadata, shared: Arc<SharedData>) -> Self {
         let audit = Audit::new(handle.source());
         Self {
             handle,
@@ -156,14 +152,11 @@ impl DocumentEnvelope {
     ///
     /// Recognizers produce `Entity<M>` for a specific modality; the
     /// caller lifts each entity via [`Entity::erase`] before handing
-    /// it off here. `Entities<M>` consumers can do
+    /// it off here. `Vec<Entity<M>>` consumers can do
     /// `entities.into_iter().map(Entity::erase)` inline.
     ///
     /// [`Entity::erase`]: nvisy_ontology::entity::Entity::erase
-    pub async fn add_entities(
-        &mut self,
-        entities: impl IntoIterator<Item = Entity<AnyModality>>,
-    ) {
+    pub async fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity<AnyModality>>) {
         for mut entity in entities {
             if entity.sensitivity.is_none() {
                 entity.sensitivity = Some(entity.entity_kind.sensitivity());
@@ -191,9 +184,11 @@ impl DocumentEnvelope {
     pub async fn value_at(&self, location: &AnyModality) -> Option<String> {
         match location {
             AnyModality::Text(loc) => self.handle.read_text(loc).await.map(TextData::into_inner),
-            AnyModality::Tabular(loc) => {
-                self.handle.read_tabular(loc).await.map(TextData::into_inner)
-            }
+            AnyModality::Tabular(loc) => self
+                .handle
+                .read_tabular(loc)
+                .await
+                .map(TextData::into_inner),
             AnyModality::Image(loc) => {
                 let doc = self.image.as_ref()?;
                 doc.spans()

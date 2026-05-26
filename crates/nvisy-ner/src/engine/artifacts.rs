@@ -10,7 +10,7 @@
 //! [`entities`]: Artifacts::entities
 //! [`languages`]: Artifacts::languages
 
-use nvisy_ontology::entity::Entities;
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::{LanguageDetection, LanguageTag};
 
@@ -29,7 +29,7 @@ pub struct Artifacts {
     /// Always populated (may be empty).
     ///
     /// [`Backend`]: crate::core::Backend
-    pub entities: Entities<Text>,
+    pub entities: Vec<Entity<Text>>,
 
     /// Languages asserted by the caller or detected by the engine's
     /// [`LanguagePolicy`].

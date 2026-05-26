@@ -76,7 +76,9 @@ impl OcrExtractor {
             .collect::<Result<Vec<_>>>()?;
         // No language hint plumbed through at this layer yet —
         // backends that need one will surface that when wired.
-        self.inner.extract_batch(&inputs, OcrContext::default()).await
+        self.inner
+            .extract_batch(&inputs, OcrContext::default())
+            .await
     }
 
     async fn collect_spans(envelope: &DocumentEnvelope) -> Vec<Span<Image, ImageData>> {

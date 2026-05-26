@@ -26,7 +26,6 @@ mod span_size;
 use std::mem;
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::Entities;
 use nvisy_ontology::modality::AnyModality;
 
 use self::calibrate::Calibrate;
@@ -75,10 +74,10 @@ impl Deduplicator {
     /// Run the full deduplication pipeline.
     pub(crate) async fn deduplicate(
         &self,
-        mut entities: Entities<AnyModality>,
+        mut entities: Vec<Entity<AnyModality>>,
         envelope: &DocumentEnvelope,
         params: &FilterParams,
-    ) -> Entities<AnyModality> {
+    ) -> Vec<Entity<AnyModality>> {
         if entities.is_empty() {
             return entities;
         }
@@ -147,7 +146,7 @@ mod tests {
     async fn confidence_threshold_filters() {
         let doc = Document::from_text("John......Jane").await;
         let op = Deduplicator::new(&DeduplicationParams::default());
-        let entities: Entities = vec![
+        let entities: Vec<_> = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(10, 14)
                 .with_confidence(conf(0.5))
@@ -168,7 +167,7 @@ mod tests {
     async fn full_pipeline() {
         let doc = Document::from_text(TEST_TEXT).await;
         let op = Deduplicator::new(&DeduplicationParams::default());
-        let entities: Entities = vec![
+        let entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
                 .test_build(),
@@ -196,7 +195,7 @@ mod tests {
         let doc = Document::from_text("").await;
         let op = Deduplicator::new(&DeduplicationParams::default());
         let result = op
-            .deduplicate(Entities::new(), &doc, &FilterParams::default())
+            .deduplicate(Vec::new(), &doc, &FilterParams::default())
             .await;
         assert!(result.is_empty());
     }

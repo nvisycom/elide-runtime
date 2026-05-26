@@ -187,11 +187,7 @@ impl TextHandler for RichTextHandler {
         self.pages.get(page_idx).cloned().map(TextData::from)
     }
 
-    async fn redact_at(
-        &mut self,
-        location: &Text,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
+    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         let offsets = self.page_offsets();
         let Some(page_idx) = offsets.iter().position(|&(start, end, _)| {
             location.start_offset >= start && location.end_offset <= end

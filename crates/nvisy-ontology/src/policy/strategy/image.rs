@@ -3,6 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::modality::RedactionStrategy;
 use crate::primitive::Color;
 
 const DEFAULT_BLUR_SIGMA: f32 = 15.0;
@@ -51,5 +52,12 @@ impl Default for ImageStrategy {
         Self::Block {
             color: Color::default(),
         }
+    }
+}
+
+impl RedactionStrategy for ImageStrategy {
+    /// Image strategies are all destructive.
+    fn is_reversible(&self) -> bool {
+        false
     }
 }

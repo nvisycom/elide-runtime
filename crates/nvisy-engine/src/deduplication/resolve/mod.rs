@@ -7,7 +7,6 @@
 
 mod strategy;
 
-use nvisy_ontology::entity::Entities;
 use nvisy_ontology::modality::{AnyModality, Overlap};
 
 pub use self::strategy::ConflictResolution;
@@ -19,13 +18,13 @@ const TARGET: &str = "nvisy_engine::op::deduplication::conflict";
 pub(crate) trait ResolveConflicts {
     /// Drop the loser of each cross-kind overlap; returns the
     /// dropped entities for downstream telemetry.
-    fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Entities<AnyModality>;
+    fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Vec<Entity<AnyModality>>;
 }
 
-impl ResolveConflicts for Entities<AnyModality> {
-    fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Entities<AnyModality> {
+impl ResolveConflicts for Vec<Entity<AnyModality>> {
+    fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Vec<Entity<AnyModality>> {
         if self.len() <= 1 {
-            return Entities::new();
+            return Vec::new();
         }
 
         let len = self.len();
@@ -72,7 +71,7 @@ impl ResolveConflicts for Entities<AnyModality> {
         // Split into kept (stays on self) and dropped (returned).
         // Walking with an index lets us correlate the loser bitmap
         // with the entity at the same original position.
-        let mut dropped = Entities::new();
+        let mut dropped = Vec::new();
         let mut idx = 0usize;
         self.0.retain(|entity| {
             let lost = losers[idx];
@@ -99,7 +98,7 @@ mod tests {
 
     #[test]
     fn highest_confidence_keeps_winner() {
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 8)
                 .with_entity_kind(EntityKind::PhoneNumber)
                 .test_build(),
@@ -116,7 +115,7 @@ mod tests {
 
     #[test]
     fn non_overlapping_not_resolved() {
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 8)
                 .with_entity_kind(EntityKind::PhoneNumber)
                 .test_build(),
@@ -132,7 +131,7 @@ mod tests {
 
     #[test]
     fn same_kind_not_resolved() {
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 8)
                 .with_entity_kind(EntityKind::PhoneNumber)
                 .test_build(),
@@ -148,7 +147,7 @@ mod tests {
 
     #[test]
     fn longest_span_keeps_longer() {
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 3)
                 .with_entity_kind(EntityKind::PhoneNumber)
                 .test_build(),

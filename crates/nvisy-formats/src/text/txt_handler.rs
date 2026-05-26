@@ -86,11 +86,7 @@ impl TextHandler for TxtHandler {
         line.get(local_start..local_end).map(TextData::from)
     }
 
-    async fn redact_at(
-        &mut self,
-        location: &Text,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
+    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         let offsets = self.line_offsets();
         let Some(line_idx) = offsets
             .iter()

@@ -5,7 +5,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{Mergeable, Modality, Overlap};
-use crate::primitive::LanguageDetection;
+use crate::document::Span;
+use crate::primitive::{Confidence, LanguageDetection};
 
 /// A range within text content.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Builder)]
@@ -41,10 +42,7 @@ pub struct Text {
 
 impl Text {
     /// Create a [`Text`] covering `start_offset..end_offset` with all
-    /// optional fields unset. Use [`builder`] when context offsets,
-    /// page, or line numbers need to be set.
-    ///
-    /// [`builder`]: Self::builder
+    /// optional fields unset.
     pub fn new(start_offset: usize, end_offset: usize) -> Self {
         Self {
             start_offset,
@@ -73,30 +71,96 @@ impl Text {
 }
 
 impl Modality for Text {
-    type BlockKind = TextBlockKind;
-    type Artefact = ();
+    type Block = TextBlock;
     type Metadata = TextMetadata;
+    type Strategy = crate::policy::TextStrategy;
 }
 
-/// Classification of a [`Block<Text>`].
+/// One region of a text document.
 ///
-/// [`Block<Text>`]: crate::document::Block
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+/// `kind` carries the structural variant (paragraph, heading, …) and
+/// its text-bearing payload; `confidence` is the recognition
+/// confidence for the block as a whole (absent for native text-layer
+/// extraction).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TextBlock {
+    /// Variant-specific payload.
+    #[serde(flatten)]
+    pub kind: TextBlockKind,
+    /// Recognition confidence for the block as a whole.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<Confidence>,
+}
+
+/// Variants of [`TextBlock`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum TextBlockKind {
-    /// A regular paragraph or text run. Default for native-text
-    /// extraction where the source provides no structural hints.
-    #[default]
-    Paragraph,
+    /// A regular paragraph or text run.
+    Paragraph {
+        text: String,
+        spans: Vec<Span<Text>>,
+    },
     /// A heading.
-    Heading,
+    Heading {
+        text: String,
+        spans: Vec<Span<Text>>,
+        /// Heading depth (1 = h1, 2 = h2, …). `None` when the source
+        /// doesn't expose a level.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        level: Option<u8>,
+    },
     /// A list item.
-    ListItem,
+    ListItem {
+        text: String,
+        spans: Vec<Span<Text>>,
+    },
     /// A code block or pre-formatted text.
-    Code,
+    Code {
+        text: String,
+        spans: Vec<Span<Text>>,
+    },
     /// A blockquote.
-    Quote,
+    Quote {
+        text: String,
+        spans: Vec<Span<Text>>,
+    },
+}
+
+impl TextBlock {
+    /// The block's text.
+    pub fn text(&self) -> &str {
+        self.kind.text()
+    }
+
+    /// The block's spans (per-word source mapping).
+    pub fn spans(&self) -> &[Span<Text>] {
+        self.kind.spans()
+    }
+}
+
+impl TextBlockKind {
+    pub fn text(&self) -> &str {
+        match self {
+            Self::Paragraph { text, .. }
+            | Self::Heading { text, .. }
+            | Self::ListItem { text, .. }
+            | Self::Code { text, .. }
+            | Self::Quote { text, .. } => text,
+        }
+    }
+
+    pub fn spans(&self) -> &[Span<Text>] {
+        match self {
+            Self::Paragraph { spans, .. }
+            | Self::Heading { spans, .. }
+            | Self::ListItem { spans, .. }
+            | Self::Code { spans, .. }
+            | Self::Quote { spans, .. } => spans,
+        }
+    }
 }
 
 /// Document-level metadata for [`Document<Text>`].

@@ -80,11 +80,7 @@ impl TextHandler for BoxedRichHandler {
         self.0.read_text(location).await
     }
 
-    async fn redact_at(
-        &mut self,
-        location: &Text,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
+    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         self.0.redact_text_at(location, redaction).await
     }
 }

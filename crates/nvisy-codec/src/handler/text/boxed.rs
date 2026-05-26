@@ -53,11 +53,7 @@ impl TextHandler for BoxedTextHandler {
         self.0.read(location).await
     }
 
-    async fn redact_at(
-        &mut self,
-        location: &Text,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
+    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         self.0.redact_at(location, redaction).await
     }
 }

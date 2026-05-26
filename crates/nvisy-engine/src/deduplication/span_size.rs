@@ -60,12 +60,12 @@ impl SpanSize for AnyModality {
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::Ordering;
+
     use nvisy_ontology::entity::{Audio, Image, Text};
     use nvisy_ontology::primitive::{BoundingBox, TimeSpan};
 
     use super::*;
-
-    use std::cmp::Ordering;
 
     #[test]
     fn text_larger_span_wins() {

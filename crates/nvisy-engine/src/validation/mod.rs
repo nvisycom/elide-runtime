@@ -8,7 +8,6 @@
 mod workflow;
 
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::Entities;
 use nvisy_ontology::modality::AnyModality;
 use nvisy_ontology::provenance::AuditEntry;
 use uuid::Uuid;
@@ -52,7 +51,7 @@ impl Validator {
     /// values are counted as passed — visual and temporal redaction
     /// verification is not yet implemented.
     async fn check(
-        entities: &Entities<AnyModality>,
+        entities: &Vec<Entity<AnyModality>>,
         records: &[AuditEntry],
         redacted_text: Option<&str>,
         envelope: &DocumentEnvelope,

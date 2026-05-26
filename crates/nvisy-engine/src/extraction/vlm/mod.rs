@@ -19,7 +19,7 @@ use nvisy_agent::pipeline::CvPipeline;
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::{Entities, Entity};
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{AnyModality, Image};
 
 pub use self::params::VlmExtractorConfig;
@@ -88,14 +88,11 @@ impl VlmExtractor {
             "running VLM verification",
         );
 
-        match self
-            .verify(&spans, image_entities, envelope)
-            .await
-        {
+        match self.verify(&spans, image_entities, envelope).await {
             Ok(verified) => {
                 let mut merged: Vec<Entity<AnyModality>> = other_entities;
                 merged.extend(verified.into_iter().map(Entity::erase));
-                envelope.audit.entities = Entities::from(merged);
+                envelope.audit.entities = merged;
             }
             Err(e) => tracing::warn!(
                 target: TARGET, error = %e,

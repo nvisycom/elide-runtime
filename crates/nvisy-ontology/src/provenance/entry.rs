@@ -8,8 +8,7 @@ use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use super::review::ReviewDecision;
-use crate::modality::AnyModality;
-use crate::policy::Strategy;
+use crate::modality::{Modality, RedactionStrategy};
 
 /// Outcome status of a redaction operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -27,9 +26,9 @@ pub enum AuditEntryStatus {
     /// Redaction is pending (not yet applied).
     Pending,
     /// Entity was deliberately not redacted because a matching
-    /// [`Action::Suppress`] rule won out over any matching Redact rule
-    /// (or no Redact rule matched). The entry records the suppressing
-    /// policy and the original value so the suppression is auditable.
+    /// [`Action::Suppress`] rule won out over any matching Redact
+    /// rule. The entry records the suppressing policy and the
+    /// original value so the suppression is auditable.
     ///
     /// [`Action::Suppress`]: crate::policy::Action::Suppress
     Suppressed,
@@ -42,10 +41,10 @@ pub enum AuditEntryStatus {
 /// the applicator with the replacement value and `is_applied` flag.
 ///
 /// Location and confidence are not stored here: they live on the
-/// corresponding [`Entity`] in
-/// [`Audit::entities`], linked by `entity_id`.
+/// corresponding [`Entity<M>`] in [`Audit::entities`], linked by
+/// `entity_id`.
 ///
-/// [`Entity`]: crate::entity::Entity
+/// [`Entity<M>`]: crate::entity::Entity
 /// [`Audit::entities`]: super::Audit::entities
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
@@ -53,8 +52,15 @@ pub enum AuditEntryStatus {
     pattern = "owned",
     setter(into, strip_option, prefix = "with")
 )]
-#[serde(rename_all = "camelCase")]
-pub struct AuditEntry {
+#[serde(
+    rename_all = "camelCase",
+    bound(
+        serialize = "M: Serialize",
+        deserialize = "M: serde::de::DeserializeOwned",
+    )
+)]
+#[schemars(bound = "M: JsonSchema")]
+pub struct AuditEntry<M: Modality> {
     /// Identifier of the entity being redacted.
     pub entity_id: Uuid,
     /// Identifier of the policy that triggered this redaction.
@@ -73,7 +79,7 @@ pub struct AuditEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub correlation_id: Option<Uuid>,
     /// What to do: strategy and application state.
-    pub redaction: RedactionSpec,
+    pub redaction: RedactionSpec<M>,
     /// Original and replacement values.
     pub value: RedactionValue,
     /// Human review decision, if any.
@@ -84,10 +90,17 @@ pub struct AuditEntry {
 
 /// Strategy and application state for a redaction.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RedactionSpec {
+#[serde(
+    rename_all = "camelCase",
+    bound(
+        serialize = "M::Strategy: Serialize",
+        deserialize = "M::Strategy: serde::de::DeserializeOwned",
+    )
+)]
+#[schemars(bound = "M::Strategy: JsonSchema")]
+pub struct RedactionSpec<M: Modality> {
     /// Redaction strategy to apply.
-    pub strategy: Strategy,
+    pub strategy: M::Strategy,
     /// Whether the redaction has been applied to the output content.
     pub is_applied: bool,
     /// Whether the original can be reconstructed from this redaction.
@@ -97,7 +110,8 @@ pub struct RedactionSpec {
 /// Original and replacement values for a redaction.
 ///
 /// `original` is the portion of the entity value that was redacted,
-/// which may differ from the full entity value depending on the policy.
+/// which may differ from the full entity value depending on the
+/// policy.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionValue {
@@ -111,26 +125,25 @@ pub struct RedactionValue {
     pub replacement: Option<String>,
 }
 
-impl AuditEntry {
+impl<M: Modality> AuditEntry<M> {
     /// Start building a new audit entry.
-    pub fn builder() -> AuditEntryBuilder {
+    pub fn builder() -> AuditEntryBuilder<M> {
         AuditEntryBuilder::default()
     }
 }
 
-impl AuditEntryBuilder {
+impl<M: Modality> AuditEntryBuilder<M>
+where
+    M::Strategy: RedactionStrategy,
+{
     /// Set the entity ID, strategy, and original value in one call.
-    ///
-    /// `reversible` is derived from the strategy resolved against
-    /// `location`'s modality.
     pub fn for_entity(
         self,
         entity_id: Uuid,
-        strategy: Strategy,
+        strategy: M::Strategy,
         original: impl Into<String>,
-        location: &AnyModality,
     ) -> Self {
-        let reversible = strategy.is_reversible_for(location);
+        let reversible = strategy.is_reversible();
         self.with_entity_id(entity_id)
             .with_redaction(RedactionSpec {
                 strategy,

@@ -3,6 +3,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::modality::RedactionStrategy;
+
 /// Audio redaction strategy.
 ///
 /// The [`Default`] impl returns [`Silence`] — preserves duration while
@@ -18,4 +20,11 @@ pub enum AudioStrategy {
     Silence,
     /// Remove the segment entirely.
     Remove,
+}
+
+impl RedactionStrategy for AudioStrategy {
+    /// Audio strategies are all destructive.
+    fn is_reversible(&self) -> bool {
+        false
+    }
 }

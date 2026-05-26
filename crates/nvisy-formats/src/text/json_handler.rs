@@ -142,11 +142,7 @@ impl TextHandler for JsonHandler {
             .map(|ls| TextData::from(ls.text))
     }
 
-    async fn redact_at(
-        &mut self,
-        location: &Text,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
+    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         let located = self.locate_spans();
         let Some(ls) = located
             .into_iter()

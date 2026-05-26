@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{Entities, RecognitionMethodKind, RefinementMethod};
+use nvisy_ontology::entity::{RecognitionMethodKind, RefinementMethod};
 use nvisy_ontology::modality::AnyModality;
 use nvisy_ontology::primitive::Confidence;
 
@@ -35,7 +35,7 @@ pub(crate) trait Calibrate {
     fn calibrate(&mut self, calibration: &CalibrationMap);
 }
 
-impl Calibrate for Entities<AnyModality> {
+impl Calibrate for Vec<Entity<AnyModality>> {
     fn calibrate(&mut self, calibration: &CalibrationMap) {
         if calibration.is_empty() {
             return;
@@ -94,7 +94,7 @@ mod tests {
     fn scales_confidence_and_tags_refinement() {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Pattern, 0.5);
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
@@ -113,7 +113,7 @@ mod tests {
     fn clamps_to_one() {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Pattern, 2.0);
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
@@ -128,7 +128,7 @@ mod tests {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Pattern, 0.5);
         calibration.insert(RecognitionMethodKind::NlpNer, 0.8);
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_recognition_methods(vec![
                     RecognitionMethod::regex("test"),

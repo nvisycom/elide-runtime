@@ -32,8 +32,8 @@ mod refine;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::{
-    Entities, Entity, EntityCategory, EntityKind, ModelKind, ModelProvenance,
-    RecognitionMethod, RefinementMethod,
+    Entity, EntityCategory, EntityKind, ModelKind, ModelProvenance, RecognitionMethod,
+    RefinementMethod,
 };
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::Confidence;
@@ -119,7 +119,7 @@ impl NerVerifyAgent {
         &self,
         text: &str,
         candidates: Vec<NerCandidate>,
-    ) -> Result<Entities<Text>> {
+    ) -> Result<Vec<Entity<Text>>> {
         // 1. Localize.
         let mut localized = localize_all(text, candidates, self.unresolved);
         let refined = self.refiner.is_some();
@@ -137,7 +137,7 @@ impl NerVerifyAgent {
         &self,
         localized: Vec<LocalizedCandidate>,
         refined: bool,
-    ) -> Entities<Text> {
+    ) -> Vec<Entity<Text>> {
         let model_name = self
             .refiner
             .as_ref()
@@ -145,7 +145,7 @@ impl NerVerifyAgent {
             .unwrap_or_else(|| "ner_verify_agent".to_string());
         let model = ModelProvenance::new(&model_name, ModelKind::Gateway);
 
-        let mut out = Entities::new();
+        let mut out = Vec::new();
         let mut dropped_missing_kind = 0usize;
         let mut dropped_bad_confidence = 0usize;
         for l in localized {

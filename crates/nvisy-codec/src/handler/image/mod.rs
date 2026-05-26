@@ -56,11 +56,8 @@ pub trait ImageHandler: Handler {
 
     /// Apply a single redaction at the bounding box identified by
     /// `location`, mutating in place.
-    async fn redact_at(
-        &mut self,
-        location: &Image,
-        redaction: ImageRedaction,
-    ) -> Result<(), Error>;
+    async fn redact_at(&mut self, location: &Image, redaction: ImageRedaction)
+    -> Result<(), Error>;
 
     /// Apply every `(location, redaction)` pair in `redactions` to the
     /// handler in insertion order. The first error aborts the batch.
@@ -70,10 +67,7 @@ pub trait ImageHandler: Handler {
     /// default.
     ///
     /// [`redact_at`]: ImageHandler::redact_at
-    async fn redact(
-        &mut self,
-        redactions: Redactions<Image, ImageRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Image, ImageRedaction>) -> Result<(), Error> {
         for (location, redaction) in redactions {
             self.redact_at(&location, redaction).await?;
         }

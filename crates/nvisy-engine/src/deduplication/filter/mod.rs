@@ -10,7 +10,7 @@
 //! [`DetectionContext`]: crate::detection::DetectionContext
 //! [`Deduplicator::confidence_threshold`]: super::Deduplicator
 
-use nvisy_ontology::entity::{Entities, Entity, EntityKind};
+use nvisy_ontology::entity::{Entity, EntityKind};
 use nvisy_ontology::modality::AnyModality;
 
 /// Per-call filtering knobs applied during deduplication.
@@ -32,12 +32,12 @@ pub struct FilterParams {
 pub(crate) trait Filter {
     /// Remove entities not passing `params` in-place; return the
     /// removed entities for downstream telemetry (#182).
-    fn filter(&mut self, params: &FilterParams) -> Entities<AnyModality>;
+    fn filter(&mut self, params: &FilterParams) -> Vec<Entity<AnyModality>>;
 }
 
-impl Filter for Entities<AnyModality> {
-    fn filter(&mut self, params: &FilterParams) -> Entities<AnyModality> {
-        let mut dropped = Entities::new();
+impl Filter for Vec<Entity<AnyModality>> {
+    fn filter(&mut self, params: &FilterParams) -> Vec<Entity<AnyModality>> {
+        let mut dropped = Vec::new();
         self.0.retain(|e| {
             let keep = passes(e, params);
             if !keep {

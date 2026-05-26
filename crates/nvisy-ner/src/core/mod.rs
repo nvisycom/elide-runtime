@@ -11,7 +11,7 @@ mod context;
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_ontology::entity::Entities;
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 
 pub use self::context::Context;
@@ -46,7 +46,7 @@ pub use self::context::Context;
 #[async_trait]
 pub trait Backend: Send + Sync + 'static {
     /// Recognize entities in `text` under `ctx`.
-    async fn recognize(&self, text: &str, ctx: &Context) -> Result<Entities<Text>>;
+    async fn recognize(&self, text: &str, ctx: &Context) -> Result<Vec<Entity<Text>>>;
 
     /// Recognize entities in each of `texts` under one shared
     /// [`Context`], merging the per-text results into one
@@ -58,12 +58,12 @@ pub trait Backend: Send + Sync + 'static {
     /// native batching override it.
     ///
     /// [`recognize`]: Self::recognize
-    async fn recognize_batch(&self, texts: &[&str], ctx: &Context) -> Result<Entities<Text>> {
+    async fn recognize_batch(&self, texts: &[&str], ctx: &Context) -> Result<Vec<Entity<Text>>> {
         let pending: Vec<_> = texts.iter().map(|t| self.recognize(t, ctx)).collect();
-        let results: Vec<Result<Entities<Text>>> = futures::future::join_all(pending).await;
-        let mut merged = Entities::new();
+        let results: Vec<Result<Vec<Entity<Text>>>> = futures::future::join_all(pending).await;
+        let mut merged: Vec<Entity<Text>> = Vec::new();
         for r in results {
-            merged.0.extend(r?.0);
+            merged.extend(r?);
         }
         Ok(merged)
     }

@@ -16,13 +16,13 @@ use nvisy_codec::handler::{ConflictPolicy, Redactions, TextOutput, TextRedaction
 #[cfg(feature = "image")]
 use nvisy_codec::handler::{ImageOutput, ImageRedaction};
 use nvisy_core::{Error, Result};
+use nvisy_ontology::entity::{Entity, EntityKind};
 #[cfg(feature = "audio")]
 use nvisy_ontology::modality::Audio;
 #[cfg(feature = "image")]
 use nvisy_ontology::modality::Image;
 #[cfg(feature = "tabular")]
 use nvisy_ontology::modality::Tabular;
-use nvisy_ontology::entity::{Entity, EntityKind};
 use nvisy_ontology::modality::{AnyModality, Text};
 #[cfg(feature = "audio")]
 use nvisy_ontology::policy::AudioStrategy;
@@ -281,7 +281,9 @@ impl<'a> RedactionApplicator<'a> {
 }
 
 /// Build a lookup map from entity UUID to a cloned entity.
-fn entity_map(entities: &nvisy_ontology::entity::Entities<AnyModality>) -> HashMap<Uuid, Entity<AnyModality>> {
+fn entity_map(
+    entities: &nvisy_ontology::entity::Vec<Entity<AnyModality>>,
+) -> HashMap<Uuid, Entity<AnyModality>> {
     entities.iter().map(|e| (e.id, e.clone())).collect()
 }
 
@@ -380,7 +382,7 @@ fn pseudonymize(entity_kind: &EntityKind, value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
-    use nvisy_ontology::entity::{Entities, Entity, EntityKind};
+    use nvisy_ontology::entity::{Entity, EntityKind};
     use nvisy_ontology::modality::{AnyModality, Tabular};
     use nvisy_ontology::policy::{ImageStrategy, Strategy};
     use nvisy_ontology::provenance::{AuditEntry, RedactionMapping};
@@ -458,7 +460,7 @@ mod tests {
             &location,
         );
 
-        let entities: Entities = vec![entity].into();
+        let entities: Vec<_> = vec![entity].into();
         let mut envelope = test_envelope(entities).await;
         envelope.audit.entries.push(record);
 
@@ -485,7 +487,7 @@ mod tests {
             &location,
         );
 
-        let entities: Entities = vec![entity].into();
+        let entities: Vec<_> = vec![entity].into();
         let mut envelope = test_envelope(entities).await;
         envelope.audit.entries.push(record);
 
@@ -511,7 +513,7 @@ mod tests {
             &location,
         );
 
-        let entities: Entities = vec![entity].into();
+        let entities: Vec<_> = vec![entity].into();
         let mut envelope = test_envelope(entities).await;
         envelope.audit.entries.push(record);
 
@@ -556,7 +558,7 @@ mod tests {
             &location,
         );
 
-        let entities: Entities = vec![entity.clone()].into();
+        let entities: Vec<_> = vec![entity.clone()].into();
         let mut envelope = test_envelope_csv(entities, "name,ssn\nAlice,123-45-6789\n").await;
         envelope.audit.entries.push(record);
         envelope
@@ -595,7 +597,7 @@ mod tests {
             &location,
         );
 
-        let entities: Entities = vec![entity.clone()].into();
+        let entities: Vec<_> = vec![entity.clone()].into();
         let mut envelope = test_envelope_csv(entities, "name,ssn\nAlice Smith,123-45-6789\n").await;
         envelope.audit.entries.push(record);
 
@@ -624,7 +626,7 @@ mod tests {
             &location,
         );
 
-        let entities: Entities = vec![entity.clone()].into();
+        let entities: Vec<_> = vec![entity.clone()].into();
         let mut envelope = test_envelope_csv(entities, "name,ssn\nAlice,123-45-6789\n").await;
         envelope.audit.entries.push(record);
 

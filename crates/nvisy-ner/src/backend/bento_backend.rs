@@ -20,7 +20,7 @@
 use async_trait::async_trait;
 use bentoml::prelude::*;
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::Entities;
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 use uuid::Uuid;
 
@@ -67,29 +67,27 @@ impl BentoBackend {
         let client = Client::builder()
             .with_base_url(&params.base_url)
             .build()
-            .map_err(|e| {
-                Error::runtime(format!("bentoml client init: {e}"), COMPONENT, false)
-            })?;
+            .map_err(|e| Error::runtime(format!("bentoml client init: {e}"), COMPONENT, false))?;
         Ok(Self { client })
     }
 }
 
 #[async_trait]
 impl Backend for BentoBackend {
-    async fn recognize(&self, text: &str, ctx: &Context) -> Result<Entities<Text>> {
+    async fn recognize(&self, text: &str, ctx: &Context) -> Result<Vec<Entity<Text>>> {
         self.recognize_batch(&[text], ctx).await
     }
 
     #[tracing::instrument(skip_all, fields(batch = texts.len()))]
-    async fn recognize_batch(&self, texts: &[&str], ctx: &Context) -> Result<Entities<Text>> {
+    async fn recognize_batch(&self, texts: &[&str], ctx: &Context) -> Result<Vec<Entity<Text>>> {
         if texts.is_empty() {
-            return Ok(Entities::new());
+            return Ok(Vec::new());
         }
 
         // GLiNER is zero-shot — without an entities allowlist the
         // service has nothing to look for. Short-circuit locally.
         let Some(kinds) = ctx.entity_kinds.as_deref().filter(|k| !k.is_empty()) else {
-            return Ok(Entities::new());
+            return Ok(Vec::new());
         };
 
         let language = ctx.language.as_ref().map(|l| l.as_str().to_owned());
@@ -103,16 +101,15 @@ impl Backend for BentoBackend {
             })
             .collect();
 
-        let request_id = ctx
-            .correlation_id
-            .unwrap_or_else(Uuid::now_v7)
-            .to_string();
+        let request_id = ctx.correlation_id.unwrap_or_else(Uuid::now_v7).to_string();
 
         let responses: Vec<WireResponse> = self
             .client
             .endpoint(RECOGNIZE_ROUTE)
             .with_request_id(&request_id)
-            .call(&WireBatch { requests: wire_requests })
+            .call(&WireBatch {
+                requests: wire_requests,
+            })
             .await
             .map_err(|e| Error::runtime(format!("bento ner call: {e}"), COMPONENT, true))?;
 
@@ -128,9 +125,9 @@ impl Backend for BentoBackend {
         // Merge per-text entities into one Entities — texts are
         // assumed to be chunks of the same source (see Backend
         // trait docs).
-        let mut merged = Entities::new();
+        let mut merged: Vec<Entity<Text>> = Vec::new();
         for response in &responses {
-            merged.0.extend(
+            merged.extend(
                 response
                     .entities
                     .iter()

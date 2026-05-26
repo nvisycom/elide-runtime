@@ -92,8 +92,7 @@ impl OcrBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::Backend;
-    use crate::core::{Context, ImageFormat, ImageInput};
+    use crate::core::{Backend, Context, ImageFormat, ImageInput};
 
     #[tokio::test]
     async fn noop_returns_empty() {

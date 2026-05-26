@@ -57,11 +57,7 @@ pub trait TextHandler: Handler {
     /// at a time.
     ///
     /// [`redact`]: TextHandler::redact
-    async fn redact_at(
-        &mut self,
-        location: &Text,
-        redaction: TextRedaction,
-    ) -> Result<(), Error>;
+    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error>;
 
     /// Apply every `(location, redaction)` pair in `redactions` to the
     /// handler in insertion order. The first error aborts the batch.
@@ -72,10 +68,7 @@ pub trait TextHandler: Handler {
     ///
     /// [`redact_at`]: TextHandler::redact_at
     /// [`AudioHandler::redact`]: crate::handler::AudioHandler::redact
-    async fn redact(
-        &mut self,
-        redactions: Redactions<Text, TextRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Text, TextRedaction>) -> Result<(), Error> {
         for (location, redaction) in redactions {
             self.redact_at(&location, redaction).await?;
         }

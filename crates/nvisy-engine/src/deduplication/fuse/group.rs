@@ -14,7 +14,7 @@
 use std::collections::{HashMap, HashSet};
 use std::mem;
 
-use nvisy_ontology::entity::{Entities, Entity, EntityKind};
+use nvisy_ontology::entity::{Entity, EntityKind};
 use nvisy_ontology::modality::{AnyModality, Overlap};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -88,7 +88,7 @@ pub(super) trait GroupEntities {
     ) -> impl Future<Output = Vec<Vec<Entity<AnyModality>>>> + Send;
 }
 
-impl GroupEntities for Entities<AnyModality> {
+impl GroupEntities for Vec<Entity<AnyModality>> {
     async fn group(
         self,
         criteria: GroupingCriteria,

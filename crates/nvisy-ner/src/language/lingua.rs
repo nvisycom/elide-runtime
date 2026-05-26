@@ -15,12 +15,12 @@ use std::str::FromStr;
 use std::sync::{Mutex, OnceLock};
 
 use lingua::{IsoCode639_1, Language, LanguageDetector as LinguaDetector, LanguageDetectorBuilder};
+use nvisy_core::Result;
 use nvisy_ontology::primitive::{
     Confidence, LanguageDetection, LanguageProvenance, LanguageSpan, LanguageTag,
 };
 
 use super::{LanguageDetector, LanguagePolicy};
-use nvisy_core::Result;
 
 /// Language detector backed by the [`lingua`] crate.
 ///

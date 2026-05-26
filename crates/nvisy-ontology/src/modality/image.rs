@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{Mergeable, Modality, Overlap};
+use crate::document::Span;
 use crate::primitive::{BoundingBox, Confidence, LanguageDetection, Polygon};
 
 /// A region within image content.
@@ -64,51 +65,54 @@ impl Image {
 }
 
 impl Modality for Image {
-    type BlockKind = ImageBlockKind;
-    type Artefact = ImageArtefact;
+    type Block = ImageBlock;
     type Metadata = ImageMetadata;
+    type Strategy = crate::policy::ImageStrategy;
 }
 
-/// Classification of a [`Block<Image>`].
+/// One region of an image document.
 ///
-/// [`Block<Image>`]: crate::document::Block
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+/// `kind` carries the structural variant (text region, figure,
+/// separator, …) and its payload; `region` is the bounding region in
+/// the image; `confidence` is the recognition confidence for the
+/// block as a whole.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageBlock {
+    /// Variant-specific payload (text+spans for text-bearing kinds).
+    #[serde(flatten)]
+    pub kind: ImageBlockKind,
+    /// The image region this block occupies.
+    pub region: Image,
+    /// Recognition confidence for the block as a whole.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<Confidence>,
+}
+
+/// Variants of [`ImageBlock`]. Text-bearing variants carry recognized
+/// text plus per-word [`Span<Image>`]s. Non-textual variants
+/// ([`Figure`](Self::Figure), [`Separator`](Self::Separator),
+/// [`Background`](Self::Background), [`Logo`](Self::Logo)) carry no
+/// text payload.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum ImageBlockKind {
     /// A region of recognized text (paragraph, line, OCR text block).
-    #[default]
-    Text,
+    Text {
+        text: String,
+        spans: Vec<Span<Image>>,
+    },
     /// A heading.
-    Heading,
+    Heading {
+        text: String,
+        spans: Vec<Span<Image>>,
+    },
     /// A tabular region recognized in the image.
-    Table,
-    /// A figure or illustration containing recognized text.
-    Figure,
-    /// Anything else (margin notes, captions, headers/footers, …).
-    Other,
-}
-
-/// A non-textual element detected in a [`Block<Image>`].
-///
-/// [`Block<Image>`]: crate::document::Block
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ImageArtefact {
-    /// What kind of artefact this is.
-    pub kind: ImageArtefactKind,
-    /// Recognition confidence for the artefact.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<Confidence>,
-    /// Where in the image the artefact was detected.
-    pub region: Image,
-}
-
-/// Kinds of [`ImageArtefact`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[non_exhaustive]
-pub enum ImageArtefactKind {
+    Table {
+        text: String,
+        spans: Vec<Span<Image>>,
+    },
     /// A figure, illustration or photograph.
     Figure,
     /// A separator (rule, line, divider).
@@ -117,8 +121,38 @@ pub enum ImageArtefactKind {
     Background,
     /// A logo or brand mark.
     Logo,
-    /// Anything else not covered above.
-    Other,
+}
+
+impl ImageBlock {
+    /// Recognized text for text-bearing kinds, `None` for non-textual.
+    pub fn text(&self) -> Option<&str> {
+        self.kind.text()
+    }
+
+    /// Per-word spans for text-bearing kinds, empty otherwise.
+    pub fn spans(&self) -> &[Span<Image>] {
+        self.kind.spans()
+    }
+}
+
+impl ImageBlockKind {
+    pub fn text(&self) -> Option<&str> {
+        match self {
+            Self::Text { text, .. } | Self::Heading { text, .. } | Self::Table { text, .. } => {
+                Some(text)
+            }
+            Self::Figure | Self::Separator | Self::Background | Self::Logo => None,
+        }
+    }
+
+    pub fn spans(&self) -> &[Span<Image>] {
+        match self {
+            Self::Text { spans, .. } | Self::Heading { spans, .. } | Self::Table { spans, .. } => {
+                spans
+            }
+            Self::Figure | Self::Separator | Self::Background | Self::Logo => &[],
+        }
+    }
 }
 
 /// Document-level metadata for [`Document<Image>`].

@@ -34,7 +34,6 @@ use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ner::language::LinguaLanguagePolicy;
 use nvisy_ner::{Context as NerContext, RecognizerBuilder};
-use nvisy_ontology::entity::Entities;
 use nvisy_ontology::modality::Text;
 
 pub use self::params::NerDetection;
@@ -90,7 +89,7 @@ impl Recognizer for NerRecognizer {
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, text: &str, ctx: &NerContext) -> Result<Entities<Text>> {
+    async fn run(&self, text: &str, ctx: &NerContext) -> Result<Vec<Entity<Text>>> {
         let artifacts = self.inner.recognize(text, ctx).await?;
         Ok(artifacts.entities)
     }

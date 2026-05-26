@@ -28,11 +28,7 @@ impl NoopBackend {
 
 #[async_trait]
 impl Backend for NoopBackend {
-    async fn run(
-        &self,
-        _image: &ImageInput,
-        _ctx: Context<'_>,
-    ) -> Result<Document<Image>, Error> {
+    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<Document<Image>, Error> {
         Ok(Document::new(Default::default(), Vec::new()))
     }
 }

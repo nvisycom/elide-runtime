@@ -9,7 +9,7 @@
 
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
-use nvisy_ontology::entity::{Entities, Entity};
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::AnyModality;
 use nvisy_ontology::policy::{Action, Condition, Strategy, StrategyPolicy};
 use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, RedactionMapping};
@@ -94,7 +94,7 @@ impl Redactor {
 /// threshold. Every entry stores a complete `Strategy`; at apply time
 /// the per-modality method is resolved via [`Strategy::for_location`].
 async fn evaluate(
-    entities: &Entities<AnyModality>,
+    entities: &Vec<Entity<AnyModality>>,
     strategies: &[(Uuid, &StrategyPolicy)],
     defaults: &Strategy,
     default_threshold: f64,
@@ -345,7 +345,7 @@ mod tests {
     #[tokio::test]
     async fn skips_below_threshold() {
         let doc = Document::from_text("John").await;
-        let entities: Entities = vec![test_entity("John", 0.5)].into();
+        let entities: Vec<_> = vec![test_entity("John", 0.5)].into();
         let (entries, _mappings) = evaluate(
             &entities,
             &[],
@@ -362,7 +362,7 @@ mod tests {
     #[tokio::test]
     async fn produces_entry_above_threshold() {
         let doc = Document::from_text("John").await;
-        let entities: Entities = vec![test_entity("John", 0.9)].into();
+        let entities: Vec<_> = vec![test_entity("John", 0.9)].into();
         let (entries, _mappings) = evaluate(
             &entities,
             &[],
@@ -381,7 +381,7 @@ mod tests {
     async fn uses_default_strategy_when_no_rules() {
         let doc = Document::from_text("secret").await;
         let defaults = Strategy::text(TextStrategy::Remove);
-        let entities: Entities = vec![test_entity("secret", 0.9)].into();
+        let entities: Vec<_> = vec![test_entity("secret", 0.9)].into();
         let (entries, _mappings) = evaluate(
             &entities,
             &[],
@@ -401,7 +401,7 @@ mod tests {
     #[tokio::test]
     async fn captures_original_value() {
         let doc = Document::from_text("secret-value").await;
-        let entities: Entities = vec![test_entity("secret-value", 0.9)].into();
+        let entities: Vec<_> = vec![test_entity("secret-value", 0.9)].into();
         let (entries, _mappings) = evaluate(
             &entities,
             &[],
@@ -418,7 +418,7 @@ mod tests {
     #[tokio::test]
     async fn suppress_only_emits_suppressed_entry_no_mapping() {
         let doc = Document::from_text("john").await;
-        let entities: Entities = vec![test_entity("john", 0.9)].into();
+        let entities: Vec<_> = vec![test_entity("john", 0.9)].into();
         let policy_id = Uuid::now_v7();
         let suppress = suppress_rule(Some(0));
         let strategies = vec![(policy_id, &suppress)];
@@ -446,7 +446,7 @@ mod tests {
     async fn suppress_at_higher_priority_beats_redact() {
         // Suppress at priority 0 (best) vs Redact at priority 10.
         let doc = Document::from_text("john").await;
-        let entities: Entities = vec![test_entity("john", 0.9)].into();
+        let entities: Vec<_> = vec![test_entity("john", 0.9)].into();
         let suppress = suppress_rule(Some(0));
         let redact = redact_rule(Some(10));
         let strategies = vec![(Uuid::now_v7(), &suppress), (Uuid::now_v7(), &redact)];
@@ -474,7 +474,7 @@ mod tests {
         // Suppress and Redact both at priority 0 — Suppress wins by the
         // "same or higher" rule.
         let doc = Document::from_text("john").await;
-        let entities: Entities = vec![test_entity("john", 0.9)].into();
+        let entities: Vec<_> = vec![test_entity("john", 0.9)].into();
         let suppress = suppress_rule(Some(0));
         let redact = redact_rule(Some(0));
         // Suppress listed second to prove rank, not insertion, decides.
@@ -499,7 +499,7 @@ mod tests {
         // Redact at priority 0 (best) vs Suppress at priority 10:
         // Suppress's rank > Redact's, so Redact wins.
         let doc = Document::from_text("john").await;
-        let entities: Entities = vec![test_entity("john", 0.9)].into();
+        let entities: Vec<_> = vec![test_entity("john", 0.9)].into();
         let redact = redact_rule(Some(0));
         let suppress = suppress_rule(Some(10));
         let mut strategies = vec![(Uuid::now_v7(), &redact), (Uuid::now_v7(), &suppress)];

@@ -101,11 +101,7 @@ impl TextHandler for HtmlHandler {
         self.data.text_nodes.get(idx).cloned().map(TextData::from)
     }
 
-    async fn redact_at(
-        &mut self,
-        location: &Text,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
+    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         let offsets = self.node_offsets();
         let Some(idx) = offsets
             .iter()

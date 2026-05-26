@@ -1,17 +1,9 @@
 //! [`decode`]: dispatch a [`Content`] to the appropriate loader by
-//! its detected document type and return a [`ContentHandle`].
+//! its detected document type and return a [`DocumentHandle`].
 
-use nvisy_codec::ContentHandle;
-#[cfg(feature = "internal_audio")]
-use nvisy_codec::handler::BoxedAudioHandler;
-#[cfg(feature = "internal_image")]
-use nvisy_codec::handler::BoxedImageHandler;
+use nvisy_codec::DocumentHandle;
 #[cfg(feature = "internal_rich")]
-use nvisy_codec::handler::BoxedRichHandler;
-#[cfg(feature = "internal_tabular")]
-use nvisy_codec::handler::BoxedTabularHandler;
-#[cfg(feature = "internal_text")]
-use nvisy_codec::handler::BoxedTextHandler;
+use nvisy_codec::handler::RichHandle;
 #[cfg(any(
     feature = "internal_text",
     feature = "internal_tabular",
@@ -19,7 +11,7 @@ use nvisy_codec::handler::BoxedTextHandler;
     feature = "internal_audio",
     feature = "internal_rich",
 ))]
-use nvisy_codec::handler::Loader;
+use nvisy_codec::handler::{Handle, Loader};
 use nvisy_core::Error;
 use nvisy_core::content::Content;
 #[cfg(any(
@@ -48,13 +40,21 @@ use nvisy_core::media::SpreadsheetFormat;
 use nvisy_core::media::TextFormat;
 #[cfg(feature = "docx")]
 use nvisy_core::media::WordFormat;
+#[cfg(feature = "internal_audio")]
+use nvisy_ontology::modality::Audio;
+#[cfg(feature = "internal_image")]
+use nvisy_ontology::modality::Image;
+#[cfg(feature = "internal_tabular")]
+use nvisy_ontology::modality::Tabular;
+#[cfg(feature = "internal_text")]
+use nvisy_ontology::modality::Text;
 
-/// Decode [`Content`] into a [`ContentHandle`] using default parameters.
+/// Decode [`Content`] into a [`DocumentHandle`] using default parameters.
 ///
 /// Dispatches on the content's inferred [`DocumentType`] and routes
 /// to the appropriate per-format loader. Returns an error if the
 /// document type cannot be inferred or no loader is enabled for it.
-pub async fn decode(content: &Content) -> Result<ContentHandle, Error> {
+pub async fn decode(content: &Content) -> Result<DocumentHandle, Error> {
     let doc_type = content.infer_document_type().ok_or_else(|| {
         Error::validation(
             "unable to detect document type from content; \
@@ -66,23 +66,23 @@ pub async fn decode(content: &Content) -> Result<ContentHandle, Error> {
 
     #[cfg(feature = "internal_text")]
     if let Some(h) = try_decode_text(doc_type, _data).await? {
-        return Ok(ContentHandle::from(h));
+        return Ok(DocumentHandle::Text(h));
     }
     #[cfg(feature = "internal_tabular")]
     if let Some(h) = try_decode_tabular(doc_type, _data).await? {
-        return Ok(ContentHandle::from(h));
+        return Ok(DocumentHandle::Tabular(h));
     }
     #[cfg(feature = "internal_image")]
     if let Some(h) = try_decode_image(doc_type, _data).await? {
-        return Ok(ContentHandle::from(h));
+        return Ok(DocumentHandle::Image(h));
     }
     #[cfg(feature = "internal_audio")]
     if let Some(h) = try_decode_audio(doc_type, _data).await? {
-        return Ok(ContentHandle::from(h));
+        return Ok(DocumentHandle::Audio(h));
     }
     #[cfg(feature = "internal_rich")]
     if let Some(h) = try_decode_rich(doc_type, _data).await? {
-        return Ok(ContentHandle::from(h));
+        return Ok(DocumentHandle::Rich(h));
     }
 
     Err(Error::validation(
@@ -95,35 +95,35 @@ pub async fn decode(content: &Content) -> Result<ContentHandle, Error> {
 async fn try_decode_text(
     doc_type: DocumentType,
     content: &ContentData,
-) -> Result<Option<BoxedTextHandler>, Error> {
-    let handler = match doc_type {
+) -> Result<Option<Box<dyn Handle<Text>>>, Error> {
+    let handler: Box<dyn Handle<Text>> = match doc_type {
         #[cfg(feature = "txt")]
         DocumentType::Text(TextFormat::Txt | TextFormat::Log) => {
             let h = crate::text::TxtLoader
                 .decode(content, &crate::text::TxtParams::default())
                 .await?;
-            BoxedTextHandler::new(h)
+            Box::new(h)
         }
         #[cfg(feature = "json")]
         DocumentType::Text(TextFormat::Json) => {
             let h = crate::text::JsonLoader
                 .decode(content, &crate::text::JsonParams::default())
                 .await?;
-            BoxedTextHandler::new(h)
+            Box::new(h)
         }
         #[cfg(feature = "markdown")]
         DocumentType::Text(TextFormat::Markdown) => {
             let h = crate::text::MarkdownLoader
                 .decode(content, &crate::text::MarkdownParams::default())
                 .await?;
-            BoxedTextHandler::new(h)
+            Box::new(h)
         }
         #[cfg(feature = "html")]
         DocumentType::Html => {
             let h = crate::text::HtmlLoader
                 .decode(content, &crate::text::HtmlParams::default())
                 .await?;
-            BoxedTextHandler::new(h)
+            Box::new(h)
         }
         _ => return Ok(None),
     };
@@ -134,21 +134,21 @@ async fn try_decode_text(
 async fn try_decode_tabular(
     doc_type: DocumentType,
     content: &ContentData,
-) -> Result<Option<BoxedTabularHandler>, Error> {
-    let handler = match doc_type {
+) -> Result<Option<Box<dyn Handle<Tabular>>>, Error> {
+    let handler: Box<dyn Handle<Tabular>> = match doc_type {
         #[cfg(feature = "csv")]
         DocumentType::Spreadsheet(SpreadsheetFormat::Csv) => {
             let h = crate::tabular::CsvLoader
                 .decode(content, &crate::tabular::CsvParams::default())
                 .await?;
-            BoxedTabularHandler::new(h)
+            Box::new(h)
         }
         #[cfg(feature = "xlsx")]
         DocumentType::Spreadsheet(SpreadsheetFormat::Xlsx) => {
             let h = crate::tabular::XlsxLoader
                 .decode(content, &crate::tabular::XlsxParams)
                 .await?;
-            BoxedTabularHandler::new(h)
+            Box::new(h)
         }
         _ => return Ok(None),
     };
@@ -159,28 +159,28 @@ async fn try_decode_tabular(
 async fn try_decode_image(
     doc_type: DocumentType,
     content: &ContentData,
-) -> Result<Option<BoxedImageHandler>, Error> {
-    let handler = match doc_type {
+) -> Result<Option<Box<dyn Handle<Image>>>, Error> {
+    let handler: Box<dyn Handle<Image>> = match doc_type {
         #[cfg(feature = "png")]
         DocumentType::Image(ImageFormat::Png) => {
             let h = crate::image::PngLoader
                 .decode(content, &crate::image::PngParams)
                 .await?;
-            BoxedImageHandler::new(h)
+            Box::new(h)
         }
         #[cfg(feature = "jpeg")]
         DocumentType::Image(ImageFormat::Jpeg) => {
             let h = crate::image::JpegLoader
                 .decode(content, &crate::image::JpegParams)
                 .await?;
-            BoxedImageHandler::new(h)
+            Box::new(h)
         }
         #[cfg(feature = "tiff")]
         DocumentType::Image(ImageFormat::Tiff) => {
             let h = crate::image::TiffLoader
                 .decode(content, &crate::image::TiffParams)
                 .await?;
-            BoxedImageHandler::new(h)
+            Box::new(h)
         }
         _ => return Ok(None),
     };
@@ -191,21 +191,21 @@ async fn try_decode_image(
 async fn try_decode_audio(
     doc_type: DocumentType,
     content: &ContentData,
-) -> Result<Option<BoxedAudioHandler>, Error> {
-    let handler = match doc_type {
+) -> Result<Option<Box<dyn Handle<Audio>>>, Error> {
+    let handler: Box<dyn Handle<Audio>> = match doc_type {
         #[cfg(feature = "wav")]
         DocumentType::Audio(AudioFormat::Wav) => {
             let h = crate::audio::WavLoader
                 .decode(content, &crate::audio::WavParams)
                 .await?;
-            BoxedAudioHandler::new(h)
+            Box::new(h)
         }
         #[cfg(feature = "mp3")]
         DocumentType::Audio(AudioFormat::Mp3) => {
             let h = crate::audio::Mp3Loader
                 .decode(content, &crate::audio::Mp3Params)
                 .await?;
-            BoxedAudioHandler::new(h)
+            Box::new(h)
         }
         _ => return Ok(None),
     };
@@ -216,21 +216,21 @@ async fn try_decode_audio(
 async fn try_decode_rich(
     doc_type: DocumentType,
     content: &ContentData,
-) -> Result<Option<BoxedRichHandler>, Error> {
-    let handler = match doc_type {
+) -> Result<Option<Box<dyn RichHandle>>, Error> {
+    let handler: Box<dyn RichHandle> = match doc_type {
         #[cfg(feature = "pdf")]
         DocumentType::Pdf => {
             let h = crate::rich::PdfLoader
                 .decode(content, &crate::rich::PdfParams::default())
                 .await?;
-            BoxedRichHandler::new(h)
+            Box::new(h)
         }
         #[cfg(feature = "docx")]
         DocumentType::Word(WordFormat::Docx) => {
             let h = crate::rich::DocxLoader
                 .decode(content, &crate::rich::DocxParams)
                 .await?;
-            BoxedRichHandler::new(h)
+            Box::new(h)
         }
         _ => return Ok(None),
     };

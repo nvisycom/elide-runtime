@@ -2,7 +2,7 @@
 //! access via [`ImageHandler`].
 //!
 //! [`ImageHandler::locations`] yields exactly one full-image
-//! [`ImageLocation`]; [`ImageHandler::read`] returns the current
+//! [`Image`]; [`ImageHandler::read`] returns the current
 //! [`DynamicImage`] cropped to the location's
 //! bounding box; [`ImageHandler::redact`] applies bounding-box
 //! redactions in place.
@@ -12,7 +12,7 @@
 //! [`ImageHandler::locations`]: nvisy_codec::handler::ImageHandler::locations
 //! [`ImageHandler::read`]: nvisy_codec::handler::ImageHandler::read
 //! [`ImageHandler::redact`]: nvisy_codec::handler::ImageHandler::redact
-//! [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
+//! [`Image`]: nvisy_ontology::modality::Image
 
 use nvisy_codec::impl_image_handler;
 use nvisy_core::content::ContentSource;

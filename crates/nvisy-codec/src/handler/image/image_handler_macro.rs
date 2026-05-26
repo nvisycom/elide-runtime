@@ -1,7 +1,7 @@
 //! [`impl_image_handler!`]: shared macro for image handler structs.
 
-/// Implement [`Handler`] + [`ImageHandler`] + inherent methods for an
-/// image handler struct that holds a single `DynamicImage`.
+/// Implement [`Handler`] + [`Handle<Image>`] + inherent methods for
+/// an image handler struct that holds a single `DynamicImage`.
 ///
 /// Designed to be invoked from `nvisy-formats` (or any downstream
 /// crate); all crate-internal paths are fully qualified via
@@ -9,7 +9,7 @@
 /// boundaries.
 ///
 /// [`Handler`]: crate::handler::Handler
-/// [`ImageHandler`]: crate::handler::ImageHandler
+/// [`Handle<Image>`]: crate::handler::Handle
 #[macro_export]
 macro_rules! impl_image_handler {
     ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal, $encode_name:literal) => {
@@ -23,7 +23,10 @@ macro_rules! impl_image_handler {
             }
 
             #[::tracing::instrument(name = $encode_name, skip_all, fields(output_bytes))]
-            fn encode(&self) -> ::std::result::Result<::nvisy_core::content::ContentData, ::nvisy_core::Error> {
+            fn encode(
+                &self,
+            ) -> ::std::result::Result<::nvisy_core::content::ContentData, ::nvisy_core::Error>
+            {
                 use ::std::io::Cursor;
 
                 let mut buf = Cursor::new(Vec::new());
@@ -38,20 +41,22 @@ macro_rules! impl_image_handler {
         }
 
         #[::async_trait::async_trait]
-        impl ::nvisy_codec::handler::ImageHandler for $handler {
+        impl ::nvisy_codec::handler::Handle<::nvisy_ontology::modality::Image> for $handler {
             fn locations(
                 &self,
-            ) -> ::nvisy_codec::document::LocationStream<'_, ::nvisy_ontology::entity::ImageLocation> {
+            ) -> ::nvisy_codec::document::LocationStream<'_, ::nvisy_ontology::modality::Image>
+            {
                 use ::std::iter;
 
                 let (w, h) = (self.image.width(), self.image.height());
-                let location = ::nvisy_ontology::entity::ImageLocation {
+                let location = ::nvisy_ontology::modality::Image {
                     bounding_box: ::nvisy_ontology::primitive::BoundingBox {
                         x: 0.0,
                         y: 0.0,
                         width: w as f64,
                         height: h as f64,
                     },
+                    polygon: None,
                     image_id: None,
                     page_number: None,
                 };
@@ -62,7 +67,7 @@ macro_rules! impl_image_handler {
 
             async fn read(
                 &self,
-                location: &::nvisy_ontology::entity::ImageLocation,
+                location: &::nvisy_ontology::modality::Image,
             ) -> Option<::nvisy_codec::handler::ImageData> {
                 let bb = &location.bounding_box;
                 let x = bb.x.max(0.0) as u32;
@@ -78,7 +83,7 @@ macro_rules! impl_image_handler {
 
             async fn redact_at(
                 &mut self,
-                location: &::nvisy_ontology::entity::ImageLocation,
+                location: &::nvisy_ontology::modality::Image,
                 redaction: ::nvisy_codec::handler::ImageRedaction,
             ) -> ::std::result::Result<(), ::nvisy_core::Error> {
                 ::nvisy_codec::handler::apply_image_redaction(

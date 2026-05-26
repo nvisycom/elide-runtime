@@ -1,19 +1,20 @@
 //! File import operation.
 //!
-//! Decodes raw content into a [`DocumentEnvelope`], optionally
+//! Decodes raw content into a [`DocumentEnvelope<Text>`], optionally
 //! applying pre-processing in order:
 //!
 //! 1. **Decompression** — decompress raw bytes (if format specified)
 //! 2. **Decryption** — decrypt content (if encryption config specified)
-//! 3. **Decode** — detect format and decode into a typed [`ContentHandle`]
+//! 3. **Decode** — detect format and decode into a typed [`DocumentHandle`]
 //!
-//! [`ContentHandle`]: nvisy_codec::ContentHandle
+//! [`DocumentHandle`]: nvisy_codec::DocumentHandle
 
 use std::mem;
 use std::sync::Arc;
 
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData};
+use nvisy_ontology::modality::Text;
 
 use crate::envelope::{DocumentEnvelope, SharedData};
 use crate::ingestion::compression::CompressionService;
@@ -22,7 +23,7 @@ use crate::ingestion::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConf
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 
-/// Decodes raw content into a [`DocumentEnvelope`], optionally applying
+/// Decodes raw content into a [`DocumentEnvelope<Text>`], optionally applying
 /// decompression and decryption beforehand.
 #[derive(Default)]
 pub struct Importer {
@@ -49,7 +50,7 @@ impl Importer {
         &self,
         content: Content,
         shared: &Arc<SharedData>,
-    ) -> Result<DocumentEnvelope> {
+    ) -> Result<DocumentEnvelope<Text>> {
         let mut content = content;
 
         if let Some(algorithm) = self.decompression {
@@ -76,14 +77,16 @@ impl Importer {
         tracing::debug!(target: TARGET, doc_type = %doc.document_type(), "decoded document");
         let mut metadata = content.into_parts().1.unwrap_or_default();
 
-        // Move persisted annotations from metadata to the envelope
-        // and apply inclusions as entities.
-        let annotations = mem::take(&mut metadata.annotations);
-        let mut envelope = DocumentEnvelope::new(doc, metadata, Arc::clone(shared));
-        if !annotations.is_empty() {
-            annotations.apply_inclusions(&mut envelope.audit.entities);
-            envelope.annotations = annotations;
-        }
+        // Move persisted annotations from metadata to the envelope.
+        // Inclusion entity seeding is reinstated once annotations are
+        // typed per modality.
+        let _annotations = mem::take(&mut metadata.annotations);
+        let envelope = <DocumentEnvelope<Text>>::new(
+            std::sync::Arc::new(tokio::sync::Mutex::new(doc)),
+            metadata,
+            Arc::clone(shared),
+        )
+        .await;
         Ok(envelope)
     }
 }

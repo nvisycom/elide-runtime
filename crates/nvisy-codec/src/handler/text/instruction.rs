@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use crate::handler::Mergeable;
 
 /// A text redaction: the *how*. The *where* (byte range within the
-/// document) lives on the containing [`TextLocation`] via
+/// document) lives on the containing [`Text`] via
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
-/// [`TextLocation`]: nvisy_ontology::entity::TextLocation
+/// [`Text`]: nvisy_ontology::modality::Text
 /// [`Redactions`]: crate::handler::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextRedaction {

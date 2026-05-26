@@ -1,57 +1,42 @@
-//! Type-erased OCR engine plus the [`OcrProvider`] enum that
-//! resolves config into a concrete [`Backend`].
+//! Type-erased OCR extractor wrapping any [`Backend`].
 //!
-//! [`Backend`]: crate::backend::Backend
-
-mod provider;
+//! [`Backend`]: crate::core::Backend
 
 use std::fmt;
 use std::sync::Arc;
 
 use nvisy_core::Error;
+use nvisy_ontology::document::Document;
+use nvisy_ontology::modality::Image;
 use tracing::instrument;
 
-pub use self::provider::OcrProvider;
-use crate::backend::{Backend, ImageInput, ImageOutput, RunParams};
+use crate::core::{Backend, Context, ImageInput};
 
 const TARGET: &str = "nvisy_ocr::engine";
 
-/// Type-erased OCR engine wrapping any [`Backend`] implementation.
+/// Type-erased OCR extractor wrapping any [`Backend`] implementation.
 ///
-/// Owns an `Arc<dyn Backend>` and forwards OCR requests to it, providing
-/// a concrete, object-safe entry point without generics at every call
-/// site. The engine is `Clone` — cloning shares the backend.
+/// Owns an `Arc<dyn Backend>` and forwards OCR requests to it,
+/// providing a concrete, object-safe entry point without generics
+/// at every call site. The extractor is `Clone` — cloning shares
+/// the backend.
 ///
-/// # Examples
-///
-/// ```ignore
-/// use nvisy_ocr::{OcrEngine, ImageInput, ImageFormat, RunParams};
-/// use nvisy_ocr::provider::{SuryaBackend, SuryaParams};
-///
-/// let backend = SuryaBackend::new(SuryaParams { base_url: "http://localhost:8000".into() });
-/// let engine = OcrEngine::new(backend);
-///
-/// let image = ImageInput::new(png_bytes, ImageFormat::Png);
-/// let output = engine.run(&image, &RunParams::default()).await?;
-/// println!("{} words detected", output.word_count());
-/// ```
-///
-/// [`Backend`]: crate::backend::Backend
+/// [`Backend`]: crate::core::Backend
 #[derive(Clone)]
-pub struct OcrEngine {
+pub struct Extractor {
     backend: Arc<dyn Backend>,
 }
 
-impl fmt::Debug for OcrEngine {
+impl fmt::Debug for Extractor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("OcrEngine").finish_non_exhaustive()
+        f.debug_struct("Extractor").finish_non_exhaustive()
     }
 }
 
-impl OcrEngine {
-    /// Create a new engine from any [`Backend`] implementation.
+impl Extractor {
+    /// Create a new extractor from any [`Backend`] implementation.
     ///
-    /// [`Backend`]: crate::backend::Backend
+    /// [`Backend`]: crate::core::Backend
     pub fn new(backend: impl Backend) -> Self {
         Self {
             backend: Arc::new(backend),
@@ -60,26 +45,34 @@ impl OcrEngine {
 
     /// Run OCR on a single image.
     #[instrument(skip_all, fields(
-        source = %image.source,
         image_bytes = image.len(),
         format = ?image.format,
     ))]
-    pub async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error> {
-        let output = self.backend.run(image, params).await?;
-        tracing::debug!(target: TARGET, words = output.word_count(), "ocr complete");
+    pub async fn extract(
+        &self,
+        image: &ImageInput,
+        ctx: Context<'_>,
+    ) -> Result<Document<Image>, Error> {
+        let output = self.backend.run(image, ctx).await?;
+        tracing::debug!(target: TARGET, spans = output.blocks.iter().map(|b| b.spans.len()).sum::<usize>(), "ocr complete");
         Ok(output)
     }
 
-    /// Run OCR on multiple images, returning results in the same order.
+    /// Run OCR on multiple images, merging the per-image blocks
+    /// into one [`Document<Image>`]. See [`Backend::run_batch`] for
+    /// the same-source assumption.
     #[instrument(skip_all, fields(count = images.len()))]
-    pub async fn run_batch(
+    pub async fn extract_batch(
         &self,
         images: &[ImageInput],
-        params: &RunParams,
-    ) -> Result<Vec<ImageOutput>, Error> {
-        let outputs = self.backend.run_batch(images, params).await?;
-        let words: usize = outputs.iter().map(|o| o.word_count()).sum();
-        tracing::debug!(target: TARGET, words, "batch ocr complete");
-        Ok(outputs)
+        ctx: Context<'_>,
+    ) -> Result<Document<Image>, Error> {
+        let output = self.backend.run_batch(images, ctx).await?;
+        tracing::debug!(
+            target: TARGET,
+            spans = output.blocks.iter().map(|b| b.spans.len()).sum::<usize>(),
+            "batch ocr complete",
+        );
+        Ok(output)
     }
 }

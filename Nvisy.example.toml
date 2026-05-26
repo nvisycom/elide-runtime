@@ -51,15 +51,35 @@ idle_timeout = "90s"
 # per-call flags only.
 
 # OCR text extraction from image documents.
+#
+# Backend selection lives under `[extraction.ocr.backend]`. Two
+# backends ship today:
+#
+#   kind = "noop"
+#     Produces no OCR results. The default; used when image content
+#     is accepted but not OCR'd.
+#
+#   kind = "bento"
+#     Calls the externalised `inference-ocr` Bento at `base_url`.
+#     **Scaffolding only** — the wire contract has not been
+#     finalised upstream (https://github.com/nvisycom/runtime/issues/128).
+#     Requires the runtime to be built with the `bento` feature.
+#
+# Cloud OCR backends (AWS Textract, Google Cloud Vision, Azure
+# Document Intelligence) were removed; reintroduction is tracked
+# under #201 / #202 / #203.
 [extraction.ocr]
 enabled = true
 
-[extraction.ocr.provider]
-kind = "paddle-x"
-base_url = "http://localhost:8003"
+[extraction.ocr.backend]
+kind = "noop"
 
-[extraction.ocr.policy]
-confidence_threshold = 0.5
+# To use the externalised OCR Bento (once the contract finalises),
+# replace the block above with:
+#
+#   [extraction.ocr.backend]
+#   kind = "bento"
+#   base_url = "http://localhost:3001"
 
 # Speech-to-text transcription.
 [extraction.stt]
@@ -114,16 +134,33 @@ temperature = 0.1
 max_tokens = 4096
 max_retries = 3
 
-# NLP-engine recognizer (NER + language detection + tokenizer).
-[detection.nlp]
+# NER recognizer (named-entity recognition + language detection).
+#
+# Backend selection lives under `[detection.ner.backend]`. Two
+# backends ship today:
+#
+#   kind = "noop"
+#     Produces zero entities. The default. Use this when detection
+#     happens via patterns / LLM only.
+#
+#   kind = "bento"
+#     Calls the externalised `inference-gliner` Bento at `base_url`.
+#     Requires the runtime to be built with the `bento` feature
+#     (on by default in the `nvisy-cli` binary). Pair with the
+#     service in https://github.com/nvisycom/inference — see the
+#     repo's `docker-compose.yml` for a self-contained example.
+[detection.ner]
 enabled = true
-engine = { kind = "default" }
-# Alternative: load a manifest-defined preset. The manifest pins
-# the HuggingFace repo + revision and supplies the id_to_label
-# vector and label map. With the `hf` feature enabled,
-# artifacts are fetched from HuggingFace on first use; otherwise
-# supply `model_path` and `tokenizer_path` explicitly.
-# engine = { kind = "manifest", manifest_path = "./crates/nvisy-nlp/presets/dslim-bert-base-NER.json" }
+
+[detection.ner.backend]
+kind = "noop"
+
+# To use the externalised GLiNER service, replace the block above
+# with:
+#
+#   [detection.ner.backend]
+#   kind = "bento"
+#   base_url = "http://localhost:3000"
 
 # Pattern-based recognizer (regex + dictionary + checksum).
 [detection.pattern]

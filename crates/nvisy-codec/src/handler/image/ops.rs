@@ -6,22 +6,22 @@
 use image::DynamicImage;
 use image::imageops::FilterType;
 use imageproc::filter::gaussian_blur_f32;
-use nvisy_ontology::primitive::{BoundingBoxPixel, Color};
+use nvisy_ontology::primitive::{Color, IBoundingBox};
 
 /// Mutating image-transform operations on individual bounding-box regions.
 pub(super) trait ImageOps {
     /// Apply a gaussian blur to `region` with the given `sigma`.
-    fn apply_gaussian_blur(&mut self, region: &BoundingBoxPixel, sigma: f32);
+    fn apply_gaussian_blur(&mut self, region: &IBoundingBox, sigma: f32);
 
     /// Fill `region` with a solid `color`.
-    fn apply_block_overlay(&mut self, region: &BoundingBoxPixel, color: Color);
+    fn apply_block_overlay(&mut self, region: &IBoundingBox, color: Color);
 
     /// Pixelate `region` with the given `block_size`.
-    fn apply_pixelate(&mut self, region: &BoundingBoxPixel, block_size: u32);
+    fn apply_pixelate(&mut self, region: &IBoundingBox, block_size: u32);
 }
 
 impl ImageOps for DynamicImage {
-    fn apply_gaussian_blur(&mut self, region: &BoundingBoxPixel, sigma: f32) {
+    fn apply_gaussian_blur(&mut self, region: &IBoundingBox, sigma: f32) {
         let (x, y, w, h) = (region.x, region.y, region.width, region.height);
 
         let img_w = self.width();
@@ -40,7 +40,7 @@ impl ImageOps for DynamicImage {
         image::imageops::overlay(self, &blurred, x as i64, y as i64);
     }
 
-    fn apply_block_overlay(&mut self, region: &BoundingBoxPixel, color: Color) {
+    fn apply_block_overlay(&mut self, region: &IBoundingBox, color: Color) {
         let (x, y, w, h) = (region.x, region.y, region.width, region.height);
 
         let img_w = self.width();
@@ -56,7 +56,7 @@ impl ImageOps for DynamicImage {
         image::imageops::overlay(self, &block, x as i64, y as i64);
     }
 
-    fn apply_pixelate(&mut self, region: &BoundingBoxPixel, block_size: u32) {
+    fn apply_pixelate(&mut self, region: &IBoundingBox, block_size: u32) {
         let block_size = block_size.max(1);
         let (x, y, w, h) = (region.x, region.y, region.width, region.height);
 

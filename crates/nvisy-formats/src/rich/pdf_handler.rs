@@ -1,26 +1,29 @@
 //! Rich-text handler: holds per-page extracted text and raw document
 //! bytes, providing location-based access via [`Handler`] +
-//! [`TextHandler`] + [`ImageHandler`].
+//! `Handle<Text>` + `Handle<Image>`.
 //!
-//! [`TextHandler::locations`] yields one [`TextLocation`] per page,
-//! with byte offsets computed from cumulative page text lengths and
-//! `page_number` set. [`ImageHandler::locations`] yields one
-//! [`ImageLocation`] per embedded image.
+//! [`Handle<Text>::locations`] yields one [`Text`] per page, with byte
+//! offsets computed from cumulative page text lengths and
+//! `page_number` set. [`Handle<Image>::locations`] yields one
+//! [`Image`] per embedded image.
 //!
 //! [`Handler::encode`] returns the raw document bytes; text redactions
-//! applied via [`TextHandler::redact`] are baked into the raw PDF
+//! applied via [`Handle<Text>::redact`] are baked into the raw PDF
 //! content streams.
+//!
+//! [`Handle<Text>::locations`]: nvisy_codec::handler::Handle::locations
+//! [`Handle<Image>::locations`]: nvisy_codec::handler::Handle::locations
+//! [`Handle<Text>::redact`]: nvisy_codec::handler::Handle::redact
 
 use bytes::Bytes;
 use nvisy_codec::document::{Located, LocationStream};
 use nvisy_codec::handler::{
-    Handler, ImageData, ImageHandler, ImageRedaction, TextData, TextHandler, TextRedaction,
-    apply_text_redaction,
+    Handle, Handler, ImageData, ImageRedaction, TextData, TextRedaction, apply_text_redaction,
 };
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_ontology::entity::{ImageLocation, TextLocation};
+use nvisy_ontology::modality::{Image, Text};
 use nvisy_ontology::primitive::Dpi;
 
 use super::pdf_render::PdfRenderer;
@@ -158,8 +161,8 @@ impl Handler for RichTextHandler {
 }
 
 #[async_trait::async_trait]
-impl TextHandler for RichTextHandler {
-    fn locations(&self) -> LocationStream<'_, TextLocation> {
+impl Handle<Text> for RichTextHandler {
+    fn locations(&self) -> LocationStream<'_, Text> {
         let source = self.source;
         let items: Vec<_> = self
             .page_offsets()
@@ -167,7 +170,7 @@ impl TextHandler for RichTextHandler {
             .map(|(start, end, page)| {
                 Located::new(
                     source,
-                    TextLocation {
+                    Text {
                         start_offset: start,
                         end_offset: end,
                         page_number: Some(page),
@@ -179,7 +182,7 @@ impl TextHandler for RichTextHandler {
         LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn read(&self, location: &TextLocation) -> Option<TextData> {
+    async fn read(&self, location: &Text) -> Option<TextData> {
         let offsets = self.page_offsets();
         let page_idx = offsets
             .iter()
@@ -187,11 +190,7 @@ impl TextHandler for RichTextHandler {
         self.pages.get(page_idx).cloned().map(TextData::from)
     }
 
-    async fn redact_at(
-        &mut self,
-        location: &TextLocation,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
+    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         let offsets = self.page_offsets();
         let Some(page_idx) = offsets.iter().position(|&(start, end, _)| {
             location.start_offset >= start && location.end_offset <= end
@@ -230,8 +229,8 @@ impl TextHandler for RichTextHandler {
 }
 
 #[async_trait::async_trait]
-impl ImageHandler for RichTextHandler {
-    fn locations(&self) -> LocationStream<'_, ImageLocation> {
+impl Handle<Image> for RichTextHandler {
+    fn locations(&self) -> LocationStream<'_, Image> {
         let source = self.source;
         let images = match PdfRenderer::extract_images(&self.raw) {
             Ok(imgs) => imgs,
@@ -250,8 +249,9 @@ impl ImageHandler for RichTextHandler {
             .map(|(i, _data)| {
                 Located::new(
                     source,
-                    ImageLocation {
+                    Image {
                         bounding_box: nvisy_ontology::primitive::BoundingBox::default(),
+                        polygon: None,
                         image_id: None,
                         page_number: Some((i + 1) as u32),
                     },
@@ -261,7 +261,7 @@ impl ImageHandler for RichTextHandler {
         LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn read(&self, _location: &ImageLocation) -> Option<ImageData> {
+    async fn read(&self, _location: &Image) -> Option<ImageData> {
         // Cropping embedded PDF images by bounding box is not yet
         // implemented. Requires re-rendering the page region.
         None
@@ -269,52 +269,18 @@ impl ImageHandler for RichTextHandler {
 
     async fn redact_at(
         &mut self,
-        _location: &ImageLocation,
+        _location: &Image,
         _redaction: ImageRedaction,
     ) -> Result<(), Error> {
         Ok(())
     }
 }
 
-#[async_trait::async_trait]
-impl nvisy_codec::handler::RichHandler for RichTextHandler {
-    fn text_locations(&self) -> LocationStream<'_, TextLocation> {
-        TextHandler::locations(self)
-    }
-
-    async fn read_text(&self, location: &TextLocation) -> Option<TextData> {
-        TextHandler::read(self, location).await
-    }
-
-    async fn redact_text_at(
-        &mut self,
-        location: &TextLocation,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
-        TextHandler::redact_at(self, location, redaction).await
-    }
-
-    fn image_locations(&self) -> LocationStream<'_, ImageLocation> {
-        ImageHandler::locations(self)
-    }
-
-    async fn read_image(&self, location: &ImageLocation) -> Option<ImageData> {
-        ImageHandler::read(self, location).await
-    }
-
-    async fn redact_image_at(
-        &mut self,
-        location: &ImageLocation,
-        redaction: ImageRedaction,
-    ) -> Result<(), Error> {
-        ImageHandler::redact_at(self, location, redaction).await
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::TextHandler;
+    use nvisy_codec::handler::Handle;
+    use nvisy_ontology::modality::Text;
 
     use super::*;
 
@@ -329,7 +295,9 @@ mod tests {
     #[tokio::test]
     async fn locations_yields_one_per_page() {
         let h = handler(&["page one", "page two", "page three"]);
-        let items: Vec<_> = TextHandler::locations(&h).collect().await;
+        let items: Vec<_> = <RichTextHandler as Handle<Text>>::locations(&h)
+            .collect()
+            .await;
         assert_eq!(items.len(), 3);
         assert_eq!(items[0].location.page_number, Some(1));
         assert_eq!(items[1].location.page_number, Some(2));
@@ -339,9 +307,11 @@ mod tests {
     #[tokio::test]
     async fn read_returns_page_text() {
         let h = handler(&["page one", "page two"]);
-        let items: Vec<_> = TextHandler::locations(&h).collect().await;
+        let items: Vec<_> = <RichTextHandler as Handle<Text>>::locations(&h)
+            .collect()
+            .await;
         assert_eq!(
-            TextHandler::read(&h, &items[0].location)
+            <RichTextHandler as Handle<Text>>::read(&h, &items[0].location)
                 .await
                 .unwrap()
                 .as_str(),

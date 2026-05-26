@@ -21,7 +21,8 @@ documentation = { workspace = true }
 [features]
 default = [
     "tabular", "image", "audio", "rich",
-    "openai", "anthropic", "google", "microsoft", "amazon",
+    "openai", "anthropic", "google",
+    "bento",
 ]
 
 ## Tabular modality — csv, xlsx.
@@ -37,28 +38,12 @@ rich = ["nvisy-server/rich"]
 openai = ["nvisy-server/openai"]
 ## Enable Anthropic Claude completion provider.
 anthropic = ["nvisy-server/anthropic"]
-## Enable Google Gemini + Google Cloud Vision OCR.
+## Enable Google Gemini.
 google = ["nvisy-server/google"]
-## Enable Azure Document Intelligence OCR.
-microsoft = ["nvisy-server/microsoft"]
-## Enable AWS Textract OCR.
-amazon = ["nvisy-server/amazon"]
 
-## Enable the ONNX-backed BIO-tagging NER backend.
-onnx = ["nvisy-server/onnx"]
-## Enable the zero-shot GLiNER NER backend.
-gliner = ["nvisy-server/gliner"]
-## Enable HuggingFace Hub auto-download for NLP preset artifacts.
-hf = ["nvisy-server/hf"]
-
-## CoreML execution provider — macOS / Apple Silicon.
-coreml = ["nvisy-server/coreml"]
-## CUDA execution provider — NVIDIA GPUs.
-cuda = ["nvisy-server/cuda"]
-## TensorRT execution provider — NVIDIA inference optimization.
-tensorrt = ["nvisy-server/tensorrt"]
-## DirectML execution provider — Windows GPU compute.
-directml = ["nvisy-server/directml"]
+## Enable the externalized BentoML backends (NER + OCR) — forwards
+## to `nvisy-server/bento`.
+bento = ["nvisy-server/bento"]
 
 [package.metadata.docs.rs]
 all-features = true

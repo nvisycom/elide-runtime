@@ -1,15 +1,12 @@
-//! Rich-document handler trait + boxed wrapper.
+//! Rich-document handler glue: [`RichHandle`] is a marker trait that
+//! a single trait object can satisfy when its concrete type
+//! implements both [`Handle<Text>`] and [`Handle<Image>`] (PDF,
+//! DOCX, …). Concrete per-format implementations live in
+//! `nvisy-formats`.
 //!
-//! Rich documents (PDF, DOCX, …) expose both text and image
-//! content; [`RichHandler`] combines the [`TextHandler`] and
-//! [`ImageHandler`] capabilities into a single trait object so the
-//! wrapper can route operations to either modality.
-//!
-//! Concrete per-format implementations live in `nvisy-formats`.
-//!
-//! [`TextHandler`]: crate::handler::TextHandler
-//! [`ImageHandler`]: crate::handler::ImageHandler
+//! [`Handle<Text>`]: crate::handler::Handle
+//! [`Handle<Image>`]: crate::handler::Handle
 
 mod boxed;
 
-pub use self::boxed::{BoxedRichHandler, RichHandler};
+pub use self::boxed::RichHandle;

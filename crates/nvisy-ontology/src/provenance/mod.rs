@@ -3,9 +3,15 @@
 //! This module is the single source of truth for all pipeline audit
 //! types:
 //!
-//! - [`AuditEntry`]: per-entity redaction record with strategy,
+//! - [`AuditEntry<M>`]: per-entity redaction record with strategy,
 //!   original/replacement values, and optional review.
-//! - [`Audit`]: per-document container for entities and audit entries.
+//! - [`Audit<M>`]: per-document container for entities and audit
+//!   entries.
+//!
+//! All provenance types are typed per modality. Cross-modality
+//! aggregation (rich documents that process as multiple typed
+//! envelopes) is the engine's responsibility — provenance stays
+//! per-envelope.
 
 mod entry;
 mod redaction_map;
@@ -21,11 +27,14 @@ pub use self::entry::{
 };
 pub use self::redaction_map::{RedactionMap, RedactionMapping};
 pub use self::review::{ReviewDecision, ReviewStatus};
-use crate::entity::{ContentSource, Entities};
+use crate::entity::{ContentSource, Entity};
+use crate::modality::Modality;
 
-/// A per-document audit trail: detected entities and redaction entries.
+/// A per-document audit trail: detected entities and redaction
+/// entries.
 ///
-/// `Audit` is the single compliance artifact for a document. It tracks:
+/// `Audit<M>` is the compliance artifact for one typed document. It
+/// tracks:
 /// - **What was found**: via [`entities`]
 /// - **What was redacted and how**: via [`entries`]
 ///
@@ -37,42 +46,50 @@ use crate::entity::{ContentSource, Entities};
     pattern = "owned",
     setter(into, strip_option, prefix = "with")
 )]
-#[serde(rename_all = "camelCase")]
-pub struct Audit {
+#[serde(
+    rename_all = "camelCase",
+    bound(
+        serialize = "M: Serialize, M::Strategy: Serialize",
+        deserialize = "M: serde::de::DeserializeOwned, M::Strategy: serde::de::DeserializeOwned",
+    )
+)]
+#[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema")]
+pub struct Audit<M: Modality> {
     /// Content source this audit belongs to.
     pub source: ContentSource,
     /// Identifier of the pipeline run that produced this audit.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run_id: Option<Uuid>,
-    /// Identifier of the human or service account that triggered the run.
+    /// Identifier of the human or service account that triggered the
+    /// run.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actor_id: Option<Uuid>,
     /// Entities detected during the pipeline run.
-    #[builder(default)]
-    #[serde(default, skip_serializing_if = "Entities::is_empty")]
-    pub entities: Entities,
-    /// Per-entity redaction audit entries.
-    #[builder(default)]
+    #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub entries: Vec<AuditEntry>,
+    pub entities: Vec<Entity<M>>,
+    /// Per-entity redaction audit entries.
+    #[builder(default = "Vec::new()")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub entries: Vec<AuditEntry<M>>,
 }
 
-impl Audit {
+impl<M: Modality> Audit<M> {
     /// Create a new empty audit for the given source.
     pub fn new(source: ContentSource) -> Self {
         Self {
             source,
             run_id: None,
             actor_id: None,
-            entities: Entities::new(),
+            entities: Vec::new(),
             entries: Vec::new(),
         }
     }
 
     /// Append an audit entry.
-    pub fn push_entry(&mut self, entry: AuditEntry) {
+    pub fn push_entry(&mut self, entry: AuditEntry<M>) {
         self.entries.push(entry);
     }
 

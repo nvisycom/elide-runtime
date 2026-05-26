@@ -3,6 +3,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::modality::RedactionStrategy;
+
 const DEFAULT_MASK_CHAR: char = '*';
 
 fn default_mask_char() -> char {
@@ -56,5 +58,15 @@ impl Default for TextStrategy {
         Self::Replace {
             placeholder: String::new(),
         }
+    }
+}
+
+impl RedactionStrategy for TextStrategy {
+    /// Only [`Encrypt`](Self::Encrypt) and [`Tokenize`](Self::Tokenize)
+    /// are reversible: Encrypt uses key-based decryption, Tokenize
+    /// uses vault-based detokenization. All other strategies are
+    /// destructive.
+    fn is_reversible(&self) -> bool {
+        matches!(self, Self::Encrypt { .. } | Self::Tokenize { .. })
     }
 }

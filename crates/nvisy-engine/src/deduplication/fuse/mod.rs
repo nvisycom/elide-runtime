@@ -12,43 +12,49 @@ mod strategy;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
-use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
+use nvisy_ontology::entity::{Entity, RefinementMethod};
+use nvisy_ontology::modality::{Modality, Overlap};
 use nvisy_ontology::primitive::Confidence;
 
 use self::group::GroupEntities;
 pub use self::group::GroupingCriteria;
 pub use self::strategy::DeduplicationStrategy;
 use super::span_size::SpanSize;
-use crate::envelope::Document;
+use crate::envelope::DocumentEnvelope;
+use crate::envelope::value_at::ValueAt;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::fuse";
 
-/// Extension trait on [`Entities`]: group co-referent entities by
-/// `criteria` then merge each group into a single entity according
-/// to `strategy`. Mutates in place.
-pub(crate) trait Fuse {
+/// Extension trait: group co-referent entities by `criteria` then
+/// merge each group into a single entity according to `strategy`.
+/// Mutates in place.
+pub(crate) trait Fuse<M: Modality> {
     /// Group + fuse the entity collection in place.
     fn fuse(
         &mut self,
         strategy: &DeduplicationStrategy,
         criteria: GroupingCriteria,
-        document: &Document,
+        envelope: &DocumentEnvelope<M>,
     ) -> impl Future<Output = ()> + Send;
 }
 
-impl Fuse for Entities {
+impl<M> Fuse<M> for Vec<Entity<M>>
+where
+    M: Modality + Overlap + SpanSize,
+    DocumentEnvelope<M>: ValueAt<M>,
+{
     async fn fuse(
         &mut self,
         strategy: &DeduplicationStrategy,
         criteria: GroupingCriteria,
-        document: &Document,
+        envelope: &DocumentEnvelope<M>,
     ) {
         if self.len() <= 1 {
             return;
         }
 
         let entities = std::mem::take(self);
-        let groups = entities.group(criteria, document).await;
+        let groups = entities.group(criteria, envelope).await;
 
         tracing::debug!(
             target: TARGET,
@@ -58,17 +64,21 @@ impl Fuse for Entities {
         );
 
         for group in groups {
-            self.push(fuse_group(strategy, group, document).await);
+            self.push(fuse_group(strategy, group, envelope).await);
         }
     }
 }
 
 /// Fuse a group of co-referent entities into one.
-async fn fuse_group(
+async fn fuse_group<M>(
     strategy: &DeduplicationStrategy,
-    mut group: Vec<Entity>,
-    document: &Document,
-) -> Entity {
+    mut group: Vec<Entity<M>>,
+    envelope: &DocumentEnvelope<M>,
+) -> Entity<M>
+where
+    M: Modality + SpanSize,
+    DocumentEnvelope<M>: ValueAt<M>,
+{
     debug_assert!(!group.is_empty());
 
     if group.len() == 1 {
@@ -135,8 +145,8 @@ async fn fuse_group(
         Confidence::new(fused_confidence.clamp(0.0, 1.0)).expect("clamped to [0,1]");
     result.refinement_methods.push(refinement);
 
-    let value = document
-        .value_at(&result.location)
+    let value = envelope
+        .value_at_loc(&result.location)
         .await
         .unwrap_or_default();
     tracing::trace!(
@@ -154,7 +164,7 @@ async fn fuse_group(
 
 /// Classify how the group was formed (all same detector kind → Dedup,
 /// mixed → Ensemble).
-fn classify_refinement(group: &[Entity]) -> RefinementMethod {
+fn classify_refinement<M: Modality>(group: &[Entity<M>]) -> RefinementMethod {
     let first_kinds: HashSet<_> = group[0]
         .recognition_methods
         .iter()
@@ -182,7 +192,16 @@ mod tests {
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
-    use crate::envelope::Document;
+    use crate::envelope::SharedData;
+
+    async fn test_envelope(text: &str) -> DocumentEnvelope<nvisy_ontology::modality::Text> {
+        let registry = crate::ingestion::registry::Registry::open(
+            tempfile::tempdir().expect("tempdir").path(),
+        )
+        .expect("open registry");
+        let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
+        DocumentEnvelope::from_text(text, shared).await
+    }
 
     fn conf(v: f64) -> Confidence {
         Confidence::new(v).expect("confidence in [0,1]")
@@ -192,14 +211,13 @@ mod tests {
 
     #[tokio::test]
     async fn strict_groups_exact_overlap() {
-        let doc = Document::from_text(TEXT).await;
-        let mut entities: Entities = vec![
+        let doc = test_envelope(TEXT).await;
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
             Entity::test_builder(0, 4).test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,
@@ -213,8 +231,8 @@ mod tests {
 
     #[tokio::test]
     async fn narrowing_groups_substring_with_overlap() {
-        let doc = Document::from_text(TEXT).await;
-        let mut entities: Entities = vec![
+        let doc = test_envelope(TEXT).await;
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
@@ -224,8 +242,7 @@ mod tests {
                     ModelKind::SelfHosted,
                 )])
                 .test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,
@@ -241,8 +258,8 @@ mod tests {
     #[tokio::test]
     async fn widening_groups_across_non_overlapping_locations() {
         let text = format!("{:<100}John Smith", TEXT);
-        let doc = Document::from_text(&text).await;
-        let mut entities: Entities = vec![
+        let doc = test_envelope(&text).await;
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(100, 110)
                 .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
@@ -250,8 +267,7 @@ mod tests {
                     ModelKind::SelfHosted,
                 )])
                 .test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,
@@ -264,8 +280,8 @@ mod tests {
 
     #[tokio::test]
     async fn noisy_or_strategy() {
-        let doc = Document::from_text(TEXT).await;
-        let mut entities: Entities = vec![
+        let doc = test_envelope(TEXT).await;
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
                 .test_build(),
@@ -276,8 +292,7 @@ mod tests {
                 )])
                 .with_confidence(conf(0.8))
                 .test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::NoisyOr,
@@ -292,12 +307,12 @@ mod tests {
 
     #[tokio::test]
     async fn weighted_average_strategy() {
-        let doc = Document::from_text(TEXT).await;
+        let doc = test_envelope(TEXT).await;
         let mut weights = HashMap::new();
         weights.insert(RecognitionMethodKind::Pattern, 1.0);
         weights.insert(RecognitionMethodKind::NlpNer, 2.0);
 
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.6))
                 .test_build(),
@@ -307,8 +322,7 @@ mod tests {
                     ModelKind::SelfHosted,
                 )])
                 .test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::WeightedAverage { weights },
@@ -323,8 +337,8 @@ mod tests {
 
     #[tokio::test]
     async fn different_detector_tagged_as_ensemble_fusion() {
-        let doc = Document::from_text(TEXT).await;
-        let mut entities: Entities = vec![
+        let doc = test_envelope(TEXT).await;
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
@@ -334,8 +348,7 @@ mod tests {
                     ModelKind::SelfHosted,
                 )])
                 .test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,

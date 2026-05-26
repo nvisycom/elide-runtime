@@ -9,7 +9,7 @@ members = [
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
     "./crates/nvisy-formats",
-    "./crates/nvisy-nlp",
+    "./crates/nvisy-ner",
     "./crates/nvisy-ocr",
     "./crates/nvisy-ontology",
     "./crates/nvisy-pattern",
@@ -40,17 +40,18 @@ nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-featur
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-formats = { path = "./crates/nvisy-formats", version = "0.1.0", default-features = false }
-nvisy-nlp = { path = "./crates/nvisy-nlp", version = "0.1.0" }
+nvisy-ner = { path = "./crates/nvisy-ner", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }
 nvisy-server = { path = "./crates/nvisy-server", version = "0.1.0" }
 
-# LLM framework
+# Inference & AI frameworks
+bentoml = { version = "0.3", default-features = false, features = ["rustls-tls", "tracing"] }
 rig = { version = "0.37", features = [], default-features = false }
 
 # HTTP client and middleware
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "multipart"] }
 reqwest-middleware = { version = "0.5", features = ["json", "multipart"] }
 reqwest-retry = { version = "0.9", features = [] }
 reqwest-tracing = { version = "0.7", features = [] }
@@ -89,6 +90,7 @@ jiff = { version = "0.2", features = ["serde"] }
 semver = { version = "1.0", features = ["serde"] }
 oxilangtag = { version = "0.1", features = ["serde"] }
 humantime-serde = { version = "1.1", features = [] }
+type-map = { version = "0.5", features = [] }
 
 # Encoding and hashing
 base64 = { version = "0.22", features = [] }
@@ -102,24 +104,11 @@ regex = { version = "1.0", features = [] }
 aho-corasick = { version = "1.0", features = [] }
 smallvec = { version = "1.13", features = [] }
 
-# ONNX inference stack
-ort = { version = "=2.0.0-rc.9", default-features = false, features = ["ndarray", "load-dynamic"] }
-ndarray = { version = "0.16", features = [] }
-tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
-
-# GLiNER zero-shot NER
-gline-rs = { version = "1.0.1", default-features = false }
-orp = { version = "0.9.2", default-features = false }
-
 # Language detection and text segmentation
 lingua = { version = "1.8", default-features = false, features = ["english"] }
 stop-words = { version = "0.10", features = ["iso"] }
 unicode-segmentation = { version = "1.13", features = [] }
 unicode-normalization = { version = "0.1", features = [] }
-
-# HuggingFace Hub model download
-hf-hub = { version = "0.5", default-features = false, features = ["tokio", "rustls-tls"] }
-dirs = { version = "6.0", features = [] }
 
 # PDF processing (parsing, text extraction, page-to-image rendering)
 lopdf = { version = "0.40", features = [] }

@@ -4,13 +4,14 @@
 //! The deduplicator builds a [`FilterParams`] from the operator's
 //! [`DetectionContext`] (with the engine's
 //! [`Deduplicator::confidence_threshold`] as fallback) and calls
-//! [`Entities::filter`] in-place. Dropped entities are returned so a
+//! [`Filter::filter`] in-place. Dropped entities are returned so a
 //! forthcoming drop-reason telemetry pass (#182) can attribute them.
 //!
 //! [`DetectionContext`]: crate::detection::DetectionContext
 //! [`Deduplicator::confidence_threshold`]: super::Deduplicator
 
-use nvisy_ontology::entity::{Entities, Entity, EntityKind};
+use nvisy_ontology::entity::{Entity, EntityKind};
+use nvisy_ontology::modality::Modality;
 
 /// Per-call filtering knobs applied during deduplication.
 ///
@@ -26,18 +27,18 @@ pub struct FilterParams {
     pub confidence_threshold: Option<f64>,
 }
 
-/// Extension trait on [`Entities`]: drop entries that don't pass
+/// Extension trait on `Vec<Entity<M>>`: drop entries that don't pass
 /// `params`, returning the dropped vec.
-pub(crate) trait Filter {
+pub(crate) trait Filter<M: Modality> {
     /// Remove entities not passing `params` in-place; return the
     /// removed entities for downstream telemetry (#182).
-    fn filter(&mut self, params: &FilterParams) -> Entities;
+    fn filter(&mut self, params: &FilterParams) -> Vec<Entity<M>>;
 }
 
-impl Filter for Entities {
-    fn filter(&mut self, params: &FilterParams) -> Entities {
-        let mut dropped = Entities::new();
-        self.0.retain(|e| {
+impl<M: Modality> Filter<M> for Vec<Entity<M>> {
+    fn filter(&mut self, params: &FilterParams) -> Vec<Entity<M>> {
+        let mut dropped = Vec::new();
+        self.retain(|e| {
             let keep = passes(e, params);
             if !keep {
                 dropped.push(e.clone());
@@ -48,7 +49,7 @@ impl Filter for Entities {
     }
 }
 
-fn passes(entity: &Entity, params: &FilterParams) -> bool {
+fn passes<M: Modality>(entity: &Entity<M>, params: &FilterParams) -> bool {
     if let Some(ref kinds) = params.allowed_kinds
         && !kinds.contains(&entity.entity_kind)
     {
@@ -65,11 +66,12 @@ fn passes(entity: &Entity, params: &FilterParams) -> bool {
 #[cfg(test)]
 mod tests {
     use nvisy_ontology::entity::{Entity, EntityKind};
+    use nvisy_ontology::modality::Text;
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
 
-    fn ent(kind: EntityKind, conf: f64) -> Entity {
+    fn ent(kind: EntityKind, conf: f64) -> Entity<Text> {
         Entity::test_builder(0, 4)
             .with_entity_kind(kind)
             .with_confidence(Confidence::new(conf).expect("in range"))
@@ -78,10 +80,10 @@ mod tests {
 
     #[test]
     fn default_params_keep_everything() {
-        let mut entities = Entities::from(vec![
+        let mut entities: Vec<Entity<Text>> = vec![
             ent(EntityKind::PersonName, 0.9),
             ent(EntityKind::EmailAddress, 0.4),
-        ]);
+        ];
         let dropped = entities.filter(&FilterParams::default());
         assert_eq!(entities.len(), 2);
         assert!(dropped.is_empty());
@@ -89,10 +91,10 @@ mod tests {
 
     #[test]
     fn allowed_kinds_drops_outsiders() {
-        let mut entities = Entities::from(vec![
+        let mut entities: Vec<Entity<Text>> = vec![
             ent(EntityKind::PersonName, 0.9),
             ent(EntityKind::EmailAddress, 0.9),
-        ]);
+        ];
         let params = FilterParams {
             allowed_kinds: Some(vec![EntityKind::PersonName]),
             ..Default::default()
@@ -106,10 +108,10 @@ mod tests {
 
     #[test]
     fn confidence_threshold_drops_below() {
-        let mut entities = Entities::from(vec![
+        let mut entities: Vec<Entity<Text>> = vec![
             ent(EntityKind::PersonName, 0.95),
             ent(EntityKind::PersonName, 0.40),
-        ]);
+        ];
         let params = FilterParams {
             confidence_threshold: Some(0.5),
             ..Default::default()
@@ -122,11 +124,11 @@ mod tests {
 
     #[test]
     fn kinds_and_threshold_compose() {
-        let mut entities = Entities::from(vec![
+        let mut entities: Vec<Entity<Text>> = vec![
             ent(EntityKind::PersonName, 0.95),   // keep
             ent(EntityKind::PersonName, 0.40),   // drop: threshold
             ent(EntityKind::EmailAddress, 0.95), // drop: kind
-        ]);
+        ];
         let params = FilterParams {
             allowed_kinds: Some(vec![EntityKind::PersonName]),
             confidence_threshold: Some(0.5),

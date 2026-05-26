@@ -1,7 +1,7 @@
 //! HTML handler: holds parsed HTML content and provides location-based
-//! access via [`Handler`] + [`TextHandler`].
+//! access via [`Handler`] + [`Handle`].
 //!
-//! [`TextHandler::locations`] yields one location per text node in
+//! [`Handle::locations`] yields one location per text node in
 //! document order; offsets are cumulative over the text-node sequence
 //! (not raw HTML bytes). [`Handler::encode`] reconstructs the HTML by
 //! re-parsing the original source into a DOM, applying mutations, and
@@ -10,11 +10,11 @@
 //! [`Html::html`]: scraper::Html::html
 
 use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{Handler, TextData, TextHandler, TextRedaction, apply_text_redaction};
+use nvisy_codec::handler::{Handle, Handler, TextData, TextRedaction, apply_text_redaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_ontology::entity::TextLocation;
+use nvisy_ontology::modality::Text;
 
 const TARGET: &str = "html-handler";
 
@@ -72,8 +72,8 @@ impl Handler for HtmlHandler {
 }
 
 #[async_trait::async_trait]
-impl TextHandler for HtmlHandler {
-    fn locations(&self) -> LocationStream<'_, TextLocation> {
+impl Handle<Text> for HtmlHandler {
+    fn locations(&self) -> LocationStream<'_, Text> {
         let source = self.source;
         let mut items = Vec::with_capacity(self.data.text_nodes.len());
         let mut offset = 0usize;
@@ -82,7 +82,7 @@ impl TextHandler for HtmlHandler {
             let end = start + text.len();
             items.push(Located::new(
                 source,
-                TextLocation {
+                Text {
                     start_offset: start,
                     end_offset: end,
                     ..Default::default()
@@ -93,7 +93,7 @@ impl TextHandler for HtmlHandler {
         LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn read(&self, location: &TextLocation) -> Option<TextData> {
+    async fn read(&self, location: &Text) -> Option<TextData> {
         let offsets = self.node_offsets();
         let idx = offsets
             .iter()
@@ -101,11 +101,7 @@ impl TextHandler for HtmlHandler {
         self.data.text_nodes.get(idx).cloned().map(TextData::from)
     }
 
-    async fn redact_at(
-        &mut self,
-        location: &TextLocation,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
+    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         let offsets = self.node_offsets();
         let Some(idx) = offsets
             .iter()
@@ -189,7 +185,7 @@ impl HtmlHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::{ConflictPolicy, Redactions, TextHandler, TextOutput};
+    use nvisy_codec::handler::{ConflictPolicy, Handle, Redactions, TextOutput};
     use nvisy_core::Error;
 
     use super::*;

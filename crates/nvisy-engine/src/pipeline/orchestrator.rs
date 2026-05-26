@@ -13,6 +13,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_core::Error;
+use nvisy_ontology::modality::Text;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -56,7 +57,7 @@ pub(super) struct RunContext {
 #[derive(Debug)]
 pub(super) struct DocumentResult {
     /// The processed envelope, if the document completed successfully.
-    pub envelope: Option<DocumentEnvelope>,
+    pub envelope: Option<DocumentEnvelope<Text>>,
     /// Error message if the document failed, `None` on success.
     pub error: Option<String>,
 }
@@ -150,7 +151,7 @@ impl Orchestrator {
     async fn run_imports(
         &self,
         imports: &[ImportFileConfig],
-    ) -> Result<Vec<DocumentEnvelope>, Error> {
+    ) -> Result<Vec<DocumentEnvelope<Text>>, Error> {
         let mut envelopes = Vec::new();
 
         for cfg in imports {
@@ -185,9 +186,9 @@ impl DocumentPipeline {
     /// Run all phases for a single envelope.
     async fn run(
         &self,
-        mut envelope: DocumentEnvelope,
+        mut envelope: DocumentEnvelope<Text>,
         plan: &EngineInput,
-    ) -> Result<DocumentEnvelope, Error> {
+    ) -> Result<DocumentEnvelope<Text>, Error> {
         self.check_cancelled()?;
 
         // Extraction.
@@ -238,7 +239,7 @@ impl DocumentPipeline {
     async fn run_extraction(
         &self,
         cfg: &ExtractionConfig,
-        envelope: &mut DocumentEnvelope,
+        envelope: &mut DocumentEnvelope<Text>,
     ) -> Result<(), Error> {
         self.ctx.extractors.run(envelope, cfg).await
     }
@@ -254,7 +255,7 @@ impl DocumentPipeline {
     async fn run_detection(
         &self,
         cfg: &DetectionConfig,
-        envelope: &mut DocumentEnvelope,
+        envelope: &mut DocumentEnvelope<Text>,
     ) -> Result<(), Error> {
         if let Some(ref engine) = self.ctx.detection_engine {
             engine.detect_in(envelope, cfg).await?;
@@ -266,7 +267,7 @@ impl DocumentPipeline {
     async fn run_exports(
         &self,
         exports: &[ExportFileConfig],
-        envelope: &DocumentEnvelope,
+        envelope: &DocumentEnvelope<Text>,
     ) -> Result<(), Error> {
         for cfg in exports {
             let exporter = Exporter::new()

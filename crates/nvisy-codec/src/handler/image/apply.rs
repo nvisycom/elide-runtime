@@ -11,13 +11,13 @@ const TARGET: &str = "nvisy_codec::handler::image";
 
 /// Apply a single redaction to `img` in place at the given bounding
 /// box. The bounding box comes from the redaction's containing
-/// [`ImageLocation`] under the `(location, redaction)` shape — not from
+/// [`Image`] under the `(location, redaction)` shape — not from
 /// the redaction itself.
 ///
 /// Replace outputs whose embedded image data fails to decode are
 /// skipped with a warning.
 ///
-/// [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
+/// [`Image`]: nvisy_ontology::modality::Image
 pub fn apply_image_redaction(
     img: &mut DynamicImage,
     redaction: &ImageRedaction,

@@ -32,9 +32,10 @@ mod refine;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::{
-    Entities, Entity, EntityCategory, EntityKind, Location, ModelKind, ModelProvenance,
-    RecognitionMethod, RefinementMethod, TextLocation,
+    Entity, EntityCategory, EntityKind, ModelKind, ModelProvenance, RecognitionMethod,
+    RefinementMethod,
 };
+use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::Confidence;
 
 pub use self::localize::UnresolvedCandidatePolicy;
@@ -114,7 +115,11 @@ impl NerVerifyAgent {
         skip_all,
         fields(text_len = text.len(), candidate_count = candidates.len()),
     )]
-    pub async fn verify(&self, text: &str, candidates: Vec<NerCandidate>) -> Result<Entities> {
+    pub async fn verify(
+        &self,
+        text: &str,
+        candidates: Vec<NerCandidate>,
+    ) -> Result<Vec<Entity<Text>>> {
         // 1. Localize.
         let mut localized = localize_all(text, candidates, self.unresolved);
         let refined = self.refiner.is_some();
@@ -128,7 +133,11 @@ impl NerVerifyAgent {
         Ok(self.build_entities(localized, refined))
     }
 
-    fn build_entities(&self, localized: Vec<LocalizedCandidate>, refined: bool) -> Entities {
+    fn build_entities(
+        &self,
+        localized: Vec<LocalizedCandidate>,
+        refined: bool,
+    ) -> Vec<Entity<Text>> {
         let model_name = self
             .refiner
             .as_ref()
@@ -136,7 +145,7 @@ impl NerVerifyAgent {
             .unwrap_or_else(|| "ner_verify_agent".to_string());
         let model = ModelProvenance::new(&model_name, ModelKind::Gateway);
 
-        let mut out = Entities::new();
+        let mut out = Vec::new();
         let mut dropped_missing_kind = 0usize;
         let mut dropped_bad_confidence = 0usize;
         for l in localized {
@@ -165,11 +174,7 @@ impl NerVerifyAgent {
                 }
             };
 
-            let loc = TextLocation::builder()
-                .with_start_offset(l.start_offset)
-                .with_end_offset(l.end_offset)
-                .build()
-                .expect("required fields provided");
+            let loc = Text::new(l.start_offset, l.end_offset);
 
             let mut refinement_methods = Vec::new();
             if refined {
@@ -182,7 +187,7 @@ impl NerVerifyAgent {
                 .with_recognition_methods(vec![RecognitionMethod::LlmNer(model.clone())])
                 .with_refinement_methods(refinement_methods)
                 .with_confidence(confidence)
-                .with_location(Location::from(loc));
+                .with_location(loc);
             if let Some(id) = l.candidate.entity_id {
                 b = b.with_entity_id(id);
             }

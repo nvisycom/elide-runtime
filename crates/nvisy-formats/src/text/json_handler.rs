@@ -6,7 +6,7 @@
 //! file can be reconstructed with identical whitespace after edits.
 //!
 //! [`TextHandler::locations`] yields string-typed JSON leaves and
-//! object keys, addressed by [`TextLocation`]. Byte offsets correspond
+//! object keys, addressed by [`Text`]. Byte offsets correspond
 //! to positions within the serialized JSON string and are computed via
 //! monotonic cursor advancement during tree traversal to avoid
 //! ambiguity from duplicate values.
@@ -20,11 +20,11 @@
 use std::num::NonZeroU32;
 
 use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{Handler, TextData, TextHandler, TextRedaction, apply_text_redaction};
+use nvisy_codec::handler::{Handle, Handler, TextData, TextRedaction, apply_text_redaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
-use nvisy_ontology::entity::TextLocation;
+use nvisy_ontology::modality::Text;
 use serde::{Deserialize, Serialize};
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
@@ -115,8 +115,8 @@ struct LocatedSpan {
 }
 
 #[async_trait::async_trait]
-impl TextHandler for JsonHandler {
-    fn locations(&self) -> LocationStream<'_, TextLocation> {
+impl Handle<Text> for JsonHandler {
+    fn locations(&self) -> LocationStream<'_, Text> {
         let source = self.source;
         let items: Vec<_> = self
             .locate_spans()
@@ -124,7 +124,7 @@ impl TextHandler for JsonHandler {
             .map(|ls| {
                 Located::new(
                     source,
-                    TextLocation {
+                    Text {
                         start_offset: ls.start,
                         end_offset: ls.end,
                         ..Default::default()
@@ -135,18 +135,14 @@ impl TextHandler for JsonHandler {
         LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn read(&self, location: &TextLocation) -> Option<TextData> {
+    async fn read(&self, location: &Text) -> Option<TextData> {
         self.locate_spans()
             .into_iter()
             .find(|ls| ls.start == location.start_offset && ls.end == location.end_offset)
             .map(|ls| TextData::from(ls.text))
     }
 
-    async fn redact_at(
-        &mut self,
-        location: &TextLocation,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
+    async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         let located = self.locate_spans();
         let Some(ls) = located
             .into_iter()
@@ -448,7 +444,7 @@ mod tests {
     #[tokio::test]
     async fn read_rejects_arbitrary_offsets() {
         let h = compact_handler(r#"{"name":"Alice"}"#);
-        let bogus = TextLocation {
+        let bogus = Text {
             start_offset: 3,
             end_offset: 7,
             ..Default::default()

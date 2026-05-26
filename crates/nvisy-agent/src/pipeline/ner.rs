@@ -27,7 +27,8 @@ use std::mem;
 
 use derive_builder::Builder;
 use nvisy_core::Result;
-use nvisy_ontology::entity::Entities;
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::modality::Text;
 use tokio::sync::Mutex;
 
 use crate::agent::ner::{
@@ -139,10 +140,10 @@ impl NerPipeline {
         NerPipelineBuilder::default()
     }
 
-    /// Run the pipeline once: detect candidates, verify them into
-    /// [`Entities`], and merge surviving candidates into the
+    /// Run the pipeline once: detect candidates, verify them into a
+    /// `Vec<Entity<Text>>`, and merge surviving candidates into the
     /// coreference state for the next call.
-    pub async fn run(&self, text: &str, config: &LlmNerContext) -> Result<Entities> {
+    pub async fn run(&self, text: &str, config: &LlmNerContext) -> Result<Vec<Entity<Text>>> {
         // 1. Detect — agent sees the accumulated known entities so
         //    it can reuse stable entity_ids for coreferent mentions.
         let known = self.state.lock().await.clone();

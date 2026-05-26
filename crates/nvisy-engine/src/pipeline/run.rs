@@ -12,7 +12,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
+use nvisy_ontology::modality::Text;
+use nvisy_ontology::policy::{Retention, RetentionPolicy, RetentionScope};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -131,23 +132,27 @@ impl Pipeline {
             .await;
 
         let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
-        let mut policies = Policies::default();
+        // Registry holds Policy<Text> only today (#199 will widen
+        // storage to multi-modality via PolicyStore on the cache).
+        let mut text_policies: Vec<nvisy_ontology::policy::Policy<Text>> = Vec::new();
         for policy in cached_policies {
-            policies.push(Arc::unwrap_or_clone(policy));
+            text_policies.push(Arc::unwrap_or_clone(policy));
         }
 
-        let retention_rules = policies
-            .all_retention()
-            .into_iter()
-            .copied()
-            .collect::<Vec<_>>();
+        let retention_rules: Vec<RetentionPolicy> = text_policies
+            .iter()
+            .flat_map(|p| p.retention.iter().copied())
+            .collect();
 
         let concurrency = effective_config.effective_concurrency();
+
+        let mut policy_store = crate::envelope::PolicyStore::new();
+        policy_store.set::<Text>(text_policies);
 
         let mut shared_data = SharedData {
             run_id: self.run_id,
             actor_id,
-            policies,
+            policies: policy_store,
             registry: self.registry.clone(),
             key_provider: SharedKeyProvider::default(),
         };
@@ -289,7 +294,7 @@ impl Pipeline {
         policy_ids: &[Uuid],
     ) -> (
         crate::ingestion::registry::ResourceGuard<nvisy_ontology::context::Context>,
-        crate::ingestion::registry::ResourceGuard<nvisy_ontology::policy::Policy>,
+        crate::ingestion::registry::ResourceGuard<nvisy_ontology::policy::Policy<Text>>,
     ) {
         let registry = &self.registry;
 

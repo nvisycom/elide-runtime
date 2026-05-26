@@ -1,12 +1,12 @@
 //! [`DetectionContext`] — per-call input to
 //! [`DetectionEngine::run`] and every [`Recognizer`].
 //!
-//! Bundles the same shape `nvisy_nlp::Context` carries, plus the
+//! Bundles the same shape `nvisy_ner::Context` carries, plus the
 //! [`PatternContext`] needed by pattern-backed recognizers. Each
 //! recognizer reads the subset it cares about:
 //!
-//! - [`NlpRecognizer`] honors `text`, `language`,
-//!   `candidate_languages`, `entities`, `score_threshold`.
+//! - [`NerRecognizer`] honors `text`, `language`,
+//!   `candidate_languages`, `entities`.
 //! - [`PatternRecognizer`] reads `text` and `scan_context`
 //!   (allow/deny/hints).
 //! - [`LlmRecognizer`] reads `text` and honors its own per-build
@@ -18,7 +18,7 @@
 //!
 //! [`DetectionEngine::run`]: super::DetectionEngine::run
 //! [`Recognizer`]: crate::Recognizer
-//! [`NlpRecognizer`]: crate::NlpRecognizer
+//! [`NerRecognizer`]: crate::NerRecognizer
 //! [`PatternRecognizer`]: crate::PatternRecognizer
 //! [`LlmRecognizer`]: crate::LlmRecognizer
 

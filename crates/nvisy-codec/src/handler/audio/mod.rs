@@ -1,79 +1,46 @@
-//! Audio-handler trait + supporting infrastructure.
+//! Audio-modality codec types: [`Codable`] impl, redaction shapes,
+//! and the `apply_audio_redaction` helper.
 //!
-//! The trait, redaction shape, and `apply_audio_redaction` helper
-//! live here; concrete per-format implementations (WAV, MP3) live
-//! in `nvisy-formats`.
+//! The per-modality capability surface lives on the generic
+//! [`Handle<Audio>`] trait in [`super::handle`]. Concrete per-format
+//! implementations (WAV, MP3) live in `nvisy-formats`. Audio handlers
+//! override [`Handle::redact`] to call [`sort_redactions_for_audio`]
+//! so spans are applied right-to-left (an
+//! [`AudioOutput::Remove`] shrinks the buffer and shifts every later
+//! sample index; right-to-left order keeps earlier indices valid).
+//!
+//! [`Handle<Audio>`]: super::Handle
+//! [`Handle::redact`]: super::Handle::redact
+//! [`AudioOutput::Remove`]: AudioOutput::Remove
 
 use std::cmp::Reverse;
 
-use nvisy_core::Error;
-use nvisy_ontology::entity::AudioLocation;
+use nvisy_ontology::modality::Audio;
 
-use super::Handler;
-use crate::document::LocationStream;
-use crate::handler::Redactions;
+use super::{Codable, Redactions};
 
 mod apply;
 mod audio_data;
-mod boxed;
 mod instruction;
 
 pub use self::apply::apply_audio_redaction;
 pub use self::audio_data::AudioData;
-pub use self::boxed::BoxedAudioHandler;
 pub use self::instruction::{AudioOutput, AudioRedaction};
 
-/// Capability trait for handlers that expose audio content.
-///
-/// Handlers implement three narrow operations:
-/// - [`locations`]: cheap, identity-only stream of [`AudioLocation`]s.
-/// - [`read`]: fetch the payload for the time range identified by a
-///   location.
-/// - [`redact_at`]: apply a single redaction at a single time range.
-///
-/// Batched redaction is provided by [`redact`], which overrides the
-/// default loop ordering to apply later time spans first — an
-/// [`AudioOutput::Remove`] shrinks the buffer and shifts every later
-/// sample index, so right-to-left order keeps earlier indices valid.
-///
-/// [`locations`]: AudioHandler::locations
-/// [`read`]: AudioHandler::read
-/// [`redact_at`]: AudioHandler::redact_at
-/// [`redact`]: AudioHandler::redact
-/// [`AudioOutput::Remove`]: crate::handler::AudioOutput::Remove
-#[async_trait::async_trait]
-pub trait AudioHandler: Handler {
-    /// Async stream of [`AudioLocation`]s for this document, each
-    /// tagged with the handler's [`ContentSource`].
-    ///
-    /// [`ContentSource`]: nvisy_core::content::ContentSource
-    fn locations(&self) -> LocationStream<'_, AudioLocation>;
+impl Codable for Audio {
+    type Data = AudioData;
+    type Redaction = AudioRedaction;
+}
 
-    /// Read the audio segment at the given location (time-span slice).
-    ///
-    /// Returns `None` if the location is out of bounds.
-    async fn read(&self, location: &AudioLocation) -> Option<AudioData>;
-
-    /// Apply a single redaction to the time range identified by
-    /// `location`, mutating in place.
-    async fn redact_at(
-        &mut self,
-        location: &AudioLocation,
-        redaction: AudioRedaction,
-    ) -> Result<(), Error>;
-
-    /// Apply every `(location, redaction)` pair in `redactions` to the
-    /// handler, sorted right-to-left by `time_span.start_us`. The first
-    /// error aborts the batch.
-    async fn redact(
-        &mut self,
-        redactions: Redactions<AudioLocation, AudioRedaction>,
-    ) -> Result<(), Error> {
-        let mut items: Vec<_> = redactions.into_iter().collect();
-        items.sort_by_key(|(loc, _)| Reverse(loc.time_span.start_us));
-        for (location, redaction) in items {
-            self.redact_at(&location, redaction).await?;
-        }
-        Ok(())
-    }
+/// Sort an audio redaction batch right-to-left by `time_span.start_us`.
+///
+/// Returned in the order audio handlers should apply individual
+/// redactions: later spans first so a `Remove` doesn't invalidate
+/// earlier sample indices.
+pub fn sort_redactions_for_audio(
+    redactions: Redactions<Audio, AudioRedaction>,
+) -> Vec<(Audio, AudioRedaction)> {
+    let mut items: Vec<_> = redactions.into_iter().collect();
+    items.sort_by_key(|(loc, _)| Reverse(loc.time_span.start_us));
+    items
 }

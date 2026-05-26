@@ -1,18 +1,18 @@
 //! WAV handler: holds raw WAV audio bytes and provides location-based
-//! access via [`AudioHandler`].
+//! access via [`Handle`].
 //!
 //! Redaction decodes the WAV via [`hound`], applies a single
 //! sample-level mutation, and re-encodes back to bytes.
 //! Supported formats are `i8` / `i16` / `i32` PCM and `f32` IEEE
 //! float; other bit depths surface a clear error.
 //!
-//! Batched redaction goes through [`AudioHandler::redact`], which
+//! Batched redaction goes through [`Handle::redact`], which
 //! sorts right-to-left by `time_span.start_us` so
 //! [`AudioOutput::Remove`] operations don't shift the indices of
 //! pending redactions.
 //!
-//! [`AudioHandler`]: nvisy_codec::handler::AudioHandler
-//! [`AudioHandler::redact`]: nvisy_codec::handler::AudioHandler::redact
+//! [`Handle`]: nvisy_codec::handler::Handle
+//! [`Handle::redact`]: nvisy_codec::handler::Handle::redact
 //! [`AudioOutput::Remove`]: nvisy_codec::handler::AudioOutput::Remove
 
 use std::io::Cursor;
@@ -21,12 +21,13 @@ use bytes::Bytes;
 use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
 use nvisy_codec::document::{Located, LocationStream};
 use nvisy_codec::handler::{
-    AudioData, AudioHandler, AudioRedaction, Handler, apply_audio_redaction,
+    AudioData, AudioRedaction, Handle, Handler, Redactions, apply_audio_redaction,
+    sort_redactions_for_audio,
 };
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{AudioFormat, DocumentType};
-use nvisy_ontology::entity::AudioLocation;
+use nvisy_ontology::modality::Audio;
 use nvisy_ontology::primitive::TimeSpan;
 
 const TARGET: &str = "wav-handler";
@@ -77,28 +78,21 @@ impl Handler for WavHandler {
 }
 
 #[async_trait::async_trait]
-impl AudioHandler for WavHandler {
-    fn locations(&self) -> LocationStream<'_, AudioLocation> {
+impl Handle<Audio> for WavHandler {
+    fn locations(&self) -> LocationStream<'_, Audio> {
         // Single-track audio: the entire audio as one location with a
         // time span covering the full duration. Duration is unknown
         // without decoding — use 0..0 as a placeholder. The actual
         // time span is set by the STT extraction operation after
         // transcription.
-        let location = AudioLocation {
-            time_span: TimeSpan {
-                start_us: 0,
-                end_us: 0,
-            },
-            speaker_id: None,
-            audio_id: None,
-        };
+        let location = Audio::new(TimeSpan::new(0, 0));
         LocationStream::new(futures::stream::iter(std::iter::once(Located::new(
             self.source,
             location,
         ))))
     }
 
-    async fn read(&self, _location: &AudioLocation) -> Option<AudioData> {
+    async fn read(&self, _location: &Audio) -> Option<AudioData> {
         // Full audio segment: extracting a sub-segment by time span
         // requires decoding, which we don't do here.
         Some(AudioData::new(self.bytes.clone()))
@@ -106,7 +100,7 @@ impl AudioHandler for WavHandler {
 
     async fn redact_at(
         &mut self,
-        location: &AudioLocation,
+        location: &Audio,
         redaction: AudioRedaction,
     ) -> Result<(), Error> {
         let spec = read_spec(&self.bytes)?;
@@ -134,6 +128,15 @@ impl AudioHandler for WavHandler {
             }
         };
         self.bytes = Bytes::from(new_bytes);
+        Ok(())
+    }
+
+    /// Override the default loop to apply spans right-to-left so a
+    /// removal doesn't invalidate earlier sample indices.
+    async fn redact(&mut self, redactions: Redactions<Audio, AudioRedaction>) -> Result<(), Error> {
+        for (location, redaction) in sort_redactions_for_audio(redactions) {
+            self.redact_at(&location, redaction).await?;
+        }
         Ok(())
     }
 }
@@ -189,7 +192,7 @@ where
 #[cfg(test)]
 mod tests {
     use hound::SampleFormat;
-    use nvisy_codec::handler::{AudioHandler, AudioOutput, ConflictPolicy, Redactions};
+    use nvisy_codec::handler::{AudioOutput, ConflictPolicy, Handle, Redactions};
 
     use super::*;
 
@@ -217,14 +220,6 @@ mod tests {
         reader.samples::<i16>().map(Result::unwrap).collect()
     }
 
-    fn location(start_us: i64, end_us: i64) -> AudioLocation {
-        AudioLocation {
-            time_span: TimeSpan { start_us, end_us },
-            speaker_id: None,
-            audio_id: None,
-        }
-    }
-
     #[tokio::test]
     async fn silence_zeros_samples_in_range() {
         // 10 samples at 1 kHz = 10 ms.
@@ -233,7 +228,7 @@ mod tests {
 
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            location(3_000, 6_000),
+            Audio::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Silence),
         )
         .unwrap();
@@ -250,7 +245,7 @@ mod tests {
 
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            location(3_000, 6_000),
+            Audio::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Remove),
         )
         .unwrap();
@@ -271,12 +266,12 @@ mod tests {
 
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            location(1_000, 3_000),
+            Audio::new(TimeSpan::new(1_000, 3_000)),
             AudioRedaction::new(AudioOutput::Remove),
         )
         .unwrap();
         rs.try_insert(
-            location(6_000, 8_000),
+            Audio::new(TimeSpan::new(6_000, 8_000)),
             AudioRedaction::new(AudioOutput::Remove),
         )
         .unwrap();
@@ -294,7 +289,7 @@ mod tests {
         let original = bytes.clone();
         let mut handler = WavHandler::new(bytes);
 
-        let rs: Redactions<AudioLocation, AudioRedaction> = Redactions::default();
+        let rs: Redactions<Audio, AudioRedaction> = Redactions::default();
         handler.redact(rs).await.unwrap();
         assert_eq!(handler.bytes(), &original);
     }
@@ -305,7 +300,7 @@ mod tests {
         let mut handler = WavHandler::new(Bytes::from_static(b"not-a-wav"));
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            location(0, 1_000),
+            Audio::new(TimeSpan::new(0, 1_000)),
             AudioRedaction::new(AudioOutput::Silence),
         )
         .unwrap();

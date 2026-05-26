@@ -31,7 +31,7 @@ const TARGET: &str = "nvisy_pattern::engine";
 pub struct PatternEngineBuilder {
     pattern_names: Option<Vec<String>>,
     dictionary_names: Option<Vec<String>>,
-    confidence_threshold: f64,
+    confidence_threshold: Option<f64>,
     filter: Option<PatternFilter>,
     extra_pattern_dirs: Vec<PathBuf>,
     extra_dictionary_dirs: Vec<PathBuf>,
@@ -69,11 +69,13 @@ impl PatternEngineBuilder {
     /// Set the minimum confidence score for matches.
     ///
     /// Matches with confidence below this value are discarded during
-    /// [`scan_entities`]. Defaults to `0.0`.
+    /// [`scan`] / [`scan_text`]. Unset (the default) means no
+    /// threshold filtering — every match survives.
     ///
-    /// [`scan_entities`]: PatternEngine::scan_entities
+    /// [`scan`]: PatternEngine::scan
+    /// [`scan_text`]: PatternEngine::scan_text
     pub fn with_confidence_threshold(mut self, threshold: f64) -> Self {
-        self.confidence_threshold = threshold;
+        self.confidence_threshold = Some(threshold);
         self
     }
 
@@ -332,7 +334,7 @@ mod tests {
             .build()
             .unwrap();
         let entities =
-            engine.scan_entities("SSN: 123-45-6789", &super::super::PatternContext::default());
+            engine.scan_text("SSN: 123-45-6789", &super::super::PatternContext::default());
         assert!(
             entities
                 .iter()
@@ -354,7 +356,7 @@ mod tests {
             .build()
             .unwrap();
         let entities =
-            engine.scan_entities("She is American.", &super::super::PatternContext::default());
+            engine.scan_text("She is American.", &super::super::PatternContext::default());
         assert!(
             !entities
                 .iter()
@@ -374,7 +376,7 @@ mod tests {
             .build()
             .unwrap();
         let entities =
-            engine.scan_entities("She is American.", &super::super::PatternContext::default());
+            engine.scan_text("She is American.", &super::super::PatternContext::default());
         assert!(
             entities
                 .iter()
@@ -394,7 +396,7 @@ mod tests {
             .with_filter(filter)
             .build()
             .unwrap();
-        let entities = engine.scan_entities(
+        let entities = engine.scan_text(
             "Card 4539 1488 0343 6467 and SSN 123-45-6789.",
             &super::super::PatternContext::default(),
         );
@@ -423,7 +425,7 @@ mod tests {
             .with_filter(filter)
             .build()
             .unwrap();
-        let entities = engine.scan_entities(
+        let entities = engine.scan_text(
             "SSN 123-45-6789, IBAN GB29NWBK60161331926819.",
             &super::super::PatternContext::default(),
         );
@@ -450,7 +452,7 @@ mod tests {
             .with_dictionaries(&["nationalities"])
             .build()
             .unwrap();
-        let entities = engine.scan_entities(
+        let entities = engine.scan_text(
             "She is American and speaks English.",
             &super::super::PatternContext::default(),
         );
@@ -476,7 +478,7 @@ mod tests {
             .with_dictionaries(&["nationalities"])
             .build()
             .unwrap();
-        let entities = engine.scan_entities(
+        let entities = engine.scan_text(
             "SSN 123-45-6789 here",
             &super::super::PatternContext::default(),
         );
@@ -495,7 +497,7 @@ mod tests {
             .with_filter(PatternFilter::default())
             .build()
             .unwrap();
-        let entities = engine.scan_entities(
+        let entities = engine.scan_text(
             "SSN: 123-45-6789 and she is American.",
             &super::super::PatternContext::default(),
         );

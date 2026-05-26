@@ -3,11 +3,11 @@
 //!
 //! [`OcrExtractor`]: super::OcrExtractor
 
-use nvisy_ocr::{OcrProvider, RunParams as OcrRunParams};
+use nvisy_ocr::OcrBackend;
 use serde::{Deserialize, Serialize};
 
 /// `[extractor.ocr]` config bundle.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OcrExtractorConfig {
     /// Enable this extractor. When `false`, the extractor is
     /// neither built nor dispatched, but the config is preserved
@@ -15,11 +15,9 @@ pub struct OcrExtractorConfig {
     /// `true`.
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// OCR provider selection + connection settings.
-    pub provider: OcrProvider,
-    /// OCR runtime parameters (confidence thresholds, etc.).
+    /// OCR backend selection + connection settings.
     #[serde(default)]
-    pub policy: OcrRunParams,
+    pub backend: OcrBackend,
 }
 
 fn default_true() -> bool {

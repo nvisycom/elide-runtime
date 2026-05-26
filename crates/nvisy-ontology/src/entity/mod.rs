@@ -1,36 +1,37 @@
 //! Sensitive-data entity types and detection metadata.
 //!
-//! An [`Entity`] represents a single occurrence of sensitive data detected
-//! within a document. [`Entities`] is the canonical collection type used
-//! across the pipeline.
+//! [`Entity<M>`] represents a single occurrence of sensitive data
+//! detected within a document. Collections are plain `Vec<Entity<M>>`
+//! attached per-block to [`Block::entities`].
+//!
+//! [`Block::entities`]: crate::document::Block::entities
 
 mod annotation;
 mod category;
 mod kind;
-mod location;
 mod method;
 mod sensitivity;
 mod source;
 
 use derive_builder::Builder;
-use derive_more::{Deref, DerefMut, From, IntoIterator};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::annotation::{Annotation, AnnotationKind, AnnotationTarget, Annotations};
+pub use self::annotation::{
+    Annotation, AnnotationKind, AnnotationTarget, document_labels, inclusion_entities, is_excluded,
+};
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;
-pub use self::location::{
-    AudioLocation, AudioLocationBuilder, ImageLocation, ImageLocationBuilder, Location, Mergeable,
-    Overlap, TabularLocation, TabularLocationBuilder, TextLocation, TextLocationBuilder,
-};
 pub use self::method::{
     AnnotationProvenance, CrossReferenceProvenance, ExtractionMethod, ModelKind, ModelProvenance,
     PatternKind, PatternProvenance, RecognitionMethod, RecognitionMethodKind, RefinementMethod,
 };
 pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;
+use crate::modality::Modality;
+#[cfg(any(test, feature = "test-utils"))]
+use crate::modality::Text;
 use crate::primitive::{Confidence, LanguageTag};
 
 /// A detected sensitive data occurrence within a document.
@@ -41,36 +42,45 @@ use crate::primitive::{Confidence, LanguageTag};
     pattern = "owned",
     setter(into, strip_option, prefix = "with")
 )]
-#[serde(rename_all = "camelCase")]
-pub struct Entity {
+#[serde(
+    rename_all = "camelCase",
+    bound(
+        serialize = "M: Serialize",
+        deserialize = "M: serde::de::DeserializeOwned",
+    )
+)]
+#[schemars(bound = "M: JsonSchema")]
+pub struct Entity<M: Modality> {
     /// Unique identifier for this entity (UUIDv7).
     #[builder(default = "Uuid::now_v7()")]
     pub id: Uuid,
-    /// NER/LLM-assigned coreference identifier, stable across coreferent
-    /// mentions within one detection call. Two entities sharing
-    /// `entity_id` refer to the same real-world entity (different
-    /// surface mentions).
+    /// NER/LLM-assigned coreference identifier, stable across
+    /// coreferent mentions within one detection call. Two entities
+    /// sharing `entity_id` refer to the same real-world entity.
     #[builder(default, setter(into = false))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entity_id: Option<String>,
     /// Broad classification of the sensitive data.
     pub category: EntityCategory,
-    /// Specific entity kind (e.g. `GovernmentId`, `EmailAddress`, `PaymentCard`).
+    /// Specific entity kind.
     pub entity_kind: EntityKind,
-    /// How content was extracted from its source modality, ordered by application time.
+    /// How content was extracted from its source modality, ordered by
+    /// application time.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extraction_methods: Vec<ExtractionMethod>,
-    /// Techniques used to identify this entity, ordered by application time.
+    /// Techniques used to identify this entity, ordered by
+    /// application time.
     pub recognition_methods: Vec<RecognitionMethod>,
-    /// Post-detection refinements applied to this entity, ordered by application time.
+    /// Post-detection refinements applied to this entity, ordered by
+    /// application time.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refinement_methods: Vec<RefinementMethod>,
     /// Detection confidence score in the range `[0.0, 1.0]`.
     pub confidence: Confidence,
     /// Modality-specific location of the entity within the document.
-    pub location: Location,
+    pub location: M,
     /// BCP-47 language tag of the detected content.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -82,158 +92,33 @@ pub struct Entity {
     pub sensitivity: Option<EntitySensitivity>,
 }
 
-impl Entity {
+impl<M: Modality> Entity<M> {
     /// Create a new [`EntityBuilder`].
-    pub fn builder() -> EntityBuilder {
+    pub fn builder() -> EntityBuilder<M> {
         EntityBuilder::default()
     }
+}
 
-    /// Construct an entity located at the given byte span in source
-    /// text. Convenience for recognizers that always produce
-    /// text-located entities (pattern, NER, etc.). Confidence is
-    /// clamped to `[0, 1]`; missing required fields panic, since
-    /// every parameter is supplied.
-    pub fn for_text_span(
-        category: EntityCategory,
-        entity_kind: EntityKind,
-        recognition_methods: Vec<RecognitionMethod>,
-        confidence: Confidence,
-        start: usize,
-        end: usize,
-    ) -> Self {
-        let location = Location::from(
-            TextLocation::builder()
-                .with_start_offset(start)
-                .with_end_offset(end)
-                .build()
-                .expect("required fields provided"),
-        );
-        Entity::builder()
-            .with_category(category)
-            .with_entity_kind(entity_kind)
-            .with_recognition_methods(recognition_methods)
-            .with_confidence(confidence)
-            .with_location(location)
-            .build()
-            .expect("required fields provided")
-    }
-
+#[cfg(any(test, feature = "test-utils"))]
+impl Entity<Text> {
     /// Create a pre-filled [`EntityBuilder`] for tests.
     ///
     /// Defaults: `PersonalIdentity` / `PersonName` / `regex("test")` /
     /// confidence `0.9` / text location at `start..end`.
-    #[cfg(any(test, feature = "test-utils"))]
-    pub fn test_builder(start: usize, end: usize) -> EntityBuilder {
+    pub fn test_builder(start: usize, end: usize) -> EntityBuilder<Text> {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(Confidence::clamped(0.9))
-            .with_location(Location::from(
-                TextLocation::builder()
-                    .with_start_offset(start)
-                    .with_end_offset(end)
-                    .build()
-                    .expect("required fields provided"),
-            ))
+            .with_location(Text::new(start, end))
     }
 }
 
 #[cfg(any(test, feature = "test-utils"))]
-impl EntityBuilder {
+impl<M: Modality> EntityBuilder<M> {
     /// Build the entity, panicking on missing fields.
-    ///
-    /// Shorthand for `.build().expect(...)` in tests.
-    pub fn test_build(self) -> Entity {
+    pub fn test_build(self) -> Entity<M> {
         self.build().expect("test entity builder: missing fields")
-    }
-}
-
-/// A collection of detected entities.
-///
-/// Wraps `Vec<Entity>` with transparent `Deref`/`DerefMut` access and
-/// domain-specific filtering helpers. Used as the canonical entity
-/// container in both operation I/O and [`DocumentEnvelope`].
-///
-/// [`DocumentEnvelope`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/envelope/struct.DocumentEnvelope.html
-#[derive(Debug, Clone, Default, PartialEq)]
-#[derive(Deref, DerefMut, From, IntoIterator)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(transparent)]
-pub struct Entities(#[into_iterator(owned, ref, ref_mut)] pub Vec<Entity>);
-
-impl Entities {
-    /// Create an empty collection.
-    pub fn new() -> Self {
-        Self(Vec::new())
-    }
-
-    /// Returns `true` if the collection is empty.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Number of entities in the collection.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Append an entity.
-    pub fn push(&mut self, entity: Entity) {
-        self.0.push(entity);
-    }
-
-    /// Extend with entities from another collection.
-    pub fn extend(&mut self, other: impl IntoIterator<Item = Entity>) {
-        self.0.extend(other);
-    }
-
-    /// Retain only entities above the given confidence threshold.
-    pub fn above_confidence(&self, threshold: f64) -> Self {
-        self.0
-            .iter()
-            .filter(|e| e.confidence.get() >= threshold)
-            .cloned()
-            .collect()
-    }
-
-    /// Consume and return the inner `Vec<Entity>`.
-    pub fn into_inner(self) -> Vec<Entity> {
-        self.0
-    }
-}
-
-impl FromIterator<Entity> for Entities {
-    fn from_iter<I: IntoIterator<Item = Entity>>(iter: I) -> Self {
-        Self(iter.into_iter().collect())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn entity(confidence: f64) -> Entity {
-        Entity::builder()
-            .with_category(EntityCategory::PersonalIdentity)
-            .with_entity_kind(EntityKind::PersonName)
-            .with_recognition_methods(vec![RecognitionMethod::regex("test")])
-            .with_confidence(Confidence::new(confidence).expect("in range"))
-            .with_location(Location::from(
-                TextLocation::builder()
-                    .with_start_offset(0usize)
-                    .with_end_offset(4usize)
-                    .build()
-                    .unwrap(),
-            ))
-            .build()
-            .unwrap()
-    }
-
-    #[test]
-    fn above_confidence_filters() {
-        let entities: Entities = vec![entity(0.9), entity(0.3), entity(0.7)].into();
-        let filtered = entities.above_confidence(0.5);
-        assert_eq!(filtered.len(), 2);
     }
 }

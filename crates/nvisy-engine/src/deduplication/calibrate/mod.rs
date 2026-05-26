@@ -10,7 +10,8 @@
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{Entities, RecognitionMethodKind, RefinementMethod};
+use nvisy_ontology::entity::{Entity, RecognitionMethodKind, RefinementMethod};
+use nvisy_ontology::modality::Modality;
 use nvisy_ontology::primitive::Confidence;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::calibration";
@@ -34,7 +35,7 @@ pub(crate) trait Calibrate {
     fn calibrate(&mut self, calibration: &CalibrationMap);
 }
 
-impl Calibrate for Entities {
+impl<M: Modality> Calibrate for Vec<Entity<M>> {
     fn calibrate(&mut self, calibration: &CalibrationMap) {
         if calibration.is_empty() {
             return;
@@ -93,12 +94,11 @@ mod tests {
     fn scales_confidence_and_tags_refinement() {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Pattern, 0.5);
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
-        ]
-        .into();
+        ];
         entities.calibrate(&calibration);
         assert!((entities[0].confidence.get() - 0.4).abs() < f64::EPSILON);
         assert!(
@@ -112,12 +112,11 @@ mod tests {
     fn clamps_to_one() {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Pattern, 2.0);
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
-        ]
-        .into();
+        ];
         entities.calibrate(&calibration);
         assert!((entities[0].confidence.get() - 1.0).abs() < f64::EPSILON);
     }
@@ -127,7 +126,7 @@ mod tests {
         let mut calibration = CalibrationMap::new();
         calibration.insert(RecognitionMethodKind::Pattern, 0.5);
         calibration.insert(RecognitionMethodKind::NlpNer, 0.8);
-        let mut entities: Entities = vec![
+        let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)
                 .with_recognition_methods(vec![
                     RecognitionMethod::regex("test"),
@@ -135,8 +134,7 @@ mod tests {
                 ])
                 .with_confidence(conf(1.0))
                 .test_build(),
-        ]
-        .into();
+        ];
         entities.calibrate(&calibration);
         // max(0.5, 0.8) = 0.8; 1.0 * 0.8 = 0.8
         assert!((entities[0].confidence.get() - 0.8).abs() < f64::EPSILON);

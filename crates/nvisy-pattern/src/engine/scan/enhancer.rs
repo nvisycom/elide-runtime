@@ -4,7 +4,7 @@
 //!
 //! Lives next to [`EntityCandidate`] because it operates on a slice
 //! of candidates before the threshold filter. Kept crate-private;
-//! the orchestration goes through [`PatternEngine::scan_entities`].
+//! the orchestration goes through [`PatternEngine::scan`].
 //!
 //! [`EntityCandidate`]: super::candidate::EntityCandidate
 //!
@@ -38,7 +38,7 @@
 //!
 //! [`ContextRule`]: crate::patterns::ContextRule
 //! [`ContextHint`]: super::super::filter::ContextHint
-//! [`PatternEngine::scan_entities`]: super::super::PatternEngine::scan_entities
+//! [`PatternEngine::scan`]: super::super::PatternEngine::scan
 
 use nvisy_ontology::entity::RecognitionMethod;
 
@@ -105,11 +105,7 @@ impl<'a> ContextEnhancer<'a> {
             rule.boost
         };
 
-        let span = c
-            .entity
-            .location
-            .as_text()
-            .expect("pattern engine emits text-located entities");
+        let span = &c.entity.location;
         let search_start = walk_chars_back(self.text, span.start_offset, window);
         let search_end = walk_chars_forward(self.text, span.end_offset, window);
         let window_text = &self.text[search_start..search_end];
@@ -186,6 +182,7 @@ fn walk_chars_forward(text: &str, byte_anchor: usize, chars: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RecognitionMethod};
+    use nvisy_ontology::modality::Text;
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
@@ -209,14 +206,14 @@ mod tests {
         conf: f64,
     ) -> EntityCandidate {
         EntityCandidate::new(
-            Entity::for_text_span(
-                EntityCategory::PersonalIdentity,
-                kind,
-                vec![RecognitionMethod::regex("test")],
-                Confidence::clamped(conf),
-                start,
-                end,
-            ),
+            Entity::builder()
+                .with_category(EntityCategory::PersonalIdentity)
+                .with_entity_kind(kind)
+                .with_recognition_methods(vec![RecognitionMethod::regex("test")])
+                .with_confidence(Confidence::clamped(conf))
+                .with_location(Text::new(start, end))
+                .build()
+                .expect("required fields provided"),
             rule,
         )
     }

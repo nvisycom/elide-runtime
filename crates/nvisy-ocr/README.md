@@ -2,34 +2,33 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-OCR provider integrations for the Nvisy runtime. Wraps third-party
-OCR services behind a uniform `OcrEngine` / `Backend` surface.
+OCR backend abstraction for the Nvisy runtime. Defines the
+`Backend` trait and an `OcrBackend` config enum that selects between
+built-in implementations behind a uniform `Extractor` surface.
 
 ## Overview
 
-`OcrEngine` is the dispatch entry point — construct one from an
-`OcrProvider` enum variant and call `run(input, params)`. Each
-backend implements the crate-internal `Backend` trait, accepts an
-`HttpClient` from the caller (no global state), and produces
-unified `ImageOutput` (text + line/word geometry) regardless of
-provider.
+`Extractor` is the dispatch entry point — built from an
+`OcrBackend` enum variant via `into_extractor()`, then called as
+`extractor.extract(image, ctx)`. Each backend implements the
+crate's `Backend` trait and produces unified `ImageOutput` (text +
+line/word geometry).
 
-Built-in backends (default features):
+Two backends ship today:
 
-- **Surya** (`SuryaBackend`) — Datalab Surya HTTP backend.
-- **PaddleX** (`PaddleXBackend`) — Baidu PaddleX HTTP backend.
-
-Feature-gated backends:
-
-- **AWS Textract** (`aws-textract` feature) — `AwsTextractBackend`.
-- **Google Cloud Vision** (`google-vision` feature) — `GoogleVisionBackend`.
-- **Azure Document Intelligence** (`azure-docai` feature) — `AzureDocaiBackend`.
+- **`NoopBackend`** — produces zero OCR results. The default;
+  used in tests and in deployments that accept image content but
+  don't OCR it.
+- **`BentoBackend`** (feature `bento`) — scaffolding for the
+  externalised `inference-ocr` Bento in [`nvisycom/inference`].
+  Not yet functional; tracked under [#128].
 
 LLM-mediated entity verification (the LLM-side counterpart that
 verifies OCR-proposed entities against the source image) lives in
-`nvisy-agent` as `CvVerifyAgent`. HTTP transport (`HttpClient`,
-`HttpConfig`, retry + tracing middleware) lives in the shared
-`nvisy-http` crate.
+`nvisy-agent` as `CvVerifyAgent`.
+
+[`nvisycom/inference`]: https://github.com/nvisycom/inference
+[#128]: https://github.com/nvisycom/runtime/issues/128
 
 ## Documentation
 

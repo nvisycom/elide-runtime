@@ -1,100 +1,123 @@
-//! OCR backend trait and shared types.
+//! Built-in [`Backend`] implementations plus the [`OcrBackend`]
+//! config enum that dispatches to a concrete one.
+//!
+//! Two backends ship today:
+//! - [`NoopBackend`] — returns no OCR results. The default; used
+//!   in tests and in deployments that don't need OCR.
+//! - [`BentoBackend`] (feature `bento`) — scaffolding for the
+//!   externalised `inference-ocr` Bento in
+//!   [`nvisycom/inference`]. Not yet functional; tracked under
+//!   [#128].
+//!
+//! [`Backend`]: crate::core::Backend
+//! [`nvisycom/inference`]: https://github.com/nvisycom/inference
+//! [#128]: https://github.com/nvisycom/runtime/issues/128
 
-mod input;
-mod output;
+#[cfg(feature = "bento")]
+mod bento_backend;
+#[cfg(feature = "bento")]
+mod bento_types;
+mod noop_backend;
 
 use nvisy_core::Error;
-pub use nvisy_core::media::ImageFormat;
-use reqwest_middleware::reqwest::multipart::Part;
+use serde::{Deserialize, Serialize};
 
-pub use self::input::ImageInput;
-pub use self::output::ImageOutput;
+#[cfg(feature = "bento")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bento")))]
+pub use self::bento_backend::{BentoBackend, BentoParams};
+pub use self::noop_backend::NoopBackend;
+use crate::engine::Extractor;
 
-/// Build a multipart [`Part`] from an [`ImageInput`].
-pub(crate) fn image_part(image: &ImageInput) -> Result<Part, Error> {
-    let filename = format!("image.{}", image.format.extension());
-    Part::bytes(image.data.to_vec())
-        .file_name(filename)
-        .mime_str(image.mime_type())
-        .map_err(|e| Error::runtime(format!("invalid mime type: {e}"), "ocr", false))
+/// Config-side selection of which [`Backend`] to construct.
+///
+/// The enum is always parseable regardless of compiled features —
+/// selecting [`OcrBackend::Bento`] on a build without the `bento`
+/// feature surfaces as a clear runtime error at construction
+/// instead of a deserialisation failure, so config files stay
+/// portable across deployments.
+///
+/// [`Backend`]: crate::core::Backend
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum OcrBackend {
+    /// No-op backend — produces zero OCR results. The default;
+    /// used in tests and in deployments that don't need OCR.
+    #[default]
+    Noop,
+
+    /// Externalised [`BentoBackend`] — calls the
+    /// `inference-ocr` Bento over HTTP. Requires the runtime to
+    /// be built with the `bento` feature.
+    ///
+    /// **Scaffolding only** until the wire contract is finalised
+    /// upstream — see [#128].
+    ///
+    /// [`BentoBackend`]: BentoBackend
+    /// [#128]: https://github.com/nvisycom/runtime/issues/128
+    Bento {
+        /// Base URL of the `inference-ocr` Bento (for example
+        /// `http://localhost:3001` or `http://inference-ocr:3001`
+        /// inside a docker-compose network).
+        base_url: String,
+    },
 }
 
-/// Parameters passed to a [`Backend`] implementation.
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
-#[non_exhaustive]
-pub struct RunParams {
-    /// Minimum confidence threshold for OCR results (0.0..=1.0).
-    pub confidence_threshold: f64,
-}
-
-impl RunParams {
-    /// Create params with the given confidence threshold.
+impl OcrBackend {
+    /// Build an [`Extractor`] from this config selection.
     ///
     /// # Errors
     ///
-    /// Returns an [`Error`] with [`ErrorKind::Validation`] if
-    /// `confidence_threshold` is not in `0.0..=1.0` (including `NaN`).
-    ///
-    /// [`ErrorKind::Validation`]: nvisy_core::ErrorKind::Validation
-    pub fn new(confidence_threshold: f64) -> Result<Self, Error> {
-        if !(0.0..=1.0).contains(&confidence_threshold) {
-            return Err(Error::validation(
-                format!("confidence_threshold must be in 0.0..=1.0, got {confidence_threshold}"),
+    /// Returns an error if the selected backend cannot be
+    /// constructed, or if the config selects a backend whose
+    /// feature wasn't compiled in.
+    pub fn into_extractor(self) -> Result<Extractor, Error> {
+        match self {
+            Self::Noop => Ok(Extractor::new(NoopBackend)),
+
+            #[cfg(feature = "bento")]
+            Self::Bento { base_url } => {
+                let backend = BentoBackend::new(BentoParams::new(base_url))?;
+                Ok(Extractor::new(backend))
+            }
+
+            #[cfg(not(feature = "bento"))]
+            Self::Bento { .. } => Err(Error::validation(
+                "OcrBackend::Bento requires nvisy-ocr to be built with the `bento` feature",
                 "ocr",
-            ));
+            )),
         }
-        Ok(Self {
-            confidence_threshold,
-        })
-    }
-}
-
-/// Backend trait for OCR providers.
-///
-/// Implementations send image bytes to an OCR service and return
-/// hierarchical [`ImageOutput`] results with page/block/line/word structure.
-///
-/// Confidence values **must** be normalised to 0.0..=1.0 before
-/// populating word confidence. Backends whose upstream API uses
-/// a different scale (e.g. AWS Textract returns 0–100) are
-/// responsible for converting.
-#[async_trait::async_trait]
-pub trait Backend: Send + Sync + 'static {
-    /// Run OCR on a single image.
-    async fn run(&self, image: &ImageInput, params: &RunParams) -> Result<ImageOutput, Error>;
-
-    /// Run OCR on multiple images, returning results in the same order.
-    ///
-    /// The default implementation runs all images concurrently. Backends
-    /// that need sequential processing or have native batch APIs can
-    /// override.
-    async fn run_batch(
-        &self,
-        images: &[ImageInput],
-        params: &RunParams,
-    ) -> Result<Vec<ImageOutput>, Error> {
-        let futures: Vec<_> = images.iter().map(|img| self.run(img, params)).collect();
-        let results: Vec<Result<ImageOutput, Error>> = futures::future::join_all(futures).await;
-        results.into_iter().collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::{Backend, Context, ImageFormat, ImageInput};
 
-    #[test]
-    fn run_params_rejects_above_one() {
-        assert!(RunParams::new(1.01).is_err());
+    #[tokio::test]
+    async fn noop_returns_empty() {
+        let backend = NoopBackend::new();
+        let image = ImageInput::new(vec![0u8; 8], ImageFormat::Png);
+        let out = backend.run(&image, Context::default()).await.unwrap();
+        assert_eq!(out.blocks.len(), 0);
     }
 
     #[test]
-    fn run_params_rejects_negative() {
-        assert!(RunParams::new(-0.1).is_err());
+    fn ocr_backend_into_extractor_noop() {
+        assert!(OcrBackend::Noop.into_extractor().is_ok());
     }
 
+    #[cfg(not(feature = "bento"))]
     #[test]
-    fn run_params_rejects_nan() {
-        assert!(RunParams::new(f64::NAN).is_err());
+    fn ocr_backend_bento_without_feature_errors_clearly() {
+        let err = OcrBackend::Bento {
+            base_url: "http://localhost:3001".into(),
+        }
+        .into_extractor()
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("`bento` feature"),
+            "error should mention the bento feature: {err}",
+        );
     }
 }

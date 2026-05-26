@@ -1,6 +1,7 @@
 //! Input types for OCR verification.
 
-use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, Location};
+use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind};
+use nvisy_ontology::modality::Image;
 use nvisy_ontology::primitive::BoundingBox;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -9,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// verification.
 pub struct VerificationCandidate {
     /// The detected entity.
-    pub entity: Entity,
+    pub entity: Entity<Image>,
     /// Text value resolved from the document.
     pub value: String,
 }
@@ -36,18 +37,14 @@ pub struct ProposedEntity {
 impl ProposedEntity {
     /// Create a proposed entity from a detected [`Entity`], its index,
     /// and the resolved text value from the document.
-    pub fn from_entity(id: usize, entity: &Entity, value: &str) -> Self {
-        let bbox = match &entity.location {
-            Location::Image(loc) => Some(loc.bounding_box),
-            _ => None,
-        };
+    pub fn from_entity(id: usize, entity: &Entity<Image>, value: &str) -> Self {
         Self {
             id,
             category: entity.category,
             entity_type: entity.entity_kind,
             value: value.to_string(),
             confidence: entity.confidence.get(),
-            bbox,
+            bbox: Some(entity.location.bounding_box),
         }
     }
 }

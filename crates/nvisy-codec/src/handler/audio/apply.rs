@@ -14,15 +14,17 @@ const TARGET: &str = "nvisy_codec::handler::audio";
 /// is the sample rate in Hz. The redaction expresses its range as a
 /// [`TimeSpan`] supplied separately by the caller — under the
 /// `(location, redaction)` shape the time span lives on the
-/// [`AudioLocation`], not the redaction.
+/// [`Audio`], not the redaction.
 ///
 /// Ordering across multiple redactions is the caller's
 /// responsibility: an [`AudioOutput::Remove`] shrinks the buffer, so
 /// later time spans must be applied first to keep earlier ones'
-/// indices valid. See [`AudioHandler::redact`].
+/// indices valid. Audio handlers typically override
+/// [`Handle::redact`] to use [`sort_redactions_for_audio`].
 ///
-/// [`AudioLocation`]: nvisy_ontology::entity::AudioLocation
-/// [`AudioHandler::redact`]: crate::handler::AudioHandler::redact
+/// [`Audio`]: nvisy_ontology::modality::Audio
+/// [`Handle::redact`]: crate::handler::Handle::redact
+/// [`sort_redactions_for_audio`]: crate::handler::sort_redactions_for_audio
 pub fn apply_audio_redaction<S>(
     samples: &mut Vec<S>,
     time_span: TimeSpan,
@@ -91,16 +93,12 @@ fn us_to_frame(us: i64, sample_rate: u32) -> usize {
 mod tests {
     use super::*;
 
-    fn span(start_us: i64, end_us: i64) -> TimeSpan {
-        TimeSpan { start_us, end_us }
-    }
-
     #[test]
     fn silence_zeroes_range_mono() {
         let mut samples: Vec<i16> = (1..=10).collect();
         apply_audio_redaction(
             &mut samples,
-            span(3_000, 6_000),
+            TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Silence),
             1000,
             1,
@@ -113,7 +111,7 @@ mod tests {
         let mut samples: Vec<i16> = (1..=10).collect();
         apply_audio_redaction(
             &mut samples,
-            span(3_000, 6_000),
+            TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Remove),
             1000,
             1,
@@ -126,7 +124,7 @@ mod tests {
         let mut samples: Vec<i16> = (1..=20).collect();
         apply_audio_redaction(
             &mut samples,
-            span(3_000, 6_000),
+            TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Silence),
             1000,
             2,
@@ -144,7 +142,7 @@ mod tests {
         let mut samples: Vec<i16> = (1..=20).collect();
         apply_audio_redaction(
             &mut samples,
-            span(3_000, 6_000),
+            TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Remove),
             1000,
             2,
@@ -161,7 +159,7 @@ mod tests {
         let mut samples: Vec<i16> = (1..=5).collect();
         apply_audio_redaction(
             &mut samples,
-            span(0, 999_999_000),
+            TimeSpan::new(0, 999_999_000),
             &AudioRedaction::new(AudioOutput::Silence),
             1000,
             1,
@@ -174,7 +172,7 @@ mod tests {
         let mut samples: Vec<i16> = (1..=5).collect();
         apply_audio_redaction(
             &mut samples,
-            span(0, 3_000),
+            TimeSpan::new(0, 3_000),
             &AudioRedaction::new(AudioOutput::Replace { data: vec![] }),
             1000,
             1,

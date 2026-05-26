@@ -11,9 +11,15 @@ This crate defines the trait surface that every concrete document
 handler implements:
 
 - [`Handler`] — base identity + encode.
-- [`TextHandler`], [`TabularHandler`], [`ImageHandler`],
-  [`AudioHandler`], [`RichHandler`] — per-modality capability traits.
-- [`ContentHandle`] — type-erased enum of every modality, with
+- [`Codable`] — codec-side per-modality `Data` + `Redaction` wire
+  types.
+- [`Handle<M>`] — single generic per-modality capability trait
+  (`locations`, `read`, `redact_at`, `redact`). A multi-modality
+  format implements `Handle<M>` once per modality it supports.
+- [`RichHandle`] — marker trait satisfied by any type that
+  implements `Handle<Text> + Handle<Image>`, so PDF/DOCX-style
+  documents fit a single trait object.
+- [`DocumentHandle`] — type-erased enum of every modality, with
   uniform `read_*` and `apply_*_redactions` methods.
 - Span-based addressing (`Span`, `Located`, `LocationStream`) so
   detection and redaction can address regions uniformly regardless
@@ -34,11 +40,11 @@ additional dependencies (`image`, `imageproc`).
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `text` | yes | `TextHandler` + `TextRedaction` + `apply_text_redaction` |
-| `tabular` | yes | `TabularHandler` + `TabularRedaction` + `apply_tabular_redaction` (pulls `text`) |
-| `image` | no | `ImageHandler` + `ImageData` + `apply_image_redaction` + `impl_image_handler!` (pulls `image` + `imageproc`) |
-| `audio` | no | `AudioHandler` + `AudioData` + `apply_audio_redaction` |
-| `rich` | no | `RichHandler` + `BoxedRichHandler` (pulls `text` + `image`) |
+| `text` | yes | `Handle<Text>` impls + `TextRedaction` + `apply_text_redaction` |
+| `tabular` | yes | `Handle<Tabular>` impls + `TabularRedaction` + `apply_tabular_redaction` (pulls `text`) |
+| `image` | no | `Handle<Image>` impls + `ImageData` + `apply_image_redaction` + `impl_image_handler!` (pulls `image` + `imageproc`) |
+| `audio` | no | `Handle<Audio>` impls + `AudioData` + `apply_audio_redaction` |
+| `rich` | no | [`RichHandle`] (pulls `text` + `image`) |
 
 ## Documentation
 
@@ -59,10 +65,8 @@ Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
 - **Email**: [support@nvisy.com](mailto:support@nvisy.com)
 
 [`Handler`]: handler::Handler
-[`TextHandler`]: handler::TextHandler
-[`TabularHandler`]: handler::TabularHandler
-[`ImageHandler`]: handler::ImageHandler
-[`AudioHandler`]: handler::AudioHandler
-[`RichHandler`]: handler::RichHandler
-[`ContentHandle`]: ContentHandle
+[`Codable`]: handler::Codable
+[`Handle<M>`]: handler::Handle
+[`RichHandle`]: handler::RichHandle
+[`DocumentHandle`]: DocumentHandle
 [`nvisy-formats`]: https://docs.rs/nvisy-formats

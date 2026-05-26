@@ -1,5 +1,6 @@
-//! Policy response types.
+//! `Policy<Text>` response types.
 
+use nvisy_ontology::modality::Text;
 use nvisy_ontology::policy::Policy;
 use schemars::JsonSchema;
 use semver::Version;
@@ -19,13 +20,13 @@ pub struct PolicyEntry {
     pub id: Uuid,
     /// Human-readable policy name.
     pub name: String,
-    /// Policy version.
+    /// Policy<Text> version.
     #[schemars(with = "String")]
     pub version: Version,
 }
 
-impl From<Policy> for PolicyEntry {
-    fn from(policy: Policy) -> Self {
+impl From<Policy<Text>> for PolicyEntry {
+    fn from(policy: Policy<Text>) -> Self {
         Self {
             id: policy.id,
             name: policy.name,

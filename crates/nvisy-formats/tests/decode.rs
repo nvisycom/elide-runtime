@@ -6,7 +6,7 @@
 
 #![cfg(all(feature = "txt", feature = "json", feature = "csv"))]
 
-use nvisy_codec::ContentHandle;
+use nvisy_codec::DocumentHandle;
 use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
 
 fn content_with(body: &[u8], mime: &str) -> Content {
@@ -19,21 +19,21 @@ fn content_with(body: &[u8], mime: &str) -> Content {
 async fn decode_routes_txt_to_text_modality() {
     let content = content_with(b"hello\nworld\n", "text/plain");
     let handle = nvisy_formats::decode(&content).await.expect("decode");
-    assert!(matches!(handle, ContentHandle::Text(_)));
+    assert!(matches!(handle, DocumentHandle::Text(_)));
 }
 
 #[tokio::test]
 async fn decode_routes_json_to_text_modality() {
     let content = content_with(br#"{"k":"v"}"#, "application/json");
     let handle = nvisy_formats::decode(&content).await.expect("decode");
-    assert!(matches!(handle, ContentHandle::Text(_)));
+    assert!(matches!(handle, DocumentHandle::Text(_)));
 }
 
 #[tokio::test]
 async fn decode_routes_csv_to_tabular_modality() {
     let content = content_with(b"a,b,c\n1,2,3\n", "text/csv");
     let handle = nvisy_formats::decode(&content).await.expect("decode");
-    assert!(matches!(handle, ContentHandle::Tabular(_)));
+    assert!(matches!(handle, DocumentHandle::Tabular(_)));
 }
 
 #[tokio::test]

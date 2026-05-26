@@ -14,7 +14,7 @@ fn confidence_threshold_filters() {
         .with_confidence_threshold(0.99)
         .build()
         .unwrap();
-    let entities = engine.scan_entities("number 123-45-6789 here", &empty_ctx());
+    let entities = engine.scan_text("number 123-45-6789 here", &empty_ctx());
     assert!(
         !entities
             .iter()
@@ -30,8 +30,8 @@ fn context_boost_applied_when_keyword_present() {
         .build()
         .unwrap();
 
-    let with_keyword = engine.scan_entities("SSN: 123-45-6789", &empty_ctx());
-    let without_keyword = engine.scan_entities("number 123-45-6789 here", &empty_ctx());
+    let with_keyword = engine.scan_text("SSN: 123-45-6789", &empty_ctx());
+    let without_keyword = engine.scan_text("number 123-45-6789 here", &empty_ctx());
 
     let boosted = with_keyword
         .iter()
@@ -59,8 +59,8 @@ fn pattern_selection_restricts_results() {
         .unwrap();
 
     let text = "SSN: 123-45-6789, email: alice@example.com";
-    let all_entities = all.scan_entities(text, &empty_ctx());
-    let ssn_entities = ssn_only.scan_entities(text, &empty_ctx());
+    let all_entities = all.scan_text(text, &empty_ctx());
+    let ssn_entities = ssn_only.scan_text(text, &empty_ctx());
 
     assert!(
         all_entities.len() > ssn_entities.len(),
@@ -83,8 +83,8 @@ fn confidence_threshold_filters_after_boost() {
         .build()
         .unwrap();
 
-    let with_keyword = engine.scan_entities("SSN: 123-45-6789", &empty_ctx());
-    let without_keyword = engine.scan_entities("number 123-45-6789 here", &empty_ctx());
+    let with_keyword = engine.scan_text("SSN: 123-45-6789", &empty_ctx());
+    let without_keyword = engine.scan_text("number 123-45-6789 here", &empty_ctx());
 
     assert!(
         !with_keyword.is_empty(),

@@ -4,14 +4,14 @@
 //! This module hosts the recognizer abstraction together with every
 //! adapter that implements it. The trait stays in-crate because
 //! every implementation today is an engine-side wrapper around a
-//! backend (`nvisy-pattern`, `nvisy-nlp`, `nvisy-agent`); backend
+//! backend (`nvisy-pattern`, `nvisy-ner`, `nvisy-agent`); backend
 //! crates themselves stay shape-agnostic.
 
 mod context;
 mod dyn_recognizer;
 mod extension;
 mod llm;
-mod nlp;
+mod ner;
 mod pattern;
 mod recognizer;
 mod recognizers;
@@ -22,18 +22,21 @@ use std::sync::Arc;
 use derive_builder::Builder;
 pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
-pub use nvisy_nlp::NlpContext;
-use nvisy_ontology::entity::Entities;
+pub use nvisy_ner::Context as NerContext;
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::modality::Text;
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
+use tracing::Instrument;
+use validator::Validate;
 
 pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
 pub use self::dyn_recognizer::DynRecognizer;
 pub use self::extension::Rebase;
 pub use self::llm::{LlmDetection, LlmRecognizer};
-pub use self::nlp::{NlpDetection, NlpRecognizer};
+pub use self::ner::{NerDetection, NerRecognizer};
 pub use self::pattern::{PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
 pub use self::recognizers::{DetectionSection, Recognizers};
@@ -45,7 +48,7 @@ const TARGET: &str = "nvisy_engine::detection";
 /// Holds an ordered list of recognizers (stored as
 /// [`DynRecognizer`] trait objects) and dispatches them in parallel
 /// against a shared [`DetectionContext`], returning every detected
-/// entity combined into a single [`Entities`] collection.
+/// entity combined into a single `Vec<Entity<Text>>`.
 ///
 /// Parallelism uses [`JoinSet`]: each recognizer runs
 /// on its own task so CPU-bound work (ONNX inference inside the NER
@@ -159,9 +162,7 @@ impl DetectionEngine {
     /// document coordinates after this returns.
     ///
     /// [`JoinSet`]: tokio::task::JoinSet
-    pub async fn run(&self, ctx: DetectionContext) -> Result<Entities> {
-        use tracing::Instrument;
-
+    pub async fn run(&self, ctx: DetectionContext) -> Result<Vec<Entity<Text>>> {
         let span = tracing::debug_span!(
             target: TARGET,
             "detect",
@@ -174,13 +175,13 @@ impl DetectionEngine {
         let recognizers = self.recognizers.clone();
 
         async move {
-            let mut set: JoinSet<nvisy_core::Result<Entities>> = JoinSet::new();
+            let mut set: JoinSet<nvisy_core::Result<Vec<Entity<Text>>>> = JoinSet::new();
             for recognizer in recognizers {
                 let ctx = Arc::clone(&ctx);
                 set.spawn(async move { recognizer.run(&ctx).await });
             }
 
-            let mut all = Entities::new();
+            let mut all = Vec::new();
             while let Some(joined) = set.join_next().await {
                 match joined {
                     Ok(Ok(entities)) => {
@@ -236,17 +237,17 @@ impl DetectionEngine {
     /// [`DetectionContext`].
     pub async fn detect_in(
         &self,
-        envelope: &mut crate::envelope::DocumentEnvelope,
+        envelope: &mut crate::envelope::DocumentEnvelope<Text>,
         cfg: &Detection,
     ) -> Result<()> {
         const TARGET: &str = "nvisy_engine::detection::detect_in";
-        let spans = envelope.document.collect_text_spans().await;
+        let spans = envelope.collect_text_spans().await;
         if spans.is_empty() {
             return Ok(());
         }
 
         let run_id = envelope.shared.run_id;
-        let mut all = nvisy_ontology::entity::Entities::new();
+        let mut all: Vec<Entity<Text>> = Vec::new();
         for span in &spans {
             let mut ctx = DetectionContext::new(span.data.clone());
             ctx.correlation_id = Some(run_id);
@@ -266,7 +267,7 @@ impl DetectionEngine {
             spans = spans.len(),
             "appending detected entities",
         );
-        envelope.add_entities(all).await;
+        envelope.add_entities(all);
 
         self.reset().await;
         Ok(())
@@ -320,7 +321,6 @@ pub struct Detection {
 impl Detection {
     /// Validate the configuration.
     pub fn validate(&self) -> std::result::Result<(), validator::ValidationErrors> {
-        use validator::Validate;
         Validate::validate(self)
     }
 
@@ -342,8 +342,8 @@ impl Detection {
                 RecognizerKind::Llm => {
                     builder.with_recognizer_arc(Arc::clone(recognizers.llm.as_ref().unwrap()))
                 }
-                RecognizerKind::Nlp => {
-                    builder.with_recognizer_arc(Arc::clone(recognizers.nlp.as_ref().unwrap()))
+                RecognizerKind::Ner => {
+                    builder.with_recognizer_arc(Arc::clone(recognizers.ner.as_ref().unwrap()))
                 }
                 RecognizerKind::Pattern => {
                     builder.with_recognizer_arc(Arc::clone(recognizers.pattern.as_ref().unwrap()))

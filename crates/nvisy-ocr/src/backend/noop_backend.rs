@@ -1,0 +1,34 @@
+//! [`NoopBackend`] — returns no OCR results. Default selection
+//! for deployments where the runtime should accept image content
+//! but isn't expected to recognise text in it.
+//!
+//! Useful in tests, as a placeholder while wiring up a real
+//! externalised backend, and for redaction pipelines that operate
+//! purely on metadata or on entities sourced from elsewhere.
+
+use async_trait::async_trait;
+use nvisy_core::Error;
+use nvisy_ontology::document::Document;
+use nvisy_ontology::modality::Image;
+
+use crate::core::{Backend, Context, ImageInput};
+
+/// A [`Backend`] that produces no OCR results.
+///
+/// Every call returns an empty [`Document<Image>`].
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoopBackend;
+
+impl NoopBackend {
+    /// Construct an empty backend.
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait]
+impl Backend for NoopBackend {
+    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<Document<Image>, Error> {
+        Ok(Document::new(Default::default(), Vec::new()))
+    }
+}

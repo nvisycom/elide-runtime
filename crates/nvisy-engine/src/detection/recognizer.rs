@@ -7,7 +7,8 @@
 
 use async_trait::async_trait;
 use nvisy_core::Result;
-use nvisy_ontology::entity::Entities;
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::modality::Text;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -37,7 +38,7 @@ pub trait Recognizer: Send + Sync {
     /// Detect entities in `text` using `ctx` for per-call
     /// configuration. Offsets in returned entities are relative to
     /// `text`; callers rebase when integrating into a larger document.
-    async fn run(&self, text: &str, ctx: &Self::Context) -> Result<Entities>;
+    async fn run(&self, text: &str, ctx: &Self::Context) -> Result<Vec<Entity<Text>>>;
 
     /// Reset per-document state, called by the orchestrator at
     /// document boundaries. The default is a no-op — stateless
@@ -64,10 +65,10 @@ pub enum RecognizerKind {
     ///
     /// [`LlmRecognizer`]: super::LlmRecognizer
     Llm,
-    /// NLP-engine recognizer (see [`NlpRecognizer`]).
+    /// NER-engine recognizer (see [`NerRecognizer`]).
     ///
-    /// [`NlpRecognizer`]: super::NlpRecognizer
-    Nlp,
+    /// [`NerRecognizer`]: super::NerRecognizer
+    Ner,
     /// Pattern-based recognizer (see [`PatternRecognizer`]).
     ///
     /// [`PatternRecognizer`]: super::PatternRecognizer

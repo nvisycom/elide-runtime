@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use self::annotation::{
-    Annotation, AnnotationKind, AnnotationTarget, document_labels, inclusion_entities,
+    Annotation, AnnotationKind, AnnotationTarget, document_labels, inclusion_entities, is_excluded,
 };
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;

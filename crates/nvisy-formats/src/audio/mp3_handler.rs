@@ -71,14 +71,7 @@ impl Handler for Mp3Handler {
 #[async_trait::async_trait]
 impl AudioHandler for Mp3Handler {
     fn locations(&self) -> LocationStream<'_, AudioLocation> {
-        let location = AudioLocation {
-            time_span: TimeSpan {
-                start_us: 0,
-                end_us: 0,
-            },
-            speaker_id: None,
-            audio_id: None,
-        };
+        let location = AudioLocation::new(TimeSpan::new(0, 0));
         LocationStream::new(futures::stream::iter(std::iter::once(Located::new(
             self.source,
             location,
@@ -111,14 +104,7 @@ mod tests {
     #[tokio::test]
     async fn redact_with_entries_errors() {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
-        let location = AudioLocation {
-            time_span: TimeSpan {
-                start_us: 0,
-                end_us: 1_000,
-            },
-            speaker_id: None,
-            audio_id: None,
-        };
+        let location = AudioLocation::new(TimeSpan::new(0, 1_000));
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(location, AudioRedaction::new(AudioOutput::Silence))
             .unwrap();

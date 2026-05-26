@@ -136,13 +136,7 @@ impl Annotations {
                     // User-supplied inclusion — no real document position.
                     // Use a zero-length sentinel; the value is carried by the
                     // annotation, not the location.
-                    Location::Text(
-                        TextLocation::builder()
-                            .with_start_offset(0usize)
-                            .with_end_offset(0usize)
-                            .build()
-                            .expect("required fields provided"),
-                    )
+                    Location::Text(TextLocation::new(0, 0))
                 }
                 AnnotationTarget::Location(loc) => loc.clone(),
             };
@@ -193,13 +187,7 @@ mod tests {
         Annotation {
             name: None,
             kind: AnnotationKind::Exclusion {
-                target: AnnotationTarget::Location(Location::from(
-                    TextLocation::builder()
-                        .with_start_offset(start)
-                        .with_end_offset(end)
-                        .build()
-                        .unwrap(),
-                )),
+                target: AnnotationTarget::Location(Location::from(TextLocation::new(start, end))),
             },
         }
     }
@@ -217,13 +205,7 @@ mod tests {
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(Confidence::new(0.9).expect("in range"))
-            .with_location(Location::from(
-                TextLocation::builder()
-                    .with_start_offset(start)
-                    .with_end_offset(end)
-                    .build()
-                    .unwrap(),
-            ))
+            .with_location(Location::from(TextLocation::new(start, end)))
             .build()
             .unwrap()
     }

@@ -297,19 +297,11 @@ mod tests {
         })
     }
 
-    fn cell_loc(row: usize, col: usize) -> TabularLocation {
-        TabularLocation::builder()
-            .with_row_index(row)
-            .with_column_index(col)
-            .build()
-            .unwrap()
-    }
-
     fn cell_range(row: usize, col: usize, start: usize, end: usize) -> TabularLocation {
         TabularLocation {
             start_offset: Some(start),
             end_offset: Some(end),
-            ..cell_loc(row, col)
+            ..TabularLocation::new(row, col)
         }
     }
 
@@ -338,16 +330,16 @@ mod tests {
     async fn read_returns_cell_value() {
         let h = handler_with_headers(vec!["name"], vec![vec!["Alice"]]);
         // header
-        assert_eq!(h.read(&cell_loc(0, 0)).await.unwrap().as_str(), "name");
+        assert_eq!(h.read(&TabularLocation::new(0, 0)).await.unwrap().as_str(), "name");
         // first data row
-        assert_eq!(h.read(&cell_loc(1, 0)).await.unwrap().as_str(), "Alice");
+        assert_eq!(h.read(&TabularLocation::new(1, 0)).await.unwrap().as_str(), "Alice");
     }
 
     #[tokio::test]
     async fn read_out_of_bounds_returns_none() {
         let h = handler_with_headers(vec!["a"], vec![vec!["1"]]);
-        assert!(h.read(&cell_loc(99, 0)).await.is_none());
-        assert!(h.read(&cell_loc(0, 99)).await.is_none());
+        assert!(h.read(&TabularLocation::new(99, 0)).await.is_none());
+        assert!(h.read(&TabularLocation::new(0, 99)).await.is_none());
     }
 
     #[tokio::test]

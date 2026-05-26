@@ -91,16 +91,12 @@ fn us_to_frame(us: i64, sample_rate: u32) -> usize {
 mod tests {
     use super::*;
 
-    fn span(start_us: i64, end_us: i64) -> TimeSpan {
-        TimeSpan { start_us, end_us }
-    }
-
     #[test]
     fn silence_zeroes_range_mono() {
         let mut samples: Vec<i16> = (1..=10).collect();
         apply_audio_redaction(
             &mut samples,
-            span(3_000, 6_000),
+            TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Silence),
             1000,
             1,
@@ -113,7 +109,7 @@ mod tests {
         let mut samples: Vec<i16> = (1..=10).collect();
         apply_audio_redaction(
             &mut samples,
-            span(3_000, 6_000),
+            TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Remove),
             1000,
             1,
@@ -126,7 +122,7 @@ mod tests {
         let mut samples: Vec<i16> = (1..=20).collect();
         apply_audio_redaction(
             &mut samples,
-            span(3_000, 6_000),
+            TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Silence),
             1000,
             2,
@@ -144,7 +140,7 @@ mod tests {
         let mut samples: Vec<i16> = (1..=20).collect();
         apply_audio_redaction(
             &mut samples,
-            span(3_000, 6_000),
+            TimeSpan::new(3_000, 6_000),
             &AudioRedaction::new(AudioOutput::Remove),
             1000,
             2,
@@ -161,7 +157,7 @@ mod tests {
         let mut samples: Vec<i16> = (1..=5).collect();
         apply_audio_redaction(
             &mut samples,
-            span(0, 999_999_000),
+            TimeSpan::new(0, 999_999_000),
             &AudioRedaction::new(AudioOutput::Silence),
             1000,
             1,
@@ -174,7 +170,7 @@ mod tests {
         let mut samples: Vec<i16> = (1..=5).collect();
         apply_audio_redaction(
             &mut samples,
-            span(0, 3_000),
+            TimeSpan::new(0, 3_000),
             &AudioRedaction::new(AudioOutput::Replace { data: vec![] }),
             1000,
             1,

@@ -17,13 +17,7 @@ fn text_document_round_trips() {
                 text_start: 0,
                 text_end: text.len(),
                 confidence: None,
-                source: Location::Text(
-                    TextLocation::builder()
-                        .with_start_offset(0_usize)
-                        .with_end_offset(text.len())
-                        .build()
-                        .unwrap(),
-                ),
+                source: Location::Text(TextLocation::new(0, text.len())),
             }],
             meta: ChunkMeta::Document,
         }],

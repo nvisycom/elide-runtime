@@ -139,56 +139,20 @@ mod tests {
     use super::*;
     use crate::primitive::{BoundingBox, TimeSpan};
 
-    fn text(start: usize, end: usize) -> Location {
-        Location::Text(
-            TextLocation::builder()
-                .with_start_offset(start)
-                .with_end_offset(end)
-                .build()
-                .unwrap(),
-        )
-    }
-
-    fn image() -> Location {
-        Location::Image(
-            ImageLocation::builder()
-                .with_bounding_box(BoundingBox {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 10.0,
-                    height: 10.0,
-                })
-                .build()
-                .unwrap(),
-        )
-    }
-
-    fn audio() -> Location {
-        Location::Audio(
-            AudioLocation::builder()
-                .with_time_span(TimeSpan {
-                    start_us: 0,
-                    end_us: 1_000_000,
-                })
-                .build()
-                .unwrap(),
-        )
-    }
-
-    fn tabular(row: usize, col: usize) -> Location {
-        Location::Tabular(
-            TabularLocation::builder()
-                .with_row_index(row)
-                .with_column_index(col)
-                .build()
-                .unwrap(),
-        )
-    }
-
     #[test]
     fn cross_modality_no_overlap() {
-        assert!(!text(0, 10).overlaps(&image()));
-        assert!(!image().overlaps(&audio()));
-        assert!(!audio().overlaps(&tabular(0, 0)));
+        let text = Location::Text(TextLocation::new(0, 10));
+        let image = Location::Image(ImageLocation::new(BoundingBox {
+            x: 0.0,
+            y: 0.0,
+            width: 10.0,
+            height: 10.0,
+        }));
+        let audio = Location::Audio(AudioLocation::new(TimeSpan::new(0, 1_000_000)));
+        let tabular = Location::Tabular(TabularLocation::new(0, 0));
+
+        assert!(!text.overlaps(&image));
+        assert!(!image.overlaps(&audio));
+        assert!(!audio.overlaps(&tabular));
     }
 }

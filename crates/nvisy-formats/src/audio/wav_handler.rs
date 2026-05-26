@@ -84,14 +84,7 @@ impl AudioHandler for WavHandler {
         // without decoding — use 0..0 as a placeholder. The actual
         // time span is set by the STT extraction operation after
         // transcription.
-        let location = AudioLocation {
-            time_span: TimeSpan {
-                start_us: 0,
-                end_us: 0,
-            },
-            speaker_id: None,
-            audio_id: None,
-        };
+        let location = AudioLocation::new(TimeSpan::new(0, 0));
         LocationStream::new(futures::stream::iter(std::iter::once(Located::new(
             self.source,
             location,
@@ -217,14 +210,6 @@ mod tests {
         reader.samples::<i16>().map(Result::unwrap).collect()
     }
 
-    fn location(start_us: i64, end_us: i64) -> AudioLocation {
-        AudioLocation {
-            time_span: TimeSpan { start_us, end_us },
-            speaker_id: None,
-            audio_id: None,
-        }
-    }
-
     #[tokio::test]
     async fn silence_zeros_samples_in_range() {
         // 10 samples at 1 kHz = 10 ms.
@@ -233,7 +218,7 @@ mod tests {
 
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            location(3_000, 6_000),
+            AudioLocation::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Silence),
         )
         .unwrap();
@@ -250,7 +235,7 @@ mod tests {
 
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            location(3_000, 6_000),
+            AudioLocation::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Remove),
         )
         .unwrap();
@@ -271,12 +256,12 @@ mod tests {
 
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            location(1_000, 3_000),
+            AudioLocation::new(TimeSpan::new(1_000, 3_000)),
             AudioRedaction::new(AudioOutput::Remove),
         )
         .unwrap();
         rs.try_insert(
-            location(6_000, 8_000),
+            AudioLocation::new(TimeSpan::new(6_000, 8_000)),
             AudioRedaction::new(AudioOutput::Remove),
         )
         .unwrap();
@@ -305,7 +290,7 @@ mod tests {
         let mut handler = WavHandler::new(Bytes::from_static(b"not-a-wav"));
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            location(0, 1_000),
+            AudioLocation::new(TimeSpan::new(0, 1_000)),
             AudioRedaction::new(AudioOutput::Silence),
         )
         .unwrap();

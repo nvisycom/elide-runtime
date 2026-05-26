@@ -110,13 +110,7 @@ mod tests {
                 text_start: 0,
                 text_end: s.len(),
                 confidence: None,
-                source: Location::Text(
-                    TextLocation::builder()
-                        .with_start_offset(0_usize)
-                        .with_end_offset(s.len())
-                        .build()
-                        .unwrap(),
-                ),
+                source: Location::Text(TextLocation::new(0, s.len())),
             }],
             meta: ChunkMeta::Document,
         };
@@ -138,13 +132,7 @@ mod tests {
             text_start: start,
             text_end: end,
             confidence: None,
-            source: Location::Text(
-                TextLocation::builder()
-                    .with_start_offset(start)
-                    .with_end_offset(end)
-                    .build()
-                    .unwrap(),
-            ),
+            source: Location::Text(TextLocation::new(start, end)),
         };
         let doc = Document {
             meta: DocumentMeta::default(),

@@ -101,13 +101,7 @@ impl Entity {
         start: usize,
         end: usize,
     ) -> Self {
-        let location = Location::from(
-            TextLocation::builder()
-                .with_start_offset(start)
-                .with_end_offset(end)
-                .build()
-                .expect("required fields provided"),
-        );
+        let location = Location::from(TextLocation::new(start, end));
         Entity::builder()
             .with_category(category)
             .with_entity_kind(entity_kind)
@@ -129,13 +123,7 @@ impl Entity {
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(Confidence::clamped(0.9))
-            .with_location(Location::from(
-                TextLocation::builder()
-                    .with_start_offset(start)
-                    .with_end_offset(end)
-                    .build()
-                    .expect("required fields provided"),
-            ))
+            .with_location(Location::from(TextLocation::new(start, end)))
     }
 }
 
@@ -219,13 +207,7 @@ mod tests {
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(Confidence::new(confidence).expect("in range"))
-            .with_location(Location::from(
-                TextLocation::builder()
-                    .with_start_offset(0usize)
-                    .with_end_offset(4usize)
-                    .build()
-                    .unwrap(),
-            ))
+            .with_location(Location::from(TextLocation::new(0, 4)))
             .build()
             .unwrap()
     }

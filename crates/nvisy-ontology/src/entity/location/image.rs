@@ -38,6 +38,20 @@ pub struct ImageLocation {
 }
 
 impl ImageLocation {
+    /// Create an [`ImageLocation`] from the bounding box alone, with
+    /// every optional field unset. Use [`builder`] when polygon,
+    /// `image_id`, or `page_number` need to be set.
+    ///
+    /// [`builder`]: Self::builder
+    pub fn new(bounding_box: BoundingBox) -> Self {
+        Self {
+            bounding_box,
+            polygon: None,
+            image_id: None,
+            page_number: None,
+        }
+    }
+
     /// Create a new [`ImageLocationBuilder`].
     pub fn builder() -> ImageLocationBuilder {
         ImageLocationBuilder::default()

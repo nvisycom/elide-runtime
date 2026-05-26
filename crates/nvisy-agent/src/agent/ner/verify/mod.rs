@@ -165,11 +165,7 @@ impl NerVerifyAgent {
                 }
             };
 
-            let loc = TextLocation::builder()
-                .with_start_offset(l.start_offset)
-                .with_end_offset(l.end_offset)
-                .build()
-                .expect("required fields provided");
+            let loc = TextLocation::new(l.start_offset, l.end_offset);
 
             let mut refinement_methods = Vec::new();
             if refined {

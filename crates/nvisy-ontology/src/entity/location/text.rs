@@ -39,6 +39,22 @@ pub struct TextLocation {
 }
 
 impl TextLocation {
+    /// Create a [`TextLocation`] covering `start_offset..end_offset`
+    /// with all optional fields unset. Use [`builder`] when context
+    /// offsets, page, or line numbers need to be set.
+    ///
+    /// [`builder`]: Self::builder
+    pub fn new(start_offset: usize, end_offset: usize) -> Self {
+        Self {
+            start_offset,
+            end_offset,
+            context_start_offset: None,
+            context_end_offset: None,
+            page_number: None,
+            line_number: None,
+        }
+    }
+
     /// Create a new [`TextLocationBuilder`].
     pub fn builder() -> TextLocationBuilder {
         TextLocationBuilder::default()
@@ -99,38 +115,30 @@ fn option_max(a: Option<usize>, b: Option<usize>) -> Option<usize> {
 mod tests {
     use super::*;
 
-    fn loc(start: usize, end: usize) -> TextLocation {
-        TextLocation::builder()
-            .with_start_offset(start)
-            .with_end_offset(end)
-            .build()
-            .unwrap()
-    }
-
     #[test]
     fn len_and_is_empty() {
-        assert_eq!(loc(0, 10).len(), 10);
-        assert!(!loc(0, 10).is_empty());
-        assert!(loc(5, 5).is_empty());
+        assert_eq!(TextLocation::new(0, 10).len(), 10);
+        assert!(!TextLocation::new(0, 10).is_empty());
+        assert!(TextLocation::new(5, 5).is_empty());
     }
 
     #[test]
     fn overlap_intersecting() {
-        assert!(loc(0, 10).overlaps(&loc(5, 15)));
+        assert!(TextLocation::new(0, 10).overlaps(&TextLocation::new(5, 15)));
     }
 
     #[test]
     fn overlap_contained() {
-        assert!(loc(0, 10).overlaps(&loc(2, 5)));
+        assert!(TextLocation::new(0, 10).overlaps(&TextLocation::new(2, 5)));
     }
 
     #[test]
     fn no_overlap_adjacent() {
-        assert!(!loc(0, 5).overlaps(&loc(5, 10)));
+        assert!(!TextLocation::new(0, 5).overlaps(&TextLocation::new(5, 10)));
     }
 
     #[test]
     fn no_overlap_disjoint() {
-        assert!(!loc(0, 5).overlaps(&loc(10, 15)));
+        assert!(!TextLocation::new(0, 5).overlaps(&TextLocation::new(10, 15)));
     }
 }

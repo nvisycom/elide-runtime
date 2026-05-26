@@ -18,13 +18,7 @@ fn mixed_chunks_in_one_document() {
                     text_start: 0,
                     text_end: 12,
                     confidence: None,
-                    source: Location::Text(
-                        TextLocation::builder()
-                            .with_start_offset(0_usize)
-                            .with_end_offset(12_usize)
-                            .build()
-                            .unwrap(),
-                    ),
+                    source: Location::Text(TextLocation::new(0, 12)),
                 }],
                 meta: ChunkMeta::Page {
                     number: 1,

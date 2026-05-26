@@ -39,6 +39,23 @@ pub struct TabularLocation {
 }
 
 impl TabularLocation {
+    /// Create a [`TabularLocation`] for the given cell coordinates,
+    /// with every optional field (intra-cell offsets, column name,
+    /// sheet name) unset. Use [`builder`] when any of those need to
+    /// be set.
+    ///
+    /// [`builder`]: Self::builder
+    pub fn new(row_index: usize, column_index: usize) -> Self {
+        Self {
+            row_index,
+            column_index,
+            start_offset: None,
+            end_offset: None,
+            column_name: None,
+            sheet_name: None,
+        }
+    }
+
     /// Create a new [`TabularLocationBuilder`].
     pub fn builder() -> TabularLocationBuilder {
         TabularLocationBuilder::default()
@@ -99,30 +116,22 @@ impl Mergeable for TabularLocation {
 mod tests {
     use super::*;
 
-    fn cell(row: usize, col: usize) -> TabularLocation {
-        TabularLocation::builder()
-            .with_row_index(row)
-            .with_column_index(col)
-            .build()
-            .unwrap()
-    }
-
     fn cell_with_offsets(row: usize, col: usize, start: usize, end: usize) -> TabularLocation {
         TabularLocation {
             start_offset: Some(start),
             end_offset: Some(end),
-            ..cell(row, col)
+            ..TabularLocation::new(row, col)
         }
     }
 
     #[test]
     fn overlap_same_cell_no_offsets() {
-        assert!(cell(0, 0).overlaps(&cell(0, 0)));
+        assert!(TabularLocation::new(0, 0).overlaps(&TabularLocation::new(0, 0)));
     }
 
     #[test]
     fn no_overlap_different_row() {
-        assert!(!cell(0, 0).overlaps(&cell(1, 0)));
+        assert!(!TabularLocation::new(0, 0).overlaps(&TabularLocation::new(1, 0)));
     }
 
     #[test]
@@ -138,6 +147,6 @@ mod tests {
     #[test]
     fn overlap_same_cell_one_has_offsets() {
         // One has offsets, one doesn't → assume overlap.
-        assert!(cell(0, 0).overlaps(&cell_with_offsets(0, 0, 5, 10)));
+        assert!(TabularLocation::new(0, 0).overlaps(&cell_with_offsets(0, 0, 5, 10)));
     }
 }

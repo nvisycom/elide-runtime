@@ -65,96 +65,57 @@ mod tests {
 
     use super::*;
 
-    fn text_loc(start: usize, end: usize) -> Location {
-        Location::Text(TextLocation {
-            start_offset: start,
-            end_offset: end,
-            ..Default::default()
-        })
-    }
-
     use std::cmp::Ordering;
 
     #[test]
     fn text_larger_span_wins() {
-        let a = text_loc(0, 10);
-        let b = text_loc(0, 5);
+        let a = Location::Text(TextLocation::new(0, 10));
+        let b = Location::Text(TextLocation::new(0, 5));
         assert_eq!(a.span_cmp(&b), Some(Ordering::Greater));
         assert_eq!(b.span_cmp(&a), Some(Ordering::Less));
     }
 
     #[test]
     fn text_equal_spans() {
-        let a = text_loc(0, 5);
-        let b = text_loc(3, 8);
+        let a = Location::Text(TextLocation::new(0, 5));
+        let b = Location::Text(TextLocation::new(3, 8));
         assert_eq!(a.span_cmp(&b), Some(Ordering::Equal));
     }
 
     #[test]
     fn image_larger_area_wins() {
-        let a = Location::Image(
-            ImageLocation::builder()
-                .with_bounding_box(BoundingBox {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 100.0,
-                    height: 100.0,
-                })
-                .build()
-                .unwrap(),
-        );
-        let b = Location::Image(
-            ImageLocation::builder()
-                .with_bounding_box(BoundingBox {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 50.0,
-                    height: 50.0,
-                })
-                .build()
-                .unwrap(),
-        );
+        let a = Location::Image(ImageLocation::new(BoundingBox {
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 100.0,
+        }));
+        let b = Location::Image(ImageLocation::new(BoundingBox {
+            x: 0.0,
+            y: 0.0,
+            width: 50.0,
+            height: 50.0,
+        }));
         assert_eq!(a.span_cmp(&b), Some(Ordering::Greater));
         assert_eq!(b.span_cmp(&a), Some(Ordering::Less));
     }
 
     #[test]
     fn audio_longer_duration_wins() {
-        let a = Location::Audio(
-            AudioLocation::builder()
-                .with_time_span(TimeSpan {
-                    start_us: 0,
-                    end_us: 10_000_000,
-                })
-                .build()
-                .unwrap(),
-        );
-        let b = Location::Audio(
-            AudioLocation::builder()
-                .with_time_span(TimeSpan {
-                    start_us: 0,
-                    end_us: 5_000_000,
-                })
-                .build()
-                .unwrap(),
-        );
+        let a = Location::Audio(AudioLocation::new(TimeSpan::new(0, 10_000_000)));
+        let b = Location::Audio(AudioLocation::new(TimeSpan::new(0, 5_000_000)));
         assert_eq!(a.span_cmp(&b), Some(Ordering::Greater));
     }
 
     #[test]
     fn cross_modality_returns_none() {
-        let text = text_loc(0, 10);
-        let image = Location::Image(
-            ImageLocation::builder()
-                .with_bounding_box(BoundingBox {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 10.0,
-                    height: 10.0,
-                })
-                .build()
-                .unwrap(),
-        );
+        let text = Location::Text(TextLocation::new(0, 10));
+        let image = Location::Image(ImageLocation::new(BoundingBox {
+            x: 0.0,
+            y: 0.0,
+            width: 10.0,
+            height: 10.0,
+        }));
         assert_eq!(text.span_cmp(&image), None);
     }
 }

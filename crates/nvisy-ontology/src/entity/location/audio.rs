@@ -31,6 +31,19 @@ pub struct AudioLocation {
 }
 
 impl AudioLocation {
+    /// Create an [`AudioLocation`] covering `time_span`, with no
+    /// speaker attribution or audio-document link. Use [`builder`]
+    /// when `speaker_id` or `audio_id` need to be set.
+    ///
+    /// [`builder`]: Self::builder
+    pub fn new(time_span: TimeSpan) -> Self {
+        Self {
+            time_span,
+            speaker_id: None,
+            audio_id: None,
+        }
+    }
+
     /// Create a new [`AudioLocationBuilder`].
     pub fn builder() -> AudioLocationBuilder {
         AudioLocationBuilder::default()

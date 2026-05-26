@@ -76,13 +76,7 @@ mod tests {
             text_start: start,
             text_end: end,
             confidence: None,
-            source: Location::Text(
-                TextLocation::builder()
-                    .with_start_offset(start)
-                    .with_end_offset(end)
-                    .build()
-                    .unwrap(),
-            ),
+            source: Location::Text(TextLocation::new(start, end)),
         }
     }
 

@@ -1,5 +1,5 @@
-//! [`NerEngine`] — composes a [`Backend`] and a [`LanguagePolicy`]
-//! into a single entrypoint, plus the [`NerEngineBuilder`] that
+//! [`Recognizer`] — composes a [`Backend`] and a [`LanguagePolicy`]
+//! into a single entrypoint, plus the [`RecognizerBuilder`] that
 //! constructs it.
 //!
 //! [`Backend`]: crate::core::Backend
@@ -14,41 +14,42 @@ use nvisy_core::Result;
 use nvisy_ontology::primitive::{LanguageDetection, LanguageProvenance};
 
 pub use self::artifacts::Artifacts;
-use crate::core::{Backend, NerContext, NerParams};
+use crate::core::{Backend, Context};
 use crate::language::{DynLanguagePolicy, LanguagePolicy};
 
-/// Composite NER engine.
+/// Composite NER recognizer.
 ///
 /// Holds a [`Backend`] and a [`LanguagePolicy`] (both required).
-/// The [`analyze`] entrypoint resolves the language (asserted or
-/// detected) and then runs NER with the language as a hint.
+/// The [`recognize`] entrypoint resolves the language (asserted or
+/// detected) and then runs the backend with that language as a
+/// hint.
 ///
 /// Construct via [`builder`]. Per-call options (asserted language,
 /// candidate languages, allowed entity kinds, correlation id) ride
-/// on [`NerContext`].
+/// on [`Context`].
 ///
 /// `Clone` is cheap — every field is already an `Arc`, so cloning is
-/// two refcount bumps. Pass the engine by value across tasks and
-/// keep it in `State` containers freely.
+/// two refcount bumps. Pass the recognizer by value across tasks
+/// and keep it in `State` containers freely.
 ///
 /// [`Backend`]: crate::core::Backend
 /// [`LanguagePolicy`]: crate::language::LanguagePolicy
-/// [`analyze`]: Self::analyze
+/// [`recognize`]: Self::recognize
 /// [`builder`]: Self::builder
 #[derive(Clone, Builder)]
 #[builder(
-    name = "NerEngineBuilder",
+    name = "RecognizerBuilder",
     pattern = "owned",
-    build_fn(error = "NerEngineBuilderError")
+    build_fn(error = "RecognizerBuilderError")
 )]
-pub struct NerEngine {
+pub struct Recognizer {
     #[builder(setter(custom))]
     pub(super) ner: Arc<dyn Backend>,
     #[builder(setter(custom))]
     pub(super) language: Arc<dyn DynLanguagePolicy>,
 }
 
-impl NerEngineBuilder {
+impl RecognizerBuilder {
     /// Attach the NER backend. Required.
     pub fn with_ner_backend<B>(mut self, backend: B) -> Self
     where
@@ -60,11 +61,11 @@ impl NerEngineBuilder {
 
     /// Attach the language-detection policy. Required.
     ///
-    /// The engine asks the policy for a fresh detector each
-    /// [`analyze`] call, restricted to whatever language scope the
-    /// caller supplied via [`NerContext::candidate_languages`].
+    /// The recognizer asks the policy for a fresh detector each
+    /// [`recognize`] call, restricted to whatever language scope
+    /// the caller supplied via [`Context::candidate_languages`].
     ///
-    /// [`analyze`]: NerEngine::analyze
+    /// [`recognize`]: Recognizer::recognize
     pub fn with_language_policy<P>(mut self, policy: P) -> Self
     where
         P: LanguagePolicy + 'static,
@@ -74,13 +75,13 @@ impl NerEngineBuilder {
     }
 }
 
-/// Error returned by [`NerEngineBuilder::build`] when a required
+/// Error returned by [`RecognizerBuilder::build`] when a required
 /// component (NER backend or language policy) is missing.
 #[derive(Debug, thiserror::Error)]
-#[error("NerEngine build failed: {0}")]
-pub struct NerEngineBuilderError(String);
+#[error("Recognizer build failed: {0}")]
+pub struct RecognizerBuilderError(String);
 
-impl From<derive_builder::UninitializedFieldError> for NerEngineBuilderError {
+impl From<derive_builder::UninitializedFieldError> for RecognizerBuilderError {
     fn from(err: derive_builder::UninitializedFieldError) -> Self {
         let field = err.field_name();
         let component = match field {
@@ -91,39 +92,40 @@ impl From<derive_builder::UninitializedFieldError> for NerEngineBuilderError {
     }
 }
 
-impl NerEngine {
-    /// Start building an engine.
-    pub fn builder() -> NerEngineBuilder {
-        NerEngineBuilder::default()
+impl Recognizer {
+    /// Start building a recognizer.
+    pub fn builder() -> RecognizerBuilder {
+        RecognizerBuilder::default()
     }
 
-    /// Run all configured components against `text` with `context`.
+    /// Run all configured components against `text` with `ctx`.
     ///
-    /// Post-filtering by the `entities` allowlist is the caller's
-    /// responsibility — `analyze` returns whatever the configured
-    /// backend produced. Routed callers (the engine-side
-    /// `NerRecognizer`) defer to the central detection-layer filter.
-    pub async fn analyze(&self, text: &str, context: &NerContext) -> Result<Artifacts> {
+    /// Post-filtering by the `entity_kinds` allowlist is the
+    /// caller's responsibility — `recognize` returns whatever the
+    /// configured backend produced. Routed callers (the
+    /// engine-side `NerRecognizer`) defer to the central
+    /// detection-layer filter.
+    pub async fn recognize(&self, text: &str, ctx: &Context) -> Result<Artifacts> {
         use tracing::Instrument;
 
         let span = tracing::debug_span!(
-            "nvisy_ner::analyze",
-            correlation_id = context.correlation_id.as_ref().map(|id| id.to_string()),
+            "nvisy_ner::recognize",
+            correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
         );
 
         async move {
-            let detections = self.resolve_language(text, context)?;
-            let mut params = NerParams::new();
-            if let Some(lang) = detections.first().map(|d| &d.language) {
-                params = params.with_language(lang);
-            }
-            if let Some(kinds) = context.entities.as_deref() {
-                params = params.with_requested_kinds(kinds);
-            }
-            if let Some(id) = context.correlation_id {
-                params = params.with_correlation_id(id);
-            }
-            let entities = self.ner.recognize(text, params).await?;
+            let detections = self.resolve_language(text, ctx)?;
+            // Substitute the detected language onto the context
+            // before handing it to the backend. Falls back to the
+            // caller-asserted value when detection produced nothing.
+            let detected_language = detections.first().map(|d| d.language.clone());
+            let backend_ctx = Context {
+                language: detected_language.or_else(|| ctx.language.clone()),
+                candidate_languages: ctx.candidate_languages.clone(),
+                entity_kinds: ctx.entity_kinds.clone(),
+                correlation_id: ctx.correlation_id,
+            };
+            let entities = self.ner.recognize(text, &backend_ctx).await?;
 
             Ok(Artifacts {
                 entities,
@@ -134,8 +136,8 @@ impl NerEngine {
         .await
     }
 
-    fn resolve_language(&self, text: &str, context: &NerContext) -> Result<Vec<LanguageDetection>> {
-        if let Some(language) = context.language.clone() {
+    fn resolve_language(&self, text: &str, ctx: &Context) -> Result<Vec<LanguageDetection>> {
+        if let Some(language) = ctx.language.clone() {
             return Ok(vec![LanguageDetection {
                 language,
                 confidence: None,
@@ -143,7 +145,7 @@ impl NerEngine {
                 span: None,
             }]);
         }
-        let detector = match context.candidate_languages.as_deref() {
+        let detector = match ctx.candidate_languages.as_deref() {
             Some(candidates) if !candidates.is_empty() => self.language.detector_for(candidates),
             _ => self.language.detector_for_all(),
         };
@@ -151,9 +153,9 @@ impl NerEngine {
     }
 }
 
-impl std::fmt::Debug for NerEngine {
+impl std::fmt::Debug for Recognizer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NerEngine").finish_non_exhaustive()
+        f.debug_struct("Recognizer").finish_non_exhaustive()
     }
 }
 
@@ -166,8 +168,8 @@ mod tests {
     use crate::backend::NoopBackend;
     use crate::language::LinguaLanguagePolicy;
 
-    fn english_engine() -> NerEngine {
-        NerEngine::builder()
+    fn english_recognizer() -> Recognizer {
+        Recognizer::builder()
             .with_ner_backend(NoopBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
@@ -175,12 +177,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn analyze_detects_language() {
-        let engine = english_engine();
-        let out = engine
-            .analyze(
+    async fn recognize_detects_language() {
+        let recognizer = english_recognizer();
+        let out = recognizer
+            .recognize(
                 "The quick brown fox jumps over the lazy dog.",
-                &NerContext::default(),
+                &Context::default(),
             )
             .await
             .unwrap();
@@ -190,32 +192,26 @@ mod tests {
 
     #[tokio::test]
     async fn asserted_language_bypasses_detection() {
-        let engine = english_engine();
+        let recognizer = english_recognizer();
         let asserted: LanguageTag = "de".parse().unwrap();
-        let ctx = NerContext::builder()
-            .with_language(asserted)
-            .build()
-            .unwrap();
-        let out = engine.analyze("The quick brown fox", &ctx).await.unwrap();
+        let ctx = Context::new().with_language(asserted);
+        let out = recognizer.recognize("The quick brown fox", &ctx).await.unwrap();
         // Caller-asserted German wins over detected English.
         assert_eq!(out.dominant_language().unwrap().primary_language(), "de");
     }
 
     #[tokio::test]
     async fn correlation_id_is_accepted() {
-        let engine = english_engine();
+        let recognizer = english_recognizer();
         let id = Uuid::new_v4();
-        let ctx = NerContext::builder()
-            .with_correlation_id(id)
-            .build()
-            .unwrap();
-        let out = engine.analyze("The quick brown fox", &ctx).await.unwrap();
+        let ctx = Context::new().with_correlation_id(id);
+        let out = recognizer.recognize("The quick brown fox", &ctx).await.unwrap();
         assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
     }
 
     #[test]
-    fn engine_builder_errors_when_ner_missing() {
-        let err = NerEngine::builder()
+    fn builder_errors_when_ner_missing() {
+        let err = Recognizer::builder()
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap_err();
@@ -226,8 +222,8 @@ mod tests {
     }
 
     #[test]
-    fn engine_builder_errors_when_language_policy_missing() {
-        let err = NerEngine::builder()
+    fn builder_errors_when_language_policy_missing() {
+        let err = Recognizer::builder()
             .with_ner_backend(NoopBackend)
             .build()
             .unwrap_err();
@@ -244,19 +240,16 @@ mod tests {
         // only language enabled via the workspace's `english`
         // lingua feature, so an English candidate set on English
         // text resolves to English.
-        let engine = NerEngine::builder()
+        let recognizer = Recognizer::builder()
             .with_ner_backend(NoopBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap();
 
         let en: LanguageTag = "en".parse().unwrap();
-        let ctx = NerContext::builder()
-            .with_candidate_languages(vec![en])
-            .build()
-            .unwrap();
-        let out = engine
-            .analyze("The quick brown fox jumps over the lazy dog.", &ctx)
+        let ctx = Context::new().with_candidate_languages(vec![en]);
+        let out = recognizer
+            .recognize("The quick brown fox jumps over the lazy dog.", &ctx)
             .await
             .unwrap();
         assert_eq!(out.dominant_language().unwrap().primary_language(), "en");
@@ -269,19 +262,16 @@ mod tests {
         // and a German-only candidate list, the policy falls back
         // to detector_for_all (which still considers only English),
         // so English text still detects as English.
-        let engine = NerEngine::builder()
+        let recognizer = Recognizer::builder()
             .with_ner_backend(NoopBackend)
             .with_language_policy(LinguaLanguagePolicy)
             .build()
             .unwrap();
 
         let de: LanguageTag = "de".parse().unwrap();
-        let ctx = NerContext::builder()
-            .with_candidate_languages(vec![de])
-            .build()
-            .unwrap();
-        let out = engine
-            .analyze("The quick brown fox jumps over the lazy dog.", &ctx)
+        let ctx = Context::new().with_candidate_languages(vec![de]);
+        let out = recognizer
+            .recognize("The quick brown fox jumps over the lazy dog.", &ctx)
             .await
             .unwrap();
         assert_eq!(out.dominant_language().unwrap().primary_language(), "en");

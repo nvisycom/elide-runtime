@@ -3,7 +3,7 @@
 //!
 //! Two layers:
 //!
-//! - **`LanguagePolicy`** is the abstraction the [`NerEngine`] plugs
+//! - **`LanguagePolicy`** is the abstraction the [`Recognizer`] plugs
 //!   into. A policy is a factory: per call it builds a fresh detector
 //!   restricted to a caller-supplied language set (or to every
 //!   language the policy can produce when the caller has no
@@ -15,7 +15,7 @@
 //!
 //! Built-in: [`LinguaLanguagePolicy`] wraps the [`lingua`] crate.
 //!
-//! [`NerEngine`]: crate::NerEngine
+//! [`Recognizer`]: crate::Recognizer
 //! [`lingua`]: https://crates.io/crates/lingua
 
 mod dyn_policy;

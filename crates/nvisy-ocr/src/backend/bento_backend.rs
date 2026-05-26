@@ -1,4 +1,4 @@
-//! [`BentoOcrBackend`] — externalised OCR over an `inference-ocr`
+//! [`BentoBackend`] — externalised OCR over an `inference-ocr`
 //! Bento in [`nvisycom/inference`].
 //!
 //! **Scaffolding only.** The wire contract has not been finalised
@@ -10,8 +10,8 @@
 //! service.
 //!
 //! Once the wire types are pinned, this file mirrors
-//! [`crate::backend::bento_types`] the same way `BentoNerBackend`
-//! mirrors `nvisy_core.ner.v1` in `nvisy-ner`.
+//! [`crate::backend::bento_types`] the same way `nvisy-ner`'s
+//! `BentoBackend` mirrors `nvisy_core.ner.v1`.
 //!
 //! [`Backend`]: crate::core::Backend
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
@@ -21,16 +21,16 @@ use async_trait::async_trait;
 use bentoml::prelude::*;
 use nvisy_core::Error;
 
-use crate::core::{Backend, ImageInput, ImageOutput, OcrParams};
+use crate::core::{Backend, Context, ImageInput, ImageOutput};
 
-/// Parameters for [`BentoOcrBackend`].
+/// Parameters for [`BentoBackend`].
 #[derive(Debug, Clone)]
-pub struct BentoOcrParams {
+pub struct BentoParams {
     /// Base URL of the `inference-ocr` Bento (e.g. `http://localhost:3001`).
     pub base_url: String,
 }
 
-impl BentoOcrParams {
+impl BentoParams {
     /// Construct with the given service URL.
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
@@ -52,16 +52,16 @@ impl BentoOcrParams {
 ///
 /// [`Backend`]: crate::core::Backend
 #[derive(Debug)]
-pub struct BentoOcrBackend;
+pub struct BentoBackend;
 
-impl BentoOcrBackend {
+impl BentoBackend {
     /// Build a backend against the given parameters.
     ///
     /// # Errors
     ///
     /// Returns an error if the underlying HTTP client cannot be
     /// constructed (invalid `base_url`).
-    pub fn new(params: BentoOcrParams) -> Result<Self, Error> {
+    pub fn new(params: BentoParams) -> Result<Self, Error> {
         // Validate the URL eagerly so misconfiguration surfaces at
         // startup. The constructed client is discarded today; once
         // the wire contract lands it moves to a field and the
@@ -77,10 +77,10 @@ impl BentoOcrBackend {
 }
 
 #[async_trait]
-impl Backend for BentoOcrBackend {
-    async fn run(&self, _image: &ImageInput, _params: OcrParams<'_>) -> Result<ImageOutput, Error> {
+impl Backend for BentoBackend {
+    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<ImageOutput, Error> {
         Err(Error::runtime(
-            "BentoOcrBackend is scaffolded; the inference-ocr wire \
+            "BentoBackend is scaffolded; the inference-ocr wire \
              contract has not been finalised yet — see \
              https://github.com/nvisycom/runtime/issues/128",
             "ocr-bento",

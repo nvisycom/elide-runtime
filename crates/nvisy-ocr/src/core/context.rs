@@ -1,4 +1,4 @@
-//! [`OcrParams`] — per-call hints passed alongside the input image
+//! [`Context`] — per-call hints passed alongside the input image
 //! to a [`Backend`].
 //!
 //! [`Backend`]: super::Backend
@@ -13,9 +13,12 @@ use uuid::Uuid;
 /// Packed into a struct so the trait stays stable as new hint
 /// kinds are added.
 ///
+/// Borrowed (`Context<'a>`) so call sites that already own the
+/// underlying values hand them through without cloning.
+///
 /// [`Backend`]: super::Backend
 #[derive(Debug, Default, Clone, Copy)]
-pub struct OcrParams<'a> {
+pub struct Context<'a> {
     /// Caller-supplied language hint. Multilingual OCR engines may
     /// ignore it; engines with a per-language model variant use it
     /// to pick the right one.
@@ -28,8 +31,8 @@ pub struct OcrParams<'a> {
     pub correlation_id: Option<Uuid>,
 }
 
-impl<'a> OcrParams<'a> {
-    /// Construct an empty params (no language hint, no correlation id).
+impl<'a> Context<'a> {
+    /// Construct an empty context (no language hint, no correlation id).
     pub fn new() -> Self {
         Self::default()
     }

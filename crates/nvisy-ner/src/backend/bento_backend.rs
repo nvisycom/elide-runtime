@@ -24,7 +24,7 @@ use nvisy_ontology::entity::Entities;
 use uuid::Uuid;
 
 use super::bento_types::{WireBatch, WireRequest, WireResponse};
-use crate::core::{Backend, NerParams};
+use crate::core::{Backend, Context};
 
 const TARGET: &str = "nvisy_ner::backend::bento";
 const COMPONENT: &str = "ner-bento";
@@ -75,28 +75,23 @@ impl BentoBackend {
 
 #[async_trait]
 impl Backend for BentoBackend {
-    async fn recognize(&self, text: &str, params: NerParams<'_>) -> Result<Entities> {
-        let mut out = self.recognize_batch(&[text], params).await?;
-        Ok(out.pop().unwrap_or_default())
+    async fn recognize(&self, text: &str, ctx: &Context) -> Result<Entities> {
+        self.recognize_batch(&[text], ctx).await
     }
 
     #[tracing::instrument(skip_all, fields(batch = texts.len()))]
-    async fn recognize_batch(
-        &self,
-        texts: &[&str],
-        params: NerParams<'_>,
-    ) -> Result<Vec<Entities>> {
+    async fn recognize_batch(&self, texts: &[&str], ctx: &Context) -> Result<Entities> {
         if texts.is_empty() {
-            return Ok(Vec::new());
+            return Ok(Entities::new());
         }
 
-        // GLiNER is zero-shot — without a kinds list the service has
-        // nothing to look for. Short-circuit locally.
-        let Some(kinds) = params.requested_kinds.filter(|k| !k.is_empty()) else {
-            return Ok(vec![Entities::new(); texts.len()]);
+        // GLiNER is zero-shot — without an entities allowlist the
+        // service has nothing to look for. Short-circuit locally.
+        let Some(kinds) = ctx.entity_kinds.as_deref().filter(|k| !k.is_empty()) else {
+            return Ok(Entities::new());
         };
 
-        let language = params.language.map(|l| l.as_str().to_owned());
+        let language = ctx.language.as_ref().map(|l| l.as_str().to_owned());
         let wire_requests = texts
             .iter()
             .map(|text| WireRequest {
@@ -107,7 +102,7 @@ impl Backend for BentoBackend {
             })
             .collect();
 
-        let request_id = params
+        let request_id = ctx
             .correlation_id
             .unwrap_or_else(Uuid::now_v7)
             .to_string();
@@ -129,19 +124,18 @@ impl Backend for BentoBackend {
             );
         }
 
-        let mut out = Vec::with_capacity(texts.len());
-        for i in 0..texts.len() {
-            match responses.get(i) {
-                Some(response) => out.push(Entities(
-                    response
-                        .entities
-                        .iter()
-                        .map(|e| e.to_entity(&response.model))
-                        .collect(),
-                )),
-                None => out.push(Entities::new()),
-            }
+        // Merge per-text entities into one Entities — texts are
+        // assumed to be chunks of the same source (see Backend
+        // trait docs).
+        let mut merged = Entities::new();
+        for response in &responses {
+            merged.0.extend(
+                response
+                    .entities
+                    .iter()
+                    .map(|e| e.to_entity(&response.model)),
+            );
         }
-        Ok(out)
+        Ok(merged)
     }
 }

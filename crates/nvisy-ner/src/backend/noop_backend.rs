@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
 
-use crate::core::{Backend, NerParams};
+use crate::core::{Backend, Context};
 
 /// A [`Backend`] that produces no entities.
 ///
@@ -27,7 +27,7 @@ impl NoopBackend {
 
 #[async_trait]
 impl Backend for NoopBackend {
-    async fn recognize(&self, _text: &str, _params: NerParams<'_>) -> Result<Entities> {
+    async fn recognize(&self, _text: &str, _ctx: &Context) -> Result<Entities> {
         Ok(Entities::new())
     }
 }

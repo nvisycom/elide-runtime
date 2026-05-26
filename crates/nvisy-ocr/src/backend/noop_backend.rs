@@ -1,4 +1,4 @@
-//! [`NoopOcrBackend`] — returns no OCR results. Default selection
+//! [`NoopBackend`] — returns no OCR results. Default selection
 //! for deployments where the runtime should accept image content
 //! but isn't expected to recognise text in it.
 //!
@@ -9,17 +9,15 @@
 use async_trait::async_trait;
 use nvisy_core::Error;
 
-use crate::core::{Backend, ImageInput, ImageOutput, OcrParams};
+use crate::core::{Backend, Context, ImageInput, ImageOutput};
 
 /// A [`Backend`] that produces no OCR results.
 ///
-/// Every call returns an empty [`ImageOutput`] whose `source` is
-/// derived from the input image, so downstream provenance still
-/// flows.
+/// Every call returns an empty [`ImageOutput`].
 #[derive(Debug, Default, Clone, Copy)]
-pub struct NoopOcrBackend;
+pub struct NoopBackend;
 
-impl NoopOcrBackend {
+impl NoopBackend {
     /// Construct an empty backend.
     pub fn new() -> Self {
         Self
@@ -27,8 +25,8 @@ impl NoopOcrBackend {
 }
 
 #[async_trait]
-impl Backend for NoopOcrBackend {
-    async fn run(&self, _image: &ImageInput, _params: OcrParams<'_>) -> Result<ImageOutput, Error> {
+impl Backend for NoopBackend {
+    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<ImageOutput, Error> {
         Ok(ImageOutput::new())
     }
 }

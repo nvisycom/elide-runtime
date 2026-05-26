@@ -1,8 +1,8 @@
-//! [`NerRecognizer`]: NER over [`NerEngine`].
+//! [`NerRecognizer`]: NER over [`nvisy_ner::Recognizer`].
 //!
-//! Wraps the NER engine so every detection call goes through its
-//! orchestration: language detection (asserted-bypass-able) and NER
-//! backend dispatch.
+//! Wraps the NER recognizer from `nvisy-ner` so every detection
+//! call goes through its orchestration: language detection
+//! (asserted-bypass-able) and NER backend dispatch.
 //!
 //! Post-filtering (entity-kind allowlist, score threshold) is
 //! applied centrally at the detection layer, not inside this
@@ -10,73 +10,71 @@
 //!
 //! Backend selection is config-driven via [`NerBackend`], whose
 //! [`attach_ner_backend`] helper hands the selected backend to the
-//! engine builder. [`NoopBackend`] is the baseline; [`BentoBackend`]
-//! (feature `bento`) is the externalised inference service.
+//! [`RecognizerBuilder`]. [`NoopBackend`] is the baseline;
+//! [`BentoBackend`] (feature `bento`) is the externalised
+//! inference service.
 //!
 //! Construct via [`from_config`] for the configured backend, or
-//! [`from_engine`] to inject a pre-built engine with a custom
-//! backend (tests, future backends, anything implementing
-//! [`Backend`]).
+//! [`from_inner`] to inject a pre-built [`nvisy_ner::Recognizer`]
+//! with a custom backend (tests, future backends, anything
+//! implementing [`Backend`]).
 //!
 //! [`Backend`]: nvisy_ner::Backend
-//! [`NerEngine`]: nvisy_ner::NerEngine
 //! [`NerBackend`]: nvisy_ner::NerBackend
 //! [`attach_ner_backend`]: nvisy_ner::NerBackend::attach_ner_backend
 //! [`NoopBackend`]: nvisy_ner::backend::NoopBackend
 //! [`BentoBackend`]: nvisy_ner::backend::BentoBackend
+//! [`RecognizerBuilder`]: nvisy_ner::RecognizerBuilder
 //! [`from_config`]: NerRecognizer::from_config
-//! [`from_engine`]: NerRecognizer::from_engine
+//! [`from_inner`]: NerRecognizer::from_inner
 
 mod params;
 
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ner::language::LinguaLanguagePolicy;
-use nvisy_ner::{NerContext, NerEngine, NerEngineBuilder};
+use nvisy_ner::{Context as NerContext, RecognizerBuilder};
 use nvisy_ontology::entity::Entities;
 
 pub use self::params::NerDetection;
 use crate::detection::{DetectionContext, Recognizer};
 
-/// NER recognizer backed by [`NerEngine`].
-///
-/// [`NerEngine`]: nvisy_ner::NerEngine
+/// NER recognizer backed by [`nvisy_ner::Recognizer`].
 pub struct NerRecognizer {
-    engine: NerEngine,
+    inner: nvisy_ner::Recognizer,
 }
 
 impl NerRecognizer {
-    /// Build a recognizer from a [`NerDetection`] config bundle.
+    /// Build from a [`NerDetection`] config bundle.
     ///
-    /// Constructs an [`NerEngine`] with the backend the config
-    /// selects via [`NerBackend::attach_ner_backend`].
+    /// Constructs a [`nvisy_ner::Recognizer`] with the backend the
+    /// config selects via [`NerBackend::attach_ner_backend`].
     ///
     /// # Errors
     ///
-    /// Returns an error if the underlying NER engine cannot be
+    /// Returns an error if the underlying recognizer cannot be
     /// constructed, or if the config selects a backend whose
     /// feature wasn't compiled in.
     ///
-    /// [`NerEngine`]: nvisy_ner::NerEngine
     /// [`NerBackend::attach_ner_backend`]: nvisy_ner::NerBackend::attach_ner_backend
     pub async fn from_config(cfg: &NerDetection) -> Result<Self> {
-        let builder = NerEngineBuilder::default().with_language_policy(LinguaLanguagePolicy);
+        let builder = RecognizerBuilder::default().with_language_policy(LinguaLanguagePolicy);
         let builder = cfg.backend.attach_ner_backend(builder)?;
-        let engine = builder
+        let inner = builder
             .build()
             .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "ner", false))?;
-        Ok(Self::from_engine(engine))
+        Ok(Self::from_inner(inner))
     }
 
-    /// Build from a pre-constructed NER engine.
+    /// Build from a pre-constructed [`nvisy_ner::Recognizer`].
     ///
-    /// Escape hatch for callers that already own an engine (custom
-    /// backend, test fixture, engine shared across recognizers).
-    /// Prefer [`from_config`] for ordinary use.
+    /// Escape hatch for callers that already own a recognizer
+    /// (custom backend, test fixture, recognizer shared across
+    /// wrappers). Prefer [`from_config`] for ordinary use.
     ///
     /// [`from_config`]: Self::from_config
-    pub fn from_engine(engine: NerEngine) -> Self {
-        Self { engine }
+    pub fn from_inner(inner: nvisy_ner::Recognizer) -> Self {
+        Self { inner }
     }
 }
 
@@ -92,7 +90,7 @@ impl Recognizer for NerRecognizer {
         ),
     )]
     async fn run(&self, text: &str, ctx: &NerContext) -> Result<Entities> {
-        let artifacts = self.engine.analyze(text, ctx).await?;
+        let artifacts = self.inner.recognize(text, ctx).await?;
         Ok(artifacts.entities)
     }
 }
@@ -106,7 +104,7 @@ impl From<&DetectionContext> for NerContext {
             // (detection-shaping). The post-filter pass at the
             // detection layer re-applies the allowlist on the
             // produced entities.
-            entities: ctx.entities.clone(),
+            entity_kinds: ctx.entities.clone(),
             correlation_id: ctx.correlation_id,
         }
     }

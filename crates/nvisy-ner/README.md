@@ -18,12 +18,9 @@ This crate hosts:
 - `NerEngine` — composes a NER backend and a language policy into a
   single `analyze(text, ctx)` call.
 
-Model-bearing NER backends do **not** live in-process here. Inference
-is externalized to a separate service (see [`nvisycom/inference`]) and
-called over HTTP via `BentoBackend`. In-process backends (BERT-NER
-over `ort`, GLiNER via `gline-rs`) lived here previously and have
-been removed in favour of the externalized service.
-
+Model-bearing NER backends do **not** live in-process here.
+Inference is externalized to a separate service (see
+[`nvisycom/inference`]) and called over HTTP via `BentoBackend`.
 LLM-mediated NER lives in `nvisy-agent`.
 
 [`nvisycom/inference`]: https://github.com/nvisycom/inference

@@ -22,7 +22,7 @@ use std::sync::Arc;
 use derive_builder::Builder;
 pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
-pub use nvisy_ner::NerContext;
+pub use nvisy_ner::Context as NerContext;
 use nvisy_ontology::entity::Entities;
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;

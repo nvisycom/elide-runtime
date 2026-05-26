@@ -1,6 +1,5 @@
-//! Core NER contract: the [`Backend`] trait, the per-call
-//! [`NerParams`] hints handed to backends, and the [`NerContext`]
-//! engine-level call configuration.
+//! Core NER contract: the [`Backend`] trait and the per-call
+//! [`Context`] hints handed to backends and the engine.
 //!
 //! Backend implementations live in [`crate::backend`]; that module
 //! also hosts the [`NerBackend`] config enum that dispatches to a
@@ -9,14 +8,12 @@
 //! [`NerBackend`]: crate::backend::NerBackend
 
 mod context;
-mod params;
 
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
 
-pub use self::context::{NerContext, NerContextBuilder, NerContextBuilderError};
-pub use self::params::NerParams;
+pub use self::context::Context;
 
 /// Recognize entities in text.
 ///
@@ -26,38 +23,47 @@ pub use self::params::NerParams;
 ///
 /// Implementors **must** provide [`recognize`]. The default
 /// [`recognize_batch`] impl dispatches the inputs concurrently via
-/// `futures::join_all` — for one-at-a-time HTTP backends this is
-/// the right baseline. Backends with a native batch API (such as
-/// the Bento backend) override it to issue a single round-trip.
+/// `futures::join_all` and concatenates the per-text results into a
+/// single [`Entities`]. Backends with a native batch API (such as
+/// the Bento backend) override it to issue one round-trip and
+/// merge server-side.
 ///
-/// Batch entries share a single [`NerParams`] — the typical caller
-/// is post-tokenisation chunking from one document, so the language
-/// hint and requested-kinds list apply uniformly. Mixed-context
-/// inputs should be issued as separate batches.
+/// Batch entries share a single [`Context`] and are **assumed
+/// to come from the same source** — the typical caller is
+/// post-tokenisation chunking from one document, so the language
+/// hint and entity allowlist apply uniformly and the per-text
+/// entity offsets can be merged into one [`Entities`] without
+/// further bookkeeping. Mixed-source inputs should be issued as
+/// separate batches.
+///
+/// Per-text offsets are returned as-is — if the caller needs them
+/// rebased onto a containing document, the caller knows the
+/// per-chunk text offsets and is responsible for that rebase.
 ///
 /// [`recognize`]: Self::recognize
 /// [`recognize_batch`]: Self::recognize_batch
 #[async_trait]
 pub trait Backend: Send + Sync + 'static {
-    /// Recognize entities in `text` under `params`.
-    async fn recognize(&self, text: &str, params: NerParams<'_>) -> Result<Entities>;
+    /// Recognize entities in `text` under `ctx`.
+    async fn recognize(&self, text: &str, ctx: &Context) -> Result<Entities>;
 
     /// Recognize entities in each of `texts` under one shared
-    /// [`NerParams`].
+    /// [`Context`], merging the per-text results into one
+    /// [`Entities`].
     ///
-    /// The returned vec is in the same order as `texts`. The
-    /// default impl dispatches concurrently via
-    /// `futures::join_all`; backends with native batching override
-    /// it to issue one round-trip.
+    /// `texts` is assumed to be chunks of the same source (see the
+    /// trait-level docs). The default impl dispatches concurrently
+    /// via `futures::join_all` and concatenates; backends with
+    /// native batching override it.
     ///
     /// [`recognize`]: Self::recognize
-    async fn recognize_batch(
-        &self,
-        texts: &[&str],
-        params: NerParams<'_>,
-    ) -> Result<Vec<Entities>> {
-        let pending: Vec<_> = texts.iter().map(|t| self.recognize(t, params)).collect();
+    async fn recognize_batch(&self, texts: &[&str], ctx: &Context) -> Result<Entities> {
+        let pending: Vec<_> = texts.iter().map(|t| self.recognize(t, ctx)).collect();
         let results: Vec<Result<Entities>> = futures::future::join_all(pending).await;
-        results.into_iter().collect()
+        let mut merged = Entities::new();
+        for r in results {
+            merged.0.extend(r?.0);
+        }
+        Ok(merged)
     }
 }

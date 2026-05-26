@@ -1,89 +1,107 @@
-//! [`NerContext`] — per-call configuration for [`NerEngine::analyze`].
+//! [`Context`] — per-call configuration for [`Backend::recognize`]
+//! and [`Recognizer::recognize`].
 //!
-//! Packages the per-call knobs that `analyze()` accepts: an asserted
-//! language (skips detection), a candidate-language set (restricts
-//! detection), an entity-kind allowlist (post-filters the NER
-//! output), and a correlation UUID for tracing.
+//! Packages everything a recognition call carries: an asserted
+//! language (skips detection at the engine layer, doubles as a
+//! per-call language hint at the backend layer), a
+//! candidate-language set (engine-only — restricts language
+//! detection), an entity-kind allowlist (zero-shot backends use it
+//! as the requested-kinds hint, the engine post-filters against
+//! it), and a correlation UUID for tracing.
 //!
 //! `text` is **not** a field — it's a separate argument to
-//! [`NerEngine::analyze`]. Keeps the context cheap to clone and
-//! reusable across multiple `analyze` calls.
+//! [`Backend::recognize`] and [`Recognizer::recognize`]. Keeps the
+//! context cheap to clone and reusable across multiple calls.
 //!
-//! Construct via [`NerContext::default`] for the bare case, or via
-//! [`NerContextBuilder`] when several fields need to be set.
-//!
-//! [`NerEngine`]: crate::NerEngine
-//! [`NerEngine::analyze`]: crate::NerEngine::analyze
+//! [`Backend`]: super::Backend
+//! [`Backend::recognize`]: super::Backend::recognize
+//! [`Recognizer`]: crate::Recognizer
+//! [`Recognizer::recognize`]: crate::Recognizer::recognize
 
-use derive_builder::Builder;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::primitive::LanguageTag;
 use uuid::Uuid;
 
-/// Per-call configuration for [`NerEngine::analyze`].
+/// Per-call configuration for [`Backend::recognize`] and
+/// [`Recognizer::recognize`].
 ///
-/// [`NerEngine::analyze`]: crate::NerEngine::analyze
-#[derive(Debug, Default, Clone, Builder)]
-#[builder(
-    name = "NerContextBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with"),
-    default,
-    build_fn(error = "NerContextBuilderError")
-)]
-pub struct NerContext {
-    /// Caller-asserted language. When `Some`, detection is skipped
-    /// and the asserted value becomes the sole entry in
-    /// [`Artifacts::languages`] with provenance
-    /// [`LanguageProvenance::Asserted`].
+/// All fields are advisory — backends are free to ignore any of
+/// them when their model doesn't expose the corresponding knob.
+/// Packed into a struct so the trait stays stable as new hint
+/// kinds are added.
+///
+/// [`Backend`]: super::Backend
+/// [`Backend::recognize`]: super::Backend::recognize
+/// [`Recognizer::recognize`]: crate::Recognizer::recognize
+#[derive(Debug, Default, Clone)]
+pub struct Context {
+    /// Caller-asserted language. When `Some` at the engine layer,
+    /// language detection is skipped and the asserted value
+    /// becomes the sole entry in [`Artifacts::languages`] with
+    /// provenance [`LanguageProvenance::Asserted`]. When passed
+    /// directly to a backend, it acts as the language hint.
+    ///
+    /// Multilingual models may ignore it; monolingual models may
+    /// validate it against a configured allowlist and return a
+    /// validation error when the hint disagrees.
     ///
     /// [`Artifacts::languages`]: crate::Artifacts::languages
     /// [`LanguageProvenance::Asserted`]: nvisy_ontology::primitive::LanguageProvenance::Asserted
     pub language: Option<LanguageTag>,
 
-    /// Restrict language detection to this subset. Ignored when
-    /// the `language` field is `Some`. The engine forwards this
-    /// to [`LanguagePolicy::detector_for`] each call, so the policy
+    /// Restrict language detection to this subset. Engine-only —
+    /// backends ignore it. Ignored when [`language`] is `Some`.
+    /// The engine forwards this to
+    /// [`LanguagePolicy::detector_for`] each call, so the policy
     /// decides what "restricted to this set" means concretely.
     ///
+    /// [`language`]: Self::language
     /// [`LanguagePolicy::detector_for`]: crate::language::LanguagePolicy::detector_for
     pub candidate_languages: Option<Vec<LanguageTag>>,
 
     /// Entity-kind allowlist. Threaded into zero-shot backends as
-    /// the `requested_kinds` hint so the backend materialises
-    /// labels for the asked-about kinds.
-    ///
-    /// Post-filtering on this list is the caller's responsibility —
-    /// `analyze` returns whatever the backend produced for the
-    /// requested kinds.
-    pub entities: Option<Vec<EntityKind>>,
+    /// the requested-kinds hint so the backend materialises labels
+    /// for the asked-about kinds. Backends with a fixed label
+    /// vector ignore it. The engine layer post-filters against the
+    /// same allowlist.
+    pub entity_kinds: Option<Vec<EntityKind>>,
 
-    /// Correlation UUID propagated through the tracing span for this
-    /// call and (when set) into the backend via
-    /// [`NerParams::correlation_id`].
-    ///
-    /// [`NerParams::correlation_id`]: crate::NerParams::correlation_id
+    /// Correlation UUID propagated through the tracing span and,
+    /// for remote backends, into the request (the Bento backend
+    /// places it on the `x-request-id` header). When `None`,
+    /// transports that need a request id generate a UUIDv7
+    /// themselves so every request is traceable.
     pub correlation_id: Option<Uuid>,
 }
 
-impl NerContext {
-    /// Start a typed builder.
-    ///
-    /// Equivalent to `NerContextBuilder::default()` but more
-    /// discoverable from the context type.
-    pub fn builder() -> NerContextBuilder {
-        NerContextBuilder::default()
+impl Context {
+    /// Construct an empty context (no language hint, no kind
+    /// filter, no correlation id).
+    pub fn new() -> Self {
+        Self::default()
     }
-}
 
-/// Error returned by [`NerContextBuilder::build`] when a required
-/// field is missing.
-#[derive(Debug, thiserror::Error)]
-#[error("NerContext build failed: {0}")]
-pub struct NerContextBuilderError(String);
+    /// Builder-style setter for the language hint.
+    pub fn with_language(mut self, language: LanguageTag) -> Self {
+        self.language = Some(language);
+        self
+    }
 
-impl From<derive_builder::UninitializedFieldError> for NerContextBuilderError {
-    fn from(err: derive_builder::UninitializedFieldError) -> Self {
-        Self(format!("missing required field `{}`", err.field_name()))
+    /// Builder-style setter for the candidate-language set.
+    pub fn with_candidate_languages(mut self, languages: Vec<LanguageTag>) -> Self {
+        self.candidate_languages = Some(languages);
+        self
+    }
+
+    /// Builder-style setter for the entity-kind allowlist.
+    pub fn with_entity_kinds(mut self, kinds: Vec<EntityKind>) -> Self {
+        self.entity_kinds = Some(kinds);
+        self
+    }
+
+    /// Builder-style setter for the correlation id.
+    pub fn with_correlation_id(mut self, correlation_id: Uuid) -> Self {
+        self.correlation_id = Some(correlation_id);
+        self
     }
 }

@@ -1,7 +1,7 @@
 //! [`DetectionContext`] — per-call input to
 //! [`DetectionEngine::run`] and every [`Recognizer`].
 //!
-//! Bundles the same shape `nvisy_ner::NerContext` carries, plus the
+//! Bundles the same shape `nvisy_ner::Context` carries, plus the
 //! [`PatternContext`] needed by pattern-backed recognizers. Each
 //! recognizer reads the subset it cares about:
 //!

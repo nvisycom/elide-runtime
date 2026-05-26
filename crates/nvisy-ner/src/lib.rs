@@ -9,5 +9,5 @@ pub mod core;
 pub mod language;
 
 pub use self::backend::NerBackend;
-pub use self::core::{Backend, NerContext, NerContextBuilder, NerContextBuilderError, NerParams};
-pub use self::engine::{Artifacts, NerEngine, NerEngineBuilder, NerEngineBuilderError};
+pub use self::core::{Backend, Context};
+pub use self::engine::{Artifacts, Recognizer, RecognizerBuilder, RecognizerBuilderError};

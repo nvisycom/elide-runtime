@@ -1,4 +1,4 @@
-//! [`Artifacts`] — output of a single [`NerEngine::analyze`] call.
+//! [`Artifacts`] — output of a single [`Recognizer::recognize`] call.
 //!
 //! Composed from the outputs of independently-configured backends.
 //! [`entities`] is always populated; [`languages`] preserves every
@@ -6,20 +6,20 @@
 //! input, single-element for monolingual or caller-asserted answers,
 //! empty when detection was inconclusive).
 //!
-//! [`NerEngine::analyze`]: super::NerEngine::analyze
+//! [`Recognizer::recognize`]: super::Recognizer::recognize
 //! [`entities`]: Artifacts::entities
 //! [`languages`]: Artifacts::languages
 
 use nvisy_ontology::entity::Entities;
 use nvisy_ontology::primitive::{LanguageDetection, LanguageTag};
 
-/// NER output of one [`NerEngine::analyze`] call.
+/// NER output of one [`Recognizer::recognize`] call.
 ///
 /// Carries the recognized entities plus the languages the engine
 /// resolved for the input — either detected by the configured
 /// [`LanguagePolicy`] or asserted by the caller.
 ///
-/// [`NerEngine::analyze`]: super::NerEngine::analyze
+/// [`Recognizer::recognize`]: super::Recognizer::recognize
 /// [`LanguagePolicy`]: crate::language::LanguagePolicy
 #[derive(Debug, Clone)]
 pub struct Artifacts {

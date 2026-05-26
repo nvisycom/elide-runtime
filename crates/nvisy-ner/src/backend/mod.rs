@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(docsrs, doc(cfg(feature = "bento")))]
 pub use self::bento_backend::{BentoBackend, BentoParams};
 pub use self::noop_backend::NoopBackend;
-use crate::NerEngineBuilder;
+use crate::RecognizerBuilder;
 
 /// Config-side selection of which [`Backend`] to construct.
 ///
@@ -66,12 +66,12 @@ impl NerBackend {
     /// Attach the [`Backend`] this selection identifies to
     /// `builder`.
     ///
-    /// Unlike OCR's [`OcrBackend::into_engine`], the NER engine
-    /// requires both a backend *and* a language policy at the same
-    /// time. Rather than thread the policy through here, this
-    /// helper takes the partially-configured builder and attaches
-    /// just the NER backend, leaving policy attachment to the
-    /// caller.
+    /// Unlike OCR's [`OcrBackend::into_extractor`], the NER
+    /// recognizer requires both a backend *and* a language policy
+    /// at the same time. Rather than thread the policy through
+    /// here, this helper takes the partially-configured builder
+    /// and attaches just the NER backend, leaving policy
+    /// attachment to the caller.
     ///
     /// # Errors
     ///
@@ -80,8 +80,8 @@ impl NerBackend {
     /// feature wasn't compiled in.
     ///
     /// [`Backend`]: crate::core::Backend
-    /// [`OcrBackend::into_engine`]: https://docs.rs/nvisy-ocr/latest/nvisy_ocr/backend/enum.OcrBackend.html#method.into_engine
-    pub fn attach_ner_backend(&self, builder: NerEngineBuilder) -> Result<NerEngineBuilder> {
+    /// [`OcrBackend::into_extractor`]: https://docs.rs/nvisy-ocr/latest/nvisy_ocr/backend/enum.OcrBackend.html#method.into_extractor
+    pub fn attach_ner_backend(&self, builder: RecognizerBuilder) -> Result<RecognizerBuilder> {
         match self {
             Self::Noop => Ok(builder.with_ner_backend(NoopBackend)),
 
@@ -103,13 +103,13 @@ impl NerBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{Backend, NerParams};
+    use crate::core::{Backend, Context};
 
     #[tokio::test]
     async fn noop_returns_empty() {
         let backend = NoopBackend::new();
         let out = backend
-            .recognize("anything", NerParams::default())
+            .recognize("anything", &Context::default())
             .await
             .unwrap();
         assert!(out.is_empty());
@@ -118,7 +118,7 @@ mod tests {
     #[cfg(not(feature = "bento"))]
     #[test]
     fn ner_backend_bento_without_feature_errors_clearly() {
-        let builder = NerEngineBuilder::default();
+        let builder = RecognizerBuilder::default();
         let backend = NerBackend::Bento {
             base_url: "http://localhost:3000".into(),
         };

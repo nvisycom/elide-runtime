@@ -12,7 +12,7 @@ mod params;
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::Result;
-use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, OcrParams};
+use nvisy_ocr::{Context as OcrContext, ImageFormat, ImageInput};
 use nvisy_ontology::entity::ImageLocation;
 
 pub use self::params::OcrExtractorConfig;
@@ -20,9 +20,10 @@ use crate::envelope::{Document, DocumentEnvelope};
 
 const TARGET: &str = "nvisy_engine::extraction::ocr";
 
-/// Pre-built OCR extractor wrapping a configured [`OcrEngine`].
+/// Pre-built OCR extractor wrapping a configured
+/// [`nvisy_ocr::Extractor`].
 pub struct OcrExtractor {
-    engine: OcrEngine,
+    inner: nvisy_ocr::Extractor,
 }
 
 impl OcrExtractor {
@@ -34,8 +35,8 @@ impl OcrExtractor {
     /// constructed, or if the config selects a backend whose
     /// feature wasn't compiled in.
     pub fn from_config(cfg: OcrExtractorConfig) -> Result<Self> {
-        let engine = cfg.backend.into_engine()?;
-        Ok(Self { engine })
+        let inner = cfg.backend.into_extractor()?;
+        Ok(Self { inner })
     }
 
     /// Run OCR over the envelope's image spans, recording the
@@ -52,21 +53,19 @@ impl OcrExtractor {
             "running OCR extraction",
         );
 
-        let ocr_output = self.extract(&spans).await?;
+        let output = self.extract(&spans).await?;
 
         if let Some(image_artifacts) = envelope.document.artifacts.as_image_mut() {
-            for output in &ocr_output {
-                image_artifacts.ocr_pages.extend(output.pages.clone());
-            }
+            image_artifacts.ocr_pages.extend(output.pages);
         }
 
         Ok(())
     }
 
-    async fn extract(&self, spans: &[Span<ImageLocation, ImageData>]) -> Result<Vec<ImageOutput>> {
-        if spans.is_empty() {
-            return Ok(Vec::new());
-        }
+    async fn extract(
+        &self,
+        spans: &[Span<ImageLocation, ImageData>],
+    ) -> Result<nvisy_ocr::ImageOutput> {
         let inputs = spans
             .iter()
             .map(|span| {
@@ -76,7 +75,7 @@ impl OcrExtractor {
             .collect::<Result<Vec<_>>>()?;
         // No language hint plumbed through at this layer yet —
         // backends that need one will surface that when wired.
-        self.engine.run_batch(&inputs, OcrParams::default()).await
+        self.inner.extract_batch(&inputs, OcrContext::default()).await
     }
 
     async fn collect_spans(document: &Document) -> Vec<Span<ImageLocation, ImageData>> {

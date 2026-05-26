@@ -26,6 +26,7 @@
 
 mod params;
 
+use nvisy_ontology::entity::Entity;
 use async_trait::async_trait;
 use nvisy_agent::agent::LlmNerContext;
 use nvisy_agent::pipeline::NerPipeline;

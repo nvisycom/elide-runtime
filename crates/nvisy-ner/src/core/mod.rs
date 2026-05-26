@@ -11,6 +11,7 @@ mod context;
 
 use async_trait::async_trait;
 use nvisy_core::Result;
+use nvisy_ontology::document::Block;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 
@@ -22,42 +23,27 @@ pub use self::context::Context;
 /// an externalized inference service, future LLM calls — need to
 /// yield. Pure-CPU backends wrap the body in `async {}` cheaply.
 ///
-/// Implementors **must** provide [`recognize`]. The default
-/// [`recognize_batch`] impl dispatches the inputs concurrently via
-/// `futures::join_all` and concatenates the per-text results into a
-/// single [`Entities`]. Backends with a native batch API (such as
-/// the Bento backend) override it to issue one round-trip and
-/// merge server-side.
-///
-/// Batch entries share a single [`Context`] and are **assumed
-/// to come from the same source** — the typical caller is
-/// post-tokenisation chunking from one document, so the language
-/// hint and entity allowlist apply uniformly and the per-text
-/// entity offsets can be merged into one [`Entities`] without
-/// further bookkeeping. Mixed-source inputs should be issued as
-/// separate batches.
-///
-/// Per-text offsets are returned as-is — if the caller needs them
-/// rebased onto a containing document, the caller knows the
-/// per-chunk text offsets and is responsible for that rebase.
+/// The trait's wire boundary is `&str`: implementors take a string
+/// and return entities with byte offsets into it. Block- and
+/// document-level convenience helpers live on the trait as default
+/// methods that delegate to [`recognize`].
 ///
 /// [`recognize`]: Self::recognize
-/// [`recognize_batch`]: Self::recognize_batch
 #[async_trait]
 pub trait Backend: Send + Sync + 'static {
     /// Recognize entities in `text` under `ctx`.
+    ///
+    /// Returned entities have offsets into `text`. The caller maps
+    /// those to source coordinates when storing on a block.
     async fn recognize(&self, text: &str, ctx: &Context) -> Result<Vec<Entity<Text>>>;
 
     /// Recognize entities in each of `texts` under one shared
-    /// [`Context`], merging the per-text results into one
-    /// [`Entities`].
+    /// [`Context`], merging the per-text results.
     ///
-    /// `texts` is assumed to be chunks of the same source (see the
-    /// trait-level docs). The default impl dispatches concurrently
-    /// via `futures::join_all` and concatenates; backends with
-    /// native batching override it.
-    ///
-    /// [`recognize`]: Self::recognize
+    /// `texts` is assumed to be chunks of the same source (the
+    /// language hint and entity allowlist apply uniformly). The
+    /// default impl dispatches concurrently via `futures::join_all`
+    /// and concatenates; backends with native batching override it.
     async fn recognize_batch(&self, texts: &[&str], ctx: &Context) -> Result<Vec<Entity<Text>>> {
         let pending: Vec<_> = texts.iter().map(|t| self.recognize(t, ctx)).collect();
         let results: Vec<Result<Vec<Entity<Text>>>> = futures::future::join_all(pending).await;
@@ -66,5 +52,19 @@ pub trait Backend: Send + Sync + 'static {
             merged.extend(r?);
         }
         Ok(merged)
+    }
+
+    /// Convenience: scan a single [`Block<Text>`] by passing its
+    /// text to [`recognize`]. Returned entity offsets are relative
+    /// to the block's text; the caller maps to source coordinates
+    /// before storing on `block.entities`.
+    ///
+    /// [`recognize`]: Self::recognize
+    async fn recognize_block(
+        &self,
+        block: &Block<Text>,
+        ctx: &Context,
+    ) -> Result<Vec<Entity<Text>>> {
+        self.recognize(block.kind.text(), ctx).await
     }
 }

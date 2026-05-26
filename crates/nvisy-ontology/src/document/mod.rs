@@ -4,13 +4,12 @@
 //! Native text (PDF text layers, DOCX runs, plain text), recognized
 //! text (OCR'd images, transcribed audio), and tabular cells all
 //! flow into the same shape: a [`Document<M>`] holding ordered
-//! blocks (per-modality via [`Modality::Block`]), detected entities,
-//! user annotations, and document-level metadata.
+//! [`Block<M>`]s and user annotations.
 //!
-//! Each modality defines its own block shape — see [`TextBlock`],
-//! [`ImageBlock`], [`AudioBlock`], [`TabularBlock`] — so per-modality
-//! payloads diverge cleanly (an audio block carries time spans and
-//! speaker, an image block carries a region per variant, etc.).
+//! `Block<M>` is the universal wrapper carrying the common per-block
+//! fields (confidence, entities). The modality-specific payload
+//! (text+spans, region, time span, row coordinates) lives in
+//! [`Modality::Block`] inside `block.kind`.
 //!
 //! Rich sources (PDFs with both text and image layers) decompose
 //! into multiple `Document<M>` values at the engine boundary, one
@@ -21,15 +20,13 @@
 //! shapes live elsewhere (audit, redaction map).
 //!
 //! [`Modality::Block`]: crate::modality::Modality::Block
-//! [`TextBlock`]: crate::modality::TextBlock
-//! [`ImageBlock`]: crate::modality::ImageBlock
-//! [`AudioBlock`]: crate::modality::AudioBlock
-//! [`TabularBlock`]: crate::modality::TabularBlock
 
+mod block;
 mod span;
 
+pub use self::block::Block;
 pub use self::span::Span;
-use crate::entity::{Annotation, Entity};
+use crate::entity::Annotation;
 use crate::modality::Modality;
 
 /// Unified addressable view of a parsed document for modality `M`.
@@ -39,22 +36,20 @@ pub struct Document<M: Modality> {
     pub meta: M::Metadata,
     /// Ordered blocks. One per page, paragraph, speaker turn, row,
     /// or just one for documents with no inherent block structure.
-    pub blocks: Vec<M::Block>,
-    /// Entities detected within this document by recognizers.
-    pub entities: Vec<Entity<M>>,
+    pub blocks: Vec<Block<M>>,
     /// User-supplied annotations (inclusions, exclusions, labels)
-    /// attached at upload time.
+    /// attached at upload time. Annotation locations target source
+    /// coordinates within the document.
     pub annotations: Vec<Annotation<M>>,
 }
 
 impl<M: Modality> Document<M> {
     /// Construct a [`Document`] with the given metadata and blocks.
-    /// Entities and annotations start empty.
-    pub fn new(meta: M::Metadata, blocks: Vec<M::Block>) -> Self {
+    /// Annotations start empty.
+    pub fn new(meta: M::Metadata, blocks: Vec<Block<M>>) -> Self {
         Self {
             meta,
             blocks,
-            entities: Vec::new(),
             annotations: Vec::new(),
         }
     }

@@ -30,6 +30,7 @@
 
 mod params;
 
+use nvisy_ontology::entity::Entity;
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ner::language::LinguaLanguagePolicy;

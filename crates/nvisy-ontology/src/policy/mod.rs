@@ -1,11 +1,13 @@
 //! Policy types, rules, and governance structures.
 //!
-//! A [`Policy<M>`] is a named, versioned governance artifact
-//! containing strategy rules for entity redaction and retention rules
-//! for data lifecycle management. Policies are typed per modality:
-//! one envelope, one modality, one policy stack.
+//! A [`Policy`] is a named, versioned governance artifact containing
+//! strategy rules for entity redaction and retention rules for data
+//! lifecycle management. Policies are non-generic — they carry every
+//! modality's strategies via the [`Strategy`] enum, so one policy
+//! configuration applies uniformly across the typed envelopes the
+//! engine fans out per modality.
 //!
-//! Collections of policies are plain `Vec<Policy<M>>` — held in
+//! Collections of policies are plain `Vec<Policy>` — held in
 //! precedence order, index `0` is the highest-precedence policy.
 
 mod condition;
@@ -22,8 +24,9 @@ use uuid::Uuid;
 pub use self::condition::Condition;
 pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
 pub use self::selector::EntitySelector;
-pub use self::strategy::{Action, AudioStrategy, ImageStrategy, StrategyPolicy, TextStrategy};
-use crate::modality::Modality;
+pub use self::strategy::{
+    Action, AudioStrategy, ImageStrategy, Strategy, StrategyPolicy, TabularStrategy, TextStrategy,
+};
 
 /// A named, versioned governance policy.
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
@@ -32,15 +35,8 @@ use crate::modality::Modality;
     pattern = "owned",
     setter(into, strip_option, prefix = "with")
 )]
-#[serde(
-    rename_all = "camelCase",
-    bound(
-        serialize = "M::Strategy: Serialize",
-        deserialize = "M::Strategy: serde::de::DeserializeOwned",
-    )
-)]
-#[schemars(bound = "M::Strategy: JsonSchema")]
-pub struct Policy<M: Modality> {
+#[serde(rename_all = "camelCase")]
+pub struct Policy {
     /// Unique identifier for this policy.
     #[builder(default = "Uuid::now_v7()")]
     pub id: Uuid,
@@ -56,20 +52,20 @@ pub struct Policy<M: Modality> {
     /// Fallback strategy for unmatched entities.
     #[builder(default, setter(into = false))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default_strategy: Option<M::Strategy>,
+    pub default_strategy: Option<Strategy>,
     /// Entity redaction strategies.
     #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub strategies: Vec<StrategyPolicy<M>>,
+    pub strategies: Vec<StrategyPolicy>,
     /// Data retention lifecycle rules.
     #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub retention: Vec<RetentionPolicy>,
 }
 
-impl<M: Modality> Policy<M> {
+impl Policy {
     /// Start building a new policy.
-    pub fn builder() -> PolicyBuilder<M> {
+    pub fn builder() -> PolicyBuilder {
         PolicyBuilder::default()
     }
 }

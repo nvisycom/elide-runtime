@@ -23,7 +23,8 @@ use derive_builder::Builder;
 pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
 pub use nvisy_ner::Context as NerContext;
-use nvisy_ontology::modality::AnyModality;
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::modality::Text;
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -159,7 +160,7 @@ impl DetectionEngine {
     /// document coordinates after this returns.
     ///
     /// [`JoinSet`]: tokio::task::JoinSet
-    pub async fn run(&self, ctx: DetectionContext) -> Result<Vec<Entity<AnyModality>>> {
+    pub async fn run(&self, ctx: DetectionContext) -> Result<Vec<Entity<Text>>> {
         use tracing::Instrument;
 
         let span = tracing::debug_span!(
@@ -174,7 +175,7 @@ impl DetectionEngine {
         let recognizers = self.recognizers.clone();
 
         async move {
-            let mut set: JoinSet<nvisy_core::Result<Vec<Entity<AnyModality>>>> = JoinSet::new();
+            let mut set: JoinSet<nvisy_core::Result<Vec<Entity<Text>>>> = JoinSet::new();
             for recognizer in recognizers {
                 let ctx = Arc::clone(&ctx);
                 set.spawn(async move { recognizer.run(&ctx).await });
@@ -236,7 +237,7 @@ impl DetectionEngine {
     /// [`DetectionContext`].
     pub async fn detect_in(
         &self,
-        envelope: &mut crate::envelope::DocumentEnvelope,
+        envelope: &mut crate::envelope::DocumentEnvelope<Text>,
         cfg: &Detection,
     ) -> Result<()> {
         const TARGET: &str = "nvisy_engine::detection::detect_in";
@@ -246,7 +247,7 @@ impl DetectionEngine {
         }
 
         let run_id = envelope.shared.run_id;
-        let mut all = nvisy_ontology::entity::Vec::new();
+        let mut all: Vec<Entity<Text>> = Vec::new();
         for span in &spans {
             let mut ctx = DetectionContext::new(span.data.clone());
             ctx.correlation_id = Some(run_id);
@@ -266,7 +267,7 @@ impl DetectionEngine {
             spans = spans.len(),
             "appending detected entities",
         );
-        envelope.add_entities(all).await;
+        envelope.add_entities(all);
 
         self.reset().await;
         Ok(())

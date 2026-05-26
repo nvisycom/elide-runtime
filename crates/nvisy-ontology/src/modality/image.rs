@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::{Mergeable, Modality, Overlap};
 use crate::document::Span;
-use crate::primitive::{BoundingBox, Confidence, LanguageDetection, Polygon};
+use crate::primitive::{BoundingBox, LanguageDetection, Polygon};
 
 /// A region within image content.
 #[derive(Debug, Clone, PartialEq, Builder)]
@@ -67,90 +67,83 @@ impl Image {
 impl Modality for Image {
     type Block = ImageBlock;
     type Metadata = ImageMetadata;
-    type Strategy = crate::policy::ImageStrategy;
 }
 
-/// One region of an image document.
-///
-/// `kind` carries the structural variant (text region, figure,
-/// separator, …) and its payload; `region` is the bounding region in
-/// the image; `confidence` is the recognition confidence for the
-/// block as a whole.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ImageBlock {
-    /// Variant-specific payload (text+spans for text-bearing kinds).
-    #[serde(flatten)]
-    pub kind: ImageBlockKind,
-    /// The image region this block occupies.
-    pub region: Image,
-    /// Recognition confidence for the block as a whole.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<Confidence>,
-}
-
-/// Variants of [`ImageBlock`]. Text-bearing variants carry recognized
-/// text plus per-word [`Span<Image>`]s. Non-textual variants
-/// ([`Figure`](Self::Figure), [`Separator`](Self::Separator),
+/// Per-modality block payload for [`Image`]. Text-bearing variants
+/// carry recognized text plus per-word [`Span<Image>`]s; non-textual
+/// variants ([`Figure`](Self::Figure), [`Separator`](Self::Separator),
 /// [`Background`](Self::Background), [`Logo`](Self::Logo)) carry no
-/// text payload.
+/// text. Every variant carries the bounding `region` since image
+/// blocks are always spatially located.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
-pub enum ImageBlockKind {
+pub enum ImageBlock {
     /// A region of recognized text (paragraph, line, OCR text block).
     Text {
+        region: Image,
         text: String,
         spans: Vec<Span<Image>>,
     },
     /// A heading.
     Heading {
+        region: Image,
         text: String,
         spans: Vec<Span<Image>>,
     },
     /// A tabular region recognized in the image.
     Table {
+        region: Image,
         text: String,
         spans: Vec<Span<Image>>,
     },
     /// A figure, illustration or photograph.
-    Figure,
+    Figure { region: Image },
     /// A separator (rule, line, divider).
-    Separator,
+    Separator { region: Image },
     /// A background element (watermark, fill, decoration).
-    Background,
+    Background { region: Image },
     /// A logo or brand mark.
-    Logo,
+    Logo { region: Image },
 }
 
 impl ImageBlock {
+    /// The image region this block occupies.
+    pub fn region(&self) -> &Image {
+        match self {
+            Self::Text { region, .. }
+            | Self::Heading { region, .. }
+            | Self::Table { region, .. }
+            | Self::Figure { region }
+            | Self::Separator { region }
+            | Self::Background { region }
+            | Self::Logo { region } => region,
+        }
+    }
+
     /// Recognized text for text-bearing kinds, `None` for non-textual.
     pub fn text(&self) -> Option<&str> {
-        self.kind.text()
+        match self {
+            Self::Text { text, .. }
+            | Self::Heading { text, .. }
+            | Self::Table { text, .. } => Some(text),
+            Self::Figure { .. }
+            | Self::Separator { .. }
+            | Self::Background { .. }
+            | Self::Logo { .. } => None,
+        }
     }
 
     /// Per-word spans for text-bearing kinds, empty otherwise.
     pub fn spans(&self) -> &[Span<Image>] {
-        self.kind.spans()
-    }
-}
-
-impl ImageBlockKind {
-    pub fn text(&self) -> Option<&str> {
         match self {
-            Self::Text { text, .. } | Self::Heading { text, .. } | Self::Table { text, .. } => {
-                Some(text)
-            }
-            Self::Figure | Self::Separator | Self::Background | Self::Logo => None,
-        }
-    }
-
-    pub fn spans(&self) -> &[Span<Image>] {
-        match self {
-            Self::Text { spans, .. } | Self::Heading { spans, .. } | Self::Table { spans, .. } => {
-                spans
-            }
-            Self::Figure | Self::Separator | Self::Background | Self::Logo => &[],
+            Self::Text { spans, .. }
+            | Self::Heading { spans, .. }
+            | Self::Table { spans, .. } => spans,
+            Self::Figure { .. }
+            | Self::Separator { .. }
+            | Self::Background { .. }
+            | Self::Logo { .. } => &[],
         }
     }
 }

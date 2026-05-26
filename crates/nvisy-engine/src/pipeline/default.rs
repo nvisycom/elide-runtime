@@ -6,6 +6,7 @@
 //!
 //! [`Pipeline`]: super::run::Pipeline
 
+use nvisy_ontology::modality::Text;
 use std::path::Path;
 use std::sync::Arc;
 use std::{fmt, mem};
@@ -85,7 +86,7 @@ pub struct EngineOutput {
     pub run_id: Uuid,
     /// Per-document audit trails: entities, redaction entries, and
     /// content source metadata. One audit per processed document.
-    pub audits: Vec<Audit>,
+    pub audits: Vec<Audit<Text>>,
 }
 
 /// Shared inner state for the engine, held behind an `Arc`.

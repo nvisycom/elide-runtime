@@ -26,7 +26,8 @@ mod span_size;
 use std::mem;
 
 use nvisy_core::Result;
-use nvisy_ontology::modality::AnyModality;
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::modality::{Modality, Overlap};
 
 use self::calibrate::Calibrate;
 pub use self::calibrate::CalibrationMap;
@@ -37,7 +38,9 @@ pub use self::fuse::{DeduplicationStrategy, GroupingCriteria};
 pub use self::params::DeduplicationParams;
 pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
+use self::span_size::SpanSize;
 use crate::envelope::DocumentEnvelope;
+use crate::envelope::value_at::ValueAt;
 
 const TARGET: &str = "nvisy_engine::deduplication";
 
@@ -72,12 +75,16 @@ impl Deduplicator {
     }
 
     /// Run the full deduplication pipeline.
-    pub(crate) async fn deduplicate(
+    pub(crate) async fn deduplicate<M>(
         &self,
-        mut entities: Vec<Entity<AnyModality>>,
-        envelope: &DocumentEnvelope,
+        mut entities: Vec<Entity<M>>,
+        envelope: &DocumentEnvelope<M>,
         params: &FilterParams,
-    ) -> Vec<Entity<AnyModality>> {
+    ) -> Vec<Entity<M>>
+    where
+        M: Modality + Overlap + SpanSize,
+        DocumentEnvelope<M>: ValueAt<M>,
+    {
         if entities.is_empty() {
             return entities;
         }
@@ -110,11 +117,15 @@ impl Deduplicator {
     }
 
     /// Execute deduplication against the envelope's entities.
-    pub async fn execute(
+    pub async fn execute<M>(
         &self,
-        envelope: &mut DocumentEnvelope,
+        envelope: &mut DocumentEnvelope<M>,
         params: &FilterParams,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        M: Modality + Overlap + SpanSize,
+        DocumentEnvelope<M>: ValueAt<M>,
+    {
         if !envelope.audit.entities.is_empty() {
             tracing::debug!(
                 target: TARGET,
@@ -131,10 +142,11 @@ impl Deduplicator {
 #[cfg(test)]
 mod tests {
     use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod};
+    use nvisy_ontology::modality::Text;
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
-    use crate::envelope::Document;
+    use crate::envelope::SharedData;
 
     fn conf(v: f64) -> Confidence {
         Confidence::new(v).expect("confidence in [0,1]")
@@ -142,17 +154,25 @@ mod tests {
 
     const TEST_TEXT: &str = "John Smith";
 
+    async fn test_envelope(text: &str) -> DocumentEnvelope<Text> {
+        let registry = crate::ingestion::registry::Registry::open(
+            tempfile::tempdir().expect("tempdir").path(),
+        )
+        .expect("open registry");
+        let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
+        DocumentEnvelope::from_text(text, shared).await
+    }
+
     #[tokio::test]
     async fn confidence_threshold_filters() {
-        let doc = Document::from_text("John......Jane").await;
+        let doc = test_envelope("John......Jane").await;
         let op = Deduplicator::new(&DeduplicationParams::default());
-        let entities: Vec<_> = vec![
+        let entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(10, 14)
                 .with_confidence(conf(0.5))
                 .test_build(),
-        ]
-        .into();
+        ];
         let params = FilterParams {
             confidence_threshold: Some(0.85),
             ..Default::default()
@@ -165,9 +185,9 @@ mod tests {
 
     #[tokio::test]
     async fn full_pipeline() {
-        let doc = Document::from_text(TEST_TEXT).await;
+        let doc = test_envelope(TEST_TEXT).await;
         let op = Deduplicator::new(&DeduplicationParams::default());
-        let entities: Vec<_> = vec![
+        let entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
                 .test_build(),
@@ -181,8 +201,7 @@ mod tests {
                 )])
                 .with_confidence(conf(0.85))
                 .test_build(),
-        ]
-        .into();
+        ];
         let result = op
             .deduplicate(entities, &doc, &FilterParams::default())
             .await;
@@ -192,10 +211,10 @@ mod tests {
 
     #[tokio::test]
     async fn empty_input() {
-        let doc = Document::from_text("").await;
+        let doc = test_envelope("").await;
         let op = Deduplicator::new(&DeduplicationParams::default());
         let result = op
-            .deduplicate(Vec::new(), &doc, &FilterParams::default())
+            .deduplicate(Vec::<Entity<Text>>::new(), &doc, &FilterParams::default())
             .await;
         assert!(result.is_empty());
     }

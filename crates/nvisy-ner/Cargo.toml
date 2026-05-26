@@ -24,7 +24,7 @@ default = []
 ## Enables [`BentoBackend`]: zero-shot NER over an externalized
 ## HTTP inference service (the `inference-gliner` Bento in
 ## https://github.com/nvisycom/inference).
-bento = ["dep:bentoml", "dep:serde"]
+bento = ["dep:bentoml"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -47,7 +47,7 @@ bentoml = { workspace = true, optional = true }
 lingua = { workspace = true, features = [] }
 
 # (De)serialization
-serde = { workspace = true, features = [], optional = true }
+serde = { workspace = true, features = ["derive"] }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }

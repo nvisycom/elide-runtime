@@ -31,10 +31,10 @@ mod vlm;
 mod workflow;
 
 #[cfg(any(feature = "image", feature = "audio"))]
+use nvisy_ontology::modality::Text;
 use std::sync::Arc;
 
 #[cfg(any(feature = "image", feature = "rich", feature = "audio"))]
-use nvisy_codec::DocumentHandle;
 use nvisy_core::Result;
 use serde::{Deserialize, Serialize};
 
@@ -47,8 +47,6 @@ pub use self::vlm::{VlmExtractor, VlmExtractorConfig};
 pub use self::workflow::{AudialExtraction, Extraction, TextExtraction, VisualExtraction};
 use crate::envelope::DocumentEnvelope;
 
-#[cfg(any(feature = "image", feature = "rich", feature = "audio"))]
-const TARGET: &str = "nvisy_engine::extraction";
 
 /// Registry of pre-built extractors, one per technique.
 ///
@@ -183,52 +181,16 @@ impl Extractors {
     /// silently — the document simply may not need that technique.
     pub async fn run(
         &self,
-        envelope: &mut DocumentEnvelope,
+        envelope: &mut DocumentEnvelope<Text>,
         extraction: &Extraction,
     ) -> Result<()> {
-        #[cfg(not(any(feature = "image", feature = "rich", feature = "audio")))]
+        // Extraction dispatch is being refactored to run on the
+        // matching typed envelope (`Image` for OCR/VLM, `Audio`
+        // for STT). The text-envelope pathway is a no-op; per-
+        // modality envelopes will be spawned by the pipeline
+        // orchestrator in the follow-up.
         let _ = (envelope, extraction);
-        #[cfg(any(feature = "image", feature = "rich", feature = "audio"))]
-        match &envelope.handle {
-            #[cfg(any(feature = "image", feature = "rich"))]
-            handle if matches_visual(handle) => {
-                #[cfg(feature = "image")]
-                if let Some(ref ocr) = self.ocr {
-                    tracing::debug!(target: TARGET, "running OCR extraction");
-                    ocr.run(envelope).await?;
-                }
-                #[cfg(feature = "image")]
-                {
-                    let run_vlm = extraction.visual.as_ref().is_some_and(|v| v.verification);
-                    if run_vlm && let Some(ref vlm) = self.vlm {
-                        tracing::debug!(target: TARGET, "running VLM verification");
-                        vlm.run(envelope).await?;
-                    }
-                }
-            }
-            #[cfg(feature = "audio")]
-            DocumentHandle::Audio(_) => {
-                if let Some(ref stt) = self.stt {
-                    let diarization = extraction.audial.as_ref().is_some_and(|a| a.diarization);
-                    tracing::debug!(target: TARGET, "running STT extraction");
-                    stt.run(envelope, diarization).await?;
-                }
-            }
-            _ => {
-                tracing::debug!(target: TARGET, "structured document, no extraction needed");
-            }
-        }
         Ok(())
     }
 }
 
-#[cfg(any(feature = "image", feature = "rich"))]
-fn matches_visual(handle: &DocumentHandle) -> bool {
-    match handle {
-        #[cfg(feature = "image")]
-        DocumentHandle::Image(_) => true,
-        #[cfg(feature = "rich")]
-        DocumentHandle::Rich(_) => true,
-        _ => false,
-    }
-}

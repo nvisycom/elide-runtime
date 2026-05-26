@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use super::{Mergeable, Modality, Overlap};
 use crate::document::Span;
-use crate::primitive::Confidence;
 
 /// A cell (or sub-cell range) within tabular content.
 #[derive(Debug, Clone, PartialEq, Eq, Builder)]
@@ -68,32 +67,16 @@ impl Modality for Tabular {
     type Metadata = TabularMetadata;
     // Tabular shares text strategies — the cell's redacted value is
     // recomputed text-side.
-    type Strategy = crate::policy::TextStrategy;
 }
 
-/// One row of a tabular document.
-///
-/// `kind` carries the variant payload (today only [`Row`](TabularBlockKind::Row));
-/// `confidence` is the recognition confidence for the row as a whole.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct TabularBlock {
-    /// Variant-specific payload.
-    #[serde(flatten)]
-    pub kind: TabularBlockKind,
-    /// Recognition confidence for the row.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<Confidence>,
-}
-
-/// Variants of [`TabularBlock`].
+/// Per-modality block payload for [`Tabular`]. Today only
+/// [`Row`](Self::Row) — carries the flat row text plus per-cell
+/// [`Span<Tabular>`]s.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
-pub enum TabularBlockKind {
-    /// A row. Carries the flat row text plus per-cell
-    /// [`Span<Tabular>`]s mapping byte offsets back to cell
-    /// coordinates.
+pub enum TabularBlock {
+    /// A row.
     Row {
         text: String,
         spans: Vec<Span<Tabular>>,
@@ -105,22 +88,12 @@ pub enum TabularBlockKind {
 impl TabularBlock {
     /// The row's flat text.
     pub fn text(&self) -> &str {
-        self.kind.text()
-    }
-
-    /// The row's per-cell spans.
-    pub fn spans(&self) -> &[Span<Tabular>] {
-        self.kind.spans()
-    }
-}
-
-impl TabularBlockKind {
-    pub fn text(&self) -> &str {
         match self {
             Self::Row { text, .. } => text,
         }
     }
 
+    /// The row's per-cell spans.
     pub fn spans(&self) -> &[Span<Tabular>] {
         match self {
             Self::Row { spans, .. } => spans,

@@ -11,16 +11,18 @@ use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
 
 use super::DocumentEnvelope;
 
-impl DocumentEnvelope {
+impl DocumentEnvelope<Text> {
     /// Collect all text locations from the codec handle into a `Vec`.
     pub async fn collect_text_locations(&self) -> Vec<Located<Text>> {
-        self.handle.text_locations().collect().await
+        let handle = self.handle.lock().await;
+        let stream = handle.text_locations();
+        stream.collect().await
     }
 
     /// Read the text content at the given text location from the
     /// codec handle.
     pub async fn read_text(&self, location: &Text) -> Option<handler::TextData> {
-        self.handle.read_text(location).await
+        self.handle.lock().await.read_text(location).await
     }
 
     /// Collect every text location together with its data, skipping
@@ -43,20 +45,25 @@ impl DocumentEnvelope {
         &mut self,
         redactions: handler::Redactions<Text, handler::TextRedaction>,
     ) -> Result<(), Error> {
-        self.handle.apply_text_redactions(redactions).await
+        self.handle
+            .lock()
+            .await
+            .apply_text_redactions(redactions)
+            .await
     }
 }
 
 #[cfg(feature = "image")]
-impl DocumentEnvelope {
+impl DocumentEnvelope<Image> {
     /// Collect all image locations from the codec handle into a `Vec`.
     pub async fn collect_image_locations(&self) -> Vec<Located<Image>> {
-        self.handle.image_locations().collect().await
+        let handle = self.handle.lock().await;
+        handle.image_locations().collect().await
     }
 
     /// Read the image data at the given image location.
     pub async fn read_image(&self, location: &Image) -> Option<handler::ImageData> {
-        self.handle.read_image(location).await
+        self.handle.lock().await.read_image(location).await
     }
 
     /// Apply a batch of image redactions to the codec handle.
@@ -64,20 +71,25 @@ impl DocumentEnvelope {
         &mut self,
         redactions: handler::Redactions<Image, handler::ImageRedaction>,
     ) -> Result<(), Error> {
-        self.handle.apply_image_redactions(redactions).await
+        self.handle
+            .lock()
+            .await
+            .apply_image_redactions(redactions)
+            .await
     }
 }
 
 #[cfg(feature = "audio")]
-impl DocumentEnvelope {
+impl DocumentEnvelope<Audio> {
     /// Collect all audio locations from the codec handle into a `Vec`.
     pub async fn collect_audio_locations(&self) -> Vec<Located<Audio>> {
-        self.handle.audio_locations().collect().await
+        let handle = self.handle.lock().await;
+        handle.audio_locations().collect().await
     }
 
     /// Read the audio data at the given audio location.
     pub async fn read_audio(&self, location: &Audio) -> Option<handler::AudioData> {
-        self.handle.read_audio(location).await
+        self.handle.lock().await.read_audio(location).await
     }
 
     /// Apply a batch of audio redactions to the codec handle.
@@ -85,20 +97,25 @@ impl DocumentEnvelope {
         &mut self,
         redactions: handler::Redactions<Audio, handler::AudioRedaction>,
     ) -> Result<(), Error> {
-        self.handle.apply_audio_redactions(redactions).await
+        self.handle
+            .lock()
+            .await
+            .apply_audio_redactions(redactions)
+            .await
     }
 }
 
 #[cfg(feature = "tabular")]
-impl DocumentEnvelope {
+impl DocumentEnvelope<Tabular> {
     /// Collect all tabular (cell) locations from the codec handle.
     pub async fn collect_tabular_locations(&self) -> Vec<Located<Tabular>> {
-        self.handle.tabular_locations().collect().await
+        let handle = self.handle.lock().await;
+        handle.tabular_locations().collect().await
     }
 
     /// Read the cell value at the given tabular location.
     pub async fn read_tabular(&self, location: &Tabular) -> Option<handler::TextData> {
-        self.handle.read_tabular(location).await
+        self.handle.lock().await.read_tabular(location).await
     }
 
     /// Apply a batch of tabular redactions to the codec handle.
@@ -106,6 +123,10 @@ impl DocumentEnvelope {
         &mut self,
         redactions: handler::Redactions<Tabular, handler::TabularRedaction>,
     ) -> Result<(), Error> {
-        self.handle.apply_tabular_redactions(redactions).await
+        self.handle
+            .lock()
+            .await
+            .apply_tabular_redactions(redactions)
+            .await
     }
 }

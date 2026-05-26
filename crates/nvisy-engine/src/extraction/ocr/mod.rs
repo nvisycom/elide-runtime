@@ -41,10 +41,10 @@ impl OcrExtractor {
     }
 
     /// Run OCR over the envelope's image spans, populating
-    /// [`DocumentEnvelope::image`] with the per-page output. Merges
+    /// [`DocumentEnvelope::document`] with the per-page output. Merges
     /// into an existing `Document<Image>` if one was already
     /// populated; otherwise creates a fresh one.
-    pub async fn run(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+    pub async fn run(&self, envelope: &mut DocumentEnvelope<Image>) -> Result<()> {
         let spans = Self::collect_spans(envelope).await;
         if spans.is_empty() {
             return Ok(());
@@ -58,9 +58,9 @@ impl OcrExtractor {
 
         let output = self.extract(&spans).await?;
 
-        match envelope.image.as_mut() {
+        match envelope.document.as_mut() {
             Some(existing) => existing.blocks.extend(output.blocks),
-            None => envelope.image = Some(output),
+            None => envelope.document = Some(output),
         }
 
         Ok(())
@@ -81,7 +81,7 @@ impl OcrExtractor {
             .await
     }
 
-    async fn collect_spans(envelope: &DocumentEnvelope) -> Vec<Span<Image, ImageData>> {
+    async fn collect_spans(envelope: &DocumentEnvelope<Image>) -> Vec<Span<Image, ImageData>> {
         let locations = envelope.collect_image_locations().await;
         let mut spans = Vec::with_capacity(locations.len());
         for located in locations {

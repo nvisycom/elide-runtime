@@ -1,5 +1,6 @@
 //! AES-256-GCM encryption and decryption service.
 
+use nvisy_ontology::modality::Text;
 use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use bytes::Bytes;
@@ -29,9 +30,9 @@ impl CryptoService {
         }
     }
 
-    /// Encrypt a [`DocumentEnvelope`] into an [`EncryptedContent`] blob.
-    pub async fn encrypt(&self, envelope: &DocumentEnvelope) -> Result<EncryptedContent> {
-        let content_data = envelope.encode()?;
+    /// Encrypt a [`DocumentEnvelope<Text>`] into an [`EncryptedContent`] blob.
+    pub async fn encrypt(&self, envelope: &DocumentEnvelope<Text>) -> Result<EncryptedContent> {
+        let content_data = envelope.encode().await?;
         let source = content_data.content_source;
         let plaintext = content_data.as_bytes();
 
@@ -148,7 +149,7 @@ mod tests {
         SharedKeyProvider::new(StaticKeyProvider::new([("test-key".to_string(), key)]))
     }
 
-    async fn test_envelope() -> DocumentEnvelope {
+    async fn test_envelope() -> DocumentEnvelope<Text> {
         let data = ContentData::from_text(ContentSource::new(), "Hello, world!");
         let meta = ContentMetadata::new().with_content_type("text/plain");
         let content = Content::with_metadata(data, meta);
@@ -157,18 +158,19 @@ mod tests {
         let registry = crate::ingestion::registry::Registry::open(dir.path()).unwrap();
         let shared =
             crate::envelope::SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
-        DocumentEnvelope::new(
-            doc,
+        <DocumentEnvelope<Text>>::new(
+            std::sync::Arc::new(tokio::sync::Mutex::new(doc)),
             ContentMetadata::new().with_content_type("text/plain"),
             shared,
         )
+        .await
     }
 
     #[tokio::test]
     async fn round_trip_encrypt_decrypt() {
         let provider = test_key_provider();
         let envelope = test_envelope().await;
-        let original_bytes = envelope.encode().expect("encode").into_bytes();
+        let original_bytes = envelope.encode().await.expect("encode").into_bytes();
 
         let svc = CryptoService::new("test-key", provider);
         let encrypted = svc.encrypt(&envelope).await.expect("encrypt");

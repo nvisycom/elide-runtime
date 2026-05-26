@@ -1,5 +1,6 @@
 //! [`Registry`]: actor-scoped content, context, and policy store.
 
+use nvisy_ontology::modality::Text;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -384,7 +385,7 @@ impl Registry {
         &self,
         actor_id: Uuid,
         run_id: Uuid,
-        audits: Vec<Audit>,
+        audits: Vec<Audit<Text>>,
     ) -> Result<()> {
         let key = CompositeKey::new(actor_id, run_id);
         let count = audits.len();
@@ -395,7 +396,7 @@ impl Registry {
 
     /// Load persisted audit trails for a pipeline run.
     #[tracing::instrument(target = TARGET, name = "registry.load_audits", skip(self), fields(%actor_id, %run_id))]
-    pub async fn load_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<Vec<Audit>> {
+    pub async fn load_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<Vec<Audit<Text>>> {
         let key = CompositeKey::new(actor_id, run_id);
         self.load_json(&self.inner.audits_ks, key, "audits").await
     }

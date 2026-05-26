@@ -9,11 +9,10 @@ mod params;
 
 use nvisy_agent::audio::stt::SttService;
 use nvisy_codec::DocumentHandle;
-use nvisy_codec::handler::{BoxedTextHandler, Handler};
+use nvisy_codec::handler::Handler;
 use nvisy_core::Result;
-use nvisy_formats::text::TxtHandler;
 use nvisy_ontology::document::{Block, Document};
-use nvisy_ontology::modality::{Audio, AudioBlockKind, AudioMetadata};
+use nvisy_ontology::modality::{Audio, AudioBlock, AudioMetadata};
 use nvisy_ontology::primitive::TimeSpan;
 
 pub use self::params::SttExtractorConfig;
@@ -37,15 +36,20 @@ impl SttExtractor {
         Ok(Self { stt })
     }
 
-    /// Transcribe the envelope's audio (if it is audio) into
-    /// [`DocumentEnvelope::audio`] and replace the codec handle with
-    /// the transcript text so downstream text detection can run.
+    /// Transcribe the envelope's audio into
+    /// [`DocumentEnvelope::document`]. The handle stays as audio —
+    /// downstream text detection runs against a separate text
+    /// envelope spawned by the pipeline orchestrator.
     ///
     /// `diarization` is currently advisory — diarization is not yet
     /// implemented; a warning is logged when requested.
-    pub async fn run(&self, envelope: &mut DocumentEnvelope, diarization: bool) -> Result<()> {
-        let DocumentHandle::Audio(ref handler) = envelope.handle else {
-            return Ok(());
+    pub async fn run(&self, envelope: &mut DocumentEnvelope<Audio>, diarization: bool) -> Result<()> {
+        let audio_data = {
+            let handle = envelope.handle.lock().await;
+            let DocumentHandle::Audio(ref handler) = *handle else {
+                return Ok(());
+            };
+            Handler::encode(handler)?
         };
 
         if diarization {
@@ -53,7 +57,6 @@ impl SttExtractor {
         }
 
         tracing::debug!(target: TARGET, "transcribing audio");
-        let audio_data = Handler::encode(handler)?;
         let filename = envelope
             .metadata
             .filename
@@ -71,28 +74,18 @@ impl SttExtractor {
             return Ok(());
         }
 
-        // Record the transcript as a single-block Document<Audio>.
-        // Real time-span / speaker diarization will populate finer
-        // structure once the upstream service exposes it.
-        let location = Audio::new(TimeSpan::new(0, 0));
-        envelope.audio = Some(Document::new(
+        let time_span = TimeSpan::new(0, 0);
+        envelope.document = Some(Document::new(
             AudioMetadata::default(),
-            vec![Block {
+            vec![Block::new(AudioBlock::Speech {
+                time_span,
                 text: stt_result.text.clone(),
                 spans: Vec::new(),
-                kind: AudioBlockKind::Speech,
-                confidence: None,
-                source: location,
-                artefacts: Vec::new(),
-            }],
+                speaker_id: None,
+            })],
         ));
 
-        let lines: Vec<String> = stt_result.text.lines().map(String::from).collect();
-        let trailing = stt_result.text.ends_with('\n');
-        let source = envelope.source();
-        let handler = TxtHandler::new(lines, trailing).with_source(source);
-        envelope.handle = DocumentHandle::from(BoxedTextHandler::new(handler));
-        tracing::debug!(target: TARGET, "replaced audio with transcript");
+        tracing::debug!(target: TARGET, "audio transcript captured");
         Ok(())
     }
 }

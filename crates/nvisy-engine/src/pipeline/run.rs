@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::policy::{Policies, Retention, RetentionPolicy, RetentionScope};
+use nvisy_ontology::policy::{Retention, RetentionPolicy, RetentionScope};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -131,16 +131,15 @@ impl Pipeline {
             .await;
 
         let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
-        let mut policies = Policies::default();
+        let mut policies: Vec<nvisy_ontology::policy::Policy> = Vec::new();
         for policy in cached_policies {
             policies.push(Arc::unwrap_or_clone(policy));
         }
 
-        let retention_rules = policies
-            .all_retention()
-            .into_iter()
-            .copied()
-            .collect::<Vec<_>>();
+        let retention_rules: Vec<RetentionPolicy> = policies
+            .iter()
+            .flat_map(|p| p.retention.iter().copied())
+            .collect();
 
         let concurrency = effective_config.effective_concurrency();
 

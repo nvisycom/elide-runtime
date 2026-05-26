@@ -11,7 +11,7 @@ fn empty_ctx() -> PatternContext {
 #[test]
 fn finds_ssn() {
     let engine = PatternEngine::instance();
-    let entities = engine.scan_entities("My SSN is 123-45-6789.", &empty_ctx());
+    let entities = engine.scan_text("My SSN is 123-45-6789.", &empty_ctx());
     assert!(
         entities
             .iter()
@@ -24,7 +24,7 @@ fn finds_ssn() {
 #[test]
 fn finds_email() {
     let engine = PatternEngine::instance();
-    let entities = engine.scan_entities("Contact: alice@example.com", &empty_ctx());
+    let entities = engine.scan_text("Contact: alice@example.com", &empty_ctx());
     assert!(
         entities
             .iter()
@@ -37,7 +37,7 @@ fn finds_email() {
 #[test]
 fn dictionary_matches_are_found() {
     let engine = PatternEngine::instance();
-    let entities = engine.scan_entities("She is American and speaks English.", &empty_ctx());
+    let entities = engine.scan_text("She is American and speaks English.", &empty_ctx());
     assert!(
         entities
             .iter()
@@ -56,7 +56,7 @@ fn dictionary_matches_are_found() {
 #[test]
 fn column_confidence_applies_to_csv_dictionaries() {
     let engine = PatternEngine::instance();
-    let entities = engine.scan_entities("I paid in US Dollar and also in USD.", &empty_ctx());
+    let entities = engine.scan_text("I paid in US Dollar and also in USD.", &empty_ctx());
     // "US Dollar" at 10..19, "USD" at 32..35
     let full_name = entities.iter().find(|e| e.location.start_offset == 10);
     let code = entities.iter().find(|e| e.location.start_offset == 32);
@@ -76,7 +76,7 @@ fn scan_entities_returns_entities_with_location() {
         .with_patterns(&["ssn"])
         .build()
         .unwrap();
-    let entities = engine.scan_entities("SSN: 123-45-6789", &empty_ctx());
+    let entities = engine.scan_text("SSN: 123-45-6789", &empty_ctx());
     assert!(!entities.is_empty());
     let e = &entities[0];
     assert_eq!(e.entity_kind, EntityKind::GovernmentId);

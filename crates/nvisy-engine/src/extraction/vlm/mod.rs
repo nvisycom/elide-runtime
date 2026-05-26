@@ -20,7 +20,7 @@ use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::{AnyModality, Image};
+use nvisy_ontology::modality::Image;
 
 pub use self::params::VlmExtractorConfig;
 use crate::envelope::DocumentEnvelope;
@@ -50,7 +50,7 @@ impl VlmExtractor {
     /// Skips when there are no entities or no image spans. Failures
     /// are logged but not propagated — the unverified entities are
     /// kept rather than failing the run.
-    pub async fn run(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+    pub async fn run(&self, envelope: &mut DocumentEnvelope<Image>) -> Result<()> {
         if envelope.audit.entities.is_empty() {
             return Ok(());
         }
@@ -59,27 +59,7 @@ impl VlmExtractor {
             return Ok(());
         }
 
-        // Partition audit entities into image-modality (verifiable)
-        // and others (passed through unchanged).
-        let (image_entities, other_entities): (Vec<_>, Vec<_>) = envelope
-            .audit
-            .entities
-            .0
-            .iter()
-            .cloned()
-            .partition(|e| matches!(e.location, AnyModality::Image(_)));
-
-        let image_entities: Vec<Entity<Image>> = image_entities
-            .into_iter()
-            .filter_map(|e| match e.location.clone() {
-                AnyModality::Image(loc) => Some(rebuild_as_image(e, loc)),
-                _ => None,
-            })
-            .collect();
-
-        if image_entities.is_empty() {
-            return Ok(());
-        }
+        let image_entities = std::mem::take(&mut envelope.audit.entities);
 
         tracing::debug!(
             target: TARGET,
@@ -89,11 +69,7 @@ impl VlmExtractor {
         );
 
         match self.verify(&spans, image_entities, envelope).await {
-            Ok(verified) => {
-                let mut merged: Vec<Entity<AnyModality>> = other_entities;
-                merged.extend(verified.into_iter().map(Entity::erase));
-                envelope.audit.entities = merged;
-            }
+            Ok(verified) => envelope.audit.entities = verified,
             Err(e) => tracing::warn!(
                 target: TARGET, error = %e,
                 "VLM verification failed, keeping unverified entities"
@@ -106,7 +82,7 @@ impl VlmExtractor {
         &self,
         spans: &[Span<Image, ImageData>],
         entities: Vec<Entity<Image>>,
-        envelope: &DocumentEnvelope,
+        envelope: &DocumentEnvelope<Image>,
     ) -> Result<Vec<Entity<Image>>> {
         let mut verified = entities;
         for span in spans {
@@ -117,8 +93,10 @@ impl VlmExtractor {
 
             let mut candidates = Vec::with_capacity(verified.len());
             for entity in verified {
-                let location = AnyModality::Image(entity.location.clone());
-                let value = envelope.value_at(&location).await.unwrap_or_default();
+                let value = envelope
+                    .value_at(&entity.location)
+                    .await
+                    .unwrap_or_default();
                 candidates.push(VerificationCandidate { entity, value });
             }
 
@@ -131,7 +109,7 @@ impl VlmExtractor {
         Ok(verified)
     }
 
-    async fn collect_spans(envelope: &DocumentEnvelope) -> Vec<Span<Image, ImageData>> {
+    async fn collect_spans(envelope: &DocumentEnvelope<Image>) -> Vec<Span<Image, ImageData>> {
         let locations = envelope.collect_image_locations().await;
         let mut spans = Vec::with_capacity(locations.len());
         for located in locations {
@@ -140,24 +118,5 @@ impl VlmExtractor {
             }
         }
         spans
-    }
-}
-
-/// Rebuild an [`Entity<AnyModality>`] as [`Entity<Image>`] given a
-/// known-Image location component. All non-location fields pass
-/// through verbatim.
-fn rebuild_as_image(e: Entity<AnyModality>, location: Image) -> Entity<Image> {
-    Entity {
-        id: e.id,
-        entity_id: e.entity_id,
-        category: e.category,
-        entity_kind: e.entity_kind,
-        extraction_methods: e.extraction_methods,
-        recognition_methods: e.recognition_methods,
-        refinement_methods: e.refinement_methods,
-        confidence: e.confidence,
-        location,
-        language: e.language,
-        sensitivity: e.sensitivity,
     }
 }

@@ -6,6 +6,7 @@
 //! 1. **Encryption** — encrypt content (if config specified)
 //! 2. **Compression** — compress for storage or transfer (if format specified)
 
+use nvisy_ontology::modality::Text;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentSource};
 use uuid::Uuid;
@@ -46,9 +47,9 @@ impl Exporter {
         self
     }
 
-    pub async fn export(&self, envelope: &DocumentEnvelope) -> Result<()> {
+    pub async fn export(&self, envelope: &DocumentEnvelope<Text>) -> Result<()> {
         let shared = &envelope.shared;
-        let content_data = envelope.encode()?;
+        let content_data = envelope.encode().await?;
         let mut output_bytes = bytes::Bytes::copy_from_slice(content_data.as_bytes());
 
         if let Some(ref enc_cfg) = self.encryption {

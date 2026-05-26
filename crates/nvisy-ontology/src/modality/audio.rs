@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::{Mergeable, Modality, Overlap};
 use crate::document::Span;
-use crate::primitive::{Confidence, LanguageDetection, TimeSpan};
+use crate::primitive::{LanguageDetection, TimeSpan};
 
 /// A time interval within audio content.
 #[derive(Debug, Clone, PartialEq, Builder)]
@@ -54,71 +54,50 @@ impl Audio {
 impl Modality for Audio {
     type Block = AudioBlock;
     type Metadata = AudioMetadata;
-    type Strategy = crate::policy::AudioStrategy;
 }
 
-/// One segment of an audio document.
-///
-/// `kind` carries the segment variant (speech, silence) and its
-/// payload; `time_span` is the segment's interval; `confidence` is
-/// the recognition confidence for the segment as a whole.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct AudioBlock {
-    /// Variant-specific payload.
-    #[serde(flatten)]
-    pub kind: AudioBlockKind,
-    /// Segment time interval.
-    pub time_span: TimeSpan,
-    /// Recognition confidence for the segment.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<Confidence>,
-}
-
-/// Variants of [`AudioBlock`]. [`Speech`](Self::Speech) carries the
-/// transcript text plus per-word spans and optional speaker;
-/// [`Silence`](Self::Silence) carries no payload.
+/// Per-modality block payload for [`Audio`].
+/// [`Speech`](Self::Speech) carries the transcript text plus per-word
+/// spans and optional speaker; [`Silence`](Self::Silence) carries no
+/// payload. Every variant carries the segment `time_span`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
-pub enum AudioBlockKind {
+pub enum AudioBlock {
     /// A transcribed speech segment (typically one speaker turn).
     Speech {
+        time_span: TimeSpan,
         text: String,
         spans: Vec<Span<Audio>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         speaker_id: Option<String>,
     },
     /// A silence or non-speech segment surfaced for completeness.
-    Silence,
+    Silence { time_span: TimeSpan },
 }
 
 impl AudioBlock {
-    /// Transcribed text for [`Speech`](AudioBlockKind::Speech), `None`
-    /// for silence.
-    pub fn text(&self) -> Option<&str> {
-        self.kind.text()
-    }
-
-    /// Per-word spans for [`Speech`](AudioBlockKind::Speech), empty
-    /// for silence.
-    pub fn spans(&self) -> &[Span<Audio>] {
-        self.kind.spans()
-    }
-}
-
-impl AudioBlockKind {
-    pub fn text(&self) -> Option<&str> {
+    /// Segment time interval.
+    pub fn time_span(&self) -> &TimeSpan {
         match self {
-            Self::Speech { text, .. } => Some(text),
-            Self::Silence => None,
+            Self::Speech { time_span, .. } | Self::Silence { time_span } => time_span,
         }
     }
 
+    /// Transcribed text for [`Speech`](Self::Speech), `None` for
+    /// silence.
+    pub fn text(&self) -> Option<&str> {
+        match self {
+            Self::Speech { text, .. } => Some(text),
+            Self::Silence { .. } => None,
+        }
+    }
+
+    /// Per-word spans for [`Speech`](Self::Speech), empty for silence.
     pub fn spans(&self) -> &[Span<Audio>] {
         match self {
             Self::Speech { spans, .. } => spans,
-            Self::Silence => &[],
+            Self::Silence { .. } => &[],
         }
     }
 }

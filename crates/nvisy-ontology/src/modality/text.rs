@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{Mergeable, Modality, Overlap};
 use crate::document::Span;
-use crate::primitive::{Confidence, LanguageDetection};
+use crate::primitive::LanguageDetection;
 
 /// A range within text content.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Builder)]
@@ -73,31 +73,15 @@ impl Text {
 impl Modality for Text {
     type Block = TextBlock;
     type Metadata = TextMetadata;
-    type Strategy = crate::policy::TextStrategy;
 }
 
-/// One region of a text document.
-///
-/// `kind` carries the structural variant (paragraph, heading, …) and
-/// its text-bearing payload; `confidence` is the recognition
-/// confidence for the block as a whole (absent for native text-layer
-/// extraction).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct TextBlock {
-    /// Variant-specific payload.
-    #[serde(flatten)]
-    pub kind: TextBlockKind,
-    /// Recognition confidence for the block as a whole.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<Confidence>,
-}
-
-/// Variants of [`TextBlock`].
+/// Per-modality block payload for [`Text`]. Each variant is a
+/// structural kind (paragraph, heading, list item, code, quote);
+/// every variant carries flat text plus per-word [`Span<Text>`]s.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
-pub enum TextBlockKind {
+pub enum TextBlock {
     /// A regular paragraph or text run.
     Paragraph {
         text: String,
@@ -132,17 +116,6 @@ pub enum TextBlockKind {
 impl TextBlock {
     /// The block's text.
     pub fn text(&self) -> &str {
-        self.kind.text()
-    }
-
-    /// The block's spans (per-word source mapping).
-    pub fn spans(&self) -> &[Span<Text>] {
-        self.kind.spans()
-    }
-}
-
-impl TextBlockKind {
-    pub fn text(&self) -> &str {
         match self {
             Self::Paragraph { text, .. }
             | Self::Heading { text, .. }
@@ -152,6 +125,7 @@ impl TextBlockKind {
         }
     }
 
+    /// The block's spans (per-word source mapping).
     pub fn spans(&self) -> &[Span<Text>] {
         match self {
             Self::Paragraph { spans, .. }

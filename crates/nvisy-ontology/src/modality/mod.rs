@@ -28,14 +28,10 @@ use schemars::JsonSchema;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-pub use self::audio::{Audio, AudioBlock, AudioBlockKind, AudioBuilder, AudioMetadata};
-pub use self::image::{
-    Image, ImageBlock, ImageBlockKind, ImageBuilder, ImageMetadata, PageDimensions,
-};
-pub use self::tabular::{
-    ColumnHeader, Tabular, TabularBlock, TabularBlockKind, TabularBuilder, TabularMetadata,
-};
-pub use self::text::{Text, TextBlock, TextBlockKind, TextBuilder, TextMetadata};
+pub use self::audio::{Audio, AudioBlock, AudioBuilder, AudioMetadata};
+pub use self::image::{Image, ImageBlock, ImageBuilder, ImageMetadata, PageDimensions};
+pub use self::tabular::{ColumnHeader, Tabular, TabularBlock, TabularBuilder, TabularMetadata};
+pub use self::text::{Text, TextBlock, TextBuilder, TextMetadata};
 
 /// Marker trait implemented by every per-modality coordinate type.
 ///
@@ -67,21 +63,6 @@ pub trait Modality:
 
     /// Document-level metadata.
     type Metadata: Clone
-        + Debug
-        + Default
-        + PartialEq
-        + Serialize
-        + DeserializeOwned
-        + JsonSchema
-        + Send
-        + Sync
-        + 'static;
-
-    /// The modality's redaction strategy shape. Each modality picks
-    /// the redaction methods that make sense for its data — text gets
-    /// mask/replace/encrypt/etc., image gets blur/block/pixelate,
-    /// audio gets silence/remove.
-    type Strategy: Clone
         + Debug
         + Default
         + PartialEq

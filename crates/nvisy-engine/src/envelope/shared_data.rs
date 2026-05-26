@@ -7,7 +7,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use nvisy_ontology::policy::{Policies, Policy};
+use nvisy_ontology::policy::Policy;
 use uuid::Uuid;
 
 use crate::ingestion::encryption::SharedKeyProvider;
@@ -25,8 +25,9 @@ pub struct SharedData {
     pub run_id: Uuid,
     /// Identity of the human or service account that initiated the run.
     pub actor_id: Uuid,
-    /// Policies governing redaction behaviour.
-    pub policies: Policies,
+    /// Policies governing redaction behaviour, in precedence order
+    /// (index `0` is the highest-precedence policy).
+    pub policies: Vec<Policy>,
     /// Content and context storage.
     pub registry: Registry,
     /// Key provider for encryption/decryption.
@@ -39,7 +40,7 @@ impl SharedData {
         Arc::new(Self {
             run_id,
             actor_id,
-            policies: Policies::default(),
+            policies: Vec::new(),
             registry,
             key_provider: SharedKeyProvider::default(),
         })
@@ -52,7 +53,7 @@ impl SharedData {
     }
 
     /// Attach policies to this shared data.
-    pub fn with_policies(mut self, policies: Policies) -> Self {
+    pub fn with_policies(mut self, policies: Vec<Policy>) -> Self {
         self.policies = policies;
         self
     }

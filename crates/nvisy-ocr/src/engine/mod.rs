@@ -54,7 +54,7 @@ impl Extractor {
         ctx: Context<'_>,
     ) -> Result<Document<Image>, Error> {
         let output = self.backend.run(image, ctx).await?;
-        tracing::debug!(target: TARGET, spans = output.blocks.iter().map(|b| b.spans().len()).sum::<usize>(), "ocr complete");
+        tracing::debug!(target: TARGET, spans = output.blocks.iter().map(|b| b.kind.spans().len()).sum::<usize>(), "ocr complete");
         Ok(output)
     }
 
@@ -70,7 +70,7 @@ impl Extractor {
         let output = self.backend.run_batch(images, ctx).await?;
         tracing::debug!(
             target: TARGET,
-            spans = output.blocks.iter().map(|b| b.spans().len()).sum::<usize>(),
+            spans = output.blocks.iter().map(|b| b.kind.spans().len()).sum::<usize>(),
             "batch ocr complete",
         );
         Ok(output)

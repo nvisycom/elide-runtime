@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use nvisy_core::Result;
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 use nvisy_pattern::{PatternContext, PatternEngine};
 
@@ -74,9 +75,7 @@ impl Recognizer for PatternRecognizer {
         ),
     )]
     async fn run(&self, text: &str, ctx: &PatternContext) -> Result<Vec<Entity<Text>>> {
-        let entities: Vec<Entity<Text>> =
-            self.engine.scan_entities(text, ctx).into_iter().collect();
-        Ok(entities)
+        Ok(self.engine.scan_text(text, ctx))
     }
 }
 

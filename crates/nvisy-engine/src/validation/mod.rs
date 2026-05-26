@@ -8,7 +8,8 @@
 mod workflow;
 
 use nvisy_core::{Error, Result};
-use nvisy_ontology::modality::AnyModality;
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::modality::Text;
 use nvisy_ontology::provenance::AuditEntry;
 use uuid::Uuid;
 
@@ -51,10 +52,10 @@ impl Validator {
     /// values are counted as passed — visual and temporal redaction
     /// verification is not yet implemented.
     async fn check(
-        entities: &Vec<Entity<AnyModality>>,
-        records: &[AuditEntry],
+        entities: &Vec<Entity<Text>>,
+        records: &[AuditEntry<Text>],
         redacted_text: Option<&str>,
-        envelope: &DocumentEnvelope,
+        envelope: &DocumentEnvelope<Text>,
     ) -> ValidationResult {
         let mut passed = 0usize;
         let mut leaked = Vec::new();
@@ -92,7 +93,7 @@ impl Validator {
     }
 
     /// Execute post-redaction validation against the envelope.
-    pub async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
+    pub async fn execute(&self, envelope: &mut DocumentEnvelope<Text>) -> Result<()> {
         tracing::debug!(target: TARGET, "running post-redaction validation");
 
         let locations = envelope.collect_text_locations().await;

@@ -72,6 +72,7 @@ impl Text {
 impl Modality for Text {
     type Block = TextBlock;
     type Metadata = TextMetadata;
+    type Strategy = crate::policy::TextStrategy;
 }
 
 /// Per-modality block payload for [`Text`]. Each variant is a

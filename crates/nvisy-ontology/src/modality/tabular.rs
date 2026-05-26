@@ -64,8 +64,7 @@ impl Tabular {
 impl Modality for Tabular {
     type Block = TabularBlock;
     type Metadata = TabularMetadata;
-    // Tabular shares text strategies — the cell's redacted value is
-    // recomputed text-side.
+    type Strategy = crate::policy::TabularStrategy;
 }
 
 /// Per-modality block payload for [`Tabular`]. Today only

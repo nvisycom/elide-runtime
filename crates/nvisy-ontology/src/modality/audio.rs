@@ -53,6 +53,7 @@ impl Audio {
 impl Modality for Audio {
     type Block = AudioBlock;
     type Metadata = AudioMetadata;
+    type Strategy = crate::policy::AudioStrategy;
 }
 
 /// Per-modality block payload for [`Audio`].

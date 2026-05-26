@@ -1,6 +1,7 @@
-//! Policy request types.
+//! Policy<Text> request types.
 
 use nvisy_ontology::policy::Policy;
+use nvisy_ontology::modality::Text;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -9,5 +10,5 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct NewPolicy {
     /// The policy to store.
-    pub policy: Policy,
+    pub policy: Policy<Text>,
 }

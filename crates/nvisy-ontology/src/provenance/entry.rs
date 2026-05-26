@@ -9,7 +9,6 @@ use uuid::Uuid;
 
 use super::review::ReviewDecision;
 use crate::modality::{Modality, RedactionStrategy};
-use crate::policy::Strategy;
 
 /// Outcome status of a redaction operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,7 +52,14 @@ pub enum AuditEntryStatus {
     pattern = "owned",
     setter(into, strip_option, prefix = "with")
 )]
-#[serde(rename_all = "camelCase")]
+#[serde(
+    rename_all = "camelCase",
+    bound(
+        serialize = "M::Strategy: Serialize",
+        deserialize = "M::Strategy: serde::de::DeserializeOwned",
+    )
+)]
+#[schemars(bound = "M::Strategy: JsonSchema")]
 pub struct AuditEntry<M: Modality> {
     /// Identifier of the entity being redacted.
     pub entity_id: Uuid,
@@ -73,27 +79,28 @@ pub struct AuditEntry<M: Modality> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub correlation_id: Option<Uuid>,
     /// What to do: strategy and application state.
-    pub redaction: RedactionSpec,
+    pub redaction: RedactionSpec<M>,
     /// Original and replacement values.
     pub value: RedactionValue,
     /// Human review decision, if any.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review: Option<ReviewDecision>,
-    /// Modality marker — keeps `AuditEntry<M>` typed per envelope
-    /// without storing M data at runtime.
-    #[builder(default = "std::marker::PhantomData", setter(skip))]
-    #[serde(skip)]
-    #[schemars(skip)]
-    pub modality_marker: std::marker::PhantomData<M>,
 }
 
 /// Strategy and application state for a redaction.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RedactionSpec {
+#[serde(
+    rename_all = "camelCase",
+    bound(
+        serialize = "M::Strategy: Serialize",
+        deserialize = "M::Strategy: serde::de::DeserializeOwned",
+    )
+)]
+#[schemars(bound = "M::Strategy: JsonSchema")]
+pub struct RedactionSpec<M: Modality> {
     /// Redaction strategy to apply.
-    pub strategy: Strategy,
+    pub strategy: M::Strategy,
     /// Whether the redaction has been applied to the output content.
     pub is_applied: bool,
     /// Whether the original can be reconstructed from this redaction.
@@ -125,12 +132,15 @@ impl<M: Modality> AuditEntry<M> {
     }
 }
 
-impl<M: Modality> AuditEntryBuilder<M> {
+impl<M: Modality> AuditEntryBuilder<M>
+where
+    M::Strategy: RedactionStrategy,
+{
     /// Set the entity ID, strategy, and original value in one call.
     pub fn for_entity(
         self,
         entity_id: Uuid,
-        strategy: Strategy,
+        strategy: M::Strategy,
         original: impl Into<String>,
     ) -> Self {
         let reversible = strategy.is_reversible();

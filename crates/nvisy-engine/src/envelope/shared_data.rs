@@ -3,31 +3,31 @@
 //! [`SharedData`] holds immutable run-wide state behind an `Arc` so
 //! that every envelope and operation can cheaply access the same actor
 //! identity, policies, and context cache.
+//!
+//! Policies are typed per modality; the [`PolicyStore`] in this struct
+//! holds the per-modality stacks heterogeneously, so a
+//! `DocumentEnvelope<M>` pulls its stack with
+//! `shared.policies.get::<M>()`.
 
 use std::fmt;
 use std::sync::Arc;
 
+use nvisy_ontology::modality::Modality;
 use nvisy_ontology::policy::Policy;
 use uuid::Uuid;
 
+use super::PolicyStore;
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::Registry;
 
 /// Immutable run-wide state shared across all envelopes via `Arc`.
-///
-/// Constructed once at the start of a pipeline run and stored on each
-/// [`DocumentEnvelope`].
-///
-/// [`DocumentEnvelope`]: crate::envelope::DocumentEnvelope
-#[derive(Clone)]
 pub struct SharedData {
     /// Unique identifier for this pipeline run.
     pub run_id: Uuid,
     /// Identity of the human or service account that initiated the run.
     pub actor_id: Uuid,
-    /// Policies governing redaction behaviour, in precedence order
-    /// (index `0` is the highest-precedence policy).
-    pub policies: Vec<Policy>,
+    /// Per-modality policy stacks, in precedence order (index 0 highest).
+    pub policies: PolicyStore,
     /// Content and context storage.
     pub registry: Registry,
     /// Key provider for encryption/decryption.
@@ -40,7 +40,7 @@ impl SharedData {
         Arc::new(Self {
             run_id,
             actor_id,
-            policies: Vec::new(),
+            policies: PolicyStore::new(),
             registry,
             key_provider: SharedKeyProvider::default(),
         })
@@ -52,15 +52,15 @@ impl SharedData {
         self
     }
 
-    /// Attach policies to this shared data.
-    pub fn with_policies(mut self, policies: Vec<Policy>) -> Self {
-        self.policies = policies;
+    /// Append a single policy for modality `M`.
+    pub fn with_policy<M: Modality>(mut self, policy: Policy<M>) -> Self {
+        self.policies.insert(policy);
         self
     }
 
-    /// Append a single policy.
-    pub fn with_policy(mut self, policy: Policy) -> Self {
-        self.policies.push(policy);
+    /// Replace the policy stack for modality `M`.
+    pub fn with_policies<M: Modality>(mut self, policies: Vec<Policy<M>>) -> Self {
+        self.policies.set::<M>(policies);
         self
     }
 }

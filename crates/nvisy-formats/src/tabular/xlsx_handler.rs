@@ -1,14 +1,14 @@
 //! XLSX handler (stub: awaiting full spreadsheet support).
 //!
-//! Implements [`TabularHandler`] only — the underlying ZIP-of-XML
+//! Implements [`Handle`] only — the underlying ZIP-of-XML
 //! structure does not map to flat byte offsets, so the handler does
 //! not implement [`TextHandler`].
 //!
-//! [`TabularHandler`]: nvisy_codec::handler::TabularHandler
+//! [`Handle`]: nvisy_codec::handler::Handle
 //! [`TextHandler`]: nvisy_codec::handler::TextHandler
 
 use nvisy_codec::document::LocationStream;
-use nvisy_codec::handler::{Handler, TabularHandler, TabularRedaction, TextData};
+use nvisy_codec::handler::{Handler, Handle, TabularRedaction, TextData};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
@@ -51,7 +51,7 @@ impl Handler for XlsxHandler {
 }
 
 #[async_trait::async_trait]
-impl TabularHandler for XlsxHandler {
+impl Handle<Tabular> for XlsxHandler {
     fn locations(&self) -> LocationStream<'_, Tabular> {
         LocationStream::empty()
     }

@@ -38,7 +38,7 @@ struct RegistryInner {
     policies_ks: Keyspace,
     audits_ks: Keyspace,
     context_cache: ResourceCache<Context>,
-    policy_cache: ResourceCache<Policy>,
+    policy_cache: ResourceCache<Policy<Text>>,
 }
 
 impl fmt::Debug for Registry {
@@ -89,7 +89,7 @@ impl Registry {
     }
 
     /// Returns the shared policy cache.
-    pub fn policy_cache(&self) -> &ResourceCache<Policy> {
+    pub fn policy_cache(&self) -> &ResourceCache<Policy<Text>> {
         &self.inner.policy_cache
     }
 
@@ -345,7 +345,7 @@ impl Registry {
     }
 
     #[tracing::instrument(target = TARGET, name = "registry.register_policy", skip(self, policy), fields(%actor_id))]
-    pub async fn register_policy(&self, actor_id: Uuid, policy: Policy) -> Result<Uuid> {
+    pub async fn register_policy(&self, actor_id: Uuid, policy: Policy<Text>) -> Result<Uuid> {
         let id = policy.id;
         let key = CompositeKey::new(actor_id, id);
         self.store_json(&self.inner.policies_ks, key, &policy)
@@ -355,7 +355,7 @@ impl Registry {
     }
 
     #[tracing::instrument(target = TARGET, name = "registry.read_policy", skip(self), fields(%actor_id, %policy_id))]
-    pub async fn read_policy(&self, actor_id: Uuid, policy_id: Uuid) -> Result<Policy> {
+    pub async fn read_policy(&self, actor_id: Uuid, policy_id: Uuid) -> Result<Policy<Text>> {
         let key = CompositeKey::new(actor_id, policy_id);
         self.load_json(&self.inner.policies_ks, key, "policy").await
     }

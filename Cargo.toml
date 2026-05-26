@@ -90,6 +90,7 @@ jiff = { version = "0.2", features = ["serde"] }
 semver = { version = "1.0", features = ["serde"] }
 oxilangtag = { version = "0.1", features = ["serde"] }
 humantime-serde = { version = "1.1", features = [] }
+type-map = { version = "0.5", features = [] }
 
 # Encoding and hashing
 base64 = { version = "0.22", features = [] }

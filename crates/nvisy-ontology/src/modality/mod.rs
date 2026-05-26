@@ -54,6 +54,19 @@ pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
 
     /// Document-level metadata.
     type Metadata: Clone + Debug + Default + PartialEq + Send + Sync + 'static;
+
+    /// The modality's redaction strategy. Each modality declares the
+    /// methods that make sense for its data — text picks
+    /// mask/replace/encrypt/etc., image picks blur/block/pixelate,
+    /// audio picks silence/remove, tabular picks clear/drop-column.
+    type Strategy: RedactionStrategy
+        + Clone
+        + Debug
+        + Default
+        + PartialEq
+        + Send
+        + Sync
+        + 'static;
 }
 
 /// Methods every per-modality redaction strategy must expose.

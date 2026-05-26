@@ -1,18 +1,18 @@
 //! WAV handler: holds raw WAV audio bytes and provides location-based
-//! access via [`AudioHandler`].
+//! access via [`Handle`].
 //!
 //! Redaction decodes the WAV via [`hound`], applies a single
 //! sample-level mutation, and re-encodes back to bytes.
 //! Supported formats are `i8` / `i16` / `i32` PCM and `f32` IEEE
 //! float; other bit depths surface a clear error.
 //!
-//! Batched redaction goes through [`AudioHandler::redact`], which
+//! Batched redaction goes through [`Handle::redact`], which
 //! sorts right-to-left by `time_span.start_us` so
 //! [`AudioOutput::Remove`] operations don't shift the indices of
 //! pending redactions.
 //!
-//! [`AudioHandler`]: nvisy_codec::handler::AudioHandler
-//! [`AudioHandler::redact`]: nvisy_codec::handler::AudioHandler::redact
+//! [`Handle`]: nvisy_codec::handler::Handle
+//! [`Handle::redact`]: nvisy_codec::handler::Handle::redact
 //! [`AudioOutput::Remove`]: nvisy_codec::handler::AudioOutput::Remove
 
 use std::io::Cursor;
@@ -21,7 +21,8 @@ use bytes::Bytes;
 use hound::{Sample, SampleFormat, WavReader, WavSpec, WavWriter};
 use nvisy_codec::document::{Located, LocationStream};
 use nvisy_codec::handler::{
-    AudioData, AudioHandler, AudioRedaction, Handler, apply_audio_redaction,
+    AudioData, AudioRedaction, Handle, Handler, Redactions, apply_audio_redaction,
+    sort_redactions_for_audio,
 };
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
@@ -77,7 +78,7 @@ impl Handler for WavHandler {
 }
 
 #[async_trait::async_trait]
-impl AudioHandler for WavHandler {
+impl Handle<Audio> for WavHandler {
     fn locations(&self) -> LocationStream<'_, Audio> {
         // Single-track audio: the entire audio as one location with a
         // time span covering the full duration. Duration is unknown
@@ -127,6 +128,18 @@ impl AudioHandler for WavHandler {
             }
         };
         self.bytes = Bytes::from(new_bytes);
+        Ok(())
+    }
+
+    /// Override the default loop to apply spans right-to-left so a
+    /// removal doesn't invalidate earlier sample indices.
+    async fn redact(
+        &mut self,
+        redactions: Redactions<Audio, AudioRedaction>,
+    ) -> Result<(), Error> {
+        for (location, redaction) in sort_redactions_for_audio(redactions) {
+            self.redact_at(&location, redaction).await?;
+        }
         Ok(())
     }
 }
@@ -182,7 +195,7 @@ where
 #[cfg(test)]
 mod tests {
     use hound::SampleFormat;
-    use nvisy_codec::handler::{AudioHandler, AudioOutput, ConflictPolicy, Redactions};
+    use nvisy_codec::handler::{Handle, AudioOutput, ConflictPolicy, Redactions};
 
     use super::*;
 

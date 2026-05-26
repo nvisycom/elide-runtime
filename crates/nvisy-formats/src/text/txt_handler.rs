@@ -1,17 +1,17 @@
 //! Plain-text handler: holds loaded text content and provides
-//! location-based access via [`Handler`] + [`TextHandler`].
+//! location-based access via [`Handler`] + [`Handle`].
 //!
 //! The handler stores the text as a vector of lines together with a
 //! trailing-newline flag so the original file can be reconstructed
 //! byte-for-byte after edits.
 //!
-//! [`TextHandler::locations`] yields one [`Text`] per line;
-//! [`TextHandler::read`] returns the line at a given location;
-//! [`TextHandler::redact`] applies redactions in place, mutating the
+//! [`Handle::locations`] yields one [`Text`] per line;
+//! [`Handle::read`] returns the line at a given location;
+//! [`Handle::redact`] applies redactions in place, mutating the
 //! affected lines directly.
 
 use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{Handler, TextData, TextHandler, TextRedaction, apply_text_redaction};
+use nvisy_codec::handler::{Handler, TextData, Handle, TextRedaction, apply_text_redaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
@@ -52,7 +52,7 @@ impl Handler for TxtHandler {
 }
 
 #[async_trait::async_trait]
-impl TextHandler for TxtHandler {
+impl Handle<Text> for TxtHandler {
     fn locations(&self) -> LocationStream<'_, Text> {
         let source = self.source;
         let items: Vec<_> = self
@@ -160,7 +160,7 @@ impl TxtHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::{ConflictPolicy, Redactions, TextHandler, TextOutput};
+    use nvisy_codec::handler::{ConflictPolicy, Redactions, Handle, TextOutput};
     use nvisy_core::Error;
 
     use super::*;

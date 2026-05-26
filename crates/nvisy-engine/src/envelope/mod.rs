@@ -12,8 +12,11 @@
 //! [`shared`]: DocumentEnvelope::shared
 
 mod accessors;
+mod policy_store;
 mod shared_data;
 pub mod value_at;
+
+pub use self::policy_store::PolicyStore;
 
 use std::fmt;
 use std::sync::Arc;

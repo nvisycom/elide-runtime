@@ -66,6 +66,7 @@ impl Image {
 impl Modality for Image {
     type Block = ImageBlock;
     type Metadata = ImageMetadata;
+    type Strategy = crate::policy::ImageStrategy;
 }
 
 /// Per-modality block payload for [`Image`]. Text-bearing variants

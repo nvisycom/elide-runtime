@@ -20,7 +20,7 @@
 use std::num::NonZeroU32;
 
 use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{Handler, TextData, TextHandler, TextRedaction, apply_text_redaction};
+use nvisy_codec::handler::{Handler, TextData, Handle, TextRedaction, apply_text_redaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
@@ -115,7 +115,7 @@ struct LocatedSpan {
 }
 
 #[async_trait::async_trait]
-impl TextHandler for JsonHandler {
+impl Handle<Text> for JsonHandler {
     fn locations(&self) -> LocationStream<'_, Text> {
         let source = self.source;
         let items: Vec<_> = self

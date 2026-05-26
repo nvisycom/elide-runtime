@@ -9,7 +9,6 @@ mod params;
 
 use nvisy_agent::audio::stt::SttService;
 use nvisy_codec::DocumentHandle;
-use nvisy_codec::handler::Handler;
 use nvisy_core::Result;
 use nvisy_ontology::document::{Block, Document};
 use nvisy_ontology::modality::{Audio, AudioBlock, AudioMetadata};
@@ -53,7 +52,7 @@ impl SttExtractor {
             let DocumentHandle::Audio(ref handler) = *handle else {
                 return Ok(());
             };
-            Handler::encode(handler)?
+            handler.encode()?
         };
 
         if diarization {

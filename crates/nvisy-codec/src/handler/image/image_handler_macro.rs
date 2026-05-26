@@ -1,7 +1,7 @@
 //! [`impl_image_handler!`]: shared macro for image handler structs.
 
-/// Implement [`Handler`] + [`ImageHandler`] + inherent methods for an
-/// image handler struct that holds a single `DynamicImage`.
+/// Implement [`Handler`] + [`Handle<Image>`] + inherent methods for
+/// an image handler struct that holds a single `DynamicImage`.
 ///
 /// Designed to be invoked from `nvisy-formats` (or any downstream
 /// crate); all crate-internal paths are fully qualified via
@@ -9,7 +9,7 @@
 /// boundaries.
 ///
 /// [`Handler`]: crate::handler::Handler
-/// [`ImageHandler`]: crate::handler::ImageHandler
+/// [`Handle<Image>`]: crate::handler::Handle
 #[macro_export]
 macro_rules! impl_image_handler {
     ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal, $encode_name:literal) => {
@@ -41,7 +41,7 @@ macro_rules! impl_image_handler {
         }
 
         #[::async_trait::async_trait]
-        impl ::nvisy_codec::handler::ImageHandler for $handler {
+        impl ::nvisy_codec::handler::Handle<::nvisy_ontology::modality::Image> for $handler {
             fn locations(
                 &self,
             ) -> ::nvisy_codec::document::LocationStream<'_, ::nvisy_ontology::modality::Image>

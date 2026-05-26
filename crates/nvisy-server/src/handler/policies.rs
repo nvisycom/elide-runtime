@@ -1,4 +1,4 @@
-//! Policy upload, download, listing, and deletion handlers.
+//! Policy<Text> upload, download, listing, and deletion handlers.
 //!
 //! # Endpoints
 //!
@@ -20,6 +20,7 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_engine::ingestion::registry::Registry;
 use nvisy_ontology::policy::Policy;
+use nvisy_ontology::modality::Text;
 
 use super::error::Result;
 use super::request::{NewPolicy, Pagination, PolicyPath};
@@ -93,7 +94,7 @@ async fn download_policy(
     State(registry): State<Registry>,
     ActorId(actor_id): ActorId,
     Path(PolicyPath { id }): Path<PolicyPath>,
-) -> Result<Json<Policy>> {
+) -> Result<Json<Policy<Text>>> {
     let policy = registry.read_policy(actor_id, id).await?;
     tracing::debug!(target: TARGET, "policy downloaded");
     Ok(Json(policy))
@@ -151,7 +152,7 @@ fn delete_all_policies_docs(op: TransformOperation) -> TransformOperation {
         .description("Removes every policy currently stored.")
 }
 
-/// Policy routes for API v1 (relative paths).
+/// Policy<Text> routes for API v1 (relative paths).
 pub fn routes_v1() -> ApiRouter<ServiceState> {
     let read_routes = ApiRouter::new()
         .api_route("/policies", get_with(list_policies, list_policies_docs))

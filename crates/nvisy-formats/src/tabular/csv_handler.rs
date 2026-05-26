@@ -1,19 +1,19 @@
 //! CSV handler: holds parsed CSV content and provides cell-coordinate
-//! access via [`Handler`] + [`TabularHandler`].
+//! access via [`Handler`] + [`Handle`].
 //!
-//! [`TabularHandler::locations`] yields one [`Tabular`] per
+//! [`Handle::locations`] yields one [`Tabular`] per
 //! cell using `(row, col)` coordinates. Row `0` is the header row
 //! (if present); row `1` is the first data row when headers exist,
-//! else row `0` is the first data row. [`TabularHandler::read`]
+//! else row `0` is the first data row. [`Handle::read`]
 //! returns the cell's value as [`TextData`].
-//! [`TabularHandler::redact`] mutates cells by coordinate, applying
+//! [`Handle::redact`] mutates cells by coordinate, applying
 //! intra-cell byte-offset replacements via [`apply_tabular_redaction`].
 //!
 //! [`Tabular`]: nvisy_ontology::modality::Tabular
 
 use nvisy_codec::document::{Located, LocationStream};
 use nvisy_codec::handler::{
-    Handler, TabularHandler, TabularRedaction, TextData, apply_tabular_redaction,
+    Handler, Handle, TabularRedaction, TextData, apply_tabular_redaction,
 };
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
@@ -61,7 +61,7 @@ impl Handler for CsvHandler {
 }
 
 #[async_trait::async_trait]
-impl TabularHandler for CsvHandler {
+impl Handle<Tabular> for CsvHandler {
     fn locations(&self) -> LocationStream<'_, Tabular> {
         let source = self.source;
         let has_headers = self.data.headers.is_some();
@@ -181,9 +181,9 @@ impl CsvHandler {
     ///
     /// `data_row` is 0-based against the data rows (header is *not*
     /// data row 0). Use [`Tabular`] coordinates with
-    /// [`TabularHandler::read`] if you need to address the header row.
+    /// [`Handle::read`] if you need to address the header row.
     ///
-    /// [`TabularHandler::read`]: nvisy_codec::handler::TabularHandler::read
+    /// [`Handle::read`]: nvisy_codec::handler::Handle::read
     pub fn cell(&self, data_row: usize, col: usize) -> Option<&str> {
         self.data
             .rows
@@ -268,7 +268,7 @@ impl CsvHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::{ConflictPolicy, Redactions, TabularHandler, TextOutput};
+    use nvisy_codec::handler::{ConflictPolicy, Redactions, Handle, TextOutput};
     use nvisy_core::Error;
 
     use super::*;

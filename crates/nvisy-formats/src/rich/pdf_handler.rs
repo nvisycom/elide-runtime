@@ -1,21 +1,24 @@
 //! Rich-text handler: holds per-page extracted text and raw document
 //! bytes, providing location-based access via [`Handler`] +
-//! [`TextHandler`] + [`ImageHandler`].
+//! `Handle<Text>` + `Handle<Image>`.
 //!
-//! [`TextHandler::locations`] yields one [`Text`] per page,
-//! with byte offsets computed from cumulative page text lengths and
-//! `page_number` set. [`ImageHandler::locations`] yields one
+//! [`Handle<Text>::locations`] yields one [`Text`] per page, with byte
+//! offsets computed from cumulative page text lengths and
+//! `page_number` set. [`Handle<Image>::locations`] yields one
 //! [`Image`] per embedded image.
 //!
 //! [`Handler::encode`] returns the raw document bytes; text redactions
-//! applied via [`TextHandler::redact`] are baked into the raw PDF
+//! applied via [`Handle<Text>::redact`] are baked into the raw PDF
 //! content streams.
+//!
+//! [`Handle<Text>::locations`]: nvisy_codec::handler::Handle::locations
+//! [`Handle<Image>::locations`]: nvisy_codec::handler::Handle::locations
+//! [`Handle<Text>::redact`]: nvisy_codec::handler::Handle::redact
 
 use bytes::Bytes;
 use nvisy_codec::document::{Located, LocationStream};
 use nvisy_codec::handler::{
-    Handler, ImageData, ImageHandler, ImageRedaction, TextData, TextHandler, TextRedaction,
-    apply_text_redaction,
+    Handle, Handler, ImageData, ImageRedaction, TextData, TextRedaction, apply_text_redaction,
 };
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
@@ -158,7 +161,7 @@ impl Handler for RichTextHandler {
 }
 
 #[async_trait::async_trait]
-impl TextHandler for RichTextHandler {
+impl Handle<Text> for RichTextHandler {
     fn locations(&self) -> LocationStream<'_, Text> {
         let source = self.source;
         let items: Vec<_> = self
@@ -226,7 +229,7 @@ impl TextHandler for RichTextHandler {
 }
 
 #[async_trait::async_trait]
-impl ImageHandler for RichTextHandler {
+impl Handle<Image> for RichTextHandler {
     fn locations(&self) -> LocationStream<'_, Image> {
         let source = self.source;
         let images = match PdfRenderer::extract_images(&self.raw) {
@@ -273,45 +276,11 @@ impl ImageHandler for RichTextHandler {
     }
 }
 
-#[async_trait::async_trait]
-impl nvisy_codec::handler::RichHandler for RichTextHandler {
-    fn text_locations(&self) -> LocationStream<'_, Text> {
-        TextHandler::locations(self)
-    }
-
-    async fn read_text(&self, location: &Text) -> Option<TextData> {
-        TextHandler::read(self, location).await
-    }
-
-    async fn redact_text_at(
-        &mut self,
-        location: &Text,
-        redaction: TextRedaction,
-    ) -> Result<(), Error> {
-        TextHandler::redact_at(self, location, redaction).await
-    }
-
-    fn image_locations(&self) -> LocationStream<'_, Image> {
-        ImageHandler::locations(self)
-    }
-
-    async fn read_image(&self, location: &Image) -> Option<ImageData> {
-        ImageHandler::read(self, location).await
-    }
-
-    async fn redact_image_at(
-        &mut self,
-        location: &Image,
-        redaction: ImageRedaction,
-    ) -> Result<(), Error> {
-        ImageHandler::redact_at(self, location, redaction).await
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::TextHandler;
+    use nvisy_codec::handler::Handle;
+    use nvisy_ontology::modality::Text;
 
     use super::*;
 
@@ -326,7 +295,7 @@ mod tests {
     #[tokio::test]
     async fn locations_yields_one_per_page() {
         let h = handler(&["page one", "page two", "page three"]);
-        let items: Vec<_> = TextHandler::locations(&h).collect().await;
+        let items: Vec<_> = <RichTextHandler as Handle<Text>>::locations(&h).collect().await;
         assert_eq!(items.len(), 3);
         assert_eq!(items[0].location.page_number, Some(1));
         assert_eq!(items[1].location.page_number, Some(2));
@@ -336,9 +305,9 @@ mod tests {
     #[tokio::test]
     async fn read_returns_page_text() {
         let h = handler(&["page one", "page two"]);
-        let items: Vec<_> = TextHandler::locations(&h).collect().await;
+        let items: Vec<_> = <RichTextHandler as Handle<Text>>::locations(&h).collect().await;
         assert_eq!(
-            TextHandler::read(&h, &items[0].location)
+            <RichTextHandler as Handle<Text>>::read(&h, &items[0].location)
                 .await
                 .unwrap()
                 .as_str(),

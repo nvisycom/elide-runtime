@@ -23,16 +23,16 @@ pub use self::located::Located;
 pub use self::span::Span;
 pub use self::stream::LocationStream;
 #[cfg(feature = "rich")]
-use crate::handler::BoxedRichHandler;
+use crate::handler::RichHandle;
 #[cfg(feature = "audio")]
-use crate::handler::{AudioData, AudioHandler, AudioRedaction, BoxedAudioHandler};
+use crate::handler::{AudioData, AudioRedaction};
 #[cfg(feature = "image")]
-use crate::handler::{BoxedImageHandler, ImageData, ImageHandler, ImageRedaction};
+use crate::handler::{ImageData, ImageRedaction};
 #[cfg(feature = "tabular")]
-use crate::handler::{BoxedTabularHandler, TabularHandler, TabularRedaction};
+use crate::handler::TabularRedaction;
 #[cfg(feature = "text")]
-use crate::handler::{BoxedTextHandler, TextData, TextHandler, TextRedaction};
-use crate::handler::{Handler, Redactions};
+use crate::handler::{TextData, TextRedaction};
+use crate::handler::{Handle, Handler, Redactions};
 
 /// A fully type-erased document that can hold any supported modality.
 ///
@@ -42,15 +42,15 @@ use crate::handler::{Handler, Redactions};
 #[derive(From, IsVariant, TryInto)]
 pub enum DocumentHandle {
     #[cfg(feature = "text")]
-    Text(BoxedTextHandler),
+    Text(Box<dyn Handle<Text>>),
     #[cfg(feature = "tabular")]
-    Tabular(BoxedTabularHandler),
+    Tabular(Box<dyn Handle<Tabular>>),
     #[cfg(feature = "image")]
-    Image(BoxedImageHandler),
+    Image(Box<dyn Handle<Image>>),
     #[cfg(feature = "audio")]
-    Audio(BoxedAudioHandler),
+    Audio(Box<dyn Handle<Audio>>),
     #[cfg(feature = "rich")]
-    Rich(BoxedRichHandler),
+    Rich(Box<dyn RichHandle>),
 }
 
 impl fmt::Debug for DocumentHandle {
@@ -74,7 +74,7 @@ impl DocumentHandle {
             #[cfg(feature = "audio")]
             Self::Audio(h) => h.document_type(),
             #[cfg(feature = "rich")]
-            Self::Rich(h) => h.document_type(),
+            Self::Rich(h) => Handler::document_type(h.as_ref()),
         }
     }
 
@@ -90,7 +90,7 @@ impl DocumentHandle {
             #[cfg(feature = "audio")]
             Self::Audio(h) => h.source(),
             #[cfg(feature = "rich")]
-            Self::Rich(h) => h.source(),
+            Self::Rich(h) => Handler::source(h.as_ref()),
         }
     }
 
@@ -106,7 +106,7 @@ impl DocumentHandle {
             #[cfg(feature = "audio")]
             Self::Audio(h) => h.encode(),
             #[cfg(feature = "rich")]
-            Self::Rich(h) => h.encode(),
+            Self::Rich(h) => Handler::encode(h.as_ref()),
         }
     }
 
@@ -116,7 +116,7 @@ impl DocumentHandle {
         match self {
             Self::Text(h) => h.locations(),
             #[cfg(feature = "rich")]
-            Self::Rich(h) => TextHandler::locations(h),
+            Self::Rich(h) => <dyn Handle<Text>>::locations(h.as_ref()),
             #[cfg(feature = "tabular")]
             Self::Tabular(_) => LocationStream::empty(),
             #[cfg(feature = "image")]
@@ -141,7 +141,7 @@ impl DocumentHandle {
         match self {
             Self::Image(h) => h.locations(),
             #[cfg(feature = "rich")]
-            Self::Rich(h) => ImageHandler::locations(h),
+            Self::Rich(h) => <dyn Handle<Image>>::locations(h.as_ref()),
             #[cfg(feature = "text")]
             Self::Text(_) => LocationStream::empty(),
             #[cfg(feature = "tabular")]
@@ -169,7 +169,7 @@ impl DocumentHandle {
         match self {
             Self::Text(h) => h.read(location).await,
             #[cfg(feature = "rich")]
-            Self::Rich(h) => TextHandler::read(h, location).await,
+            Self::Rich(h) => <dyn Handle<Text>>::read(h.as_ref(), location).await,
             #[cfg(feature = "tabular")]
             Self::Tabular(_) => None,
             #[cfg(feature = "image")]
@@ -194,7 +194,7 @@ impl DocumentHandle {
         match self {
             Self::Image(h) => h.read(location).await,
             #[cfg(feature = "rich")]
-            Self::Rich(h) => ImageHandler::read(h, location).await,
+            Self::Rich(h) => <dyn Handle<Image>>::read(h.as_ref(), location).await,
             #[cfg(feature = "text")]
             Self::Text(_) => None,
             #[cfg(feature = "tabular")]
@@ -220,9 +220,9 @@ impl DocumentHandle {
         redactions: Redactions<Text, TextRedaction>,
     ) -> Result<(), Error> {
         match self {
-            Self::Text(h) => TextHandler::redact(h, redactions).await,
+            Self::Text(h) => h.redact(redactions).await,
             #[cfg(feature = "rich")]
-            Self::Rich(h) => TextHandler::redact(h, redactions).await,
+            Self::Rich(h) => <dyn Handle<Text>>::redact(h.as_mut(), redactions).await,
             #[cfg(feature = "tabular")]
             Self::Tabular(_) => Ok(()),
             #[cfg(feature = "image")]
@@ -251,9 +251,9 @@ impl DocumentHandle {
         redactions: Redactions<Image, ImageRedaction>,
     ) -> Result<(), Error> {
         match self {
-            Self::Image(h) => ImageHandler::redact(h, redactions).await,
+            Self::Image(h) => h.redact(redactions).await,
             #[cfg(feature = "rich")]
-            Self::Rich(h) => ImageHandler::redact(h, redactions).await,
+            Self::Rich(h) => <dyn Handle<Image>>::redact(h.as_mut(), redactions).await,
             #[cfg(feature = "text")]
             Self::Text(_) => Ok(()),
             #[cfg(feature = "tabular")]

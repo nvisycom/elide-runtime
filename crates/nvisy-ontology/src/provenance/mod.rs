@@ -49,11 +49,11 @@ use crate::modality::Modality;
 #[serde(
     rename_all = "camelCase",
     bound(
-        serialize = "M: Serialize",
-        deserialize = "M: serde::de::DeserializeOwned",
+        serialize = "M: Serialize, M::Strategy: Serialize",
+        deserialize = "M: serde::de::DeserializeOwned, M::Strategy: serde::de::DeserializeOwned",
     )
 )]
-#[schemars(bound = "M: JsonSchema")]
+#[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema")]
 pub struct Audit<M: Modality> {
     /// Content source this audit belongs to.
     pub source: ContentSource,

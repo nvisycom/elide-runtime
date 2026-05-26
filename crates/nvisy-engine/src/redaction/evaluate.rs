@@ -5,8 +5,6 @@
 //! for the envelope's modality via [`RedactionApplicator`].
 
 use nvisy_core::Result;
-#[allow(unused_imports)] // for future per-modality apply blocks
-use nvisy_ontology::modality::{Audio, Image, Tabular};
 use nvisy_ontology::modality::{Modality, Text};
 
 use super::apply::RedactionApplicator;
@@ -49,10 +47,8 @@ impl Redactor {
     /// Evaluate policies and apply redaction instructions to the
     /// envelope.
     ///
-    /// Policy evaluation against the new `Strategy` enum + multi-
-    /// modality envelopes is a follow-up; for now this is a no-op
-    /// pass-through so the rest of the engine compiles end-to-end
-    /// while the policy logic is redesigned.
+    /// Stubbed pending the policy/strategy/codec rework — see the
+    /// task list for the open design questions.
     pub async fn execute<M: Modality>(&self, envelope: &mut DocumentEnvelope<M>) -> Result<()>
     where
         DocumentEnvelope<M>: ApplyRedactions,
@@ -68,9 +64,6 @@ impl Redactor {
              reimplemented; skipping redaction pass",
         );
 
-        // Wire-through: keep the applicator hook in place so the
-        // per-modality redaction wiring is exercised once policy
-        // evaluation is reinstated.
         let _ = envelope;
         Ok(())
     }

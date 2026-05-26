@@ -8,8 +8,8 @@
 //!
 //! Callers consume the collection via [`IntoIterator`] yielding `(S, R)`.
 //!
-//! [`Redactions`]: crate::handler::Redactions
-//! [`ConflictPolicy::Merge`]: crate::handler::ConflictPolicy::Merge
+//! [`Redactions`]: crate::core::Redactions
+//! [`ConflictPolicy::Merge`]: crate::core::ConflictPolicy::Merge
 //! [`try_insert`]: Redactions::try_insert
 
 use std::fmt;

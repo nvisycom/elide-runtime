@@ -7,16 +7,19 @@
 //! else row `0` is the first data row. [`Handle::read`]
 //! returns the cell's value as [`TextData`].
 //! [`Handle::redact`] mutates cells by coordinate, applying
-//! intra-cell byte-offset replacements via [`apply_tabular_redaction`].
+//! intra-cell byte-offset replacements via the shared
+//! [`crate::text::redact::replace_range`] helper.
 //!
 //! [`Tabular`]: nvisy_ontology::modality::Tabular
 
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{Handle, Handler, TabularRedaction, TextData, apply_tabular_redaction};
+use nvisy_codec::core::{Handle, Located, LocationStream};
+use nvisy_codec::handler::{Handler, TabularRedaction, TextData};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
 use nvisy_ontology::modality::Tabular;
+
+use crate::text::redact;
 
 const TARGET: &str = "csv-handler";
 
@@ -141,7 +144,8 @@ impl Handle<Tabular> for CsvHandler {
         // redact the whole cell.
         let start = location.start_offset.unwrap_or(0);
         let end = location.end_offset.unwrap_or(cell.len());
-        apply_tabular_redaction(cell, &redaction, start, end, TARGET)
+        let value = redaction.output().replacement_value().unwrap_or_default();
+        redact::replace_range(cell, value, start, end, TARGET)
     }
 }
 
@@ -181,7 +185,7 @@ impl CsvHandler {
     /// data row 0). Use [`Tabular`] coordinates with
     /// [`Handle::read`] if you need to address the header row.
     ///
-    /// [`Handle::read`]: nvisy_codec::handler::Handle::read
+    /// [`Handle::read`]: nvisy_codec::core::Handle::read
     pub fn cell(&self, data_row: usize, col: usize) -> Option<&str> {
         self.data
             .rows
@@ -266,7 +270,8 @@ impl CsvHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::{ConflictPolicy, Handle, Redactions, TextOutput};
+    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
     use super::*;

@@ -9,13 +9,13 @@
 //! `Box<dyn RichHandle>` so the engine can dispatch to either
 //! modality through one trait object.
 //!
-//! [`Handle<Text>`]: crate::handler::Handle
-//! [`Handle<Image>`]: crate::handler::Handle
+//! [`Handle<Text>`]: crate::core::Handle
+//! [`Handle<Image>`]: crate::core::Handle
 //! [`DocumentHandle::Rich`]: crate::document::DocumentHandle::Rich
 
 use nvisy_ontology::modality::{Image, Text};
 
-use crate::handler::Handle;
+use crate::core::Handle;
 
 /// Marker trait: a handler that exposes both [`Text`] and [`Image`]
 /// modalities, addressable through a single trait object.

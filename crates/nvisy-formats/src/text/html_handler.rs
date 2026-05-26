@@ -9,12 +9,14 @@
 //!
 //! [`Html::html`]: scraper::Html::html
 
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{Handle, Handler, TextData, TextRedaction, apply_text_redaction};
+use nvisy_codec::core::{Handle, Located, LocationStream};
+use nvisy_codec::handler::{Handler, TextData, TextRedaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::modality::Text;
+
+use super::redact;
 
 const TARGET: &str = "html-handler";
 
@@ -112,13 +114,8 @@ impl Handle<Text> for HtmlHandler {
         let node_start = offsets[idx].0;
         let start = location.start_offset - node_start;
         let end = location.end_offset - node_start;
-        apply_text_redaction(
-            &mut self.data.text_nodes[idx],
-            &redaction,
-            start,
-            end,
-            TARGET,
-        )
+        let value = redaction.output().replacement_value().unwrap_or_default();
+        redact::replace_range(&mut self.data.text_nodes[idx], value, start, end, TARGET)
     }
 }
 
@@ -185,7 +182,8 @@ impl HtmlHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::{ConflictPolicy, Handle, Redactions, TextOutput};
+    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
     use super::*;

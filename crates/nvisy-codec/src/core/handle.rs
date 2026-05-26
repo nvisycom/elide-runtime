@@ -19,8 +19,8 @@
 use nvisy_core::Error;
 use nvisy_ontology::modality::Modality;
 
-use super::{Handler, Redactions};
-use crate::document::LocationStream;
+use super::{LocationStream, Redactions};
+use crate::handler::Handler;
 
 /// Codec-side associated types for a modality: the wire payloads a
 /// format handler reads/writes for that modality.

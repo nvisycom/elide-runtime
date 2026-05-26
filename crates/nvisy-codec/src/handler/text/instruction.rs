@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::handler::Mergeable;
+use crate::core::Mergeable;
 
 /// A text redaction: the *how*. The *where* (byte range within the
 /// document) lives on the containing [`Text`] via
@@ -21,6 +21,11 @@ impl TextRedaction {
     /// Create a new text redaction with the given output.
     pub fn new(output: TextOutput) -> Self {
         Self { output }
+    }
+
+    /// The redaction output that carries the replacement value.
+    pub fn output(&self) -> &TextOutput {
+        &self.output
     }
 }
 

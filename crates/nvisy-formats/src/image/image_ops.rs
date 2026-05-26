@@ -1,14 +1,14 @@
-//! [`ImageOps`] trait and implementation for [`DynamicImage`].
-//!
-//! Each method operates on a single bounding-box region and mutates the
-//! image in place (no clone).
+//! Per-region pixel operations on [`DynamicImage`]: gaussian blur,
+//! solid-color overlay, and pixelation. Used by [`super::redact`] to
+//! render image-modality redaction outputs.
 
 use image::DynamicImage;
 use image::imageops::FilterType;
 use imageproc::filter::gaussian_blur_f32;
 use nvisy_ontology::primitive::{Color, IBoundingBox};
 
-/// Mutating image-transform operations on individual bounding-box regions.
+/// Mutating image-transform operations on individual bounding-box
+/// regions.
 pub(super) trait ImageOps {
     /// Apply a gaussian blur to `region` with the given `sigma`.
     fn apply_gaussian_blur(&mut self, region: &IBoundingBox, sigma: f32);

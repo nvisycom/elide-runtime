@@ -1,5 +1,10 @@
 //! Image-format implementations: PNG, JPEG, TIFF.
 
+#[macro_use]
+mod macros;
+mod image_ops;
+pub(crate) mod redact;
+
 #[cfg(feature = "jpeg")]
 mod jpeg_handler;
 #[cfg(feature = "jpeg")]

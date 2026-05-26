@@ -14,7 +14,6 @@
 //! [`ImageHandler::redact`]: nvisy_codec::handler::ImageHandler::redact
 //! [`Image`]: nvisy_ontology::modality::Image
 
-use nvisy_codec::impl_image_handler;
 use nvisy_core::content::ContentSource;
 
 /// Handler for loaded JPEG content.

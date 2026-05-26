@@ -93,6 +93,33 @@ impl TimeSpan {
             self.end_us.max(other.end_us),
         )
     }
+
+    /// Convert this span to a `[start_sample, end_sample)` index range
+    /// into a channel-interleaved sample buffer.
+    ///
+    /// Rounds half-up at the frame boundary, then multiplies by
+    /// `channels` so the returned indices land on frame boundaries
+    /// (no stereo channel swap on partial-frame edits).
+    pub fn sample_range(&self, sample_rate: u32, channels: u16) -> (usize, usize) {
+        let start_frame = us_to_frame(self.start_us, sample_rate);
+        let end_frame = us_to_frame(self.end_us, sample_rate);
+        let channels = channels as usize;
+        (
+            start_frame.saturating_mul(channels),
+            end_frame.saturating_mul(channels),
+        )
+    }
+}
+
+/// Convert a microsecond offset to a frame index at `sample_rate`.
+/// Half-up rounding keeps samples on either side of the boundary
+/// consistently assigned.
+fn us_to_frame(us: i64, sample_rate: u32) -> usize {
+    if us <= 0 {
+        return 0;
+    }
+    let num = (us as u128) * (sample_rate as u128) + 500_000;
+    (num / 1_000_000) as usize
 }
 
 #[cfg(test)]
@@ -152,6 +179,27 @@ mod tests {
         let u = a.union(&b);
         assert_eq!(u.start_us, 1_000_000);
         assert_eq!(u.end_us, 5_000_000);
+    }
+
+    #[test]
+    fn sample_range_mono_aligns_to_frames() {
+        let span = TimeSpan::new(3_000, 6_000);
+        let (start, end) = span.sample_range(1000, 1);
+        assert_eq!((start, end), (3, 6));
+    }
+
+    #[test]
+    fn sample_range_stereo_aligns_to_frames() {
+        let span = TimeSpan::new(3_000, 6_000);
+        let (start, end) = span.sample_range(1000, 2);
+        assert_eq!((start, end), (6, 12));
+    }
+
+    #[test]
+    fn sample_range_clamps_negative_to_zero() {
+        let span = TimeSpan::new(-1_000, 2_000);
+        let (start, end) = span.sample_range(1000, 1);
+        assert_eq!((start, end), (0, 2));
     }
 
     #[test]

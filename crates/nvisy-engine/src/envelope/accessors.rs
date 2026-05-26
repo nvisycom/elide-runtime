@@ -5,7 +5,8 @@
 //! as the codec handler variants.
 
 use futures::StreamExt;
-use nvisy_codec::{Located, Span, handler};
+use nvisy_codec::core::{Located, Span};
+use nvisy_codec::handler;
 use nvisy_core::Error;
 use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
 
@@ -43,7 +44,7 @@ impl DocumentEnvelope<Text> {
     /// Apply a batch of text redactions to the codec handle.
     pub async fn apply_text_redactions(
         &mut self,
-        redactions: handler::Redactions<Text, handler::TextRedaction>,
+        redactions: nvisy_codec::core::Redactions<Text, handler::TextRedaction>,
     ) -> Result<(), Error> {
         self.handle
             .lock()
@@ -69,7 +70,7 @@ impl DocumentEnvelope<Image> {
     /// Apply a batch of image redactions to the codec handle.
     pub async fn apply_image_redactions(
         &mut self,
-        redactions: handler::Redactions<Image, handler::ImageRedaction>,
+        redactions: nvisy_codec::core::Redactions<Image, handler::ImageRedaction>,
     ) -> Result<(), Error> {
         self.handle
             .lock()
@@ -95,7 +96,7 @@ impl DocumentEnvelope<Audio> {
     /// Apply a batch of audio redactions to the codec handle.
     pub async fn apply_audio_redactions(
         &mut self,
-        redactions: handler::Redactions<Audio, handler::AudioRedaction>,
+        redactions: nvisy_codec::core::Redactions<Audio, handler::AudioRedaction>,
     ) -> Result<(), Error> {
         self.handle
             .lock()
@@ -121,7 +122,7 @@ impl DocumentEnvelope<Tabular> {
     /// Apply a batch of tabular redactions to the codec handle.
     pub async fn apply_tabular_redactions(
         &mut self,
-        redactions: handler::Redactions<Tabular, handler::TabularRedaction>,
+        redactions: nvisy_codec::core::Redactions<Tabular, handler::TabularRedaction>,
     ) -> Result<(), Error> {
         self.handle
             .lock()

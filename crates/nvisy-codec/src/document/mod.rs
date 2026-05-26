@@ -1,9 +1,5 @@
 //! Type-erased content handle for all supported modalities.
 
-mod located;
-mod span;
-mod stream;
-
 use std::fmt;
 
 use derive_more::{From, IsVariant, TryInto};
@@ -19,16 +15,14 @@ use nvisy_ontology::modality::Tabular;
 #[cfg(feature = "text")]
 use nvisy_ontology::modality::Text;
 
-pub use self::located::Located;
-pub use self::span::Span;
-pub use self::stream::LocationStream;
+use crate::core::{Handle, LocationStream, Redactions};
+use crate::handler::Handler;
 #[cfg(feature = "rich")]
 use crate::handler::RichHandle;
 #[cfg(feature = "tabular")]
 use crate::handler::TabularRedaction;
 #[cfg(feature = "audio")]
 use crate::handler::{AudioData, AudioRedaction};
-use crate::handler::{Handle, Handler, Redactions};
 #[cfg(feature = "image")]
 use crate::handler::{ImageData, ImageRedaction};
 #[cfg(feature = "text")]

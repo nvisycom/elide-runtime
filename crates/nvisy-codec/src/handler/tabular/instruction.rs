@@ -1,6 +1,7 @@
 //! Tabular redaction instruction types.
 
-use crate::handler::{Mergeable, TextOutput};
+use crate::core::Mergeable;
+use crate::handler::TextOutput;
 
 /// A tabular redaction: the *how*. The *where* — cell coordinates
 /// (`row_index`, `column_index`) and optional intra-cell byte offsets
@@ -24,6 +25,11 @@ impl TabularRedaction {
     /// Create a new tabular redaction with the given output.
     pub fn new(output: TextOutput) -> Self {
         Self { output }
+    }
+
+    /// The redaction output that carries the replacement value.
+    pub fn output(&self) -> &TextOutput {
+        &self.output
     }
 }
 

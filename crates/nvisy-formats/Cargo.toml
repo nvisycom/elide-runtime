@@ -96,8 +96,10 @@ thiserror = { workspace = true, features = [] }
 
 # Image processing — pulled in unconditionally because the image
 # handler structs reference `image::DynamicImage` directly. The
-# workspace dep already enables png/jpeg/tiff decoders.
+# workspace dep already enables png/jpeg/tiff decoders. `imageproc`
+# powers the per-region gaussian blur in `image::redact`.
 image = { workspace = true, features = [] }
+imageproc = { workspace = true, features = [] }
 
 # Audio processing (feature-gated)
 hound = { workspace = true, optional = true, features = [] }

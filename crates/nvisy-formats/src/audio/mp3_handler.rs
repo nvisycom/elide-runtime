@@ -8,15 +8,13 @@
 //! first redaction. Convert to WAV upstream if audio redaction is
 //! required.
 //!
-//! [`Handle`]: nvisy_codec::handler::Handle
-//! [`Handle::redact_at`]: nvisy_codec::handler::Handle::redact_at
-//! [`Handle::redact`]: nvisy_codec::handler::Handle::redact
+//! [`Handle`]: nvisy_codec::core::Handle
+//! [`Handle::redact_at`]: nvisy_codec::core::Handle::redact_at
+//! [`Handle::redact`]: nvisy_codec::core::Handle::redact
 
 use bytes::Bytes;
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{
-    AudioData, AudioRedaction, Handle, Handler, Redactions, sort_redactions_for_audio,
-};
+use nvisy_codec::core::{Handle, Located, LocationStream, Redactions};
+use nvisy_codec::handler::{AudioData, AudioRedaction, Handler, sort_redactions_for_audio};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{AudioFormat, DocumentType};
@@ -107,7 +105,8 @@ impl Handle<Audio> for Mp3Handler {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::handler::{AudioOutput, ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::handler::AudioOutput;
     use nvisy_ontology::primitive::TimeSpan;
 
     use super::*;

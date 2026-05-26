@@ -19,13 +19,15 @@
 
 use std::num::NonZeroU32;
 
-use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{Handle, Handler, TextData, TextRedaction, apply_text_redaction};
+use nvisy_codec::core::{Handle, Located, LocationStream};
+use nvisy_codec::handler::{Handler, TextData, TextRedaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
 use nvisy_ontology::modality::Text;
 use serde::{Deserialize, Serialize};
+
+use super::redact;
 
 const DEFAULT_INDENT: NonZeroU32 = NonZeroU32::new(2).unwrap();
 const TARGET: &str = "json-handler";
@@ -153,7 +155,8 @@ impl Handle<Text> for JsonHandler {
         let start = location.start_offset - ls.start;
         let end = location.end_offset - ls.start;
         let mut content = ls.text.clone();
-        apply_text_redaction(&mut content, &redaction, start, end, TARGET)?;
+        let value = redaction.output().replacement_value().unwrap_or_default();
+        redact::replace_range(&mut content, value, start, end, TARGET)?;
         if ls.path.key_of {
             rename_key(&mut self.data.value, &ls.path.pointer, &content)?;
         } else {

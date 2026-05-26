@@ -4,11 +4,11 @@
 //! structure does not map to flat byte offsets, so the handler does
 //! not implement [`TextHandler`].
 //!
-//! [`Handle`]: nvisy_codec::handler::Handle
+//! [`Handle`]: nvisy_codec::core::Handle
 //! [`TextHandler`]: nvisy_codec::handler::TextHandler
 
-use nvisy_codec::document::LocationStream;
-use nvisy_codec::handler::{Handle, Handler, TabularRedaction, TextData};
+use nvisy_codec::core::{Handle, LocationStream};
+use nvisy_codec::handler::{Handler, TabularRedaction, TextData};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};

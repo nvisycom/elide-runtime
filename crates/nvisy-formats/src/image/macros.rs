@@ -1,15 +1,20 @@
-//! [`impl_image_handler!`]: shared macro for image handler structs.
+//! [`impl_image_handler!`]: shared macro for single-image handler
+//! structs (PNG, JPEG, TIFF — anything backed by one
+//! `image::DynamicImage` + a `ContentSource`).
+//!
+//! Generates the `Handler` impl, the `Handle<Image>` impl that calls
+//! the local [`crate::image::redact`] helper, and the inherent
+//! `new` / `with_source` / `image` accessors.
 
 /// Implement [`Handler`] + [`Handle<Image>`] + inherent methods for
-/// an image handler struct that holds a single `DynamicImage`.
+/// an image handler struct that holds a single `DynamicImage` and a
+/// `ContentSource`.
 ///
-/// Designed to be invoked from `nvisy-formats` (or any downstream
-/// crate); all crate-internal paths are fully qualified via
-/// `::nvisy_codec::…` so the macro is reusable across crate
-/// boundaries.
+/// Crate-internal paths are fully qualified via `$crate::…` so the
+/// macro stays self-contained inside `nvisy-formats`.
 ///
-/// [`Handler`]: crate::handler::Handler
-/// [`Handle<Image>`]: crate::handler::Handle
+/// [`Handler`]: nvisy_codec::handler::Handler
+/// [`Handle<Image>`]: nvisy_codec::core::Handle
 #[macro_export]
 macro_rules! impl_image_handler {
     ($handler:ident, $doc_type:expr, $fmt:expr, $origin:literal, $encode_name:literal) => {
@@ -41,11 +46,10 @@ macro_rules! impl_image_handler {
         }
 
         #[::async_trait::async_trait]
-        impl ::nvisy_codec::handler::Handle<::nvisy_ontology::modality::Image> for $handler {
+        impl ::nvisy_codec::core::Handle<::nvisy_ontology::modality::Image> for $handler {
             fn locations(
                 &self,
-            ) -> ::nvisy_codec::document::LocationStream<'_, ::nvisy_ontology::modality::Image>
-            {
+            ) -> ::nvisy_codec::core::LocationStream<'_, ::nvisy_ontology::modality::Image> {
                 use ::std::iter;
 
                 let (w, h) = (self.image.width(), self.image.height());
@@ -60,8 +64,8 @@ macro_rules! impl_image_handler {
                     image_id: None,
                     page_number: None,
                 };
-                ::nvisy_codec::document::LocationStream::new(::futures::stream::iter(iter::once(
-                    ::nvisy_codec::document::Located::new(self.source, location),
+                ::nvisy_codec::core::LocationStream::new(::futures::stream::iter(iter::once(
+                    ::nvisy_codec::core::Located::new(self.source, location),
                 )))
             }
 
@@ -86,11 +90,7 @@ macro_rules! impl_image_handler {
                 location: &::nvisy_ontology::modality::Image,
                 redaction: ::nvisy_codec::handler::ImageRedaction,
             ) -> ::std::result::Result<(), ::nvisy_core::Error> {
-                ::nvisy_codec::handler::apply_image_redaction(
-                    &mut self.image,
-                    &redaction,
-                    location.bounding_box,
-                );
+                $crate::image::redact::apply(&mut self.image, &redaction, location.bounding_box);
                 Ok(())
             }
         }

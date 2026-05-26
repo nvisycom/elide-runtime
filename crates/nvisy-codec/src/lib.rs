@@ -14,7 +14,8 @@ compile_error!(
      `text`, `tabular`, `image`, `audio`, or `rich`"
 );
 
+pub mod core;
 pub mod document;
 pub mod handler;
 
-pub use self::document::{DocumentHandle, Located, LocationStream, Span};
+pub use self::document::DocumentHandle;

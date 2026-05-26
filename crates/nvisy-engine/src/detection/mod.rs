@@ -24,6 +24,7 @@ pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
 pub use nvisy_ner::Context as NerContext;
 use nvisy_ontology::entity::Entities;
+use nvisy_ontology::modality::AnyModality;
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -159,7 +160,7 @@ impl DetectionEngine {
     /// document coordinates after this returns.
     ///
     /// [`JoinSet`]: tokio::task::JoinSet
-    pub async fn run(&self, ctx: DetectionContext) -> Result<Entities> {
+    pub async fn run(&self, ctx: DetectionContext) -> Result<Entities<AnyModality>> {
         use tracing::Instrument;
 
         let span = tracing::debug_span!(
@@ -174,7 +175,7 @@ impl DetectionEngine {
         let recognizers = self.recognizers.clone();
 
         async move {
-            let mut set: JoinSet<nvisy_core::Result<Entities>> = JoinSet::new();
+            let mut set: JoinSet<nvisy_core::Result<Entities<AnyModality>>> = JoinSet::new();
             for recognizer in recognizers {
                 let ctx = Arc::clone(&ctx);
                 set.spawn(async move { recognizer.run(&ctx).await });
@@ -240,7 +241,7 @@ impl DetectionEngine {
         cfg: &Detection,
     ) -> Result<()> {
         const TARGET: &str = "nvisy_engine::detection::detect_in";
-        let spans = envelope.document.collect_text_spans().await;
+        let spans = envelope.collect_text_spans().await;
         if spans.is_empty() {
             return Ok(());
         }

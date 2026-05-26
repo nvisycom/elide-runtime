@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 use crate::handler::Mergeable;
 
 /// An image redaction: the *how*. The *where* (bounding box, page
-/// number, image id) lives on the containing [`ImageLocation`] via
+/// number, image id) lives on the containing [`Image`] via
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
-/// [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
+/// [`Image`]: nvisy_ontology::modality::Image
 /// [`Redactions`]: crate::handler::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageRedaction {

@@ -3,6 +3,7 @@
 use std::cmp::Ordering;
 
 use nvisy_ontology::entity::Entity;
+use nvisy_ontology::modality::AnyModality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +27,11 @@ pub enum ConflictResolution {
 impl ConflictResolution {
     /// `true` when `a` wins the overlap against `b` under this
     /// strategy.
-    pub(super) fn keeps_first(&self, a: &Entity, b: &Entity) -> bool {
+    pub(super) fn keeps_first(
+        &self,
+        a: &Entity<AnyModality>,
+        b: &Entity<AnyModality>,
+    ) -> bool {
         match self {
             Self::HighestConfidence => a.confidence.get() >= b.confidence.get(),
             Self::HighestSensitivity => match (a.sensitivity, b.sensitivity) {

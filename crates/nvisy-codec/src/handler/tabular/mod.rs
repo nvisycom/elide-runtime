@@ -1,7 +1,7 @@
 //! Tabular-handler trait + supporting infrastructure.
 //!
 //! Tabular handlers address content by cell coordinate
-//! ([`TabularLocation`] = row + column, optionally with intra-cell
+//! ([`Tabular`] = row + column, optionally with intra-cell
 //! byte offsets), distinct from text handlers that address content by
 //! byte offset in a serialized stream.
 //!
@@ -9,10 +9,10 @@
 //! live here; concrete per-format implementations (CSV, XLSX) live
 //! in `nvisy-formats`.
 //!
-//! [`TabularLocation`]: nvisy_ontology::entity::TabularLocation
+//! [`Tabular`]: nvisy_ontology::modality::Tabular
 
 use nvisy_core::Error;
-use nvisy_ontology::entity::TabularLocation;
+use nvisy_ontology::modality::Tabular;
 
 use super::Handler;
 use crate::document::LocationStream;
@@ -29,7 +29,7 @@ pub use self::instruction::TabularRedaction;
 /// Capability trait for handlers that expose content by cell coordinate.
 ///
 /// Handlers implement three narrow operations:
-/// - [`locations`]: cheap, identity-only stream of [`TabularLocation`]s
+/// - [`locations`]: cheap, identity-only stream of [`Tabular`]s
 ///   identifying individual cells.
 /// - [`read`]: fetch a cell's value as [`TextData`].
 /// - [`redact_at`]: apply a single redaction to a single cell.
@@ -43,23 +43,23 @@ pub use self::instruction::TabularRedaction;
 /// [`redact`]: TabularHandler::redact
 #[async_trait::async_trait]
 pub trait TabularHandler: Handler {
-    /// Async stream of [`TabularLocation`]s for this document, each
+    /// Async stream of [`Tabular`]s for this document, each
     /// tagged with the handler's [`ContentSource`].
     ///
     /// [`ContentSource`]: nvisy_core::content::ContentSource
-    fn locations(&self) -> LocationStream<'_, TabularLocation>;
+    fn locations(&self) -> LocationStream<'_, Tabular>;
 
     /// Read the cell value at the given location as text.
     ///
     /// Returns `None` if the location is out of bounds.
-    async fn read(&self, location: &TabularLocation) -> Option<TextData>;
+    async fn read(&self, location: &Tabular) -> Option<TextData>;
 
     /// Apply a single redaction to the cell at `location`, mutating
     /// in place. The cell coordinates and optional intra-cell byte
     /// offsets come from `location`.
     async fn redact_at(
         &mut self,
-        location: &TabularLocation,
+        location: &Tabular,
         redaction: TabularRedaction,
     ) -> Result<(), Error>;
 
@@ -73,7 +73,7 @@ pub trait TabularHandler: Handler {
     /// [`redact_at`]: TabularHandler::redact_at
     async fn redact(
         &mut self,
-        redactions: Redactions<TabularLocation, TabularRedaction>,
+        redactions: Redactions<Tabular, TabularRedaction>,
     ) -> Result<(), Error> {
         for (location, redaction) in redactions {
             self.redact_at(&location, redaction).await?;

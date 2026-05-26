@@ -1,7 +1,7 @@
 //! [`decode`]: dispatch a [`Content`] to the appropriate loader by
-//! its detected document type and return a [`ContentHandle`].
+//! its detected document type and return a [`DocumentHandle`].
 
-use nvisy_codec::ContentHandle;
+use nvisy_codec::DocumentHandle;
 #[cfg(feature = "internal_audio")]
 use nvisy_codec::handler::BoxedAudioHandler;
 #[cfg(feature = "internal_image")]
@@ -49,12 +49,12 @@ use nvisy_core::media::TextFormat;
 #[cfg(feature = "docx")]
 use nvisy_core::media::WordFormat;
 
-/// Decode [`Content`] into a [`ContentHandle`] using default parameters.
+/// Decode [`Content`] into a [`DocumentHandle`] using default parameters.
 ///
 /// Dispatches on the content's inferred [`DocumentType`] and routes
 /// to the appropriate per-format loader. Returns an error if the
 /// document type cannot be inferred or no loader is enabled for it.
-pub async fn decode(content: &Content) -> Result<ContentHandle, Error> {
+pub async fn decode(content: &Content) -> Result<DocumentHandle, Error> {
     let doc_type = content.infer_document_type().ok_or_else(|| {
         Error::validation(
             "unable to detect document type from content; \
@@ -66,23 +66,23 @@ pub async fn decode(content: &Content) -> Result<ContentHandle, Error> {
 
     #[cfg(feature = "internal_text")]
     if let Some(h) = try_decode_text(doc_type, _data).await? {
-        return Ok(ContentHandle::from(h));
+        return Ok(DocumentHandle::from(h));
     }
     #[cfg(feature = "internal_tabular")]
     if let Some(h) = try_decode_tabular(doc_type, _data).await? {
-        return Ok(ContentHandle::from(h));
+        return Ok(DocumentHandle::from(h));
     }
     #[cfg(feature = "internal_image")]
     if let Some(h) = try_decode_image(doc_type, _data).await? {
-        return Ok(ContentHandle::from(h));
+        return Ok(DocumentHandle::from(h));
     }
     #[cfg(feature = "internal_audio")]
     if let Some(h) = try_decode_audio(doc_type, _data).await? {
-        return Ok(ContentHandle::from(h));
+        return Ok(DocumentHandle::from(h));
     }
     #[cfg(feature = "internal_rich")]
     if let Some(h) = try_decode_rich(doc_type, _data).await? {
-        return Ok(ContentHandle::from(h));
+        return Ok(DocumentHandle::from(h));
     }
 
     Err(Error::validation(

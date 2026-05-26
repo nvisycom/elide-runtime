@@ -3,16 +3,17 @@
 //! The verdict shape (`VerificationStatus`, `VerifiedEntity`,
 //! `VerificationOutput`) is shared with [`NerVerifyAgent`] and lives
 //! in [`base::verification`]. CV-specific *apply* logic — translating
-//! a bbox into an [`ImageLocation`] update on the original entity —
+//! a bbox into an [`Image`] update on the original entity —
 //! lives here.
 //!
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 //! [`base::verification`]: crate::agent::base::verification
-//! [`ImageLocation`]: nvisy_ontology::entity::ImageLocation
+//! [`Image`]: nvisy_ontology::modality::Image
 
 use std::collections::HashMap;
 
-use nvisy_ontology::entity::{Entity, ImageLocation, RefinementMethod};
+use nvisy_ontology::entity::{Entity, RefinementMethod};
+use nvisy_ontology::modality::Image;
 
 pub use crate::agent::base::{VerificationOutput, VerificationStatus, VerifiedEntity};
 
@@ -21,7 +22,10 @@ pub use crate::agent::base::{VerificationOutput, VerificationStatus, VerifiedEnt
 /// Confirmed entities (absent from `output`) pass through
 /// unchanged; corrected entities are updated with the verifier's
 /// bbox / value / type / category; rejected entities are dropped.
-pub(super) fn merge(output: VerificationOutput, entities: Vec<Entity>) -> Vec<Entity> {
+pub(super) fn merge(
+    output: VerificationOutput,
+    entities: Vec<Entity<Image>>,
+) -> Vec<Entity<Image>> {
     let mut verdicts: HashMap<usize, VerifiedEntity> =
         output.entities.into_iter().map(|v| (v.id, v)).collect();
 
@@ -43,19 +47,18 @@ pub(super) fn merge(output: VerificationOutput, entities: Vec<Entity>) -> Vec<En
 ///
 /// Returns `None` for rejected entities, or `Some(corrected)` with
 /// updated fields for corrected entities. Bounding-box updates
-/// rebuild the entity's [`ImageLocation`].
-fn apply(verified: VerifiedEntity, entity: Entity) -> Option<Entity> {
+/// rebuild the entity's [`Image`] location.
+fn apply(verified: VerifiedEntity, entity: Entity<Image>) -> Option<Entity<Image>> {
     match verified.status {
         VerificationStatus::Rejected => None,
         VerificationStatus::Corrected => {
             let location = if let Some(bbox) = verified.bbox {
-                ImageLocation {
+                Image {
                     bounding_box: bbox,
                     polygon: None,
                     image_id: None,
                     page_number: None,
                 }
-                .into()
             } else {
                 entity.location
             };

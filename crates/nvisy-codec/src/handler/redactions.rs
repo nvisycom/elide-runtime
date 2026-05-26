@@ -15,7 +15,7 @@
 use std::fmt;
 
 use derive_more::IntoIterator;
-use nvisy_ontology::entity::{Mergeable, Overlap};
+use nvisy_ontology::modality::{Mergeable, Overlap};
 
 use super::policy::{ConflictPolicy, InsertError};
 

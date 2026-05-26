@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::entity::{Entity, EntityCategory, EntityKind, EntitySensitivity};
+use crate::modality::Modality;
 
 /// Criteria for selecting which entities a policy rule applies to.
 ///
@@ -35,7 +36,7 @@ impl EntitySelector {
     }
 
     /// Returns `true` if the given entity matches this selector.
-    pub fn matches(&self, entity: &Entity) -> bool {
+    pub fn matches<M: Modality>(&self, entity: &Entity<M>) -> bool {
         if let Some(threshold) = self.confidence_threshold
             && entity.confidence.get() < threshold
         {

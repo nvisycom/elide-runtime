@@ -32,9 +32,10 @@ mod refine;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::{
-    Entities, Entity, EntityCategory, EntityKind, Location, ModelKind, ModelProvenance,
-    RecognitionMethod, RefinementMethod, TextLocation,
+    Entities, Entity, EntityCategory, EntityKind, ModelKind, ModelProvenance,
+    RecognitionMethod, RefinementMethod,
 };
+use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::Confidence;
 
 pub use self::localize::UnresolvedCandidatePolicy;
@@ -114,7 +115,11 @@ impl NerVerifyAgent {
         skip_all,
         fields(text_len = text.len(), candidate_count = candidates.len()),
     )]
-    pub async fn verify(&self, text: &str, candidates: Vec<NerCandidate>) -> Result<Entities> {
+    pub async fn verify(
+        &self,
+        text: &str,
+        candidates: Vec<NerCandidate>,
+    ) -> Result<Entities<Text>> {
         // 1. Localize.
         let mut localized = localize_all(text, candidates, self.unresolved);
         let refined = self.refiner.is_some();
@@ -128,7 +133,11 @@ impl NerVerifyAgent {
         Ok(self.build_entities(localized, refined))
     }
 
-    fn build_entities(&self, localized: Vec<LocalizedCandidate>, refined: bool) -> Entities {
+    fn build_entities(
+        &self,
+        localized: Vec<LocalizedCandidate>,
+        refined: bool,
+    ) -> Entities<Text> {
         let model_name = self
             .refiner
             .as_ref()
@@ -165,7 +174,7 @@ impl NerVerifyAgent {
                 }
             };
 
-            let loc = TextLocation::new(l.start_offset, l.end_offset);
+            let loc = Text::new(l.start_offset, l.end_offset);
 
             let mut refinement_methods = Vec::new();
             if refined {
@@ -178,7 +187,7 @@ impl NerVerifyAgent {
                 .with_recognition_methods(vec![RecognitionMethod::LlmNer(model.clone())])
                 .with_refinement_methods(refinement_methods)
                 .with_confidence(confidence)
-                .with_location(Location::from(loc));
+                .with_location(loc);
             if let Some(id) = l.candidate.entity_id {
                 b = b.with_entity_id(id);
             }

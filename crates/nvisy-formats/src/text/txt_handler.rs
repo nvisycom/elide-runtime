@@ -5,7 +5,7 @@
 //! trailing-newline flag so the original file can be reconstructed
 //! byte-for-byte after edits.
 //!
-//! [`TextHandler::locations`] yields one [`TextLocation`] per line;
+//! [`TextHandler::locations`] yields one [`Text`] per line;
 //! [`TextHandler::read`] returns the line at a given location;
 //! [`TextHandler::redact`] applies redactions in place, mutating the
 //! affected lines directly.
@@ -15,13 +15,13 @@ use nvisy_codec::handler::{Handler, TextData, TextHandler, TextRedaction, apply_
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};
-use nvisy_ontology::entity::TextLocation;
+use nvisy_ontology::modality::Text;
 
 const TARGET: &str = "txt-handler";
 
 /// Handler for loaded plain-text content.
 ///
-/// Each line is independently addressable via [`TextLocation`].
+/// Each line is independently addressable via [`Text`].
 #[derive(Debug)]
 pub struct TxtHandler {
     source: ContentSource,
@@ -53,7 +53,7 @@ impl Handler for TxtHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for TxtHandler {
-    fn locations(&self) -> LocationStream<'_, TextLocation> {
+    fn locations(&self) -> LocationStream<'_, Text> {
         let source = self.source;
         let items: Vec<_> = self
             .line_offsets()
@@ -62,7 +62,7 @@ impl TextHandler for TxtHandler {
             .map(|(i, (start, end))| {
                 Located::new(
                     source,
-                    TextLocation {
+                    Text {
                         start_offset: start,
                         end_offset: end,
                         line_number: Some((i + 1) as u32),
@@ -74,7 +74,7 @@ impl TextHandler for TxtHandler {
         LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn read(&self, location: &TextLocation) -> Option<TextData> {
+    async fn read(&self, location: &Text) -> Option<TextData> {
         let offsets = self.line_offsets();
         let line_idx = offsets.iter().position(|&(start, end)| {
             location.start_offset >= start && location.end_offset <= end
@@ -88,7 +88,7 @@ impl TextHandler for TxtHandler {
 
     async fn redact_at(
         &mut self,
-        location: &TextLocation,
+        location: &Text,
         redaction: TextRedaction,
     ) -> Result<(), Error> {
         let offsets = self.line_offsets();
@@ -203,7 +203,7 @@ mod tests {
     #[tokio::test]
     async fn read_returns_line() {
         let h = handler("hello\nworld\n");
-        let loc = TextLocation {
+        let loc = Text {
             start_offset: 6,
             end_offset: 11,
             ..Default::default()
@@ -214,7 +214,7 @@ mod tests {
     #[tokio::test]
     async fn read_cross_line_returns_none() {
         let h = handler("hello\nworld\n");
-        let loc = TextLocation {
+        let loc = Text {
             start_offset: 3,
             end_offset: 8,
             ..Default::default()
@@ -244,7 +244,7 @@ mod tests {
         let mut h = handler("hello world");
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            TextLocation {
+            Text {
                 start_offset: 6,
                 end_offset: 11,
                 ..Default::default()
@@ -282,7 +282,7 @@ mod tests {
         let mut h = handler("one line");
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
-            TextLocation {
+            Text {
                 start_offset: 999,
                 end_offset: 1000,
                 ..Default::default()

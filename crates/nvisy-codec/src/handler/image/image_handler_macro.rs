@@ -41,11 +41,11 @@ macro_rules! impl_image_handler {
         impl ::nvisy_codec::handler::ImageHandler for $handler {
             fn locations(
                 &self,
-            ) -> ::nvisy_codec::document::LocationStream<'_, ::nvisy_ontology::entity::ImageLocation> {
+            ) -> ::nvisy_codec::document::LocationStream<'_, ::nvisy_ontology::modality::Image> {
                 use ::std::iter;
 
                 let (w, h) = (self.image.width(), self.image.height());
-                let location = ::nvisy_ontology::entity::ImageLocation {
+                let location = ::nvisy_ontology::modality::Image {
                     bounding_box: ::nvisy_ontology::primitive::BoundingBox {
                         x: 0.0,
                         y: 0.0,
@@ -63,7 +63,7 @@ macro_rules! impl_image_handler {
 
             async fn read(
                 &self,
-                location: &::nvisy_ontology::entity::ImageLocation,
+                location: &::nvisy_ontology::modality::Image,
             ) -> Option<::nvisy_codec::handler::ImageData> {
                 let bb = &location.bounding_box;
                 let x = bb.x.max(0.0) as u32;
@@ -79,7 +79,7 @@ macro_rules! impl_image_handler {
 
             async fn redact_at(
                 &mut self,
-                location: &::nvisy_ontology::entity::ImageLocation,
+                location: &::nvisy_ontology::modality::Image,
                 redaction: ::nvisy_codec::handler::ImageRedaction,
             ) -> ::std::result::Result<(), ::nvisy_core::Error> {
                 ::nvisy_codec::handler::apply_image_redaction(

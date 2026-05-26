@@ -7,5 +7,5 @@ pub mod core;
 pub mod engine;
 
 pub use self::backend::OcrBackend;
-pub use self::core::{Backend, Context, ImageFormat, ImageInput, ImageOutput};
+pub use self::core::{Backend, Context, ImageFormat, ImageInput};
 pub use self::engine::Extractor;

@@ -3,13 +3,13 @@
 //! HTML, and the per-page text in [`RichTextHandler`]).
 //!
 //! The byte range `start..end` comes from the redaction's containing
-//! [`TextLocation`] under the `(location, redaction)` shape — not from
+//! [`Text`] under the `(location, redaction)` shape — not from
 //! the redaction itself. Callers translate the location's
 //! document-absolute offsets into span-relative offsets before
 //! calling.
 //!
 //! [`RichTextHandler`]: crate::handler::rich::RichTextHandler
-//! [`TextLocation`]: nvisy_ontology::entity::TextLocation
+//! [`Text`]: nvisy_ontology::modality::Text
 
 use nvisy_core::Error;
 

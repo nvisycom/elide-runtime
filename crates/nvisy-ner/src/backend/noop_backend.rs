@@ -7,6 +7,7 @@
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
+use nvisy_ontology::modality::Text;
 
 use crate::core::{Backend, Context};
 
@@ -27,7 +28,7 @@ impl NoopBackend {
 
 #[async_trait]
 impl Backend for NoopBackend {
-    async fn recognize(&self, _text: &str, _ctx: &Context) -> Result<Entities> {
+    async fn recognize(&self, _text: &str, _ctx: &Context) -> Result<Entities<Text>> {
         Ok(Entities::new())
     }
 }

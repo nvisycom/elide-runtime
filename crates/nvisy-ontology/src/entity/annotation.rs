@@ -4,26 +4,33 @@ use derive_more::{Deref, DerefMut, From, IntoIterator};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    Entities, Entity, EntityCategory, EntityKind, Location, RecognitionMethod, TextLocation,
-};
-use crate::entity::Overlap;
+use super::{Entities, Entity, EntityCategory, EntityKind, RecognitionMethod};
+use crate::modality::{Modality, Overlap};
 use crate::primitive::Confidence;
 
-/// What a region annotation points at: a text value or a spatial/temporal location.
+/// What a region annotation points at: a text value or a
+/// modality-specific location.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum AnnotationTarget {
+#[serde(rename_all = "snake_case", bound(
+    serialize = "M: Serialize",
+    deserialize = "M: serde::de::DeserializeOwned",
+))]
+#[schemars(bound = "M: JsonSchema")]
+pub enum AnnotationTarget<M: Modality> {
     /// A specific text or data value.
     Value(String),
     /// A modality-specific location (text span, image region, audio segment).
-    Location(Location),
+    Location(M),
 }
 
 /// The kind of annotation with variant-specific data.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum AnnotationKind {
+#[serde(tag = "kind", rename_all = "snake_case", bound(
+    serialize = "M: Serialize",
+    deserialize = "M: serde::de::DeserializeOwned",
+))]
+#[schemars(bound = "M: JsonSchema")]
+pub enum AnnotationKind<M: Modality> {
     /// Pre-identified sensitive region that should be treated as a detection.
     Inclusion {
         /// Broad classification of the sensitive data.
@@ -31,7 +38,7 @@ pub enum AnnotationKind {
         /// Specific entity kind.
         entity_kind: EntityKind,
         /// What this inclusion targets.
-        target: AnnotationTarget,
+        target: AnnotationTarget<M>,
         /// Confidence in the range `[0.0, 1.0]` (default 1.0).
         #[serde(skip_serializing_if = "Option::is_none")]
         confidence: Option<f64>,
@@ -39,7 +46,7 @@ pub enum AnnotationKind {
     /// Known-safe region that detection should skip.
     Exclusion {
         /// What this exclusion targets.
-        target: AnnotationTarget,
+        target: AnnotationTarget<M>,
     },
     /// Classification label for document-level policy scoping.
     Label {
@@ -50,32 +57,44 @@ pub enum AnnotationKind {
 
 /// A user-provided annotation on a content region.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Annotation {
+#[serde(rename_all = "camelCase", bound(
+    serialize = "M: Serialize",
+    deserialize = "M: serde::de::DeserializeOwned",
+))]
+#[schemars(bound = "M: JsonSchema")]
+pub struct Annotation<M: Modality> {
     /// Optional human-readable name for this annotation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// What kind of annotation and its variant-specific data.
     #[serde(flatten)]
-    pub kind: AnnotationKind,
+    pub kind: AnnotationKind<M>,
 }
 
 /// A collection of [`Annotation`]s.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 #[derive(Deref, DerefMut, From, IntoIterator)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct Annotations(Vec<Annotation>);
+#[serde(bound(
+    serialize = "M: Serialize",
+    deserialize = "M: serde::de::DeserializeOwned",
+))]
+#[schemars(bound = "M: JsonSchema")]
+pub struct Annotations<M: Modality>(Vec<Annotation<M>>);
 
-impl Annotations {
+impl<M: Modality> Default for Annotations<M> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl<M: Modality> Annotations<M> {
     /// Create an empty collection.
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Returns `true` if the collection is empty.
-    ///
-    /// Provided as an inherent method so it can be used with
-    /// `#[serde(skip_serializing_if)]`.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -90,20 +109,15 @@ impl Annotations {
             })
             .collect()
     }
+}
 
-    /// Check whether the given entity falls within any exclusion annotation.
-    ///
-    /// An entity is excluded if an exclusion targets an overlapping
-    /// location or a matching text value. The `entity_value` parameter
-    /// is the text at the entity's location, extracted from the
-    /// document by the caller (since the annotation layer has no
-    /// document access).
+impl<M: Modality + Overlap> Annotations<M> {
     /// Check whether any exclusion annotation matches this entity.
     ///
     /// `entity_value` is the detected text value resolved from the
-    /// document (via `Document::value_at`). Pass `None` for entities
-    /// without a text value (e.g. image-only detections).
-    pub fn is_excluded(&self, entity: &Entity, entity_value: Option<&str>) -> bool {
+    /// document. Pass `None` for entities without a text value (e.g.
+    /// image-only detections).
+    pub fn is_excluded(&self, entity: &Entity<M>, entity_value: Option<&str>) -> bool {
         self.0.iter().any(|ann| {
             let AnnotationKind::Exclusion { target } = &ann.kind else {
                 return false;
@@ -114,9 +128,15 @@ impl Annotations {
             }
         })
     }
+}
 
+impl<M: Modality + Default> Annotations<M> {
     /// Convert inclusion annotations into entities and add them to the collection.
-    pub fn apply_inclusions(&self, entities: &mut Entities) {
+    ///
+    /// Value-only inclusions use `M::default()` as a sentinel location
+    /// since they don't reference a real document position; the value
+    /// itself is carried by the recognition method.
+    pub fn apply_inclusions(&self, entities: &mut Entities<M>) {
         for ann in &self.0 {
             let AnnotationKind::Inclusion {
                 category,
@@ -133,10 +153,7 @@ impl Annotations {
                     if v.is_empty() {
                         continue;
                     }
-                    // User-supplied inclusion — no real document position.
-                    // Use a zero-length sentinel; the value is carried by the
-                    // annotation, not the location.
-                    Location::Text(TextLocation::new(0, 0))
+                    M::default()
                 }
                 AnnotationTarget::Location(loc) => loc.clone(),
             };
@@ -160,9 +177,9 @@ impl Annotations {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entity::TextLocation;
+    use crate::modality::Text;
 
-    fn inclusion(value: &str) -> Annotation {
+    fn inclusion(value: &str) -> Annotation<Text> {
         Annotation {
             name: None,
             kind: AnnotationKind::Inclusion {
@@ -174,7 +191,7 @@ mod tests {
         }
     }
 
-    fn exclusion_value(value: &str) -> Annotation {
+    fn exclusion_value(value: &str) -> Annotation<Text> {
         Annotation {
             name: None,
             kind: AnnotationKind::Exclusion {
@@ -183,29 +200,29 @@ mod tests {
         }
     }
 
-    fn exclusion_location(start: usize, end: usize) -> Annotation {
+    fn exclusion_location(start: usize, end: usize) -> Annotation<Text> {
         Annotation {
             name: None,
             kind: AnnotationKind::Exclusion {
-                target: AnnotationTarget::Location(Location::from(TextLocation::new(start, end))),
+                target: AnnotationTarget::Location(Text::new(start, end)),
             },
         }
     }
 
-    fn label(name: &str) -> Annotation {
+    fn label(name: &str) -> Annotation<Text> {
         Annotation {
             name: None,
             kind: AnnotationKind::Label { label: name.into() },
         }
     }
 
-    fn test_entity(_value: &str, start: usize, end: usize) -> Entity {
+    fn test_entity(_value: &str, start: usize, end: usize) -> Entity<Text> {
         Entity::builder()
             .with_category(EntityCategory::PersonalIdentity)
             .with_entity_kind(EntityKind::PersonName)
             .with_recognition_methods(vec![RecognitionMethod::regex("test")])
             .with_confidence(Confidence::new(0.9).expect("in range"))
-            .with_location(Location::from(TextLocation::new(start, end)))
+            .with_location(Text::new(start, end))
             .build()
             .unwrap()
     }
@@ -217,9 +234,7 @@ mod tests {
         let mut entities = Entities::new();
         annotations.apply_inclusions(&mut entities);
         assert_eq!(entities.len(), 2);
-        // Inclusion entities use sentinel offsets (0..0) since they
-        // don't reference real document positions.
-        let loc0 = entities[0].location.as_text().unwrap();
+        let loc0 = &entities[0].location;
         assert_eq!(loc0.start_offset, 0);
         assert_eq!(loc0.end_offset, 0);
         assert!((entities[0].confidence.get() - 1.0).abs() < f64::EPSILON);
@@ -244,7 +259,7 @@ mod tests {
                 confidence: Some(0.7),
             },
         };
-        let mut entities = Entities::new();
+        let mut entities: Entities<Text> = Entities::new();
         Annotations::from(vec![ann]).apply_inclusions(&mut entities);
         assert!((entities[0].confidence.get() - 0.7).abs() < f64::EPSILON);
     }
@@ -260,7 +275,7 @@ mod tests {
                 confidence: None,
             },
         };
-        let mut entities = Entities::new();
+        let mut entities: Entities<Text> = Entities::new();
         Annotations::from(vec![ann]).apply_inclusions(&mut entities);
         assert_eq!(
             entities[0].recognition_methods[0],

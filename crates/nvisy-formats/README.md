@@ -20,7 +20,7 @@ defined in [`nvisy-codec`] for every supported file format:
 
 The entry point is [`decode`], which dispatches a [`Content`] to the
 appropriate loader by its detected document type and returns a
-ready-to-use [`ContentHandle`].
+ready-to-use [`DocumentHandle`].
 
 ## Feature Flags
 
@@ -66,4 +66,4 @@ Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
 
 [`nvisy-codec`]: https://docs.rs/nvisy-codec
 [`Content`]: https://docs.rs/nvisy-core/latest/nvisy_core/content/struct.Content.html
-[`ContentHandle`]: https://docs.rs/nvisy-codec/latest/nvisy_codec/enum.ContentHandle.html
+[`DocumentHandle`]: https://docs.rs/nvisy-codec/latest/nvisy_codec/enum.DocumentHandle.html

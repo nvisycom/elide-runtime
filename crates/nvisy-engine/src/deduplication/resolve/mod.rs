@@ -7,7 +7,8 @@
 
 mod strategy;
 
-use nvisy_ontology::entity::{Entities, Overlap};
+use nvisy_ontology::entity::Entities;
+use nvisy_ontology::modality::{AnyModality, Overlap};
 
 pub use self::strategy::ConflictResolution;
 
@@ -18,11 +19,11 @@ const TARGET: &str = "nvisy_engine::op::deduplication::conflict";
 pub(crate) trait ResolveConflicts {
     /// Drop the loser of each cross-kind overlap; returns the
     /// dropped entities for downstream telemetry.
-    fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Entities;
+    fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Entities<AnyModality>;
 }
 
-impl ResolveConflicts for Entities {
-    fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Entities {
+impl ResolveConflicts for Entities<AnyModality> {
+    fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Entities<AnyModality> {
         if self.len() <= 1 {
             return Entities::new();
         }

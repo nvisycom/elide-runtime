@@ -34,7 +34,7 @@ mod workflow;
 use std::sync::Arc;
 
 #[cfg(any(feature = "image", feature = "rich", feature = "audio"))]
-use nvisy_codec::ContentHandle;
+use nvisy_codec::DocumentHandle;
 use nvisy_core::Result;
 use serde::{Deserialize, Serialize};
 
@@ -189,7 +189,7 @@ impl Extractors {
         #[cfg(not(any(feature = "image", feature = "rich", feature = "audio")))]
         let _ = (envelope, extraction);
         #[cfg(any(feature = "image", feature = "rich", feature = "audio"))]
-        match &envelope.document.handle {
+        match &envelope.handle {
             #[cfg(any(feature = "image", feature = "rich"))]
             handle if matches_visual(handle) => {
                 #[cfg(feature = "image")]
@@ -207,7 +207,7 @@ impl Extractors {
                 }
             }
             #[cfg(feature = "audio")]
-            ContentHandle::Audio(_) => {
+            DocumentHandle::Audio(_) => {
                 if let Some(ref stt) = self.stt {
                     let diarization = extraction.audial.as_ref().is_some_and(|a| a.diarization);
                     tracing::debug!(target: TARGET, "running STT extraction");
@@ -223,12 +223,12 @@ impl Extractors {
 }
 
 #[cfg(any(feature = "image", feature = "rich"))]
-fn matches_visual(handle: &ContentHandle) -> bool {
+fn matches_visual(handle: &DocumentHandle) -> bool {
     match handle {
         #[cfg(feature = "image")]
-        ContentHandle::Image(_) => true,
+        DocumentHandle::Image(_) => true,
         #[cfg(feature = "rich")]
-        ContentHandle::Rich(_) => true,
+        DocumentHandle::Rich(_) => true,
         _ => false,
     }
 }

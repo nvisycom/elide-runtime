@@ -5,7 +5,7 @@ use std::fmt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_ontology::entity::{ImageLocation, TextLocation};
+use nvisy_ontology::modality::{Image, Text};
 
 use crate::document::LocationStream;
 use crate::handler::image::ImageData;
@@ -19,24 +19,24 @@ pub struct BoxedRichHandler(Box<dyn RichHandler>);
 #[async_trait::async_trait]
 pub trait RichHandler: Handler + Send + Sync {
     /// Stream the text locations exposed by this rich document.
-    fn text_locations(&self) -> LocationStream<'_, TextLocation>;
+    fn text_locations(&self) -> LocationStream<'_, Text>;
     /// Read the text content at the given location.
-    async fn read_text(&self, location: &TextLocation) -> Option<TextData>;
+    async fn read_text(&self, location: &Text) -> Option<TextData>;
     /// Apply a single text redaction at the given location.
     async fn redact_text_at(
         &mut self,
-        location: &TextLocation,
+        location: &Text,
         redaction: TextRedaction,
     ) -> Result<(), Error>;
 
     /// Stream the image locations exposed by this rich document.
-    fn image_locations(&self) -> LocationStream<'_, ImageLocation>;
+    fn image_locations(&self) -> LocationStream<'_, Image>;
     /// Read the image content at the given location.
-    async fn read_image(&self, location: &ImageLocation) -> Option<ImageData>;
+    async fn read_image(&self, location: &Image) -> Option<ImageData>;
     /// Apply a single image redaction at the given location.
     async fn redact_image_at(
         &mut self,
-        location: &ImageLocation,
+        location: &Image,
         redaction: ImageRedaction,
     ) -> Result<(), Error>;
 }
@@ -72,17 +72,17 @@ impl Handler for BoxedRichHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for BoxedRichHandler {
-    fn locations(&self) -> LocationStream<'_, TextLocation> {
+    fn locations(&self) -> LocationStream<'_, Text> {
         self.0.text_locations()
     }
 
-    async fn read(&self, location: &TextLocation) -> Option<TextData> {
+    async fn read(&self, location: &Text) -> Option<TextData> {
         self.0.read_text(location).await
     }
 
     async fn redact_at(
         &mut self,
-        location: &TextLocation,
+        location: &Text,
         redaction: TextRedaction,
     ) -> Result<(), Error> {
         self.0.redact_text_at(location, redaction).await
@@ -91,17 +91,17 @@ impl TextHandler for BoxedRichHandler {
 
 #[async_trait::async_trait]
 impl ImageHandler for BoxedRichHandler {
-    fn locations(&self) -> LocationStream<'_, ImageLocation> {
+    fn locations(&self) -> LocationStream<'_, Image> {
         self.0.image_locations()
     }
 
-    async fn read(&self, location: &ImageLocation) -> Option<ImageData> {
+    async fn read(&self, location: &Image) -> Option<ImageData> {
         self.0.read_image(location).await
     }
 
     async fn redact_at(
         &mut self,
-        location: &ImageLocation,
+        location: &Image,
         redaction: ImageRedaction,
     ) -> Result<(), Error> {
         self.0.redact_image_at(location, redaction).await

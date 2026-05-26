@@ -5,9 +5,9 @@
 //!
 //! 1. **Decompression** — decompress raw bytes (if format specified)
 //! 2. **Decryption** — decrypt content (if encryption config specified)
-//! 3. **Decode** — detect format and decode into a typed [`ContentHandle`]
+//! 3. **Decode** — detect format and decode into a typed [`DocumentHandle`]
 //!
-//! [`ContentHandle`]: nvisy_codec::ContentHandle
+//! [`DocumentHandle`]: nvisy_codec::DocumentHandle
 
 use std::mem;
 use std::sync::Arc;

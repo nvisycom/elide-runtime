@@ -4,7 +4,7 @@ use crate::handler::{Mergeable, TextOutput};
 
 /// A tabular redaction: the *how*. The *where* — cell coordinates
 /// (`row_index`, `column_index`) and optional intra-cell byte offsets
-/// — lives on the containing [`TabularLocation`] via [`Redactions`]'s
+/// — lives on the containing [`Tabular`] via [`Redactions`]'s
 /// `(S, R)` pairs.
 ///
 /// This is the tabular counterpart of [`TextRedaction`]: instead of
@@ -13,7 +13,7 @@ use crate::handler::{Mergeable, TextOutput};
 ///
 /// [`Redactions`]: crate::handler::Redactions
 /// [`TextRedaction`]: crate::handler::TextRedaction
-/// [`TabularLocation`]: nvisy_ontology::entity::TabularLocation
+/// [`Tabular`]: nvisy_ontology::modality::Tabular
 #[derive(Debug, Clone, PartialEq)]
 pub struct TabularRedaction {
     /// The redaction output that carries the replacement value.

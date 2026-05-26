@@ -60,10 +60,10 @@ fn column_confidence_applies_to_csv_dictionaries() {
     // "US Dollar" at 10..19, "USD" at 32..35
     let full_name = entities
         .iter()
-        .find(|e| e.location.as_text().is_some_and(|l| l.start_offset == 10));
+        .find(|e| e.location.start_offset == 10);
     let code = entities
         .iter()
-        .find(|e| e.location.as_text().is_some_and(|l| l.start_offset == 32));
+        .find(|e| e.location.start_offset == 32);
     assert!(full_name.is_some(), "should match 'US Dollar'");
     assert!(code.is_some(), "should match 'USD'");
     let full_conf = full_name.unwrap().confidence.get();
@@ -84,5 +84,5 @@ fn scan_entities_returns_entities_with_location() {
     assert!(!entities.is_empty());
     let e = &entities[0];
     assert_eq!(e.entity_kind, EntityKind::GovernmentId);
-    assert!(e.location.as_text().is_some());
+    assert!(e.location.end_offset > e.location.start_offset);
 }

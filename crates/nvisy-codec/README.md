@@ -13,7 +13,7 @@ handler implements:
 - [`Handler`] — base identity + encode.
 - [`TextHandler`], [`TabularHandler`], [`ImageHandler`],
   [`AudioHandler`], [`RichHandler`] — per-modality capability traits.
-- [`ContentHandle`] — type-erased enum of every modality, with
+- [`DocumentHandle`] — type-erased enum of every modality, with
   uniform `read_*` and `apply_*_redactions` methods.
 - Span-based addressing (`Span`, `Located`, `LocationStream`) so
   detection and redaction can address regions uniformly regardless
@@ -64,5 +64,5 @@ Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
 [`ImageHandler`]: handler::ImageHandler
 [`AudioHandler`]: handler::AudioHandler
 [`RichHandler`]: handler::RichHandler
-[`ContentHandle`]: ContentHandle
+[`DocumentHandle`]: DocumentHandle
 [`nvisy-formats`]: https://docs.rs/nvisy-formats

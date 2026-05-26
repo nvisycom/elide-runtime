@@ -27,6 +27,7 @@ use std::mem;
 
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entities;
+use nvisy_ontology::modality::AnyModality;
 
 use self::calibrate::Calibrate;
 pub use self::calibrate::CalibrationMap;
@@ -37,7 +38,7 @@ pub use self::fuse::{DeduplicationStrategy, GroupingCriteria};
 pub use self::params::DeduplicationParams;
 pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
-use crate::envelope::{Document, DocumentEnvelope};
+use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::deduplication";
 
@@ -74,10 +75,10 @@ impl Deduplicator {
     /// Run the full deduplication pipeline.
     pub(crate) async fn deduplicate(
         &self,
-        mut entities: Entities,
-        document: &Document,
+        mut entities: Entities<AnyModality>,
+        envelope: &DocumentEnvelope,
         params: &FilterParams,
-    ) -> Entities {
+    ) -> Entities<AnyModality> {
         if entities.is_empty() {
             return entities;
         }
@@ -92,7 +93,7 @@ impl Deduplicator {
         let dropped = entities.filter(params);
 
         // Step 3: group + fuse.
-        entities.fuse(&self.strategy, self.grouping, document).await;
+        entities.fuse(&self.strategy, self.grouping, envelope).await;
 
         // Step 4: resolve cross-kind span conflicts.
         let _conflict_dropped = entities.resolve_conflicts(&self.conflict_resolution);
@@ -122,7 +123,7 @@ impl Deduplicator {
                 "running deduplication",
             );
             let entities = mem::take(&mut envelope.audit.entities);
-            envelope.audit.entities = self.deduplicate(entities, &envelope.document, params).await;
+            envelope.audit.entities = self.deduplicate(entities, envelope, params).await;
         }
         Ok(())
     }

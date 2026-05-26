@@ -11,6 +11,7 @@
 //! [`languages`]: Artifacts::languages
 
 use nvisy_ontology::entity::Entities;
+use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::{LanguageDetection, LanguageTag};
 
 /// NER output of one [`Recognizer::recognize`] call.
@@ -28,7 +29,7 @@ pub struct Artifacts {
     /// Always populated (may be empty).
     ///
     /// [`Backend`]: crate::core::Backend
-    pub entities: Entities,
+    pub entities: Entities<Text>,
 
     /// Languages asserted by the caller or detected by the engine's
     /// [`LanguagePolicy`].

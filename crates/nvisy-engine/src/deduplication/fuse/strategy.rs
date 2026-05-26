@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use nvisy_ontology::entity::{Entity, RecognitionMethodKind};
+use nvisy_ontology::modality::AnyModality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -25,7 +26,7 @@ pub enum DeduplicationStrategy {
 
 impl DeduplicationStrategy {
     /// Combine confidences across `group` per this strategy.
-    pub(super) fn compute_confidence(&self, group: &[Entity]) -> f64 {
+    pub(super) fn compute_confidence(&self, group: &[Entity<AnyModality>]) -> f64 {
         match self {
             Self::MaxConfidence => group
                 .iter()

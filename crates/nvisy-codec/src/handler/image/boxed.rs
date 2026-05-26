@@ -5,7 +5,7 @@ use std::fmt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_ontology::entity::ImageLocation;
+use nvisy_ontology::modality::Image;
 
 use super::ImageData;
 use crate::document::LocationStream;
@@ -45,17 +45,17 @@ impl Handler for BoxedImageHandler {
 
 #[async_trait::async_trait]
 impl ImageHandler for BoxedImageHandler {
-    fn locations(&self) -> LocationStream<'_, ImageLocation> {
+    fn locations(&self) -> LocationStream<'_, Image> {
         self.0.locations()
     }
 
-    async fn read(&self, location: &ImageLocation) -> Option<ImageData> {
+    async fn read(&self, location: &Image) -> Option<ImageData> {
         self.0.read(location).await
     }
 
     async fn redact_at(
         &mut self,
-        location: &ImageLocation,
+        location: &Image,
         redaction: ImageRedaction,
     ) -> Result<(), Error> {
         self.0.redact_at(location, redaction).await

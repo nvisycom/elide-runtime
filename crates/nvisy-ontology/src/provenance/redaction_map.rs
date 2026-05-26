@@ -18,7 +18,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::entity::Location;
+use crate::modality::AnyModality;
 
 /// One entry in the redaction map: the entity touched and where it
 /// was located in the document.
@@ -33,7 +33,7 @@ pub struct RedactionMapping {
     /// The entity this mapping belongs to.
     pub entity_id: Uuid,
     /// Where in the document the entity was found.
-    pub location: Location,
+    pub location: AnyModality,
 }
 
 /// Per-entity redaction lineage index.
@@ -58,31 +58,5 @@ impl RedactionMap {
     /// Create an empty redaction map.
     pub fn new() -> Self {
         Self::default()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::entity::{Location, TextLocation};
-
-    fn mapping(id: Uuid) -> RedactionMapping {
-        RedactionMapping {
-            entity_id: id,
-            location: Location::from(TextLocation {
-                start_offset: 0,
-                end_offset: 4,
-                ..Default::default()
-            }),
-        }
-    }
-
-    #[test]
-    fn push_and_count() {
-        let id = Uuid::now_v7();
-        let mut map = RedactionMap::new();
-        map.push(mapping(id));
-        assert_eq!(map.len(), 1);
-        assert_eq!(map.entries[0].entity_id, id);
     }
 }

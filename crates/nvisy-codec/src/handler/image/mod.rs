@@ -6,7 +6,7 @@
 //! live in `nvisy-formats`.
 
 use nvisy_core::Error;
-use nvisy_ontology::entity::ImageLocation;
+use nvisy_ontology::modality::Image;
 
 use super::Handler;
 use crate::document::LocationStream;
@@ -29,7 +29,7 @@ pub use self::instruction::{ImageOutput, ImageRedaction};
 /// Capability trait for handlers that expose image content.
 ///
 /// Handlers implement three narrow operations:
-/// - [`locations`]: cheap, identity-only stream of [`ImageLocation`]s.
+/// - [`locations`]: cheap, identity-only stream of [`Image`]s.
 /// - [`read`]: fetch the payload at a given location (cropped to
 ///   the location's bounding box).
 /// - [`redact_at`]: apply a single redaction to a single location.
@@ -43,22 +43,22 @@ pub use self::instruction::{ImageOutput, ImageRedaction};
 /// [`redact`]: ImageHandler::redact
 #[async_trait::async_trait]
 pub trait ImageHandler: Handler {
-    /// Async stream of [`ImageLocation`]s for this document, each
+    /// Async stream of [`Image`]s for this document, each
     /// tagged with the handler's [`ContentSource`].
     ///
     /// [`ContentSource`]: nvisy_core::content::ContentSource
-    fn locations(&self) -> LocationStream<'_, ImageLocation>;
+    fn locations(&self) -> LocationStream<'_, Image>;
 
     /// Read the image data at the given location (crop the bounding box).
     ///
     /// Returns `None` if the location is out of bounds.
-    async fn read(&self, location: &ImageLocation) -> Option<ImageData>;
+    async fn read(&self, location: &Image) -> Option<ImageData>;
 
     /// Apply a single redaction at the bounding box identified by
     /// `location`, mutating in place.
     async fn redact_at(
         &mut self,
-        location: &ImageLocation,
+        location: &Image,
         redaction: ImageRedaction,
     ) -> Result<(), Error>;
 
@@ -72,7 +72,7 @@ pub trait ImageHandler: Handler {
     /// [`redact_at`]: ImageHandler::redact_at
     async fn redact(
         &mut self,
-        redactions: Redactions<ImageLocation, ImageRedaction>,
+        redactions: Redactions<Image, ImageRedaction>,
     ) -> Result<(), Error> {
         for (location, redaction) in redactions {
             self.redact_at(&location, redaction).await?;

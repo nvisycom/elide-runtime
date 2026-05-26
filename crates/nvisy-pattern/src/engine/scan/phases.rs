@@ -13,6 +13,7 @@
 use std::collections::HashSet;
 
 use nvisy_ontology::entity::{Entity, RecognitionMethod};
+use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::Confidence;
 
 use super::candidate::EntityCandidate;
@@ -59,14 +60,14 @@ pub(in crate::engine) fn scan_regex(
             };
 
             results.push(EntityCandidate::new(
-                Entity::for_text_span(
-                    entry.category,
-                    entry.entity_kind,
-                    vec![method],
-                    Confidence::clamped(entry.confidence),
-                    mat.start(),
-                    mat.end(),
-                ),
+                Entity::builder()
+                    .with_category(entry.category)
+                    .with_entity_kind(entry.entity_kind)
+                    .with_recognition_methods(vec![method])
+                    .with_confidence(Confidence::clamped(entry.confidence))
+                    .with_location(Text::new(mat.start(), mat.end()))
+                    .build()
+                    .expect("required fields provided"),
                 entry.context.clone(),
             ));
         }
@@ -91,14 +92,16 @@ pub(in crate::engine) fn scan_dict(
             }
 
             results.push(EntityCandidate::new(
-                Entity::for_text_span(
-                    entry.category,
-                    entry.entity_kind,
-                    vec![RecognitionMethod::dictionary(&entry.pattern_name)],
-                    Confidence::clamped(entry.resolve_confidence(pat_idx)),
-                    mat.start(),
-                    mat.end(),
-                ),
+                Entity::builder()
+                    .with_category(entry.category)
+                    .with_entity_kind(entry.entity_kind)
+                    .with_recognition_methods(vec![RecognitionMethod::dictionary(
+                        &entry.pattern_name,
+                    )])
+                    .with_confidence(Confidence::clamped(entry.resolve_confidence(pat_idx)))
+                    .with_location(Text::new(mat.start(), mat.end()))
+                    .build()
+                    .expect("required fields provided"),
                 entry.context.clone(),
             ));
         }
@@ -127,8 +130,7 @@ pub(in crate::engine) fn scan_deny_list(
     // already been detected.
     let already_matched: HashSet<&str> = prior
         .iter()
-        .filter_map(|c| c.entity.location.as_text())
-        .map(|t| &text[t.start_offset..t.end_offset])
+        .map(|c| &text[c.entity.location.start_offset..c.entity.location.end_offset])
         .collect();
 
     let mut results = Vec::new();
@@ -139,14 +141,14 @@ pub(in crate::engine) fn scan_deny_list(
         }
 
         results.push(EntityCandidate::new(
-            Entity::for_text_span(
-                rule.category,
-                rule.entity_kind,
-                vec![RecognitionMethod::deny_list()],
-                Confidence::clamped(1.0),
-                mat.start(),
-                mat.end(),
-            ),
+            Entity::builder()
+                .with_category(rule.category)
+                .with_entity_kind(rule.entity_kind)
+                .with_recognition_methods(vec![RecognitionMethod::deny_list()])
+                .with_confidence(Confidence::clamped(1.0))
+                .with_location(Text::new(mat.start(), mat.end()))
+                .build()
+                .expect("required fields provided"),
             None,
         ));
     }

@@ -1,30 +1,30 @@
-//! Tabular-modality entity location.
+//! Tabular modality.
 
 use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Overlap};
+use super::{Mergeable, Modality, Overlap};
 
-/// Location of an entity within tabular data.
+/// A cell (or sub-cell range) within tabular content.
 #[derive(Debug, Clone, PartialEq, Eq, Builder)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[builder(
-    name = "TabularLocationBuilder",
+    name = "TabularBuilder",
     pattern = "owned",
     setter(into, strip_option, prefix = "with")
 )]
 #[serde(rename_all = "camelCase")]
-pub struct TabularLocation {
+pub struct Tabular {
     /// Row index (0-based).
     pub row_index: usize,
     /// Column index (0-based).
     pub column_index: usize,
-    /// Byte offset within the cell where the entity starts, if applicable.
+    /// Byte offset within the cell where the range starts, if applicable.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_offset: Option<usize>,
-    /// Byte offset within the cell where the entity ends, if applicable.
+    /// Byte offset within the cell where the range ends, if applicable.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_offset: Option<usize>,
@@ -38,11 +38,10 @@ pub struct TabularLocation {
     pub sheet_name: Option<String>,
 }
 
-impl TabularLocation {
-    /// Create a [`TabularLocation`] for the given cell coordinates,
-    /// with every optional field (intra-cell offsets, column name,
-    /// sheet name) unset. Use [`builder`] when any of those need to
-    /// be set.
+impl Tabular {
+    /// Create a [`Tabular`] for the given cell coordinates, with every
+    /// optional field (intra-cell offsets, column name, sheet name)
+    /// unset. Use [`builder`] when any of those need to be set.
     ///
     /// [`builder`]: Self::builder
     pub fn new(row_index: usize, column_index: usize) -> Self {
@@ -56,18 +55,47 @@ impl TabularLocation {
         }
     }
 
-    /// Create a new [`TabularLocationBuilder`].
-    pub fn builder() -> TabularLocationBuilder {
-        TabularLocationBuilder::default()
+    /// Create a new [`TabularBuilder`].
+    pub fn builder() -> TabularBuilder {
+        TabularBuilder::default()
     }
 }
 
-impl Overlap for TabularLocation {
+impl Modality for Tabular {
+    type BlockKind = ();
+    type Artefact = ();
+    type Metadata = TabularMetadata;
+}
+
+/// Document-level metadata for [`Document<Tabular>`].
+///
+/// [`Document<Tabular>`]: crate::document::Document
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TabularMetadata {
+    /// Column headers indexed by 0-based column position.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<ColumnHeader>,
+    /// Sheet names for multi-sheet documents, in source order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sheet_names: Vec<String>,
+}
+
+/// A column header in a tabular document.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ColumnHeader {
+    /// 0-based column index.
+    pub column_index: u32,
+    /// Header text.
+    pub text: String,
+}
+
+impl Overlap for Tabular {
     fn overlaps(&self, other: &Self) -> bool {
         if self.row_index != other.row_index || self.column_index != other.column_index {
             return false;
         }
-        // Same cell — check intra-cell byte ranges if both are present.
         match (
             self.start_offset,
             self.end_offset,
@@ -75,13 +103,13 @@ impl Overlap for TabularLocation {
             other.end_offset,
         ) {
             (Some(s1), Some(e1), Some(s2), Some(e2)) => s1 < e2 && s2 < e1,
-            _ => true, // no offset info → assume full-cell overlap
+            _ => true,
         }
     }
 }
 
-impl Mergeable for TabularLocation {
-    /// Merge two tabular locations when their cell coordinates match
+impl Mergeable for Tabular {
+    /// Merge two tabular ranges when their cell coordinates match
     /// (same `row_index` + `column_index` + `sheet_name`). Intra-cell
     /// byte offsets union when present on both sides; otherwise the
     /// result has no offsets (meaning "whole cell").
@@ -116,22 +144,22 @@ impl Mergeable for TabularLocation {
 mod tests {
     use super::*;
 
-    fn cell_with_offsets(row: usize, col: usize, start: usize, end: usize) -> TabularLocation {
-        TabularLocation {
+    fn cell_with_offsets(row: usize, col: usize, start: usize, end: usize) -> Tabular {
+        Tabular {
             start_offset: Some(start),
             end_offset: Some(end),
-            ..TabularLocation::new(row, col)
+            ..Tabular::new(row, col)
         }
     }
 
     #[test]
     fn overlap_same_cell_no_offsets() {
-        assert!(TabularLocation::new(0, 0).overlaps(&TabularLocation::new(0, 0)));
+        assert!(Tabular::new(0, 0).overlaps(&Tabular::new(0, 0)));
     }
 
     #[test]
     fn no_overlap_different_row() {
-        assert!(!TabularLocation::new(0, 0).overlaps(&TabularLocation::new(1, 0)));
+        assert!(!Tabular::new(0, 0).overlaps(&Tabular::new(1, 0)));
     }
 
     #[test]
@@ -146,7 +174,6 @@ mod tests {
 
     #[test]
     fn overlap_same_cell_one_has_offsets() {
-        // One has offsets, one doesn't → assume overlap.
-        assert!(TabularLocation::new(0, 0).overlaps(&cell_with_offsets(0, 0, 5, 10)));
+        assert!(Tabular::new(0, 0).overlaps(&cell_with_offsets(0, 0, 5, 10)));
     }
 }

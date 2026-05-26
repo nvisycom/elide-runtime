@@ -29,7 +29,7 @@ mod tabular;
 mod text;
 
 use nvisy_core::content::ContentSource;
-pub use nvisy_ontology::entity::Mergeable;
+pub use nvisy_ontology::modality::Mergeable;
 
 #[cfg(feature = "audio")]
 pub use self::audio::*;

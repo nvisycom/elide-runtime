@@ -21,6 +21,7 @@ use async_trait::async_trait;
 use bentoml::prelude::*;
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
+use nvisy_ontology::modality::Text;
 use uuid::Uuid;
 
 use super::bento_types::{WireBatch, WireRequest, WireResponse};
@@ -75,12 +76,12 @@ impl BentoBackend {
 
 #[async_trait]
 impl Backend for BentoBackend {
-    async fn recognize(&self, text: &str, ctx: &Context) -> Result<Entities> {
+    async fn recognize(&self, text: &str, ctx: &Context) -> Result<Entities<Text>> {
         self.recognize_batch(&[text], ctx).await
     }
 
     #[tracing::instrument(skip_all, fields(batch = texts.len()))]
-    async fn recognize_batch(&self, texts: &[&str], ctx: &Context) -> Result<Entities> {
+    async fn recognize_batch(&self, texts: &[&str], ctx: &Context) -> Result<Entities<Text>> {
         if texts.is_empty() {
             return Ok(Entities::new());
         }

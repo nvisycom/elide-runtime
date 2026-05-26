@@ -48,7 +48,7 @@ impl Exporter {
 
     pub async fn export(&self, envelope: &DocumentEnvelope) -> Result<()> {
         let shared = &envelope.shared;
-        let content_data = envelope.document.encode()?;
+        let content_data = envelope.encode()?;
         let mut output_bytes = bytes::Bytes::copy_from_slice(content_data.as_bytes());
 
         if let Some(ref enc_cfg) = self.encryption {

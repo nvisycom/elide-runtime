@@ -31,7 +31,7 @@ impl CryptoService {
 
     /// Encrypt a [`DocumentEnvelope`] into an [`EncryptedContent`] blob.
     pub async fn encrypt(&self, envelope: &DocumentEnvelope) -> Result<EncryptedContent> {
-        let content_data = envelope.document.encode()?;
+        let content_data = envelope.encode()?;
         let source = content_data.content_source;
         let plaintext = content_data.as_bytes();
 
@@ -168,7 +168,7 @@ mod tests {
     async fn round_trip_encrypt_decrypt() {
         let provider = test_key_provider();
         let envelope = test_envelope().await;
-        let original_bytes = envelope.document.encode().expect("encode").into_bytes();
+        let original_bytes = envelope.encode().expect("encode").into_bytes();
 
         let svc = CryptoService::new("test-key", provider);
         let encrypted = svc.encrypt(&envelope).await.expect("encrypt");

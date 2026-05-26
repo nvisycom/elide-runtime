@@ -1,24 +1,25 @@
-//! Text-modality entity location.
+//! Text modality.
 
 use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Overlap};
+use super::{Mergeable, Modality, Overlap};
+use crate::primitive::LanguageDetection;
 
-/// Location of an entity within text content.
+/// A range within text content.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Builder)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[builder(
-    name = "TextLocationBuilder",
+    name = "TextBuilder",
     pattern = "owned",
     setter(into, strip_option, prefix = "with")
 )]
 #[serde(rename_all = "camelCase")]
-pub struct TextLocation {
-    /// Byte or character offset where the entity starts.
+pub struct Text {
+    /// Byte or character offset where the range starts.
     pub start_offset: usize,
-    /// Byte or character offset where the entity ends.
+    /// Byte or character offset where the range ends.
     pub end_offset: usize,
     /// Start offset of the surrounding context window for redaction.
     #[builder(default, setter(into = false))]
@@ -28,20 +29,20 @@ pub struct TextLocation {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_end_offset: Option<usize>,
-    /// 1-based page number where the entity was found.
+    /// 1-based page number.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_number: Option<u32>,
-    /// 1-based line number where the entity was found.
+    /// 1-based line number.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub line_number: Option<u32>,
 }
 
-impl TextLocation {
-    /// Create a [`TextLocation`] covering `start_offset..end_offset`
-    /// with all optional fields unset. Use [`builder`] when context
-    /// offsets, page, or line numbers need to be set.
+impl Text {
+    /// Create a [`Text`] covering `start_offset..end_offset` with all
+    /// optional fields unset. Use [`builder`] when context offsets,
+    /// page, or line numbers need to be set.
     ///
     /// [`builder`]: Self::builder
     pub fn new(start_offset: usize, end_offset: usize) -> Self {
@@ -55,33 +56,72 @@ impl TextLocation {
         }
     }
 
-    /// Create a new [`TextLocationBuilder`].
-    pub fn builder() -> TextLocationBuilder {
-        TextLocationBuilder::default()
+    /// Create a new [`TextBuilder`].
+    pub fn builder() -> TextBuilder {
+        TextBuilder::default()
     }
 
-    /// Byte length of the span (`end_offset - start_offset`).
+    /// Byte length of the range (`end_offset - start_offset`).
     pub fn len(&self) -> usize {
         self.end_offset.saturating_sub(self.start_offset)
     }
 
-    /// Whether the span is empty (zero length).
+    /// Whether the range is empty (zero length).
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 }
 
-impl Overlap for TextLocation {
+impl Modality for Text {
+    type BlockKind = TextBlockKind;
+    type Artefact = ();
+    type Metadata = TextMetadata;
+}
+
+/// Classification of a [`Block<Text>`].
+///
+/// [`Block<Text>`]: crate::document::Block
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum TextBlockKind {
+    /// A regular paragraph or text run. Default for native-text
+    /// extraction where the source provides no structural hints.
+    #[default]
+    Paragraph,
+    /// A heading.
+    Heading,
+    /// A list item.
+    ListItem,
+    /// A code block or pre-formatted text.
+    Code,
+    /// A blockquote.
+    Quote,
+}
+
+/// Document-level metadata for [`Document<Text>`].
+///
+/// [`Document<Text>`]: crate::document::Document
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TextMetadata {
+    /// Languages detected (or asserted) for the document content.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(skip)]
+    pub languages: Vec<LanguageDetection>,
+}
+
+impl Overlap for Text {
     fn overlaps(&self, other: &Self) -> bool {
         self.start_offset < other.end_offset && other.start_offset < self.end_offset
     }
 }
 
-impl Mergeable for TextLocation {
-    /// Merge two text locations by unioning byte offsets when their
+impl Mergeable for Text {
+    /// Merge two text ranges by unioning byte offsets when their
     /// non-range identity (page/line) matches. Context offsets union
-    /// when present on both sides; otherwise the result has no
-    /// context window.
+    /// when present on both sides; otherwise the result has no context
+    /// window.
     fn try_merge(self, other: Self) -> Option<Self> {
         if self.page_number != other.page_number || self.line_number != other.line_number {
             return None;
@@ -117,28 +157,28 @@ mod tests {
 
     #[test]
     fn len_and_is_empty() {
-        assert_eq!(TextLocation::new(0, 10).len(), 10);
-        assert!(!TextLocation::new(0, 10).is_empty());
-        assert!(TextLocation::new(5, 5).is_empty());
+        assert_eq!(Text::new(0, 10).len(), 10);
+        assert!(!Text::new(0, 10).is_empty());
+        assert!(Text::new(5, 5).is_empty());
     }
 
     #[test]
     fn overlap_intersecting() {
-        assert!(TextLocation::new(0, 10).overlaps(&TextLocation::new(5, 15)));
+        assert!(Text::new(0, 10).overlaps(&Text::new(5, 15)));
     }
 
     #[test]
     fn overlap_contained() {
-        assert!(TextLocation::new(0, 10).overlaps(&TextLocation::new(2, 5)));
+        assert!(Text::new(0, 10).overlaps(&Text::new(2, 5)));
     }
 
     #[test]
     fn no_overlap_adjacent() {
-        assert!(!TextLocation::new(0, 5).overlaps(&TextLocation::new(5, 10)));
+        assert!(!Text::new(0, 5).overlaps(&Text::new(5, 10)));
     }
 
     #[test]
     fn no_overlap_disjoint() {
-        assert!(!TextLocation::new(0, 5).overlaps(&TextLocation::new(10, 15)));
+        assert!(!Text::new(0, 5).overlaps(&Text::new(10, 15)));
     }
 }

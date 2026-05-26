@@ -14,12 +14,13 @@
 use std::collections::{HashMap, HashSet};
 use std::mem;
 
-use nvisy_ontology::entity::{Entities, Entity, EntityKind, Overlap};
+use nvisy_ontology::entity::{Entities, Entity, EntityKind};
+use nvisy_ontology::modality::{AnyModality, Overlap};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::key::GroupKey;
-use crate::envelope::Document;
+use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::group_entities";
 
@@ -83,20 +84,24 @@ pub(super) trait GroupEntities {
     fn group(
         self,
         criteria: GroupingCriteria,
-        document: &Document,
-    ) -> impl Future<Output = Vec<Vec<Entity>>> + Send;
+        envelope: &DocumentEnvelope,
+    ) -> impl Future<Output = Vec<Vec<Entity<AnyModality>>>> + Send;
 }
 
-impl GroupEntities for Entities {
-    async fn group(self, criteria: GroupingCriteria, document: &Document) -> Vec<Vec<Entity>> {
+impl GroupEntities for Entities<AnyModality> {
+    async fn group(
+        self,
+        criteria: GroupingCriteria,
+        envelope: &DocumentEnvelope,
+    ) -> Vec<Vec<Entity<AnyModality>>> {
         let check_overlap = criteria.requires_location_overlap();
         let is_substring = criteria.is_substring();
         let entity_count = self.len();
 
         // Phase 1: bucket by (kind, value).
-        let mut buckets: HashMap<GroupKey, Vec<Entity>> = HashMap::new();
+        let mut buckets: HashMap<GroupKey, Vec<Entity<AnyModality>>> = HashMap::new();
         for entity in self {
-            let key = GroupKey::new(&entity, criteria, document).await;
+            let key = GroupKey::new(&entity, criteria, envelope).await;
             buckets.entry(key).or_default().push(entity);
         }
 
@@ -109,12 +114,12 @@ impl GroupEntities for Entities {
         );
 
         // Phase 2a: within each bucket, sub-group by location overlap.
-        let mut groups: Vec<Vec<Entity>> = Vec::new();
+        let mut groups: Vec<Vec<Entity<AnyModality>>> = Vec::new();
         let mut kind_groups: HashMap<EntityKind, Vec<usize>> = HashMap::new();
 
         for (_key, bucket) in buckets {
             let kind = bucket[0].entity_kind;
-            let mut sub_groups: Vec<Vec<Entity>> = Vec::new();
+            let mut sub_groups: Vec<Vec<Entity<AnyModality>>> = Vec::new();
 
             for entity in bucket {
                 let target = sub_groups.iter_mut().find(|g| {
@@ -154,8 +159,8 @@ impl GroupEntities for Entities {
                         let mut any_value_match = false;
                         for a in &groups[indices[i]] {
                             for b in &groups[indices[j]] {
-                                let va = document.value_at(&a.location).await;
-                                let vb = document.value_at(&b.location).await;
+                                let va = envelope.value_at(&a.location).await;
+                                let vb = envelope.value_at(&b.location).await;
                                 if let (Some(va), Some(vb)) = (va.as_deref(), vb.as_deref())
                                     && criteria.values_match(va, vb)
                                 {

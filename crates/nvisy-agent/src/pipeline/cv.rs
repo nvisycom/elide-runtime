@@ -28,6 +28,7 @@
 use bytes::Bytes;
 use nvisy_core::{Error, ErrorKind, Result};
 use nvisy_ontology::entity::Entity;
+use nvisy_ontology::modality::Image;
 
 use crate::agent::cv::{CvAgent, CvDetection, CvEntity, CvVerifyAgent, VerificationCandidate};
 use crate::agent::{AgentConfig, AgentProvider, LlmNerContext, UsageStats};
@@ -113,7 +114,7 @@ impl CvPipeline {
         &self,
         image_data: &Bytes,
         candidates: Vec<VerificationCandidate>,
-    ) -> Result<Vec<Entity>> {
+    ) -> Result<Vec<Entity<Image>>> {
         self.verifier.verify_entities(image_data, candidates).await
     }
 }

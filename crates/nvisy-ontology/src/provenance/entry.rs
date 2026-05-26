@@ -8,7 +8,7 @@ use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use super::review::ReviewDecision;
-use crate::entity::Location;
+use crate::modality::AnyModality;
 use crate::policy::Strategy;
 
 /// Outcome status of a redaction operation.
@@ -128,7 +128,7 @@ impl AuditEntryBuilder {
         entity_id: Uuid,
         strategy: Strategy,
         original: impl Into<String>,
-        location: &Location,
+        location: &AnyModality,
     ) -> Self {
         let reversible = strategy.is_reversible_for(location);
         self.with_entity_id(entity_id)

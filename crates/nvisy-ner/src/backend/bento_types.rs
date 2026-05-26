@@ -12,6 +12,7 @@
 //! [`BentoNerBackend`]: super::BentoNerBackend
 
 use nvisy_ontology::entity::{Entity, EntityKind, ModelKind, RecognitionMethod};
+use nvisy_ontology::modality::Text;
 use nvisy_ontology::primitive::Confidence;
 use serde::{Deserialize, Serialize};
 
@@ -113,17 +114,17 @@ impl WireEntity {
     /// Convert this wire entity into an ontology [`Entity`],
     /// stamping the model identity reported by the inference
     /// service on the [`RecognitionMethod`].
-    pub fn to_entity(&self, model: &str) -> Entity {
-        Entity::for_text_span(
-            self.kind.category(),
-            self.kind,
-            vec![RecognitionMethod::nlp_ner(
+    pub fn to_entity(&self, model: &str) -> Entity<Text> {
+        Entity::builder()
+            .with_category(self.kind.category())
+            .with_entity_kind(self.kind)
+            .with_recognition_methods(vec![RecognitionMethod::nlp_ner(
                 model.to_owned(),
                 ModelKind::SelfHosted,
-            )],
-            Confidence::clamped(self.score),
-            self.start,
-            self.end,
-        )
+            )])
+            .with_confidence(Confidence::clamped(self.score))
+            .with_location(Text::new(self.start, self.end))
+            .build()
+            .expect("required fields provided")
     }
 }

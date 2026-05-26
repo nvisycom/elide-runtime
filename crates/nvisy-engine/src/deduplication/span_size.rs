@@ -5,7 +5,7 @@
 
 use std::cmp::Ordering;
 
-use nvisy_ontology::entity::Location;
+use nvisy_ontology::modality::AnyModality;
 
 /// Extension trait for comparing the spatial/temporal extent of two
 /// same-modality [`Location`]s.
@@ -32,7 +32,7 @@ pub(super) trait SpanSize {
     fn span_cmp(&self, other: &Self) -> Option<Ordering>;
 }
 
-impl SpanSize for Location {
+impl SpanSize for AnyModality {
     fn span_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (Self::Text(a), Self::Text(b)) => Some(a.len().cmp(&b.len())),
@@ -60,7 +60,7 @@ impl SpanSize for Location {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{AudioLocation, ImageLocation, TextLocation};
+    use nvisy_ontology::entity::{Audio, Image, Text};
     use nvisy_ontology::primitive::{BoundingBox, TimeSpan};
 
     use super::*;
@@ -69,28 +69,28 @@ mod tests {
 
     #[test]
     fn text_larger_span_wins() {
-        let a = Location::Text(TextLocation::new(0, 10));
-        let b = Location::Text(TextLocation::new(0, 5));
+        let a = AnyModality::Text(Text::new(0, 10));
+        let b = AnyModality::Text(Text::new(0, 5));
         assert_eq!(a.span_cmp(&b), Some(Ordering::Greater));
         assert_eq!(b.span_cmp(&a), Some(Ordering::Less));
     }
 
     #[test]
     fn text_equal_spans() {
-        let a = Location::Text(TextLocation::new(0, 5));
-        let b = Location::Text(TextLocation::new(3, 8));
+        let a = AnyModality::Text(Text::new(0, 5));
+        let b = AnyModality::Text(Text::new(3, 8));
         assert_eq!(a.span_cmp(&b), Some(Ordering::Equal));
     }
 
     #[test]
     fn image_larger_area_wins() {
-        let a = Location::Image(ImageLocation::new(BoundingBox {
+        let a = AnyModality::Image(Image::new(BoundingBox {
             x: 0.0,
             y: 0.0,
             width: 100.0,
             height: 100.0,
         }));
-        let b = Location::Image(ImageLocation::new(BoundingBox {
+        let b = AnyModality::Image(Image::new(BoundingBox {
             x: 0.0,
             y: 0.0,
             width: 50.0,
@@ -102,15 +102,15 @@ mod tests {
 
     #[test]
     fn audio_longer_duration_wins() {
-        let a = Location::Audio(AudioLocation::new(TimeSpan::new(0, 10_000_000)));
-        let b = Location::Audio(AudioLocation::new(TimeSpan::new(0, 5_000_000)));
+        let a = AnyModality::Audio(Audio::new(TimeSpan::new(0, 10_000_000)));
+        let b = AnyModality::Audio(Audio::new(TimeSpan::new(0, 5_000_000)));
         assert_eq!(a.span_cmp(&b), Some(Ordering::Greater));
     }
 
     #[test]
     fn cross_modality_returns_none() {
-        let text = Location::Text(TextLocation::new(0, 10));
-        let image = Location::Image(ImageLocation::new(BoundingBox {
+        let text = AnyModality::Text(Text::new(0, 10));
+        let image = AnyModality::Image(Image::new(BoundingBox {
             x: 0.0,
             y: 0.0,
             width: 10.0,

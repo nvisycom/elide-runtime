@@ -5,7 +5,7 @@ use std::fmt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_ontology::entity::TabularLocation;
+use nvisy_ontology::modality::Tabular;
 
 use super::TabularHandler;
 use crate::document::LocationStream;
@@ -45,17 +45,17 @@ impl Handler for BoxedTabularHandler {
 
 #[async_trait::async_trait]
 impl TabularHandler for BoxedTabularHandler {
-    fn locations(&self) -> LocationStream<'_, TabularLocation> {
+    fn locations(&self) -> LocationStream<'_, Tabular> {
         self.0.locations()
     }
 
-    async fn read(&self, location: &TabularLocation) -> Option<TextData> {
+    async fn read(&self, location: &Tabular) -> Option<TextData> {
         self.0.read(location).await
     }
 
     async fn redact_at(
         &mut self,
-        location: &TabularLocation,
+        location: &Tabular,
         redaction: TabularRedaction,
     ) -> Result<(), Error> {
         self.0.redact_at(location, redaction).await

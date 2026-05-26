@@ -5,7 +5,7 @@
 //! Markdown, HTML) live in `nvisy-formats`.
 
 use nvisy_core::Error;
-use nvisy_ontology::entity::TextLocation;
+use nvisy_ontology::modality::Text;
 
 use super::Handler;
 use crate::document::LocationStream;
@@ -23,14 +23,14 @@ pub use self::text_data::TextData;
 
 /// Capability trait for handlers that expose text content.
 ///
-/// Handlers expose text content as a stream of [`TextLocation`]s
+/// Handlers expose text content as a stream of [`Text`]s
 /// (cheap, identity-only), with explicit `read` calls to fetch the
 /// payload for any given location, and a `redact` call that applies a
 /// batch of [`TextRedaction`]s grouped by location.
 ///
 /// # Offset semantics
 ///
-/// Byte offsets in [`TextLocation`] are relative to the handler's
+/// Byte offsets in [`Text`] are relative to the handler's
 /// **serialized** form. For plain text this is identical to the
 /// in-memory form; for JSON and CSV the offsets include formatting
 /// characters (quotes, escapes, delimiters). Use [`read`] to extract
@@ -40,16 +40,16 @@ pub use self::text_data::TextData;
 /// [`read`]: TextHandler::read
 #[async_trait::async_trait]
 pub trait TextHandler: Handler {
-    /// Async stream of [`TextLocation`]s for this document, each
+    /// Async stream of [`Text`]s for this document, each
     /// tagged with the handler's [`ContentSource`].
     ///
     /// [`ContentSource`]: nvisy_core::content::ContentSource
-    fn locations(&self) -> LocationStream<'_, TextLocation>;
+    fn locations(&self) -> LocationStream<'_, Text>;
 
     /// Read the text content at the given location.
     ///
     /// Returns `None` if the location is out of bounds.
-    async fn read(&self, location: &TextLocation) -> Option<TextData>;
+    async fn read(&self, location: &Text) -> Option<TextData>;
 
     /// Apply a single redaction at the given location, mutating in
     /// place. Implementations need not handle iteration or overlap —
@@ -59,7 +59,7 @@ pub trait TextHandler: Handler {
     /// [`redact`]: TextHandler::redact
     async fn redact_at(
         &mut self,
-        location: &TextLocation,
+        location: &Text,
         redaction: TextRedaction,
     ) -> Result<(), Error>;
 
@@ -74,7 +74,7 @@ pub trait TextHandler: Handler {
     /// [`AudioHandler::redact`]: crate::handler::AudioHandler::redact
     async fn redact(
         &mut self,
-        redactions: Redactions<TextLocation, TextRedaction>,
+        redactions: Redactions<Text, TextRedaction>,
     ) -> Result<(), Error> {
         for (location, redaction) in redactions {
             self.redact_at(&location, redaction).await?;

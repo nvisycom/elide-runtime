@@ -6,9 +6,11 @@ use std::fmt;
 use std::sync::Arc;
 
 use nvisy_core::Error;
+use nvisy_ontology::document::Document;
+use nvisy_ontology::modality::Image;
 use tracing::instrument;
 
-use crate::core::{Backend, Context, ImageInput, ImageOutput};
+use crate::core::{Backend, Context, ImageInput};
 
 const TARGET: &str = "nvisy_ocr::engine";
 
@@ -50,25 +52,25 @@ impl Extractor {
         &self,
         image: &ImageInput,
         ctx: Context<'_>,
-    ) -> Result<ImageOutput, Error> {
+    ) -> Result<Document<Image>, Error> {
         let output = self.backend.run(image, ctx).await?;
-        tracing::debug!(target: TARGET, words = output.word_count(), "ocr complete");
+        tracing::debug!(target: TARGET, spans = output.spans().count(), "ocr complete");
         Ok(output)
     }
 
-    /// Run OCR on multiple images, merging the per-image pages
-    /// into one [`ImageOutput`]. See [`Backend::run_batch`] for
+    /// Run OCR on multiple images, merging the per-image blocks
+    /// into one [`Document<Image>`]. See [`Backend::run_batch`] for
     /// the same-source assumption.
     #[instrument(skip_all, fields(count = images.len()))]
     pub async fn extract_batch(
         &self,
         images: &[ImageInput],
         ctx: Context<'_>,
-    ) -> Result<ImageOutput, Error> {
+    ) -> Result<Document<Image>, Error> {
         let output = self.backend.run_batch(images, ctx).await?;
         tracing::debug!(
             target: TARGET,
-            words = output.word_count(),
+            spans = output.spans().count(),
             "batch ocr complete",
         );
         Ok(output)

@@ -22,6 +22,7 @@ pub use self::entry::{
 pub use self::redaction_map::{RedactionMap, RedactionMapping};
 pub use self::review::{ReviewDecision, ReviewStatus};
 use crate::entity::{ContentSource, Entities};
+use crate::modality::AnyModality;
 
 /// A per-document audit trail: detected entities and redaction entries.
 ///
@@ -49,10 +50,13 @@ pub struct Audit {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actor_id: Option<Uuid>,
-    /// Entities detected during the pipeline run.
+    /// Entities detected during the pipeline run, across every
+    /// modality that processed [`source`].
+    ///
+    /// [`source`]: Self::source
     #[builder(default)]
-    #[serde(default, skip_serializing_if = "Entities::is_empty")]
-    pub entities: Entities,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub entities: Entities<AnyModality>,
     /// Per-entity redaction audit entries.
     #[builder(default)]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -66,7 +70,7 @@ impl Audit {
             source,
             run_id: None,
             actor_id: None,
-            entities: Entities::new(),
+            entities: Entities::<AnyModality>::new(),
             entries: Vec::new(),
         }
     }

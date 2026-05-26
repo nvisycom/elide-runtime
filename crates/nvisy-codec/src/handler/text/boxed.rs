@@ -5,7 +5,7 @@ use std::fmt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_ontology::entity::TextLocation;
+use nvisy_ontology::modality::Text;
 
 use super::TextData;
 use crate::document::LocationStream;
@@ -45,17 +45,17 @@ impl Handler for BoxedTextHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for BoxedTextHandler {
-    fn locations(&self) -> LocationStream<'_, TextLocation> {
+    fn locations(&self) -> LocationStream<'_, Text> {
         self.0.locations()
     }
 
-    async fn read(&self, location: &TextLocation) -> Option<TextData> {
+    async fn read(&self, location: &Text) -> Option<TextData> {
         self.0.read(location).await
     }
 
     async fn redact_at(
         &mut self,
-        location: &TextLocation,
+        location: &Text,
         redaction: TextRedaction,
     ) -> Result<(), Error> {
         self.0.redact_at(location, redaction).await

@@ -10,10 +10,10 @@ use crate::handler::TabularRedaction;
 /// error if either offset falls mid-character.
 ///
 /// The intra-cell byte range comes from the redaction's containing
-/// [`TabularLocation`] under the `(location, redaction)` shape — not
+/// [`Tabular`] under the `(location, redaction)` shape — not
 /// from the redaction itself.
 ///
-/// [`TabularLocation`]: nvisy_ontology::entity::TabularLocation
+/// [`Tabular`]: nvisy_ontology::modality::Tabular
 pub fn apply_tabular_redaction(
     cell: &mut String,
     redaction: &TabularRedaction,

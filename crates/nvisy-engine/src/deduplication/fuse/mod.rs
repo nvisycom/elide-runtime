@@ -13,13 +13,14 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 
 use nvisy_ontology::entity::{Entities, Entity, RefinementMethod};
+use nvisy_ontology::modality::AnyModality;
 use nvisy_ontology::primitive::Confidence;
 
 use self::group::GroupEntities;
 pub use self::group::GroupingCriteria;
 pub use self::strategy::DeduplicationStrategy;
 use super::span_size::SpanSize;
-use crate::envelope::Document;
+use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::fuse";
 
@@ -32,23 +33,23 @@ pub(crate) trait Fuse {
         &mut self,
         strategy: &DeduplicationStrategy,
         criteria: GroupingCriteria,
-        document: &Document,
+        envelope: &DocumentEnvelope,
     ) -> impl Future<Output = ()> + Send;
 }
 
-impl Fuse for Entities {
+impl Fuse for Entities<AnyModality> {
     async fn fuse(
         &mut self,
         strategy: &DeduplicationStrategy,
         criteria: GroupingCriteria,
-        document: &Document,
+        envelope: &DocumentEnvelope,
     ) {
         if self.len() <= 1 {
             return;
         }
 
         let entities = std::mem::take(self);
-        let groups = entities.group(criteria, document).await;
+        let groups = entities.group(criteria, envelope).await;
 
         tracing::debug!(
             target: TARGET,
@@ -58,7 +59,7 @@ impl Fuse for Entities {
         );
 
         for group in groups {
-            self.push(fuse_group(strategy, group, document).await);
+            self.push(fuse_group(strategy, group, envelope).await);
         }
     }
 }
@@ -66,9 +67,9 @@ impl Fuse for Entities {
 /// Fuse a group of co-referent entities into one.
 async fn fuse_group(
     strategy: &DeduplicationStrategy,
-    mut group: Vec<Entity>,
-    document: &Document,
-) -> Entity {
+    mut group: Vec<Entity<AnyModality>>,
+    envelope: &DocumentEnvelope,
+) -> Entity<AnyModality> {
     debug_assert!(!group.is_empty());
 
     if group.len() == 1 {
@@ -135,7 +136,7 @@ async fn fuse_group(
         Confidence::new(fused_confidence.clamp(0.0, 1.0)).expect("clamped to [0,1]");
     result.refinement_methods.push(refinement);
 
-    let value = document
+    let value = envelope
         .value_at(&result.location)
         .await
         .unwrap_or_default();
@@ -154,7 +155,7 @@ async fn fuse_group(
 
 /// Classify how the group was formed (all same detector kind → Dedup,
 /// mixed → Ensemble).
-fn classify_refinement(group: &[Entity]) -> RefinementMethod {
+fn classify_refinement(group: &[Entity<AnyModality>]) -> RefinementMethod {
     let first_kinds: HashSet<_> = group[0]
         .recognition_methods
         .iter()

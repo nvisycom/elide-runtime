@@ -17,12 +17,13 @@ use nvisy_codec::handler::{ConflictPolicy, Redactions, TextOutput, TextRedaction
 use nvisy_codec::handler::{ImageOutput, ImageRedaction};
 use nvisy_core::{Error, Result};
 #[cfg(feature = "audio")]
-use nvisy_ontology::entity::AudioLocation;
+use nvisy_ontology::modality::Audio;
 #[cfg(feature = "image")]
-use nvisy_ontology::entity::ImageLocation;
+use nvisy_ontology::modality::Image;
 #[cfg(feature = "tabular")]
-use nvisy_ontology::entity::TabularLocation;
-use nvisy_ontology::entity::{Entity, EntityKind, Location, TextLocation};
+use nvisy_ontology::modality::Tabular;
+use nvisy_ontology::entity::{Entity, EntityKind};
+use nvisy_ontology::modality::{AnyModality, Text};
 #[cfg(feature = "audio")]
 use nvisy_ontology::policy::AudioStrategy;
 #[cfg(feature = "image")]
@@ -56,30 +57,27 @@ impl<'a> RedactionApplicator<'a> {
 
         let text = self.build_text_redactions(&entity_map).await?;
         if !text.is_empty() {
-            self.envelope.document.apply_text_redactions(text).await?;
+            self.envelope.apply_text_redactions(text).await?;
         }
         #[cfg(feature = "tabular")]
         {
             let tabular = self.build_tabular_redactions(&entity_map).await?;
             if !tabular.is_empty() {
-                self.envelope
-                    .document
-                    .apply_tabular_redactions(tabular)
-                    .await?;
+                self.envelope.apply_tabular_redactions(tabular).await?;
             }
         }
         #[cfg(feature = "image")]
         {
             let image = self.build_image_redactions(&entity_map)?;
             if !image.is_empty() {
-                self.envelope.document.apply_image_redactions(image).await?;
+                self.envelope.apply_image_redactions(image).await?;
             }
         }
         #[cfg(feature = "audio")]
         {
             let audio = self.build_audio_redactions(&entity_map)?;
             if !audio.is_empty() {
-                self.envelope.document.apply_audio_redactions(audio).await?;
+                self.envelope.apply_audio_redactions(audio).await?;
             }
         }
 
@@ -88,8 +86,8 @@ impl<'a> RedactionApplicator<'a> {
 
     async fn build_text_redactions(
         &mut self,
-        entity_map: &HashMap<Uuid, Entity>,
-    ) -> Result<Redactions<TextLocation, TextRedaction>> {
+        entity_map: &HashMap<Uuid, Entity<AnyModality>>,
+    ) -> Result<Redactions<Text, TextRedaction>> {
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
@@ -100,14 +98,13 @@ impl<'a> RedactionApplicator<'a> {
             let Some(entity) = entity_map.get(&record.entity_id) else {
                 continue;
             };
-            let Location::Text(ref loc) = entity.location else {
+            let AnyModality::Text(ref loc) = entity.location else {
                 continue;
             };
 
             let strategy = record.redaction.strategy.text_or_default();
             let value = self
                 .envelope
-                .document
                 .read_text(loc)
                 .await
                 .map(|d| d.into_inner())
@@ -138,8 +135,8 @@ impl<'a> RedactionApplicator<'a> {
     #[cfg(feature = "tabular")]
     async fn build_tabular_redactions(
         &mut self,
-        entity_map: &HashMap<Uuid, Entity>,
-    ) -> Result<Redactions<TabularLocation, TabularRedaction>> {
+        entity_map: &HashMap<Uuid, Entity<AnyModality>>,
+    ) -> Result<Redactions<Tabular, TabularRedaction>> {
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
@@ -150,14 +147,13 @@ impl<'a> RedactionApplicator<'a> {
             let Some(entity) = entity_map.get(&record.entity_id) else {
                 continue;
             };
-            let Location::Tabular(ref loc) = entity.location else {
+            let AnyModality::Tabular(ref loc) = entity.location else {
                 continue;
             };
 
             let strategy = record.redaction.strategy.text_or_default();
             let value = self
                 .envelope
-                .document
                 .read_tabular(loc)
                 .await
                 .map(|d| d.into_inner())
@@ -190,8 +186,8 @@ impl<'a> RedactionApplicator<'a> {
     #[cfg(feature = "image")]
     fn build_image_redactions(
         &mut self,
-        entity_map: &HashMap<Uuid, Entity>,
-    ) -> Result<Redactions<ImageLocation, ImageRedaction>> {
+        entity_map: &HashMap<Uuid, Entity<AnyModality>>,
+    ) -> Result<Redactions<Image, ImageRedaction>> {
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
@@ -202,7 +198,7 @@ impl<'a> RedactionApplicator<'a> {
             let Some(entity) = entity_map.get(&record.entity_id) else {
                 continue;
             };
-            let Location::Image(ref loc) = entity.location else {
+            let AnyModality::Image(ref loc) = entity.location else {
                 continue;
             };
 
@@ -237,8 +233,8 @@ impl<'a> RedactionApplicator<'a> {
     #[cfg(feature = "audio")]
     fn build_audio_redactions(
         &mut self,
-        entity_map: &HashMap<Uuid, Entity>,
-    ) -> Result<Redactions<AudioLocation, AudioRedaction>> {
+        entity_map: &HashMap<Uuid, Entity<AnyModality>>,
+    ) -> Result<Redactions<Audio, AudioRedaction>> {
         let mut redactions = Redactions::new(ConflictPolicy::Reject);
 
         for i in 0..self.envelope.audit.entries.len() {
@@ -249,7 +245,7 @@ impl<'a> RedactionApplicator<'a> {
             let Some(entity) = entity_map.get(&record.entity_id) else {
                 continue;
             };
-            let Location::Audio(ref loc) = entity.location else {
+            let AnyModality::Audio(ref loc) = entity.location else {
                 continue;
             };
 
@@ -285,12 +281,12 @@ impl<'a> RedactionApplicator<'a> {
 }
 
 /// Build a lookup map from entity UUID to a cloned entity.
-fn entity_map(entities: &nvisy_ontology::entity::Entities) -> HashMap<Uuid, Entity> {
+fn entity_map(entities: &nvisy_ontology::entity::Entities<AnyModality>) -> HashMap<Uuid, Entity<AnyModality>> {
     entities.iter().map(|e| (e.id, e.clone())).collect()
 }
 
 /// Compute the codec [`TextOutput`] for a value + entity + strategy.
-fn text_output(value: &str, entity: &Entity, strategy: &TextStrategy) -> TextOutput {
+fn text_output(value: &str, entity: &Entity<AnyModality>, strategy: &TextStrategy) -> TextOutput {
     match strategy {
         TextStrategy::Mask { mask_char } => {
             // Repeat by character count, not byte length: a 2-byte
@@ -384,7 +380,8 @@ fn pseudonymize(entity_kind: &EntityKind, value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
-    use nvisy_ontology::entity::{Entities, Entity, EntityKind, Location, TabularLocation};
+    use nvisy_ontology::entity::{Entities, Entity, EntityKind};
+    use nvisy_ontology::modality::{AnyModality, Tabular};
     use nvisy_ontology::policy::{ImageStrategy, Strategy};
     use nvisy_ontology::provenance::{AuditEntry, RedactionMapping};
 
@@ -396,7 +393,7 @@ mod tests {
     }
 
     fn tabular_entity(row: usize, col: usize, start: usize, end: usize) -> Entity {
-        let loc = TabularLocation {
+        let loc = Tabular {
             row_index: row,
             column_index: col,
             start_offset: Some(start),

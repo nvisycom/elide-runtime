@@ -14,14 +14,14 @@ const TARGET: &str = "nvisy_codec::handler::audio";
 /// is the sample rate in Hz. The redaction expresses its range as a
 /// [`TimeSpan`] supplied separately by the caller — under the
 /// `(location, redaction)` shape the time span lives on the
-/// [`AudioLocation`], not the redaction.
+/// [`Audio`], not the redaction.
 ///
 /// Ordering across multiple redactions is the caller's
 /// responsibility: an [`AudioOutput::Remove`] shrinks the buffer, so
 /// later time spans must be applied first to keep earlier ones'
 /// indices valid. See [`AudioHandler::redact`].
 ///
-/// [`AudioLocation`]: nvisy_ontology::entity::AudioLocation
+/// [`Audio`]: nvisy_ontology::modality::Audio
 /// [`AudioHandler::redact`]: crate::handler::AudioHandler::redact
 pub fn apply_audio_redaction<S>(
     samples: &mut Vec<S>,

@@ -17,4 +17,4 @@ compile_error!(
 pub mod document;
 pub mod handler;
 
-pub use self::document::{ContentHandle, Located, LocationStream, Span};
+pub use self::document::{DocumentHandle, Located, LocationStream, Span};

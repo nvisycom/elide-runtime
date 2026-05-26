@@ -5,7 +5,7 @@ use std::fmt;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_ontology::entity::AudioLocation;
+use nvisy_ontology::modality::Audio;
 
 use super::AudioData;
 use crate::document::LocationStream;
@@ -45,17 +45,17 @@ impl Handler for BoxedAudioHandler {
 
 #[async_trait::async_trait]
 impl AudioHandler for BoxedAudioHandler {
-    fn locations(&self) -> LocationStream<'_, AudioLocation> {
+    fn locations(&self) -> LocationStream<'_, Audio> {
         self.0.locations()
     }
 
-    async fn read(&self, location: &AudioLocation) -> Option<AudioData> {
+    async fn read(&self, location: &Audio) -> Option<AudioData> {
         self.0.read(location).await
     }
 
     async fn redact_at(
         &mut self,
-        location: &AudioLocation,
+        location: &Audio,
         redaction: AudioRedaction,
     ) -> Result<(), Error> {
         self.0.redact_at(location, redaction).await

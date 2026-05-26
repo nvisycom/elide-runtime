@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use crate::handler::Mergeable;
 
 /// An audio redaction: the *how*. The *where* (time span, speaker,
-/// audio id) lives on the containing [`AudioLocation`] via
+/// audio id) lives on the containing [`Audio`] via
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
-/// [`AudioLocation`]: nvisy_ontology::entity::AudioLocation
+/// [`Audio`]: nvisy_ontology::modality::Audio
 /// [`Redactions`]: crate::handler::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioRedaction {

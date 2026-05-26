@@ -25,7 +25,7 @@ pub use self::image::ImageStrategy;
 pub use self::text::TextStrategy;
 use super::condition::Condition;
 use super::selector::EntitySelector;
-use crate::entity::Location;
+use crate::modality::AnyModality;
 
 /// A composed redaction strategy across all modalities.
 ///
@@ -130,13 +130,13 @@ impl Strategy {
     /// are reversible: Encrypt uses key-based decryption, Tokenize
     /// uses vault-based detokenization. All other strategies are
     /// destructive.
-    pub fn is_reversible_for(&self, location: &Location) -> bool {
+    pub fn is_reversible_for(&self, location: &AnyModality) -> bool {
         match location {
-            Location::Text(_) | Location::Tabular(_) => matches!(
+            AnyModality::Text(_) | AnyModality::Tabular(_) => matches!(
                 self.text_or_default(),
                 TextStrategy::Encrypt { .. } | TextStrategy::Tokenize { .. },
             ),
-            Location::Image(_) | Location::Audio(_) => false,
+            AnyModality::Image(_) | AnyModality::Audio(_) => false,
         }
     }
 }

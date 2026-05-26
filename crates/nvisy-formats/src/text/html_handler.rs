@@ -14,7 +14,7 @@ use nvisy_codec::handler::{Handler, TextData, TextHandler, TextRedaction, apply_
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_ontology::entity::TextLocation;
+use nvisy_ontology::modality::Text;
 
 const TARGET: &str = "html-handler";
 
@@ -73,7 +73,7 @@ impl Handler for HtmlHandler {
 
 #[async_trait::async_trait]
 impl TextHandler for HtmlHandler {
-    fn locations(&self) -> LocationStream<'_, TextLocation> {
+    fn locations(&self) -> LocationStream<'_, Text> {
         let source = self.source;
         let mut items = Vec::with_capacity(self.data.text_nodes.len());
         let mut offset = 0usize;
@@ -82,7 +82,7 @@ impl TextHandler for HtmlHandler {
             let end = start + text.len();
             items.push(Located::new(
                 source,
-                TextLocation {
+                Text {
                     start_offset: start,
                     end_offset: end,
                     ..Default::default()
@@ -93,7 +93,7 @@ impl TextHandler for HtmlHandler {
         LocationStream::new(futures::stream::iter(items))
     }
 
-    async fn read(&self, location: &TextLocation) -> Option<TextData> {
+    async fn read(&self, location: &Text) -> Option<TextData> {
         let offsets = self.node_offsets();
         let idx = offsets
             .iter()
@@ -103,7 +103,7 @@ impl TextHandler for HtmlHandler {
 
     async fn redact_at(
         &mut self,
-        location: &TextLocation,
+        location: &Text,
         redaction: TextRedaction,
     ) -> Result<(), Error> {
         let offsets = self.node_offsets();

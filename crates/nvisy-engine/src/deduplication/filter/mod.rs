@@ -11,6 +11,7 @@
 //! [`Deduplicator::confidence_threshold`]: super::Deduplicator
 
 use nvisy_ontology::entity::{Entities, Entity, EntityKind};
+use nvisy_ontology::modality::AnyModality;
 
 /// Per-call filtering knobs applied during deduplication.
 ///
@@ -31,11 +32,11 @@ pub struct FilterParams {
 pub(crate) trait Filter {
     /// Remove entities not passing `params` in-place; return the
     /// removed entities for downstream telemetry (#182).
-    fn filter(&mut self, params: &FilterParams) -> Entities;
+    fn filter(&mut self, params: &FilterParams) -> Entities<AnyModality>;
 }
 
-impl Filter for Entities {
-    fn filter(&mut self, params: &FilterParams) -> Entities {
+impl Filter for Entities<AnyModality> {
+    fn filter(&mut self, params: &FilterParams) -> Entities<AnyModality> {
         let mut dropped = Entities::new();
         self.0.retain(|e| {
             let keep = passes(e, params);
@@ -48,7 +49,7 @@ impl Filter for Entities {
     }
 }
 
-fn passes(entity: &Entity, params: &FilterParams) -> bool {
+fn passes(entity: &Entity<AnyModality>, params: &FilterParams) -> bool {
     if let Some(ref kinds) = params.allowed_kinds
         && !kinds.contains(&entity.entity_kind)
     {

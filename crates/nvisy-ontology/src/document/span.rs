@@ -1,48 +1,50 @@
-//! [`Span`] — a range of recognized text tagged with its source location.
+//! [`Span`] — a range within a [`Block`]'s flat text, tagged with its
+//! source coordinates.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::entity::Location;
+use crate::modality::Modality;
+use crate::primitive::Confidence;
 
-/// A range of text within a [`Chunk`]'s flat `text`, paired with
-/// the [`Location`] of where that text came from in the source
-/// document.
+/// A range of text within a [`Block`]'s flat `text`, paired with the
+/// source coordinates of where that text came from.
 ///
-/// Source-mapped granularity is one span per recognized unit:
-/// - one span per OCR word for image pages,
+/// Source-mapped granularity is typically one span per recognized unit:
+/// - one span per OCR word for image blocks,
 /// - one span per cell for tabular rows,
-/// - one span per transcribed segment for audio,
+/// - one span per transcribed word for audio,
 /// - one span per text run for natively-extracted text.
 ///
-/// Detection consumes the flat text and produces entity offsets
-/// into it; redaction looks up the span at those offsets and
-/// dispatches on the [`Location`] variant.
+/// Detection consumes the flat text and produces entity offsets into
+/// it; redaction looks up the span at those offsets and dispatches on
+/// `source`.
 ///
-/// [`Chunk`]: super::Chunk
+/// [`Block`]: super::Block
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Span {
-    /// Byte offset into the chunk's `text` where this span starts.
+#[serde(rename_all = "camelCase", bound(
+    serialize = "M: Serialize",
+    deserialize = "M: serde::de::DeserializeOwned",
+))]
+#[schemars(bound = "M: JsonSchema")]
+pub struct Span<M: Modality> {
+    /// Byte offset into the block's `text` where this span starts.
     pub text_start: usize,
-    /// Byte offset into the chunk's `text` where this span ends
+    /// Byte offset into the block's `text` where this span ends
     /// (exclusive).
     pub text_end: usize,
-    /// Confidence in the recognized text (`0.0..=1.0`). Populated
-    /// for OCR and STT spans; absent for native text-layer
-    /// extractions where the source already provides the text
-    /// directly.
+    /// Recognition confidence in this span. Populated for OCR and STT
+    /// spans; absent for native text-layer extractions where the
+    /// source already provides the text directly.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<f64>,
-    /// Where in the source this text came from. Reuses the
-    /// canonical [`Location`] enum used by entities so redaction
-    /// dispatches uniformly.
-    pub source: Location,
+    pub confidence: Option<Confidence>,
+    /// Source coordinates of where this text came from.
+    pub source: M,
 }
 
-impl Span {
-    /// Byte length of the span in the chunk's `text` (`text_end -
+impl<M: Modality> Span<M> {
+    /// Byte length of the span in the block's `text` (`text_end -
     /// text_start`).
     pub fn len(&self) -> usize {
         self.text_end.saturating_sub(self.text_start)
@@ -69,14 +71,14 @@ impl Span {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entity::TextLocation;
+    use crate::modality::Text;
 
-    fn span(start: usize, end: usize) -> Span {
+    fn span(start: usize, end: usize) -> Span<Text> {
         Span {
             text_start: start,
             text_end: end,
             confidence: None,
-            source: Location::Text(TextLocation::new(start, end)),
+            source: Text::new(start, end),
         }
     }
 
@@ -103,13 +105,13 @@ mod tests {
     #[test]
     fn overlap_detects_partial_and_full_overlaps() {
         let s = span(10, 20);
-        assert!(s.overlaps(5, 12));    // overlaps start
-        assert!(s.overlaps(15, 25));   // overlaps end
-        assert!(s.overlaps(12, 18));   // fully inside
-        assert!(s.overlaps(0, 100));   // fully contains
-        assert!(!s.overlaps(0, 10));   // touches but doesn't overlap
-        assert!(!s.overlaps(20, 30));  // touches but doesn't overlap
-        assert!(!s.overlaps(0, 5));    // disjoint left
-        assert!(!s.overlaps(25, 30));  // disjoint right
+        assert!(s.overlaps(5, 12));
+        assert!(s.overlaps(15, 25));
+        assert!(s.overlaps(12, 18));
+        assert!(s.overlaps(0, 100));
+        assert!(!s.overlaps(0, 10));
+        assert!(!s.overlaps(20, 30));
+        assert!(!s.overlaps(0, 5));
+        assert!(!s.overlaps(25, 30));
     }
 }

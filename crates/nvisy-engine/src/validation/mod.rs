@@ -9,6 +9,7 @@ mod workflow;
 
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entities;
+use nvisy_ontology::modality::AnyModality;
 use nvisy_ontology::provenance::AuditEntry;
 use uuid::Uuid;
 
@@ -51,10 +52,10 @@ impl Validator {
     /// values are counted as passed — visual and temporal redaction
     /// verification is not yet implemented.
     async fn check(
-        entities: &Entities,
+        entities: &Entities<AnyModality>,
         records: &[AuditEntry],
         redacted_text: Option<&str>,
-        document: &crate::envelope::Document,
+        envelope: &DocumentEnvelope,
     ) -> ValidationResult {
         let mut passed = 0usize;
         let mut leaked = Vec::new();
@@ -67,7 +68,7 @@ impl Validator {
                 let entity = entities.iter().find(|e| e.id == record.entity_id);
 
                 if let Some(entity) = entity {
-                    if let Some(value) = document.value_at(&entity.location).await {
+                    if let Some(value) = envelope.value_at(&entity.location).await {
                         let lower_value = value.to_lowercase();
                         if !value.is_empty() && lower_text.contains(&lower_value) {
                             leaked.push(LeakedValue {
@@ -95,13 +96,13 @@ impl Validator {
     pub async fn execute(&self, envelope: &mut DocumentEnvelope) -> Result<()> {
         tracing::debug!(target: TARGET, "running post-redaction validation");
 
-        let locations = envelope.document.collect_text_locations().await;
+        let locations = envelope.collect_text_locations().await;
         let redacted_text = if locations.is_empty() {
             None
         } else {
             let mut buf = String::new();
             for located in &locations {
-                if let Some(data) = envelope.document.read_text(&located.location).await {
+                if let Some(data) = envelope.read_text(&located.location).await {
                     buf.push_str(data.as_str());
                 }
             }
@@ -112,7 +113,7 @@ impl Validator {
             &envelope.audit.entities,
             &envelope.audit.entries,
             redacted_text.as_deref(),
-            &envelope.document,
+            envelope,
         )
         .await;
 

@@ -18,7 +18,7 @@ use nvisy_codec::handler::{AudioData, AudioHandler, AudioRedaction, Handler};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{AudioFormat, DocumentType};
-use nvisy_ontology::entity::AudioLocation;
+use nvisy_ontology::modality::Audio;
 use nvisy_ontology::primitive::TimeSpan;
 
 const TARGET: &str = "mp3-handler";
@@ -70,21 +70,21 @@ impl Handler for Mp3Handler {
 
 #[async_trait::async_trait]
 impl AudioHandler for Mp3Handler {
-    fn locations(&self) -> LocationStream<'_, AudioLocation> {
-        let location = AudioLocation::new(TimeSpan::new(0, 0));
+    fn locations(&self) -> LocationStream<'_, Audio> {
+        let location = Audio::new(TimeSpan::new(0, 0));
         LocationStream::new(futures::stream::iter(std::iter::once(Located::new(
             self.source,
             location,
         ))))
     }
 
-    async fn read(&self, _location: &AudioLocation) -> Option<AudioData> {
+    async fn read(&self, _location: &Audio) -> Option<AudioData> {
         Some(AudioData::new(self.bytes.clone()))
     }
 
     async fn redact_at(
         &mut self,
-        _location: &AudioLocation,
+        _location: &Audio,
         _redaction: AudioRedaction,
     ) -> Result<(), Error> {
         Err(Error::validation(
@@ -104,7 +104,7 @@ mod tests {
     #[tokio::test]
     async fn redact_with_entries_errors() {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
-        let location = AudioLocation::new(TimeSpan::new(0, 1_000));
+        let location = Audio::new(TimeSpan::new(0, 1_000));
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(location, AudioRedaction::new(AudioOutput::Silence))
             .unwrap();
@@ -118,7 +118,7 @@ mod tests {
     #[tokio::test]
     async fn empty_redactions_is_noop() {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
-        let rs: Redactions<AudioLocation, AudioRedaction> = Redactions::default();
+        let rs: Redactions<Audio, AudioRedaction> = Redactions::default();
         handler.redact(rs).await.unwrap();
     }
 }

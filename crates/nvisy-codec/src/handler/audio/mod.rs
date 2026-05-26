@@ -7,7 +7,7 @@
 use std::cmp::Reverse;
 
 use nvisy_core::Error;
-use nvisy_ontology::entity::AudioLocation;
+use nvisy_ontology::modality::Audio;
 
 use super::Handler;
 use crate::document::LocationStream;
@@ -26,7 +26,7 @@ pub use self::instruction::{AudioOutput, AudioRedaction};
 /// Capability trait for handlers that expose audio content.
 ///
 /// Handlers implement three narrow operations:
-/// - [`locations`]: cheap, identity-only stream of [`AudioLocation`]s.
+/// - [`locations`]: cheap, identity-only stream of [`Audio`]s.
 /// - [`read`]: fetch the payload for the time range identified by a
 ///   location.
 /// - [`redact_at`]: apply a single redaction at a single time range.
@@ -43,22 +43,22 @@ pub use self::instruction::{AudioOutput, AudioRedaction};
 /// [`AudioOutput::Remove`]: crate::handler::AudioOutput::Remove
 #[async_trait::async_trait]
 pub trait AudioHandler: Handler {
-    /// Async stream of [`AudioLocation`]s for this document, each
+    /// Async stream of [`Audio`]s for this document, each
     /// tagged with the handler's [`ContentSource`].
     ///
     /// [`ContentSource`]: nvisy_core::content::ContentSource
-    fn locations(&self) -> LocationStream<'_, AudioLocation>;
+    fn locations(&self) -> LocationStream<'_, Audio>;
 
     /// Read the audio segment at the given location (time-span slice).
     ///
     /// Returns `None` if the location is out of bounds.
-    async fn read(&self, location: &AudioLocation) -> Option<AudioData>;
+    async fn read(&self, location: &Audio) -> Option<AudioData>;
 
     /// Apply a single redaction to the time range identified by
     /// `location`, mutating in place.
     async fn redact_at(
         &mut self,
-        location: &AudioLocation,
+        location: &Audio,
         redaction: AudioRedaction,
     ) -> Result<(), Error>;
 
@@ -67,7 +67,7 @@ pub trait AudioHandler: Handler {
     /// error aborts the batch.
     async fn redact(
         &mut self,
-        redactions: Redactions<AudioLocation, AudioRedaction>,
+        redactions: Redactions<Audio, AudioRedaction>,
     ) -> Result<(), Error> {
         let mut items: Vec<_> = redactions.into_iter().collect();
         items.sort_by_key(|(loc, _)| Reverse(loc.time_span.start_us));

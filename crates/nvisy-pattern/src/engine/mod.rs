@@ -32,6 +32,7 @@ use std::fmt;
 use std::sync::LazyLock;
 
 use nvisy_ontology::entity::Entity;
+use nvisy_ontology::modality::Text;
 use regex::RegexSet;
 
 pub use self::builder::PatternEngineBuilder;
@@ -93,18 +94,19 @@ impl PatternEngine {
         PatternEngineBuilder::default()
     }
 
-    /// Scan `text` and return detected entities with [`TextLocation`]s.
+    /// Scan `text` and return detected entities with [`Text`]
+    /// locations.
     ///
     /// Matches whose value appears in the allow list are suppressed.
     /// Deny-list values found in the text are injected as synthetic
     /// matches with confidence `1.0` when not already matched.
     ///
-    /// Each entity carries a [`TextLocation`] with `start_offset` and
-    /// `end_offset` set from the match.
+    /// Each entity carries a [`Text`] coordinate with `start_offset`
+    /// and `end_offset` set from the match.
     ///
-    /// [`TextLocation`]: nvisy_ontology::entity::TextLocation
+    /// [`Text`]: nvisy_ontology::modality::Text
     #[tracing::instrument(level = "trace", target = TARGET, skip(self, text, ctx), fields(text_len = text.len(), entities = tracing::field::Empty))]
-    pub fn scan_entities(&self, text: &str, ctx: &PatternContext) -> Vec<Entity> {
+    pub fn scan_entities(&self, text: &str, ctx: &PatternContext) -> Vec<Entity<Text>> {
         let mut candidates = self.scan_raw(text, ctx);
 
         // Apply context-based confidence adjustment before threshold
@@ -113,7 +115,7 @@ impl PatternEngine {
         ContextEnhancer::new(text, &ctx.hints).enhance(&mut candidates);
 
         let threshold = self.confidence_threshold;
-        let entities: Vec<Entity> = candidates
+        let entities: Vec<Entity<Text>> = candidates
             .into_iter()
             .filter(|c| c.entity.confidence.get() >= threshold)
             .map(|c| {
@@ -250,8 +252,7 @@ mod tests {
 
     /// Span of a candidate's text location.
     fn span(c: &EntityCandidate) -> (usize, usize) {
-        let t = c.entity.location.as_text().expect("text-located");
-        (t.start_offset, t.end_offset)
+        (c.entity.location.start_offset, c.entity.location.end_offset)
     }
 
     #[test]

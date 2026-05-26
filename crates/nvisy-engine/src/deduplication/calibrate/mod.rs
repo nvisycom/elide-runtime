@@ -11,6 +11,7 @@
 use std::collections::HashMap;
 
 use nvisy_ontology::entity::{Entities, RecognitionMethodKind, RefinementMethod};
+use nvisy_ontology::modality::AnyModality;
 use nvisy_ontology::primitive::Confidence;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::calibration";
@@ -34,7 +35,7 @@ pub(crate) trait Calibrate {
     fn calibrate(&mut self, calibration: &CalibrationMap);
 }
 
-impl Calibrate for Entities {
+impl Calibrate for Entities<AnyModality> {
     fn calibrate(&mut self, calibration: &CalibrationMap) {
         if calibration.is_empty() {
             return;

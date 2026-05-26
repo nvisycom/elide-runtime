@@ -10,13 +10,14 @@
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::entity::{Entities, Entity};
+use nvisy_ontology::modality::AnyModality;
 use nvisy_ontology::policy::{Action, Condition, Strategy, StrategyPolicy};
 use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, RedactionMapping};
 use uuid::Uuid;
 
 use super::apply::RedactionApplicator;
 use super::defaults::RedactionDefaults;
-use crate::envelope::{Document, DocumentEnvelope};
+use crate::envelope::DocumentEnvelope;
 use crate::redaction::Redaction as RedactionConfig;
 
 const TARGET: &str = "nvisy_engine::redaction";
@@ -71,8 +72,8 @@ impl Redactor {
             &defaults,
             self.default_threshold,
             &document_labels,
-            &envelope.document.metadata,
-            &envelope.document,
+            &envelope.metadata,
+            envelope,
         )
         .await;
         envelope.audit.entries.extend(entries);
@@ -93,13 +94,13 @@ impl Redactor {
 /// threshold. Every entry stores a complete `Strategy`; at apply time
 /// the per-modality method is resolved via [`Strategy::for_location`].
 async fn evaluate(
-    entities: &Entities,
+    entities: &Entities<AnyModality>,
     strategies: &[(Uuid, &StrategyPolicy)],
     defaults: &Strategy,
     default_threshold: f64,
     document_labels: &[&str],
     metadata: &ContentMetadata,
-    document: &Document,
+    envelope: &DocumentEnvelope,
 ) -> (Vec<AuditEntry>, Vec<RedactionMapping>) {
     let mut entries = Vec::new();
     let mut mappings = Vec::new();
@@ -133,7 +134,7 @@ async fn evaluate(
         if suppress_wins {
             let (policy_id, _) = matching[best_suppress_idx.expect("suppress_wins implies Some")];
             let entity_id = entity.id;
-            let original_value = document
+            let original_value = envelope
                 .value_at(&entity.location)
                 .await
                 .unwrap_or_else(|| format!("[{}]", entity.location));
@@ -198,7 +199,7 @@ async fn evaluate(
         strategy.merge(defaults);
 
         let entity_id = entity.id;
-        let original_value = document
+        let original_value = envelope
             .value_at(&entity.location)
             .await
             .unwrap_or_else(|| format!("[{}]", entity.location));
@@ -249,7 +250,7 @@ async fn evaluate(
 /// [`Policies::all_strategies`]: nvisy_ontology::policy::Policies::all_strategies
 fn matching_strategies<'a>(
     strategies: &[(Uuid, &'a StrategyPolicy)],
-    entity: &Entity,
+    entity: &Entity<AnyModality>,
     document_labels: &[&str],
     metadata: &ContentMetadata,
 ) -> Vec<(Uuid, &'a StrategyPolicy)> {

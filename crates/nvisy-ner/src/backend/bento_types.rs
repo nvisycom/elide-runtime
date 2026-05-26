@@ -1,7 +1,6 @@
 //! Wire types for the externalised `inference-gliner` Bento.
 //!
-//! Mirror of `nvisy_core.ner.v1` from
-//! [`nvisycom/inference`](https://github.com/nvisycom/inference).
+//! Mirror of `nvisy_core.ner.v1` from [`nvisycom/inference`].
 //! Schema version v1. Field names are camelCase on the wire to match
 //! the Python service.
 //!
@@ -10,6 +9,7 @@
 //! and easy to grep when the upstream schema changes.
 //!
 //! [`BentoNerBackend`]: super::BentoNerBackend
+//! [`nvisycom/inference`]: https://github.com/nvisycom/inference
 
 use nvisy_ontology::entity::{Entity, EntityKind, ModelKind, RecognitionMethod};
 use nvisy_ontology::modality::Text;

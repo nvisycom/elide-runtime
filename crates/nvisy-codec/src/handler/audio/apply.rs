@@ -19,10 +19,12 @@ const TARGET: &str = "nvisy_codec::handler::audio";
 /// Ordering across multiple redactions is the caller's
 /// responsibility: an [`AudioOutput::Remove`] shrinks the buffer, so
 /// later time spans must be applied first to keep earlier ones'
-/// indices valid. See [`AudioHandler::redact`].
+/// indices valid. Audio handlers typically override
+/// [`Handle::redact`] to use [`sort_redactions_for_audio`].
 ///
 /// [`Audio`]: nvisy_ontology::modality::Audio
-/// [`AudioHandler::redact`]: crate::handler::AudioHandler::redact
+/// [`Handle::redact`]: crate::handler::Handle::redact
+/// [`sort_redactions_for_audio`]: crate::handler::sort_redactions_for_audio
 pub fn apply_audio_redaction<S>(
     samples: &mut Vec<S>,
     time_span: TimeSpan,

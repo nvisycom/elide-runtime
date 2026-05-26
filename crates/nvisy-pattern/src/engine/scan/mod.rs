@@ -2,11 +2,11 @@
 //! intermediate type, and the per-phase scan logic.
 //!
 //! None of these types are part of the public API. The orchestration
-//! lives in [`PatternEngine::scan_entities`]; cross-recognizer
+//! lives in [`PatternEngine::scan`]; cross-recognizer
 //! deduplication is the engine layer's responsibility, not this
 //! crate's.
 //!
-//! [`PatternEngine::scan_entities`]: super::PatternEngine::scan_entities
+//! [`PatternEngine::scan`]: super::PatternEngine::scan
 
 pub(super) mod candidate;
 pub(super) mod enhancer;

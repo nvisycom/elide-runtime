@@ -24,15 +24,15 @@ pub use self::span::Span;
 pub use self::stream::LocationStream;
 #[cfg(feature = "rich")]
 use crate::handler::RichHandle;
-#[cfg(feature = "audio")]
-use crate::handler::{AudioData, AudioRedaction};
-#[cfg(feature = "image")]
-use crate::handler::{ImageData, ImageRedaction};
 #[cfg(feature = "tabular")]
 use crate::handler::TabularRedaction;
+#[cfg(feature = "audio")]
+use crate::handler::{AudioData, AudioRedaction};
+use crate::handler::{Handle, Handler, Redactions};
+#[cfg(feature = "image")]
+use crate::handler::{ImageData, ImageRedaction};
 #[cfg(feature = "text")]
 use crate::handler::{TextData, TextRedaction};
-use crate::handler::{Handle, Handler, Redactions};
 
 /// A fully type-erased document that can hold any supported modality.
 ///

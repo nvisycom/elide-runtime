@@ -168,7 +168,7 @@ impl PatternEngine {
     /// this engine's matcher backends. Returns one
     /// [`ExtraPatternError`] per malformed pattern. Use this before a
     /// scan if you want to surface bad patterns to the caller —
-    /// during [`Self::scan_entities`] compile errors on `extra_patterns`
+    /// during [`Self::scan`] compile errors on `extra_patterns`
     /// are silently dropped.
     ///
     /// [`ExtraPatternError`]: crate::ExtraPatternError

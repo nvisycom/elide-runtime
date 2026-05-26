@@ -10,7 +10,7 @@
 //! [`Html::html`]: scraper::Html::html
 
 use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{Handler, TextData, Handle, TextRedaction, apply_text_redaction};
+use nvisy_codec::handler::{Handle, Handler, TextData, TextRedaction, apply_text_redaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
@@ -185,7 +185,7 @@ impl HtmlHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::{ConflictPolicy, Redactions, Handle, TextOutput};
+    use nvisy_codec::handler::{ConflictPolicy, Handle, Redactions, TextOutput};
     use nvisy_core::Error;
 
     use super::*;

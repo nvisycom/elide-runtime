@@ -27,9 +27,9 @@ pub enum ConflictResolution {
 impl ConflictResolution {
     /// `true` when `a` wins the overlap against `b` under this
     /// strategy.
-    pub(super) fn keeps_first<M: Modality>(&self, a: &Entity<M>, b: &Entity<M>) -> bool
+    pub(super) fn keeps_first<M>(&self, a: &Entity<M>, b: &Entity<M>) -> bool
     where
-        M: SpanSize,
+        M: Modality + SpanSize,
     {
         match self {
             Self::HighestConfidence => a.confidence.get() >= b.confidence.get(),

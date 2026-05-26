@@ -16,8 +16,6 @@ mod policy_store;
 mod shared_data;
 pub mod value_at;
 
-pub use self::policy_store::PolicyStore;
-
 use std::fmt;
 use std::sync::Arc;
 
@@ -29,10 +27,11 @@ use nvisy_core::media::DocumentType;
 use nvisy_ontology::context::Contexts;
 use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::{Annotation, Entity};
-use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
+use nvisy_ontology::modality::{Audio, AudioBlock, Image, ImageBlock, Modality, Tabular, Text};
 use nvisy_ontology::provenance::{Audit, RedactionMap};
 use tokio::sync::Mutex;
 
+pub use self::policy_store::PolicyStore;
 pub use self::shared_data::SharedData;
 
 /// Shared codec handle across typed envelopes spawned from the same
@@ -174,7 +173,6 @@ impl DocumentEnvelope<Image> {
     /// whole block text; sub-region matches consult the block's
     /// `spans`.
     pub async fn value_at(&self, location: &Image) -> Option<String> {
-        use nvisy_ontology::modality::ImageBlock;
         let doc = self.document.as_ref()?;
         for block in &doc.blocks {
             let (text, region) = match &block.kind {
@@ -200,7 +198,6 @@ impl DocumentEnvelope<Audio> {
     /// time-span match against a `Speech` block returns the whole
     /// transcript; sub-segment matches consult the block's `spans`.
     pub async fn value_at(&self, location: &Audio) -> Option<String> {
-        use nvisy_ontology::modality::AudioBlock;
         let doc = self.document.as_ref()?;
         for block in &doc.blocks {
             let AudioBlock::Speech {

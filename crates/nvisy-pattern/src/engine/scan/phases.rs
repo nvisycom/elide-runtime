@@ -1,4 +1,4 @@
-//! Per-phase scan primitives used by [`PatternEngine::scan_entities`].
+//! Per-phase scan primitives used by [`PatternEngine::scan`].
 //!
 //! Three phases, each returning the [`EntityCandidate`]s it produced;
 //! the caller chains them via [`Vec::extend`]:
@@ -8,7 +8,7 @@
 //! 3. [`scan_deny_list`] — forced detection of known sensitive values,
 //!    suppressed against prior-phase output.
 //!
-//! [`PatternEngine::scan_entities`]: super::super::PatternEngine::scan_entities
+//! [`PatternEngine::scan`]: super::super::PatternEngine::scan
 
 use std::collections::HashSet;
 

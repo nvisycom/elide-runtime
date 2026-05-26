@@ -98,8 +98,7 @@ mod tests {
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
-        ]
-        .into();
+        ];
         entities.calibrate(&calibration);
         assert!((entities[0].confidence.get() - 0.4).abs() < f64::EPSILON);
         assert!(
@@ -117,8 +116,7 @@ mod tests {
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.8))
                 .test_build(),
-        ]
-        .into();
+        ];
         entities.calibrate(&calibration);
         assert!((entities[0].confidence.get() - 1.0).abs() < f64::EPSILON);
     }
@@ -136,8 +134,7 @@ mod tests {
                 ])
                 .with_confidence(conf(1.0))
                 .test_build(),
-        ]
-        .into();
+        ];
         entities.calibrate(&calibration);
         // max(0.5, 0.8) = 0.8; 1.0 * 0.8 = 0.8
         assert!((entities[0].confidence.get() - 0.8).abs() < f64::EPSILON);

@@ -1,4 +1,4 @@
-//! Policy<Text> upload, download, listing, and deletion handlers.
+//! `Policy<Text>` upload, download, listing, and deletion handlers.
 //!
 //! # Endpoints
 //!
@@ -19,8 +19,8 @@ use aide::transform::TransformOperation;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use nvisy_engine::ingestion::registry::Registry;
-use nvisy_ontology::policy::Policy;
 use nvisy_ontology::modality::Text;
+use nvisy_ontology::policy::Policy;
 
 use super::error::Result;
 use super::request::{NewPolicy, Pagination, PolicyPath};

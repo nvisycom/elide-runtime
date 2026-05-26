@@ -52,7 +52,7 @@ impl Validator {
     /// values are counted as passed — visual and temporal redaction
     /// verification is not yet implemented.
     async fn check(
-        entities: &Vec<Entity<Text>>,
+        entities: &[Entity<Text>],
         records: &[AuditEntry<Text>],
         redacted_text: Option<&str>,
         envelope: &DocumentEnvelope<Text>,

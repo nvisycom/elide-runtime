@@ -140,8 +140,8 @@ impl NerPipeline {
         NerPipelineBuilder::default()
     }
 
-    /// Run the pipeline once: detect candidates, verify them into
-    /// [`Entities`], and merge surviving candidates into the
+    /// Run the pipeline once: detect candidates, verify them into a
+    /// `Vec<Entity<Text>>`, and merge surviving candidates into the
     /// coreference state for the next call.
     pub async fn run(&self, text: &str, config: &LlmNerContext) -> Result<Vec<Entity<Text>>> {
         // 1. Detect — agent sees the accumulated known entities so

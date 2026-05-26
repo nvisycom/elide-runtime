@@ -2,6 +2,8 @@
 //! its detected document type and return a [`DocumentHandle`].
 
 use nvisy_codec::DocumentHandle;
+#[cfg(feature = "internal_rich")]
+use nvisy_codec::handler::RichHandle;
 #[cfg(any(
     feature = "internal_text",
     feature = "internal_tabular",
@@ -10,16 +12,6 @@ use nvisy_codec::DocumentHandle;
     feature = "internal_rich",
 ))]
 use nvisy_codec::handler::{Handle, Loader};
-#[cfg(feature = "internal_rich")]
-use nvisy_codec::handler::RichHandle;
-#[cfg(feature = "internal_audio")]
-use nvisy_ontology::modality::Audio;
-#[cfg(feature = "internal_image")]
-use nvisy_ontology::modality::Image;
-#[cfg(feature = "internal_tabular")]
-use nvisy_ontology::modality::Tabular;
-#[cfg(feature = "internal_text")]
-use nvisy_ontology::modality::Text;
 use nvisy_core::Error;
 use nvisy_core::content::Content;
 #[cfg(any(
@@ -48,6 +40,14 @@ use nvisy_core::media::SpreadsheetFormat;
 use nvisy_core::media::TextFormat;
 #[cfg(feature = "docx")]
 use nvisy_core::media::WordFormat;
+#[cfg(feature = "internal_audio")]
+use nvisy_ontology::modality::Audio;
+#[cfg(feature = "internal_image")]
+use nvisy_ontology::modality::Image;
+#[cfg(feature = "internal_tabular")]
+use nvisy_ontology::modality::Tabular;
+#[cfg(feature = "internal_text")]
+use nvisy_ontology::modality::Text;
 
 /// Decode [`Content`] into a [`DocumentHandle`] using default parameters.
 ///

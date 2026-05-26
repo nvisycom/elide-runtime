@@ -2,9 +2,9 @@
 //!
 //! [`Entity<M>`] represents a single occurrence of sensitive data
 //! detected within a document. Collections are plain `Vec<Entity<M>>`
-//! — see [`Document::entities`].
+//! attached per-block to [`Block::entities`].
 //!
-//! [`Document::entities`]: crate::document::Document::entities
+//! [`Block::entities`]: crate::document::Block::entities
 
 mod annotation;
 mod category;

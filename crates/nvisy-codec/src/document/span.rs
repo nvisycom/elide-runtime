@@ -15,8 +15,8 @@ use super::Located;
 /// identity via [`locations`] plus on-demand [`read`]. Construct a
 /// `Span` by walking the locations stream and calling `read`.
 ///
-/// [`locations`]: crate::handler::TextHandler::locations
-/// [`read`]: crate::handler::TextHandler::read
+/// [`locations`]: crate::handler::Handle::locations
+/// [`read`]: crate::handler::Handle::read
 #[derive(Debug, Clone, PartialEq)]
 pub struct Span<L, D> {
     /// The handler-level source that produced this span.

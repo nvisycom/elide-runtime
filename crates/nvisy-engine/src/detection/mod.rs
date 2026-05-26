@@ -29,6 +29,8 @@ pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinSet;
+use tracing::Instrument;
+use validator::Validate;
 
 pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
 pub use self::dyn_recognizer::DynRecognizer;
@@ -46,7 +48,7 @@ const TARGET: &str = "nvisy_engine::detection";
 /// Holds an ordered list of recognizers (stored as
 /// [`DynRecognizer`] trait objects) and dispatches them in parallel
 /// against a shared [`DetectionContext`], returning every detected
-/// entity combined into a single [`Entities`] collection.
+/// entity combined into a single `Vec<Entity<Text>>`.
 ///
 /// Parallelism uses [`JoinSet`]: each recognizer runs
 /// on its own task so CPU-bound work (ONNX inference inside the NER
@@ -161,8 +163,6 @@ impl DetectionEngine {
     ///
     /// [`JoinSet`]: tokio::task::JoinSet
     pub async fn run(&self, ctx: DetectionContext) -> Result<Vec<Entity<Text>>> {
-        use tracing::Instrument;
-
         let span = tracing::debug_span!(
             target: TARGET,
             "detect",
@@ -321,7 +321,6 @@ pub struct Detection {
 impl Detection {
     /// Validate the configuration.
     pub fn validate(&self) -> std::result::Result<(), validator::ValidationErrors> {
-        use validator::Validate;
         Validate::validate(self)
     }
 

@@ -133,10 +133,7 @@ impl Handle<Audio> for WavHandler {
 
     /// Override the default loop to apply spans right-to-left so a
     /// removal doesn't invalidate earlier sample indices.
-    async fn redact(
-        &mut self,
-        redactions: Redactions<Audio, AudioRedaction>,
-    ) -> Result<(), Error> {
+    async fn redact(&mut self, redactions: Redactions<Audio, AudioRedaction>) -> Result<(), Error> {
         for (location, redaction) in sort_redactions_for_audio(redactions) {
             self.redact_at(&location, redaction).await?;
         }
@@ -195,7 +192,7 @@ where
 #[cfg(test)]
 mod tests {
     use hound::SampleFormat;
-    use nvisy_codec::handler::{Handle, AudioOutput, ConflictPolicy, Redactions};
+    use nvisy_codec::handler::{AudioOutput, ConflictPolicy, Handle, Redactions};
 
     use super::*;
 

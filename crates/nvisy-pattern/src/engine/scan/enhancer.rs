@@ -4,7 +4,7 @@
 //!
 //! Lives next to [`EntityCandidate`] because it operates on a slice
 //! of candidates before the threshold filter. Kept crate-private;
-//! the orchestration goes through [`PatternEngine::scan_entities`].
+//! the orchestration goes through [`PatternEngine::scan`].
 //!
 //! [`EntityCandidate`]: super::candidate::EntityCandidate
 //!
@@ -38,7 +38,7 @@
 //!
 //! [`ContextRule`]: crate::patterns::ContextRule
 //! [`ContextHint`]: super::super::filter::ContextHint
-//! [`PatternEngine::scan_entities`]: super::super::PatternEngine::scan_entities
+//! [`PatternEngine::scan`]: super::super::PatternEngine::scan
 
 use nvisy_ontology::entity::RecognitionMethod;
 

@@ -1,7 +1,7 @@
-//! Policy<Text> response types.
+//! `Policy<Text>` response types.
 
-use nvisy_ontology::policy::Policy;
 use nvisy_ontology::modality::Text;
+use nvisy_ontology::policy::Policy;
 use schemars::JsonSchema;
 use semver::Version;
 use serde::Serialize;

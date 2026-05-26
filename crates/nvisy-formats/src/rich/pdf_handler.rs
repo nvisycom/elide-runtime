@@ -295,7 +295,9 @@ mod tests {
     #[tokio::test]
     async fn locations_yields_one_per_page() {
         let h = handler(&["page one", "page two", "page three"]);
-        let items: Vec<_> = <RichTextHandler as Handle<Text>>::locations(&h).collect().await;
+        let items: Vec<_> = <RichTextHandler as Handle<Text>>::locations(&h)
+            .collect()
+            .await;
         assert_eq!(items.len(), 3);
         assert_eq!(items[0].location.page_number, Some(1));
         assert_eq!(items[1].location.page_number, Some(2));
@@ -305,7 +307,9 @@ mod tests {
     #[tokio::test]
     async fn read_returns_page_text() {
         let h = handler(&["page one", "page two"]);
-        let items: Vec<_> = <RichTextHandler as Handle<Text>>::locations(&h).collect().await;
+        let items: Vec<_> = <RichTextHandler as Handle<Text>>::locations(&h)
+            .collect()
+            .await;
         assert_eq!(
             <RichTextHandler as Handle<Text>>::read(&h, &items[0].location)
                 .await

@@ -217,8 +217,7 @@ mod tests {
                 .with_confidence(conf(0.8))
                 .test_build(),
             Entity::test_builder(0, 4).test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,
@@ -243,8 +242,7 @@ mod tests {
                     ModelKind::SelfHosted,
                 )])
                 .test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,
@@ -269,8 +267,7 @@ mod tests {
                     ModelKind::SelfHosted,
                 )])
                 .test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,
@@ -295,8 +292,7 @@ mod tests {
                 )])
                 .with_confidence(conf(0.8))
                 .test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::NoisyOr,
@@ -326,8 +322,7 @@ mod tests {
                     ModelKind::SelfHosted,
                 )])
                 .test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::WeightedAverage { weights },
@@ -353,8 +348,7 @@ mod tests {
                     ModelKind::SelfHosted,
                 )])
                 .test_build(),
-        ]
-        .into();
+        ];
         entities
             .fuse(
                 &DeduplicationStrategy::MaxConfidence,

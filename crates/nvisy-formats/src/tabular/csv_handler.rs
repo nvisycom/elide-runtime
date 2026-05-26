@@ -12,9 +12,7 @@
 //! [`Tabular`]: nvisy_ontology::modality::Tabular
 
 use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{
-    Handler, Handle, TabularRedaction, TextData, apply_tabular_redaction,
-};
+use nvisy_codec::handler::{Handle, Handler, TabularRedaction, TextData, apply_tabular_redaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
@@ -268,7 +266,7 @@ impl CsvHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::handler::{ConflictPolicy, Redactions, Handle, TextOutput};
+    use nvisy_codec::handler::{ConflictPolicy, Handle, Redactions, TextOutput};
     use nvisy_core::Error;
 
     use super::*;

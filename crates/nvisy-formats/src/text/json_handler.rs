@@ -20,7 +20,7 @@
 use std::num::NonZeroU32;
 
 use nvisy_codec::document::{Located, LocationStream};
-use nvisy_codec::handler::{Handler, TextData, Handle, TextRedaction, apply_text_redaction};
+use nvisy_codec::handler::{Handle, Handler, TextData, TextRedaction, apply_text_redaction};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, TextFormat};

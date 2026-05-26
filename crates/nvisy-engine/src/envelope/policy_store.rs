@@ -59,7 +59,9 @@ impl PolicyStore {
     }
 
     fn bucket_mut<M: Modality>(&mut self) -> &mut Vec<Policy<M>> {
-        self.inner.entry::<Vec<Policy<M>>>().or_insert_with(Vec::new)
+        self.inner
+            .entry::<Vec<Policy<M>>>()
+            .or_insert_with(Vec::new)
     }
 }
 

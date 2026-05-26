@@ -22,7 +22,9 @@ use uuid::Uuid;
 pub use self::condition::Condition;
 pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
 pub use self::selector::EntitySelector;
-pub use self::strategy::{Action, AudioStrategy, ImageStrategy, StrategyPolicy, TabularStrategy, TextStrategy};
+pub use self::strategy::{
+    Action, AudioStrategy, ImageStrategy, StrategyPolicy, TabularStrategy, TextStrategy,
+};
 use crate::modality::Modality;
 
 /// A named, versioned governance policy for one modality.

@@ -34,15 +34,11 @@ rich = ["nvisy-engine/rich"]
 openai = ["nvisy-engine/openai"]
 ## Enable Anthropic Claude completion provider.
 anthropic = ["nvisy-engine/anthropic"]
-## Enable Google Gemini + Google Cloud Vision OCR.
+## Enable Google Gemini.
 google = ["nvisy-engine/google"]
-## Enable Azure Document Intelligence OCR.
-microsoft = ["nvisy-engine/microsoft"]
-## Enable AWS Textract OCR.
-amazon = ["nvisy-engine/amazon"]
 
-## Enable the externalized GLiNER NER backend (forwards to
-## `nvisy-engine/bento`).
+## Enable the externalized BentoML backends (NER + OCR) — forwards
+## to `nvisy-engine/bento`.
 bento = ["nvisy-engine/bento"]
 
 [package.metadata.docs.rs]

@@ -3177,7 +3177,7 @@ dependencies = [
  "nvisy-core",
  "nvisy-engine",
  "nvisy-formats",
- "nvisy-nlp",
+ "nvisy-ner",
  "nvisy-ocr",
  "nvisy-ontology",
  "nvisy-pattern",
@@ -3227,12 +3227,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvisy-nlp"
+name = "nvisy-ner"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "bentoml",
  "derive_builder",
+ "futures",
  "lingua",
  "nvisy-core",
  "nvisy-ontology",
@@ -3249,17 +3250,12 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "base64",
+ "bentoml",
  "bytes",
  "futures",
- "hmac",
  "nvisy-core",
  "nvisy-ontology",
- "reqwest-middleware",
- "schemars 1.2.1",
  "serde",
- "serde_json",
- "sha2 0.11.0",
- "thiserror 2.0.18",
  "tokio",
  "tracing",
  "uuid",

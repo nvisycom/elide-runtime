@@ -11,9 +11,8 @@ mod params;
 
 use nvisy_codec::Span;
 use nvisy_codec::handler::ImageData;
-use nvisy_core::http::{HttpClient, HttpConfig};
-use nvisy_core::{Error, Result};
-use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, RunParams};
+use nvisy_core::Result;
+use nvisy_ocr::{ImageFormat, ImageInput, ImageOutput, OcrEngine, OcrParams};
 use nvisy_ontology::entity::ImageLocation;
 
 pub use self::params::OcrExtractorConfig;
@@ -21,10 +20,9 @@ use crate::envelope::{Document, DocumentEnvelope};
 
 const TARGET: &str = "nvisy_engine::extraction::ocr";
 
-/// Pre-built OCR extractor: provider engine + run params.
+/// Pre-built OCR extractor wrapping a configured [`OcrEngine`].
 pub struct OcrExtractor {
     engine: OcrEngine,
-    params: RunParams,
 }
 
 impl OcrExtractor {
@@ -32,15 +30,12 @@ impl OcrExtractor {
     ///
     /// # Errors
     ///
-    /// Returns an error if the HTTP client cannot be constructed.
+    /// Returns an error if the selected backend cannot be
+    /// constructed, or if the config selects a backend whose
+    /// feature wasn't compiled in.
     pub fn from_config(cfg: OcrExtractorConfig) -> Result<Self> {
-        let http_client = HttpClient::new(&HttpConfig::default())
-            .map_err(|e| Error::runtime(e.to_string(), "ocr-http-client", false))?;
-        let engine = cfg.provider.into_engine_with_client(http_client);
-        Ok(Self {
-            engine,
-            params: cfg.policy,
-        })
+        let engine = cfg.backend.into_engine()?;
+        Ok(Self { engine })
     }
 
     /// Run OCR over the envelope's image spans, recording the
@@ -76,14 +71,12 @@ impl OcrExtractor {
             .iter()
             .map(|span| {
                 let png_bytes = span.data.encode_png()?;
-                Ok(ImageInput::with_source(
-                    span.source,
-                    png_bytes,
-                    ImageFormat::Png,
-                ))
+                Ok(ImageInput::new(png_bytes, ImageFormat::Png))
             })
             .collect::<Result<Vec<_>>>()?;
-        self.engine.run_batch(&inputs, &self.params).await
+        // No language hint plumbed through at this layer yet —
+        // backends that need one will surface that when wired.
+        self.engine.run_batch(&inputs, OcrParams::default()).await
     }
 
     async fn collect_spans(document: &Document) -> Vec<Span<ImageLocation, ImageData>> {

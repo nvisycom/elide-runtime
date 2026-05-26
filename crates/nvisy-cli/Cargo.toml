@@ -21,7 +21,7 @@ documentation = { workspace = true }
 [features]
 default = [
     "tabular", "image", "audio", "rich",
-    "openai", "anthropic", "google", "microsoft", "amazon",
+    "openai", "anthropic", "google",
     "bento",
 ]
 
@@ -38,15 +38,11 @@ rich = ["nvisy-server/rich"]
 openai = ["nvisy-server/openai"]
 ## Enable Anthropic Claude completion provider.
 anthropic = ["nvisy-server/anthropic"]
-## Enable Google Gemini + Google Cloud Vision OCR.
+## Enable Google Gemini.
 google = ["nvisy-server/google"]
-## Enable Azure Document Intelligence OCR.
-microsoft = ["nvisy-server/microsoft"]
-## Enable AWS Textract OCR.
-amazon = ["nvisy-server/amazon"]
 
-## Enable the externalized GLiNER NER backend (forwards to
-## `nvisy-server/bento`).
+## Enable the externalized BentoML backends (NER + OCR) — forwards
+## to `nvisy-server/bento`.
 bento = ["nvisy-server/bento"]
 
 [package.metadata.docs.rs]

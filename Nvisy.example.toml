@@ -52,22 +52,34 @@ idle_timeout = "90s"
 
 # OCR text extraction from image documents.
 #
-# Self-hosted PaddleOCR via HTTP sidecar (Surya, PaddleX) was
-# removed pending the externalized inference layer landing — see
-# https://github.com/nvisycom/runtime/issues/194. An HTTP backend
-# pointing at https://github.com/nvisycom/inference replaces it in
-# a follow-up. For cloud OCR, enable one of the `aws-textract`,
-# `google-vision`, `azure-docai` features and add a section like:
+# Backend selection lives under `[extraction.ocr.backend]`. Two
+# backends ship today:
 #
-# [extraction.ocr]
-# enabled = true
+#   kind = "noop"
+#     Produces no OCR results. The default; used when image content
+#     is accepted but not OCR'd.
 #
-# [extraction.ocr.provider]
-# kind = "google-vision"
-# api_key = "AIza-replace-me"
+#   kind = "bento"
+#     Calls the externalised `inference-ocr` Bento at `base_url`.
+#     **Scaffolding only** — the wire contract has not been
+#     finalised upstream (https://github.com/nvisycom/runtime/issues/128).
+#     Requires the runtime to be built with the `bento` feature.
 #
-# [extraction.ocr.policy]
-# confidence_threshold = 0.5
+# Cloud OCR backends (AWS Textract, Google Cloud Vision, Azure
+# Document Intelligence) were removed; reintroduction is tracked
+# under #201 / #202 / #203.
+[extraction.ocr]
+enabled = true
+
+[extraction.ocr.backend]
+kind = "noop"
+
+# To use the externalised OCR Bento (once the contract finalises),
+# replace the block above with:
+#
+#   [extraction.ocr.backend]
+#   kind = "bento"
+#   base_url = "http://localhost:3001"
 
 # Speech-to-text transcription.
 [extraction.stt]
@@ -122,9 +134,9 @@ temperature = 0.1
 max_tokens = 4096
 max_retries = 3
 
-# NLP-engine recognizer (NER + language detection).
+# NER recognizer (named-entity recognition + language detection).
 #
-# Backend selection lives under `[detection.nlp.backend]`. Two
+# Backend selection lives under `[detection.ner.backend]`. Two
 # backends ship today:
 #
 #   kind = "noop"
@@ -137,16 +149,16 @@ max_retries = 3
 #     (on by default in the `nvisy-cli` binary). Pair with the
 #     service in https://github.com/nvisycom/inference — see the
 #     repo's `docker-compose.yml` for a self-contained example.
-[detection.nlp]
+[detection.ner]
 enabled = true
 
-[detection.nlp.backend]
+[detection.ner.backend]
 kind = "noop"
 
 # To use the externalised GLiNER service, replace the block above
 # with:
 #
-#   [detection.nlp.backend]
+#   [detection.ner.backend]
 #   kind = "bento"
 #   base_url = "http://localhost:3000"
 

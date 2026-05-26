@@ -64,10 +64,10 @@ pub enum RecognizerKind {
     ///
     /// [`LlmRecognizer`]: super::LlmRecognizer
     Llm,
-    /// NLP-engine recognizer (see [`NlpRecognizer`]).
+    /// NER-engine recognizer (see [`NerRecognizer`]).
     ///
-    /// [`NlpRecognizer`]: super::NlpRecognizer
-    Nlp,
+    /// [`NerRecognizer`]: super::NerRecognizer
+    Ner,
     /// Pattern-based recognizer (see [`PatternRecognizer`]).
     ///
     /// [`PatternRecognizer`]: super::PatternRecognizer

@@ -39,16 +39,12 @@ rich = ["image", "nvisy-codec/rich", "nvisy-formats/rich"]
 openai = ["nvisy-agent/openai-gpt", "nvisy-agent/openai-whisper", "nvisy-agent/openai-tts"]
 ## Enable Anthropic Claude completion provider.
 anthropic = ["nvisy-agent/anthropic-claude"]
-## Enable Google Gemini + Google Cloud Vision OCR.
-google = ["nvisy-agent/google-gemini", "nvisy-ocr/google-vision"]
-## Enable Azure Document Intelligence OCR.
-microsoft = ["nvisy-ocr/azure-docai"]
-## Enable AWS Textract OCR.
-amazon = ["nvisy-ocr/aws-textract"]
+## Enable Google Gemini.
+google = ["nvisy-agent/google-gemini"]
 
-## Enable the externalized GLiNER NER backend (forwards to
-## `nvisy-nlp/bento`).
-bento = ["nvisy-nlp/bento"]
+## Enable the externalized BentoML backends — GLiNER NER
+## (`nvisy-ner/bento`) and OCR (`nvisy-ocr/bento`).
+bento = ["nvisy-ner/bento", "nvisy-ocr/bento"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -66,7 +62,7 @@ nvisy-codec = { workspace = true, features = ["text"] }
 nvisy-formats = { workspace = true, features = ["text"] }
 
 # Detection & redaction
-nvisy-nlp = { workspace = true, features = [] }
+nvisy-ner = { workspace = true, features = [] }
 nvisy-ocr = { workspace = true, features = [] }
 nvisy-pattern = { workspace = true, features = [] }
 nvisy-agent = { workspace = true, features = [] }

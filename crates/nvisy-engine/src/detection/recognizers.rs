@@ -17,7 +17,7 @@ use std::sync::Arc;
 use nvisy_core::{Error, Result};
 
 use super::llm::{LlmDetection, LlmRecognizer};
-use super::nlp::{NlpDetection, NlpRecognizer};
+use super::ner::{NerDetection, NerRecognizer};
 use super::pattern::{PatternDetection, PatternRecognizer};
 use super::recognizer::RecognizerKind;
 
@@ -30,8 +30,8 @@ use super::recognizer::RecognizerKind;
 pub struct Recognizers {
     /// Pre-built LLM recognizer (when `[recognizer.llm]` is set).
     pub llm: Option<Arc<LlmRecognizer>>,
-    /// Pre-built NLP recognizer (when `[recognizer.nlp]` is set).
-    pub nlp: Option<Arc<NlpRecognizer>>,
+    /// Pre-built NER recognizer (when `[recognizer.ner]` is set).
+    pub ner: Option<Arc<NerRecognizer>>,
     /// Pre-built pattern recognizer (when `[recognizer.pattern]` is set).
     pub pattern: Option<Arc<PatternRecognizer>>,
 }
@@ -46,9 +46,9 @@ pub struct DetectionSection {
     /// `[recognizer.llm]` — LLM-backed recognizer config bundle.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub llm: Option<LlmDetection>,
-    /// `[recognizer.nlp]` — NLP-engine recognizer config bundle.
+    /// `[recognizer.ner]` — NER recognizer config bundle.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub nlp: Option<NlpDetection>,
+    pub ner: Option<NerDetection>,
     /// `[recognizer.pattern]` — pattern recognizer config bundle.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pattern: Option<PatternDetection>,
@@ -58,7 +58,7 @@ impl DetectionSection {
     /// `true` when every section is `None`.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.llm.is_none() && self.nlp.is_none() && self.pattern.is_none()
+        self.llm.is_none() && self.ner.is_none() && self.pattern.is_none()
     }
 }
 
@@ -68,13 +68,13 @@ impl Recognizers {
     /// Each opted-in section drives one recognizer construction.
     /// Construction is eager — model loads, HTTP-client setup, and
     /// regex compilation all happen here so per-run dispatch is
-    /// cheap. Async because some NLP presets download model
-    /// artifacts on first use.
+    /// cheap. Async because some NER backends initialise transports
+    /// on first use.
     ///
     /// # Errors
     ///
-    /// Returns the first construction error encountered (NLP model
-    /// load failure, LLM provider misconfiguration). Pattern
+    /// Returns the first construction error encountered (NER backend
+    /// init failure, LLM provider misconfiguration). Pattern
     /// construction is infallible.
     pub async fn from_config(cfg: &DetectionSection) -> Result<Self> {
         let llm = cfg
@@ -83,8 +83,8 @@ impl Recognizers {
             .filter(|c| c.enabled)
             .map(|c| LlmRecognizer::new(c.clone()).map(Arc::new))
             .transpose()?;
-        let nlp = match cfg.nlp.as_ref().filter(|c| c.enabled) {
-            Some(c) => Some(Arc::new(NlpRecognizer::from_config(c).await?)),
+        let ner = match cfg.ner.as_ref().filter(|c| c.enabled) {
+            Some(c) => Some(Arc::new(NerRecognizer::from_config(c).await?)),
             None => None,
         };
         let pattern = cfg
@@ -92,13 +92,13 @@ impl Recognizers {
             .as_ref()
             .filter(|c| c.enabled)
             .map(|c| Arc::new(PatternRecognizer::from_config(c)));
-        Ok(Self { llm, nlp, pattern })
+        Ok(Self { llm, ner, pattern })
     }
 
     /// `true` when no recognizers are configured.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.llm.is_none() && self.nlp.is_none() && self.pattern.is_none()
+        self.llm.is_none() && self.ner.is_none() && self.pattern.is_none()
     }
 
     /// Confirm `kind` is configured, returning a validation error
@@ -108,7 +108,7 @@ impl Recognizers {
     pub fn require(&self, kind: RecognizerKind) -> Result<()> {
         let present = match kind {
             RecognizerKind::Llm => self.llm.is_some(),
-            RecognizerKind::Nlp => self.nlp.is_some(),
+            RecognizerKind::Ner => self.ner.is_some(),
             RecognizerKind::Pattern => self.pattern.is_some(),
         };
         if present {
@@ -129,7 +129,7 @@ impl Recognizers {
 fn section_name(kind: RecognizerKind) -> &'static str {
     match kind {
         RecognizerKind::Llm => "llm",
-        RecognizerKind::Nlp => "nlp",
+        RecognizerKind::Ner => "ner",
         RecognizerKind::Pattern => "pattern",
     }
 }

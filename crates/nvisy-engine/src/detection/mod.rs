@@ -4,14 +4,14 @@
 //! This module hosts the recognizer abstraction together with every
 //! adapter that implements it. The trait stays in-crate because
 //! every implementation today is an engine-side wrapper around a
-//! backend (`nvisy-pattern`, `nvisy-nlp`, `nvisy-agent`); backend
+//! backend (`nvisy-pattern`, `nvisy-ner`, `nvisy-agent`); backend
 //! crates themselves stay shape-agnostic.
 
 mod context;
 mod dyn_recognizer;
 mod extension;
 mod llm;
-mod nlp;
+mod ner;
 mod pattern;
 mod recognizer;
 mod recognizers;
@@ -22,7 +22,7 @@ use std::sync::Arc;
 use derive_builder::Builder;
 pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
-pub use nvisy_nlp::NlpContext;
+pub use nvisy_ner::NerContext;
 use nvisy_ontology::entity::Entities;
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
@@ -33,7 +33,7 @@ pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionCont
 pub use self::dyn_recognizer::DynRecognizer;
 pub use self::extension::Rebase;
 pub use self::llm::{LlmDetection, LlmRecognizer};
-pub use self::nlp::{NlpBackend, NlpDetection, NlpRecognizer};
+pub use self::ner::{NerDetection, NerRecognizer};
 pub use self::pattern::{PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
 pub use self::recognizers::{DetectionSection, Recognizers};
@@ -342,8 +342,8 @@ impl Detection {
                 RecognizerKind::Llm => {
                     builder.with_recognizer_arc(Arc::clone(recognizers.llm.as_ref().unwrap()))
                 }
-                RecognizerKind::Nlp => {
-                    builder.with_recognizer_arc(Arc::clone(recognizers.nlp.as_ref().unwrap()))
+                RecognizerKind::Ner => {
+                    builder.with_recognizer_arc(Arc::clone(recognizers.ner.as_ref().unwrap()))
                 }
                 RecognizerKind::Pattern => {
                     builder.with_recognizer_arc(Arc::clone(recognizers.pattern.as_ref().unwrap()))

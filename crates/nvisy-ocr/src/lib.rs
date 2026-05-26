@@ -3,8 +3,9 @@
 #![doc = include_str!("../README.md")]
 
 pub mod backend;
+pub mod core;
 pub mod engine;
-pub mod provider;
 
-pub use self::backend::{Backend, ImageFormat, ImageInput, ImageOutput, RunParams};
-pub use self::engine::{OcrEngine, OcrProvider};
+pub use self::backend::OcrBackend;
+pub use self::core::{Backend, ImageFormat, ImageInput, ImageOutput, OcrParams};
+pub use self::engine::OcrEngine;

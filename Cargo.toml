@@ -9,7 +9,7 @@ members = [
     "./crates/nvisy-core",
     "./crates/nvisy-engine",
     "./crates/nvisy-formats",
-    "./crates/nvisy-nlp",
+    "./crates/nvisy-ner",
     "./crates/nvisy-ocr",
     "./crates/nvisy-ontology",
     "./crates/nvisy-pattern",
@@ -40,7 +40,7 @@ nvisy-codec = { path = "./crates/nvisy-codec", version = "0.1.0", default-featur
 nvisy-core = { path = "./crates/nvisy-core", version = "0.1.0" }
 nvisy-engine = { path = "./crates/nvisy-engine", version = "0.1.0" }
 nvisy-formats = { path = "./crates/nvisy-formats", version = "0.1.0", default-features = false }
-nvisy-nlp = { path = "./crates/nvisy-nlp", version = "0.1.0" }
+nvisy-ner = { path = "./crates/nvisy-ner", version = "0.1.0" }
 nvisy-ocr = { path = "./crates/nvisy-ocr", version = "0.1.0" }
 nvisy-ontology = { path = "./crates/nvisy-ontology", version = "0.1.0" }
 nvisy-pattern = { path = "./crates/nvisy-pattern", version = "0.1.0" }

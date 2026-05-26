@@ -2,39 +2,41 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-OCR provider integrations for the Nvisy runtime. Wraps third-party
-OCR services behind a uniform `OcrEngine` / `Backend` surface.
+OCR backend abstraction for the Nvisy runtime. Defines the
+`Backend` trait and an `OcrBackend` config enum that selects between
+built-in implementations behind a uniform `OcrEngine` surface.
 
 ## Overview
 
-`OcrEngine` is the dispatch entry point — construct one from an
-`OcrProvider` enum variant and call `run(input, params)`. Each
-backend implements the crate-internal `Backend` trait, accepts an
-`HttpClient` from the caller (no global state), and produces
-unified `ImageOutput` (text + line/word geometry) regardless of
-provider.
+`OcrEngine` is the dispatch entry point — built from an
+`OcrBackend` enum variant via `into_engine()`, then called as
+`engine.run(input, params)`. Each backend implements the crate's
+`Backend` trait and produces unified `ImageOutput` (text +
+line/word geometry).
 
-Cloud backends, each behind a feature flag:
+Two backends ship today:
 
-- **AWS Textract** (`aws-textract`) — `AwsTextractBackend`.
-- **Google Cloud Vision** (`google-vision`) — `GoogleVisionBackend`.
-- **Azure Document Intelligence** (`azure-docai`) — `AzureDocaiBackend`.
+- **`NoopOcrBackend`** — produces zero OCR results. The default;
+  used in tests and in deployments that accept image content but
+  don't OCR it.
+- **`BentoOcrBackend`** (feature `bento`) — scaffolding for the
+  externalised `inference-ocr` Bento in [`nvisycom/inference`].
+  Not yet functional; tracked under [#128].
 
-Two self-hosted HTTP sidecar backends (Surya, PaddleX) were removed
-pending the externalized inference layer landing (see
-[`nvisycom/runtime#194`]). An HTTP backend pointing at
-[`nvisycom/inference`]'s `inference-ocr` service lands in a
-follow-up PR — it will be the canonical self-hosted PaddleOCR path,
-replacing the sidecar.
+Cloud backends (AWS Textract, Google Cloud Vision, Azure Document
+Intelligence) lived here previously and have been removed to clear
+the deck for the externalised architecture. Reintroduction is
+tracked under [#201] / [#202] / [#203].
 
 LLM-mediated entity verification (the LLM-side counterpart that
 verifies OCR-proposed entities against the source image) lives in
-`nvisy-agent` as `CvVerifyAgent`. HTTP transport (`HttpClient`,
-`HttpConfig`, retry + tracing middleware) lives in the shared
-`nvisy-core::http` module.
+`nvisy-agent` as `CvVerifyAgent`.
 
-[`nvisycom/runtime#194`]: https://github.com/nvisycom/runtime/issues/194
 [`nvisycom/inference`]: https://github.com/nvisycom/inference
+[#128]: https://github.com/nvisycom/runtime/issues/128
+[#201]: https://github.com/nvisycom/runtime/issues/201
+[#202]: https://github.com/nvisycom/runtime/issues/202
+[#203]: https://github.com/nvisycom/runtime/issues/203
 
 ## Documentation
 

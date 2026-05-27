@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::context_rule::ContextRule;
 use super::pattern_metadata::PatternMetadata;
-use crate::dictionaries::{Dictionary, DictionaryCompile};
+use crate::dictionaries::{Dictionary, DictionaryCompile, DictionaryTerm};
 use crate::engine::PatternEngineError;
 use crate::engine::scan::entries::{CompiledPattern, DictEntry, RegexEntry};
 
@@ -277,6 +277,17 @@ impl<P: Pattern + ?Sized> PatternCompile for P {
                 if terms.is_empty() {
                     return Ok(None);
                 }
+                if let DictionaryConfidence::PerColumn(_) = dp.confidence
+                    && !dp.case_sensitive
+                    && let Some((term, columns)) = find_ambiguous_column_collision(&terms)
+                {
+                    return Err(PatternEngineError::AmbiguousDictionaryConfidence {
+                        name: self.name().to_owned(),
+                        dictionary: dp.name.clone(),
+                        term,
+                        columns,
+                    });
+                }
                 let automaton = dict.build_automaton(dp.case_sensitive).map_err(|e| {
                     PatternEngineError::AhoCorasickBuild {
                         name: self.name().to_owned(),
@@ -297,8 +308,119 @@ impl<P: Pattern + ?Sized> PatternCompile for P {
     }
 }
 
+/// Detect a case-insensitive duplicate term that spans more than one
+/// CSV column.
+///
+/// When a dictionary pattern declares per-column confidence and runs
+/// case-insensitively, two cells like `GADGET-X1` (column 0) and
+/// `gadget-x1` (column 2) collide under case folding: the
+/// Aho-Corasick automaton treats them as the same pattern and
+/// returns the lowest pattern ID at match time. The confidence the
+/// user expected for one column silently bleeds across — which we
+/// reject upfront via [`PatternEngineError::AmbiguousDictionaryConfidence`].
+///
+/// Returns the first offending `(case-folded term, sorted columns)`
+/// pair, or `None` when the dictionary is unambiguous.
+fn find_ambiguous_column_collision(terms: &[DictionaryTerm]) -> Option<(String, Vec<u32>)> {
+    use std::collections::BTreeMap;
+
+    let mut buckets: BTreeMap<String, Vec<u32>> = BTreeMap::new();
+    for term in terms {
+        let Some(col) = term.column else {
+            continue;
+        };
+        let key = term.value.to_lowercase();
+        let cols = buckets.entry(key).or_default();
+        if !cols.contains(&col) {
+            cols.push(col);
+        }
+    }
+    buckets.into_iter().find_map(|(key, mut cols)| {
+        if cols.len() > 1 {
+            cols.sort_unstable();
+            Some((key, cols))
+        } else {
+            None
+        }
+    })
+}
+
 pub(crate) mod sealed {
     pub trait Sealed {}
     impl Sealed for super::super::json_pattern::JsonPattern {}
     impl Sealed for super::super::runtime_pattern::RuntimePattern {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dictionaries::CsvDictionary;
+    use crate::patterns::runtime_pattern::RuntimePattern;
+
+    /// CSV with `GADGET-X1` (col 0) and `gadget-x1` (col 2) — case
+    /// folds to one key but is declared with per-column confidence.
+    const AMBIGUOUS_CSV: &str = "code,full_name,alias\nGADGET-X1,Acme Gadget X1,gadget-x1\n";
+
+    fn dict(csv: &str) -> CsvDictionary {
+        CsvDictionary::new("test", csv).expect("parse CSV")
+    }
+
+    fn pattern_with(case_sensitive: bool, confidence: DictionaryConfidence) -> RuntimePattern {
+        RuntimePattern::new(
+            "test-pattern",
+            MatchSource::Dictionary(DictionaryPattern {
+                name: "test".into(),
+                case_sensitive,
+                confidence,
+            }),
+        )
+    }
+
+    #[test]
+    fn per_column_with_case_insensitive_duplicates_rejected() {
+        let d = dict(AMBIGUOUS_CSV);
+        let lookup = |_: &str| Some(&d as &dyn Dictionary);
+        let pat = pattern_with(
+            false,
+            DictionaryConfidence::PerColumn(vec![0.95, 0.85, 0.55]),
+        );
+        let err = pat.compile_with(&lookup).expect_err("should reject");
+        match err {
+            PatternEngineError::AmbiguousDictionaryConfidence { term, columns, .. } => {
+                assert_eq!(term, "gadget-x1");
+                assert_eq!(columns, vec![0, 2]);
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn per_column_with_case_sensitive_accepts_duplicates() {
+        let d = dict(AMBIGUOUS_CSV);
+        let lookup = |_: &str| Some(&d as &dyn Dictionary);
+        let pat = pattern_with(
+            true,
+            DictionaryConfidence::PerColumn(vec![0.95, 0.85, 0.55]),
+        );
+        assert!(pat.compile_with(&lookup).is_ok());
+    }
+
+    #[test]
+    fn uniform_confidence_accepts_duplicates() {
+        let d = dict(AMBIGUOUS_CSV);
+        let lookup = |_: &str| Some(&d as &dyn Dictionary);
+        let pat = pattern_with(false, DictionaryConfidence::Uniform(0.8));
+        assert!(pat.compile_with(&lookup).is_ok());
+    }
+
+    #[test]
+    fn per_column_without_duplicates_accepts() {
+        let d = dict("code,full_name,alias\nW-100,Acme Widget,widget\n");
+        let lookup = |_: &str| Some(&d as &dyn Dictionary);
+        let pat = pattern_with(
+            false,
+            DictionaryConfidence::PerColumn(vec![0.95, 0.85, 0.55]),
+        );
+        assert!(pat.compile_with(&lookup).is_ok());
+    }
 }

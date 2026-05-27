@@ -164,8 +164,8 @@ where
                         let mut any_value_match = false;
                         for a in &groups[indices[i]] {
                             for b in &groups[indices[j]] {
-                                let va = envelope.value_at_loc(&a.location).await;
-                                let vb = envelope.value_at_loc(&b.location).await;
+                                let va = envelope.value_at(&a.location).await;
+                                let vb = envelope.value_at(&b.location).await;
                                 if let (Some(va), Some(vb)) = (va.as_deref(), vb.as_deref())
                                     && criteria.values_match(va, vb)
                                 {

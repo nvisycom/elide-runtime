@@ -1,30 +1,43 @@
 //! File import operation.
 //!
-//! Decodes raw content into a [`DocumentEnvelope<Text>`], optionally
+//! Decodes raw content into one or more [`AnyEnvelope`]s, optionally
 //! applying pre-processing in order:
 //!
 //! 1. **Decompression** — decompress raw bytes (if format specified)
 //! 2. **Decryption** — decrypt content (if encryption config specified)
-//! 3. **Decode** — detect format and decode into a typed [`DocumentHandle`]
+//! 3. **Decode** — detect format and decode into a typed
+//!    [`DocumentHandle`]
+//! 4. **Dispatch** — wrap the handle in the matching
+//!    [`DocumentEnvelope<M>`]; rich documents (PDF, DOCX) fan out
+//!    into a `Text` and an `Image` envelope sharing one
+//!    `Arc<Mutex<DocumentHandle>>`.
+//! 5. **Seed** — convert any [`Inclusion`] annotations from the
+//!    content metadata into pre-detected entities on the envelope's
+//!    audit, and store the full annotation list on the envelope for
+//!    downstream exclusion filtering.
 //!
 //! [`DocumentHandle`]: nvisy_codec::DocumentHandle
+//! [`Inclusion`]: nvisy_ontology::entity::AnnotationKind::Inclusion
 
 use std::mem;
 use std::sync::Arc;
 
+use nvisy_codec::HandleModality;
 use nvisy_core::Result;
-use nvisy_core::content::{Content, ContentData};
-use nvisy_ontology::modality::Text;
+use nvisy_core::content::{Content, ContentData, ContentMetadata};
+use nvisy_ontology::entity::{Annotation, inclusion_entities};
+use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
+use tokio::sync::Mutex;
 
-use crate::envelope::{DocumentEnvelope, SharedData};
+use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData, SharedHandle};
 use crate::ingestion::compression::CompressionService;
 use crate::ingestion::encryption::{CryptoService, EncryptedContent};
 use crate::ingestion::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 
-/// Decodes raw content into a [`DocumentEnvelope<Text>`], optionally applying
-/// decompression and decryption beforehand.
+/// Decodes raw content into one or more [`AnyEnvelope`]s, optionally
+/// applying decompression and decryption beforehand.
 #[derive(Default)]
 pub struct Importer {
     decompression: Option<CompressionAlgorithm>,
@@ -50,7 +63,7 @@ impl Importer {
         &self,
         content: Content,
         shared: &Arc<SharedData>,
-    ) -> Result<DocumentEnvelope<Text>> {
+    ) -> Result<Vec<AnyEnvelope>> {
         let mut content = content;
 
         if let Some(algorithm) = self.decompression {
@@ -76,19 +89,90 @@ impl Importer {
         let doc = nvisy_formats::decode(&content).await?;
         tracing::debug!(target: TARGET, doc_type = %doc.document_type(), "decoded document");
         let mut metadata = content.into_parts().1.unwrap_or_default();
+        let annotations = mem::take(&mut metadata.annotations);
 
-        // Move persisted annotations from metadata to the envelope.
-        // Inclusion entity seeding is reinstated once annotations are
-        // typed per modality.
-        let _annotations = mem::take(&mut metadata.annotations);
-        let envelope = <DocumentEnvelope<Text>>::new(
-            std::sync::Arc::new(tokio::sync::Mutex::new(doc)),
-            metadata,
-            Arc::clone(shared),
-        )
-        .await;
-        Ok(envelope)
+        let handle: SharedHandle = Arc::new(Mutex::new(doc));
+        let envelopes = dispatch(handle, metadata, annotations, shared).await;
+        tracing::debug!(
+            target: TARGET,
+            count = envelopes.len(),
+            modalities = ?envelopes.iter().map(AnyEnvelope::modality_name).collect::<Vec<_>>(),
+            "produced envelopes"
+        );
+        Ok(envelopes)
     }
+}
+
+/// Build the per-modality envelope(s) from a shared codec handle.
+///
+/// `annotations` is consumed: it's only applied to the `Text`
+/// envelope today (the metadata field is `Vec<Annotation<Text>>`).
+/// Non-text variants get an empty annotation list — when
+/// `ContentMetadata` grows per-modality annotation buckets, route
+/// each bucket to the matching branch here.
+async fn dispatch(
+    handle: SharedHandle,
+    metadata: ContentMetadata,
+    annotations: Vec<Annotation<Text>>,
+    shared: &Arc<SharedData>,
+) -> Vec<AnyEnvelope> {
+    let modality = handle.lock().await.modality();
+    match modality {
+        HandleModality::Text => {
+            let env = build_text_envelope(handle, metadata, annotations, shared).await;
+            vec![AnyEnvelope::Text(env)]
+        }
+        HandleModality::Tabular => {
+            let env = build_envelope::<Tabular>(handle, metadata, shared).await;
+            vec![AnyEnvelope::Tabular(env)]
+        }
+        HandleModality::Image => {
+            let env = build_envelope::<Image>(handle, metadata, shared).await;
+            vec![AnyEnvelope::Image(env)]
+        }
+        HandleModality::Audio => {
+            let env = build_envelope::<Audio>(handle, metadata, shared).await;
+            vec![AnyEnvelope::Audio(env)]
+        }
+        HandleModality::Rich => {
+            // PDF/DOCX: fan out into Text + Image envelopes sharing
+            // the same underlying handle so reads and mutations
+            // stay coordinated under the codec's mutex.
+            let text_env =
+                build_text_envelope(Arc::clone(&handle), metadata.clone(), annotations, shared)
+                    .await;
+            let image_env = build_envelope::<Image>(handle, metadata, shared).await;
+            vec![AnyEnvelope::Text(text_env), AnyEnvelope::Image(image_env)]
+        }
+    }
+}
+
+async fn build_text_envelope(
+    handle: SharedHandle,
+    metadata: ContentMetadata,
+    annotations: Vec<Annotation<Text>>,
+    shared: &Arc<SharedData>,
+) -> DocumentEnvelope<Text> {
+    let mut envelope = <DocumentEnvelope<Text>>::new(handle, metadata, Arc::clone(shared)).await;
+    let seeded = inclusion_entities::<Text>(&annotations);
+    if !seeded.is_empty() {
+        tracing::debug!(
+            target: TARGET,
+            count = seeded.len(),
+            "seeding inclusion annotations as entities"
+        );
+        envelope.add_entities(seeded);
+    }
+    envelope.annotations = annotations;
+    envelope
+}
+
+async fn build_envelope<M: Modality>(
+    handle: SharedHandle,
+    metadata: ContentMetadata,
+    shared: &Arc<SharedData>,
+) -> DocumentEnvelope<M> {
+    <DocumentEnvelope<M>>::new(handle, metadata, Arc::clone(shared)).await
 }
 
 /// Replace the data payload of a [`Content`] while preserving its metadata.
@@ -101,17 +185,83 @@ fn replace_data(content: Content, data: ContentData) -> Content {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::content::{Content, ContentData};
+    use nvisy_core::content::{Content, ContentData, ContentMetadata};
+    use nvisy_ontology::entity::{
+        AnnotationKind, AnnotationTarget, EntityCategory, EntityKind, RecognitionMethod,
+    };
 
     use super::*;
     use crate::envelope::SharedData;
 
-    #[tokio::test]
-    async fn unknown_format_errors() {
+    fn shared() -> Arc<SharedData> {
         let dir = tempfile::tempdir().unwrap();
         let registry = crate::ingestion::registry::Registry::open(dir.path()).unwrap();
-        let shared = SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
+        SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry)
+    }
+
+    fn text_content(text: &str, annotations: Vec<Annotation<Text>>) -> Content {
+        let meta = ContentMetadata::new()
+            .with_content_type("text/plain")
+            .with_annotations(annotations);
+        Content::with_metadata(ContentData::from(text.to_owned()), meta)
+    }
+
+    #[tokio::test]
+    async fn unknown_format_errors() {
+        let shared = shared();
         let content = Content::new(ContentData::from("plain text has no magic bytes"));
         assert!(Importer::new().import(content, &shared).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn text_import_yields_single_text_envelope() {
+        let shared = shared();
+        let content = text_content("Hello, world!", Vec::new());
+        let envelopes = Importer::new().import(content, &shared).await.unwrap();
+        assert_eq!(envelopes.len(), 1);
+        assert!(envelopes[0].is_text());
+    }
+
+    #[tokio::test]
+    async fn text_import_seeds_inclusion_annotations_as_entities() {
+        let shared = shared();
+        let annotation = Annotation {
+            name: Some("uploader".into()),
+            kind: AnnotationKind::Inclusion {
+                category: EntityCategory::PersonalIdentity,
+                entity_kind: EntityKind::PersonName,
+                target: AnnotationTarget::Value("Jane Doe".into()),
+                confidence: None,
+            },
+        };
+        let content = text_content("Jane Doe lives somewhere.", vec![annotation.clone()]);
+
+        let envelopes = Importer::new().import(content, &shared).await.unwrap();
+        let AnyEnvelope::Text(env) = envelopes.into_iter().next().unwrap() else {
+            panic!("expected a Text envelope");
+        };
+
+        assert_eq!(env.audit.entities.len(), 1);
+        let entity = &env.audit.entities[0];
+        assert_eq!(entity.entity_kind, EntityKind::PersonName);
+        assert!(matches!(
+            entity.recognition_methods.first(),
+            Some(RecognitionMethod::Annotation(_))
+        ));
+        // Annotations are retained on the envelope for downstream
+        // exclusion filtering and label-driven policy scoping.
+        assert_eq!(env.annotations, vec![annotation]);
+    }
+
+    #[tokio::test]
+    async fn tabular_import_yields_single_tabular_envelope() {
+        let shared = shared();
+        let meta = ContentMetadata::new().with_content_type("text/csv");
+        let data = ContentData::from("name,age\nAlice,30\nBob,40\n".to_owned());
+        let content = Content::with_metadata(data, meta);
+
+        let envelopes = Importer::new().import(content, &shared).await.unwrap();
+        assert_eq!(envelopes.len(), 1);
+        assert!(envelopes[0].is_tabular());
     }
 }

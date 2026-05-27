@@ -141,9 +141,13 @@ impl Deduplicator {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use nvisy_core::content::ContentMetadata;
     use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod};
     use nvisy_ontology::modality::Text;
     use nvisy_ontology::primitive::Confidence;
+    use tokio::sync::Mutex;
 
     use super::*;
     use crate::envelope::SharedData;
@@ -160,7 +164,15 @@ mod tests {
         )
         .expect("open registry");
         let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
-        DocumentEnvelope::from_text(text, shared).await
+        let handle = nvisy_formats::test_utils::decode_text(text)
+            .await
+            .expect("decode text");
+        DocumentEnvelope::<Text>::new(
+            Arc::new(Mutex::new(handle)),
+            ContentMetadata::new().with_content_type("text/plain"),
+            shared,
+        )
+        .await
     }
 
     #[tokio::test]

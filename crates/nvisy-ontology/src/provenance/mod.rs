@@ -19,6 +19,7 @@ mod review;
 
 use derive_builder::Builder;
 use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -50,7 +51,7 @@ use crate::modality::Modality;
     rename_all = "camelCase",
     bound(
         serialize = "M: Serialize, M::Strategy: Serialize",
-        deserialize = "M: serde::de::DeserializeOwned, M::Strategy: serde::de::DeserializeOwned",
+        deserialize = "M: DeserializeOwned, M::Strategy: DeserializeOwned",
     )
 )]
 #[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema")]

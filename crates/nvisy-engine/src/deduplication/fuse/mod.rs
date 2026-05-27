@@ -146,7 +146,7 @@ where
     result.refinement_methods.push(refinement);
 
     let value = envelope
-        .value_at_loc(&result.location)
+        .value_at(&result.location)
         .await
         .unwrap_or_default();
     tracing::trace!(
@@ -187,9 +187,12 @@ fn classify_refinement<M: Modality>(group: &[Entity<M>]) -> RefinementMethod {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::sync::Arc;
 
+    use nvisy_core::content::ContentMetadata;
     use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod, RecognitionMethodKind};
     use nvisy_ontology::primitive::Confidence;
+    use tokio::sync::Mutex;
 
     use super::*;
     use crate::envelope::SharedData;
@@ -200,7 +203,15 @@ mod tests {
         )
         .expect("open registry");
         let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
-        DocumentEnvelope::from_text(text, shared).await
+        let handle = nvisy_formats::test_utils::decode_text(text)
+            .await
+            .expect("decode text");
+        DocumentEnvelope::<nvisy_ontology::modality::Text>::new(
+            Arc::new(Mutex::new(handle)),
+            ContentMetadata::new().with_content_type("text/plain"),
+            shared,
+        )
+        .await
     }
 
     fn conf(v: f64) -> Confidence {

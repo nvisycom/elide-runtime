@@ -16,6 +16,7 @@ use uuid::Uuid;
 pub use self::workflow::Validation;
 use self::workflow::Validation as ValidationConfig;
 use crate::envelope::DocumentEnvelope;
+use crate::envelope::value_at::ValueAt;
 
 const TARGET: &str = "nvisy_engine::validation";
 

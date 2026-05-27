@@ -10,6 +10,7 @@
 
 use derive_more::{Deref, DerefMut};
 use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -25,10 +26,7 @@ use crate::modality::Modality;
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(
     rename_all = "camelCase",
-    bound(
-        serialize = "M: Serialize",
-        deserialize = "M: serde::de::DeserializeOwned",
-    )
+    bound(serialize = "M: Serialize", deserialize = "M: DeserializeOwned",)
 )]
 #[schemars(bound = "M: JsonSchema")]
 pub struct RedactionMapping<M: Modality> {
@@ -50,10 +48,7 @@ pub struct RedactionMapping<M: Modality> {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(
     rename_all = "camelCase",
-    bound(
-        serialize = "M: Serialize",
-        deserialize = "M: serde::de::DeserializeOwned",
-    )
+    bound(serialize = "M: Serialize", deserialize = "M: DeserializeOwned",)
 )]
 #[schemars(bound = "M: JsonSchema")]
 pub struct RedactionMap<M: Modality> {

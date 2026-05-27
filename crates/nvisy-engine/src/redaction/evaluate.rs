@@ -162,7 +162,7 @@ where
         if suppress_wins {
             let (policy_id, _) = matching[best_suppress_idx.expect("checked above")];
             let original = envelope
-                .value_at_loc(&entity.location)
+                .value_at(&entity.location)
                 .await
                 .unwrap_or_default();
             let entry = AuditEntry::<M>::builder()
@@ -201,7 +201,7 @@ where
         };
 
         let original = envelope
-            .value_at_loc(&entity.location)
+            .value_at(&entity.location)
             .await
             .unwrap_or_default();
         let mut builder = AuditEntry::<M>::builder().for_entity(entity.id, strategy, original);
@@ -268,10 +268,14 @@ fn condition_matches(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use nvisy_core::content::ContentMetadata;
     use nvisy_ontology::entity::Entity;
     use nvisy_ontology::policy::{Action, EntitySelector, StrategyPolicy, TextStrategy};
     use nvisy_ontology::primitive::Confidence;
     use semver::Version;
+    use tokio::sync::Mutex;
 
     use super::*;
     use crate::envelope::SharedData;
@@ -282,7 +286,15 @@ mod tests {
         )
         .expect("open registry");
         let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
-        DocumentEnvelope::from_text(text, shared).await
+        let handle = nvisy_formats::test_utils::decode_text(text)
+            .await
+            .expect("decode text");
+        DocumentEnvelope::<Text>::new(
+            Arc::new(Mutex::new(handle)),
+            ContentMetadata::new().with_content_type("text/plain"),
+            shared,
+        )
+        .await
     }
 
     fn ent(start: usize, end: usize, conf: f64) -> Entity<Text> {
@@ -440,6 +452,4 @@ mod tests {
         assert_ne!(env.audit.entries[0].status, AuditEntryStatus::Suppressed);
         assert_eq!(env.redaction_map.entries.len(), 1);
     }
-
-    use std::sync::Arc;
 }

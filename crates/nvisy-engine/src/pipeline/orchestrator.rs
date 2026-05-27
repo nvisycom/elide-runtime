@@ -21,7 +21,7 @@ use tokio_util::sync::CancellationToken;
 use super::default::EngineInput;
 use crate::deduplication::{Deduplicator, FilterParams};
 use crate::detection::{Detection as DetectionConfig, DetectionEngine};
-use crate::envelope::{DocumentEnvelope, SharedData};
+use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData};
 use crate::extraction::{Extraction as ExtractionConfig, Extractors};
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
@@ -92,8 +92,30 @@ impl Orchestrator {
     pub async fn run(&self, plan: &EngineInput) -> Result<RunOutput, Error> {
         let envelopes = self.run_imports(&plan.imports).await?;
 
+        let mut results = Vec::new();
         let mut join_set = JoinSet::new();
         for envelope in envelopes {
+            let text_envelope = match envelope {
+                AnyEnvelope::Text(env) => env,
+                other => {
+                    let modality = other.modality_name();
+                    tracing::warn!(
+                        target: TARGET,
+                        modality,
+                        "non-text envelope skipped; downstream pipeline is text-only \
+                         (extraction fan-out for image/audio/tabular is pending)",
+                    );
+                    results.push(DocumentResult {
+                        envelope: None,
+                        error: Some(format!(
+                            "{modality} modality not yet supported by the pipeline; \
+                             only text envelopes are processed"
+                        )),
+                    });
+                    continue;
+                }
+            };
+
             let ctx = Arc::clone(&self.ctx);
             let sem = self.semaphore.clone();
             let plan = plan.clone();
@@ -105,7 +127,7 @@ impl Orchestrator {
                 };
 
                 let pipeline = DocumentPipeline { ctx: ctx.clone() };
-                match pipeline.run(envelope, &plan).await {
+                match pipeline.run(text_envelope, &plan).await {
                     Ok(envelope) => DocumentResult {
                         envelope: Some(envelope),
                         error: None,
@@ -118,7 +140,6 @@ impl Orchestrator {
             });
         }
 
-        let mut results = Vec::new();
         while let Some(result) = join_set.join_next().await {
             match result {
                 Ok(doc_result) => results.push(doc_result),
@@ -148,10 +169,12 @@ impl Orchestrator {
     }
 
     /// Execute import steps to produce envelopes.
-    async fn run_imports(
-        &self,
-        imports: &[ImportFileConfig],
-    ) -> Result<Vec<DocumentEnvelope<Text>>, Error> {
+    ///
+    /// Each imported content can fan out into multiple envelopes
+    /// (e.g. rich documents → one text + one image envelope sharing
+    /// a single codec handle), so the result is a flat
+    /// `Vec<AnyEnvelope>`.
+    async fn run_imports(&self, imports: &[ImportFileConfig]) -> Result<Vec<AnyEnvelope>, Error> {
         let mut envelopes = Vec::new();
 
         for cfg in imports {
@@ -167,12 +190,11 @@ impl Orchestrator {
                     .read_content(shared.actor_id, content_id)
                     .await?;
                 let content = handle.content().await?;
-                let envelope = importer.import(content, &self.ctx.shared).await?;
-                envelopes.push(envelope);
+                envelopes.extend(importer.import(content, &self.ctx.shared).await?);
             }
         }
 
-        tracing::info!(target: TARGET, count = envelopes.len(), "documents imported");
+        tracing::info!(target: TARGET, count = envelopes.len(), "envelopes imported");
         Ok(envelopes)
     }
 }

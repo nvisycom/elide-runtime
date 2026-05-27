@@ -11,6 +11,8 @@ pub mod image;
 pub mod rich;
 #[cfg(feature = "internal_tabular")]
 pub mod tabular;
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
 #[cfg(feature = "internal_text")]
 pub mod text;
 

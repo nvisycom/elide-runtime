@@ -17,6 +17,7 @@ mod tabular;
 mod text;
 
 use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use self::audio::AudioStrategy;
@@ -34,7 +35,7 @@ use crate::modality::Modality;
     rename_all = "snake_case",
     bound(
         serialize = "M::Strategy: Serialize",
-        deserialize = "M::Strategy: serde::de::DeserializeOwned",
+        deserialize = "M::Strategy: DeserializeOwned",
     )
 )]
 #[schemars(bound = "M::Strategy: JsonSchema")]
@@ -60,7 +61,7 @@ pub enum Action<M: Modality> {
     rename_all = "camelCase",
     bound(
         serialize = "M::Strategy: Serialize",
-        deserialize = "M::Strategy: serde::de::DeserializeOwned",
+        deserialize = "M::Strategy: DeserializeOwned",
     )
 )]
 #[schemars(bound = "M::Strategy: JsonSchema")]

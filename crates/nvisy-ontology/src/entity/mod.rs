@@ -15,6 +15,7 @@ mod source;
 
 use derive_builder::Builder;
 use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -44,10 +45,7 @@ use crate::primitive::{Confidence, LanguageTag};
 )]
 #[serde(
     rename_all = "camelCase",
-    bound(
-        serialize = "M: Serialize",
-        deserialize = "M: serde::de::DeserializeOwned",
-    )
+    bound(serialize = "M: Serialize", deserialize = "M: DeserializeOwned",)
 )]
 #[schemars(bound = "M: JsonSchema")]
 pub struct Entity<M: Modality> {

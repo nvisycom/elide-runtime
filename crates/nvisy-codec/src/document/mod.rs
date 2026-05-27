@@ -28,6 +28,24 @@ use crate::handler::{ImageData, ImageRedaction};
 #[cfg(feature = "text")]
 use crate::handler::{TextData, TextRedaction};
 
+/// Cheap, non-generic tag for which modality a [`DocumentHandle`]
+/// carries. Lets callers dispatch on the modality without holding
+/// the handle's lock or matching against the trait-object variants
+/// directly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HandleModality {
+    #[cfg(feature = "text")]
+    Text,
+    #[cfg(feature = "tabular")]
+    Tabular,
+    #[cfg(feature = "image")]
+    Image,
+    #[cfg(feature = "audio")]
+    Audio,
+    #[cfg(feature = "rich")]
+    Rich,
+}
+
 /// A fully type-erased document that can hold any supported modality.
 ///
 /// Variants are feature-gated by modality (`text`, `tabular`,
@@ -56,6 +74,24 @@ impl fmt::Debug for DocumentHandle {
 }
 
 impl DocumentHandle {
+    /// The modality tag for this handle. Cheaper than matching on
+    /// the variants directly and avoids holding the trait object
+    /// across borrows.
+    pub fn modality(&self) -> HandleModality {
+        match self {
+            #[cfg(feature = "text")]
+            Self::Text(_) => HandleModality::Text,
+            #[cfg(feature = "tabular")]
+            Self::Tabular(_) => HandleModality::Tabular,
+            #[cfg(feature = "image")]
+            Self::Image(_) => HandleModality::Image,
+            #[cfg(feature = "audio")]
+            Self::Audio(_) => HandleModality::Audio,
+            #[cfg(feature = "rich")]
+            Self::Rich(_) => HandleModality::Rich,
+        }
+    }
+
     /// The document type of the underlying content.
     pub fn document_type(&self) -> DocumentType {
         match self {

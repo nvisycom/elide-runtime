@@ -12,6 +12,7 @@
 //! [`shared`]: DocumentEnvelope::shared
 
 mod accessors;
+mod any;
 mod policy_store;
 mod shared_data;
 pub mod value_at;
@@ -20,17 +21,17 @@ use std::fmt;
 use std::sync::Arc;
 
 use nvisy_codec::DocumentHandle;
-use nvisy_codec::handler::TextData;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_core::media::DocumentType;
-use nvisy_ontology::context::Contexts;
 use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::{Annotation, Entity};
-use nvisy_ontology::modality::{Audio, AudioBlock, Image, ImageBlock, Modality, Tabular, Text};
+use nvisy_ontology::modality::Modality;
 use nvisy_ontology::provenance::{Audit, RedactionMap};
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
+pub use self::any::AnyEnvelope;
 pub use self::policy_store::PolicyStore;
 pub use self::shared_data::SharedData;
 
@@ -60,16 +61,18 @@ pub struct DocumentEnvelope<M: Modality> {
 
     /// User-supplied annotations (inclusions, exclusions, labels)
     /// attached at upload time. Set during import from content
-    /// metadata.
-    ///
-    /// Currently unused while annotation-driven inclusion seeding
-    /// and exclusion filtering are reinstated on the typed envelope.
+    /// metadata; `Inclusion` variants are also projected into
+    /// [`Self::audit::entities`] so detection/redaction see them as
+    /// pre-detected entities, while the original list stays here
+    /// for exclusion filtering and label-driven policy scoping.
     pub annotations: Vec<Annotation<M>>,
 
-    /// Reference-data contexts loaded by [`LoadContext`] nodes.
+    /// IDs of reference-data [`Context`]s loaded by [`LoadContext`]
+    /// nodes. Each UUID resolves through the engine's context cache.
     ///
+    /// [`Context`]: nvisy_ontology::context::Context
     /// [`LoadContext`]: crate::ingestion::LoadContext
-    pub contexts: Contexts,
+    pub contexts: Vec<Uuid>,
 
     /// Per-document audit trail: entities, processing log, and
     /// redaction records.
@@ -100,7 +103,7 @@ impl<M: Modality> DocumentEnvelope<M> {
             metadata,
             document: None,
             annotations: Vec::new(),
-            contexts: Contexts::new(),
+            contexts: Vec::new(),
             audit,
             redaction_map: RedactionMap::new(),
             shared,
@@ -138,85 +141,6 @@ impl<M: Modality> DocumentEnvelope<M> {
     }
 }
 
-/// Text-specific accessors that need the codec handle.
-impl DocumentEnvelope<Text> {
-    /// Resolve a [`Text`] location to its text representation by
-    /// reading from the codec handle.
-    pub async fn value_at(&self, location: &Text) -> Option<String> {
-        self.handle
-            .lock()
-            .await
-            .read_text(location)
-            .await
-            .map(TextData::into_inner)
-    }
-}
-
-/// Tabular-specific accessors that need the codec handle.
-impl DocumentEnvelope<Tabular> {
-    /// Resolve a [`Tabular`] location to its cell text by reading
-    /// from the codec handle.
-    pub async fn value_at(&self, location: &Tabular) -> Option<String> {
-        self.handle
-            .lock()
-            .await
-            .read_tabular(location)
-            .await
-            .map(TextData::into_inner)
-    }
-}
-
-/// Image-specific accessors that look up text via the OCR document.
-impl DocumentEnvelope<Image> {
-    /// Resolve an [`Image`] location to its OCR'd text — exact
-    /// bounding-box match against a block's `region` returns the
-    /// whole block text; sub-region matches consult the block's
-    /// `spans`.
-    pub async fn value_at(&self, location: &Image) -> Option<String> {
-        let doc = self.document.as_ref()?;
-        for block in &doc.blocks {
-            let (text, region) = match &block.kind {
-                ImageBlock::Text { text, region }
-                | ImageBlock::Heading { text, region }
-                | ImageBlock::Table { text, region } => (text, region),
-                _ => continue,
-            };
-            if region == location {
-                return Some(text.clone());
-            }
-            if let Some(s) = block.spans.iter().find(|s| s.source == *location) {
-                return Some(text[s.text_start..s.text_end].to_owned());
-            }
-        }
-        None
-    }
-}
-
-/// Audio-specific accessors that look up text via the STT document.
-impl DocumentEnvelope<Audio> {
-    /// Resolve an [`Audio`] location to its transcribed text — exact
-    /// time-span match against a `Speech` block returns the whole
-    /// transcript; sub-segment matches consult the block's `spans`.
-    pub async fn value_at(&self, location: &Audio) -> Option<String> {
-        let doc = self.document.as_ref()?;
-        for block in &doc.blocks {
-            let AudioBlock::Speech {
-                text, time_span, ..
-            } = &block.kind
-            else {
-                continue;
-            };
-            if time_span == &location.time_span {
-                return Some(text.clone());
-            }
-            if let Some(s) = block.spans.iter().find(|s| s.source == *location) {
-                return Some(text[s.text_start..s.text_end].to_owned());
-            }
-        }
-        None
-    }
-}
-
 impl<M: Modality> fmt::Debug for DocumentEnvelope<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DocumentEnvelope")
@@ -224,17 +148,5 @@ impl<M: Modality> fmt::Debug for DocumentEnvelope<M> {
             .field("contexts", &self.contexts.len())
             .field("entries", &self.audit.entries.len())
             .finish_non_exhaustive()
-    }
-}
-
-#[cfg(test)]
-impl DocumentEnvelope<Text> {
-    /// Create a test envelope from plain text content.
-    pub(crate) async fn from_text(text: &str, shared: Arc<SharedData>) -> Self {
-        let data = ContentData::from_text(ContentSource::new(), text);
-        let meta = ContentMetadata::new().with_content_type("text/plain");
-        let content = nvisy_core::content::Content::with_metadata(data, meta.clone());
-        let handle = nvisy_formats::decode(&content).await.expect("decode text");
-        Self::new(Arc::new(Mutex::new(handle)), meta, shared).await
     }
 }

@@ -3,6 +3,7 @@
 use derive_builder::Builder;
 use jiff::Timestamp;
 use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 use uuid::Uuid;
@@ -56,7 +57,7 @@ pub enum AuditEntryStatus {
     rename_all = "camelCase",
     bound(
         serialize = "M::Strategy: Serialize",
-        deserialize = "M::Strategy: serde::de::DeserializeOwned",
+        deserialize = "M::Strategy: DeserializeOwned",
     )
 )]
 #[schemars(bound = "M::Strategy: JsonSchema")]
@@ -94,7 +95,7 @@ pub struct AuditEntry<M: Modality> {
     rename_all = "camelCase",
     bound(
         serialize = "M::Strategy: Serialize",
-        deserialize = "M::Strategy: serde::de::DeserializeOwned",
+        deserialize = "M::Strategy: DeserializeOwned",
     )
 )]
 #[schemars(bound = "M::Strategy: JsonSchema")]

@@ -18,4 +18,4 @@ pub mod core;
 pub mod document;
 pub mod handler;
 
-pub use self::document::DocumentHandle;
+pub use self::document::{DocumentHandle, HandleModality};

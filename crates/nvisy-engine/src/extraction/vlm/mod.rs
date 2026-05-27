@@ -24,6 +24,7 @@ use nvisy_ontology::modality::Image;
 
 pub use self::params::VlmExtractorConfig;
 use crate::envelope::DocumentEnvelope;
+use crate::envelope::value_at::ValueAt;
 
 const TARGET: &str = "nvisy_engine::extraction::vlm";
 

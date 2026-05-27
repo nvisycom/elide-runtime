@@ -59,6 +59,10 @@ audio = ["wav", "mp3"]
 ## All rich-document formats: `pdf` + `docx`.
 rich = ["pdf", "docx"]
 
+## In-memory decode helpers for tests in this and downstream crates.
+## Re-export from `nvisy_formats::test_utils`.
+test-utils = []
+
 # Internal helpers — set automatically by any format feature above.
 # Library code uses `#[cfg(feature = "internal_text")]` to mean
 # "any text format is enabled", the right gate for shared

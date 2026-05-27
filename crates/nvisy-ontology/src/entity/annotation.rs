@@ -6,6 +6,7 @@
 //! [`document_labels`]) are free functions on slices.
 
 use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::{Entity, EntityCategory, EntityKind, RecognitionMethod};
@@ -17,10 +18,7 @@ use crate::primitive::Confidence;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(
     rename_all = "snake_case",
-    bound(
-        serialize = "M: Serialize",
-        deserialize = "M: serde::de::DeserializeOwned",
-    )
+    bound(serialize = "M: Serialize", deserialize = "M: DeserializeOwned",)
 )]
 #[schemars(bound = "M: JsonSchema")]
 pub enum AnnotationTarget<M: Modality> {
@@ -36,10 +34,7 @@ pub enum AnnotationTarget<M: Modality> {
 #[serde(
     tag = "kind",
     rename_all = "snake_case",
-    bound(
-        serialize = "M: Serialize",
-        deserialize = "M: serde::de::DeserializeOwned",
-    )
+    bound(serialize = "M: Serialize", deserialize = "M: DeserializeOwned",)
 )]
 #[schemars(bound = "M: JsonSchema")]
 pub enum AnnotationKind<M: Modality> {
@@ -72,10 +67,7 @@ pub enum AnnotationKind<M: Modality> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(
     rename_all = "camelCase",
-    bound(
-        serialize = "M: Serialize",
-        deserialize = "M: serde::de::DeserializeOwned",
-    )
+    bound(serialize = "M: Serialize", deserialize = "M: DeserializeOwned",)
 )]
 #[schemars(bound = "M: JsonSchema")]
 pub struct Annotation<M: Modality> {

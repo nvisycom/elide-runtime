@@ -54,10 +54,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Internal crates
 nvisy-core = { workspace = true, features = ["http"] }
 nvisy-ontology = { workspace = true, features = [] }
-# Text is always on at the engine layer (and up). Optional
-# modalities opt-in via the matching engine feature above. The
-# workspace `default-features = false` on codec/formats means
-# engine's modality features are the single source of truth.
 nvisy-codec = { workspace = true, features = ["text"] }
 nvisy-formats = { workspace = true, features = ["text"] }
 
@@ -117,5 +113,6 @@ tracing = { workspace = true, features = [] }
 
 [dev-dependencies]
 nvisy-engine = { path = ".", features = ["test-utils"] }
+nvisy-formats = { workspace = true, features = ["txt", "csv", "test-utils"] }
 nvisy-ontology = { workspace = true, features = ["test-utils"] }
 tempfile = { workspace = true, features = [] }

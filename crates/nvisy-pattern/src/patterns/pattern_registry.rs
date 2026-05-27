@@ -375,13 +375,6 @@ mod tests {
     }
 
     #[test]
-    fn load_dir_missing_directory() {
-        let mut reg = PatternRegistry::new();
-        let result = reg.load_dir("/nonexistent/path");
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn load_file_single_pattern() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("single.json");

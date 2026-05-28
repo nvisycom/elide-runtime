@@ -3,19 +3,24 @@
 //! Re-scans redacted content to verify that no originally detected
 //! values remain visible. Runs after [`Redactor`].
 //!
+//! Per-modality leak detection is implemented in [`check`] via the
+//! [`CheckLeaks`] trait — Text and Tabular run real substring
+//! checks; Image and Audio currently return [`ValidationResult::skipped`]
+//! because visual / audio inspection isn't implemented yet.
+//!
 //! [`Redactor`]: crate::redaction::Redactor
+//! [`CheckLeaks`]: check::CheckLeaks
 
+mod check;
 mod workflow;
 
 use nvisy_core::{Error, Result};
-use nvisy_ontology::modality::Text;
-use nvisy_ontology::provenance::EntityRecord;
 use uuid::Uuid;
 
+pub use self::check::CheckLeaks;
 pub use self::workflow::Validation;
 use self::workflow::Validation as ValidationConfig;
 use crate::envelope::DocumentEnvelope;
-use crate::envelope::value_at::ValueAt;
 
 const TARGET: &str = "nvisy_engine::validation";
 
@@ -26,10 +31,28 @@ pub struct LeakedValue {
     pub entity_id: Uuid,
 }
 
-/// Result of validation.
+/// Result of validation for one envelope.
+///
+/// `skipped` is `true` when the modality has no leak-detection
+/// implementation (Image, Audio). In that case `passed` and
+/// `leaked` are both empty / zero — no claim is made either way.
+#[derive(Debug)]
 pub struct ValidationResult {
     pub passed: usize,
     pub leaked: Vec<LeakedValue>,
+    pub skipped: bool,
+}
+
+impl ValidationResult {
+    /// Returned by per-modality checks that don't run any
+    /// inspection (Image, Audio today).
+    pub fn skipped() -> Self {
+        Self {
+            passed: 0,
+            leaked: Vec::new(),
+            skipped: true,
+        }
+    }
 }
 
 /// Post-redaction validator that checks for leaked sensitive values.
@@ -45,101 +68,55 @@ impl Validator {
         }
     }
 
-    /// Check whether any redacted values leaked in the output text.
-    ///
-    /// Only entities with a text value (resolved from the document)
-    /// can be verified this way. Image/audio entities without text
-    /// values are counted as passed — visual and temporal redaction
-    /// verification is not yet implemented.
-    async fn check(
-        records: &[EntityRecord<Text>],
-        redacted_text: Option<&str>,
-        envelope: &DocumentEnvelope<Text>,
-    ) -> ValidationResult {
-        let mut passed = 0usize;
-        let mut leaked = Vec::new();
-
-        let applied: Vec<&EntityRecord<Text>> = records
-            .iter()
-            .filter(|r| {
-                r.audit
-                    .as_ref()
-                    .is_some_and(|e| e.redaction.is_applied)
-            })
-            .collect();
-
-        if let Some(text) = redacted_text {
-            let lower_text = text.to_lowercase();
-            for record in &applied {
-                if let Some(value) = envelope.value_at(&record.entity.location).await {
-                    let lower_value = value.to_lowercase();
-                    if !value.is_empty() && lower_text.contains(&lower_value) {
-                        leaked.push(LeakedValue {
-                            value,
-                            entity_id: record.entity.id,
-                        });
-                    } else {
-                        passed += 1;
-                    }
-                } else {
-                    passed += 1;
-                }
-            }
-        } else {
-            passed = applied.len();
-        }
-
-        ValidationResult { passed, leaked }
-    }
-
     /// Execute post-redaction validation against the envelope.
-    pub async fn execute(&self, envelope: &mut DocumentEnvelope<Text>) -> Result<()> {
+    ///
+    /// Generic over modality: dispatches through [`CheckLeaks`] to
+    /// the per-modality implementation. Modalities without leak
+    /// detection (Image, Audio) return early with a debug log;
+    /// `fail_on_leak` only fires when an inspecting modality
+    /// surfaces a leak.
+    pub async fn execute<M>(&self, envelope: &mut DocumentEnvelope<M>) -> Result<()>
+    where
+        M: CheckLeaks,
+    {
         tracing::debug!(target: TARGET, "running post-redaction validation");
 
-        let locations = envelope.collect_text_locations().await;
-        let redacted_text = if locations.is_empty() {
-            None
-        } else {
-            let mut buf = String::new();
-            for located in &locations {
-                if let Some(data) = envelope.read_text(&located.location).await {
-                    buf.push_str(data.as_str());
-                }
-            }
-            Some(buf)
-        };
+        let result = M::check_leaks(envelope).await;
 
-        let result = Self::check(
-            &envelope.document.audit.records,
-            redacted_text.as_deref(),
-            envelope,
-        )
-        .await;
+        if result.skipped {
+            tracing::debug!(
+                target: TARGET,
+                "validation skipped: no leak-detection implementation for this modality",
+            );
+            return Ok(());
+        }
 
         if result.leaked.is_empty() {
             tracing::debug!(target: TARGET, passed = result.passed, "validation passed");
-        } else {
-            tracing::warn!(
-                target: TARGET,
-                leaked = result.leaked.len(),
-                passed = result.passed,
-                "validation found leaked values",
-            );
-            if self.fail_on_leak {
-                let details: Vec<String> = result
-                    .leaked
-                    .iter()
-                    .map(|l| format!("{}({})", l.value, l.entity_id))
-                    .collect();
-                return Err(Error::validation(
-                    format!(
-                        "{} redacted value(s) leaked in output: {}",
-                        result.leaked.len(),
-                        details.join(", "),
-                    ),
-                    "validation",
-                ));
-            }
+            return Ok(());
+        }
+
+        tracing::warn!(
+            target: TARGET,
+            leaked = result.leaked.len(),
+            passed = result.passed,
+            "validation found leaked values",
+        );
+
+        if self.fail_on_leak {
+            let details: Vec<String> = result
+                .leaked
+                .iter()
+                .map(|l| format!("{}({})", l.value, l.entity_id))
+                .collect();
+            return Err(Error::validation(
+                format!(
+                    "{} redacted value(s) leaked in output: {}",
+                    result.leaked.len(),
+                    details.join(", "),
+                ),
+                "validation",
+            ));
         }
 
         Ok(())

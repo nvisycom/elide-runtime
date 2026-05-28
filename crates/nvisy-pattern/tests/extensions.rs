@@ -76,9 +76,7 @@ fn with_dictionary_dir_resolves_per_column_confidence() {
     );
 
     // Column 1 (`full_name`): Acme Premium Widget → 0.85
-    let full_offset = text
-        .find("Acme Premium Widget")
-        .expect("full name in text");
+    let full_offset = text.find("Acme Premium Widget").expect("full name in text");
     let full = find_entity_at(&entities, full_offset)
         .unwrap_or_else(|| panic!("no entity at full name; got {entities:?}"));
     assert!(

@@ -34,6 +34,7 @@ use std::sync::LazyLock;
 use nvisy_ontology::document::Block;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
+use nvisy_ontology::primitive::ConfidenceThreshold;
 use regex::RegexSet;
 
 pub use self::builder::PatternEngineBuilder;
@@ -70,7 +71,7 @@ pub struct PatternEngine {
     pub(in crate::engine) regex_entries: Vec<RegexEntry>,
     pub(in crate::engine) dict_entries: Vec<DictEntry>,
     pub(in crate::engine) validators: ValidatorResolver,
-    pub(in crate::engine) confidence_threshold: Option<f64>,
+    pub(in crate::engine) confidence_threshold: Option<ConfidenceThreshold>,
 }
 
 impl fmt::Debug for PatternEngine {
@@ -121,7 +122,7 @@ impl PatternEngine {
         let threshold = self.confidence_threshold;
         let entities: Vec<Entity<Text>> = candidates
             .into_iter()
-            .filter(|c| threshold.is_none_or(|t| c.entity.confidence.get() >= t))
+            .filter(|c| threshold.is_none_or(|t| t.admits(c.entity.confidence)))
             .map(|c| {
                 tracing::trace!(
                     target: TARGET,
@@ -146,7 +147,7 @@ impl PatternEngine {
         let threshold = self.confidence_threshold;
         candidates
             .into_iter()
-            .filter(|c| threshold.is_none_or(|t| c.entity.confidence.get() >= t))
+            .filter(|c| threshold.is_none_or(|t| t.admits(c.entity.confidence)))
             .map(|c| c.entity)
             .collect()
     }

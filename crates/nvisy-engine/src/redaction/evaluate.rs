@@ -10,6 +10,7 @@ use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, Text};
 use nvisy_ontology::policy::{Action, Condition, Policy, StrategyPolicy};
+use nvisy_ontology::primitive::ConfidenceThreshold;
 use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, EntityRecord};
 use uuid::Uuid;
 
@@ -29,7 +30,7 @@ const TARGET: &str = "nvisy_engine::redaction";
 /// Redaction operation: evaluates policies and applies redaction
 /// instructions to a modality-typed envelope.
 pub struct Redactor {
-    default_threshold: f64,
+    default_threshold: ConfidenceThreshold,
     process_metadata: bool,
 }
 
@@ -52,7 +53,7 @@ impl Redactor {
 
     /// Threshold below which entities are skipped for redaction.
     #[must_use]
-    pub fn default_threshold(&self) -> f64 {
+    pub fn default_threshold(&self) -> ConfidenceThreshold {
         self.default_threshold
     }
 
@@ -242,7 +243,7 @@ fn rank_strategies<M: Modality>(policies: &[Policy<M>]) -> Vec<(Uuid, &StrategyP
 async fn evaluate<M>(
     records: &mut [EntityRecord<M>],
     strategies: &[(Uuid, &StrategyPolicy<M>)],
-    default_threshold: f64,
+    default_threshold: ConfidenceThreshold,
     document_labels: &[&str],
     metadata: &ContentMetadata,
     envelope: &DocumentEnvelope<M>,
@@ -298,7 +299,7 @@ async fn evaluate<M>(
                 // actions (Review/Alert/Block) currently fall through
                 // to the default path; they get their own dedicated
                 // handling in a follow-up.
-                if entity.confidence.get() < default_threshold {
+                if !default_threshold.admits(entity.confidence) {
                     continue;
                 }
                 (M::Strategy::default(), None)
@@ -400,6 +401,7 @@ mod tests {
             .test_build()
     }
 
+
     fn redact_rule(priority: Option<i32>, strategy: TextStrategy) -> StrategyPolicy<Text> {
         StrategyPolicy {
             selector: EntitySelector::all(),
@@ -448,7 +450,7 @@ mod tests {
         let mut env = text_envelope("john").await;
         seed_records(&mut env, vec![ent(0, 4, 0.4)]);
         Redactor {
-            default_threshold: 0.8,
+            default_threshold: ConfidenceThreshold::clamped(0.8),
             process_metadata: false,
         }
         .execute(&mut env)
@@ -462,7 +464,7 @@ mod tests {
         let mut env = text_envelope("secret").await;
         seed_records(&mut env, vec![ent(0, 6, 0.9)]);
         Redactor {
-            default_threshold: 0.5,
+            default_threshold: ConfidenceThreshold::clamped(0.5),
             process_metadata: false,
         }
         .execute(&mut env)
@@ -491,7 +493,7 @@ mod tests {
             .set::<Text>(vec![policy]);
 
         Redactor {
-            default_threshold: 0.5,
+            default_threshold: ConfidenceThreshold::clamped(0.5),
             process_metadata: false,
         }
         .execute(&mut env)
@@ -521,7 +523,7 @@ mod tests {
             .set::<Text>(vec![policy]);
 
         Redactor {
-            default_threshold: 0.5,
+            default_threshold: ConfidenceThreshold::clamped(0.5),
             process_metadata: false,
         }
         .execute(&mut env)
@@ -546,7 +548,7 @@ mod tests {
             .set::<Text>(vec![policy]);
 
         Redactor {
-            default_threshold: 0.5,
+            default_threshold: ConfidenceThreshold::clamped(0.5),
             process_metadata: false,
         }
         .execute(&mut env)

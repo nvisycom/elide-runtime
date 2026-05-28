@@ -11,6 +11,7 @@
 //!
 //! [`Redaction`]: crate::redaction::Redaction
 
+use nvisy_ontology::primitive::ConfidenceThreshold;
 use serde::{Deserialize, Serialize};
 
 use super::tts::RedactorTtsConfig;
@@ -23,7 +24,7 @@ pub struct RedactionDefaults {
     /// don't match a policy rule. Workflow `Redaction.confidence_threshold`
     /// overrides this when set. Defaults to `0.5`.
     #[serde(default = "default_confidence_threshold")]
-    pub confidence_threshold: f64,
+    pub confidence_threshold: ConfidenceThreshold,
     /// Default for whether to strip embedded document metadata
     /// (EXIF, PDF properties). Workflow `Redaction.process_metadata`
     /// overrides this when set. Defaults to `false`.
@@ -46,6 +47,6 @@ impl Default for RedactionDefaults {
     }
 }
 
-fn default_confidence_threshold() -> f64 {
-    0.5
+fn default_confidence_threshold() -> ConfidenceThreshold {
+    ConfidenceThreshold::clamped(0.5)
 }

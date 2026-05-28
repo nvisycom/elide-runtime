@@ -25,7 +25,7 @@
 use derive_builder::Builder;
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
-use nvisy_ontology::primitive::LanguageTag;
+use nvisy_ontology::primitive::{ConfidenceThreshold, LanguageTag};
 use nvisy_pattern::filter::PatternContext;
 use uuid::Uuid;
 
@@ -67,10 +67,10 @@ pub struct DetectionContext {
     #[builder(default)]
     pub entities: Option<Vec<EntityKind>>,
 
-    /// Minimum confidence threshold in `[0.0, 1.0]`. Recognizers
-    /// that support post-filter drop entities below this score.
+    /// Minimum confidence threshold. Recognizers that support
+    /// post-filter drop entities below this score.
     #[builder(default)]
-    pub score_threshold: Option<f64>,
+    pub score_threshold: Option<ConfidenceThreshold>,
 
     /// Allow/deny/hints for pattern-backed recognizers.
     /// Non-pattern recognizers ignore this field.

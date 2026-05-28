@@ -2,6 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
+use nvisy_ontology::primitive::ConfidenceThreshold;
+
 use super::PatternEngine;
 use super::pattern_filter::PatternFilter;
 use super::scan::entries::CompiledBuckets;
@@ -31,7 +33,7 @@ const TARGET: &str = "nvisy_pattern::engine";
 pub struct PatternEngineBuilder {
     pattern_names: Option<Vec<String>>,
     dictionary_names: Option<Vec<String>>,
-    confidence_threshold: Option<f64>,
+    confidence_threshold: Option<ConfidenceThreshold>,
     filter: Option<PatternFilter>,
     extra_pattern_dirs: Vec<PathBuf>,
     extra_dictionary_dirs: Vec<PathBuf>,
@@ -74,7 +76,7 @@ impl PatternEngineBuilder {
     ///
     /// [`scan`]: PatternEngine::scan
     /// [`scan_text`]: PatternEngine::scan_text
-    pub fn with_confidence_threshold(mut self, threshold: f64) -> Self {
+    pub fn with_confidence_threshold(mut self, threshold: ConfidenceThreshold) -> Self {
         self.confidence_threshold = Some(threshold);
         self
     }

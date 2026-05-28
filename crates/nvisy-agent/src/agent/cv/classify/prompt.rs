@@ -39,7 +39,7 @@ impl<'a> CvPromptBuilder<'a> {
         };
 
         let threshold_clause = match self.config.confidence_threshold {
-            Some(t) => format!(" Drop detections below confidence {t:.2}."),
+            Some(t) => format!(" Drop detections below confidence {:.2}.", t.get()),
             None => String::new(),
         };
 

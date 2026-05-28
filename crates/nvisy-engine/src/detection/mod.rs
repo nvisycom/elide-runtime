@@ -25,6 +25,7 @@ use nvisy_core::Result;
 pub use nvisy_ner::Context as NerContext;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, ModalityBlock, Text};
+use nvisy_ontology::primitive::ConfidenceThreshold;
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -357,11 +358,12 @@ pub struct Detection {
     /// Empty = all kinds permitted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub entity_kinds: Vec<nvisy_ontology::entity::EntityKind>,
-    /// Minimum confidence threshold honored by every recognizer
-    /// (0.0..=1.0). `None` disables confidence filtering.
+    /// Minimum confidence threshold honored by every recognizer.
+    /// `None` disables confidence filtering. The newtype enforces
+    /// `[0.0, 1.0]` + finite-float at deserialize, so no `validate`
+    /// attribute is needed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[validate(range(min = 0.0, max = 1.0))]
-    pub confidence_threshold: Option<f64>,
+    pub confidence_threshold: Option<ConfidenceThreshold>,
 }
 
 impl Detection {

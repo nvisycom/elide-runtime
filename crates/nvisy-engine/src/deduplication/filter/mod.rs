@@ -12,6 +12,7 @@
 
 use nvisy_ontology::entity::{Entity, EntityKind};
 use nvisy_ontology::modality::Modality;
+use nvisy_ontology::primitive::ConfidenceThreshold;
 
 /// Per-call filtering knobs applied during deduplication.
 ///
@@ -24,7 +25,7 @@ pub struct FilterParams {
     pub allowed_kinds: Option<Vec<EntityKind>>,
     /// Drop entities whose calibrated `confidence` is below this
     /// floor. `None` keeps every confidence level.
-    pub confidence_threshold: Option<f64>,
+    pub confidence_threshold: Option<ConfidenceThreshold>,
 }
 
 /// Extension trait on `Vec<Entity<M>>`: drop entries that don't pass
@@ -56,7 +57,7 @@ fn passes<M: Modality>(entity: &Entity<M>, params: &FilterParams) -> bool {
         return false;
     }
     if let Some(threshold) = params.confidence_threshold
-        && entity.confidence.get() < threshold
+        && !threshold.admits(entity.confidence)
     {
         return false;
     }
@@ -113,7 +114,7 @@ mod tests {
             ent(EntityKind::PersonName, 0.40),
         ];
         let params = FilterParams {
-            confidence_threshold: Some(0.5),
+            confidence_threshold: Some(ConfidenceThreshold::clamped(0.5)),
             ..Default::default()
         };
         let dropped = entities.filter(&params);
@@ -131,7 +132,7 @@ mod tests {
         ];
         let params = FilterParams {
             allowed_kinds: Some(vec![EntityKind::PersonName]),
-            confidence_threshold: Some(0.5),
+            confidence_threshold: Some(ConfidenceThreshold::clamped(0.5)),
         };
         let dropped = entities.filter(&params);
         assert_eq!(entities.len(), 1);

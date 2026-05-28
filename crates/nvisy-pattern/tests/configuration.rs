@@ -1,6 +1,7 @@
 //! Integration tests for engine configuration: threshold, boost, pattern selection.
 
 use nvisy_ontology::entity::EntityKind;
+use nvisy_ontology::primitive::ConfidenceThreshold;
 use nvisy_pattern::PatternEngine;
 use nvisy_pattern::filter::PatternContext;
 
@@ -11,7 +12,7 @@ fn empty_ctx() -> PatternContext {
 #[test]
 fn confidence_threshold_filters() {
     let engine = PatternEngine::builder()
-        .with_confidence_threshold(0.99)
+        .with_confidence_threshold(ConfidenceThreshold::clamped(0.99))
         .build()
         .unwrap();
     let entities = engine.scan_text("number 123-45-6789 here", &empty_ctx());
@@ -79,7 +80,7 @@ fn pattern_selection_restricts_results() {
 fn confidence_threshold_filters_after_boost() {
     let engine = PatternEngine::builder()
         .with_patterns(&["ssn"])
-        .with_confidence_threshold(0.95)
+        .with_confidence_threshold(ConfidenceThreshold::clamped(0.95))
         .build()
         .unwrap();
 

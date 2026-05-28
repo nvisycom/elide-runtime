@@ -153,7 +153,7 @@ mod tests {
     use nvisy_core::content::ContentMetadata;
     use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod};
     use nvisy_ontology::modality::Text;
-    use nvisy_ontology::primitive::Confidence;
+    use nvisy_ontology::primitive::{Confidence, ConfidenceThreshold};
     use tokio::sync::Mutex;
 
     use super::*;
@@ -193,7 +193,7 @@ mod tests {
                 .test_build(),
         ];
         let params = FilterParams {
-            confidence_threshold: Some(0.85),
+            confidence_threshold: Some(ConfidenceThreshold::clamped(0.85)),
             ..Default::default()
         };
         let result = op.deduplicate(entities, &doc, &params).await;

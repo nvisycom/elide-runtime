@@ -57,8 +57,7 @@ pub struct Policy<M: Modality> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Fallback strategy for entities that no
-    /// [`StrategyPolicy`](crate::policy::StrategyPolicy) selector
-    /// matches.
+    /// [`StrategyPolicy`] selector matches.
     ///
     /// Precedence: the redaction evaluator first walks
     /// [`Self::strategies`] in declaration order and applies the

@@ -131,10 +131,14 @@ impl ApplyRedactions for DocumentEnvelope<Text> {
         if !assembled.batch.is_empty() {
             self.apply_text_redactions(assembled.batch).await?;
         }
-        apply::commit(self, assembled.applied, assembled.failed, |entry, redaction| {
-            entry.value.replacement =
-                redaction.output().replacement_value().map(str::to_owned);
-        });
+        apply::commit(
+            self,
+            assembled.applied,
+            assembled.failed,
+            |entry, redaction| {
+                entry.value.replacement = redaction.output().replacement_value().map(str::to_owned);
+            },
+        );
         Ok(())
     }
 }
@@ -156,10 +160,14 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
         if !assembled.batch.is_empty() {
             self.apply_tabular_redactions(assembled.batch).await?;
         }
-        apply::commit(self, assembled.applied, assembled.failed, |entry, redaction| {
-            entry.value.replacement =
-                redaction.output().replacement_value().map(str::to_owned);
-        });
+        apply::commit(
+            self,
+            assembled.applied,
+            assembled.failed,
+            |entry, redaction| {
+                entry.value.replacement = redaction.output().replacement_value().map(str::to_owned);
+            },
+        );
         Ok(())
     }
 }
@@ -177,8 +185,9 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
 #[async_trait::async_trait]
 impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
     async fn apply_pending(&mut self) -> Result<()> {
-        let assembled =
-            apply::build(self, |view| to_image_redaction(&view.entry.redaction.strategy));
+        let assembled = apply::build(self, |view| {
+            to_image_redaction(&view.entry.redaction.strategy)
+        });
         if assembled.is_noop() {
             return Ok(());
         }
@@ -187,7 +196,12 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
         }
         // Image redactions don't produce a substitutable string;
         // the audit entry's `replacement` stays unset.
-        apply::commit(self, assembled.applied, assembled.failed, |_entry, _redaction| {});
+        apply::commit(
+            self,
+            assembled.applied,
+            assembled.failed,
+            |_entry, _redaction| {},
+        );
         Ok(())
     }
 }
@@ -204,8 +218,9 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
 #[async_trait::async_trait]
 impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
     async fn apply_pending(&mut self) -> Result<()> {
-        let assembled =
-            apply::build(self, |view| to_audio_redaction(&view.entry.redaction.strategy));
+        let assembled = apply::build(self, |view| {
+            to_audio_redaction(&view.entry.redaction.strategy)
+        });
         if assembled.is_noop() {
             return Ok(());
         }
@@ -214,7 +229,12 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
         }
         // Audio redactions don't produce a substitutable string;
         // the audit entry's `replacement` stays unset.
-        apply::commit(self, assembled.applied, assembled.failed, |_entry, _redaction| {});
+        apply::commit(
+            self,
+            assembled.applied,
+            assembled.failed,
+            |_entry, _redaction| {},
+        );
         Ok(())
     }
 }
@@ -400,7 +420,6 @@ mod tests {
             .with_confidence(Confidence::new(conf).expect("[0,1]"))
             .test_build()
     }
-
 
     fn redact_rule(priority: Option<i32>, strategy: TextStrategy) -> StrategyPolicy<Text> {
         StrategyPolicy {

@@ -78,9 +78,9 @@ impl Handle<Text> for TxtHandler {
 
     async fn read(&self, location: &Text) -> Option<TextData> {
         let offsets = self.line_offsets();
-        let line_idx = offsets.iter().position(|&(start, end)| {
-            location.start >= start && location.end <= end
-        })?;
+        let line_idx = offsets
+            .iter()
+            .position(|&(start, end)| location.start >= start && location.end <= end)?;
         let line = self.lines.get(line_idx)?;
         let line_start = offsets[line_idx].0;
         let local_start = location.start - line_start;

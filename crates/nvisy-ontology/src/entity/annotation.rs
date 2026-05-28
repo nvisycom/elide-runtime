@@ -149,9 +149,8 @@ pub fn inclusion_entities<M: Modality + Default>(annotations: &[Annotation<M>]) 
             AnnotationTarget::Location(loc) => loc.clone(),
         };
 
-        let confidence = confidence.unwrap_or_else(|| {
-            Confidence::new(1.0).expect("1.0 is in [0.0, 1.0]")
-        });
+        let confidence =
+            confidence.unwrap_or_else(|| Confidence::new(1.0).expect("1.0 is in [0.0, 1.0]"));
         let entity = Entity::builder()
             .with_category(*category)
             .with_entity_kind(*entity_kind)

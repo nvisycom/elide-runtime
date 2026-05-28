@@ -1,22 +1,22 @@
 //! Primitive types used across the ontology.
 //!
-//! Spatial primitives (bounding boxes, polygons), temporal intervals,
-//! language tags, and rendering types.
+//! Submodules group related primitives:
+//! - [`confidence`] — `Confidence` scores + `ConfidenceThreshold` cutoffs.
+//! - [`geometry`] — 2D coordinate types (`BoundingBox`, `Polygon`).
+//! - [`language`] — language tags + per-region detection results.
+//! - [`rendering`] — output-side knobs (`Color`, `Dpi`).
+//!
+//! [`TimeSpan`] is the single root-level primitive — temporal
+//! intervals don't have any companion types worth grouping yet.
 
-mod bounding_box;
-mod color;
 mod confidence;
-mod confidence_threshold;
-mod dpi;
+mod geometry;
 mod language;
-mod polygon;
+mod rendering;
 mod time_span;
 
-pub use self::bounding_box::{BoundingBox, IBoundingBox};
-pub use self::color::Color;
-pub use self::confidence::Confidence;
-pub use self::confidence_threshold::ConfidenceThreshold;
-pub use self::dpi::Dpi;
+pub use self::confidence::{Confidence, ConfidenceThreshold};
+pub use self::geometry::{BoundingBox, IBoundingBox, Polygon, Vertex};
 pub use self::language::{LanguageDetection, LanguageProvenance, LanguageSpan, LanguageTag};
-pub use self::polygon::{Polygon, Vertex};
+pub use self::rendering::{Color, Dpi};
 pub use self::time_span::TimeSpan;

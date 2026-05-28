@@ -22,16 +22,16 @@ mod image;
 mod tabular;
 mod text;
 
+use nvisy_codec::handler::TextOutput;
+use nvisy_core::{Error, Result};
+use nvisy_ontology::entity::EntityKind;
+
 #[cfg(feature = "audio")]
 pub(super) use self::audio::to_audio_redaction;
 #[cfg(feature = "image")]
 pub(super) use self::image::to_image_redaction;
 pub(super) use self::tabular::to_tabular_redaction;
 pub(super) use self::text::to_text_redaction;
-
-use nvisy_codec::handler::TextOutput;
-use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::EntityKind;
 
 /// Build a [`TextOutput`] from text-shaped strategy parameters used
 /// by both Text and Tabular converters. Returns the audit-side
@@ -70,9 +70,7 @@ pub(super) fn text_output_from(
             // bytes-level CryptoService entry point. Touching the
             // fields keeps the dead-code lint honest.
             let _ = (key_id, original);
-            unimplemented!(
-                "redaction `encrypt` not yet wired — needs CryptoService::encrypt_bytes"
-            )
+            unimplemented!("redaction `encrypt` not yet wired — needs CryptoService::encrypt_bytes")
         }
     }
 }

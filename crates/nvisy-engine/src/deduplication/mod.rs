@@ -139,8 +139,7 @@ impl Deduplicator {
             let records = mem::take(&mut envelope.document.audit.records);
             let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
             let deduped = self.deduplicate(entities, envelope, params).await;
-            envelope.document.audit.records =
-                deduped.into_iter().map(EntityRecord::new).collect();
+            envelope.document.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
         }
         Ok(())
     }

@@ -35,13 +35,13 @@ use validator::Validate;
 
 pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
 pub use self::dyn_recognizer::DynRecognizer;
-use crate::envelope::DocumentEnvelope;
 pub use self::lift::LiftFromBlock;
 pub use self::llm::{LlmDetection, LlmRecognizer};
 pub use self::ner::{NerDetection, NerRecognizer};
 pub use self::pattern::{PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
 pub use self::recognizers::{DetectionSection, Recognizers};
+use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::detection";
 
@@ -280,11 +280,9 @@ impl DetectionEngine {
 
             let detected = self.run(ctx).await?;
             for entity in detected {
-                let Some(location) = M::lift_from_block(
-                    &block.spans,
-                    entity.location.start,
-                    entity.location.end,
-                ) else {
+                let Some(location) =
+                    M::lift_from_block(&block.spans, entity.location.start, entity.location.end)
+                else {
                     tracing::debug!(
                         target: TARGET,
                         kind = %entity.entity_kind,

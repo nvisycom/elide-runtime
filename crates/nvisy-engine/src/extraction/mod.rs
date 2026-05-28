@@ -171,7 +171,6 @@ impl Extractors {
         let vlm_empty = true;
         ocr_empty && stt_empty && vlm_empty
     }
-
 }
 
 /// Per-modality extraction dispatch.
@@ -228,10 +227,7 @@ impl Extract<Image> for Extractors {
             ocr.run(envelope).await?;
         }
         if let Some(ref vlm) = self.vlm
-            && extraction
-                .visual
-                .as_ref()
-                .is_some_and(|v| v.verification)
+            && extraction.visual.as_ref().is_some_and(|v| v.verification)
         {
             vlm.run(envelope).await?;
         }
@@ -260,10 +256,7 @@ impl Extract<Audio> for Extractors {
         extraction: &Extraction,
     ) -> Result<()> {
         if let Some(ref stt) = self.stt {
-            let diarization = extraction
-                .audial
-                .as_ref()
-                .is_some_and(|a| a.diarization);
+            let diarization = extraction.audial.as_ref().is_some_and(|a| a.diarization);
             stt.run(envelope, diarization).await?;
         }
         Ok(())

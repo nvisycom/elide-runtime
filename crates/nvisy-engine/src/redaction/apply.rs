@@ -72,10 +72,7 @@ impl<M: Modality, R> ApplyBatch<M, R> {
 /// The returned [`ApplyBatch`] holds the batch to submit plus the
 /// per-record indices the caller will commit via [`commit`] once
 /// the codec accepts the work.
-pub(super) fn build<M, R, F>(
-    envelope: &DocumentEnvelope<M>,
-    to_redaction: F,
-) -> ApplyBatch<M, R>
+pub(super) fn build<M, R, F>(envelope: &DocumentEnvelope<M>, to_redaction: F) -> ApplyBatch<M, R>
 where
     M: Modality + Overlap + Mergeable,
     R: Mergeable + Clone,
@@ -190,4 +187,3 @@ pub(super) fn commit<M, R, OnSuccess>(
         entry.status = AuditEntryStatus::Failed;
     }
 }
-

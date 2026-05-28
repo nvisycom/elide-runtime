@@ -121,9 +121,7 @@ impl VlmExtractor {
         Ok(verified)
     }
 
-    async fn collect_inputs(
-        envelope: &DocumentEnvelope<Image>,
-    ) -> Vec<Located<Image, ImageData>> {
+    async fn collect_inputs(envelope: &DocumentEnvelope<Image>) -> Vec<Located<Image, ImageData>> {
         let locations = envelope.collect_image_locations().await;
         let mut out = Vec::with_capacity(locations.len());
         for located in locations {

@@ -14,7 +14,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
+use nvisy_ontology::modality::{Audio, Image, Modality, Overlap, Tabular, Text};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -30,7 +30,6 @@ use crate::ingestion::{
 };
 use crate::redaction::{ApplyRedactions, RedactionDefaults, Redactor};
 use crate::validation::{CheckLeaks, Validator};
-use nvisy_ontology::modality::Overlap;
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
@@ -111,7 +110,13 @@ impl Orchestrator {
                     join_set.spawn(run_typed_pipeline(env, ctx, sem, plan, AnyEnvelope::Text));
                 }
                 AnyEnvelope::Tabular(env) => {
-                    join_set.spawn(run_typed_pipeline(env, ctx, sem, plan, AnyEnvelope::Tabular));
+                    join_set.spawn(run_typed_pipeline(
+                        env,
+                        ctx,
+                        sem,
+                        plan,
+                        AnyEnvelope::Tabular,
+                    ));
                 }
                 AnyEnvelope::Image(env) => {
                     join_set.spawn(run_typed_pipeline(env, ctx, sem, plan, AnyEnvelope::Image));
@@ -281,8 +286,12 @@ where
         self.check_cancelled()?;
 
         // Extraction.
-        Extract::<M>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
-            .await?;
+        Extract::<M>::extract(
+            self.ctx.extractors.as_ref(),
+            &mut envelope,
+            &plan.extraction,
+        )
+        .await?;
         self.check_cancelled()?;
 
         // Detection.
@@ -385,4 +394,3 @@ impl RunPipeline<Audio> for DocumentPipeline<Audio> {
         self.run_full(envelope, plan).await
     }
 }
-

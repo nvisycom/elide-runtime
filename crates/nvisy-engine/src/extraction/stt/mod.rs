@@ -78,11 +78,14 @@ impl SttExtractor {
         }
 
         let time_span = TimeSpan::new(0, 0);
-        envelope.document.blocks.push(Block::new(AudioBlock::Speech {
-            time_span,
-            text: stt_result.text.clone(),
-            speaker_id: None,
-        }));
+        envelope
+            .document
+            .blocks
+            .push(Block::new(AudioBlock::Speech {
+                time_span,
+                text: stt_result.text.clone(),
+                speaker_id: None,
+            }));
 
         tracing::debug!(target: TARGET, "audio transcript captured");
         Ok(())

@@ -32,8 +32,7 @@ pub use self::entry::{
 };
 pub use self::record::EntityRecord;
 pub use self::review::{ReviewDecision, ReviewStatus};
-use crate::entity::ContentSource;
-use crate::entity::Entity;
+use crate::entity::{ContentSource, Entity};
 use crate::modality::{Audio, Image, Modality, Tabular, Text};
 
 /// A per-document audit trail: per-entity records bundling the

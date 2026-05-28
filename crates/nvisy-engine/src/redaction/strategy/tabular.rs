@@ -34,11 +34,9 @@ pub(crate) fn to_tabular_redaction(
         TabularStrategy::Clear => TextOutput::Replace {
             replacement: String::new(),
         },
-        TabularStrategy::Encrypt { key_id } => text_output_from(
-            TextOutputMethod::Encrypt { key_id },
-            original,
-            entity_kind,
-        )?,
+        TabularStrategy::Encrypt { key_id } => {
+            text_output_from(TextOutputMethod::Encrypt { key_id }, original, entity_kind)?
+        }
         TabularStrategy::DropColumn => return Err(unsupported("drop_column")),
     };
     Ok(TabularRedaction::new(output))

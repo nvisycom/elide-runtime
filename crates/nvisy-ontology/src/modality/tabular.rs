@@ -116,7 +116,10 @@ impl Tabular {
     /// no `end_offset` is set — a sentinel range that overlaps any
     /// concrete subrange and merges into anything.
     fn cell_range(&self) -> (usize, usize) {
-        (self.start_offset.unwrap_or(0), self.end_offset.unwrap_or(usize::MAX))
+        (
+            self.start_offset.unwrap_or(0),
+            self.end_offset.unwrap_or(usize::MAX),
+        )
     }
 }
 

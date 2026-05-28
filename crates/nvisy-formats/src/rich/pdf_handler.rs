@@ -164,9 +164,10 @@ impl Handle<Text> for RichTextHandler {
 
     async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         let offsets = self.page_offsets();
-        let Some(page_idx) = offsets.iter().position(|&(start, end, _)| {
-            location.start >= start && location.end <= end
-        }) else {
+        let Some(page_idx) = offsets
+            .iter()
+            .position(|&(start, end, _)| location.start >= start && location.end <= end)
+        else {
             return Ok(());
         };
         let page_start = offsets[page_idx].0;

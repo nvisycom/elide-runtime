@@ -9,11 +9,12 @@
 //! sequentially: extraction → detection → deduplication → redaction →
 //! validation.
 
+use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::modality::Text;
+use nvisy_ontology::modality::{Modality, Text};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -126,7 +127,10 @@ impl Orchestrator {
                     None => None,
                 };
 
-                let pipeline = DocumentPipeline { ctx: ctx.clone() };
+                let pipeline = DocumentPipeline::<Text> {
+                    ctx: ctx.clone(),
+                    _marker: PhantomData,
+                };
                 match pipeline.run(text_envelope, &plan).await {
                     Ok(envelope) => DocumentResult {
                         envelope: Some(envelope),
@@ -200,12 +204,29 @@ impl Orchestrator {
 }
 
 /// Processes a single document through all plan phases sequentially.
-struct DocumentPipeline {
+///
+/// Generic over modality `M`: a single `DocumentPipeline<M>` runs the
+/// same stage sequence (extraction → detection → dedup → redaction →
+/// validation → export) for any modality. Today only the `<Text>`
+/// specialization carries stage bodies; per-modality stage methods
+/// are added by Scope C in later steps (§4.3 onward).
+struct DocumentPipeline<M: Modality> {
     ctx: Arc<RunContext>,
+    _marker: PhantomData<fn() -> M>,
 }
 
-impl DocumentPipeline {
-    /// Run all phases for a single envelope.
+impl<M: Modality> DocumentPipeline<M> {
+    /// Cancellation-token guard shared by every stage.
+    fn check_cancelled(&self) -> Result<(), Error> {
+        if self.ctx.cancel.is_cancelled() {
+            return Err(Error::cancellation("run cancelled"));
+        }
+        Ok(())
+    }
+}
+
+impl DocumentPipeline<Text> {
+    /// Run all phases for a single text envelope.
     async fn run(
         &self,
         mut envelope: DocumentEnvelope<Text>,
@@ -297,13 +318,6 @@ impl DocumentPipeline {
                 .with_compression(cfg.compression)
                 .with_content_ids(cfg.content_ids.clone());
             exporter.export(envelope).await?;
-        }
-        Ok(())
-    }
-
-    fn check_cancelled(&self) -> Result<(), Error> {
-        if self.ctx.cancel.is_cancelled() {
-            return Err(Error::cancellation("run cancelled"));
         }
         Ok(())
     }

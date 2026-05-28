@@ -10,7 +10,7 @@ use crate::core::Mergeable;
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
 /// [`Text`]: nvisy_ontology::modality::Text
-/// [`Redactions`]: crate::handler::Redactions
+/// [`Redactions`]: crate::core::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextRedaction {
     /// The redaction output that carries the replacement value.

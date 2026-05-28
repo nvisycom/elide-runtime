@@ -10,7 +10,7 @@ use crate::core::Mergeable;
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
 /// [`Audio`]: nvisy_ontology::modality::Audio
-/// [`Redactions`]: crate::handler::Redactions
+/// [`Redactions`]: crate::core::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct AudioRedaction {
     /// The redaction output that determines the rendering method.

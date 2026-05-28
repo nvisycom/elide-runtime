@@ -27,6 +27,23 @@ pub enum PatternEngineError {
         name: String,
         source: aho_corasick::BuildError,
     },
+    /// A dictionary pattern declared per-column confidence but the
+    /// referenced dictionary has case-insensitive duplicate terms
+    /// across different columns — the resolved confidence is ambiguous.
+    ///
+    /// Fix by deduplicating the dictionary (drop the rogue cell or
+    /// move it to the matching column) or by setting the pattern's
+    /// `case_sensitive: true` so case-distinct cells no longer collide.
+    #[error(
+        "pattern '{name}' has ambiguous per-column confidence: dictionary '{dictionary}' \
+         term '{term}' appears in columns {columns:?} under case-insensitive matching"
+    )]
+    AmbiguousDictionaryConfidence {
+        name: String,
+        dictionary: String,
+        term: String,
+        columns: Vec<u32>,
+    },
     /// Failed to build the RegexSet pre-filter.
     #[error("failed to build RegexSet pre-filter: {0}")]
     RegexSetBuild(regex::Error),

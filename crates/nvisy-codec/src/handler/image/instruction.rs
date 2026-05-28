@@ -11,7 +11,7 @@ use crate::core::Mergeable;
 /// [`Redactions`]'s `(S, R)` pairs.
 ///
 /// [`Image`]: nvisy_ontology::modality::Image
-/// [`Redactions`]: crate::handler::Redactions
+/// [`Redactions`]: crate::core::Redactions
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageRedaction {
     /// The redaction output that determines the rendering method.

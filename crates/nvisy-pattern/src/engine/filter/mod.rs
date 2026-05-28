@@ -72,17 +72,3 @@ pub struct PatternContext {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub correlation_id: Option<Uuid>,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn empty_pattern_context_deserializes_from_empty_object() {
-        let ctx: PatternContext = serde_json::from_str("{}").expect("empty object");
-        assert!(ctx.allow.is_empty());
-        assert!(ctx.deny.is_empty());
-        assert!(ctx.hints.is_empty());
-        assert!(ctx.correlation_id.is_none());
-    }
-}

@@ -26,7 +26,7 @@ cargo run -p nvisy-cli
 cargo run -p nvisy-cli --no-default-features --features openai,anthropic
 
 # Show all options
-nvisy-server --help
+nvisy --help
 ```
 
 ## Documentation

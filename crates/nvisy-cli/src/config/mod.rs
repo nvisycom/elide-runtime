@@ -21,7 +21,7 @@
 //! # Example
 //!
 //! ```bash
-//! nvisy-server --host 127.0.0.1 --port 3000 --config Nvisy.toml
+//! nvisy --host 127.0.0.1 --port 3000 --config Nvisy.toml
 //! ```
 
 mod file;

@@ -12,7 +12,7 @@ use crate::handler::TextOutput;
 /// being grouped by a line-level text span, it is grouped by a cell
 /// coordinate.
 ///
-/// [`Redactions`]: crate::handler::Redactions
+/// [`Redactions`]: crate::core::Redactions
 /// [`TextRedaction`]: crate::handler::TextRedaction
 /// [`Tabular`]: nvisy_ontology::modality::Tabular
 #[derive(Debug, Clone, PartialEq)]

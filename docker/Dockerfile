@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Multi-stage build for the nvisy-server binary.
+# Multi-stage build for the `nvisy` binary (shipped by nvisy-cli).
 #
 #   docker build -f docker/Dockerfile -t nvisy-server .
 #
@@ -52,7 +52,7 @@ RUN cargo build --release 2>/dev/null || true
 
 # Full build
 COPY . .
-RUN cargo build --release --bin nvisy-server
+RUN cargo build --release --bin nvisy
 
 # Stage 2: Runtime
 FROM debian:bookworm-slim
@@ -77,7 +77,7 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
     /opt/nvisy/packages/nvisy-exif
 
 # Binary
-COPY --from=build /app/target/release/nvisy-server /usr/local/bin/
+COPY --from=build /app/target/release/nvisy /usr/local/bin/
 
 EXPOSE 8080
-ENTRYPOINT ["nvisy-server"]
+ENTRYPOINT ["nvisy"]

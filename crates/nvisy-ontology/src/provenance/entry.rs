@@ -35,18 +35,19 @@ pub enum AuditEntryStatus {
     Suppressed,
 }
 
-/// A per-entity audit entry: what strategy was chosen, what the
-/// original and replacement values are, and optional review.
+/// A per-entity redaction record: what strategy was chosen, what
+/// the original and replacement values are, and optional review.
 ///
-/// Created by the policy evaluator via the builder, then enriched by
-/// the applicator with the replacement value and `is_applied` flag.
+/// Created by the policy evaluator via the builder, then enriched
+/// by the applicator with the replacement value and `is_applied`
+/// flag.
 ///
-/// Location and confidence are not stored here: they live on the
-/// corresponding [`Entity<M>`] in [`Audit::entities`], linked by
-/// `entity_id`.
+/// The entry lives next to its [`Entity<M>`] inside an
+/// [`EntityRecord<M>`]; the entity's `id` and `location` are read
+/// directly through the record rather than duplicated here.
 ///
 /// [`Entity<M>`]: crate::entity::Entity
-/// [`Audit::entities`]: super::Audit::entities
+/// [`EntityRecord<M>`]: super::EntityRecord
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "AuditEntryBuilder",
@@ -62,8 +63,6 @@ pub enum AuditEntryStatus {
 )]
 #[schemars(bound = "M::Strategy: JsonSchema")]
 pub struct AuditEntry<M: Modality> {
-    /// Identifier of the entity being redacted.
-    pub entity_id: Uuid,
     /// Identifier of the policy that triggered this redaction.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -137,23 +136,18 @@ impl<M: Modality> AuditEntryBuilder<M>
 where
     M::Strategy: RedactionStrategy,
 {
-    /// Set the entity ID, strategy, and original value in one call.
-    pub fn for_entity(
-        self,
-        entity_id: Uuid,
-        strategy: M::Strategy,
-        original: impl Into<String>,
-    ) -> Self {
+    /// Set the strategy and original value in one call, deriving
+    /// the `reversible` flag from the strategy.
+    pub fn for_redaction(self, strategy: M::Strategy, original: impl Into<String>) -> Self {
         let reversible = strategy.is_reversible();
-        self.with_entity_id(entity_id)
-            .with_redaction(RedactionSpec {
-                strategy,
-                is_applied: false,
-                reversible,
-            })
-            .with_value(RedactionValue {
-                original: original.into(),
-                replacement: None,
-            })
+        self.with_redaction(RedactionSpec {
+            strategy,
+            is_applied: false,
+            reversible,
+        })
+        .with_value(RedactionValue {
+            original: original.into(),
+            replacement: None,
+        })
     }
 }

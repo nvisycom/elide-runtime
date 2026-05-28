@@ -5,16 +5,20 @@
 //!
 //! - [`AuditEntry<M>`]: per-entity redaction record with strategy,
 //!   original/replacement values, and optional review.
-//! - [`Audit<M>`]: per-document container for entities and audit
-//!   entries.
+//! - [`EntityRecord<M>`]: an [`Entity<M>`] bundled with its
+//!   optional [`AuditEntry<M>`].
+//! - [`Audit<M>`]: per-document container holding the records
+//!   produced during a pipeline run.
 //!
 //! All provenance types are typed per modality. Cross-modality
 //! aggregation (rich documents that process as multiple typed
 //! envelopes) is the engine's responsibility — provenance stays
 //! per-envelope.
+//!
+//! [`Entity<M>`]: crate::entity::Entity
 
 mod entry;
-mod redaction_map;
+mod record;
 mod review;
 
 use derive_builder::Builder;
@@ -27,22 +31,22 @@ use uuid::Uuid;
 pub use self::entry::{
     AuditEntry, AuditEntryBuilder, AuditEntryStatus, RedactionSpec, RedactionValue,
 };
-pub use self::redaction_map::{RedactionMap, RedactionMapping};
+pub use self::record::EntityRecord;
 pub use self::review::{ReviewDecision, ReviewStatus};
 use crate::entity::ContentSource;
 use crate::entity::Entity;
 use crate::modality::{Audio, Image, Modality, Tabular, Text};
 
-/// A per-document audit trail: detected entities and redaction
-/// entries.
+/// A per-document audit trail: per-entity records bundling the
+/// detected entity with the audit entry (if any) produced for it
+/// during the pipeline run.
 ///
-/// `Audit<M>` is the compliance artifact for one typed document. It
-/// tracks:
-/// - **What was found**: via [`entities`]
-/// - **What was redacted and how**: via [`entries`]
+/// `Audit<M>` is the compliance artifact for one typed document.
+/// Each [`EntityRecord<M>`] in [`records`] represents one
+/// detection; the record's `audit` field is `Some` when a
+/// redaction or suppression rule matched.
 ///
-/// [`entities`]: Self::entities
-/// [`entries`]: Self::entries
+/// [`records`]: Self::records
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "AuditBuilder",
@@ -69,14 +73,10 @@ pub struct Audit<M: Modality> {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actor_id: Option<Uuid>,
-    /// Entities detected during the pipeline run.
+    /// Per-entity records produced during the pipeline run.
     #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub entities: Vec<Entity<M>>,
-    /// Per-entity redaction audit entries.
-    #[builder(default = "Vec::new()")]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub entries: Vec<AuditEntry<M>>,
+    pub records: Vec<EntityRecord<M>>,
 }
 
 impl<M: Modality> Audit<M> {
@@ -86,24 +86,50 @@ impl<M: Modality> Audit<M> {
             source,
             run_id: None,
             actor_id: None,
-            entities: Vec::new(),
-            entries: Vec::new(),
+            records: Vec::new(),
         }
     }
 
-    /// Append an audit entry.
-    pub fn push_entry(&mut self, entry: AuditEntry<M>) {
-        self.entries.push(entry);
+    /// Append a record for `entity` with no audit decision yet.
+    pub fn push_entity(&mut self, entity: Entity<M>) {
+        self.records.push(EntityRecord::new(entity));
+    }
+
+    /// Iterate over the detected entities (read-only).
+    pub fn entities(&self) -> impl Iterator<Item = &Entity<M>> {
+        self.records.iter().map(|r| &r.entity)
+    }
+
+    /// Iterate over the audit entries that have been recorded.
+    pub fn entries(&self) -> impl Iterator<Item = &AuditEntry<M>> {
+        self.records.iter().filter_map(|r| r.audit.as_ref())
+    }
+
+    /// Iterate over `(entity, audit_entry)` pairs for records that
+    /// have a redaction decision.
+    pub fn decided(&self) -> impl Iterator<Item = (&Entity<M>, &AuditEntry<M>)> {
+        self.records
+            .iter()
+            .filter_map(|r| r.audit.as_ref().map(|a| (&r.entity, a)))
+    }
+
+    /// Number of detected entities.
+    pub fn entities_count(&self) -> usize {
+        self.records.len()
     }
 
     /// Number of audit entries recorded.
-    pub fn len(&self) -> usize {
-        self.entries.len()
+    pub fn entries_count(&self) -> usize {
+        self.records.iter().filter(|r| r.audit.is_some()).count()
     }
 
-    /// Returns `true` if no audit entries have been recorded.
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+    /// Number of redaction audit entries whose redaction was
+    /// actually applied (as opposed to suppressed or skipped).
+    pub fn applied_redactions_count(&self) -> usize {
+        self.records
+            .iter()
+            .filter(|r| r.audit.as_ref().is_some_and(|a| a.redaction.is_applied))
+            .count()
     }
 }
 
@@ -120,7 +146,7 @@ impl<M: Modality> Audit<M> {
 /// fields into the same JSON object:
 ///
 /// ```json
-/// { "modality": "text", "source": {...}, "entities": [...], "entries": [...] }
+/// { "modality": "text", "source": {...}, "records": [...] }
 /// ```
 ///
 /// [`RegistryStore::store_audits`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/ingestion/struct.RegistryStore.html#method.store_audits
@@ -170,20 +196,20 @@ impl AnyAudit {
     /// Number of detected entities, summed across all variants.
     pub fn entities_count(&self) -> usize {
         match self {
-            Self::Text(a) => a.entities.len(),
-            Self::Tabular(a) => a.entities.len(),
-            Self::Image(a) => a.entities.len(),
-            Self::Audio(a) => a.entities.len(),
+            Self::Text(a) => a.entities_count(),
+            Self::Tabular(a) => a.entities_count(),
+            Self::Image(a) => a.entities_count(),
+            Self::Audio(a) => a.entities_count(),
         }
     }
 
     /// Number of redaction audit entries.
     pub fn entries_count(&self) -> usize {
         match self {
-            Self::Text(a) => a.entries.len(),
-            Self::Tabular(a) => a.entries.len(),
-            Self::Image(a) => a.entries.len(),
-            Self::Audio(a) => a.entries.len(),
+            Self::Text(a) => a.entries_count(),
+            Self::Tabular(a) => a.entries_count(),
+            Self::Image(a) => a.entries_count(),
+            Self::Audio(a) => a.entries_count(),
         }
     }
 
@@ -191,19 +217,11 @@ impl AnyAudit {
     /// applied (as opposed to suppressed or skipped). Used by the
     /// engine's run-summary counters.
     pub fn applied_redactions_count(&self) -> usize {
-        fn count<M: Modality>(audit: &Audit<M>) -> usize {
-            audit
-                .entries
-                .iter()
-                .filter(|e| e.redaction.is_applied)
-                .count()
-        }
         match self {
-            Self::Text(a) => count(a),
-            Self::Tabular(a) => count(a),
-            Self::Image(a) => count(a),
-            Self::Audio(a) => count(a),
+            Self::Text(a) => a.applied_redactions_count(),
+            Self::Tabular(a) => a.applied_redactions_count(),
+            Self::Image(a) => a.applied_redactions_count(),
+            Self::Audio(a) => a.applied_redactions_count(),
         }
     }
 }
-

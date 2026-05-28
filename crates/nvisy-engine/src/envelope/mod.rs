@@ -25,7 +25,6 @@ use nvisy_core::media::DocumentType;
 use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Modality;
-use nvisy_ontology::provenance::RedactionMap;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -68,11 +67,6 @@ pub struct DocumentEnvelope<M: Modality> {
     /// [`LoadContext`]: crate::ingestion::LoadContext
     pub contexts: Vec<Uuid>,
 
-    /// Mapping of entity IDs to original and replacement values.
-    /// Populated during redaction. Not included in the public audit
-    /// response, stored separately under access control.
-    pub redaction_map: RedactionMap<M>,
-
     /// Run-wide shared state (policies, registry, key provider).
     /// Cheaply cloneable (`Arc`): all envelopes in a run share the
     /// same underlying data.
@@ -95,7 +89,6 @@ impl<M: Modality> DocumentEnvelope<M> {
             metadata,
             document,
             contexts: Vec::new(),
-            redaction_map: RedactionMap::new(),
             shared,
         }
     }
@@ -117,16 +110,19 @@ impl<M: Modality> DocumentEnvelope<M> {
 
     /// Number of detected entities.
     pub fn entity_count(&self) -> usize {
-        self.document.audit.entities.len()
+        self.document.audit.records.len()
     }
 
-    /// Add detected entities, assigning sensitivity from entity kind.
+    /// Add detected entities (wrapped into fresh [`EntityRecord`]s),
+    /// assigning sensitivity from entity kind.
+    ///
+    /// [`EntityRecord`]: nvisy_ontology::provenance::EntityRecord
     pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity<M>>) {
         for mut entity in entities {
             if entity.sensitivity.is_none() {
                 entity.sensitivity = Some(entity.entity_kind.sensitivity());
             }
-            self.document.audit.entities.push(entity);
+            self.document.audit.push_entity(entity);
         }
     }
 }
@@ -134,9 +130,8 @@ impl<M: Modality> DocumentEnvelope<M> {
 impl<M: Modality> fmt::Debug for DocumentEnvelope<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DocumentEnvelope")
-            .field("entities", &self.document.audit.entities.len())
+            .field("records", &self.document.audit.records.len())
             .field("contexts", &self.contexts.len())
-            .field("entries", &self.document.audit.entries.len())
             .finish_non_exhaustive()
     }
 }

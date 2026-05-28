@@ -8,9 +8,8 @@
 mod workflow;
 
 use nvisy_core::{Error, Result};
-use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
-use nvisy_ontology::provenance::AuditEntry;
+use nvisy_ontology::provenance::EntityRecord;
 use uuid::Uuid;
 
 pub use self::workflow::Validation;
@@ -53,32 +52,32 @@ impl Validator {
     /// values are counted as passed — visual and temporal redaction
     /// verification is not yet implemented.
     async fn check(
-        entities: &[Entity<Text>],
-        records: &[AuditEntry<Text>],
+        records: &[EntityRecord<Text>],
         redacted_text: Option<&str>,
         envelope: &DocumentEnvelope<Text>,
     ) -> ValidationResult {
         let mut passed = 0usize;
         let mut leaked = Vec::new();
 
-        let applied: Vec<_> = records.iter().filter(|r| r.redaction.is_applied).collect();
+        let applied: Vec<&EntityRecord<Text>> = records
+            .iter()
+            .filter(|r| {
+                r.audit
+                    .as_ref()
+                    .is_some_and(|e| e.redaction.is_applied)
+            })
+            .collect();
 
         if let Some(text) = redacted_text {
             let lower_text = text.to_lowercase();
             for record in &applied {
-                let entity = entities.iter().find(|e| e.id == record.entity_id);
-
-                if let Some(entity) = entity {
-                    if let Some(value) = envelope.value_at(&entity.location).await {
-                        let lower_value = value.to_lowercase();
-                        if !value.is_empty() && lower_text.contains(&lower_value) {
-                            leaked.push(LeakedValue {
-                                value,
-                                entity_id: record.entity_id,
-                            });
-                        } else {
-                            passed += 1;
-                        }
+                if let Some(value) = envelope.value_at(&record.entity.location).await {
+                    let lower_value = value.to_lowercase();
+                    if !value.is_empty() && lower_text.contains(&lower_value) {
+                        leaked.push(LeakedValue {
+                            value,
+                            entity_id: record.entity.id,
+                        });
                     } else {
                         passed += 1;
                     }
@@ -111,8 +110,7 @@ impl Validator {
         };
 
         let result = Self::check(
-            &envelope.document.audit.entities,
-            &envelope.document.audit.entries,
+            &envelope.document.audit.records,
             redacted_text.as_deref(),
             envelope,
         )

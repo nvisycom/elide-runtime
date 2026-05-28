@@ -241,8 +241,8 @@ mod tests {
             panic!("expected a Text envelope");
         };
 
-        assert_eq!(env.document.audit.entities.len(), 1);
-        let entity = &env.document.audit.entities[0];
+        assert_eq!(env.document.audit.records.len(), 1);
+        let entity = &env.document.audit.records[0].entity;
         assert_eq!(entity.entity_kind, EntityKind::PersonName);
         assert!(matches!(
             entity.recognition_methods.first(),

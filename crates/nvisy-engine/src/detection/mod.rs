@@ -232,8 +232,8 @@ impl DetectionEngine {
     /// [`BlockText`]), run every recognizer on the block text, lift
     /// the returned block-local entity offsets to absolute `M`
     /// coordinates via [`LiftFromBlock`] using the block's spans,
-    /// then append the lifted entities to
-    /// `envelope.document.audit.entities`.
+    /// then append the lifted entities as fresh records on
+    /// `envelope.document.audit.records`.
     ///
     /// Resets per-document state at the end of the call so the
     /// next document starts clean.

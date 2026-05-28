@@ -19,6 +19,7 @@
 mod apply;
 mod defaults;
 mod evaluate;
+mod strategy;
 mod tts;
 mod workflow;
 

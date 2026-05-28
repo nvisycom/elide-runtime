@@ -1,18 +1,25 @@
 //! Policy evaluation: walks the envelope's detected entities, picks
-//! the winning per-entity action, and records typed
-//! [`AuditEntry<M>`]s and [`RedactionMapping<M>`]s. The codec apply
-//! pass runs separately through [`ApplyRedactions::apply_pending`].
+//! the winning per-entity action, and writes typed [`AuditEntry<M>`]s
+//! onto each [`EntityRecord<M>`]. The codec apply pass runs separately
+//! through [`ApplyRedactions::apply_pending`].
+//!
+//! [`EntityRecord<M>`]: nvisy_ontology::provenance::EntityRecord
 
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, Text};
 use nvisy_ontology::policy::{Action, Condition, Policy, StrategyPolicy};
-use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, RedactionMapping};
+use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, EntityRecord};
 use uuid::Uuid;
 
-use super::apply::RedactionApplicator;
+use super::apply;
 use super::defaults::RedactionDefaults;
+#[cfg(feature = "audio")]
+use super::strategy::to_audio_redaction;
+#[cfg(feature = "image")]
+use super::strategy::to_image_redaction;
+use super::strategy::{to_tabular_redaction, to_text_redaction};
 use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
 use crate::redaction::Redaction as RedactionConfig;
@@ -49,29 +56,32 @@ impl Redactor {
         self.default_threshold
     }
 
-    /// Evaluate policies, record audit entries + redaction mappings,
-    /// then hand off to the codec applicator.
+    /// Evaluate policies, attach an [`AuditEntry<M>`] to each
+    /// [`EntityRecord<M>`] the policy set decides on, then hand
+    /// off to the codec applicator.
+    ///
+    /// [`EntityRecord<M>`]: nvisy_ontology::provenance::EntityRecord
     pub async fn execute<M>(&self, envelope: &mut DocumentEnvelope<M>) -> Result<()>
     where
         M: Modality,
         DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions,
     {
-        if envelope.document.audit.entities.is_empty() {
+        if envelope.document.audit.records.is_empty() {
             return Ok(());
         }
 
-        // Borrow snapshots so we can `&mut envelope` later. `policies`
-        // and `metadata` are cheap clones; entities are taken so the
-        // borrow checker lets us populate `audit.entries` in the same
-        // pass.
+        // Snapshot inputs that are cheap to clone so we can keep an
+        // immutable borrow of the envelope alive across the
+        // per-entity `value_at` lookups while still mutating each
+        // record's `audit` slot.
         let policies: Vec<Policy<M>> = envelope.shared.policies.get::<M>().to_vec();
         let metadata = envelope.metadata.clone();
         let strategies = rank_strategies(&policies);
         let document_labels: Vec<&str> = Vec::new();
 
-        let entities = std::mem::take(&mut envelope.document.audit.entities);
-        let (entries, mappings, kept_entities) = evaluate::<M>(
-            entities,
+        let mut records = std::mem::take(&mut envelope.document.audit.records);
+        evaluate::<M>(
+            &mut records,
             &strategies,
             self.default_threshold,
             &document_labels,
@@ -79,15 +89,11 @@ impl Redactor {
             envelope,
         )
         .await;
-
-        envelope.document.audit.entities = kept_entities;
-        envelope.document.audit.entries.extend(entries);
-        envelope.redaction_map.entries.extend(mappings);
+        envelope.document.audit.records = records;
 
         tracing::debug!(
             target: TARGET,
-            entries = envelope.document.audit.entries.len(),
-            mappings = envelope.redaction_map.entries.len(),
+            entries = envelope.document.audit.entries().count(),
             "policy evaluation complete",
         );
 
@@ -97,9 +103,12 @@ impl Redactor {
 }
 
 /// Per-modality applicator hook. Each modality envelope opts in via
-/// a thin impl that calls the codec's typed redaction method; the
-/// generic [`Redactor::execute`] above is parameterised over this so
-/// the apply path is shared.
+/// a thin impl that converts its [`Strategy`] to the codec wire
+/// type and forwards the assembled batch to the codec; the generic
+/// [`Redactor::execute`] above is parameterised over this so the
+/// apply path is shared.
+///
+/// [`Strategy`]: nvisy_ontology::modality::Modality::Strategy
 #[async_trait::async_trait]
 pub trait ApplyRedactions {
     async fn apply_pending(&mut self) -> Result<()>;
@@ -108,7 +117,112 @@ pub trait ApplyRedactions {
 #[async_trait::async_trait]
 impl ApplyRedactions for DocumentEnvelope<Text> {
     async fn apply_pending(&mut self) -> Result<()> {
-        RedactionApplicator::new(self).apply().await
+        let assembled = apply::build(self, |view| {
+            to_text_redaction(
+                &view.entry.redaction.strategy,
+                view.original,
+                view.entity_kind,
+            )
+        });
+        if assembled.is_noop() {
+            return Ok(());
+        }
+        if !assembled.batch.is_empty() {
+            self.apply_text_redactions(assembled.batch).await?;
+        }
+        apply::commit(self, assembled.applied, assembled.failed, |entry, redaction| {
+            entry.value.replacement =
+                redaction.output().replacement_value().map(str::to_owned);
+        });
+        Ok(())
+    }
+}
+
+#[cfg(feature = "tabular")]
+#[async_trait::async_trait]
+impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
+    async fn apply_pending(&mut self) -> Result<()> {
+        let assembled = apply::build(self, |view| {
+            to_tabular_redaction(
+                &view.entry.redaction.strategy,
+                view.original,
+                view.entity_kind,
+            )
+        });
+        if assembled.is_noop() {
+            return Ok(());
+        }
+        if !assembled.batch.is_empty() {
+            self.apply_tabular_redactions(assembled.batch).await?;
+        }
+        apply::commit(self, assembled.applied, assembled.failed, |entry, redaction| {
+            entry.value.replacement =
+                redaction.output().replacement_value().map(str::to_owned);
+        });
+        Ok(())
+    }
+}
+
+#[cfg(not(feature = "tabular"))]
+#[async_trait::async_trait]
+impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
+    async fn apply_pending(&mut self) -> Result<()> {
+        let _ = to_tabular_redaction;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "image")]
+#[async_trait::async_trait]
+impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
+    async fn apply_pending(&mut self) -> Result<()> {
+        let assembled =
+            apply::build(self, |view| to_image_redaction(&view.entry.redaction.strategy));
+        if assembled.is_noop() {
+            return Ok(());
+        }
+        if !assembled.batch.is_empty() {
+            self.apply_image_redactions(assembled.batch).await?;
+        }
+        // Image redactions don't produce a substitutable string;
+        // the audit entry's `replacement` stays unset.
+        apply::commit(self, assembled.applied, assembled.failed, |_entry, _redaction| {});
+        Ok(())
+    }
+}
+
+#[cfg(not(feature = "image"))]
+#[async_trait::async_trait]
+impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
+    async fn apply_pending(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(feature = "audio")]
+#[async_trait::async_trait]
+impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
+    async fn apply_pending(&mut self) -> Result<()> {
+        let assembled =
+            apply::build(self, |view| to_audio_redaction(&view.entry.redaction.strategy));
+        if assembled.is_noop() {
+            return Ok(());
+        }
+        if !assembled.batch.is_empty() {
+            self.apply_audio_redactions(assembled.batch).await?;
+        }
+        // Audio redactions don't produce a substitutable string;
+        // the audit entry's `replacement` stays unset.
+        apply::commit(self, assembled.applied, assembled.failed, |_entry, _redaction| {});
+        Ok(())
+    }
+}
+
+#[cfg(not(feature = "audio"))]
+#[async_trait::async_trait]
+impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
+    async fn apply_pending(&mut self) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -126,23 +240,19 @@ fn rank_strategies<M: Modality>(policies: &[Policy<M>]) -> Vec<(Uuid, &StrategyP
 }
 
 async fn evaluate<M>(
-    entities: Vec<Entity<M>>,
+    records: &mut [EntityRecord<M>],
     strategies: &[(Uuid, &StrategyPolicy<M>)],
     default_threshold: f64,
     document_labels: &[&str],
     metadata: &ContentMetadata,
     envelope: &DocumentEnvelope<M>,
-) -> (Vec<AuditEntry<M>>, Vec<RedactionMapping<M>>, Vec<Entity<M>>)
-where
+) where
     M: Modality,
     DocumentEnvelope<M>: ValueAt<M>,
 {
-    let mut entries = Vec::new();
-    let mut mappings = Vec::new();
-    let mut kept = Vec::with_capacity(entities.len());
-
-    for entity in entities {
-        let matching = matching_strategies(strategies, &entity, document_labels, metadata);
+    for record in records {
+        let entity = &record.entity;
+        let matching = matching_strategies(strategies, entity, document_labels, metadata);
 
         let best_redact_idx = matching
             .iter()
@@ -166,16 +276,12 @@ where
                 .await
                 .unwrap_or_default();
             let entry = AuditEntry::<M>::builder()
-                .for_entity(entity.id, M::Strategy::default(), original)
+                .for_redaction(M::Strategy::default(), original)
                 .with_policy_id(policy_id)
                 .with_status(AuditEntryStatus::Suppressed)
                 .build()
                 .expect("audit entry fields set");
-            entries.push(entry);
-            // Suppressed entities still survive on audit.entities so
-            // they appear in the compliance trail; the entry's status
-            // marks the outcome.
-            kept.push(entity);
+            record.audit = Some(entry);
             continue;
         }
 
@@ -193,7 +299,6 @@ where
                 // to the default path; they get their own dedicated
                 // handling in a follow-up.
                 if entity.confidence.get() < default_threshold {
-                    kept.push(entity);
                     continue;
                 }
                 (M::Strategy::default(), None)
@@ -204,21 +309,13 @@ where
             .value_at(&entity.location)
             .await
             .unwrap_or_default();
-        let mut builder = AuditEntry::<M>::builder().for_entity(entity.id, strategy, original);
+        let mut builder = AuditEntry::<M>::builder().for_redaction(strategy, original);
         if let Some(id) = policy_id {
             builder = builder.with_policy_id(id);
         }
         let entry = builder.build().expect("audit entry fields set");
-        entries.push(entry);
-
-        mappings.push(RedactionMapping {
-            entity_id: entity.id,
-            location: entity.location.clone(),
-        });
-        kept.push(entity);
+        record.audit = Some(entry);
     }
-
-    (entries, mappings, kept)
 }
 
 /// Rank-ordered, selector-and-condition-matching strategies for one
@@ -335,10 +432,21 @@ mod tests {
         }
     }
 
+    fn seed_records(env: &mut DocumentEnvelope<Text>, entities: Vec<Entity<Text>>) {
+        env.document.audit.records = entities.into_iter().map(EntityRecord::new).collect();
+    }
+
+    fn first_entry(env: &DocumentEnvelope<Text>) -> &AuditEntry<Text> {
+        env.document.audit.records[0]
+            .audit
+            .as_ref()
+            .expect("first record has an audit entry")
+    }
+
     #[tokio::test]
     async fn skips_below_threshold_no_policies() {
         let mut env = text_envelope("john").await;
-        env.document.audit.entities = vec![ent(0, 4, 0.4)];
+        seed_records(&mut env, vec![ent(0, 4, 0.4)]);
         Redactor {
             default_threshold: 0.8,
             process_metadata: false,
@@ -346,14 +454,13 @@ mod tests {
         .execute(&mut env)
         .await
         .expect("execute");
-        assert!(env.document.audit.entries.is_empty());
-        assert!(env.redaction_map.entries.is_empty());
+        assert_eq!(env.document.audit.entries().count(), 0);
     }
 
     #[tokio::test]
     async fn default_strategy_above_threshold() {
         let mut env = text_envelope("secret").await;
-        env.document.audit.entities = vec![ent(0, 6, 0.9)];
+        seed_records(&mut env, vec![ent(0, 6, 0.9)]);
         Redactor {
             default_threshold: 0.5,
             process_metadata: false,
@@ -361,16 +468,16 @@ mod tests {
         .execute(&mut env)
         .await
         .expect("execute");
-        assert_eq!(env.document.audit.entries.len(), 1);
-        assert_eq!(env.redaction_map.entries.len(), 1);
-        assert_eq!(env.document.audit.entries[0].value.original, "secret");
-        assert!(env.document.audit.entries[0].policy_id.is_none());
+        assert_eq!(env.document.audit.entries().count(), 1);
+        let entry = first_entry(&env);
+        assert_eq!(entry.value.original, "secret");
+        assert!(entry.policy_id.is_none());
     }
 
     #[tokio::test]
     async fn matching_redact_rule_wins() {
         let mut env = text_envelope("john").await;
-        env.document.audit.entities = vec![ent(0, 4, 0.9)];
+        seed_records(&mut env, vec![ent(0, 4, 0.9)]);
         let policy = policy_with(vec![redact_rule(
             Some(0),
             TextStrategy::Replace {
@@ -391,10 +498,11 @@ mod tests {
         .await
         .expect("execute");
 
-        assert_eq!(env.document.audit.entries.len(), 1);
-        assert_eq!(env.document.audit.entries[0].policy_id, Some(policy_id));
+        assert_eq!(env.document.audit.entries().count(), 1);
+        let entry = first_entry(&env);
+        assert_eq!(entry.policy_id, Some(policy_id));
         assert!(matches!(
-            env.document.audit.entries[0].redaction.strategy,
+            entry.redaction.strategy,
             TextStrategy::Replace { .. }
         ));
     }
@@ -402,7 +510,7 @@ mod tests {
     #[tokio::test]
     async fn suppress_beats_redact_at_equal_priority() {
         let mut env = text_envelope("john").await;
-        env.document.audit.entities = vec![ent(0, 4, 0.9)];
+        seed_records(&mut env, vec![ent(0, 4, 0.9)]);
         let policy = policy_with(vec![
             redact_rule(Some(0), TextStrategy::Hash),
             suppress_rule(Some(0)),
@@ -420,18 +528,14 @@ mod tests {
         .await
         .expect("execute");
 
-        assert_eq!(env.document.audit.entries.len(), 1);
-        assert_eq!(env.document.audit.entries[0].status, AuditEntryStatus::Suppressed);
-        assert!(
-            env.redaction_map.entries.is_empty(),
-            "suppression records no mapping"
-        );
+        assert_eq!(env.document.audit.entries().count(), 1);
+        assert_eq!(first_entry(&env).status, AuditEntryStatus::Suppressed);
     }
 
     #[tokio::test]
     async fn higher_priority_redact_wins_over_suppress() {
         let mut env = text_envelope("john").await;
-        env.document.audit.entities = vec![ent(0, 4, 0.9)];
+        seed_records(&mut env, vec![ent(0, 4, 0.9)]);
         let policy = policy_with(vec![
             redact_rule(Some(0), TextStrategy::Hash),
             suppress_rule(Some(10)),
@@ -449,7 +553,7 @@ mod tests {
         .await
         .expect("execute");
 
-        assert_ne!(env.document.audit.entries[0].status, AuditEntryStatus::Suppressed);
-        assert_eq!(env.redaction_map.entries.len(), 1);
+        assert_ne!(first_entry(&env).status, AuditEntryStatus::Suppressed);
+        assert_eq!(env.document.audit.entries().count(), 1);
     }
 }

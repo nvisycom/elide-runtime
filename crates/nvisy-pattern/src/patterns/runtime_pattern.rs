@@ -2,12 +2,12 @@
 //!
 //! Built programmatically rather than from JSON — used by callers
 //! who want to inject ad-hoc patterns on a single
-//! [`PatternEngine::scan`] call via
+//! [`PatternEngine::scan_text`] call via
 //! [`PatternContext::extra_patterns`] without rebuilding the engine.
 //!
 //! [`PatternContext`]: crate::PatternContext
 //! [`PatternContext::extra_patterns`]: crate::PatternContext::extra_patterns
-//! [`PatternEngine::scan`]: crate::PatternEngine::scan
+//! [`PatternEngine::scan_text`]: crate::PatternEngine::scan_text
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use serde::{Deserialize, Serialize};

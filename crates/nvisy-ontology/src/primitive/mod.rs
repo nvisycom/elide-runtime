@@ -1,10 +1,12 @@
 //! Primitive types used across the ontology.
 //!
 //! Submodules group related primitives:
-//! - [`confidence`] — `Confidence` scores + `ConfidenceThreshold` cutoffs.
-//! - [`geometry`] — 2D coordinate types (`BoundingBox`, `Polygon`).
-//! - [`language`] — language tags + per-region detection results.
-//! - [`rendering`] — output-side knobs (`Color`, `Dpi`).
+//! - `confidence` — [`Confidence`] scores + [`ConfidenceThreshold`]
+//!   cutoffs.
+//! - `geometry` — 2D coordinate types ([`BoundingBox`], [`Polygon`]).
+//! - `language` — language tags + per-region detection results
+//!   ([`LanguageTag`], [`LanguageDetection`]).
+//! - `rendering` — output-side knobs ([`Color`], [`Dpi`]).
 //!
 //! [`TimeSpan`] is the single root-level primitive — temporal
 //! intervals don't have any companion types worth grouping yet.

@@ -2,8 +2,10 @@
 //!
 //! [`Confidence`] is a value in `[0.0, 1.0]` (NaN / ±∞ rejected).
 //! [`ConfidenceThreshold`] is a lower bound on `Confidence`, with a
-//! single named operation [`admits`](ConfidenceThreshold::admits)
-//! so threshold semantics don't drift across consumer sites.
+//! single named operation [`admits`] so threshold semantics don't
+//! drift across consumer sites.
+//!
+//! [`admits`]: ConfidenceThreshold::admits
 
 mod threshold;
 mod value;

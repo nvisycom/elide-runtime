@@ -9,7 +9,7 @@ audit provenance shared across every crate in the workspace.
 ## Overview
 
 `modality::*` defines the per-modality coordinate types (`Text`,
-`Image`, `Audio`, `Tabular`) and the [`Modality`] marker trait every
+`Image`, `Audio`, `Tabular`) and the `Modality` marker trait every
 generic container parameterises over. Per-modality block payloads
 (`TextBlock`, `ImageBlock`, …) implement the shared `ModalityBlock`
 contract.

@@ -70,14 +70,16 @@ pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
 /// collects the modality-agnostic queries the engine needs to drive
 /// pipeline stages without matching on the concrete block variant.
 ///
-/// Today the only method is [`scan_text`](Self::scan_text), used by
-/// the detection driver to decide whether a block carries text the
-/// text-typed recognizers should scan. Future shared block queries
-/// (block id, kind tag, block-level confidence accessor) land here.
+/// Today the only method is [`scan_text`], used by the detection
+/// driver to decide whether a block carries text the text-typed
+/// recognizers should scan. Future shared block queries (block id,
+/// kind tag, block-level confidence accessor) land here.
 ///
 /// `Text` and `Tabular` blocks always carry text; their impls return
 /// `Some(_)` unconditionally. Image and audio impls return `None`
 /// for non-text variants (figures, silences).
+///
+/// [`scan_text`]: Self::scan_text
 pub trait ModalityBlock {
     /// The text a text-typed recognizer should scan over this block,
     /// or `None` when the block carries no scannable text (image

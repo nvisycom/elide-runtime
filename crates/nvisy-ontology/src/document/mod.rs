@@ -61,15 +61,19 @@ impl<M: Modality> Document<M> {
     /// embedded [`Audit`] is initialised against the same source.
     /// Producers push blocks onto `self.blocks` directly.
     ///
-    /// Use [`with_meta`](Self::with_meta) when the metadata isn't
-    /// the per-modality default.
+    /// Use [`with_meta`] when the metadata isn't the per-modality
+    /// default.
+    ///
+    /// [`with_meta`]: Self::with_meta
     pub fn new(source: ContentSource) -> Self {
         Self::with_meta(source, M::Metadata::default())
     }
 
     /// Construct an empty [`Document`] for the given source with
-    /// explicit metadata. See [`new`](Self::new) for the
-    /// default-metadata shortcut.
+    /// explicit metadata. See [`new`] for the default-metadata
+    /// shortcut.
+    ///
+    /// [`new`]: Self::new
     pub fn with_meta(source: ContentSource, meta: M::Metadata) -> Self {
         Self {
             meta,

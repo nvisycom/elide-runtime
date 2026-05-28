@@ -3,13 +3,12 @@
 //! Re-scans redacted content to verify that no originally detected
 //! values remain visible. Runs after [`Redactor`].
 //!
-//! Per-modality leak detection is implemented in [`check`] via the
-//! [`CheckLeaks`] trait — Text and Tabular run real substring
-//! checks; Image and Audio currently return [`ValidationResult::skipped`]
-//! because visual / audio inspection isn't implemented yet.
+//! Per-modality leak detection lives behind the [`CheckLeaks`]
+//! trait — Text and Tabular run real substring checks; Image and
+//! Audio currently return [`ValidationResult::skipped`] because
+//! visual / audio inspection isn't implemented yet.
 //!
 //! [`Redactor`]: crate::redaction::Redactor
-//! [`CheckLeaks`]: check::CheckLeaks
 
 mod check;
 mod workflow;

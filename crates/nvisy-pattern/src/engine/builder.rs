@@ -71,10 +71,9 @@ impl PatternEngineBuilder {
     /// Set the minimum confidence score for matches.
     ///
     /// Matches with confidence below this value are discarded during
-    /// [`scan`] / [`scan_text`]. Unset (the default) means no
-    /// threshold filtering — every match survives.
+    /// [`scan_text`]. Unset (the default) means no threshold
+    /// filtering — every match survives.
     ///
-    /// [`scan`]: PatternEngine::scan
     /// [`scan_text`]: PatternEngine::scan_text
     pub fn with_confidence_threshold(mut self, threshold: ConfidenceThreshold) -> Self {
         self.confidence_threshold = Some(threshold);

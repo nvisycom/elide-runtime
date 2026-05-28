@@ -8,8 +8,8 @@ use super::Confidence;
 
 /// A lower-bound threshold on [`Confidence`]. Wraps a [`Confidence`]
 /// so it inherits the `[0.0, 1.0]` + finite-float invariant, and
-/// exposes [`admits`](Self::admits) as the single named operation
-/// for the "is this entity above the cutoff?" question.
+/// exposes [`admits`] as the single named operation for the "is this
+/// entity above the cutoff?" question.
 ///
 /// The shape exists so producers can't reach for a bare `f64` that
 /// silently accepts `1.5` or `NaN`, and so consumers don't open-code
@@ -32,6 +32,8 @@ use super::Confidence;
 /// assert!(cutoff.admits(Confidence::new(0.85).unwrap())); // inclusive
 /// assert!(!cutoff.admits(Confidence::new(0.84).unwrap()));
 /// ```
+///
+/// [`admits`]: Self::admits
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, JsonSchema)]
 #[serde(transparent)]
 pub struct ConfidenceThreshold(Confidence);

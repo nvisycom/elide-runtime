@@ -62,9 +62,9 @@ pub struct DocumentEnvelope<M: Modality> {
     /// User-supplied annotations (inclusions, exclusions, labels)
     /// attached at upload time. Set during import from content
     /// metadata; `Inclusion` variants are also projected into
-    /// [`Self::audit::entities`] so detection/redaction see them as
-    /// pre-detected entities, while the original list stays here
-    /// for exclusion filtering and label-driven policy scoping.
+    /// [`audit`](Self::audit)`.entities` so detection/redaction see
+    /// them as pre-detected entities, while the original list stays
+    /// here for exclusion filtering and label-driven policy scoping.
     pub annotations: Vec<Annotation<M>>,
 
     /// IDs of reference-data [`Context`]s loaded by [`LoadContext`]

@@ -50,7 +50,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [[bin]]
-name = "nvisy-server"
+name = "nvisy"
 path = "src/main.rs"
 
 [dependencies]

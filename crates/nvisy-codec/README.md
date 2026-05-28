@@ -65,8 +65,8 @@ Apache 2.0 License, see [LICENSE.txt](../../LICENSE.txt)
 - **Email**: [support@nvisy.com](mailto:support@nvisy.com)
 
 [`Handler`]: handler::Handler
-[`Codable`]: handler::Codable
-[`Handle<M>`]: handler::Handle
+[`Codable`]: core::Codable
+[`Handle<M>`]: core::Handle
 [`RichHandle`]: handler::RichHandle
 [`DocumentHandle`]: DocumentHandle
 [`nvisy-formats`]: https://docs.rs/nvisy-formats

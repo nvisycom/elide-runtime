@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use crate::policy::ImageStrategy;
 use crate::primitive::{BoundingBox, LanguageDetection, Polygon};
 
 /// A region within image content.
@@ -66,7 +67,7 @@ impl Image {
 impl Modality for Image {
     type Block = ImageBlock;
     type Metadata = ImageMetadata;
-    type Strategy = crate::policy::ImageStrategy;
+    type Strategy = ImageStrategy;
 }
 
 /// Per-modality block payload for [`Image`]. Text-bearing variants

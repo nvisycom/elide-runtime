@@ -5,6 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use crate::policy::TabularStrategy;
 
 /// A cell (or sub-cell range) within tabular content.
 #[derive(Debug, Clone, PartialEq, Eq, Builder)]
@@ -64,7 +65,7 @@ impl Tabular {
 impl Modality for Tabular {
     type Block = TabularBlock;
     type Metadata = TabularMetadata;
-    type Strategy = crate::policy::TabularStrategy;
+    type Strategy = TabularStrategy;
 }
 
 /// Per-modality block payload for [`Tabular`]. Today only

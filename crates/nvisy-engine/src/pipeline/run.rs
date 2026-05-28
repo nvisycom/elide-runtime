@@ -23,10 +23,10 @@ use super::orchestrator::{Orchestrator, RunContext};
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
 use crate::detection::Recognizers;
-use crate::envelope::SharedData;
+use crate::envelope::{PolicyStore, SharedData};
 use crate::extraction::Extractors;
 use crate::ingestion::encryption::SharedKeyProvider;
-use crate::ingestion::registry::Registry;
+use crate::ingestion::registry::{Registry, ResourceGuard};
 use crate::redaction::RedactionDefaults;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
@@ -146,7 +146,7 @@ impl Pipeline {
 
         let concurrency = effective_config.effective_concurrency();
 
-        let mut policy_store = crate::envelope::PolicyStore::new();
+        let mut policy_store = PolicyStore::new();
         policy_store.set::<Text>(text_policies);
 
         let mut shared_data = SharedData {
@@ -289,8 +289,8 @@ impl Pipeline {
         context_ids: &[Uuid],
         policy_ids: &[Uuid],
     ) -> (
-        crate::ingestion::registry::ResourceGuard<nvisy_ontology::context::Context>,
-        crate::ingestion::registry::ResourceGuard<nvisy_ontology::policy::Policy<Text>>,
+        ResourceGuard<nvisy_ontology::context::Context>,
+        ResourceGuard<nvisy_ontology::policy::Policy<Text>>,
     ) {
         let registry = &self.registry;
 

@@ -10,7 +10,7 @@ use derive_more::{From, IsVariant};
 use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
 use nvisy_ontology::provenance::AnyAudit;
 
-use super::DocumentEnvelope;
+use super::{DocumentEnvelope, SharedHandle};
 
 /// A modality-erased envelope returned by the importer.
 #[derive(Debug, From, IsVariant)]
@@ -35,7 +35,7 @@ impl AnyEnvelope {
 
     /// Borrow the underlying shared codec handle without committing
     /// to a modality.
-    pub fn handle(&self) -> &super::SharedHandle {
+    pub fn handle(&self) -> &SharedHandle {
         match self {
             Self::Text(e) => &e.handle,
             Self::Tabular(e) => &e.handle,

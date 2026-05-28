@@ -5,6 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use crate::policy::TextStrategy;
 use crate::primitive::LanguageDetection;
 
 /// A range within text content.
@@ -72,7 +73,7 @@ impl Text {
 impl Modality for Text {
     type Block = TextBlock;
     type Metadata = TextMetadata;
-    type Strategy = crate::policy::TextStrategy;
+    type Strategy = TextStrategy;
 }
 
 /// Per-modality block payload for [`Text`]. Each variant is a

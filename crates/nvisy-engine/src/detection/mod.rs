@@ -34,6 +34,7 @@ use validator::Validate;
 
 pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
 pub use self::dyn_recognizer::DynRecognizer;
+use crate::envelope::DocumentEnvelope;
 pub use self::lift::LiftFromBlock;
 pub use self::llm::{LlmDetection, LlmRecognizer};
 pub use self::ner::{NerDetection, NerRecognizer};
@@ -243,7 +244,7 @@ impl DetectionEngine {
     /// [`DetectionContext`].
     pub async fn detect_in<M>(
         &self,
-        envelope: &mut crate::envelope::DocumentEnvelope<M>,
+        envelope: &mut DocumentEnvelope<M>,
         cfg: &Detection,
     ) -> Result<()>
     where

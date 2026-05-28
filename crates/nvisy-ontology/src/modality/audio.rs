@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use crate::policy::AudioStrategy;
 use crate::primitive::{LanguageDetection, TimeSpan};
 
 /// A time interval within audio content.
@@ -53,7 +54,7 @@ impl Audio {
 impl Modality for Audio {
     type Block = AudioBlock;
     type Metadata = AudioMetadata;
-    type Strategy = crate::policy::AudioStrategy;
+    type Strategy = AudioStrategy;
 }
 
 /// Per-modality block payload for [`Audio`].

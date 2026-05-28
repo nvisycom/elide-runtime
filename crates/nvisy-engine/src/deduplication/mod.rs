@@ -139,28 +139,6 @@ impl Deduplicator {
     }
 }
 
-/// Compile-time assertion: `Deduplicator::execute` satisfies its
-/// generic bounds for every modality the engine supports. Ensures
-/// that adding a new modality (or weakening a bound) surfaces here
-/// rather than at the §4.x stage that finally tries to invoke it.
-///
-/// Never called at runtime.
-#[doc(hidden)]
-#[allow(dead_code)]
-async fn _assert_dedup_compiles_for_all_modalities(
-    dedup: &Deduplicator,
-    text: &mut DocumentEnvelope<nvisy_ontology::modality::Text>,
-    tabular: &mut DocumentEnvelope<nvisy_ontology::modality::Tabular>,
-    image: &mut DocumentEnvelope<nvisy_ontology::modality::Image>,
-    audio: &mut DocumentEnvelope<nvisy_ontology::modality::Audio>,
-    params: &FilterParams,
-) {
-    let _ = dedup.execute(text, params).await;
-    let _ = dedup.execute(tabular, params).await;
-    let _ = dedup.execute(image, params).await;
-    let _ = dedup.execute(audio, params).await;
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;

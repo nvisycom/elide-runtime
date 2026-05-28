@@ -24,7 +24,7 @@ use crate::deduplication::{Deduplicator, FilterParams};
 use crate::detection::{Detection as DetectionConfig, DetectionEngine};
 use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData};
 use nvisy_ontology::modality::{Audio, Image, Tabular};
-use crate::extraction::{Extraction as ExtractionConfig, Extractors};
+use crate::extraction::{Extract, Extraction as ExtractionConfig, Extractors};
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
 };
@@ -210,64 +210,20 @@ impl<M: Modality> DocumentPipeline<M> {
     }
 }
 
-/// Trait abstraction over per-modality [`DocumentPipeline<M>::run`].
+/// Per-modality pipeline execution.
 ///
-/// Each modality has its own monomorphized pipeline body (text runs
+/// Each modality has its own monomorphized pipeline body — text runs
 /// every stage today; image/audio/tabular grow stage bodies in
-/// later Scope C steps). This trait lets the orchestrator's dispatch
-/// loop call into the right specialization without spelling out
+/// later Scope C steps. The orchestrator's dispatch loop calls into
+/// the right specialization through this trait without spelling out
 /// every variant by hand.
 #[async_trait::async_trait]
 trait RunPipeline<M: Modality>: Sized {
-    async fn run_typed(
+    async fn run(
         self,
         envelope: DocumentEnvelope<M>,
         plan: &EngineInput,
     ) -> Result<DocumentEnvelope<M>, Error>;
-}
-
-#[async_trait::async_trait]
-impl RunPipeline<Text> for DocumentPipeline<Text> {
-    async fn run_typed(
-        self,
-        envelope: DocumentEnvelope<Text>,
-        plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<Text>, Error> {
-        self.run(envelope, plan).await
-    }
-}
-
-#[async_trait::async_trait]
-impl RunPipeline<Tabular> for DocumentPipeline<Tabular> {
-    async fn run_typed(
-        self,
-        envelope: DocumentEnvelope<Tabular>,
-        plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<Tabular>, Error> {
-        self.run(envelope, plan).await
-    }
-}
-
-#[async_trait::async_trait]
-impl RunPipeline<Image> for DocumentPipeline<Image> {
-    async fn run_typed(
-        self,
-        envelope: DocumentEnvelope<Image>,
-        plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<Image>, Error> {
-        self.run(envelope, plan).await
-    }
-}
-
-#[async_trait::async_trait]
-impl RunPipeline<Audio> for DocumentPipeline<Audio> {
-    async fn run_typed(
-        self,
-        envelope: DocumentEnvelope<Audio>,
-        plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<Audio>, Error> {
-        self.run(envelope, plan).await
-    }
 }
 
 /// Spawn-able task that runs the per-modality pipeline and wraps the
@@ -295,7 +251,7 @@ where
         None => None,
     };
     let pipeline = DocumentPipeline::<M>::new(ctx);
-    match pipeline.run_typed(envelope, &plan).await {
+    match pipeline.run(envelope, &plan).await {
         Ok(env) => DocumentResult {
             envelope: Some(wrap(env)),
             error: None,
@@ -307,10 +263,11 @@ where
     }
 }
 
-impl DocumentPipeline<Text> {
+#[async_trait::async_trait]
+impl RunPipeline<Text> for DocumentPipeline<Text> {
     /// Run all phases for a single text envelope.
     async fn run(
-        &self,
+        self,
         mut envelope: DocumentEnvelope<Text>,
         plan: &EngineInput,
     ) -> Result<DocumentEnvelope<Text>, Error> {
@@ -356,17 +313,16 @@ impl DocumentPipeline<Text> {
 
         Ok(envelope)
     }
+}
 
-    /// Run extraction by dispatching the document to the matching
-    /// pre-built extractor in [`Extractors`].
-    ///
-    /// [`Extractors`]: crate::extraction::Extractors
+impl DocumentPipeline<Text> {
+    /// Run text extraction (no-op for already-structured text).
     async fn run_extraction(
         &self,
         cfg: &ExtractionConfig,
         envelope: &mut DocumentEnvelope<Text>,
     ) -> Result<(), Error> {
-        self.ctx.extractors.run(envelope, cfg).await
+        Extract::<Text>::extract(self.ctx.extractors.as_ref(), envelope, cfg).await
     }
 
     /// Run detection through the shared [`DetectionEngine`].
@@ -405,46 +361,50 @@ impl DocumentPipeline<Text> {
     }
 }
 
-impl DocumentPipeline<Tabular> {
-    /// Run all phases for a single tabular envelope.
-    ///
-    /// Stub: stages are wired in later steps of the Scope C fan-out
-    /// arc (§4.3–§4.8). Today this just returns the envelope
-    /// unmodified so the dispatch surface compiles.
+#[async_trait::async_trait]
+impl RunPipeline<Tabular> for DocumentPipeline<Tabular> {
+    /// Tabular cells are already structured at decode time, so
+    /// extraction is a no-op. Detection/redaction/validation/export
+    /// stages are wired in later Scope C steps (§4.4 onward).
     async fn run(
-        &self,
-        envelope: DocumentEnvelope<Tabular>,
-        _plan: &EngineInput,
+        self,
+        mut envelope: DocumentEnvelope<Tabular>,
+        plan: &EngineInput,
     ) -> Result<DocumentEnvelope<Tabular>, Error> {
         self.check_cancelled()?;
+        Extract::<Tabular>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
+            .await?;
         Ok(envelope)
     }
 }
 
-impl DocumentPipeline<Image> {
-    /// Run all phases for a single image envelope.
-    ///
-    /// Stub: see [`DocumentPipeline<Tabular>::run`].
+#[async_trait::async_trait]
+impl RunPipeline<Image> for DocumentPipeline<Image> {
+    /// Today: extraction (OCR + optional VLM verification). Other
+    /// stages land in §4.4 onward.
     async fn run(
-        &self,
-        envelope: DocumentEnvelope<Image>,
-        _plan: &EngineInput,
+        self,
+        mut envelope: DocumentEnvelope<Image>,
+        plan: &EngineInput,
     ) -> Result<DocumentEnvelope<Image>, Error> {
         self.check_cancelled()?;
+        Extract::<Image>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
+            .await?;
         Ok(envelope)
     }
 }
 
-impl DocumentPipeline<Audio> {
-    /// Run all phases for a single audio envelope.
-    ///
-    /// Stub: see [`DocumentPipeline<Tabular>::run`].
+#[async_trait::async_trait]
+impl RunPipeline<Audio> for DocumentPipeline<Audio> {
+    /// Today: extraction (STT). Other stages land in §4.4 onward.
     async fn run(
-        &self,
-        envelope: DocumentEnvelope<Audio>,
-        _plan: &EngineInput,
+        self,
+        mut envelope: DocumentEnvelope<Audio>,
+        plan: &EngineInput,
     ) -> Result<DocumentEnvelope<Audio>, Error> {
         self.check_cancelled()?;
+        Extract::<Audio>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
+            .await?;
         Ok(envelope)
     }
 }

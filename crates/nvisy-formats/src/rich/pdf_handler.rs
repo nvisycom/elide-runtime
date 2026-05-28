@@ -99,7 +99,7 @@ impl RichTextHandler {
         PdfRenderer::parallel_render(&self.raw, dpi)
     }
 
-    /// Compute `(start_offset, end_offset, page_number)` for each page.
+    /// Compute `(start, end, page_number)` for each page.
     fn page_offsets(&self) -> Vec<(usize, usize, u32)> {
         let mut offset = 0;
         self.pages
@@ -143,8 +143,8 @@ impl Handle<Text> for RichTextHandler {
                 Located::new(
                     source,
                     Text {
-                        start_offset: start,
-                        end_offset: end,
+                        start,
+                        end,
                         page_number: Some(page),
                         ..Default::default()
                     },
@@ -158,20 +158,20 @@ impl Handle<Text> for RichTextHandler {
         let offsets = self.page_offsets();
         let page_idx = offsets
             .iter()
-            .position(|&(start, _, _)| start == location.start_offset)?;
+            .position(|&(start, _, _)| start == location.start)?;
         self.pages.get(page_idx).cloned().map(TextData::from)
     }
 
     async fn redact_at(&mut self, location: &Text, redaction: TextRedaction) -> Result<(), Error> {
         let offsets = self.page_offsets();
         let Some(page_idx) = offsets.iter().position(|&(start, end, _)| {
-            location.start_offset >= start && location.end_offset <= end
+            location.start >= start && location.end <= end
         }) else {
             return Ok(());
         };
         let page_start = offsets[page_idx].0;
-        let start = location.start_offset - page_start;
-        let end = location.end_offset - page_start;
+        let start = location.start - page_start;
+        let end = location.end - page_start;
 
         let mut content = self.pages[page_idx].clone();
         let value = redaction.output().replacement_value().unwrap_or_default();

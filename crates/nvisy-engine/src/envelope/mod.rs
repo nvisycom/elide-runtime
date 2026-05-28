@@ -83,7 +83,7 @@ impl<M: Modality> DocumentEnvelope<M> {
         shared: Arc<SharedData>,
     ) -> Self {
         let source = handle.lock().await.source();
-        let document = Document::new(source, M::Metadata::default());
+        let document = Document::new(source);
         Self {
             handle,
             metadata,

@@ -15,7 +15,7 @@ use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
 /// over "John", or the larger bounding box).
 ///
 /// Size metric per modality:
-/// - **Text**: byte length (`end_offset - start_offset`).
+/// - **Text**: byte length (`end - start`).
 /// - **Image**: bounding box area (`width * height`).
 /// - **Audio**: time span duration.
 /// - **Tabular**: cell text length.

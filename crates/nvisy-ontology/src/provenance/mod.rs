@@ -21,7 +21,6 @@ mod entry;
 mod record;
 mod review;
 
-use derive_builder::Builder;
 use derive_more::{From, IsVariant};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -47,12 +46,7 @@ use crate::modality::{Audio, Image, Modality, Tabular, Text};
 /// redaction or suppression rule matched.
 ///
 /// [`records`]: Self::records
-#[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
-#[builder(
-    name = "AuditBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with")
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(
     rename_all = "camelCase",
     bound(
@@ -65,16 +59,13 @@ pub struct Audit<M: Modality> {
     /// Content source this audit belongs to.
     pub source: ContentSource,
     /// Identifier of the pipeline run that produced this audit.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run_id: Option<Uuid>,
     /// Identifier of the human or service account that triggered the
     /// run.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actor_id: Option<Uuid>,
     /// Per-entity records produced during the pipeline run.
-    #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub records: Vec<EntityRecord<M>>,
 }
@@ -95,32 +86,14 @@ impl<M: Modality> Audit<M> {
         self.records.push(EntityRecord::new(entity));
     }
 
-    /// Iterate over the detected entities (read-only).
-    pub fn entities(&self) -> impl Iterator<Item = &Entity<M>> {
-        self.records.iter().map(|r| &r.entity)
-    }
-
     /// Iterate over the audit entries that have been recorded.
     pub fn entries(&self) -> impl Iterator<Item = &AuditEntry<M>> {
         self.records.iter().filter_map(|r| r.audit.as_ref())
     }
 
-    /// Iterate over `(entity, audit_entry)` pairs for records that
-    /// have a redaction decision.
-    pub fn decided(&self) -> impl Iterator<Item = (&Entity<M>, &AuditEntry<M>)> {
-        self.records
-            .iter()
-            .filter_map(|r| r.audit.as_ref().map(|a| (&r.entity, a)))
-    }
-
     /// Number of detected entities.
     pub fn entities_count(&self) -> usize {
         self.records.len()
-    }
-
-    /// Number of audit entries recorded.
-    pub fn entries_count(&self) -> usize {
-        self.records.iter().filter(|r| r.audit.is_some()).count()
     }
 
     /// Number of redaction audit entries whose redaction was
@@ -161,55 +134,13 @@ pub enum AnyAudit {
 }
 
 impl AnyAudit {
-    /// Human-readable name of the contained modality. Useful for
-    /// telemetry and error messages.
-    pub fn modality_name(&self) -> &'static str {
-        match self {
-            Self::Text(_) => "text",
-            Self::Tabular(_) => "tabular",
-            Self::Image(_) => "image",
-            Self::Audio(_) => "audio",
-        }
-    }
-
-    /// Content source the audit belongs to. Available without
-    /// matching on the variant.
-    pub fn source(&self) -> ContentSource {
-        match self {
-            Self::Text(a) => a.source,
-            Self::Tabular(a) => a.source,
-            Self::Image(a) => a.source,
-            Self::Audio(a) => a.source,
-        }
-    }
-
-    /// Pipeline-run identifier this audit belongs to, if any.
-    pub fn run_id(&self) -> Option<Uuid> {
-        match self {
-            Self::Text(a) => a.run_id,
-            Self::Tabular(a) => a.run_id,
-            Self::Image(a) => a.run_id,
-            Self::Audio(a) => a.run_id,
-        }
-    }
-
-    /// Number of detected entities, summed across all variants.
+    /// Number of detected entities on the contained audit.
     pub fn entities_count(&self) -> usize {
         match self {
             Self::Text(a) => a.entities_count(),
             Self::Tabular(a) => a.entities_count(),
             Self::Image(a) => a.entities_count(),
             Self::Audio(a) => a.entities_count(),
-        }
-    }
-
-    /// Number of redaction audit entries.
-    pub fn entries_count(&self) -> usize {
-        match self {
-            Self::Text(a) => a.entries_count(),
-            Self::Tabular(a) => a.entries_count(),
-            Self::Image(a) => a.entries_count(),
-            Self::Audio(a) => a.entries_count(),
         }
     }
 

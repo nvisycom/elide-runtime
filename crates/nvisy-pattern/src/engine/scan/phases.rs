@@ -130,7 +130,7 @@ pub(in crate::engine) fn scan_deny_list(
     // already been detected.
     let already_matched: HashSet<&str> = prior
         .iter()
-        .map(|c| &text[c.entity.location.start_offset..c.entity.location.end_offset])
+        .map(|c| &text[c.entity.location.start..c.entity.location.end])
         .collect();
 
     let mut results = Vec::new();

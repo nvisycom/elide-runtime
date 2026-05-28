@@ -106,8 +106,8 @@ impl<'a> ContextEnhancer<'a> {
         };
 
         let span = &c.entity.location;
-        let search_start = walk_chars_back(self.text, span.start_offset, window);
-        let search_end = walk_chars_forward(self.text, span.end_offset, window);
+        let search_start = walk_chars_back(self.text, span.start, window);
+        let search_end = walk_chars_forward(self.text, span.end, window);
         let window_text = &self.text[search_start..search_end];
 
         // Search the rule's own keywords plus the selected hint's
@@ -147,7 +147,7 @@ impl<'a> ContextEnhancer<'a> {
         if adjusted {
             for method in &mut c.entity.recognition_methods {
                 if let RecognitionMethod::Pattern(p) = method {
-                    p.contextual = true;
+                    p.mark_contextual();
                 }
             }
         }

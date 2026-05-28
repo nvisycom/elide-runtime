@@ -21,45 +21,65 @@ pub enum ModelKind {
     SelfHosted,
 }
 
-/// Sub-classification within [`PatternProvenance::kind`] —
-/// distinguishes the specific matcher that produced a
-/// [`RecognitionMethod::Pattern`] detection.
-///
-/// [`RecognitionMethod::Pattern`]: super::recognition::RecognitionMethod::Pattern
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[strum(serialize_all = "snake_case")]
+/// Provenance for a pattern-based detection (regex, dictionary,
+/// deny-list). Each variant carries only the fields meaningful for
+/// that matcher — the old flat `PatternKind` + `Option<String>`
+/// representation allowed invalid combinations (a `Regex` row with
+/// no pattern name, a `DenyList` row with a stale validator) that
+/// can't be constructed in this shape.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
-pub enum PatternKind {
+pub enum PatternProvenance {
     /// Regular expression matched against the full text.
-    Regex,
+    Regex {
+        /// Name of the pattern that matched (e.g. "ssn", "email").
+        name: String,
+        /// Name of the validator that confirmed the match (e.g.
+        /// "luhn", "iban"), when one ran.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        validator: Option<String>,
+        /// Whether contextual analysis (keyword co-occurrence)
+        /// adjusted the confidence score for this match.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        contextual: bool,
+    },
     /// Exact-match lookup in a curated dictionary.
-    Dictionary,
-    /// Caller-supplied deny-list value forced into results.
+    Dictionary {
+        /// Name of the dictionary pattern that matched.
+        name: String,
+        /// Whether contextual analysis (keyword co-occurrence)
+        /// adjusted the confidence score for this match.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        contextual: bool,
+    },
+    /// Caller-supplied deny-list value forced into results. Carries
+    /// no per-match identity — the matched value is the same one the
+    /// caller supplied.
     DenyList,
 }
 
-/// Provenance for a pattern-based detection (regex, dictionary,
-/// deny-list). The matcher subtype lives in
-/// [`PatternProvenance::kind`].
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct PatternProvenance {
-    /// Which matcher produced this detection.
-    pub kind: PatternKind,
-    /// Name of the pattern that matched (e.g. "ssn", "email"). May
-    /// be absent for deny-list synthetic matches.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pattern: Option<String>,
-    /// Name of the validator that confirmed the match (e.g. "luhn",
-    /// "iban"). Only meaningful when `kind == Regex`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub validator: Option<String>,
-    /// Whether contextual analysis (keyword co-occurrence) adjusted
-    /// the confidence score for this match.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub contextual: bool,
+impl PatternProvenance {
+    /// Mark this provenance as contextually adjusted. No-op for
+    /// `DenyList`, which doesn't track contextual adjustment.
+    pub fn mark_contextual(&mut self) {
+        match self {
+            Self::Regex { contextual, .. } | Self::Dictionary { contextual, .. } => {
+                *contextual = true;
+            }
+            Self::DenyList => {}
+        }
+    }
+
+    /// Pattern name that produced this match (regex or dictionary),
+    /// or `None` for deny-list matches.
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Self::Regex { name, .. } | Self::Dictionary { name, .. } => Some(name),
+            Self::DenyList => None,
+        }
+    }
 }
 
 /// Provenance for a cross-reference detection — matching extracted
@@ -107,7 +127,11 @@ impl ModelProvenance {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct AnnotationProvenance {
-    /// Identifier of the annotator (human or service account).
+    /// Name of the annotation as supplied by the uploader. Comes
+    /// from [`Annotation::name`] at conversion time; downstream
+    /// consumers use it as a human-readable label / source tag.
+    ///
+    /// [`Annotation::name`]: crate::entity::Annotation::name
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub annotator: Option<String>,
+    pub name: Option<String>,
 }

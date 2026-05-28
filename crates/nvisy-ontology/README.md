@@ -2,32 +2,48 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-Domain data types for the Nvisy platform — entities, locations,
-artifacts, and the redaction/review provenance shared across every
-crate in the workspace.
+Domain data types for the Nvisy platform — per-modality coordinate
+types, entity / annotation taxonomy, redaction policies, and the
+audit provenance shared across every crate in the workspace.
 
 ## Overview
 
-`entity::*` defines the hierarchical entity taxonomy (`EntityKind`,
-`EntityCategory`, `Confidence`, `RecognitionMethod`, etc.) and
-`Entity`/`Entities` collection types used as the output of every
-recognizer.
+`modality::*` defines the per-modality coordinate types (`Text`,
+`Image`, `Audio`, `Tabular`) and the [`Modality`] marker trait every
+generic container parameterises over. Per-modality block payloads
+(`TextBlock`, `ImageBlock`, …) implement the shared `ModalityBlock`
+contract.
 
-`primitive::*` carries cross-cutting value types: `BoundingBox`,
-`LanguageTag`, time spans, etc.
+`document::*` carries the in-memory pipeline state for one processed
+document: `Document<M>` holds `meta`, an ordered `Vec<Block<M>>`,
+user `Annotation<M>`s, and the embedded `Audit<M>`. `Block<M>` wraps
+a per-modality `kind` payload alongside source-mapping `Span<M>`s
+and an optional confidence.
 
-`policy::*` describes how a detected entity should be redacted —
-text strategies (`Mask`, `Replace`, `Hash`, `Encrypt`), image
-strategies (`Blur`, `Pixelate`, `Block`), and the matching rules
-that pick a strategy per entity.
+`entity::*` defines the entity taxonomy (`EntityCategory`,
+`EntityKind`, `EntitySensitivity`), the detection-result type
+`Entity<M>`, user-supplied `Annotation<M>`s, the recognition /
+extraction / refinement method enums, and `ContentSource`.
 
-`provenance::*` records what the pipeline did: `RedactionMap`,
-`AuditEntry`, `ReviewStatus`, and the redaction-value index for
-reversibility.
+`provenance::*` records what the pipeline did. `Audit<M>` ships
+the per-document compliance trail as `records: Vec<EntityRecord<M>>`
+— each record bundles a detected `Entity<M>` with the optional
+`AuditEntry<M>` produced for it during redaction. `AnyAudit` is
+the modality-erased enum used by persistence.
 
-`artifacts::*` and `context::*` carry the per-document state
-threaded through the engine (extracted text/image artifacts,
-analyser hints).
+`policy::*` describes how a detected entity should be redacted.
+Per-modality `*Strategy` enums (`TextStrategy::Mask`,
+`ImageStrategy::Blur`, …), `StrategyPolicy<M>` selectors with
+`Action::{Redact, Suppress, …}`, and the top-level `Policy<M>`
+container.
+
+`primitive::*` carries cross-cutting value types — `Confidence`,
+`LanguageTag`, `LanguageDetection`, `BoundingBox`, `Polygon`,
+`TimeSpan`, `Color`.
+
+`context::*` defines the reference-data shapes (face / voice /
+signature / template embeddings, geographic and temporal
+constraints) loaded at runtime against detected entities.
 
 ## Documentation
 

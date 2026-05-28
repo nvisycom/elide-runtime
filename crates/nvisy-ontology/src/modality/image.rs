@@ -1,6 +1,5 @@
 //! Image modality.
 
-use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -10,13 +9,8 @@ use crate::policy::ImageStrategy;
 use crate::primitive::{BoundingBox, LanguageDetection, Polygon};
 
 /// A region within image content.
-#[derive(Debug, Clone, PartialEq, Builder)]
+#[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[builder(
-    name = "ImageBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with")
-)]
 #[serde(rename_all = "camelCase")]
 pub struct Image {
     /// Axis-aligned bounding box of the region.
@@ -25,25 +19,19 @@ pub struct Image {
     /// rotated or quadrilateral shape (OCR engines that emit 4-point
     /// polygons populate this; axis-aligned-only sources leave it
     /// unset).
-    #[builder(default, setter(into = false))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub polygon: Option<Polygon>,
     /// Links this region to a specific image document.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_id: Option<Uuid>,
     /// 1-based page number (for multi-page documents like PDFs).
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_number: Option<u32>,
 }
 
 impl Image {
     /// Create an [`Image`] from the bounding box alone, with every
-    /// optional field unset. Use [`builder`] when polygon, `image_id`,
-    /// or `page_number` need to be set.
-    ///
-    /// [`builder`]: Self::builder
+    /// optional field unset.
     pub fn new(bounding_box: BoundingBox) -> Self {
         Self {
             bounding_box,
@@ -51,11 +39,6 @@ impl Image {
             image_id: None,
             page_number: None,
         }
-    }
-
-    /// Create a new [`ImageBuilder`].
-    pub fn builder() -> ImageBuilder {
-        ImageBuilder::default()
     }
 
     /// Area of the bounding box in pixels (`width * height`).

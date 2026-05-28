@@ -48,10 +48,4 @@ impl<M: Modality> Block<M> {
         self.spans = spans;
         self
     }
-
-    /// Set the recognition confidence (builder-style).
-    pub fn with_confidence(mut self, confidence: Confidence) -> Self {
-        self.confidence = Some(confidence);
-        self
-    }
 }

@@ -41,12 +41,8 @@ pub struct EntityRecord<M: Modality> {
     pub entity: Entity<M>,
     /// The redaction record for this entity, if a strategy decided
     /// to act on it.
-    #[serde(default = "default_audit::<M>", skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audit: Option<AuditEntry<M>>,
-}
-
-fn default_audit<M: Modality>() -> Option<AuditEntry<M>> {
-    None
 }
 
 impl<M: Modality> EntityRecord<M> {

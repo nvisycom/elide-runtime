@@ -53,31 +53,12 @@ impl BoundingBox {
         (self.x + self.width / 2.0, self.y + self.height / 2.0)
     }
 
-    /// Returns `true` if the point `(px, py)` lies inside the box.
-    pub fn contains_point(&self, px: f64, py: f64) -> bool {
-        px >= self.x && px <= self.right() && py >= self.y && py <= self.bottom()
-    }
-
     /// Returns `true` if this box overlaps with `other`.
     pub fn overlaps(&self, other: &BoundingBox) -> bool {
         self.x < other.right()
             && other.x < self.right()
             && self.y < other.bottom()
             && other.y < self.bottom()
-    }
-
-    /// Returns the intersection of two boxes, or `None` if they don't overlap.
-    pub fn intersection(&self, other: &BoundingBox) -> Option<BoundingBox> {
-        let x = self.x.max(other.x);
-        let y = self.y.max(other.y);
-        let right = self.right().min(other.right());
-        let bottom = self.bottom().min(other.bottom());
-
-        if x < right && y < bottom {
-            Some(BoundingBox::new(x, y, right - x, bottom - y))
-        } else {
-            None
-        }
     }
 
     /// Returns the smallest box that encloses both `self` and `other`.
@@ -87,28 +68,6 @@ impl BoundingBox {
         let right = self.right().max(other.right());
         let bottom = self.bottom().max(other.bottom());
         BoundingBox::new(x, y, right - x, bottom - y)
-    }
-
-    /// Intersection-over-union (IoU) with `other`.
-    ///
-    /// Returns 0.0 if the boxes don't overlap or if both have zero area.
-    pub fn iou(&self, other: &BoundingBox) -> f64 {
-        let inter = match self.intersection(other) {
-            Some(b) => b.area(),
-            None => return 0.0,
-        };
-        let union = self.area() + other.area() - inter;
-        if union == 0.0 { 0.0 } else { inter / union }
-    }
-
-    /// Returns the smallest box enclosing all boxes in the iterator.
-    ///
-    /// Returns [`BoundingBox::default()`] if the iterator is empty.
-    pub fn enclosing<'a>(mut iter: impl Iterator<Item = &'a BoundingBox>) -> BoundingBox {
-        match iter.next() {
-            None => BoundingBox::default(),
-            Some(first) => iter.fold(*first, |acc, b| acc.union(b)),
-        }
     }
 
     /// Convert to integer pixel coordinates by rounding each field.
@@ -137,32 +96,12 @@ mod tests {
     }
 
     #[test]
-    fn contains_point() {
-        let bb = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
-        assert!(bb.contains_point(5.0, 5.0));
-        assert!(bb.contains_point(0.0, 0.0));
-        assert!(bb.contains_point(10.0, 10.0));
-        assert!(!bb.contains_point(11.0, 5.0));
-    }
-
-    #[test]
     fn overlaps() {
         let a = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
         let b = BoundingBox::new(5.0, 5.0, 10.0, 10.0);
         let c = BoundingBox::new(10.0, 0.0, 10.0, 10.0);
         assert!(a.overlaps(&b));
         assert!(!a.overlaps(&c)); // touching at edge = no overlap
-    }
-
-    #[test]
-    fn intersection() {
-        let a = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
-        let b = BoundingBox::new(5.0, 5.0, 10.0, 10.0);
-        let i = a.intersection(&b).unwrap();
-        assert!((i.x - 5.0).abs() < f64::EPSILON);
-        assert!((i.y - 5.0).abs() < f64::EPSILON);
-        assert!((i.width - 5.0).abs() < f64::EPSILON);
-        assert!((i.height - 5.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -174,15 +113,5 @@ mod tests {
         assert!((u.y).abs() < f64::EPSILON);
         assert!((u.width - 10.0).abs() < f64::EPSILON);
         assert!((u.height - 10.0).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn iou() {
-        let a = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
-        let b = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
-        assert!((a.iou(&b) - 1.0).abs() < f64::EPSILON);
-
-        let c = BoundingBox::new(20.0, 20.0, 10.0, 10.0);
-        assert!(a.iou(&c).abs() < f64::EPSILON);
     }
 }

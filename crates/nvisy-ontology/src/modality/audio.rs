@@ -1,6 +1,5 @@
 //! Audio modality.
 
-use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -10,44 +9,29 @@ use crate::policy::AudioStrategy;
 use crate::primitive::{LanguageDetection, TimeSpan};
 
 /// A time interval within audio content.
-#[derive(Debug, Clone, PartialEq, Builder)]
+#[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[builder(
-    name = "AudioBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with")
-)]
 #[serde(rename_all = "camelCase")]
 pub struct Audio {
     /// Time interval.
     pub time_span: TimeSpan,
     /// Speaker identifier from diarization.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub speaker_id: Option<String>,
     /// Links this interval to a specific audio document.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_id: Option<Uuid>,
 }
 
 impl Audio {
     /// Create an [`Audio`] covering `time_span`, with no speaker
-    /// attribution or audio-document link. Use [`builder`] when
-    /// `speaker_id` or `audio_id` need to be set.
-    ///
-    /// [`builder`]: Self::builder
+    /// attribution or audio-document link.
     pub fn new(time_span: TimeSpan) -> Self {
         Self {
             time_span,
             speaker_id: None,
             audio_id: None,
         }
-    }
-
-    /// Create a new [`AudioBuilder`].
-    pub fn builder() -> AudioBuilder {
-        AudioBuilder::default()
     }
 }
 

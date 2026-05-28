@@ -35,7 +35,7 @@ impl LiftFromBlock for Text {
     fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<Self> {
         let span = spans.iter().find(|s| s.overlaps(start, end))?;
         let span_text_start = span.text_start;
-        let source_base = span.source.start_offset;
+        let source_base = span.source.start;
         let lifted_start = source_base + start.saturating_sub(span_text_start);
         let lifted_end = source_base + end.saturating_sub(span_text_start);
         Some(Text::new(lifted_start, lifted_end))

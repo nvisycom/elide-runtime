@@ -127,8 +127,8 @@ impl Handle<Text> for JsonHandler {
                 Located::new(
                     source,
                     Text {
-                        start_offset: ls.start,
-                        end_offset: ls.end,
+                        start: ls.start,
+                        end: ls.end,
                         ..Default::default()
                     },
                 )
@@ -140,7 +140,7 @@ impl Handle<Text> for JsonHandler {
     async fn read(&self, location: &Text) -> Option<TextData> {
         self.locate_spans()
             .into_iter()
-            .find(|ls| ls.start == location.start_offset && ls.end == location.end_offset)
+            .find(|ls| ls.start == location.start && ls.end == location.end)
             .map(|ls| TextData::from(ls.text))
     }
 
@@ -148,12 +148,12 @@ impl Handle<Text> for JsonHandler {
         let located = self.locate_spans();
         let Some(ls) = located
             .into_iter()
-            .find(|ls| location.start_offset >= ls.start && location.end_offset <= ls.end)
+            .find(|ls| location.start >= ls.start && location.end <= ls.end)
         else {
             return Ok(());
         };
-        let start = location.start_offset - ls.start;
-        let end = location.end_offset - ls.start;
+        let start = location.start - ls.start;
+        let end = location.end - ls.start;
         let mut content = ls.text.clone();
         let value = redaction.output().replacement_value().unwrap_or_default();
         redact::replace_range(&mut content, value, start, end, TARGET)?;
@@ -425,7 +425,7 @@ mod tests {
             if let Some(td) = h.read(&item.location).await
                 && td.as_str() == "same"
             {
-                same_offsets.push(item.location.start_offset);
+                same_offsets.push(item.location.start);
             }
         }
         assert_eq!(same_offsets.len(), 2);
@@ -448,8 +448,8 @@ mod tests {
     async fn read_rejects_arbitrary_offsets() {
         let h = compact_handler(r#"{"name":"Alice"}"#);
         let bogus = Text {
-            start_offset: 3,
-            end_offset: 7,
+            start: 3,
+            end: 7,
             ..Default::default()
         };
         assert!(h.read(&bogus).await.is_none());

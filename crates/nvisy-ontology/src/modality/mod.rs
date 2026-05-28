@@ -8,10 +8,12 @@
 //!
 //! Each modality also defines its own [`Block`](Modality::Block) shape
 //! (via the associated type) so block payloads can diverge across
-//! modalities — a [`TextBlock`] is just text, an [`ImageBlock`]
-//! carries an [`Image`] region per variant, an [`AudioBlock`] carries
-//! a time span and optional speaker, a [`TabularBlock`] carries the
-//! row index.
+//! modalities. A [`TextBlock`] is a structural variant (paragraph,
+//! heading, list item, …) carrying flat text. An [`ImageBlock`]
+//! carries a per-variant bounding region plus optional recognized
+//! text. An [`AudioBlock`] carries the segment's time span and, for
+//! speech, the transcript and speaker. A [`TabularBlock`] carries
+//! the row's flat text and 0-based row index.
 //!
 //! [`Document`]: crate::document::Document
 //! [`Span`]: crate::document::Span
@@ -24,10 +26,10 @@ mod text;
 
 use std::fmt::Debug;
 
-pub use self::audio::{Audio, AudioBlock, AudioBuilder, AudioMetadata};
-pub use self::image::{Image, ImageBlock, ImageBuilder, ImageMetadata, PageDimensions};
-pub use self::tabular::{ColumnHeader, Tabular, TabularBlock, TabularBuilder, TabularMetadata};
-pub use self::text::{Text, TextBlock, TextBuilder, TextMetadata};
+pub use self::audio::{Audio, AudioBlock, AudioMetadata};
+pub use self::image::{Image, ImageBlock, ImageMetadata, PageDimensions};
+pub use self::tabular::{ColumnHeader, Tabular, TabularBlock, TabularMetadata};
+pub use self::text::{ContextWindow, Text, TextBlock, TextMetadata};
 
 /// Marker trait implemented by every per-modality coordinate type.
 ///
@@ -92,14 +94,12 @@ pub trait RedactionStrategy {
 
 /// Combine two values into one when they can be reconciled.
 ///
-/// Used by collections (e.g. [`Redactions`]) under a merge policy:
-/// when two entries collide (per [`Overlap`]), the collection asks
-/// both the location and the payload whether they can fuse. Returns
-/// `Some(merged)` when the two can be combined (e.g. unioned bounding
-/// boxes, identical outputs), `None` when they cannot (e.g. different
+/// Used by deduplication and fusion pipelines: when two entries
+/// collide (per [`Overlap`]), the consumer asks both the location
+/// and the payload whether they can fuse. Returns `Some(merged)`
+/// when the two can be combined (e.g. unioned bounding boxes,
+/// identical outputs), `None` when they cannot (e.g. different
 /// tabular cells, conflicting replacement strings).
-///
-/// [`Redactions`]: https://docs.rs/nvisy-codec/latest/nvisy_codec/transform/struct.Redactions.html
 pub trait Mergeable: Sized {
     fn try_merge(self, other: Self) -> Option<Self>;
 }

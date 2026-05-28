@@ -263,14 +263,14 @@ mod tests {
     /// deny-list / no-provenance candidates.
     fn pattern_name(c: &EntityCandidate) -> Option<&str> {
         c.entity.recognition_methods.iter().find_map(|m| match m {
-            RecognitionMethod::Pattern(p) => p.pattern.as_deref(),
+            RecognitionMethod::Pattern(p) => p.name(),
             _ => None,
         })
     }
 
     /// Span of a candidate's text location.
     fn span(c: &EntityCandidate) -> (usize, usize) {
-        (c.entity.location.start_offset, c.entity.location.end_offset)
+        (c.entity.location.start, c.entity.location.end)
     }
 
     #[test]

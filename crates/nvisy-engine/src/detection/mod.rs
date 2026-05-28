@@ -281,8 +281,8 @@ impl DetectionEngine {
             for entity in detected {
                 let Some(location) = M::lift_from_block(
                     &block.spans,
-                    entity.location.start_offset,
-                    entity.location.end_offset,
+                    entity.location.start,
+                    entity.location.end,
                 ) else {
                     tracing::debug!(
                         target: TARGET,

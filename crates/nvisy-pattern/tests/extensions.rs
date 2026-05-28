@@ -23,7 +23,7 @@ fn read_fixture(parts: &[&str]) -> String {
 }
 
 fn find_entity_at(entities: &[Entity<Text>], start: usize) -> Option<&Entity<Text>> {
-    entities.iter().find(|e| e.location.start_offset == start)
+    entities.iter().find(|e| e.location.start == start)
 }
 
 #[test]

@@ -12,8 +12,7 @@ mod refinement;
 
 pub use self::extraction::ExtractionMethod;
 pub use self::provenance::{
-    AnnotationProvenance, CrossReferenceProvenance, ModelKind, ModelProvenance, PatternKind,
-    PatternProvenance,
+    AnnotationProvenance, CrossReferenceProvenance, ModelKind, ModelProvenance, PatternProvenance,
 };
 pub use self::recognition::{RecognitionMethod, RecognitionMethodKind};
 pub use self::refinement::RefinementMethod;

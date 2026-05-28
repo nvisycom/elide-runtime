@@ -1,6 +1,6 @@
 //! Integration tests for entity detection via the public scan API.
 
-use nvisy_ontology::entity::{EntityKind, PatternKind, RecognitionMethod};
+use nvisy_ontology::entity::{EntityKind, PatternProvenance, RecognitionMethod};
 use nvisy_pattern::PatternEngine;
 use nvisy_pattern::filter::PatternContext;
 
@@ -43,7 +43,7 @@ fn dictionary_matches_are_found() {
             .iter()
             .any(|e| e.recognition_methods.iter().any(|m| matches!(
                 m,
-                RecognitionMethod::Pattern(p) if p.kind == PatternKind::Dictionary,
+                RecognitionMethod::Pattern(PatternProvenance::Dictionary { .. }),
             ))),
         "expected dictionary match, got: {:?}",
         entities
@@ -58,8 +58,8 @@ fn column_confidence_applies_to_csv_dictionaries() {
     let engine = PatternEngine::instance();
     let entities = engine.scan_text("I paid in US Dollar and also in USD.", &empty_ctx());
     // "US Dollar" at 10..19, "USD" at 32..35
-    let full_name = entities.iter().find(|e| e.location.start_offset == 10);
-    let code = entities.iter().find(|e| e.location.start_offset == 32);
+    let full_name = entities.iter().find(|e| e.location.start == 10);
+    let code = entities.iter().find(|e| e.location.start == 32);
     assert!(full_name.is_some(), "should match 'US Dollar'");
     assert!(code.is_some(), "should match 'USD'");
     let full_conf = full_name.unwrap().confidence.get();
@@ -80,5 +80,5 @@ fn scan_entities_returns_entities_with_location() {
     assert!(!entities.is_empty());
     let e = &entities[0];
     assert_eq!(e.entity_kind, EntityKind::GovernmentId);
-    assert!(e.location.end_offset > e.location.start_offset);
+    assert!(e.location.end > e.location.start);
 }

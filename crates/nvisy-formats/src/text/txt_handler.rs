@@ -65,8 +65,8 @@ impl Handle<Text> for TxtHandler {
                 Located::new(
                     source,
                     Text {
-                        start_offset: start,
-                        end_offset: end,
+                        start,
+                        end,
                         line_number: Some((i + 1) as u32),
                         ..Default::default()
                     },
@@ -79,12 +79,12 @@ impl Handle<Text> for TxtHandler {
     async fn read(&self, location: &Text) -> Option<TextData> {
         let offsets = self.line_offsets();
         let line_idx = offsets.iter().position(|&(start, end)| {
-            location.start_offset >= start && location.end_offset <= end
+            location.start >= start && location.end <= end
         })?;
         let line = self.lines.get(line_idx)?;
         let line_start = offsets[line_idx].0;
-        let local_start = location.start_offset - line_start;
-        let local_end = location.end_offset - line_start;
+        let local_start = location.start - line_start;
+        let local_end = location.end - line_start;
         line.get(local_start..local_end).map(TextData::from)
     }
 
@@ -92,13 +92,13 @@ impl Handle<Text> for TxtHandler {
         let offsets = self.line_offsets();
         let Some(line_idx) = offsets
             .iter()
-            .position(|&(start, end)| location.start_offset >= start && location.end_offset <= end)
+            .position(|&(start, end)| location.start >= start && location.end <= end)
         else {
             return Ok(());
         };
         let line_start = offsets[line_idx].0;
-        let start = location.start_offset - line_start;
-        let end = location.end_offset - line_start;
+        let start = location.start - line_start;
+        let end = location.end - line_start;
         let value = redaction.output().replacement_value().unwrap_or_default();
         redact::replace_range(&mut self.lines[line_idx], value, start, end, TARGET)
     }
@@ -145,7 +145,7 @@ impl TxtHandler {
         self.lines.is_empty()
     }
 
-    /// Compute `(start_offset, end_offset)` for each line.
+    /// Compute `(start, end)` for each line.
     fn line_offsets(&self) -> Vec<(usize, usize)> {
         let mut offset = 0;
         self.lines
@@ -181,11 +181,11 @@ mod tests {
         let items: Vec<_> = h.locations().collect().await;
 
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0].location.start_offset, 0);
-        assert_eq!(items[0].location.end_offset, 5);
+        assert_eq!(items[0].location.start, 0);
+        assert_eq!(items[0].location.end, 5);
         assert_eq!(items[0].location.line_number, Some(1));
-        assert_eq!(items[1].location.start_offset, 6);
-        assert_eq!(items[1].location.end_offset, 11);
+        assert_eq!(items[1].location.start, 6);
+        assert_eq!(items[1].location.end, 11);
         assert_eq!(items[1].location.line_number, Some(2));
     }
 
@@ -195,8 +195,8 @@ mod tests {
         let items: Vec<_> = h.locations().collect().await;
 
         assert_eq!(items.len(), 1);
-        assert_eq!(items[0].location.start_offset, 0);
-        assert_eq!(items[0].location.end_offset, 10);
+        assert_eq!(items[0].location.start, 0);
+        assert_eq!(items[0].location.end, 10);
         assert!(!h.trailing_newline());
     }
 
@@ -204,8 +204,8 @@ mod tests {
     async fn read_returns_line() {
         let h = handler("hello\nworld\n");
         let loc = Text {
-            start_offset: 6,
-            end_offset: 11,
+            start: 6,
+            end: 11,
             ..Default::default()
         };
         assert_eq!(h.read(&loc).await.unwrap().as_str(), "world");
@@ -215,8 +215,8 @@ mod tests {
     async fn read_cross_line_returns_none() {
         let h = handler("hello\nworld\n");
         let loc = Text {
-            start_offset: 3,
-            end_offset: 8,
+            start: 3,
+            end: 8,
             ..Default::default()
         };
         assert!(h.read(&loc).await.is_none());
@@ -245,8 +245,8 @@ mod tests {
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
             Text {
-                start_offset: 6,
-                end_offset: 11,
+                start: 6,
+                end: 11,
                 ..Default::default()
             },
             TextRedaction::new(TextOutput::replace("[X]")),
@@ -283,8 +283,8 @@ mod tests {
         let mut rs = Redactions::new(ConflictPolicy::Reject);
         rs.try_insert(
             Text {
-                start_offset: 999,
-                end_offset: 1000,
+                start: 999,
+                end: 1000,
                 ..Default::default()
             },
             TextRedaction::new(TextOutput::replace("nope")),

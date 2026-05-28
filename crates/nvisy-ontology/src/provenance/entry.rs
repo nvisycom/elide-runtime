@@ -22,8 +22,6 @@ pub enum AuditEntryStatus {
     Success,
     /// Redaction failed.
     Failed,
-    /// Redaction completed with partial results.
-    Partial,
     /// Redaction is pending (not yet applied).
     Pending,
     /// Entity was deliberately not redacted because a matching
@@ -36,7 +34,8 @@ pub enum AuditEntryStatus {
 }
 
 /// A per-entity redaction record: what strategy was chosen, what
-/// the original and replacement values are, and optional review.
+/// the original and replacement values are, and optional human
+/// review.
 ///
 /// Created by the policy evaluator via the builder, then enriched
 /// by the applicator with the replacement value and `is_applied`

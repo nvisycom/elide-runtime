@@ -1,6 +1,5 @@
 //! Tabular modality.
 
-use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -8,13 +7,8 @@ use super::{Mergeable, Modality, ModalityBlock, Overlap};
 use crate::policy::TabularStrategy;
 
 /// A cell (or sub-cell range) within tabular content.
-#[derive(Debug, Clone, PartialEq, Eq, Builder)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[builder(
-    name = "TabularBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with")
-)]
 #[serde(rename_all = "camelCase")]
 pub struct Tabular {
     /// Row index (0-based).
@@ -22,19 +16,15 @@ pub struct Tabular {
     /// Column index (0-based).
     pub column_index: usize,
     /// Byte offset within the cell where the range starts, if applicable.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_offset: Option<usize>,
     /// Byte offset within the cell where the range ends, if applicable.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_offset: Option<usize>,
     /// Column name or header label.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub column_name: Option<String>,
     /// Sheet or table name (for multi-sheet documents).
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sheet_name: Option<String>,
 }
@@ -42,9 +32,7 @@ pub struct Tabular {
 impl Tabular {
     /// Create a [`Tabular`] for the given cell coordinates, with every
     /// optional field (intra-cell offsets, column name, sheet name)
-    /// unset. Use [`builder`] when any of those need to be set.
-    ///
-    /// [`builder`]: Self::builder
+    /// unset.
     pub fn new(row_index: usize, column_index: usize) -> Self {
         Self {
             row_index,
@@ -54,11 +42,6 @@ impl Tabular {
             column_name: None,
             sheet_name: None,
         }
-    }
-
-    /// Create a new [`TabularBuilder`].
-    pub fn builder() -> TabularBuilder {
-        TabularBuilder::default()
     }
 }
 

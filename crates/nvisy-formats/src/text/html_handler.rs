@@ -85,8 +85,8 @@ impl Handle<Text> for HtmlHandler {
             items.push(Located::new(
                 source,
                 Text {
-                    start_offset: start,
-                    end_offset: end,
+                    start,
+                    end,
                     ..Default::default()
                 },
             ));
@@ -99,7 +99,7 @@ impl Handle<Text> for HtmlHandler {
         let offsets = self.node_offsets();
         let idx = offsets
             .iter()
-            .position(|&(start, _)| start == location.start_offset)?;
+            .position(|&(start, _)| start == location.start)?;
         self.data.text_nodes.get(idx).cloned().map(TextData::from)
     }
 
@@ -107,13 +107,13 @@ impl Handle<Text> for HtmlHandler {
         let offsets = self.node_offsets();
         let Some(idx) = offsets
             .iter()
-            .position(|&(start, end)| location.start_offset >= start && location.end_offset <= end)
+            .position(|&(start, end)| location.start >= start && location.end <= end)
         else {
             return Ok(());
         };
         let node_start = offsets[idx].0;
-        let start = location.start_offset - node_start;
-        let end = location.end_offset - node_start;
+        let start = location.start - node_start;
+        let end = location.end - node_start;
         let value = redaction.output().replacement_value().unwrap_or_default();
         redact::replace_range(&mut self.data.text_nodes[idx], value, start, end, TARGET)
     }

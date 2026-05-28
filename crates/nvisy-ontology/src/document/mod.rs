@@ -19,8 +19,10 @@
 //! per modality. There is no cross-modality `Document`.
 //!
 //! `Document` is an in-memory pipeline carrier — it is intentionally
-//! not `Serialize`/`Deserialize` and has no `Default`. Persisted
-//! shapes live elsewhere (audit, redaction map).
+//! not `Serialize`/`Deserialize` and has no `Default`. The persisted
+//! shape is the embedded [`Audit`], reached via [`AnyAudit`].
+//!
+//! [`AnyAudit`]: crate::provenance::AnyAudit
 //!
 //! [`Modality::Block`]: crate::modality::Modality::Block
 //! [`Audit`]: crate::provenance::Audit
@@ -54,11 +56,21 @@ pub struct Document<M: Modality> {
 }
 
 impl<M: Modality> Document<M> {
-    /// Construct an empty [`Document`] for the given source.
-    /// Blocks and annotations start empty; the embedded [`Audit`]
-    /// is initialised against the same source. Producers push
-    /// blocks onto `self.blocks` directly.
-    pub fn new(source: ContentSource, meta: M::Metadata) -> Self {
+    /// Construct an empty [`Document`] for the given source with
+    /// default metadata. Blocks and annotations start empty; the
+    /// embedded [`Audit`] is initialised against the same source.
+    /// Producers push blocks onto `self.blocks` directly.
+    ///
+    /// Use [`with_meta`](Self::with_meta) when the metadata isn't
+    /// the per-modality default.
+    pub fn new(source: ContentSource) -> Self {
+        Self::with_meta(source, M::Metadata::default())
+    }
+
+    /// Construct an empty [`Document`] for the given source with
+    /// explicit metadata. See [`new`](Self::new) for the
+    /// default-metadata shortcut.
+    pub fn with_meta(source: ContentSource, meta: M::Metadata) -> Self {
         Self {
             meta,
             blocks: Vec::new(),

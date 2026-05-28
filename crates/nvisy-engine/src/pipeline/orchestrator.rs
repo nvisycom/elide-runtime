@@ -20,15 +20,17 @@ use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use super::default::EngineInput;
-use crate::deduplication::{Deduplicator, FilterParams};
-use crate::detection::{Detection as DetectionConfig, DetectionEngine, LiftFromBlock};
+use crate::deduplication::{Deduplicator, FilterParams, SpanSize};
+use crate::detection::{DetectionEngine, LiftFromBlock};
+use crate::envelope::value_at::ValueAt;
 use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData};
 use crate::extraction::{Extract, Extractors};
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
 };
-use crate::redaction::{RedactionDefaults, Redactor};
-use crate::validation::Validator;
+use crate::redaction::{ApplyRedactions, RedactionDefaults, Redactor};
+use crate::validation::{CheckLeaks, Validator};
+use nvisy_ontology::modality::Overlap;
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
@@ -262,23 +264,31 @@ where
     }
 }
 
-#[async_trait::async_trait]
-impl RunPipeline<Text> for DocumentPipeline<Text> {
-    /// Run all phases for a single text envelope.
-    async fn run(
+impl<M> DocumentPipeline<M>
+where
+    M: Modality + LiftFromBlock + Overlap + SpanSize + CheckLeaks,
+    Extractors: Extract<M>,
+    DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send,
+{
+    /// Run extraction → detection → dedup → redaction → validation
+    /// → export for one envelope. Generic over modality; per-M
+    /// behaviour comes from the trait impls bounded above.
+    async fn run_full(
         self,
-        mut envelope: DocumentEnvelope<Text>,
+        mut envelope: DocumentEnvelope<M>,
         plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<Text>, Error> {
+    ) -> Result<DocumentEnvelope<M>, Error> {
         self.check_cancelled()?;
 
         // Extraction.
-        Extract::<Text>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
+        Extract::<M>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
             .await?;
         self.check_cancelled()?;
 
         // Detection.
-        self.run_detection(&plan.detection, &mut envelope).await?;
+        if let Some(ref engine) = self.ctx.detection_engine {
+            engine.detect_in(&mut envelope, &plan.detection).await?;
+        }
         self.check_cancelled()?;
 
         // Deduplication.
@@ -313,41 +323,13 @@ impl RunPipeline<Text> for DocumentPipeline<Text> {
 
         Ok(envelope)
     }
-}
 
-impl<M> DocumentPipeline<M>
-where
-    M: Modality + LiftFromBlock,
-{
-    /// Run detection through the shared [`DetectionEngine`].
-    ///
-    /// The engine is built once per run by [`Pipeline`] from
-    /// `input.detection` and stored on [`RunContext`]; it is
-    /// `None` when no recognizer is opted in (`detection.kinds` is
-    /// empty), in which case detection is skipped.
-    ///
-    /// Generic over modality: lifts text-typed recognizer output to
-    /// absolute `M` coordinates via [`LiftFromBlock`].
-    ///
-    /// [`Pipeline`]: super::run::Pipeline
-    async fn run_detection(
-        &self,
-        cfg: &DetectionConfig,
-        envelope: &mut DocumentEnvelope<M>,
-    ) -> Result<(), Error> {
-        if let Some(ref engine) = self.ctx.detection_engine {
-            engine.detect_in(envelope, cfg).await?;
-        }
-        Ok(())
-    }
-}
-
-impl DocumentPipeline<Text> {
-    /// Export envelopes to the registry.
+    /// Export the envelope to the registry under every configured
+    /// export descriptor.
     async fn run_exports(
         &self,
         exports: &[ExportFileConfig],
-        envelope: &DocumentEnvelope<Text>,
+        envelope: &DocumentEnvelope<M>,
     ) -> Result<(), Error> {
         for cfg in exports {
             let exporter = Exporter::new()
@@ -361,60 +343,46 @@ impl DocumentPipeline<Text> {
 }
 
 #[async_trait::async_trait]
-impl RunPipeline<Tabular> for DocumentPipeline<Tabular> {
-    /// Tabular cells are already structured at decode time, so
-    /// extraction is a codec walk. Detection runs through the
-    /// generic block-walking driver; redaction / validation /
-    /// export land in later Scope C steps (§4.6 onward).
+impl RunPipeline<Text> for DocumentPipeline<Text> {
     async fn run(
         self,
-        mut envelope: DocumentEnvelope<Tabular>,
+        envelope: DocumentEnvelope<Text>,
+        plan: &EngineInput,
+    ) -> Result<DocumentEnvelope<Text>, Error> {
+        self.run_full(envelope, plan).await
+    }
+}
+
+#[async_trait::async_trait]
+impl RunPipeline<Tabular> for DocumentPipeline<Tabular> {
+    async fn run(
+        self,
+        envelope: DocumentEnvelope<Tabular>,
         plan: &EngineInput,
     ) -> Result<DocumentEnvelope<Tabular>, Error> {
-        self.check_cancelled()?;
-        Extract::<Tabular>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
-            .await?;
-        self.check_cancelled()?;
-        self.run_detection(&plan.detection, &mut envelope).await?;
-        Ok(envelope)
+        self.run_full(envelope, plan).await
     }
 }
 
 #[async_trait::async_trait]
 impl RunPipeline<Image> for DocumentPipeline<Image> {
-    /// Today: extraction (OCR + optional VLM verification) +
-    /// detection. Redaction / validation / export land in later
-    /// Scope C steps (§4.6 onward).
     async fn run(
         self,
-        mut envelope: DocumentEnvelope<Image>,
+        envelope: DocumentEnvelope<Image>,
         plan: &EngineInput,
     ) -> Result<DocumentEnvelope<Image>, Error> {
-        self.check_cancelled()?;
-        Extract::<Image>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
-            .await?;
-        self.check_cancelled()?;
-        self.run_detection(&plan.detection, &mut envelope).await?;
-        Ok(envelope)
+        self.run_full(envelope, plan).await
     }
 }
 
 #[async_trait::async_trait]
 impl RunPipeline<Audio> for DocumentPipeline<Audio> {
-    /// Today: extraction (STT) + detection. Redaction /
-    /// validation / export land in later Scope C steps (§4.6
-    /// onward).
     async fn run(
         self,
-        mut envelope: DocumentEnvelope<Audio>,
+        envelope: DocumentEnvelope<Audio>,
         plan: &EngineInput,
     ) -> Result<DocumentEnvelope<Audio>, Error> {
-        self.check_cancelled()?;
-        Extract::<Audio>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
-            .await?;
-        self.check_cancelled()?;
-        self.run_detection(&plan.detection, &mut envelope).await?;
-        Ok(envelope)
+        self.run_full(envelope, plan).await
     }
 }
 

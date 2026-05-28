@@ -5,7 +5,7 @@ use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use bytes::Bytes;
 use nvisy_core::content::ContentData;
 use nvisy_core::{Error, ErrorKind, Result};
-use nvisy_ontology::modality::Text;
+use nvisy_ontology::modality::Modality;
 use rand::RngExt;
 
 use super::provider::{KeyProvider, SharedKeyProvider};
@@ -30,8 +30,13 @@ impl CryptoService {
         }
     }
 
-    /// Encrypt a [`DocumentEnvelope<Text>`] into an [`EncryptedContent`] blob.
-    pub async fn encrypt(&self, envelope: &DocumentEnvelope<Text>) -> Result<EncryptedContent> {
+    /// Encrypt a [`DocumentEnvelope<M>`] into an [`EncryptedContent`] blob.
+    /// Modality-agnostic — uses only the envelope's encoded bytes
+    /// and content source.
+    pub async fn encrypt<M: Modality>(
+        &self,
+        envelope: &DocumentEnvelope<M>,
+    ) -> Result<EncryptedContent> {
         let content_data = envelope.encode().await?;
         let source = content_data.content_source;
         let plaintext = content_data.as_bytes();
@@ -139,6 +144,7 @@ impl CryptoService {
 #[cfg(test)]
 mod tests {
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
+    use nvisy_ontology::modality::Text;
 
     use super::*;
     use crate::envelope::DocumentEnvelope;

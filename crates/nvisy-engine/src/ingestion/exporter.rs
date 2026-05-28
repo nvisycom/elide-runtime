@@ -8,7 +8,7 @@
 
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentSource};
-use nvisy_ontology::modality::Text;
+use nvisy_ontology::modality::Modality;
 use uuid::Uuid;
 
 use crate::envelope::DocumentEnvelope;
@@ -47,7 +47,7 @@ impl Exporter {
         self
     }
 
-    pub async fn export(&self, envelope: &DocumentEnvelope<Text>) -> Result<()> {
+    pub async fn export<M: Modality>(&self, envelope: &DocumentEnvelope<M>) -> Result<()> {
         let shared = &envelope.shared;
         let content_data = envelope.encode().await?;
         let mut output_bytes = bytes::Bytes::copy_from_slice(content_data.as_bytes());

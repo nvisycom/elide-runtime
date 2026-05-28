@@ -56,7 +56,7 @@ impl Redactor {
         M: Modality,
         DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions,
     {
-        if envelope.audit.entities.is_empty() {
+        if envelope.document.audit.entities.is_empty() {
             return Ok(());
         }
 
@@ -69,7 +69,7 @@ impl Redactor {
         let strategies = rank_strategies(&policies);
         let document_labels: Vec<&str> = Vec::new();
 
-        let entities = std::mem::take(&mut envelope.audit.entities);
+        let entities = std::mem::take(&mut envelope.document.audit.entities);
         let (entries, mappings, kept_entities) = evaluate::<M>(
             entities,
             &strategies,
@@ -80,13 +80,13 @@ impl Redactor {
         )
         .await;
 
-        envelope.audit.entities = kept_entities;
-        envelope.audit.entries.extend(entries);
+        envelope.document.audit.entities = kept_entities;
+        envelope.document.audit.entries.extend(entries);
         envelope.redaction_map.entries.extend(mappings);
 
         tracing::debug!(
             target: TARGET,
-            entries = envelope.audit.entries.len(),
+            entries = envelope.document.audit.entries.len(),
             mappings = envelope.redaction_map.entries.len(),
             "policy evaluation complete",
         );
@@ -338,7 +338,7 @@ mod tests {
     #[tokio::test]
     async fn skips_below_threshold_no_policies() {
         let mut env = text_envelope("john").await;
-        env.audit.entities = vec![ent(0, 4, 0.4)];
+        env.document.audit.entities = vec![ent(0, 4, 0.4)];
         Redactor {
             default_threshold: 0.8,
             process_metadata: false,
@@ -346,14 +346,14 @@ mod tests {
         .execute(&mut env)
         .await
         .expect("execute");
-        assert!(env.audit.entries.is_empty());
+        assert!(env.document.audit.entries.is_empty());
         assert!(env.redaction_map.entries.is_empty());
     }
 
     #[tokio::test]
     async fn default_strategy_above_threshold() {
         let mut env = text_envelope("secret").await;
-        env.audit.entities = vec![ent(0, 6, 0.9)];
+        env.document.audit.entities = vec![ent(0, 6, 0.9)];
         Redactor {
             default_threshold: 0.5,
             process_metadata: false,
@@ -361,16 +361,16 @@ mod tests {
         .execute(&mut env)
         .await
         .expect("execute");
-        assert_eq!(env.audit.entries.len(), 1);
+        assert_eq!(env.document.audit.entries.len(), 1);
         assert_eq!(env.redaction_map.entries.len(), 1);
-        assert_eq!(env.audit.entries[0].value.original, "secret");
-        assert!(env.audit.entries[0].policy_id.is_none());
+        assert_eq!(env.document.audit.entries[0].value.original, "secret");
+        assert!(env.document.audit.entries[0].policy_id.is_none());
     }
 
     #[tokio::test]
     async fn matching_redact_rule_wins() {
         let mut env = text_envelope("john").await;
-        env.audit.entities = vec![ent(0, 4, 0.9)];
+        env.document.audit.entities = vec![ent(0, 4, 0.9)];
         let policy = policy_with(vec![redact_rule(
             Some(0),
             TextStrategy::Replace {
@@ -391,10 +391,10 @@ mod tests {
         .await
         .expect("execute");
 
-        assert_eq!(env.audit.entries.len(), 1);
-        assert_eq!(env.audit.entries[0].policy_id, Some(policy_id));
+        assert_eq!(env.document.audit.entries.len(), 1);
+        assert_eq!(env.document.audit.entries[0].policy_id, Some(policy_id));
         assert!(matches!(
-            env.audit.entries[0].redaction.strategy,
+            env.document.audit.entries[0].redaction.strategy,
             TextStrategy::Replace { .. }
         ));
     }
@@ -402,7 +402,7 @@ mod tests {
     #[tokio::test]
     async fn suppress_beats_redact_at_equal_priority() {
         let mut env = text_envelope("john").await;
-        env.audit.entities = vec![ent(0, 4, 0.9)];
+        env.document.audit.entities = vec![ent(0, 4, 0.9)];
         let policy = policy_with(vec![
             redact_rule(Some(0), TextStrategy::Hash),
             suppress_rule(Some(0)),
@@ -420,8 +420,8 @@ mod tests {
         .await
         .expect("execute");
 
-        assert_eq!(env.audit.entries.len(), 1);
-        assert_eq!(env.audit.entries[0].status, AuditEntryStatus::Suppressed);
+        assert_eq!(env.document.audit.entries.len(), 1);
+        assert_eq!(env.document.audit.entries[0].status, AuditEntryStatus::Suppressed);
         assert!(
             env.redaction_map.entries.is_empty(),
             "suppression records no mapping"
@@ -431,7 +431,7 @@ mod tests {
     #[tokio::test]
     async fn higher_priority_redact_wins_over_suppress() {
         let mut env = text_envelope("john").await;
-        env.audit.entities = vec![ent(0, 4, 0.9)];
+        env.document.audit.entities = vec![ent(0, 4, 0.9)];
         let policy = policy_with(vec![
             redact_rule(Some(0), TextStrategy::Hash),
             suppress_rule(Some(10)),
@@ -449,7 +449,7 @@ mod tests {
         .await
         .expect("execute");
 
-        assert_ne!(env.audit.entries[0].status, AuditEntryStatus::Suppressed);
+        assert_ne!(env.document.audit.entries[0].status, AuditEntryStatus::Suppressed);
         assert_eq!(env.redaction_map.entries.len(), 1);
     }
 }

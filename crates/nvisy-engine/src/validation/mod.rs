@@ -111,8 +111,8 @@ impl Validator {
         };
 
         let result = Self::check(
-            &envelope.audit.entities,
-            &envelope.audit.entries,
+            &envelope.document.audit.entities,
+            &envelope.document.audit.entries,
             redacted_text.as_deref(),
             envelope,
         )

@@ -4,8 +4,10 @@
 //!
 //! - [`Codable`] — per-modality wire-type associated types.
 //! - [`Handle<M>`] — per-modality capability trait.
-//! - [`Located<M>`] / [`Span<M, D>`] / [`LocationStream<M>`] —
-//!   per-modality location streaming primitives.
+//! - [`Located<M, D>`] / [`LocationStream<M>`] — per-modality
+//!   location streaming primitives. `Located<M>` is the bare
+//!   location form (`Located<M, ()>`); `Located<M, D>` is the same
+//!   record with content data attached.
 //! - [`Redactions<M, R>`] + [`ConflictPolicy`] — per-modality
 //!   redaction collections.
 //!
@@ -23,7 +25,6 @@ mod handle;
 mod located;
 mod policy;
 mod redactions;
-mod span;
 mod stream;
 
 pub use nvisy_ontology::modality::Mergeable;
@@ -32,5 +33,4 @@ pub use self::handle::{Codable, Handle};
 pub use self::located::Located;
 pub use self::policy::{ConflictPolicy, InsertError};
 pub use self::redactions::Redactions;
-pub use self::span::Span;
 pub use self::stream::LocationStream;

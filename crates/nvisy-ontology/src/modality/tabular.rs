@@ -93,6 +93,12 @@ impl TabularBlock {
     }
 }
 
+impl super::BlockText for TabularBlock {
+    fn scan_text(&self) -> Option<&str> {
+        Some(self.text())
+    }
+}
+
 /// Document-level metadata for [`Document<Tabular>`].
 ///
 /// [`Document<Tabular>`]: crate::document::Document

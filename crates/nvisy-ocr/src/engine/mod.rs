@@ -6,7 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::document::Document;
+use nvisy_ontology::document::Block;
 use nvisy_ontology::modality::Image;
 use tracing::instrument;
 
@@ -52,27 +52,31 @@ impl Extractor {
         &self,
         image: &ImageInput,
         ctx: Context<'_>,
-    ) -> Result<Document<Image>, Error> {
-        let output = self.backend.run(image, ctx).await?;
-        tracing::debug!(target: TARGET, spans = output.blocks.iter().map(|b| b.spans.len()).sum::<usize>(), "ocr complete");
-        Ok(output)
+    ) -> Result<Vec<Block<Image>>, Error> {
+        let blocks = self.backend.run(image, ctx).await?;
+        tracing::debug!(
+            target: TARGET,
+            spans = blocks.iter().map(|b| b.spans.len()).sum::<usize>(),
+            "ocr complete",
+        );
+        Ok(blocks)
     }
 
-    /// Run OCR on multiple images, merging the per-image blocks
-    /// into one [`Document<Image>`]. See [`Backend::run_batch`] for
-    /// the same-source assumption.
+    /// Run OCR on multiple images, concatenating the per-image
+    /// blocks. See [`Backend::run_batch`] for the same-source
+    /// assumption.
     #[instrument(skip_all, fields(count = images.len()))]
     pub async fn extract_batch(
         &self,
         images: &[ImageInput],
         ctx: Context<'_>,
-    ) -> Result<Document<Image>, Error> {
-        let output = self.backend.run_batch(images, ctx).await?;
+    ) -> Result<Vec<Block<Image>>, Error> {
+        let blocks = self.backend.run_batch(images, ctx).await?;
         tracing::debug!(
             target: TARGET,
-            spans = output.blocks.iter().map(|b| b.spans.len()).sum::<usize>(),
+            spans = blocks.iter().map(|b| b.spans.len()).sum::<usize>(),
             "batch ocr complete",
         );
-        Ok(output)
+        Ok(blocks)
     }
 }

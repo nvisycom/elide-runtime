@@ -14,17 +14,16 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::modality::{Modality, Text};
+use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use super::default::EngineInput;
 use crate::deduplication::{Deduplicator, FilterParams};
-use crate::detection::{Detection as DetectionConfig, DetectionEngine};
+use crate::detection::{Detection as DetectionConfig, DetectionEngine, LiftFromBlock};
 use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData};
-use nvisy_ontology::modality::{Audio, Image, Tabular};
-use crate::extraction::{Extract, Extraction as ExtractionConfig, Extractors};
+use crate::extraction::{Extract, Extractors};
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
 };
@@ -274,14 +273,15 @@ impl RunPipeline<Text> for DocumentPipeline<Text> {
         self.check_cancelled()?;
 
         // Extraction.
-        self.run_extraction(&plan.extraction, &mut envelope).await?;
+        Extract::<Text>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
+            .await?;
         self.check_cancelled()?;
 
         // Detection.
         self.run_detection(&plan.detection, &mut envelope).await?;
         self.check_cancelled()?;
 
-        // DeduplicationParams.
+        // Deduplication.
         let dedup = Deduplicator::new(&plan.deduplication);
         let params = FilterParams {
             allowed_kinds: (!plan.detection.entity_kinds.is_empty())
@@ -315,35 +315,34 @@ impl RunPipeline<Text> for DocumentPipeline<Text> {
     }
 }
 
-impl DocumentPipeline<Text> {
-    /// Run text extraction (no-op for already-structured text).
-    async fn run_extraction(
-        &self,
-        cfg: &ExtractionConfig,
-        envelope: &mut DocumentEnvelope<Text>,
-    ) -> Result<(), Error> {
-        Extract::<Text>::extract(self.ctx.extractors.as_ref(), envelope, cfg).await
-    }
-
+impl<M> DocumentPipeline<M>
+where
+    M: Modality + LiftFromBlock,
+{
     /// Run detection through the shared [`DetectionEngine`].
     ///
-    /// The engine is built once per run by [`Pipeline`]
-    /// from `input.detection` and stored on [`RunContext`]; it is
+    /// The engine is built once per run by [`Pipeline`] from
+    /// `input.detection` and stored on [`RunContext`]; it is
     /// `None` when no recognizer is opted in (`detection.kinds` is
     /// empty), in which case detection is skipped.
+    ///
+    /// Generic over modality: lifts text-typed recognizer output to
+    /// absolute `M` coordinates via [`LiftFromBlock`].
     ///
     /// [`Pipeline`]: super::run::Pipeline
     async fn run_detection(
         &self,
         cfg: &DetectionConfig,
-        envelope: &mut DocumentEnvelope<Text>,
+        envelope: &mut DocumentEnvelope<M>,
     ) -> Result<(), Error> {
         if let Some(ref engine) = self.ctx.detection_engine {
             engine.detect_in(envelope, cfg).await?;
         }
         Ok(())
     }
+}
 
+impl DocumentPipeline<Text> {
     /// Export envelopes to the registry.
     async fn run_exports(
         &self,
@@ -364,8 +363,9 @@ impl DocumentPipeline<Text> {
 #[async_trait::async_trait]
 impl RunPipeline<Tabular> for DocumentPipeline<Tabular> {
     /// Tabular cells are already structured at decode time, so
-    /// extraction is a no-op. Detection/redaction/validation/export
-    /// stages are wired in later Scope C steps (§4.4 onward).
+    /// extraction is a codec walk. Detection runs through the
+    /// generic block-walking driver; redaction / validation /
+    /// export land in later Scope C steps (§4.6 onward).
     async fn run(
         self,
         mut envelope: DocumentEnvelope<Tabular>,
@@ -374,14 +374,17 @@ impl RunPipeline<Tabular> for DocumentPipeline<Tabular> {
         self.check_cancelled()?;
         Extract::<Tabular>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
             .await?;
+        self.check_cancelled()?;
+        self.run_detection(&plan.detection, &mut envelope).await?;
         Ok(envelope)
     }
 }
 
 #[async_trait::async_trait]
 impl RunPipeline<Image> for DocumentPipeline<Image> {
-    /// Today: extraction (OCR + optional VLM verification). Other
-    /// stages land in §4.4 onward.
+    /// Today: extraction (OCR + optional VLM verification) +
+    /// detection. Redaction / validation / export land in later
+    /// Scope C steps (§4.6 onward).
     async fn run(
         self,
         mut envelope: DocumentEnvelope<Image>,
@@ -390,13 +393,17 @@ impl RunPipeline<Image> for DocumentPipeline<Image> {
         self.check_cancelled()?;
         Extract::<Image>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
             .await?;
+        self.check_cancelled()?;
+        self.run_detection(&plan.detection, &mut envelope).await?;
         Ok(envelope)
     }
 }
 
 #[async_trait::async_trait]
 impl RunPipeline<Audio> for DocumentPipeline<Audio> {
-    /// Today: extraction (STT). Other stages land in §4.4 onward.
+    /// Today: extraction (STT) + detection. Redaction /
+    /// validation / export land in later Scope C steps (§4.6
+    /// onward).
     async fn run(
         self,
         mut envelope: DocumentEnvelope<Audio>,
@@ -405,6 +412,8 @@ impl RunPipeline<Audio> for DocumentPipeline<Audio> {
         self.check_cancelled()?;
         Extract::<Audio>::extract(self.ctx.extractors.as_ref(), &mut envelope, &plan.extraction)
             .await?;
+        self.check_cancelled()?;
+        self.run_detection(&plan.detection, &mut envelope).await?;
         Ok(envelope)
     }
 }

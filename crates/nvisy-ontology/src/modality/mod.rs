@@ -50,7 +50,7 @@ pub use self::text::{Text, TextBlock, TextBuilder, TextMetadata};
 pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// The modality's block payload. See per-modality types:
     /// [`TextBlock`], [`ImageBlock`], [`AudioBlock`], [`TabularBlock`].
-    type Block: Clone + Debug + PartialEq + Send + Sync + 'static;
+    type Block: BlockText + Clone + Debug + PartialEq + Send + Sync + 'static;
 
     /// Document-level metadata.
     type Metadata: Clone + Debug + Default + PartialEq + Send + Sync + 'static;
@@ -60,6 +60,19 @@ pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// mask/replace/encrypt/etc., image picks blur/block/pixelate,
     /// audio picks silence/remove, tabular picks clear/drop-column.
     type Strategy: RedactionStrategy + Clone + Debug + Default + PartialEq + Send + Sync + 'static;
+}
+
+/// Scannable text for a per-modality block payload.
+///
+/// Returns the text the detection driver should feed into text-typed
+/// recognizers (pattern engine, NER backends). `None` means the
+/// block carries no scannable text — image figures/logos and audio
+/// silences are the canonical examples.
+///
+/// Text and Tabular blocks always carry text; their impls return
+/// `Some(_)` unconditionally.
+pub trait BlockText {
+    fn scan_text(&self) -> Option<&str>;
 }
 
 /// Methods every per-modality redaction strategy must expose.

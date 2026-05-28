@@ -1,29 +1,44 @@
-//! [`Located`]: a location paired with its production-time provenance.
+//! [`Located`]: a location with its production-time provenance, with
+//! optional content data attached.
 
 use nvisy_core::content::ContentSource;
 
 /// A location tagged with the [`ContentSource`] of the handler that
-/// produced it.
+/// produced it, optionally carrying the content data at that
+/// location.
 ///
-/// Returned by handler `locations()` streams so callers can attribute
-/// each location to a specific content artifact. The location itself
-/// remains the structural identity used as a key in
-/// [`Redactions`] — the source is metadata about how the location
-/// was produced, not part of its identity.
+/// `Located<L>` (i.e. `Located<L, ()>`) is the bare location form
+/// returned by handler [`locations()`] streams — callers can
+/// attribute each location to a specific content artifact without
+/// the read overhead. `Located<L, D>` is the same record with the
+/// content payload attached, useful when feeding a batch into a
+/// downstream service (LLM detector, OCR, validator).
 ///
+/// The location itself remains the structural identity used as a
+/// key in [`Redactions`] — the source is metadata about how the
+/// location was produced, and the data (when present) is the
+/// content at that location, neither part of the identity.
+///
+/// [`locations()`]: crate::core::Handle::locations
 /// [`Redactions`]: crate::core::Redactions
 #[derive(Debug, Clone, PartialEq)]
-pub struct Located<L> {
+pub struct Located<L, D = ()> {
     /// The handler-level source that produced this location.
     pub source: ContentSource,
     /// The structural location within the handler's data model.
     pub location: L,
+    /// The content at the location. `()` when only identity matters.
+    pub data: D,
 }
 
-impl<L> Located<L> {
-    /// Create a new located location.
+impl<L> Located<L, ()> {
+    /// Create a new located location with no content attached.
     pub fn new(source: ContentSource, location: L) -> Self {
-        Self { source, location }
+        Self {
+            source,
+            location,
+            data: (),
+        }
     }
 
     /// Discard the source, returning the underlying location.
@@ -31,11 +46,33 @@ impl<L> Located<L> {
         self.location
     }
 
-    /// Transform the inner location, keeping the source unchanged.
-    pub fn map<T>(self, f: impl FnOnce(L) -> T) -> Located<T> {
+    /// Attach `data` to this location, producing a `Located<L, D>`.
+    pub fn with_data<D>(self, data: D) -> Located<L, D> {
+        Located {
+            source: self.source,
+            location: self.location,
+            data,
+        }
+    }
+}
+
+impl<L, D> Located<L, D> {
+    /// Transform the inner location, keeping the source and data
+    /// unchanged.
+    pub fn map_location<T>(self, f: impl FnOnce(L) -> T) -> Located<T, D> {
         Located {
             source: self.source,
             location: f(self.location),
+            data: self.data,
+        }
+    }
+
+    /// Transform the data, keeping the source and location unchanged.
+    pub fn map_data<T>(self, f: impl FnOnce(D) -> T) -> Located<L, T> {
+        Located {
+            source: self.source,
+            location: self.location,
+            data: f(self.data),
         }
     }
 }

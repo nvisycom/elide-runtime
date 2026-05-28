@@ -31,7 +31,7 @@ pub(crate) mod scan;
 use std::fmt;
 use std::sync::LazyLock;
 
-use nvisy_ontology::document::{Block, Document};
+use nvisy_ontology::document::Block;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 use regex::RegexSet;
@@ -104,9 +104,10 @@ impl PatternEngine {
     ///
     /// Returned entities have offsets into `block.kind.text()`. The
     /// caller maps those back to source coordinates via the block's
-    /// spans before storing on `block.entities`.
+    /// spans before storing on the document's [`Audit`].
     ///
     /// [`Text`]: nvisy_ontology::modality::Text
+    /// [`Audit`]: nvisy_ontology::provenance::Audit
     #[tracing::instrument(level = "trace", target = TARGET, skip(self, block, ctx), fields(text_len = block.kind.text().len(), entities = tracing::field::Empty))]
     pub fn scan(&self, block: &Block<Text>, ctx: &PatternContext) -> Vec<Entity<Text>> {
         let text = block.kind.text();
@@ -137,9 +138,8 @@ impl PatternEngine {
     }
 
     /// Scan a bare `&str` (no block context). Mostly for tests and
-    /// ad-hoc tooling — production callers use [`Self::scan`] or
-    /// [`Self::scan_document`] so detection composes with block-aware
-    /// recognizers.
+    /// ad-hoc tooling — production callers use [`Self::scan`] so
+    /// detection composes with block-aware recognizers.
     pub fn scan_text(&self, text: &str, ctx: &PatternContext) -> Vec<Entity<Text>> {
         let mut candidates = self.scan_raw(text, ctx);
         ContextEnhancer::new(text, &ctx.hints).enhance(&mut candidates);
@@ -149,19 +149,6 @@ impl PatternEngine {
             .filter(|c| threshold.is_none_or(|t| c.entity.confidence.get() >= t))
             .map(|c| c.entity)
             .collect()
-    }
-
-    /// Walk every block of `document`, scan, and append the detected
-    /// entities to each `block.entities`.
-    ///
-    /// Convenience walker over [`Self::scan`]. Entities are appended
-    /// (existing `block.entities` are preserved) so multiple
-    /// recognizer passes compose.
-    pub fn scan_document(&self, document: &mut Document<Text>, ctx: &PatternContext) {
-        for block in &mut document.blocks {
-            let entities = self.scan(block, ctx);
-            block.entities.extend(entities);
-        }
     }
 
     /// Validate that every `RuntimePattern` compiles cleanly against

@@ -8,14 +8,14 @@
 
 use async_trait::async_trait;
 use nvisy_core::Error;
-use nvisy_ontology::document::Document;
+use nvisy_ontology::document::Block;
 use nvisy_ontology::modality::Image;
 
 use crate::core::{Backend, Context, ImageInput};
 
 /// A [`Backend`] that produces no OCR results.
 ///
-/// Every call returns an empty [`Document<Image>`].
+/// Every call returns an empty block list.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NoopBackend;
 
@@ -28,7 +28,11 @@ impl NoopBackend {
 
 #[async_trait]
 impl Backend for NoopBackend {
-    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<Document<Image>, Error> {
-        Ok(Document::new(Default::default(), Vec::new()))
+    async fn run(
+        &self,
+        _image: &ImageInput,
+        _ctx: Context<'_>,
+    ) -> Result<Vec<Block<Image>>, Error> {
+        Ok(Vec::new())
     }
 }

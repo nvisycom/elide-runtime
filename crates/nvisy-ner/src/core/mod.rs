@@ -57,9 +57,10 @@ pub trait Backend: Send + Sync + 'static {
     /// Convenience: scan a single [`Block<Text>`] by passing its
     /// text to [`recognize`]. Returned entity offsets are relative
     /// to the block's text; the caller maps to source coordinates
-    /// before storing on `block.entities`.
+    /// before storing on the document's [`Audit`].
     ///
     /// [`recognize`]: Self::recognize
+    /// [`Audit`]: nvisy_ontology::provenance::Audit
     async fn recognize_block(
         &self,
         block: &Block<Text>,

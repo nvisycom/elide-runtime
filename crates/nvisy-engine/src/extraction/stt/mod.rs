@@ -10,8 +10,8 @@ mod params;
 use nvisy_agent::audio::stt::SttService;
 use nvisy_codec::DocumentHandle;
 use nvisy_core::Result;
-use nvisy_ontology::document::{Block, Document};
-use nvisy_ontology::modality::{Audio, AudioBlock, AudioMetadata};
+use nvisy_ontology::document::Block;
+use nvisy_ontology::modality::{Audio, AudioBlock};
 use nvisy_ontology::primitive::TimeSpan;
 
 pub use self::params::SttExtractorConfig;
@@ -78,14 +78,11 @@ impl SttExtractor {
         }
 
         let time_span = TimeSpan::new(0, 0);
-        envelope.document = Some(Document::new(
-            AudioMetadata::default(),
-            vec![Block::new(AudioBlock::Speech {
-                time_span,
-                text: stt_result.text.clone(),
-                speaker_id: None,
-            })],
-        ));
+        envelope.document.blocks.push(Block::new(AudioBlock::Speech {
+            time_span,
+            text: stt_result.text.clone(),
+            speaker_id: None,
+        }));
 
         tracing::debug!(target: TARGET, "audio transcript captured");
         Ok(())

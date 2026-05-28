@@ -9,11 +9,11 @@
 
 mod params;
 
-use nvisy_codec::core::Span;
+use nvisy_codec::core::Located;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::Result;
 use nvisy_ocr::{Context as OcrContext, ImageFormat, ImageInput};
-use nvisy_ontology::document::Document;
+use nvisy_ontology::document::Block;
 use nvisy_ontology::modality::Image;
 
 pub use self::params::OcrExtractorConfig;
@@ -40,55 +40,53 @@ impl OcrExtractor {
         Ok(Self { inner })
     }
 
-    /// Run OCR over the envelope's image spans, populating
-    /// [`DocumentEnvelope::document`] with the per-page output. Merges
-    /// into an existing `Document<Image>` if one was already
-    /// populated; otherwise creates a fresh one.
+    /// Run OCR over the envelope's image regions, appending the
+    /// recognised blocks to [`DocumentEnvelope::document`].
     pub async fn run(&self, envelope: &mut DocumentEnvelope<Image>) -> Result<()> {
-        let spans = Self::collect_spans(envelope).await;
-        if spans.is_empty() {
+        let inputs = Self::collect_inputs(envelope).await;
+        if inputs.is_empty() {
             return Ok(());
         }
 
         tracing::debug!(
             target: TARGET,
-            spans = spans.len(),
+            regions = inputs.len(),
             "running OCR extraction",
         );
 
-        let output = self.extract(&spans).await?;
-
-        match envelope.document.as_mut() {
-            Some(existing) => existing.blocks.extend(output.blocks),
-            None => envelope.document = Some(output),
-        }
-
+        let blocks = self.extract(&inputs).await?;
+        envelope.document.blocks.extend(blocks);
         Ok(())
     }
 
-    async fn extract(&self, spans: &[Span<Image, ImageData>]) -> Result<Document<Image>> {
-        let inputs = spans
+    async fn extract(
+        &self,
+        inputs: &[Located<Image, ImageData>],
+    ) -> Result<Vec<Block<Image>>> {
+        let ocr_inputs = inputs
             .iter()
-            .map(|span| {
-                let png_bytes = span.data.encode_png()?;
+            .map(|item| {
+                let png_bytes = item.data.encode_png()?;
                 Ok(ImageInput::new(png_bytes, ImageFormat::Png))
             })
             .collect::<Result<Vec<_>>>()?;
         // No language hint plumbed through at this layer yet —
         // backends that need one will surface that when wired.
         self.inner
-            .extract_batch(&inputs, OcrContext::default())
+            .extract_batch(&ocr_inputs, OcrContext::default())
             .await
     }
 
-    async fn collect_spans(envelope: &DocumentEnvelope<Image>) -> Vec<Span<Image, ImageData>> {
+    async fn collect_inputs(
+        envelope: &DocumentEnvelope<Image>,
+    ) -> Vec<Located<Image, ImageData>> {
         let locations = envelope.collect_image_locations().await;
-        let mut spans = Vec::with_capacity(locations.len());
+        let mut out = Vec::with_capacity(locations.len());
         for located in locations {
             if let Some(data) = envelope.read_image(&located.location).await {
-                spans.push(Span::from_located(located, data));
+                out.push(located.with_data(data));
             }
         }
-        spans
+        out
     }
 }

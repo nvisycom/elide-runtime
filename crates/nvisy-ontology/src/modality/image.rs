@@ -126,6 +126,12 @@ impl ImageBlock {
     }
 }
 
+impl super::BlockText for ImageBlock {
+    fn scan_text(&self) -> Option<&str> {
+        self.text()
+    }
+}
+
 /// Document-level metadata for [`Document<Image>`].
 ///
 /// [`Document<Image>`]: crate::document::Document

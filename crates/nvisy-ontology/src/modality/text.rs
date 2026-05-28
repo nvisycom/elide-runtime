@@ -116,6 +116,12 @@ impl TextBlock {
     }
 }
 
+impl super::BlockText for TextBlock {
+    fn scan_text(&self) -> Option<&str> {
+        Some(self.text())
+    }
+}
+
 /// Document-level metadata for [`Document<Text>`].
 ///
 /// [`Document<Text>`]: crate::document::Document

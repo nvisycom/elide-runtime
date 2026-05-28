@@ -96,6 +96,12 @@ impl AudioBlock {
     }
 }
 
+impl super::BlockText for AudioBlock {
+    fn scan_text(&self) -> Option<&str> {
+        self.text()
+    }
+}
+
 /// Document-level metadata for [`Document<Audio>`].
 ///
 /// [`Document<Audio>`]: crate::document::Document

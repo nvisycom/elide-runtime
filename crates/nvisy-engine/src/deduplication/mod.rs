@@ -38,7 +38,7 @@ pub use self::fuse::{DeduplicationStrategy, GroupingCriteria};
 pub use self::params::DeduplicationParams;
 pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
-use self::span_size::SpanSize;
+pub use self::span_size::SpanSize;
 use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
 
@@ -126,14 +126,14 @@ impl Deduplicator {
         M: Modality + Overlap + SpanSize,
         DocumentEnvelope<M>: ValueAt<M>,
     {
-        if !envelope.audit.entities.is_empty() {
+        if !envelope.document.audit.entities.is_empty() {
             tracing::debug!(
                 target: TARGET,
-                entities = envelope.audit.entities.len(),
+                entities = envelope.document.audit.entities.len(),
                 "running deduplication",
             );
-            let entities = mem::take(&mut envelope.audit.entities);
-            envelope.audit.entities = self.deduplicate(entities, envelope, params).await;
+            let entities = mem::take(&mut envelope.document.audit.entities);
+            envelope.document.audit.entities = self.deduplicate(entities, envelope, params).await;
         }
         Ok(())
     }

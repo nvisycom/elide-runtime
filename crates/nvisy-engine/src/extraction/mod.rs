@@ -26,6 +26,8 @@
 mod ocr;
 #[cfg(feature = "audio")]
 mod stt;
+mod tabular;
+mod text;
 #[cfg(feature = "image")]
 mod vlm;
 mod workflow;
@@ -194,9 +196,10 @@ pub trait Extract<M: nvisy_ontology::modality::Modality>: Send + Sync {
 impl Extract<Text> for Extractors {
     async fn extract(
         &self,
-        _envelope: &mut DocumentEnvelope<Text>,
+        envelope: &mut DocumentEnvelope<Text>,
         _extraction: &Extraction,
     ) -> Result<()> {
+        self::text::populate_document(envelope).await;
         Ok(())
     }
 }
@@ -205,9 +208,10 @@ impl Extract<Text> for Extractors {
 impl Extract<Tabular> for Extractors {
     async fn extract(
         &self,
-        _envelope: &mut DocumentEnvelope<Tabular>,
+        envelope: &mut DocumentEnvelope<Tabular>,
         _extraction: &Extraction,
     ) -> Result<()> {
+        self::tabular::populate_document(envelope).await;
         Ok(())
     }
 }

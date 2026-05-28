@@ -4,12 +4,15 @@
 //! Native text (PDF text layers, DOCX runs, plain text), recognized
 //! text (OCR'd images, transcribed audio), and tabular cells all
 //! flow into the same shape: a [`Document<M>`] holding ordered
-//! [`Block<M>`]s and user annotations.
+//! [`Block<M>`]s, user annotations, and an embedded [`Audit<M>`]
+//! that accumulates the run's findings (detected entities) and
+//! processing log (redaction entries).
 //!
 //! `Block<M>` is the universal wrapper carrying the common per-block
-//! fields (confidence, entities). The modality-specific payload
+//! fields (spans, confidence). The modality-specific payload
 //! (text+spans, region, time span, row coordinates) lives in
-//! [`Modality::Block`] inside `block.kind`.
+//! [`Modality::Block`] inside `block.kind`. Detected entities are
+//! run-scoped and live on the document's [`Audit`], not on blocks.
 //!
 //! Rich sources (PDFs with both text and image layers) decompose
 //! into multiple `Document<M>` values at the engine boundary, one
@@ -20,17 +23,19 @@
 //! shapes live elsewhere (audit, redaction map).
 //!
 //! [`Modality::Block`]: crate::modality::Modality::Block
+//! [`Audit`]: crate::provenance::Audit
 
 mod block;
 mod span;
 
 pub use self::block::Block;
 pub use self::span::Span;
-use crate::entity::Annotation;
+use crate::entity::{Annotation, ContentSource};
 use crate::modality::Modality;
+use crate::provenance::Audit;
 
 /// Unified addressable view of a parsed document for modality `M`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Document<M: Modality> {
     /// Per-modality document-level metadata.
     pub meta: M::Metadata,
@@ -41,16 +46,23 @@ pub struct Document<M: Modality> {
     /// attached at upload time. Annotation locations target source
     /// coordinates within the document.
     pub annotations: Vec<Annotation<M>>,
+    /// Provenance of processing for this document: detected
+    /// entities and per-redaction audit entries. Travels with the
+    /// document because every artifact a run produces about the
+    /// document belongs *to* the document.
+    pub audit: Audit<M>,
 }
 
 impl<M: Modality> Document<M> {
-    /// Construct a [`Document`] with the given metadata and blocks.
-    /// Annotations start empty.
-    pub fn new(meta: M::Metadata, blocks: Vec<Block<M>>) -> Self {
+    /// Construct a [`Document`] for the given source. Annotations
+    /// start empty; the embedded [`Audit`] is initialised against
+    /// the same source.
+    pub fn new(source: ContentSource, meta: M::Metadata, blocks: Vec<Block<M>>) -> Self {
         Self {
             meta,
             blocks,
             annotations: Vec::new(),
+            audit: Audit::new(source),
         }
     }
 }

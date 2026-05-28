@@ -70,7 +70,7 @@ impl Exporter {
         }
 
         for &content_id in &self.content_ids {
-            let source = ContentSource::from_uuid(content_id);
+            let source = ContentSource::from_uuid_unchecked(content_id);
             let data = ContentData::new(source, output_bytes.clone());
             let content = Content::new(data);
             shared

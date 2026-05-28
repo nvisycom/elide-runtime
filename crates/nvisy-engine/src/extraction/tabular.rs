@@ -44,7 +44,8 @@ pub(super) async fn populate_document(envelope: &mut DocumentEnvelope<Tabular>) 
     }
 
     let mut blocks = Vec::with_capacity(rows.len());
-    for (row_index, cells) in rows {
+    // Iterate by row in BTreeMap key order (ascending row_index).
+    for cells in rows.into_values() {
         let mut text = String::new();
         let mut spans = Vec::with_capacity(cells.len());
         for (i, cell) in cells.into_iter().enumerate() {
@@ -65,7 +66,7 @@ pub(super) async fn populate_document(envelope: &mut DocumentEnvelope<Tabular>) 
                 source: cell,
             });
         }
-        let block = Block::new(TabularBlock::Row { text, row_index }).with_spans(spans);
+        let block = Block::new(TabularBlock::Row { text }).with_spans(spans);
         blocks.push(block);
     }
 

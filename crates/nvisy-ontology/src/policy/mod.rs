@@ -56,7 +56,19 @@ pub struct Policy<M: Modality> {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// Fallback strategy for unmatched entities.
+    /// Fallback strategy for entities that no
+    /// [`StrategyPolicy`](crate::policy::StrategyPolicy) selector
+    /// matches.
+    ///
+    /// Precedence: the redaction evaluator first walks
+    /// [`Self::strategies`] in declaration order and applies the
+    /// first matching `StrategyPolicy`. Only when no selector
+    /// matches does it fall back to `default_strategy`. When this
+    /// field is `None` and no selector matches, the entity is left
+    /// un-redacted (and surfaces as a leak in post-redaction
+    /// validation). The selection logic itself lives in the engine
+    /// (`nvisy-engine`) — this doc is the contract the ontology
+    /// type imposes on consumers.
     #[builder(default, setter(into = false))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_strategy: Option<M::Strategy>,

@@ -35,9 +35,21 @@ impl ContentSource {
         }
     }
 
-    /// Create a content source from an existing UUID.
+    /// Create a content source from an existing UUID **without
+    /// validating the version**.
+    ///
+    /// [`ContentSource::new`] only ever mints UUIDv7 (timestamp-
+    /// ordered), and the rest of the ontology — sort order on
+    /// `Audit::records`, lineage debugging, lexicographic comparison
+    /// across runs — depends on that ordering. Use this constructor
+    /// only when the caller has out-of-band confidence the UUID was
+    /// produced by an earlier `ContentSource::new` (e.g. read back
+    /// from the engine's registry, propagated across a process
+    /// boundary). Passing a v4 / v1 / nil UUID compiles, runs, and
+    /// silently breaks downstream invariants that only manifest at
+    /// inspection time.
     #[must_use]
-    pub fn from_uuid(id: Uuid) -> Self {
+    pub fn from_uuid_unchecked(id: Uuid) -> Self {
         Self {
             id,
             parent_id: None,
@@ -72,7 +84,7 @@ impl Default for ContentSource {
 
 impl From<Uuid> for ContentSource {
     fn from(id: Uuid) -> Self {
-        Self::from_uuid(id)
+        Self::from_uuid_unchecked(id)
     }
 }
 

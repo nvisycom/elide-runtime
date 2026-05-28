@@ -71,6 +71,13 @@ impl BoundingBox {
     }
 
     /// Convert to integer pixel coordinates by rounding each field.
+    ///
+    /// Saturating: negative coordinates clamp to `0`, values above
+    /// `u32::MAX` clamp to `u32::MAX`, and `NaN` produces `0`. Use
+    /// for renderers / overlay drawing where a best-effort pixel
+    /// box is preferable to a hard failure. For producers that want
+    /// to detect malformed input (negative width, NaN coords) use
+    /// [`Self::try_to_pixel`] instead.
     pub fn to_pixel(&self) -> IBoundingBox {
         IBoundingBox {
             x: self.x.round() as u32,
@@ -78,6 +85,17 @@ impl BoundingBox {
             width: self.width.round() as u32,
             height: self.height.round() as u32,
         }
+    }
+
+    /// Fallible counterpart to [`Self::to_pixel`]. Returns [`None`]
+    /// when any field is non-finite (`NaN` / `±∞`) or negative —
+    /// values that have no meaningful pixel representation and
+    /// almost always indicate an upstream bug in the producer.
+    pub fn try_to_pixel(&self) -> Option<IBoundingBox> {
+        let all_finite =
+            self.x.is_finite() && self.y.is_finite() && self.width.is_finite() && self.height.is_finite();
+        let non_negative = self.x >= 0.0 && self.y >= 0.0 && self.width >= 0.0 && self.height >= 0.0;
+        (all_finite && non_negative).then(|| self.to_pixel())
     }
 }
 
@@ -102,6 +120,23 @@ mod tests {
         let c = BoundingBox::new(10.0, 0.0, 10.0, 10.0);
         assert!(a.overlaps(&b));
         assert!(!a.overlaps(&c)); // touching at edge = no overlap
+    }
+
+    #[test]
+    fn try_to_pixel_accepts_finite_non_negative() {
+        let bb = BoundingBox::new(10.4, 20.6, 30.0, 40.0);
+        let px = bb.try_to_pixel().expect("finite, non-negative");
+        assert_eq!(px.x, 10);
+        assert_eq!(px.y, 21);
+        assert_eq!(px.width, 30);
+        assert_eq!(px.height, 40);
+    }
+
+    #[test]
+    fn try_to_pixel_rejects_negative_or_non_finite() {
+        assert!(BoundingBox::new(-1.0, 0.0, 10.0, 10.0).try_to_pixel().is_none());
+        assert!(BoundingBox::new(0.0, 0.0, f64::NAN, 10.0).try_to_pixel().is_none());
+        assert!(BoundingBox::new(0.0, 0.0, 10.0, f64::INFINITY).try_to_pixel().is_none());
     }
 
     #[test]

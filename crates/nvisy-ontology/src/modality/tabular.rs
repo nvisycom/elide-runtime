@@ -60,19 +60,21 @@ impl Modality for Tabular {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum TabularBlock {
-    /// A row.
-    Row {
-        text: String,
-        /// 0-based row index.
-        row_index: usize,
-    },
+    /// A row. The row index is carried on each
+    /// [`Span<Tabular>::source`] (every span maps a sub-range of
+    /// `text` back to its originating cell — the cell's `row_index`
+    /// and `column_index` live there), so it's not duplicated at
+    /// the block level.
+    ///
+    /// [`Span<Tabular>::source`]: crate::document::Span::source
+    Row { text: String },
 }
 
 impl TabularBlock {
     /// The row's flat text.
     pub fn text(&self) -> &str {
         match self {
-            Self::Row { text, .. } => text,
+            Self::Row { text } => text,
         }
     }
 }
@@ -107,20 +109,25 @@ pub struct ColumnHeader {
     pub text: String,
 }
 
+impl Tabular {
+    /// Inclusive byte range within the cell, treating absent offsets
+    /// as "whole cell". Returns `(start, end)` with `start == 0`
+    /// when no `start_offset` is set and `end == usize::MAX` when
+    /// no `end_offset` is set — a sentinel range that overlaps any
+    /// concrete subrange and merges into anything.
+    fn cell_range(&self) -> (usize, usize) {
+        (self.start_offset.unwrap_or(0), self.end_offset.unwrap_or(usize::MAX))
+    }
+}
+
 impl Overlap for Tabular {
     fn overlaps(&self, other: &Self) -> bool {
         if self.row_index != other.row_index || self.column_index != other.column_index {
             return false;
         }
-        match (
-            self.start_offset,
-            self.end_offset,
-            other.start_offset,
-            other.end_offset,
-        ) {
-            (Some(s1), Some(e1), Some(s2), Some(e2)) => s1 < e2 && s2 < e1,
-            _ => true,
-        }
+        let (s1, e1) = self.cell_range();
+        let (s2, e2) = other.cell_range();
+        s1 < e2 && s2 < e1
     }
 }
 

@@ -103,6 +103,18 @@ pub struct RedactionSpec<M: Modality> {
     /// Whether the redaction has been applied to the output content.
     pub is_applied: bool,
     /// Whether the original can be reconstructed from this redaction.
+    ///
+    /// **Write-time snapshot** of `M::Strategy::is_reversible()` at
+    /// the moment the audit entry was written, *not* a guarantee
+    /// the original can still be recovered today. Strategies that
+    /// depend on external state (vault tokens whose keys are
+    /// revoked, encryption keys rotated out of the key provider,
+    /// referenced cipher material that's been garbage-collected)
+    /// can become un-reversible after the fact while the audit
+    /// entry still reads `true`. Treat it as historical provenance
+    /// — "this redaction was reversible at write time" — and
+    /// resolve actual recoverability through the live key /
+    /// vault state at read time.
     pub reversible: bool,
 }
 

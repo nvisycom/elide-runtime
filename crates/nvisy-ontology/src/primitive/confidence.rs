@@ -63,18 +63,36 @@ impl Confidence {
     }
 
     /// Construct a [`Confidence`] by clamping a raw score into
-    /// `[0.0, 1.0]`. Use when the input is *known to be in range up
-    /// to float rounding* — e.g. a softmax mean that might come out
-    /// as `1.0000000000000002`. Non-finite inputs (`NaN`, `±∞`) map
-    /// to `0.0`: their presence almost always indicates an upstream
-    /// bug, so [`debug_assert!`] catches it during development while
-    /// release builds degrade safely.
+    /// `[0.0, 1.0]`. Use when the input is *known to be in range
+    /// modulo float rounding* — a softmax mean that might come out
+    /// as `1.0000000000000002`, a calibration offset that nudges a
+    /// 0.99 slightly above 1.0, etc.
+    ///
+    /// **Panics** on `NaN` or `±∞`. Non-finite values cannot have
+    /// come from a well-behaved producer; loud failure beats the
+    /// previous silent-degrade-to-`0.0` behaviour, which masked
+    /// upstream bugs by quietly dropping detections.
+    ///
+    /// For floats from external / untrusted sources (network
+    /// payloads, model server responses, user input), use
+    /// [`Self::try_clamped`] and decide what to do with the rejection
+    /// at the boundary.
     pub fn clamped(value: f64) -> Self {
-        debug_assert!(value.is_finite(), "non-finite confidence: {value}");
-        if !value.is_finite() {
-            return Self(0.0);
-        }
+        assert!(
+            value.is_finite(),
+            "non-finite confidence: {value} (NaN/±∞ indicates an upstream bug)"
+        );
         Self(value.clamp(0.0, 1.0))
+    }
+
+    /// Fallible counterpart to [`Self::clamped`] for floats whose
+    /// finiteness isn't pre-validated. Returns [`None`] on `NaN` /
+    /// `±∞`; otherwise clamps into `[0.0, 1.0]`. Use at the boundary
+    /// where untrusted floats enter the pipeline (model server
+    /// responses, deserialised user input) and the caller knows
+    /// what fallback to apply on rejection.
+    pub fn try_clamped(value: f64) -> Option<Self> {
+        value.is_finite().then(|| Self(value.clamp(0.0, 1.0)))
     }
 
     /// Returns the inner score.
@@ -124,6 +142,38 @@ mod tests {
         assert!(Confidence::new(f64::NAN).is_none());
         assert!(Confidence::new(f64::INFINITY).is_none());
         assert!(Confidence::new(f64::NEG_INFINITY).is_none());
+    }
+
+    #[test]
+    fn clamped_handles_rounding_above_one() {
+        assert_eq!(Confidence::clamped(1.0000000000000002).get(), 1.0);
+        assert_eq!(Confidence::clamped(-0.0).get(), 0.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "non-finite confidence")]
+    fn clamped_panics_on_nan() {
+        let _ = Confidence::clamped(f64::NAN);
+    }
+
+    #[test]
+    #[should_panic(expected = "non-finite confidence")]
+    fn clamped_panics_on_infinity() {
+        let _ = Confidence::clamped(f64::INFINITY);
+    }
+
+    #[test]
+    fn try_clamped_accepts_finite() {
+        assert_eq!(Confidence::try_clamped(0.5).unwrap().get(), 0.5);
+        assert_eq!(Confidence::try_clamped(2.0).unwrap().get(), 1.0);
+        assert_eq!(Confidence::try_clamped(-1.0).unwrap().get(), 0.0);
+    }
+
+    #[test]
+    fn try_clamped_rejects_non_finite() {
+        assert!(Confidence::try_clamped(f64::NAN).is_none());
+        assert!(Confidence::try_clamped(f64::INFINITY).is_none());
+        assert!(Confidence::try_clamped(f64::NEG_INFINITY).is_none());
     }
 
     #[test]

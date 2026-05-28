@@ -215,7 +215,7 @@ impl Pipeline {
                     self.runs
                         .fail(self.run_id, "pipeline run exceeded time limit")
                         .await;
-                    return Err(Error::timeout("pipeline run exceeded time limit"));
+                    return Err(Error::timeout("pipeline run exceeded time limit", "pipeline"));
                 }
             }
         } else {

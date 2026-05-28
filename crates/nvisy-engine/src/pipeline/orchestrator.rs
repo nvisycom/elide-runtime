@@ -210,7 +210,7 @@ impl<M: Modality> DocumentPipeline<M> {
     /// Cancellation-token guard shared by every stage.
     fn check_cancelled(&self) -> Result<(), Error> {
         if self.ctx.cancel.is_cancelled() {
-            return Err(Error::cancellation("run cancelled"));
+            return Err(Error::cancellation("run cancelled", "orchestrator"));
         }
         Ok(())
     }

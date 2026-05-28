@@ -114,7 +114,7 @@ impl RequestBuilderExt for RequestBuilder {
         let resp = self
             .send()
             .await
-            .map_err(|e| Error::connection(e.to_string(), provider, true))?;
+            .map_err(|e| Error::connection(e.to_string(), provider.to_owned(), true))?;
 
         let status = resp.status();
         if status.is_success() {
@@ -123,7 +123,7 @@ impl RequestBuilderExt for RequestBuilder {
         let body = resp.text().await.unwrap_or_default();
         Err(Error::connection(
             format!("{provider} returned {status}: {body}"),
-            provider,
+            provider.to_owned(),
             status.is_server_error(),
         ))
     }
@@ -131,7 +131,11 @@ impl RequestBuilderExt for RequestBuilder {
     async fn send_and_parse<T: serde::de::DeserializeOwned>(self, provider: &str) -> Result<T> {
         let resp = self.send_and_check(provider).await?;
         resp.json().await.map_err(|e| {
-            Error::runtime(format!("{provider} JSON parse error: {e}"), provider, false)
+            Error::runtime(
+                format!("{provider} JSON parse error: {e}"),
+                provider.to_owned(),
+                false,
+            )
         })
     }
 }

@@ -41,11 +41,6 @@ impl<L> Located<L, ()> {
         }
     }
 
-    /// Discard the source, returning the underlying location.
-    pub fn into_location(self) -> L {
-        self.location
-    }
-
     /// Attach `data` to this location, producing a `Located<L, D>`.
     pub fn with_data<D>(self, data: D) -> Located<L, D> {
         Located {
@@ -56,23 +51,3 @@ impl<L> Located<L, ()> {
     }
 }
 
-impl<L, D> Located<L, D> {
-    /// Transform the inner location, keeping the source and data
-    /// unchanged.
-    pub fn map_location<T>(self, f: impl FnOnce(L) -> T) -> Located<T, D> {
-        Located {
-            source: self.source,
-            location: f(self.location),
-            data: self.data,
-        }
-    }
-
-    /// Transform the data, keeping the source and location unchanged.
-    pub fn map_data<T>(self, f: impl FnOnce(D) -> T) -> Located<L, T> {
-        Located {
-            source: self.source,
-            location: self.location,
-            data: f(self.data),
-        }
-    }
-}

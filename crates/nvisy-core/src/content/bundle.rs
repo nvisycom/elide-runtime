@@ -58,12 +58,6 @@ impl Content {
         self.metadata.as_ref()
     }
 
-    /// Returns a mutable reference to the metadata, creating a default
-    /// instance if none exists.
-    pub fn metadata_mut(&mut self) -> &mut ContentMetadata {
-        self.metadata.get_or_insert_with(ContentMetadata::default)
-    }
-
     /// Returns the content source identifier.
     pub fn content_source(&self) -> ContentSource {
         self.data.content_source
@@ -121,21 +115,6 @@ impl Content {
             .detect_mime()
             .as_deref()
             .and_then(DocumentType::from_mime)
-    }
-
-    /// Set the metadata.
-    pub fn set_metadata(&mut self, metadata: ContentMetadata) {
-        self.metadata = Some(metadata);
-    }
-
-    /// Remove the metadata.
-    pub fn clear_metadata(&mut self) {
-        self.metadata = None;
-    }
-
-    /// Consume and return the inner [`ContentData`].
-    pub fn into_data(self) -> ContentData {
-        self.data
     }
 
     /// Consume and return both data and metadata.

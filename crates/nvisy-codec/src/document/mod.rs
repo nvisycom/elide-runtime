@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use derive_more::{From, IsVariant, TryInto};
+use derive_more::From;
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::DocumentType;
@@ -51,7 +51,7 @@ pub enum HandleModality {
 /// Variants are feature-gated by modality (`text`, `tabular`,
 /// `image`, `audio`, `rich`); a `DocumentHandle` built with only the
 /// default features has the `Text` and `Tabular` arms only.
-#[derive(From, IsVariant, TryInto)]
+#[derive(From)]
 pub enum DocumentHandle {
     #[cfg(feature = "text")]
     Text(Box<dyn Handle<Text>>),

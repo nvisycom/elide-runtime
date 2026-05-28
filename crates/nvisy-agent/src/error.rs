@@ -186,13 +186,13 @@ mod tests {
     fn provider_error_conversion_is_retryable() {
         let err = Error::Provider("Rate limit exceeded".to_string());
         let core_err: nvisy_core::Error = err.into();
-        assert!(core_err.retryable);
+        assert!(core_err.is_retryable());
     }
 
     #[test]
     fn provider_error_conversion_is_not_retryable() {
         let err = Error::Provider("invalid model".to_string());
         let core_err: nvisy_core::Error = err.into();
-        assert!(!core_err.retryable);
+        assert!(!core_err.is_retryable());
     }
 }

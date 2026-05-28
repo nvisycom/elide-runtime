@@ -454,7 +454,7 @@ mod tests {
             .await?;
         let id = handle.content_source().as_uuid();
         assert_eq!(
-            registry.read_content(actor_b, id).await.unwrap_err().kind,
+            registry.read_content(actor_b, id).await.unwrap_err().kind(),
             ErrorKind::NotFound
         );
         registry.read_content(actor_a, id).await?;
@@ -489,7 +489,7 @@ mod tests {
         registry.register_content(actor, content).await?;
         registry.unregister_content(actor, id).await?;
         assert_eq!(
-            registry.read_content(actor, id).await.unwrap_err().kind,
+            registry.read_content(actor, id).await.unwrap_err().kind(),
             ErrorKind::NotFound
         );
         Ok(())

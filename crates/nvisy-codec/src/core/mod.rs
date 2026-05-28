@@ -4,10 +4,13 @@
 //!
 //! - [`Codable`] — per-modality wire-type associated types.
 //! - [`Handle<M>`] — per-modality capability trait.
-//! - [`Located<M, D>`] / [`LocationStream<M>`] — per-modality
-//!   location streaming primitives. `Located<M>` is the bare
-//!   location form (`Located<M, ()>`); `Located<M, D>` is the same
-//!   record with content data attached.
+//! - [`Located<L, D>`] / [`LocationStream<L>`] — per-modality
+//!   location streaming primitives. `Located<L>` is the bare
+//!   location form (`Located<L, ()>`); `Located<L, D>` is the same
+//!   record with content data attached. (`L` because the type
+//!   param is the location, not the modality marker — for the
+//!   modality types it's always `M::Location`-shaped, but the
+//!   abstraction is over locations.)
 //! - [`Redactions<M, R>`] + [`ConflictPolicy`] — per-modality
 //!   redaction collections.
 //!

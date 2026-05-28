@@ -18,7 +18,7 @@ impl TextEncoding {
     pub fn decode_bytes(self, bytes: &[u8], origin: &str) -> Result<String> {
         match self {
             Self::Utf8 => String::from_utf8(bytes.to_vec())
-                .map_err(|e| Error::validation(format!("Invalid UTF-8: {e}"), origin)),
+                .map_err(|e| Error::validation(format!("Invalid UTF-8: {e}"), origin.to_owned())),
         }
     }
 }

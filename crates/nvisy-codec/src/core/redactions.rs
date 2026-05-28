@@ -49,11 +49,6 @@ impl<S, R> Redactions<S, R> {
         }
     }
 
-    /// The conflict policy in effect.
-    pub fn policy(&self) -> ConflictPolicy {
-        self.policy
-    }
-
     /// Total number of redactions.
     pub fn len(&self) -> usize {
         self.items.len()
@@ -75,7 +70,7 @@ where
     /// If `location` overlaps any existing entry's location, behavior
     /// is determined by the configured [`ConflictPolicy`]:
     ///
-    /// - [`Reject`]: returns [`InsertError::OverlapRejected`].
+    /// - [`Reject`]: returns [`InsertError::RejectedOverlap`].
     /// - [`Merge`]: attempts to merge both location and redaction;
     ///   returns [`InsertError::NotMergeable`] if either rejects.
     /// - [`Replace`]: drops the existing overlapping entry and
@@ -92,7 +87,7 @@ where
         };
 
         match self.policy {
-            ConflictPolicy::Reject => Err(InsertError::OverlapRejected),
+            ConflictPolicy::Reject => Err(InsertError::RejectedOverlap),
             ConflictPolicy::Replace => {
                 self.items[idx] = (location, redaction);
                 Ok(())
@@ -182,7 +177,7 @@ mod tests {
         let mut rs = Redactions::<S, R>::new(ConflictPolicy::Reject);
         rs.try_insert(S::new(0, 5), R("x")).unwrap();
         let err = rs.try_insert(S::new(3, 8), R("y")).unwrap_err();
-        assert!(matches!(err, InsertError::OverlapRejected));
+        assert!(matches!(err, InsertError::RejectedOverlap));
         assert_eq!(rs.len(), 1);
     }
 

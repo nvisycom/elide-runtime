@@ -46,18 +46,14 @@ schemars = { workspace = true, features = [] }
 humantime-serde = { workspace = true, features = [], optional = true }
 
 # Primitive datatypes
-uuid = { workspace = true, features = [] }
 bytes = { workspace = true, features = [] }
-jiff = { workspace = true, features = [] }
-semver = { workspace = true, features = [] }
-hipstr = { workspace = true, features = [] }
 
 # File type detection
 infer = { workspace = true, features = [] }
 
 # Derive macros and error handling
 thiserror = { workspace = true, features = [] }
-derive_more = { workspace = true, features = ["as_ref", "deref", "display", "is_variant"] }
+derive_more = { workspace = true, features = ["as_ref", "deref", "is_variant"] }
 strum = { workspace = true, features = [] }
 
 # Encoding and hashing
@@ -71,7 +67,3 @@ reqwest-tracing = { workspace = true, features = [], optional = true }
 
 # Observability
 tracing = { workspace = true, features = [] }
-
-[dev-dependencies]
-tempfile = { workspace = true, features = [] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

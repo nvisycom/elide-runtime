@@ -33,7 +33,7 @@ pub enum InsertError {
     /// [`ConflictPolicy::Reject`] is active and the new redaction
     /// overlaps with an existing one.
     #[error("overlapping redaction rejected")]
-    OverlapRejected,
+    RejectedOverlap,
     /// [`ConflictPolicy::Merge`] is active but the two redactions
     /// overlap and cannot be merged (e.g. different outputs).
     #[error("overlapping redactions cannot be merged")]

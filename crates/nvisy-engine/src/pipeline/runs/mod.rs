@@ -20,8 +20,7 @@ mod analytics;
 pub(crate) mod state;
 
 use jiff::Timestamp;
-use nvisy_ontology::modality::Text;
-use nvisy_ontology::provenance::Audit;
+use nvisy_ontology::provenance::AnyAudit;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -96,7 +95,7 @@ pub enum RunOutcome {
         #[schemars(with = "String")]
         completed_at: Timestamp,
         /// Per-document audit trails.
-        audits: Vec<Audit<Text>>,
+        audits: Vec<AnyAudit>,
         /// Total entities detected across all nodes.
         entities_detected: u64,
         /// Total redactions applied across all nodes.
@@ -108,7 +107,7 @@ pub enum RunOutcome {
         #[schemars(with = "String")]
         completed_at: Timestamp,
         /// Per-document audit trails from successful nodes.
-        audits: Vec<Audit<Text>>,
+        audits: Vec<AnyAudit>,
         /// Total entities detected across all nodes.
         entities_detected: u64,
         /// Total redactions applied across all nodes.

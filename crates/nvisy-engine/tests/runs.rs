@@ -20,7 +20,7 @@ async fn dry_run_returns_without_exporting() -> anyhow::Result<()> {
     assert!(matches!(snapshot.outcome, RunOutcome::Succeeded { .. }));
 
     // Dry run produces audits but no applied redactions.
-    assert!(output.audits.iter().all(|a| a.entries.is_empty()));
+    assert!(output.audits.iter().all(|a| a.entries_count() == 0));
     Ok(())
 }
 

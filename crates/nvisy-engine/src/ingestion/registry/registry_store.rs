@@ -10,7 +10,7 @@ use nvisy_core::content::{Content, ContentMetadata, ContentSource};
 use nvisy_ontology::context::Context;
 use nvisy_ontology::modality::Text;
 use nvisy_ontology::policy::Policy;
-use nvisy_ontology::provenance::Audit;
+use nvisy_ontology::provenance::AnyAudit;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -385,7 +385,7 @@ impl Registry {
         &self,
         actor_id: Uuid,
         run_id: Uuid,
-        audits: Vec<Audit<Text>>,
+        audits: Vec<AnyAudit>,
     ) -> Result<()> {
         let key = CompositeKey::new(actor_id, run_id);
         let count = audits.len();
@@ -396,7 +396,7 @@ impl Registry {
 
     /// Load persisted audit trails for a pipeline run.
     #[tracing::instrument(target = TARGET, name = "registry.load_audits", skip(self), fields(%actor_id, %run_id))]
-    pub async fn load_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<Vec<Audit<Text>>> {
+    pub async fn load_audits(&self, actor_id: Uuid, run_id: Uuid) -> Result<Vec<AnyAudit>> {
         let key = CompositeKey::new(actor_id, run_id);
         self.load_json(&self.inner.audits_ks, key, "audits").await
     }

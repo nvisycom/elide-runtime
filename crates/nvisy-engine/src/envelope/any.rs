@@ -6,13 +6,14 @@
 //! `Image` entry that share one `Arc<Mutex<DocumentHandle>>` so
 //! reads and mutations stay coordinated.
 
-use derive_more::IsVariant;
+use derive_more::{From, IsVariant};
 use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
+use nvisy_ontology::provenance::AnyAudit;
 
 use super::DocumentEnvelope;
 
 /// A modality-erased envelope returned by the importer.
-#[derive(Debug, IsVariant)]
+#[derive(Debug, From, IsVariant)]
 pub enum AnyEnvelope {
     Text(DocumentEnvelope<Text>),
     Tabular(DocumentEnvelope<Tabular>),
@@ -40,6 +41,18 @@ impl AnyEnvelope {
             Self::Tabular(e) => &e.handle,
             Self::Image(e) => &e.handle,
             Self::Audio(e) => &e.handle,
+        }
+    }
+
+    /// Clone the envelope's audit as a modality-erased [`AnyAudit`].
+    /// Used by the engine's run-summary collector so it doesn't have
+    /// to match on every variant.
+    pub fn audit_cloned(&self) -> AnyAudit {
+        match self {
+            Self::Text(e) => e.audit.clone().into(),
+            Self::Tabular(e) => e.audit.clone().into(),
+            Self::Image(e) => e.audit.clone().into(),
+            Self::Audio(e) => e.audit.clone().into(),
         }
     }
 }

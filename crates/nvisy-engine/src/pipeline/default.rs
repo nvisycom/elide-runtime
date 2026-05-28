@@ -11,9 +11,8 @@ use std::sync::Arc;
 use std::{fmt, mem};
 
 use nvisy_core::Error;
-use nvisy_ontology::modality::Text;
 use nvisy_ontology::policy::PolicyRef;
-use nvisy_ontology::provenance::Audit;
+use nvisy_ontology::provenance::AnyAudit;
 use schemars::JsonSchema;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -86,7 +85,7 @@ pub struct EngineOutput {
     pub run_id: Uuid,
     /// Per-document audit trails: entities, redaction entries, and
     /// content source metadata. One audit per processed document.
-    pub audits: Vec<Audit<Text>>,
+    pub audits: Vec<AnyAudit>,
 }
 
 /// Shared inner state for the engine, held behind an `Arc`.

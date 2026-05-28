@@ -242,14 +242,10 @@ impl Pipeline {
             }
             any_ok = true;
             if let Some(ref envelope) = result.envelope {
-                entities_detected += envelope.audit.entities.len() as u64;
-                redactions_applied += envelope
-                    .audit
-                    .entries
-                    .iter()
-                    .filter(|e| e.redaction.is_applied)
-                    .count() as u64;
-                audits.push(envelope.audit.clone());
+                let audit = envelope.audit_cloned();
+                entities_detected += audit.entities_count() as u64;
+                redactions_applied += audit.applied_redactions_count() as u64;
+                audits.push(audit);
             }
         }
 

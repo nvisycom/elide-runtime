@@ -24,7 +24,7 @@ pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
 pub use nvisy_ner::Context as NerContext;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::{BlockText, Modality, Text};
+use nvisy_ontology::modality::{Modality, ModalityBlock, Text};
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -229,7 +229,7 @@ impl DetectionEngine {
     /// Run detection over every block in the envelope's document.
     ///
     /// For each block whose payload carries scannable text (via
-    /// [`BlockText`]), run every recognizer on the block text, lift
+    /// [`ModalityBlock`]), run every recognizer on the block text, lift
     /// the returned block-local entity offsets to absolute `M`
     /// coordinates via [`LiftFromBlock`] using the block's spans,
     /// then append the lifted entities as fresh records on

@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Mergeable, Modality, Overlap};
+use super::{Mergeable, Modality, ModalityBlock, Overlap};
 use crate::primitive::{BoundingBox, LanguageDetection, Polygon};
 
 /// A region within image content.
@@ -126,7 +126,7 @@ impl ImageBlock {
     }
 }
 
-impl super::BlockText for ImageBlock {
+impl ModalityBlock for ImageBlock {
     fn scan_text(&self) -> Option<&str> {
         self.text()
     }

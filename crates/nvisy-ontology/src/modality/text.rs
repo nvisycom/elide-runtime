@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Modality, Overlap};
+use super::{Mergeable, Modality, ModalityBlock, Overlap};
 use crate::primitive::LanguageDetection;
 
 /// A range within text content.
@@ -116,7 +116,7 @@ impl TextBlock {
     }
 }
 
-impl super::BlockText for TextBlock {
+impl ModalityBlock for TextBlock {
     fn scan_text(&self) -> Option<&str> {
         Some(self.text())
     }

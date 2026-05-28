@@ -54,13 +54,14 @@ pub struct Document<M: Modality> {
 }
 
 impl<M: Modality> Document<M> {
-    /// Construct a [`Document`] for the given source. Annotations
-    /// start empty; the embedded [`Audit`] is initialised against
-    /// the same source.
-    pub fn new(source: ContentSource, meta: M::Metadata, blocks: Vec<Block<M>>) -> Self {
+    /// Construct an empty [`Document`] for the given source.
+    /// Blocks and annotations start empty; the embedded [`Audit`]
+    /// is initialised against the same source. Producers push
+    /// blocks onto `self.blocks` directly.
+    pub fn new(source: ContentSource, meta: M::Metadata) -> Self {
         Self {
             meta,
-            blocks,
+            blocks: Vec::new(),
             annotations: Vec::new(),
             audit: Audit::new(source),
         }

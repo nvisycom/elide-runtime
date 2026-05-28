@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Modality, Overlap};
+use super::{Mergeable, Modality, ModalityBlock, Overlap};
 
 /// A cell (or sub-cell range) within tabular content.
 #[derive(Debug, Clone, PartialEq, Eq, Builder)]
@@ -93,7 +93,7 @@ impl TabularBlock {
     }
 }
 
-impl super::BlockText for TabularBlock {
+impl ModalityBlock for TabularBlock {
     fn scan_text(&self) -> Option<&str> {
         Some(self.text())
     }

@@ -50,7 +50,7 @@ pub use self::text::{Text, TextBlock, TextBuilder, TextMetadata};
 pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// The modality's block payload. See per-modality types:
     /// [`TextBlock`], [`ImageBlock`], [`AudioBlock`], [`TabularBlock`].
-    type Block: BlockText + Clone + Debug + PartialEq + Send + Sync + 'static;
+    type Block: ModalityBlock + Clone + Debug + PartialEq + Send + Sync + 'static;
 
     /// Document-level metadata.
     type Metadata: Clone + Debug + Default + PartialEq + Send + Sync + 'static;
@@ -62,16 +62,24 @@ pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     type Strategy: RedactionStrategy + Clone + Debug + Default + PartialEq + Send + Sync + 'static;
 }
 
-/// Scannable text for a per-modality block payload.
+/// Shared per-block surface every modality's block payload exposes.
 ///
-/// Returns the text the detection driver should feed into text-typed
-/// recognizers (pattern engine, NER backends). `None` means the
-/// block carries no scannable text — image figures/logos and audio
-/// silences are the canonical examples.
+/// This is the trait every [`Modality::Block`] type implements; it
+/// collects the modality-agnostic queries the engine needs to drive
+/// pipeline stages without matching on the concrete block variant.
 ///
-/// Text and Tabular blocks always carry text; their impls return
-/// `Some(_)` unconditionally.
-pub trait BlockText {
+/// Today the only method is [`scan_text`](Self::scan_text), used by
+/// the detection driver to decide whether a block carries text the
+/// text-typed recognizers should scan. Future shared block queries
+/// (block id, kind tag, block-level confidence accessor) land here.
+///
+/// `Text` and `Tabular` blocks always carry text; their impls return
+/// `Some(_)` unconditionally. Image and audio impls return `None`
+/// for non-text variants (figures, silences).
+pub trait ModalityBlock {
+    /// The text a text-typed recognizer should scan over this block,
+    /// or `None` when the block carries no scannable text (image
+    /// figures/logos, audio silences).
     fn scan_text(&self) -> Option<&str>;
 }
 

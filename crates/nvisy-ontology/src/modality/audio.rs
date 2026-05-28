@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Mergeable, Modality, Overlap};
+use super::{Mergeable, Modality, ModalityBlock, Overlap};
 use crate::primitive::{LanguageDetection, TimeSpan};
 
 /// A time interval within audio content.
@@ -96,7 +96,7 @@ impl AudioBlock {
     }
 }
 
-impl super::BlockText for AudioBlock {
+impl ModalityBlock for AudioBlock {
     fn scan_text(&self) -> Option<&str> {
         self.text()
     }

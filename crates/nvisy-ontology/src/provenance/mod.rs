@@ -19,7 +19,7 @@
 
 mod entry;
 mod record;
-mod review;
+mod replacement;
 
 use derive_more::{From, IsVariant};
 use schemars::JsonSchema;
@@ -27,11 +27,9 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use self::entry::{
-    AuditEntry, AuditEntryBuilder, AuditEntryStatus, RedactionSpec, RedactionValue,
-};
+pub use self::entry::{AuditEntry, AuditEntryBuilder, Decision, EntryMetadata, Execution};
 pub use self::record::EntityRecord;
-pub use self::review::{ReviewDecision, ReviewStatus};
+pub use self::replacement::{TabularReplacement, TextReplacement};
 use crate::entity::{ContentSource, Entity};
 use crate::modality::{Audio, Image, Modality, Tabular, Text};
 
@@ -49,11 +47,11 @@ use crate::modality::{Audio, Image, Modality, Tabular, Text};
 #[serde(
     rename_all = "camelCase",
     bound(
-        serialize = "M: Serialize, M::Strategy: Serialize",
-        deserialize = "M: DeserializeOwned, M::Strategy: DeserializeOwned",
+        serialize = "M: Serialize, M::Strategy: Serialize, M::Replacement: Serialize",
+        deserialize = "M: DeserializeOwned, M::Strategy: DeserializeOwned, M::Replacement: DeserializeOwned",
     )
 )]
-#[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema")]
+#[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema, M::Replacement: JsonSchema")]
 pub struct Audit<M: Modality> {
     /// Content source this audit belongs to.
     pub source: ContentSource,
@@ -100,7 +98,7 @@ impl<M: Modality> Audit<M> {
     pub fn applied_redactions_count(&self) -> usize {
         self.records
             .iter()
-            .filter(|r| r.audit.as_ref().is_some_and(|a| a.redaction.is_applied))
+            .filter(|r| r.audit.as_ref().is_some_and(|a| a.execution.is_applied()))
             .count()
     }
 }

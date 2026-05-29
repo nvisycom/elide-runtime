@@ -51,6 +51,7 @@ impl Modality for Tabular {
     type Block = TabularBlock;
     type Metadata = TabularMetadata;
     type MethodTag = crate::policy::TabularMethodTag;
+    type Replacement = crate::provenance::TabularReplacement;
     type Strategy = TabularStrategy;
 
     fn default_method_dominance() -> &'static [Self::MethodTag] {

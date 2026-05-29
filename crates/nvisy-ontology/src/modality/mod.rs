@@ -80,6 +80,23 @@ pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// committing to their parameters.
     type MethodTag: Copy + Debug + Eq + Hash + Send + Sync + 'static;
 
+    /// What an applied redaction wrote back at the entity's
+    /// location. The shape is per-modality:
+    ///
+    /// - **Text / Tabular** carry the replacement string (or
+    ///   "removed" for whole-span deletion) since the substitution
+    ///   itself is text-shaped.
+    /// - **Image / Audio** carry the method tag only — the
+    ///   substitution is a binary pixel/sample transform whose
+    ///   parameters live on [`Self::Strategy`]; the audit just
+    ///   records *which* operation ran.
+    ///
+    /// Persisted on [`Execution::Applied`] as the per-entry
+    /// "what we wrote" record.
+    ///
+    /// [`Execution::Applied`]: crate::provenance::Execution::Applied
+    type Replacement: Clone + Debug + PartialEq + Send + Sync + 'static;
+
     /// Modality-built-in dominance order, first entry = highest
     /// dominance. Used as a tiebreaker when two overlapping
     /// redactions share the same [`LeakProfile`] but use different

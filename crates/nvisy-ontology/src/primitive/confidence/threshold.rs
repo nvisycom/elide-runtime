@@ -45,6 +45,15 @@ impl<'de> Deserialize<'de> for ConfidenceThreshold {
 }
 
 impl ConfidenceThreshold {
+    /// Upper bound. Admits only [`Confidence::MAX`]. Equivalent to
+    /// `ConfidenceThreshold::from_confidence(Confidence::MAX)`, but
+    /// `const`. Mirrors [`Confidence::MAX`].
+    pub const MAX: Self = Self::from_confidence(Confidence::MAX);
+    /// Lower bound. Admits every valid [`Confidence`] (no filtering).
+    /// Equivalent to `ConfidenceThreshold::from_confidence(Confidence::MIN)`,
+    /// but `const`. Mirrors [`Confidence::MIN`].
+    pub const MIN: Self = Self::from_confidence(Confidence::MIN);
+
     /// Construct a [`ConfidenceThreshold`] from a raw score,
     /// returning [`None`] when the value is outside `[0.0, 1.0]` or
     /// non-finite. Mirrors [`Confidence::new`] — the threshold's
@@ -109,12 +118,16 @@ mod tests {
     }
 
     #[test]
+    fn min_max_constants_equal_boundary_values() {
+        assert_eq!(ConfidenceThreshold::MIN.get(), 0.0);
+        assert_eq!(ConfidenceThreshold::MAX.get(), 1.0);
+    }
+
+    #[test]
     fn boundaries() {
-        let zero = ConfidenceThreshold::new(0.0).unwrap();
-        assert!(zero.admits(Confidence::new(0.0).unwrap()));
-        let one = ConfidenceThreshold::new(1.0).unwrap();
-        assert!(one.admits(Confidence::new(1.0).unwrap()));
-        assert!(!one.admits(Confidence::new(0.99).unwrap()));
+        assert!(ConfidenceThreshold::MIN.admits(Confidence::MIN));
+        assert!(ConfidenceThreshold::MAX.admits(Confidence::MAX));
+        assert!(!ConfidenceThreshold::MAX.admits(Confidence::new(0.99).unwrap()));
     }
 
     #[test]

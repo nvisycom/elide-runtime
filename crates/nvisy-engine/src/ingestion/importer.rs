@@ -25,7 +25,7 @@ use std::sync::Arc;
 use nvisy_codec::HandleModality;
 use nvisy_core::Result;
 use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata};
-use nvisy_ontology::entity::{Annotation, AnnotationKind, AnnotationTarget, LabelAnnotation};
+use nvisy_ontology::entity::{Annotation, LabelAnnotation};
 use nvisy_ontology::modality::{
     Audio, AudioExtraction, AudioMetadata, Image, ImageExtraction, ImageMetadata, Modality,
     Tabular, TabularExtraction, TabularMetadata, Text, TextExtraction, TextMetadata,
@@ -212,16 +212,13 @@ async fn dispatch(
     }
 }
 
-/// Store user annotations on the envelope and synthesize entities
-/// for every [`Assert`]-strength inclusion whose target carries a
-/// concrete [`AnnotationTarget::Location`]. `Value` inclusions are
-/// left on `envelope.document.annotations` for downstream detectors
-/// to consume (the pattern recognizer materialises them as
-/// user-defined patterns, then every occurrence gets detected the
-/// normal way).
+/// Store user annotations on the envelope and synthesise entities
+/// for every [`Assert`]-strength inclusion. [`Hint`]-strength
+/// inclusions stay on the envelope for downstream prompt-builder
+/// consumption; exclusions stay for the post-detection filter.
 ///
-/// [`Assert`]: nvisy_ontology::entity::AnnotationStrength::Assert
-/// [`AnnotationTarget::Location`]: nvisy_ontology::entity::AnnotationTarget::Location
+/// [`Assert`]: AnnotationStrength::Assert
+/// [`Hint`]: AnnotationStrength::Hint
 fn attach_annotations<M: Modality>(
     envelope: &mut DocumentEnvelope<M>,
     annotations: Vec<Annotation<M>>,
@@ -242,12 +239,7 @@ fn attach_annotations<M: Modality>(
         );
         let mut synthesized = 0;
         for ann in &annotations {
-            if let AnnotationKind::Inclusion {
-                target: AnnotationTarget::Location(loc),
-                ..
-            } = &ann.kind
-                && let Some(entity) = ann.to_inclusion_entity(loc.clone())
-            {
+            if let Some(entity) = ann.to_inclusion_entity() {
                 envelope.add_entities(std::iter::once(entity));
                 synthesized += 1;
             }
@@ -256,7 +248,7 @@ fn attach_annotations<M: Modality>(
             tracing::debug!(
                 target: TARGET,
                 count = synthesized,
-                "synthesized entities from Assert+Location inclusions",
+                "synthesized entities from Assert inclusions",
             );
         }
     }
@@ -276,8 +268,8 @@ fn replace_data(content: Content, data: ContentData) -> Content {
 mod tests {
     use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata};
     use nvisy_ontology::entity::{
-        Annotation, AnnotationKind, AnnotationStrength, AnnotationTarget, EntityCategory,
-        EntityKind, LabelAnnotation, RecognitionMethod,
+        Annotation, AnnotationKind, AnnotationStrength, EntityCategory, EntityKind,
+        LabelAnnotation, RecognitionMethod,
     };
 
     use super::*;
@@ -313,16 +305,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn assert_location_inclusion_synthesizes_entity_at_import() {
+    async fn assert_inclusion_synthesizes_entity_at_import() {
         let shared = shared();
         let annotation = Annotation {
             name: Some("uploader".into()),
+            strength: AnnotationStrength::Assert,
             kind: AnnotationKind::Inclusion {
                 category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
-                target: AnnotationTarget::Location(Text::new(0, 8)),
-                strength: AnnotationStrength::Assert,
-                confidence: None,
+                target: Text::new(0, 8),
             },
         };
         let annotations = AnyAnnotations {
@@ -345,40 +336,8 @@ mod tests {
             Some(RecognitionMethod::Annotation(_))
         ));
         // Annotations are retained on the document for downstream
-        // consumers (pattern recognizer for Value targets, prompt
-        // builders for hints, post-filter for exclusions).
-        assert_eq!(env.document.annotations, vec![annotation]);
-    }
-
-    #[tokio::test]
-    async fn assert_value_inclusion_is_not_synthesized_at_import() {
-        // Value inclusions are handed to the pattern recognizer as
-        // user-defined deny-list patterns; the importer leaves them
-        // on the envelope for downstream consumption rather than
-        // materialising a single first-occurrence entity.
-        let shared = shared();
-        let annotation = Annotation {
-            name: None,
-            kind: AnnotationKind::Inclusion {
-                category: Some(EntityCategory::PersonalIdentity),
-                entity_kind: Some(EntityKind::PersonName),
-                target: AnnotationTarget::Value("Jane".into()),
-                strength: AnnotationStrength::Assert,
-                confidence: None,
-            },
-        };
-        let annotations = AnyAnnotations {
-            text: vec![annotation.clone()],
-            ..AnyAnnotations::default()
-        };
-        let content = text_content("Jane and Jane.", annotations);
-
-        let envelopes = Importer::new().import(content, &shared).await.unwrap();
-        let AnyEnvelope::Text(env) = envelopes.into_iter().next().unwrap() else {
-            panic!("expected a Text envelope");
-        };
-
-        assert_eq!(env.document.audit.records.len(), 0);
+        // consumers (prompt builders for hints, post-filter for
+        // exclusions).
         assert_eq!(env.document.annotations, vec![annotation]);
     }
 
@@ -387,12 +346,11 @@ mod tests {
         let shared = shared();
         let annotation = Annotation {
             name: None,
+            strength: AnnotationStrength::Hint { confidence: None },
             kind: AnnotationKind::Inclusion {
                 category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
-                target: AnnotationTarget::Location(Text::new(0, 4)),
-                strength: AnnotationStrength::Hint,
-                confidence: None,
+                target: Text::new(0, 4),
             },
         };
         let annotations = AnyAnnotations {

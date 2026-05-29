@@ -122,10 +122,7 @@ impl WireEntity {
                 model.to_owned(),
                 ModelKind::SelfHosted,
             )])
-            .with_confidence(
-                Confidence::try_clamped(self.score)
-                    .unwrap_or_else(|| Confidence::new(1.0).expect("1.0 is in [0.0, 1.0]")),
-            )
+            .with_confidence(Confidence::try_clamped(self.score).unwrap_or(Confidence::MAX))
             .with_location(Text::new(self.start, self.end))
             .build()
             .expect("required fields provided")

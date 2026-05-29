@@ -51,6 +51,17 @@ impl<'de> Deserialize<'de> for Confidence {
 }
 
 impl Confidence {
+    /// Upper bound of the valid range. Equivalent to
+    /// `Confidence::new(1.0).unwrap()`, but `const` so it works in
+    /// constant contexts. Mirrors the `MIN` / `MAX` constants on
+    /// primitive integer types (`u32::MAX`, `i64::MAX`, …).
+    pub const MAX: Self = Self(1.0);
+    /// Lower bound of the valid range. Equivalent to
+    /// `Confidence::new(0.0).unwrap()`, but `const` so it works in
+    /// constant contexts. Mirrors the `MIN` / `MAX` constants on
+    /// primitive integer types (`u32::MIN`, `i64::MIN`, …).
+    pub const MIN: Self = Self(0.0);
+
     /// Construct a [`Confidence`] from a raw score, returning
     /// [`None`] when `value` is `NaN`, `±∞`, or outside the closed
     /// range `[0.0, 1.0]`.
@@ -129,6 +140,14 @@ mod tests {
         assert_eq!(Confidence::new(0.0).unwrap().get(), 0.0);
         assert_eq!(Confidence::new(1.0).unwrap().get(), 1.0);
         assert_eq!(Confidence::new(0.5).unwrap().get(), 0.5);
+    }
+
+    #[test]
+    fn min_max_constants_equal_boundary_values() {
+        assert_eq!(Confidence::MIN.get(), 0.0);
+        assert_eq!(Confidence::MAX.get(), 1.0);
+        assert_eq!(Confidence::MIN, Confidence::new(0.0).unwrap());
+        assert_eq!(Confidence::MAX, Confidence::new(1.0).unwrap());
     }
 
     #[test]

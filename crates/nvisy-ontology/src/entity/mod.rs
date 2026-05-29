@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub use self::annotation::{
-    Annotation, AnnotationKind, AnnotationStrength, AnnotationTarget, LabelAnnotation, is_excluded,
+    Annotation, AnnotationKind, AnnotationStrength, LabelAnnotation, is_excluded,
 };
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;

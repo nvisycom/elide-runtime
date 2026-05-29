@@ -301,7 +301,6 @@ impl DetectionEngine {
                     confidence: entity.confidence,
                     location,
                     language: entity.language,
-                    sensitivity: entity.sensitivity,
                 });
             }
         }

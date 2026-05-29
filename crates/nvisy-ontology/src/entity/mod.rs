@@ -14,7 +14,6 @@ mod annotation;
 mod category;
 mod kind;
 mod method;
-mod sensitivity;
 mod source;
 
 use derive_builder::Builder;
@@ -32,7 +31,6 @@ pub use self::method::{
     AnnotationProvenance, CrossReferenceProvenance, ExtractionMethod, ModelKind, ModelProvenance,
     PatternProvenance, RecognitionMethod, RecognitionMethodKind, RefinementMethod,
 };
-pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;
 use crate::modality::Modality;
 #[cfg(any(test, feature = "test-utils"))]
@@ -88,10 +86,6 @@ pub struct Entity<M: Modality> {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<String>")]
     pub language: Option<LanguageTag>,
-    /// Sensitivity classification of this entity.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sensitivity: Option<EntitySensitivity>,
 }
 
 impl<M: Modality> Entity<M> {

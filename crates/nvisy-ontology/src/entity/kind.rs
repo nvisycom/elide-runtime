@@ -2,18 +2,14 @@
 //!
 //! [`EntityKind`] enumerates the types of sensitive data the platform
 //! can detect or redact.  Each variant maps to a stable `snake_case`
-//! string for serialization and display.
-//!
-//! Every variant also maps to:
-//! - an [`EntityCategory`] via [`EntityKind::category`],
-//! - an [`EntitySensitivity`] via [`EntityKind::sensitivity`].
+//! string for serialization and display, and to an [`EntityCategory`]
+//! via [`EntityKind::category`].
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use super::category::EntityCategory;
-use super::sensitivity::EntitySensitivity;
 
 /// Specific kind of sensitive entity detected or targeted for redaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display)]
@@ -282,84 +278,6 @@ impl EntityKind {
             Self::Unresolved => EntityCategory::Unresolved,
         }
     }
-
-    /// Returns the default [`EntitySensitivity`] for this entity kind.
-    pub fn sensitivity(&self) -> EntitySensitivity {
-        match self {
-            // Critical: irrevocable identifiers, secrets, biometrics
-            Self::GovernmentId
-            | Self::PassportNumber
-            | Self::NationalInsuranceNumber
-            | Self::PaymentCard
-            | Self::CardSecurityCode
-            | Self::BankAccount
-            | Self::Password
-            | Self::ApiKey
-            | Self::AuthToken
-            | Self::PrivateKey
-            | Self::Fingerprint
-            | Self::Voiceprint
-            | Self::RetinaScan
-            | Self::FacialGeometry => EntitySensitivity::Critical,
-
-            // High: directly identifying
-            Self::TaxId
-            | Self::DriversLicense
-            | Self::PersonName
-            | Self::DateOfBirth
-            | Self::EmailAddress
-            | Self::PhoneNumber
-            | Self::Address
-            | Self::MedicalId
-            | Self::InsuranceId
-            | Self::PrescriptionId
-            | Self::Diagnosis
-            | Self::Medication
-            | Self::Iban
-            | Self::CryptoAddress
-            | Self::Face
-            | Self::Signature
-            | Self::Coordinates => EntitySensitivity::High,
-
-            // Medium: indirectly identifying
-            Self::Age
-            | Self::Gender
-            | Self::Ethnicity
-            | Self::Religion
-            | Self::Nationality
-            | Self::Citizenship
-            | Self::Language
-            | Self::PostalCode
-            | Self::IpAddress
-            | Self::MacAddress
-            | Self::DeviceId
-            | Self::Username
-            | Self::CardExpiry
-            | Self::BankRouting
-            | Self::SwiftCode
-            | Self::VehicleId
-            | Self::LicensePlate
-            | Self::GeolocationMetadata
-            | Self::DateTime
-            | Self::Handwriting
-            | Self::CaseNumber
-            | Self::InternalId => EntitySensitivity::Medium,
-
-            // Low: quasi-public or context-dependent
-            Self::Url
-            | Self::Amount
-            | Self::OrganizationName
-            | Self::DepartmentName
-            | Self::FacilityName
-            | Self::Logo
-            | Self::Barcode
-            | Self::Event
-            | Self::Occupation
-            | Self::Product
-            | Self::Quantity
-            | Self::Unresolved => EntitySensitivity::Low,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -447,62 +365,6 @@ mod tests {
         assert_eq!(
             EntityKind::InternalId.category(),
             EntityCategory::Organizational
-        );
-    }
-
-    #[test]
-    fn sensitivity_critical() {
-        assert_eq!(
-            EntityKind::GovernmentId.sensitivity(),
-            EntitySensitivity::Critical
-        );
-        assert_eq!(
-            EntityKind::PaymentCard.sensitivity(),
-            EntitySensitivity::Critical
-        );
-        assert_eq!(
-            EntityKind::Fingerprint.sensitivity(),
-            EntitySensitivity::Critical
-        );
-        assert_eq!(
-            EntityKind::Password.sensitivity(),
-            EntitySensitivity::Critical
-        );
-    }
-
-    #[test]
-    fn sensitivity_high() {
-        assert_eq!(
-            EntityKind::PersonName.sensitivity(),
-            EntitySensitivity::High
-        );
-        assert_eq!(
-            EntityKind::EmailAddress.sensitivity(),
-            EntitySensitivity::High
-        );
-        assert_eq!(EntityKind::MedicalId.sensitivity(), EntitySensitivity::High);
-        assert_eq!(EntityKind::Diagnosis.sensitivity(), EntitySensitivity::High);
-    }
-
-    #[test]
-    fn sensitivity_medium() {
-        assert_eq!(EntityKind::Age.sensitivity(), EntitySensitivity::Medium);
-        assert_eq!(
-            EntityKind::IpAddress.sensitivity(),
-            EntitySensitivity::Medium
-        );
-        assert_eq!(
-            EntityKind::PostalCode.sensitivity(),
-            EntitySensitivity::Medium
-        );
-    }
-
-    #[test]
-    fn sensitivity_low() {
-        assert_eq!(EntityKind::Url.sensitivity(), EntitySensitivity::Low);
-        assert_eq!(
-            EntityKind::OrganizationName.sensitivity(),
-            EntitySensitivity::Low
         );
     }
 }

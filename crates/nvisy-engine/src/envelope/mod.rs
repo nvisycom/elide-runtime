@@ -114,15 +114,11 @@ impl<M: Modality> DocumentEnvelope<M> {
         self.document.audit.records.len()
     }
 
-    /// Add detected entities (wrapped into fresh [`EntityRecord`]s),
-    /// assigning sensitivity from entity kind.
+    /// Add detected entities (wrapped into fresh [`EntityRecord`]s).
     ///
     /// [`EntityRecord`]: nvisy_ontology::provenance::EntityRecord
     pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity<M>>) {
-        for mut entity in entities {
-            if entity.sensitivity.is_none() {
-                entity.sensitivity = Some(entity.entity_kind.sensitivity());
-            }
+        for entity in entities {
             self.document.audit.push_entity(entity);
         }
     }

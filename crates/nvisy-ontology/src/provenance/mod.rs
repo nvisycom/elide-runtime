@@ -20,7 +20,6 @@
 mod entry;
 mod record;
 mod replacement;
-mod review;
 
 use derive_more::{From, IsVariant};
 use schemars::JsonSchema;
@@ -31,7 +30,6 @@ use uuid::Uuid;
 pub use self::entry::{AuditEntry, AuditEntryBuilder, Decision, EntryMetadata, Execution};
 pub use self::record::EntityRecord;
 pub use self::replacement::{TabularReplacement, TextReplacement};
-pub use self::review::{ReviewDecision, ReviewStatus};
 use crate::entity::{ContentSource, Entity};
 use crate::modality::{Audio, Image, Modality, Tabular, Text};
 

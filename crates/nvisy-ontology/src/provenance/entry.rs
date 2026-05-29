@@ -21,7 +21,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::review::ReviewDecision;
 use crate::modality::Modality;
 use crate::policy::RuleRank;
 
@@ -141,9 +140,9 @@ impl<M: Modality> Execution<M> {
     }
 }
 
-/// Per-entry timestamps and review state. Separate from
-/// [`Decision`] / [`Execution`] so consumers reading the "what
-/// happened" axis don't pay for review fields they don't read.
+/// Per-entry timestamp + correlation. Separate from [`Decision`] /
+/// [`Execution`] so consumers reading the "what happened" axis
+/// don't pay for fields they don't need.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EntryMetadata {
@@ -154,9 +153,6 @@ pub struct EntryMetadata {
     /// Correlation identifier for tracing across services.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub correlation_id: Option<Uuid>,
-    /// Human review decision, if any.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub review: Option<ReviewDecision>,
 }
 
 impl EntryMetadata {
@@ -165,7 +161,6 @@ impl EntryMetadata {
         Self {
             timestamp: Some(Timestamp::now()),
             correlation_id: None,
-            review: None,
         }
     }
 }

@@ -348,6 +348,7 @@ mod tests {
 
     use nvisy_core::content::ContentMetadata;
     use nvisy_ontology::entity::Entity;
+    use nvisy_ontology::modality::{TextExtraction, TextMetadata};
     use nvisy_ontology::policy::{
         Action, EntitySelector, Policy, PolicyRule, RuleRank, TextStrategy,
     };
@@ -370,6 +371,10 @@ mod tests {
         DocumentEnvelope::<Text>::new(
             Arc::new(Mutex::new(handle)),
             ContentMetadata::new().with_content_type("text/plain"),
+            TextMetadata {
+                extraction: TextExtraction::Native,
+                languages: Vec::new(),
+            },
             shared,
         )
         .await

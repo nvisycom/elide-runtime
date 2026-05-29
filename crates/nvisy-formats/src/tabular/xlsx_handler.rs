@@ -8,7 +8,7 @@
 //! [`TextHandler`]: nvisy_codec::handler::TextHandler
 
 use nvisy_codec::core::{Handle, LocationStream};
-use nvisy_codec::handler::{Handler, TabularRedaction, TextData};
+use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction, TextData};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
@@ -66,5 +66,14 @@ impl Handle<Tabular> for XlsxHandler {
         _redaction: TabularRedaction,
     ) -> Result<(), Error> {
         Ok(())
+    }
+}
+
+impl TabularHandle for XlsxHandler {
+    fn has_header(&self) -> bool {
+        // XLSX always carries a typed schema (cell types, named
+        // ranges, header row). Stays `true` even though the stub
+        // handler returns no locations today.
+        true
     }
 }

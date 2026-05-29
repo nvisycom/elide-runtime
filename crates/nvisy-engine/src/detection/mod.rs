@@ -295,7 +295,6 @@ impl DetectionEngine {
                     entity_id: entity.entity_id,
                     category: entity.category,
                     entity_kind: entity.entity_kind,
-                    extraction_methods: entity.extraction_methods,
                     recognition_methods: entity.recognition_methods,
                     refinement_methods: entity.refinement_methods,
                     confidence: entity.confidence,

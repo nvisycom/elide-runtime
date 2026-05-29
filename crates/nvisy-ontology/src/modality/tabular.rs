@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use super::{Mergeable, Modality, ModalityBlock, Overlap, TabularExtraction};
 use crate::policy::TabularStrategy;
 
 /// A cell (or sub-cell range) within tabular content.
@@ -49,6 +49,7 @@ impl Tabular {
 
 impl Modality for Tabular {
     type Block = TabularBlock;
+    type Extraction = TabularExtraction;
     type Metadata = TabularMetadata;
     type MethodTag = crate::policy::TabularMethodTag;
     type Replacement = crate::provenance::TabularReplacement;
@@ -103,9 +104,12 @@ impl ModalityBlock for TabularBlock {
 /// Document-level metadata for [`Document<Tabular>`].
 ///
 /// [`Document<Tabular>`]: crate::document::Document
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TabularMetadata {
+    /// How this document's tabular structure was produced
+    /// (schema-typed from source, inferred, or recovered from an image).
+    pub extraction: TabularExtraction,
     /// Column headers indexed by 0-based column position.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<ColumnHeader>,

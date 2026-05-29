@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use super::{Mergeable, Modality, ModalityBlock, Overlap, TextExtraction};
 use crate::policy::TextStrategy;
 use crate::primitive::LanguageDetection;
 
@@ -71,6 +71,7 @@ impl Text {
 
 impl Modality for Text {
     type Block = TextBlock;
+    type Extraction = TextExtraction;
     type Metadata = TextMetadata;
     type MethodTag = crate::policy::TextMethodTag;
     type Replacement = crate::provenance::TextReplacement;
@@ -138,9 +139,12 @@ impl ModalityBlock for TextBlock {
 /// Document-level metadata for [`Document<Text>`].
 ///
 /// [`Document<Text>`]: crate::document::Document
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TextMetadata {
+    /// How this document's text was produced (native text-layer parse
+    /// vs OCR'd image-backed page).
+    pub extraction: TextExtraction,
     /// Languages detected (or asserted) for the document content.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(skip)]

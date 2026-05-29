@@ -11,7 +11,7 @@ use nvisy_agent::audio::stt::SttService;
 use nvisy_codec::DocumentHandle;
 use nvisy_core::Result;
 use nvisy_ontology::document::Block;
-use nvisy_ontology::modality::{Audio, AudioBlock};
+use nvisy_ontology::modality::{Audio, AudioBlock, AudioExtraction};
 use nvisy_ontology::primitive::TimeSpan;
 
 pub use self::params::SttExtractorConfig;
@@ -47,6 +47,16 @@ impl SttExtractor {
         envelope: &mut DocumentEnvelope<Audio>,
         diarization: bool,
     ) -> Result<()> {
+        // Stamp the real provenance over the importer's placeholder
+        // ahead of any early returns — even an empty transcript
+        // should reflect the model that ran.
+        let provenance = self.stt.provenance();
+        envelope.document.meta.extraction = if diarization {
+            AudioExtraction::Diarization(provenance)
+        } else {
+            AudioExtraction::Transcription(provenance)
+        };
+
         let audio_data = {
             let handle = envelope.handle.lock().await;
             let DocumentHandle::Audio(ref handler) = *handle else {

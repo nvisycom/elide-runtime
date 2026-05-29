@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_ontology::document::Block;
+use nvisy_ontology::entity::ModelProvenance;
 use nvisy_ontology::modality::Image;
 use tracing::instrument;
 
@@ -41,6 +42,12 @@ impl Extractor {
         Self {
             backend: Arc::new(backend),
         }
+    }
+
+    /// Provenance of the wrapped backend, forwarded from
+    /// [`Backend::provenance`].
+    pub fn provenance(&self) -> ModelProvenance {
+        self.backend.provenance()
     }
 
     /// Run OCR on a single image.

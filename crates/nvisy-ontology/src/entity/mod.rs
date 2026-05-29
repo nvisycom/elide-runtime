@@ -28,8 +28,8 @@ pub use self::annotation::{
 pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;
 pub use self::method::{
-    AnnotationProvenance, CrossReferenceProvenance, ExtractionMethod, ModelKind, ModelProvenance,
-    PatternProvenance, RecognitionMethod, RecognitionMethodKind, RefinementMethod,
+    AnnotationProvenance, CrossReferenceProvenance, ModelKind, ModelProvenance, PatternProvenance,
+    RecognitionMethod, RecognitionMethodKind, RefinementMethod,
 };
 pub use self::source::ContentSource;
 use crate::modality::Modality;
@@ -64,11 +64,6 @@ pub struct Entity<M: Modality> {
     pub category: EntityCategory,
     /// Specific entity kind.
     pub entity_kind: EntityKind,
-    /// How content was extracted from its source modality, ordered by
-    /// application time.
-    #[builder(default)]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub extraction_methods: Vec<ExtractionMethod>,
     /// Techniques used to identify this entity, ordered by
     /// application time.
     pub recognition_methods: Vec<RecognitionMethod>,

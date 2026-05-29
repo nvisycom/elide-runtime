@@ -19,12 +19,12 @@ use crate::core::{Handle, LocationStream, Redactions};
 use crate::handler::Handler;
 #[cfg(feature = "rich")]
 use crate::handler::RichHandle;
-#[cfg(feature = "tabular")]
-use crate::handler::TabularRedaction;
 #[cfg(feature = "audio")]
 use crate::handler::{AudioData, AudioRedaction};
 #[cfg(feature = "image")]
 use crate::handler::{ImageData, ImageRedaction};
+#[cfg(feature = "tabular")]
+use crate::handler::{TabularHandle, TabularRedaction};
 #[cfg(feature = "text")]
 use crate::handler::{TextData, TextRedaction};
 
@@ -56,7 +56,7 @@ pub enum DocumentHandle {
     #[cfg(feature = "text")]
     Text(Box<dyn Handle<Text>>),
     #[cfg(feature = "tabular")]
-    Tabular(Box<dyn Handle<Tabular>>),
+    Tabular(Box<dyn TabularHandle>),
     #[cfg(feature = "image")]
     Image(Box<dyn Handle<Image>>),
     #[cfg(feature = "audio")]
@@ -162,6 +162,17 @@ impl DocumentHandle {
         match self {
             Self::Tabular(h) => h.locations(),
             _ => LocationStream::empty(),
+        }
+    }
+
+    /// `true` when the underlying tabular source carries explicit
+    /// column headers / typed schema; `false` when column semantics
+    /// have to be inferred. `None` for non-tabular handles.
+    #[cfg(feature = "tabular")]
+    pub fn tabular_has_header(&self) -> Option<bool> {
+        match self {
+            Self::Tabular(h) => Some(h.has_header()),
+            _ => None,
         }
     }
 

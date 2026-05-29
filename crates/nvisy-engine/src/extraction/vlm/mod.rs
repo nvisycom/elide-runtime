@@ -16,11 +16,12 @@ mod params;
 use bytes::Bytes;
 use nvisy_agent::agent::cv::VerificationCandidate;
 use nvisy_agent::pipeline::CvPipeline;
-use nvisy_codec::core::Span;
+use nvisy_codec::core::Located;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Image;
+use nvisy_ontology::provenance::EntityRecord;
 
 pub use self::params::VlmExtractorConfig;
 use crate::envelope::DocumentEnvelope;
@@ -48,49 +49,59 @@ impl VlmExtractor {
     /// Run the VLM verifier over the envelope's detected image
     /// entities, refining them against the source image.
     ///
-    /// Skips when there are no entities or no image spans. Failures
-    /// are logged but not propagated — the unverified entities are
-    /// kept rather than failing the run.
+    /// Skips when there are no entities or no image regions.
+    /// Failures are logged but not propagated — the unverified
+    /// entities are kept rather than failing the run.
     pub async fn run(&self, envelope: &mut DocumentEnvelope<Image>) -> Result<()> {
-        if envelope.audit.entities.is_empty() {
+        if envelope.document.audit.records.is_empty() {
             return Ok(());
         }
-        let spans = Self::collect_spans(envelope).await;
-        if spans.is_empty() {
+        let inputs = Self::collect_inputs(envelope).await;
+        if inputs.is_empty() {
             return Ok(());
         }
 
-        let image_entities = std::mem::take(&mut envelope.audit.entities);
+        // VLM runs before redaction evaluation, so every record's
+        // `audit` is still None — we can pull entities out, verify,
+        // and rewrap fresh records without losing audit state.
+        let records = std::mem::take(&mut envelope.document.audit.records);
+        let image_entities: Vec<Entity<Image>> = records.into_iter().map(|r| r.entity).collect();
 
         tracing::debug!(
             target: TARGET,
             entities = image_entities.len(),
-            spans = spans.len(),
+            regions = inputs.len(),
             "running VLM verification",
         );
 
-        match self.verify(&spans, image_entities, envelope).await {
-            Ok(verified) => envelope.audit.entities = verified,
-            Err(e) => tracing::warn!(
-                target: TARGET, error = %e,
-                "VLM verification failed, keeping unverified entities"
-            ),
+        let rebuild =
+            |entities: Vec<Entity<Image>>| entities.into_iter().map(EntityRecord::new).collect();
+
+        match self.verify(&inputs, image_entities.clone(), envelope).await {
+            Ok(verified) => envelope.document.audit.records = rebuild(verified),
+            Err(e) => {
+                tracing::warn!(
+                    target: TARGET, error = %e,
+                    "VLM verification failed, keeping unverified entities"
+                );
+                envelope.document.audit.records = rebuild(image_entities);
+            }
         }
         Ok(())
     }
 
     async fn verify(
         &self,
-        spans: &[Span<Image, ImageData>],
+        inputs: &[Located<Image, ImageData>],
         entities: Vec<Entity<Image>>,
         envelope: &DocumentEnvelope<Image>,
     ) -> Result<Vec<Entity<Image>>> {
         let mut verified = entities;
-        for span in spans {
+        for item in inputs {
             if verified.is_empty() {
                 break;
             }
-            let png_bytes: Bytes = span.data.encode_png()?;
+            let png_bytes: Bytes = item.data.encode_png()?;
 
             let mut candidates = Vec::with_capacity(verified.len());
             for entity in verified {
@@ -110,14 +121,14 @@ impl VlmExtractor {
         Ok(verified)
     }
 
-    async fn collect_spans(envelope: &DocumentEnvelope<Image>) -> Vec<Span<Image, ImageData>> {
+    async fn collect_inputs(envelope: &DocumentEnvelope<Image>) -> Vec<Located<Image, ImageData>> {
         let locations = envelope.collect_image_locations().await;
-        let mut spans = Vec::with_capacity(locations.len());
+        let mut out = Vec::with_capacity(locations.len());
         for located in locations {
             if let Some(data) = envelope.read_image(&located.location).await {
-                spans.push(Span::from_located(located, data));
+                out.push(located.with_data(data));
             }
         }
-        spans
+        out
     }
 }

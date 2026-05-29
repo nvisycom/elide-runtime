@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use super::provenance::{
-    AnnotationProvenance, CrossReferenceProvenance, ModelKind, ModelProvenance, PatternKind,
-    PatternProvenance,
+    AnnotationProvenance, CrossReferenceProvenance, ModelKind, ModelProvenance, PatternProvenance,
 };
 
 /// Technique used to identify a sensitive entity within extracted content.
@@ -19,9 +18,9 @@ use super::provenance::{
 #[serde(tag = "method", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum RecognitionMethod {
-    /// Text-pattern matching: regex, glob, dictionary lookup, or
-    /// deny-list. The specific matcher lives in
-    /// [`PatternProvenance::kind`].
+    /// Text-pattern matching: regex, dictionary lookup, or
+    /// deny-list. The specific matcher is the
+    /// [`PatternProvenance`] variant.
     Pattern(PatternProvenance),
     /// Matching extracted values against an external identity or
     /// record database.
@@ -30,53 +29,42 @@ pub enum RecognitionMethod {
     NlpNer(ModelProvenance),
     /// Named-entity recognition via LLM (prompted detection).
     LlmNer(ModelProvenance),
-    /// Semantic similarity search via vector embeddings.
-    Embedding(ModelProvenance),
     /// Pre-identified region supplied alongside the uploaded file.
     Annotation(AnnotationProvenance),
 }
 
 impl RecognitionMethod {
     /// Create a `Pattern` method tagged as a regex match.
-    pub fn regex(pattern: impl Into<String>) -> Self {
-        Self::Pattern(PatternProvenance {
-            kind: PatternKind::Regex,
-            pattern: Some(pattern.into()),
+    pub fn regex(name: impl Into<String>) -> Self {
+        Self::Pattern(PatternProvenance::Regex {
+            name: name.into(),
             validator: None,
             contextual: false,
         })
     }
 
     /// Create a `Pattern` method tagged as a regex match with a validator.
-    pub fn regex_validated(pattern: impl Into<String>, validator: impl Into<String>) -> Self {
-        Self::Pattern(PatternProvenance {
-            kind: PatternKind::Regex,
-            pattern: Some(pattern.into()),
+    pub fn regex_validated(name: impl Into<String>, validator: impl Into<String>) -> Self {
+        Self::Pattern(PatternProvenance::Regex {
+            name: name.into(),
             validator: Some(validator.into()),
             contextual: false,
         })
     }
 
     /// Create a `Pattern` method tagged as a dictionary match.
-    pub fn dictionary(pattern: impl Into<String>) -> Self {
-        Self::Pattern(PatternProvenance {
-            kind: PatternKind::Dictionary,
-            pattern: Some(pattern.into()),
-            validator: None,
+    pub fn dictionary(name: impl Into<String>) -> Self {
+        Self::Pattern(PatternProvenance::Dictionary {
+            name: name.into(),
             contextual: false,
         })
     }
 
-    /// Create a `Pattern` method tagged as a deny-list match. The
-    /// pattern name is `None` because deny-list rules don't carry a
-    /// named matcher.
+    /// Create a `Pattern` method tagged as a deny-list match.
+    /// Deny-list matches carry no per-match identity — the matched
+    /// value is the value the caller supplied.
     pub fn deny_list() -> Self {
-        Self::Pattern(PatternProvenance {
-            kind: PatternKind::DenyList,
-            pattern: None,
-            validator: None,
-            contextual: false,
-        })
+        Self::Pattern(PatternProvenance::DenyList)
     }
 
     /// Create a `CrossReference` method with the given source name.
@@ -98,9 +86,10 @@ impl RecognitionMethod {
         Self::LlmNer(ModelProvenance::new(name, kind))
     }
 
-    /// Create an `Annotation` method with an optional annotator ID.
-    pub fn annotation(annotator: Option<String>) -> Self {
-        Self::Annotation(AnnotationProvenance { annotator })
+    /// Create an `Annotation` method with the annotation's name
+    /// (as supplied by the uploader).
+    pub fn annotation(name: Option<String>) -> Self {
+        Self::Annotation(AnnotationProvenance { name })
     }
 
     /// Returns the discriminant kind, stripping provenance data.
@@ -112,7 +101,6 @@ impl RecognitionMethod {
             Self::CrossReference(_) => RecognitionMethodKind::CrossReference,
             Self::NlpNer(_) => RecognitionMethodKind::NlpNer,
             Self::LlmNer(_) => RecognitionMethodKind::LlmNer,
-            Self::Embedding(_) => RecognitionMethodKind::Embedding,
             Self::Annotation(_) => RecognitionMethodKind::Annotation,
         }
     }
@@ -132,6 +120,5 @@ pub enum RecognitionMethodKind {
     CrossReference,
     NlpNer,
     LlmNer,
-    Embedding,
     Annotation,
 }

@@ -1,66 +1,66 @@
 //! Text modality.
 
-use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Modality, Overlap};
+use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use crate::policy::TextStrategy;
 use crate::primitive::LanguageDetection;
 
-/// A range within text content.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Builder)]
+/// Half-open `[start, end)` byte range around a [`Text`] location,
+/// used for the optional surrounding context window. The newtype
+/// makes the "both endpoints or none" invariant unrepresentable —
+/// the previous twin-`Option` fields allowed a `(Some, None)`
+/// half-state with no meaningful semantics.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[builder(
-    name = "TextBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with")
-)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextWindow {
+    /// Byte offset where the context window starts.
+    pub start: usize,
+    /// Byte offset where the context window ends (exclusive).
+    pub end: usize,
+}
+
+impl ContextWindow {
+    /// Construct a window covering `start..end`.
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+}
+
+/// A range within text content.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Text {
     /// Byte or character offset where the range starts.
-    pub start_offset: usize,
+    pub start: usize,
     /// Byte or character offset where the range ends.
-    pub end_offset: usize,
-    /// Start offset of the surrounding context window for redaction.
-    #[builder(default, setter(into = false))]
+    pub end: usize,
+    /// Surrounding context window for redaction, when known.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_start_offset: Option<usize>,
-    /// End offset of the surrounding context window for redaction.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_end_offset: Option<usize>,
+    pub context: Option<ContextWindow>,
     /// 1-based page number.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_number: Option<u32>,
-    /// 1-based line number.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_number: Option<u32>,
 }
 
 impl Text {
-    /// Create a [`Text`] covering `start_offset..end_offset` with all
-    /// optional fields unset.
-    pub fn new(start_offset: usize, end_offset: usize) -> Self {
+    /// Create a [`Text`] covering `start..end` with all optional
+    /// fields unset.
+    pub fn new(start: usize, end: usize) -> Self {
         Self {
-            start_offset,
-            end_offset,
-            context_start_offset: None,
-            context_end_offset: None,
+            start,
+            end,
+            context: None,
             page_number: None,
-            line_number: None,
         }
     }
 
-    /// Create a new [`TextBuilder`].
-    pub fn builder() -> TextBuilder {
-        TextBuilder::default()
-    }
-
-    /// Byte length of the range (`end_offset - start_offset`).
+    /// Byte length of the range (`end - start`).
     pub fn len(&self) -> usize {
-        self.end_offset.saturating_sub(self.start_offset)
+        self.end.saturating_sub(self.start)
     }
 
     /// Whether the range is empty (zero length).
@@ -72,7 +72,19 @@ impl Text {
 impl Modality for Text {
     type Block = TextBlock;
     type Metadata = TextMetadata;
-    type Strategy = crate::policy::TextStrategy;
+    type MethodTag = crate::policy::TextMethodTag;
+    type Strategy = TextStrategy;
+
+    fn default_method_dominance() -> &'static [Self::MethodTag] {
+        // Mask is length-preserving (leaks length only); Replace can
+        // change length and leaks the placeholder text. Other tags
+        // never tie at the Partial tier (Recoverable / Irrecoverable
+        // already resolve the conflict).
+        &[
+            crate::policy::TextMethodTag::Mask,
+            crate::policy::TextMethodTag::Replace,
+        ]
+    }
 }
 
 /// Per-modality block payload for [`Text`]. Each variant is a
@@ -116,6 +128,12 @@ impl TextBlock {
     }
 }
 
+impl ModalityBlock for TextBlock {
+    fn scan_text(&self) -> Option<&str> {
+        Some(self.text())
+    }
+}
+
 /// Document-level metadata for [`Document<Text>`].
 ///
 /// [`Document<Text>`]: crate::document::Document
@@ -129,42 +147,37 @@ pub struct TextMetadata {
 }
 
 impl Overlap for Text {
+    /// Two text ranges overlap only when they share a page (or both
+    /// have `page_number: None`) and their byte ranges intersect.
+    /// Without the page gate, two ranges on different pages of the
+    /// same document that happen to share byte offsets would
+    /// false-positive as overlapping.
     fn overlaps(&self, other: &Self) -> bool {
-        self.start_offset < other.end_offset && other.start_offset < self.end_offset
+        self.page_number == other.page_number && self.start < other.end && other.start < self.end
     }
 }
 
 impl Mergeable for Text {
     /// Merge two text ranges by unioning byte offsets when their
-    /// non-range identity (page/line) matches. Context offsets union
-    /// when present on both sides; otherwise the result has no context
+    /// non-range identity (page) matches. Context windows union when
+    /// present on both sides; otherwise the result has no context
     /// window.
-    fn try_merge(self, other: Self) -> Option<Self> {
-        if self.page_number != other.page_number || self.line_number != other.line_number {
-            return None;
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
+        if self.page_number != other.page_number {
+            return Err((self, other));
         }
-        Some(Self {
-            start_offset: self.start_offset.min(other.start_offset),
-            end_offset: self.end_offset.max(other.end_offset),
-            context_start_offset: option_min(self.context_start_offset, other.context_start_offset),
-            context_end_offset: option_max(self.context_end_offset, other.context_end_offset),
+        // Context windows union only when both sides have one;
+        // otherwise the merged range drops the context window.
+        let context = self.context.zip(other.context).map(|(a, b)| ContextWindow {
+            start: a.start.min(b.start),
+            end: a.end.max(b.end),
+        });
+        Ok(Self {
+            start: self.start.min(other.start),
+            end: self.end.max(other.end),
+            context,
             page_number: self.page_number,
-            line_number: self.line_number,
         })
-    }
-}
-
-fn option_min(a: Option<usize>, b: Option<usize>) -> Option<usize> {
-    match (a, b) {
-        (Some(x), Some(y)) => Some(x.min(y)),
-        _ => None,
-    }
-}
-
-fn option_max(a: Option<usize>, b: Option<usize>) -> Option<usize> {
-    match (a, b) {
-        (Some(x), Some(y)) => Some(x.max(y)),
-        _ => None,
     }
 }
 

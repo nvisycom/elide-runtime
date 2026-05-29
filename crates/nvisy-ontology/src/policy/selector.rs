@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::entity::{Entity, EntityCategory, EntityKind, EntitySensitivity};
 use crate::modality::Modality;
+use crate::primitive::ConfidenceThreshold;
 
 /// Criteria for selecting which entities a policy rule applies to.
 ///
@@ -26,7 +27,7 @@ pub struct EntitySelector {
     /// Minimum detection confidence required. Entities below this threshold
     /// are not matched. `None` means no threshold (matches any confidence).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub confidence_threshold: Option<f64>,
+    pub confidence_threshold: Option<ConfidenceThreshold>,
 }
 
 impl EntitySelector {
@@ -38,7 +39,7 @@ impl EntitySelector {
     /// Returns `true` if the given entity matches this selector.
     pub fn matches<M: Modality>(&self, entity: &Entity<M>) -> bool {
         if let Some(threshold) = self.confidence_threshold
-            && entity.confidence.get() < threshold
+            && !threshold.admits(entity.confidence)
         {
             return false;
         }

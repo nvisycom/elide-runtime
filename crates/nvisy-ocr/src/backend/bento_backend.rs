@@ -20,7 +20,7 @@
 use async_trait::async_trait;
 use bentoml::prelude::*;
 use nvisy_core::Error;
-use nvisy_ontology::document::Document;
+use nvisy_ontology::document::Block;
 use nvisy_ontology::modality::Image;
 
 use crate::core::{Backend, Context, ImageInput};
@@ -78,7 +78,11 @@ impl BentoBackend {
 
 #[async_trait]
 impl Backend for BentoBackend {
-    async fn run(&self, _image: &ImageInput, _ctx: Context<'_>) -> Result<Document<Image>, Error> {
+    async fn run(
+        &self,
+        _image: &ImageInput,
+        _ctx: Context<'_>,
+    ) -> Result<Vec<Block<Image>>, Error> {
         Err(Error::runtime(
             "BentoBackend is scaffolded; the inference-ocr wire \
              contract has not been finalised yet — see \

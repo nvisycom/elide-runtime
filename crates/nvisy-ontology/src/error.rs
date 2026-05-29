@@ -21,9 +21,3 @@ impl Error {
         }
     }
 }
-
-impl From<validator::ValidationErrors> for Error {
-    fn from(err: validator::ValidationErrors) -> Self {
-        Self::new(err.to_string())
-    }
-}

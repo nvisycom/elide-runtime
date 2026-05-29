@@ -42,14 +42,23 @@ pub struct ContentMetadata {
     /// SHA-256 hex digest, persisted at upload.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
-    /// Arbitrary key-value metadata associated with this content.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Map<String, serde_json::Value>>,
-    /// Pre-identified regions and classification labels for this content.
+    /// Arbitrary key-value pairs associated with this content. The
+    /// name avoids the self-referential `ContentMetadata::metadata`
+    /// and matches the existing accessors ([`extra`],
+    /// [`get_extra`], [`set_extra`], [`remove_extra`]).
     ///
-    /// Currently typed over [`Text`] since user-supplied annotations
-    /// at upload time are most naturally text-shaped. Image/audio
-    /// annotation flows are out of scope for now.
+    /// [`extra`]: Self::extra
+    /// [`get_extra`]: Self::get_extra
+    /// [`set_extra`]: Self::set_extra
+    /// [`remove_extra`]: Self::remove_extra
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra: Option<serde_json::Map<String, serde_json::Value>>,
+    /// Pre-identified regions and classification labels for this
+    /// content, in the [`Text`] modality only. The annotation surface
+    /// is currently text-shaped; image/audio variants would need the
+    /// field generalised to `AnyModality` or split per modality, and
+    /// today no producer needs that. Track that decision out-of-band
+    /// before adding non-text annotations.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub annotations: Vec<Annotation<Text>>,
 }
@@ -70,7 +79,7 @@ impl ContentMetadata {
             filename: None,
             size: None,
             sha256: None,
-            metadata: None,
+            extra: None,
             annotations: Vec::new(),
         }
     }
@@ -113,9 +122,10 @@ impl ContentMetadata {
 
     /// Infer the [`DocumentType`] from MIME type and filename extension.
     ///
-    /// Priority: supplied MIME > detected MIME > filename extension.
-    /// When the base type is `Text` and the extension refines it
-    /// (e.g. `.log`), the refined variant wins.
+    /// Priority: (supplied MIME or detected MIME) first, then refine
+    /// `Text` variants via the filename extension (e.g. `.log` upgrades
+    /// `Text(Txt)` to `Text(Log)`); fall back to the extension alone
+    /// only when neither MIME source produced a hit.
     #[must_use]
     pub fn infer_document_type(&self) -> Option<DocumentType> {
         let from_supplied = self
@@ -148,66 +158,29 @@ impl ContentMetadata {
             .and_then(|ext| ext.to_str())
     }
 
-    /// Get the filename from the source path, if available.
-    #[must_use]
-    pub fn filename_from_path(&self) -> Option<&str> {
-        self.source_path
-            .as_ref()
-            .and_then(|path| path.file_name())
-            .and_then(|name| name.to_str())
-    }
-
-    /// Get the parent directory if available
-    #[must_use]
-    pub fn parent_directory(&self) -> Option<&Path> {
-        self.source_path.as_ref().and_then(|path| path.parent())
-    }
-
     /// Get the full path if available
     #[must_use]
     pub fn path(&self) -> Option<&Path> {
         self.source_path.as_deref()
     }
 
-    /// Set the source path
-    pub fn set_path(&mut self, path: impl Into<PathBuf>) {
-        self.source_path = Some(path.into());
-    }
-
-    /// Remove the source path
-    pub fn clear_path(&mut self) {
-        self.source_path = None;
-    }
-
-    /// Check if this metadata has a path
-    #[must_use]
-    pub fn has_path(&self) -> bool {
-        self.source_path.is_some()
-    }
-
-    /// Get the extra metadata map, if any.
-    #[must_use]
-    pub fn extra(&self) -> Option<&serde_json::Map<String, serde_json::Value>> {
-        self.metadata.as_ref()
-    }
-
     /// Get a single value from the extra metadata map.
     #[must_use]
     pub fn get_extra(&self, key: &str) -> Option<&serde_json::Value> {
-        self.metadata.as_ref().and_then(|m| m.get(key))
+        self.extra.as_ref().and_then(|m| m.get(key))
     }
 
     /// Insert a key-value pair into the extra metadata map,
     /// creating the map if it doesn't exist yet.
     pub fn set_extra(&mut self, key: impl Into<String>, value: serde_json::Value) {
-        self.metadata
+        self.extra
             .get_or_insert_with(serde_json::Map::new)
             .insert(key.into(), value);
     }
 
-    /// Remove a key from the extra metadata map.
-    /// Returns the removed value if the key existed.
+    /// Remove a key from the extra metadata map. Returns the removed
+    /// value if the key existed.
     pub fn remove_extra(&mut self, key: &str) -> Option<serde_json::Value> {
-        self.metadata.as_mut().and_then(|m| m.remove(key))
+        self.extra.as_mut().and_then(|m| m.remove(key))
     }
 }

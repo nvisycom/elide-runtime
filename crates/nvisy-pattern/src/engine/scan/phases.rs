@@ -1,4 +1,4 @@
-//! Per-phase scan primitives used by [`PatternEngine::scan`].
+//! Per-phase scan primitives used by [`PatternEngine::scan_text`].
 //!
 //! Three phases, each returning the [`EntityCandidate`]s it produced;
 //! the caller chains them via [`Vec::extend`]:
@@ -8,7 +8,7 @@
 //! 3. [`scan_deny_list`] — forced detection of known sensitive values,
 //!    suppressed against prior-phase output.
 //!
-//! [`PatternEngine::scan`]: super::super::PatternEngine::scan
+//! [`PatternEngine::scan_text`]: super::super::PatternEngine::scan_text
 
 use std::collections::HashSet;
 
@@ -130,7 +130,7 @@ pub(in crate::engine) fn scan_deny_list(
     // already been detected.
     let already_matched: HashSet<&str> = prior
         .iter()
-        .map(|c| &text[c.entity.location.start_offset..c.entity.location.end_offset])
+        .map(|c| &text[c.entity.location.start..c.entity.location.end])
         .collect();
 
     let mut results = Vec::new();

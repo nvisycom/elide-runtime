@@ -20,8 +20,9 @@ impl ImageData {
     /// Records `width` and `height` on the current tracing span if set.
     pub fn decode(content: &ContentData, origin: &str) -> Result<Self, Error> {
         let raw = content.to_bytes();
-        let img = image::load_from_memory(&raw)
-            .map_err(|e| Error::validation(format!("image decode failed: {e}"), origin))?;
+        let img = image::load_from_memory(&raw).map_err(|e| {
+            Error::validation(format!("image decode failed: {e}"), origin.to_owned())
+        })?;
         tracing::Span::current().record("width", img.width());
         tracing::Span::current().record("height", img.height());
         Ok(Self(img))
@@ -34,11 +35,6 @@ impl ImageData {
             .write_to(&mut buf, image::ImageFormat::Png)
             .map_err(|e| Error::validation(format!("PNG encode failed: {e}"), "image-data"))?;
         Ok(buf.into_inner().into())
-    }
-
-    /// Create a blank RGB image (for tests).
-    pub fn new_rgb(width: u32, height: u32) -> Self {
-        Self(DynamicImage::new_rgb8(width, height))
     }
 
     /// Unwrap into the inner `DynamicImage`.

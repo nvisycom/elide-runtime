@@ -7,7 +7,6 @@ use nvisy_engine::ingestion::{ExportFile, ImportFile};
 use nvisy_engine::pipeline::{RunStatus, RuntimeConfig};
 use nvisy_engine::redaction::Redaction;
 use nvisy_engine::validation::Validation;
-use nvisy_ontology::policy::PolicyRef;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -22,9 +21,10 @@ use super::Pagination;
 #[derive(Debug, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewRun {
-    /// Previously uploaded policies to apply, tagged with precedence.
+    /// Previously uploaded policies to apply, in precedence order:
+    /// index `0` is highest precedence.
     #[serde(default)]
-    pub policies: Vec<PolicyRef>,
+    pub policies: Vec<Uuid>,
     /// Per-request configuration overrides (optional).
     #[serde(default)]
     #[schemars(skip)]

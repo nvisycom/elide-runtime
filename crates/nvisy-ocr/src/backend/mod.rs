@@ -99,7 +99,7 @@ mod tests {
         let backend = NoopBackend::new();
         let image = ImageInput::new(vec![0u8; 8], ImageFormat::Png);
         let out = backend.run(&image, Context::default()).await.unwrap();
-        assert_eq!(out.blocks.len(), 0);
+        assert_eq!(out.len(), 0);
     }
 
     #[test]

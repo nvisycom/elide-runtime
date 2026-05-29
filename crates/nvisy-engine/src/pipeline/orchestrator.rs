@@ -9,25 +9,27 @@
 //! sequentially: extraction → detection → deduplication → redaction →
 //! validation.
 
+use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::modality::Text;
+use nvisy_ontology::modality::{Audio, Image, Modality, Overlap, Tabular, Text};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
 use super::default::EngineInput;
-use crate::deduplication::{Deduplicator, FilterParams};
-use crate::detection::{Detection as DetectionConfig, DetectionEngine};
+use crate::deduplication::{Deduplicator, FilterParams, SpanSize};
+use crate::detection::{DetectionEngine, LiftFromBlock};
+use crate::envelope::value_at::ValueAt;
 use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData};
-use crate::extraction::{Extraction as ExtractionConfig, Extractors};
+use crate::extraction::{Extract, Extractors};
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
 };
-use crate::redaction::{RedactionDefaults, Redactor};
-use crate::validation::Validator;
+use crate::redaction::{ApplyRedactions, RedactionDefaults, Redactor};
+use crate::validation::{CheckLeaks, Validator};
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
@@ -54,10 +56,14 @@ pub(super) struct RunContext {
 }
 
 /// Result of processing a single document through the pipeline.
+///
+/// The envelope is modality-erased ([`AnyEnvelope`]) so a single
+/// `Vec<DocumentResult>` can carry results across every modality the
+/// run produced.
 #[derive(Debug)]
 pub(super) struct DocumentResult {
     /// The processed envelope, if the document completed successfully.
-    pub envelope: Option<DocumentEnvelope<Text>>,
+    pub envelope: Option<AnyEnvelope>,
     /// Error message if the document failed, `None` on success.
     pub error: Option<String>,
 }
@@ -92,52 +98,33 @@ impl Orchestrator {
     pub async fn run(&self, plan: &EngineInput) -> Result<RunOutput, Error> {
         let envelopes = self.run_imports(&plan.imports).await?;
 
-        let mut results = Vec::new();
-        let mut join_set = JoinSet::new();
+        let mut results: Vec<DocumentResult> = Vec::new();
+        let mut join_set: JoinSet<DocumentResult> = JoinSet::new();
         for envelope in envelopes {
-            let text_envelope = match envelope {
-                AnyEnvelope::Text(env) => env,
-                other => {
-                    let modality = other.modality_name();
-                    tracing::warn!(
-                        target: TARGET,
-                        modality,
-                        "non-text envelope skipped; downstream pipeline is text-only \
-                         (extraction fan-out for image/audio/tabular is pending)",
-                    );
-                    results.push(DocumentResult {
-                        envelope: None,
-                        error: Some(format!(
-                            "{modality} modality not yet supported by the pipeline; \
-                             only text envelopes are processed"
-                        )),
-                    });
-                    continue;
-                }
-            };
-
             let ctx = Arc::clone(&self.ctx);
             let sem = self.semaphore.clone();
             let plan = plan.clone();
 
-            join_set.spawn(async move {
-                let _permit = match sem {
-                    Some(ref s) => Some(s.acquire().await.expect("semaphore closed")),
-                    None => None,
-                };
-
-                let pipeline = DocumentPipeline { ctx: ctx.clone() };
-                match pipeline.run(text_envelope, &plan).await {
-                    Ok(envelope) => DocumentResult {
-                        envelope: Some(envelope),
-                        error: None,
-                    },
-                    Err(e) => DocumentResult {
-                        envelope: None,
-                        error: Some(e.to_string()),
-                    },
+            match envelope {
+                AnyEnvelope::Text(env) => {
+                    join_set.spawn(run_typed_pipeline(env, ctx, sem, plan, AnyEnvelope::Text));
                 }
-            });
+                AnyEnvelope::Tabular(env) => {
+                    join_set.spawn(run_typed_pipeline(
+                        env,
+                        ctx,
+                        sem,
+                        plan,
+                        AnyEnvelope::Tabular,
+                    ));
+                }
+                AnyEnvelope::Image(env) => {
+                    join_set.spawn(run_typed_pipeline(env, ctx, sem, plan, AnyEnvelope::Image));
+                }
+                AnyEnvelope::Audio(env) => {
+                    join_set.spawn(run_typed_pipeline(env, ctx, sem, plan, AnyEnvelope::Audio));
+                }
+            }
         }
 
         while let Some(result) = join_set.join_next().await {
@@ -200,28 +187,120 @@ impl Orchestrator {
 }
 
 /// Processes a single document through all plan phases sequentially.
-struct DocumentPipeline {
+///
+/// Generic over modality `M`: a single `DocumentPipeline<M>` runs the
+/// same stage sequence (extraction → detection → dedup → redaction →
+/// validation → export) for any modality. Today only the `<Text>`
+/// specialization carries stage bodies; per-modality stage methods
+/// are added by Scope C in later steps (§4.3 onward).
+struct DocumentPipeline<M: Modality> {
     ctx: Arc<RunContext>,
+    _marker: PhantomData<fn() -> M>,
 }
 
-impl DocumentPipeline {
-    /// Run all phases for a single envelope.
+impl<M: Modality> DocumentPipeline<M> {
+    /// Construct a new pipeline for modality `M`.
+    fn new(ctx: Arc<RunContext>) -> Self {
+        Self {
+            ctx,
+            _marker: PhantomData,
+        }
+    }
+
+    /// Cancellation-token guard shared by every stage.
+    fn check_cancelled(&self) -> Result<(), Error> {
+        if self.ctx.cancel.is_cancelled() {
+            return Err(Error::cancellation("run cancelled", "orchestrator"));
+        }
+        Ok(())
+    }
+}
+
+/// Per-modality pipeline execution.
+///
+/// Each modality has its own monomorphized pipeline body — text runs
+/// every stage today; image/audio/tabular grow stage bodies in
+/// later Scope C steps. The orchestrator's dispatch loop calls into
+/// the right specialization through this trait without spelling out
+/// every variant by hand.
+#[async_trait::async_trait]
+trait RunPipeline<M: Modality>: Sized {
     async fn run(
-        &self,
-        mut envelope: DocumentEnvelope<Text>,
+        self,
+        envelope: DocumentEnvelope<M>,
         plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<Text>, Error> {
+    ) -> Result<DocumentEnvelope<M>, Error>;
+}
+
+/// Spawn-able task that runs the per-modality pipeline and wraps the
+/// result back into [`AnyEnvelope`] for the orchestrator's results
+/// vector.
+///
+/// `wrap` is the corresponding [`AnyEnvelope`] variant constructor
+/// (e.g. `AnyEnvelope::Text`); inference picks it up automatically
+/// at each call site.
+async fn run_typed_pipeline<M, F>(
+    envelope: DocumentEnvelope<M>,
+    ctx: Arc<RunContext>,
+    sem: Option<Arc<Semaphore>>,
+    plan: EngineInput,
+    wrap: F,
+) -> DocumentResult
+where
+    M: Modality,
+    DocumentPipeline<M>: RunPipeline<M>,
+    DocumentEnvelope<M>: Send + 'static,
+    F: FnOnce(DocumentEnvelope<M>) -> AnyEnvelope + Send + 'static,
+{
+    let _permit = match sem {
+        Some(ref s) => Some(s.acquire().await.expect("semaphore closed")),
+        None => None,
+    };
+    let pipeline = DocumentPipeline::<M>::new(ctx);
+    match pipeline.run(envelope, &plan).await {
+        Ok(env) => DocumentResult {
+            envelope: Some(wrap(env)),
+            error: None,
+        },
+        Err(e) => DocumentResult {
+            envelope: None,
+            error: Some(e.to_string()),
+        },
+    }
+}
+
+impl<M> DocumentPipeline<M>
+where
+    M: Modality + LiftFromBlock + Overlap + SpanSize + CheckLeaks,
+    Extractors: Extract<M>,
+    DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send,
+{
+    /// Run extraction → detection → dedup → redaction → validation
+    /// → export for one envelope. Generic over modality; per-M
+    /// behaviour comes from the trait impls bounded above.
+    async fn run_full(
+        self,
+        mut envelope: DocumentEnvelope<M>,
+        plan: &EngineInput,
+    ) -> Result<DocumentEnvelope<M>, Error> {
         self.check_cancelled()?;
 
         // Extraction.
-        self.run_extraction(&plan.extraction, &mut envelope).await?;
+        Extract::<M>::extract(
+            self.ctx.extractors.as_ref(),
+            &mut envelope,
+            &plan.extraction,
+        )
+        .await?;
         self.check_cancelled()?;
 
         // Detection.
-        self.run_detection(&plan.detection, &mut envelope).await?;
+        if let Some(ref engine) = self.ctx.detection_engine {
+            engine.detect_in(&mut envelope, &plan.detection).await?;
+        }
         self.check_cancelled()?;
 
-        // DeduplicationParams.
+        // Deduplication.
         let dedup = Deduplicator::new(&plan.deduplication);
         let params = FilterParams {
             allowed_kinds: (!plan.detection.entity_kinds.is_empty())
@@ -254,42 +333,12 @@ impl DocumentPipeline {
         Ok(envelope)
     }
 
-    /// Run extraction by dispatching the document to the matching
-    /// pre-built extractor in [`Extractors`].
-    ///
-    /// [`Extractors`]: crate::extraction::Extractors
-    async fn run_extraction(
-        &self,
-        cfg: &ExtractionConfig,
-        envelope: &mut DocumentEnvelope<Text>,
-    ) -> Result<(), Error> {
-        self.ctx.extractors.run(envelope, cfg).await
-    }
-
-    /// Run detection through the shared [`DetectionEngine`].
-    ///
-    /// The engine is built once per run by [`Pipeline`]
-    /// from `input.detection` and stored on [`RunContext`]; it is
-    /// `None` when no recognizer is opted in (`detection.kinds` is
-    /// empty), in which case detection is skipped.
-    ///
-    /// [`Pipeline`]: super::run::Pipeline
-    async fn run_detection(
-        &self,
-        cfg: &DetectionConfig,
-        envelope: &mut DocumentEnvelope<Text>,
-    ) -> Result<(), Error> {
-        if let Some(ref engine) = self.ctx.detection_engine {
-            engine.detect_in(envelope, cfg).await?;
-        }
-        Ok(())
-    }
-
-    /// Export envelopes to the registry.
+    /// Export the envelope to the registry under every configured
+    /// export descriptor.
     async fn run_exports(
         &self,
         exports: &[ExportFileConfig],
-        envelope: &DocumentEnvelope<Text>,
+        envelope: &DocumentEnvelope<M>,
     ) -> Result<(), Error> {
         for cfg in exports {
             let exporter = Exporter::new()
@@ -300,11 +349,48 @@ impl DocumentPipeline {
         }
         Ok(())
     }
+}
 
-    fn check_cancelled(&self) -> Result<(), Error> {
-        if self.ctx.cancel.is_cancelled() {
-            return Err(Error::cancellation("run cancelled"));
-        }
-        Ok(())
+#[async_trait::async_trait]
+impl RunPipeline<Text> for DocumentPipeline<Text> {
+    async fn run(
+        self,
+        envelope: DocumentEnvelope<Text>,
+        plan: &EngineInput,
+    ) -> Result<DocumentEnvelope<Text>, Error> {
+        self.run_full(envelope, plan).await
+    }
+}
+
+#[async_trait::async_trait]
+impl RunPipeline<Tabular> for DocumentPipeline<Tabular> {
+    async fn run(
+        self,
+        envelope: DocumentEnvelope<Tabular>,
+        plan: &EngineInput,
+    ) -> Result<DocumentEnvelope<Tabular>, Error> {
+        self.run_full(envelope, plan).await
+    }
+}
+
+#[async_trait::async_trait]
+impl RunPipeline<Image> for DocumentPipeline<Image> {
+    async fn run(
+        self,
+        envelope: DocumentEnvelope<Image>,
+        plan: &EngineInput,
+    ) -> Result<DocumentEnvelope<Image>, Error> {
+        self.run_full(envelope, plan).await
+    }
+}
+
+#[async_trait::async_trait]
+impl RunPipeline<Audio> for DocumentPipeline<Audio> {
+    async fn run(
+        self,
+        envelope: DocumentEnvelope<Audio>,
+        plan: &EngineInput,
+    ) -> Result<DocumentEnvelope<Audio>, Error> {
+        self.run_full(envelope, plan).await
     }
 }

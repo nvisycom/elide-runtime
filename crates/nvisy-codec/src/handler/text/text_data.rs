@@ -5,15 +5,13 @@ use std::ops::Deref;
 use derive_more::{AsRef, Display, From};
 use hipstr::HipStr;
 
-/// Opaque wrapper around a text span's content.
+/// Opaque wrapper around a text span's content. Returned by
+/// [`Handle<Text>::read`] as the per-location data payload.
 ///
-/// Mirrors [`ImageData`] for text-bearing
-/// handlers, providing a consistent type boundary at the `Handler`
-/// trait level.
+/// Internally backed by [`HipStr`] for cheap cloning of borrowed
+/// content.
 ///
-/// Internally backed by [`HipStr`] for cheap cloning.
-///
-/// [`ImageData`]: crate::handler::ImageData
+/// [`Handle<Text>::read`]: crate::core::Handle::read
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[derive(Display, From, AsRef)]
 #[as_ref(forward)]
@@ -25,7 +23,8 @@ impl TextData {
         self.0.as_str()
     }
 
-    /// Consume the wrapper and return the inner `String`.
+    /// Consume the wrapper and return the content as a `String`,
+    /// allocating only when the underlying [`HipStr`] is borrowed.
     pub fn into_inner(self) -> String {
         self.0.into()
     }

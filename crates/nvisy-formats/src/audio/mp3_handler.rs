@@ -105,7 +105,7 @@ impl Handle<Audio> for Mp3Handler {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::core::{Handle, Redactions};
     use nvisy_codec::handler::AudioOutput;
     use nvisy_ontology::primitive::TimeSpan;
 
@@ -115,9 +115,8 @@ mod tests {
     async fn redact_with_entries_errors() {
         let mut handler = Mp3Handler::new(Bytes::from_static(b"fake mp3"));
         let location = Audio::new(TimeSpan::new(0, 1_000));
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(location, AudioRedaction::new(AudioOutput::Silence))
-            .unwrap();
+        let mut rs = Redactions::new();
+        rs.insert(location, AudioRedaction::new(AudioOutput::Silence));
         let err = handler.redact(rs).await.unwrap_err();
         assert!(
             err.to_string()

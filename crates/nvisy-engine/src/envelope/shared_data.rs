@@ -52,14 +52,16 @@ impl SharedData {
         self
     }
 
-    /// Append a single policy for modality `M`.
-    pub fn with_policy<M: Modality>(mut self, policy: Policy<M>) -> Self {
+    /// Append a single policy for modality `M`. The policy is held
+    /// as an [`Arc`] so it can also live in the registry's cross-run
+    /// cache without copying.
+    pub fn with_policy<M: Modality>(mut self, policy: Arc<Policy<M>>) -> Self {
         self.policies.insert(policy);
         self
     }
 
     /// Replace the policy stack for modality `M`.
-    pub fn with_policies<M: Modality>(mut self, policies: Vec<Policy<M>>) -> Self {
+    pub fn with_policies<M: Modality>(mut self, policies: Vec<Arc<Policy<M>>>) -> Self {
         self.policies.set::<M>(policies);
         self
     }

@@ -1,13 +1,14 @@
 //! Media format classification types.
 //!
-//! - [`ContentKind`]: High-level content category (text, image, document, …)
-//! - [`DocumentType`]: Specific document format with sub-format enums
+//! - [`DocumentType`]: top-level document classification.
+//! - `document_format::*`: per-category leaf format enums
+//!   ([`ImageFormat`], [`AudioFormat`], …) nested inside
+//!   [`DocumentType`] variants.
 
-mod content_kind;
+mod document_format;
 mod document_type;
 
-pub use self::content_kind::ContentKind;
-pub use self::document_type::{
-    AudioFormat, DocumentType, ImageFormat, PresentationFormat, SpreadsheetFormat, TextFormat,
-    WordFormat,
+pub use self::document_format::{
+    AudioFormat, ImageFormat, SpreadsheetFormat, TextFormat, WordFormat,
 };
+pub use self::document_type::DocumentType;

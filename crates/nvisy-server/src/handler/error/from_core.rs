@@ -7,9 +7,9 @@ use super::http_kind::ErrorKind;
 
 impl From<nvisy_core::Error> for Error<'static> {
     fn from(err: nvisy_core::Error) -> Self {
-        let kind = match err.kind {
+        let kind = match err.kind() {
             nvisy_core::ErrorKind::Validation => {
-                if err.component.as_deref() == Some("run") {
+                if err.component() == Some("run") {
                     ErrorKind::Conflict
                 } else {
                     ErrorKind::BadRequest
@@ -25,8 +25,9 @@ impl From<nvisy_core::Error> for Error<'static> {
             | nvisy_core::ErrorKind::Internal => ErrorKind::InternalServerError,
         };
 
-        let mut error = Self::new(kind).with_message(err.message);
-        if let Some(component) = err.component {
+        let component = err.component().map(str::to_owned);
+        let mut error = Self::new(kind).with_message(err.message().to_owned());
+        if let Some(component) = component {
             error = error.with_context(component);
         }
         error

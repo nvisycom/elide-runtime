@@ -31,9 +31,9 @@ pub(crate) mod scan;
 use std::fmt;
 use std::sync::LazyLock;
 
-use nvisy_ontology::document::{Block, Document};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
+use nvisy_ontology::primitive::ConfidenceThreshold;
 use regex::RegexSet;
 
 pub use self::builder::PatternEngineBuilder;
@@ -70,7 +70,7 @@ pub struct PatternEngine {
     pub(in crate::engine) regex_entries: Vec<RegexEntry>,
     pub(in crate::engine) dict_entries: Vec<DictEntry>,
     pub(in crate::engine) validators: ValidatorResolver,
-    pub(in crate::engine) confidence_threshold: Option<f64>,
+    pub(in crate::engine) confidence_threshold: Option<ConfidenceThreshold>,
 }
 
 impl fmt::Debug for PatternEngine {
@@ -95,80 +95,26 @@ impl PatternEngine {
         PatternEngineBuilder::default()
     }
 
-    /// Scan a single [`Block<Text>`] and return detected entities
-    /// with [`Text`] coordinates relative to the block's `text`.
-    ///
-    /// Matches whose value appears in the allow list are suppressed.
-    /// Deny-list values found in the text are injected as synthetic
-    /// matches with confidence `1.0` when not already matched.
-    ///
-    /// Returned entities have offsets into `block.kind.text()`. The
-    /// caller maps those back to source coordinates via the block's
-    /// spans before storing on `block.entities`.
-    ///
-    /// [`Text`]: nvisy_ontology::modality::Text
-    #[tracing::instrument(level = "trace", target = TARGET, skip(self, block, ctx), fields(text_len = block.kind.text().len(), entities = tracing::field::Empty))]
-    pub fn scan(&self, block: &Block<Text>, ctx: &PatternContext) -> Vec<Entity<Text>> {
-        let text = block.kind.text();
-        let mut candidates = self.scan_raw(text, ctx);
-
-        // Apply context-based confidence adjustment before threshold
-        // filtering so a match just below threshold can be promoted by
-        // keyword co-occurrence.
-        ContextEnhancer::new(text, &ctx.hints).enhance(&mut candidates);
-
-        let threshold = self.confidence_threshold;
-        let entities: Vec<Entity<Text>> = candidates
-            .into_iter()
-            .filter(|c| threshold.is_none_or(|t| c.entity.confidence.get() >= t))
-            .map(|c| {
-                tracing::trace!(
-                    target: TARGET,
-                    kind = %c.entity.entity_kind,
-                    confidence = c.entity.confidence.get(),
-                    "matched entity",
-                );
-                c.entity
-            })
-            .collect();
-
-        tracing::Span::current().record("entities", entities.len());
-        entities
-    }
-
-    /// Scan a bare `&str` (no block context). Mostly for tests and
-    /// ad-hoc tooling — production callers use [`Self::scan`] or
-    /// [`Self::scan_document`] so detection composes with block-aware
-    /// recognizers.
+    /// Scan a bare `&str` for matches. The engine layer (in
+    /// `nvisy-engine`) drives block-aware scanning by walking each
+    /// block's text through this method and lifting the returned
+    /// offsets back to source coordinates via the block's spans.
     pub fn scan_text(&self, text: &str, ctx: &PatternContext) -> Vec<Entity<Text>> {
         let mut candidates = self.scan_raw(text, ctx);
         ContextEnhancer::new(text, &ctx.hints).enhance(&mut candidates);
         let threshold = self.confidence_threshold;
         candidates
             .into_iter()
-            .filter(|c| threshold.is_none_or(|t| c.entity.confidence.get() >= t))
+            .filter(|c| threshold.is_none_or(|t| t.admits(c.entity.confidence)))
             .map(|c| c.entity)
             .collect()
     }
 
-    /// Walk every block of `document`, scan, and append the detected
-    /// entities to each `block.entities`.
-    ///
-    /// Convenience walker over [`Self::scan`]. Entities are appended
-    /// (existing `block.entities` are preserved) so multiple
-    /// recognizer passes compose.
-    pub fn scan_document(&self, document: &mut Document<Text>, ctx: &PatternContext) {
-        for block in &mut document.blocks {
-            let entities = self.scan(block, ctx);
-            block.entities.extend(entities);
-        }
-    }
-
     /// Validate that every `RuntimePattern` compiles cleanly against
     /// this engine's matcher backends. Returns one
-    /// [`ExtraPatternError`] per malformed pattern. Use this before a
-    /// scan if you want to surface bad patterns to the caller —
-    /// during [`Self::scan`] compile errors on `extra_patterns`
+    /// [`ExtraPatternError`] per malformed pattern. Use this before
+    /// a scan if you want to surface bad patterns to the caller —
+    /// during [`Self::scan_text`] compile errors on `extra_patterns`
     /// are silently dropped.
     ///
     /// [`ExtraPatternError`]: crate::ExtraPatternError
@@ -276,14 +222,14 @@ mod tests {
     /// deny-list / no-provenance candidates.
     fn pattern_name(c: &EntityCandidate) -> Option<&str> {
         c.entity.recognition_methods.iter().find_map(|m| match m {
-            RecognitionMethod::Pattern(p) => p.pattern.as_deref(),
+            RecognitionMethod::Pattern(p) => p.name(),
             _ => None,
         })
     }
 
     /// Span of a candidate's text location.
     fn span(c: &EntityCandidate) -> (usize, usize) {
-        (c.entity.location.start_offset, c.entity.location.end_offset)
+        (c.entity.location.start, c.entity.location.end)
     }
 
     #[test]

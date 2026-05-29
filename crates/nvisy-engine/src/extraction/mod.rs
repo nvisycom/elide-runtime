@@ -26,16 +26,20 @@
 mod ocr;
 #[cfg(feature = "audio")]
 mod stt;
+mod tabular;
+mod text;
 #[cfg(feature = "image")]
 mod vlm;
 mod workflow;
 
 use std::sync::Arc;
 
-#[cfg(any(feature = "image", feature = "rich", feature = "audio"))]
 use nvisy_core::Result;
-#[cfg(any(feature = "image", feature = "audio"))]
-use nvisy_ontology::modality::Text;
+#[cfg(feature = "audio")]
+use nvisy_ontology::modality::Audio;
+#[cfg(feature = "image")]
+use nvisy_ontology::modality::Image;
+use nvisy_ontology::modality::{Tabular, Text};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "image")]
@@ -167,28 +171,106 @@ impl Extractors {
         let vlm_empty = true;
         ocr_empty && stt_empty && vlm_empty
     }
+}
 
-    /// Dispatch extraction for the envelope's content type.
-    ///
-    /// - Image / rich → OCR (when configured), then VLM verifier
-    ///   (when configured and `extraction.visual.verification` is
-    ///   set).
-    /// - Audio → STT (when configured).
-    /// - Text / tabular → no-op (already structured).
-    ///
-    /// Techniques without a configured extractor are skipped
-    /// silently — the document simply may not need that technique.
-    pub async fn run(
+/// Per-modality extraction dispatch.
+///
+/// The pipeline's stage method (`DocumentPipeline<M>::run_extraction`)
+/// calls `extractors.extract(envelope, &plan.extraction)` and Rust
+/// monomorphizes to the matching impl below.
+///
+/// Text/Tabular are no-ops (their decode is already structured);
+/// Image dispatches to OCR + optional VLM verifier; Audio dispatches
+/// to STT.
+#[async_trait::async_trait]
+pub trait Extract<M: nvisy_ontology::modality::Modality>: Send + Sync {
+    async fn extract(
+        &self,
+        envelope: &mut DocumentEnvelope<M>,
+        extraction: &Extraction,
+    ) -> Result<()>;
+}
+
+#[async_trait::async_trait]
+impl Extract<Text> for Extractors {
+    async fn extract(
         &self,
         envelope: &mut DocumentEnvelope<Text>,
+        _extraction: &Extraction,
+    ) -> Result<()> {
+        self::text::populate_document(envelope).await;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl Extract<Tabular> for Extractors {
+    async fn extract(
+        &self,
+        envelope: &mut DocumentEnvelope<Tabular>,
+        _extraction: &Extraction,
+    ) -> Result<()> {
+        self::tabular::populate_document(envelope).await;
+        Ok(())
+    }
+}
+
+#[cfg(feature = "image")]
+#[async_trait::async_trait]
+impl Extract<Image> for Extractors {
+    async fn extract(
+        &self,
+        envelope: &mut DocumentEnvelope<Image>,
         extraction: &Extraction,
     ) -> Result<()> {
-        // Extraction dispatch is being refactored to run on the
-        // matching typed envelope (`Image` for OCR/VLM, `Audio`
-        // for STT). The text-envelope pathway is a no-op; per-
-        // modality envelopes will be spawned by the pipeline
-        // orchestrator in the follow-up.
-        let _ = (envelope, extraction);
+        if let Some(ref ocr) = self.ocr {
+            ocr.run(envelope).await?;
+        }
+        if let Some(ref vlm) = self.vlm
+            && extraction.visual.as_ref().is_some_and(|v| v.verification)
+        {
+            vlm.run(envelope).await?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(not(feature = "image"))]
+#[async_trait::async_trait]
+impl Extract<nvisy_ontology::modality::Image> for Extractors {
+    async fn extract(
+        &self,
+        _envelope: &mut DocumentEnvelope<nvisy_ontology::modality::Image>,
+        _extraction: &Extraction,
+    ) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(feature = "audio")]
+#[async_trait::async_trait]
+impl Extract<Audio> for Extractors {
+    async fn extract(
+        &self,
+        envelope: &mut DocumentEnvelope<Audio>,
+        extraction: &Extraction,
+    ) -> Result<()> {
+        if let Some(ref stt) = self.stt {
+            let diarization = extraction.audial.as_ref().is_some_and(|a| a.diarization);
+            stt.run(envelope, diarization).await?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(not(feature = "audio"))]
+#[async_trait::async_trait]
+impl Extract<nvisy_ontology::modality::Audio> for Extractors {
+    async fn extract(
+        &self,
+        _envelope: &mut DocumentEnvelope<nvisy_ontology::modality::Audio>,
+        _extraction: &Extraction,
+    ) -> Result<()> {
         Ok(())
     }
 }

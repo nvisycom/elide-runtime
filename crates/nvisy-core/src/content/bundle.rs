@@ -1,4 +1,5 @@
-//! [`Content`]: data bytes paired with descriptive metadata.
+//! [`Content`]: data bytes optionally paired with descriptive
+//! metadata.
 
 use std::path::Path;
 
@@ -9,11 +10,14 @@ use super::{ContentData, ContentMetadata, ContentSource};
 use crate::error::Result;
 use crate::media::DocumentType;
 
-/// Complete content representation: raw bytes + metadata.
+/// Complete content representation: raw bytes plus optional
+/// metadata.
 ///
 /// [`ContentData`] holds the bytes and source identity.
 /// [`ContentMetadata`] holds MIME type, filename, and arbitrary
-/// key-value pairs. Together they form a `Content`.
+/// key-value pairs when present. Metadata is optional because some
+/// import paths (raw byte uploads, generated content) have nothing
+/// useful to attach.
 #[derive(Debug, Clone, PartialEq)]
 #[derive(AsRef, Deref, Serialize, Deserialize)]
 pub struct Content {
@@ -56,12 +60,6 @@ impl Content {
     /// Returns the metadata, if present.
     pub fn metadata(&self) -> Option<&ContentMetadata> {
         self.metadata.as_ref()
-    }
-
-    /// Returns a mutable reference to the metadata, creating a default
-    /// instance if none exists.
-    pub fn metadata_mut(&mut self) -> &mut ContentMetadata {
-        self.metadata.get_or_insert_with(ContentMetadata::default)
     }
 
     /// Returns the content source identifier.
@@ -121,21 +119,6 @@ impl Content {
             .detect_mime()
             .as_deref()
             .and_then(DocumentType::from_mime)
-    }
-
-    /// Set the metadata.
-    pub fn set_metadata(&mut self, metadata: ContentMetadata) {
-        self.metadata = Some(metadata);
-    }
-
-    /// Remove the metadata.
-    pub fn clear_metadata(&mut self) {
-        self.metadata = None;
-    }
-
-    /// Consume and return the inner [`ContentData`].
-    pub fn into_data(self) -> ContentData {
-        self.data
     }
 
     /// Consume and return both data and metadata.

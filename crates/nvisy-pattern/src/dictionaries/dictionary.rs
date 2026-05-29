@@ -85,7 +85,10 @@ impl<D: Dictionary + ?Sized> DictionaryCompile for D {
 }
 
 pub(crate) mod sealed {
+    use super::super::csv_dictionary::CsvDictionary;
+    use super::super::text_dictionary::TxtDictionary;
+
     pub trait Sealed {}
-    impl Sealed for super::super::csv_dictionary::CsvDictionary {}
-    impl Sealed for super::super::text_dictionary::TxtDictionary {}
+    impl Sealed for CsvDictionary {}
+    impl Sealed for TxtDictionary {}
 }

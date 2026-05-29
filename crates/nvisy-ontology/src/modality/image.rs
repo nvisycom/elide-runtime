@@ -1,21 +1,16 @@
 //! Image modality.
 
-use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Mergeable, Modality, Overlap};
+use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use crate::policy::ImageStrategy;
 use crate::primitive::{BoundingBox, LanguageDetection, Polygon};
 
 /// A region within image content.
-#[derive(Debug, Clone, PartialEq, Builder)]
+#[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[builder(
-    name = "ImageBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with")
-)]
 #[serde(rename_all = "camelCase")]
 pub struct Image {
     /// Axis-aligned bounding box of the region.
@@ -24,25 +19,19 @@ pub struct Image {
     /// rotated or quadrilateral shape (OCR engines that emit 4-point
     /// polygons populate this; axis-aligned-only sources leave it
     /// unset).
-    #[builder(default, setter(into = false))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub polygon: Option<Polygon>,
     /// Links this region to a specific image document.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_id: Option<Uuid>,
     /// 1-based page number (for multi-page documents like PDFs).
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_number: Option<u32>,
 }
 
 impl Image {
     /// Create an [`Image`] from the bounding box alone, with every
-    /// optional field unset. Use [`builder`] when polygon, `image_id`,
-    /// or `page_number` need to be set.
-    ///
-    /// [`builder`]: Self::builder
+    /// optional field unset.
     pub fn new(bounding_box: BoundingBox) -> Self {
         Self {
             bounding_box,
@@ -50,11 +39,6 @@ impl Image {
             image_id: None,
             page_number: None,
         }
-    }
-
-    /// Create a new [`ImageBuilder`].
-    pub fn builder() -> ImageBuilder {
-        ImageBuilder::default()
     }
 
     /// Area of the bounding box in pixels (`width * height`).
@@ -66,7 +50,19 @@ impl Image {
 impl Modality for Image {
     type Block = ImageBlock;
     type Metadata = ImageMetadata;
-    type Strategy = crate::policy::ImageStrategy;
+    type MethodTag = crate::policy::ImageMethodTag;
+    type Strategy = ImageStrategy;
+
+    fn default_method_dominance() -> &'static [Self::MethodTag] {
+        // Block destroys colour entirely; Pixelate leaks coarse
+        // colour; Blur leaks low-frequency colour + edges. When in
+        // doubt, redact harder.
+        &[
+            crate::policy::ImageMethodTag::Block,
+            crate::policy::ImageMethodTag::Pixelate,
+            crate::policy::ImageMethodTag::Blur,
+        ]
+    }
 }
 
 /// Per-modality block payload for [`Image`]. Text-bearing variants
@@ -126,6 +122,12 @@ impl ImageBlock {
     }
 }
 
+impl ModalityBlock for ImageBlock {
+    fn scan_text(&self) -> Option<&str> {
+        self.text()
+    }
+}
+
 /// Document-level metadata for [`Document<Image>`].
 ///
 /// [`Document<Image>`]: crate::document::Document
@@ -155,8 +157,16 @@ pub struct PageDimensions {
 }
 
 impl Overlap for Image {
+    /// Two image regions overlap only when they target the same
+    /// image (matching `image_id`) on the same page (matching
+    /// `page_number`) and their bounding boxes intersect. Without
+    /// the image/page gates, two regions with the same bbox
+    /// coordinates on different pages or different uploads would
+    /// false-positive as overlapping.
     fn overlaps(&self, other: &Self) -> bool {
-        self.bounding_box.overlaps(&other.bounding_box)
+        self.image_id == other.image_id
+            && self.page_number == other.page_number
+            && self.bounding_box.overlaps(&other.bounding_box)
     }
 }
 
@@ -168,11 +178,11 @@ impl Mergeable for Image {
     /// The polygon is dropped on merge — the convex hull of two
     /// rotated quads is not well defined as another quad, and the
     /// unioned bbox already captures the merged region.
-    fn try_merge(self, other: Self) -> Option<Self> {
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
         if self.image_id != other.image_id || self.page_number != other.page_number {
-            return None;
+            return Err((self, other));
         }
-        Some(Self {
+        Ok(Self {
             bounding_box: self.bounding_box.union(&other.bounding_box),
             polygon: None,
             image_id: self.image_id,

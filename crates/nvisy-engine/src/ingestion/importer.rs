@@ -163,7 +163,7 @@ async fn build_text_envelope(
         );
         envelope.add_entities(seeded);
     }
-    envelope.annotations = annotations;
+    envelope.document.annotations = annotations;
     envelope
 }
 
@@ -241,16 +241,16 @@ mod tests {
             panic!("expected a Text envelope");
         };
 
-        assert_eq!(env.audit.entities.len(), 1);
-        let entity = &env.audit.entities[0];
+        assert_eq!(env.document.audit.records.len(), 1);
+        let entity = &env.document.audit.records[0].entity;
         assert_eq!(entity.entity_kind, EntityKind::PersonName);
         assert!(matches!(
             entity.recognition_methods.first(),
             Some(RecognitionMethod::Annotation(_))
         ));
-        // Annotations are retained on the envelope for downstream
+        // Annotations are retained on the document for downstream
         // exclusion filtering and label-driven policy scoping.
-        assert_eq!(env.annotations, vec![annotation]);
+        assert_eq!(env.document.annotations, vec![annotation]);
     }
 
     #[tokio::test]

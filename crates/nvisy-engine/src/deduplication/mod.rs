@@ -28,6 +28,7 @@ use std::mem;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, Overlap};
+use nvisy_ontology::provenance::EntityRecord;
 
 use self::calibrate::Calibrate;
 pub use self::calibrate::CalibrationMap;
@@ -38,7 +39,7 @@ pub use self::fuse::{DeduplicationStrategy, GroupingCriteria};
 pub use self::params::DeduplicationParams;
 pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
-use self::span_size::SpanSize;
+pub use self::span_size::SpanSize;
 use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
 
@@ -126,14 +127,19 @@ impl Deduplicator {
         M: Modality + Overlap + SpanSize,
         DocumentEnvelope<M>: ValueAt<M>,
     {
-        if !envelope.audit.entities.is_empty() {
+        if !envelope.document.audit.records.is_empty() {
             tracing::debug!(
                 target: TARGET,
-                entities = envelope.audit.entities.len(),
+                entities = envelope.document.audit.records.len(),
                 "running deduplication",
             );
-            let entities = mem::take(&mut envelope.audit.entities);
-            envelope.audit.entities = self.deduplicate(entities, envelope, params).await;
+            // Dedup runs before redaction evaluation, so every
+            // record's `audit` is still None; we can pull entities
+            // out, dedup, and rewrap without losing audit state.
+            let records = mem::take(&mut envelope.document.audit.records);
+            let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
+            let deduped = self.deduplicate(entities, envelope, params).await;
+            envelope.document.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
         }
         Ok(())
     }
@@ -146,7 +152,7 @@ mod tests {
     use nvisy_core::content::ContentMetadata;
     use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod};
     use nvisy_ontology::modality::Text;
-    use nvisy_ontology::primitive::Confidence;
+    use nvisy_ontology::primitive::{Confidence, ConfidenceThreshold};
     use tokio::sync::Mutex;
 
     use super::*;
@@ -186,7 +192,7 @@ mod tests {
                 .test_build(),
         ];
         let params = FilterParams {
-            confidence_threshold: Some(0.85),
+            confidence_threshold: Some(ConfidenceThreshold::clamped(0.85)),
             ..Default::default()
         };
         let result = op.deduplicate(entities, &doc, &params).await;

@@ -69,7 +69,7 @@ impl Cli {
         config.resolve_env();
         config
             .validate()
-            .map_err(|e| anyhow::anyhow!("invalid configuration: {}", e.message))?;
+            .map_err(|e| anyhow::anyhow!("invalid configuration: {}", e.message()))?;
         Ok((resolved, config, mw_section))
     }
 

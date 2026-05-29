@@ -11,9 +11,7 @@ use std::sync::Arc;
 use std::{fmt, mem};
 
 use nvisy_core::Error;
-use nvisy_ontology::modality::Text;
-use nvisy_ontology::policy::PolicyRef;
-use nvisy_ontology::provenance::Audit;
+use nvisy_ontology::provenance::AnyAudit;
 use schemars::JsonSchema;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -42,8 +40,9 @@ use crate::validation::Validation;
 pub struct EngineInput {
     /// Identity of the human or service account initiating the run.
     pub actor_id: Uuid,
-    /// Previously uploaded policies to apply, tagged with precedence.
-    pub policies: Vec<PolicyRef>,
+    /// Previously uploaded policies to apply, in precedence order:
+    /// index `0` is highest precedence.
+    pub policies: Vec<Uuid>,
     /// Per-request configuration overrides, merged with engine defaults
     /// via [`RuntimeConfig::merge`] at the start of each run.
     pub config: Option<RuntimeConfig>,
@@ -86,7 +85,7 @@ pub struct EngineOutput {
     pub run_id: Uuid,
     /// Per-document audit trails: entities, redaction entries, and
     /// content source metadata. One audit per processed document.
-    pub audits: Vec<Audit<Text>>,
+    pub audits: Vec<AnyAudit>,
 }
 
 /// Shared inner state for the engine, held behind an `Arc`.

@@ -1,41 +1,31 @@
 //! Audio modality.
 
-use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Mergeable, Modality, Overlap};
+use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use crate::policy::AudioStrategy;
 use crate::primitive::{LanguageDetection, TimeSpan};
 
 /// A time interval within audio content.
-#[derive(Debug, Clone, PartialEq, Builder)]
+#[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[builder(
-    name = "AudioBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with")
-)]
 #[serde(rename_all = "camelCase")]
 pub struct Audio {
     /// Time interval.
     pub time_span: TimeSpan,
     /// Speaker identifier from diarization.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub speaker_id: Option<String>,
     /// Links this interval to a specific audio document.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_id: Option<Uuid>,
 }
 
 impl Audio {
     /// Create an [`Audio`] covering `time_span`, with no speaker
-    /// attribution or audio-document link. Use [`builder`] when
-    /// `speaker_id` or `audio_id` need to be set.
-    ///
-    /// [`builder`]: Self::builder
+    /// attribution or audio-document link.
     pub fn new(time_span: TimeSpan) -> Self {
         Self {
             time_span,
@@ -43,17 +33,19 @@ impl Audio {
             audio_id: None,
         }
     }
-
-    /// Create a new [`AudioBuilder`].
-    pub fn builder() -> AudioBuilder {
-        AudioBuilder::default()
-    }
 }
 
 impl Modality for Audio {
     type Block = AudioBlock;
     type Metadata = AudioMetadata;
-    type Strategy = crate::policy::AudioStrategy;
+    type MethodTag = crate::policy::AudioMethodTag;
+    type Strategy = AudioStrategy;
+
+    fn default_method_dominance() -> &'static [Self::MethodTag] {
+        // Silence is the only Partial-profile method; Remove is
+        // Irrecoverable and never ties with Silence.
+        &[crate::policy::AudioMethodTag::Silence]
+    }
 }
 
 /// Per-modality block payload for [`Audio`].
@@ -96,6 +88,12 @@ impl AudioBlock {
     }
 }
 
+impl ModalityBlock for AudioBlock {
+    fn scan_text(&self) -> Option<&str> {
+        self.text()
+    }
+}
+
 /// Document-level metadata for [`Document<Audio>`].
 ///
 /// [`Document<Audio>`]: crate::document::Document
@@ -115,8 +113,17 @@ pub struct AudioMetadata {
 }
 
 impl Overlap for Audio {
+    /// Two audio intervals overlap only when they target the same
+    /// stream (matching `audio_id`) on the same `speaker_id` and
+    /// their time spans intersect. Two voices captured on the same
+    /// time interval are physically distinct redaction targets
+    /// (source separation can suppress one speaker while keeping
+    /// another), so different speaker IDs are not treated as
+    /// overlapping even when the time spans intersect.
     fn overlaps(&self, other: &Self) -> bool {
-        self.time_span.overlaps(&other.time_span)
+        self.audio_id == other.audio_id
+            && self.speaker_id == other.speaker_id
+            && self.time_span.overlaps(&other.time_span)
     }
 }
 
@@ -124,11 +131,11 @@ impl Mergeable for Audio {
     /// Merge two audio intervals by unioning time spans when their
     /// `audio_id` and `speaker_id` match. Different speakers or
     /// different documents cannot merge.
-    fn try_merge(self, other: Self) -> Option<Self> {
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
         if self.audio_id != other.audio_id || self.speaker_id != other.speaker_id {
-            return None;
+            return Err((self, other));
         }
-        Some(Self {
+        Ok(Self {
             time_span: self.time_span.union(&other.time_span),
             speaker_id: self.speaker_id,
             audio_id: self.audio_id,

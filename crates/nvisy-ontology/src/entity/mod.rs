@@ -1,10 +1,14 @@
 //! Sensitive-data entity types and detection metadata.
 //!
 //! [`Entity<M>`] represents a single occurrence of sensitive data
-//! detected within a document. Collections are plain `Vec<Entity<M>>`
-//! attached per-block to [`Block::entities`].
+//! detected within a document. Detected entities are accumulated on
+//! the document's [`Audit<M>`] as [`EntityRecord<M>`]s — each record
+//! bundles the entity with the optional [`AuditEntry<M>`] produced
+//! for it during redaction.
 //!
-//! [`Block::entities`]: crate::document::Block::entities
+//! [`Audit<M>`]: crate::provenance::Audit
+//! [`EntityRecord<M>`]: crate::provenance::EntityRecord
+//! [`AuditEntry<M>`]: crate::provenance::AuditEntry
 
 mod annotation;
 mod category;
@@ -26,7 +30,7 @@ pub use self::category::EntityCategory;
 pub use self::kind::EntityKind;
 pub use self::method::{
     AnnotationProvenance, CrossReferenceProvenance, ExtractionMethod, ModelKind, ModelProvenance,
-    PatternKind, PatternProvenance, RecognitionMethod, RecognitionMethodKind, RefinementMethod,
+    PatternProvenance, RecognitionMethod, RecognitionMethodKind, RefinementMethod,
 };
 pub use self::sensitivity::EntitySensitivity;
 pub use self::source::ContentSource;

@@ -3135,25 +3135,19 @@ dependencies = [
  "bytes",
  "derive_more",
  "hex",
- "hipstr",
  "humantime-serde",
  "infer",
- "jiff",
  "nvisy-ontology",
  "reqwest-middleware",
  "reqwest-retry",
  "reqwest-tracing",
  "schemars 1.2.1",
- "semver",
  "serde",
  "serde_json",
  "sha2 0.11.0",
  "strum 0.28.0",
- "tempfile",
  "thiserror 2.0.18",
- "tokio",
  "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -3278,7 +3272,6 @@ dependencies = [
  "strum 0.28.0",
  "thiserror 2.0.18",
  "uuid",
- "validator",
 ]
 
 [[package]]

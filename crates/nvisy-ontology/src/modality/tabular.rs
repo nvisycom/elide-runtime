@@ -1,19 +1,14 @@
 //! Tabular modality.
 
-use derive_builder::Builder;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Modality, Overlap};
+use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use crate::policy::TabularStrategy;
 
 /// A cell (or sub-cell range) within tabular content.
-#[derive(Debug, Clone, PartialEq, Eq, Builder)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[builder(
-    name = "TabularBuilder",
-    pattern = "owned",
-    setter(into, strip_option, prefix = "with")
-)]
 #[serde(rename_all = "camelCase")]
 pub struct Tabular {
     /// Row index (0-based).
@@ -21,19 +16,15 @@ pub struct Tabular {
     /// Column index (0-based).
     pub column_index: usize,
     /// Byte offset within the cell where the range starts, if applicable.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_offset: Option<usize>,
     /// Byte offset within the cell where the range ends, if applicable.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_offset: Option<usize>,
     /// Column name or header label.
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub column_name: Option<String>,
     /// Sheet or table name (for multi-sheet documents).
-    #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sheet_name: Option<String>,
 }
@@ -41,9 +32,7 @@ pub struct Tabular {
 impl Tabular {
     /// Create a [`Tabular`] for the given cell coordinates, with every
     /// optional field (intra-cell offsets, column name, sheet name)
-    /// unset. Use [`builder`] when any of those need to be set.
-    ///
-    /// [`builder`]: Self::builder
+    /// unset.
     pub fn new(row_index: usize, column_index: usize) -> Self {
         Self {
             row_index,
@@ -54,17 +43,24 @@ impl Tabular {
             sheet_name: None,
         }
     }
-
-    /// Create a new [`TabularBuilder`].
-    pub fn builder() -> TabularBuilder {
-        TabularBuilder::default()
-    }
 }
 
 impl Modality for Tabular {
     type Block = TabularBlock;
     type Metadata = TabularMetadata;
-    type Strategy = crate::policy::TabularStrategy;
+    type MethodTag = crate::policy::TabularMethodTag;
+    type Strategy = TabularStrategy;
+
+    fn default_method_dominance() -> &'static [Self::MethodTag] {
+        // Clear leaves the cell at known coordinates with an empty
+        // value (least content leaks); Mask preserves length;
+        // Replace can change length.
+        &[
+            crate::policy::TabularMethodTag::Clear,
+            crate::policy::TabularMethodTag::Mask,
+            crate::policy::TabularMethodTag::Replace,
+        ]
+    }
 }
 
 /// Per-modality block payload for [`Tabular`]. Today only
@@ -76,20 +72,28 @@ impl Modality for Tabular {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum TabularBlock {
-    /// A row.
-    Row {
-        text: String,
-        /// 0-based row index.
-        row_index: usize,
-    },
+    /// A row. The row index is carried on each
+    /// [`Span<Tabular>::source`] (every span maps a sub-range of
+    /// `text` back to its originating cell — the cell's `row_index`
+    /// and `column_index` live there), so it's not duplicated at
+    /// the block level.
+    ///
+    /// [`Span<Tabular>::source`]: crate::document::Span::source
+    Row { text: String },
 }
 
 impl TabularBlock {
     /// The row's flat text.
     pub fn text(&self) -> &str {
         match self {
-            Self::Row { text, .. } => text,
+            Self::Row { text } => text,
         }
+    }
+}
+
+impl ModalityBlock for TabularBlock {
+    fn scan_text(&self) -> Option<&str> {
+        Some(self.text())
     }
 }
 
@@ -117,20 +121,36 @@ pub struct ColumnHeader {
     pub text: String,
 }
 
+impl Tabular {
+    /// Inclusive byte range within the cell, treating absent offsets
+    /// as "whole cell". Returns `(start, end)` with `start == 0`
+    /// when no `start_offset` is set and `end == usize::MAX` when
+    /// no `end_offset` is set — a sentinel range that overlaps any
+    /// concrete subrange and merges into anything.
+    fn cell_range(&self) -> (usize, usize) {
+        (
+            self.start_offset.unwrap_or(0),
+            self.end_offset.unwrap_or(usize::MAX),
+        )
+    }
+}
+
 impl Overlap for Tabular {
+    /// Two tabular ranges overlap only when they target the same
+    /// cell — matching `row_index`, `column_index`, **and**
+    /// `sheet_name` — and their intra-cell byte ranges intersect.
+    /// Without the sheet gate, two cells at the same row/col across
+    /// sheets of a workbook would false-positive as overlapping.
     fn overlaps(&self, other: &Self) -> bool {
-        if self.row_index != other.row_index || self.column_index != other.column_index {
+        if self.row_index != other.row_index
+            || self.column_index != other.column_index
+            || self.sheet_name != other.sheet_name
+        {
             return false;
         }
-        match (
-            self.start_offset,
-            self.end_offset,
-            other.start_offset,
-            other.end_offset,
-        ) {
-            (Some(s1), Some(e1), Some(s2), Some(e2)) => s1 < e2 && s2 < e1,
-            _ => true,
-        }
+        let (s1, e1) = self.cell_range();
+        let (s2, e2) = other.cell_range();
+        s1 < e2 && s2 < e1
     }
 }
 
@@ -139,12 +159,12 @@ impl Mergeable for Tabular {
     /// (same `row_index` + `column_index` + `sheet_name`). Intra-cell
     /// byte offsets union when present on both sides; otherwise the
     /// result has no offsets (meaning "whole cell").
-    fn try_merge(self, other: Self) -> Option<Self> {
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
         if self.row_index != other.row_index
             || self.column_index != other.column_index
             || self.sheet_name != other.sheet_name
         {
-            return None;
+            return Err((self, other));
         }
         let (start, end) = match (
             self.start_offset,
@@ -155,7 +175,7 @@ impl Mergeable for Tabular {
             (Some(s1), Some(e1), Some(s2), Some(e2)) => (Some(s1.min(s2)), Some(e1.max(e2))),
             _ => (None, None),
         };
-        Some(Self {
+        Ok(Self {
             row_index: self.row_index,
             column_index: self.column_index,
             start_offset: start,

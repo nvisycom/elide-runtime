@@ -1,5 +1,5 @@
-//! Per-modality wire types (`*Data`, `*Redaction`, `apply_*` helpers)
-//! and the base [`Handler`] / [`Loader`] traits format handlers
+//! Per-modality wire types (`*Data`, `*Redaction`, `*Output`) and
+//! the base [`Handler`] / [`Loader`] traits format handlers
 //! implement.
 //!
 //! Per-modality trait surfaces ([`Codable`], [`Handle<M>`]) live in

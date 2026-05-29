@@ -37,13 +37,21 @@ pub trait Codable: Modality {
 /// `Handle<M>`. Multi-modality formats (e.g. PDF) implement
 /// `Handle<Text>` and `Handle<Image>` on the same struct.
 ///
-/// # Offset semantics
+/// # Location semantics
 ///
-/// `M`-typed locations refer to coordinates in the handler's
-/// **serialized** form. For text formats that means byte offsets
-/// into the encoded bytes (including JSON quoting, CSV delimiters,
-/// etc.); use [`read`] to extract the logical value rather than
-/// slicing the serialized bytes directly.
+/// `M`-typed locations are coordinates in the handler's serialized
+/// form, but what that means varies by modality:
+///
+/// - **Text** — byte offsets into the encoded bytes (including JSON
+///   quoting, CSV delimiters, etc.). Use [`read`] to extract the
+///   logical value rather than slicing the serialized bytes
+///   directly.
+/// - **Image** — pixel-space bounding boxes against the decoded
+///   image, qualified by `image_id` and `page_number`.
+/// - **Audio** — microsecond time spans into the source stream,
+///   qualified by `audio_id` and `speaker_id`.
+/// - **Tabular** — cell coordinates (`row_index`, `column_index`,
+///   optional `sheet_name`) with optional intra-cell byte offsets.
 ///
 /// [`read`]: Handle::read
 #[async_trait::async_trait]
@@ -74,8 +82,8 @@ pub trait Handle<M: Codable>: Handler {
     /// Handlers with ordering constraints (e.g. audio time-span
     /// merging) override this default with their own batched logic.
     async fn redact(&mut self, redactions: Redactions<M, M::Redaction>) -> Result<(), Error> {
-        for (location, redaction) in redactions {
-            self.redact_at(&location, redaction).await?;
+        for pair in redactions.items {
+            self.redact_at(&pair.location, pair.redaction).await?;
         }
         Ok(())
     }

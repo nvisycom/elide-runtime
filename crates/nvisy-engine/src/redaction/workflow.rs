@@ -7,6 +7,7 @@
 //!
 //! [`GenerateContext`]: GenerateContext (removed)
 
+use nvisy_ontology::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +27,7 @@ pub struct Redaction {
     /// Entities below this threshold that don't match a policy rule
     /// are skipped. `None` falls back to `[redactor].confidence_threshold`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub confidence_threshold: Option<f64>,
+    pub confidence_threshold: Option<ConfidenceThreshold>,
     /// Strip or redact document metadata (EXIF, PDF properties).
     /// `None` falls back to `[redactor].process_metadata`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

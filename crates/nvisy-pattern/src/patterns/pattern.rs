@@ -346,9 +346,12 @@ fn find_ambiguous_column_collision(terms: &[DictionaryTerm]) -> Option<(String, 
 }
 
 pub(crate) mod sealed {
+    use super::super::json_pattern::JsonPattern;
+    use super::super::runtime_pattern::RuntimePattern;
+
     pub trait Sealed {}
-    impl Sealed for super::super::json_pattern::JsonPattern {}
-    impl Sealed for super::super::runtime_pattern::RuntimePattern {}
+    impl Sealed for JsonPattern {}
+    impl Sealed for RuntimePattern {}
 }
 
 #[cfg(test)]

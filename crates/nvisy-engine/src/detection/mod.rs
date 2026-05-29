@@ -9,7 +9,7 @@
 
 mod context;
 mod dyn_recognizer;
-mod extension;
+mod lift;
 mod llm;
 mod ner;
 mod pattern;
@@ -24,7 +24,8 @@ pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
 pub use nvisy_ner::Context as NerContext;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::Text;
+use nvisy_ontology::modality::{Modality, ModalityBlock, Text};
+use nvisy_ontology::primitive::ConfidenceThreshold;
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -34,12 +35,13 @@ use validator::Validate;
 
 pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
 pub use self::dyn_recognizer::DynRecognizer;
-pub use self::extension::Rebase;
+pub use self::lift::LiftFromBlock;
 pub use self::llm::{LlmDetection, LlmRecognizer};
 pub use self::ner::{NerDetection, NerRecognizer};
 pub use self::pattern::{PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
 pub use self::recognizers::{DetectionSection, Recognizers};
+use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::detection";
 
@@ -226,30 +228,48 @@ impl DetectionEngine {
         }
     }
 
-    /// Run detection against every text span on the envelope's
-    /// document, rebase offsets into document coordinates, and
-    /// append to `envelope.audit.entities`. Resets per-document
-    /// state at the end of the call so the next document starts
-    /// clean.
+    /// Run detection over every block in the envelope's document.
+    ///
+    /// For each block whose payload carries scannable text (via
+    /// [`ModalityBlock`]), run every recognizer on the block text, lift
+    /// the returned block-local entity offsets to absolute `M`
+    /// coordinates via [`LiftFromBlock`] using the block's spans,
+    /// then append the lifted entities as fresh records on
+    /// `envelope.document.audit.records`.
+    ///
+    /// Resets per-document state at the end of the call so the
+    /// next document starts clean.
     ///
     /// `cfg` provides the per-call hints (`entity_kinds`,
     /// `confidence_threshold`) carried into each
     /// [`DetectionContext`].
-    pub async fn detect_in(
+    pub async fn detect_in<M>(
         &self,
-        envelope: &mut crate::envelope::DocumentEnvelope<Text>,
+        envelope: &mut DocumentEnvelope<M>,
         cfg: &Detection,
-    ) -> Result<()> {
+    ) -> Result<()>
+    where
+        M: Modality + LiftFromBlock,
+    {
         const TARGET: &str = "nvisy_engine::detection::detect_in";
-        let spans = envelope.collect_text_spans().await;
-        if spans.is_empty() {
+        if envelope.document.blocks.is_empty() {
             return Ok(());
         }
 
         let run_id = envelope.shared.run_id;
-        let mut all: Vec<Entity<Text>> = Vec::new();
-        for span in &spans {
-            let mut ctx = DetectionContext::new(span.data.clone());
+        let mut lifted: Vec<Entity<M>> = Vec::new();
+        let mut scanned_blocks = 0usize;
+
+        for block in &envelope.document.blocks {
+            let Some(text) = block.kind.scan_text() else {
+                continue;
+            };
+            if text.is_empty() {
+                continue;
+            }
+            scanned_blocks += 1;
+
+            let mut ctx = DetectionContext::new(text.to_owned());
             ctx.correlation_id = Some(run_id);
             if !cfg.entity_kinds.is_empty() {
                 ctx.entities = Some(cfg.entity_kinds.clone());
@@ -257,17 +277,42 @@ impl DetectionEngine {
             if let Some(threshold) = cfg.confidence_threshold {
                 ctx.score_threshold = Some(threshold);
             }
+
             let detected = self.run(ctx).await?;
-            all.extend(detected.rebase_offsets(span));
+            for entity in detected {
+                let Some(location) =
+                    M::lift_from_block(&block.spans, entity.location.start, entity.location.end)
+                else {
+                    tracing::debug!(
+                        target: TARGET,
+                        kind = %entity.entity_kind,
+                        "dropping entity with no overlapping span",
+                    );
+                    continue;
+                };
+                lifted.push(Entity {
+                    id: entity.id,
+                    entity_id: entity.entity_id,
+                    category: entity.category,
+                    entity_kind: entity.entity_kind,
+                    extraction_methods: entity.extraction_methods,
+                    recognition_methods: entity.recognition_methods,
+                    refinement_methods: entity.refinement_methods,
+                    confidence: entity.confidence,
+                    location,
+                    language: entity.language,
+                    sensitivity: entity.sensitivity,
+                });
+            }
         }
 
         tracing::debug!(
             target: TARGET,
-            detected = all.len(),
-            spans = spans.len(),
+            detected = lifted.len(),
+            blocks = scanned_blocks,
             "appending detected entities",
         );
-        envelope.add_entities(all);
+        envelope.add_entities(lifted);
 
         self.reset().await;
         Ok(())
@@ -311,11 +356,12 @@ pub struct Detection {
     /// Empty = all kinds permitted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub entity_kinds: Vec<nvisy_ontology::entity::EntityKind>,
-    /// Minimum confidence threshold honored by every recognizer
-    /// (0.0..=1.0). `None` disables confidence filtering.
+    /// Minimum confidence threshold honored by every recognizer.
+    /// `None` disables confidence filtering. The newtype enforces
+    /// `[0.0, 1.0]` + finite-float at deserialize, so no `validate`
+    /// attribute is needed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[validate(range(min = 0.0, max = 1.0))]
-    pub confidence_threshold: Option<f64>,
+    pub confidence_threshold: Option<ConfidenceThreshold>,
 }
 
 impl Detection {

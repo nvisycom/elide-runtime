@@ -1,12 +1,17 @@
-//! Policy types, rules, and governance structures.
+//! Policy types: authored vocabulary for redaction governance.
 //!
-//! A [`Policy<M>`] is a named, versioned governance artifact
-//! containing strategy rules for entity redaction and retention rules
-//! for data lifecycle management. Policies are typed per modality:
-//! one envelope, one modality, one policy stack.
+//! A [`Policy<M>`] is a named, versioned governance artefact: an
+//! ordered list of [`PolicyRule`]s plus an optional fallback
+//! [`Policy::default_strategy`] plus a retention configuration.
+//! Policies are reusable — the same policy can participate in many
+//! runs.
 //!
-//! Collections of policies are plain `Vec<Policy<M>>` — held in
-//! precedence order, index `0` is the highest-precedence policy.
+//! Per-run composition (which policies apply to *this* run, in what
+//! order) lives in the engine; the ontology does not model it.
+//! Precedence is positional: in a run, the first policy in the
+//! caller-supplied list is highest precedence; within a policy, the
+//! first matching rule wins; the policy's `default_strategy` fires
+//! only when no rule in that policy matched.
 
 mod condition;
 mod retention;
@@ -24,7 +29,8 @@ pub use self::condition::Condition;
 pub use self::retention::{Retention, RetentionPolicy, RetentionScope};
 pub use self::selector::EntitySelector;
 pub use self::strategy::{
-    Action, AudioStrategy, ImageStrategy, StrategyPolicy, TabularStrategy, TextStrategy,
+    Action, AudioMethodTag, AudioStrategy, ImageMethodTag, ImageStrategy, PolicyRule,
+    TabularMethodTag, TabularStrategy, TextMethodTag, TextStrategy,
 };
 use crate::modality::Modality;
 
@@ -56,14 +62,18 @@ pub struct Policy<M: Modality> {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// Fallback strategy for unmatched entities.
+    /// Ordered list of rules. First matching rule wins.
+    #[builder(default = "Vec::new()")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rules: Vec<PolicyRule<M>>,
+    /// Fallback strategy for entities that no [`PolicyRule`] in this
+    /// policy matched. Consulted only after every rule in this
+    /// policy has been considered; the engine then moves to the next
+    /// policy in the per-run chain. `None` means "this policy has no
+    /// opinion for unmatched entities; let the next policy decide."
     #[builder(default, setter(into = false))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_strategy: Option<M::Strategy>,
-    /// Entity redaction strategies.
-    #[builder(default = "Vec::new()")]
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub strategies: Vec<StrategyPolicy<M>>,
     /// Data retention lifecycle rules.
     #[builder(default = "Vec::new()")]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -77,19 +87,59 @@ impl<M: Modality> Policy<M> {
     }
 }
 
-/// A reference to a stored [`Policy`] tagged with the precedence it
-/// should take when applied alongside other policies.
+/// Position of a winning rule inside a per-run policy chain.
 ///
-/// Lower [`precedence`] wins: a ref with `precedence: 0` is the most
-/// authoritative ("override"), higher numbers are layered underneath
-/// (org defaults, etc.). Ties are resolved by insertion order (stable).
+/// Lexicographic order: lower wins. `policy_index` is the position of
+/// the producing policy in the caller-supplied chain (`0` is highest
+/// precedence). `rule_index` is the position of the producing rule
+/// inside that policy (`0` is the first rule). [`Self::default`]
+/// returns `policy_index = u32::MAX, rule_index = u32::MAX`, used
+/// when a default fires after every rule in every layer was
+/// considered.
 ///
-/// [`precedence`]: PolicyRef::precedence
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+/// Snapshotted into [`AuditEntry`] at evaluation time and carried
+/// through to codec redactions so merge conflicts at overlap time
+/// can be broken by "which rule fired this redaction."
+///
+/// [`AuditEntry`]: crate::provenance::AuditEntry
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct PolicyRef {
-    /// Identifier of the previously uploaded policy.
-    pub id: Uuid,
-    /// Application precedence (lower = higher precedence).
-    pub precedence: u32,
+pub struct RuleRank {
+    /// 0-based position of the policy in the per-run chain.
+    pub policy_index: u32,
+    /// 0-based position of the rule inside its policy. A
+    /// [`Policy::default_strategy`] firing uses `u32::MAX` so it
+    /// sorts after every concrete rule in the same policy.
+    pub rule_index: u32,
+}
+
+impl RuleRank {
+    /// Construct a rank from the producing policy and rule indices.
+    pub fn new(policy_index: u32, rule_index: u32) -> Self {
+        Self {
+            policy_index,
+            rule_index,
+        }
+    }
+
+    /// Rank for a [`Policy::default_strategy`] firing — sorts after
+    /// every concrete rule in the same policy.
+    pub fn for_default(policy_index: u32) -> Self {
+        Self {
+            policy_index,
+            rule_index: u32::MAX,
+        }
+    }
+}
+
+impl Default for RuleRank {
+    /// Returns the lowest-precedence rank (`u32::MAX` on both axes),
+    /// suitable as a sentinel when no rule produced the decision.
+    fn default() -> Self {
+        Self {
+            policy_index: u32::MAX,
+            rule_index: u32::MAX,
+        }
+    }
 }

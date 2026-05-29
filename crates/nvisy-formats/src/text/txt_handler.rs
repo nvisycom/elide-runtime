@@ -60,14 +60,12 @@ impl Handle<Text> for TxtHandler {
         let items: Vec<_> = self
             .line_offsets()
             .into_iter()
-            .enumerate()
-            .map(|(i, (start, end))| {
+            .map(|(start, end)| {
                 Located::new(
                     source,
                     Text {
-                        start_offset: start,
-                        end_offset: end,
-                        line_number: Some((i + 1) as u32),
+                        start,
+                        end,
                         ..Default::default()
                     },
                 )
@@ -78,13 +76,13 @@ impl Handle<Text> for TxtHandler {
 
     async fn read(&self, location: &Text) -> Option<TextData> {
         let offsets = self.line_offsets();
-        let line_idx = offsets.iter().position(|&(start, end)| {
-            location.start_offset >= start && location.end_offset <= end
-        })?;
+        let line_idx = offsets
+            .iter()
+            .position(|&(start, end)| location.start >= start && location.end <= end)?;
         let line = self.lines.get(line_idx)?;
         let line_start = offsets[line_idx].0;
-        let local_start = location.start_offset - line_start;
-        let local_end = location.end_offset - line_start;
+        let local_start = location.start - line_start;
+        let local_end = location.end - line_start;
         line.get(local_start..local_end).map(TextData::from)
     }
 
@@ -92,13 +90,13 @@ impl Handle<Text> for TxtHandler {
         let offsets = self.line_offsets();
         let Some(line_idx) = offsets
             .iter()
-            .position(|&(start, end)| location.start_offset >= start && location.end_offset <= end)
+            .position(|&(start, end)| location.start >= start && location.end <= end)
         else {
             return Ok(());
         };
         let line_start = offsets[line_idx].0;
-        let start = location.start_offset - line_start;
-        let end = location.end_offset - line_start;
+        let start = location.start - line_start;
+        let end = location.end - line_start;
         let value = redaction.output().replacement_value().unwrap_or_default();
         redact::replace_range(&mut self.lines[line_idx], value, start, end, TARGET)
     }
@@ -145,7 +143,7 @@ impl TxtHandler {
         self.lines.is_empty()
     }
 
-    /// Compute `(start_offset, end_offset)` for each line.
+    /// Compute `(start, end)` for each line.
     fn line_offsets(&self) -> Vec<(usize, usize)> {
         let mut offset = 0;
         self.lines
@@ -163,7 +161,7 @@ impl TxtHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::core::{Handle, Redactions};
     use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
@@ -181,12 +179,10 @@ mod tests {
         let items: Vec<_> = h.locations().collect().await;
 
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0].location.start_offset, 0);
-        assert_eq!(items[0].location.end_offset, 5);
-        assert_eq!(items[0].location.line_number, Some(1));
-        assert_eq!(items[1].location.start_offset, 6);
-        assert_eq!(items[1].location.end_offset, 11);
-        assert_eq!(items[1].location.line_number, Some(2));
+        assert_eq!(items[0].location.start, 0);
+        assert_eq!(items[0].location.end, 5);
+        assert_eq!(items[1].location.start, 6);
+        assert_eq!(items[1].location.end, 11);
     }
 
     #[tokio::test]
@@ -195,8 +191,8 @@ mod tests {
         let items: Vec<_> = h.locations().collect().await;
 
         assert_eq!(items.len(), 1);
-        assert_eq!(items[0].location.start_offset, 0);
-        assert_eq!(items[0].location.end_offset, 10);
+        assert_eq!(items[0].location.start, 0);
+        assert_eq!(items[0].location.end, 10);
         assert!(!h.trailing_newline());
     }
 
@@ -204,8 +200,8 @@ mod tests {
     async fn read_returns_line() {
         let h = handler("hello\nworld\n");
         let loc = Text {
-            start_offset: 6,
-            end_offset: 11,
+            start: 6,
+            end: 11,
             ..Default::default()
         };
         assert_eq!(h.read(&loc).await.unwrap().as_str(), "world");
@@ -215,8 +211,8 @@ mod tests {
     async fn read_cross_line_returns_none() {
         let h = handler("hello\nworld\n");
         let loc = Text {
-            start_offset: 3,
-            end_offset: 8,
+            start: 3,
+            end: 8,
             ..Default::default()
         };
         assert!(h.read(&loc).await.is_none());
@@ -226,12 +222,11 @@ mod tests {
     async fn redact_replaces_whole_line() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
         let items: Vec<_> = h.locations().collect().await;
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             items[1].location.clone(),
             TextRedaction::new(TextOutput::replace("[REDACTED]")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
         Ok(())
@@ -242,16 +237,15 @@ mod tests {
         // Entity-shaped location: bytes 6..11 in "hello world" picks the
         // substring "world", which lives inside the single-line span.
         let mut h = handler("hello world");
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             Text {
-                start_offset: 6,
-                end_offset: 11,
+                start: 6,
+                end: 11,
                 ..Default::default()
             },
             TextRedaction::new(TextOutput::replace("[X]")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["hello [X]"]);
         Ok(())
@@ -261,17 +255,15 @@ mod tests {
     async fn redact_multiple_lines() -> Result<(), Error> {
         let mut h = handler("aaa\nbbb\nccc\n");
         let items: Vec<_> = h.locations().collect().await;
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             items[0].location.clone(),
             TextRedaction::new(TextOutput::replace("[X]")),
-        )
-        .unwrap();
-        rs.try_insert(
+        );
+        rs.insert(
             items[2].location.clone(),
             TextRedaction::new(TextOutput::replace("[Y]")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["[X]", "bbb", "[Y]"]);
         Ok(())
@@ -280,16 +272,15 @@ mod tests {
     #[tokio::test]
     async fn redact_unknown_location_skipped() -> Result<(), Error> {
         let mut h = handler("one line");
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             Text {
-                start_offset: 999,
-                end_offset: 1000,
+                start: 999,
+                end: 1000,
                 ..Default::default()
             },
             TextRedaction::new(TextOutput::replace("nope")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["one line"]);
         Ok(())

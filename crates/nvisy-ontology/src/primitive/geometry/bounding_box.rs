@@ -1,9 +1,37 @@
-//! Floating-point axis-aligned bounding box.
+//! Axis-aligned bounding boxes — floating-point ([`BoundingBox`])
+//! and integer pixel ([`IBoundingBox`]).
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::IBoundingBox;
+/// Integer pixel-coordinate bounding box for rendering operations.
+///
+/// Converted from [`BoundingBox`] by rounding each field to the nearest
+/// integer. Use this at the rendering boundary where pixel-exact
+/// coordinates are required.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct IBoundingBox {
+    /// Horizontal offset of the top-left corner in pixels.
+    pub x: u32,
+    /// Vertical offset of the top-left corner in pixels.
+    pub y: u32,
+    /// Width in pixels.
+    pub width: u32,
+    /// Height in pixels.
+    pub height: u32,
+}
+
+impl From<&BoundingBox> for IBoundingBox {
+    fn from(bb: &BoundingBox) -> Self {
+        bb.to_pixel()
+    }
+}
+
+impl From<BoundingBox> for IBoundingBox {
+    fn from(bb: BoundingBox) -> Self {
+        Self::from(&bb)
+    }
+}
 
 /// Axis-aligned bounding box for image-based entity locations.
 ///
@@ -53,31 +81,12 @@ impl BoundingBox {
         (self.x + self.width / 2.0, self.y + self.height / 2.0)
     }
 
-    /// Returns `true` if the point `(px, py)` lies inside the box.
-    pub fn contains_point(&self, px: f64, py: f64) -> bool {
-        px >= self.x && px <= self.right() && py >= self.y && py <= self.bottom()
-    }
-
     /// Returns `true` if this box overlaps with `other`.
     pub fn overlaps(&self, other: &BoundingBox) -> bool {
         self.x < other.right()
             && other.x < self.right()
             && self.y < other.bottom()
             && other.y < self.bottom()
-    }
-
-    /// Returns the intersection of two boxes, or `None` if they don't overlap.
-    pub fn intersection(&self, other: &BoundingBox) -> Option<BoundingBox> {
-        let x = self.x.max(other.x);
-        let y = self.y.max(other.y);
-        let right = self.right().min(other.right());
-        let bottom = self.bottom().min(other.bottom());
-
-        if x < right && y < bottom {
-            Some(BoundingBox::new(x, y, right - x, bottom - y))
-        } else {
-            None
-        }
     }
 
     /// Returns the smallest box that encloses both `self` and `other`.
@@ -89,29 +98,14 @@ impl BoundingBox {
         BoundingBox::new(x, y, right - x, bottom - y)
     }
 
-    /// Intersection-over-union (IoU) with `other`.
-    ///
-    /// Returns 0.0 if the boxes don't overlap or if both have zero area.
-    pub fn iou(&self, other: &BoundingBox) -> f64 {
-        let inter = match self.intersection(other) {
-            Some(b) => b.area(),
-            None => return 0.0,
-        };
-        let union = self.area() + other.area() - inter;
-        if union == 0.0 { 0.0 } else { inter / union }
-    }
-
-    /// Returns the smallest box enclosing all boxes in the iterator.
-    ///
-    /// Returns [`BoundingBox::default()`] if the iterator is empty.
-    pub fn enclosing<'a>(mut iter: impl Iterator<Item = &'a BoundingBox>) -> BoundingBox {
-        match iter.next() {
-            None => BoundingBox::default(),
-            Some(first) => iter.fold(*first, |acc, b| acc.union(b)),
-        }
-    }
-
     /// Convert to integer pixel coordinates by rounding each field.
+    ///
+    /// Saturating: negative coordinates clamp to `0`, values above
+    /// `u32::MAX` clamp to `u32::MAX`, and `NaN` produces `0`. Use
+    /// for renderers / overlay drawing where a best-effort pixel
+    /// box is preferable to a hard failure. For producers that want
+    /// to detect malformed input (negative width, NaN coords) use
+    /// [`Self::try_to_pixel`] instead.
     pub fn to_pixel(&self) -> IBoundingBox {
         IBoundingBox {
             x: self.x.round() as u32,
@@ -119,6 +113,20 @@ impl BoundingBox {
             width: self.width.round() as u32,
             height: self.height.round() as u32,
         }
+    }
+
+    /// Fallible counterpart to [`Self::to_pixel`]. Returns [`None`]
+    /// when any field is non-finite (`NaN` / `±∞`) or negative —
+    /// values that have no meaningful pixel representation and
+    /// almost always indicate an upstream bug in the producer.
+    pub fn try_to_pixel(&self) -> Option<IBoundingBox> {
+        let all_finite = self.x.is_finite()
+            && self.y.is_finite()
+            && self.width.is_finite()
+            && self.height.is_finite();
+        let non_negative =
+            self.x >= 0.0 && self.y >= 0.0 && self.width >= 0.0 && self.height >= 0.0;
+        (all_finite && non_negative).then(|| self.to_pixel())
     }
 }
 
@@ -137,15 +145,6 @@ mod tests {
     }
 
     #[test]
-    fn contains_point() {
-        let bb = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
-        assert!(bb.contains_point(5.0, 5.0));
-        assert!(bb.contains_point(0.0, 0.0));
-        assert!(bb.contains_point(10.0, 10.0));
-        assert!(!bb.contains_point(11.0, 5.0));
-    }
-
-    #[test]
     fn overlaps() {
         let a = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
         let b = BoundingBox::new(5.0, 5.0, 10.0, 10.0);
@@ -155,14 +154,32 @@ mod tests {
     }
 
     #[test]
-    fn intersection() {
-        let a = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
-        let b = BoundingBox::new(5.0, 5.0, 10.0, 10.0);
-        let i = a.intersection(&b).unwrap();
-        assert!((i.x - 5.0).abs() < f64::EPSILON);
-        assert!((i.y - 5.0).abs() < f64::EPSILON);
-        assert!((i.width - 5.0).abs() < f64::EPSILON);
-        assert!((i.height - 5.0).abs() < f64::EPSILON);
+    fn try_to_pixel_accepts_finite_non_negative() {
+        let bb = BoundingBox::new(10.4, 20.6, 30.0, 40.0);
+        let px = bb.try_to_pixel().expect("finite, non-negative");
+        assert_eq!(px.x, 10);
+        assert_eq!(px.y, 21);
+        assert_eq!(px.width, 30);
+        assert_eq!(px.height, 40);
+    }
+
+    #[test]
+    fn try_to_pixel_rejects_negative_or_non_finite() {
+        assert!(
+            BoundingBox::new(-1.0, 0.0, 10.0, 10.0)
+                .try_to_pixel()
+                .is_none()
+        );
+        assert!(
+            BoundingBox::new(0.0, 0.0, f64::NAN, 10.0)
+                .try_to_pixel()
+                .is_none()
+        );
+        assert!(
+            BoundingBox::new(0.0, 0.0, 10.0, f64::INFINITY)
+                .try_to_pixel()
+                .is_none()
+        );
     }
 
     #[test]
@@ -177,12 +194,12 @@ mod tests {
     }
 
     #[test]
-    fn iou() {
-        let a = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
-        let b = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
-        assert!((a.iou(&b) - 1.0).abs() < f64::EPSILON);
-
-        let c = BoundingBox::new(20.0, 20.0, 10.0, 10.0);
-        assert!(a.iou(&c).abs() < f64::EPSILON);
+    fn from_bounding_box_rounds() {
+        let bb = BoundingBox::new(1.4, 2.6, 3.5, 4.4);
+        let px = IBoundingBox::from(bb);
+        assert_eq!(px.x, 1);
+        assert_eq!(px.y, 3);
+        assert_eq!(px.width, 4);
+        assert_eq!(px.height, 4);
     }
 }

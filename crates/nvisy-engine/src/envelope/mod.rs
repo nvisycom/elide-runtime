@@ -8,8 +8,6 @@
 //!
 //! Each stage reads from and writes to the envelope until the
 //! document is fully redacted.
-//!
-//! [`shared`]: DocumentEnvelope::shared
 
 mod accessors;
 mod any;
@@ -25,13 +23,13 @@ use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::document::Document;
-use nvisy_ontology::entity::{Annotation, Entity};
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Modality;
-use nvisy_ontology::provenance::{Audit, RedactionMap};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 pub use self::any::AnyEnvelope;
+pub(crate) use self::policy_store::Decision;
 pub use self::policy_store::PolicyStore;
 pub use self::shared_data::SharedData;
 
@@ -55,17 +53,13 @@ pub struct DocumentEnvelope<M: Modality> {
     pub metadata: ContentMetadata,
 
     /// Per-modality document representation (text/image/audio/
-    /// tabular). Populated at import (native) or by extraction
-    /// (OCR/STT/VLM).
-    pub document: Option<Document<M>>,
-
-    /// User-supplied annotations (inclusions, exclusions, labels)
-    /// attached at upload time. Set during import from content
-    /// metadata; `Inclusion` variants are also projected into
-    /// [`audit`](Self::audit)`.entities` so detection/redaction see
-    /// them as pre-detected entities, while the original list stays
-    /// here for exclusion filtering and label-driven policy scoping.
-    pub annotations: Vec<Annotation<M>>,
+    /// tabular). Populated empty at import; filled in by extraction
+    /// (OCR/STT for image/audio, codec walk for text/tabular).
+    /// Carries the document's [`Audit`] — the run-scoped provenance
+    /// of what was detected and how it was processed.
+    ///
+    /// [`Audit`]: nvisy_ontology::provenance::Audit
+    pub document: Document<M>,
 
     /// IDs of reference-data [`Context`]s loaded by [`LoadContext`]
     /// nodes. Each UUID resolves through the engine's context cache.
@@ -73,15 +67,6 @@ pub struct DocumentEnvelope<M: Modality> {
     /// [`Context`]: nvisy_ontology::context::Context
     /// [`LoadContext`]: crate::ingestion::LoadContext
     pub contexts: Vec<Uuid>,
-
-    /// Per-document audit trail: entities, processing log, and
-    /// redaction records.
-    pub audit: Audit<M>,
-
-    /// Mapping of entity IDs to original and replacement values.
-    /// Populated during redaction. Not included in the public audit
-    /// response, stored separately under access control.
-    pub redaction_map: RedactionMap<M>,
 
     /// Run-wide shared state (policies, registry, key provider).
     /// Cheaply cloneable (`Arc`): all envelopes in a run share the
@@ -91,21 +76,20 @@ pub struct DocumentEnvelope<M: Modality> {
 
 impl<M: Modality> DocumentEnvelope<M> {
     /// Create a new envelope from a shared codec handle and metadata.
+    /// The document is initialised empty (no blocks, no annotations,
+    /// fresh audit) against the handle's source.
     pub async fn new(
         handle: SharedHandle,
         metadata: ContentMetadata,
         shared: Arc<SharedData>,
     ) -> Self {
         let source = handle.lock().await.source();
-        let audit = Audit::new(source);
+        let document = Document::new(source);
         Self {
             handle,
             metadata,
-            document: None,
-            annotations: Vec::new(),
+            document,
             contexts: Vec::new(),
-            audit,
-            redaction_map: RedactionMap::new(),
             shared,
         }
     }
@@ -127,16 +111,19 @@ impl<M: Modality> DocumentEnvelope<M> {
 
     /// Number of detected entities.
     pub fn entity_count(&self) -> usize {
-        self.audit.entities.len()
+        self.document.audit.records.len()
     }
 
-    /// Add detected entities, assigning sensitivity from entity kind.
+    /// Add detected entities (wrapped into fresh [`EntityRecord`]s),
+    /// assigning sensitivity from entity kind.
+    ///
+    /// [`EntityRecord`]: nvisy_ontology::provenance::EntityRecord
     pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity<M>>) {
         for mut entity in entities {
             if entity.sensitivity.is_none() {
                 entity.sensitivity = Some(entity.entity_kind.sensitivity());
             }
-            self.audit.entities.push(entity);
+            self.document.audit.push_entity(entity);
         }
     }
 }
@@ -144,9 +131,8 @@ impl<M: Modality> DocumentEnvelope<M> {
 impl<M: Modality> fmt::Debug for DocumentEnvelope<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DocumentEnvelope")
-            .field("entities", &self.audit.entities.len())
+            .field("records", &self.document.audit.records.len())
             .field("contexts", &self.contexts.len())
-            .field("entries", &self.audit.entries.len())
             .finish_non_exhaustive()
     }
 }

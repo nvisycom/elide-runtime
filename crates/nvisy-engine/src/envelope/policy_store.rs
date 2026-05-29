@@ -1,22 +1,33 @@
 //! [`PolicyStore`]: heterogeneous container of [`Policy<M>`] keyed by
-//! modality, backed by a [`TypeMap`].
+//! modality, backed by a [`TypeMap`], plus the per-entity decision
+//! resolver that walks it.
 //!
 //! `Policy<M>` is generic over its modality; engine state ([`SharedData`])
 //! needs to hold policies for any modality without exposing a generic
 //! surface or a fixed per-modality field set. `PolicyStore` provides
 //! a single uniform container with typed `insert`/`get`/`len`
-//! accessors parameterised over `M`.
+//! accessors parameterised over `M`, and a [`PolicyStore::resolve`]
+//! method that walks the per-modality chain to pick a [`Decision`]
+//! for a single entity.
 //!
 //! Internally one `Vec<Policy<M>>` is stored per modality; lookups
 //! cost a single `TypeId` hash.
 //!
 //! [`SharedData`]: super::SharedData
 
-use nvisy_ontology::modality::Modality;
-use nvisy_ontology::policy::Policy;
-use type_map::concurrent::TypeMap;
+use std::sync::Arc;
 
-/// Heterogeneous container of [`Policy<M>`] across all modalities.
+use nvisy_core::content::ContentMetadata;
+use nvisy_ontology::entity::Entity;
+use nvisy_ontology::modality::Modality;
+use nvisy_ontology::policy::{Action, Condition, Policy, PolicyRule, RuleRank};
+use type_map::concurrent::TypeMap;
+use uuid::Uuid;
+
+/// Heterogeneous container of policies across all modalities,
+/// stored as `Arc<Policy<M>>` so that multiple per-run stores can
+/// share the same loaded policy instances cheaply (the registry's
+/// cross-run cache hands out `Arc<Policy<M>>` clones).
 #[derive(Default)]
 pub struct PolicyStore {
     inner: TypeMap,
@@ -29,21 +40,25 @@ impl PolicyStore {
     }
 
     /// Append a policy for modality `M`. Order within a modality is
-    /// preserved (callers feed policies in precedence order).
-    pub fn insert<M: Modality>(&mut self, policy: Policy<M>) {
+    /// preserved (callers feed policies in precedence order). The
+    /// policy is held by [`Arc`] so it can also live in the
+    /// registry's cross-run cache without copying.
+    pub fn insert<M: Modality>(&mut self, policy: Arc<Policy<M>>) {
         self.bucket_mut::<M>().push(policy);
     }
 
     /// Replace the policy stack for modality `M`.
-    pub fn set<M: Modality>(&mut self, policies: Vec<Policy<M>>) {
-        self.inner.insert::<Vec<Policy<M>>>(policies);
+    pub fn set<M: Modality>(&mut self, policies: Vec<Arc<Policy<M>>>) {
+        self.inner.insert::<Vec<Arc<Policy<M>>>>(policies);
     }
 
     /// Borrow the policy stack for modality `M`. Returns an empty
     /// slice when no policies of that modality have been inserted.
-    pub fn get<M: Modality>(&self) -> &[Policy<M>] {
+    /// Each element is an `Arc<Policy<M>>` — deref through it to
+    /// read fields.
+    pub fn get<M: Modality>(&self) -> &[Arc<Policy<M>>] {
         self.inner
-            .get::<Vec<Policy<M>>>()
+            .get::<Vec<Arc<Policy<M>>>>()
             .map(Vec::as_slice)
             .unwrap_or(&[])
     }
@@ -58,9 +73,57 @@ impl PolicyStore {
         self.get::<M>().is_empty()
     }
 
-    fn bucket_mut<M: Modality>(&mut self) -> &mut Vec<Policy<M>> {
+    /// Resolve a single entity against the per-modality policy
+    /// chain. Walks layers in precedence order; within a layer,
+    /// walks rules in declaration order. First matching rule wins;
+    /// when no rule in a layer matches, falls back to that layer's
+    /// [`Policy::default_strategy`] (if any) before descending to
+    /// the next layer.
+    ///
+    /// Returns [`Decision::Fallthrough`] when no policy in the
+    /// chain produced a decision; the caller's default-threshold
+    /// path takes over. Crate-internal — the evaluator in
+    /// `redaction::evaluate` is the only caller.
+    pub(crate) fn resolve<M: Modality>(
+        &self,
+        entity: &Entity<M>,
+        document_labels: &[&str],
+        metadata: &ContentMetadata,
+    ) -> Decision<M> {
+        for (policy_idx, policy) in self.get::<M>().iter().enumerate() {
+            let policy_index = u32::try_from(policy_idx).unwrap_or(u32::MAX);
+            for (rule_idx, rule) in policy.rules.iter().enumerate() {
+                if !rule_matches(rule, entity, document_labels, metadata) {
+                    continue;
+                }
+                let rule_index = u32::try_from(rule_idx).unwrap_or(u32::MAX);
+                let rank = RuleRank::new(policy_index, rule_index);
+                return match &rule.action {
+                    Action::Redact { strategy } => Decision::Redact {
+                        strategy: strategy.clone(),
+                        policy_id: policy.id,
+                        rank,
+                    },
+                    Action::Suppress => Decision::Suppress {
+                        policy_id: policy.id,
+                        rank,
+                    },
+                };
+            }
+            if let Some(default) = policy.default_strategy.clone() {
+                return Decision::Redact {
+                    strategy: default,
+                    policy_id: policy.id,
+                    rank: RuleRank::for_default(policy_index),
+                };
+            }
+        }
+        Decision::Fallthrough
+    }
+
+    fn bucket_mut<M: Modality>(&mut self) -> &mut Vec<Arc<Policy<M>>> {
         self.inner
-            .entry::<Vec<Policy<M>>>()
+            .entry::<Vec<Arc<Policy<M>>>>()
             .or_insert_with(Vec::new)
     }
 }
@@ -71,6 +134,58 @@ impl std::fmt::Debug for PolicyStore {
     }
 }
 
+/// Outcome of walking a per-modality policy chain for one entity.
+pub(crate) enum Decision<M: Modality> {
+    /// A rule chose a strategy. `rank` locates the producing rule
+    /// inside the chain for codec-side tiebreaking.
+    Redact {
+        strategy: M::Strategy,
+        policy_id: Uuid,
+        rank: RuleRank,
+    },
+    /// A `Suppress` rule fired; the caller records the suppression.
+    Suppress { policy_id: Uuid, rank: RuleRank },
+    /// No policy in the chain produced a decision. The caller falls
+    /// back to its default-threshold path.
+    Fallthrough,
+}
+
+fn rule_matches<M: Modality>(
+    rule: &PolicyRule<M>,
+    entity: &Entity<M>,
+    document_labels: &[&str],
+    metadata: &ContentMetadata,
+) -> bool {
+    rule.enabled
+        && rule.selector.matches(entity)
+        && rule
+            .conditions
+            .iter()
+            .all(|c| condition_matches(c, document_labels, metadata))
+}
+
+fn condition_matches(
+    condition: &Condition,
+    document_labels: &[&str],
+    metadata: &ContentMetadata,
+) -> bool {
+    match condition {
+        Condition::Labels { labels } => labels.iter().all(|label| {
+            document_labels
+                .iter()
+                .any(|doc| doc.eq_ignore_ascii_case(label))
+        }),
+        Condition::Metadata { key, value } => match metadata.get_extra(key) {
+            Some(actual) => match value {
+                Some(expected) => actual.as_str().is_some_and(|s| s == expected),
+                None => true,
+            },
+            None => false,
+        },
+        _ => true,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvisy_ontology::modality::{Image, Text};
@@ -78,28 +193,28 @@ mod tests {
 
     use super::*;
 
-    fn text_policy() -> Policy<Text> {
-        Policy::<Text> {
+    fn text_policy() -> Arc<Policy<Text>> {
+        Arc::new(Policy::<Text> {
             id: uuid::Uuid::nil(),
             name: "test".into(),
             version: Version::new(1, 0, 0),
             description: None,
+            rules: Vec::new(),
             default_strategy: None,
-            strategies: Vec::new(),
             retention: Vec::new(),
-        }
+        })
     }
 
-    fn image_policy() -> Policy<Image> {
-        Policy::<Image> {
+    fn image_policy() -> Arc<Policy<Image>> {
+        Arc::new(Policy::<Image> {
             id: uuid::Uuid::nil(),
             name: "test".into(),
             version: Version::new(1, 0, 0),
             description: None,
+            rules: Vec::new(),
             default_strategy: None,
-            strategies: Vec::new(),
             retention: Vec::new(),
-        }
+        })
     }
 
     #[test]
@@ -125,5 +240,16 @@ mod tests {
         store.insert(text_policy());
         store.set::<Text>(vec![text_policy(), text_policy(), text_policy()]);
         assert_eq!(store.len::<Text>(), 3);
+    }
+
+    #[test]
+    fn resolve_empty_chain_returns_fallthrough() {
+        let store = PolicyStore::new();
+        let entity = nvisy_ontology::entity::Entity::<Text>::test_builder(0, 4).test_build();
+        let metadata = ContentMetadata::new();
+        assert!(matches!(
+            store.resolve::<Text>(&entity, &[], &metadata),
+            Decision::Fallthrough
+        ));
     }
 }

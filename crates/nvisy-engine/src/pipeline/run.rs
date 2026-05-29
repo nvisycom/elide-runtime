@@ -23,10 +23,10 @@ use super::orchestrator::{Orchestrator, RunContext};
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
 use crate::detection::Recognizers;
-use crate::envelope::SharedData;
+use crate::envelope::{PolicyStore, SharedData};
 use crate::extraction::Extractors;
 use crate::ingestion::encryption::SharedKeyProvider;
-use crate::ingestion::registry::Registry;
+use crate::ingestion::registry::{Registry, ResourceGuard};
 use crate::redaction::RedactionDefaults;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
@@ -120,11 +120,10 @@ impl Pipeline {
 
         let actor_id = input.actor_id;
 
-        // Sort policy refs by precedence (lower first); the stable sort
-        // preserves insertion order for equal-precedence refs.
-        let mut policy_refs = input.policies.clone();
-        policy_refs.sort_by_key(|r| r.precedence);
-        let policy_ids: Vec<Uuid> = policy_refs.iter().map(|r| r.id).collect();
+        // Policies arrive in precedence order: index 0 is highest
+        // precedence. The chain stays in this order through
+        // evaluation; no re-sorting needed.
+        let policy_ids: Vec<Uuid> = input.policies.clone();
 
         // Acquire contexts and policies into the registry caches.
         let (_context_guard, _policy_guard) = self
@@ -134,10 +133,10 @@ impl Pipeline {
         let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
         // Registry holds Policy<Text> only today (#199 will widen
         // storage to multi-modality via PolicyStore on the cache).
-        let mut text_policies: Vec<nvisy_ontology::policy::Policy<Text>> = Vec::new();
-        for policy in cached_policies {
-            text_policies.push(Arc::unwrap_or_clone(policy));
-        }
+        // Cache hands out Arc<Policy<Text>>; PolicyStore keeps them
+        // as Arcs, so concurrent runs share the same loaded
+        // instances without copying.
+        let text_policies: Vec<Arc<nvisy_ontology::policy::Policy<Text>>> = cached_policies;
 
         let retention_rules: Vec<RetentionPolicy> = text_policies
             .iter()
@@ -146,7 +145,7 @@ impl Pipeline {
 
         let concurrency = effective_config.effective_concurrency();
 
-        let mut policy_store = crate::envelope::PolicyStore::new();
+        let mut policy_store = PolicyStore::new();
         policy_store.set::<Text>(text_policies);
 
         let mut shared_data = SharedData {
@@ -215,7 +214,10 @@ impl Pipeline {
                     self.runs
                         .fail(self.run_id, "pipeline run exceeded time limit")
                         .await;
-                    return Err(Error::timeout("pipeline run exceeded time limit"));
+                    return Err(Error::timeout(
+                        "pipeline run exceeded time limit",
+                        "pipeline",
+                    ));
                 }
             }
         } else {
@@ -242,14 +244,10 @@ impl Pipeline {
             }
             any_ok = true;
             if let Some(ref envelope) = result.envelope {
-                entities_detected += envelope.audit.entities.len() as u64;
-                redactions_applied += envelope
-                    .audit
-                    .entries
-                    .iter()
-                    .filter(|e| e.redaction.is_applied)
-                    .count() as u64;
-                audits.push(envelope.audit.clone());
+                let audit = envelope.audit_cloned();
+                entities_detected += audit.entities_count() as u64;
+                redactions_applied += audit.applied_redactions_count() as u64;
+                audits.push(audit);
             }
         }
 
@@ -293,8 +291,8 @@ impl Pipeline {
         context_ids: &[Uuid],
         policy_ids: &[Uuid],
     ) -> (
-        crate::ingestion::registry::ResourceGuard<nvisy_ontology::context::Context>,
-        crate::ingestion::registry::ResourceGuard<nvisy_ontology::policy::Policy<Text>>,
+        ResourceGuard<nvisy_ontology::context::Context>,
+        ResourceGuard<nvisy_ontology::policy::Policy<Text>>,
     ) {
         let registry = &self.registry;
 

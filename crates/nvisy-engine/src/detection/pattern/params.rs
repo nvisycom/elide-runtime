@@ -10,6 +10,7 @@
 //!
 //! [`PatternRecognizer::from_config`]: super::PatternRecognizer::from_config
 
+use nvisy_ontology::primitive::ConfidenceThreshold;
 use nvisy_pattern::PatternFilter;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -31,11 +32,11 @@ pub struct PatternDetection {
     /// built-in patterns are used.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub patterns: Vec<String>,
-    /// Minimum confidence threshold for detections (0.0 to 1.0).
-    /// When `None`, the engine's default threshold applies.
+    /// Minimum confidence threshold for detections. When `None`, the
+    /// engine's default threshold applies. The newtype enforces
+    /// `[0.0, 1.0]` + finite-float at deserialize.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[validate(range(min = 0.0, max = 1.0))]
-    pub confidence_threshold: Option<f64>,
+    pub confidence_threshold: Option<ConfidenceThreshold>,
     /// Narrow the active patterns (regex and dictionary alike) by
     /// their declared tags.
     ///

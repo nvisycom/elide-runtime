@@ -54,8 +54,7 @@ impl ValueAt<Image> for DocumentEnvelope<Image> {
     /// the whole block text; sub-region matches consult the block's
     /// `spans`.
     async fn value_at(&self, location: &Image) -> Option<String> {
-        let doc = self.document.as_ref()?;
-        for block in &doc.blocks {
+        for block in &self.document.blocks {
             let (text, region) = match &block.kind {
                 ImageBlock::Text { text, region }
                 | ImageBlock::Heading { text, region }
@@ -79,8 +78,7 @@ impl ValueAt<Audio> for DocumentEnvelope<Audio> {
     /// whole transcript; sub-segment matches consult the block's
     /// `spans`.
     async fn value_at(&self, location: &Audio) -> Option<String> {
-        let doc = self.document.as_ref()?;
-        for block in &doc.blocks {
+        for block in &self.document.blocks {
             let AudioBlock::Speech {
                 text, time_span, ..
             } = &block.kind

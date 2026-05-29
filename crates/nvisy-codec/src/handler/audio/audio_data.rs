@@ -3,11 +3,9 @@
 use bytes::Bytes;
 use derive_more::{AsRef, From, Into};
 
-/// Opaque wrapper around raw audio bytes.
-///
-/// Mirrors [`ImageData`] and [`TextData`] for audio-bearing handlers,
-/// providing a consistent type boundary at the `AudioHandler` trait
-/// level.
+/// Opaque wrapper around raw audio bytes. Mirrors [`ImageData`] and
+/// [`TextData`] so the per-modality `Handle<M>` impls share a
+/// consistent type boundary.
 ///
 /// [`ImageData`]: crate::handler::ImageData
 /// [`TextData`]: crate::handler::TextData
@@ -23,20 +21,5 @@ impl AudioData {
     /// View the inner bytes.
     pub fn as_bytes(&self) -> &Bytes {
         &self.0
-    }
-
-    /// Consume the wrapper and return the inner `Bytes`.
-    pub fn into_inner(self) -> Bytes {
-        self.0
-    }
-
-    /// Length in bytes.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Whether the audio data is empty.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
     }
 }

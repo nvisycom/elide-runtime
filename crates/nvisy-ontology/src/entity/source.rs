@@ -35,9 +35,21 @@ impl ContentSource {
         }
     }
 
-    /// Create a content source from an existing UUID.
+    /// Create a content source from an existing UUID **without
+    /// validating the version**.
+    ///
+    /// [`ContentSource::new`] only ever mints UUIDv7 (timestamp-
+    /// ordered), and the rest of the ontology — sort order on
+    /// `Audit::records`, lineage debugging, lexicographic comparison
+    /// across runs — depends on that ordering. Use this constructor
+    /// only when the caller has out-of-band confidence the UUID was
+    /// produced by an earlier `ContentSource::new` (e.g. read back
+    /// from the engine's registry, propagated across a process
+    /// boundary). Passing a v4 / v1 / nil UUID compiles, runs, and
+    /// silently breaks downstream invariants that only manifest at
+    /// inspection time.
     #[must_use]
-    pub fn from_uuid(id: Uuid) -> Self {
+    pub fn from_uuid_unchecked(id: Uuid) -> Self {
         Self {
             id,
             parent_id: None,
@@ -56,51 +68,11 @@ impl ContentSource {
         self.parent_id
     }
 
-    /// Set the parent source identifier.
-    pub fn set_parent_id(&mut self, parent_id: Option<Uuid>) {
-        self.parent_id = parent_id;
-    }
-
     /// Create a copy with the given parent (builder pattern).
     #[must_use]
     pub fn with_parent(mut self, parent: &ContentSource) -> Self {
         self.parent_id = Some(parent.id);
         self
-    }
-
-    /// Create a new content source derived from this one (new ID, self as parent).
-    #[must_use]
-    pub fn derive(&self) -> Self {
-        Self::new().with_parent(self)
-    }
-
-    /// Get the timestamp component from the UUIDv7.
-    ///
-    /// Returns the Unix timestamp in milliseconds, or `None` if not a UUIDv7.
-    #[must_use]
-    pub fn timestamp(&self) -> Option<u64> {
-        self.id.get_timestamp().map(|timestamp| {
-            let (seconds, nanos) = timestamp.to_unix();
-            seconds * 1000 + u64::from(nanos) / 1_000_000
-        })
-    }
-
-    /// Returns `true` if this source was created before `other`.
-    #[must_use]
-    pub fn created_before(&self, other: &ContentSource) -> bool {
-        match (self.timestamp(), other.timestamp()) {
-            (Some(a), Some(b)) => a < b,
-            _ => false,
-        }
-    }
-
-    /// Returns `true` if this source was created after `other`.
-    #[must_use]
-    pub fn created_after(&self, other: &ContentSource) -> bool {
-        match (self.timestamp(), other.timestamp()) {
-            (Some(a), Some(b)) => a > b,
-            _ => false,
-        }
     }
 }
 
@@ -112,7 +84,7 @@ impl Default for ContentSource {
 
 impl From<Uuid> for ContentSource {
     fn from(id: Uuid) -> Self {
-        Self::from_uuid(id)
+        Self::from_uuid_unchecked(id)
     }
 }
 
@@ -134,9 +106,9 @@ mod tests {
     }
 
     #[test]
-    fn derive_sets_parent() {
+    fn with_parent_sets_parent_id() {
         let parent = ContentSource::new();
-        let child = parent.derive();
+        let child = ContentSource::new().with_parent(&parent);
         assert_eq!(child.parent_id(), Some(parent.as_uuid()));
         assert_ne!(child.as_uuid(), parent.as_uuid());
     }

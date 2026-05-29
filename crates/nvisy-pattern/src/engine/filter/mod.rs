@@ -2,9 +2,9 @@
 //! caller-supplied context.
 //!
 //! All types are part of the public API and configured by the
-//! caller on each [`PatternEngine::scan`] invocation.
+//! caller on each [`PatternEngine::scan_text`] invocation.
 //!
-//! [`PatternEngine::scan`]: super::PatternEngine::scan
+//! [`PatternEngine::scan_text`]: super::PatternEngine::scan_text
 
 mod allow_list;
 mod context_hint;
@@ -22,7 +22,7 @@ use crate::patterns::RuntimePattern;
 /// Per-scan configuration for allow/deny lists, context hints, and
 /// caller-supplied ad-hoc patterns.
 ///
-/// Passed to [`PatternEngine::scan`] to control
+/// Passed to [`PatternEngine::scan_text`] to control
 /// per-invocation suppression, forced detection, and context-aware
 /// confidence boosting without rebuilding the engine.
 ///
@@ -30,7 +30,7 @@ use crate::patterns::RuntimePattern;
 /// no-op context. The type is `Serialize + Deserialize` so an HTTP
 /// API can accept a `PatternContext` as JSON request body.
 ///
-/// [`PatternEngine::scan`]: super::PatternEngine::scan
+/// [`PatternEngine::scan_text`]: super::PatternEngine::scan_text
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct PatternContext {
     /// Values to silently drop from results.

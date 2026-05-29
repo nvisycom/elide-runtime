@@ -40,7 +40,7 @@ impl<'a> NerPromptBuilder<'a> {
         };
 
         let threshold_clause = match self.config.confidence_threshold {
-            Some(t) => format!(" with minimum confidence {t:.2}"),
+            Some(t) => format!(" with minimum confidence {:.2}", t.get()),
             None => String::new(),
         };
         let mut prompt = format!(
@@ -100,6 +100,7 @@ If no entities are found, return {\"entities\": []}.";
 #[cfg(test)]
 mod tests {
     use nvisy_ontology::entity::EntityKind;
+    use nvisy_ontology::primitive::ConfidenceThreshold;
 
     use super::*;
 
@@ -107,7 +108,7 @@ mod tests {
     fn builds_prompt_with_entity_kinds() {
         let config = LlmNerContext {
             entity_kinds: vec![EntityKind::PersonName, EntityKind::GovernmentId],
-            confidence_threshold: Some(0.7),
+            confidence_threshold: Some(ConfidenceThreshold::clamped(0.7)),
             ..Default::default()
         };
         let prompt = NerPromptBuilder::new(&config, &[]).build("Hello world");
@@ -119,7 +120,7 @@ mod tests {
     #[test]
     fn builds_prompt_without_entity_kinds() {
         let config = LlmNerContext {
-            confidence_threshold: Some(0.5),
+            confidence_threshold: Some(ConfidenceThreshold::clamped(0.5)),
             ..Default::default()
         };
         let prompt = NerPromptBuilder::new(&config, &[]).build("test");
@@ -129,7 +130,7 @@ mod tests {
     #[test]
     fn builds_prompt_with_known_entities() {
         let config = LlmNerContext {
-            confidence_threshold: Some(0.8),
+            confidence_threshold: Some(ConfidenceThreshold::clamped(0.8)),
             ..Default::default()
         };
         let known = vec![KnownNerEntity {

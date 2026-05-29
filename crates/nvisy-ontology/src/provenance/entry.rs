@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use super::review::ReviewDecision;
 use crate::modality::{Modality, RedactionStrategy};
+use crate::policy::RuleRank;
 
 /// Outcome status of a redaction operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -22,8 +23,6 @@ pub enum AuditEntryStatus {
     Success,
     /// Redaction failed.
     Failed,
-    /// Redaction completed with partial results.
-    Partial,
     /// Redaction is pending (not yet applied).
     Pending,
     /// Entity was deliberately not redacted because a matching
@@ -35,18 +34,20 @@ pub enum AuditEntryStatus {
     Suppressed,
 }
 
-/// A per-entity audit entry: what strategy was chosen, what the
-/// original and replacement values are, and optional review.
+/// A per-entity redaction record: what strategy was chosen, what
+/// the original and replacement values are, and optional human
+/// review.
 ///
-/// Created by the policy evaluator via the builder, then enriched by
-/// the applicator with the replacement value and `is_applied` flag.
+/// Created by the policy evaluator via the builder, then enriched
+/// by the applicator with the replacement value and `is_applied`
+/// flag.
 ///
-/// Location and confidence are not stored here: they live on the
-/// corresponding [`Entity<M>`] in [`Audit::entities`], linked by
-/// `entity_id`.
+/// The entry lives next to its [`Entity<M>`] inside an
+/// [`EntityRecord<M>`]; the entity's `id` and `location` are read
+/// directly through the record rather than duplicated here.
 ///
 /// [`Entity<M>`]: crate::entity::Entity
-/// [`Audit::entities`]: super::Audit::entities
+/// [`EntityRecord<M>`]: super::EntityRecord
 #[derive(Debug, Clone, Builder, Serialize, Deserialize, JsonSchema)]
 #[builder(
     name = "AuditEntryBuilder",
@@ -62,12 +63,21 @@ pub enum AuditEntryStatus {
 )]
 #[schemars(bound = "M::Strategy: JsonSchema")]
 pub struct AuditEntry<M: Modality> {
-    /// Identifier of the entity being redacted.
-    pub entity_id: Uuid,
     /// Identifier of the policy that triggered this redaction.
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_id: Option<Uuid>,
+    /// Position of the producing rule in the per-run policy chain.
+    /// Used by the codec at merge time to break ties when two
+    /// overlapping redactions share the same [`LeakProfile`] and
+    /// method — lower rank wins. `None` when the decision came from
+    /// a source outside the policy evaluator (e.g. default
+    /// threshold path).
+    ///
+    /// [`LeakProfile`]: crate::modality::LeakProfile
+    #[builder(default, setter(into = false))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rank: Option<RuleRank>,
     /// When this entry was created.
     #[builder(default = "Timestamp::now()")]
     #[schemars(with = "String")]
@@ -105,6 +115,18 @@ pub struct RedactionSpec<M: Modality> {
     /// Whether the redaction has been applied to the output content.
     pub is_applied: bool,
     /// Whether the original can be reconstructed from this redaction.
+    ///
+    /// **Write-time snapshot** of `M::Strategy::is_reversible()` at
+    /// the moment the audit entry was written, *not* a guarantee
+    /// the original can still be recovered today. Strategies that
+    /// depend on external state (vault tokens whose keys are
+    /// revoked, encryption keys rotated out of the key provider,
+    /// referenced cipher material that's been garbage-collected)
+    /// can become un-reversible after the fact while the audit
+    /// entry still reads `true`. Treat it as historical provenance
+    /// — "this redaction was reversible at write time" — and
+    /// resolve actual recoverability through the live key /
+    /// vault state at read time.
     pub reversible: bool,
 }
 
@@ -137,23 +159,18 @@ impl<M: Modality> AuditEntryBuilder<M>
 where
     M::Strategy: RedactionStrategy,
 {
-    /// Set the entity ID, strategy, and original value in one call.
-    pub fn for_entity(
-        self,
-        entity_id: Uuid,
-        strategy: M::Strategy,
-        original: impl Into<String>,
-    ) -> Self {
+    /// Set the strategy and original value in one call, deriving
+    /// the `reversible` flag from the strategy.
+    pub fn for_redaction(self, strategy: M::Strategy, original: impl Into<String>) -> Self {
         let reversible = strategy.is_reversible();
-        self.with_entity_id(entity_id)
-            .with_redaction(RedactionSpec {
-                strategy,
-                is_applied: false,
-                reversible,
-            })
-            .with_value(RedactionValue {
-                original: original.into(),
-                replacement: None,
-            })
+        self.with_redaction(RedactionSpec {
+            strategy,
+            is_applied: false,
+            reversible,
+        })
+        .with_value(RedactionValue {
+            original: original.into(),
+            replacement: None,
+        })
     }
 }

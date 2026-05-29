@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Exact-match allow list for suppressing known false positives.
 ///
 /// Values that appear in the allow list are silently dropped from
-/// [`PatternEngine::scan`] results.
+/// [`PatternEngine::scan_text`] results.
 ///
 /// Populate via [`FromIterator`] or [`Extend`]:
 ///
@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Serializes transparently as a JSON array of strings.
 ///
-/// [`PatternEngine::scan`]: crate::PatternEngine::scan
+/// [`PatternEngine::scan_text`]: crate::PatternEngine::scan_text
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AllowList {

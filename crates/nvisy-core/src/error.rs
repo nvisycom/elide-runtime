@@ -2,62 +2,107 @@
 //!
 //! All crates in the nvisy workspace use [`Error`] as their primary error
 //! type and [`ErrorKind`] to classify failures.
+//!
+//! Construction goes through [`Error::new`] or one of the per-kind
+//! shorthand fns ([`Error::validation`], [`Error::not_found`], …) —
+//! there is one helper per [`ErrorKind`] variant. Each shorthand
+//! seeds the `retryable` flag with the sensible default for that
+//! kind (timeouts and transient connection failures default to
+//! retryable; everything else defaults to non-retryable).
+//!
+//! After construction, attach context via the builder methods:
+//! [`with_source`], [`with_component`], [`with_retryable`]. Read
+//! state back via the accessors ([`kind`], [`message`], [`component`],
+//! [`is_retryable`]); the underlying cause is reachable through the
+//! standard [`std::error::Error::source`] method.
+//!
+//! [`with_source`]: Error::with_source
+//! [`with_component`]: Error::with_component
+//! [`with_retryable`]: Error::with_retryable
+//! [`kind`]: Error::kind
+//! [`message`]: Error::message
+//! [`component`]: Error::component
+//! [`is_retryable`]: Error::is_retryable
 
+use std::borrow::Cow;
 use std::{error, io, result};
 
-use derive_more::Display;
+use strum::Display;
+
+/// Trait-object alias for the [`Error`] cause chain. Wraps any
+/// `std::error::Error` that's safe to send across threads — the
+/// usual bound for error sources in async code.
+pub type ErrorSource = Box<dyn error::Error + Send + Sync>;
 
 /// Classification of error kinds.
 ///
 /// Used to tag every [`Error`] so callers can programmatically decide
 /// how to handle a failure (e.g. retry on `Timeout`, surface to user
-/// on `Validation`).
+/// on `Validation`). Grouped by failure domain:
+///
+/// - **Domain failures** — `Validation`, `Policy`, `NotFound`.
+///   The operation was well-formed but rejected by domain logic.
+/// - **Transport failures** — `Connection`, `Timeout`, `Cancellation`.
+///   The operation never completed because the channel failed; often
+///   retryable.
+/// - **Infrastructure failures** — `Internal`, `Runtime`, `Serialization`.
+///   Something inside the process or its immediate dependencies broke;
+///   not the caller's fault.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
+#[strum(serialize_all = "snake_case")]
 pub enum ErrorKind {
     /// Input or configuration failed validation checks.
     Validation,
+    /// A policy rule was violated.
+    Policy,
+    /// The requested resource was not found.
+    NotFound,
     /// Could not connect to an external service.
     Connection,
     /// An operation exceeded its time limit.
     Timeout,
     /// The operation was explicitly cancelled.
     Cancellation,
-    /// A policy rule was violated.
-    Policy,
-    /// An internal runtime error occurred.
-    Runtime,
-    /// An internal infrastructure error (filesystem, I/O).
+    /// An internal infrastructure error (filesystem, I/O, fjall).
     Internal,
+    /// An internal runtime error inside an engine operation.
+    Runtime,
     /// A serialization or encoding error.
     Serialization,
-    /// The requested resource was not found.
-    NotFound,
 }
 
 /// Unified error type for the nvisy platform.
 ///
-/// Carries a [`kind`], a human-readable message, an optional
-/// source component name, a retryable flag, and an optional wrapped cause.
+/// Carries a [kind](Self::kind), a human-readable
+/// [message](Self::message), an optional [component](Self::component)
+/// tag identifying the producer (e.g. `"detection"`, `"registry"`),
+/// an [is_retryable](Self::is_retryable) flag, and an optional
+/// wrapped source error reachable through [`std::error::Error::source`].
 ///
-/// [`kind`]: ErrorKind
+/// Fields are private; construct with [`Error::new`] or a per-kind
+/// shorthand, then layer context via [`with_source`], [`with_component`],
+/// [`with_retryable`].
+///
+/// [`with_source`]: Self::with_source
+/// [`with_component`]: Self::with_component
+/// [`with_retryable`]: Self::with_retryable
 #[derive(Debug, thiserror::Error)]
 #[error("{kind}: {message}")]
 pub struct Error {
-    /// Classification of the error.
-    pub kind: ErrorKind,
-    /// Human-readable description of what went wrong.
-    pub message: String,
-    /// Name of the component that produced this error (e.g. `"s3-read"`, `"detect-regex"`).
-    pub component: Option<String>,
-    /// Whether the operation that failed can be safely retried.
-    pub retryable: bool,
-    /// The underlying cause, if any.
+    kind: ErrorKind,
+    message: String,
+    component: Option<Cow<'static, str>>,
+    retryable: bool,
     #[source]
-    pub source: Option<Box<dyn error::Error + Send + Sync>>,
+    source: Option<ErrorSource>,
 }
 
 impl Error {
-    /// Create a new error with the given kind and message.
+    /// Construct an error with the given kind and message; no
+    /// component, no source, `retryable = false`. Prefer the
+    /// per-kind shorthand fns ([`Self::validation`], [`Self::timeout`],
+    /// …) when one matches — they set the right `retryable` default
+    /// for that kind.
     pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
         Self {
             kind,
@@ -68,33 +113,73 @@ impl Error {
         }
     }
 
-    /// Attach an underlying cause to this error.
+    /// Attach an underlying cause to this error. Reachable downstream
+    /// via [`std::error::Error::source`].
     pub fn with_source(mut self, source: impl error::Error + Send + Sync + 'static) -> Self {
         self.source = Some(Box::new(source));
         self
     }
 
-    /// Tag this error with the name of the component that produced it.
-    pub fn with_component(mut self, component: impl Into<String>) -> Self {
+    /// Tag this error with the name of the component that produced
+    /// it (e.g. `"detection"`, `"registry"`, `"ocr-bento"`). Accepts
+    /// `&'static str` (zero-alloc) or `String` (when the name is
+    /// computed at runtime).
+    pub fn with_component(mut self, component: impl Into<Cow<'static, str>>) -> Self {
         self.component = Some(component.into());
         self
     }
 
-    /// Mark whether this error is safe to retry.
+    /// Override the retryable flag. Per-kind shorthand fns set
+    /// sensible defaults; use this only when the call site has
+    /// information the kind alone can't express.
     pub fn with_retryable(mut self, retryable: bool) -> Self {
         self.retryable = retryable;
         self
     }
 
-    /// Shorthand for a validation error with a component name.
-    pub fn validation(message: impl Into<String>, component: impl Into<String>) -> Self {
+    /// The error's kind classification.
+    pub fn kind(&self) -> ErrorKind {
+        self.kind
+    }
+
+    /// The human-readable message.
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// The producer component tag, if attached.
+    pub fn component(&self) -> Option<&str> {
+        self.component.as_deref()
+    }
+
+    /// Whether the operation that failed can be safely retried.
+    pub fn is_retryable(&self) -> bool {
+        self.retryable
+    }
+
+    /// Validation failure. Caller's input or configuration was
+    /// rejected by domain logic. Non-retryable.
+    pub fn validation(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
         Self::new(ErrorKind::Validation, message).with_component(component)
     }
 
-    /// Shorthand for a connection error with a component name and retryable flag.
+    /// Policy violation. Detected data conflicts with an active
+    /// policy rule. Non-retryable.
+    pub fn policy(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(ErrorKind::Policy, message).with_component(component)
+    }
+
+    /// Resource not found. Non-retryable.
+    pub fn not_found(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(ErrorKind::NotFound, message).with_component(component)
+    }
+
+    /// Connection failure to an external service. `retryable` is
+    /// caller-determined — transient network glitches are retryable,
+    /// permanent auth failures are not.
     pub fn connection(
         message: impl Into<String>,
-        component: impl Into<String>,
+        component: impl Into<Cow<'static, str>>,
         retryable: bool,
     ) -> Self {
         Self::new(ErrorKind::Connection, message)
@@ -102,25 +187,35 @@ impl Error {
             .with_retryable(retryable)
     }
 
-    /// Shorthand for a timeout error (always retryable).
-    pub fn timeout(message: impl Into<String>) -> Self {
-        Self::new(ErrorKind::Timeout, message).with_retryable(true)
+    /// Timeout. Always retryable.
+    pub fn timeout(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(ErrorKind::Timeout, message)
+            .with_component(component)
+            .with_retryable(true)
     }
 
-    /// Shorthand for a cancellation error.
-    pub fn cancellation(message: impl Into<String>) -> Self {
-        Self::new(ErrorKind::Cancellation, message)
+    /// Explicit cancellation. Non-retryable — by definition the
+    /// caller asked us to stop.
+    pub fn cancellation(
+        message: impl Into<String>,
+        component: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        Self::new(ErrorKind::Cancellation, message).with_component(component)
     }
 
-    /// Shorthand for a policy violation error.
-    pub fn policy(message: impl Into<String>) -> Self {
-        Self::new(ErrorKind::Policy, message)
+    /// Internal infrastructure failure (filesystem, I/O, database).
+    /// Non-retryable by default — most internal failures need
+    /// investigation, not retry.
+    pub fn internal(message: impl Into<String>, component: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(ErrorKind::Internal, message).with_component(component)
     }
 
-    /// Shorthand for a runtime error with a component name and retryable flag.
+    /// Runtime failure inside an engine operation. `retryable` is
+    /// caller-determined — an LLM rate-limit is retryable, a
+    /// compile-time pattern error is not.
     pub fn runtime(
         message: impl Into<String>,
-        component: impl Into<String>,
+        component: impl Into<Cow<'static, str>>,
         retryable: bool,
     ) -> Self {
         Self::new(ErrorKind::Runtime, message)
@@ -128,27 +223,35 @@ impl Error {
             .with_retryable(retryable)
     }
 
-    /// Whether this error is retryable.
-    pub fn is_retryable(&self) -> bool {
-        self.retryable
+    /// Serialization / encoding failure. Non-retryable.
+    pub fn serialization(
+        message: impl Into<String>,
+        component: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        Self::new(ErrorKind::Serialization, message).with_component(component)
     }
 }
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Self {
-        Self::new(ErrorKind::Internal, err.to_string()).with_source(err)
+        Self::internal(err.to_string(), "io").with_source(err)
     }
 }
 
 impl From<nvisy_ontology::Error> for Error {
     fn from(err: nvisy_ontology::Error) -> Self {
-        Self::validation(err.message, "ontology")
+        // Ontology errors carry only a message today. Tag as
+        // validation (every current producer site is validation-shaped)
+        // and preserve the original via the source chain so the
+        // cause survives.
+        let message = err.message.clone();
+        Self::validation(message, "ontology").with_source(err)
     }
 }
 
 impl From<serde_json::Error> for Error {
     fn from(err: serde_json::Error) -> Self {
-        Self::new(ErrorKind::Serialization, err.to_string()).with_source(err)
+        Self::serialization(err.to_string(), "serde_json").with_source(err)
     }
 }
 

@@ -3,6 +3,18 @@
 //! A [`Context`] holds reusable reference data — names, faces, voices,
 //! patterns, embeddings — that tells detection *what to look for*.  It is
 //! separate from policy (which controls *what to do* when something is found).
+//!
+//! ## Current status
+//!
+//! Today this subtree is **schema-only**. The ontology models the shape
+//! [`Context`]s would have (analytic / biometric / document / geospatial
+//! / reference / temporal entry kinds), but no detection backend in the
+//! workspace currently consumes a `Context` — recognizers receive their
+//! reference data through backend-specific configuration. The types
+//! exist so persisted contexts round-trip cleanly through the engine
+//! and so future backends have a stable target to build against.
+//! When a recognizer starts matching on a specific variant, that's the
+//! cue to evaluate whether the shape still fits and prune what doesn't.
 
 pub mod analytic;
 pub mod biometric;

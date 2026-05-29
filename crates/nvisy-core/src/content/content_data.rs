@@ -10,7 +10,6 @@
 use std::{fmt, str};
 
 use bytes::Bytes;
-use hipstr::HipStr;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -57,19 +56,6 @@ impl ContentData {
         self.data.len()
     }
 
-    /// Returns a pretty formatted size string.
-    #[allow(clippy::cast_precision_loss)]
-    #[must_use]
-    pub fn get_pretty_size(&self) -> String {
-        let bytes = self.size();
-        match bytes {
-            0..=1023 => format!("{bytes} B"),
-            1024..=1_048_575 => format!("{:.1} KB", bytes as f64 / 1024.0),
-            1_048_576..=1_073_741_823 => format!("{:.1} MB", bytes as f64 / 1_048_576.0),
-            _ => format!("{:.1} GB", bytes as f64 / 1_073_741_824.0),
-        }
-    }
-
     /// Returns the content data as a byte slice.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
@@ -110,26 +96,6 @@ impl ContentData {
     pub fn as_str(&self) -> Result<&str> {
         str::from_utf8(&self.data)
             .map_err(|e| Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}")))
-    }
-
-    /// Tries to convert the content data to an owned string.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the content data contains invalid UTF-8 sequences.
-    pub fn as_string(&self) -> Result<String> {
-        self.as_str().map(String::from)
-    }
-
-    /// Converts to a `HipStr` if the content is valid UTF-8.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the content is not valid UTF-8.
-    pub fn as_hipstr(&self) -> Result<HipStr<'static>> {
-        let s = str::from_utf8(&self.data)
-            .map_err(|e| Error::new(ErrorKind::Serialization, format!("Invalid UTF-8: {e}")))?;
-        Ok(HipStr::from(s))
     }
 
     /// Computes and returns the SHA256 hash of the content.
@@ -201,10 +167,9 @@ impl ContentData {
     /// Detect MIME type from the raw bytes using magic-byte signatures.
     ///
     /// Returns `None` for content with no recognizable magic bytes
-    /// (e.g. plain text). Use this to populate
-    /// [`ContentMetadata::detected_content_type`].
-    ///
-    /// [`ContentMetadata::detected_content_type`]: super::ContentMetadata::detected_content_type
+    /// (e.g. plain text). Pairing the result with
+    /// `ContentMetadata::detected_content_type` is a caller-side
+    /// convention — no type-level link exists between the two.
     #[must_use]
     pub fn detect_mime(&self) -> Option<String> {
         infer::get(&self.data).map(|t| t.mime_type().to_owned())
@@ -238,12 +203,6 @@ impl From<Vec<u8>> for ContentData {
 impl From<Bytes> for ContentData {
     fn from(bytes: Bytes) -> Self {
         Self::new(ContentSource::new(), bytes)
-    }
-}
-
-impl From<HipStr<'static>> for ContentData {
-    fn from(text: HipStr<'static>) -> Self {
-        Self::from_text(ContentSource::new(), text.to_string())
     }
 }
 

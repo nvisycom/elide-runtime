@@ -47,9 +47,10 @@ pub enum AnnotationKind<M: Modality> {
         entity_kind: EntityKind,
         /// What this inclusion targets.
         target: AnnotationTarget<M>,
-        /// Confidence in the range `[0.0, 1.0]` (default 1.0).
+        /// Confidence in the range `[0.0, 1.0]`. Absent annotations
+        /// default to full confidence (`1.0`) at conversion time.
         #[serde(skip_serializing_if = "Option::is_none")]
-        confidence: Option<f64>,
+        confidence: Option<Confidence>,
     },
     /// Known-safe region that detection should skip.
     Exclusion {
@@ -148,9 +149,8 @@ pub fn inclusion_entities<M: Modality + Default>(annotations: &[Annotation<M>]) 
             AnnotationTarget::Location(loc) => loc.clone(),
         };
 
-        let raw_confidence = confidence.unwrap_or(1.0);
         let confidence =
-            Confidence::new(raw_confidence).expect("annotation confidence must be in [0.0, 1.0]");
+            confidence.unwrap_or_else(|| Confidence::new(1.0).expect("1.0 is in [0.0, 1.0]"));
         let entity = Entity::builder()
             .with_category(*category)
             .with_entity_kind(*entity_kind)
@@ -222,8 +222,8 @@ mod tests {
         let anns = vec![inclusion("John Smith"), inclusion("jane@example.com")];
         let entities = inclusion_entities(&anns);
         assert_eq!(entities.len(), 2);
-        assert_eq!(entities[0].location.start_offset, 0);
-        assert_eq!(entities[0].location.end_offset, 0);
+        assert_eq!(entities[0].location.start, 0);
+        assert_eq!(entities[0].location.end, 0);
         assert!((entities[0].confidence.get() - 1.0).abs() < f64::EPSILON);
     }
 

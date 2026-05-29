@@ -5,7 +5,7 @@
 //! as the codec handler variants.
 
 use futures::StreamExt;
-use nvisy_codec::core::{Located, Span};
+use nvisy_codec::core::Located;
 use nvisy_codec::handler;
 use nvisy_core::Error;
 use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
@@ -28,17 +28,17 @@ impl DocumentEnvelope<Text> {
 
     /// Collect every text location together with its data, skipping
     /// locations the handle can't read. Used by detection ops that
-    /// scan extracted text spans without caring about the underlying
+    /// scan extracted text without caring about the underlying
     /// streaming machinery.
-    pub async fn collect_text_spans(&self) -> Vec<Span<Text, handler::TextData>> {
+    pub async fn collect_text_located(&self) -> Vec<Located<Text, handler::TextData>> {
         let locations = self.collect_text_locations().await;
-        let mut spans = Vec::with_capacity(locations.len());
+        let mut out = Vec::with_capacity(locations.len());
         for located in locations {
             if let Some(data) = self.read_text(&located.location).await {
-                spans.push(Span::from_located(located, data));
+                out.push(located.with_data(data));
             }
         }
-        spans
+        out
     }
 
     /// Apply a batch of text redactions to the codec handle.

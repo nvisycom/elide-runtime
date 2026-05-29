@@ -19,10 +19,11 @@
 mod apply;
 mod defaults;
 mod evaluate;
+mod strategy;
 mod tts;
 mod workflow;
 
 pub use self::defaults::RedactionDefaults;
-pub use self::evaluate::Redactor;
+pub use self::evaluate::{ApplyRedactions, Redactor};
 pub use self::tts::RedactorTtsConfig;
 pub use self::workflow::Redaction;

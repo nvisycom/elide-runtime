@@ -33,7 +33,7 @@ pub(super) async fn populate_document(envelope: &mut DocumentEnvelope<Tabular>) 
     }
 
     // Group cells by row, preserving column order within each row.
-    let mut rows: BTreeMap<usize, Vec<Tabular>> = BTreeMap::new();
+    let mut rows: BTreeMap<u32, Vec<Tabular>> = BTreeMap::new();
     for located in locations {
         rows.entry(located.location.row_index)
             .or_default()

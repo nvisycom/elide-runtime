@@ -12,9 +12,11 @@ use crate::policy::TabularStrategy;
 #[serde(rename_all = "camelCase")]
 pub struct Tabular {
     /// Row index (0-based).
-    pub row_index: usize,
-    /// Column index (0-based).
-    pub column_index: usize,
+    pub row_index: u32,
+    /// Column index (0-based). Matches the width of
+    /// [`ColumnHeader::column_index`] so cell → header joins never
+    /// need a cast.
+    pub column_index: u32,
     /// Byte offset within the cell where the range starts, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_offset: Option<usize>,
@@ -33,7 +35,7 @@ impl Tabular {
     /// Create a [`Tabular`] for the given cell coordinates, with every
     /// optional field (intra-cell offsets, column name, sheet name)
     /// unset.
-    pub fn new(row_index: usize, column_index: usize) -> Self {
+    pub fn new(row_index: u32, column_index: u32) -> Self {
         Self {
             row_index,
             column_index,
@@ -190,7 +192,7 @@ impl Mergeable for Tabular {
 mod tests {
     use super::*;
 
-    fn cell_with_offsets(row: usize, col: usize, start: usize, end: usize) -> Tabular {
+    fn cell_with_offsets(row: u32, col: u32, start: usize, end: usize) -> Tabular {
         Tabular {
             start_offset: Some(start),
             end_offset: Some(end),

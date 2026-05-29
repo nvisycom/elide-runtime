@@ -154,6 +154,19 @@ pub struct ImageMetadata {
     pub pages: Vec<PageDimensions>,
 }
 
+impl From<ImageExtraction> for ImageMetadata {
+    /// Build [`ImageMetadata`] carrying only the importer-known
+    /// extraction tag. Languages and page dimensions start empty;
+    /// downstream stages fill them in.
+    fn from(extraction: ImageExtraction) -> Self {
+        Self {
+            extraction,
+            languages: Vec::new(),
+            pages: Vec::new(),
+        }
+    }
+}
+
 /// Dimensions of a single page in an image document.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

@@ -126,6 +126,20 @@ pub struct AudioMetadata {
     pub channels: Option<u16>,
 }
 
+impl From<AudioExtraction> for AudioMetadata {
+    /// Build [`AudioMetadata`] carrying only the importer-known
+    /// extraction tag. Languages, sample rate, and channel count
+    /// start empty; downstream stages fill them in.
+    fn from(extraction: AudioExtraction) -> Self {
+        Self {
+            extraction,
+            languages: Vec::new(),
+            sample_rate_hz: None,
+            channels: None,
+        }
+    }
+}
+
 impl Overlap for Audio {
     /// Two audio intervals overlap only when they target the same
     /// stream (matching `audio_id`) on the same `speaker_id` and

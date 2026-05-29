@@ -119,6 +119,19 @@ pub struct TabularMetadata {
     pub sheet_names: Vec<String>,
 }
 
+impl From<TabularExtraction> for TabularMetadata {
+    /// Build [`TabularMetadata`] carrying only the importer-known
+    /// extraction tag. Headers and sheet names start empty;
+    /// downstream stages fill them in.
+    fn from(extraction: TabularExtraction) -> Self {
+        Self {
+            extraction,
+            headers: Vec::new(),
+            sheet_names: Vec::new(),
+        }
+    }
+}
+
 /// A column header in a tabular document.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

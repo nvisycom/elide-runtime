@@ -14,5 +14,5 @@ pub use nvisy_ontology::entity::ContentSource;
 
 pub use self::bundle::Content;
 pub use self::content_data::ContentData;
-pub use self::content_metadata::ContentMetadata;
+pub use self::content_metadata::{AnyAnnotations, ContentMetadata};
 pub use self::encoding::TextEncoding;

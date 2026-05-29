@@ -15,7 +15,10 @@ use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::modality::{Modality, Text};
 use nvisy_ontology::primitive::ConfidenceThreshold;
-use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, EntityRecord};
+use nvisy_ontology::provenance::{
+    AuditEntry, Decision as AuditDecision, EntityRecord, EntryMetadata, Execution,
+    TabularReplacement, TextReplacement,
+};
 
 use super::apply;
 use super::defaults::RedactionDefaults;
@@ -116,7 +119,7 @@ impl ApplyRedactions for DocumentEnvelope<Text> {
     async fn apply_pending(&mut self) -> Result<()> {
         let assembled = apply::build(self, |view| {
             to_text_redaction(
-                &view.entry.redaction.strategy,
+                &view.entry.decision.strategy,
                 view.original,
                 view.entity_kind,
             )
@@ -131,8 +134,11 @@ impl ApplyRedactions for DocumentEnvelope<Text> {
             self,
             assembled.applied,
             assembled.failed,
-            |entry, redaction| {
-                entry.value.replacement = redaction.output().replacement_value().map(str::to_owned);
+            |redaction| match redaction.output().replacement_value() {
+                Some(value) => TextReplacement::Substituted {
+                    value: value.to_owned(),
+                },
+                None => TextReplacement::Removed,
             },
         );
         Ok(())
@@ -145,7 +151,7 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
     async fn apply_pending(&mut self) -> Result<()> {
         let assembled = apply::build(self, |view| {
             to_tabular_redaction(
-                &view.entry.redaction.strategy,
+                &view.entry.decision.strategy,
                 view.original,
                 view.entity_kind,
             )
@@ -160,8 +166,16 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
             self,
             assembled.applied,
             assembled.failed,
-            |entry, redaction| {
-                entry.value.replacement = redaction.output().replacement_value().map(str::to_owned);
+            |redaction| match redaction.output().replacement_value() {
+                Some(value) => TabularReplacement::Substituted {
+                    value: value.to_owned(),
+                },
+                // The codec doesn't surface DropColumn separately
+                // through this path today; Substituted with empty
+                // string covers Clear.
+                None => TabularReplacement::Substituted {
+                    value: String::new(),
+                },
             },
         );
         Ok(())
@@ -180,8 +194,10 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
 #[async_trait::async_trait]
 impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
     async fn apply_pending(&mut self) -> Result<()> {
+        use nvisy_codec::handler::ImageOutput;
+        use nvisy_ontology::policy::ImageMethodTag;
         let assembled = apply::build(self, |view| {
-            to_image_redaction(&view.entry.redaction.strategy)
+            to_image_redaction(&view.entry.decision.strategy)
         });
         if assembled.is_noop() {
             return Ok(());
@@ -189,13 +205,19 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
         if !assembled.batch.is_empty() {
             self.apply_image_redactions(assembled.batch).await?;
         }
-        // Image redactions don't produce a substitutable string;
-        // the audit entry's `replacement` stays unset.
         apply::commit(
             self,
             assembled.applied,
             assembled.failed,
-            |_entry, _redaction| {},
+            |redaction| match redaction.output() {
+                ImageOutput::Blur { .. } => ImageMethodTag::Blur,
+                ImageOutput::Block { .. } => ImageMethodTag::Block,
+                ImageOutput::Pixelate { .. } => ImageMethodTag::Pixelate,
+                // ImageOutput::Replace has no ImageStrategy producer
+                // today (#225). When that variant becomes reachable,
+                // extend ImageMethodTag accordingly.
+                ImageOutput::Replace { .. } => ImageMethodTag::Block,
+            },
         );
         Ok(())
     }
@@ -213,8 +235,10 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
 #[async_trait::async_trait]
 impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
     async fn apply_pending(&mut self) -> Result<()> {
+        use nvisy_codec::handler::AudioOutput;
+        use nvisy_ontology::policy::AudioMethodTag;
         let assembled = apply::build(self, |view| {
-            to_audio_redaction(&view.entry.redaction.strategy)
+            to_audio_redaction(&view.entry.decision.strategy)
         });
         if assembled.is_noop() {
             return Ok(());
@@ -222,13 +246,18 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
         if !assembled.batch.is_empty() {
             self.apply_audio_redactions(assembled.batch).await?;
         }
-        // Audio redactions don't produce a substitutable string;
-        // the audit entry's `replacement` stays unset.
         apply::commit(
             self,
             assembled.applied,
             assembled.failed,
-            |_entry, _redaction| {},
+            |redaction| match redaction.output() {
+                AudioOutput::Silence => AudioMethodTag::Silence,
+                AudioOutput::Remove => AudioMethodTag::Remove,
+                // AudioOutput::Replace has no AudioStrategy producer
+                // today (#226). When that variant becomes reachable,
+                // extend AudioMethodTag accordingly.
+                AudioOutput::Replace { .. } => AudioMethodTag::Remove,
+            },
         );
         Ok(())
     }
@@ -261,51 +290,66 @@ async fn evaluate<M>(
 
         match decision {
             Decision::Suppress { policy_id, rank } => {
-                let original = envelope
+                let detected_text = envelope
                     .value_at(&entity.location)
                     .await
                     .unwrap_or_default();
-                let entry = AuditEntry::<M>::builder()
-                    .for_redaction(M::Strategy::default(), original)
-                    .with_policy_id(policy_id)
-                    .with_rank(rank)
-                    .with_status(AuditEntryStatus::Suppressed)
-                    .build()
-                    .expect("audit entry fields set");
-                record.audit = Some(entry);
+                record.audit = Some(audit_entry(
+                    AuditDecision {
+                        policy_id: Some(policy_id),
+                        rank: Some(rank),
+                        strategy: M::Strategy::default(),
+                        detected_text,
+                    },
+                    Execution::Suppressed,
+                ));
             }
             Decision::Redact {
                 strategy,
                 policy_id,
                 rank,
             } => {
-                let original = envelope
+                let detected_text = envelope
                     .value_at(&entity.location)
                     .await
                     .unwrap_or_default();
-                let entry = AuditEntry::<M>::builder()
-                    .for_redaction(strategy, original)
-                    .with_policy_id(policy_id)
-                    .with_rank(rank)
-                    .build()
-                    .expect("audit entry fields set");
-                record.audit = Some(entry);
+                record.audit = Some(audit_entry(
+                    AuditDecision {
+                        policy_id: Some(policy_id),
+                        rank: Some(rank),
+                        strategy,
+                        detected_text,
+                    },
+                    Execution::Pending,
+                ));
             }
             Decision::Fallthrough => {
                 if !default_threshold.admits(entity.confidence) {
                     continue;
                 }
-                let original = envelope
+                let detected_text = envelope
                     .value_at(&entity.location)
                     .await
                     .unwrap_or_default();
-                let entry = AuditEntry::<M>::builder()
-                    .for_redaction(M::Strategy::default(), original)
-                    .build()
-                    .expect("audit entry fields set");
-                record.audit = Some(entry);
+                record.audit = Some(audit_entry(
+                    AuditDecision {
+                        policy_id: None,
+                        rank: None,
+                        strategy: M::Strategy::default(),
+                        detected_text,
+                    },
+                    Execution::Pending,
+                ));
             }
         }
+    }
+}
+
+fn audit_entry<M: Modality>(decision: AuditDecision<M>, execution: Execution<M>) -> AuditEntry<M> {
+    AuditEntry {
+        decision,
+        execution,
+        metadata: EntryMetadata::now(),
     }
 }
 
@@ -416,9 +460,9 @@ mod tests {
         .expect("execute");
         assert_eq!(env.document.audit.entries().count(), 1);
         let entry = first_entry(&env);
-        assert_eq!(entry.value.original, "secret");
-        assert!(entry.policy_id.is_none());
-        assert!(entry.rank.is_none());
+        assert_eq!(entry.decision.detected_text, "secret");
+        assert!(entry.decision.policy_id.is_none());
+        assert!(entry.decision.rank.is_none());
     }
 
     #[tokio::test]
@@ -444,10 +488,10 @@ mod tests {
 
         assert_eq!(env.document.audit.entries().count(), 1);
         let entry = first_entry(&env);
-        assert_eq!(entry.policy_id, Some(policy_id));
-        assert_eq!(entry.rank, Some(RuleRank::new(0, 0)));
+        assert_eq!(entry.decision.policy_id, Some(policy_id));
+        assert_eq!(entry.decision.rank, Some(RuleRank::new(0, 0)));
         assert!(matches!(
-            entry.redaction.strategy,
+            entry.decision.strategy,
             TextStrategy::Replace { .. }
         ));
     }
@@ -472,7 +516,7 @@ mod tests {
         .expect("execute");
 
         assert_eq!(env.document.audit.entries().count(), 1);
-        assert_eq!(first_entry(&env).status, AuditEntryStatus::Suppressed);
+        assert!(matches!(first_entry(&env).execution, Execution::Suppressed));
     }
 
     #[tokio::test]
@@ -500,9 +544,9 @@ mod tests {
         .expect("execute");
 
         let entry = first_entry(&env);
-        assert_eq!(entry.policy_id, Some(high_id));
-        assert_eq!(entry.rank, Some(RuleRank::new(0, 0)));
-        assert!(matches!(entry.redaction.strategy, TextStrategy::Hash));
+        assert_eq!(entry.decision.policy_id, Some(high_id));
+        assert_eq!(entry.decision.rank, Some(RuleRank::new(0, 0)));
+        assert!(matches!(entry.decision.strategy, TextStrategy::Hash));
     }
 
     #[tokio::test]
@@ -538,8 +582,8 @@ mod tests {
         .expect("execute");
 
         let entry = first_entry(&env);
-        assert_eq!(entry.policy_id, Some(high_id));
-        assert_eq!(entry.rank, Some(RuleRank::for_default(0)));
-        assert!(matches!(entry.redaction.strategy, TextStrategy::Hash));
+        assert_eq!(entry.decision.policy_id, Some(high_id));
+        assert_eq!(entry.decision.rank, Some(RuleRank::for_default(0)));
+        assert!(matches!(entry.decision.strategy, TextStrategy::Hash));
     }
 }

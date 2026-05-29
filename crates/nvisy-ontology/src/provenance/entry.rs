@@ -1,46 +1,31 @@
-//! Audit entry: per-entity redaction record with provenance metadata.
+//! Audit entry: per-entity redaction record.
+//!
+//! [`AuditEntry<M>`] bundles three sub-records into one row of the
+//! audit:
+//!
+//! - [`Decision<M>`] — what the policy evaluator chose (strategy,
+//!   originating rule, the recogniser-extracted text). Immutable
+//!   after evaluation.
+//! - [`Execution<M>`] — what the codec applicator did (still
+//!   pending, applied with an `M::Replacement`, failed with a
+//!   reason, or explicitly suppressed). Mutated by the applicator;
+//!   the variants form a single state machine that replaces the
+//!   pre-reshape combination of `AuditEntryStatus` +
+//!   `RedactionSpec.is_applied` + `RedactionValue.replacement`.
+//! - [`EntryMetadata`] — when, correlation, optional review.
 
 use derive_builder::Builder;
 use jiff::Timestamp;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
 use uuid::Uuid;
 
 use super::review::ReviewDecision;
-use crate::modality::{Modality, RedactionStrategy};
+use crate::modality::Modality;
 use crate::policy::RuleRank;
 
-/// Outcome status of a redaction operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-#[strum(serialize_all = "snake_case")]
-#[non_exhaustive]
-pub enum AuditEntryStatus {
-    /// Redaction completed successfully.
-    Success,
-    /// Redaction failed.
-    Failed,
-    /// Redaction is pending (not yet applied).
-    Pending,
-    /// Entity was deliberately not redacted because a matching
-    /// [`Action::Suppress`] rule won out over any matching Redact
-    /// rule. The entry records the suppressing policy and the
-    /// original value so the suppression is auditable.
-    ///
-    /// [`Action::Suppress`]: crate::policy::Action::Suppress
-    Suppressed,
-}
-
-/// A per-entity redaction record: what strategy was chosen, what
-/// the original and replacement values are, and optional human
-/// review.
-///
-/// Created by the policy evaluator via the builder, then enriched
-/// by the applicator with the replacement value and `is_applied`
-/// flag.
+/// A per-entity redaction record produced during a pipeline run.
 ///
 /// The entry lives next to its [`Entity<M>`] inside an
 /// [`EntityRecord<M>`]; the entity's `id` and `location` are read
@@ -57,95 +42,20 @@ pub enum AuditEntryStatus {
 #[serde(
     rename_all = "camelCase",
     bound(
-        serialize = "M::Strategy: Serialize",
-        deserialize = "M::Strategy: DeserializeOwned",
+        serialize = "M::Strategy: Serialize, M::Replacement: Serialize",
+        deserialize = "M::Strategy: DeserializeOwned, M::Replacement: DeserializeOwned",
     )
 )]
-#[schemars(bound = "M::Strategy: JsonSchema")]
+#[schemars(bound = "M::Strategy: JsonSchema, M::Replacement: JsonSchema")]
 pub struct AuditEntry<M: Modality> {
-    /// Identifier of the policy that triggered this redaction.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub policy_id: Option<Uuid>,
-    /// Position of the producing rule in the per-run policy chain.
-    /// Used by the codec at merge time to break ties when two
-    /// overlapping redactions share the same [`LeakProfile`] and
-    /// method — lower rank wins. `None` when the decision came from
-    /// a source outside the policy evaluator (e.g. default
-    /// threshold path).
-    ///
-    /// [`LeakProfile`]: crate::modality::LeakProfile
-    #[builder(default, setter(into = false))]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub rank: Option<RuleRank>,
-    /// When this entry was created.
-    #[builder(default = "Timestamp::now()")]
-    #[schemars(with = "String")]
-    pub timestamp: Timestamp,
-    /// Outcome status of the redaction.
-    #[builder(default = "AuditEntryStatus::Pending")]
-    pub status: AuditEntryStatus,
-    /// Correlation identifier for tracing across services.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub correlation_id: Option<Uuid>,
-    /// What to do: strategy and application state.
-    pub redaction: RedactionSpec<M>,
-    /// Original and replacement values.
-    pub value: RedactionValue,
-    /// Human review decision, if any.
-    #[builder(default, setter(into = false))]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub review: Option<ReviewDecision>,
-}
-
-/// Strategy and application state for a redaction.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(
-    rename_all = "camelCase",
-    bound(
-        serialize = "M::Strategy: Serialize",
-        deserialize = "M::Strategy: DeserializeOwned",
-    )
-)]
-#[schemars(bound = "M::Strategy: JsonSchema")]
-pub struct RedactionSpec<M: Modality> {
-    /// Redaction strategy to apply.
-    pub strategy: M::Strategy,
-    /// Whether the redaction has been applied to the output content.
-    pub is_applied: bool,
-    /// Whether the original can be reconstructed from this redaction.
-    ///
-    /// **Write-time snapshot** of `M::Strategy::is_reversible()` at
-    /// the moment the audit entry was written, *not* a guarantee
-    /// the original can still be recovered today. Strategies that
-    /// depend on external state (vault tokens whose keys are
-    /// revoked, encryption keys rotated out of the key provider,
-    /// referenced cipher material that's been garbage-collected)
-    /// can become un-reversible after the fact while the audit
-    /// entry still reads `true`. Treat it as historical provenance
-    /// — "this redaction was reversible at write time" — and
-    /// resolve actual recoverability through the live key /
-    /// vault state at read time.
-    pub reversible: bool,
-}
-
-/// Original and replacement values for a redaction.
-///
-/// `original` is the portion of the entity value that was redacted,
-/// which may differ from the full entity value depending on the
-/// policy.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RedactionValue {
-    /// The original sensitive value that was redacted.
-    pub original: String,
-    /// The replacement value after redaction was applied.
-    ///
-    /// `None` until the redaction is applied, or when the strategy
-    /// removes the value entirely.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub replacement: Option<String>,
+    /// What the policy evaluator chose for this entity.
+    pub decision: Decision<M>,
+    /// What the codec applicator did (or didn't).
+    #[builder(default = "Execution::Pending")]
+    pub execution: Execution<M>,
+    /// Timestamp, correlation, optional review.
+    #[builder(default)]
+    pub metadata: EntryMetadata,
 }
 
 impl<M: Modality> AuditEntry<M> {
@@ -155,22 +65,107 @@ impl<M: Modality> AuditEntry<M> {
     }
 }
 
-impl<M: Modality> AuditEntryBuilder<M>
-where
-    M::Strategy: RedactionStrategy,
-{
-    /// Set the strategy and original value in one call, deriving
-    /// the `reversible` flag from the strategy.
-    pub fn for_redaction(self, strategy: M::Strategy, original: impl Into<String>) -> Self {
-        let reversible = strategy.is_reversible();
-        self.with_redaction(RedactionSpec {
-            strategy,
-            is_applied: false,
-            reversible,
-        })
-        .with_value(RedactionValue {
-            original: original.into(),
-            replacement: None,
-        })
+/// What the policy evaluator chose for an entity. Immutable after
+/// evaluation; the applicator only writes to [`AuditEntry::execution`].
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(
+    rename_all = "camelCase",
+    bound(
+        serialize = "M::Strategy: Serialize",
+        deserialize = "M::Strategy: DeserializeOwned",
+    )
+)]
+#[schemars(bound = "M::Strategy: JsonSchema")]
+pub struct Decision<M: Modality> {
+    /// Identifier of the policy that produced this decision. `None`
+    /// when the decision came from a source outside the policy chain
+    /// (e.g. the default-threshold fallback path).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy_id: Option<Uuid>,
+    /// Position of the producing rule in the per-run policy chain.
+    /// Used by the codec at merge time to break ties when two
+    /// overlapping redactions share the same `LeakProfile` and
+    /// method. `None` for non-policy-driven decisions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rank: Option<RuleRank>,
+    /// Redaction strategy the evaluator picked.
+    pub strategy: M::Strategy,
+    /// Text the recogniser saw at the entity's location, captured at
+    /// decision time. For text/tabular this is the source text; for
+    /// image/audio it is the OCR/STT transcript at that location.
+    /// May differ from the full entity value depending on the
+    /// strategy's target.
+    pub detected_text: String,
+}
+
+/// State machine for what the codec applicator did with a
+/// [`Decision`]. The discriminant is the single source of truth for
+/// "did the redaction run, and if so what happened" — there is no
+/// parallel `is_applied` flag.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(
+    tag = "status",
+    rename_all = "snake_case",
+    bound(
+        serialize = "M::Replacement: Serialize",
+        deserialize = "M::Replacement: DeserializeOwned",
+    )
+)]
+#[schemars(bound = "M::Replacement: JsonSchema")]
+pub enum Execution<M: Modality> {
+    /// Decision recorded; applicator hasn't run yet.
+    Pending,
+    /// Applicator ran successfully. `replacement` records *what the
+    /// codec wrote* at the entity's location, in the modality's
+    /// per-`M::Replacement` shape.
+    Applied { replacement: M::Replacement },
+    /// Strategy conversion or codec apply errored. The decision
+    /// stays on the entry; this variant records why no bytes were
+    /// written.
+    Failed { reason: String },
+    /// A `Suppress` rule fired: the entity was deliberately not
+    /// redacted. The decision's `strategy` is recorded for
+    /// completeness but no codec work was scheduled.
+    Suppressed,
+}
+
+impl<M: Modality> Execution<M> {
+    /// `true` when the applicator finished and wrote a replacement.
+    pub fn is_applied(&self) -> bool {
+        matches!(self, Self::Applied { .. })
+    }
+
+    /// `true` when no apply work has been attempted yet.
+    pub fn is_pending(&self) -> bool {
+        matches!(self, Self::Pending)
+    }
+}
+
+/// Per-entry timestamps and review state. Separate from
+/// [`Decision`] / [`Execution`] so consumers reading the "what
+/// happened" axis don't pay for review fields they don't read.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EntryMetadata {
+    /// When this entry was created.
+    #[serde(default)]
+    #[schemars(with = "Option<String>")]
+    pub timestamp: Option<Timestamp>,
+    /// Correlation identifier for tracing across services.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<Uuid>,
+    /// Human review decision, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review: Option<ReviewDecision>,
+}
+
+impl EntryMetadata {
+    /// Empty metadata stamped with the current wall-clock time.
+    pub fn now() -> Self {
+        Self {
+            timestamp: Some(Timestamp::now()),
+            correlation_id: None,
+            review: None,
+        }
     }
 }

@@ -39,6 +39,10 @@ impl Modality for Audio {
     type Block = AudioBlock;
     type Metadata = AudioMetadata;
     type MethodTag = crate::policy::AudioMethodTag;
+    /// Audio audits record only which method ran; the substitution
+    /// is a binary sample transform whose parameters live on
+    /// `AudioStrategy`.
+    type Replacement = crate::policy::AudioMethodTag;
     type Strategy = AudioStrategy;
 
     fn default_method_dominance() -> &'static [Self::MethodTag] {

@@ -101,7 +101,7 @@ where
         .audit
         .records
         .iter()
-        .filter(|r| r.audit.as_ref().is_some_and(|e| e.redaction.is_applied))
+        .filter(|r| r.audit.as_ref().is_some_and(|e| e.execution.is_applied()))
         .collect();
 
     let Some(text) = redacted_text else {

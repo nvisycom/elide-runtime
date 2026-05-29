@@ -16,7 +16,7 @@ use crate::modality::Modality;
 /// redaction or suppression rule matched — the detection still
 /// shows up in the compliance trail but no redaction decision
 /// was made. Suppressed-and-recorded ends up as `Some(entry)`
-/// with `entry.status == Suppressed`.
+/// with `entry.execution == Execution::Suppressed`.
 ///
 /// Bundling the two together replaces the previous
 /// `Vec<Entity> + Vec<AuditEntry>` pair indexed by `entity_id`:
@@ -31,11 +31,11 @@ use crate::modality::Modality;
 #[serde(
     rename_all = "camelCase",
     bound(
-        serialize = "M: Serialize, M::Strategy: Serialize",
-        deserialize = "M: DeserializeOwned, M::Strategy: DeserializeOwned",
+        serialize = "M: Serialize, M::Strategy: Serialize, M::Replacement: Serialize",
+        deserialize = "M: DeserializeOwned, M::Strategy: DeserializeOwned, M::Replacement: DeserializeOwned",
     )
 )]
-#[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema")]
+#[schemars(bound = "M: JsonSchema, M::Strategy: JsonSchema, M::Replacement: JsonSchema")]
 pub struct EntityRecord<M: Modality> {
     /// The detected entity.
     pub entity: Entity<M>,

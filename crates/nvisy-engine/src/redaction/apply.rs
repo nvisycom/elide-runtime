@@ -5,21 +5,19 @@
 //! One pass per envelope. The flow is the same for every modality:
 //!
 //! 1. Walk `document.audit.records`. For each record whose `audit`
-//!    is present and `Pending` (i.e. not [`Suppressed`] and not
-//!    already applied), read the entity's `location` and
+//!    is present and [`Pending`], read the entity's `location` and
 //!    `entity_kind` directly off the record — no lookup needed.
 //! 2. Convert the entry's [`Strategy`] into a codec-side
 //!    [`Codable::Redaction`] via the per-modality strategy
 //!    converter.
 //! 3. Insert the `(M, Redaction)` pair into a
-//!    [`Redactions<M, R>`] collection under the configured conflict
-//!    policy.
+//!    [`Redactions<M, R>`] collection.
 //! 4. The per-modality caller hands the batch to the codec via the
 //!    typed apply hook on the envelope, then commits per-entry
 //!    audit state via [`commit`].
 //!
 //! [`EntityRecord`]: nvisy_ontology::provenance::EntityRecord
-//! [`Suppressed`]: AuditEntryStatus::Suppressed
+//! [`Pending`]: nvisy_ontology::provenance::Execution::Pending
 //! [`Strategy`]: nvisy_ontology::modality::Modality::Strategy
 //! [`Codable::Redaction`]: nvisy_codec::core::Codable
 //! [`Redactions<M, R>`]: nvisy_codec::core::Redactions
@@ -28,7 +26,7 @@ use nvisy_codec::core::Redactions;
 use nvisy_core::Result;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::modality::{Mergeable, Modality, Overlap};
-use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus};
+use nvisy_ontology::provenance::{AuditEntry, Execution};
 
 use crate::envelope::DocumentEnvelope;
 
@@ -51,7 +49,7 @@ pub(super) struct EntryView<'a, M: Modality> {
 pub(super) struct ApplyBatch<M: Modality, R> {
     pub batch: Redactions<M, R>,
     pub applied: Vec<(usize, R)>,
-    pub failed: Vec<usize>,
+    pub failed: Vec<(usize, String)>,
 }
 
 impl<M: Modality, R> ApplyBatch<M, R> {
@@ -84,11 +82,7 @@ where
         .records
         .iter()
         .enumerate()
-        .filter(|(_, r)| {
-            r.audit
-                .as_ref()
-                .is_some_and(|e| e.status == AuditEntryStatus::Pending && !e.redaction.is_applied)
-        })
+        .filter(|(_, r)| r.audit.as_ref().is_some_and(|e| e.execution.is_pending()))
         .map(|(i, _)| i)
         .collect();
 
@@ -102,7 +96,7 @@ where
 
     let mut batch: Redactions<M, R> = Redactions::new();
     let mut applied: Vec<(usize, R)> = Vec::with_capacity(pending.len());
-    let mut failed: Vec<usize> = Vec::new();
+    let mut failed: Vec<(usize, String)> = Vec::new();
 
     for idx in pending {
         let record = &envelope.document.audit.records[idx];
@@ -111,7 +105,7 @@ where
             .as_ref()
             .expect("filtered to records with Some(audit) above");
         let entity = &record.entity;
-        let original = entry.value.original.clone();
+        let original = entry.decision.detected_text.clone();
         let view = EntryView {
             entry,
             entity_kind: entity.entity_kind,
@@ -126,7 +120,7 @@ where
                     error = %e,
                     "strategy conversion failed; marking entry Failed",
                 );
-                failed.push(idx);
+                failed.push((idx, e.to_string()));
                 continue;
             }
         };
@@ -145,36 +139,33 @@ where
 /// Commit per-record audit state once the codec has accepted the
 /// batch produced by [`build`].
 ///
-/// `on_success` is the per-modality hook that records a
-/// modality-appropriate replacement on each accepted entry — text/
-/// tabular fill in [`RedactionValue::replacement`] from the
-/// codec's [`TextOutput`]; image/audio leave it unset.
-///
-/// [`RedactionValue::replacement`]: nvisy_ontology::provenance::RedactionValue::replacement
-/// [`TextOutput`]: nvisy_codec::handler::TextOutput
-pub(super) fn commit<M, R, OnSuccess>(
+/// `to_replacement` is the per-modality hook that maps the codec
+/// redaction back to the modality's `M::Replacement` shape — text/
+/// tabular produce `TextReplacement` / `TabularReplacement`; image/
+/// audio produce the `MethodTag` of the operation that ran.
+pub(super) fn commit<M, R, ToReplacement>(
     envelope: &mut DocumentEnvelope<M>,
     applied: Vec<(usize, R)>,
-    failed: Vec<usize>,
-    on_success: OnSuccess,
+    failed: Vec<(usize, String)>,
+    to_replacement: ToReplacement,
 ) where
     M: Modality,
-    OnSuccess: Fn(&mut AuditEntry<M>, &R),
+    ToReplacement: Fn(&R) -> M::Replacement,
 {
     for (idx, redaction) in applied {
         let entry = envelope.document.audit.records[idx]
             .audit
             .as_mut()
             .expect("record had Some(audit) when build() ran");
-        entry.redaction.is_applied = true;
-        entry.status = AuditEntryStatus::Success;
-        on_success(entry, &redaction);
+        entry.execution = Execution::Applied {
+            replacement: to_replacement(&redaction),
+        };
     }
-    for idx in failed {
+    for (idx, reason) in failed {
         let entry = envelope.document.audit.records[idx]
             .audit
             .as_mut()
             .expect("record had Some(audit) when build() ran");
-        entry.status = AuditEntryStatus::Failed;
+        entry.execution = Execution::Failed { reason };
     }
 }

@@ -51,6 +51,10 @@ impl Modality for Image {
     type Block = ImageBlock;
     type Metadata = ImageMetadata;
     type MethodTag = crate::policy::ImageMethodTag;
+    /// Image audits record only which method ran; the substitution
+    /// is a binary pixel transform whose parameters live on
+    /// `ImageStrategy`.
+    type Replacement = crate::policy::ImageMethodTag;
     type Strategy = ImageStrategy;
 
     fn default_method_dominance() -> &'static [Self::MethodTag] {

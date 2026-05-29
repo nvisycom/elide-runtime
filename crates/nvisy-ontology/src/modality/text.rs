@@ -73,6 +73,7 @@ impl Modality for Text {
     type Block = TextBlock;
     type Metadata = TextMetadata;
     type MethodTag = crate::policy::TextMethodTag;
+    type Replacement = crate::provenance::TextReplacement;
     type Strategy = TextStrategy;
 
     fn default_method_dominance() -> &'static [Self::MethodTag] {

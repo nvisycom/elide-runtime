@@ -75,16 +75,23 @@ pub struct DocumentEnvelope<M: Modality> {
 }
 
 impl<M: Modality> DocumentEnvelope<M> {
-    /// Create a new envelope from a shared codec handle and metadata.
-    /// The document is initialised empty (no blocks, no annotations,
-    /// fresh audit) against the handle's source.
+    /// Create a new envelope from a shared codec handle, metadata,
+    /// and the per-modality document metadata. The document is
+    /// initialised empty (no blocks, no annotations, fresh audit)
+    /// against the handle's source.
+    ///
+    /// The caller (importer fan-out) supplies `document_meta` because
+    /// the extraction tag and other per-modality metadata are
+    /// importer-time knowledge — every envelope is born with an
+    /// extraction path the importer just decided.
     pub async fn new(
         handle: SharedHandle,
         metadata: ContentMetadata,
+        document_meta: M::Metadata,
         shared: Arc<SharedData>,
     ) -> Self {
         let source = handle.lock().await.source();
-        let document = Document::new(source);
+        let document = Document::new(source, document_meta);
         Self {
             handle,
             metadata,

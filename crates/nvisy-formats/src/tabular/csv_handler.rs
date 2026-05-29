@@ -13,7 +13,7 @@
 //! [`Tabular`]: nvisy_ontology::modality::Tabular
 
 use nvisy_codec::core::{Handle, Located, LocationStream};
-use nvisy_codec::handler::{Handler, TabularRedaction, TextData};
+use nvisy_codec::handler::{Handler, TabularHandle, TabularRedaction, TextData};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentSource};
 use nvisy_core::media::{DocumentType, SpreadsheetFormat};
@@ -148,6 +148,12 @@ impl Handle<Tabular> for CsvHandler {
         let end = location.end_offset.unwrap_or(cell.len());
         let value = redaction.output().replacement_value().unwrap_or_default();
         redact::replace_range(cell, value, start, end, TARGET)
+    }
+}
+
+impl TabularHandle for CsvHandler {
+    fn has_header(&self) -> bool {
+        self.data.headers.is_some()
     }
 }
 

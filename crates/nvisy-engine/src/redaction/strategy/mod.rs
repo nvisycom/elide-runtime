@@ -22,9 +22,12 @@ mod image;
 mod tabular;
 mod text;
 
+use std::fmt::Write as _;
+
 use nvisy_codec::handler::TextOutput;
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::EntityKind;
+use sha2::Digest;
 
 #[cfg(feature = "audio")]
 pub(super) use self::audio::to_audio_redaction;
@@ -54,10 +57,8 @@ pub(super) fn text_output_from(
             replacement: mask_char.to_string().repeat(original.chars().count()),
         }),
         TextOutputMethod::Hash => {
-            use sha2::Digest;
             let digest = sha2::Sha256::digest(original.as_bytes());
             let hex = digest.iter().fold(String::with_capacity(64), |mut acc, b| {
-                use std::fmt::Write as _;
                 let _ = write!(acc, "{b:02x}");
                 acc
             });

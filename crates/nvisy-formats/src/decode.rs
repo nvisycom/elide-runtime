@@ -20,6 +20,8 @@ use nvisy_codec::core::Handle;
 use nvisy_codec::handler::Loader;
 #[cfg(feature = "internal_rich")]
 use nvisy_codec::handler::RichHandle;
+#[cfg(feature = "internal_tabular")]
+use nvisy_codec::handler::TabularHandle;
 use nvisy_core::Error;
 use nvisy_core::content::Content;
 #[cfg(any(
@@ -52,8 +54,6 @@ use nvisy_core::media::WordFormat;
 use nvisy_ontology::modality::Audio;
 #[cfg(feature = "internal_image")]
 use nvisy_ontology::modality::Image;
-#[cfg(feature = "internal_tabular")]
-use nvisy_ontology::modality::Tabular;
 #[cfg(feature = "internal_text")]
 use nvisy_ontology::modality::Text;
 
@@ -142,8 +142,8 @@ async fn try_decode_text(
 async fn try_decode_tabular(
     doc_type: DocumentType,
     content: &ContentData,
-) -> Result<Option<Box<dyn Handle<Tabular>>>, Error> {
-    let handler: Box<dyn Handle<Tabular>> = match doc_type {
+) -> Result<Option<Box<dyn TabularHandle>>, Error> {
+    let handler: Box<dyn TabularHandle> = match doc_type {
         #[cfg(feature = "csv")]
         DocumentType::Spreadsheet(SpreadsheetFormat::Csv) => {
             let h = crate::tabular::CsvLoader

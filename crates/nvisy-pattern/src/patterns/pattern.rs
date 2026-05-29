@@ -1,5 +1,7 @@
 //! Core [`Pattern`] trait and [`MatchSource`] enum.
 
+use std::collections::BTreeMap;
+
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -322,8 +324,6 @@ impl<P: Pattern + ?Sized> PatternCompile for P {
 /// Returns the first offending `(case-folded term, sorted columns)`
 /// pair, or `None` when the dictionary is unambiguous.
 fn find_ambiguous_column_collision(terms: &[DictionaryTerm]) -> Option<(String, Vec<u32>)> {
-    use std::collections::BTreeMap;
-
     let mut buckets: BTreeMap<String, Vec<u32>> = BTreeMap::new();
     for term in terms {
         let Some(col) = term.column else {

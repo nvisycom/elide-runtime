@@ -75,16 +75,22 @@ pub enum TabularMethodTag {
 impl RedactionStrategy for TabularStrategy {
     type Tag = TabularMethodTag;
 
-    /// - [`Hash`](Self::Hash), [`Encrypt`](Self::Encrypt) are
-    ///   [`Recoverable`](LeakProfile::Recoverable).
-    /// - [`Mask`](Self::Mask), [`Replace`](Self::Replace),
-    ///   [`Clear`](Self::Clear) are
-    ///   [`Partial`](LeakProfile::Partial) — the cell still exists
-    ///   at known coordinates with an observable (empty or masked)
-    ///   value.
-    /// - [`DropColumn`](Self::DropColumn) is
-    ///   [`Irrecoverable`](LeakProfile::Irrecoverable) — the column
-    ///   is gone schema-wide.
+    /// - [`Hash`], [`Encrypt`] are [`Recoverable`].
+    /// - [`Mask`], [`Replace`], [`Clear`] are [`Partial`] — the cell
+    ///   still exists at known coordinates with an observable (empty
+    ///   or masked) value.
+    /// - [`DropColumn`] is [`Irrecoverable`] — the column is gone
+    ///   schema-wide.
+    ///
+    /// [`Hash`]: Self::Hash
+    /// [`Encrypt`]: Self::Encrypt
+    /// [`Mask`]: Self::Mask
+    /// [`Replace`]: Self::Replace
+    /// [`Clear`]: Self::Clear
+    /// [`DropColumn`]: Self::DropColumn
+    /// [`Recoverable`]: LeakProfile::Recoverable
+    /// [`Partial`]: LeakProfile::Partial
+    /// [`Irrecoverable`]: LeakProfile::Irrecoverable
     fn leak_profile(&self) -> LeakProfile {
         match self {
             Self::Hash | Self::Encrypt { .. } => LeakProfile::Recoverable,

@@ -36,12 +36,15 @@ pub enum AudioMethodTag {
 impl RedactionStrategy for AudioStrategy {
     type Tag = AudioMethodTag;
 
-    /// - [`Silence`](Self::Silence) is
-    ///   [`Partial`](LeakProfile::Partial) — a silence of known
-    ///   duration on the timeline is observable.
-    /// - [`Remove`](Self::Remove) is
-    ///   [`Irrecoverable`](LeakProfile::Irrecoverable) — the
-    ///   segment is cut, the timeline shifts, no trace remains.
+    /// - [`Silence`] is [`Partial`] — a silence of known duration on
+    ///   the timeline is observable.
+    /// - [`Remove`] is [`Irrecoverable`] — the segment is cut, the
+    ///   timeline shifts, no trace remains.
+    ///
+    /// [`Silence`]: Self::Silence
+    /// [`Remove`]: Self::Remove
+    /// [`Partial`]: LeakProfile::Partial
+    /// [`Irrecoverable`]: LeakProfile::Irrecoverable
     fn leak_profile(&self) -> LeakProfile {
         match self {
             Self::Silence => LeakProfile::Partial,

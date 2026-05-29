@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use super::{ImageExtraction, Mergeable, Modality, ModalityBlock, Overlap};
 use crate::policy::ImageStrategy;
 use crate::primitive::{BoundingBox, LanguageDetection, Polygon};
 
@@ -49,6 +49,7 @@ impl Image {
 
 impl Modality for Image {
     type Block = ImageBlock;
+    type Extraction = ImageExtraction;
     type Metadata = ImageMetadata;
     type MethodTag = crate::policy::ImageMethodTag;
     /// Image audits record only which method ran; the substitution
@@ -71,12 +72,14 @@ impl Modality for Image {
 
 /// Per-modality block payload for [`Image`]. Text-bearing variants
 /// carry recognized text; per-word source spans live on the wrapping
-/// [`Block<Image>`]. Non-textual variants
-/// ([`Figure`](Self::Figure), [`Separator`](Self::Separator),
-/// [`Background`](Self::Background), [`Logo`](Self::Logo)) carry no
-/// text. Every variant carries the bounding `region` since image
-/// blocks are always spatially located.
+/// [`Block<Image>`]. Non-textual variants ([`Figure`], [`Separator`],
+/// [`Background`], [`Logo`]) carry no text. Every variant carries the
+/// bounding `region` since image blocks are always spatially located.
 ///
+/// [`Figure`]: Self::Figure
+/// [`Separator`]: Self::Separator
+/// [`Background`]: Self::Background
+/// [`Logo`]: Self::Logo
 /// [`Block<Image>`]: crate::document::Block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -135,9 +138,12 @@ impl ModalityBlock for ImageBlock {
 /// Document-level metadata for [`Document<Image>`].
 ///
 /// [`Document<Image>`]: crate::document::Document
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageMetadata {
+    /// How this document's image content was processed (OCR, scene
+    /// text, object detection, layout analysis).
+    pub extraction: ImageExtraction,
     /// Languages detected (or asserted) for the document content.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(skip)]

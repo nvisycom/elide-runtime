@@ -13,6 +13,7 @@ mod input;
 use nvisy_core::Error;
 pub use nvisy_core::media::ImageFormat;
 use nvisy_ontology::document::Block;
+use nvisy_ontology::entity::ModelProvenance;
 use nvisy_ontology::modality::Image;
 
 pub use self::context::Context;
@@ -56,6 +57,17 @@ pub use self::input::ImageInput;
 /// [`ContentSource`]: nvisy_ontology::entity::ContentSource
 #[async_trait::async_trait]
 pub trait Backend: Send + Sync + 'static {
+    /// Backend identity (model / service name + provenance kind).
+    ///
+    /// The engine's [`OcrExtractor`] reads this after recognition
+    /// runs and stamps it into [`ImageExtraction::Ocr(_)`] on the
+    /// document's metadata, so the audit records *which* OCR pass
+    /// produced the document.
+    ///
+    /// [`OcrExtractor`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/extraction/struct.OcrExtractor.html
+    /// [`ImageExtraction::Ocr(_)`]: nvisy_ontology::modality::ImageExtraction::Ocr
+    fn provenance(&self) -> ModelProvenance;
+
     /// Run OCR on a single image under `ctx`.
     async fn run(&self, image: &ImageInput, ctx: Context<'_>) -> Result<Vec<Block<Image>>, Error>;
 

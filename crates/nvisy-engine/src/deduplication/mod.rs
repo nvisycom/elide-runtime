@@ -151,7 +151,7 @@ mod tests {
 
     use nvisy_core::content::ContentMetadata;
     use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod};
-    use nvisy_ontology::modality::Text;
+    use nvisy_ontology::modality::{Text, TextExtraction, TextMetadata};
     use nvisy_ontology::primitive::{Confidence, ConfidenceThreshold};
     use tokio::sync::Mutex;
 
@@ -176,6 +176,10 @@ mod tests {
         DocumentEnvelope::<Text>::new(
             Arc::new(Mutex::new(handle)),
             ContentMetadata::new().with_content_type("text/plain"),
+            TextMetadata {
+                extraction: TextExtraction::Native,
+                languages: Vec::new(),
+            },
             shared,
         )
         .await

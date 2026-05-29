@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Mergeable, Modality, ModalityBlock, Overlap};
+use super::{AudioExtraction, Mergeable, Modality, ModalityBlock, Overlap};
 use crate::policy::AudioStrategy;
 use crate::primitive::{LanguageDetection, TimeSpan};
 
@@ -37,6 +37,7 @@ impl Audio {
 
 impl Modality for Audio {
     type Block = AudioBlock;
+    type Extraction = AudioExtraction;
     type Metadata = AudioMetadata;
     type MethodTag = crate::policy::AudioMethodTag;
     /// Audio audits record only which method ran; the substitution
@@ -53,11 +54,13 @@ impl Modality for Audio {
 }
 
 /// Per-modality block payload for [`Audio`].
-/// [`Speech`](Self::Speech) carries the transcript text and optional
-/// speaker; per-word source spans live on the wrapping
-/// [`Block<Audio>`]. [`Silence`](Self::Silence) carries no payload.
-/// Every variant carries the segment `time_span`.
+/// [`Speech`] carries the transcript text and optional speaker;
+/// per-word source spans live on the wrapping [`Block<Audio>`].
+/// [`Silence`] carries no payload. Every variant carries the segment
+/// `time_span`.
 ///
+/// [`Speech`]: Self::Speech
+/// [`Silence`]: Self::Silence
 /// [`Block<Audio>`]: crate::document::Block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -82,8 +85,9 @@ impl AudioBlock {
         }
     }
 
-    /// Transcribed text for [`Speech`](Self::Speech), `None` for
-    /// silence.
+    /// Transcribed text for [`Speech`], `None` for silence.
+    ///
+    /// [`Speech`]: Self::Speech
     pub fn text(&self) -> Option<&str> {
         match self {
             Self::Speech { text, .. } => Some(text),
@@ -101,9 +105,15 @@ impl ModalityBlock for AudioBlock {
 /// Document-level metadata for [`Document<Audio>`].
 ///
 /// [`Document<Audio>`]: crate::document::Document
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+// TODO(#226): wire an importer that stamps `extraction` (Transcription
+// or Diarization). No audio importer exists today; the field is
+// type-required so that lands as a real value the moment one does.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioMetadata {
+    /// How this document's audio content was processed (STT
+    /// transcription, speaker diarization).
+    pub extraction: AudioExtraction,
     /// Languages detected (or asserted) for the transcribed content.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(skip)]

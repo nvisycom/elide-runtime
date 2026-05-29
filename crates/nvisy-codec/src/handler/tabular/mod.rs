@@ -19,7 +19,7 @@
 use nvisy_ontology::modality::Tabular;
 
 use super::TextData;
-use crate::core::Codable;
+use crate::core::{Codable, Handle};
 
 mod instruction;
 
@@ -28,4 +28,25 @@ pub use self::instruction::TabularRedaction;
 impl Codable for Tabular {
     type Data = TextData;
     type Redaction = TabularRedaction;
+}
+
+/// Extension trait implemented by every tabular handler exposing the
+/// "do I have a header row?" signal.
+///
+/// The engine importer reads this to pick
+/// [`TabularExtraction::SchemaTyped`] when headers are known from the
+/// source (header row in CSV, schema in Parquet/XLSX) vs.
+/// [`TabularExtraction::SchemaInferred`] when column semantics must be
+/// inferred from data.
+///
+/// Implementing this trait is required for every tabular handler that
+/// participates in the importer fan-out.
+///
+/// [`TabularExtraction::SchemaTyped`]: nvisy_ontology::modality::TabularExtraction::SchemaTyped
+/// [`TabularExtraction::SchemaInferred`]: nvisy_ontology::modality::TabularExtraction::SchemaInferred
+pub trait TabularHandle: Handle<Tabular> {
+    /// `true` when the source format carries explicit column headers
+    /// or typed schema (CSV with header row, Parquet, XLSX); `false`
+    /// when column semantics have to be inferred from the data.
+    fn has_header(&self) -> bool;
 }

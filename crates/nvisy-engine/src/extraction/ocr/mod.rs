@@ -14,7 +14,7 @@ use nvisy_codec::handler::ImageData;
 use nvisy_core::Result;
 use nvisy_ocr::{Context as OcrContext, ImageFormat, ImageInput};
 use nvisy_ontology::document::Block;
-use nvisy_ontology::modality::Image;
+use nvisy_ontology::modality::{Image, ImageExtraction};
 
 pub use self::params::OcrExtractorConfig;
 use crate::envelope::DocumentEnvelope;
@@ -41,8 +41,16 @@ impl OcrExtractor {
     }
 
     /// Run OCR over the envelope's image regions, appending the
-    /// recognised blocks to [`DocumentEnvelope::document`].
+    /// recognised blocks to [`DocumentEnvelope::document`] and
+    /// stamping the backend's provenance into
+    /// [`ImageMetadata::extraction`] (replacing the placeholder
+    /// `ImageExtraction::Ocr(_)` the importer set at envelope
+    /// creation).
+    ///
+    /// [`ImageMetadata::extraction`]: nvisy_ontology::modality::ImageMetadata::extraction
     pub async fn run(&self, envelope: &mut DocumentEnvelope<Image>) -> Result<()> {
+        envelope.document.meta.extraction = ImageExtraction::Ocr(self.inner.provenance());
+
         let inputs = Self::collect_inputs(envelope).await;
         if inputs.is_empty() {
             return Ok(());

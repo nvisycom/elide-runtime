@@ -87,18 +87,24 @@ pub enum TextMethodTag {
 impl RedactionStrategy for TextStrategy {
     type Tag = TextMethodTag;
 
-    /// - [`Hash`](Self::Hash), [`Encrypt`](Self::Encrypt),
-    ///   [`Pseudonymize`](Self::Pseudonymize), [`Tokenize`](Self::Tokenize)
-    ///   are [`Recoverable`](LeakProfile::Recoverable) — original
-    ///   value recoverable with the right metadata (entity list +
-    ///   algorithm for Hash, key for Encrypt, mapping for
-    ///   Pseudonymize, vault for Tokenize).
-    /// - [`Mask`](Self::Mask), [`Replace`](Self::Replace) are
-    ///   [`Partial`](LeakProfile::Partial) — original is gone but
+    /// - [`Hash`], [`Encrypt`], [`Pseudonymize`], [`Tokenize`] are
+    ///   [`Recoverable`] — original value recoverable with the right
+    ///   metadata (entity list + algorithm for Hash, key for Encrypt,
+    ///   mapping for Pseudonymize, vault for Tokenize).
+    /// - [`Mask`], [`Replace`] are [`Partial`] — original is gone but
     ///   position and length leak through the output.
-    /// - [`Remove`](Self::Remove) is
-    ///   [`Irrecoverable`](LeakProfile::Irrecoverable) — span
-    ///   deleted, no trace.
+    /// - [`Remove`] is [`Irrecoverable`] — span deleted, no trace.
+    ///
+    /// [`Hash`]: Self::Hash
+    /// [`Encrypt`]: Self::Encrypt
+    /// [`Pseudonymize`]: Self::Pseudonymize
+    /// [`Tokenize`]: Self::Tokenize
+    /// [`Mask`]: Self::Mask
+    /// [`Replace`]: Self::Replace
+    /// [`Remove`]: Self::Remove
+    /// [`Recoverable`]: LeakProfile::Recoverable
+    /// [`Partial`]: LeakProfile::Partial
+    /// [`Irrecoverable`]: LeakProfile::Irrecoverable
     fn leak_profile(&self) -> LeakProfile {
         match self {
             Self::Hash | Self::Encrypt { .. } | Self::Pseudonymize | Self::Tokenize { .. } => {

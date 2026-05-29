@@ -127,16 +127,6 @@ where
         }
     }
 
-    // Merge extraction methods (order-preserving union).
-    let mut seen_ext: HashSet<_> = result.extraction_methods.iter().cloned().collect();
-    for e in &rest {
-        for m in &e.extraction_methods {
-            if seen_ext.insert(*m) {
-                result.extraction_methods.push(*m);
-            }
-        }
-    }
-
     // Fill in missing optional fields from lower-confidence entities.
     if result.language.is_none() {
         result.language = rest.iter().find_map(|e| e.language.clone());
@@ -209,6 +199,10 @@ mod tests {
         DocumentEnvelope::<nvisy_ontology::modality::Text>::new(
             Arc::new(Mutex::new(handle)),
             ContentMetadata::new().with_content_type("text/plain"),
+            nvisy_ontology::modality::TextMetadata {
+                extraction: nvisy_ontology::modality::TextExtraction::Native,
+                languages: Vec::new(),
+            },
             shared,
         )
         .await

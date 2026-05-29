@@ -73,16 +73,19 @@ pub enum ErrorKind {
 
 /// Unified error type for the nvisy platform.
 ///
-/// Carries a [kind](Self::kind), a human-readable
-/// [message](Self::message), an optional [component](Self::component)
-/// tag identifying the producer (e.g. `"detection"`, `"registry"`),
-/// an [is_retryable](Self::is_retryable) flag, and an optional
-/// wrapped source error reachable through [`std::error::Error::source`].
+/// Carries a [`kind`], a human-readable [`message`], an optional
+/// [`component`] tag identifying the producer (e.g. `"detection"`,
+/// `"registry"`), an [`is_retryable`] flag, and an optional wrapped
+/// source error reachable through [`std::error::Error::source`].
 ///
 /// Fields are private; construct with [`Error::new`] or a per-kind
 /// shorthand, then layer context via [`with_source`], [`with_component`],
 /// [`with_retryable`].
 ///
+/// [`kind`]: Self::kind
+/// [`message`]: Self::message
+/// [`component`]: Self::component
+/// [`is_retryable`]: Self::is_retryable
 /// [`with_source`]: Self::with_source
 /// [`with_component`]: Self::with_component
 /// [`with_retryable`]: Self::with_retryable

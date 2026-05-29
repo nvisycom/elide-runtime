@@ -1,16 +1,19 @@
-//! Extraction, recognition, and refinement method classification.
+//! Recognition and refinement method classification.
 //!
-//! These types form the provenance record for every detected entity,
-//! documenting how content was extracted from its source modality,
-//! how sensitive data was identified, and what post-detection
-//! refinements were applied.
+//! These types form the per-entity provenance record: which technique
+//! identified a sensitive data occurrence, and which post-detection
+//! refinements ran. Document-level "how was the content produced"
+//! (text-layer parse, OCR, transcription) is tracked separately on
+//! [`Modality::Extraction`] — that axis is a property of the
+//! [`Document<M>`], not of the entities inside it.
+//!
+//! [`Modality::Extraction`]: crate::modality::Modality::Extraction
+//! [`Document<M>`]: crate::document::Document
 
-mod extraction;
 mod provenance;
 mod recognition;
 mod refinement;
 
-pub use self::extraction::ExtractionMethod;
 pub use self::provenance::{
     AnnotationProvenance, CrossReferenceProvenance, ModelKind, ModelProvenance, PatternProvenance,
 };

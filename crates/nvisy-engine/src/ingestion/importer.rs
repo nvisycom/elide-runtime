@@ -25,8 +25,11 @@ use std::sync::Arc;
 use nvisy_codec::HandleModality;
 use nvisy_core::Result;
 use nvisy_core::content::{Content, ContentData, ContentMetadata};
-use nvisy_ontology::entity::{Annotation, inclusion_entities};
-use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
+use nvisy_ontology::entity::{Annotation, ModelKind, ModelProvenance, inclusion_entities};
+use nvisy_ontology::modality::{
+    Audio, AudioExtraction, AudioMetadata, Image, ImageExtraction, ImageMetadata, Tabular,
+    TabularExtraction, TabularMetadata, Text, TextExtraction, TextMetadata,
+};
 use tokio::sync::Mutex;
 
 use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData, SharedHandle};
@@ -116,32 +119,59 @@ async fn dispatch(
     annotations: Vec<Annotation<Text>>,
     shared: &Arc<SharedData>,
 ) -> Vec<AnyEnvelope> {
-    let modality = handle.lock().await.modality();
+    let (modality, has_header) = {
+        let guard = handle.lock().await;
+        (guard.modality(), guard.tabular_has_header())
+    };
     match modality {
         HandleModality::Text => {
-            let env = build_text_envelope(handle, metadata, annotations, shared).await;
+            let doc_meta = text_metadata_for(TextExtraction::Native);
+            let env = build_text_envelope(handle, metadata, doc_meta, annotations, shared).await;
             vec![AnyEnvelope::Text(env)]
         }
         HandleModality::Tabular => {
-            let env = build_envelope::<Tabular>(handle, metadata, shared).await;
+            let doc_meta = tabular_metadata_for(tabular_extraction_from_header(has_header));
+            let env =
+                <DocumentEnvelope<Tabular>>::new(handle, metadata, doc_meta, Arc::clone(shared))
+                    .await;
             vec![AnyEnvelope::Tabular(env)]
         }
         HandleModality::Image => {
-            let env = build_envelope::<Image>(handle, metadata, shared).await;
+            let doc_meta = image_metadata_for(ImageExtraction::Ocr(pending_provenance()));
+            let env =
+                <DocumentEnvelope<Image>>::new(handle, metadata, doc_meta, Arc::clone(shared))
+                    .await;
             vec![AnyEnvelope::Image(env)]
         }
         HandleModality::Audio => {
-            let env = build_envelope::<Audio>(handle, metadata, shared).await;
+            let doc_meta = audio_metadata_for(AudioExtraction::Transcription(pending_provenance()));
+            let env =
+                <DocumentEnvelope<Audio>>::new(handle, metadata, doc_meta, Arc::clone(shared))
+                    .await;
             vec![AnyEnvelope::Audio(env)]
         }
         HandleModality::Rich => {
             // PDF/DOCX: fan out into Text + Image envelopes sharing
             // the same underlying handle so reads and mutations
             // stay coordinated under the codec's mutex.
-            let text_env =
-                build_text_envelope(Arc::clone(&handle), metadata.clone(), annotations, shared)
+            //
+            // Text envelope is `Native` because today the rich-text
+            // handler always reads the embedded text layer. The
+            // `Recognized` path lights up when an image-only-PDF
+            // OCR fallback lands.
+            let text_meta = text_metadata_for(TextExtraction::Native);
+            let image_meta = image_metadata_for(ImageExtraction::Ocr(pending_provenance()));
+            let text_env = build_text_envelope(
+                Arc::clone(&handle),
+                metadata.clone(),
+                text_meta,
+                annotations,
+                shared,
+            )
+            .await;
+            let image_env =
+                <DocumentEnvelope<Image>>::new(handle, metadata, image_meta, Arc::clone(shared))
                     .await;
-            let image_env = build_envelope::<Image>(handle, metadata, shared).await;
             vec![AnyEnvelope::Text(text_env), AnyEnvelope::Image(image_env)]
         }
     }
@@ -150,10 +180,12 @@ async fn dispatch(
 async fn build_text_envelope(
     handle: SharedHandle,
     metadata: ContentMetadata,
+    document_meta: TextMetadata,
     annotations: Vec<Annotation<Text>>,
     shared: &Arc<SharedData>,
 ) -> DocumentEnvelope<Text> {
-    let mut envelope = <DocumentEnvelope<Text>>::new(handle, metadata, Arc::clone(shared)).await;
+    let mut envelope =
+        <DocumentEnvelope<Text>>::new(handle, metadata, document_meta, Arc::clone(shared)).await;
     let seeded = inclusion_entities::<Text>(&annotations);
     if !seeded.is_empty() {
         tracing::debug!(
@@ -167,12 +199,59 @@ async fn build_text_envelope(
     envelope
 }
 
-async fn build_envelope<M: Modality>(
-    handle: SharedHandle,
-    metadata: ContentMetadata,
-    shared: &Arc<SharedData>,
-) -> DocumentEnvelope<M> {
-    <DocumentEnvelope<M>>::new(handle, metadata, Arc::clone(shared)).await
+fn text_metadata_for(extraction: TextExtraction) -> TextMetadata {
+    TextMetadata {
+        extraction,
+        languages: Vec::new(),
+    }
+}
+
+fn tabular_metadata_for(extraction: TabularExtraction) -> TabularMetadata {
+    TabularMetadata {
+        extraction,
+        headers: Vec::new(),
+        sheet_names: Vec::new(),
+    }
+}
+
+fn image_metadata_for(extraction: ImageExtraction) -> ImageMetadata {
+    ImageMetadata {
+        extraction,
+        languages: Vec::new(),
+        pages: Vec::new(),
+    }
+}
+
+fn audio_metadata_for(extraction: AudioExtraction) -> AudioMetadata {
+    AudioMetadata {
+        extraction,
+        languages: Vec::new(),
+        sample_rate_hz: None,
+        channels: None,
+    }
+}
+
+/// Map the codec's `has_header()` signal to a [`TabularExtraction`].
+///
+/// `None` would mean the handle isn't tabular and shouldn't reach
+/// this site; we still pick a safe default (`SchemaInferred`) so the
+/// code path is total.
+fn tabular_extraction_from_header(has_header: Option<bool>) -> TabularExtraction {
+    match has_header {
+        Some(true) => TabularExtraction::SchemaTyped,
+        Some(false) | None => TabularExtraction::SchemaInferred,
+    }
+}
+
+/// Placeholder [`ModelProvenance`] stamped at import time on
+/// envelopes whose real provenance is only known after extraction
+/// runs (OCR, STT).
+///
+/// `OcrExtractor::run` and `SttExtractor::run` overwrite the
+/// containing [`ImageExtraction::Ocr`] / [`AudioExtraction::Transcription`]
+/// variant with the actual backend provenance.
+fn pending_provenance() -> ModelProvenance {
+    ModelProvenance::new("pending", ModelKind::SelfHosted)
 }
 
 /// Replace the data payload of a [`Content`] while preserving its metadata.

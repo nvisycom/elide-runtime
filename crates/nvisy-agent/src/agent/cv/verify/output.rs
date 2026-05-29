@@ -70,7 +70,6 @@ fn apply(verified: VerifiedEntity, entity: Entity<Image>) -> Option<Entity<Image
                 .with_category(verified.category.unwrap_or(entity.category))
                 .with_entity_kind(verified.entity_type.unwrap_or(entity.entity_kind))
                 .with_recognition_methods(entity.recognition_methods)
-                .with_extraction_methods(entity.extraction_methods)
                 .with_refinement_methods(refinements)
                 .with_confidence(verified.confidence)
                 .with_location(location);

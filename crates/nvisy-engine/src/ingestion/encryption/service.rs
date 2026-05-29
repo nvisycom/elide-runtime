@@ -144,7 +144,7 @@ impl CryptoService {
 #[cfg(test)]
 mod tests {
     use nvisy_core::content::{Content, ContentData, ContentMetadata, ContentSource};
-    use nvisy_ontology::modality::Text;
+    use nvisy_ontology::modality::{Text, TextExtraction, TextMetadata};
 
     use super::*;
     use crate::envelope::DocumentEnvelope;
@@ -167,6 +167,10 @@ mod tests {
         <DocumentEnvelope<Text>>::new(
             std::sync::Arc::new(tokio::sync::Mutex::new(doc)),
             ContentMetadata::new().with_content_type("text/plain"),
+            TextMetadata {
+                extraction: TextExtraction::Native,
+                languages: Vec::new(),
+            },
             shared,
         )
         .await

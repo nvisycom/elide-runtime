@@ -57,24 +57,14 @@ pub struct Document<M: Modality> {
 
 impl<M: Modality> Document<M> {
     /// Construct an empty [`Document`] for the given source with
-    /// default metadata. Blocks and annotations start empty; the
+    /// explicit metadata. Blocks and annotations start empty; the
     /// embedded [`Audit`] is initialised against the same source.
     /// Producers push blocks onto `self.blocks` directly.
     ///
-    /// Use [`with_meta`] when the metadata isn't the per-modality
-    /// default.
-    ///
-    /// [`with_meta`]: Self::with_meta
-    pub fn new(source: ContentSource) -> Self {
-        Self::with_meta(source, M::Metadata::default())
-    }
-
-    /// Construct an empty [`Document`] for the given source with
-    /// explicit metadata. See [`new`] for the default-metadata
-    /// shortcut.
-    ///
-    /// [`new`]: Self::new
-    pub fn with_meta(source: ContentSource, meta: M::Metadata) -> Self {
+    /// The importer always knows which extraction path produced the
+    /// document, so the metadata is required at construction time
+    /// rather than defaulted.
+    pub fn new(source: ContentSource, meta: M::Metadata) -> Self {
         Self {
             meta,
             blocks: Vec::new(),

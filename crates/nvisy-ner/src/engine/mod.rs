@@ -12,6 +12,7 @@ use std::sync::Arc;
 use derive_builder::Builder;
 use nvisy_core::Result;
 use nvisy_ontology::primitive::{LanguageDetection, LanguageProvenance};
+use tracing::Instrument;
 
 pub use self::artifacts::Artifacts;
 use crate::core::{Backend, Context};
@@ -106,8 +107,6 @@ impl Recognizer {
     /// engine-side `NerRecognizer`) defer to the central
     /// detection-layer filter.
     pub async fn recognize(&self, text: &str, ctx: &Context) -> Result<Artifacts> {
-        use tracing::Instrument;
-
         let span = tracing::debug_span!(
             "nvisy_ner::recognize",
             correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),

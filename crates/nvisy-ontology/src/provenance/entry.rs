@@ -89,12 +89,6 @@ pub struct Decision<M: Modality> {
     pub rank: Option<RuleRank>,
     /// Redaction strategy the evaluator picked.
     pub strategy: M::Strategy,
-    /// Text the recogniser saw at the entity's location, captured at
-    /// decision time. For text/tabular this is the source text; for
-    /// image/audio it is the OCR/STT transcript at that location.
-    /// May differ from the full entity value depending on the
-    /// strategy's target.
-    pub detected_text: String,
 }
 
 /// State machine for what the codec applicator did with a

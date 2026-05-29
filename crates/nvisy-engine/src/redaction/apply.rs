@@ -29,6 +29,7 @@ use nvisy_ontology::modality::{Mergeable, Modality, Overlap};
 use nvisy_ontology::provenance::{AuditEntry, Execution};
 
 use crate::envelope::DocumentEnvelope;
+use crate::envelope::value_at::ValueAt;
 
 const TARGET: &str = "nvisy_engine::redaction::apply";
 
@@ -70,11 +71,15 @@ impl<M: Modality, R> ApplyBatch<M, R> {
 /// The returned [`ApplyBatch`] holds the batch to submit plus the
 /// per-record indices the caller will commit via [`commit`] once
 /// the codec accepts the work.
-pub(super) fn build<M, R, F>(envelope: &DocumentEnvelope<M>, to_redaction: F) -> ApplyBatch<M, R>
+pub(super) async fn build<M, R, F>(
+    envelope: &DocumentEnvelope<M>,
+    to_redaction: F,
+) -> ApplyBatch<M, R>
 where
     M: Modality + Overlap + Mergeable,
     R: Mergeable + Clone,
     F: Fn(EntryView<'_, M>) -> Result<R>,
+    DocumentEnvelope<M>: ValueAt<M>,
 {
     let pending: Vec<usize> = envelope
         .document
@@ -105,7 +110,10 @@ where
             .as_ref()
             .expect("filtered to records with Some(audit) above");
         let entity = &record.entity;
-        let original = entry.decision.detected_text.clone();
+        let original = envelope
+            .value_at(&entity.location)
+            .await
+            .unwrap_or_default();
         let view = EntryView {
             entry,
             entity_kind: entity.entity_kind,

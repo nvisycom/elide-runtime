@@ -123,7 +123,8 @@ impl ApplyRedactions for DocumentEnvelope<Text> {
                 view.original,
                 view.entity_kind,
             )
-        });
+        })
+        .await;
         if assembled.is_noop() {
             return Ok(());
         }
@@ -155,7 +156,8 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
                 view.original,
                 view.entity_kind,
             )
-        });
+        })
+        .await;
         if assembled.is_noop() {
             return Ok(());
         }
@@ -198,7 +200,8 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
         use nvisy_ontology::policy::ImageMethodTag;
         let assembled = apply::build(self, |view| {
             to_image_redaction(&view.entry.decision.strategy)
-        });
+        })
+        .await;
         if assembled.is_noop() {
             return Ok(());
         }
@@ -239,7 +242,8 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
         use nvisy_ontology::policy::AudioMethodTag;
         let assembled = apply::build(self, |view| {
             to_audio_redaction(&view.entry.decision.strategy)
-        });
+        })
+        .await;
         if assembled.is_noop() {
             return Ok(());
         }
@@ -290,16 +294,11 @@ async fn evaluate<M>(
 
         match decision {
             Decision::Suppress { policy_id, rank } => {
-                let detected_text = envelope
-                    .value_at(&entity.location)
-                    .await
-                    .unwrap_or_default();
                 record.audit = Some(audit_entry(
                     AuditDecision {
                         policy_id: Some(policy_id),
                         rank: Some(rank),
                         strategy: M::Strategy::default(),
-                        detected_text,
                     },
                     Execution::Suppressed,
                 ));
@@ -309,16 +308,11 @@ async fn evaluate<M>(
                 policy_id,
                 rank,
             } => {
-                let detected_text = envelope
-                    .value_at(&entity.location)
-                    .await
-                    .unwrap_or_default();
                 record.audit = Some(audit_entry(
                     AuditDecision {
                         policy_id: Some(policy_id),
                         rank: Some(rank),
                         strategy,
-                        detected_text,
                     },
                     Execution::Pending,
                 ));
@@ -327,16 +321,11 @@ async fn evaluate<M>(
                 if !default_threshold.admits(entity.confidence) {
                     continue;
                 }
-                let detected_text = envelope
-                    .value_at(&entity.location)
-                    .await
-                    .unwrap_or_default();
                 record.audit = Some(audit_entry(
                     AuditDecision {
                         policy_id: None,
                         rank: None,
                         strategy: M::Strategy::default(),
-                        detected_text,
                     },
                     Execution::Pending,
                 ));
@@ -460,7 +449,6 @@ mod tests {
         .expect("execute");
         assert_eq!(env.document.audit.entries().count(), 1);
         let entry = first_entry(&env);
-        assert_eq!(entry.decision.detected_text, "secret");
         assert!(entry.decision.policy_id.is_none());
         assert!(entry.decision.rank.is_none());
     }

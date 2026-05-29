@@ -54,11 +54,13 @@ impl Modality for Audio {
 }
 
 /// Per-modality block payload for [`Audio`].
-/// [`Speech`](Self::Speech) carries the transcript text and optional
-/// speaker; per-word source spans live on the wrapping
-/// [`Block<Audio>`]. [`Silence`](Self::Silence) carries no payload.
-/// Every variant carries the segment `time_span`.
+/// [`Speech`] carries the transcript text and optional speaker;
+/// per-word source spans live on the wrapping [`Block<Audio>`].
+/// [`Silence`] carries no payload. Every variant carries the segment
+/// `time_span`.
 ///
+/// [`Speech`]: Self::Speech
+/// [`Silence`]: Self::Silence
 /// [`Block<Audio>`]: crate::document::Block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -83,8 +85,9 @@ impl AudioBlock {
         }
     }
 
-    /// Transcribed text for [`Speech`](Self::Speech), `None` for
-    /// silence.
+    /// Transcribed text for [`Speech`], `None` for silence.
+    ///
+    /// [`Speech`]: Self::Speech
     pub fn text(&self) -> Option<&str> {
         match self {
             Self::Speech { text, .. } => Some(text),

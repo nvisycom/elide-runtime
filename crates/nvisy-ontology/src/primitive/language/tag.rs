@@ -8,8 +8,6 @@ use serde::{Deserialize, Serialize};
 /// Wraps [`LanguageTag`] with serde support. Use `#[schemars(with =
 /// "String")]` on fields of this type for JSON Schema generation.
 ///
-/// [`LanguageTag`]: oxilangtag::LanguageTag
-///
 /// # Examples
 ///
 /// ```
@@ -20,6 +18,7 @@ use serde::{Deserialize, Serialize};
 /// assert_eq!(tag.primary_language(), "en");
 /// ```
 ///
+/// [`LanguageTag`]: oxilangtag::LanguageTag
 /// [BCP-47]: https://www.rfc-editor.org/info/bcp47
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Display, FromStr)]
 #[derive(Serialize, Deserialize)]

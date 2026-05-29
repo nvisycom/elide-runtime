@@ -6,7 +6,7 @@
 //! time that a recognizer wired for text cannot be passed an audio
 //! document.
 //!
-//! Each modality also defines its own [`Block`](Modality::Block) shape
+//! Each modality also defines its own [`Block`] shape
 //! (via the associated type) so block payloads can diverge across
 //! modalities. A [`TextBlock`] is a structural variant (paragraph,
 //! heading, list item, …) carrying flat text. An [`ImageBlock`]
@@ -15,6 +15,7 @@
 //! speech, the transcript and speaker. A [`TabularBlock`] carries
 //! the row's flat text and 0-based row index.
 //!
+//! [`Block`]: Modality::Block
 //! [`Document`]: crate::document::Document
 //! [`Span`]: crate::document::Span
 //! [`Entity`]: crate::entity::Entity
@@ -46,13 +47,16 @@ pub use self::text::{ContextWindow, Text, TextBlock, TextMetadata};
 ///
 /// Associated types describe per-modality shape:
 ///
-/// - [`Block`](Self::Block) — the modality's block variant.
-/// - [`Metadata`](Self::Metadata) — document-level metadata
-///   (languages, page dimensions, column headers).
-/// - [`Extraction`](Self::Extraction) — how the document's primary
-///   content was produced at importer time (PDF text layer vs OCR'd,
-///   STT vs diarized, etc.). Recorded on [`Self::Metadata`].
+/// - [`Block`] — the modality's block variant.
+/// - [`Metadata`] — document-level metadata (languages, page
+///   dimensions, column headers).
+/// - [`Extraction`] — how the document's primary content was produced
+///   at importer time (PDF text layer vs OCR'd, STT vs diarized,
+///   etc.). Recorded on [`Metadata`].
 ///
+/// [`Block`]: Self::Block
+/// [`Metadata`]: Self::Metadata
+/// [`Extraction`]: Self::Extraction
 /// [`Entity<M>`]: crate::entity::Entity
 /// [`Audit<M>`]: crate::provenance::Audit
 pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
@@ -60,18 +64,22 @@ pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// [`TextBlock`], [`ImageBlock`], [`AudioBlock`], [`TabularBlock`].
     type Block: ModalityBlock + Clone + Debug + PartialEq + Send + Sync + 'static;
 
-    /// Document-level metadata. Carries the modality's
-    /// [`Extraction`](Self::Extraction) tag plus modality-specific
-    /// fields (languages, page dimensions, column headers, …). No
-    /// `Default` bound: every document is imported with a known
-    /// extraction path, so the importer must always supply metadata
-    /// rather than rely on a placeholder default.
+    /// Document-level metadata. Carries the modality's [`Extraction`]
+    /// tag plus modality-specific fields (languages, page dimensions,
+    /// column headers, …). No `Default` bound: every document is
+    /// imported with a known extraction path, so the importer must
+    /// always supply metadata rather than rely on a placeholder
+    /// default.
+    ///
+    /// [`Extraction`]: Self::Extraction
     type Metadata: Clone + Debug + PartialEq + Send + Sync + 'static;
 
     /// How the document's primary content was produced. See
     /// [`TextExtraction`], [`ImageExtraction`], [`AudioExtraction`],
-    /// [`TabularExtraction`]. Recorded on [`Self::Metadata`]; not
-    /// `Default` because the importer always knows which path it took.
+    /// [`TabularExtraction`]. Recorded on [`Metadata`]; not `Default`
+    /// because the importer always knows which path it took.
+    ///
+    /// [`Metadata`]: Self::Metadata
     type Extraction: Clone + Debug + PartialEq + Send + Sync + 'static;
 
     /// The modality's redaction strategy. Each modality declares the
@@ -182,7 +190,9 @@ pub trait RedactionStrategy {
     fn method_tag(&self) -> Self::Tag;
 
     /// Whether the strategy is reversible — true iff the leak
-    /// profile is [`Recoverable`](LeakProfile::Recoverable).
+    /// profile is [`Recoverable`].
+    ///
+    /// [`Recoverable`]: LeakProfile::Recoverable
     fn is_reversible(&self) -> bool {
         self.leak_profile() == LeakProfile::Recoverable
     }

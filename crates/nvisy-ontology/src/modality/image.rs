@@ -72,12 +72,14 @@ impl Modality for Image {
 
 /// Per-modality block payload for [`Image`]. Text-bearing variants
 /// carry recognized text; per-word source spans live on the wrapping
-/// [`Block<Image>`]. Non-textual variants
-/// ([`Figure`](Self::Figure), [`Separator`](Self::Separator),
-/// [`Background`](Self::Background), [`Logo`](Self::Logo)) carry no
-/// text. Every variant carries the bounding `region` since image
-/// blocks are always spatially located.
+/// [`Block<Image>`]. Non-textual variants ([`Figure`], [`Separator`],
+/// [`Background`], [`Logo`]) carry no text. Every variant carries the
+/// bounding `region` since image blocks are always spatially located.
 ///
+/// [`Figure`]: Self::Figure
+/// [`Separator`]: Self::Separator
+/// [`Background`]: Self::Background
+/// [`Logo`]: Self::Logo
 /// [`Block<Image>`]: crate::document::Block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]

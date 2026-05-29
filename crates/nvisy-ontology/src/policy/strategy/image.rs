@@ -71,12 +71,14 @@ pub enum ImageMethodTag {
 impl RedactionStrategy for ImageStrategy {
     type Tag = ImageMethodTag;
 
-    /// All image strategies are [`Partial`](LeakProfile::Partial):
-    /// the original pixels are gone, but the bounding box stays
-    /// observable. No image strategy is currently
-    /// [`Irrecoverable`](LeakProfile::Irrecoverable); reaching that
-    /// would require cropping the region out entirely, which the
-    /// codec doesn't model today.
+    /// All image strategies are [`Partial`]: the original pixels are
+    /// gone, but the bounding box stays observable. No image strategy
+    /// is currently [`Irrecoverable`]; reaching that would require
+    /// cropping the region out entirely, which the codec doesn't
+    /// model today.
+    ///
+    /// [`Partial`]: LeakProfile::Partial
+    /// [`Irrecoverable`]: LeakProfile::Irrecoverable
     fn leak_profile(&self) -> LeakProfile {
         match self {
             Self::Blur { .. } | Self::Block { .. } | Self::Pixelate { .. } => LeakProfile::Partial,

@@ -11,9 +11,17 @@
 //! [`EntityRecord<M>`]: nvisy_ontology::provenance::EntityRecord
 //! [`Decision`]: crate::envelope::Decision
 
+#[cfg(feature = "audio")]
+use nvisy_codec::handler::AudioOutput;
+#[cfg(feature = "image")]
+use nvisy_codec::handler::ImageOutput;
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::modality::{Modality, Text};
+#[cfg(feature = "audio")]
+use nvisy_ontology::policy::AudioMethodTag;
+#[cfg(feature = "image")]
+use nvisy_ontology::policy::ImageMethodTag;
 use nvisy_ontology::primitive::ConfidenceThreshold;
 use nvisy_ontology::provenance::{
     AuditEntry, Decision as AuditDecision, EntityRecord, EntryMetadata, Execution,
@@ -196,8 +204,6 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
 #[async_trait::async_trait]
 impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
     async fn apply_pending(&mut self) -> Result<()> {
-        use nvisy_codec::handler::ImageOutput;
-        use nvisy_ontology::policy::ImageMethodTag;
         let assembled = apply::build(self, |view| {
             to_image_redaction(&view.entry.decision.strategy)
         })
@@ -238,8 +244,6 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
 #[async_trait::async_trait]
 impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
     async fn apply_pending(&mut self) -> Result<()> {
-        use nvisy_codec::handler::AudioOutput;
-        use nvisy_ontology::policy::AudioMethodTag;
         let assembled = apply::build(self, |view| {
             to_audio_redaction(&view.entry.decision.strategy)
         })

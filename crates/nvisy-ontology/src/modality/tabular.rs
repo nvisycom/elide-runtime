@@ -67,10 +67,11 @@ impl Modality for Tabular {
     }
 }
 
-/// Per-modality block payload for [`Tabular`]. Today only
-/// [`Row`](Self::Row) — carries the flat row text and its index.
-/// Per-cell source spans live on the wrapping [`Block<Tabular>`].
+/// Per-modality block payload for [`Tabular`]. Today only [`Row`] —
+/// carries the flat row text and its index. Per-cell source spans
+/// live on the wrapping [`Block<Tabular>`].
 ///
+/// [`Row`]: Self::Row
 /// [`Block<Tabular>`]: crate::document::Block
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]

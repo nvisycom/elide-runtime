@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::entity::{Entity, EntityCategory, EntityKind, EntitySensitivity};
+use crate::entity::{Entity, EntityCategory, EntityKind};
 use crate::modality::Modality;
 use crate::primitive::ConfidenceThreshold;
 
@@ -21,9 +21,6 @@ pub struct EntitySelector {
     /// Specific entity kinds this selector matches. Empty means all kinds.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub entity_kinds: Vec<EntityKind>,
-    /// Sensitivity levels this selector matches. Empty means all levels.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub sensitivities: Vec<EntitySensitivity>,
     /// Minimum detection confidence required. Entities below this threshold
     /// are not matched. `None` means no threshold (matches any confidence).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -49,12 +46,6 @@ impl EntitySelector {
         }
         if !self.entity_kinds.is_empty() && !self.entity_kinds.contains(&entity.entity_kind) {
             return false;
-        }
-        if !self.sensitivities.is_empty() {
-            match entity.sensitivity {
-                Some(s) if self.sensitivities.contains(&s) => {}
-                _ => return false,
-            }
         }
 
         true

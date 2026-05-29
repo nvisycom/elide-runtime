@@ -18,8 +18,6 @@ pub enum ConflictResolution {
     /// Keep only the entity with the highest confidence score.
     #[default]
     HighestConfidence,
-    /// Keep only the entity with the highest sensitivity level.
-    HighestSensitivity,
     /// Keep only the entity with the longest span (most specific match).
     LongestSpan,
 }
@@ -33,12 +31,6 @@ impl ConflictResolution {
     {
         match self {
             Self::HighestConfidence => a.confidence.get() >= b.confidence.get(),
-            Self::HighestSensitivity => match (a.sensitivity, b.sensitivity) {
-                (Some(sa), Some(sb)) => sa >= sb,
-                (Some(_), None) => true,
-                (None, Some(_)) => false,
-                (None, None) => a.confidence.get() >= b.confidence.get(),
-            },
             Self::LongestSpan => {
                 a.location.span_cmp(&b.location).unwrap_or(Ordering::Equal) != Ordering::Less
             }

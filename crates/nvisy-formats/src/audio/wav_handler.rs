@@ -191,7 +191,7 @@ where
 #[cfg(test)]
 mod tests {
     use hound::SampleFormat;
-    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::core::{Handle, Redactions};
     use nvisy_codec::handler::AudioOutput;
 
     use super::*;
@@ -226,12 +226,11 @@ mod tests {
         let bytes = encode_wav_mono_i16(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         let mut handler = WavHandler::new(bytes);
 
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             Audio::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Silence),
-        )
-        .unwrap();
+        );
         handler.redact(rs).await.unwrap();
 
         let samples = decode_wav_mono_i16(handler.bytes());
@@ -243,12 +242,11 @@ mod tests {
         let bytes = encode_wav_mono_i16(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         let mut handler = WavHandler::new(bytes);
 
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             Audio::new(TimeSpan::new(3_000, 6_000)),
             AudioRedaction::new(AudioOutput::Remove),
-        )
-        .unwrap();
+        );
         handler.redact(rs).await.unwrap();
 
         let samples = decode_wav_mono_i16(handler.bytes());
@@ -264,17 +262,15 @@ mod tests {
         let bytes = encode_wav_mono_i16(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         let mut handler = WavHandler::new(bytes);
 
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             Audio::new(TimeSpan::new(1_000, 3_000)),
             AudioRedaction::new(AudioOutput::Remove),
-        )
-        .unwrap();
-        rs.try_insert(
+        );
+        rs.insert(
             Audio::new(TimeSpan::new(6_000, 8_000)),
             AudioRedaction::new(AudioOutput::Remove),
-        )
-        .unwrap();
+        );
         handler.redact(rs).await.unwrap();
 
         let samples = decode_wav_mono_i16(handler.bytes());
@@ -298,12 +294,11 @@ mod tests {
     async fn unsupported_format_returns_error() {
         // Bogus bytes — not a real WAV. read_spec fails.
         let mut handler = WavHandler::new(Bytes::from_static(b"not-a-wav"));
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             Audio::new(TimeSpan::new(0, 1_000)),
             AudioRedaction::new(AudioOutput::Silence),
-        )
-        .unwrap();
+        );
         let err = handler.redact(rs).await.unwrap_err();
         assert!(err.to_string().contains("invalid WAV"));
     }

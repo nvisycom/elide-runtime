@@ -43,9 +43,13 @@ pub enum AudioOutput {
 
 impl Mergeable for AudioRedaction {
     /// Combine two redactions that target overlapping locations.
-    /// Returns `Some` only when the outputs match; conflicting methods
-    /// (e.g. silence vs remove) cannot be reconciled.
-    fn try_merge(self, other: Self) -> Option<Self> {
-        (self.output == other.output).then_some(self)
+    /// Returns `Ok` only when the outputs match; conflicting methods
+    /// (e.g. silence vs remove) hand both originals back via `Err`.
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
+        if self.output == other.output {
+            Ok(self)
+        } else {
+            Err((self, other))
+        }
     }
 }

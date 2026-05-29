@@ -24,7 +24,7 @@
 //! [`Codable::Redaction`]: nvisy_codec::core::Codable
 //! [`Redactions<M, R>`]: nvisy_codec::core::Redactions
 
-use nvisy_codec::core::{ConflictPolicy, Redactions};
+use nvisy_codec::core::Redactions;
 use nvisy_core::Result;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::modality::{Mergeable, Modality, Overlap};
@@ -94,13 +94,13 @@ where
 
     if pending.is_empty() {
         return ApplyBatch {
-            batch: Redactions::new(ConflictPolicy::Merge),
+            batch: Redactions::new(),
             applied: Vec::new(),
             failed: Vec::new(),
         };
     }
 
-    let mut batch: Redactions<M, R> = Redactions::new(ConflictPolicy::Merge);
+    let mut batch: Redactions<M, R> = Redactions::new();
     let mut applied: Vec<(usize, R)> = Vec::with_capacity(pending.len());
     let mut failed: Vec<usize> = Vec::new();
 
@@ -131,16 +131,7 @@ where
             }
         };
 
-        if let Err(e) = batch.try_insert(entity.location.clone(), redaction.clone()) {
-            tracing::warn!(
-                target: TARGET,
-                entity_id = %entity.id,
-                error = %e,
-                "redaction conflicts with another in this batch; skipping",
-            );
-            failed.push(idx);
-            continue;
-        }
+        batch.insert(entity.location.clone(), redaction.clone());
         applied.push((idx, redaction));
     }
 

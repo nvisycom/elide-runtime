@@ -1,4 +1,5 @@
-//! [`Content`]: data bytes paired with descriptive metadata.
+//! [`Content`]: data bytes optionally paired with descriptive
+//! metadata.
 
 use std::path::Path;
 
@@ -9,11 +10,14 @@ use super::{ContentData, ContentMetadata, ContentSource};
 use crate::error::Result;
 use crate::media::DocumentType;
 
-/// Complete content representation: raw bytes + metadata.
+/// Complete content representation: raw bytes plus optional
+/// metadata.
 ///
 /// [`ContentData`] holds the bytes and source identity.
 /// [`ContentMetadata`] holds MIME type, filename, and arbitrary
-/// key-value pairs. Together they form a `Content`.
+/// key-value pairs when present. Metadata is optional because some
+/// import paths (raw byte uploads, generated content) have nothing
+/// useful to attach.
 #[derive(Debug, Clone, PartialEq)]
 #[derive(AsRef, Deref, Serialize, Deserialize)]
 pub struct Content {

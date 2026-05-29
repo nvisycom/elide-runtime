@@ -124,8 +124,16 @@ impl Tabular {
 }
 
 impl Overlap for Tabular {
+    /// Two tabular ranges overlap only when they target the same
+    /// cell — matching `row_index`, `column_index`, **and**
+    /// `sheet_name` — and their intra-cell byte ranges intersect.
+    /// Without the sheet gate, two cells at the same row/col across
+    /// sheets of a workbook would false-positive as overlapping.
     fn overlaps(&self, other: &Self) -> bool {
-        if self.row_index != other.row_index || self.column_index != other.column_index {
+        if self.row_index != other.row_index
+            || self.column_index != other.column_index
+            || self.sheet_name != other.sheet_name
+        {
             return false;
         }
         let (s1, e1) = self.cell_range();
@@ -139,12 +147,12 @@ impl Mergeable for Tabular {
     /// (same `row_index` + `column_index` + `sheet_name`). Intra-cell
     /// byte offsets union when present on both sides; otherwise the
     /// result has no offsets (meaning "whole cell").
-    fn try_merge(self, other: Self) -> Option<Self> {
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
         if self.row_index != other.row_index
             || self.column_index != other.column_index
             || self.sheet_name != other.sheet_name
         {
-            return None;
+            return Err((self, other));
         }
         let (start, end) = match (
             self.start_offset,
@@ -155,7 +163,7 @@ impl Mergeable for Tabular {
             (Some(s1), Some(e1), Some(s2), Some(e2)) => (Some(s1.min(s2)), Some(e1.max(e2))),
             _ => (None, None),
         };
-        Some(Self {
+        Ok(Self {
             row_index: self.row_index,
             column_index: self.column_index,
             start_offset: start,

@@ -60,14 +60,12 @@ impl Handle<Text> for TxtHandler {
         let items: Vec<_> = self
             .line_offsets()
             .into_iter()
-            .enumerate()
-            .map(|(i, (start, end))| {
+            .map(|(start, end)| {
                 Located::new(
                     source,
                     Text {
                         start,
                         end,
-                        line_number: Some((i + 1) as u32),
                         ..Default::default()
                     },
                 )
@@ -163,7 +161,7 @@ impl TxtHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::core::{Handle, Redactions};
     use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
@@ -183,10 +181,8 @@ mod tests {
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].location.start, 0);
         assert_eq!(items[0].location.end, 5);
-        assert_eq!(items[0].location.line_number, Some(1));
         assert_eq!(items[1].location.start, 6);
         assert_eq!(items[1].location.end, 11);
-        assert_eq!(items[1].location.line_number, Some(2));
     }
 
     #[tokio::test]
@@ -226,12 +222,11 @@ mod tests {
     async fn redact_replaces_whole_line() -> Result<(), Error> {
         let mut h = handler("hello\nworld\n");
         let items: Vec<_> = h.locations().collect().await;
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             items[1].location.clone(),
             TextRedaction::new(TextOutput::replace("[REDACTED]")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["hello", "[REDACTED]"]);
         Ok(())
@@ -242,16 +237,15 @@ mod tests {
         // Entity-shaped location: bytes 6..11 in "hello world" picks the
         // substring "world", which lives inside the single-line span.
         let mut h = handler("hello world");
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             Text {
                 start: 6,
                 end: 11,
                 ..Default::default()
             },
             TextRedaction::new(TextOutput::replace("[X]")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["hello [X]"]);
         Ok(())
@@ -261,17 +255,15 @@ mod tests {
     async fn redact_multiple_lines() -> Result<(), Error> {
         let mut h = handler("aaa\nbbb\nccc\n");
         let items: Vec<_> = h.locations().collect().await;
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             items[0].location.clone(),
             TextRedaction::new(TextOutput::replace("[X]")),
-        )
-        .unwrap();
-        rs.try_insert(
+        );
+        rs.insert(
             items[2].location.clone(),
             TextRedaction::new(TextOutput::replace("[Y]")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["[X]", "bbb", "[Y]"]);
         Ok(())
@@ -280,16 +272,15 @@ mod tests {
     #[tokio::test]
     async fn redact_unknown_location_skipped() -> Result<(), Error> {
         let mut h = handler("one line");
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             Text {
                 start: 999,
                 end: 1000,
                 ..Default::default()
             },
             TextRedaction::new(TextOutput::replace("nope")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.lines(), &["one line"]);
         Ok(())

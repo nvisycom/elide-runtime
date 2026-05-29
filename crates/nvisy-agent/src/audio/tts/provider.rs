@@ -1,7 +1,7 @@
 //! Provider dispatch for text-to-speech models.
 
 #[cfg(feature = "openai-tts")]
-use nvisy_core::http::{HttpClient, HttpConfig};
+use nvisy_core::http::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 #[cfg(feature = "openai-tts")]
 use rig::providers::openai;
@@ -91,12 +91,11 @@ impl TtsModels {
             TtsProvider::OpenAi(p) => {
                 let http = match client {
                     Some(c) => c,
-                    None => HttpClient::new(&HttpConfig {
+                    None => build_http_client(&HttpConfig {
                         max_retries,
                         ..HttpConfig::default()
                     })
-                    .map_err(|e| Error::Request(e.to_string()))?
-                    .into_inner(),
+                    .map_err(|e| Error::Request(e.to_string()))?,
                 };
                 let client = p.openai_client(http)?;
                 let model = openai::audio_generation::AudioGenerationModel::new(client, model);

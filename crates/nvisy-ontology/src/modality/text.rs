@@ -44,9 +44,6 @@ pub struct Text {
     /// 1-based page number.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_number: Option<u32>,
-    /// 1-based line number.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_number: Option<u32>,
 }
 
 impl Text {
@@ -58,7 +55,6 @@ impl Text {
             end,
             context: None,
             page_number: None,
-            line_number: None,
         }
     }
 
@@ -139,19 +135,24 @@ pub struct TextMetadata {
 }
 
 impl Overlap for Text {
+    /// Two text ranges overlap only when they share a page (or both
+    /// have `page_number: None`) and their byte ranges intersect.
+    /// Without the page gate, two ranges on different pages of the
+    /// same document that happen to share byte offsets would
+    /// false-positive as overlapping.
     fn overlaps(&self, other: &Self) -> bool {
-        self.start < other.end && other.start < self.end
+        self.page_number == other.page_number && self.start < other.end && other.start < self.end
     }
 }
 
 impl Mergeable for Text {
     /// Merge two text ranges by unioning byte offsets when their
-    /// non-range identity (page/line) matches. Context windows union
-    /// when present on both sides; otherwise the result has no
-    /// context window.
-    fn try_merge(self, other: Self) -> Option<Self> {
-        if self.page_number != other.page_number || self.line_number != other.line_number {
-            return None;
+    /// non-range identity (page) matches. Context windows union when
+    /// present on both sides; otherwise the result has no context
+    /// window.
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
+        if self.page_number != other.page_number {
+            return Err((self, other));
         }
         // Context windows union only when both sides have one;
         // otherwise the merged range drops the context window.
@@ -159,12 +160,11 @@ impl Mergeable for Text {
             start: a.start.min(b.start),
             end: a.end.max(b.end),
         });
-        Some(Self {
+        Ok(Self {
             start: self.start.min(other.start),
             end: self.end.max(other.end),
             context,
             page_number: self.page_number,
-            line_number: self.line_number,
         })
     }
 }

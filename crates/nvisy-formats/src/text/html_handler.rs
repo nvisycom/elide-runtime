@@ -182,7 +182,7 @@ impl HtmlHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::core::{Handle, Redactions};
     use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
@@ -221,12 +221,11 @@ mod tests {
         let raw = "<html><head></head><body><p>Hello</p><p>World</p></body></html>";
         let mut h = handler_from_html(raw);
         let items: Vec<_> = h.locations().collect().await;
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             items[0].location.clone(),
             TextRedaction::new(TextOutput::replace("[REDACTED]")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         let result = h.encode()?.as_str().unwrap().to_owned();
         assert!(result.contains("[REDACTED]"));

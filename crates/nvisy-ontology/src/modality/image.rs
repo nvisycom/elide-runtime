@@ -145,8 +145,16 @@ pub struct PageDimensions {
 }
 
 impl Overlap for Image {
+    /// Two image regions overlap only when they target the same
+    /// image (matching `image_id`) on the same page (matching
+    /// `page_number`) and their bounding boxes intersect. Without
+    /// the image/page gates, two regions with the same bbox
+    /// coordinates on different pages or different uploads would
+    /// false-positive as overlapping.
     fn overlaps(&self, other: &Self) -> bool {
-        self.bounding_box.overlaps(&other.bounding_box)
+        self.image_id == other.image_id
+            && self.page_number == other.page_number
+            && self.bounding_box.overlaps(&other.bounding_box)
     }
 }
 
@@ -158,11 +166,11 @@ impl Mergeable for Image {
     /// The polygon is dropped on merge — the convex hull of two
     /// rotated quads is not well defined as another quad, and the
     /// unioned bbox already captures the merged region.
-    fn try_merge(self, other: Self) -> Option<Self> {
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
         if self.image_id != other.image_id || self.page_number != other.page_number {
-            return None;
+            return Err((self, other));
         }
-        Some(Self {
+        Ok(Self {
             bounding_box: self.bounding_box.union(&other.bounding_box),
             polygon: None,
             image_id: self.image_id,

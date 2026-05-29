@@ -106,8 +106,17 @@ pub struct AudioMetadata {
 }
 
 impl Overlap for Audio {
+    /// Two audio intervals overlap only when they target the same
+    /// stream (matching `audio_id`) on the same `speaker_id` and
+    /// their time spans intersect. Two voices captured on the same
+    /// time interval are physically distinct redaction targets
+    /// (source separation can suppress one speaker while keeping
+    /// another), so different speaker IDs are not treated as
+    /// overlapping even when the time spans intersect.
     fn overlaps(&self, other: &Self) -> bool {
-        self.time_span.overlaps(&other.time_span)
+        self.audio_id == other.audio_id
+            && self.speaker_id == other.speaker_id
+            && self.time_span.overlaps(&other.time_span)
     }
 }
 
@@ -115,11 +124,11 @@ impl Mergeable for Audio {
     /// Merge two audio intervals by unioning time spans when their
     /// `audio_id` and `speaker_id` match. Different speakers or
     /// different documents cannot merge.
-    fn try_merge(self, other: Self) -> Option<Self> {
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
         if self.audio_id != other.audio_id || self.speaker_id != other.speaker_id {
-            return None;
+            return Err((self, other));
         }
-        Some(Self {
+        Ok(Self {
             time_span: self.time_span.union(&other.time_span),
             speaker_id: self.speaker_id,
             audio_id: self.audio_id,

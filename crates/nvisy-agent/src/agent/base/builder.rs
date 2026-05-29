@@ -2,7 +2,7 @@
 //!
 //! [`BaseAgent`]: super::BaseAgent
 
-use nvisy_core::http::{HttpClient, HttpConfig};
+use nvisy_core::http::{HttpConfig, build_http_client};
 use rig::agent::{Agent, AgentBuilder};
 use rig::client::CompletionClient;
 use rig::completion::CompletionModel;
@@ -37,14 +37,12 @@ impl BaseAgentBuilder {
     pub fn build(self) -> Result<BaseAgent, Error> {
         let Self { provider, config } = self;
 
-        let http_client = HttpClient::new(&HttpConfig {
+        let raw_client = build_http_client(&HttpConfig {
             max_retries: config.max_retries,
             ..HttpConfig::default()
         })
         .map_err(|e| Error::Request(e.to_string()))?;
         let preamble = config.preamble.as_deref();
-
-        let raw_client = http_client.into_inner();
 
         let inner = match &provider {
             #[cfg(feature = "openai-gpt")]

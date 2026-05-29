@@ -20,8 +20,9 @@ impl ImageData {
     /// Records `width` and `height` on the current tracing span if set.
     pub fn decode(content: &ContentData, origin: &str) -> Result<Self, Error> {
         let raw = content.to_bytes();
-        let img = image::load_from_memory(&raw)
-            .map_err(|e| Error::validation(format!("image decode failed: {e}"), origin.to_owned()))?;
+        let img = image::load_from_memory(&raw).map_err(|e| {
+            Error::validation(format!("image decode failed: {e}"), origin.to_owned())
+        })?;
         tracing::Span::current().record("width", img.width());
         tracing::Span::current().record("height", img.height());
         Ok(Self(img))

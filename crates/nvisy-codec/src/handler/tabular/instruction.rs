@@ -35,9 +35,13 @@ impl TabularRedaction {
 
 impl Mergeable for TabularRedaction {
     /// Combine two redactions that target overlapping cells. Returns
-    /// `Some` only when the outputs match; different replacement
-    /// strings cannot be reconciled.
-    fn try_merge(self, other: Self) -> Option<Self> {
-        (self.output == other.output).then_some(self)
+    /// `Ok` only when the outputs match; different replacement
+    /// strings hand both originals back via `Err`.
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
+        if self.output == other.output {
+            Ok(self)
+        } else {
+            Err((self, other))
+        }
     }
 }

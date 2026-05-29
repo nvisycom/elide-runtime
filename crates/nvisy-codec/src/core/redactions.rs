@@ -1,52 +1,90 @@
 //! Generic [`Redactions`] collection of `(location, redaction)` pairs
-//! with overlap detection on insert.
+//! with overlap-aware insert.
 //!
-//! The collection is a flat `Vec<(S, R)>` ordered by insertion. On
-//! [`try_insert`], `S::overlaps` checks for a collision with any
-//! existing entry; under [`ConflictPolicy::Merge`], both
-//! `S::try_merge` and `R::try_merge` must succeed to fuse the entries.
+//! The collection is a flat `Vec` of internal pairs, ordered by
+//! insertion. On [`insert`], `S::overlaps` checks for a collision
+//! with any existing entry; on collision the new pair is fused with
+//! the existing one by merging the redaction payload first, then the
+//! location. When the payload merge is rejected (e.g. two redactions
+//! on the same span want different replacement outputs) both
+//! originals are kept side by side — the collection never drops a
+//! redaction.
 //!
-//! Callers consume the collection via [`IntoIterator`] yielding `(S, R)`.
+//! Callers consume the collection via [`IntoIterator`] yielding
+//! `(S, R)` tuples.
 //!
 //! [`Redactions`]: crate::core::Redactions
-//! [`ConflictPolicy::Merge`]: crate::core::ConflictPolicy::Merge
-//! [`try_insert`]: Redactions::try_insert
+//! [`insert`]: Redactions::insert
 
 use std::fmt;
 
-use derive_more::IntoIterator;
 use nvisy_ontology::modality::{Mergeable, Overlap};
 
-use super::policy::{ConflictPolicy, InsertError};
+/// Crate-internal `(location, redaction)` bundle. Keeping the pair
+/// as a named type lets [`Mergeable`] express the
+/// "merge payload first, then location" rule once instead of
+/// duplicating it on every collision branch in
+/// [`Redactions::insert`]. Not exported from the crate — external
+/// callers only see `Redactions::insert(location, redaction)`.
+pub(crate) struct Pair<S, R> {
+    pub(crate) location: S,
+    pub(crate) redaction: R,
+}
 
-/// A set of `(location, redaction)` pairs with overlap detection on
-/// insert.
+impl<S, R> Mergeable for Pair<S, R>
+where
+    S: Mergeable,
+    R: Mergeable,
+{
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
+        match self.redaction.try_merge(other.redaction) {
+            Ok(merged_redaction) => {
+                // Location identity is gated by the same fields on
+                // both sides of `Overlap` and `Mergeable`, so a true
+                // overlap always merges; if a future modality drifts
+                // the two impls apart the `expect` surfaces it.
+                let merged_location = self
+                    .location
+                    .try_merge(other.location)
+                    .ok()
+                    .expect("Overlap implies location Mergeable");
+                Ok(Self {
+                    location: merged_location,
+                    redaction: merged_redaction,
+                })
+            }
+            Err((existing_redaction, new_redaction)) => Err((
+                Self {
+                    location: self.location,
+                    redaction: existing_redaction,
+                },
+                Self {
+                    location: other.location,
+                    redaction: new_redaction,
+                },
+            )),
+        }
+    }
+}
+
+/// A set of `(location, redaction)` pairs that fuses overlapping
+/// entries on insert.
 ///
-/// `S` is the location key. It must implement [`Overlap`] (for
-/// collision detection) and [`Mergeable`] (for the [`Merge`] policy).
+/// `S` must implement [`Overlap`] (for collision detection) and
+/// [`Mergeable`] (for fusing location identity). `R` must implement
+/// [`Mergeable`] for fusing redaction outputs. When either merge is
+/// rejected, both pairs are kept side by side.
 ///
-/// `R` is the redaction payload. It must implement [`Mergeable`] —
-/// the collection asks both `S` and `R` whether they can be merged
-/// before fusing two colliding entries.
-///
-/// Internally backed by a `Vec<(S, R)>`. Entry counts are typically
-/// small (per-document), so linear scans are cheap.
-///
-/// [`Merge`]: ConflictPolicy::Merge
-#[derive(IntoIterator)]
+/// Internally backed by a `Vec`. Entry counts are typically small
+/// (per-document), so linear scans are cheap.
 pub struct Redactions<S, R> {
-    policy: ConflictPolicy,
-    #[into_iterator(owned)]
-    items: Vec<(S, R)>,
+    pub(crate) items: Vec<Pair<S, R>>,
 }
 
 impl<S, R> Redactions<S, R> {
-    /// Create an empty collection with the given conflict policy.
-    pub fn new(policy: ConflictPolicy) -> Self {
-        Self {
-            policy,
-            items: Vec::new(),
-        }
+    /// Create an empty collection.
+    pub fn new() -> Self {
+        Self { items: Vec::new() }
     }
 
     /// Total number of redactions.
@@ -65,45 +103,30 @@ where
     S: Overlap + Mergeable,
     R: Mergeable,
 {
-    /// Insert a `(location, redaction)` pair.
-    ///
-    /// If `location` overlaps any existing entry's location, behavior
-    /// is determined by the configured [`ConflictPolicy`]:
-    ///
-    /// - [`Reject`]: returns [`InsertError::RejectedOverlap`].
-    /// - [`Merge`]: attempts to merge both location and redaction;
-    ///   returns [`InsertError::NotMergeable`] if either rejects.
-    /// - [`Replace`]: drops the existing overlapping entry and
-    ///   inserts the new one.
-    ///
-    /// [`Reject`]: ConflictPolicy::Reject
-    /// [`Merge`]: ConflictPolicy::Merge
-    /// [`Replace`]: ConflictPolicy::Replace
-    pub fn try_insert(&mut self, location: S, redaction: R) -> Result<(), InsertError> {
-        let overlap_idx = self.items.iter().position(|(s, _)| s.overlaps(&location));
-        let Some(idx) = overlap_idx else {
-            self.items.push((location, redaction));
-            return Ok(());
+    /// Insert a `(location, redaction)` pair, fusing it with any
+    /// overlapping existing entry when both location and payload can
+    /// be merged. When merging is rejected, both pairs are retained
+    /// — the collection never drops a redaction.
+    pub fn insert(&mut self, location: S, redaction: R) {
+        let new_pair = Pair {
+            location,
+            redaction,
+        };
+        let Some(idx) = self
+            .items
+            .iter()
+            .position(|pair| pair.location.overlaps(&new_pair.location))
+        else {
+            self.items.push(new_pair);
+            return;
         };
 
-        match self.policy {
-            ConflictPolicy::Reject => Err(InsertError::RejectedOverlap),
-            ConflictPolicy::Replace => {
-                self.items[idx] = (location, redaction);
-                Ok(())
-            }
-            ConflictPolicy::Merge => {
-                let (existing_s, existing_r) = self.items.remove(idx);
-                match (
-                    existing_s.try_merge(location),
-                    existing_r.try_merge(redaction),
-                ) {
-                    (Some(merged_s), Some(merged_r)) => {
-                        self.items.push((merged_s, merged_r));
-                        Ok(())
-                    }
-                    _ => Err(InsertError::NotMergeable),
-                }
+        let existing_pair = self.items.remove(idx);
+        match existing_pair.try_merge(new_pair) {
+            Ok(merged_pair) => self.items.push(merged_pair),
+            Err((existing_pair, new_pair)) => {
+                self.items.push(existing_pair);
+                self.items.push(new_pair);
             }
         }
     }
@@ -111,14 +134,13 @@ where
 
 impl<S, R> Default for Redactions<S, R> {
     fn default() -> Self {
-        Self::new(ConflictPolicy::default())
+        Self::new()
     }
 }
 
 impl<S, R> fmt::Debug for Redactions<S, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Redactions")
-            .field("policy", &self.policy)
             .field("redactions", &self.len())
             .finish()
     }
@@ -147,8 +169,8 @@ mod tests {
     }
 
     impl Mergeable for S {
-        fn try_merge(self, other: Self) -> Option<Self> {
-            Some(Self {
+        fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
+            Ok(Self {
                 start: self.start.min(other.start),
                 end: self.end.max(other.end),
             })
@@ -159,64 +181,48 @@ mod tests {
     struct R(&'static str);
 
     impl Mergeable for R {
-        fn try_merge(self, other: Self) -> Option<Self> {
-            (self.0 == other.0).then_some(self)
+        fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
+            if self.0 == other.0 {
+                Ok(self)
+            } else {
+                Err((self, other))
+            }
         }
     }
 
     #[test]
     fn insert_non_overlapping_keeps_both() {
-        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Reject);
-        rs.try_insert(S::new(0, 5), R("x")).unwrap();
-        rs.try_insert(S::new(10, 15), R("y")).unwrap();
+        let mut rs = Redactions::<S, R>::new();
+        rs.insert(S::new(0, 5), R("x"));
+        rs.insert(S::new(10, 15), R("y"));
         assert_eq!(rs.len(), 2);
     }
 
     #[test]
-    fn reject_policy_errors_on_overlap() {
-        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Reject);
-        rs.try_insert(S::new(0, 5), R("x")).unwrap();
-        let err = rs.try_insert(S::new(3, 8), R("y")).unwrap_err();
-        assert!(matches!(err, InsertError::RejectedOverlap));
+    fn overlap_with_same_payload_fuses() {
+        let mut rs = Redactions::<S, R>::new();
+        rs.insert(S::new(0, 5), R("x"));
+        rs.insert(S::new(3, 8), R("x"));
         assert_eq!(rs.len(), 1);
+        let pair = rs.items.into_iter().next().unwrap();
+        assert_eq!((pair.location.start, pair.location.end), (0, 8));
     }
 
     #[test]
-    fn replace_policy_overwrites_overlap() {
-        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Replace);
-        rs.try_insert(S::new(0, 5), R("x")).unwrap();
-        rs.try_insert(S::new(3, 8), R("y")).unwrap();
-        assert_eq!(rs.len(), 1);
-        let (s, r) = rs.into_iter().next().unwrap();
-        assert_eq!((s.start, s.end), (3, 8));
-        assert_eq!(r.0, "y");
+    fn overlap_with_different_payload_keeps_both() {
+        let mut rs = Redactions::<S, R>::new();
+        rs.insert(S::new(0, 5), R("x"));
+        rs.insert(S::new(3, 8), R("y"));
+        assert_eq!(rs.len(), 2);
     }
 
     #[test]
-    fn merge_policy_combines_same_payload() {
-        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Merge);
-        rs.try_insert(S::new(0, 5), R("x")).unwrap();
-        rs.try_insert(S::new(3, 8), R("x")).unwrap();
-        assert_eq!(rs.len(), 1);
-        let (s, _) = rs.into_iter().next().unwrap();
-        assert_eq!((s.start, s.end), (0, 8));
-    }
-
-    #[test]
-    fn merge_policy_errors_when_payload_differs() {
-        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Merge);
-        rs.try_insert(S::new(0, 5), R("x")).unwrap();
-        let err = rs.try_insert(S::new(3, 8), R("y")).unwrap_err();
-        assert!(matches!(err, InsertError::NotMergeable));
-    }
-
-    #[test]
-    fn into_iter_preserves_insertion_order() {
-        let mut rs = Redactions::<S, R>::new(ConflictPolicy::Reject);
-        rs.try_insert(S::new(20, 25), R("a")).unwrap();
-        rs.try_insert(S::new(0, 5), R("b")).unwrap();
-        rs.try_insert(S::new(10, 15), R("c")).unwrap();
-        let starts: Vec<usize> = rs.into_iter().map(|(s, _)| s.start).collect();
+    fn iteration_preserves_insertion_order() {
+        let mut rs = Redactions::<S, R>::new();
+        rs.insert(S::new(20, 25), R("a"));
+        rs.insert(S::new(0, 5), R("b"));
+        rs.insert(S::new(10, 15), R("c"));
+        let starts: Vec<usize> = rs.items.iter().map(|pair| pair.location.start).collect();
         assert_eq!(starts, vec![20, 0, 10]);
     }
 }

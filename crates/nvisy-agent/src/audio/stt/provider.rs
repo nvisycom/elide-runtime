@@ -1,7 +1,7 @@
 //! Provider dispatch for speech-to-text models.
 
 #[cfg(feature = "openai-whisper")]
-use nvisy_core::http::{HttpClient, HttpConfig};
+use nvisy_core::http::{HttpConfig, build_http_client};
 use reqwest_middleware::ClientWithMiddleware;
 #[cfg(feature = "openai-whisper")]
 use rig::providers::openai;
@@ -91,12 +91,11 @@ impl SttModels {
             SttProvider::OpenAi(p) => {
                 let http = match client {
                     Some(c) => c,
-                    None => HttpClient::new(&HttpConfig {
+                    None => build_http_client(&HttpConfig {
                         max_retries,
                         ..HttpConfig::default()
                     })
-                    .map_err(|e| Error::Request(e.to_string()))?
-                    .into_inner(),
+                    .map_err(|e| Error::Request(e.to_string()))?,
                 };
                 let client = p.openai_client(http)?;
                 let model = openai::transcription::TranscriptionModel::new(client, model);

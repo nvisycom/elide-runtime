@@ -98,12 +98,14 @@ pub trait RedactionStrategy {
 ///
 /// Used by deduplication and fusion pipelines: when two entries
 /// collide (per [`Overlap`]), the consumer asks both the location
-/// and the payload whether they can fuse. Returns `Some(merged)`
-/// when the two can be combined (e.g. unioned bounding boxes,
-/// identical outputs), `None` when they cannot (e.g. different
-/// tabular cells, conflicting replacement strings).
+/// and the payload whether they can fuse. Returns `Ok(merged)` when
+/// the two can be combined (e.g. unioned bounding boxes, identical
+/// outputs), or `Err((self, other))` handing both originals back
+/// when they cannot (e.g. different tabular cells, conflicting
+/// replacement strings) — the caller keeps both without paying for a
+/// speculative clone.
 pub trait Mergeable: Sized {
-    fn try_merge(self, other: Self) -> Option<Self>;
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)>;
 }
 
 /// Check whether two coordinates of the same modality overlap.

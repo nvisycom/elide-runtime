@@ -50,4 +50,3 @@ impl<L> Located<L, ()> {
         }
     }
 }
-

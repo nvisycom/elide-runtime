@@ -270,7 +270,7 @@ impl CsvHandler {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use nvisy_codec::core::{ConflictPolicy, Handle, Redactions};
+    use nvisy_codec::core::{Handle, Redactions};
     use nvisy_codec::handler::TextOutput;
     use nvisy_core::Error;
 
@@ -348,12 +348,11 @@ mod tests {
     #[tokio::test]
     async fn redact_full_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["ssn"], vec![vec!["123-45-6789"]]);
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             cell_range(1, 0, 0, 11),
             TabularRedaction::new(TextOutput::replace("[REDACTED]")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.cell(0, 0), Some("[REDACTED]"));
         Ok(())
@@ -362,12 +361,11 @@ mod tests {
     #[tokio::test]
     async fn redact_partial_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["bio"], vec![vec!["Alice Smith"]]);
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             cell_range(1, 0, 0, 5),
             TabularRedaction::new(TextOutput::replace("[NAME]")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.cell(0, 0), Some("[NAME] Smith"));
         Ok(())
@@ -376,12 +374,11 @@ mod tests {
     #[tokio::test]
     async fn redact_header() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["secret_field"], vec![vec!["v"]]);
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             cell_range(0, 0, 0, 12),
             TabularRedaction::new(TextOutput::replace("redacted")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.headers(), Some(["redacted".to_string()].as_slice()));
         Ok(())
@@ -390,12 +387,11 @@ mod tests {
     #[tokio::test]
     async fn redact_unknown_row_skipped() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["a"], vec![vec!["one"]]);
-        let mut rs = Redactions::new(ConflictPolicy::Reject);
-        rs.try_insert(
+        let mut rs = Redactions::new();
+        rs.insert(
             cell_range(99, 0, 0, 1),
             TabularRedaction::new(TextOutput::replace("X")),
-        )
-        .unwrap();
+        );
         h.redact(rs).await?;
         assert_eq!(h.cell(0, 0), Some("one"));
         Ok(())

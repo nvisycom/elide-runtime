@@ -65,10 +65,14 @@ impl TextOutput {
 }
 
 impl Mergeable for TextRedaction {
-    /// Combine two redactions that target overlapping locations. Returns
-    /// `Some` only when the outputs match; different replacement
-    /// strings cannot be reconciled.
-    fn try_merge(self, other: Self) -> Option<Self> {
-        (self.output == other.output).then_some(self)
+    /// Combine two redactions that target overlapping locations.
+    /// Returns `Ok` only when the outputs match; different
+    /// replacement strings hand both originals back via `Err`.
+    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
+        if self.output == other.output {
+            Ok(self)
+        } else {
+            Err((self, other))
+        }
     }
 }

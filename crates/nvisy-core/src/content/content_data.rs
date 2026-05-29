@@ -167,10 +167,9 @@ impl ContentData {
     /// Detect MIME type from the raw bytes using magic-byte signatures.
     ///
     /// Returns `None` for content with no recognizable magic bytes
-    /// (e.g. plain text). Use this to populate
-    /// [`ContentMetadata::detected_content_type`].
-    ///
-    /// [`ContentMetadata::detected_content_type`]: super::ContentMetadata::detected_content_type
+    /// (e.g. plain text). Pairing the result with
+    /// `ContentMetadata::detected_content_type` is a caller-side
+    /// convention — no type-level link exists between the two.
     #[must_use]
     pub fn detect_mime(&self) -> Option<String> {
         infer::get(&self.data).map(|t| t.mime_type().to_owned())

@@ -11,8 +11,8 @@
 //!   param is the location, not the modality marker — for the
 //!   modality types it's always `M::Location`-shaped, but the
 //!   abstraction is over locations.)
-//! - [`Redactions<M, R>`] + [`ConflictPolicy`] — per-modality
-//!   redaction collections.
+//! - [`Redactions<S, R>`] — per-modality redaction collections that
+//!   fuse overlapping `(location, redaction)` pairs on insert.
 //!
 //! Base traits ([`Handler`], [`Loader`]) live in [`crate::handler`],
 //! since they're spelled out next to the concrete per-modality wire
@@ -26,7 +26,6 @@
 
 mod handle;
 mod located;
-mod policy;
 mod redactions;
 mod stream;
 
@@ -34,6 +33,5 @@ pub use nvisy_ontology::modality::Mergeable;
 
 pub use self::handle::{Codable, Handle};
 pub use self::located::Located;
-pub use self::policy::{ConflictPolicy, InsertError};
 pub use self::redactions::Redactions;
 pub use self::stream::LocationStream;

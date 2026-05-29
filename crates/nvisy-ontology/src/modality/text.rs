@@ -72,7 +72,19 @@ impl Text {
 impl Modality for Text {
     type Block = TextBlock;
     type Metadata = TextMetadata;
+    type MethodTag = crate::policy::TextMethodTag;
     type Strategy = TextStrategy;
+
+    fn default_method_dominance() -> &'static [Self::MethodTag] {
+        // Mask is length-preserving (leaks length only); Replace can
+        // change length and leaks the placeholder text. Other tags
+        // never tie at the Partial tier (Recoverable / Irrecoverable
+        // already resolve the conflict).
+        &[
+            crate::policy::TextMethodTag::Mask,
+            crate::policy::TextMethodTag::Replace,
+        ]
+    }
 }
 
 /// Per-modality block payload for [`Text`]. Each variant is a

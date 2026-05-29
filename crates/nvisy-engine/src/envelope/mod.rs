@@ -29,6 +29,7 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 pub use self::any::AnyEnvelope;
+pub(crate) use self::policy_store::Decision;
 pub use self::policy_store::PolicyStore;
 pub use self::shared_data::SharedData;
 

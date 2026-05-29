@@ -50,7 +50,19 @@ impl Image {
 impl Modality for Image {
     type Block = ImageBlock;
     type Metadata = ImageMetadata;
+    type MethodTag = crate::policy::ImageMethodTag;
     type Strategy = ImageStrategy;
+
+    fn default_method_dominance() -> &'static [Self::MethodTag] {
+        // Block destroys colour entirely; Pixelate leaks coarse
+        // colour; Blur leaks low-frequency colour + edges. When in
+        // doubt, redact harder.
+        &[
+            crate::policy::ImageMethodTag::Block,
+            crate::policy::ImageMethodTag::Pixelate,
+            crate::policy::ImageMethodTag::Blur,
+        ]
+    }
 }
 
 /// Per-modality block payload for [`Image`]. Text-bearing variants

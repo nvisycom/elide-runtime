@@ -48,7 +48,19 @@ impl Tabular {
 impl Modality for Tabular {
     type Block = TabularBlock;
     type Metadata = TabularMetadata;
+    type MethodTag = crate::policy::TabularMethodTag;
     type Strategy = TabularStrategy;
+
+    fn default_method_dominance() -> &'static [Self::MethodTag] {
+        // Clear leaves the cell at known coordinates with an empty
+        // value (least content leaks); Mask preserves length;
+        // Replace can change length.
+        &[
+            crate::policy::TabularMethodTag::Clear,
+            crate::policy::TabularMethodTag::Mask,
+            crate::policy::TabularMethodTag::Replace,
+        ]
+    }
 }
 
 /// Per-modality block payload for [`Tabular`]. Today only

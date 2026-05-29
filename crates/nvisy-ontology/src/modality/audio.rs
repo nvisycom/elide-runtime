@@ -38,7 +38,14 @@ impl Audio {
 impl Modality for Audio {
     type Block = AudioBlock;
     type Metadata = AudioMetadata;
+    type MethodTag = crate::policy::AudioMethodTag;
     type Strategy = AudioStrategy;
+
+    fn default_method_dominance() -> &'static [Self::MethodTag] {
+        // Silence is the only Partial-profile method; Remove is
+        // Irrecoverable and never ties with Silence.
+        &[crate::policy::AudioMethodTag::Silence]
+    }
 }
 
 /// Per-modality block payload for [`Audio`].

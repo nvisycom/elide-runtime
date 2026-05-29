@@ -20,15 +20,15 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-pub use self::audio::AudioStrategy;
-pub use self::image::ImageStrategy;
-pub use self::tabular::TabularStrategy;
-pub use self::text::TextStrategy;
+pub use self::audio::{AudioMethodTag, AudioStrategy};
+pub use self::image::{ImageMethodTag, ImageStrategy};
+pub use self::tabular::{TabularMethodTag, TabularStrategy};
+pub use self::text::{TextMethodTag, TextStrategy};
 use super::condition::Condition;
 use super::selector::EntitySelector;
 use crate::modality::Modality;
 
-/// The action a policy performs when it matches an entity.
+/// The action a policy rule performs when it matches an entity.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(
     tag = "action",
@@ -45,17 +45,19 @@ pub enum Action<M: Modality> {
         /// Redaction strategy to apply.
         strategy: M::Strategy,
     },
-    /// Require human review before any action is taken.
-    Review,
-    /// Flag the entity without redacting (for reporting/alerting).
-    Alert,
-    /// Block processing of the entire document.
-    Block,
-    /// Suppress a detection (treat as false positive).
+    /// Suppress a detection (treat as false positive). The entity is
+    /// not redacted; an audit entry records the suppression.
     Suppress,
 }
 
-/// A single policy: selector + action + conditions.
+/// One rule inside a [`Policy`]: a selector, an action, optional
+/// conditions, and an enabled flag.
+///
+/// Rules are ordered inside their owning policy; the first matching
+/// rule wins. There is no separate `priority` field — re-ordering
+/// rules in the policy file is how authors change priority.
+///
+/// [`Policy`]: super::Policy
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(
     rename_all = "camelCase",
@@ -65,29 +67,19 @@ pub enum Action<M: Modality> {
     )
 )]
 #[schemars(bound = "M::Strategy: JsonSchema")]
-pub struct StrategyPolicy<M: Modality> {
-    /// Which entities this policy applies to.
+pub struct PolicyRule<M: Modality> {
+    /// Which entities this rule applies to.
     pub selector: EntitySelector,
-    /// What this policy does when it matches.
+    /// What this rule does when it matches.
     pub action: Action<M>,
-    /// Evaluation priority (lower numbers are evaluated first).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub priority: Option<i32>,
-    /// Conditions that must all be met for this policy to apply.
+    /// Conditions that must all be met for this rule to apply.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub conditions: Vec<Condition>,
-    /// Whether this policy is active.
+    /// Whether this rule is active.
     #[serde(default = "default_enabled")]
     pub enabled: bool,
 }
 
 fn default_enabled() -> bool {
     true
-}
-
-impl<M: Modality> StrategyPolicy<M> {
-    /// Evaluation priority (lower = higher precedence, default 0).
-    pub fn priority(&self) -> i32 {
-        self.priority.unwrap_or(0)
-    }
 }

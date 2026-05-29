@@ -120,11 +120,10 @@ impl Pipeline {
 
         let actor_id = input.actor_id;
 
-        // Sort policy refs by precedence (lower first); the stable sort
-        // preserves insertion order for equal-precedence refs.
-        let mut policy_refs = input.policies.clone();
-        policy_refs.sort_by_key(|r| r.precedence);
-        let policy_ids: Vec<Uuid> = policy_refs.iter().map(|r| r.id).collect();
+        // Policies arrive in precedence order: index 0 is highest
+        // precedence. The chain stays in this order through
+        // evaluation; no re-sorting needed.
+        let policy_ids: Vec<Uuid> = input.policies.clone();
 
         // Acquire contexts and policies into the registry caches.
         let (_context_guard, _policy_guard) = self
@@ -134,10 +133,10 @@ impl Pipeline {
         let cached_policies = self.registry.policy_cache().resolve(&policy_ids).await;
         // Registry holds Policy<Text> only today (#199 will widen
         // storage to multi-modality via PolicyStore on the cache).
-        let mut text_policies: Vec<nvisy_ontology::policy::Policy<Text>> = Vec::new();
-        for policy in cached_policies {
-            text_policies.push(Arc::unwrap_or_clone(policy));
-        }
+        // Cache hands out Arc<Policy<Text>>; PolicyStore keeps them
+        // as Arcs, so concurrent runs share the same loaded
+        // instances without copying.
+        let text_policies: Vec<Arc<nvisy_ontology::policy::Policy<Text>>> = cached_policies;
 
         let retention_rules: Vec<RetentionPolicy> = text_policies
             .iter()

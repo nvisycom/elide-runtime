@@ -11,7 +11,6 @@ use std::sync::Arc;
 use std::{fmt, mem};
 
 use nvisy_core::Error;
-use nvisy_ontology::policy::PolicyRef;
 use nvisy_ontology::provenance::AnyAudit;
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -41,8 +40,9 @@ use crate::validation::Validation;
 pub struct EngineInput {
     /// Identity of the human or service account initiating the run.
     pub actor_id: Uuid,
-    /// Previously uploaded policies to apply, tagged with precedence.
-    pub policies: Vec<PolicyRef>,
+    /// Previously uploaded policies to apply, in precedence order:
+    /// index `0` is highest precedence.
+    pub policies: Vec<Uuid>,
     /// Per-request configuration overrides, merged with engine defaults
     /// via [`RuntimeConfig::merge`] at the start of each run.
     pub config: Option<RuntimeConfig>,

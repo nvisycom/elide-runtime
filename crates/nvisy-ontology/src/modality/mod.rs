@@ -25,6 +25,7 @@ mod tabular;
 mod text;
 
 use std::fmt::Debug;
+use std::hash::Hash;
 
 pub use self::audio::{Audio, AudioBlock, AudioMetadata};
 pub use self::image::{Image, ImageBlock, ImageMetadata, PageDimensions};
@@ -61,7 +62,29 @@ pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// methods that make sense for its data — text picks
     /// mask/replace/encrypt/etc., image picks blur/block/pixelate,
     /// audio picks silence/remove, tabular picks clear/drop-column.
-    type Strategy: RedactionStrategy + Clone + Debug + Default + PartialEq + Send + Sync + 'static;
+    type Strategy: RedactionStrategy<Tag = Self::MethodTag>
+        + Clone
+        + Debug
+        + Default
+        + PartialEq
+        + Send
+        + Sync
+        + 'static;
+
+    /// Closed enum naming the modality's redaction methods *without*
+    /// their parameters. Used for tiebreaking among two methods that
+    /// share the same [`LeakProfile`] on overlapping spans. Mirrors
+    /// [`Self::Strategy`] one-to-one (each strategy variant maps to
+    /// one tag via [`RedactionStrategy::method_tag`]); a separate
+    /// type so the codec can reason about methods without
+    /// committing to their parameters.
+    type MethodTag: Copy + Debug + Eq + Hash + Send + Sync + 'static;
+
+    /// Modality-built-in dominance order, first entry = highest
+    /// dominance. Used as a tiebreaker when two overlapping
+    /// redactions share the same [`LeakProfile`] but use different
+    /// methods.
+    fn default_method_dominance() -> &'static [Self::MethodTag];
 }
 
 /// Shared per-block surface every modality's block payload exposes.
@@ -87,11 +110,49 @@ pub trait ModalityBlock {
     fn scan_text(&self) -> Option<&str>;
 }
 
+/// What a redacted output leaks about the original it replaced.
+///
+/// Variants are ordered from most-leaky to least-leaky, so
+/// `Recoverable < Partial < Irrecoverable`. Merge resolution prefers
+/// the less-leaky method when two methods conflict on the same
+/// span (an `Irrecoverable` wins over a `Partial`, which wins over
+/// a `Recoverable`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum LeakProfile {
+    /// The original value is recoverable from the output given the
+    /// right metadata (encryption key, token vault, pseudonym map,
+    /// or the candidate entity list against a hash).
+    Recoverable,
+    /// The original value is gone, but observable shape leaks:
+    /// position, length, bounding box, cell coordinates, or a known
+    /// silence on the timeline.
+    Partial,
+    /// No trace of the original value or its shape remains in the
+    /// output.
+    Irrecoverable,
+}
+
 /// Methods every per-modality redaction strategy must expose.
 pub trait RedactionStrategy {
-    /// Whether the strategy is reversible (the original value can be
-    /// recovered from the redacted output).
-    fn is_reversible(&self) -> bool;
+    /// Parameter-less tag identifying which method the strategy is.
+    /// Used for policy dominance declarations; see
+    /// [`Modality::MethodTag`].
+    type Tag: Copy + Debug + Eq + Hash + Send + Sync + 'static;
+
+    /// What the strategy's output leaks about the original.
+    fn leak_profile(&self) -> LeakProfile;
+
+    /// The parameter-less tag for this strategy variant. Two
+    /// strategies are the same method iff their tags compare equal.
+    fn method_tag(&self) -> Self::Tag;
+
+    /// Whether the strategy is reversible — true iff the leak
+    /// profile is [`Recoverable`](LeakProfile::Recoverable).
+    fn is_reversible(&self) -> bool {
+        self.leak_profile() == LeakProfile::Recoverable
+    }
 }
 
 /// Combine two values into one when they can be reconciled.

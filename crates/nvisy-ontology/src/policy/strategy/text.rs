@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::modality::RedactionStrategy;
+use crate::modality::{LeakProfile, RedactionStrategy};
 
 const DEFAULT_MASK_CHAR: char = '*';
 
@@ -61,12 +61,63 @@ impl Default for TextStrategy {
     }
 }
 
+/// Parameter-less tag for each [`TextStrategy`] variant. Used in
+/// `Policy<Text>::method_dominance` to declare tiebreaker order
+/// among Partial-profile methods on overlapping spans.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TextMethodTag {
+    /// Tag for [`TextStrategy::Mask`].
+    Mask,
+    /// Tag for [`TextStrategy::Replace`].
+    Replace,
+    /// Tag for [`TextStrategy::Hash`].
+    Hash,
+    /// Tag for [`TextStrategy::Encrypt`].
+    Encrypt,
+    /// Tag for [`TextStrategy::Remove`].
+    Remove,
+    /// Tag for [`TextStrategy::Pseudonymize`].
+    Pseudonymize,
+    /// Tag for [`TextStrategy::Tokenize`].
+    Tokenize,
+}
+
 impl RedactionStrategy for TextStrategy {
-    /// Only [`Encrypt`](Self::Encrypt) and [`Tokenize`](Self::Tokenize)
-    /// are reversible: Encrypt uses key-based decryption, Tokenize
-    /// uses vault-based detokenization. All other strategies are
-    /// destructive.
-    fn is_reversible(&self) -> bool {
-        matches!(self, Self::Encrypt { .. } | Self::Tokenize { .. })
+    type Tag = TextMethodTag;
+
+    /// - [`Hash`](Self::Hash), [`Encrypt`](Self::Encrypt),
+    ///   [`Pseudonymize`](Self::Pseudonymize), [`Tokenize`](Self::Tokenize)
+    ///   are [`Recoverable`](LeakProfile::Recoverable) — original
+    ///   value recoverable with the right metadata (entity list +
+    ///   algorithm for Hash, key for Encrypt, mapping for
+    ///   Pseudonymize, vault for Tokenize).
+    /// - [`Mask`](Self::Mask), [`Replace`](Self::Replace) are
+    ///   [`Partial`](LeakProfile::Partial) — original is gone but
+    ///   position and length leak through the output.
+    /// - [`Remove`](Self::Remove) is
+    ///   [`Irrecoverable`](LeakProfile::Irrecoverable) — span
+    ///   deleted, no trace.
+    fn leak_profile(&self) -> LeakProfile {
+        match self {
+            Self::Hash | Self::Encrypt { .. } | Self::Pseudonymize | Self::Tokenize { .. } => {
+                LeakProfile::Recoverable
+            }
+            Self::Mask { .. } | Self::Replace { .. } => LeakProfile::Partial,
+            Self::Remove => LeakProfile::Irrecoverable,
+        }
+    }
+
+    fn method_tag(&self) -> Self::Tag {
+        match self {
+            Self::Mask { .. } => TextMethodTag::Mask,
+            Self::Replace { .. } => TextMethodTag::Replace,
+            Self::Hash => TextMethodTag::Hash,
+            Self::Encrypt { .. } => TextMethodTag::Encrypt,
+            Self::Remove => TextMethodTag::Remove,
+            Self::Pseudonymize => TextMethodTag::Pseudonymize,
+            Self::Tokenize { .. } => TextMethodTag::Tokenize,
+        }
     }
 }

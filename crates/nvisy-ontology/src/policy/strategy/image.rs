@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::modality::RedactionStrategy;
+use crate::modality::{LeakProfile, RedactionStrategy};
 use crate::primitive::Color;
 
 const DEFAULT_BLUR_SIGMA: f32 = 15.0;
@@ -55,9 +55,39 @@ impl Default for ImageStrategy {
     }
 }
 
+/// Parameter-less tag for each [`ImageStrategy`] variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ImageMethodTag {
+    /// Tag for [`ImageStrategy::Blur`].
+    Blur,
+    /// Tag for [`ImageStrategy::Block`].
+    Block,
+    /// Tag for [`ImageStrategy::Pixelate`].
+    Pixelate,
+}
+
 impl RedactionStrategy for ImageStrategy {
-    /// Image strategies are all destructive.
-    fn is_reversible(&self) -> bool {
-        false
+    type Tag = ImageMethodTag;
+
+    /// All image strategies are [`Partial`](LeakProfile::Partial):
+    /// the original pixels are gone, but the bounding box stays
+    /// observable. No image strategy is currently
+    /// [`Irrecoverable`](LeakProfile::Irrecoverable); reaching that
+    /// would require cropping the region out entirely, which the
+    /// codec doesn't model today.
+    fn leak_profile(&self) -> LeakProfile {
+        match self {
+            Self::Blur { .. } | Self::Block { .. } | Self::Pixelate { .. } => LeakProfile::Partial,
+        }
+    }
+
+    fn method_tag(&self) -> Self::Tag {
+        match self {
+            Self::Blur { .. } => ImageMethodTag::Blur,
+            Self::Block { .. } => ImageMethodTag::Block,
+            Self::Pixelate { .. } => ImageMethodTag::Pixelate,
+        }
     }
 }

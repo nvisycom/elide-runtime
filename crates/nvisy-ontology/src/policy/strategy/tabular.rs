@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::modality::RedactionStrategy;
+use crate::modality::{LeakProfile, RedactionStrategy};
 
 const DEFAULT_MASK_CHAR: char = '*';
 
@@ -53,8 +53,54 @@ impl Default for TabularStrategy {
     }
 }
 
+/// Parameter-less tag for each [`TabularStrategy`] variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum TabularMethodTag {
+    /// Tag for [`TabularStrategy::Mask`].
+    Mask,
+    /// Tag for [`TabularStrategy::Replace`].
+    Replace,
+    /// Tag for [`TabularStrategy::Hash`].
+    Hash,
+    /// Tag for [`TabularStrategy::Encrypt`].
+    Encrypt,
+    /// Tag for [`TabularStrategy::Clear`].
+    Clear,
+    /// Tag for [`TabularStrategy::DropColumn`].
+    DropColumn,
+}
+
 impl RedactionStrategy for TabularStrategy {
-    fn is_reversible(&self) -> bool {
-        matches!(self, Self::Encrypt { .. })
+    type Tag = TabularMethodTag;
+
+    /// - [`Hash`](Self::Hash), [`Encrypt`](Self::Encrypt) are
+    ///   [`Recoverable`](LeakProfile::Recoverable).
+    /// - [`Mask`](Self::Mask), [`Replace`](Self::Replace),
+    ///   [`Clear`](Self::Clear) are
+    ///   [`Partial`](LeakProfile::Partial) — the cell still exists
+    ///   at known coordinates with an observable (empty or masked)
+    ///   value.
+    /// - [`DropColumn`](Self::DropColumn) is
+    ///   [`Irrecoverable`](LeakProfile::Irrecoverable) — the column
+    ///   is gone schema-wide.
+    fn leak_profile(&self) -> LeakProfile {
+        match self {
+            Self::Hash | Self::Encrypt { .. } => LeakProfile::Recoverable,
+            Self::Mask { .. } | Self::Replace { .. } | Self::Clear => LeakProfile::Partial,
+            Self::DropColumn => LeakProfile::Irrecoverable,
+        }
+    }
+
+    fn method_tag(&self) -> Self::Tag {
+        match self {
+            Self::Mask { .. } => TabularMethodTag::Mask,
+            Self::Replace { .. } => TabularMethodTag::Replace,
+            Self::Hash => TabularMethodTag::Hash,
+            Self::Encrypt { .. } => TabularMethodTag::Encrypt,
+            Self::Clear => TabularMethodTag::Clear,
+            Self::DropColumn => TabularMethodTag::DropColumn,
+        }
     }
 }

@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use super::review::ReviewDecision;
 use crate::modality::{Modality, RedactionStrategy};
+use crate::policy::RuleRank;
 
 /// Outcome status of a redaction operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -66,6 +67,17 @@ pub struct AuditEntry<M: Modality> {
     #[builder(default, setter(into = false))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy_id: Option<Uuid>,
+    /// Position of the producing rule in the per-run policy chain.
+    /// Used by the codec at merge time to break ties when two
+    /// overlapping redactions share the same [`LeakProfile`] and
+    /// method — lower rank wins. `None` when the decision came from
+    /// a source outside the policy evaluator (e.g. default
+    /// threshold path).
+    ///
+    /// [`LeakProfile`]: crate::modality::LeakProfile
+    #[builder(default, setter(into = false))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rank: Option<RuleRank>,
     /// When this entry was created.
     #[builder(default = "Timestamp::now()")]
     #[schemars(with = "String")]

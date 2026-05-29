@@ -1,18 +1,21 @@
 //! Policy evaluation: walks the envelope's detected entities, picks
-//! the winning per-entity action, and writes typed [`AuditEntry<M>`]s
-//! onto each [`EntityRecord<M>`]. The codec apply pass runs separately
-//! through [`ApplyRedactions::apply_pending`].
+//! the winning per-entity action via [`PolicyStore::resolve`], and
+//! writes typed [`AuditEntry<M>`]s onto each [`EntityRecord<M>`]. The
+//! codec apply pass runs separately through
+//! [`ApplyRedactions::apply_pending`].
+//!
+//! The chain-walk algorithm itself lives on [`PolicyStore::resolve`];
+//! this module is the per-entity orchestration that wraps each
+//! [`Decision`] into an audit entry.
 //!
 //! [`EntityRecord<M>`]: nvisy_ontology::provenance::EntityRecord
+//! [`Decision`]: crate::envelope::Decision
 
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
-use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, Text};
-use nvisy_ontology::policy::{Action, Condition, Policy, StrategyPolicy};
 use nvisy_ontology::primitive::ConfidenceThreshold;
 use nvisy_ontology::provenance::{AuditEntry, AuditEntryStatus, EntityRecord};
-use uuid::Uuid;
 
 use super::apply;
 use super::defaults::RedactionDefaults;
@@ -21,8 +24,8 @@ use super::strategy::to_audio_redaction;
 #[cfg(feature = "image")]
 use super::strategy::to_image_redaction;
 use super::strategy::{to_tabular_redaction, to_text_redaction};
-use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
+use crate::envelope::{Decision, DocumentEnvelope};
 use crate::redaction::Redaction as RedactionConfig;
 
 const TARGET: &str = "nvisy_engine::redaction";
@@ -58,7 +61,7 @@ impl Redactor {
     }
 
     /// Evaluate policies, attach an [`AuditEntry<M>`] to each
-    /// [`EntityRecord<M>`] the policy set decides on, then hand
+    /// [`EntityRecord<M>`] the policy chain decides on, then hand
     /// off to the codec applicator.
     ///
     /// [`EntityRecord<M>`]: nvisy_ontology::provenance::EntityRecord
@@ -71,19 +74,12 @@ impl Redactor {
             return Ok(());
         }
 
-        // Snapshot inputs that are cheap to clone so we can keep an
-        // immutable borrow of the envelope alive across the
-        // per-entity `value_at` lookups while still mutating each
-        // record's `audit` slot.
-        let policies: Vec<Policy<M>> = envelope.shared.policies.get::<M>().to_vec();
         let metadata = envelope.metadata.clone();
-        let strategies = rank_strategies(&policies);
         let document_labels: Vec<&str> = Vec::new();
 
         let mut records = std::mem::take(&mut envelope.document.audit.records);
         evaluate::<M>(
             &mut records,
-            &strategies,
             self.default_threshold,
             &document_labels,
             &metadata,
@@ -176,7 +172,6 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
 #[async_trait::async_trait]
 impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
     async fn apply_pending(&mut self) -> Result<()> {
-        let _ = to_tabular_redaction;
         Ok(())
     }
 }
@@ -247,22 +242,8 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
     }
 }
 
-/// Flatten every policy's strategy list into a single (policy_id,
-/// strategy) sequence sorted by `StrategyPolicy::priority` ascending.
-/// Stable sort preserves per-policy declaration order within a
-/// priority bucket.
-fn rank_strategies<M: Modality>(policies: &[Policy<M>]) -> Vec<(Uuid, &StrategyPolicy<M>)> {
-    let mut out: Vec<(Uuid, &StrategyPolicy<M>)> = policies
-        .iter()
-        .flat_map(|p| p.strategies.iter().map(move |s| (p.id, s)))
-        .collect();
-    out.sort_by_key(|(_, s)| s.priority());
-    out
-}
-
 async fn evaluate<M>(
     records: &mut [EntityRecord<M>],
-    strategies: &[(Uuid, &StrategyPolicy<M>)],
     default_threshold: ConfidenceThreshold,
     document_labels: &[&str],
     metadata: &ContentMetadata,
@@ -273,114 +254,58 @@ async fn evaluate<M>(
 {
     for record in records {
         let entity = &record.entity;
-        let matching = matching_strategies(strategies, entity, document_labels, metadata);
+        let decision = envelope
+            .shared
+            .policies
+            .resolve::<M>(entity, document_labels, metadata);
 
-        let best_redact_idx = matching
-            .iter()
-            .position(|(_, sp)| matches!(sp.action, Action::Redact { .. }));
-        let best_suppress_idx = matching
-            .iter()
-            .position(|(_, sp)| matches!(sp.action, Action::Suppress));
-
-        // Suppress wins ties (≤): explicit suppression trumps a
-        // same-priority redaction.
-        let suppress_wins = match (best_suppress_idx, best_redact_idx) {
-            (Some(s), Some(r)) => matching[s].1.priority() <= matching[r].1.priority(),
-            (Some(_), None) => true,
-            _ => false,
-        };
-
-        if suppress_wins {
-            let (policy_id, _) = matching[best_suppress_idx.expect("checked above")];
-            let original = envelope
-                .value_at(&entity.location)
-                .await
-                .unwrap_or_default();
-            let entry = AuditEntry::<M>::builder()
-                .for_redaction(M::Strategy::default(), original)
-                .with_policy_id(policy_id)
-                .with_status(AuditEntryStatus::Suppressed)
-                .build()
-                .expect("audit entry fields set");
-            record.audit = Some(entry);
-            continue;
-        }
-
-        let (strategy, policy_id) = match best_redact_idx {
-            Some(idx) => {
-                let (policy_id, sp) = matching[idx];
-                match &sp.action {
-                    Action::Redact { strategy } => (strategy.clone(), Some(policy_id)),
-                    _ => unreachable!("filtered to Action::Redact"),
-                }
+        match decision {
+            Decision::Suppress { policy_id, rank } => {
+                let original = envelope
+                    .value_at(&entity.location)
+                    .await
+                    .unwrap_or_default();
+                let entry = AuditEntry::<M>::builder()
+                    .for_redaction(M::Strategy::default(), original)
+                    .with_policy_id(policy_id)
+                    .with_rank(rank)
+                    .with_status(AuditEntryStatus::Suppressed)
+                    .build()
+                    .expect("audit entry fields set");
+                record.audit = Some(entry);
             }
-            None => {
-                // No matching Redact and no winning Suppress. Other
-                // actions (Review/Alert/Block) currently fall through
-                // to the default path; they get their own dedicated
-                // handling in a follow-up.
+            Decision::Redact {
+                strategy,
+                policy_id,
+                rank,
+            } => {
+                let original = envelope
+                    .value_at(&entity.location)
+                    .await
+                    .unwrap_or_default();
+                let entry = AuditEntry::<M>::builder()
+                    .for_redaction(strategy, original)
+                    .with_policy_id(policy_id)
+                    .with_rank(rank)
+                    .build()
+                    .expect("audit entry fields set");
+                record.audit = Some(entry);
+            }
+            Decision::Fallthrough => {
                 if !default_threshold.admits(entity.confidence) {
                     continue;
                 }
-                (M::Strategy::default(), None)
+                let original = envelope
+                    .value_at(&entity.location)
+                    .await
+                    .unwrap_or_default();
+                let entry = AuditEntry::<M>::builder()
+                    .for_redaction(M::Strategy::default(), original)
+                    .build()
+                    .expect("audit entry fields set");
+                record.audit = Some(entry);
             }
-        };
-
-        let original = envelope
-            .value_at(&entity.location)
-            .await
-            .unwrap_or_default();
-        let mut builder = AuditEntry::<M>::builder().for_redaction(strategy, original);
-        if let Some(id) = policy_id {
-            builder = builder.with_policy_id(id);
         }
-        let entry = builder.build().expect("audit entry fields set");
-        record.audit = Some(entry);
-    }
-}
-
-/// Rank-ordered, selector-and-condition-matching strategies for one
-/// entity. Input `strategies` is already rank-sorted (see
-/// [`rank_strategies`]); this filter preserves that order.
-fn matching_strategies<'a, M: Modality>(
-    strategies: &[(Uuid, &'a StrategyPolicy<M>)],
-    entity: &Entity<M>,
-    document_labels: &[&str],
-    metadata: &ContentMetadata,
-) -> Vec<(Uuid, &'a StrategyPolicy<M>)> {
-    strategies
-        .iter()
-        .filter(|(_, sp)| {
-            sp.enabled
-                && sp.selector.matches(entity)
-                && sp
-                    .conditions
-                    .iter()
-                    .all(|c| condition_matches(c, document_labels, metadata))
-        })
-        .map(|&(id, sp)| (id, sp))
-        .collect()
-}
-
-fn condition_matches(
-    condition: &Condition,
-    document_labels: &[&str],
-    metadata: &ContentMetadata,
-) -> bool {
-    match condition {
-        Condition::Labels { labels } => labels.iter().all(|label| {
-            document_labels
-                .iter()
-                .any(|doc| doc.eq_ignore_ascii_case(label))
-        }),
-        Condition::Metadata { key, value } => match metadata.get_extra(key) {
-            Some(actual) => match value {
-                Some(expected) => actual.as_str().is_some_and(|s| s == expected),
-                None => true,
-            },
-            None => false,
-        },
-        _ => true,
     }
 }
 
@@ -390,7 +315,9 @@ mod tests {
 
     use nvisy_core::content::ContentMetadata;
     use nvisy_ontology::entity::Entity;
-    use nvisy_ontology::policy::{Action, EntitySelector, StrategyPolicy, TextStrategy};
+    use nvisy_ontology::policy::{
+        Action, EntitySelector, Policy, PolicyRule, RuleRank, TextStrategy,
+    };
     use nvisy_ontology::primitive::Confidence;
     use semver::Version;
     use tokio::sync::Mutex;
@@ -421,36 +348,34 @@ mod tests {
             .test_build()
     }
 
-    fn redact_rule(priority: Option<i32>, strategy: TextStrategy) -> StrategyPolicy<Text> {
-        StrategyPolicy {
+    fn redact_rule(strategy: TextStrategy) -> PolicyRule<Text> {
+        PolicyRule {
             selector: EntitySelector::all(),
             action: Action::Redact { strategy },
-            priority,
             conditions: Vec::new(),
             enabled: true,
         }
     }
 
-    fn suppress_rule(priority: Option<i32>) -> StrategyPolicy<Text> {
-        StrategyPolicy {
+    fn suppress_rule() -> PolicyRule<Text> {
+        PolicyRule {
             selector: EntitySelector::all(),
             action: Action::Suppress,
-            priority,
             conditions: Vec::new(),
             enabled: true,
         }
     }
 
-    fn policy_with(strategies: Vec<StrategyPolicy<Text>>) -> Policy<Text> {
-        Policy::<Text> {
+    fn policy_with(rules: Vec<PolicyRule<Text>>) -> Arc<Policy<Text>> {
+        Arc::new(Policy::<Text> {
             id: uuid::Uuid::now_v7(),
             name: "test".into(),
             version: Version::new(1, 0, 0),
             description: None,
+            rules,
             default_strategy: None,
-            strategies,
             retention: Vec::new(),
-        }
+        })
     }
 
     fn seed_records(env: &mut DocumentEnvelope<Text>, entities: Vec<Entity<Text>>) {
@@ -493,18 +418,16 @@ mod tests {
         let entry = first_entry(&env);
         assert_eq!(entry.value.original, "secret");
         assert!(entry.policy_id.is_none());
+        assert!(entry.rank.is_none());
     }
 
     #[tokio::test]
     async fn matching_redact_rule_wins() {
         let mut env = text_envelope("john").await;
         seed_records(&mut env, vec![ent(0, 4, 0.9)]);
-        let policy = policy_with(vec![redact_rule(
-            Some(0),
-            TextStrategy::Replace {
-                placeholder: "X".into(),
-            },
-        )]);
+        let policy = policy_with(vec![redact_rule(TextStrategy::Replace {
+            placeholder: "X".into(),
+        })]);
         let policy_id = policy.id;
         Arc::get_mut(&mut env.shared)
             .expect("unique Arc")
@@ -522,6 +445,7 @@ mod tests {
         assert_eq!(env.document.audit.entries().count(), 1);
         let entry = first_entry(&env);
         assert_eq!(entry.policy_id, Some(policy_id));
+        assert_eq!(entry.rank, Some(RuleRank::new(0, 0)));
         assert!(matches!(
             entry.redaction.strategy,
             TextStrategy::Replace { .. }
@@ -529,13 +453,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn suppress_beats_redact_at_equal_priority() {
+    async fn first_rule_wins_inside_policy() {
         let mut env = text_envelope("john").await;
         seed_records(&mut env, vec![ent(0, 4, 0.9)]);
-        let policy = policy_with(vec![
-            redact_rule(Some(0), TextStrategy::Hash),
-            suppress_rule(Some(0)),
-        ]);
+        // suppress comes first, redact second — first wins.
+        let policy = policy_with(vec![suppress_rule(), redact_rule(TextStrategy::Hash)]);
         Arc::get_mut(&mut env.shared)
             .expect("unique Arc")
             .policies
@@ -554,17 +476,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn higher_priority_redact_wins_over_suppress() {
+    async fn higher_precedence_policy_wins_over_lower() {
         let mut env = text_envelope("john").await;
         seed_records(&mut env, vec![ent(0, 4, 0.9)]);
-        let policy = policy_with(vec![
-            redact_rule(Some(0), TextStrategy::Hash),
-            suppress_rule(Some(10)),
-        ]);
+        // policy at index 0 (higher precedence) chooses Hash;
+        // policy at index 1 chooses Replace. Hash wins.
+        let p_high = policy_with(vec![redact_rule(TextStrategy::Hash)]);
+        let p_low = policy_with(vec![redact_rule(TextStrategy::Replace {
+            placeholder: "X".into(),
+        })]);
+        let high_id = p_high.id;
         Arc::get_mut(&mut env.shared)
             .expect("unique Arc")
             .policies
-            .set::<Text>(vec![policy]);
+            .set::<Text>(vec![p_high, p_low]);
 
         Redactor {
             default_threshold: ConfidenceThreshold::clamped(0.5),
@@ -574,7 +499,47 @@ mod tests {
         .await
         .expect("execute");
 
-        assert_ne!(first_entry(&env).status, AuditEntryStatus::Suppressed);
-        assert_eq!(env.document.audit.entries().count(), 1);
+        let entry = first_entry(&env);
+        assert_eq!(entry.policy_id, Some(high_id));
+        assert_eq!(entry.rank, Some(RuleRank::new(0, 0)));
+        assert!(matches!(entry.redaction.strategy, TextStrategy::Hash));
+    }
+
+    #[tokio::test]
+    async fn policy_default_falls_through_to_next_policy() {
+        // p_high has no matching rule but has a default; default
+        // should fire BEFORE the chain moves to p_low's rules.
+        let mut env = text_envelope("john").await;
+        seed_records(&mut env, vec![ent(0, 4, 0.9)]);
+        let p_high = Arc::new(Policy::<Text> {
+            id: uuid::Uuid::now_v7(),
+            name: "high".into(),
+            version: Version::new(1, 0, 0),
+            description: None,
+            rules: vec![],
+            default_strategy: Some(TextStrategy::Hash),
+            retention: Vec::new(),
+        });
+        let p_low = policy_with(vec![redact_rule(TextStrategy::Replace {
+            placeholder: "X".into(),
+        })]);
+        let high_id = p_high.id;
+        Arc::get_mut(&mut env.shared)
+            .expect("unique Arc")
+            .policies
+            .set::<Text>(vec![p_high, p_low]);
+
+        Redactor {
+            default_threshold: ConfidenceThreshold::clamped(0.5),
+            process_metadata: false,
+        }
+        .execute(&mut env)
+        .await
+        .expect("execute");
+
+        let entry = first_entry(&env);
+        assert_eq!(entry.policy_id, Some(high_id));
+        assert_eq!(entry.rank, Some(RuleRank::for_default(0)));
+        assert!(matches!(entry.redaction.strategy, TextStrategy::Hash));
     }
 }

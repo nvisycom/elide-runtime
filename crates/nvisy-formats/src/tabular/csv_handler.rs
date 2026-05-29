@@ -75,7 +75,7 @@ impl Handle<Tabular> for CsvHandler {
                     source,
                     Tabular {
                         row_index: 0,
-                        column_index: col,
+                        column_index: col as u32,
                         start_offset: None,
                         end_offset: None,
                         column_name: Some(headers[col].clone()),
@@ -91,8 +91,8 @@ impl Handle<Tabular> for CsvHandler {
                 items.push(Located::new(
                     source,
                     Tabular {
-                        row_index,
-                        column_index: col,
+                        row_index: row_index as u32,
+                        column_index: col as u32,
                         start_offset: None,
                         end_offset: None,
                         column_name: self.data.headers.as_ref().and_then(|h| h.get(col).cloned()),
@@ -107,10 +107,11 @@ impl Handle<Tabular> for CsvHandler {
 
     async fn read(&self, location: &Tabular) -> Option<TextData> {
         let (is_header, data_row) = self.resolve_row(location.row_index)?;
+        let col = location.column_index as usize;
         let cell = if is_header {
-            self.data.headers.as_ref()?.get(location.column_index)?
+            self.data.headers.as_ref()?.get(col)?
         } else {
-            self.data.rows.get(data_row)?.get(location.column_index)?
+            self.data.rows.get(data_row)?.get(col)?
         };
         Some(TextData::from(cell.clone()))
     }
@@ -123,11 +124,12 @@ impl Handle<Tabular> for CsvHandler {
         let Some((is_header, data_row)) = self.resolve_row(location.row_index) else {
             return Ok(());
         };
+        let col = location.column_index as usize;
         let cell = if is_header {
             let Some(headers) = self.data.headers.as_mut() else {
                 return Ok(());
             };
-            let Some(cell) = headers.get_mut(location.column_index) else {
+            let Some(cell) = headers.get_mut(col) else {
                 return Ok(());
             };
             cell
@@ -135,7 +137,7 @@ impl Handle<Tabular> for CsvHandler {
             let Some(row) = self.data.rows.get_mut(data_row) else {
                 return Ok(());
             };
-            let Some(cell) = row.get_mut(location.column_index) else {
+            let Some(cell) = row.get_mut(col) else {
                 return Ok(());
             };
             cell
@@ -224,17 +226,16 @@ impl CsvHandler {
     /// Returns `None` when the row index is out of range.
     ///
     /// [`Tabular::row_index`]: nvisy_ontology::modality::Tabular::row_index
-    fn resolve_row(&self, row_index: usize) -> Option<(bool, usize)> {
-        if self.data.headers.is_some() {
+    fn resolve_row(&self, row_index: u32) -> Option<(bool, usize)> {
+        let data_row = if self.data.headers.is_some() {
             if row_index == 0 {
-                Some((true, 0))
-            } else {
-                let data_row = row_index - 1;
-                (data_row < self.data.rows.len()).then_some((false, data_row))
+                return Some((true, 0));
             }
+            (row_index - 1) as usize
         } else {
-            (row_index < self.data.rows.len()).then_some((false, row_index))
-        }
+            row_index as usize
+        };
+        (data_row < self.data.rows.len()).then_some((false, data_row))
     }
 
     /// Serialize to bytes (with CRLF→LF normalization and trailing
@@ -300,7 +301,7 @@ mod tests {
         })
     }
 
-    fn cell_range(row: usize, col: usize, start: usize, end: usize) -> Tabular {
+    fn cell_range(row: u32, col: u32, start: usize, end: usize) -> Tabular {
         Tabular {
             start_offset: Some(start),
             end_offset: Some(end),

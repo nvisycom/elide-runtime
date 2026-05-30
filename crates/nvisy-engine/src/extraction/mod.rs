@@ -1,17 +1,18 @@
 //! Extraction: per-modality extractors + shared registry.
 //!
-//! Each modality lives in its own sub-module ([`text`], [`tabular`],
-//! [`image`], [`audio`]) and owns its `Extract<M>` + [`WorkflowSlice<M>`]
-//! impls. This file holds only the shared scaffolding: the
-//! [`Extractors`] registry, its [`ExtractionSection`] config, the
-//! [`Extract<M>`] trait, and the [`WorkflowSlice<M>`] helper that lets
-//! the orchestrator pull the right slice of [`Extraction`] per modality.
+//! Each modality lives in its own (private) sub-module — `text`,
+//! `tabular`, `image`, `audio` — and owns its `Extract<M>` +
+//! `WorkflowSlice<M>` impls. This file holds only the shared
+//! scaffolding: the [`Extractors`] registry, its [`ExtractionSection`]
+//! config, the [`Extract<M>`] trait, and the [`WorkflowSlice<M>`]
+//! helper that lets the orchestrator pull the right slice of
+//! [`Extraction`] per modality.
 //!
 //! Per-modality behaviour:
 //!
-//! - [`text`] / [`tabular`] — codec-native; no backend call.
-//! - [`image`] — OCR via [`image::ocr`] (when `image` feature is on).
-//! - [`audio`] — STT via [`audio::stt`] (when `audio` feature is on).
+//! - `text` / `tabular` — codec-native; no backend call.
+//! - `image` — OCR (when `image` feature is on).
+//! - `audio` — STT (when `audio` feature is on).
 
 mod audio;
 mod image;
@@ -136,7 +137,7 @@ impl Extractors {
 /// The orchestrator calls
 /// `Extract::<M>::extract(extractors, envelope, plan.extraction.workflow_for::<M>())`
 /// and Rust monomorphizes to the matching per-modality impl in
-/// [`text`], [`tabular`], [`image`], or [`audio`].
+/// the `text`, `tabular`, `image`, or `audio` sub-module.
 ///
 /// Each impl declares its own [`Workflow`] config struct via the
 /// associated type. The orchestrator fishes the right field out of

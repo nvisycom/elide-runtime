@@ -1,9 +1,12 @@
 //! Text-modality extraction.
 //!
 //! Text content is already structured by the codec — no backend
-//! call is needed. [`populate_document`] walks each codec
-//! [`Located<Text>`] and emits one [`Block<Text>`] with a
-//! single source-mapped [`Span<Text>`].
+//! call is needed. `populate_document` walks each codec
+//! `Located<Text>` and emits one [`Block<Text>`] with a single
+//! source-mapped [`Span<Text>`].
+//!
+//! [`Block<Text>`]: nvisy_ontology::document::Block
+//! [`Span<Text>`]: nvisy_ontology::document::Span
 
 use nvisy_core::Result;
 use nvisy_ontology::document::{Block, Span};

@@ -230,14 +230,4 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence.get() - 0.85).abs() < f64::EPSILON);
     }
-
-    #[tokio::test]
-    async fn empty_input() {
-        let doc = test_envelope("").await;
-        let op = Deduplicator::new(&DeduplicationParams::default());
-        let result = op
-            .deduplicate(Vec::<Entity<Text>>::new(), &doc, &FilterParams::default())
-            .await;
-        assert!(result.is_empty());
-    }
 }

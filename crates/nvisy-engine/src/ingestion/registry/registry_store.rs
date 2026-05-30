@@ -155,6 +155,16 @@ impl Registry {
     }
 
     /// Removes a single content entry (data + metadata).
+    /// Removes a content entry plus its metadata. Returns
+    /// `NotFound` if no entry exists for the given actor/content
+    /// pair.
+    ///
+    /// The check-then-delete sequence is not transactionally
+    /// atomic: two concurrent calls for the same key race on
+    /// `exists`, one wins, the other returns `NotFound`. That's
+    /// the intended outcome (the second caller's view is "the key
+    /// is gone"), so no synchronisation is needed beyond fjall's
+    /// per-key linearisability.
     #[tracing::instrument(target = TARGET, name = "registry.unregister_content", skip(self), fields(%actor_id, %content_id))]
     pub async fn unregister_content(&self, actor_id: Uuid, content_id: Uuid) -> Result<()> {
         let key = CompositeKey::new(actor_id, content_id);

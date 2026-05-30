@@ -2,11 +2,14 @@
 //! one [`Block<Tabular>`] per row, with per-cell source-mapped
 //! spans.
 //!
-//! The codec emits one [`Located<Tabular>`] per cell. This module
+//! The codec emits one `Located<Tabular>` per cell. This module
 //! groups cells by row, concatenates their values into the row's
 //! flat text (tab-separated), and emits one [`Block<Tabular>`] per
 //! row whose [`Span<Tabular>`]s map each cell substring back to its
 //! `(row, column)` coordinate.
+//!
+//! [`Block<Tabular>`]: nvisy_ontology::document::Block
+//! [`Span<Tabular>`]: nvisy_ontology::document::Span
 
 use std::collections::BTreeMap;
 

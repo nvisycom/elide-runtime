@@ -66,7 +66,7 @@ impl CryptoService {
             nonce: &nonce_bytes,
             ciphertext: &ciphertext,
         }
-        .build();
+        .build()?;
 
         tracing::debug!(
             target: TARGET,

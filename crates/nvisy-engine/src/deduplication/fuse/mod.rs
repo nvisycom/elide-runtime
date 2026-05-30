@@ -217,8 +217,11 @@ mod tests {
 
     const TEXT: &str = "John Smith";
 
+    /// Two entities at the same `(start, end)` byte range fuse into
+    /// one. With `MaxConfidence`, the higher of the two scores
+    /// (0.8 vs the default 0.9 from `test_build`) wins.
     #[tokio::test]
-    async fn strict_groups_exact_overlap() {
+    async fn strict_grouping_fuses_identical_spans_with_max_confidence() {
         let doc = test_envelope(TEXT).await;
         let mut entities: Vec<_> = vec![
             Entity::test_builder(0, 4)

@@ -1,16 +1,16 @@
 //! Verification-specific prompt construction.
 //!
-//! [`CvVerifyAgentPromptBuilder`] constructs the user prompt that lists proposed
+//! [`VlmVerifyAgentPromptBuilder`] constructs the user prompt that lists proposed
 //! entities for the VLM to verify against the original image.
 
 use super::input::ProposedEntity;
 
 /// Builds user prompts for entity verification.
-pub(crate) struct CvVerifyAgentPromptBuilder<'a> {
+pub(crate) struct VlmVerifyAgentPromptBuilder<'a> {
     entities: &'a [ProposedEntity],
 }
 
-impl<'a> CvVerifyAgentPromptBuilder<'a> {
+impl<'a> VlmVerifyAgentPromptBuilder<'a> {
     /// Create a prompt builder from a slice of proposed entities.
     pub fn new(entities: &'a [ProposedEntity]) -> Self {
         Self { entities }
@@ -45,7 +45,7 @@ impl<'a> CvVerifyAgentPromptBuilder<'a> {
 }
 
 /// Default system prompt for the OCR verification agent.
-pub(super) const CV_VERIFIER_SYSTEM_PROMPT: &str = "\
+pub(super) const VLM_VERIFIER_SYSTEM_PROMPT: &str = "\
 You are a vision-language model that verifies proposed entity detections against an image. \
 You receive a list of entities (each with an id, category, type, value, confidence, and \
 optional bounding box) that were detected by an NER system from OCR-extracted text.\n\
@@ -99,7 +99,7 @@ mod tests {
             },
         ];
 
-        let prompt = CvVerifyAgentPromptBuilder::new(&entities).build("AAAA");
+        let prompt = VlmVerifyAgentPromptBuilder::new(&entities).build("AAAA");
         assert!(prompt.contains("[0] category=personal_identity"));
         assert!(prompt.contains("person_name"));
         assert!(prompt.contains("John Doe"));
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn builds_prompt_with_no_entities() {
-        let prompt = CvVerifyAgentPromptBuilder::new(&[]).build("BBBB");
+        let prompt = VlmVerifyAgentPromptBuilder::new(&[]).build("BBBB");
         assert!(prompt.contains("Proposed entities:\n"));
         assert!(prompt.contains("Image (base64): BBBB"));
     }

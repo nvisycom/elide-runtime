@@ -1,15 +1,18 @@
 //! Shared LLM-driven detection configuration.
 //!
-//! [`LlmNerContext`] is the detect-pass config consumed by
-//! [`NerAgent`] and (legacy) by [`CvAgent`]. [`LlmNerVerification`]
-//! is the verify-pass config consumed by [`NerVerifyAgent`]. The
-//! two types intentionally split so each method can grow
-//! method-specific fields without leaking them into the others'
-//! prompts.
+//! - [`LlmNerContext`] — text-side detect pass config consumed by
+//!   [`NerAgent`].
+//! - [`LlmNerVerification`] — text-side verify pass config consumed
+//!   by [`NerVerifyAgent`].
+//! - [`VlmDetectContext`] — image-side detect pass config consumed
+//!   by [`VlmAgent`].
+//!
+//! Each context is its own type so per-pass fields can grow
+//! independently without leaking into the others' prompts.
 //!
 //! [`NerAgent`]: crate::agent::ner::NerAgent
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
-//! [`CvAgent`]: crate::agent::cv::CvAgent
+//! [`VlmAgent`]: crate::agent::vlm::VlmAgent
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
 use nvisy_ontology::primitive::ConfidenceThreshold;
@@ -97,6 +100,32 @@ pub struct LlmNerVerification {
     /// Document-level classification labels. Rendered into the
     /// prompt so the LLM can adjust its verdicts based on
     /// domain-specific context.
+    pub labels: Vec<String>,
+    /// Correlation UUID propagated through the tracing span.
+    pub correlation_id: Option<Uuid>,
+}
+
+/// Configuration for the VLM detect pass — direct image entity
+/// discovery via a vision-language model.
+///
+/// The image payload (and its [`Dimensions`]) flow through the
+/// `detect` method signature; this type only carries the
+/// detection-style knobs (which kinds to find, threshold, etc.).
+///
+/// [`Dimensions`]: nvisy_ontology::primitive::Dimensions
+#[derive(Debug, Clone, Default)]
+pub struct VlmDetectContext {
+    /// Entity kinds to detect (empty = all).
+    pub entity_kinds: Vec<EntityKind>,
+    /// Minimum confidence score to include a detection. When
+    /// `None`, no confidence filtering is applied.
+    pub confidence_threshold: Option<ConfidenceThreshold>,
+    /// System prompt override (if set, replaces the agent's
+    /// default).
+    pub system_prompt: Option<String>,
+    /// Document-level classification labels (e.g. `"medical"`,
+    /// `"gdpr-request"`). Rendered into the prompt so the VLM can
+    /// adjust its sensitivity to domain-specific visual content.
     pub labels: Vec<String>,
     /// Correlation UUID propagated through the tracing span.
     pub correlation_id: Option<Uuid>,

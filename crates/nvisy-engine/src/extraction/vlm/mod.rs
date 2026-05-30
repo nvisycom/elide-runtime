@@ -14,8 +14,8 @@
 mod params;
 
 use bytes::Bytes;
-use nvisy_agent::agent::cv::VerificationCandidate;
-use nvisy_agent::pipeline::CvPipeline;
+use nvisy_agent::agent::vlm::VerificationCandidate;
+use nvisy_agent::pipeline::VlmPipeline;
 use nvisy_codec::core::Located;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::{Error, Result};
@@ -29,9 +29,9 @@ use crate::envelope::value_at::ValueAt;
 
 const TARGET: &str = "nvisy_engine::extraction::vlm";
 
-/// Pre-built VLM extractor: CV pipeline wrapping an LLM agent.
+/// Pre-built VLM extractor: VLM pipeline wrapping the verify agent.
 pub struct VlmExtractor {
-    pipeline: CvPipeline,
+    pipeline: VlmPipeline,
 }
 
 impl VlmExtractor {
@@ -39,10 +39,13 @@ impl VlmExtractor {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CV pipeline cannot be constructed.
+    /// Returns an error if the VLM pipeline cannot be constructed.
     pub fn from_config(cfg: VlmExtractorConfig) -> Result<Self> {
-        let pipeline = CvPipeline::new(&cfg.provider, None, cfg.agent)
-            .map_err(|e| Error::runtime(e.to_string(), "cv-pipeline", false))?;
+        // Engine extractor is verify-only today; the detect agent
+        // is plumbed in by a separate detection-side wiring
+        // (issue #234) once the VLM recognizer slot lands.
+        let pipeline = VlmPipeline::new(&cfg.provider, None, Some(cfg.agent))
+            .map_err(|e| Error::runtime(e.to_string(), "vlm-pipeline", false))?;
         Ok(Self { pipeline })
     }
 
@@ -116,7 +119,7 @@ impl VlmExtractor {
                 .pipeline
                 .verify(&png_bytes, candidates)
                 .await
-                .map_err(|e| Error::runtime(e.to_string(), "cv-pipeline", e.is_retryable()))?;
+                .map_err(|e| Error::runtime(e.to_string(), "vlm-pipeline", e.is_retryable()))?;
         }
         Ok(verified)
     }

@@ -29,6 +29,10 @@ pub enum RecognitionMethod {
     NlpNer(ModelProvenance),
     /// Named-entity recognition via LLM (prompted detection).
     LlmNer(ModelProvenance),
+    /// Image-side entity discovery via VLM (vision-language model).
+    /// The VLM receives an image and emits entity bounding boxes
+    /// directly — no upstream CV detector required.
+    LlmVlm(ModelProvenance),
     /// Pre-identified region supplied alongside the uploaded file.
     Annotation(AnnotationProvenance),
 }
@@ -86,6 +90,12 @@ impl RecognitionMethod {
         Self::LlmNer(ModelProvenance::new(name, kind))
     }
 
+    /// Create a `LlmVlm` method (VLM-prompted image entity
+    /// discovery) with the given model name and kind.
+    pub fn llm_vlm(name: impl Into<String>, kind: ModelKind) -> Self {
+        Self::LlmVlm(ModelProvenance::new(name, kind))
+    }
+
     /// Create an `Annotation` method with the annotation's name
     /// (as supplied by the uploader).
     pub fn annotation(name: Option<String>) -> Self {
@@ -101,6 +111,7 @@ impl RecognitionMethod {
             Self::CrossReference(_) => RecognitionMethodKind::CrossReference,
             Self::NlpNer(_) => RecognitionMethodKind::NlpNer,
             Self::LlmNer(_) => RecognitionMethodKind::LlmNer,
+            Self::LlmVlm(_) => RecognitionMethodKind::LlmVlm,
             Self::Annotation(_) => RecognitionMethodKind::Annotation,
         }
     }
@@ -120,5 +131,6 @@ pub enum RecognitionMethodKind {
     CrossReference,
     NlpNer,
     LlmNer,
+    LlmVlm,
     Annotation,
 }

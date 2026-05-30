@@ -1,6 +1,6 @@
 //! Shared LLM-verification output shape.
 //!
-//! Both [`CvVerifyAgent`] and [`NerVerifyAgent`] prompt an LLM with a list
+//! Both [`VlmVerifyAgent`] and [`NerVerifyAgent`] prompt an LLM with a list
 //! of proposed entities and ask it to vote confirm/correct/reject
 //! per entry. The verdict shape is identical across modalities;
 //! only the per-modality location update (bounding box vs. text
@@ -10,7 +10,7 @@
 //! Confirmed entities are omitted from [`VerificationOutput`]; only
 //! changed (corrected or rejected) entries appear.
 //!
-//! [`CvVerifyAgent`]: crate::agent::cv::CvVerifyAgent
+//! [`VlmVerifyAgent`]: crate::agent::vlm::VlmVerifyAgent
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 
 use nvisy_ontology::entity::{Entity, EntityCategory, EntityKind, RefinementMethod};
@@ -36,7 +36,7 @@ pub enum VerificationStatus {
 /// The `id` field is the index into the proposed entity slice, so
 /// the caller can diff against the original list.
 ///
-/// Modality-specific fields (`bbox` for CV, future text fields for
+/// Modality-specific fields (`bbox` for VLM, future text fields for
 /// NER) are optional — the verifier only fills in what its modality
 /// supports.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
@@ -53,7 +53,7 @@ pub struct VerifiedEntity {
     pub value: Option<String>,
     /// Verifier confidence in the verdict.
     pub confidence: Confidence,
-    /// Corrected bounding box (CV verifier only; present when
+    /// Corrected bounding box (VLM verifier only; present when
     /// `status` is `Corrected` and the modality is image-based).
     pub bbox: Option<BoundingBox>,
     /// Optional rationale for the correction or rejection.

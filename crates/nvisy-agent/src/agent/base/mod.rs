@@ -18,13 +18,12 @@ pub(crate) use self::builder::BaseAgentBuilder;
     feature = "anthropic-claude",
     feature = "google-gemini",
     feature = "openai-whisper",
-    feature = "openai-tts",
 ))]
 pub use self::connection::AuthenticatedProvider;
 pub use self::connection::UnauthenticatedProvider;
 pub use self::context::ContextWindow;
 pub(crate) use self::detection::ALL_TYPES_HINT;
-pub use self::detection::LlmNerContext;
+pub use self::detection::{LlmNerContext, LlmNerVerification, NerHint, VlmDetectContext};
 pub use self::metrics::{UsageStats, UsageTracker};
 pub use self::provider::AgentProvider;
 pub(crate) use self::response::ResponseParser;

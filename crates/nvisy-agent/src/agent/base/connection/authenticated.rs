@@ -3,7 +3,6 @@
 #[cfg(any(
     feature = "openai-gpt",
     feature = "openai-whisper",
-    feature = "openai-tts",
     feature = "anthropic-claude",
     feature = "google-gemini"
 ))]
@@ -12,7 +11,6 @@ use std::fmt;
 #[cfg(any(
     feature = "openai-gpt",
     feature = "openai-whisper",
-    feature = "openai-tts",
     feature = "anthropic-claude",
     feature = "google-gemini"
 ))]
@@ -21,16 +19,11 @@ use reqwest_middleware::ClientWithMiddleware;
 use rig::providers::anthropic;
 #[cfg(feature = "google-gemini")]
 use rig::providers::gemini;
-#[cfg(any(
-    feature = "openai-gpt",
-    feature = "openai-whisper",
-    feature = "openai-tts"
-))]
+#[cfg(any(feature = "openai-gpt", feature = "openai-whisper"))]
 use rig::providers::openai;
 #[cfg(any(
     feature = "openai-gpt",
     feature = "openai-whisper",
-    feature = "openai-tts",
     feature = "anthropic-claude",
     feature = "google-gemini"
 ))]
@@ -39,7 +32,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(any(
     feature = "openai-gpt",
     feature = "openai-whisper",
-    feature = "openai-tts",
     feature = "anthropic-claude",
     feature = "google-gemini"
 ))]
@@ -49,7 +41,6 @@ use crate::error::Error;
 #[cfg(any(
     feature = "openai-gpt",
     feature = "openai-whisper",
-    feature = "openai-tts",
     feature = "anthropic-claude",
     feature = "google-gemini"
 ))]
@@ -63,7 +54,6 @@ pub struct AuthenticatedProvider {
 #[cfg(any(
     feature = "openai-gpt",
     feature = "openai-whisper",
-    feature = "openai-tts",
     feature = "anthropic-claude",
     feature = "google-gemini"
 ))]
@@ -80,24 +70,15 @@ impl fmt::Debug for AuthenticatedProvider {
 #[cfg(any(
     feature = "openai-gpt",
     feature = "openai-whisper",
-    feature = "openai-tts",
     feature = "anthropic-claude",
     feature = "google-gemini"
 ))]
 impl AuthenticatedProvider {
     /// Build an OpenAI rig-core client.
-    #[cfg(any(
-        feature = "openai-gpt",
-        feature = "openai-whisper",
-        feature = "openai-tts"
-    ))]
+    #[cfg(any(feature = "openai-gpt", feature = "openai-whisper"))]
     #[cfg_attr(
         docsrs,
-        doc(cfg(any(
-            feature = "openai-gpt",
-            feature = "openai-whisper",
-            feature = "openai-tts"
-        )))
+        doc(cfg(any(feature = "openai-gpt", feature = "openai-whisper")))
     )]
     pub(crate) fn openai_client(
         &self,

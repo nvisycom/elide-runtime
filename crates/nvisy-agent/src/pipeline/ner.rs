@@ -1,206 +1,118 @@
-//! [`NerPipeline`]: detect → verify → coreference-merge.
+//! [`LlmNerPipeline`]: optional detect + optional whole-audit verify.
 //!
-//! Three responsibilities behind one `run()` call:
+//! Both agents are independently optional so operators can pick
+//! any of: detect-only, verify-only (over entities other
+//! recognizers produced), both, or neither (the recognizer
+//! becomes a no-op).
 //!
-//! 1. Ask the [`NerAgent`] for [`NerCandidate`]s, threading the
-//!    current coreference state as `NerContext::known_entities`.
-//! 2. Hand the candidates to the [`NerVerifyAgent`] which localizes
-//!    them into byte offsets and optionally LLM-refines them.
-//! 3. Filter the original candidate list by the set of
-//!    `entity_id`s that survived verification and merge the
-//!    survivors into coreference state. Rejected candidates don't
-//!    pollute the next call's prompt.
-//!
-//! The verifier is always present (every consumer wants verified
-//! output). The verifier's optional refinement pass — a second LLM
-//! call that confirms/corrects/rejects each localized candidate —
-//! is configured on the verifier itself via
-//! [`NerVerifyAgent::with_refinement`].
+//! 1. If a detect agent is configured, ask [`NerAgent`] to detect
+//!    entities. Otherwise start with an empty entity list.
+//! 2. If a verifier is configured, hand the entities to
+//!    [`NerVerifyAgent`] for whole-audit confirm/reject/adjust.
+//!    Otherwise return the detect output unchanged.
 //!
 //! [`NerAgent`]: crate::agent::ner::NerAgent
-//! [`NerCandidate`]: crate::agent::ner::NerCandidate
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
-//! [`NerVerifyAgent::with_refinement`]: crate::agent::ner::NerVerifyAgent::with_refinement
 
-use std::collections::HashSet;
-use std::mem;
-
-use derive_builder::Builder;
-use nvisy_core::Result;
+use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
-use tokio::sync::Mutex;
 
-use crate::agent::ner::{
-    KnownNerEntity, NerAgent, NerContext, NerVerifyAgent, UnresolvedCandidatePolicy,
-};
+use crate::agent::ner::{NerAgent, NerVerifyAgent, UnresolvedCandidatePolicy};
 use crate::agent::{AgentConfig, AgentProvider, LlmNerContext, UsageStats};
 
 /// Composed NER pipeline.
 ///
-/// Holds the detection [`NerAgent`], the [`NerVerifyAgent`] that
-/// localizes candidates into byte offsets, and the cross-call
-/// coreference state shared between successive `run()` calls. Use
-/// [`reset`] at document boundaries to clear the state.
+/// Construct via [`new`]; both the detect and verify agents are
+/// optional. Built internally from the LLM provider + configs.
 ///
-/// Construct via [`new`]; the agent and verifier are built
-/// internally from the LLM provider + configs, and state is
-/// initialised empty.
-///
-/// [`reset`]: Self::reset
 /// [`new`]: Self::new
-/// [`NerAgent`]: crate::agent::ner::NerAgent
-/// [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
-#[derive(Builder)]
-#[builder(
-    name = "NerPipelineBuilder",
-    pattern = "owned",
-    build_fn(error = "NerPipelineBuilderError")
-)]
-pub struct NerPipeline {
-    #[builder(setter(custom))]
-    agent: NerAgent,
-    #[builder(setter(custom))]
-    verifier: NerVerifyAgent,
-    #[builder(setter(skip), default)]
-    state: Mutex<Vec<KnownNerEntity>>,
+pub struct LlmNerPipeline {
+    agent: Option<NerAgent>,
+    verifier: Option<NerVerifyAgent>,
 }
 
-impl NerPipelineBuilder {
-    /// Attach the detection agent. Required.
-    pub fn with_agent(mut self, agent: NerAgent) -> Self {
-        self.agent = Some(agent);
-        self
-    }
-
-    /// Attach the verifier. Required. Localization always runs;
-    /// the verifier's optional second-pass LLM refinement is
-    /// configured on the verifier itself via
-    /// [`NerVerifyAgent::with_refinement`].
-    ///
-    /// [`NerVerifyAgent::with_refinement`]: crate::agent::ner::NerVerifyAgent::with_refinement
-    pub fn with_verifier(mut self, verifier: NerVerifyAgent) -> Self {
-        self.verifier = Some(verifier);
-        self
-    }
-}
-
-/// Error returned by [`NerPipelineBuilder::build`] when a required
-/// component is missing. Crate-internal — `NerPipeline::new` wraps
-/// the builder for external callers.
-#[derive(Debug, thiserror::Error)]
-#[error("NerPipeline build failed: {0}")]
-pub(crate) struct NerPipelineBuilderError(String);
-
-impl From<derive_builder::UninitializedFieldError> for NerPipelineBuilderError {
-    fn from(err: derive_builder::UninitializedFieldError) -> Self {
-        Self(format!("missing required component `{}`", err.field_name()))
-    }
-}
-
-impl NerPipeline {
+impl LlmNerPipeline {
     /// Build a pipeline from an LLM provider plus agent configs.
     ///
-    /// `agent_config` drives the detection-pass agent. `verifier_config`
-    /// is `Some` to enable the two-pass refinement verifier with the
-    /// carried config (two LLM calls per span), or `None` for
-    /// localization-only verification (one LLM call per span).
-    /// `unresolved_policy` controls what the verifier does with
-    /// candidates that can't be uniquely localized in the source.
+    /// `agent_config` drives the detect-pass agent when `Some`;
+    /// `verifier_config` drives the whole-audit verifier when
+    /// `Some`. At least one must be `Some` — a pipeline with
+    /// neither would never produce or process entities.
+    /// `unresolved_policy` controls how the detect-pass localizer
+    /// handles candidates that can't be uniquely placed in the
+    /// source.
     ///
     /// # Errors
     ///
-    /// Returns an error if the detection agent or (when requested)
-    /// the verifier agent cannot be constructed.
+    /// Returns an error if both agents are `None`, or if any
+    /// requested agent cannot be constructed.
     pub fn new(
         provider: &AgentProvider,
-        agent_config: AgentConfig,
+        agent_config: Option<AgentConfig>,
         verifier_config: Option<AgentConfig>,
         unresolved_policy: UnresolvedCandidatePolicy,
     ) -> Result<Self> {
-        let agent = NerAgent::new(provider, agent_config)?;
-        let verifier = match verifier_config {
-            Some(cfg) => NerVerifyAgent::new().with_refinement(provider, cfg)?,
-            None => NerVerifyAgent::new(),
+        if agent_config.is_none() && verifier_config.is_none() {
+            return Err(Error::validation(
+                "LlmNerPipeline requires at least one of detect or verify to be configured",
+                "ner-pipeline",
+            ));
+        }
+        let agent = match agent_config {
+            Some(cfg) => {
+                Some(NerAgent::new(provider, cfg)?.with_unresolved_policy(unresolved_policy))
+            }
+            None => None,
         };
-        let verifier = verifier.with_unresolved_policy(unresolved_policy);
-        Self::builder()
-            .with_agent(agent)
-            .with_verifier(verifier)
-            .build()
-            .map_err(|e| nvisy_core::Error::validation(e.to_string(), "ner-pipeline"))
+        let verifier = match verifier_config {
+            Some(cfg) => Some(NerVerifyAgent::new(provider, cfg)?),
+            None => None,
+        };
+        Ok(Self { agent, verifier })
     }
 
-    /// Start building a pipeline.
-    ///
-    /// Crate-internal — external callers go through [`new`].
-    ///
-    /// [`new`]: Self::new
-    pub(crate) fn builder() -> NerPipelineBuilder {
-        NerPipelineBuilder::default()
-    }
-
-    /// Run the pipeline once: detect candidates, verify them into a
-    /// `Vec<Entity<Text>>`, and merge surviving candidates into the
-    /// coreference state for the next call.
+    /// Run the pipeline once. With both agents configured: detect
+    /// then verify. With detect only: return detect output. With
+    /// verify only: run verify against an empty input (returning
+    /// no entities — verify in isolation only makes sense when
+    /// called from a driver that supplies external entities, which
+    /// the current `run` shape doesn't expose; this path is here
+    /// for completeness and will be revisited if the engine
+    /// driver grows a separate verify entrypoint).
     pub async fn run(&self, text: &str, config: &LlmNerContext) -> Result<Vec<Entity<Text>>> {
-        // 1. Detect — agent sees the accumulated known entities so
-        //    it can reuse stable entity_ids for coreferent mentions.
-        let known = self.state.lock().await.clone();
-        let nlp_ctx = NerContext::with_known(text, known);
-        let candidates = self.agent.detect(&nlp_ctx, config).await?;
-
-        // 2. Verify — localize + optionally LLM-refine.
-        let entities = self.verifier.verify(text, candidates.clone()).await?;
-
-        // 3. Merge coreference state from candidates that *survived*
-        //    verification. Rejected candidates don't pollute next
-        //    call's prompt. Candidates without entity_id can't
-        //    participate in coreference and are dropped from the
-        //    merge regardless (NerContext::merge also skips them).
-        let surviving_ids: HashSet<&str> = entities
-            .iter()
-            .filter_map(|e| e.entity_id.as_deref())
-            .collect();
-        let surviving: Vec<_> = candidates
-            .into_iter()
-            .filter(|c| {
-                c.entity_id
-                    .as_deref()
-                    .is_some_and(|id| surviving_ids.contains(id))
-            })
-            .collect();
-
-        let mut state = self.state.lock().await;
-        let mut merge_ctx = NerContext::with_known(text, mem::take(&mut *state));
-        merge_ctx.merge(surviving);
-        *state = merge_ctx.known_entities;
-
-        Ok(entities)
+        let entities = match &self.agent {
+            Some(a) => a.detect(text, config).await?,
+            None => Vec::new(),
+        };
+        match &self.verifier {
+            Some(v) => v.verify(text, entities).await,
+            None => Ok(entities),
+        }
     }
-}
 
-impl NerPipeline {
-    /// Clear per-document state and reset cumulative usage
-    /// counters. Call at document boundaries so coreference and
-    /// per-document accounting don't bleed across runs.
+    /// Reset cumulative usage counters. Call at document boundaries
+    /// so per-document accounting doesn't bleed across runs.
     pub async fn reset(&self) {
-        self.state.lock().await.clear();
-        self.agent.tracker().reset();
-        if let Some(tracker) = self.verifier.tracker() {
-            tracker.reset();
+        if let Some(a) = &self.agent {
+            a.tracker().reset();
+        }
+        if let Some(v) = &self.verifier {
+            v.tracker().reset();
         }
     }
 
     /// Cumulative token usage since the last [`reset`], summed
-    /// across the detect agent and (when configured) the verifier
-    /// agent.
+    /// across the configured passes.
     ///
     /// [`reset`]: Self::reset
     pub fn usage(&self) -> UsageStats {
-        let mut stats = self.agent.tracker().snapshot();
-        if let Some(tracker) = self.verifier.tracker() {
-            stats += tracker.snapshot();
+        let mut stats = UsageStats::default();
+        if let Some(a) = &self.agent {
+            stats += a.tracker().snapshot();
+        }
+        if let Some(v) = &self.verifier {
+            stats += v.tracker().snapshot();
         }
         stats
     }

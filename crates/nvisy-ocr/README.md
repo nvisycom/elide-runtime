@@ -23,9 +23,9 @@ Two backends ship today:
   externalised `inference-ocr` Bento in [`nvisycom/inference`].
   Not yet functional; tracked under [#128].
 
-LLM-mediated entity verification (the LLM-side counterpart that
-verifies OCR-proposed entities against the source image) lives in
-`nvisy-agent` as `CvVerifyAgent`.
+VLM-mediated entity verification (the LLM-side counterpart that
+verifies image-side entity proposals against the source image)
+lives in `nvisy-agent` as `VlmVerifyAgent`.
 
 [`nvisycom/inference`]: https://github.com/nvisycom/inference
 [#128]: https://github.com/nvisycom/runtime/issues/128

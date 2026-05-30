@@ -151,6 +151,18 @@ pub struct TextMetadata {
     pub languages: Vec<LanguageDetection>,
 }
 
+impl From<TextExtraction> for TextMetadata {
+    /// Build [`TextMetadata`] carrying only the importer-known
+    /// extraction tag. All other fields start empty; downstream
+    /// stages fill them in as they discover the document's content.
+    fn from(extraction: TextExtraction) -> Self {
+        Self {
+            extraction,
+            languages: Vec::new(),
+        }
+    }
+}
+
 impl Overlap for Text {
     /// Two text ranges overlap only when they share a page (or both
     /// have `page_number: None`) and their byte ranges intersect.

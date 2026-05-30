@@ -1,207 +1,113 @@
-//! [`NerVerifyAgent`]: localize + (optionally) refine LLM-produced NER
-//! candidates into [`Entity`] values.
+//! [`NerVerifyAgent`]: whole-audit LLM filter over already-built
+//! [`Entity<Text>`] values.
 //!
-//! Two responsibilities:
+//! Takes the merged entities produced by all upstream recognizers
+//! (pattern, NER, annotate) plus the source text, prompts the LLM
+//! to vote per entity, and returns the survivors. The verdict
+//! schema is the shared [`VerificationOutput`]:
 //!
-//! 1. **Localize.** Resolve each [`NerCandidate`]'s surface form
-//!    into a byte range in the source text by searching for
-//!    `candidate.context`. Candidates whose context is absent or
-//!    ambiguous (zero or many matches) are dropped per
-//!    [`UnresolvedCandidatePolicy`].
+//! - **Confirmed** (entity absent from the LLM's response) — kept
+//!   unchanged.
+//! - **Rejected** — dropped.
+//! - **Corrected** — kept with optional adjustments to category /
+//!   entity kind / confidence, and stamped with
+//!   [`RefinementMethod::ModelVerification`]. `value` and `bbox`
+//!   fields in the verdict are ignored (the entity's location and
+//!   thus surface form are frozen from the original recognizer).
 //!
-//! 2. **Refine (optional).** When constructed with
-//!    [`with_refinement`], prompts the LLM a second time with the
-//!    localized candidates plus the source text and asks it to
-//!    correct/reject entries that don't survive a closer look.
-//!    Mirrors the [`CvVerifyAgent`] verification flow; same
-//!    [`VerificationOutput`] shape.
+//! Entities are passed to the LLM by index; the LLM returns those
+//! indices in its verdict.
 //!
-//! Output is `Vec<Entity>` ready for the deduplication phase.
-//! Recognition method is set to [`RecognitionMethod::LlmNer`] with
-//! the agent's model provenance; refinement adds
-//! [`RefinementMethod::ModelVerification`].
-//!
-//! [`with_refinement`]: NerVerifyAgent::with_refinement
-//! [`CvVerifyAgent`]: crate::agent::cv::CvVerifyAgent
-//! [`RecognitionMethod::LlmNer`]: nvisy_ontology::entity::RecognitionMethod::LlmNer
+//! [`Entity<Text>`]: nvisy_ontology::entity::Entity
+//! [`VerificationOutput`]: crate::agent::base::VerificationOutput
 //! [`RefinementMethod::ModelVerification`]: nvisy_ontology::entity::RefinementMethod::ModelVerification
 
-mod localize;
 mod prompt;
-mod refine;
 
 use nvisy_core::Result;
-use nvisy_ontology::entity::{
-    Entity, EntityCategory, EntityKind, ModelKind, ModelProvenance, RecognitionMethod,
-    RefinementMethod,
-};
+use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
-use nvisy_ontology::primitive::Confidence;
 
-pub use self::localize::UnresolvedCandidatePolicy;
-use self::localize::{LocalizedCandidate, localize_all};
-use self::prompt::NER_VERIFIER_SYSTEM_PROMPT;
-use self::refine::refine_localized;
-use crate::agent::base::{BaseAgent, UsageTracker};
-use crate::agent::ner::NerCandidate;
+use self::prompt::{NER_VERIFIER_SYSTEM_PROMPT, NerVerifyPromptBuilder};
+use crate::agent::base::{BaseAgent, UsageTracker, VerificationOutput};
 use crate::agent::{AgentConfig, AgentProvider};
 
-const TARGET: &str = "nvisy_agent::agent::ner_verify_agent";
+const TARGET: &str = "nvisy_agent::agent::ner::verify";
 
-/// Default confidence assigned to a candidate when the LLM didn't
-/// score it.
-const DEFAULT_CONFIDENCE: f64 = 0.5;
-
-/// Verifier for NER candidates.
-#[derive(Default)]
+/// Whole-audit LLM verifier for [`Entity<Text>`] values.
+///
+/// Stateless — constructed once per pipeline and reused across
+/// calls.
 pub struct NerVerifyAgent {
-    /// LLM agent for the optional refinement pass. `None` means
-    /// pure-localization verification (no second LLM call).
-    refiner: Option<BaseAgent>,
-    /// What to do with candidates that can't be uniquely localized.
-    unresolved: UnresolvedCandidatePolicy,
+    agent: BaseAgent,
 }
 
 impl NerVerifyAgent {
-    /// Localization-only verifier. No second LLM call.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Add a second-pass LLM refiner. The refiner gets the source
-    /// text plus the localized candidates and may
-    /// confirm/correct/reject each.
-    pub fn with_refinement(
-        mut self,
-        provider: &AgentProvider,
-        mut config: AgentConfig,
-    ) -> Result<Self> {
+    /// Build a verifier from an LLM provider + agent config.
+    pub fn new(provider: &AgentProvider, mut config: AgentConfig) -> Result<Self> {
         config
             .preamble
             .get_or_insert_with(|| NER_VERIFIER_SYSTEM_PROMPT.into());
         let agent = BaseAgent::builder(provider, config)
             .build()
             .map_err(crate::error::convert)?;
-        self.refiner = Some(agent);
-        Ok(self)
+        Ok(Self { agent })
     }
 
-    /// Configure how unresolvable candidates are handled.
-    pub fn with_unresolved_policy(mut self, policy: UnresolvedCandidatePolicy) -> Self {
-        self.unresolved = policy;
-        self
+    /// Access the usage tracker for this verifier's LLM calls.
+    pub fn tracker(&self) -> &UsageTracker {
+        self.agent.tracker()
     }
 
-    /// Access the usage tracker for the optional refiner agent.
-    pub fn tracker(&self) -> Option<&UsageTracker> {
-        self.refiner.as_ref().map(|a| a.tracker())
+    /// UUID of the verifier agent.
+    pub fn id(&self) -> uuid::Uuid {
+        self.agent.id()
     }
 
-    /// UUID of the refiner agent, or `None` when no refiner is
-    /// configured.
-    pub fn id(&self) -> Option<uuid::Uuid> {
-        self.refiner.as_ref().map(|a| a.id())
+    /// Model name used by this verifier.
+    pub fn model_name(&self) -> &str {
+        self.agent.model_name()
     }
 
-    /// Refiner agent's model name, or `None` when no refiner is
-    /// configured.
-    pub fn model_name(&self) -> Option<&str> {
-        self.refiner.as_ref().map(|a| a.model_name())
-    }
-
-    /// Verify candidates against the source text.
+    /// Verify a list of built entities against the source text.
+    /// Returns the survivors (confirmed unchanged + corrected with
+    /// adjustments + refinement marker), with rejects dropped.
+    ///
+    /// When `entities` is empty, returns immediately without an
+    /// LLM call.
     #[tracing::instrument(
         target = TARGET,
         skip_all,
-        fields(text_len = text.len(), candidate_count = candidates.len()),
+        fields(text_len = text.len(), entity_count = entities.len()),
     )]
     pub async fn verify(
         &self,
         text: &str,
-        candidates: Vec<NerCandidate>,
+        entities: Vec<Entity<Text>>,
     ) -> Result<Vec<Entity<Text>>> {
-        // 1. Localize.
-        let mut localized = localize_all(text, candidates, self.unresolved);
-        let refined = self.refiner.is_some();
-
-        // 2. Optional refinement pass.
-        if let Some(ref refiner) = self.refiner {
-            localized = refine_localized(refiner, text, localized).await?;
+        if entities.is_empty() {
+            return Ok(entities);
         }
 
-        // 3. Build Entities.
-        Ok(self.build_entities(localized, refined))
-    }
+        let prompt = NerVerifyPromptBuilder::new(text, &entities).build();
+        let output: VerificationOutput = self
+            .agent
+            .prompt_structured_raw(&prompt)
+            .await
+            .map_err(crate::error::convert)?;
 
-    fn build_entities(
-        &self,
-        localized: Vec<LocalizedCandidate>,
-        refined: bool,
-    ) -> Vec<Entity<Text>> {
-        let model_name = self
-            .refiner
-            .as_ref()
-            .map(|a| a.model_name().to_string())
-            .unwrap_or_else(|| "ner_verify_agent".to_string());
-        let model = ModelProvenance::new(&model_name, ModelKind::Gateway);
-
-        let mut out = Vec::new();
-        let mut dropped_missing_kind = 0usize;
-        let mut dropped_bad_confidence = 0usize;
-        for l in localized {
-            let entity_kind: EntityKind = match l.candidate.entity_type {
-                Some(k) => k,
-                None => {
-                    dropped_missing_kind += 1;
-                    continue;
-                }
-            };
-            // Trust the LLM's category if it gave one; otherwise
-            // derive it from the entity_kind via the ontology
-            // mapping (PersonalIdentity / Financial / Health /
-            // ContactInfo / etc.). Guarantees consistency between
-            // kind and category, which a fixed-default would not.
-            let category: EntityCategory = l
-                .candidate
-                .category
-                .unwrap_or_else(|| entity_kind.category());
-            let raw = l.candidate.confidence.unwrap_or(DEFAULT_CONFIDENCE);
-            let confidence = match Confidence::new(raw.clamp(0.0, 1.0)) {
-                Some(c) => c,
-                None => {
-                    dropped_bad_confidence += 1;
-                    continue;
-                }
-            };
-
-            let loc = Text::new(l.start_offset, l.end_offset);
-
-            let mut refinement_methods = Vec::new();
-            if refined {
-                refinement_methods.push(RefinementMethod::ModelVerification);
-            }
-
-            let mut b = Entity::builder()
-                .with_category(category)
-                .with_entity_kind(entity_kind)
-                .with_recognition_methods(vec![RecognitionMethod::LlmNer(model.clone())])
-                .with_refinement_methods(refinement_methods)
-                .with_confidence(confidence)
-                .with_location(loc);
-            if let Some(id) = l.candidate.entity_id {
-                b = b.with_entity_id(id);
-            }
-            out.push(b.build().expect("required fields provided"));
-        }
-
-        if dropped_missing_kind > 0 || dropped_bad_confidence > 0 {
+        let outcome = output.apply_to_text(entities);
+        if outcome.dropped_oor > 0 {
             tracing::debug!(
                 target: TARGET,
-                dropped_missing_kind,
-                dropped_bad_confidence,
-                "dropped candidates during entity construction"
+                dropped_oor = outcome.dropped_oor,
+                "verifier returned out-of-range indices"
             );
         }
-        out
+        Ok(outcome.survivors)
     }
 }
+
+// Verdict-application tests live with their subject:
+// [`VerificationOutput::apply_to_text`] in
+// `agent/base/verification/mod.rs`.

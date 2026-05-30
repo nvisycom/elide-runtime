@@ -76,11 +76,11 @@ macro_rules! dispatch {
 /// Internal foundation agent wrapping a provider-specific rig-core agent
 /// with usage tracking and structured-output fallback.
 ///
-/// Specialized agents ([`NerAgent`], [`CvAgent`], [`OcrAgent`]) compose this
+/// Specialized agents ([`NerAgent`], [`VlmAgent`], [`OcrAgent`]) compose this
 /// type rather than inheriting from it.
 ///
 /// [`NerAgent`]: crate::NerAgent
-/// [`CvAgent`]: crate::CvAgent
+/// [`VlmAgent`]: crate::VlmAgent
 /// [`OcrAgent`]: crate::OcrAgent
 pub(crate) struct BaseAgent {
     pub(super) id: Uuid,
@@ -130,14 +130,17 @@ impl BaseAgent {
             "Summarize the following text so it fits within {budget} tokens. \
              Preserve all key facts and details.\n\n{prompt}"
         );
-        self.prompt_text_raw(&compact_prompt).await.map(Cow::Owned)
+        self.prompt_text_internal(&compact_prompt)
+            .await
+            .map(Cow::Owned)
     }
 
-    /// Plain-text completion without compaction (used internally by
-    /// [`maybe_compact`] to avoid recursion).
+    /// Plain-text completion without compaction. Used by
+    /// [`maybe_compact`] itself to avoid infinite recursion when
+    /// the LLM summarises an over-budget prompt.
     ///
     /// [`maybe_compact`]: Self::maybe_compact
-    async fn prompt_text_raw(&self, prompt: &str) -> Result<String, Error> {
+    async fn prompt_text_internal(&self, prompt: &str) -> Result<String, Error> {
         let (text, usage) = dispatch!(&self.inner, |agent| {
             let builder = agent
                 .completion(prompt, Vec::<Message>::new())
@@ -151,16 +154,6 @@ impl BaseAgent {
 
         self.tracker.record(&usage, 0);
         Ok(text)
-    }
-
-    /// Plain-text completion with usage tracking.
-    ///
-    /// Automatically compacts the prompt if a context window is configured
-    /// and the prompt exceeds the input budget.
-    #[tracing::instrument(target = "nvisy_agent::agent::base", skip_all, fields(agent_id = %self.id, mode = "text"))]
-    pub async fn prompt_text(&self, prompt: &str) -> Result<String, Error> {
-        let prompt = self.maybe_compact(prompt).await?;
-        self.prompt_text_raw(&prompt).await
     }
 
     /// Structured-output prompt with usage tracking and JSON fallback.

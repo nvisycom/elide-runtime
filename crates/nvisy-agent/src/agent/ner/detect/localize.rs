@@ -5,30 +5,41 @@
 //! collapse) before searching to absorb LLM whitespace drift. Byte
 //! offsets returned are in the *original*, un-normalized text.
 //!
+//! Used by [`NerAgent::detect`] to lift LLM-produced candidates
+//! into entity byte ranges before the [`build`] module turns them
+//! into entities. Both hint-response candidates (which carry a
+//! `hint_id`) and fresh discoveries go through this same path.
+//!
 //! [`context`]: NerCandidate::context
+//! [`NerAgent::detect`]: super::NerAgent::detect
+//! [`build`]: super::build
 
 use unicode_normalization::UnicodeNormalization;
 
-use crate::agent::ner::NerCandidate;
+use super::NerCandidate;
+
+const TARGET: &str = "nvisy_agent::agent::ner::detect::localize";
 
 /// A candidate that's been resolved to a byte range in the source.
 #[derive(Debug, Clone)]
-pub(super) struct LocalizedCandidate {
+pub(crate) struct LocalizedCandidate {
     pub candidate: NerCandidate,
     pub start_offset: usize,
     pub end_offset: usize,
 }
 
 /// What to do with candidates that can't be uniquely localized.
+///
+/// Both variants log a WARN line per dropped candidate — there's
+/// no silent-drop mode because losing a candidate the LLM
+/// produced is always operationally interesting.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum UnresolvedCandidatePolicy {
-    /// Drop the candidate silently. Default.
+    /// Drop ambiguous and missing candidates. Default.
     #[default]
     Drop,
-    /// Drop but log at WARN level (one line per dropped candidate).
-    DropWithWarning,
     /// Pick the first match for ambiguous candidates; drop only
     /// when there are zero matches.
     FirstMatch,
@@ -39,7 +50,7 @@ pub enum UnresolvedCandidatePolicy {
 /// Returns one [`LocalizedCandidate`] per resolvable input. Drops
 /// (per policy) those whose context is absent, missing from the
 /// source, or ambiguous.
-pub(super) fn localize_all(
+pub(crate) fn localize_all(
     text: &str,
     candidates: Vec<NerCandidate>,
     policy: UnresolvedCandidatePolicy,
@@ -66,7 +77,7 @@ fn localize_one(
     let context = match candidate.context.as_deref() {
         Some(c) => c,
         None => {
-            warn_dropped(candidate, policy, "no context");
+            warn_dropped(candidate, "no context");
             return None;
         }
     };
@@ -81,14 +92,14 @@ fn localize_one(
 
     let context_start = match context_matches.len() {
         0 => {
-            warn_dropped(candidate, policy, "context not found");
+            warn_dropped(candidate, "context not found");
             return None;
         }
         1 => context_matches[0],
         _ => match policy {
             UnresolvedCandidatePolicy::FirstMatch => context_matches[0],
             _ => {
-                warn_dropped(candidate, policy, "context ambiguous");
+                warn_dropped(candidate, "context ambiguous");
                 return None;
             }
         },
@@ -103,14 +114,14 @@ fn localize_one(
         .collect();
     let value_offset = match value_matches.len() {
         0 => {
-            warn_dropped(candidate, policy, "value not found in context");
+            warn_dropped(candidate, "value not found in context");
             return None;
         }
         1 => value_matches[0],
         _ => match policy {
             UnresolvedCandidatePolicy::FirstMatch => value_matches[0],
             _ => {
-                warn_dropped(candidate, policy, "value ambiguous within context");
+                warn_dropped(candidate, "value ambiguous within context");
                 return None;
             }
         },
@@ -142,16 +153,14 @@ fn localize_one(
     })
 }
 
-fn warn_dropped(c: &NerCandidate, policy: UnresolvedCandidatePolicy, reason: &str) {
-    if matches!(policy, UnresolvedCandidatePolicy::DropWithWarning) {
-        tracing::warn!(
-            target: super::TARGET,
-            entity_id = ?c.entity_id,
-            value = %c.value,
-            reason,
-            "dropping unresolvable NER candidate"
-        );
-    }
+fn warn_dropped(c: &NerCandidate, reason: &str) {
+    tracing::warn!(
+        target: TARGET,
+        entity_id = ?c.entity_id,
+        value = %c.value,
+        reason,
+        "dropping unresolvable NER candidate"
+    );
 }
 
 /// Normalize text (NFC + whitespace collapse to single ASCII space)
@@ -229,6 +238,7 @@ mod tests {
             confidence: None,
             context: context.map(Into::into),
             description: None,
+            hint_id: None,
         }
     }
 

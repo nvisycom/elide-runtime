@@ -6,6 +6,7 @@ use derive_more::{From, Into};
 use image::DynamicImage;
 use nvisy_core::Error;
 use nvisy_core::content::ContentData;
+use nvisy_ontology::primitive::Dimensions;
 
 /// Opaque wrapper around a decoded image.
 ///
@@ -26,6 +27,11 @@ impl ImageData {
         tracing::Span::current().record("width", img.width());
         tracing::Span::current().record("height", img.height());
         Ok(Self(img))
+    }
+
+    /// Pixel dimensions of the decoded image.
+    pub fn dimensions(&self) -> Dimensions {
+        Dimensions::new(self.0.width(), self.0.height())
     }
 
     /// Encode to PNG bytes.

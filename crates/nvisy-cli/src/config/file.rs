@@ -105,7 +105,7 @@ pub struct ServerSection {
 /// Top-level TOML file shape.
 ///
 /// Combines the `[server]` section with all runtime subsystem sections
-/// (`[engine]`, `[ocr]`, `[llm]`, `[stt]`, `[tts]`) which are flattened
+/// (`[engine]`, `[ocr]`, `[llm]`, `[stt]`) which are flattened
 /// into a [`RuntimeConfig`].
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct FileConfig {

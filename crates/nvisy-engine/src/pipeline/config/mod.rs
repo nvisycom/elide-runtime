@@ -55,14 +55,14 @@ pub struct RuntimeConfig {
 
     /// Engine-level execution policies, networking, and resource limits.
     pub engine: Option<EngineSection>,
-    /// Extraction registry — `[extraction.ocr]`, `[extraction.stt]`,
-    /// `[extraction.vlm]` sub-sections. Built once at engine startup;
-    /// the `Extraction` phase config carries per-call flags only.
+    /// Extraction registry — `[extraction.ocr]`, `[extraction.stt]`
+    /// sub-sections. Built once at engine startup; the `Extraction`
+    /// phase config carries per-call flags only.
     pub extraction: Option<ExtractionSection>,
-    /// Detection registry — `[detection.llm]`, `[detection.nlp]`,
-    /// `[detection.pattern]` sub-sections. Built once at engine
-    /// startup; the `Detection` phase config only references these
-    /// by kind.
+    /// Detection registry — `[detection.llm]`, `[detection.ner]`,
+    /// `[detection.pattern]`, `[detection.vlm]` sub-sections. Built
+    /// once at engine startup; the `Detection` phase config only
+    /// references these by kind.
     pub detection: Option<DetectionSection>,
     /// Server-wide redaction defaults — `[redaction]` section.
     /// `Redaction` phase config falls back to these for any `None`

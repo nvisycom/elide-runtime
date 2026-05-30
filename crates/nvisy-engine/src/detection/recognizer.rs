@@ -3,25 +3,34 @@
 //! against, and the enum used by workflow nodes and config sections
 //! to refer to recognizers by kind.
 //!
+//! The trait is modality-parameterized via [`Recognizer::Modality`]:
+//! text recognizers emit `Vec<Entity<Text>>`, image recognizers emit
+//! `Vec<Entity<Image>>`. Each impl declares its `Context` (the
+//! per-call config + input bundle it consumes); the engine driver's
+//! per-modality dispatch path knows how to build that context from
+//! the document envelope and never crosses modalities.
+//!
 //! [`DetectionEngine`]: super::DetectionEngine
 
 use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::Text;
+use nvisy_ontology::modality::Modality;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Recognize entities given a per-recognizer context.
+/// Recognize entities for one modality, given a per-call context.
 ///
-/// `Context` is associated rather than a trait parameter so each
-/// impl declares exactly what it consumes — pattern recognizers
-/// need allow/deny lists, NER recognizers need language hints, LLM
-/// recognizers need their own per-call config. No common context
-/// type appears in this trait.
+/// `Modality` is the modality this recognizer scans + emits entities
+/// for. `Context` carries everything the recognizer needs for a
+/// single call — typically the input payload (text bytes, image
+/// bytes + dimensions) plus per-call filters (entity-kind allowlist,
+/// confidence threshold, etc.). Each impl declares both.
 ///
-/// Implementations are independent — the orchestrator
-/// ([`DetectionEngine`]) runs each on its own and merges results.
+/// Recognizers are independent — the orchestrator
+/// ([`DetectionEngine`]) runs each one on its own and merges
+/// results across the workflow's enabled set for the modality
+/// being scanned.
 ///
 /// Async because realistic impls dispatch to ONNX inference on a
 /// blocking pool or call remote services.
@@ -29,48 +38,54 @@ use serde::{Deserialize, Serialize};
 /// [`DetectionEngine`]: super::DetectionEngine
 #[async_trait]
 pub trait Recognizer: Send + Sync {
-    /// The per-call configuration this recognizer consumes. Text is
-    /// passed separately to [`run`] — every recognizer needs it.
-    ///
-    /// [`run`]: Self::run
-    type Context;
+    /// The modality this recognizer scans + emits entities for.
+    type Modality: Modality;
 
-    /// Detect entities in `text` using `ctx` for per-call
-    /// configuration. Offsets in returned entities are relative to
-    /// `text`; callers rebase when integrating into a larger document.
-    async fn run(&self, text: &str, ctx: &Self::Context) -> Result<Vec<Entity<Text>>>;
+    /// The per-call config + input bundle this recognizer
+    /// consumes. Associated rather than passed via a fat shared
+    /// struct so each impl declares exactly what it needs.
+    type Context: Send + Sync;
+
+    /// Detect entities given the per-call context. Returned
+    /// entities are in modality-local coordinates; callers rebase
+    /// into document coordinates.
+    async fn run(&self, ctx: &Self::Context) -> Result<Vec<Entity<Self::Modality>>>;
 
     /// Reset per-document state, called by the orchestrator at
     /// document boundaries. The default is a no-op — stateless
     /// recognizers don't need to override it.
     ///
-    /// LLM-backed recognizers override this to clear coreference
-    /// state between documents so per-document entity references
-    /// don't bleed across runs.
+    /// LLM-backed recognizers override this to clear cumulative
+    /// usage trackers between documents.
     async fn reset(&self) {}
 }
 
 /// Which built-in recognizer to dispatch.
 ///
 /// Used by [`Detection`] workflow nodes to enable/disable specific
-/// recognizers and by [`Recognizers`] to look one up.
+/// recognizers. Each kind belongs to a single modality; the engine
+/// driver dispatches kinds against the registry matching their
+/// modality.
 ///
 /// [`Detection`]: super::Detection
-/// [`Recognizers`]: super::Recognizers
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum RecognizerKind {
-    /// LLM-backed recognizer (see [`LlmRecognizer`]).
+    /// LLM-backed text recognizer — wraps an [`LlmNerPipeline`].
     ///
-    /// [`LlmRecognizer`]: super::LlmRecognizer
+    /// [`LlmNerPipeline`]: nvisy_agent::pipeline::LlmNerPipeline
     Llm,
-    /// NER-engine recognizer (see [`NerRecognizer`]).
+    /// NER-engine text recognizer (see [`NerRecognizer`]).
     ///
     /// [`NerRecognizer`]: super::NerRecognizer
     Ner,
-    /// Pattern-based recognizer (see [`PatternRecognizer`]).
+    /// Pattern-based text recognizer (see [`PatternRecognizer`]).
     ///
     /// [`PatternRecognizer`]: super::PatternRecognizer
     Pattern,
+    /// VLM-backed image recognizer — wraps a [`VlmPipeline`].
+    ///
+    /// [`VlmPipeline`]: nvisy_agent::pipeline::VlmPipeline
+    Vlm,
 }

@@ -4,59 +4,58 @@
 
 LLM agents and orchestrating pipelines over the
 [`rig`](https://github.com/0xPlaygrounds/rig) framework for the Nvisy
-runtime. Provides typed agents for NER, CV classification, CV
-verification, and synthetic-value generation, plus speech (STT/TTS)
-services.
+runtime. Provides typed agents for text-side NER and image-side VLM
+detection + verification, plus a speech-to-text service.
 
 ## Overview
 
-Agents live under `agent::*`, grouped by modality. Each modality
-bundles a detect-style and verify-style agent that share data shapes:
+`agent::*` groups concrete agents by modality. Each modality bundles
+a detect-style and verify-style agent that share data shapes:
 
-- `agent::ner` — `NerAgent` (detect candidates from text) +
-  `NerVerifyAgent` (localize to byte offsets, optionally LLM-refine).
-- `agent::cv` — `CvAgent` (classify pre-computed CV detections into
-  entity categories) + `CvVerifyAgent` (validate upstream entity
-  proposals against an image).
-- `agent::generate` — `GenAgent` (synthetic replacement values for
-  redaction).
+- `agent::ner` — `NerAgent` (LLM detector that produces typed
+  candidates from text) + `NerVerifyAgent` (whole-audit
+  confirm/correct/reject pass over a merged entity set) +
+  `UnresolvedCandidatePolicy` for handling candidates that can't be
+  uniquely localized to source offsets.
+- `agent::vlm` — `VlmAgent` (vision-language model detector that
+  emits image-coordinate entities with bounding boxes) +
+  `VlmVerifyAgent` (per-entity confirm/correct/reject against the
+  source image) + `VerificationCandidate` (entity + resolved value)
+  for verifier input.
 
 Cross-cutting infrastructure (`AgentConfig`, `AgentProvider`,
-`DetectionConfig`, `UsageStats`) is re-exported at `agent::*`.
+`LlmNerContext`, `VlmDetectContext`, `NerHint`, `UsageStats`) is
+re-exported at `agent::*`.
 
-Pipelines under `pipeline::*` compose agents into end-to-end flows
-and own any cross-call state. `NerPipeline` chains
-`NerAgent → NerVerifyAgent → coreference merge`; `CvPipeline` holds
-the optional `CvAgent` and the always-present `CvVerifyAgent`,
-exposing `classify` and `verify` as independent methods. Both
-expose `reset()` (per-document state clear + cumulative usage zero)
-and `usage()` (token totals since the last reset).
+`pipeline::*` composes agents into per-modality pipelines that own
+the cross-call state (token usage tracking, optional verify-pass
+chaining):
 
-Audio services (`audio::stt::SttService`, `audio::tts::TtsService`)
-wrap whisper / TTS providers behind their own `SttProvider` /
-`TtsProvider` enums; same HTTP transport as the LLM agents.
+- `LlmNerPipeline::new(provider, detect_cfg, verify_cfg,
+  unresolved_policy)` — both detect and verify configs are
+  independently optional; at least one must be `Some`.
+- `VlmPipeline::new(provider, detect_cfg, verify_cfg)` — same
+  presence-and-flag pattern. Exposes `detect` and `verify` as
+  independent async methods.
 
-HTTP transport (`HttpClient`, `HttpConfig`, retry + tracing
-middleware) lives in the shared `nvisy-http` crate; rig agents
-build their own clients internally from `AgentConfig::max_retries`.
+Both pipelines expose `reset()` (zero the cumulative usage tracker
+between documents).
 
-```rust,ignore
-use nvisy_agent::agent::{AgentConfig, AgentProvider, DetectionConfig};
-use nvisy_agent::agent::ner::UnresolvedCandidatePolicy;
-use nvisy_agent::pipeline::NerPipeline;
+`audio::stt::SttService` wraps Whisper-family STT providers behind
+its own `SttProvider` enum; shares the rig HTTP transport with the
+LLM agents.
 
-let provider = AgentProvider::openai("sk-...", "gpt-4o");
-let pipeline = NerPipeline::new(
-    &provider,
-    AgentConfig::default(),
-    None,                                    // no second-pass refiner
-    UnresolvedCandidatePolicy::Drop,
-)?;
+## Feature Flags
 
-let config = DetectionConfig::default();
-let entities = pipeline.run("text to analyze", &config).await?;
-let used = pipeline.usage();
-```
+Provider features are independently selectable. None are on by
+default — the engine/server entry points opt in.
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `openai-gpt` | no | OpenAI completion provider (used by NER + VLM agents) |
+| `openai-whisper` | no | OpenAI Whisper STT provider |
+| `anthropic-claude` | no | Anthropic Claude completion provider |
+| `google-gemini` | no | Google Gemini completion provider |
 
 ## Documentation
 

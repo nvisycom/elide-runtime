@@ -43,11 +43,12 @@ impl OcrExtractor {
     /// Run OCR over the envelope's image regions, appending the
     /// recognised blocks to [`DocumentEnvelope::document`] and
     /// stamping the backend's provenance into
-    /// [`ImageMetadata::extraction`] (replacing the placeholder
-    /// `ImageExtraction::Ocr(_)` the importer set at envelope
+    /// [`ImageMetadata::extraction`] (replacing the
+    /// [`ImageExtraction::Pending`] tag the importer set at envelope
     /// creation).
     ///
     /// [`ImageMetadata::extraction`]: nvisy_ontology::modality::ImageMetadata::extraction
+    /// [`ImageExtraction::Pending`]: nvisy_ontology::modality::ImageExtraction::Pending
     pub async fn run(&self, envelope: &mut DocumentEnvelope<Image>) -> Result<()> {
         envelope.document.meta.extraction = ImageExtraction::Ocr(self.inner.provenance());
 

@@ -32,7 +32,7 @@ mod span;
 
 pub use self::block::Block;
 pub use self::span::Span;
-use crate::entity::{Annotation, ContentSource};
+use crate::entity::{Annotation, ContentSource, LabelAnnotation};
 use crate::modality::Modality;
 use crate::provenance::Audit;
 
@@ -44,10 +44,16 @@ pub struct Document<M: Modality> {
     /// Ordered blocks. One per page, paragraph, speaker turn, row,
     /// or just one for documents with no inherent block structure.
     pub blocks: Vec<Block<M>>,
-    /// User-supplied annotations (inclusions, exclusions, labels)
+
+    /// User-supplied region annotations (inclusions and exclusions)
     /// attached at upload time. Annotation locations target source
     /// coordinates within the document.
     pub annotations: Vec<Annotation<M>>,
+    /// Document-level classification labels. Modality-agnostic and
+    /// propagated to every envelope spawned from the same source so
+    /// policy rules that condition on labels can fire uniformly.
+    pub labels: Vec<LabelAnnotation>,
+
     /// Provenance of processing for this document: detected
     /// entities and per-redaction audit entries. Travels with the
     /// document because every artifact a run produces about the
@@ -57,9 +63,9 @@ pub struct Document<M: Modality> {
 
 impl<M: Modality> Document<M> {
     /// Construct an empty [`Document`] for the given source with
-    /// explicit metadata. Blocks and annotations start empty; the
-    /// embedded [`Audit`] is initialised against the same source.
-    /// Producers push blocks onto `self.blocks` directly.
+    /// explicit metadata. Blocks, annotations, and labels start
+    /// empty; the embedded [`Audit`] is initialised against the same
+    /// source. Producers push blocks onto `self.blocks` directly.
     ///
     /// The importer always knows which extraction path produced the
     /// document, so the metadata is required at construction time
@@ -69,6 +75,7 @@ impl<M: Modality> Document<M> {
             meta,
             blocks: Vec::new(),
             annotations: Vec::new(),
+            labels: Vec::new(),
             audit: Audit::new(source),
         }
     }

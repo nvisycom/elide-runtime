@@ -12,7 +12,7 @@
 //!
 //! FileConfig (Nvisy.toml)         TOML file
 //! ├── server: ServerSection       [server], [server.observability], [server.middleware]
-//! └── RuntimeConfig (flattened)   [engine], [ocr], [llm], [stt], [tts]
+//! └── RuntimeConfig (flattened)   [engine], [ocr], [llm], [stt]
 //! ```
 //!
 //! [`Cli::load`] reads the file, resolves server settings, and returns

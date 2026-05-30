@@ -3,11 +3,7 @@
 # Copy to Nvisy.toml (or run `make generate-config`), then edit as needed.
 # The server loads Nvisy.toml by default; override with --config or NVISY_CONFIG.
 #
-# All sections are optional — omitted sections use runtime defaults.
-# Per-request overrides (in the JSON request body) replace entire
-# [engine] / [redaction] sections; `[extraction.*]` and `[detection.*]`
-# are built once at startup and shared across runs (overrides would
-# force model reloads and defeat the amortization).
+# All sections are optional: omitted sections use runtime defaults.
 
 version = "0.1.0"
 
@@ -51,35 +47,12 @@ idle_timeout = "90s"
 # per-call flags only.
 
 # OCR text extraction from image documents.
-#
-# Backend selection lives under `[extraction.ocr.backend]`. Two
-# backends ship today:
-#
-#   kind = "noop"
-#     Produces no OCR results. The default; used when image content
-#     is accepted but not OCR'd.
-#
-#   kind = "bento"
-#     Calls the externalised `inference-ocr` Bento at `base_url`.
-#     **Scaffolding only** — the wire contract has not been
-#     finalised upstream (https://github.com/nvisycom/runtime/issues/128).
-#     Requires the runtime to be built with the `bento` feature.
-#
-# Cloud OCR backends (AWS Textract, Google Cloud Vision, Azure
-# Document Intelligence) were removed; reintroduction is tracked
-# under #201 / #202 / #203.
 [extraction.ocr]
 enabled = true
 
 [extraction.ocr.backend]
-kind = "noop"
-
-# To use the externalised OCR Bento (once the contract finalises),
-# replace the block above with:
-#
-#   [extraction.ocr.backend]
-#   kind = "bento"
-#   base_url = "http://localhost:3001"
+kind = "bento"
+base_url = "http://localhost:3001"
 
 # Speech-to-text transcription.
 [extraction.stt]
@@ -94,102 +67,69 @@ model = "whisper-1"
 model = "whisper-1"
 max_retries = 3
 
-# VLM verifier — runs an LLM pass over OCR-detected entities to
-# confirm/correct them against the source image. Dispatched after
-# [extraction.ocr] when workflow extraction.visual.verification is set.
-[extraction.vlm]
+# Detection: pattern-based (regex + dictionary + checksum).
+[detection.pattern]
+enabled = true
+patterns = [] # empty = all built-in patterns
+confidence_threshold = 0.5
+
+# Detection: NER (named entity recognition).
+[detection.ner]
 enabled = true
 
-[extraction.vlm.provider]
-kind = "open-ai"
-api_key = "sk-example-replace-me"
-model = "gpt-4o"
+[detection.ner.backend]
+kind = "bento"
+base_url = "http://localhost:3000"
 
-[extraction.vlm.agent]
-temperature = 0.0
-max_tokens = 1024
-max_retries = 3
-
-# Detection recognizer registry.
-#
-# Each opted-in `[detection.*]` section is built once at server
-# startup. Set `enabled = false` to keep the config but skip
-# construction and dispatch. Workflows enable recognizers by name
-# via `detection.kinds = ["llm", "nlp", "pattern"]` — recognizer-side
-# configuration lives here, never in the workflow.
-
-# LLM-backed recognizer.
+# Detection: LLM (large language model).
 [detection.llm]
 enabled = true
-verify_pass = true # adds a second LLM call per span
-unresolved_policy = "drop" # drop | warn | error
+unresolved_policy = "drop" # drop | first-match
 
 [detection.llm.provider]
 kind = "open-ai"
 api_key = "sk-example-replace-me"
 model = "gpt-4o"
 
-[detection.llm.agent]
+[detection.llm.detect]
+enabled = true
+temperature = 0.1
+max_tokens = 4096
+max_retries = 3
+# context_window = { ... }   # optional, for chunking large inputs
+# preamble = "..."           # optional, overrides the agent's default system prompt
+
+[detection.llm.verify]
+enabled = true
+temperature = 0.1
+max_tokens = 4096
+max_retries = 3
+# context_window = { ... }
+# preamble = "..."
+
+# Detection: VLM (vision-language model) — image-side recognizer
+# that runs alongside text recognizers on image blocks.
+[detection.vlm]
+enabled = true
+
+[detection.vlm.provider]
+kind = "open-ai"
+api_key = "sk-example-replace-me"
+model = "gpt-4o"
+
+[detection.vlm.detect]
+enabled = true
 temperature = 0.1
 max_tokens = 4096
 max_retries = 3
 
-# NER recognizer (named-entity recognition + language detection).
-#
-# Backend selection lives under `[detection.ner.backend]`. Two
-# backends ship today:
-#
-#   kind = "noop"
-#     Produces zero entities. The default. Use this when detection
-#     happens via patterns / LLM only.
-#
-#   kind = "bento"
-#     Calls the externalised `inference-gliner` Bento at `base_url`.
-#     Requires the runtime to be built with the `bento` feature
-#     (on by default in the `nvisy-cli` binary). Pair with the
-#     service in https://github.com/nvisycom/inference — see the
-#     repo's `docker-compose.yml` for a self-contained example.
-[detection.ner]
+[detection.vlm.verify]
 enabled = true
+temperature = 0.1
+max_tokens = 4096
+max_retries = 3
 
-[detection.ner.backend]
-kind = "noop"
-
-# To use the externalised GLiNER service, replace the block above
-# with:
-#
-#   [detection.ner.backend]
-#   kind = "bento"
-#   base_url = "http://localhost:3000"
-
-# Pattern-based recognizer (regex + dictionary + checksum).
-[detection.pattern]
-enabled = true
-patterns = [] # empty = all built-in patterns
-confidence_threshold = 0.5
-
-# Redaction defaults + audio redaction codec.
-#
-# Pipeline `Redaction` steps fall back to these for any field
-# they leave unset. Per-request overrides are honored (cheap config,
-# no expensive construction).
+# Redaction params.
 [redaction]
 confidence_threshold = 0.5
 process_metadata = false
-
-# TTS provider for audio redaction codec — synthesizes replacement
-# audio for redacted spans in audio documents. Omit the section
-# entirely to fall back to non-TTS audio replacement (silence/beep).
-[redaction.tts]
-enabled = true
-
-[redaction.tts.provider]
-kind = "open-ai"
-api_key = "sk-example-replace-me"
-model = "tts-1"
-
-[redaction.tts.agent]
-model = "tts-1"
-voice = "alloy"
-speed = 1.0
-max_retries = 3

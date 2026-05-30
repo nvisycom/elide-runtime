@@ -18,7 +18,7 @@ use strum::{Display, EnumString};
 ///
 /// [`EntityKind`]: super::EntityKind
 /// [`EntityKind::category()`]: super::EntityKind::category
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[derive(Display, EnumString, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
@@ -67,5 +67,6 @@ pub enum EntityCategory {
     /// but could not place into a more specific category. Use sparingly
     /// — every recognizer should prefer a precise category when one
     /// exists.
+    #[default]
     Unresolved,
 }

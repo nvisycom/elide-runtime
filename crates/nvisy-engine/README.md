@@ -2,44 +2,67 @@
 
 [![Build](https://img.shields.io/github/actions/workflow/status/nvisycom/runtime/build.yml?branch=main&label=build%20%26%20test&style=flat-square)](https://github.com/nvisycom/runtime/actions/workflows/build.yml)
 
-DAG compiler and executor for the Nvisy runtime — compiles workflow
-definitions into executable pipelines, manages run lifecycles, and
-orchestrates detection + redaction across modalities.
+The Nvisy redaction pipeline: takes imported content through
+extraction → detection → deduplication → redaction → validation →
+export, generic over modality and parallel across documents.
 
 ## Overview
 
-`workflow::*` defines the graph-config shape (ingest → extraction →
-detection → refinement → context → policy → export, plus
-cross-cutting policy types). `pipeline::*` compiles a workflow into
-an executable `Pipeline`, owns the per-run `RuntimeConfig`, and
-drives execution via `Pipeline::execute`. `operation::*` hosts the
-concrete operation implementations each graph node maps to —
-`Detection`, `VisualExtraction`, `Deduplication`, redaction
-strategies, etc.
+`ingestion::*` decodes incoming content into a typed
+`DocumentEnvelope<M>` per source (text, tabular, image, audio).
+`AnyEnvelope` is the modality-erased enum that lets a single run
+carry envelopes of mixed modality.
 
-`detection::*` is the recognizer-side machinery: the trait surface
-(re-exported from `nvisy_core::detection::Recognizer`), the
-parallel-dispatching `DetectionEngine`, and the built-in
-recognizers (`PatternRecognizer`, `NerRecognizer`, `LlmRecognizer`).
-`Detection::into_engine()` auto-assembles a `DetectionEngine` from
-workflow config — one recognizer per opted-in slot.
+`extraction::*` populates each envelope's blocks: OCR for image
+documents, STT for audio, no-op for already-structured text and
+tabular. Each technique is built once at startup from its
+`[extractor.*]` config section and lives on the `Extractors`
+registry; per-modality dispatch goes through the `Extract<M>` trait.
 
-`registry::*` holds the workflow-node type registry; `utility::*`
-ships compression and encryption helpers used by the pipeline.
+`detection::*` is the recognizer-side machinery:
+
+- A modality-typed `Recognizer<Modality, Context>` trait with
+  built-in adapters — `PatternRecognizer`, `NerRecognizer`,
+  `LlmNerPipeline` (text), and `VlmPipeline` (image).
+- The `Recognizers` registry holds pre-built recognizers per
+  modality, populated from `[detection.*]` config sections.
+- `DetectionEngine` parallel-dispatches the matching slice via the
+  per-modality `Detect<M>` trait — text blocks fan their
+  `scan_text` to every text recognizer; image envelopes fan each
+  image location to every image recognizer.
+- `Detection::into_engine()` assembles a per-run engine from the
+  registry, picking recognizers by `RecognizerKind`.
+
+`deduplication::*`, `redaction::*`, `validation::*` are the
+subsequent pipeline phases (merge overlapping detections, apply
+the policy-driven redaction strategy per modality, optionally
+re-scan the redacted output for leaks).
+
+`pipeline::*` is the orchestrator: `DocumentPipeline<M>` runs one
+envelope through every phase, monomorphised per modality.
+`RuntimeConfig` is the top-level config struct that gathers
+`[engine]`, `[extraction.*]`, `[detection.*]`, and `[redaction]`.
+
+`envelope::*` defines the `DocumentEnvelope<M>` carrier itself
+plus shared per-run state (run ID, policy store, registry).
 
 ## Feature Flags
 
-Vendor features control which LLM and OCR providers are compiled in.
-All are disabled by default; the CLI/server entry points enable
-them.
+Modality features enable the matching codec/format/extraction
+arms; provider features select LLM/OCR backends. All four
+modalities are on by default; provider features are opt-in.
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `openai` | no | Enable all OpenAI providers (GPT, Whisper STT, TTS) |
-| `anthropic` | no | Enable Anthropic Claude completion provider |
-| `google` | no | Enable Google Gemini + Google Cloud Vision OCR |
-| `microsoft` | no | Enable Azure Document Intelligence OCR |
-| `amazon` | no | Enable AWS Textract OCR |
+| `tabular` | yes | CSV + XLSX |
+| `image` | yes | PNG, JPEG, TIFF + OCR + VLM detection |
+| `audio` | yes | WAV, MP3 + STT extraction |
+| `rich` | yes | PDF, DOCX (pulls `image`) |
+| `openai` | no | OpenAI providers (GPT, Whisper STT) |
+| `anthropic` | no | Anthropic Claude completion provider |
+| `google` | no | Google Gemini completion provider |
+| `bento` | no | Externalised inference backends (BentoML NER + OCR) |
+| `test-utils` | no | Test scaffolding (in-memory `Engine`) |
 
 ## Documentation
 

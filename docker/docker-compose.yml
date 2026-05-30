@@ -9,7 +9,7 @@
 #
 # Usage:
 #   1. Copy `Nvisy.example.toml` to `Nvisy.toml` at the repo root,
-#      switch `[detection.nlp.backend]` to:
+#      switch `[detection.ner.backend]` to:
 #
 #          kind = "bento"
 #          base_url = "http://inference-gliner:3000"

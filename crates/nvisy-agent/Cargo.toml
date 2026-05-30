@@ -2,7 +2,7 @@
 
 [package]
 name = "nvisy-agent"
-description = "LLM agents (NER, CV, generate, STT/TTS, OCR-verifier) over the rig framework for the Nvisy runtime"
+description = "LLM agents (NER, VLM, STT, OCR-verifier) over the rig framework for the Nvisy runtime"
 keywords = ["nvisy", "rig", "llm", "ner", "agent"]
 categories = ["text-processing", "api-bindings"]
 readme = "README.md"
@@ -25,8 +25,6 @@ default = []
 openai-gpt = []
 ## Enable OpenAI Whisper speech-to-text provider.
 openai-whisper = []
-## Enable OpenAI text-to-speech provider.
-openai-tts = []
 ## Enable Anthropic Claude completion provider.
 anthropic-claude = []
 ## Enable Google Gemini completion provider.

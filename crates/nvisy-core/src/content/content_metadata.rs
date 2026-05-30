@@ -8,8 +8,9 @@
 
 use std::path::{Path, PathBuf};
 
-use nvisy_ontology::entity::Annotation;
-use nvisy_ontology::modality::Text;
+use nvisy_ontology::entity::{Annotation, LabelAnnotation};
+use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::media::DocumentType;
@@ -54,13 +55,51 @@ pub struct ContentMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub extra: Option<serde_json::Map<String, serde_json::Value>>,
     /// Pre-identified regions and classification labels for this
-    /// content, in the [`Text`] modality only. The annotation surface
-    /// is currently text-shaped; image/audio variants would need the
-    /// field generalised to `AnyModality` or split per modality, and
-    /// today no producer needs that. Track that decision out-of-band
-    /// before adding non-text annotations.
+    /// content, bucketed per modality. The importer routes each
+    /// bucket to its matching `Document<M>` envelope; labels
+    /// (modality-agnostic) propagate to every envelope spawned from
+    /// the source.
+    #[serde(default, skip_serializing_if = "AnyAnnotations::is_empty")]
+    pub annotations: AnyAnnotations,
+}
+
+/// Per-modality buckets of user-supplied annotations on a piece of
+/// content.
+///
+/// Each modality-typed [`Annotation<M>`] targets a `Document<M>`
+/// envelope of the same modality; document-level
+/// [`LabelAnnotation`]s apply to every envelope spawned from the
+/// source.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AnyAnnotations {
+    /// Annotations targeting text-modality content.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub annotations: Vec<Annotation<Text>>,
+    pub text: Vec<Annotation<Text>>,
+    /// Annotations targeting tabular-modality content.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tabular: Vec<Annotation<Tabular>>,
+    /// Annotations targeting image-modality content.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image: Vec<Annotation<Image>>,
+    /// Annotations targeting audio-modality content.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audio: Vec<Annotation<Audio>>,
+    /// Document-level classification labels.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<LabelAnnotation>,
+}
+
+impl AnyAnnotations {
+    /// `true` when every bucket is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.text.is_empty()
+            && self.tabular.is_empty()
+            && self.image.is_empty()
+            && self.audio.is_empty()
+            && self.labels.is_empty()
+    }
 }
 
 impl ContentMetadata {
@@ -80,13 +119,13 @@ impl ContentMetadata {
             size: None,
             sha256: None,
             extra: None,
-            annotations: Vec::new(),
+            annotations: AnyAnnotations::default(),
         }
     }
 
     /// Set annotations (builder pattern).
     #[must_use]
-    pub fn with_annotations(mut self, annotations: Vec<Annotation<Text>>) -> Self {
+    pub fn with_annotations(mut self, annotations: AnyAnnotations) -> Self {
         self.annotations = annotations;
         self
     }

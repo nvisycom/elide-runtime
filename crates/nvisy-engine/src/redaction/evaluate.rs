@@ -17,7 +17,8 @@ use nvisy_codec::handler::AudioOutput;
 use nvisy_codec::handler::ImageOutput;
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
-use nvisy_ontology::modality::{Modality, Text};
+use nvisy_ontology::entity::is_excluded;
+use nvisy_ontology::modality::{Modality, Overlap, Text};
 #[cfg(feature = "audio")]
 use nvisy_ontology::policy::AudioMethodTag;
 #[cfg(feature = "image")]
@@ -78,15 +79,44 @@ impl Redactor {
     /// [`EntityRecord<M>`]: nvisy_ontology::provenance::EntityRecord
     pub async fn execute<M>(&self, envelope: &mut DocumentEnvelope<M>) -> Result<()>
     where
-        M: Modality,
+        M: Modality + Overlap,
         DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions,
     {
         if envelope.document.audit.records.is_empty() {
             return Ok(());
         }
 
+        // Drop entities that overlap an Assert-strength Exclusion
+        // annotation. Defence in depth: catches both well-meaning
+        // detectors and LLMs that ignored the exclusion-hint prompt.
+        let before_filter = envelope.document.audit.records.len();
+        let annotations = std::mem::take(&mut envelope.document.annotations);
+        envelope
+            .document
+            .audit
+            .records
+            .retain(|record| !is_excluded(&annotations, &record.entity));
+        envelope.document.annotations = annotations;
+        let dropped = before_filter - envelope.document.audit.records.len();
+        if dropped > 0 {
+            tracing::debug!(
+                target: TARGET,
+                dropped,
+                "filtered entities by Assert exclusion annotations",
+            );
+        }
+
+        if envelope.document.audit.records.is_empty() {
+            return Ok(());
+        }
+
         let metadata = envelope.metadata.clone();
-        let document_labels: Vec<&str> = Vec::new();
+        let document_labels: Vec<&str> = envelope
+            .document
+            .labels
+            .iter()
+            .map(|l| l.label.as_str())
+            .collect();
 
         let mut records = std::mem::take(&mut envelope.document.audit.records);
         evaluate::<M>(

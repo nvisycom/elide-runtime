@@ -18,7 +18,9 @@ mod rendering;
 mod time_span;
 
 pub use self::confidence::{Confidence, ConfidenceThreshold};
-pub use self::geometry::{BoundingBox, IBoundingBox, Polygon, Vertex};
+pub use self::geometry::{
+    BoundingBox, Dimensions, IBoundingBox, NormalizedBoundingBox, Polygon, Vertex,
+};
 pub use self::language::{LanguageDetection, LanguageProvenance, LanguageSpan, LanguageTag};
 pub use self::rendering::{Color, Dpi};
 pub use self::time_span::TimeSpan;

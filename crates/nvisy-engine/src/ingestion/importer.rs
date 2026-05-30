@@ -24,11 +24,11 @@ use std::sync::Arc;
 
 use nvisy_codec::HandleModality;
 use nvisy_core::Result;
-use nvisy_core::content::{Content, ContentData, ContentMetadata};
-use nvisy_ontology::entity::{Annotation, ModelKind, ModelProvenance, inclusion_entities};
+use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata};
+use nvisy_ontology::entity::{Annotation, LabelAnnotation};
 use nvisy_ontology::modality::{
-    Audio, AudioExtraction, AudioMetadata, Image, ImageExtraction, ImageMetadata, Tabular,
-    TabularExtraction, TabularMetadata, Text, TextExtraction, TextMetadata,
+    Audio, AudioExtraction, AudioMetadata, Image, ImageExtraction, ImageMetadata, Modality,
+    Tabular, TabularExtraction, TabularMetadata, Text, TextExtraction, TextMetadata,
 };
 use tokio::sync::Mutex;
 
@@ -108,15 +108,20 @@ impl Importer {
 
 /// Build the per-modality envelope(s) from a shared codec handle.
 ///
-/// `annotations` is consumed: it's only applied to the `Text`
-/// envelope today (the metadata field is `Vec<Annotation<Text>>`).
-/// Non-text variants get an empty annotation list — when
-/// `ContentMetadata` grows per-modality annotation buckets, route
-/// each bucket to the matching branch here.
+/// Each modality-typed [`Annotation<M>`] bucket from
+/// [`AnyAnnotations`] is routed to the envelope of the matching
+/// modality. Document-level labels are modality-agnostic and clone
+/// into every envelope spawned from the source so policy rules /
+/// detector prompts can read them uniformly.
+///
+/// Assertion-strength inclusions are *not* materialised into
+/// entities here — that requires the document's blocks to be
+/// populated. The extraction stage performs the seeding for every
+/// modality once blocks exist.
 async fn dispatch(
     handle: SharedHandle,
     metadata: ContentMetadata,
-    annotations: Vec<Annotation<Text>>,
+    mut annotations: AnyAnnotations,
     shared: &Arc<SharedData>,
 ) -> Vec<AnyEnvelope> {
     let (modality, has_header) = {
@@ -125,29 +130,50 @@ async fn dispatch(
     };
     match modality {
         HandleModality::Text => {
-            let doc_meta = text_metadata_for(TextExtraction::Native);
-            let env = build_text_envelope(handle, metadata, doc_meta, annotations, shared).await;
+            let doc_meta = TextMetadata::from(TextExtraction::Native);
+            let mut env =
+                <DocumentEnvelope<Text>>::new(handle, metadata, doc_meta, Arc::clone(shared)).await;
+            attach_annotations(
+                &mut env,
+                mem::take(&mut annotations.text),
+                annotations.labels,
+            );
             vec![AnyEnvelope::Text(env)]
         }
         HandleModality::Tabular => {
-            let doc_meta = tabular_metadata_for(tabular_extraction_from_header(has_header));
-            let env =
+            let doc_meta = TabularMetadata::from(TabularExtraction::from_header_signal(has_header));
+            let mut env =
                 <DocumentEnvelope<Tabular>>::new(handle, metadata, doc_meta, Arc::clone(shared))
                     .await;
+            attach_annotations(
+                &mut env,
+                mem::take(&mut annotations.tabular),
+                annotations.labels,
+            );
             vec![AnyEnvelope::Tabular(env)]
         }
         HandleModality::Image => {
-            let doc_meta = image_metadata_for(ImageExtraction::Ocr(pending_provenance()));
-            let env =
+            let doc_meta = ImageMetadata::from(ImageExtraction::Pending);
+            let mut env =
                 <DocumentEnvelope<Image>>::new(handle, metadata, doc_meta, Arc::clone(shared))
                     .await;
+            attach_annotations(
+                &mut env,
+                mem::take(&mut annotations.image),
+                annotations.labels,
+            );
             vec![AnyEnvelope::Image(env)]
         }
         HandleModality::Audio => {
-            let doc_meta = audio_metadata_for(AudioExtraction::Transcription(pending_provenance()));
-            let env =
+            let doc_meta = AudioMetadata::from(AudioExtraction::Pending);
+            let mut env =
                 <DocumentEnvelope<Audio>>::new(handle, metadata, doc_meta, Arc::clone(shared))
                     .await;
+            attach_annotations(
+                &mut env,
+                mem::take(&mut annotations.audio),
+                annotations.labels,
+            );
             vec![AnyEnvelope::Audio(env)]
         }
         HandleModality::Rich => {
@@ -159,99 +185,75 @@ async fn dispatch(
             // handler always reads the embedded text layer. The
             // `Recognized` path lights up when an image-only-PDF
             // OCR fallback lands.
-            let text_meta = text_metadata_for(TextExtraction::Native);
-            let image_meta = image_metadata_for(ImageExtraction::Ocr(pending_provenance()));
-            let text_env = build_text_envelope(
+            let text_meta = TextMetadata::from(TextExtraction::Native);
+            let image_meta = ImageMetadata::from(ImageExtraction::Pending);
+            let mut text_env = <DocumentEnvelope<Text>>::new(
                 Arc::clone(&handle),
                 metadata.clone(),
                 text_meta,
-                annotations,
-                shared,
+                Arc::clone(shared),
             )
             .await;
-            let image_env =
+            attach_annotations(
+                &mut text_env,
+                mem::take(&mut annotations.text),
+                annotations.labels.clone(),
+            );
+            let mut image_env =
                 <DocumentEnvelope<Image>>::new(handle, metadata, image_meta, Arc::clone(shared))
                     .await;
+            attach_annotations(
+                &mut image_env,
+                mem::take(&mut annotations.image),
+                annotations.labels,
+            );
             vec![AnyEnvelope::Text(text_env), AnyEnvelope::Image(image_env)]
         }
     }
 }
 
-async fn build_text_envelope(
-    handle: SharedHandle,
-    metadata: ContentMetadata,
-    document_meta: TextMetadata,
-    annotations: Vec<Annotation<Text>>,
-    shared: &Arc<SharedData>,
-) -> DocumentEnvelope<Text> {
-    let mut envelope =
-        <DocumentEnvelope<Text>>::new(handle, metadata, document_meta, Arc::clone(shared)).await;
-    let seeded = inclusion_entities::<Text>(&annotations);
-    if !seeded.is_empty() {
+/// Store user annotations on the envelope and synthesise entities
+/// for every [`Assert`]-strength inclusion. [`Hint`]-strength
+/// inclusions stay on the envelope for downstream prompt-builder
+/// consumption; exclusions stay for the post-detection filter.
+///
+/// [`Assert`]: AnnotationStrength::Assert
+/// [`Hint`]: AnnotationStrength::Hint
+fn attach_annotations<M: Modality>(
+    envelope: &mut DocumentEnvelope<M>,
+    annotations: Vec<Annotation<M>>,
+    labels: Vec<LabelAnnotation>,
+) {
+    if !labels.is_empty() {
         tracing::debug!(
             target: TARGET,
-            count = seeded.len(),
-            "seeding inclusion annotations as entities"
+            count = labels.len(),
+            "attaching labels to envelope",
         );
-        envelope.add_entities(seeded);
+    }
+    if !annotations.is_empty() {
+        tracing::debug!(
+            target: TARGET,
+            count = annotations.len(),
+            "attaching annotations to envelope",
+        );
+        let mut synthesized = 0;
+        for ann in &annotations {
+            if let Some(entity) = ann.to_inclusion_entity() {
+                envelope.add_entities(std::iter::once(entity));
+                synthesized += 1;
+            }
+        }
+        if synthesized > 0 {
+            tracing::debug!(
+                target: TARGET,
+                count = synthesized,
+                "synthesized entities from Assert inclusions",
+            );
+        }
     }
     envelope.document.annotations = annotations;
-    envelope
-}
-
-fn text_metadata_for(extraction: TextExtraction) -> TextMetadata {
-    TextMetadata {
-        extraction,
-        languages: Vec::new(),
-    }
-}
-
-fn tabular_metadata_for(extraction: TabularExtraction) -> TabularMetadata {
-    TabularMetadata {
-        extraction,
-        headers: Vec::new(),
-        sheet_names: Vec::new(),
-    }
-}
-
-fn image_metadata_for(extraction: ImageExtraction) -> ImageMetadata {
-    ImageMetadata {
-        extraction,
-        languages: Vec::new(),
-        pages: Vec::new(),
-    }
-}
-
-fn audio_metadata_for(extraction: AudioExtraction) -> AudioMetadata {
-    AudioMetadata {
-        extraction,
-        languages: Vec::new(),
-        sample_rate_hz: None,
-        channels: None,
-    }
-}
-
-/// Map the codec's `has_header()` signal to a [`TabularExtraction`].
-///
-/// `None` would mean the handle isn't tabular and shouldn't reach
-/// this site; we still pick a safe default (`SchemaInferred`) so the
-/// code path is total.
-fn tabular_extraction_from_header(has_header: Option<bool>) -> TabularExtraction {
-    match has_header {
-        Some(true) => TabularExtraction::SchemaTyped,
-        Some(false) | None => TabularExtraction::SchemaInferred,
-    }
-}
-
-/// Placeholder [`ModelProvenance`] stamped at import time on
-/// envelopes whose real provenance is only known after extraction
-/// runs (OCR, STT).
-///
-/// `OcrExtractor::run` and `SttExtractor::run` overwrite the
-/// containing [`ImageExtraction::Ocr`] / [`AudioExtraction::Transcription`]
-/// variant with the actual backend provenance.
-fn pending_provenance() -> ModelProvenance {
-    ModelProvenance::new("pending", ModelKind::SelfHosted)
+    envelope.document.labels = labels;
 }
 
 /// Replace the data payload of a [`Content`] while preserving its metadata.
@@ -264,9 +266,10 @@ fn replace_data(content: Content, data: ContentData) -> Content {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_core::content::{Content, ContentData, ContentMetadata};
+    use nvisy_core::content::{AnyAnnotations, Content, ContentData, ContentMetadata};
     use nvisy_ontology::entity::{
-        AnnotationKind, AnnotationTarget, EntityCategory, EntityKind, RecognitionMethod,
+        Annotation, AnnotationKind, AnnotationStrength, EntityCategory, EntityKind,
+        LabelAnnotation, RecognitionMethod,
     };
 
     use super::*;
@@ -278,7 +281,7 @@ mod tests {
         SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry)
     }
 
-    fn text_content(text: &str, annotations: Vec<Annotation<Text>>) -> Content {
+    fn text_content(text: &str, annotations: AnyAnnotations) -> Content {
         let meta = ContentMetadata::new()
             .with_content_type("text/plain")
             .with_annotations(annotations);
@@ -295,25 +298,29 @@ mod tests {
     #[tokio::test]
     async fn text_import_yields_single_text_envelope() {
         let shared = shared();
-        let content = text_content("Hello, world!", Vec::new());
+        let content = text_content("Hello, world!", AnyAnnotations::default());
         let envelopes = Importer::new().import(content, &shared).await.unwrap();
         assert_eq!(envelopes.len(), 1);
         assert!(envelopes[0].is_text());
     }
 
     #[tokio::test]
-    async fn text_import_seeds_inclusion_annotations_as_entities() {
+    async fn assert_inclusion_synthesizes_entity_at_import() {
         let shared = shared();
         let annotation = Annotation {
             name: Some("uploader".into()),
             kind: AnnotationKind::Inclusion {
-                category: EntityCategory::PersonalIdentity,
-                entity_kind: EntityKind::PersonName,
-                target: AnnotationTarget::Value("Jane Doe".into()),
-                confidence: None,
+                category: Some(EntityCategory::PersonalIdentity),
+                entity_kind: Some(EntityKind::PersonName),
+                target: Text::new(0, 8),
+                strength: AnnotationStrength::Assert,
             },
         };
-        let content = text_content("Jane Doe lives somewhere.", vec![annotation.clone()]);
+        let annotations = AnyAnnotations {
+            text: vec![annotation.clone()],
+            ..AnyAnnotations::default()
+        };
+        let content = text_content("Jane Doe lives somewhere.", annotations);
 
         let envelopes = Importer::new().import(content, &shared).await.unwrap();
         let AnyEnvelope::Text(env) = envelopes.into_iter().next().unwrap() else {
@@ -323,13 +330,58 @@ mod tests {
         assert_eq!(env.document.audit.records.len(), 1);
         let entity = &env.document.audit.records[0].entity;
         assert_eq!(entity.entity_kind, EntityKind::PersonName);
+        assert_eq!(entity.location, Text::new(0, 8));
         assert!(matches!(
             entity.recognition_methods.first(),
             Some(RecognitionMethod::Annotation(_))
         ));
         // Annotations are retained on the document for downstream
-        // exclusion filtering and label-driven policy scoping.
+        // consumers (prompt builders for hints, post-filter for
+        // exclusions).
         assert_eq!(env.document.annotations, vec![annotation]);
+    }
+
+    #[tokio::test]
+    async fn hint_inclusion_is_not_synthesized_at_import() {
+        let shared = shared();
+        let annotation = Annotation {
+            name: None,
+            kind: AnnotationKind::Inclusion {
+                category: Some(EntityCategory::PersonalIdentity),
+                entity_kind: Some(EntityKind::PersonName),
+                target: Text::new(0, 4),
+                strength: AnnotationStrength::Hint { confidence: None },
+            },
+        };
+        let annotations = AnyAnnotations {
+            text: vec![annotation.clone()],
+            ..AnyAnnotations::default()
+        };
+        let content = text_content("Jane lives here.", annotations);
+
+        let envelopes = Importer::new().import(content, &shared).await.unwrap();
+        let AnyEnvelope::Text(env) = envelopes.into_iter().next().unwrap() else {
+            panic!("expected a Text envelope");
+        };
+
+        assert_eq!(env.document.audit.records.len(), 0);
+        assert_eq!(env.document.annotations, vec![annotation]);
+    }
+
+    #[tokio::test]
+    async fn labels_propagate_to_every_envelope() {
+        let shared = shared();
+        let annotations = AnyAnnotations {
+            labels: vec![LabelAnnotation::new("medical")],
+            ..AnyAnnotations::default()
+        };
+        let content = text_content("Hello, world!", annotations);
+        let envelopes = Importer::new().import(content, &shared).await.unwrap();
+        let AnyEnvelope::Text(env) = envelopes.into_iter().next().unwrap() else {
+            panic!("expected a Text envelope");
+        };
+        assert_eq!(env.document.labels.len(), 1);
+        assert_eq!(env.document.labels[0].label, "medical");
     }
 
     #[tokio::test]

@@ -43,8 +43,11 @@ pub(super) struct RunContext {
     /// Shared across every run.
     pub(super) extractors: Arc<Extractors>,
     /// Optional shared detection engine. `None` skips the
-    /// detection phase entirely (e.g. for redaction-only or
-    /// validation-only pipelines).
+    /// detection phase entirely; set when the workflow's
+    /// `Detection.kinds` is empty (redaction-only flows, no-op
+    /// dry runs, test harnesses). See `pipeline/run.rs` —
+    /// the engine is built lazily only when at least one
+    /// recognizer kind is requested.
     pub(super) detection_engine: Option<Arc<DetectionEngine>>,
     /// Server-wide redaction defaults from `RuntimeConfig.redaction`.
     /// Per-workflow `Redaction` fields fall back to these.

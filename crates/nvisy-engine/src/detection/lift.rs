@@ -123,9 +123,9 @@ impl LiftFromBlock for Tabular {
 
 impl LiftFromBlock for Image {
     /// Image entity location is the union of overlapping word-span
-    /// bounding boxes. Per-modality `Mergeable` handles polygon
-    /// drop semantics; we fold via [`Image::bounding_box`] unions
-    /// directly.
+    /// bounding boxes, folded via [`BoundingBox::union`].
+    ///
+    /// [`BoundingBox::union`]: nvisy_ontology::primitive::BoundingBox::union
     fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<Self> {
         let mut iter = spans.iter().filter(|s| s.overlaps(start, end));
         let first = iter.next()?;

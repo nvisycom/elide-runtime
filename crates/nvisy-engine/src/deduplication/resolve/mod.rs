@@ -17,7 +17,7 @@ const TARGET: &str = "nvisy_engine::op::deduplication::conflict";
 
 /// Extension trait: resolve cross-kind span overlaps in place per the
 /// given [`ConflictResolution`] strategy.
-pub(crate) trait ResolveConflicts<M: Modality> {
+pub(super) trait ResolveConflicts<M: Modality> {
     /// Drop the loser of each cross-kind overlap; returns the
     /// dropped entities for downstream telemetry.
     fn resolve_conflicts(&mut self, strategy: &ConflictResolution) -> Vec<Entity<M>>;

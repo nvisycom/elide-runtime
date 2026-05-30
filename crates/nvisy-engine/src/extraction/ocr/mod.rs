@@ -1,11 +1,9 @@
 //! [`OcrExtractor`]: pure OCR over image spans.
 //!
 //! Built once at engine startup from [`OcrExtractorConfig`] and
-//! shared across every run via [`Extractors`]. CV verification of
-//! detected entities lives in the sibling [`vlm`] module.
+//! shared across every run via [`Extractors`].
 //!
 //! [`Extractors`]: super::Extractors
-//! [`vlm`]: super::vlm
 
 mod params;
 

@@ -24,7 +24,7 @@ pub type CalibrationMap = HashMap<RecognitionMethodKind, f64>;
 
 /// Extension trait on [`Entities`]: scale per-entity confidence by
 /// per-method calibration multipliers in place.
-pub(crate) trait Calibrate {
+pub(super) trait Calibrate {
     /// Apply per-method calibration multipliers to entity confidences.
     ///
     /// For each entity, finds the maximum multiplier across its

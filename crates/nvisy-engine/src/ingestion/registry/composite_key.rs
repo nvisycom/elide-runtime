@@ -20,8 +20,17 @@ impl CompositeKey {
         Self(key)
     }
 
+    /// Extract the actor UUID from the leading 16 bytes.
+    pub fn actor_id(&self) -> Uuid {
+        let mut bytes = [0u8; 16];
+        bytes.copy_from_slice(&self.0[..16]);
+        Uuid::from_bytes(bytes)
+    }
+
     /// Extract the resource UUID from the trailing 16 bytes.
     pub fn resource_id(&self) -> Uuid {
-        Uuid::from_bytes(self.0[16..].try_into().unwrap())
+        let mut bytes = [0u8; 16];
+        bytes.copy_from_slice(&self.0[16..]);
+        Uuid::from_bytes(bytes)
     }
 }

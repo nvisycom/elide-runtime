@@ -21,33 +21,33 @@ const TARGET: &str = "nvisy_engine::op::export_file";
 /// Exports processed content, optionally applying encryption and
 /// compression afterward.
 #[derive(Default)]
-pub struct Exporter {
+pub(crate) struct Exporter {
     encryption: Option<EncryptionConfig>,
     compression: Option<CompressionAlgorithm>,
     content_ids: Vec<Uuid>,
 }
 
 impl Exporter {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    pub fn with_encryption(mut self, config: Option<EncryptionConfig>) -> Self {
+    pub(crate) fn with_encryption(mut self, config: Option<EncryptionConfig>) -> Self {
         self.encryption = config;
         self
     }
 
-    pub fn with_compression(mut self, format: Option<CompressionAlgorithm>) -> Self {
+    pub(crate) fn with_compression(mut self, format: Option<CompressionAlgorithm>) -> Self {
         self.compression = format;
         self
     }
 
-    pub fn with_content_ids(mut self, ids: Vec<Uuid>) -> Self {
+    pub(crate) fn with_content_ids(mut self, ids: Vec<Uuid>) -> Self {
         self.content_ids = ids;
         self
     }
 
-    pub async fn export<M: Modality>(&self, envelope: &DocumentEnvelope<M>) -> Result<()> {
+    pub(crate) async fn export<M: Modality>(&self, envelope: &DocumentEnvelope<M>) -> Result<()> {
         let shared = &envelope.shared;
         let content_data = envelope.encode().await?;
         let mut output_bytes = bytes::Bytes::copy_from_slice(content_data.as_bytes());

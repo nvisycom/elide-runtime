@@ -217,7 +217,7 @@ impl Registry {
             for id in ids {
                 let key = CompositeKey::new(actor_id, id);
                 let meta = match meta_ks.get_bytes(key)? {
-                    Some(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
+                    Some(bytes) => serde_json::from_slice(&bytes)?,
                     None => ContentMetadata::default(),
                 };
                 result.push((id, meta));
@@ -251,7 +251,7 @@ impl Registry {
         key: CompositeKey,
         kind: &'static str,
     ) -> Result<T> {
-        let actor_id = Uuid::from_bytes(key.as_ref()[..16].try_into().unwrap());
+        let actor_id = key.actor_id();
         let resource_id = key.resource_id();
         let ks = ks.clone();
         blocking(move || {
@@ -270,7 +270,7 @@ impl Registry {
         key: CompositeKey,
         kind: &'static str,
     ) -> Result<()> {
-        let actor_id = Uuid::from_bytes(key.as_ref()[..16].try_into().unwrap());
+        let actor_id = key.actor_id();
         let resource_id = key.resource_id();
         let ks = ks.clone();
         let db = self.inner.db.clone();

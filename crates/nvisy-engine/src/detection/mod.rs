@@ -95,20 +95,9 @@ pub struct DetectionEngine {
 }
 
 impl DetectionEngineBuilder {
-    /// Attach a text-modality recognizer. May be called multiple
-    /// times; recognizers run in the order they were attached.
-    pub fn with_text_recognizer<R>(mut self, recognizer: R) -> Self
-    where
-        R: Recognizer<Modality = Text> + 'static,
-        R::Context: for<'a> From<&'a DetectionContext> + Send + Sync,
-    {
-        self.text
-            .get_or_insert_with(Vec::new)
-            .push(Arc::new(recognizer));
-        self
-    }
-
     /// Attach a text-modality recognizer already wrapped in `Arc`.
+    /// May be called multiple times; recognizers run in the order
+    /// they were attached.
     pub fn with_text_recognizer_arc<R>(mut self, recognizer: Arc<R>) -> Self
     where
         R: Recognizer<Modality = Text> + 'static,
@@ -119,20 +108,9 @@ impl DetectionEngineBuilder {
         self
     }
 
-    /// Attach an image-modality recognizer. May be called multiple
-    /// times; recognizers run in the order they were attached.
-    pub fn with_image_recognizer<R>(mut self, recognizer: R) -> Self
-    where
-        R: Recognizer<Modality = Image> + 'static,
-        R::Context: for<'a> From<&'a VlmDetectionContext> + Send + Sync,
-    {
-        self.image
-            .get_or_insert_with(Vec::new)
-            .push(Arc::new(recognizer));
-        self
-    }
-
     /// Attach an image-modality recognizer already wrapped in `Arc`.
+    /// May be called multiple times; recognizers run in the order
+    /// they were attached.
     pub fn with_image_recognizer_arc<R>(mut self, recognizer: Arc<R>) -> Self
     where
         R: Recognizer<Modality = Image> + 'static,
@@ -600,16 +578,38 @@ impl Detection {
         let mut builder = DetectionEngine::builder();
         for &kind in &self.kinds {
             recognizers.require(kind)?;
+            // Each unwrap is guaranteed by the preceding `require()`
+            // call: it returns Err if the slot is None, so reaching
+            // these arms means the matching slot is Some.
             builder = match kind {
-                RecognizerKind::Llm => builder
-                    .with_text_recognizer_arc(Arc::clone(recognizers.text.llm.as_ref().unwrap())),
-                RecognizerKind::Ner => builder
-                    .with_text_recognizer_arc(Arc::clone(recognizers.text.ner.as_ref().unwrap())),
-                RecognizerKind::Pattern => builder.with_text_recognizer_arc(Arc::clone(
-                    recognizers.text.pattern.as_ref().unwrap(),
+                RecognizerKind::Llm => builder.with_text_recognizer_arc(Arc::clone(
+                    recognizers
+                        .text
+                        .llm
+                        .as_ref()
+                        .expect("require(Llm) guarantees text.llm is Some"),
                 )),
-                RecognizerKind::Vlm => builder
-                    .with_image_recognizer_arc(Arc::clone(recognizers.image.vlm.as_ref().unwrap())),
+                RecognizerKind::Ner => builder.with_text_recognizer_arc(Arc::clone(
+                    recognizers
+                        .text
+                        .ner
+                        .as_ref()
+                        .expect("require(Ner) guarantees text.ner is Some"),
+                )),
+                RecognizerKind::Pattern => builder.with_text_recognizer_arc(Arc::clone(
+                    recognizers
+                        .text
+                        .pattern
+                        .as_ref()
+                        .expect("require(Pattern) guarantees text.pattern is Some"),
+                )),
+                RecognizerKind::Vlm => builder.with_image_recognizer_arc(Arc::clone(
+                    recognizers
+                        .image
+                        .vlm
+                        .as_ref()
+                        .expect("require(Vlm) guarantees image.vlm is Some"),
+                )),
             };
         }
         builder

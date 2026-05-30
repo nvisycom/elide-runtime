@@ -19,9 +19,9 @@
 //! Image-modality recognizers consume the sibling
 //! [`VlmDetectionContext`] instead.
 //!
-//! [`Recognizer`]: crate::Recognizer
-//! [`NerRecognizer`]: crate::NerRecognizer
-//! [`PatternRecognizer`]: crate::PatternRecognizer
+//! [`Recognizer`]: super::Recognizer
+//! [`NerRecognizer`]: super::NerRecognizer
+//! [`PatternRecognizer`]: super::PatternRecognizer
 //! [`LlmNerPipeline`]: nvisy_agent::pipeline::LlmNerPipeline
 //! [`LlmNerScanInput`]: super::llm::LlmNerScanInput
 

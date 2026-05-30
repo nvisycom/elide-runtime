@@ -36,23 +36,23 @@ const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 /// Per-run execution context shared across all document tasks.
 pub(super) struct RunContext {
     /// Token to signal cancellation to all tasks.
-    pub cancel: CancellationToken,
+    pub(super) cancel: CancellationToken,
     /// Shared run-wide state: run ID, actor, registry, policies.
-    pub shared: Arc<SharedData>,
+    pub(super) shared: Arc<SharedData>,
     /// Pre-built extractor registry from `RuntimeConfig.extraction`.
     /// Shared across every run.
-    pub extractors: Arc<Extractors>,
+    pub(super) extractors: Arc<Extractors>,
     /// Optional shared detection engine. `None` skips the
     /// detection phase entirely (e.g. for redaction-only or
     /// validation-only pipelines).
-    pub detection_engine: Option<Arc<DetectionEngine>>,
+    pub(super) detection_engine: Option<Arc<DetectionEngine>>,
     /// Server-wide redaction defaults from `RuntimeConfig.redaction`.
     /// Per-workflow `Redaction` fields fall back to these.
-    pub redaction_defaults: Arc<RedactionDefaults>,
+    pub(super) redaction_defaults: Arc<RedactionDefaults>,
     /// Optional limit on how many documents may process concurrently.
-    pub concurrency: Option<NonZeroUsize>,
+    pub(super) concurrency: Option<NonZeroUsize>,
     /// When `true`, skip redaction, validation, and export phases.
-    pub dry_run: bool,
+    pub(super) dry_run: bool,
 }
 
 /// Result of processing a single document through the pipeline.
@@ -188,11 +188,13 @@ impl Orchestrator {
 
 /// Processes a single document through all plan phases sequentially.
 ///
-/// Generic over modality `M`: a single `DocumentPipeline<M>` runs the
-/// same stage sequence (extraction → detection → dedup → redaction →
-/// validation → export) for any modality. Today only the `<Text>`
-/// specialization carries stage bodies; per-modality stage methods
-/// are added by Scope C in later steps (§4.3 onward).
+/// Generic over modality `M`: a single `DocumentPipeline<M>` runs
+/// the same stage sequence (extraction → detection → dedup →
+/// redaction → validation → export) for any modality. Per-modality
+/// behaviour comes from the trait bounds on the `impl` block
+/// (`Extract<M>`, `Detect<M>`, `ApplyRedactions`, `CheckLeaks`,
+/// `LiftFromBlock`, `ProjectIntoBlock`, `SpanSize`, `Overlap`,
+/// `ValueAt<M>`); the stage methods themselves are modality-agnostic.
 struct DocumentPipeline<M: Modality> {
     ctx: Arc<RunContext>,
     _marker: PhantomData<fn() -> M>,
@@ -253,7 +255,15 @@ where
     F: FnOnce(DocumentEnvelope<M>) -> AnyEnvelope + Send + 'static,
 {
     let _permit = match sem {
-        Some(ref s) => Some(s.acquire().await.expect("semaphore closed")),
+        Some(ref s) => match s.acquire().await {
+            Ok(permit) => Some(permit),
+            Err(_) => {
+                return DocumentResult {
+                    envelope: None,
+                    error: Some("concurrency semaphore closed".to_owned()),
+                };
+            }
+        },
         None => None,
     };
     let pipeline = DocumentPipeline::<M>::new(ctx);

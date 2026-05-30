@@ -1,11 +1,10 @@
 //! Redaction node configuration.
 //!
-//! [`Redaction`] runs at **phase 4**, alongside [`GenerateContext`], after
-//! deduplication has produced a final scored entity list. It applies redaction
-//! instructions to the document envelope, replacing or removing detected
-//! values, and optionally strips embedded document metadata.
-//!
-//! [`GenerateContext`]: GenerateContext (removed)
+//! [`Redaction`] runs at **phase 4**, after deduplication has
+//! produced a final scored entity list. It applies redaction
+//! instructions to the document envelope, replacing or removing
+//! detected values, and optionally strips embedded document
+//! metadata.
 
 use nvisy_ontology::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;

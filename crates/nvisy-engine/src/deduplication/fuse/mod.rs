@@ -28,7 +28,7 @@ const TARGET: &str = "nvisy_engine::op::deduplication::fuse";
 /// Extension trait: group co-referent entities by `criteria` then
 /// merge each group into a single entity according to `strategy`.
 /// Mutates in place.
-pub(crate) trait Fuse<M: Modality> {
+pub(super) trait Fuse<M: Modality> {
     /// Group + fuse the entity collection in place.
     fn fuse(
         &mut self,
@@ -82,7 +82,10 @@ where
     debug_assert!(!group.is_empty());
 
     if group.len() == 1 {
-        return group.into_iter().next().unwrap();
+        return group
+            .into_iter()
+            .next()
+            .expect("group.len() == 1 by guard above");
     }
 
     let fused_confidence = strategy.compute_confidence(&group);

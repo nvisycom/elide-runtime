@@ -39,24 +39,24 @@ const TARGET: &str = "nvisy_engine::redaction::apply";
 /// entity's kind (for `{entityType}` placeholder substitution),
 /// and the original value.
 pub(super) struct EntryView<'a, M: Modality> {
-    pub entry: &'a AuditEntry<M>,
-    pub entity_kind: EntityKind,
-    pub original: &'a str,
+    pub(super) entry: &'a AuditEntry<M>,
+    pub(super) entity_kind: EntityKind,
+    pub(super) original: &'a str,
 }
 
 /// One assembled per-modality batch ready to hand to the codec,
 /// plus the side-tables the caller needs to commit audit state
 /// after the codec accepts (or rejects) it.
 pub(super) struct ApplyBatch<M: Modality, R> {
-    pub batch: Redactions<M, R>,
-    pub applied: Vec<(usize, R)>,
-    pub failed: Vec<(usize, String)>,
+    pub(super) batch: Redactions<M, R>,
+    pub(super) applied: Vec<(usize, R)>,
+    pub(super) failed: Vec<(usize, String)>,
 }
 
 impl<M: Modality, R> ApplyBatch<M, R> {
     /// True when the batch produced no work — caller can short-
     /// circuit without touching the codec or the audit.
-    pub fn is_noop(&self) -> bool {
+    pub(super) fn is_noop(&self) -> bool {
         self.applied.is_empty() && self.failed.is_empty()
     }
 }

@@ -16,7 +16,7 @@
 //! The workflow [`Extraction`] node carries per-call flags
 //! (diarization) that customize how each extractor runs.
 //!
-//! [`Extraction`]: crate::extraction::Extraction
+//! [`Extraction`]: self::Extraction
 
 #[cfg(feature = "image")]
 mod ocr;

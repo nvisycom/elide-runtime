@@ -174,15 +174,30 @@ impl RunState {
             entry.entities_detected = entities_detected;
             entry.redactions_applied = redactions_applied;
 
+            let was_cancelled = entry.cancel.is_cancelled();
             for node in entry.nodes.values_mut() {
                 match node.status {
                     NodeStatus::Pending => {
                         node.status = NodeStatus::Failed;
-                        node.error = Some("run completed before node was scheduled".to_string());
+                        node.error = Some(
+                            if was_cancelled {
+                                "run cancelled before node was scheduled"
+                            } else {
+                                "run completed before node was scheduled"
+                            }
+                            .to_string(),
+                        );
                     }
                     NodeStatus::Running => {
                         node.status = NodeStatus::Failed;
-                        node.error = Some("run completed while node was still running".to_string());
+                        node.error = Some(
+                            if was_cancelled {
+                                "run cancelled while node was still running"
+                            } else {
+                                "run completed while node was still running"
+                            }
+                            .to_string(),
+                        );
                     }
                     _ => {}
                 }
@@ -325,7 +340,10 @@ impl RunState {
         let (max_run_duration_ms, avg_run_duration_ms) = if durations_ms.is_empty() {
             (None, None)
         } else {
-            let max = *durations_ms.iter().max().unwrap();
+            let max = *durations_ms
+                .iter()
+                .max()
+                .expect("non-empty by is_empty() guard above");
             let sum: u64 = durations_ms.iter().sum();
             let avg = sum as f64 / durations_ms.len() as f64;
             (Some(max), Some(avg))

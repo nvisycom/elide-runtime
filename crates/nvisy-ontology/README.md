@@ -16,14 +16,15 @@ contract.
 
 `document::*` carries the in-memory pipeline state for one processed
 document: `Document<M>` holds `meta`, an ordered `Vec<Block<M>>`,
-user `Annotation<M>`s, and the embedded `Audit<M>`. `Block<M>` wraps
-a per-modality `kind` payload alongside source-mapping `Span<M>`s
-and an optional confidence.
+user `Annotation<M>`s, labels, and the embedded `Audit<M>`.
+`Block<M>` wraps a per-modality `kind` payload alongside
+source-mapping `Span<M>`s and an optional confidence.
 
 `entity::*` defines the entity taxonomy (`EntityCategory`,
 `EntityKind`, `EntitySensitivity`), the detection-result type
-`Entity<M>`, user-supplied `Annotation<M>`s, the recognition /
-extraction / refinement method enums, and `ContentSource`.
+`Entity<M>`, user-supplied `Annotation<M>` + `AnnotationKind` +
+`AnnotationStrength`, the per-recognition / per-refinement method
+enums, and `ContentSource`.
 
 `provenance::*` records what the pipeline did. `Audit<M>` ships
 the per-document compliance trail as `records: Vec<EntityRecord<M>>`
@@ -33,17 +34,20 @@ the modality-erased enum used by persistence.
 
 `policy::*` describes how a detected entity should be redacted.
 Per-modality `*Strategy` enums (`TextStrategy::Mask`,
-`ImageStrategy::Blur`, …), `StrategyPolicy<M>` selectors with
-`Action::{Redact, Suppress, …}`, and the top-level `Policy<M>`
-container.
+`ImageStrategy::Blur`, …), `EntitySelector` for matching entities
+to rules, `Action<M>` for deciding what to do (redact / suppress /
+…), `Condition` predicates, and the top-level `Policy<M>` container
+plus `RuleRank` for tie-breaking.
 
 `primitive::*` carries cross-cutting value types — `Confidence`,
-`LanguageTag`, `LanguageDetection`, `BoundingBox`, `Polygon`,
-`TimeSpan`, `Color`.
+`ConfidenceThreshold`, `LanguageTag`, `LanguageDetection`,
+`LanguageProvenance`, `LanguageSpan`, `BoundingBox`, `Polygon`,
+`Dimensions`, `NormalizedBoundingBox`, `TimeSpan`, `Color`, `Dpi`.
 
-`context::*` defines the reference-data shapes (face / voice /
-signature / template embeddings, geographic and temporal
-constraints) loaded at runtime against detected entities.
+`context::*` defines runtime reference-data: a `Context` of
+`ContextEntry`s, each carrying a `ContextEntryData` tagged by
+domain — `Biometric`, `Geospatial`, `Analytic`, `Reference`,
+`Temporal`, `Document`.
 
 ## Documentation
 

@@ -3,21 +3,40 @@
 //! Built once at engine startup from [`SttExtractorConfig`] and
 //! shared across every run via [`Extractors`].
 //!
-//! [`Extractors`]: super::Extractors
+//! [`Extractors`]: super::super::Extractors
 
-mod params;
-
-use nvisy_agent::audio::stt::SttService;
+use nvisy_agent::audio::SttProvider;
+use nvisy_agent::audio::stt::{SttConfig, SttService};
 use nvisy_codec::DocumentHandle;
 use nvisy_core::Result;
 use nvisy_ontology::document::Block;
 use nvisy_ontology::modality::{Audio, AudioBlock, AudioExtraction};
 use nvisy_ontology::primitive::TimeSpan;
+use serde::{Deserialize, Serialize};
 
-pub use self::params::SttExtractorConfig;
 use crate::envelope::DocumentEnvelope;
 
-const TARGET: &str = "nvisy_engine::extraction::stt";
+const TARGET: &str = "nvisy_engine::extraction::audio::stt";
+
+/// `[extractor.stt]` config bundle.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SttExtractorConfig {
+    /// Enable this extractor. When `false`, the extractor is
+    /// neither built nor dispatched, but the config is preserved
+    /// so operators can toggle without losing it. Defaults to
+    /// `true`.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// STT provider selection + connection settings.
+    pub provider: SttProvider,
+    /// STT sampling/retry parameters.
+    #[serde(default)]
+    pub agent: SttConfig,
+}
+
+fn default_true() -> bool {
+    true
+}
 
 /// Pre-built STT extractor: transcription service wrapping a provider.
 pub struct SttExtractor {
@@ -41,7 +60,7 @@ impl SttExtractor {
     /// envelope spawned by the pipeline orchestrator.
     ///
     /// `diarization` is currently advisory — diarization is not yet
-    /// implemented; a warning is logged when requested.
+    /// implemented; a warning is logged when requested. See #239.
     pub async fn run(
         &self,
         envelope: &mut DocumentEnvelope<Audio>,

@@ -24,7 +24,7 @@ use crate::deduplication::{Deduplicator, FilterParams, SpanSize};
 use crate::detection::{Detect, DetectionEngine, LiftFromBlock, ProjectIntoBlock};
 use crate::envelope::value_at::ValueAt;
 use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData};
-use crate::extraction::{Extract, Extractors};
+use crate::extraction::{Extract, Extraction, Extractors, WorkflowSlice};
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
 };
@@ -283,6 +283,7 @@ impl<M> DocumentPipeline<M>
 where
     M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap + SpanSize + CheckLeaks,
     Extractors: Extract<M>,
+    Extraction: WorkflowSlice<M>,
     DetectionEngine: Detect<M>,
     DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send,
 {
@@ -300,7 +301,7 @@ where
         Extract::<M>::extract(
             self.ctx.extractors.as_ref(),
             &mut envelope,
-            &plan.extraction,
+            plan.extraction.workflow_for::<M>(),
         )
         .await?;
         self.check_cancelled()?;

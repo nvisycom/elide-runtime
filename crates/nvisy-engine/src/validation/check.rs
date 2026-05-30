@@ -19,6 +19,7 @@
 use async_trait::async_trait;
 use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 use nvisy_ontology::provenance::EntityRecord;
+use unicode_normalization::UnicodeNormalization;
 
 use super::{LeakedValue, ValidationResult};
 use crate::envelope::DocumentEnvelope;
@@ -112,11 +113,11 @@ where
         };
     };
 
-    let lower_text = text.to_lowercase();
+    let folded_text = fold_for_match(text);
     for record in &applied {
         if let Some(value) = envelope.value_at(&record.entity.location).await {
-            let lower_value = value.to_lowercase();
-            if !value.is_empty() && lower_text.contains(&lower_value) {
+            let folded_value = fold_for_match(&value);
+            if !value.is_empty() && folded_text.contains(&folded_value) {
                 leaked.push(LeakedValue {
                     value,
                     entity_id: record.entity.id,
@@ -166,4 +167,42 @@ async fn read_tabular(envelope: &DocumentEnvelope<Tabular>) -> Option<String> {
         }
     }
     Some(buf)
+}
+
+/// Fold a string for case-insensitive substring matching across
+/// Unicode normalization forms.
+///
+/// Without normalization, the same character sequence written in
+/// NFC vs NFD won't substring-match: e.g. `"café"` as
+/// `[c, a, f, U+00E9]` vs `[c, a, f, e, U+0301]` are distinct byte
+/// sequences. We normalize to NFC, then lowercase. Turkish dotless-i
+/// and other locale-sensitive cases still misfold (`I` → `i` not
+/// `ı`), but that's a deeper Unicode rabbit hole and the redaction
+/// pipeline doesn't currently carry per-document locale info to do
+/// it properly.
+fn fold_for_match(s: &str) -> String {
+    s.nfc().collect::<String>().to_lowercase()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fold_for_match;
+
+    #[test]
+    fn nfc_normalization_collapses_combining_accents() {
+        // "café" as NFC (U+00E9) and NFD (e + U+0301) should fold
+        // to the same string.
+        let nfc = "caf\u{00e9}";
+        let nfd = "cafe\u{0301}";
+        assert_eq!(fold_for_match(nfc), fold_for_match(nfd));
+    }
+
+    #[test]
+    fn case_fold_substring_match_works_across_normalization() {
+        // The haystack is NFD and uppercase; the needle is NFC
+        // lowercase. Folding both should let the substring match.
+        let haystack = fold_for_match("HELLO CAFE\u{0301}!");
+        let needle = fold_for_match("caf\u{00e9}");
+        assert!(haystack.contains(&needle));
+    }
 }

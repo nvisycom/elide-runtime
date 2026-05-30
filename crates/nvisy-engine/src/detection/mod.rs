@@ -464,9 +464,9 @@ impl DetectionEngine {
                 continue;
             };
             let dims = image_data.dimensions();
-            let bytes = image_data
-                .encode_png()
-                .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "detection-engine", false))?;
+            let bytes = image_data.encode_png().map_err(|e| {
+                nvisy_core::Error::runtime(e.to_string(), "detection-engine", false)
+            })?;
 
             let mut ctx = VlmDetectionContext::new(bytes, dims);
             ctx.correlation_id = Some(run_id);

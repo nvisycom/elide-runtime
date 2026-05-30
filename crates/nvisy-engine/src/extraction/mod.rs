@@ -1,27 +1,20 @@
-//! Extraction: per-technique extractors + the [`Extractors`] registry
-//! that holds them.
+//! Extraction: per-modality extractors + shared registry.
 //!
-//! Two techniques, each built once at engine startup from a
-//! `[extractor.*]` config section and shared across every run:
+//! Each modality lives in its own sub-module ([`text`], [`tabular`],
+//! [`image`], [`audio`]) and owns its `Extract<M>` + [`WorkflowSlice<M>`]
+//! impls. This file holds only the shared scaffolding: the
+//! [`Extractors`] registry, its [`ExtractionSection`] config, the
+//! [`Extract<M>`] trait, and the [`WorkflowSlice<M>`] helper that lets
+//! the orchestrator pull the right slice of [`Extraction`] per modality.
 //!
-//! - [`OcrExtractor`] — pure OCR (`[extractor.ocr]`).
-//! - [`SttExtractor`] — speech-to-text (`[extractor.stt]`).
+//! Per-modality behaviour:
 //!
-//! Dispatch is driven by content type:
-//!
-//! - Image / rich → OCR (if configured).
-//! - Audio → STT (if configured).
-//! - Text / tabular → no extraction needed.
-//!
-//! The workflow [`Extraction`] node carries per-call flags
-//! (diarization) that customize how each extractor runs.
-//!
-//! [`Extraction`]: self::Extraction
+//! - [`text`] / [`tabular`] — codec-native; no backend call.
+//! - [`image`] — OCR via [`image::ocr`] (when `image` feature is on).
+//! - [`audio`] — STT via [`audio::stt`] (when `audio` feature is on).
 
-#[cfg(feature = "image")]
-mod ocr;
-#[cfg(feature = "audio")]
-mod stt;
+mod audio;
+mod image;
 mod tabular;
 mod text;
 mod workflow;
@@ -29,14 +22,16 @@ mod workflow;
 use std::sync::Arc;
 
 use nvisy_core::Result;
-use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
+use nvisy_ontology::modality::Modality;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "image")]
-pub use self::ocr::{OcrExtractor, OcrExtractorConfig};
 #[cfg(feature = "audio")]
-pub use self::stt::{SttExtractor, SttExtractorConfig};
-pub use self::workflow::{AudialExtraction, Extraction};
+pub use self::audio::{SttExtractor, SttExtractorConfig};
+#[cfg(feature = "image")]
+pub use self::image::{OcrExtractor, OcrExtractorConfig};
+pub use self::workflow::{
+    AudialWorkflow, Extraction, ImageWorkflow, TabularWorkflow, TextWorkflow,
+};
 use crate::envelope::DocumentEnvelope;
 
 /// Registry of pre-built extractors, one per technique.
@@ -138,96 +133,52 @@ impl Extractors {
 
 /// Per-modality extraction dispatch.
 ///
-/// The pipeline's stage method (`DocumentPipeline<M>::run_extraction`)
-/// calls `extractors.extract(envelope, &plan.extraction)` and Rust
-/// monomorphizes to the matching impl below.
+/// The orchestrator calls
+/// `Extract::<M>::extract(extractors, envelope, plan.extraction.workflow_for::<M>())`
+/// and Rust monomorphizes to the matching per-modality impl in
+/// [`text`], [`tabular`], [`image`], or [`audio`].
 ///
-/// Text/Tabular are no-ops (their decode is already structured);
-/// Image dispatches to OCR; Audio dispatches to STT.
+/// Each impl declares its own [`Workflow`] config struct via the
+/// associated type. The orchestrator fishes the right field out of
+/// [`Extraction`] via [`Extraction::workflow_for`] so the trait
+/// stays narrow.
+///
+/// [`Workflow`]: Self::Workflow
 #[async_trait::async_trait]
-pub trait Extract<M: nvisy_ontology::modality::Modality>: Send + Sync {
+pub trait Extract<M: Modality>: Send + Sync {
+    /// Per-modality workflow config struct.
+    type Workflow: Default + Send + Sync;
+
     async fn extract(
         &self,
         envelope: &mut DocumentEnvelope<M>,
-        extraction: &Extraction,
+        workflow: &Self::Workflow,
     ) -> Result<()>;
 }
 
-#[async_trait::async_trait]
-impl Extract<Text> for Extractors {
-    async fn extract(
-        &self,
-        envelope: &mut DocumentEnvelope<Text>,
-        _extraction: &Extraction,
-    ) -> Result<()> {
-        self::text::populate_document(envelope).await;
-        Ok(())
+impl Extraction {
+    /// Borrow the per-modality workflow slice keyed by `M`.
+    ///
+    /// Used by the orchestrator to hand `Extract::<M>::extract` the
+    /// right slice without each call site having to know the field
+    /// name. The bound `Extractors: Extract<M>` ties the return type
+    /// to the matching `Workflow` so the call typechecks.
+    pub fn workflow_for<M>(&self) -> &<Extractors as Extract<M>>::Workflow
+    where
+        M: Modality,
+        Extractors: Extract<M>,
+        Self: WorkflowSlice<M>,
+    {
+        <Self as WorkflowSlice<M>>::slice(self)
     }
 }
 
-#[async_trait::async_trait]
-impl Extract<Tabular> for Extractors {
-    async fn extract(
-        &self,
-        envelope: &mut DocumentEnvelope<Tabular>,
-        _extraction: &Extraction,
-    ) -> Result<()> {
-        self::tabular::populate_document(envelope).await;
-        Ok(())
-    }
-}
-
-#[cfg(feature = "image")]
-#[async_trait::async_trait]
-impl Extract<Image> for Extractors {
-    async fn extract(
-        &self,
-        envelope: &mut DocumentEnvelope<Image>,
-        _extraction: &Extraction,
-    ) -> Result<()> {
-        if let Some(ref ocr) = self.ocr {
-            ocr.run(envelope).await?;
-        }
-        Ok(())
-    }
-}
-
-#[cfg(not(feature = "image"))]
-#[async_trait::async_trait]
-impl Extract<Image> for Extractors {
-    async fn extract(
-        &self,
-        _envelope: &mut DocumentEnvelope<Image>,
-        _extraction: &Extraction,
-    ) -> Result<()> {
-        Ok(())
-    }
-}
-
-#[cfg(feature = "audio")]
-#[async_trait::async_trait]
-impl Extract<Audio> for Extractors {
-    async fn extract(
-        &self,
-        envelope: &mut DocumentEnvelope<Audio>,
-        extraction: &Extraction,
-    ) -> Result<()> {
-        if let Some(ref stt) = self.stt {
-            let diarization = extraction.audial.as_ref().is_some_and(|a| a.diarization);
-            stt.run(envelope, diarization).await?;
-        }
-        Ok(())
-    }
-}
-
-#[cfg(not(feature = "audio"))]
-#[async_trait::async_trait]
-impl Extract<Audio> for Extractors {
-    async fn extract(
-        &self,
-        _envelope: &mut DocumentEnvelope<Audio>,
-        _extraction: &Extraction,
-    ) -> Result<()> {
-        Ok(())
-    }
+/// Helper trait that picks the per-modality workflow field out of
+/// [`Extraction`]. One impl per modality, co-located with each
+/// modality's [`Extract<M>`] impl in its sub-module.
+pub trait WorkflowSlice<M: Modality>
+where
+    Extractors: Extract<M>,
+{
+    fn slice(&self) -> &<Extractors as Extract<M>>::Workflow;
 }

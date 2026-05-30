@@ -10,9 +10,11 @@
 
 use std::collections::BTreeMap;
 
+use nvisy_core::Result;
 use nvisy_ontology::document::{Block, Span};
 use nvisy_ontology::modality::{Tabular, TabularBlock};
 
+use super::{Extract, Extraction, Extractors, TabularWorkflow, WorkflowSlice};
 use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::extraction::tabular";
@@ -26,7 +28,7 @@ const CELL_SEPARATOR: &str = "\t";
 /// document. Each block carries the concatenated row text and one
 /// span per cell mapping the cell's substring range back to the
 /// codec's per-cell [`Tabular`] coordinates.
-pub(super) async fn populate_document(envelope: &mut DocumentEnvelope<Tabular>) {
+async fn populate_document(envelope: &mut DocumentEnvelope<Tabular>) {
     let locations = envelope.collect_tabular_locations().await;
     if locations.is_empty() {
         return;
@@ -77,4 +79,24 @@ pub(super) async fn populate_document(envelope: &mut DocumentEnvelope<Tabular>) 
     );
 
     envelope.document.blocks.extend(blocks);
+}
+
+#[async_trait::async_trait]
+impl Extract<Tabular> for Extractors {
+    type Workflow = TabularWorkflow;
+
+    async fn extract(
+        &self,
+        envelope: &mut DocumentEnvelope<Tabular>,
+        _workflow: &TabularWorkflow,
+    ) -> Result<()> {
+        populate_document(envelope).await;
+        Ok(())
+    }
+}
+
+impl WorkflowSlice<Tabular> for Extraction {
+    fn slice(&self) -> &TabularWorkflow {
+        &self.tabular
+    }
 }

@@ -107,6 +107,7 @@ bytes = { workspace = true, features = [] }
 validator = { workspace = true, features = [] }
 rand = { workspace = true, features = [] }
 tempfile = { workspace = true, features = [], optional = true }
+unicode-normalization = { workspace = true, features = [] }
 
 # Observability
 tracing = { workspace = true, features = [] }

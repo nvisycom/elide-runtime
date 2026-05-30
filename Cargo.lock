@@ -3189,6 +3189,7 @@ dependencies = [
  "toml",
  "tracing",
  "type-map",
+ "unicode-normalization",
  "uuid",
  "validator",
 ]

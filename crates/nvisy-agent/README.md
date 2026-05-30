@@ -4,9 +4,8 @@
 
 LLM agents and orchestrating pipelines over the
 [`rig`](https://github.com/0xPlaygrounds/rig) framework for the Nvisy
-runtime. Provides typed agents for NER, CV classification, CV
-verification, and synthetic-value generation, plus speech (STT/TTS)
-services.
+runtime. Provides typed agents for NER, VLM classification, and OCR
+verification, plus speech-to-text services.
 
 ## Overview
 
@@ -32,9 +31,9 @@ exposing `classify` and `verify` as independent methods. Both
 expose `reset()` (per-document state clear + cumulative usage zero)
 and `usage()` (token totals since the last reset).
 
-Audio services (`audio::stt::SttService`, `audio::tts::TtsService`)
-wrap whisper / TTS providers behind their own `SttProvider` /
-`TtsProvider` enums; same HTTP transport as the LLM agents.
+Audio services (`audio::stt::SttService`) wrap whisper providers
+behind their own `SttProvider` enum; same HTTP transport as the LLM
+agents.
 
 HTTP transport (`HttpClient`, `HttpConfig`, retry + tracing
 middleware) lives in the shared `nvisy-http` crate; rig agents

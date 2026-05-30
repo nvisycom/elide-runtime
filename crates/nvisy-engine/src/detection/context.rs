@@ -1,5 +1,5 @@
-//! [`DetectionContext`] — per-call input to
-//! [`DetectionEngine::run`] and every [`Recognizer`].
+//! [`DetectionContext`] — per-call input to every text-modality
+//! [`Recognizer`].
 //!
 //! Bundles the same shape `nvisy_ner::Context` carries, plus the
 //! [`PatternContext`] needed by pattern-backed recognizers. Each
@@ -11,27 +11,30 @@
 //!   (allow/deny/hints).
 //! - The LLM recognizer (an [`LlmNerPipeline`]) reads `text`, `hints`,
 //!   `labels`, `entities`, `score_threshold`, and `correlation_id`
-//!   via the `From<&DetectionContext>` impl on [`LlmNerContext`].
+//!   via the `From<&DetectionContext>` impl on [`LlmNerScanInput`].
 //!
 //! `correlation_id` flows through the tracing span and isn't read
 //! by recognizers themselves.
 //!
-//! [`DetectionEngine::run`]: super::DetectionEngine::run
+//! Image-modality recognizers consume the sibling
+//! [`VlmDetectionContext`] instead.
+//!
 //! [`Recognizer`]: crate::Recognizer
 //! [`NerRecognizer`]: crate::NerRecognizer
 //! [`PatternRecognizer`]: crate::PatternRecognizer
 //! [`LlmNerPipeline`]: nvisy_agent::pipeline::LlmNerPipeline
-//! [`LlmNerContext`]: nvisy_agent::agent::LlmNerContext
+//! [`LlmNerScanInput`]: super::llm::LlmNerScanInput
 
+use bytes::Bytes;
 use derive_builder::Builder;
 use nvisy_agent::agent::NerHint;
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
-use nvisy_ontology::primitive::{ConfidenceThreshold, LanguageTag};
+use nvisy_ontology::primitive::{ConfidenceThreshold, Dimensions, LanguageTag};
 use nvisy_pattern::filter::PatternContext;
 use uuid::Uuid;
 
-/// Per-call input to [`DetectionEngine::run`].
+/// Per-call input to every text-modality recognizer.
 ///
 /// Fully owned (no lifetime parameter) so the engine can share it
 /// across recognizer tasks via [`Arc`] for parallel dispatch.
@@ -39,7 +42,6 @@ use uuid::Uuid;
 /// shared clone is an atomic increment, not a copy of the source
 /// bytes.
 ///
-/// [`DetectionEngine::run`]: super::DetectionEngine::run
 /// [`Arc`]: std::sync::Arc
 #[derive(Debug, Clone, Builder)]
 #[builder(
@@ -159,5 +161,43 @@ pub struct DetectionContextBuilderError(String);
 impl From<derive_builder::UninitializedFieldError> for DetectionContextBuilderError {
     fn from(err: derive_builder::UninitializedFieldError) -> Self {
         Self(format!("missing required field `{}`", err.field_name()))
+    }
+}
+
+/// Per-call input for image-modality recognizers.
+///
+/// Image counterpart to [`DetectionContext`]: carries the encoded
+/// image bytes plus their pixel [`Dimensions`] (needed by
+/// recognizers that emit normalised bounding boxes — they scale to
+/// pixel space using `dims`) plus the same filter knobs the text
+/// side carries.
+#[derive(Debug, Clone)]
+pub struct VlmDetectionContext {
+    /// Encoded image bytes (typically PNG).
+    pub image: Bytes,
+    /// Pixel dimensions of the encoded image.
+    pub dims: Dimensions,
+    /// Entity-kind allowlist forwarded to image recognizers.
+    pub entities: Option<Vec<EntityKind>>,
+    /// Minimum confidence threshold forwarded to image recognizers.
+    pub score_threshold: Option<ConfidenceThreshold>,
+    /// Document-level classification labels.
+    pub labels: Vec<String>,
+    /// Correlation UUID propagated through the tracing span.
+    pub correlation_id: Option<Uuid>,
+}
+
+impl VlmDetectionContext {
+    /// Construct a context with the encoded image bytes + their
+    /// pixel dimensions. All filter fields default to empty.
+    pub fn new(image: Bytes, dims: Dimensions) -> Self {
+        Self {
+            image,
+            dims,
+            entities: None,
+            score_threshold: None,
+            labels: Vec::new(),
+            correlation_id: None,
+        }
     }
 }

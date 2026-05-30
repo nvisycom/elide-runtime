@@ -35,8 +35,8 @@ audio = ["nvisy-codec/audio", "nvisy-formats/audio"]
 ## must also compile its image arm when rich is on. Defaults on.
 rich = ["image", "nvisy-codec/rich", "nvisy-formats/rich"]
 
-## Enable all OpenAI providers (GPT, Whisper STT, TTS).
-openai = ["nvisy-agent/openai-gpt", "nvisy-agent/openai-whisper", "nvisy-agent/openai-tts"]
+## Enable all OpenAI providers (GPT, Whisper STT).
+openai = ["nvisy-agent/openai-gpt", "nvisy-agent/openai-whisper"]
 ## Enable Anthropic Claude completion provider.
 anthropic = ["nvisy-agent/anthropic-claude"]
 ## Enable Google Gemini.

@@ -19,6 +19,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
@@ -26,6 +27,16 @@ use nvisy_pattern::{PatternContext, PatternEngine};
 
 pub use self::params::PatternDetection;
 use crate::detection::{DetectionContext, Recognizer};
+
+/// Per-call scan bundle for [`PatternRecognizer`]. Pairs the
+/// upstream [`PatternContext`] (allow/deny/hints) with the text
+/// to scan. Built from a [`DetectionContext`] via [`From`].
+pub struct PatternScanInput {
+    /// Allow/deny/hints filter for the scan.
+    pub ctx: PatternContext,
+    /// The text to scan.
+    pub text: TextData,
+}
 
 /// Pattern-based recognizer.
 ///
@@ -65,25 +76,29 @@ impl PatternRecognizer {
 
 #[async_trait]
 impl Recognizer for PatternRecognizer {
-    type Context = PatternContext;
+    type Modality = Text;
+    type Context = PatternScanInput;
 
     #[tracing::instrument(
         skip_all,
         fields(
-            text_len = text.len(),
-            correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
+            text_len = input.text.len(),
+            correlation_id = input.ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, text: &str, ctx: &PatternContext) -> Result<Vec<Entity<Text>>> {
-        Ok(self.engine.scan_text(text, ctx))
+    async fn run(&self, input: &PatternScanInput) -> Result<Vec<Entity<Text>>> {
+        Ok(self.engine.scan_text(&input.text, &input.ctx))
     }
 }
 
-impl From<&DetectionContext> for PatternContext {
+impl From<&DetectionContext> for PatternScanInput {
     fn from(ctx: &DetectionContext) -> Self {
-        let mut out = ctx.scan_context.clone();
-        out.correlation_id = ctx.correlation_id;
-        out
+        let mut pattern_ctx = ctx.scan_context.clone();
+        pattern_ctx.correlation_id = ctx.correlation_id;
+        Self {
+            ctx: pattern_ctx,
+            text: ctx.text.clone(),
+        }
     }
 }
 
@@ -156,15 +171,16 @@ mod tests {
         )
         .with_category(EntityCategory::Financial)
         .with_kind(EntityKind::PaymentCard);
-        let ctx = PatternContext {
+        let pattern_ctx = PatternContext {
             extra_patterns: vec![extra],
             ..Default::default()
         };
+        let input = PatternScanInput {
+            ctx: pattern_ctx,
+            text: TextData::from("See INV-4242 attached"),
+        };
 
-        let entities = recognizer
-            .run("See INV-4242 attached", &ctx)
-            .await
-            .expect("recognize");
+        let entities = recognizer.run(&input).await.expect("recognize");
         assert!(
             entities
                 .iter()

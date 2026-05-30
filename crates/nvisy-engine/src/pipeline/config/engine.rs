@@ -65,7 +65,7 @@ pub struct EngineSection {
 
     /// Shared HTTP client configuration for all downstream API calls.
     ///
-    /// Applies to OCR providers, LLM agents, STT/TTS services, and any
+    /// Applies to OCR providers, LLM agents, STT services, and any
     /// other external HTTP dependencies. Controls timeouts, retries,
     /// and connection pooling.
     pub http: Option<HttpConfig>,

@@ -10,7 +10,7 @@ Provider features are forwarded from [`nvisy-server`](../nvisy-server). All are 
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `openai` | yes | Enable all OpenAI providers (GPT, Whisper STT, TTS) |
+| `openai` | yes | Enable all OpenAI providers (GPT, Whisper STT) |
 | `anthropic` | yes | Enable Anthropic Claude completion provider |
 | `google` | yes | Enable Google Gemini + Google Cloud Vision OCR |
 | `microsoft` | yes | Enable Azure Document Intelligence OCR |

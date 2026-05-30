@@ -13,7 +13,7 @@ fn example_toml_parses() {
 
     // Parse into a loose Value first to verify TOML syntax is valid,
     // then extract the engine section which is always feature-independent.
-    // Subsystem provider sections (llm, stt, tts) use cfg-gated enum
+    // Subsystem provider sections (llm, stt) use cfg-gated enum
     // variants that may not be available in the test binary.
     let table: toml::Table =
         toml::from_str(contents).expect("Nvisy.example.toml should be valid TOML");

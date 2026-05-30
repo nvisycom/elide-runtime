@@ -1,7 +1,5 @@
-//! Audio services: speech-to-text transcription and text-to-speech generation.
+//! Audio services: speech-to-text transcription.
 
 pub mod stt;
-pub mod tts;
 
 pub use self::stt::SttProvider;
-pub use self::tts::TtsProvider;

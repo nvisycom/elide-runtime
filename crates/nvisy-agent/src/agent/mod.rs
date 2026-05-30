@@ -15,7 +15,7 @@ pub mod vlm;
 
 mod base;
 
-#[cfg(any(feature = "openai-whisper", feature = "openai-tts"))]
+#[cfg(feature = "openai-whisper")]
 pub(crate) use self::base::AuthenticatedProvider;
 pub(crate) use self::base::{ALL_TYPES_HINT, UnauthenticatedProvider};
 pub use self::base::{

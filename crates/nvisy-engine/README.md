@@ -14,7 +14,7 @@ cross-cutting policy types). `pipeline::*` compiles a workflow into
 an executable `Pipeline`, owns the per-run `RuntimeConfig`, and
 drives execution via `Pipeline::execute`. `operation::*` hosts the
 concrete operation implementations each graph node maps to —
-`Detection`, `VisualExtraction`, `Deduplication`, redaction
+`Detection`, `Extraction`, `Deduplication`, redaction
 strategies, etc.
 
 `detection::*` is the recognizer-side machinery: the trait surface
@@ -35,7 +35,7 @@ them.
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `openai` | no | Enable all OpenAI providers (GPT, Whisper STT, TTS) |
+| `openai` | no | Enable all OpenAI providers (GPT, Whisper STT) |
 | `anthropic` | no | Enable Anthropic Claude completion provider |
 | `google` | no | Enable Google Gemini + Google Cloud Vision OCR |
 | `microsoft` | no | Enable Azure Document Intelligence OCR |

@@ -9,14 +9,14 @@
 //!   [`Arc<LlmNerPipeline>`] ready to register on [`Recognizers`].
 //! - `impl Recognizer for LlmNerPipeline`: lets the pipeline drop
 //!   directly into the engine's dispatch path.
-//! - `impl From<&DetectionContext> for LlmNerContext`: maps the
+//! - `impl From<&DetectionContext> for LlmNerScanInput`: maps the
 //!   fat engine context down to the pipeline's per-call config so
-//!   the blanket [`DynRecognizer`] impl works without an extra
+//!   the blanket [`DynTextRecognizer`] impl works without an extra
 //!   wrapper.
 //!
 //! [`LlmNerPipeline`]: nvisy_agent::pipeline::LlmNerPipeline
 //! [`Recognizers`]: super::Recognizers
-//! [`DynRecognizer`]: super::DynRecognizer
+//! [`DynTextRecognizer`]: super::DynTextRecognizer
 
 mod params;
 
@@ -25,12 +25,23 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use nvisy_agent::agent::LlmNerContext;
 use nvisy_agent::pipeline::LlmNerPipeline;
+use nvisy_codec::handler::TextData;
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
 
 pub use self::params::{DetectParams, LlmDetection, VerifyParams};
 use crate::detection::{DetectionContext, Recognizer};
+
+/// Per-call scan bundle for [`LlmNerPipeline`]. Pairs the
+/// agent-facing [`LlmNerContext`] with the text to scan. Built
+/// from a [`DetectionContext`] via [`From`].
+pub struct LlmNerScanInput {
+    /// Agent-facing per-call config.
+    pub ctx: LlmNerContext,
+    /// The text to scan.
+    pub text: TextData,
+}
 
 /// Build a configured [`LlmNerPipeline`] from an [`LlmDetection`]
 /// config bundle.
@@ -64,17 +75,18 @@ pub fn build_pipeline(cfg: LlmDetection) -> Result<Arc<LlmNerPipeline>> {
 
 #[async_trait]
 impl Recognizer for LlmNerPipeline {
-    type Context = LlmNerContext;
+    type Modality = Text;
+    type Context = LlmNerScanInput;
 
     #[tracing::instrument(
         skip_all,
         fields(
-            text_len = text.len(),
-            correlation_id = ctx.correlation_id.as_ref().map(|id| id.to_string()),
+            text_len = input.text.len(),
+            correlation_id = input.ctx.correlation_id.as_ref().map(|id| id.to_string()),
         ),
     )]
-    async fn run(&self, text: &str, ctx: &LlmNerContext) -> Result<Vec<Entity<Text>>> {
-        LlmNerPipeline::run(self, text, ctx)
+    async fn run(&self, input: &LlmNerScanInput) -> Result<Vec<Entity<Text>>> {
+        LlmNerPipeline::run(self, &input.text, &input.ctx)
             .await
             .map_err(|e| Error::runtime(e.to_string(), "llm", false))
     }
@@ -86,15 +98,18 @@ impl Recognizer for LlmNerPipeline {
     }
 }
 
-impl From<&DetectionContext> for LlmNerContext {
+impl From<&DetectionContext> for LlmNerScanInput {
     fn from(ctx: &DetectionContext) -> Self {
         Self {
-            entity_kinds: ctx.entities.clone().unwrap_or_default(),
-            confidence_threshold: ctx.score_threshold,
-            system_prompt: None,
-            hints: ctx.hints.clone(),
-            labels: ctx.labels.clone(),
-            correlation_id: ctx.correlation_id,
+            ctx: LlmNerContext {
+                entity_kinds: ctx.entities.clone().unwrap_or_default(),
+                confidence_threshold: ctx.score_threshold,
+                system_prompt: None,
+                hints: ctx.hints.clone(),
+                labels: ctx.labels.clone(),
+                correlation_id: ctx.correlation_id,
+            },
+            text: ctx.text.clone(),
         }
     }
 }

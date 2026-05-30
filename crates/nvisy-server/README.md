@@ -12,7 +12,7 @@ Vendor features are forwarded from [`nvisy-engine`](../nvisy-engine). All are di
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `openai` | no | Enable all OpenAI providers (GPT, Whisper STT, TTS) |
+| `openai` | no | Enable all OpenAI providers (GPT, Whisper STT) |
 | `anthropic` | no | Enable Anthropic Claude completion provider |
 | `google` | no | Enable Google Gemini + Google Cloud Vision OCR |
 | `microsoft` | no | Enable Azure Document Intelligence OCR |

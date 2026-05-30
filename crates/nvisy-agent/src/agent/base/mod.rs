@@ -18,7 +18,6 @@ pub(crate) use self::builder::BaseAgentBuilder;
     feature = "anthropic-claude",
     feature = "google-gemini",
     feature = "openai-whisper",
-    feature = "openai-tts",
 ))]
 pub use self::connection::AuthenticatedProvider;
 pub use self::connection::UnauthenticatedProvider;

@@ -11,7 +11,6 @@ mod unauthenticated;
     feature = "anthropic-claude",
     feature = "google-gemini",
     feature = "openai-whisper",
-    feature = "openai-tts",
 ))]
 pub use self::authenticated::AuthenticatedProvider;
 pub use self::unauthenticated::UnauthenticatedProvider;

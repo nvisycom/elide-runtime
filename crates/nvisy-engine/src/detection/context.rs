@@ -134,24 +134,6 @@ impl DetectionContext {
     }
 }
 
-impl From<TextData> for DetectionContext {
-    fn from(text: TextData) -> Self {
-        Self::new(text)
-    }
-}
-
-impl From<&str> for DetectionContext {
-    fn from(text: &str) -> Self {
-        Self::new(TextData::from(text))
-    }
-}
-
-impl From<String> for DetectionContext {
-    fn from(text: String) -> Self {
-        Self::new(TextData::from(text))
-    }
-}
-
 /// Error returned by [`DetectionContextBuilder::build`] when a
 /// required field is missing.
 #[derive(Debug, thiserror::Error)]

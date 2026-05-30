@@ -29,11 +29,7 @@ mod workflow;
 use std::sync::Arc;
 
 use nvisy_core::Result;
-#[cfg(feature = "audio")]
-use nvisy_ontology::modality::Audio;
-#[cfg(feature = "image")]
-use nvisy_ontology::modality::Image;
-use nvisy_ontology::modality::{Tabular, Text};
+use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "image")]
@@ -198,10 +194,10 @@ impl Extract<Image> for Extractors {
 
 #[cfg(not(feature = "image"))]
 #[async_trait::async_trait]
-impl Extract<nvisy_ontology::modality::Image> for Extractors {
+impl Extract<Image> for Extractors {
     async fn extract(
         &self,
-        _envelope: &mut DocumentEnvelope<nvisy_ontology::modality::Image>,
+        _envelope: &mut DocumentEnvelope<Image>,
         _extraction: &Extraction,
     ) -> Result<()> {
         Ok(())
@@ -226,10 +222,10 @@ impl Extract<Audio> for Extractors {
 
 #[cfg(not(feature = "audio"))]
 #[async_trait::async_trait]
-impl Extract<nvisy_ontology::modality::Audio> for Extractors {
+impl Extract<Audio> for Extractors {
     async fn extract(
         &self,
-        _envelope: &mut DocumentEnvelope<nvisy_ontology::modality::Audio>,
+        _envelope: &mut DocumentEnvelope<Audio>,
         _extraction: &Extraction,
     ) -> Result<()> {
         Ok(())

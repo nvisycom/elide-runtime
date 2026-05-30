@@ -374,9 +374,7 @@ where
 #[async_trait::async_trait]
 impl Detect<Text> for DetectionEngine {
     async fn detect(&self, envelope: &mut DocumentEnvelope<Text>, cfg: &Detection) -> Result<()> {
-        detect_text_blocks(self, envelope, cfg).await?;
-        self.reset().await;
-        Ok(())
+        self.detect_text_only(envelope, cfg).await
     }
 }
 
@@ -387,18 +385,14 @@ impl Detect<Tabular> for DetectionEngine {
         envelope: &mut DocumentEnvelope<Tabular>,
         cfg: &Detection,
     ) -> Result<()> {
-        detect_text_blocks(self, envelope, cfg).await?;
-        self.reset().await;
-        Ok(())
+        self.detect_text_only(envelope, cfg).await
     }
 }
 
 #[async_trait::async_trait]
 impl Detect<Audio> for DetectionEngine {
     async fn detect(&self, envelope: &mut DocumentEnvelope<Audio>, cfg: &Detection) -> Result<()> {
-        detect_text_blocks(self, envelope, cfg).await?;
-        self.reset().await;
-        Ok(())
+        self.detect_text_only(envelope, cfg).await
     }
 }
 
@@ -406,55 +400,12 @@ impl Detect<Audio> for DetectionEngine {
 #[async_trait::async_trait]
 impl Detect<Image> for DetectionEngine {
     async fn detect(&self, envelope: &mut DocumentEnvelope<Image>, cfg: &Detection) -> Result<()> {
-        // 1. Text recognizers run on every OCR'd block ("runs
-        //    alongside" image-side recognizers).
+        // Text recognizers run on every OCR'd block ("runs alongside"
+        // image-side recognizers), then image recognizers run once per
+        // image location with raw bytes — they emit absolute
+        // image-coord Entity<Image> directly, no per-block lifting.
         detect_text_blocks(self, envelope, cfg).await?;
-
-        // 2. Image recognizers run once per image location with
-        //    the raw image bytes; they emit absolute image-coord
-        //    Entity<Image> directly, no per-block lifting.
-        if !self.image.is_empty() {
-            let run_id = envelope.shared.run_id;
-            let labels: Vec<String> = envelope
-                .document
-                .labels
-                .iter()
-                .map(|l| l.label.clone())
-                .collect();
-
-            let locations = envelope.collect_image_locations().await;
-            let mut detected_total = 0usize;
-            for located in locations {
-                let Some(image_data) = envelope.read_image(&located.location).await else {
-                    continue;
-                };
-                let dims = image_data.dimensions();
-                let bytes = image_data.encode_png().map_err(|e| {
-                    nvisy_core::Error::runtime(e.to_string(), "detection-engine", false)
-                })?;
-
-                let mut ctx = VlmDetectionContext::new(bytes, dims);
-                ctx.correlation_id = Some(run_id);
-                if !cfg.entity_kinds.is_empty() {
-                    ctx.entities = Some(cfg.entity_kinds.clone());
-                }
-                if let Some(threshold) = cfg.confidence_threshold {
-                    ctx.score_threshold = Some(threshold);
-                }
-                ctx.labels = labels.clone();
-
-                let detected = self.run_image(ctx).await?;
-                detected_total += detected.len();
-                envelope.add_entities(detected);
-            }
-
-            tracing::debug!(
-                target: TARGET,
-                detected = detected_total,
-                "appending image-detected entities",
-            );
-        }
-
+        self.detect_image_locations(envelope, cfg).await?;
         self.reset().await;
         Ok(())
     }
@@ -464,8 +415,79 @@ impl Detect<Image> for DetectionEngine {
 #[async_trait::async_trait]
 impl Detect<Image> for DetectionEngine {
     async fn detect(&self, envelope: &mut DocumentEnvelope<Image>, cfg: &Detection) -> Result<()> {
+        self.detect_text_only(envelope, cfg).await
+    }
+}
+
+impl DetectionEngine {
+    /// Run text recognizers over every block in the envelope and
+    /// reset per-document state. Shared by every modality whose
+    /// detection is purely text-based.
+    async fn detect_text_only<M>(
+        &self,
+        envelope: &mut DocumentEnvelope<M>,
+        cfg: &Detection,
+    ) -> Result<()>
+    where
+        M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap,
+    {
         detect_text_blocks(self, envelope, cfg).await?;
         self.reset().await;
+        Ok(())
+    }
+
+    /// Run image recognizers once per image location in the envelope.
+    /// Each call sees the raw encoded image bytes plus the image's
+    /// pixel dimensions; recognizers emit absolute image-coord
+    /// entities directly (no per-block lifting).
+    #[cfg(feature = "image")]
+    async fn detect_image_locations(
+        &self,
+        envelope: &mut DocumentEnvelope<Image>,
+        cfg: &Detection,
+    ) -> Result<()> {
+        if self.image.is_empty() {
+            return Ok(());
+        }
+        let run_id = envelope.shared.run_id;
+        let labels: Vec<String> = envelope
+            .document
+            .labels
+            .iter()
+            .map(|l| l.label.clone())
+            .collect();
+
+        let locations = envelope.collect_image_locations().await;
+        let mut detected_total = 0usize;
+        for located in locations {
+            let Some(image_data) = envelope.read_image(&located.location).await else {
+                continue;
+            };
+            let dims = image_data.dimensions();
+            let bytes = image_data
+                .encode_png()
+                .map_err(|e| nvisy_core::Error::runtime(e.to_string(), "detection-engine", false))?;
+
+            let mut ctx = VlmDetectionContext::new(bytes, dims);
+            ctx.correlation_id = Some(run_id);
+            if !cfg.entity_kinds.is_empty() {
+                ctx.entities = Some(cfg.entity_kinds.clone());
+            }
+            if let Some(threshold) = cfg.confidence_threshold {
+                ctx.score_threshold = Some(threshold);
+            }
+            ctx.labels = labels.clone();
+
+            let detected = self.run_image(ctx).await?;
+            detected_total += detected.len();
+            envelope.add_entities(detected);
+        }
+
+        tracing::debug!(
+            target: TARGET,
+            detected = detected_total,
+            "appending image-detected entities",
+        );
         Ok(())
     }
 }

@@ -61,9 +61,9 @@ pub trait Recognizer: Send + Sync {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum RecognizerKind {
-    /// LLM-backed recognizer (see [`LlmRecognizer`]).
+    /// LLM-backed recognizer — wraps an [`LlmNerPipeline`] directly.
     ///
-    /// [`LlmRecognizer`]: super::LlmRecognizer
+    /// [`LlmNerPipeline`]: nvisy_agent::pipeline::LlmNerPipeline
     Llm,
     /// NER-engine recognizer (see [`NerRecognizer`]).
     ///

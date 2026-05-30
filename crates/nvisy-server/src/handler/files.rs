@@ -59,6 +59,7 @@ async fn upload_file(
     if let Some(ref name) = req.filename {
         metadata.filename = Some(PathBuf::from(name));
     }
+    metadata.annotations = req.annotations;
 
     let content = Content::with_metadata(content_data, metadata);
     let id = registry

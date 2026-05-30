@@ -9,9 +9,9 @@
 //!   `candidate_languages`, `entities`.
 //! - [`PatternRecognizer`] reads `text` and `scan_context`
 //!   (allow/deny/hints).
-//! - [`LlmRecognizer`] reads `text` and honors its own per-build
-//!   configuration; per-call overrides land on the recognizer at
-//!   construction.
+//! - The LLM recognizer (an [`LlmNerPipeline`]) reads `text`, `hints`,
+//!   `labels`, `entities`, `score_threshold`, and `correlation_id`
+//!   via the `From<&DetectionContext>` impl on [`LlmNerContext`].
 //!
 //! `correlation_id` flows through the tracing span and isn't read
 //! by recognizers themselves.
@@ -20,9 +20,11 @@
 //! [`Recognizer`]: crate::Recognizer
 //! [`NerRecognizer`]: crate::NerRecognizer
 //! [`PatternRecognizer`]: crate::PatternRecognizer
-//! [`LlmRecognizer`]: crate::LlmRecognizer
+//! [`LlmNerPipeline`]: nvisy_agent::pipeline::LlmNerPipeline
+//! [`LlmNerContext`]: nvisy_agent::agent::LlmNerContext
 
 use derive_builder::Builder;
+use nvisy_agent::agent::NerHint;
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::primitive::{ConfidenceThreshold, LanguageTag};
@@ -77,6 +79,29 @@ pub struct DetectionContext {
     #[builder(default)]
     pub scan_context: PatternContext,
 
+    /// User-supplied hint regions to fold into the LLM/VLM
+    /// detector's prompt for per-hint adjudication alongside
+    /// open-ended discovery. Forwarded from
+    /// [`Document::annotations`] (`Hint`-strength `Inclusion`).
+    /// Non-LLM recognizers ignore this field.
+    ///
+    /// Exclusion annotations don't flow through this path — they're
+    /// always assertions and enforced by a post-detection filter
+    /// regardless of recognizer.
+    ///
+    /// [`Document::annotations`]: nvisy_ontology::document::Document::annotations
+    #[builder(default)]
+    pub hints: Vec<NerHint>,
+
+    /// Document-level classification labels forwarded from
+    /// [`Document::labels`]. LLM/VLM recognizers render them into
+    /// the prompt as context; non-LLM recognizers ignore this
+    /// field.
+    ///
+    /// [`Document::labels`]: nvisy_ontology::document::Document::labels
+    #[builder(default)]
+    pub labels: Vec<String>,
+
     /// Correlation UUID propagated through the tracing span for
     /// this detection call.
     #[builder(default)]
@@ -93,6 +118,8 @@ impl DetectionContext {
             entities: None,
             score_threshold: None,
             scan_context: PatternContext::default(),
+            hints: Vec::new(),
+            labels: Vec::new(),
             correlation_id: None,
         }
     }

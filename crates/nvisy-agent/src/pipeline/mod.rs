@@ -3,7 +3,7 @@
 //! A pipeline composes one or more agents (and any state shared
 //! across calls) into a single end-to-end flow. Built-in pipelines:
 //!
-//! - [`NerPipeline`] — text detection with [`NerAgent`] → verify
+//! - [`LlmNerPipeline`] — text detection with [`NerAgent`] → verify
 //!   with [`NerVerifyAgent`] → merge surviving candidates into
 //!   coreference state.
 //! - [`CvPipeline`] — image-side LLM work. Wraps a [`CvAgent`]
@@ -25,7 +25,7 @@
 //! [`CvVerifyAgent`]: crate::agent::cv::CvVerifyAgent
 
 mod cv;
-mod ner;
+mod llm_ner;
 
 pub use self::cv::CvPipeline;
-pub use self::ner::NerPipeline;
+pub use self::llm_ner::LlmNerPipeline;

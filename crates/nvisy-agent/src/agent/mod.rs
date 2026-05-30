@@ -21,4 +21,6 @@ mod base;
 #[cfg(any(feature = "openai-whisper", feature = "openai-tts"))]
 pub(crate) use self::base::AuthenticatedProvider;
 pub(crate) use self::base::{ALL_TYPES_HINT, UnauthenticatedProvider};
-pub use self::base::{AgentConfig, AgentProvider, LlmNerContext, UsageStats};
+pub use self::base::{
+    AgentConfig, AgentProvider, LlmNerContext, LlmNerVerification, NerHint, UsageStats,
+};

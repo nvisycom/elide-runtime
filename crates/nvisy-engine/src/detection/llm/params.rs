@@ -1,26 +1,27 @@
-//! [`LlmDetection`]: full bundle for constructing an [`LlmRecognizer`].
+//! [`LlmDetection`]: full bundle for constructing the LLM-driven
+//! NER pipeline from config alone.
 //!
-//! Carries everything the recognizer needs to assemble itself from
-//! config alone:
+//! Per-pass sub-tables ([`detect`], [`verify`]) use the same
+//! presence-and-flag pattern:
 //!
-//! - [`provider`] — which LLM to talk to (selection + credentials).
-//! - [`agent`] — sampling/retry knobs reused for both detection and
-//!   (when [`verify_pass`] is true) the verifier pass.
-//! - [`verify_pass`] — `true` enables the two-pass refinement
-//!   verifier using the same [`agent`] config; `false` runs
-//!   localization-only verification.
-//! - [`unresolved_policy`] — how the verifier handles candidates
-//!   that can't be uniquely localized in the source text.
+//! - sub-table absent → disabled (no agent allocated)
+//! - sub-table present with `enabled = false` → disabled (config
+//!   preserved for later toggling)
+//! - sub-table present with `enabled = true` (the default when the
+//!   flag is omitted) → enabled
+//!
+//! [`unresolved_policy`] is recognizer-wide (it governs the shared
+//! localizer used by the detect path), so it lives at the top
+//! level alongside [`provider`] rather than on any sub-table.
 //!
 //! Note: bundling credentials per-recognizer here is intentional
 //! short-term. A follow-up will simplify the TOML schema and route
 //! provider credentials through the runtime config instead — see
 //! <https://github.com/nvisycom/runtime/issues/157>.
 //!
-//! [`LlmRecognizer`]: super::LlmRecognizer
 //! [`provider`]: LlmDetection::provider
-//! [`agent`]: LlmDetection::agent
-//! [`verify_pass`]: LlmDetection::verify_pass
+//! [`detect`]: LlmDetection::detect
+//! [`verify`]: LlmDetection::verify
 //! [`unresolved_policy`]: LlmDetection::unresolved_policy
 
 use nvisy_agent::agent::ner::UnresolvedCandidatePolicy;
@@ -29,9 +30,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// LLM-specific detection settings.
-///
-/// No `Default` impl: every field that drives a real LLM call
-/// (provider, agent config) must be supplied by the caller.
 #[derive(Debug, Clone, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct LlmDetection {
@@ -41,26 +39,55 @@ pub struct LlmDetection {
     /// `true`.
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// Provider selection + credentials for the detection agent.
+    /// Provider selection + credentials. Shared by every pass.
     pub provider: AgentProvider,
-    /// Sampling and retry parameters. Reused for both the detection
-    /// pass and (when [`verify_pass`] is true) the verifier pass.
-    ///
-    /// [`verify_pass`]: Self::verify_pass
-    pub agent: AgentConfig,
-    /// `true` enables a second LLM pass that adjusts confidence
-    /// based on surrounding document context (two LLM calls per
-    /// span); `false` runs localization-only verification (one LLM
-    /// call per span). The verifier reuses [`agent`] when enabled.
-    ///
-    /// [`agent`]: Self::agent
-    #[serde(default)]
-    pub verify_pass: bool,
-    /// How to handle NER candidates that can't be uniquely
-    /// localized in the source text. Defaults to
+    /// How to handle candidates the localizer can't uniquely place
+    /// in the source text. Recognizer-wide because it governs the
+    /// shared localizer used by detect. Defaults to
     /// [`UnresolvedCandidatePolicy::Drop`].
     #[serde(default)]
     pub unresolved_policy: UnresolvedCandidatePolicy,
+    /// Detect-pass configuration. When `None`, the detect pass is
+    /// disabled — the recognizer produces no entities of its own,
+    /// though verify may still run over entities from other
+    /// recognizers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detect: Option<DetectParams>,
+    /// Verify-pass configuration. When `None`, no verify pass
+    /// runs. When `Some`, an extra LLM call adjudicates the
+    /// merged entity set after all recognizers have run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verify: Option<VerifyParams>,
+}
+
+/// Configuration for the detect pass: the LLM agent that drives
+/// unified entity detection (open-ended discovery + per-hint
+/// adjudication).
+#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct DetectParams {
+    /// Enable the detect pass. Defaults to `true` so a present
+    /// sub-table with no flag is treated as "I want this on".
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Sampling and retry parameters for the detect-pass agent.
+    /// Ignored when [`enabled`](Self::enabled) is `false`.
+    #[serde(flatten)]
+    pub agent: AgentConfig,
+}
+
+/// Configuration for the whole-audit verify pass.
+#[derive(Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct VerifyParams {
+    /// Enable the verify pass. Defaults to `true` so a present
+    /// sub-table with no flag is treated as "I want this on".
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Sampling and retry parameters for the verify-pass agent.
+    /// Ignored when [`enabled`](Self::enabled) is `false`.
+    #[serde(flatten)]
+    pub agent: AgentConfig,
 }
 
 fn default_true() -> bool {

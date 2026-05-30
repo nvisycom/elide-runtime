@@ -10,10 +10,17 @@
 //! coordinate, and overlapping spans contribute their `source: M`
 //! to the union that becomes the entity's final location.
 //!
+//! The reverse direction — taking a modality target (e.g. an
+//! annotation's region) and projecting it onto block-text byte
+//! offsets — is [`ProjectIntoBlock`]. Used when the engine needs
+//! to surface user-supplied annotation regions to a recognizer
+//! that only speaks block-local text offsets (LLM hint
+//! adjudication, today).
+//!
 //! [`Span<M>`]: nvisy_ontology::document::Span
 
 use nvisy_ontology::document::Span;
-use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
+use nvisy_ontology::modality::{Audio, Image, Modality, Overlap, Tabular, Text};
 
 /// Map a block-text byte range to an absolute `M` location using
 /// the block's spans.
@@ -23,6 +30,31 @@ use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 /// place them in modality coordinates.
 pub trait LiftFromBlock: Modality + Sized {
     fn lift_from_block(spans: &[Span<Self>], start: usize, end: usize) -> Option<Self>;
+}
+
+/// Project a modality-typed `target` (e.g. an annotation region)
+/// onto block-text byte offsets within the given block's spans.
+///
+/// Returns the `[block_text_start, block_text_end)` range of block
+/// text whose source spans overlap `target`, or `None` when no
+/// span overlaps. The returned range is the union of
+/// `span.text_start..span.text_end` over all overlapping spans,
+/// suitable for handing to a recognizer that consumes block-local
+/// text offsets.
+///
+/// The translation fidelity is per-modality:
+///
+/// - [`Text`]: spans typically cover the full block text (one span
+///   per block, `text_start=0..text_end=text.len()`), and the
+///   span's `source: Text` carries doc-absolute byte offsets.
+///   Projection narrows the block-text range to just the
+///   `target`-overlapping portion (sub-span precision).
+/// - [`Tabular`], [`Image`], [`Audio`]: spans typically cover a
+///   whole cell / word / phoneme. Projection returns the union of
+///   those spans' block-text ranges as-is (span-granular
+///   precision); we can't sub-divide an image word into pixels.
+pub trait ProjectIntoBlock: Modality + Sized {
+    fn project_into_block(spans: &[Span<Self>], target: &Self) -> Option<(usize, usize)>;
 }
 
 impl LiftFromBlock for Text {
@@ -39,6 +71,30 @@ impl LiftFromBlock for Text {
         let lifted_start = source_base + start.saturating_sub(span_text_start);
         let lifted_end = source_base + end.saturating_sub(span_text_start);
         Some(Text::new(lifted_start, lifted_end))
+    }
+}
+
+impl ProjectIntoBlock for Text {
+    /// Inverse of [`lift_from_block`]: shift `target`'s doc-absolute
+    /// byte range into block-text coordinates within the first
+    /// overlapping span. Sub-span precision — clamps to the span's
+    /// overlap with `target`.
+    ///
+    /// [`lift_from_block`]: LiftFromBlock::lift_from_block
+    fn project_into_block(spans: &[Span<Self>], target: &Self) -> Option<(usize, usize)> {
+        let span = spans.iter().find(|s| s.source.overlaps(target))?;
+        let span_text_start = span.text_start;
+        let source_base = span.source.start;
+        let source_end = span.source.end;
+        // Clamp target to the span's source range first.
+        let clamped_start = target.start.max(source_base);
+        let clamped_end = target.end.min(source_end);
+        if clamped_start >= clamped_end {
+            return None;
+        }
+        let block_start = span_text_start + (clamped_start - source_base);
+        let block_end = span_text_start + (clamped_end - source_base);
+        Some((block_start, block_end))
     }
 }
 
@@ -105,5 +161,47 @@ impl LiftFromBlock for Audio {
             speaker_id,
             audio_id,
         })
+    }
+}
+
+/// Span-granular projection used by [`Tabular`], [`Image`], and
+/// [`Audio`]: a modality target's overlap with the block's spans
+/// is reported as the union of those spans' block-text ranges.
+/// We don't sub-divide an image word into pixels or an audio word
+/// into samples — the recognizer sees whole-span text either way.
+fn union_block_range<M: Modality + Overlap>(
+    spans: &[Span<M>],
+    target: &M,
+) -> Option<(usize, usize)> {
+    let mut iter = spans.iter().filter(|s| s.source.overlaps(target));
+    let first = iter.next()?;
+    let mut lo = first.text_start;
+    let mut hi = first.text_end;
+    for s in iter {
+        if s.text_start < lo {
+            lo = s.text_start;
+        }
+        if s.text_end > hi {
+            hi = s.text_end;
+        }
+    }
+    Some((lo, hi))
+}
+
+impl ProjectIntoBlock for Tabular {
+    fn project_into_block(spans: &[Span<Self>], target: &Self) -> Option<(usize, usize)> {
+        union_block_range(spans, target)
+    }
+}
+
+impl ProjectIntoBlock for Image {
+    fn project_into_block(spans: &[Span<Self>], target: &Self) -> Option<(usize, usize)> {
+        union_block_range(spans, target)
+    }
+}
+
+impl ProjectIntoBlock for Audio {
+    fn project_into_block(spans: &[Span<Self>], target: &Self) -> Option<(usize, usize)> {
+        union_block_range(spans, target)
     }
 }

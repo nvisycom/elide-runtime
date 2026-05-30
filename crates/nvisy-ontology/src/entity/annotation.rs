@@ -98,8 +98,20 @@ pub enum AnnotationKind<M: Modality> {
         entity_kind: Option<EntityKind>,
         /// Modality-specific location this inclusion targets.
         target: M,
+        /// Whether this is an advisory [`Hint`] (LLM may reject) or
+        /// a hard [`Assert`] (engine enforces regardless of
+        /// detectors). Lives on `Inclusion` only because exclusions
+        /// are always assertions — there's no meaningful "maybe
+        /// safe" mode.
+        ///
+        /// [`Hint`]: AnnotationStrength::Hint
+        /// [`Assert`]: AnnotationStrength::Assert
+        strength: AnnotationStrength,
     },
     /// Known-safe region the user wants the engine to skip.
+    /// Exclusions are always treated as assertions — there is no
+    /// "hint" exclusion variant because letting the LLM second-guess
+    /// a user's safety claim would defeat the point.
     Exclusion {
         /// Modality-specific location this exclusion targets.
         target: M,
@@ -107,11 +119,6 @@ pub enum AnnotationKind<M: Modality> {
 }
 
 /// A user-provided region annotation on a content region.
-///
-/// [`strength`](Self::strength) decides whether this is an advisory
-/// hint to LLM/VLM detectors (which can carry an optional confidence)
-/// or a hard constraint the engine enforces post-detection (always at
-/// full confidence).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(
     rename_all = "camelCase",
@@ -122,12 +129,6 @@ pub struct Annotation<M: Modality> {
     /// Optional human-readable name for this annotation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    /// Whether this is a hint to LLM/VLM detectors or a hard
-    /// constraint the engine enforces regardless of which detectors
-    /// ran. Confidence lives on the [`Hint`] variant.
-    ///
-    /// [`Hint`]: hint()
-    pub strength: AnnotationStrength,
     /// What kind of annotation and its variant-specific data.
     #[serde(flatten)]
     pub kind: AnnotationKind<M>,
@@ -141,15 +142,13 @@ impl<M: Modality> Annotation<M> {
     ///
     /// [`Inclusion`]: AnnotationKind::Inclusion
     /// [`Assert`]: AnnotationStrength::Assert
-    /// [`Hint`]: hint()
+    /// [`Hint`]: AnnotationStrength::Hint
     pub fn to_inclusion_entity(&self) -> Option<Entity<M>> {
-        if self.strength != AnnotationStrength::Assert {
-            return None;
-        }
         let AnnotationKind::Inclusion {
             category,
             entity_kind,
             target,
+            strength: AnnotationStrength::Assert,
         } = &self.kind
         else {
             return None;
@@ -195,24 +194,16 @@ impl LabelAnnotation {
     }
 }
 
-/// Check whether any [`Assert`]-strength [`Exclusion`] overlaps the
-/// given `entity`.
-///
-/// Only [`Assert`] exclusions affect the post-detection filter;
-/// [`Hint`] exclusions are advisory and are consumed at prompt
-/// build time by LLM/VLM detectors.
+/// Check whether any [`Exclusion`] overlaps the given `entity`.
+/// Exclusions are always assertions — every exclusion participates
+/// in the post-detection filter.
 ///
 /// [`Exclusion`]: AnnotationKind::Exclusion
-/// [`Assert`]: AnnotationStrength::Assert
-/// [`Hint`]: hint()
 pub fn is_excluded<M>(annotations: &[Annotation<M>], entity: &Entity<M>) -> bool
 where
     M: Modality + Overlap,
 {
     annotations.iter().any(|ann| {
-        if ann.strength != AnnotationStrength::Assert {
-            return false;
-        }
         let AnnotationKind::Exclusion { target } = &ann.kind else {
             return false;
         };
@@ -229,19 +220,18 @@ mod tests {
     fn inclusion(start: usize, end: usize, strength: AnnotationStrength) -> Annotation<Text> {
         Annotation {
             name: None,
-            strength,
             kind: AnnotationKind::Inclusion {
                 category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
                 target: Text::new(start, end),
+                strength,
             },
         }
     }
 
-    fn exclusion(start: usize, end: usize, strength: AnnotationStrength) -> Annotation<Text> {
+    fn exclusion(start: usize, end: usize) -> Annotation<Text> {
         Annotation {
             name: None,
-            strength,
             kind: AnnotationKind::Exclusion {
                 target: Text::new(start, end),
             },
@@ -281,11 +271,11 @@ mod tests {
     fn unclassified_assert_inclusion_falls_back_to_unresolved() {
         let ann = Annotation {
             name: None,
-            strength: AnnotationStrength::Assert,
             kind: AnnotationKind::Inclusion {
                 category: None,
                 entity_kind: None,
                 target: Text::new(0, 10),
+                strength: AnnotationStrength::Assert,
             },
         };
         let entity = ann.to_inclusion_entity().unwrap();
@@ -295,7 +285,7 @@ mod tests {
 
     #[test]
     fn to_inclusion_entity_returns_none_for_exclusion() {
-        let ann = exclusion(0, 4, AnnotationStrength::Assert);
+        let ann = exclusion(0, 4);
         assert!(ann.to_inclusion_entity().is_none());
     }
 
@@ -305,11 +295,11 @@ mod tests {
         let bbox = BoundingBox::new(0.0, 0.0, 10.0, 10.0);
         let ann: Annotation<Image> = Annotation {
             name: Some("face".into()),
-            strength: AnnotationStrength::Assert,
             kind: AnnotationKind::Inclusion {
                 category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
                 target: Image::new(bbox),
+                strength: AnnotationStrength::Assert,
             },
         };
         let entity = ann.to_inclusion_entity().unwrap();
@@ -317,22 +307,15 @@ mod tests {
     }
 
     #[test]
-    fn assert_exclusion_by_location_overlap() {
-        let anns = vec![exclusion(5, 15, AnnotationStrength::Assert)];
+    fn exclusion_by_location_overlap() {
+        let anns = vec![exclusion(5, 15)];
         let entity = test_entity(10, 20);
         assert!(is_excluded(&anns, &entity));
     }
 
     #[test]
-    fn assert_exclusion_by_location_no_overlap() {
-        let anns = vec![exclusion(0, 5, AnnotationStrength::Assert)];
-        let entity = test_entity(10, 20);
-        assert!(!is_excluded(&anns, &entity));
-    }
-
-    #[test]
-    fn hint_exclusion_is_not_a_post_filter() {
-        let anns = vec![exclusion(5, 15, hint())];
+    fn exclusion_by_location_no_overlap() {
+        let anns = vec![exclusion(0, 5)];
         let entity = test_entity(10, 20);
         assert!(!is_excluded(&anns, &entity));
     }

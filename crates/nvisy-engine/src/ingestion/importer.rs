@@ -309,11 +309,11 @@ mod tests {
         let shared = shared();
         let annotation = Annotation {
             name: Some("uploader".into()),
-            strength: AnnotationStrength::Assert,
             kind: AnnotationKind::Inclusion {
                 category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
                 target: Text::new(0, 8),
+                strength: AnnotationStrength::Assert,
             },
         };
         let annotations = AnyAnnotations {
@@ -346,11 +346,11 @@ mod tests {
         let shared = shared();
         let annotation = Annotation {
             name: None,
-            strength: AnnotationStrength::Hint { confidence: None },
             kind: AnnotationKind::Inclusion {
                 category: Some(EntityCategory::PersonalIdentity),
                 entity_kind: Some(EntityKind::PersonName),
                 target: Text::new(0, 4),
+                strength: AnnotationStrength::Hint { confidence: None },
             },
         };
         let annotations = AnyAnnotations {

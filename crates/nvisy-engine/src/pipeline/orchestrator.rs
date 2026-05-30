@@ -21,7 +21,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::default::EngineInput;
 use crate::deduplication::{Deduplicator, FilterParams, SpanSize};
-use crate::detection::{DetectionEngine, LiftFromBlock};
+use crate::detection::{DetectionEngine, LiftFromBlock, ProjectIntoBlock};
 use crate::envelope::value_at::ValueAt;
 use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData};
 use crate::extraction::{Extract, Extractors};
@@ -271,7 +271,7 @@ where
 
 impl<M> DocumentPipeline<M>
 where
-    M: Modality + LiftFromBlock + Overlap + SpanSize + CheckLeaks,
+    M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap + SpanSize + CheckLeaks,
     Extractors: Extract<M>,
     DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send,
 {

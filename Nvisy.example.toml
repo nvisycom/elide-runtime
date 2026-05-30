@@ -119,20 +119,44 @@ max_retries = 3
 # configuration lives here, never in the workflow.
 
 # LLM-backed recognizer.
+#
+# `[detection.llm.detect]` drives the unified entity detection pass
+# (open-ended discovery + per-hint adjudication when the document
+# carries `Hint`-strength inclusion annotations).
+#
+# `[detection.llm.verify]` adds one extra LLM call after all
+# recognizers run that filters the merged entity set
+# (confirm / reject / adjust confidence + kind + category).
+#
+# Both sub-tables follow the same enable pattern: sub-table absent
+# disables the pass; sub-table present (with the default
+# `enabled = true` or an explicit override) enables it; set
+# `enabled = false` to keep the config around while skipping the
+# pass. At least one of detect or verify must be enabled.
 [detection.llm]
 enabled = true
-verify_pass = true # adds a second LLM call per span
-unresolved_policy = "drop" # drop | warn | error
+unresolved_policy = "drop" # drop | first-match
 
 [detection.llm.provider]
 kind = "open-ai"
 api_key = "sk-example-replace-me"
 model = "gpt-4o"
 
-[detection.llm.agent]
+[detection.llm.detect]
+enabled = true
 temperature = 0.1
 max_tokens = 4096
 max_retries = 3
+# context_window = { ... }   # optional, for chunking large inputs
+# preamble = "..."           # optional, overrides the agent's default system prompt
+
+[detection.llm.verify]
+enabled = true
+temperature = 0.1
+max_tokens = 4096
+max_retries = 3
+# context_window = { ... }
+# preamble = "..."
 
 # NER recognizer (named-entity recognition + language detection).
 #

@@ -14,9 +14,10 @@
 
 use std::sync::Arc;
 
+use nvisy_agent::pipeline::LlmNerPipeline;
 use nvisy_core::{Error, Result};
 
-use super::llm::{LlmDetection, LlmRecognizer};
+use super::llm::{LlmDetection, build_pipeline as build_llm_pipeline};
 use super::ner::{NerDetection, NerRecognizer};
 use super::pattern::{PatternDetection, PatternRecognizer};
 use super::recognizer::RecognizerKind;
@@ -26,10 +27,17 @@ use super::recognizer::RecognizerKind;
 /// Each slot is `Option<Arc<_>>` because the corresponding
 /// `[recognizer.*]` config section is itself optional — operators
 /// only configure the recognizers they need.
+///
+/// The LLM slot holds an [`LlmNerPipeline`] directly — the pipeline
+/// itself implements [`Recognizer`] (see the `llm` module), so no
+/// wrapper is needed.
+///
+/// [`LlmNerPipeline`]: nvisy_agent::pipeline::LlmNerPipeline
+/// [`Recognizer`]: super::Recognizer
 #[derive(Default, Clone)]
 pub struct Recognizers {
-    /// Pre-built LLM recognizer (when `[recognizer.llm]` is set).
-    pub llm: Option<Arc<LlmRecognizer>>,
+    /// Pre-built LLM pipeline (when `[recognizer.llm]` is set).
+    pub llm: Option<Arc<LlmNerPipeline>>,
     /// Pre-built NER recognizer (when `[recognizer.ner]` is set).
     pub ner: Option<Arc<NerRecognizer>>,
     /// Pre-built pattern recognizer (when `[recognizer.pattern]` is set).
@@ -81,7 +89,7 @@ impl Recognizers {
             .llm
             .as_ref()
             .filter(|c| c.enabled)
-            .map(|c| LlmRecognizer::new(c.clone()).map(Arc::new))
+            .map(|c| build_llm_pipeline(c.clone()))
             .transpose()?;
         let ner = match cfg.ner.as_ref().filter(|c| c.enabled) {
             Some(c) => Some(Arc::new(NerRecognizer::from_config(c).await?)),

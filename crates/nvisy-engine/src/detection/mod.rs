@@ -20,11 +20,12 @@ use std::fmt;
 use std::sync::Arc;
 
 use derive_builder::Builder;
+use nvisy_agent::agent::NerHint;
 pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
 pub use nvisy_ner::Context as NerContext;
-use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::{Modality, ModalityBlock, Text};
+use nvisy_ontology::entity::{Annotation, AnnotationKind, AnnotationStrength, Entity};
+use nvisy_ontology::modality::{Modality, ModalityBlock, Overlap, Text};
 use nvisy_ontology::primitive::ConfidenceThreshold;
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
@@ -35,8 +36,8 @@ use validator::Validate;
 
 pub use self::context::{DetectionContext, DetectionContextBuilder, DetectionContextBuilderError};
 pub use self::dyn_recognizer::DynRecognizer;
-pub use self::lift::LiftFromBlock;
-pub use self::llm::{LlmDetection, LlmRecognizer};
+pub use self::lift::{LiftFromBlock, ProjectIntoBlock};
+pub use self::llm::{DetectParams, LlmDetection, VerifyParams, build_pipeline as build_llm_pipeline};
 pub use self::ner::{NerDetection, NerRecognizer};
 pub use self::pattern::{PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
@@ -249,7 +250,7 @@ impl DetectionEngine {
         cfg: &Detection,
     ) -> Result<()>
     where
-        M: Modality + LiftFromBlock,
+        M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap,
     {
         const TARGET: &str = "nvisy_engine::detection::detect_in";
         if envelope.document.blocks.is_empty() {
@@ -260,6 +261,13 @@ impl DetectionEngine {
         let mut lifted: Vec<Entity<M>> = Vec::new();
         let mut scanned_blocks = 0usize;
 
+        let labels: Vec<String> = envelope
+            .document
+            .labels
+            .iter()
+            .map(|l| l.label.clone())
+            .collect();
+
         for block in &envelope.document.blocks {
             let Some(text) = block.kind.scan_text() else {
                 continue;
@@ -269,6 +277,8 @@ impl DetectionEngine {
             }
             scanned_blocks += 1;
 
+            let hints = collect_hints_for_block::<M>(&envelope.document.annotations, &block.spans);
+
             let mut ctx = DetectionContext::new(text.to_owned());
             ctx.correlation_id = Some(run_id);
             if !cfg.entity_kinds.is_empty() {
@@ -277,6 +287,8 @@ impl DetectionEngine {
             if let Some(threshold) = cfg.confidence_threshold {
                 ctx.score_threshold = Some(threshold);
             }
+            ctx.hints = hints;
+            ctx.labels = labels.clone();
 
             let detected = self.run(ctx).await?;
             for entity in detected {
@@ -323,6 +335,58 @@ impl fmt::Debug for DetectionEngine {
             .field("recognizers", &self.recognizers.len())
             .finish_non_exhaustive()
     }
+}
+
+/// Collect [`NerHint`]s for a single block: walk every
+/// [`Hint`]-strength [`Inclusion`] annotation, project each one
+/// onto the block's text-byte coordinates via [`ProjectIntoBlock`],
+/// and emit a hint when the projection succeeds (i.e. the
+/// annotation overlaps this block's spans).
+///
+/// Annotations whose target doesn't overlap any of this block's
+/// spans are skipped — they belong to a different block (or to no
+/// block, if the user marked a region we never extracted text
+/// from). Empty projected ranges are also skipped.
+///
+/// Exclusions are always assertions (the type system forbids
+/// `Hint` exclusions), so this helper only returns inclusion
+/// hints. Exclusion enforcement is the post-detection filter's
+/// job, not the prompt's.
+///
+/// [`Hint`]: AnnotationStrength::Hint
+/// [`Inclusion`]: AnnotationKind::Inclusion
+fn collect_hints_for_block<M>(
+    annotations: &[Annotation<M>],
+    spans: &[nvisy_ontology::document::Span<M>],
+) -> Vec<NerHint>
+where
+    M: Modality + Overlap + ProjectIntoBlock,
+{
+    annotations
+        .iter()
+        .filter_map(|ann| {
+            let AnnotationKind::Inclusion {
+                category,
+                entity_kind,
+                target,
+                strength: AnnotationStrength::Hint { .. },
+            } = &ann.kind
+            else {
+                return None;
+            };
+            let (start, end) = M::project_into_block(spans, target)?;
+            if start >= end {
+                return None;
+            }
+            Some(NerHint {
+                name: ann.name.clone(),
+                category: *category,
+                entity_kind: *entity_kind,
+                start,
+                end,
+            })
+        })
+        .collect()
 }
 
 /// Workflow detection node — which recognizers to dispatch and the

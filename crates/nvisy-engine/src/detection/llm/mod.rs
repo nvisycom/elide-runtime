@@ -63,20 +63,16 @@ pub struct LlmNerScanInput {
 pub fn build_pipeline(cfg: LlmDetection) -> Result<Arc<LlmNerPipeline>> {
     let detect_cfg = cfg.detect.filter(|d| d.enabled).map(|d| d.agent);
     let verify_cfg = cfg.verify.filter(|v| v.enabled).map(|v| v.agent);
-    let pipeline = LlmNerPipeline::new(
-        &cfg.provider,
-        detect_cfg,
-        verify_cfg,
-        cfg.unresolved_policy,
-    )
-    .map_err(|e| Error::runtime(e.to_string(), "llm", false))?;
+    let pipeline =
+        LlmNerPipeline::new(&cfg.provider, detect_cfg, verify_cfg, cfg.unresolved_policy)
+            .map_err(|e| Error::runtime(e.to_string(), "llm", false))?;
     Ok(Arc::new(pipeline))
 }
 
 #[async_trait]
 impl Recognizer for LlmNerPipeline {
-    type Modality = Text;
     type Context = LlmNerScanInput;
+    type Modality = Text;
 
     #[tracing::instrument(
         skip_all,

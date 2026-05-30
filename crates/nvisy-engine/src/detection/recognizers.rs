@@ -101,10 +101,7 @@ impl DetectionSection {
     /// `true` when every section is `None`.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.llm.is_none()
-            && self.ner.is_none()
-            && self.pattern.is_none()
-            && self.vlm.is_none()
+        self.llm.is_none() && self.ner.is_none() && self.pattern.is_none() && self.vlm.is_none()
     }
 }
 

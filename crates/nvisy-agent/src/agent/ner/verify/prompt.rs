@@ -34,8 +34,10 @@ impl<'a> NerVerifyPromptBuilder<'a> {
         for (i, e) in self.entities.iter().enumerate() {
             let start = e.location.start;
             let end = e.location.end;
-            let snippet_start = floor_char_boundary(self.text, start.saturating_sub(SNIPPET_HALF_WIDTH));
-            let snippet_end = ceil_char_boundary(self.text, (end + SNIPPET_HALF_WIDTH).min(self.text.len()));
+            let snippet_start =
+                floor_char_boundary(self.text, start.saturating_sub(SNIPPET_HALF_WIDTH));
+            let snippet_end =
+                ceil_char_boundary(self.text, (end + SNIPPET_HALF_WIDTH).min(self.text.len()));
             let snippet = &self.text[snippet_start..snippet_end];
             let value = if start < end && end <= self.text.len() {
                 &self.text[start..end]
@@ -98,9 +100,7 @@ fn ceil_char_boundary(s: &str, mut pos: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{
-        EntityKind, ModelKind, ModelProvenance, RecognitionMethod,
-    };
+    use nvisy_ontology::entity::{EntityKind, ModelKind, ModelProvenance, RecognitionMethod};
     use nvisy_ontology::primitive::Confidence;
 
     use super::*;
@@ -136,11 +136,7 @@ mod tests {
         // mid-codepoint.
         let text = "café — Alice — café";
         let alice_start = text.find("Alice").unwrap();
-        let entities = vec![entity(
-            alice_start,
-            alice_start + 5,
-            EntityKind::PersonName,
-        )];
+        let entities = vec![entity(alice_start, alice_start + 5, EntityKind::PersonName)];
         // Builder should not panic; UTF-8 boundary walks ensure this.
         let _ = NerVerifyPromptBuilder::new(text, &entities).build();
     }

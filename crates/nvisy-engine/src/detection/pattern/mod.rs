@@ -76,8 +76,8 @@ impl PatternRecognizer {
 
 #[async_trait]
 impl Recognizer for PatternRecognizer {
-    type Modality = Text;
     type Context = PatternScanInput;
+    type Modality = Text;
 
     #[tracing::instrument(
         skip_all,

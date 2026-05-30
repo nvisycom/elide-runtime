@@ -20,8 +20,8 @@
 //! [`NerVerifyAgent`]: crate::agent::ner::NerVerifyAgent
 //! [`VlmVerifyAgent`]: crate::agent::vlm::VlmVerifyAgent
 
-mod vlm;
 mod ner;
+mod vlm;
 
-pub use self::vlm::VlmPipeline;
 pub use self::ner::LlmNerPipeline;
+pub use self::vlm::VlmPipeline;

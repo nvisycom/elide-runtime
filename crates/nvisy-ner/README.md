@@ -9,14 +9,16 @@ NER traits and language infrastructure for the Nvisy runtime.
 This crate hosts:
 
 - `Backend` trait — the abstraction every NER source plugs into.
+- `NerBackend` config enum + `attach_ner_backend` helper that wires
+  the selected backend onto a `RecognizerBuilder`.
 - `NoopBackend` — empty implementation used by tests and by
   deployments that detect via patterns / LLM only.
 - `BentoBackend` (feature `bento`) — calls the externalized
   `inference-gliner` Bento in [`nvisycom/inference`] over HTTP.
 - `LanguagePolicy` trait + `LinguaLanguagePolicy` — language detection
   via Lingua.
-- `NerEngine` — composes a NER backend and a language policy into a
-  single `analyze(text, ctx)` call.
+- `Recognizer` — composes a NER backend and a language policy into a
+  single `recognize(text, ctx)` call. Construct via `RecognizerBuilder`.
 
 Model-bearing NER backends do **not** live in-process here.
 Inference is externalized to a separate service (see

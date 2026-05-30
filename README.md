@@ -5,14 +5,15 @@
 Multimodal redaction runtime for sensitive data.
 
 Detect and remove sensitive information across documents, images, and audio.
-Combines deterministic patterns, NER, computer vision, and LLM-driven
-classification into auditable, policy-driven pipelines built for regulated
-industries such as healthcare, legal, government, and financial services.
+Combines deterministic patterns, NER, vision-language model classification,
+and whole-audit LLM verification into auditable, policy-driven pipelines
+built for regulated industries such as healthcare, legal, government, and
+financial services.
 
 ## Features
 
 - **Multimodal codecs**: read, edit, and write PDF, DOCX, images, audio, CSV, JSON, and plain text through a unified span-based content model
-- **Layered detection**: regex, dictionary, and checksum patterns run first at low cost; NER, OCR, object detection, and LLM classification handle what deterministic methods cannot
+- **Layered detection**: regex, dictionary, and checksum patterns run first at low cost; NER, OCR, VLM, and LLM classification handle what deterministic methods cannot
 - **Context-aware redaction**: mask, replace, hash, encrypt, blur, block, and pixelate with policy-driven rules scoped to entity type, document class, and confidence threshold
 - **Streaming pipeline**: extraction → detection → deduplication → redaction → validation, with concurrent execution across documents and within each phase
 

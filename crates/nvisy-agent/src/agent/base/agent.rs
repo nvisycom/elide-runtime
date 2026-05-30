@@ -130,7 +130,9 @@ impl BaseAgent {
             "Summarize the following text so it fits within {budget} tokens. \
              Preserve all key facts and details.\n\n{prompt}"
         );
-        self.prompt_text_internal(&compact_prompt).await.map(Cow::Owned)
+        self.prompt_text_internal(&compact_prompt)
+            .await
+            .map(Cow::Owned)
     }
 
     /// Plain-text completion without compaction. Used by

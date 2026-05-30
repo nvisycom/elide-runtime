@@ -125,10 +125,7 @@ impl VerificationOutput {
     /// the verdict list are dropped and counted into the returned
     /// `dropped_oor` field so callers can log a diagnostic.
     /// Duplicate indices: the last verdict in the list wins.
-    pub fn apply_to_text(
-        self,
-        entities: Vec<Entity<Text>>,
-    ) -> VerificationApplyOutcome {
+    pub fn apply_to_text(self, entities: Vec<Entity<Text>>) -> VerificationApplyOutcome {
         use std::collections::HashMap;
 
         let verdicts: HashMap<usize, VerifiedEntity> =
@@ -167,9 +164,7 @@ pub struct VerificationApplyOutcome {
 
 #[cfg(test)]
 mod tests {
-    use nvisy_ontology::entity::{
-        ModelKind, ModelProvenance, RecognitionMethod,
-    };
+    use nvisy_ontology::entity::{ModelKind, ModelProvenance, RecognitionMethod};
 
     use super::*;
 

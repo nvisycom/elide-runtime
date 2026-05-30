@@ -92,8 +92,8 @@ impl NerRecognizer {
 
 #[async_trait]
 impl Recognizer for NerRecognizer {
-    type Modality = Text;
     type Context = NerScanInput;
+    type Modality = Text;
 
     #[tracing::instrument(
         skip_all,

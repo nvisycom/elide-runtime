@@ -23,10 +23,10 @@ use nvisy_ontology::modality::Text;
 use uuid::Uuid;
 
 use self::build::build_entities;
-use self::localize::localize_all;
 pub use self::localize::UnresolvedCandidatePolicy;
-use self::output::NerCandidates;
+use self::localize::localize_all;
 pub use self::output::NerCandidate;
+use self::output::NerCandidates;
 use self::prompt::{NER_SYSTEM_PROMPT, NerPromptBuilder};
 use crate::agent::base::{BaseAgent, UsageTracker};
 use crate::agent::{AgentConfig, AgentProvider, LlmNerContext};

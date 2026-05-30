@@ -69,8 +69,8 @@ pub fn build_pipeline(cfg: VlmDetection) -> Result<Arc<VlmPipeline>> {
 
 #[async_trait]
 impl Recognizer for VlmPipeline {
-    type Modality = Image;
     type Context = VlmScanInput;
+    type Modality = Image;
 
     #[tracing::instrument(
         skip_all,

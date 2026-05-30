@@ -39,12 +39,16 @@ pub use self::context::{
 };
 pub use self::dyn_recognizer::{DynImageRecognizer, DynTextRecognizer};
 pub use self::lift::{LiftFromBlock, ProjectIntoBlock};
-pub use self::llm::{DetectParams, LlmDetection, VerifyParams, build_pipeline as build_llm_pipeline};
+pub use self::llm::{
+    DetectParams, LlmDetection, VerifyParams, build_pipeline as build_llm_pipeline,
+};
 pub use self::ner::{NerDetection, NerRecognizer};
 pub use self::pattern::{PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
 pub use self::recognizers::{DetectionSection, ImageRecognizers, Recognizers, TextRecognizers};
-pub use self::vlm::{VlmDetectParams, VlmDetection, VlmVerifyParams, build_pipeline as build_vlm_pipeline};
+pub use self::vlm::{
+    VlmDetectParams, VlmDetection, VlmVerifyParams, build_pipeline as build_vlm_pipeline,
+};
 use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::detection";
@@ -391,11 +395,7 @@ where
 
 #[async_trait::async_trait]
 impl Detect<Text> for DetectionEngine {
-    async fn detect(
-        &self,
-        envelope: &mut DocumentEnvelope<Text>,
-        cfg: &Detection,
-    ) -> Result<()> {
+    async fn detect(&self, envelope: &mut DocumentEnvelope<Text>, cfg: &Detection) -> Result<()> {
         detect_text_blocks(self, envelope, cfg).await?;
         self.reset().await;
         Ok(())
@@ -417,11 +417,7 @@ impl Detect<Tabular> for DetectionEngine {
 
 #[async_trait::async_trait]
 impl Detect<Audio> for DetectionEngine {
-    async fn detect(
-        &self,
-        envelope: &mut DocumentEnvelope<Audio>,
-        cfg: &Detection,
-    ) -> Result<()> {
+    async fn detect(&self, envelope: &mut DocumentEnvelope<Audio>, cfg: &Detection) -> Result<()> {
         detect_text_blocks(self, envelope, cfg).await?;
         self.reset().await;
         Ok(())
@@ -431,11 +427,7 @@ impl Detect<Audio> for DetectionEngine {
 #[cfg(feature = "image")]
 #[async_trait::async_trait]
 impl Detect<Image> for DetectionEngine {
-    async fn detect(
-        &self,
-        envelope: &mut DocumentEnvelope<Image>,
-        cfg: &Detection,
-    ) -> Result<()> {
+    async fn detect(&self, envelope: &mut DocumentEnvelope<Image>, cfg: &Detection) -> Result<()> {
         // 1. Text recognizers run on every OCR'd block ("runs
         //    alongside" image-side recognizers).
         detect_text_blocks(self, envelope, cfg).await?;
@@ -493,11 +485,7 @@ impl Detect<Image> for DetectionEngine {
 #[cfg(not(feature = "image"))]
 #[async_trait::async_trait]
 impl Detect<Image> for DetectionEngine {
-    async fn detect(
-        &self,
-        envelope: &mut DocumentEnvelope<Image>,
-        cfg: &Detection,
-    ) -> Result<()> {
+    async fn detect(&self, envelope: &mut DocumentEnvelope<Image>, cfg: &Detection) -> Result<()> {
         detect_text_blocks(self, envelope, cfg).await?;
         self.reset().await;
         Ok(())
@@ -613,18 +601,15 @@ impl Detection {
         for &kind in &self.kinds {
             recognizers.require(kind)?;
             builder = match kind {
-                RecognizerKind::Llm => builder.with_text_recognizer_arc(Arc::clone(
-                    recognizers.text.llm.as_ref().unwrap(),
-                )),
-                RecognizerKind::Ner => builder.with_text_recognizer_arc(Arc::clone(
-                    recognizers.text.ner.as_ref().unwrap(),
-                )),
+                RecognizerKind::Llm => builder
+                    .with_text_recognizer_arc(Arc::clone(recognizers.text.llm.as_ref().unwrap())),
+                RecognizerKind::Ner => builder
+                    .with_text_recognizer_arc(Arc::clone(recognizers.text.ner.as_ref().unwrap())),
                 RecognizerKind::Pattern => builder.with_text_recognizer_arc(Arc::clone(
                     recognizers.text.pattern.as_ref().unwrap(),
                 )),
-                RecognizerKind::Vlm => builder.with_image_recognizer_arc(Arc::clone(
-                    recognizers.image.vlm.as_ref().unwrap(),
-                )),
+                RecognizerKind::Vlm => builder
+                    .with_image_recognizer_arc(Arc::clone(recognizers.image.vlm.as_ref().unwrap())),
             };
         }
         builder

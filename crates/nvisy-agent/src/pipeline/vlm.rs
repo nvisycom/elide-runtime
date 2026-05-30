@@ -74,15 +74,12 @@ impl VlmPipeline {
         dims: Dimensions,
         config: &VlmDetectContext,
     ) -> Result<Vec<Entity<Image>>> {
-        let agent = self
-            .agent
-            .as_ref()
-            .ok_or_else(|| {
-                Error::validation(
-                    "VlmPipeline::detect called on a verifier-only pipeline",
-                    "vlm-pipeline",
-                )
-            })?;
+        let agent = self.agent.as_ref().ok_or_else(|| {
+            Error::validation(
+                "VlmPipeline::detect called on a verifier-only pipeline",
+                "vlm-pipeline",
+            )
+        })?;
         agent.detect(image_data, dims, config).await
     }
 
@@ -98,15 +95,12 @@ impl VlmPipeline {
         image_data: &Bytes,
         candidates: Vec<VerificationCandidate>,
     ) -> Result<Vec<Entity<Image>>> {
-        let verifier = self
-            .verifier
-            .as_ref()
-            .ok_or_else(|| {
-                Error::validation(
-                    "VlmPipeline::verify called on a detect-only pipeline",
-                    "vlm-pipeline",
-                )
-            })?;
+        let verifier = self.verifier.as_ref().ok_or_else(|| {
+            Error::validation(
+                "VlmPipeline::verify called on a detect-only pipeline",
+                "vlm-pipeline",
+            )
+        })?;
         verifier.verify_entities(image_data, candidates).await
     }
 

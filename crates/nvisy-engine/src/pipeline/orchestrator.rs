@@ -28,7 +28,7 @@ use crate::extraction::{Extract, Extraction, Extractors, WorkflowSlice};
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
 };
-use crate::redaction::{ApplyRedactions, RedactionDefaults, Redactor};
+use crate::redaction::{ApplyRedactions, RedactionSection, Redactor};
 use crate::validation::{CheckLeaks, Validator};
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -51,7 +51,7 @@ pub(super) struct RunContext {
     pub(super) detection_engine: Option<Arc<DetectionEngine>>,
     /// Server-wide redaction defaults from `RuntimeConfig.redaction`.
     /// Per-workflow `Redaction` fields fall back to these.
-    pub(super) redaction_defaults: Arc<RedactionDefaults>,
+    pub(super) redaction_section: Arc<RedactionSection>,
     /// Optional limit on how many documents may process concurrently.
     pub(super) concurrency: Option<NonZeroUsize>,
     /// When `true`, skip redaction, validation, and export phases.
@@ -318,7 +318,7 @@ where
 
         // Redaction.
         if !self.ctx.dry_run {
-            Redactor::new(&plan.redaction, &self.ctx.redaction_defaults)
+            Redactor::new(&plan.redaction, &self.ctx.redaction_section)
                 .execute(&mut envelope)
                 .await?;
         }

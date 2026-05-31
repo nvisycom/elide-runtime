@@ -1,17 +1,29 @@
-//! [`RedactionDefaults`]: server-wide redaction fallbacks.
+//! [`RedactionSection`]: the `[redaction]` config section.
+//!
+//! Matches the `*Section` naming used by [`EngineSection`],
+//! [`ExtractionSection`], [`DetectionSection`] so all four
+//! `RuntimeConfig` subsystem sections share one shape: a struct
+//! deserialized from one TOML section, built once at engine
+//! startup, shared across runs via `Arc`.
 //!
 //! The workflow [`Redaction`] node carries per-workflow knobs as
-//! optional fields; this struct supplies the values used when those
+//! optional fields; this section supplies the values used when those
 //! fields are unset.
 //!
 //! [`Redaction`]: crate::redaction::Redaction
+//! [`EngineSection`]: crate::pipeline::EngineSection
+//! [`ExtractionSection`]: crate::extraction::ExtractionSection
+//! [`DetectionSection`]: crate::detection::DetectionSection
 
 use nvisy_ontology::primitive::ConfidenceThreshold;
 use serde::{Deserialize, Serialize};
 
-/// `[redactor]` config section: workflow-wide fallback defaults.
+/// `[redaction]` config section: deployment-wide fallback values for
+/// the workflow [`Redaction`] node's optional fields.
+///
+/// [`Redaction`]: crate::redaction::Redaction
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RedactionDefaults {
+pub struct RedactionSection {
     /// Default minimum confidence threshold for entities that
     /// don't match a policy rule. Workflow `Redaction.confidence_threshold`
     /// overrides this when set. Defaults to `0.5`.
@@ -24,7 +36,7 @@ pub struct RedactionDefaults {
     pub process_metadata: bool,
 }
 
-impl Default for RedactionDefaults {
+impl Default for RedactionSection {
     fn default() -> Self {
         Self {
             confidence_threshold: default_confidence_threshold(),

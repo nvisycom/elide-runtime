@@ -30,7 +30,7 @@ use nvisy_ontology::provenance::{
 };
 
 use super::apply;
-use super::defaults::RedactionDefaults;
+use super::section::RedactionSection;
 #[cfg(feature = "audio")]
 use super::strategy::to_audio_redaction;
 #[cfg(feature = "image")]
@@ -51,7 +51,7 @@ pub struct Redactor {
 
 impl Redactor {
     /// Build from workflow config + server-wide defaults.
-    pub fn new(cfg: &RedactionConfig, defaults: &RedactionDefaults) -> Self {
+    pub fn new(cfg: &RedactionConfig, defaults: &RedactionSection) -> Self {
         Self {
             default_threshold: cfg
                 .confidence_threshold

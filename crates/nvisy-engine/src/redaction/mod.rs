@@ -10,18 +10,18 @@
 //!
 //! Unlike extraction and detection, redaction has no expensive
 //! per-run construction — there's no model to load or HTTP client
-//! to set up. The [`RedactionDefaults`] config section only supplies
+//! to set up. The [`RedactionSection`] config supplies deployment-wide
 //! fallback values for workflow [`Redaction`] fields that aren't
 //! explicitly set.
 //!
 //! [`AuditEntry`]: nvisy_ontology::provenance::AuditEntry
 
 mod apply;
-mod defaults;
 mod evaluate;
+mod section;
 mod strategy;
 mod workflow;
 
-pub use self::defaults::RedactionDefaults;
 pub use self::evaluate::{ApplyRedactions, Redactor};
+pub use self::section::RedactionSection;
 pub use self::workflow::Redaction;

@@ -27,7 +27,7 @@ use crate::envelope::{PolicyStore, SharedData};
 use crate::extraction::Extractors;
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::{Registry, ResourceGuard};
-use crate::redaction::RedactionDefaults;
+use crate::redaction::RedactionSection;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
 
@@ -44,7 +44,7 @@ pub(super) struct Pipeline {
     base_config: RuntimeConfig,
     extractors: Arc<Extractors>,
     recognizers: Arc<Recognizers>,
-    redaction_defaults: Arc<RedactionDefaults>,
+    redaction_section: Arc<RedactionSection>,
 }
 
 impl Pipeline {
@@ -56,7 +56,7 @@ impl Pipeline {
         base_config: RuntimeConfig,
         extractors: Arc<Extractors>,
         recognizers: Arc<Recognizers>,
-        redaction_defaults: Arc<RedactionDefaults>,
+        redaction_section: Arc<RedactionSection>,
     ) -> Self {
         Self {
             run_id: Uuid::now_v7(),
@@ -66,7 +66,7 @@ impl Pipeline {
             base_config,
             extractors,
             recognizers,
-            redaction_defaults,
+            redaction_section,
         }
     }
 
@@ -113,11 +113,6 @@ impl Pipeline {
 
     /// Run the pipeline to completion.
     pub async fn execute(&self, input: EngineInput) -> Result<EngineOutput, Error> {
-        let effective_config = match &input.config {
-            Some(overrides) => self.base_config.merge(overrides),
-            None => self.base_config.clone(),
-        };
-
         let actor_id = input.actor_id;
 
         // Policies arrive in precedence order: index 0 is highest
@@ -143,7 +138,7 @@ impl Pipeline {
             .flat_map(|p| p.retention.iter().copied())
             .collect();
 
-        let concurrency = effective_config.effective_concurrency();
+        let concurrency = self.base_config.effective_concurrency();
 
         let mut policy_store = PolicyStore::new();
         policy_store.set::<Text>(text_policies);
@@ -178,22 +173,12 @@ impl Pipeline {
 
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
-        // Per-request redactor overrides win; otherwise reuse the
-        // pre-built defaults. We always rebuild a fresh Arc when the
-        // effective config carries a section, since identity-equality
-        // doesn't tell us whether the section came from override or
-        // base. The defaults struct is small (two scalars + an
-        // Option), so the allocation is trivial.
-        let redaction_defaults = match &effective_config.redaction {
-            Some(d) => Arc::new(d.clone()),
-            None => Arc::clone(&self.redaction_defaults),
-        };
         let ctx = RunContext {
             cancel,
             shared: Arc::new(shared_data),
             extractors: Arc::clone(&self.extractors),
             detection_engine,
-            redaction_defaults,
+            redaction_section: Arc::clone(&self.redaction_section),
             concurrency,
             dry_run: input.dry_run,
         };

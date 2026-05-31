@@ -28,7 +28,7 @@ use crate::extraction::{Extraction, Extractors};
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::Registry;
 use crate::ingestion::{ExportFile, ImportFile};
-use crate::redaction::{Redaction, RedactionDefaults};
+use crate::redaction::{Redaction, RedactionSection};
 use crate::validation::Validation;
 
 /// Input required to execute a redaction pipeline.
@@ -43,9 +43,6 @@ pub struct EngineInput {
     /// Previously uploaded policies to apply, in precedence order:
     /// index `0` is highest precedence.
     pub policies: Vec<Uuid>,
-    /// Per-request configuration overrides, merged with engine defaults
-    /// via [`RuntimeConfig::merge`] at the start of each run.
-    pub config: Option<RuntimeConfig>,
     /// When `true`, the pipeline evaluates detection and policy rules
     /// but skips validation and export.
     pub dry_run: bool,
@@ -92,7 +89,9 @@ pub struct EngineOutput {
 /// All fields are immutable after construction except [`RunState`],
 /// which uses internal `RwLock` synchronization.
 pub(super) struct EngineInner {
-    /// Base configuration, merged with per-request overrides at runtime.
+    /// Configuration loaded once at engine startup. Sections like
+    /// `[engine]`, `[extraction]`, `[detection]`, `[redaction]` are
+    /// not overridable per-request — every run sees the same config.
     pub runtime_config: RuntimeConfig,
     /// Pre-built extractor registry, constructed once from
     /// `runtime_config.extraction` and shared across every run.
@@ -101,7 +100,7 @@ pub(super) struct EngineInner {
     /// `runtime_config.detection` and shared across every run.
     pub recognizers: Arc<Recognizers>,
     /// Server-wide redaction defaults shared across every run.
-    pub redaction_defaults: Arc<RedactionDefaults>,
+    pub redaction_section: Arc<RedactionSection>,
     /// Content and context storage backend.
     pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
@@ -161,14 +160,14 @@ impl Engine {
             Some(section) => Recognizers::from_config(section).await?,
             None => Recognizers::default(),
         });
-        let redaction_defaults = Arc::new(config.redaction.clone().unwrap_or_default());
+        let redaction_section = Arc::new(config.redaction.clone().unwrap_or_default());
 
         Ok(Self {
             inner: Arc::new(EngineInner {
                 runtime_config: config,
                 extractors,
                 recognizers,
-                redaction_defaults,
+                redaction_section,
                 registry,
                 key_provider: None,
                 runs: RunState::new(),
@@ -234,7 +233,7 @@ impl Engine {
             self.inner.runtime_config.clone(),
             Arc::clone(&self.inner.extractors),
             Arc::clone(&self.inner.recognizers),
-            Arc::clone(&self.inner.redaction_defaults),
+            Arc::clone(&self.inner.redaction_section),
         )
     }
 

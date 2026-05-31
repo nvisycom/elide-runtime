@@ -54,7 +54,6 @@ fn base_input(actor_id: Uuid, content_id: Uuid, dry_run: bool) -> EngineInput {
     EngineInput {
         actor_id,
         policies: Vec::new(),
-        config: None,
         dry_run,
         imports: vec![ImportFile {
             content_ids: vec![content_id],

@@ -4,7 +4,7 @@ use nvisy_engine::deduplication::DeduplicationParams;
 use nvisy_engine::detection::Detection;
 use nvisy_engine::extraction::Extraction;
 use nvisy_engine::ingestion::{ExportFile, ImportFile};
-use nvisy_engine::pipeline::{RunStatus, RuntimeConfig};
+use nvisy_engine::pipeline::RunStatus;
 use nvisy_engine::redaction::Redaction;
 use nvisy_engine::validation::Validation;
 use schemars::JsonSchema;
@@ -25,10 +25,6 @@ pub struct NewRun {
     /// index `0` is highest precedence.
     #[serde(default)]
     pub policies: Vec<Uuid>,
-    /// Per-request configuration overrides (optional).
-    #[serde(default)]
-    #[schemars(skip)]
-    pub config: Option<RuntimeConfig>,
     /// When `true`, evaluate detection and policy rules but skip
     /// validation and export. Returns the redaction plan without
     /// modifying or exporting content.
@@ -72,7 +68,6 @@ impl NewRun {
         nvisy_engine::pipeline::EngineInput {
             actor_id,
             policies: self.policies,
-            config: self.config,
             dry_run: self.dry_run,
             imports: self.imports,
             context_ids: self.context_ids,
@@ -110,7 +105,6 @@ mod tests {
 
         assert_eq!(input.actor_id, actor_id);
         assert!(input.policies.is_empty());
-        assert!(input.config.is_none());
         assert!(!input.dry_run);
         assert!(input.imports.is_empty());
         assert!(input.context_ids.is_empty());

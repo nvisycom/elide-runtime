@@ -49,7 +49,6 @@ impl Tabular {
 
 impl Modality for Tabular {
     type Block = TabularBlock;
-    type Extraction = TabularExtraction;
     type Metadata = TabularMetadata;
     type MethodTag = crate::policy::TabularMethodTag;
     type Replacement = crate::provenance::TabularReplacement;

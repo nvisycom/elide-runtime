@@ -71,7 +71,6 @@ impl Text {
 
 impl Modality for Text {
     type Block = TextBlock;
-    type Extraction = TextExtraction;
     type Metadata = TextMetadata;
     type MethodTag = crate::policy::TextMethodTag;
     type Replacement = crate::provenance::TextReplacement;

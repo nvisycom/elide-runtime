@@ -49,10 +49,10 @@ impl AnyEnvelope {
     /// to match on every variant.
     pub fn audit_cloned(&self) -> AnyAudit {
         match self {
-            Self::Text(e) => e.document.audit.clone().into(),
-            Self::Tabular(e) => e.document.audit.clone().into(),
-            Self::Image(e) => e.document.audit.clone().into(),
-            Self::Audio(e) => e.document.audit.clone().into(),
+            Self::Text(e) => e.audit.clone().into(),
+            Self::Tabular(e) => e.audit.clone().into(),
+            Self::Image(e) => e.audit.clone().into(),
+            Self::Audio(e) => e.audit.clone().into(),
         }
     }
 }

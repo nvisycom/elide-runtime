@@ -25,6 +25,7 @@ use nvisy_core::media::DocumentType;
 use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Modality;
+use nvisy_ontology::provenance::Audit;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -55,11 +56,16 @@ pub struct DocumentEnvelope<M: Modality> {
     /// Per-modality document representation (text/image/audio/
     /// tabular). Populated empty at import; filled in by extraction
     /// (OCR/STT for image/audio, codec walk for text/tabular).
-    /// Carries the document's [`Audit`] — the run-scoped provenance
-    /// of what was detected and how it was processed.
-    ///
-    /// [`Audit`]: nvisy_ontology::provenance::Audit
+    /// Structural state only — run-scoped provenance lives on
+    /// [`Self::audit`].
     pub document: Document<M>,
+
+    /// Run-scoped provenance for the document: detected entities and
+    /// per-redaction audit entries. Lives on the envelope (not on
+    /// [`Document<M>`]) so the document type stays purely structural;
+    /// every artifact a single run produces about the document is
+    /// kept together with the rest of the run's per-document state.
+    pub audit: Audit<M>,
 
     /// IDs of reference-data [`Context`]s loaded by [`LoadContext`]
     /// nodes. Each UUID resolves through the engine's context cache.
@@ -77,8 +83,8 @@ pub struct DocumentEnvelope<M: Modality> {
 impl<M: Modality> DocumentEnvelope<M> {
     /// Create a new envelope from a shared codec handle, metadata,
     /// and the per-modality document metadata. The document is
-    /// initialised empty (no blocks, no annotations, fresh audit)
-    /// against the handle's source.
+    /// initialised empty (no blocks, no annotations) and a fresh
+    /// audit is opened against the handle's source.
     ///
     /// The caller (importer fan-out) supplies `document_meta` because
     /// the extraction tag and other per-modality metadata are
@@ -91,11 +97,13 @@ impl<M: Modality> DocumentEnvelope<M> {
         shared: Arc<SharedData>,
     ) -> Self {
         let source = handle.lock().await.source();
-        let document = Document::new(source, document_meta);
+        let document = Document::new(document_meta);
+        let audit = Audit::new(source);
         Self {
             handle,
             metadata,
             document,
+            audit,
             contexts: Vec::new(),
             shared,
         }
@@ -118,7 +126,7 @@ impl<M: Modality> DocumentEnvelope<M> {
 
     /// Number of detected entities.
     pub fn entity_count(&self) -> usize {
-        self.document.audit.records.len()
+        self.audit.records.len()
     }
 
     /// Add detected entities (wrapped into fresh [`EntityRecord`]s).
@@ -126,7 +134,7 @@ impl<M: Modality> DocumentEnvelope<M> {
     /// [`EntityRecord`]: nvisy_ontology::provenance::EntityRecord
     pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity<M>>) {
         for entity in entities {
-            self.document.audit.push_entity(entity);
+            self.audit.push_entity(entity);
         }
     }
 }
@@ -134,7 +142,7 @@ impl<M: Modality> DocumentEnvelope<M> {
 impl<M: Modality> fmt::Debug for DocumentEnvelope<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DocumentEnvelope")
-            .field("records", &self.document.audit.records.len())
+            .field("records", &self.audit.records.len())
             .field("contexts", &self.contexts.len())
             .finish_non_exhaustive()
     }

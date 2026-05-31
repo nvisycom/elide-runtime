@@ -327,8 +327,8 @@ mod tests {
             panic!("expected a Text envelope");
         };
 
-        assert_eq!(env.document.audit.records.len(), 1);
-        let entity = &env.document.audit.records[0].entity;
+        assert_eq!(env.audit.records.len(), 1);
+        let entity = &env.audit.records[0].entity;
         assert_eq!(entity.entity_kind, EntityKind::PersonName);
         assert_eq!(entity.location, Text::new(0, 8));
         assert!(matches!(
@@ -364,7 +364,7 @@ mod tests {
             panic!("expected a Text envelope");
         };
 
-        assert_eq!(env.document.audit.records.len(), 0);
+        assert_eq!(env.audit.records.len(), 0);
         assert_eq!(env.document.annotations, vec![annotation]);
     }
 

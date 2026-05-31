@@ -49,7 +49,6 @@ impl Image {
 
 impl Modality for Image {
     type Block = ImageBlock;
-    type Extraction = ImageExtraction;
     type Metadata = ImageMetadata;
     type MethodTag = crate::policy::ImageMethodTag;
     /// Image audits record only which method ran; the substitution

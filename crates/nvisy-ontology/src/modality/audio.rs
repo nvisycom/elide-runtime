@@ -37,7 +37,6 @@ impl Audio {
 
 impl Modality for Audio {
     type Block = AudioBlock;
-    type Extraction = AudioExtraction;
     type Metadata = AudioMetadata;
     type MethodTag = crate::policy::AudioMethodTag;
     /// Audio audits record only which method ran; the substitution

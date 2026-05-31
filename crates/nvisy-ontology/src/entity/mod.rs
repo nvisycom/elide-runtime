@@ -2,9 +2,10 @@
 //!
 //! [`Entity<M>`] represents a single occurrence of sensitive data
 //! detected within a document. Detected entities are accumulated on
-//! the document's [`Audit<M>`] as [`EntityRecord<M>`]s — each record
-//! bundles the entity with the optional [`AuditEntry<M>`] produced
-//! for it during redaction.
+//! the run-scoped [`Audit<M>`] (owned by the engine's
+//! `DocumentEnvelope`, not on the document itself) as
+//! [`EntityRecord<M>`]s — each record bundles the entity with the
+//! optional [`AuditEntry<M>`] produced for it during redaction.
 //!
 //! [`Audit<M>`]: crate::provenance::Audit
 //! [`EntityRecord<M>`]: crate::provenance::EntityRecord

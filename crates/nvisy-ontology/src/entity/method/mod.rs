@@ -4,11 +4,17 @@
 //! identified a sensitive data occurrence, and which post-detection
 //! refinements ran. Document-level "how was the content produced"
 //! (text-layer parse, OCR, transcription) is tracked separately on
-//! [`Modality::Extraction`] — that axis is a property of the
-//! [`Document<M>`], not of the entities inside it.
+//! the modality-specific extraction tag carried on
+//! [`Document<M>::meta`] ([`TextExtraction`], [`ImageExtraction`],
+//! [`AudioExtraction`], [`TabularExtraction`]) — that axis is a
+//! property of the [`Document<M>`], not of the entities inside it.
 //!
-//! [`Modality::Extraction`]: crate::modality::Modality::Extraction
 //! [`Document<M>`]: crate::document::Document
+//! [`Document<M>::meta`]: crate::document::Document::meta
+//! [`TextExtraction`]: crate::modality::TextExtraction
+//! [`ImageExtraction`]: crate::modality::ImageExtraction
+//! [`AudioExtraction`]: crate::modality::AudioExtraction
+//! [`TabularExtraction`]: crate::modality::TabularExtraction
 
 mod provenance;
 mod recognition;

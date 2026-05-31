@@ -4,7 +4,7 @@
 //!
 //! One pass per envelope. The flow is the same for every modality:
 //!
-//! 1. Walk `document.audit.records`. For each record whose `audit`
+//! 1. Walk `envelope.audit.records`. For each record whose `audit`
 //!    is present and [`Pending`], read the entity's `location` and
 //!    `entity_kind` directly off the record — no lookup needed.
 //! 2. Convert the entry's [`Strategy`] into a codec-side
@@ -82,7 +82,6 @@ where
     DocumentEnvelope<M>: ValueAt<M>,
 {
     let pending: Vec<usize> = envelope
-        .document
         .audit
         .records
         .iter()
@@ -104,7 +103,7 @@ where
     let mut failed: Vec<(usize, String)> = Vec::new();
 
     for idx in pending {
-        let record = &envelope.document.audit.records[idx];
+        let record = &envelope.audit.records[idx];
         let entry = record
             .audit
             .as_ref()
@@ -161,7 +160,7 @@ pub(super) fn commit<M, R, ToReplacement>(
     ToReplacement: Fn(&R) -> M::Replacement,
 {
     for (idx, redaction) in applied {
-        let entry = envelope.document.audit.records[idx]
+        let entry = envelope.audit.records[idx]
             .audit
             .as_mut()
             .expect("record had Some(audit) when build() ran");
@@ -170,7 +169,7 @@ pub(super) fn commit<M, R, ToReplacement>(
         };
     }
     for (idx, reason) in failed {
-        let entry = envelope.document.audit.records[idx]
+        let entry = envelope.audit.records[idx]
             .audit
             .as_mut()
             .expect("record had Some(audit) when build() ran");

@@ -82,22 +82,21 @@ impl Redactor {
         M: Modality + Overlap,
         DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions,
     {
-        if envelope.document.audit.records.is_empty() {
+        if envelope.audit.records.is_empty() {
             return Ok(());
         }
 
         // Drop entities that overlap an Assert-strength Exclusion
         // annotation. Defence in depth: catches both well-meaning
         // detectors and LLMs that ignored the exclusion-hint prompt.
-        let before_filter = envelope.document.audit.records.len();
+        let before_filter = envelope.audit.records.len();
         let annotations = std::mem::take(&mut envelope.document.annotations);
         envelope
-            .document
             .audit
             .records
             .retain(|record| !is_excluded(&annotations, &record.entity));
         envelope.document.annotations = annotations;
-        let dropped = before_filter - envelope.document.audit.records.len();
+        let dropped = before_filter - envelope.audit.records.len();
         if dropped > 0 {
             tracing::debug!(
                 target: TARGET,
@@ -106,7 +105,7 @@ impl Redactor {
             );
         }
 
-        if envelope.document.audit.records.is_empty() {
+        if envelope.audit.records.is_empty() {
             return Ok(());
         }
 
@@ -118,7 +117,7 @@ impl Redactor {
             .map(|l| l.label.as_str())
             .collect();
 
-        let mut records = std::mem::take(&mut envelope.document.audit.records);
+        let mut records = std::mem::take(&mut envelope.audit.records);
         evaluate::<M>(
             &mut records,
             self.default_threshold,
@@ -127,11 +126,11 @@ impl Redactor {
             envelope,
         )
         .await;
-        envelope.document.audit.records = records;
+        envelope.audit.records = records;
 
         tracing::debug!(
             target: TARGET,
-            entries = envelope.document.audit.entries().count(),
+            entries = envelope.audit.entries().count(),
             "policy evaluation complete",
         );
 
@@ -451,11 +450,11 @@ mod tests {
     }
 
     fn seed_records(env: &mut DocumentEnvelope<Text>, entities: Vec<Entity<Text>>) {
-        env.document.audit.records = entities.into_iter().map(EntityRecord::new).collect();
+        env.audit.records = entities.into_iter().map(EntityRecord::new).collect();
     }
 
     fn first_entry(env: &DocumentEnvelope<Text>) -> &AuditEntry<Text> {
-        env.document.audit.records[0]
+        env.audit.records[0]
             .audit
             .as_ref()
             .expect("first record has an audit entry")
@@ -472,7 +471,7 @@ mod tests {
         .execute(&mut env)
         .await
         .expect("execute");
-        assert_eq!(env.document.audit.entries().count(), 0);
+        assert_eq!(env.audit.entries().count(), 0);
     }
 
     #[tokio::test]
@@ -486,7 +485,7 @@ mod tests {
         .execute(&mut env)
         .await
         .expect("execute");
-        assert_eq!(env.document.audit.entries().count(), 1);
+        assert_eq!(env.audit.entries().count(), 1);
         let entry = first_entry(&env);
         assert!(entry.decision.policy_id.is_none());
         assert!(entry.decision.rank.is_none());
@@ -513,7 +512,7 @@ mod tests {
         .await
         .expect("execute");
 
-        assert_eq!(env.document.audit.entries().count(), 1);
+        assert_eq!(env.audit.entries().count(), 1);
         let entry = first_entry(&env);
         assert_eq!(entry.decision.policy_id, Some(policy_id));
         assert_eq!(entry.decision.rank, Some(RuleRank::new(0, 0)));
@@ -542,7 +541,7 @@ mod tests {
         .await
         .expect("execute");
 
-        assert_eq!(env.document.audit.entries().count(), 1);
+        assert_eq!(env.audit.entries().count(), 1);
         assert!(matches!(first_entry(&env).execution, Execution::Suppressed));
     }
 

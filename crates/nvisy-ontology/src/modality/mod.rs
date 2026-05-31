@@ -49,14 +49,10 @@ pub use self::text::{ContextWindow, Text, TextBlock, TextMetadata};
 ///
 /// - [`Block`] — the modality's block variant.
 /// - [`Metadata`] — document-level metadata (languages, page
-///   dimensions, column headers).
-/// - [`Extraction`] — how the document's primary content was produced
-///   at importer time (PDF text layer vs OCR'd, STT vs diarized,
-///   etc.). Recorded on [`Metadata`].
+///   dimensions, column headers, the importer's extraction tag).
 ///
 /// [`Block`]: Self::Block
 /// [`Metadata`]: Self::Metadata
-/// [`Extraction`]: Self::Extraction
 /// [`Entity<M>`]: crate::entity::Entity
 /// [`Audit<M>`]: crate::provenance::Audit
 pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
@@ -64,23 +60,14 @@ pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// [`TextBlock`], [`ImageBlock`], [`AudioBlock`], [`TabularBlock`].
     type Block: ModalityBlock + Clone + Debug + PartialEq + Send + Sync + 'static;
 
-    /// Document-level metadata. Carries the modality's [`Extraction`]
-    /// tag plus modality-specific fields (languages, page dimensions,
-    /// column headers, …). No `Default` bound: every document is
-    /// imported with a known extraction path, so the importer must
-    /// always supply metadata rather than rely on a placeholder
-    /// default.
-    ///
-    /// [`Extraction`]: Self::Extraction
+    /// Document-level metadata. Carries the importer's extraction tag
+    /// ([`TextExtraction`] / [`ImageExtraction`] / [`AudioExtraction`] /
+    /// [`TabularExtraction`]) plus modality-specific fields (languages,
+    /// page dimensions, column headers, …). No `Default` bound: every
+    /// document is imported with a known extraction path, so the
+    /// importer must always supply metadata rather than rely on a
+    /// placeholder default.
     type Metadata: Clone + Debug + PartialEq + Send + Sync + 'static;
-
-    /// How the document's primary content was produced. See
-    /// [`TextExtraction`], [`ImageExtraction`], [`AudioExtraction`],
-    /// [`TabularExtraction`]. Recorded on [`Metadata`]; not `Default`
-    /// because the importer always knows which path it took.
-    ///
-    /// [`Metadata`]: Self::Metadata
-    type Extraction: Clone + Debug + PartialEq + Send + Sync + 'static;
 
     /// The modality's redaction strategy. Each modality declares the
     /// methods that make sense for its data — text picks

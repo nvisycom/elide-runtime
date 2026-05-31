@@ -127,19 +127,19 @@ impl Deduplicator {
         M: Modality + Overlap + SpanSize,
         DocumentEnvelope<M>: ValueAt<M>,
     {
-        if !envelope.document.audit.records.is_empty() {
+        if !envelope.audit.records.is_empty() {
             tracing::debug!(
                 target: TARGET,
-                entities = envelope.document.audit.records.len(),
+                entities = envelope.audit.records.len(),
                 "running deduplication",
             );
             // Dedup runs before redaction evaluation, so every
             // record's `audit` is still None; we can pull entities
             // out, dedup, and rewrap without losing audit state.
-            let records = mem::take(&mut envelope.document.audit.records);
+            let records = mem::take(&mut envelope.audit.records);
             let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
             let deduped = self.deduplicate(entities, envelope, params).await;
-            envelope.document.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
+            envelope.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
         }
         Ok(())
     }

@@ -15,11 +15,12 @@ use crate::primitive::Confidence;
 /// `Figure` or `Logo`).
 ///
 /// Detected entities don't live on the block — they're a run-scoped
-/// finding and live on the document's [`Audit`].
+/// finding and live on the engine's [`DocumentEnvelope`], not on the
+/// structural document.
 ///
 /// [`Document<M>`]: super::Document
 /// [`M::Block`]: crate::modality::Modality::Block
-/// [`Audit`]: crate::provenance::Audit
+/// [`DocumentEnvelope`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/envelope/struct.DocumentEnvelope.html
 #[derive(Debug, Clone, PartialEq)]
 pub struct Block<M: Modality> {
     /// Modality-specific payload (variant + its data).

@@ -29,7 +29,7 @@ use crate::detection::{
 use crate::envelope::value_at::ValueAt;
 use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData};
 use crate::extraction::{
-    ExtractDispatch, Extraction, ExtractionEngine, ExtractionPhase, WorkflowSlice,
+    ExtractDispatch, Extraction, ExtractionEngine, ExtractionPhase, PlanSlice,
 };
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
@@ -49,14 +49,14 @@ pub(crate) struct RunContext {
     /// Shared across every run.
     pub(crate) extraction_engine: Arc<ExtractionEngine>,
     /// Optional shared detection engine. `None` skips the
-    /// detection phase entirely; set when the workflow's
+    /// detection phase entirely; set when the plan's
     /// `Detection.kinds` is empty (redaction-only flows, no-op
     /// dry runs, test harnesses). See `pipeline/run.rs` —
     /// the engine is built lazily only when at least one
     /// recognizer kind is requested.
     pub(crate) detection_engine: Option<Arc<DetectionEngine>>,
     /// Server-wide redaction defaults from `RuntimeConfig.redaction`.
-    /// Per-workflow `Redaction` fields fall back to these.
+    /// Per-plan `Redaction` fields fall back to these.
     pub(crate) redaction_config: Arc<RedactionConfig>,
     /// Optional limit on how many documents may process concurrently.
     pub(crate) concurrency: Option<NonZeroUsize>,
@@ -103,35 +103,35 @@ impl Orchestrator {
         }
     }
 
-    /// Execute the plan.
-    pub async fn run(&self, plan: &EngineInput) -> Result<RunOutput, Error> {
-        let envelopes = self.run_imports(&plan.imports).await?;
+    /// Execute the input's plan against every imported document.
+    pub async fn run(&self, input: &EngineInput) -> Result<RunOutput, Error> {
+        let envelopes = self.run_imports(&input.imports).await?;
 
         let mut results: Vec<DocumentResult> = Vec::new();
         let mut join_set: JoinSet<DocumentResult> = JoinSet::new();
         for envelope in envelopes {
             let ctx = Arc::clone(&self.ctx);
             let sem = self.semaphore.clone();
-            let plan = plan.clone();
+            let input = input.clone();
 
             match envelope {
                 AnyEnvelope::Text(env) => {
-                    join_set.spawn(run_typed_pipeline(env, ctx, sem, plan, AnyEnvelope::Text));
+                    join_set.spawn(run_typed_pipeline(env, ctx, sem, input, AnyEnvelope::Text));
                 }
                 AnyEnvelope::Tabular(env) => {
                     join_set.spawn(run_typed_pipeline(
                         env,
                         ctx,
                         sem,
-                        plan,
+                        input,
                         AnyEnvelope::Tabular,
                     ));
                 }
                 AnyEnvelope::Image(env) => {
-                    join_set.spawn(run_typed_pipeline(env, ctx, sem, plan, AnyEnvelope::Image));
+                    join_set.spawn(run_typed_pipeline(env, ctx, sem, input, AnyEnvelope::Image));
                 }
                 AnyEnvelope::Audio(env) => {
-                    join_set.spawn(run_typed_pipeline(env, ctx, sem, plan, AnyEnvelope::Audio));
+                    join_set.spawn(run_typed_pipeline(env, ctx, sem, input, AnyEnvelope::Audio));
                 }
             }
         }
@@ -243,13 +243,13 @@ async fn run_typed_pipeline<M, F>(
     envelope: DocumentEnvelope<M>,
     ctx: Arc<RunContext>,
     sem: Option<Arc<Semaphore>>,
-    plan: EngineInput,
+    input: EngineInput,
     wrap: F,
 ) -> DocumentResult
 where
     M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap + SpanSize + CheckLeaks,
     ExtractionEngine: ExtractDispatch<M>,
-    Extraction: WorkflowSlice<M>,
+    Extraction: PlanSlice<M>,
     DetectionEngine: DetectDispatch<M>,
     DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send + 'static,
     F: FnOnce(DocumentEnvelope<M>) -> AnyEnvelope + Send + 'static,
@@ -267,7 +267,7 @@ where
         None => None,
     };
     let pipeline = DocumentPipeline::<M>::new(ctx);
-    match pipeline.run(envelope, &plan).await {
+    match pipeline.run(envelope, &input).await {
         Ok(env) => DocumentResult {
             envelope: Some(wrap(env)),
             error: None,
@@ -283,7 +283,7 @@ impl<M> DocumentPipeline<M>
 where
     M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap + SpanSize + CheckLeaks,
     ExtractionEngine: ExtractDispatch<M>,
-    Extraction: WorkflowSlice<M>,
+    Extraction: PlanSlice<M>,
     DetectionEngine: DetectDispatch<M>,
     DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send,
 {
@@ -296,10 +296,10 @@ where
     async fn run(
         self,
         mut envelope: DocumentEnvelope<M>,
-        plan: &EngineInput,
+        input: &EngineInput,
     ) -> Result<DocumentEnvelope<M>, Error> {
         let phases = self.build_phases();
-        let ctx = PhaseContext::<M>::new(&self.ctx, plan);
+        let ctx = PhaseContext::<M>::new(&self.ctx, &input.plan);
 
         for phase in &phases {
             self.check_cancelled()?;
@@ -319,7 +319,7 @@ where
         // envelope and operates over a list of configs rather than
         // the envelope shape itself.
         if !self.ctx.dry_run {
-            self.run_exports(&plan.exports, &envelope).await?;
+            self.run_exports(&input.exports, &envelope).await?;
         }
 
         Ok(envelope)

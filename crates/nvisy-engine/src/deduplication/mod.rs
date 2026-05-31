@@ -11,7 +11,7 @@
 //! 1. **Calibrate**: scale raw confidence scores using per-method
 //!    multipliers from [`CalibrationMap`].
 //! 2. **Filter**: drop entities below the per-run confidence
-//!    threshold (and outside the workflow's allowed-kinds list).
+//!    threshold (and outside the plan's allowed-kinds list).
 //! 3. **Group + fuse**: partition entities by kind, value, and
 //!    location overlap (per [`GroupingCriteria`]), then combine each
 //!    group into one entity using the [`DeduplicationStrategy`].

@@ -11,7 +11,7 @@
 //! Unlike extraction and detection, redaction has no expensive
 //! per-run construction — there's no model to load or HTTP client
 //! to set up. The [`RedactionConfig`] config supplies deployment-wide
-//! fallback values for workflow [`Redaction`] fields that aren't
+//! fallback values for plan [`Redaction`] fields that aren't
 //! explicitly set.
 //!
 //! [`AuditEntry`]: nvisy_ontology::provenance::AuditEntry
@@ -19,8 +19,8 @@
 mod apply;
 mod config;
 mod evaluate;
+mod plan;
 mod strategy;
-mod workflow;
 
 use std::marker::PhantomData;
 
@@ -32,7 +32,7 @@ use nvisy_ontology::modality::{Modality, Overlap};
 pub use self::config::RedactionConfig;
 pub use self::evaluate::ApplyRedactions;
 use self::evaluate::TARGET;
-pub use self::workflow::Redaction;
+pub use self::plan::Redaction;
 use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
 use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
@@ -43,7 +43,7 @@ use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
 ///
 /// Stateless beyond the modality marker — the shared
 /// [`RedactionConfig`] is read from `ctx.run` each call, and the
-/// per-call workflow comes from `ctx.plan.redaction`. Mutates the
+/// per-call plan slice comes from `ctx.plan.redaction`. Mutates the
 /// envelope's audit (decision + execution per entry) and the
 /// underlying codec handle (via [`ApplyRedactions`]).
 ///
@@ -94,7 +94,7 @@ where
             .unwrap_or(section.confidence_threshold);
         // `process_metadata` is plumbed into the phase for future use
         // by the metadata-stripping pass; resolved here from the same
-        // precedence chain (workflow override → deployment default).
+        // precedence chain (plan override → deployment default).
         let _process_metadata = cfg.process_metadata.unwrap_or(section.process_metadata);
 
         run_redaction(default_threshold, envelope).await

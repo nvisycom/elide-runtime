@@ -1,12 +1,13 @@
 //! Detection phase: composite engine + per-modality dispatch.
 //!
-//! Public surface is [`DetectionPhase`] plus the engine + workflow
+//! Public surface is [`DetectionPhase`] plus the engine + plan
 //! re-exported from this module. The engine itself, its builder, and
 //! all per-modality [`DetectDispatch`] impls live in the `engine`
-//! submodule; this file carries only the workflow config struct
+//! submodule; this file carries only the plan config struct
 //! ([`Detection`]) that the orchestrator hands the phase, plus the
 //! stateless phase wrapper.
 
+mod config;
 mod context;
 mod dispatch;
 mod dyn_recognizer;
@@ -32,6 +33,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+pub use self::config::DetectionConfig;
 pub use self::context::{
     DetectionContext, DetectionContextBuilder, DetectionContextBuilderError, VlmDetectionContext,
 };
@@ -45,14 +47,14 @@ pub use self::llm::{
 pub use self::ner::{NerDetection, NerRecognizer};
 pub use self::pattern::{PatternDetection, PatternRecognizer};
 pub use self::recognizer::{Recognizer, RecognizerKind};
-pub use self::recognizers::{DetectionConfig, ImageRecognizers, Recognizers, TextRecognizers};
+pub use self::recognizers::{ImageRecognizers, Recognizers, TextRecognizers};
 pub use self::vlm::{
     VlmDetectParams, VlmDetection, VlmVerifyParams, build_pipeline as build_vlm_pipeline,
 };
 use crate::envelope::DocumentEnvelope;
 use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
 
-/// Workflow detection node — which recognizers to dispatch and the
+/// Plan detection node — which recognizers to dispatch and the
 /// shared per-call hints.
 ///
 /// Recognizer construction lives in [`Recognizers`], built once at
@@ -60,7 +62,7 @@ use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
 /// only references already-built recognizers by [`RecognizerKind`].
 ///
 /// [`kinds`] is the enable/disable list — empty means no detection
-/// runs for this workflow.
+/// runs for this plan.
 ///
 /// [`entity_kinds`] is the per-call hint honored by every enabled
 /// recognizer. Recognizer-specific build config (provider, model,
@@ -69,7 +71,7 @@ use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
 ///
 /// Confidence-based filtering is centralised in the deduplication
 /// phase, applied once after per-recognizer calibration. There is no
-/// per-workflow confidence threshold — operators tune trust via the
+/// per-plan confidence threshold — operators tune trust via the
 /// dedup calibration map plus the single dedup threshold.
 ///
 /// [`kinds`]: Self::kinds
@@ -77,7 +79,7 @@ use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
 #[derive(Debug, Clone, Default, PartialEq, validator::Validate)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Detection {
-    /// Which recognizer kinds to enable for this workflow. Empty
+    /// Which recognizer kinds to enable for this plan. Empty
     /// disables detection entirely.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub kinds: Vec<RecognizerKind>,
@@ -152,7 +154,7 @@ impl Detection {
 ///
 /// Stateless beyond the modality marker — the shared
 /// [`DetectionEngine`] is read from `ctx.run` each call, and the
-/// per-call workflow comes from `ctx.plan.detection`. Only
+/// per-call plan slice comes from `ctx.plan.detection`. Only
 /// constructed by the orchestrator when the run has a configured
 /// engine; the phase body unwraps that guarantee.
 ///

@@ -13,18 +13,18 @@ use nvisy_ontology::modality::Image;
 
 #[cfg(feature = "image")]
 pub use self::ocr::{OcrExtractor, OcrExtractorConfig};
-use super::{ExtractDispatch, Extraction, ExtractionEngine, ImageWorkflow, WorkflowSlice};
+use super::{ExtractDispatch, Extraction, ExtractionEngine, ImagePlan, PlanSlice};
 use crate::envelope::DocumentEnvelope;
 
 #[cfg(feature = "image")]
 #[async_trait::async_trait]
 impl ExtractDispatch<Image> for ExtractionEngine {
-    type Workflow = ImageWorkflow;
+    type Plan = ImagePlan;
 
     async fn extract(
         &self,
         envelope: &mut DocumentEnvelope<Image>,
-        _workflow: &ImageWorkflow,
+        _plan: &ImagePlan,
     ) -> Result<()> {
         if let Some(ref ocr) = self.ocr {
             ocr.run(envelope).await?;
@@ -36,19 +36,19 @@ impl ExtractDispatch<Image> for ExtractionEngine {
 #[cfg(not(feature = "image"))]
 #[async_trait::async_trait]
 impl ExtractDispatch<Image> for ExtractionEngine {
-    type Workflow = ImageWorkflow;
+    type Plan = ImagePlan;
 
     async fn extract(
         &self,
         _envelope: &mut DocumentEnvelope<Image>,
-        _workflow: &ImageWorkflow,
+        _plan: &ImagePlan,
     ) -> Result<()> {
         Ok(())
     }
 }
 
-impl WorkflowSlice<Image> for Extraction {
-    fn slice(&self) -> &ImageWorkflow {
+impl PlanSlice<Image> for Extraction {
+    fn slice(&self) -> &ImagePlan {
         &self.image
     }
 }

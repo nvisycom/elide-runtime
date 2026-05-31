@@ -2,7 +2,7 @@
 //!
 //! Public surface is [`ExtractionPhase`] (plus the engine + config
 //! re-exported from the `engine` submodule). Per-modality dispatch
-//! ([`ExtractDispatch<M>`] + [`WorkflowSlice<M>`], in the private
+//! ([`ExtractDispatch<M>`] + [`PlanSlice<M>`], in the private
 //! `dispatch` module) is internal plumbing that the phase routes
 //! through.
 //!
@@ -13,15 +13,16 @@
 //! - `audio` — STT (when `audio` feature is on).
 //!
 //! [`ExtractDispatch<M>`]: dispatch::ExtractDispatch
-//! [`WorkflowSlice<M>`]: dispatch::WorkflowSlice
+//! [`PlanSlice<M>`]: dispatch::PlanSlice
 
 mod audio;
+mod config;
 mod dispatch;
 mod engine;
 mod image;
+mod plan;
 mod tabular;
 mod text;
-mod workflow;
 
 use std::marker::PhantomData;
 
@@ -31,29 +32,28 @@ use nvisy_ontology::modality::Modality;
 
 #[cfg(feature = "audio")]
 pub use self::audio::{SttExtractor, SttExtractorConfig};
-pub use self::dispatch::{ExtractDispatch, WorkflowSlice};
-pub use self::engine::{ExtractionConfig, ExtractionEngine};
+pub use self::config::ExtractionConfig;
+pub use self::dispatch::{ExtractDispatch, PlanSlice};
+pub use self::engine::ExtractionEngine;
 #[cfg(feature = "image")]
 pub use self::image::{OcrExtractor, OcrExtractorConfig};
-pub use self::workflow::{
-    AudialWorkflow, Extraction, ImageWorkflow, TabularWorkflow, TextWorkflow,
-};
+pub use self::plan::{AudioPlan, Extraction, ImagePlan, TabularPlan, TextPlan};
 use crate::envelope::DocumentEnvelope;
 use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
 
 impl Extraction {
-    /// Borrow the per-modality workflow slice keyed by `M`.
+    /// Borrow the per-modality plan slice keyed by `M`.
     ///
-    /// Used by [`ExtractionPhase`] to fish the matching workflow
-    /// field out of this aggregate without each call site naming it
+    /// Used by [`ExtractionPhase`] to fish the matching plan field
+    /// out of this aggregate without each call site naming it
     /// explicitly.
-    pub(crate) fn workflow_for<M>(&self) -> &<ExtractionEngine as ExtractDispatch<M>>::Workflow
+    pub(crate) fn plan_for<M>(&self) -> &<ExtractionEngine as ExtractDispatch<M>>::Plan
     where
         M: Modality,
         ExtractionEngine: ExtractDispatch<M>,
-        Self: WorkflowSlice<M>,
+        Self: PlanSlice<M>,
     {
-        <Self as WorkflowSlice<M>>::slice(self)
+        <Self as PlanSlice<M>>::slice(self)
     }
 }
 
@@ -62,8 +62,8 @@ impl Extraction {
 ///
 /// Stateless beyond the modality marker — the shared
 /// [`ExtractionEngine`] is read from `ctx.run` each call, and the
-/// per-call workflow comes from `ctx.plan.extraction` via the
-/// per-modality [`WorkflowSlice`] impl on [`Extraction`].
+/// per-call plan slice comes from `ctx.plan.extraction` via the
+/// per-modality [`PlanSlice`] impl on [`Extraction`].
 pub struct ExtractionPhase<M: Modality> {
     _marker: PhantomData<fn() -> M>,
 }
@@ -88,7 +88,7 @@ impl<M> Phase<M> for ExtractionPhase<M>
 where
     M: Modality,
     ExtractionEngine: ExtractDispatch<M>,
-    Extraction: WorkflowSlice<M>,
+    Extraction: PlanSlice<M>,
 {
     fn inspect(&self) -> PhaseInfo {
         PhaseInfo {
@@ -103,7 +103,7 @@ where
         ctx: &PhaseContext<'_, M>,
         envelope: &mut DocumentEnvelope<M>,
     ) -> Result<()> {
-        let workflow = ctx.plan.extraction.workflow_for::<M>();
-        ExtractDispatch::<M>::extract(ctx.run.extraction_engine.as_ref(), envelope, workflow).await
+        let plan = ctx.plan.extraction.plan_for::<M>();
+        ExtractDispatch::<M>::extract(ctx.run.extraction_engine.as_ref(), envelope, plan).await
     }
 }

@@ -1,4 +1,4 @@
-//! Redaction node configuration.
+//! Redaction node plan.
 //!
 //! [`Redaction`] runs at **phase 4**, after deduplication has
 //! produced a final scored entity list. It applies redaction
@@ -10,10 +10,9 @@ use nvisy_ontology::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Configuration for the [`Redaction`] config.
+/// Per-plan knobs for the redaction phase.
 ///
-/// Controls per-workflow knobs for the redaction phase. Unset
-/// fields fall back to `[redaction]` defaults in `Nvisy.toml`
+/// Unset fields fall back to `[redaction]` defaults in `Nvisy.toml`
 /// ([`RedactionConfig`]); if neither is set, hard-coded defaults
 /// apply (0.5 threshold, no metadata stripping).
 ///

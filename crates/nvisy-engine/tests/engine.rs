@@ -26,6 +26,7 @@ async fn open_with_custom_limits() -> anyhow::Result<()> {
     let config = RuntimeConfig {
         engine: Some(EngineConfig {
             limits: ResourceLimits {
+                concurrency: None,
                 run_timeout: Some(Duration::from_secs(5)),
             },
             ..Default::default()

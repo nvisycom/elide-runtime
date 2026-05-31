@@ -1,5 +1,4 @@
-//! [`ExtractionEngine`] + [`ExtractionConfig`]: the per-run registry
-//! of pre-built extractors and its deployment-time configuration.
+//! [`ExtractionEngine`]: per-run registry of pre-built extractors.
 //!
 //! One slot per technique (`ocr`, `stt`), each `Option<Arc<_>>`
 //! because the corresponding `[extractor.*]` section is itself
@@ -10,12 +9,12 @@
 use std::sync::Arc;
 
 use nvisy_core::Result;
-use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "audio")]
-use super::audio::{SttExtractor, SttExtractorConfig};
+use super::audio::SttExtractor;
 #[cfg(feature = "image")]
-use super::image::{OcrExtractor, OcrExtractorConfig};
+use super::image::OcrExtractor;
+use super::config::ExtractionConfig;
 
 /// Registry of pre-built extractors, one per technique.
 ///
@@ -30,38 +29,6 @@ pub struct ExtractionEngine {
     /// Pre-built STT extractor (when `[extractor.stt]` is set).
     #[cfg(feature = "audio")]
     pub stt: Option<Arc<SttExtractor>>,
-}
-
-/// Configuration for the [`ExtractionEngine`] registry.
-///
-/// Each field maps to a `[extractor.*]` section in `Nvisy.toml`.
-/// `None` opts the technique out entirely.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ExtractionConfig {
-    /// `[extractor.ocr]` — OCR text extraction from images.
-    #[cfg(feature = "image")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ocr: Option<OcrExtractorConfig>,
-    /// `[extractor.stt]` — speech-to-text transcription.
-    #[cfg(feature = "audio")]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stt: Option<SttExtractorConfig>,
-}
-
-impl ExtractionConfig {
-    /// `true` when every technique is `None`.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        #[cfg(feature = "image")]
-        let ocr_empty = self.ocr.is_none();
-        #[cfg(not(feature = "image"))]
-        let ocr_empty = true;
-        #[cfg(feature = "audio")]
-        let stt_empty = self.stt.is_none();
-        #[cfg(not(feature = "audio"))]
-        let stt_empty = true;
-        ocr_empty && stt_empty
-    }
 }
 
 impl ExtractionEngine {

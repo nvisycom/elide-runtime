@@ -19,23 +19,24 @@ use tokio::task::JoinSet;
 use uuid::Uuid;
 
 use super::config::RuntimeConfig;
+use super::plan::Plan;
 use super::run::Pipeline;
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
-use crate::deduplication::DeduplicationParams;
-use crate::detection::{Detection, Recognizers};
-use crate::extraction::{Extraction, ExtractionEngine};
+use crate::detection::Recognizers;
+use crate::extraction::ExtractionEngine;
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::Registry;
 use crate::ingestion::{ExportFile, ImportFile};
-use crate::redaction::{Redaction, RedactionConfig};
-use crate::validation::Validation;
+use crate::redaction::RedactionConfig;
 
 /// Input required to execute a redaction pipeline.
 ///
-/// A flat, fixed-order plan. The order is hardwired
-/// (extraction → detection → dedup → redaction → validation)
-/// because downstream phases depend on upstream artifacts.
+/// Holds the request envelope — caller identity, imports, exports,
+/// contexts, dry-run flag — plus the [`Plan`] bundle that carries
+/// each phase's behaviour knobs. The execution order is hardwired
+/// (extraction → detection → dedup → redaction → validation) because
+/// downstream phases depend on upstream artifacts.
 #[derive(Clone)]
 pub struct EngineInput {
     /// Identity of the human or service account initiating the run.
@@ -52,20 +53,8 @@ pub struct EngineInput {
     /// Reference-data contexts to load into the cache before phases run.
     pub context_ids: Vec<Uuid>,
 
-    /// Extraction settings per modality.
-    pub extraction: Extraction,
-
-    /// Detection settings (which recognizer kinds + per-call hints).
-    pub detection: Detection,
-
-    /// Deduplication settings applied to combined detection results.
-    pub deduplication: DeduplicationParams,
-
-    /// Redaction settings applied after policy evaluation.
-    pub redaction: Redaction,
-
-    /// Validation settings for the post-redaction leak check.
-    pub validation: Validation,
+    /// Per-phase behaviour knobs the pipeline reads for each document.
+    pub plan: Plan,
 
     /// Sinks to export processed content to.
     pub exports: Vec<ExportFile>,

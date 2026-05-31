@@ -71,11 +71,13 @@ impl NewRun {
             dry_run: self.dry_run,
             imports: self.imports,
             context_ids: self.context_ids,
-            extraction: self.extraction,
-            detection: self.detection,
-            deduplication: self.deduplication,
-            redaction: self.redaction,
-            validation: self.validation,
+            plan: nvisy_engine::pipeline::Plan {
+                extraction: self.extraction,
+                detection: self.detection,
+                deduplication: self.deduplication,
+                redaction: self.redaction,
+                validation: self.validation,
+            },
             exports: self.exports,
         }
     }
@@ -108,7 +110,7 @@ mod tests {
         assert!(!input.dry_run);
         assert!(input.imports.is_empty());
         assert!(input.context_ids.is_empty());
-        assert!(input.detection.kinds.is_empty());
+        assert!(input.plan.detection.kinds.is_empty());
         assert!(input.exports.is_empty());
     }
 

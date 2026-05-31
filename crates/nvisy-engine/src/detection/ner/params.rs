@@ -1,4 +1,4 @@
-//! [`NerDetection`]: NER-specific knobs in the workflow detection
+//! [`NerDetection`]: NER-specific knobs in the plan detection
 //! config.
 //!
 //! Cross-recognizer hints (`entity_kinds`) live directly on

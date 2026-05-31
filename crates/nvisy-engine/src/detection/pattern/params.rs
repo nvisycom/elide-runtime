@@ -3,7 +3,7 @@
 //!
 //! The config schema for pattern-based detection lives next to its
 //! sole consumer rather than alongside the pattern engine, so
-//! `nvisy-pattern` stays a pure runtime crate (no workflow-config
+//! `nvisy-pattern` stays a pure runtime crate (no plan-config
 //! types). The `filter` field is still typed against
 //! [`PatternFilter`] from `nvisy-pattern`, since the filter is the
 //! engine builder's input type.

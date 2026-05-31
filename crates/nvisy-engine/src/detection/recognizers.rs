@@ -3,7 +3,7 @@
 //!
 //! Built once at engine startup from the `[detection.*]` config
 //! sections, holds each opted-in recognizer behind an `Arc`, and
-//! is shared across every pipeline run. Per-run workflow
+//! is shared across every pipeline run. Per-run plan
 //! [`Detection`] nodes pick from this registry by [`RecognizerKind`]
 //! rather than re-constructing recognizers per call.
 //!
@@ -24,11 +24,12 @@ use std::sync::Arc;
 use nvisy_agent::pipeline::{LlmNerPipeline, VlmPipeline};
 use nvisy_core::{Error, Result};
 
-use super::llm::{LlmDetection, build_pipeline as build_llm_pipeline};
-use super::ner::{NerDetection, NerRecognizer};
-use super::pattern::{PatternDetection, PatternRecognizer};
+use super::config::DetectionConfig;
+use super::llm::build_pipeline as build_llm_pipeline;
+use super::ner::NerRecognizer;
+use super::pattern::PatternRecognizer;
 use super::recognizer::RecognizerKind;
-use super::vlm::{VlmDetection, build_pipeline as build_vlm_pipeline};
+use super::vlm::build_pipeline as build_vlm_pipeline;
 
 /// Text-modality recognizer slots.
 ///
@@ -75,34 +76,6 @@ pub struct Recognizers {
     pub text: TextRecognizers,
     /// Image-modality recognizers.
     pub image: ImageRecognizers,
-}
-
-/// Configuration for the [`Recognizers`] registry. Each field maps
-/// to a `[detection.*]` section in `Nvisy.toml`. `None` opts the
-/// recognizer out entirely.
-#[derive(Debug, Clone, Default, PartialEq)]
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct DetectionConfig {
-    /// `[detection.llm]` — LLM-backed text recognizer config bundle.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub llm: Option<LlmDetection>,
-    /// `[detection.ner]` — NER recognizer config bundle.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ner: Option<NerDetection>,
-    /// `[detection.pattern]` — pattern recognizer config bundle.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pattern: Option<PatternDetection>,
-    /// `[detection.vlm]` — VLM-backed image recognizer config bundle.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub vlm: Option<VlmDetection>,
-}
-
-impl DetectionConfig {
-    /// `true` when every section is `None`.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.llm.is_none() && self.ner.is_none() && self.pattern.is_none() && self.vlm.is_none()
-    }
 }
 
 impl Recognizers {
@@ -169,7 +142,7 @@ impl Recognizers {
         } else {
             Err(Error::validation(
                 format!(
-                    "workflow requires recognizer `{kind:?}` but no \
+                    "plan requires recognizer `{kind:?}` but no \
                      `[detection.{}]` section is configured",
                     section_name(kind),
                 ),

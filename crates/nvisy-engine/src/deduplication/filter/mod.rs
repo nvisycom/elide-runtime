@@ -2,7 +2,7 @@
 //! deduplication, after calibrate and before group/fuse.
 //!
 //! The orchestrator builds a [`FilterParams`] from the per-run
-//! [`Detection`] workflow node (entity-kind allowlist + confidence
+//! [`Detection`] plan node (entity-kind allowlist + confidence
 //! threshold) and hands it to [`Deduplicator::execute`], which
 //! calls [`Filter::filter`] in-place. Dropped entities are
 //! returned so a forthcoming drop-reason telemetry pass (#182)

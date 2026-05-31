@@ -23,28 +23,24 @@ use crate::envelope::DocumentEnvelope;
 /// Per-modality extraction dispatch.
 ///
 /// One impl per `M` on [`ExtractionEngine`]; the per-modality submodule
-/// (`text`/`tabular`/`image`/`audio`) provides the body. Workflow
-/// type is per-`M` via the [`Self::Workflow`] associated type.
+/// (`text`/`tabular`/`image`/`audio`) provides the body. Plan type is
+/// per-`M` via the [`Self::Plan`] associated type.
 #[async_trait::async_trait]
 pub trait ExtractDispatch<M: Modality>: Send + Sync {
-    /// Per-modality workflow config struct.
-    type Workflow: Default + Send + Sync;
+    /// Per-modality plan slice.
+    type Plan: Default + Send + Sync;
 
-    async fn extract(
-        &self,
-        envelope: &mut DocumentEnvelope<M>,
-        workflow: &Self::Workflow,
-    ) -> Result<()>;
+    async fn extract(&self, envelope: &mut DocumentEnvelope<M>, plan: &Self::Plan) -> Result<()>;
 }
 
-/// Helper that picks the per-modality workflow field out of
+/// Helper that picks the per-modality plan slice out of
 /// [`Extraction`]. One impl per modality, co-located with each
 /// modality's [`ExtractDispatch<M>`] impl.
 ///
 /// [`Extraction`]: super::Extraction
-pub trait WorkflowSlice<M: Modality>
+pub trait PlanSlice<M: Modality>
 where
     ExtractionEngine: ExtractDispatch<M>,
 {
-    fn slice(&self) -> &<ExtractionEngine as ExtractDispatch<M>>::Workflow;
+    fn slice(&self) -> &<ExtractionEngine as ExtractDispatch<M>>::Plan;
 }

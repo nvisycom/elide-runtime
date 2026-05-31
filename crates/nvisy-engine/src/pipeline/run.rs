@@ -156,13 +156,14 @@ impl Pipeline {
 
         // Build the detection engine once per run by picking
         // pre-built recognizers from the registry. `None` when the
-        // workflow opted no recognizers in (`kinds` empty) — we
+        // plan opted no recognizers in (`kinds` empty) — we
         // skip the detection phase rather than fail.
-        let detection_engine = if input.detection.kinds.is_empty() {
+        let detection_engine = if input.plan.detection.kinds.is_empty() {
             None
         } else {
             Some(Arc::new(
                 input
+                    .plan
                     .detection
                     .into_engine(&self.recognizers)
                     .map_err(|e| {

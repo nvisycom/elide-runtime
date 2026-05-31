@@ -11,7 +11,7 @@
 //! [`RedactionPhase`]: crate::redaction::RedactionPhase
 
 mod check;
-mod workflow;
+mod plan;
 
 use std::marker::PhantomData;
 
@@ -21,7 +21,7 @@ use nvisy_ontology::modality::Modality;
 use uuid::Uuid;
 
 pub use self::check::CheckLeaks;
-pub use self::workflow::{OnLeak, Validation};
+pub use self::plan::{OnLeak, Validation};
 use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
 use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
@@ -62,7 +62,7 @@ impl ValidationResult {
 /// Validation phase: re-scans the redacted envelope for leaked
 /// values via per-modality [`CheckLeaks`] dispatch. Read-only against
 /// the codec handle; surfaces failures via the `Result` when
-/// `on_leak = OnLeak::Fail` is set in the workflow config.
+/// `on_leak = OnLeak::Fail` is set in the plan config.
 ///
 /// Stateless beyond the modality marker; per-call config comes from
 /// `ctx.plan.validation` each call.

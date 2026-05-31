@@ -6,9 +6,9 @@
 //! config. Forwards [`PatternContext`] from each detection call so
 //! allow/deny lists and context hints work per-call.
 //!
-//! The [`PatternDetection`] workflow-params schema lives in the
+//! The [`PatternDetection`] plan-params schema lives in the
 //! [`params`] submodule so the pattern runtime crate stays free of
-//! workflow types.
+//! plan types.
 //!
 //! [`PatternEngine`]: nvisy_pattern::PatternEngine
 //! [`PatternContext`]: nvisy_pattern::PatternContext
@@ -48,7 +48,7 @@ pub struct PatternRecognizer {
 }
 
 impl PatternRecognizer {
-    /// Construct from a [`PatternDetection`] workflow config. Uses the
+    /// Construct from a [`PatternDetection`] plan config. Uses the
     /// shared singleton when the config is unconstrained; builds a
     /// fresh engine otherwise.
     pub fn from_config(cfg: &PatternDetection) -> Self {

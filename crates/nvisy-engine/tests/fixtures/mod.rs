@@ -60,11 +60,7 @@ fn base_input(actor_id: Uuid, content_id: Uuid, dry_run: bool) -> EngineInput {
             ..Default::default()
         }],
         context_ids: Vec::new(),
-        extraction: Default::default(),
-        detection: Default::default(),
-        deduplication: Default::default(),
-        redaction: Default::default(),
-        validation: Default::default(),
+        plan: Default::default(),
         exports: vec![ExportFile {
             content_ids: vec![Uuid::new_v4()],
             ..Default::default()

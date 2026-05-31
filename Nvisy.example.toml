@@ -26,10 +26,10 @@ cors = { allowed_origins = ["*"], max_age = "1h" }
 
 # Engine-level resource limits and shared infrastructure.
 [engine]
-concurrency = 4              # max parallel documents in flight
 
 # Run-level resource limits.
 [engine.limits]
+concurrency = 4              # max parallel documents in flight
 run_timeout = "60s"
 
 # Shared HTTP client for all downstream provider calls.

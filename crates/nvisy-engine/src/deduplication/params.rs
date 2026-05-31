@@ -3,7 +3,7 @@
 //! Aggregates the per-layer configuration types
 //! ([`CalibrationMap`], [`DeduplicationStrategy`],
 //! [`GroupingCriteria`], [`ConflictResolution`]) into the shape the
-//! workflow ingests as a single JSON section.
+//! plan ingests as a single JSON section.
 
 use nvisy_ontology::primitive::ConfidenceThreshold;
 use schemars::JsonSchema;

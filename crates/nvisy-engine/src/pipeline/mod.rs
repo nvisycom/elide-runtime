@@ -17,12 +17,14 @@ mod config;
 mod default;
 mod orchestrator;
 mod phase;
+mod plan;
 mod run;
 mod runs;
 
-pub use self::config::{CacheConfig, EngineConfig, ResourceLimits, RuntimeConfig};
+pub use self::config::{EngineConfig, ResourceLimits, RuntimeConfig};
 pub use self::default::{Engine, EngineInput, EngineOutput};
 pub use self::phase::{ModalityKind, Phase, PhaseContext, PhaseInfo};
+pub use self::plan::Plan;
 pub use self::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
     RunStatus,

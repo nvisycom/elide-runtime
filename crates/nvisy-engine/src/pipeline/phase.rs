@@ -30,8 +30,8 @@ use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 
-use super::default::EngineInput;
 use super::orchestrator::RunContext;
+use super::plan::Plan;
 use crate::envelope::DocumentEnvelope;
 
 /// Per-run state every phase reads from when running.
@@ -44,19 +44,14 @@ use crate::envelope::DocumentEnvelope;
 pub struct PhaseContext<'a, M: Modality> {
     /// Per-run shared infrastructure (extractors registry, detection
     /// engine, redaction defaults, cancellation token, run id).
-    /// Today all phases pull their persistent state from the phase
-    /// struct itself; this borrow is here so future phases that need
-    /// shared run-wide state (cancellation polling, run_id tagging)
-    /// have a uniform handle without changing the trait signature.
-    #[allow(dead_code)]
     pub(crate) run: &'a RunContext,
-    /// Per-request plan (per-phase workflow nodes + exports).
-    pub(crate) plan: &'a EngineInput,
+    /// Per-request plan bundling each phase's behaviour knobs.
+    pub(crate) plan: &'a Plan,
     _marker: PhantomData<fn() -> M>,
 }
 
 impl<'a, M: Modality> PhaseContext<'a, M> {
-    pub(crate) fn new(run: &'a RunContext, plan: &'a EngineInput) -> Self {
+    pub(crate) fn new(run: &'a RunContext, plan: &'a Plan) -> Self {
         Self {
             run,
             plan,

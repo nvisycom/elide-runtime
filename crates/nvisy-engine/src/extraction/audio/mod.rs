@@ -13,21 +13,21 @@ use nvisy_ontology::modality::Audio;
 
 #[cfg(feature = "audio")]
 pub use self::stt::{SttExtractor, SttExtractorConfig};
-use super::{AudialWorkflow, ExtractDispatch, Extraction, ExtractionEngine, WorkflowSlice};
+use super::{AudioPlan, ExtractDispatch, Extraction, ExtractionEngine, PlanSlice};
 use crate::envelope::DocumentEnvelope;
 
 #[cfg(feature = "audio")]
 #[async_trait::async_trait]
 impl ExtractDispatch<Audio> for ExtractionEngine {
-    type Workflow = AudialWorkflow;
+    type Plan = AudioPlan;
 
     async fn extract(
         &self,
         envelope: &mut DocumentEnvelope<Audio>,
-        workflow: &AudialWorkflow,
+        plan: &AudioPlan,
     ) -> Result<()> {
         if let Some(ref stt) = self.stt {
-            stt.run(envelope, workflow.diarization).await?;
+            stt.run(envelope, plan.diarization).await?;
         }
         Ok(())
     }
@@ -36,19 +36,19 @@ impl ExtractDispatch<Audio> for ExtractionEngine {
 #[cfg(not(feature = "audio"))]
 #[async_trait::async_trait]
 impl ExtractDispatch<Audio> for ExtractionEngine {
-    type Workflow = AudialWorkflow;
+    type Plan = AudioPlan;
 
     async fn extract(
         &self,
         _envelope: &mut DocumentEnvelope<Audio>,
-        _workflow: &AudialWorkflow,
+        _plan: &AudioPlan,
     ) -> Result<()> {
         Ok(())
     }
 }
 
-impl WorkflowSlice<Audio> for Extraction {
-    fn slice(&self) -> &AudialWorkflow {
-        &self.audial
+impl PlanSlice<Audio> for Extraction {
+    fn slice(&self) -> &AudioPlan {
+        &self.audio
     }
 }

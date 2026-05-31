@@ -1,23 +1,23 @@
-//! Extraction node configuration.
+//! Extraction node plan.
 //!
 //! [`Extraction`] runs at **phase 1**, after ingestion. It converts
 //! raw binary content into structured text that downstream detection
 //! nodes can operate on. All applicable modalities always run — the
 //! user controls *how* they run, not *whether* they run.
 //!
-//! The configuration is one per-modality struct per modality. The
-//! top-level [`Extraction`] aggregate holds all four; the per-modality
-//! [`ExtractDispatch<M>`] impl picks its own slice via the [`ExtractDispatch::Workflow`]
-//! associated type.
+//! The plan is one per-modality struct per modality. The top-level
+//! [`Extraction`] aggregate holds all four; the per-modality
+//! [`ExtractDispatch<M>`] impl picks its own slice via the
+//! [`ExtractDispatch::Plan`] associated type.
 //!
 //! [`ExtractDispatch<M>`]: super::ExtractDispatch
-//! [`ExtractDispatch::Workflow`]: super::ExtractDispatch::Workflow
+//! [`ExtractDispatch::Plan`]: super::ExtractDispatch::Plan
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Text-modality workflow knobs. No tunables today; reserved for
-/// future per-call settings (e.g. whitespace normalization).
+/// Text-modality plan knobs. No tunables today; reserved for future
+/// per-call settings (e.g. whitespace normalization).
 #[derive(
     Debug,
     Clone,
@@ -28,9 +28,9 @@ use serde::{Deserialize, Serialize};
     Deserialize,
     JsonSchema
 )]
-pub struct TextWorkflow {}
+pub struct TextPlan {}
 
-/// Tabular-modality workflow knobs. No tunables today.
+/// Tabular-modality plan knobs. No tunables today.
 #[derive(
     Debug,
     Clone,
@@ -41,10 +41,10 @@ pub struct TextWorkflow {}
     Deserialize,
     JsonSchema
 )]
-pub struct TabularWorkflow {}
+pub struct TabularPlan {}
 
-/// Image-modality workflow knobs. No tunables today; reserved for
-/// future OCR tuning (e.g. language hint, page subset).
+/// Image-modality plan knobs. No tunables today; reserved for future
+/// OCR tuning (e.g. language hint, page subset).
 #[derive(
     Debug,
     Clone,
@@ -55,9 +55,9 @@ pub struct TabularWorkflow {}
     Deserialize,
     JsonSchema
 )]
-pub struct ImageWorkflow {}
+pub struct ImagePlan {}
 
-/// Audio-modality workflow knobs (speech-to-text).
+/// Audio-modality plan knobs (speech-to-text).
 #[derive(
     Debug,
     Clone,
@@ -68,7 +68,7 @@ pub struct ImageWorkflow {}
     Deserialize,
     JsonSchema
 )]
-pub struct AudialWorkflow {
+pub struct AudioPlan {
     /// Segment the audio by speaker identity.
     ///
     /// Currently silently degrades to flat transcription — see #239.
@@ -76,34 +76,26 @@ pub struct AudialWorkflow {
     pub diarization: bool,
 }
 
-/// Unified extraction configuration.
+/// Unified extraction plan.
 ///
-/// Carries one per-modality workflow struct per modality. The
+/// Carries one per-modality plan struct per modality. The
 /// orchestrator dispatches `&plan.extraction.<modality>` to the
 /// matching [`ExtractDispatch<M>`] impl.
 ///
 /// [`ExtractDispatch<M>`]: super::ExtractDispatch
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Serialize,
-    Deserialize,
-    JsonSchema
-)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 pub struct Extraction {
-    /// Text-modality workflow.
+    /// Text-modality plan.
     #[serde(default)]
-    pub text: TextWorkflow,
-    /// Tabular-modality workflow.
+    pub text: TextPlan,
+    /// Tabular-modality plan.
     #[serde(default)]
-    pub tabular: TabularWorkflow,
-    /// Image-modality workflow (OCR).
+    pub tabular: TabularPlan,
+    /// Image-modality plan (OCR).
     #[serde(default)]
-    pub image: ImageWorkflow,
-    /// Audial-modality workflow (STT + diarization).
+    pub image: ImagePlan,
+    /// Audio-modality plan (STT + diarization).
     #[serde(default)]
-    pub audial: AudialWorkflow,
+    pub audio: AudioPlan,
 }

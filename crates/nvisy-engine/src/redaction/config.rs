@@ -6,9 +6,9 @@
 //! deserialized from one TOML section, built once at engine
 //! startup, shared across runs via `Arc`.
 //!
-//! The workflow [`Redaction`] node carries per-workflow knobs as
-//! optional fields; this section supplies the values used when those
-//! fields are unset.
+//! The plan [`Redaction`] node carries per-plan knobs as optional
+//! fields; this section supplies the values used when those fields
+//! are unset.
 //!
 //! [`Redaction`]: crate::redaction::Redaction
 //! [`EngineConfig`]: crate::pipeline::EngineConfig
@@ -19,18 +19,18 @@ use nvisy_ontology::primitive::ConfidenceThreshold;
 use serde::{Deserialize, Serialize};
 
 /// `[redaction]` config section: deployment-wide fallback values for
-/// the workflow [`Redaction`] node's optional fields.
+/// the plan [`Redaction`] node's optional fields.
 ///
 /// [`Redaction`]: crate::redaction::Redaction
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedactionConfig {
     /// Default minimum confidence threshold for entities that
-    /// don't match a policy rule. Workflow `Redaction.confidence_threshold`
+    /// don't match a policy rule. Plan `Redaction.confidence_threshold`
     /// overrides this when set. Defaults to `0.5`.
     #[serde(default = "default_confidence_threshold")]
     pub confidence_threshold: ConfidenceThreshold,
     /// Default for whether to strip embedded document metadata
-    /// (EXIF, PDF properties). Workflow `Redaction.process_metadata`
+    /// (EXIF, PDF properties). Plan `Redaction.process_metadata`
     /// overrides this when set. Defaults to `false`.
     #[serde(default)]
     pub process_metadata: bool,

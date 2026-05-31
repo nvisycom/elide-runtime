@@ -25,7 +25,7 @@ use std::num::NonZeroUsize;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-pub use self::engine::{CacheConfig, EngineConfig, ResourceLimits};
+pub use self::engine::{EngineConfig, ResourceLimits};
 use crate::detection::DetectionConfig;
 use crate::extraction::ExtractionConfig;
 use crate::redaction::RedactionConfig;
@@ -43,7 +43,7 @@ fn default_config_version() -> Version {
 /// Every section is load-once: the engine reads this struct at
 /// startup, builds the per-section state behind `Arc`s on its inner
 /// shared state, and never re-reads it. Per-request override is not
-/// supported — workflows tune behaviour through their own per-phase
+/// supported — plans tune behaviour through their own per-phase
 /// config nodes (`Extraction`, `Detection`, `Redaction`, …), not by
 /// resupplying a `RuntimeConfig`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,7 +64,7 @@ pub struct RuntimeConfig {
     /// references these by kind.
     pub detection: Option<DetectionConfig>,
     /// Deployment-wide redaction defaults — `[redaction]` section.
-    /// Built once at engine startup; the per-workflow `Redaction`
+    /// Built once at engine startup; the per-plan `Redaction`
     /// node falls back to these for any `None` fields. Per-request
     /// override is not supported.
     pub redaction: Option<RedactionConfig>,
@@ -83,24 +83,16 @@ impl Default for RuntimeConfig {
 }
 
 impl RuntimeConfig {
-    /// Returns `true` if all optional sections are `None`.
-    #[must_use]
-    pub fn is_default(&self) -> bool {
-        self.engine.is_none()
-            && self.extraction.is_none()
-            && self.detection.is_none()
-            && self.redaction.is_none()
-    }
-
     /// Resource limits from the engine section, or defaults.
     #[must_use]
     pub fn effective_limits(&self) -> ResourceLimits {
         self.engine.as_ref().map(|e| e.limits).unwrap_or_default()
     }
 
-    /// Concurrency limit from the engine section, if configured.
+    /// Concurrency limit from the engine section's resource limits,
+    /// if configured.
     #[must_use]
     pub fn effective_concurrency(&self) -> Option<NonZeroUsize> {
-        self.engine.as_ref().and_then(|e| e.concurrency)
+        self.engine.as_ref().and_then(|e| e.limits.concurrency)
     }
 }

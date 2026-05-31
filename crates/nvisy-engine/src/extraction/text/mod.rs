@@ -12,7 +12,7 @@ use nvisy_core::Result;
 use nvisy_ontology::document::{Block, Span};
 use nvisy_ontology::modality::{Text, TextBlock};
 
-use super::{ExtractDispatch, Extraction, ExtractionEngine, TextWorkflow, WorkflowSlice};
+use super::{ExtractDispatch, Extraction, ExtractionEngine, PlanSlice, TextPlan};
 use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::extraction::text";
@@ -52,20 +52,16 @@ async fn populate_document(envelope: &mut DocumentEnvelope<Text>) {
 
 #[async_trait::async_trait]
 impl ExtractDispatch<Text> for ExtractionEngine {
-    type Workflow = TextWorkflow;
+    type Plan = TextPlan;
 
-    async fn extract(
-        &self,
-        envelope: &mut DocumentEnvelope<Text>,
-        _workflow: &TextWorkflow,
-    ) -> Result<()> {
+    async fn extract(&self, envelope: &mut DocumentEnvelope<Text>, _plan: &TextPlan) -> Result<()> {
         populate_document(envelope).await;
         Ok(())
     }
 }
 
-impl WorkflowSlice<Text> for Extraction {
-    fn slice(&self) -> &TextWorkflow {
+impl PlanSlice<Text> for Extraction {
+    fn slice(&self) -> &TextPlan {
         &self.text
     }
 }

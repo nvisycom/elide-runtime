@@ -34,7 +34,7 @@ mod span;
 
 pub use self::block::Block;
 pub use self::span::Span;
-use crate::entity::{Annotation, ContentSource, LabelAnnotation};
+use crate::entity::{Annotation, ContentSource, Entity, LabelAnnotation};
 use crate::modality::Modality;
 use crate::provenance::Audit;
 
@@ -89,6 +89,17 @@ impl<M: Modality> Document<M> {
             annotations: Vec::new(),
             labels: Vec::new(),
             audit: Audit::new(source),
+        }
+    }
+
+    /// Append detected entities to the document's audit, wrapping
+    /// each into a fresh [`EntityRecord`]. Used by detection phases
+    /// at both the root and nested-document level.
+    ///
+    /// [`EntityRecord`]: crate::provenance::EntityRecord
+    pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity<M>>) {
+        for entity in entities {
+            self.audit.push_entity(entity);
         }
     }
 }

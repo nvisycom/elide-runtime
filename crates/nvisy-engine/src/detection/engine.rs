@@ -29,7 +29,7 @@ use super::dispatch::DetectDispatch;
 use super::dyn_recognizer::{DynImageRecognizer, DynTextRecognizer};
 use super::lift::{LiftFromBlock, ProjectIntoBlock};
 use super::recognizer::Recognizer;
-use crate::envelope::DocumentEnvelope;
+use crate::envelope::{DocumentEnvelope, SharedHandle};
 
 pub(super) const TARGET: &str = "nvisy_engine::detection";
 
@@ -46,9 +46,14 @@ pub(super) const TARGET: &str = "nvisy_engine::detection";
 /// Per-modality dispatch lives in the [`DetectDispatch`] trait
 /// impls below — text blocks fan out their `scan_text` to every text
 /// recognizer (lifted into document coordinates via the block's
-/// spans); image envelopes fan out every image location to every
-/// image recognizer (entities are emitted in absolute image
-/// coordinates by the recognizer itself, no lifting).
+/// spans); image docs (standalone or nested under a
+/// [`TextBlock::Embed`]) fan out every image location to every image
+/// recognizer (entities are emitted in absolute image coordinates by
+/// the recognizer itself, no lifting). Nested image docs are
+/// reached by walking the outer text envelope's blocks; the codec
+/// handle that services their reads lives on the outer envelope.
+///
+/// [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 ///
 /// Dedup, conflict resolution, and threshold filtering are *not*
 /// the engine's concern — those live in the downstream pipeline
@@ -335,7 +340,11 @@ where
 #[async_trait::async_trait]
 impl DetectDispatch<Text> for DetectionEngine {
     async fn detect(&self, envelope: &mut DocumentEnvelope<Text>, cfg: &Detection) -> Result<()> {
-        self.detect_text_only(envelope, cfg).await
+        detect_text_blocks(self, envelope, cfg).await?;
+        #[cfg(feature = "image")]
+        self.detect_text_embeds(envelope, cfg).await?;
+        self.reset().await;
+        Ok(())
     }
 }
 
@@ -366,7 +375,21 @@ impl DetectDispatch<Image> for DetectionEngine {
         // image location with raw bytes — they emit absolute
         // image-coord Entity<Image> directly, no per-block lifting.
         detect_text_blocks(self, envelope, cfg).await?;
-        self.detect_image_locations(envelope, cfg).await?;
+        let run_id = envelope.shared.run_id;
+        let labels: Vec<String> = envelope
+            .document
+            .labels
+            .iter()
+            .map(|l| l.label.clone())
+            .collect();
+        self.detect_image_locations(
+            &envelope.handle,
+            &mut envelope.document,
+            cfg,
+            run_id,
+            &labels,
+        )
+        .await?;
         self.reset().await;
         Ok(())
     }
@@ -397,31 +420,36 @@ impl DetectionEngine {
         Ok(())
     }
 
-    /// Run image recognizers once per image location in the envelope.
-    /// Each call sees the raw encoded image bytes plus the image's
-    /// pixel dimensions; recognizers emit absolute image-coord
-    /// entities directly (no per-block lifting).
+    /// Run image recognizers once per image location reachable via
+    /// `handle`, appending detections to `doc.audit`. Each call sees
+    /// the raw encoded image bytes plus the image's pixel
+    /// dimensions; recognizers emit absolute image-coord entities
+    /// directly (no per-block lifting).
+    ///
+    /// Decoupled from `DocumentEnvelope<Image>` so the nested-doc
+    /// path (a `Document<Image>` inside a `TextBlock::Embed` whose
+    /// codec handle lives on the outer text envelope) can drive
+    /// image detection without spinning up a sibling envelope.
     #[cfg(feature = "image")]
     async fn detect_image_locations(
         &self,
-        envelope: &mut DocumentEnvelope<Image>,
+        handle: &SharedHandle,
+        doc: &mut nvisy_ontology::document::Document<Image>,
         cfg: &Detection,
+        run_id: uuid::Uuid,
+        labels: &[String],
     ) -> Result<()> {
         if self.image.is_empty() {
             return Ok(());
         }
-        let run_id = envelope.shared.run_id;
-        let labels: Vec<String> = envelope
-            .document
-            .labels
-            .iter()
-            .map(|l| l.label.clone())
-            .collect();
 
-        let locations = envelope.collect_image_locations().await;
+        let locations: Vec<_> = {
+            use futures::StreamExt;
+            handle.lock().await.image_locations().collect().await
+        };
         let mut detected_total = 0usize;
         for located in locations {
-            let Some(image_data) = envelope.read_image(&located.location).await else {
+            let Some(image_data) = handle.lock().await.read_image(&located.location).await else {
                 continue;
             };
             let dims = image_data.dimensions();
@@ -434,11 +462,11 @@ impl DetectionEngine {
             if !cfg.entity_kinds.is_empty() {
                 ctx.entities = Some(cfg.entity_kinds.clone());
             }
-            ctx.labels = labels.clone();
+            ctx.labels = labels.to_vec();
 
             let detected = self.run_image(ctx).await?;
             detected_total += detected.len();
-            envelope.add_entities(detected);
+            doc.add_entities(detected);
         }
 
         tracing::debug!(
@@ -446,6 +474,45 @@ impl DetectionEngine {
             detected = detected_total,
             "appending image-detected entities",
         );
+        Ok(())
+    }
+
+    /// Walk an outer text envelope's blocks for `TextBlock::Embed`
+    /// children and run image detection against each nested
+    /// `Document<Image>` using the outer envelope's shared handle.
+    ///
+    /// Per locked decision C, nested docs are data-only — they
+    /// don't own a codec handle — so the outer envelope's handle
+    /// services every nested image read. Per locked decision B,
+    /// `Phase<M>` stays per-modality; this recursion lives inside
+    /// the `DetectDispatch<Text>` body rather than in a new phase.
+    #[cfg(feature = "image")]
+    async fn detect_text_embeds(
+        &self,
+        envelope: &mut DocumentEnvelope<Text>,
+        cfg: &Detection,
+    ) -> Result<()> {
+        use nvisy_ontology::modality::{EmbeddedDocument, TextBlock};
+
+        let run_id = envelope.shared.run_id;
+        let labels: Vec<String> = envelope
+            .document
+            .labels
+            .iter()
+            .map(|l| l.label.clone())
+            .collect();
+        let handle = envelope.handle.clone();
+
+        for block in envelope.document.blocks.iter_mut() {
+            let TextBlock::Embed(embed) = &mut block.kind else {
+                continue;
+            };
+            let EmbeddedDocument::Image(ref mut nested) = **embed else {
+                continue;
+            };
+            self.detect_image_locations(&handle, nested, cfg, run_id, &labels)
+                .await?;
+        }
         Ok(())
     }
 }

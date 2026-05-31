@@ -126,11 +126,14 @@ impl<M: Modality> DocumentEnvelope<M> {
 
     /// Add detected entities (wrapped into fresh [`EntityRecord`]s).
     ///
+    /// Convenience forwarder to [`Document::add_entities`] for the
+    /// common single-doc detection path; nested-doc detection calls
+    /// the document method directly.
+    ///
     /// [`EntityRecord`]: nvisy_ontology::provenance::EntityRecord
+    /// [`Document::add_entities`]: nvisy_ontology::document::Document::add_entities
     pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity<M>>) {
-        for entity in entities {
-            self.document.audit.push_entity(entity);
-        }
+        self.document.add_entities(entities);
     }
 }
 

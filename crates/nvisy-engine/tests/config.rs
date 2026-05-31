@@ -2,7 +2,7 @@
 
 mod fixtures;
 
-use nvisy_engine::pipeline::{EngineSection, RuntimeConfig};
+use nvisy_engine::pipeline::{EngineConfig, RuntimeConfig};
 use validator::Validate;
 
 #[test]
@@ -22,8 +22,8 @@ fn example_toml_parses() {
 
     // Verify the engine section parses into our struct.
     let engine_toml = toml::to_string(table.get("engine").unwrap()).unwrap();
-    let engine: EngineSection =
-        toml::from_str(&engine_toml).expect("[engine] section should parse into EngineSection");
+    let engine: EngineConfig =
+        toml::from_str(&engine_toml).expect("[engine] section should parse into EngineConfig");
     engine
         .validate()
         .expect("[engine] section should pass validation");

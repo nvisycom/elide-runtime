@@ -97,7 +97,6 @@ impl From<&VlmDetectionContext> for VlmScanInput {
         Self {
             ctx: VlmDetectContext {
                 entity_kinds: ctx.entities.clone().unwrap_or_default(),
-                confidence_threshold: ctx.score_threshold,
                 system_prompt: None,
                 labels: ctx.labels.clone(),
                 correlation_id: ctx.correlation_id,

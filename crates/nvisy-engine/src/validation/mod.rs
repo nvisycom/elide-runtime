@@ -1,25 +1,30 @@
-//! Post-redaction validator.
+//! Post-redaction validation phase.
 //!
 //! Re-scans redacted content to verify that no originally detected
-//! values remain visible. Runs after [`Redactor`].
+//! values remain visible. Runs after [`RedactionPhase`].
 //!
 //! Per-modality leak detection lives behind the [`CheckLeaks`]
 //! trait — Text and Tabular run real substring checks; Image and
 //! Audio currently return [`ValidationResult::skipped`] because
 //! visual / audio inspection isn't implemented yet.
 //!
-//! [`Redactor`]: crate::redaction::Redactor
+//! [`RedactionPhase`]: crate::redaction::RedactionPhase
 
 mod check;
 mod workflow;
 
+use std::marker::PhantomData;
+
+use async_trait::async_trait;
 use nvisy_core::{Error, Result};
+use nvisy_ontology::modality::Modality;
 use uuid::Uuid;
 
 pub use self::check::CheckLeaks;
-pub use self::workflow::Validation;
-use self::workflow::Validation as ValidationConfig;
+pub use self::workflow::{OnLeak, Validation};
 use crate::envelope::DocumentEnvelope;
+use crate::envelope::value_at::ValueAt;
+use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
 
 const TARGET: &str = "nvisy_engine::validation";
 
@@ -54,30 +59,53 @@ impl ValidationResult {
     }
 }
 
-/// Post-redaction validator that checks for leaked sensitive values.
-pub struct Validator {
-    fail_on_leak: bool,
+/// Validation phase: re-scans the redacted envelope for leaked
+/// values via per-modality [`CheckLeaks`] dispatch. Read-only against
+/// the codec handle; surfaces failures via the `Result` when
+/// `on_leak = OnLeak::Fail` is set in the workflow config.
+///
+/// Stateless beyond the modality marker; per-call config comes from
+/// `ctx.plan.validation` each call.
+pub struct ValidationPhase<M: Modality> {
+    _marker: PhantomData<fn() -> M>,
 }
 
-impl Validator {
-    /// Create from config.
-    pub fn new(cfg: &ValidationConfig) -> Self {
+impl<M: Modality> ValidationPhase<M> {
+    /// Build the phase. Stateless beyond the modality marker.
+    pub fn new() -> Self {
         Self {
-            fail_on_leak: cfg.fail_on_leak,
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<M: Modality> Default for ValidationPhase<M> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl<M> Phase<M> for ValidationPhase<M>
+where
+    M: Modality + CheckLeaks,
+    DocumentEnvelope<M>: ValueAt<M>,
+{
+    fn inspect(&self) -> PhaseInfo {
+        PhaseInfo {
+            name: "validation",
+            modality: ModalityKind::of::<M>(),
+            mutating: false,
         }
     }
 
-    /// Execute post-redaction validation against the envelope.
-    ///
-    /// Generic over modality: dispatches through [`CheckLeaks`] to
-    /// the per-modality implementation. Modalities without leak
-    /// detection (Image, Audio) return early with a debug log;
-    /// `fail_on_leak` only fires when an inspecting modality
-    /// surfaces a leak.
-    pub async fn execute<M>(&self, envelope: &mut DocumentEnvelope<M>) -> Result<()>
-    where
-        M: CheckLeaks,
-    {
+    async fn run(
+        &self,
+        ctx: &PhaseContext<'_, M>,
+        envelope: &mut DocumentEnvelope<M>,
+    ) -> Result<()> {
+        let on_leak = ctx.plan.validation.on_leak;
+
         tracing::debug!(target: TARGET, "running post-redaction validation");
 
         let result = M::check_leaks(envelope).await;
@@ -102,7 +130,7 @@ impl Validator {
             "validation found leaked values",
         );
 
-        if self.fail_on_leak {
+        if matches!(on_leak, OnLeak::Fail) {
             let details: Vec<String> = result
                 .leaked
                 .iter()

@@ -33,7 +33,6 @@ use std::sync::LazyLock;
 
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Text;
-use nvisy_ontology::primitive::ConfidenceThreshold;
 use regex::RegexSet;
 
 pub use self::builder::PatternEngineBuilder;
@@ -70,7 +69,6 @@ pub struct PatternEngine {
     pub(in crate::engine) regex_entries: Vec<RegexEntry>,
     pub(in crate::engine) dict_entries: Vec<DictEntry>,
     pub(in crate::engine) validators: ValidatorResolver,
-    pub(in crate::engine) confidence_threshold: Option<ConfidenceThreshold>,
 }
 
 impl fmt::Debug for PatternEngine {
@@ -78,7 +76,6 @@ impl fmt::Debug for PatternEngine {
         f.debug_struct("PatternEngine")
             .field("regex_patterns", &self.regex_entries.len())
             .field("dict_patterns", &self.dict_entries.len())
-            .field("confidence_threshold", &self.confidence_threshold)
             .finish()
     }
 }
@@ -102,12 +99,7 @@ impl PatternEngine {
     pub fn scan_text(&self, text: &str, ctx: &PatternContext) -> Vec<Entity<Text>> {
         let mut candidates = self.scan_raw(text, ctx);
         ContextEnhancer::new(text, &ctx.hints).enhance(&mut candidates);
-        let threshold = self.confidence_threshold;
-        candidates
-            .into_iter()
-            .filter(|c| threshold.is_none_or(|t| t.admits(c.entity.confidence)))
-            .map(|c| c.entity)
-            .collect()
+        candidates.into_iter().map(|c| c.entity).collect()
     }
 
     /// Validate that every `RuntimePattern` compiles cleanly against

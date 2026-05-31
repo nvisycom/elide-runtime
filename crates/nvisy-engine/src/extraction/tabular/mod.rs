@@ -17,7 +17,7 @@ use nvisy_core::Result;
 use nvisy_ontology::document::{Block, Span};
 use nvisy_ontology::modality::{Tabular, TabularBlock};
 
-use super::{Extract, Extraction, Extractors, TabularWorkflow, WorkflowSlice};
+use super::{ExtractDispatch, Extraction, ExtractionEngine, TabularWorkflow, WorkflowSlice};
 use crate::envelope::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::extraction::tabular";
@@ -85,7 +85,7 @@ async fn populate_document(envelope: &mut DocumentEnvelope<Tabular>) {
 }
 
 #[async_trait::async_trait]
-impl Extract<Tabular> for Extractors {
+impl ExtractDispatch<Tabular> for ExtractionEngine {
     type Workflow = TabularWorkflow;
 
     async fn extract(

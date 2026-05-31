@@ -2,7 +2,7 @@
 //!
 //! Today's only audio extraction technique is STT ([`stt`]). Future
 //! techniques (e.g. speaker diarization as its own pass) would live
-//! as sibling sub-modules and stack inside this `Extract<Audio>`
+//! as sibling sub-modules and stack inside this `ExtractDispatch<Audio>`
 //! impl.
 
 #[cfg(feature = "audio")]
@@ -13,12 +13,12 @@ use nvisy_ontology::modality::Audio;
 
 #[cfg(feature = "audio")]
 pub use self::stt::{SttExtractor, SttExtractorConfig};
-use super::{AudialWorkflow, Extract, Extraction, Extractors, WorkflowSlice};
+use super::{AudialWorkflow, ExtractDispatch, Extraction, ExtractionEngine, WorkflowSlice};
 use crate::envelope::DocumentEnvelope;
 
 #[cfg(feature = "audio")]
 #[async_trait::async_trait]
-impl Extract<Audio> for Extractors {
+impl ExtractDispatch<Audio> for ExtractionEngine {
     type Workflow = AudialWorkflow;
 
     async fn extract(
@@ -35,7 +35,7 @@ impl Extract<Audio> for Extractors {
 
 #[cfg(not(feature = "audio"))]
 #[async_trait::async_trait]
-impl Extract<Audio> for Extractors {
+impl ExtractDispatch<Audio> for ExtractionEngine {
     type Workflow = AudialWorkflow;
 
     async fn extract(

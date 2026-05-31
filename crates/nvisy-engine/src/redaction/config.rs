@@ -1,7 +1,7 @@
-//! [`RedactionSection`]: the `[redaction]` config section.
+//! [`RedactionConfig`]: the `[redaction]` config section.
 //!
-//! Matches the `*Section` naming used by [`EngineSection`],
-//! [`ExtractionSection`], [`DetectionSection`] so all four
+//! Matches the `*Section` naming used by [`EngineConfig`],
+//! [`ExtractionConfig`], [`DetectionConfig`] so all four
 //! `RuntimeConfig` subsystem sections share one shape: a struct
 //! deserialized from one TOML section, built once at engine
 //! startup, shared across runs via `Arc`.
@@ -11,9 +11,9 @@
 //! fields are unset.
 //!
 //! [`Redaction`]: crate::redaction::Redaction
-//! [`EngineSection`]: crate::pipeline::EngineSection
-//! [`ExtractionSection`]: crate::extraction::ExtractionSection
-//! [`DetectionSection`]: crate::detection::DetectionSection
+//! [`EngineConfig`]: crate::pipeline::EngineConfig
+//! [`ExtractionConfig`]: crate::extraction::ExtractionConfig
+//! [`DetectionConfig`]: crate::detection::DetectionConfig
 
 use nvisy_ontology::primitive::ConfidenceThreshold;
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// [`Redaction`]: crate::redaction::Redaction
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RedactionSection {
+pub struct RedactionConfig {
     /// Default minimum confidence threshold for entities that
     /// don't match a policy rule. Workflow `Redaction.confidence_threshold`
     /// overrides this when set. Defaults to `0.5`.
@@ -36,7 +36,7 @@ pub struct RedactionSection {
     pub process_metadata: bool,
 }
 
-impl Default for RedactionSection {
+impl Default for RedactionConfig {
     fn default() -> Self {
         Self {
             confidence_threshold: default_confidence_threshold(),

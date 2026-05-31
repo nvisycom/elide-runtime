@@ -15,7 +15,6 @@
 //! [`VlmAgent`]: crate::agent::vlm::VlmAgent
 
 use nvisy_ontology::entity::{EntityCategory, EntityKind};
-use nvisy_ontology::primitive::ConfidenceThreshold;
 use uuid::Uuid;
 
 /// Fallback hint used in prompts when no specific entity types are requested.
@@ -49,9 +48,13 @@ pub struct NerHint {
 }
 
 /// Configuration for the NER detect pass: which entity kinds to
-/// look for, at what confidence threshold, what document-level
-/// signals to surface in the prompt, and any user-supplied hints
-/// to fold in.
+/// look for, what document-level signals to surface in the prompt,
+/// and any user-supplied hints to fold in.
+///
+/// Confidence filtering is centralised in the engine's deduplication
+/// step — the agent emits every entity the LLM returns at its raw
+/// confidence and lets the engine's calibration map + dedup threshold
+/// shape the surviving set.
 ///
 /// [`hints`](Self::hints) are user-supplied [`Hint`]-strength
 /// inclusion annotations the engine lifts into the prompt so the
@@ -65,9 +68,6 @@ pub struct NerHint {
 pub struct LlmNerContext {
     /// Entity kinds to detect (empty = all).
     pub entity_kinds: Vec<EntityKind>,
-    /// Minimum confidence score to include a detection. When `None`,
-    /// no confidence filtering is applied.
-    pub confidence_threshold: Option<ConfidenceThreshold>,
     /// System prompt override (if set, replaces the agent's default).
     pub system_prompt: Option<String>,
     /// User-supplied hint regions to fold into the prompt for
@@ -110,16 +110,18 @@ pub struct LlmNerVerification {
 ///
 /// The image payload (and its [`Dimensions`]) flow through the
 /// `detect` method signature; this type only carries the
-/// detection-style knobs (which kinds to find, threshold, etc.).
+/// detection-style knobs (which kinds to find, etc.).
+///
+/// Confidence filtering is centralised in the engine's deduplication
+/// step — the agent emits every entity the VLM returns at its raw
+/// confidence and lets the engine's calibration map + dedup threshold
+/// shape the surviving set.
 ///
 /// [`Dimensions`]: nvisy_ontology::primitive::Dimensions
 #[derive(Debug, Clone, Default)]
 pub struct VlmDetectContext {
     /// Entity kinds to detect (empty = all).
     pub entity_kinds: Vec<EntityKind>,
-    /// Minimum confidence score to include a detection. When
-    /// `None`, no confidence filtering is applied.
-    pub confidence_threshold: Option<ConfidenceThreshold>,
     /// System prompt override (if set, replaces the agent's
     /// default).
     pub system_prompt: Option<String>,

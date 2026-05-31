@@ -24,10 +24,10 @@ use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
 use crate::detection::Recognizers;
 use crate::envelope::{PolicyStore, SharedData};
-use crate::extraction::Extractors;
+use crate::extraction::ExtractionEngine;
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::{Registry, ResourceGuard};
-use crate::redaction::RedactionSection;
+use crate::redaction::RedactionConfig;
 
 const TARGET: &str = "nvisy_engine::pipeline::run";
 
@@ -42,9 +42,9 @@ pub(super) struct Pipeline {
     key_provider: Option<SharedKeyProvider>,
     runs: RunState,
     base_config: RuntimeConfig,
-    extractors: Arc<Extractors>,
+    extraction_engine: Arc<ExtractionEngine>,
     recognizers: Arc<Recognizers>,
-    redaction_section: Arc<RedactionSection>,
+    redaction_config: Arc<RedactionConfig>,
 }
 
 impl Pipeline {
@@ -54,9 +54,9 @@ impl Pipeline {
         key_provider: Option<SharedKeyProvider>,
         runs: RunState,
         base_config: RuntimeConfig,
-        extractors: Arc<Extractors>,
+        extraction_engine: Arc<ExtractionEngine>,
         recognizers: Arc<Recognizers>,
-        redaction_section: Arc<RedactionSection>,
+        redaction_config: Arc<RedactionConfig>,
     ) -> Self {
         Self {
             run_id: Uuid::now_v7(),
@@ -64,9 +64,9 @@ impl Pipeline {
             key_provider,
             runs,
             base_config,
-            extractors,
+            extraction_engine,
             recognizers,
-            redaction_section,
+            redaction_config,
         }
     }
 
@@ -176,9 +176,9 @@ impl Pipeline {
         let ctx = RunContext {
             cancel,
             shared: Arc::new(shared_data),
-            extractors: Arc::clone(&self.extractors),
+            extraction_engine: Arc::clone(&self.extraction_engine),
             detection_engine,
-            redaction_section: Arc::clone(&self.redaction_section),
+            redaction_config: Arc::clone(&self.redaction_config),
             concurrency,
             dry_run: input.dry_run,
         };

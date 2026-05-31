@@ -82,7 +82,7 @@ pub struct Recognizers {
 /// recognizer out entirely.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[derive(serde::Serialize, serde::Deserialize)]
-pub struct DetectionSection {
+pub struct DetectionConfig {
     /// `[detection.llm]` — LLM-backed text recognizer config bundle.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub llm: Option<LlmDetection>,
@@ -97,7 +97,7 @@ pub struct DetectionSection {
     pub vlm: Option<VlmDetection>,
 }
 
-impl DetectionSection {
+impl DetectionConfig {
     /// `true` when every section is `None`.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -106,7 +106,7 @@ impl DetectionSection {
 }
 
 impl Recognizers {
-    /// Build the registry once from a [`DetectionSection`].
+    /// Build the registry once from a [`DetectionConfig`].
     ///
     /// Each opted-in section drives one recognizer construction.
     /// Construction is eager — model loads, HTTP-client setup, and
@@ -119,7 +119,7 @@ impl Recognizers {
     /// Returns the first construction error encountered (NER backend
     /// init failure, LLM provider misconfiguration). Pattern
     /// construction is infallible.
-    pub async fn from_config(cfg: &DetectionSection) -> Result<Self> {
+    pub async fn from_config(cfg: &DetectionConfig) -> Result<Self> {
         let llm = cfg
             .llm
             .as_ref()

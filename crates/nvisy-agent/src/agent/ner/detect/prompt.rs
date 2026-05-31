@@ -4,7 +4,9 @@
 //!
 //! 1. Open-ended discovery: find every sensitive entity in the
 //!    source text matching the configured `entity_kinds` (or all
-//!    kinds when empty), at or above `confidence_threshold`.
+//!    kinds when empty). Each candidate carries its own confidence;
+//!    threshold filtering happens later in the engine's
+//!    deduplication step, not in the prompt.
 //! 2. Per-hint adjudication: for each user-supplied [`NerHint`] in
 //!    [`LlmNerContext::hints`], either emit a candidate carrying
 //!    `hint_id = Some(<that hint's index>)` (confirming or
@@ -54,12 +56,8 @@ impl<'a> NerPromptBuilder<'a> {
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        let threshold = match self.config.confidence_threshold {
-            Some(t) => format!(" with minimum confidence {:.2}", t.get()),
-            None => String::new(),
-        };
         prompt.push_str(&format!(
-            "Detect entities of types [{types}]{threshold} in the following text. \
+            "Detect entities of types [{types}] in the following text. \
              Return a JSON object with an \"entities\" key whose value is an array of \
              candidates. Each candidate has keys: entity_id, category, entity_type, \
              value, confidence, context, description, hint_id."
@@ -187,30 +185,24 @@ fn ceil_char_boundary(s: &str, mut pos: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use nvisy_ontology::entity::EntityKind;
-    use nvisy_ontology::primitive::ConfidenceThreshold;
 
     use super::*;
     use crate::agent::NerHint;
 
     #[test]
-    fn renders_entity_kinds_and_threshold() {
+    fn renders_entity_kinds() {
         let config = LlmNerContext {
             entity_kinds: vec![EntityKind::PersonName, EntityKind::GovernmentId],
-            confidence_threshold: Some(ConfidenceThreshold::clamped(0.7)),
             ..Default::default()
         };
         let prompt = NerPromptBuilder::new(&config).build("Hello world");
         assert!(prompt.contains("person_name, government_id"));
-        assert!(prompt.contains("0.70"));
         assert!(prompt.contains("Hello world"));
     }
 
     #[test]
     fn renders_all_kinds_when_empty() {
-        let config = LlmNerContext {
-            confidence_threshold: Some(ConfidenceThreshold::clamped(0.5)),
-            ..Default::default()
-        };
+        let config = LlmNerContext::default();
         let prompt = NerPromptBuilder::new(&config).build("test");
         assert!(prompt.contains("all entity types"));
     }

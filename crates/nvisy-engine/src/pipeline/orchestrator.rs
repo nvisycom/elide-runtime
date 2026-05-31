@@ -18,44 +18,50 @@ use nvisy_ontology::modality::{Modality, Overlap};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
+use tracing::Instrument;
 
 use super::default::EngineInput;
-use crate::deduplication::{Deduplicator, FilterParams, SpanSize};
-use crate::detection::{Detect, DetectionEngine, LiftFromBlock, ProjectIntoBlock};
+use super::phase::{Phase, PhaseContext};
+use crate::deduplication::{DeduplicationPhase, SpanSize};
+use crate::detection::{
+    DetectDispatch, DetectionEngine, DetectionPhase, LiftFromBlock, ProjectIntoBlock,
+};
 use crate::envelope::value_at::ValueAt;
 use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData};
-use crate::extraction::{Extract, Extraction, Extractors, WorkflowSlice};
+use crate::extraction::{
+    ExtractDispatch, Extraction, ExtractionEngine, ExtractionPhase, WorkflowSlice,
+};
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
 };
-use crate::redaction::{ApplyRedactions, RedactionSection, Redactor};
-use crate::validation::{CheckLeaks, Validator};
+use crate::redaction::{ApplyRedactions, RedactionConfig, RedactionPhase};
+use crate::validation::{CheckLeaks, ValidationPhase};
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
 
 /// Per-run execution context shared across all document tasks.
-pub(super) struct RunContext {
+pub(crate) struct RunContext {
     /// Token to signal cancellation to all tasks.
-    pub(super) cancel: CancellationToken,
+    pub(crate) cancel: CancellationToken,
     /// Shared run-wide state: run ID, actor, registry, policies.
-    pub(super) shared: Arc<SharedData>,
+    pub(crate) shared: Arc<SharedData>,
     /// Pre-built extractor registry from `RuntimeConfig.extraction`.
     /// Shared across every run.
-    pub(super) extractors: Arc<Extractors>,
+    pub(crate) extraction_engine: Arc<ExtractionEngine>,
     /// Optional shared detection engine. `None` skips the
     /// detection phase entirely; set when the workflow's
     /// `Detection.kinds` is empty (redaction-only flows, no-op
     /// dry runs, test harnesses). See `pipeline/run.rs` —
     /// the engine is built lazily only when at least one
     /// recognizer kind is requested.
-    pub(super) detection_engine: Option<Arc<DetectionEngine>>,
+    pub(crate) detection_engine: Option<Arc<DetectionEngine>>,
     /// Server-wide redaction defaults from `RuntimeConfig.redaction`.
     /// Per-workflow `Redaction` fields fall back to these.
-    pub(super) redaction_section: Arc<RedactionSection>,
+    pub(crate) redaction_config: Arc<RedactionConfig>,
     /// Optional limit on how many documents may process concurrently.
-    pub(super) concurrency: Option<NonZeroUsize>,
+    pub(crate) concurrency: Option<NonZeroUsize>,
     /// When `true`, skip redaction, validation, and export phases.
-    pub(super) dry_run: bool,
+    pub(crate) dry_run: bool,
 }
 
 /// Result of processing a single document through the pipeline.
@@ -64,7 +70,7 @@ pub(super) struct RunContext {
 /// `Vec<DocumentResult>` can carry results across every modality the
 /// run produced.
 #[derive(Debug)]
-pub(super) struct DocumentResult {
+pub(crate) struct DocumentResult {
     /// The processed envelope, if the document completed successfully.
     pub envelope: Option<AnyEnvelope>,
     /// Error message if the document failed, `None` on success.
@@ -73,7 +79,7 @@ pub(super) struct DocumentResult {
 
 /// Aggregate outcome of executing the full pipeline.
 #[derive(Debug)]
-pub(super) struct RunOutput {
+pub(crate) struct RunOutput {
     /// Results from all processed documents.
     pub results: Vec<DocumentResult>,
 }
@@ -82,7 +88,7 @@ pub(super) struct RunOutput {
 ///
 /// Imports documents, fans them out to concurrent [`DocumentPipeline`]
 /// tasks, exports results, and collects outcomes.
-pub(super) struct Orchestrator {
+pub(crate) struct Orchestrator {
     ctx: Arc<RunContext>,
     semaphore: Option<Arc<Semaphore>>,
 }
@@ -242,9 +248,9 @@ async fn run_typed_pipeline<M, F>(
 ) -> DocumentResult
 where
     M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap + SpanSize + CheckLeaks,
-    Extractors: Extract<M>,
+    ExtractionEngine: ExtractDispatch<M>,
     Extraction: WorkflowSlice<M>,
-    DetectionEngine: Detect<M>,
+    DetectionEngine: DetectDispatch<M>,
     DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send + 'static,
     F: FnOnce(DocumentEnvelope<M>) -> AnyEnvelope + Send + 'static,
 {
@@ -276,67 +282,73 @@ where
 impl<M> DocumentPipeline<M>
 where
     M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap + SpanSize + CheckLeaks,
-    Extractors: Extract<M>,
+    ExtractionEngine: ExtractDispatch<M>,
     Extraction: WorkflowSlice<M>,
-    DetectionEngine: Detect<M>,
+    DetectionEngine: DetectDispatch<M>,
     DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send,
 {
-    /// Run extraction → detection → dedup → redaction → validation
-    /// → export for one envelope. Generic over modality; per-M
-    /// behaviour comes from the trait impls bounded above.
+    /// Walk the per-document phase sequence for one envelope.
+    ///
+    /// Phase order lives in [`Self::build_phases`]; the loop body
+    /// is `cancellation → tracing span → phase.run`. Export and
+    /// ingestion stay outside the `Phase<M>` Vec (see
+    /// [`crate::pipeline::phase`] module docs).
     async fn run(
         self,
         mut envelope: DocumentEnvelope<M>,
         plan: &EngineInput,
     ) -> Result<DocumentEnvelope<M>, Error> {
-        self.check_cancelled()?;
+        let phases = self.build_phases();
+        let ctx = PhaseContext::<M>::new(&self.ctx, plan);
 
-        // Extraction.
-        Extract::<M>::extract(
-            self.ctx.extractors.as_ref(),
-            &mut envelope,
-            plan.extraction.workflow_for::<M>(),
-        )
-        .await?;
-        self.check_cancelled()?;
-
-        // Detection.
-        if let Some(ref engine) = self.ctx.detection_engine {
-            Detect::<M>::detect(engine.as_ref(), &mut envelope, &plan.detection).await?;
+        for phase in &phases {
+            self.check_cancelled()?;
+            let info = phase.inspect();
+            let span = tracing::info_span!(
+                target: TARGET,
+                "phase",
+                name = info.name,
+                modality = info.modality.as_str(),
+                mutating = info.mutating,
+            );
+            phase.run(&ctx, &mut envelope).instrument(span).await?;
         }
         self.check_cancelled()?;
 
-        // Deduplication.
-        let dedup = Deduplicator::new(&plan.deduplication);
-        let params = FilterParams {
-            allowed_kinds: (!plan.detection.entity_kinds.is_empty())
-                .then(|| plan.detection.entity_kinds.clone()),
-            confidence_threshold: plan.detection.confidence_threshold,
-        };
-        dedup.execute(&mut envelope, &params).await?;
-        self.check_cancelled()?;
-
-        // Redaction.
-        if !self.ctx.dry_run {
-            Redactor::new(&plan.redaction, &self.ctx.redaction_section)
-                .execute(&mut envelope)
-                .await?;
-        }
-        self.check_cancelled()?;
-
-        // Validation (skipped in dry-run).
-        if !self.ctx.dry_run {
-            Validator::new(&plan.validation)
-                .execute(&mut envelope)
-                .await?;
-        }
-
-        // Export (skipped in dry-run).
+        // Export stays outside the Vec — it's read-only against the
+        // envelope and operates over a list of configs rather than
+        // the envelope shape itself.
         if !self.ctx.dry_run {
             self.run_exports(&plan.exports, &envelope).await?;
         }
 
         Ok(envelope)
+    }
+
+    /// Assemble the per-envelope phase sequence.
+    ///
+    /// Order is fixed: extraction → detection? → deduplication →
+    /// (redaction → validation)?. Detection is omitted when no
+    /// engine is configured; redaction and validation are omitted
+    /// on dry-run. Misordering a phase shows up as an edit to this
+    /// one function.
+    fn build_phases(&self) -> Vec<Box<dyn Phase<M>>> {
+        let mut phases: Vec<Box<dyn Phase<M>>> = Vec::with_capacity(5);
+
+        phases.push(Box::new(ExtractionPhase::<M>::new()));
+
+        if self.ctx.detection_engine.is_some() {
+            phases.push(Box::new(DetectionPhase::<M>::new()));
+        }
+
+        phases.push(Box::new(DeduplicationPhase::<M>::new()));
+
+        if !self.ctx.dry_run {
+            phases.push(Box::new(RedactionPhase::<M>::new()));
+            phases.push(Box::new(ValidationPhase::<M>::new()));
+        }
+
+        phases
     }
 
     /// Export the envelope to the registry under every configured

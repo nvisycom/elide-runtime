@@ -1,8 +1,8 @@
 //! Pipeline runtime configuration, typically deserialized from TOML.
 //!
 //! [`RuntimeConfig`] is the top-level configuration object containing
-//! optional subsystem sections — [`EngineSection`],
-//! [`ExtractionSection`], and [`DetectionSection`].
+//! optional subsystem sections — [`EngineConfig`],
+//! [`ExtractionConfig`], and [`DetectionConfig`].
 //!
 //! Per-request overrides are supported via [`RuntimeConfig::merge`],
 //! which replaces entire sections (not individual fields) when the
@@ -25,10 +25,10 @@ use std::num::NonZeroUsize;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-pub use self::engine::{CacheConfig, EngineSection, ResourceLimits};
-use crate::detection::DetectionSection;
-use crate::extraction::ExtractionSection;
-use crate::redaction::RedactionSection;
+pub use self::engine::{CacheConfig, EngineConfig, ResourceLimits};
+use crate::detection::DetectionConfig;
+use crate::extraction::ExtractionConfig;
+use crate::redaction::RedactionConfig;
 
 fn default_config_version() -> Version {
     Version::new(0, 1, 0)
@@ -53,21 +53,21 @@ pub struct RuntimeConfig {
     pub version: Version,
 
     /// Engine-level execution policies, networking, and resource limits.
-    pub engine: Option<EngineSection>,
+    pub engine: Option<EngineConfig>,
     /// Extraction registry — `[extraction.ocr]`, `[extraction.stt]`
     /// sub-sections. Built once at engine startup; the `Extraction`
     /// phase config carries per-call flags only.
-    pub extraction: Option<ExtractionSection>,
+    pub extraction: Option<ExtractionConfig>,
     /// Detection registry — `[detection.llm]`, `[detection.ner]`,
     /// `[detection.pattern]`, `[detection.vlm]` sub-sections. Built
     /// once at engine startup; the `Detection` phase config only
     /// references these by kind.
-    pub detection: Option<DetectionSection>,
+    pub detection: Option<DetectionConfig>,
     /// Deployment-wide redaction defaults — `[redaction]` section.
     /// Built once at engine startup; the per-workflow `Redaction`
     /// node falls back to these for any `None` fields. Per-request
     /// override is not supported.
-    pub redaction: Option<RedactionSection>,
+    pub redaction: Option<RedactionConfig>,
 }
 
 impl Default for RuntimeConfig {

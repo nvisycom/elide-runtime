@@ -10,16 +10,19 @@
 //! - `config`: [`RuntimeConfig`] and per-subsystem sections.
 //! - `run`: per-run lifecycle (`Pipeline`).
 //! - `orchestrator`: concurrent document processing through the plan.
+//! - `phase`: the `Phase<M>` trait every per-document step implements.
 //! - `runs`: in-memory run lifecycle tracking.
 
 mod config;
 mod default;
 mod orchestrator;
+mod phase;
 mod run;
 mod runs;
 
-pub use self::config::{CacheConfig, EngineSection, ResourceLimits, RuntimeConfig};
+pub use self::config::{CacheConfig, EngineConfig, ResourceLimits, RuntimeConfig};
 pub use self::default::{Engine, EngineInput, EngineOutput};
+pub use self::phase::{ModalityKind, Phase, PhaseContext, PhaseInfo};
 pub use self::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
     RunStatus,

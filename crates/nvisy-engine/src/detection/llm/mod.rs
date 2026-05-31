@@ -99,7 +99,6 @@ impl From<&DetectionContext> for LlmNerScanInput {
         Self {
             ctx: LlmNerContext {
                 entity_kinds: ctx.entities.clone().unwrap_or_default(),
-                confidence_threshold: ctx.score_threshold,
                 system_prompt: None,
                 hints: ctx.hints.clone(),
                 labels: ctx.labels.clone(),

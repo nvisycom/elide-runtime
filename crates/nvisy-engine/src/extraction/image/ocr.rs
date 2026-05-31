@@ -1,9 +1,9 @@
 //! [`OcrExtractor`]: pure OCR over image spans.
 //!
 //! Built once at engine startup from [`OcrExtractorConfig`] and
-//! shared across every run via [`Extractors`].
+//! shared across every run via [`ExtractionEngine`].
 //!
-//! [`Extractors`]: super::super::Extractors
+//! [`ExtractionEngine`]: super::super::ExtractionEngine
 
 use nvisy_codec::core::Located;
 use nvisy_codec::handler::ImageData;

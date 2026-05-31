@@ -117,9 +117,8 @@ enum PatternEngineRef {
 
 impl PatternEngineRef {
     fn from_config(cfg: &PatternDetection) -> Self {
-        let needs_custom = !cfg.patterns.is_empty()
-            || cfg.confidence_threshold.is_some()
-            || cfg.filter.as_ref().is_some_and(|f| !f.is_unconstrained());
+        let needs_custom =
+            !cfg.patterns.is_empty() || cfg.filter.as_ref().is_some_and(|f| !f.is_unconstrained());
         if !needs_custom {
             return Self::Shared(PatternEngine::instance());
         }
@@ -127,9 +126,6 @@ impl PatternEngineRef {
         if !cfg.patterns.is_empty() {
             let names: Vec<&str> = cfg.patterns.iter().map(String::as_str).collect();
             builder = builder.with_patterns(&names);
-        }
-        if let Some(threshold) = cfg.confidence_threshold {
-            builder = builder.with_confidence_threshold(threshold);
         }
         if let Some(ref filter) = cfg.filter {
             builder = builder.with_filter(filter.clone());

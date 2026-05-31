@@ -17,8 +17,7 @@ use nvisy_codec::handler::AudioOutput;
 use nvisy_codec::handler::ImageOutput;
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
-use nvisy_ontology::entity::is_excluded;
-use nvisy_ontology::modality::{Modality, Overlap, Text};
+use nvisy_ontology::modality::{Modality, Text};
 #[cfg(feature = "audio")]
 use nvisy_ontology::policy::AudioMethodTag;
 #[cfg(feature = "image")]
@@ -30,7 +29,6 @@ use nvisy_ontology::provenance::{
 };
 
 use super::apply;
-use super::section::RedactionSection;
 #[cfg(feature = "audio")]
 use super::strategy::to_audio_redaction;
 #[cfg(feature = "image")]
@@ -38,112 +36,14 @@ use super::strategy::to_image_redaction;
 use super::strategy::{to_tabular_redaction, to_text_redaction};
 use crate::envelope::value_at::ValueAt;
 use crate::envelope::{Decision, DocumentEnvelope};
-use crate::redaction::Redaction as RedactionConfig;
 
-const TARGET: &str = "nvisy_engine::redaction";
-
-/// Redaction operation: evaluates policies and applies redaction
-/// instructions to a modality-typed envelope.
-pub struct Redactor {
-    default_threshold: ConfidenceThreshold,
-    process_metadata: bool,
-}
-
-impl Redactor {
-    /// Build from workflow config + server-wide defaults.
-    pub fn new(cfg: &RedactionConfig, defaults: &RedactionSection) -> Self {
-        Self {
-            default_threshold: cfg
-                .confidence_threshold
-                .unwrap_or(defaults.confidence_threshold),
-            process_metadata: cfg.process_metadata.unwrap_or(defaults.process_metadata),
-        }
-    }
-
-    /// `true` when metadata stripping is enabled.
-    #[must_use]
-    pub fn process_metadata(&self) -> bool {
-        self.process_metadata
-    }
-
-    /// Threshold below which entities are skipped for redaction.
-    #[must_use]
-    pub fn default_threshold(&self) -> ConfidenceThreshold {
-        self.default_threshold
-    }
-
-    /// Evaluate policies, attach an [`AuditEntry<M>`] to each
-    /// [`EntityRecord<M>`] the policy chain decides on, then hand
-    /// off to the codec applicator.
-    ///
-    /// [`EntityRecord<M>`]: nvisy_ontology::provenance::EntityRecord
-    pub async fn execute<M>(&self, envelope: &mut DocumentEnvelope<M>) -> Result<()>
-    where
-        M: Modality + Overlap,
-        DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions,
-    {
-        if envelope.audit.records.is_empty() {
-            return Ok(());
-        }
-
-        // Drop entities that overlap an Assert-strength Exclusion
-        // annotation. Defence in depth: catches both well-meaning
-        // detectors and LLMs that ignored the exclusion-hint prompt.
-        let before_filter = envelope.audit.records.len();
-        let annotations = std::mem::take(&mut envelope.document.annotations);
-        envelope
-            .audit
-            .records
-            .retain(|record| !is_excluded(&annotations, &record.entity));
-        envelope.document.annotations = annotations;
-        let dropped = before_filter - envelope.audit.records.len();
-        if dropped > 0 {
-            tracing::debug!(
-                target: TARGET,
-                dropped,
-                "filtered entities by Assert exclusion annotations",
-            );
-        }
-
-        if envelope.audit.records.is_empty() {
-            return Ok(());
-        }
-
-        let metadata = envelope.metadata.clone();
-        let document_labels: Vec<&str> = envelope
-            .document
-            .labels
-            .iter()
-            .map(|l| l.label.as_str())
-            .collect();
-
-        let mut records = std::mem::take(&mut envelope.audit.records);
-        evaluate::<M>(
-            &mut records,
-            self.default_threshold,
-            &document_labels,
-            &metadata,
-            envelope,
-        )
-        .await;
-        envelope.audit.records = records;
-
-        tracing::debug!(
-            target: TARGET,
-            entries = envelope.audit.entries().count(),
-            "policy evaluation complete",
-        );
-
-        envelope.apply_pending().await?;
-        Ok(())
-    }
-}
+pub(crate) const TARGET: &str = "nvisy_engine::redaction";
 
 /// Per-modality applicator hook. Each modality envelope opts in via
 /// a thin impl that converts its [`Strategy`] to the codec wire
 /// type and forwards the assembled batch to the codec; the generic
-/// [`Redactor::execute`] above is parameterised over this so the
-/// apply path is shared.
+/// `RedactionPhase::run` is parameterised over this so the apply
+/// path is shared.
 ///
 /// [`Strategy`]: nvisy_ontology::modality::Modality::Strategy
 #[async_trait::async_trait]
@@ -308,7 +208,7 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
     }
 }
 
-async fn evaluate<M>(
+pub(crate) async fn evaluate<M>(
     records: &mut [EntityRecord<M>],
     default_threshold: ConfidenceThreshold,
     document_labels: &[&str],
@@ -389,6 +289,7 @@ mod tests {
     use semver::Version;
     use tokio::sync::Mutex;
 
+    use super::super::run_redaction;
     use super::*;
     use crate::envelope::SharedData;
 
@@ -464,13 +365,9 @@ mod tests {
     async fn skips_below_threshold_no_policies() {
         let mut env = text_envelope("john").await;
         seed_records(&mut env, vec![ent(0, 4, 0.4)]);
-        Redactor {
-            default_threshold: ConfidenceThreshold::clamped(0.8),
-            process_metadata: false,
-        }
-        .execute(&mut env)
-        .await
-        .expect("execute");
+        run_redaction(ConfidenceThreshold::clamped(0.8), &mut env)
+            .await
+            .expect("execute");
         assert_eq!(env.audit.entries().count(), 0);
     }
 
@@ -478,13 +375,9 @@ mod tests {
     async fn default_strategy_above_threshold() {
         let mut env = text_envelope("secret").await;
         seed_records(&mut env, vec![ent(0, 6, 0.9)]);
-        Redactor {
-            default_threshold: ConfidenceThreshold::clamped(0.5),
-            process_metadata: false,
-        }
-        .execute(&mut env)
-        .await
-        .expect("execute");
+        run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
+            .await
+            .expect("execute");
         assert_eq!(env.audit.entries().count(), 1);
         let entry = first_entry(&env);
         assert!(entry.decision.policy_id.is_none());
@@ -504,13 +397,9 @@ mod tests {
             .policies
             .set::<Text>(vec![policy]);
 
-        Redactor {
-            default_threshold: ConfidenceThreshold::clamped(0.5),
-            process_metadata: false,
-        }
-        .execute(&mut env)
-        .await
-        .expect("execute");
+        run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
+            .await
+            .expect("execute");
 
         assert_eq!(env.audit.entries().count(), 1);
         let entry = first_entry(&env);
@@ -533,13 +422,9 @@ mod tests {
             .policies
             .set::<Text>(vec![policy]);
 
-        Redactor {
-            default_threshold: ConfidenceThreshold::clamped(0.5),
-            process_metadata: false,
-        }
-        .execute(&mut env)
-        .await
-        .expect("execute");
+        run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
+            .await
+            .expect("execute");
 
         assert_eq!(env.audit.entries().count(), 1);
         assert!(matches!(first_entry(&env).execution, Execution::Suppressed));
@@ -561,13 +446,9 @@ mod tests {
             .policies
             .set::<Text>(vec![p_high, p_low]);
 
-        Redactor {
-            default_threshold: ConfidenceThreshold::clamped(0.5),
-            process_metadata: false,
-        }
-        .execute(&mut env)
-        .await
-        .expect("execute");
+        run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
+            .await
+            .expect("execute");
 
         let entry = first_entry(&env);
         assert_eq!(entry.decision.policy_id, Some(high_id));
@@ -599,13 +480,9 @@ mod tests {
             .policies
             .set::<Text>(vec![p_high, p_low]);
 
-        Redactor {
-            default_threshold: ConfidenceThreshold::clamped(0.5),
-            process_metadata: false,
-        }
-        .execute(&mut env)
-        .await
-        .expect("execute");
+        run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
+            .await
+            .expect("execute");
 
         let entry = first_entry(&env);
         assert_eq!(entry.decision.policy_id, Some(high_id));

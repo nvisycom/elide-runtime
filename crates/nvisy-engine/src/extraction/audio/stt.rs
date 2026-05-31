@@ -1,9 +1,9 @@
 //! [`SttExtractor`]: STT-based audio transcription.
 //!
 //! Built once at engine startup from [`SttExtractorConfig`] and
-//! shared across every run via [`Extractors`].
+//! shared across every run via [`ExtractionEngine`].
 //!
-//! [`Extractors`]: super::super::Extractors
+//! [`ExtractionEngine`]: super::super::ExtractionEngine
 
 use nvisy_agent::audio::SttProvider;
 use nvisy_agent::audio::stt::{SttConfig, SttService};

@@ -7,11 +7,11 @@
 //!
 //! The configuration is one per-modality struct per modality. The
 //! top-level [`Extraction`] aggregate holds all four; the per-modality
-//! [`Extract<M>`] impl picks its own slice via the [`Extract::Workflow`]
+//! [`ExtractDispatch<M>`] impl picks its own slice via the [`ExtractDispatch::Workflow`]
 //! associated type.
 //!
-//! [`Extract<M>`]: super::Extract
-//! [`Extract::Workflow`]: super::Extract::Workflow
+//! [`ExtractDispatch<M>`]: super::ExtractDispatch
+//! [`ExtractDispatch::Workflow`]: super::ExtractDispatch::Workflow
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -80,9 +80,9 @@ pub struct AudialWorkflow {
 ///
 /// Carries one per-modality workflow struct per modality. The
 /// orchestrator dispatches `&plan.extraction.<modality>` to the
-/// matching [`Extract<M>`] impl.
+/// matching [`ExtractDispatch<M>`] impl.
 ///
-/// [`Extract<M>`]: super::Extract
+/// [`ExtractDispatch<M>`]: super::ExtractDispatch
 #[derive(
     Debug,
     Clone,

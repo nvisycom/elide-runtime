@@ -4,7 +4,7 @@ mod fixtures;
 
 use std::time::Duration;
 
-use nvisy_engine::pipeline::{Engine, EngineSection, ResourceLimits, RuntimeConfig};
+use nvisy_engine::pipeline::{Engine, EngineConfig, ResourceLimits, RuntimeConfig};
 
 #[tokio::test]
 async fn temp_engine_points_to_temp_dir() {
@@ -24,7 +24,7 @@ async fn open_with_default_config() -> anyhow::Result<()> {
 async fn open_with_custom_limits() -> anyhow::Result<()> {
     let dir = tempfile::tempdir()?;
     let config = RuntimeConfig {
-        engine: Some(EngineSection {
+        engine: Some(EngineConfig {
             limits: ResourceLimits {
                 run_timeout: Some(Duration::from_secs(5)),
             },

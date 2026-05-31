@@ -23,13 +23,9 @@ impl<'a> VlmDetectPromptBuilder<'a> {
                 .collect::<Vec<_>>()
                 .join(", ")
         };
-        let threshold = match self.config.confidence_threshold {
-            Some(t) => format!(" with minimum confidence {:.2}", t.get()),
-            None => String::new(),
-        };
 
         let mut prompt = format!(
-            "Find every sensitive entity of types [{types}]{threshold} visible in the \
+            "Find every sensitive entity of types [{types}] visible in the \
              image below. Draw a tight bounding box around each. Return a JSON object \
              with an \"entities\" key whose value is an array of detections."
         );

@@ -54,7 +54,7 @@ pub struct CacheConfig {
 /// the operator. Per-request overrides apply only to fields
 /// explicitly noted as overridable.
 #[derive(Debug, Clone, Default, Validate, Serialize, Deserialize)]
-pub struct EngineSection {
+pub struct EngineConfig {
     /// Maximum number of documents processed in parallel via a
     /// shared [`Semaphore`]. Server-wide; not
     /// overridable per-request. `None` means unbounded.

@@ -2,7 +2,7 @@
 //!
 //! Today's only image extraction technique is OCR ([`ocr`]). Future
 //! techniques (e.g. layout segmentation, scene-text detection) would
-//! live as sibling sub-modules and stack inside this `Extract<Image>`
+//! live as sibling sub-modules and stack inside this `ExtractDispatch<Image>`
 //! impl.
 
 #[cfg(feature = "image")]
@@ -13,12 +13,12 @@ use nvisy_ontology::modality::Image;
 
 #[cfg(feature = "image")]
 pub use self::ocr::{OcrExtractor, OcrExtractorConfig};
-use super::{Extract, Extraction, Extractors, ImageWorkflow, WorkflowSlice};
+use super::{ExtractDispatch, Extraction, ExtractionEngine, ImageWorkflow, WorkflowSlice};
 use crate::envelope::DocumentEnvelope;
 
 #[cfg(feature = "image")]
 #[async_trait::async_trait]
-impl Extract<Image> for Extractors {
+impl ExtractDispatch<Image> for ExtractionEngine {
     type Workflow = ImageWorkflow;
 
     async fn extract(
@@ -35,7 +35,7 @@ impl Extract<Image> for Extractors {
 
 #[cfg(not(feature = "image"))]
 #[async_trait::async_trait]
-impl Extract<Image> for Extractors {
+impl ExtractDispatch<Image> for ExtractionEngine {
     type Workflow = ImageWorkflow;
 
     async fn extract(

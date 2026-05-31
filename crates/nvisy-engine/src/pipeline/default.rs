@@ -24,11 +24,11 @@ use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
 use crate::deduplication::DeduplicationParams;
 use crate::detection::{Detection, Recognizers};
-use crate::extraction::{Extraction, Extractors};
+use crate::extraction::{Extraction, ExtractionEngine};
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::Registry;
 use crate::ingestion::{ExportFile, ImportFile};
-use crate::redaction::{Redaction, RedactionSection};
+use crate::redaction::{Redaction, RedactionConfig};
 use crate::validation::Validation;
 
 /// Input required to execute a redaction pipeline.
@@ -95,12 +95,12 @@ pub(super) struct EngineInner {
     pub runtime_config: RuntimeConfig,
     /// Pre-built extractor registry, constructed once from
     /// `runtime_config.extraction` and shared across every run.
-    pub extractors: Arc<Extractors>,
+    pub extraction_engine: Arc<ExtractionEngine>,
     /// Pre-built recognizer registry, constructed once from
     /// `runtime_config.detection` and shared across every run.
     pub recognizers: Arc<Recognizers>,
     /// Server-wide redaction defaults shared across every run.
-    pub redaction_section: Arc<RedactionSection>,
+    pub redaction_config: Arc<RedactionConfig>,
     /// Content and context storage backend.
     pub registry: Registry,
     /// Encryption key provider for import/export decrypt/encrypt operations.
@@ -148,11 +148,11 @@ impl Engine {
     /// Returns an error if the registry database cannot be opened.
     pub async fn open(data_dir: impl AsRef<Path>, config: RuntimeConfig) -> Result<Self, Error> {
         let registry = Registry::open(data_dir.as_ref())?;
-        let extractors = Arc::new(
+        let extraction_engine = Arc::new(
             config
                 .extraction
                 .as_ref()
-                .map(Extractors::from_config)
+                .map(ExtractionEngine::from_config)
                 .transpose()?
                 .unwrap_or_default(),
         );
@@ -160,14 +160,14 @@ impl Engine {
             Some(section) => Recognizers::from_config(section).await?,
             None => Recognizers::default(),
         });
-        let redaction_section = Arc::new(config.redaction.clone().unwrap_or_default());
+        let redaction_config = Arc::new(config.redaction.clone().unwrap_or_default());
 
         Ok(Self {
             inner: Arc::new(EngineInner {
                 runtime_config: config,
-                extractors,
+                extraction_engine,
                 recognizers,
-                redaction_section,
+                redaction_config,
                 registry,
                 key_provider: None,
                 runs: RunState::new(),
@@ -231,9 +231,9 @@ impl Engine {
             self.inner.key_provider.clone(),
             self.inner.runs.clone(),
             self.inner.runtime_config.clone(),
-            Arc::clone(&self.inner.extractors),
+            Arc::clone(&self.inner.extraction_engine),
             Arc::clone(&self.inner.recognizers),
-            Arc::clone(&self.inner.redaction_section),
+            Arc::clone(&self.inner.redaction_config),
         )
     }
 

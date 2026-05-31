@@ -2,19 +2,21 @@
 //!
 //! Runs after detection. Combines multiple detection passes into a
 //! single, deduplicated set of entities with combined confidence
-//! scores.
+//! scores. Public surface is [`DeduplicationPhase`] +
+//! [`DeduplicationParams`]; the sub-step traits live in private
+//! submodules and are used only by the phase body.
 //!
-//! The deduplication pipeline:
+//! Pipeline order (inside `DeduplicationPhase::run`):
 //!
 //! 1. **Calibrate**: scale raw confidence scores using per-method
 //!    multipliers from [`CalibrationMap`].
-//! 2. **Group + fuse**: partition entities by kind, value, and
+//! 2. **Filter**: drop entities below the per-run confidence
+//!    threshold (and outside the workflow's allowed-kinds list).
+//! 3. **Group + fuse**: partition entities by kind, value, and
 //!    location overlap (per [`GroupingCriteria`]), then combine each
 //!    group into one entity using the [`DeduplicationStrategy`].
-//! 3. **Conflict resolution**: resolve cross-kind span overlaps per
+//! 4. **Conflict resolution**: resolve cross-kind span overlaps per
 //!    the configured [`ConflictResolution`] strategy.
-//! 4. **Threshold filter**: drop entities below the minimum
-//!    confidence threshold.
 
 mod calibrate;
 mod filter;
@@ -23,8 +25,10 @@ mod params;
 mod resolve;
 mod span_size;
 
+use std::marker::PhantomData;
 use std::mem;
 
+use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, Overlap};
@@ -42,68 +46,56 @@ use self::resolve::ResolveConflicts;
 pub use self::span_size::SpanSize;
 use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
+use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
 
 const TARGET: &str = "nvisy_engine::deduplication";
 
-/// Combined calibration, deduplication, conflict resolution, and
-/// threshold filtering operation.
+/// Deduplication phase: calibrate raw confidence scores, filter
+/// below-threshold or wrong-kind entities, group + fuse overlapping
+/// matches, then resolve cross-kind conflicts.
 ///
-/// Created from the [`DeduplicationParams`] workflow configuration.
-pub struct Deduplicator {
-    grouping: GroupingCriteria,
-    strategy: DeduplicationStrategy,
-    calibration: CalibrationMap,
-    conflict_resolution: ConflictResolution,
+/// Stateless beyond the modality marker; per-run config
+/// ([`DeduplicationParams`] for calibration/threshold/grouping,
+/// [`Detection`] for the allowed-kinds list) comes from `ctx.plan`
+/// each call.
+///
+/// [`Detection`]: crate::detection::Detection
+pub struct DeduplicationPhase<M: Modality> {
+    _marker: PhantomData<fn() -> M>,
 }
 
-impl Deduplicator {
-    /// Create from a [`DeduplicationParams`] workflow config.
-    pub fn new(cfg: &DeduplicationParams) -> Self {
-        tracing::debug!(
-            target: TARGET,
-            grouping = ?cfg.grouping,
-            strategy = ?cfg.strategy,
-            calibration_methods = cfg.calibration.len(),
-            conflict_resolution = ?cfg.conflict_resolution,
-            "creating deduplication operation",
-        );
+impl<M: Modality> DeduplicationPhase<M> {
+    /// Build the phase. Stateless beyond the modality marker.
+    pub fn new() -> Self {
         Self {
-            grouping: cfg.grouping,
-            strategy: cfg.strategy.clone(),
-            calibration: cfg.calibration.clone(),
-            conflict_resolution: cfg.conflict_resolution,
+            _marker: PhantomData,
         }
     }
 
-    /// Run the full deduplication pipeline.
-    pub(crate) async fn deduplicate<M>(
-        &self,
+    /// Run the four-step pipeline against an owned entity list.
+    /// Shared by [`Phase::run`] and the test harness so both go
+    /// through the same code path.
+    pub(crate) async fn deduplicate(
+        params: &DeduplicationParams,
+        filter: &FilterParams,
         mut entities: Vec<Entity<M>>,
         envelope: &DocumentEnvelope<M>,
-        params: &FilterParams,
     ) -> Vec<Entity<M>>
     where
-        M: Modality + Overlap + SpanSize,
+        M: Overlap + SpanSize,
         DocumentEnvelope<M>: ValueAt<M>,
     {
         if entities.is_empty() {
             return entities;
         }
-
         let before = entities.len();
 
-        // Step 1: calibrate raw confidence scores.
-        entities.calibrate(&self.calibration);
-
-        // Step 2: filter by operator-supplied (or engine-default)
-        // params on the calibrated score.
-        let dropped = entities.filter(params);
-
-        // Step 3: group + fuse.
-        entities.fuse(&self.strategy, self.grouping, envelope).await;
-
-        // Step 4: resolve cross-kind span conflicts.
-        let _conflict_dropped = entities.resolve_conflicts(&self.conflict_resolution);
+        entities.calibrate(&params.calibration);
+        let dropped = entities.filter(filter);
+        entities
+            .fuse(&params.strategy, params.grouping, envelope)
+            .await;
+        let _conflict_dropped = entities.resolve_conflicts(&params.conflict_resolution);
 
         tracing::info!(
             target: TARGET,
@@ -116,31 +108,58 @@ impl Deduplicator {
 
         entities
     }
+}
 
-    /// Execute deduplication against the envelope's entities.
-    pub async fn execute<M>(
-        &self,
-        envelope: &mut DocumentEnvelope<M>,
-        params: &FilterParams,
-    ) -> Result<()>
-    where
-        M: Modality + Overlap + SpanSize,
-        DocumentEnvelope<M>: ValueAt<M>,
-    {
-        if !envelope.audit.records.is_empty() {
-            tracing::debug!(
-                target: TARGET,
-                entities = envelope.audit.records.len(),
-                "running deduplication",
-            );
-            // Dedup runs before redaction evaluation, so every
-            // record's `audit` is still None; we can pull entities
-            // out, dedup, and rewrap without losing audit state.
-            let records = mem::take(&mut envelope.audit.records);
-            let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
-            let deduped = self.deduplicate(entities, envelope, params).await;
-            envelope.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
+impl<M: Modality> Default for DeduplicationPhase<M> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl<M> Phase<M> for DeduplicationPhase<M>
+where
+    M: Modality + Overlap + SpanSize,
+    DocumentEnvelope<M>: ValueAt<M>,
+{
+    fn inspect(&self) -> PhaseInfo {
+        PhaseInfo {
+            name: "deduplication",
+            modality: ModalityKind::of::<M>(),
+            mutating: true,
         }
+    }
+
+    async fn run(
+        &self,
+        ctx: &PhaseContext<'_, M>,
+        envelope: &mut DocumentEnvelope<M>,
+    ) -> Result<()> {
+        if envelope.audit.records.is_empty() {
+            return Ok(());
+        }
+
+        let detection = &ctx.plan.detection;
+        let dedup = &ctx.plan.deduplication;
+        let filter = FilterParams {
+            allowed_kinds: (!detection.entity_kinds.is_empty())
+                .then(|| detection.entity_kinds.clone()),
+            confidence_threshold: dedup.confidence_threshold,
+        };
+
+        tracing::debug!(
+            target: TARGET,
+            entities = envelope.audit.records.len(),
+            "running deduplication",
+        );
+
+        // Dedup runs before redaction evaluation, so every record's
+        // `audit` is still None; we can pull entities out, dedup, and
+        // rewrap without losing audit state.
+        let records = mem::take(&mut envelope.audit.records);
+        let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
+        let deduped = Self::deduplicate(&ctx.plan.deduplication, &filter, entities, envelope).await;
+        envelope.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
         Ok(())
     }
 }
@@ -188,18 +207,23 @@ mod tests {
     #[tokio::test]
     async fn confidence_threshold_filters() {
         let doc = test_envelope("John......Jane").await;
-        let op = Deduplicator::new(&DeduplicationParams::default());
+        let filter = FilterParams {
+            confidence_threshold: Some(ConfidenceThreshold::clamped(0.85)),
+            ..Default::default()
+        };
         let entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 4).test_build(),
             Entity::test_builder(10, 14)
                 .with_confidence(conf(0.5))
                 .test_build(),
         ];
-        let params = FilterParams {
-            confidence_threshold: Some(ConfidenceThreshold::clamped(0.85)),
-            ..Default::default()
-        };
-        let result = op.deduplicate(entities, &doc, &params).await;
+        let result = DeduplicationPhase::<Text>::deduplicate(
+            &DeduplicationParams::default(),
+            &filter,
+            entities,
+            &doc,
+        )
+        .await;
         assert_eq!(result.len(), 1);
         let value = doc.value_at(&result[0].location).await;
         assert_eq!(value.as_deref(), Some("John"));
@@ -208,7 +232,6 @@ mod tests {
     #[tokio::test]
     async fn full_pipeline() {
         let doc = test_envelope(TEST_TEXT).await;
-        let op = Deduplicator::new(&DeduplicationParams::default());
         let entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
@@ -224,9 +247,13 @@ mod tests {
                 .with_confidence(conf(0.85))
                 .test_build(),
         ];
-        let result = op
-            .deduplicate(entities, &doc, &FilterParams::default())
-            .await;
+        let result = DeduplicationPhase::<Text>::deduplicate(
+            &DeduplicationParams::default(),
+            &FilterParams::default(),
+            entities,
+            &doc,
+        )
+        .await;
         assert_eq!(result.len(), 1);
         assert!((result[0].confidence.get() - 0.85).abs() < f64::EPSILON);
     }

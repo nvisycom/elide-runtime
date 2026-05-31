@@ -25,6 +25,7 @@ mod plan;
 mod policy_store;
 mod shared;
 mod target;
+mod tree;
 
 pub use self::context::RunContext;
 pub use self::phase::{ModalityKind, Phase, PhaseContext, PhaseInfo};
@@ -33,3 +34,4 @@ pub(crate) use self::policy_store::Decision;
 pub use self::policy_store::PolicyStore;
 pub use self::shared::SharedData;
 pub use self::target::{PhaseTarget, SharedHandle, ValueAt};
+pub use self::tree::{AnyDocument, DocumentTree, NodeMut};

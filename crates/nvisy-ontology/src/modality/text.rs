@@ -157,7 +157,6 @@ impl TextContent {
 ///
 /// [`Phase<M>`]: https://docs.rs/nvisy-engine/latest/nvisy_engine/pipeline/trait.Phase.html
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub enum EmbeddedDocument {
     /// A nested image document (e.g. a PDF figure or DOCX picture).
     Image(Document<Image>),

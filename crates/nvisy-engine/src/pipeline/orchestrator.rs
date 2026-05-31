@@ -14,7 +14,7 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_core::Error;
-use nvisy_ontology::modality::{Audio, Image, Modality, Overlap, Tabular, Text};
+use nvisy_ontology::modality::{Modality, Overlap};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -198,6 +198,11 @@ impl Orchestrator {
 /// (`Extract<M>`, `Detect<M>`, `ApplyRedactions`, `CheckLeaks`,
 /// `LiftFromBlock`, `ProjectIntoBlock`, `SpanSize`, `Overlap`,
 /// `ValueAt<M>`); the stage methods themselves are modality-agnostic.
+///
+/// The pipeline body lives on a single inherent
+/// [`DocumentPipeline::run`] (rather than behind a per-modality
+/// dispatch trait): every modality runs the same sequence today
+/// and the trait dance bought no per-`M` customization.
 struct DocumentPipeline<M: Modality> {
     ctx: Arc<RunContext>,
     _marker: PhantomData<fn() -> M>,
@@ -221,22 +226,6 @@ impl<M: Modality> DocumentPipeline<M> {
     }
 }
 
-/// Per-modality pipeline execution.
-///
-/// Each modality has its own monomorphized pipeline body — text runs
-/// every stage today; image/audio/tabular grow stage bodies in
-/// later Scope C steps. The orchestrator's dispatch loop calls into
-/// the right specialization through this trait without spelling out
-/// every variant by hand.
-#[async_trait::async_trait]
-trait RunPipeline<M: Modality>: Sized {
-    async fn run(
-        self,
-        envelope: DocumentEnvelope<M>,
-        plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<M>, Error>;
-}
-
 /// Spawn-able task that runs the per-modality pipeline and wraps the
 /// result back into [`AnyEnvelope`] for the orchestrator's results
 /// vector.
@@ -252,9 +241,11 @@ async fn run_typed_pipeline<M, F>(
     wrap: F,
 ) -> DocumentResult
 where
-    M: Modality,
-    DocumentPipeline<M>: RunPipeline<M>,
-    DocumentEnvelope<M>: Send + 'static,
+    M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap + SpanSize + CheckLeaks,
+    Extractors: Extract<M>,
+    Extraction: WorkflowSlice<M>,
+    DetectionEngine: Detect<M>,
+    DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send + 'static,
     F: FnOnce(DocumentEnvelope<M>) -> AnyEnvelope + Send + 'static,
 {
     let _permit = match sem {
@@ -293,7 +284,7 @@ where
     /// Run extraction → detection → dedup → redaction → validation
     /// → export for one envelope. Generic over modality; per-M
     /// behaviour comes from the trait impls bounded above.
-    async fn run_full(
+    async fn run(
         self,
         mut envelope: DocumentEnvelope<M>,
         plan: &EngineInput,
@@ -363,49 +354,5 @@ where
             exporter.export(envelope).await?;
         }
         Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl RunPipeline<Text> for DocumentPipeline<Text> {
-    async fn run(
-        self,
-        envelope: DocumentEnvelope<Text>,
-        plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<Text>, Error> {
-        self.run_full(envelope, plan).await
-    }
-}
-
-#[async_trait::async_trait]
-impl RunPipeline<Tabular> for DocumentPipeline<Tabular> {
-    async fn run(
-        self,
-        envelope: DocumentEnvelope<Tabular>,
-        plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<Tabular>, Error> {
-        self.run_full(envelope, plan).await
-    }
-}
-
-#[async_trait::async_trait]
-impl RunPipeline<Image> for DocumentPipeline<Image> {
-    async fn run(
-        self,
-        envelope: DocumentEnvelope<Image>,
-        plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<Image>, Error> {
-        self.run_full(envelope, plan).await
-    }
-}
-
-#[async_trait::async_trait]
-impl RunPipeline<Audio> for DocumentPipeline<Audio> {
-    async fn run(
-        self,
-        envelope: DocumentEnvelope<Audio>,
-        plan: &EngineInput,
-    ) -> Result<DocumentEnvelope<Audio>, Error> {
-        self.run_full(envelope, plan).await
     }
 }

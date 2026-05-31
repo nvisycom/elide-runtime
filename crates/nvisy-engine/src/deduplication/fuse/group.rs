@@ -21,7 +21,6 @@ use serde::{Deserialize, Serialize};
 
 use super::key::GroupKey;
 use crate::core::ValueAt;
-use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::group_entities";
 
@@ -82,22 +81,21 @@ pub(super) trait GroupEntities<M: Modality> {
     /// Each returned `Vec<Entity>` contains entities that share the same
     /// kind/value (per the criteria) and overlap in location (unless the
     /// criteria ignores location).
-    fn group(
+    fn group<V: ValueAt<M> + ?Sized>(
         self,
         criteria: GroupingCriteria,
-        target: &PhaseTarget<'_, M>,
+        view: &V,
     ) -> impl Future<Output = Vec<Vec<Entity<M>>>> + Send;
 }
 
 impl<M> GroupEntities<M> for Vec<Entity<M>>
 where
     M: Modality + Overlap,
-    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
 {
-    async fn group(
+    async fn group<V: ValueAt<M> + ?Sized>(
         self,
         criteria: GroupingCriteria,
-        target: &PhaseTarget<'_, M>,
+        view: &V,
     ) -> Vec<Vec<Entity<M>>> {
         let check_overlap = criteria.requires_location_overlap();
         let is_substring = criteria.is_substring();
@@ -106,7 +104,7 @@ where
         // Phase 1: bucket by (kind, value).
         let mut buckets: HashMap<GroupKey, Vec<Entity<M>>> = HashMap::new();
         for entity in self {
-            let key = GroupKey::new(&entity, criteria, target).await;
+            let key = GroupKey::new(&entity, criteria, view).await;
             buckets.entry(key).or_default().push(entity);
         }
 
@@ -164,8 +162,8 @@ where
                         let mut any_value_match = false;
                         for a in &groups[indices[i]] {
                             for b in &groups[indices[j]] {
-                                let va = target.value_at(&a.location).await;
-                                let vb = target.value_at(&b.location).await;
+                                let va = view.value_at(&a.location).await;
+                                let vb = view.value_at(&b.location).await;
                                 if let (Some(va), Some(vb)) = (va.as_deref(), vb.as_deref())
                                     && criteria.values_match(va, vb)
                                 {

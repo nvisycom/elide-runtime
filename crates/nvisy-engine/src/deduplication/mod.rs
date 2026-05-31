@@ -43,7 +43,7 @@ pub use self::params::DeduplicationParams;
 pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
 pub use self::span_size::SpanSize;
-use crate::core::ValueAt;
+use crate::core::{DocView, SharedHandle};
 use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
 
 const TARGET: &str = "nvisy_engine::deduplication";
@@ -77,21 +77,23 @@ impl<M: Modality> DeduplicationPhase<M> {
         params: &DeduplicationParams,
         filter: &FilterParams,
         mut entities: Vec<Entity<M>>,
-        target: &PhaseTarget<'_, M>,
+        doc: &nvisy_ontology::document::Document<M>,
+        handle: &SharedHandle,
     ) -> Vec<Entity<M>>
     where
         M: Overlap + SpanSize,
-        for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+        for<'a> DocView<'a, M>: crate::core::ValueAt<M>,
     {
         if entities.is_empty() {
             return entities;
         }
         let before = entities.len();
 
+        let view = DocView::new(doc, handle);
         entities.calibrate(&params.calibration);
         let dropped = entities.filter(filter);
         entities
-            .fuse(&params.strategy, params.grouping, target)
+            .fuse(&params.strategy, params.grouping, &view)
             .await;
         let _conflict_dropped = entities.resolve_conflicts(&params.conflict_resolution);
 
@@ -118,7 +120,7 @@ impl<M: Modality> Default for DeduplicationPhase<M> {
 impl<M> Phase<M> for DeduplicationPhase<M>
 where
     M: Modality + Overlap + SpanSize,
-    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    for<'a> DocView<'a, M>: crate::core::ValueAt<M>,
 {
     fn inspect(&self) -> PhaseInfo {
         PhaseInfo {
@@ -152,7 +154,14 @@ where
         // rewrap without losing audit state.
         let records = mem::take(&mut target.doc.audit.records);
         let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
-        let deduped = Self::deduplicate(&ctx.plan.deduplication, &filter, entities, target).await;
+        let deduped = Self::deduplicate(
+            &ctx.plan.deduplication,
+            &filter,
+            entities,
+            target.doc,
+            target.handle,
+        )
+        .await;
         target.doc.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
         Ok(())
     }
@@ -162,7 +171,6 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use nvisy_core::content::ContentMetadata;
     use nvisy_ontology::document::Document;
     use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod};
     use nvisy_ontology::modality::{Text, TextExtraction, TextMetadata};
@@ -170,7 +178,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::core::{SharedData, SharedHandle};
+    use crate::core::{SharedHandle, ValueAt};
 
     fn conf(v: f64) -> Confidence {
         Confidence::new(v).expect("confidence in [0,1]")
@@ -178,32 +186,13 @@ mod tests {
 
     const TEST_TEXT: &str = "John Smith";
 
-    /// Owned per-test components used to build a [`PhaseTarget`].
+    /// Owned per-test components used to drive the dedup pipeline.
     struct Fixture {
         handle: SharedHandle,
         doc: Document<Text>,
-        metadata: ContentMetadata,
-        shared: Arc<SharedData>,
-    }
-
-    impl Fixture {
-        fn target(&mut self) -> PhaseTarget<'_, Text> {
-            PhaseTarget::<Text>::new(
-                &mut self.doc,
-                &self.handle,
-                uuid::Uuid::nil(),
-                &self.metadata,
-                &self.shared,
-            )
-        }
     }
 
     async fn test_fixture(text: &str) -> Fixture {
-        let registry = crate::ingestion::registry::Registry::open(
-            tempfile::tempdir().expect("tempdir").path(),
-        )
-        .expect("open registry");
-        let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
         let handle: SharedHandle = Arc::new(Mutex::new(
             nvisy_formats::test_utils::decode_text(text)
                 .await
@@ -217,17 +206,12 @@ mod tests {
             },
             source,
         );
-        Fixture {
-            handle,
-            doc,
-            metadata: ContentMetadata::new().with_content_type("text/plain"),
-            shared,
-        }
+        Fixture { handle, doc }
     }
 
     #[tokio::test]
     async fn confidence_threshold_filters() {
-        let mut fix = test_fixture("John......Jane").await;
+        let fix = test_fixture("John......Jane").await;
         let filter = FilterParams {
             confidence_threshold: Some(ConfidenceThreshold::clamped(0.85)),
             ..Default::default()
@@ -238,22 +222,23 @@ mod tests {
                 .with_confidence(conf(0.5))
                 .test_build(),
         ];
-        let target = fix.target();
         let result = DeduplicationPhase::<Text>::deduplicate(
             &DeduplicationParams::default(),
             &filter,
             entities,
-            &target,
+            &fix.doc,
+            &fix.handle,
         )
         .await;
         assert_eq!(result.len(), 1);
-        let value = target.value_at(&result[0].location).await;
+        let view = DocView::new(&fix.doc, &fix.handle);
+        let value = view.value_at(&result[0].location).await;
         assert_eq!(value.as_deref(), Some("John"));
     }
 
     #[tokio::test]
     async fn full_pipeline() {
-        let mut fix = test_fixture(TEST_TEXT).await;
+        let fix = test_fixture(TEST_TEXT).await;
         let entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
@@ -269,12 +254,12 @@ mod tests {
                 .with_confidence(conf(0.85))
                 .test_build(),
         ];
-        let target = fix.target();
         let result = DeduplicationPhase::<Text>::deduplicate(
             &DeduplicationParams::default(),
             &FilterParams::default(),
             entities,
-            &target,
+            &fix.doc,
+            &fix.handle,
         )
         .await;
         assert_eq!(result.len(), 1);

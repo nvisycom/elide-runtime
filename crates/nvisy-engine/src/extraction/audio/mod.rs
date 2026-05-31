@@ -23,7 +23,8 @@ impl ExtractDispatch<Audio> for ExtractionEngine {
 
     async fn extract(&self, target: &mut PhaseTarget<'_, Audio>, plan: &AudioPlan) -> Result<()> {
         if let Some(ref stt) = self.stt {
-            stt.run(target, plan.diarization).await?;
+            stt.run(target.doc, target.handle, target.metadata, plan.diarization)
+                .await?;
         }
         Ok(())
     }

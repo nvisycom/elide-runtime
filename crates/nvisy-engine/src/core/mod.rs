@@ -33,5 +33,5 @@ pub use self::plan::Plan;
 pub(crate) use self::policy_store::Decision;
 pub use self::policy_store::PolicyStore;
 pub use self::shared::SharedData;
-pub use self::target::{PhaseTarget, SharedHandle, ValueAt};
+pub use self::target::{DocView, PhaseTarget, SharedHandle, ValueAt};
 pub use self::tree::{AnyDocument, DocumentTree, NodeMut};

@@ -255,25 +255,25 @@ impl fmt::Debug for DetectionEngine {
 /// only and skips embeds via `scan_text` returning `None`.
 ///
 /// [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
-async fn detect_text_blocks<M>(
+pub(crate) async fn detect_text_blocks<M>(
     engine: &DetectionEngine,
-    target: &mut PhaseTarget<'_, M>,
+    doc: &mut nvisy_ontology::document::Document<M>,
     cfg: &Detection,
+    run_id: uuid::Uuid,
 ) -> Result<()>
 where
     M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap,
 {
-    if engine.text.is_empty() || target.doc.blocks.is_empty() {
+    if engine.text.is_empty() || doc.blocks.is_empty() {
         return Ok(());
     }
 
-    let run_id = target.run_id;
     let mut lifted: Vec<Entity<M>> = Vec::new();
     let mut scanned_blocks = 0usize;
 
-    let labels: Vec<String> = target.doc.labels.iter().map(|l| l.label.clone()).collect();
+    let labels: Vec<String> = doc.labels.iter().map(|l| l.label.clone()).collect();
 
-    for block in &target.doc.blocks {
+    for block in &doc.blocks {
         let Some(text) = block.kind.scan_text() else {
             continue;
         };
@@ -282,7 +282,7 @@ where
         }
         scanned_blocks += 1;
 
-        let hints = collect_hints_for_block::<M>(&target.doc.annotations, &block.spans);
+        let hints = collect_hints_for_block::<M>(&doc.annotations, &block.spans);
 
         let mut ctx = DetectionContext::new(text.to_owned());
         ctx.correlation_id = Some(run_id);
@@ -324,28 +324,28 @@ where
         blocks = scanned_blocks,
         "appending text-detected entities",
     );
-    target.doc.add_entities(lifted);
+    doc.add_entities(lifted);
     Ok(())
 }
 
 #[async_trait::async_trait]
 impl DetectDispatch<Text> for DetectionEngine {
     async fn detect(&self, target: &mut PhaseTarget<'_, Text>, cfg: &Detection) -> Result<()> {
-        self.detect_text_only(target, cfg).await
+        self.detect_text_only(target.doc, cfg, target.run_id).await
     }
 }
 
 #[async_trait::async_trait]
 impl DetectDispatch<Tabular> for DetectionEngine {
     async fn detect(&self, target: &mut PhaseTarget<'_, Tabular>, cfg: &Detection) -> Result<()> {
-        self.detect_text_only(target, cfg).await
+        self.detect_text_only(target.doc, cfg, target.run_id).await
     }
 }
 
 #[async_trait::async_trait]
 impl DetectDispatch<Audio> for DetectionEngine {
     async fn detect(&self, target: &mut PhaseTarget<'_, Audio>, cfg: &Detection) -> Result<()> {
-        self.detect_text_only(target, cfg).await
+        self.detect_text_only(target.doc, cfg, target.run_id).await
     }
 }
 
@@ -357,8 +357,9 @@ impl DetectDispatch<Image> for DetectionEngine {
         // image-side recognizers), then image recognizers run once per
         // image location with raw bytes — they emit absolute
         // image-coord Entity<Image> directly, no per-block lifting.
-        detect_text_blocks(self, target, cfg).await?;
-        self.detect_image_locations(target, cfg).await?;
+        detect_text_blocks(self, target.doc, cfg, target.run_id).await?;
+        self.detect_image_locations(target.doc, target.handle, cfg, target.run_id)
+            .await?;
         self.reset().await;
         Ok(())
     }
@@ -368,23 +369,24 @@ impl DetectDispatch<Image> for DetectionEngine {
 #[async_trait::async_trait]
 impl DetectDispatch<Image> for DetectionEngine {
     async fn detect(&self, target: &mut PhaseTarget<'_, Image>, cfg: &Detection) -> Result<()> {
-        self.detect_text_only(target, cfg).await
+        self.detect_text_only(target.doc, cfg, target.run_id).await
     }
 }
 
 impl DetectionEngine {
-    /// Run text recognizers over every block in the target and
-    /// reset per-document state. Shared by every modality whose
-    /// detection is purely text-based.
-    async fn detect_text_only<M>(
+    /// Run text recognizers over every block in `doc` and reset
+    /// per-document state. Shared by every modality whose detection
+    /// is purely text-based.
+    pub(crate) async fn detect_text_only<M>(
         &self,
-        target: &mut PhaseTarget<'_, M>,
+        doc: &mut nvisy_ontology::document::Document<M>,
         cfg: &Detection,
+        run_id: uuid::Uuid,
     ) -> Result<()>
     where
         M: Modality + LiftFromBlock + ProjectIntoBlock + Overlap,
     {
-        detect_text_blocks(self, target, cfg).await?;
+        detect_text_blocks(self, doc, cfg, run_id).await?;
         self.reset().await;
         Ok(())
     }
@@ -401,29 +403,25 @@ impl DetectionEngine {
     /// borrowing the outer envelope's handle, so this body never
     /// has to know whether it's looking at root or nested.
     #[cfg(feature = "image")]
-    async fn detect_image_locations(
+    pub(crate) async fn detect_image_locations(
         &self,
-        target: &mut PhaseTarget<'_, Image>,
+        doc: &mut nvisy_ontology::document::Document<Image>,
+        handle: &crate::core::SharedHandle,
         cfg: &Detection,
+        run_id: uuid::Uuid,
     ) -> Result<()> {
         if self.image.is_empty() {
             return Ok(());
         }
 
-        let labels: Vec<String> = target.doc.labels.iter().map(|l| l.label.clone()).collect();
+        let labels: Vec<String> = doc.labels.iter().map(|l| l.label.clone()).collect();
         let locations: Vec<_> = {
             use futures::StreamExt;
-            target.handle.lock().await.image_locations().collect().await
+            handle.lock().await.image_locations().collect().await
         };
         let mut detected_total = 0usize;
         for located in locations {
-            let Some(image_data) = target
-                .handle
-                .lock()
-                .await
-                .read_image(&located.location)
-                .await
-            else {
+            let Some(image_data) = handle.lock().await.read_image(&located.location).await else {
                 continue;
             };
             let dims = image_data.dimensions();
@@ -432,7 +430,7 @@ impl DetectionEngine {
             })?;
 
             let mut ctx = VlmDetectionContext::new(bytes, dims);
-            ctx.correlation_id = Some(target.run_id);
+            ctx.correlation_id = Some(run_id);
             if !cfg.entity_kinds.is_empty() {
                 ctx.entities = Some(cfg.entity_kinds.clone());
             }
@@ -440,7 +438,7 @@ impl DetectionEngine {
 
             let detected = self.run_image(ctx).await?;
             detected_total += detected.len();
-            target.doc.add_entities(detected);
+            doc.add_entities(detected);
         }
 
         tracing::debug!(

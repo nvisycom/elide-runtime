@@ -225,6 +225,7 @@ where
     DetectionEngine: DetectDispatch<M>,
     DocumentEnvelope<M>: Send + 'static,
     for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    for<'a> crate::core::DocView<'a, M>: ValueAt<M>,
     ApplyRedactionsImpl: ApplyRedactions<M>,
     F: FnOnce(DocumentEnvelope<M>) -> AnyEnvelope + Send + 'static,
 {
@@ -261,6 +262,7 @@ where
     DetectionEngine: DetectDispatch<M>,
     DocumentEnvelope<M>: Send,
     for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    for<'a> crate::core::DocView<'a, M>: ValueAt<M>,
     ApplyRedactionsImpl: ApplyRedactions<M>,
 {
     /// Walk the per-document phase sequence for one envelope.

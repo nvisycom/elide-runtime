@@ -21,9 +21,7 @@
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::document::Document;
-use nvisy_ontology::modality::{
-    Audio, EmbeddedDocument, Image, Tabular, Text, TextBlock,
-};
+use nvisy_ontology::modality::{Audio, EmbeddedDocument, Image, Tabular, Text, TextBlock};
 
 use super::SharedHandle;
 

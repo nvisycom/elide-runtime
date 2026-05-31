@@ -48,17 +48,39 @@ pub type SharedHandle = Arc<Mutex<DocumentHandle>>;
 /// Resolve a location of modality `M` to the corresponding source
 /// text, for any per-call surface that knows how to look it up.
 ///
-/// Today the only implementor is [`PhaseTarget<'_, M>`] (one impl
-/// per modality, below). The trait is kept rather than inlined as
-/// inherent methods so generic phase code (dedup, redaction,
-/// validation) can bound over `for<'a> PhaseTarget<'a, M>: ValueAt<M>`
-/// and dispatch uniformly.
+/// Implemented by both [`PhaseTarget<'_, M>`] (the per-call view a
+/// phase mutates) and [`DocView<'_, M>`] (a read-only doc+handle
+/// pair). Generic phase code (dedup, redaction, validation) bounds
+/// over `&impl ValueAt<M>` and dispatches uniformly.
 #[async_trait::async_trait]
 pub trait ValueAt<M: Modality>: Sync {
     /// Resolve a location to its source text representation, or
     /// `None` if the underlying handle / extraction document has
     /// nothing at that location.
     async fn value_at(&self, location: &M) -> Option<String>;
+}
+
+/// Read-only view over `(doc, handle)` carrying the per-modality
+/// [`ValueAt`] impls. Phase bodies that don't need the full
+/// [`PhaseTarget`] surface (run id, metadata, shared) take a
+/// `&DocView<'_, M>` so they're decoupled from the orchestrator's
+/// per-call envelope shape.
+pub struct DocView<'a, M: Modality> {
+    /// The document the value resolver reads from. For image/audio
+    /// modalities this is the source of the recognised text (no
+    /// handle lookup); for text/tabular the handle is consulted.
+    pub doc: &'a Document<M>,
+    /// Shared codec handle for source reads (text/tabular). Held
+    /// even when unused so callers can construct the view uniformly.
+    pub handle: &'a SharedHandle,
+}
+
+impl<'a, M: Modality> DocView<'a, M> {
+    /// Construct a doc+handle view. Borrow-only — does not take
+    /// ownership and does not lock the handle.
+    pub fn new(doc: &'a Document<M>, handle: &'a SharedHandle) -> Self {
+        Self { doc, handle }
+    }
 }
 
 /// Narrow per-call view every [`Phase`] runs against.
@@ -119,7 +141,7 @@ impl<'a, M: Modality> PhaseTarget<'a, M> {
 }
 
 #[async_trait::async_trait]
-impl ValueAt<Text> for PhaseTarget<'_, Text> {
+impl ValueAt<Text> for DocView<'_, Text> {
     /// Resolve a [`Text`] location to its source text via the codec
     /// handle. Returns `None` when the handle has no readable bytes
     /// at the location.
@@ -134,7 +156,7 @@ impl ValueAt<Text> for PhaseTarget<'_, Text> {
 }
 
 #[async_trait::async_trait]
-impl ValueAt<Tabular> for PhaseTarget<'_, Tabular> {
+impl ValueAt<Tabular> for DocView<'_, Tabular> {
     /// Resolve a [`Tabular`] location to its source cell value via
     /// the codec handle.
     async fn value_at(&self, location: &Tabular) -> Option<String> {
@@ -148,7 +170,7 @@ impl ValueAt<Tabular> for PhaseTarget<'_, Tabular> {
 }
 
 #[async_trait::async_trait]
-impl ValueAt<Image> for PhaseTarget<'_, Image> {
+impl ValueAt<Image> for DocView<'_, Image> {
     /// Resolve an [`Image`] location to the OCR'd text at that
     /// region by walking the document's blocks. Exact bounding-box
     /// match against a block's `region` returns the whole block
@@ -177,7 +199,7 @@ impl ValueAt<Image> for PhaseTarget<'_, Image> {
 }
 
 #[async_trait::async_trait]
-impl ValueAt<Audio> for PhaseTarget<'_, Audio> {
+impl ValueAt<Audio> for DocView<'_, Audio> {
     /// Resolve an [`Audio`] location to the transcript at that time
     /// span by walking the document's blocks. Exact match returns
     /// the whole `Speech` block; sub-segment matches consult spans.
@@ -197,5 +219,19 @@ impl ValueAt<Audio> for PhaseTarget<'_, Audio> {
             }
         }
         None
+    }
+}
+
+#[async_trait::async_trait]
+impl<M> ValueAt<M> for PhaseTarget<'_, M>
+where
+    M: Modality,
+    for<'b> DocView<'b, M>: ValueAt<M>,
+{
+    /// Delegate to the equivalent [`DocView`] impl so phase bodies
+    /// can either take a `PhaseTarget` directly or a borrowed
+    /// `DocView` interchangeably.
+    async fn value_at(&self, location: &M) -> Option<String> {
+        DocView::new(self.doc, self.handle).value_at(location).await
     }
 }

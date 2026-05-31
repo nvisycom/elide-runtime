@@ -60,8 +60,7 @@ impl Modality for Tabular {
 ///
 /// [`Row`]: Self::Row
 /// [`Block<Tabular>`]: crate::document::Block
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum TabularBlock {
     /// A row. The row index is carried on each

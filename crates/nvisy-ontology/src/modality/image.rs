@@ -68,8 +68,7 @@ impl Modality for Image {
 /// [`Background`]: Self::Background
 /// [`Logo`]: Self::Logo
 /// [`Block<Image>`]: crate::document::Block
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum ImageBlock {
     /// A region of recognized text (paragraph, line, OCR text block).

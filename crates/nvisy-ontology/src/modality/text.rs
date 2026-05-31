@@ -82,8 +82,7 @@ impl Modality for Text {
 /// the wrapping [`Block<Text>`].
 ///
 /// [`Block<Text>`]: crate::document::Block
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum TextBlock {
     /// A regular paragraph or text run.
@@ -93,7 +92,6 @@ pub enum TextBlock {
         text: String,
         /// Heading depth (1 = h1, 2 = h2, …). `None` when the source
         /// doesn't expose a level.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
         level: Option<u8>,
     },
     /// A list item.

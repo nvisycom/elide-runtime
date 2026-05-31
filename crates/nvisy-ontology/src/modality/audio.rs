@@ -54,15 +54,13 @@ impl Modality for Audio {
 /// [`Speech`]: Self::Speech
 /// [`Silence`]: Self::Silence
 /// [`Block<Audio>`]: crate::document::Block
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum AudioBlock {
     /// A transcribed speech segment (typically one speaker turn).
     Speech {
         time_span: TimeSpan,
         text: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
         speaker_id: Option<String>,
     },
     /// A silence or non-speech segment surfaced for completeness.

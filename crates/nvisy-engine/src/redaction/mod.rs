@@ -32,7 +32,7 @@ pub use self::config::RedactionConfig;
 use self::evaluate::TARGET;
 pub use self::evaluate::{ApplyRedactions, ApplyRedactionsImpl};
 pub use self::plan::Redaction;
-use crate::envelope::value_at::ValueAt;
+use crate::core::ValueAt;
 use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
 
 /// Redaction phase: evaluate policies, attach an [`AuditEntry<M>`]

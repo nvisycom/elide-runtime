@@ -18,12 +18,12 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::config::RuntimeConfig;
-use super::default::{EngineInput, EngineOutput};
-use super::orchestrator::{Orchestrator, RunContext};
+use super::engine::{EngineInput, EngineOutput};
+use super::orchestrator::Orchestrator;
 use super::runs::RunStatus;
 use super::runs::state::{RunRecord, RunState};
+use crate::core::{PolicyStore, RunContext, SharedData};
 use crate::detection::Recognizers;
-use crate::envelope::{PolicyStore, SharedData};
 use crate::extraction::ExtractionEngine;
 use crate::ingestion::encryption::SharedKeyProvider;
 use crate::ingestion::registry::{Registry, ResourceGuard};
@@ -171,15 +171,15 @@ impl Pipeline {
 
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();
-        let ctx = RunContext {
+        let ctx = RunContext::new(
             cancel,
-            shared: Arc::new(shared_data),
-            extraction_engine: Arc::clone(&self.extraction_engine),
+            Arc::new(shared_data),
+            Arc::clone(&self.extraction_engine),
             detection_engine,
-            redaction_config: Arc::clone(&self.redaction_config),
+            Arc::clone(&self.redaction_config),
             concurrency,
-            dry_run: input.dry_run,
-        };
+            input.dry_run,
+        );
 
         self.runs.set_started_at(self.run_id).await;
 

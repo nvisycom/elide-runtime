@@ -20,7 +20,7 @@ use self::group::GroupEntities;
 pub use self::group::GroupingCriteria;
 pub use self::strategy::DeduplicationStrategy;
 use super::span_size::SpanSize;
-use crate::envelope::value_at::ValueAt;
+use crate::core::ValueAt;
 use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::fuse";
@@ -187,7 +187,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::envelope::{SharedData, SharedHandle};
+    use crate::core::{SharedData, SharedHandle};
 
     /// Build the per-test owned components ready to wrap into a
     /// [`PhaseTarget`]. Tests build this once and create targets

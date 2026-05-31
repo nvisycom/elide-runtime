@@ -10,58 +10,31 @@
 //! validation.
 
 use std::marker::PhantomData;
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use nvisy_core::Error;
 use nvisy_ontology::modality::{Modality, Overlap};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
-use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
-use super::default::EngineInput;
-use super::phase::{Phase, PhaseContext};
+use super::engine::EngineInput;
+use crate::core::{Phase, PhaseContext, PhaseTarget, RunContext, ValueAt};
 use crate::deduplication::{DeduplicationPhase, SpanSize};
 use crate::detection::{
     DetectDispatch, DetectionEngine, DetectionPhase, LiftFromBlock, ProjectIntoBlock,
 };
-use crate::envelope::value_at::ValueAt;
-use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData};
 use crate::extraction::{
     ExtractDispatch, Extraction, ExtractionEngine, ExtractionPhase, PlanSlice,
 };
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
 };
-use crate::pipeline::PhaseTarget;
-use crate::redaction::{ApplyRedactions, ApplyRedactionsImpl, RedactionConfig, RedactionPhase};
+use crate::pipeline::{AnyEnvelope, DocumentEnvelope};
+use crate::redaction::{ApplyRedactions, ApplyRedactionsImpl, RedactionPhase};
 use crate::validation::{CheckLeaks, ValidationPhase};
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
-
-/// Per-run execution context shared across all document tasks.
-pub(crate) struct RunContext {
-    /// Token to signal cancellation to all tasks.
-    pub(crate) cancel: CancellationToken,
-    /// Shared run-wide state: run ID, actor, registry, policies.
-    pub(crate) shared: Arc<SharedData>,
-    /// Pre-built extractor registry from `RuntimeConfig.extraction`.
-    /// Shared across every run.
-    pub(crate) extraction_engine: Arc<ExtractionEngine>,
-    /// Shared detection engine. Always present; when the plan
-    /// requests no recognizers, the engine is built empty and the
-    /// per-modality dispatch short-circuits on empty recognizer
-    /// lists.
-    pub(crate) detection_engine: Arc<DetectionEngine>,
-    /// Server-wide redaction defaults from `RuntimeConfig.redaction`.
-    /// Per-plan `Redaction` fields fall back to these.
-    pub(crate) redaction_config: Arc<RedactionConfig>,
-    /// Optional limit on how many documents may process concurrently.
-    pub(crate) concurrency: Option<NonZeroUsize>,
-    /// When `true`, skip redaction, validation, and export phases.
-    pub(crate) dry_run: bool,
-}
 
 /// Result of processing a single document through the pipeline.
 ///

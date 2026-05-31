@@ -10,8 +10,8 @@ use rand::RngExt;
 
 use super::provider::{KeyProvider, SharedKeyProvider};
 use super::wire::{EncryptedContent, NONCE_SIZE, WireEnvelope};
-use crate::envelope::DocumentEnvelope;
 use crate::ingestion::EncryptionAlgorithm;
+use crate::pipeline::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::encryption";
 
@@ -147,8 +147,8 @@ mod tests {
     use nvisy_ontology::modality::{Text, TextExtraction, TextMetadata};
 
     use super::*;
-    use crate::envelope::DocumentEnvelope;
     use crate::ingestion::encryption::{SharedKeyProvider, StaticKeyProvider};
+    use crate::pipeline::DocumentEnvelope;
 
     fn test_key_provider() -> SharedKeyProvider {
         let key = vec![0xAB; 32];
@@ -163,7 +163,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let registry = crate::ingestion::registry::Registry::open(dir.path()).unwrap();
         let shared =
-            crate::envelope::SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
+            crate::core::SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry);
         <DocumentEnvelope<Text>>::new(
             std::sync::Arc::new(tokio::sync::Mutex::new(doc)),
             ContentMetadata::new().with_content_type("text/plain"),

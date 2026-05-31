@@ -28,7 +28,7 @@ use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::modality::Modality;
 use nvisy_ontology::provenance::{AuditEntry, Execution};
 
-use crate::envelope::value_at::ValueAt;
+use crate::core::ValueAt;
 use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::redaction::apply";

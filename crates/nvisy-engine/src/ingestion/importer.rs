@@ -32,10 +32,11 @@ use nvisy_ontology::modality::{
 };
 use tokio::sync::Mutex;
 
-use crate::envelope::{AnyEnvelope, DocumentEnvelope, SharedData, SharedHandle};
+use crate::core::{SharedData, SharedHandle};
 use crate::ingestion::compression::CompressionService;
 use crate::ingestion::encryption::{CryptoService, EncryptedContent};
 use crate::ingestion::{CompressionAlgorithm, EncryptionAlgorithm, EncryptionConfig};
+use crate::pipeline::{AnyEnvelope, DocumentEnvelope};
 
 const TARGET: &str = "nvisy_engine::op::import_file";
 
@@ -275,7 +276,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::envelope::SharedData;
+    use crate::core::SharedData;
 
     fn shared() -> Arc<SharedData> {
         let dir = tempfile::tempdir().unwrap();

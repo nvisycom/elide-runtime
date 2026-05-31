@@ -2,9 +2,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
+pub mod core;
 pub mod deduplication;
 pub mod detection;
-pub mod envelope;
 pub mod extraction;
 pub mod ingestion;
 pub mod pipeline;

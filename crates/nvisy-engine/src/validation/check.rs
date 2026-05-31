@@ -22,8 +22,7 @@ use nvisy_ontology::provenance::EntityRecord;
 use unicode_normalization::UnicodeNormalization;
 
 use super::{LeakedValue, ValidationResult};
-use crate::envelope::SharedHandle;
-use crate::envelope::value_at::ValueAt;
+use crate::core::{SharedHandle, ValueAt};
 use crate::pipeline::PhaseTarget;
 
 /// Per-modality leak-check contract.

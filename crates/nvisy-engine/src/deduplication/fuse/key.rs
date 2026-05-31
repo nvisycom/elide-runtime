@@ -4,7 +4,7 @@ use nvisy_ontology::entity::{Entity, EntityKind};
 use nvisy_ontology::modality::Modality;
 
 use super::group::GroupingCriteria;
-use crate::envelope::value_at::ValueAt;
+use crate::core::ValueAt;
 use crate::pipeline::PhaseTarget;
 
 /// Hash key for the first grouping phase.

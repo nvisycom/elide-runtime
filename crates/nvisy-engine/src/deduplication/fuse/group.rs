@@ -20,7 +20,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::key::GroupKey;
-use crate::envelope::value_at::ValueAt;
+use crate::core::ValueAt;
 use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::group_entities";

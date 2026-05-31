@@ -24,8 +24,8 @@
 //! contract.
 //!
 //! [`Document<M>`]: nvisy_ontology::document::Document
-//! [`RunContext`]: super::orchestrator::RunContext
-//! [`EngineInput`]: super::default::EngineInput
+//! [`RunContext`]: super::RunContext
+//! [`EngineInput`]: crate::pipeline::EngineInput
 //! [`ExportFile`]: crate::ingestion::ExportFile
 //! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 
@@ -34,7 +34,7 @@ use std::marker::PhantomData;
 use nvisy_core::Result;
 use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 
-use super::orchestrator::RunContext;
+use super::context::RunContext;
 use super::plan::Plan;
 use super::target::PhaseTarget;
 

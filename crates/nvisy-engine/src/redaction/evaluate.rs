@@ -9,7 +9,7 @@
 //! [`Decision`] into an audit entry.
 //!
 //! [`EntityRecord<M>`]: nvisy_ontology::provenance::EntityRecord
-//! [`Decision`]: crate::envelope::Decision
+//! [`Decision`]: crate::core::Decision
 
 #[cfg(feature = "audio")]
 use nvisy_codec::handler::AudioOutput;
@@ -34,7 +34,7 @@ use super::strategy::to_audio_redaction;
 #[cfg(feature = "image")]
 use super::strategy::to_image_redaction;
 use super::strategy::{to_tabular_redaction, to_text_redaction};
-use crate::envelope::Decision;
+use crate::core::Decision;
 use crate::pipeline::PhaseTarget;
 
 pub(crate) const TARGET: &str = "nvisy_engine::redaction";
@@ -328,7 +328,7 @@ mod tests {
 
     use super::super::run_redaction;
     use super::*;
-    use crate::envelope::{SharedData, SharedHandle};
+    use crate::core::{SharedData, SharedHandle};
 
     /// Owned bundle that holds everything a test needs to build a
     /// fresh [`PhaseTarget<'_, Text>`] on demand. Tests build this

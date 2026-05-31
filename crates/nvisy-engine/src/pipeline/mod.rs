@@ -14,20 +14,20 @@
 //! - `runs`: in-memory run lifecycle tracking.
 
 mod config;
-mod default;
+mod engine;
+mod envelope;
 mod orchestrator;
-mod phase;
-mod plan;
 mod run;
 mod runs;
-mod target;
 
 pub use self::config::{EngineConfig, ResourceLimits, RuntimeConfig};
-pub use self::default::{Engine, EngineInput, EngineOutput};
-pub use self::phase::{ModalityKind, Phase, PhaseContext, PhaseInfo};
-pub use self::plan::Plan;
+pub use self::engine::{Engine, EngineInput, EngineOutput};
+pub use self::envelope::{AnyEnvelope, DocumentEnvelope};
 pub use self::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
     RunStatus,
 };
-pub use self::target::PhaseTarget;
+// Re-export the phase contract from `core/` so historical consumers
+// of `nvisy_engine::pipeline::{Phase,...}` keep compiling while we
+// migrate imports.
+pub use crate::core::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget, Plan};

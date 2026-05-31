@@ -19,10 +19,10 @@ use tokio::task::JoinSet;
 use uuid::Uuid;
 
 use super::config::RuntimeConfig;
-use super::plan::Plan;
 use super::run::Pipeline;
 use super::runs::state::RunState;
 use super::runs::{AnalyticsSnapshot, RunEntry, RunFilter, RunOutcome, RunSnapshot};
+use crate::core::Plan;
 use crate::detection::Recognizers;
 use crate::extraction::ExtractionEngine;
 use crate::ingestion::encryption::SharedKeyProvider;

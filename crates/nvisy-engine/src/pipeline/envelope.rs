@@ -1,46 +1,38 @@
-//! Per-document state accumulated across pipeline operations.
+//! [`DocumentEnvelope<M>`] + [`AnyEnvelope`]: the orchestrator's
+//! per-document carrier.
 //!
-//! A [`DocumentEnvelope<M>`] is created at import and travels through
-//! every operation in the pipeline. Rich sources (PDFs with both
-//! text and image layers) produce one root `DocumentEnvelope<Text>`
-//! whose document hosts nested image/tabular documents via
-//! [`TextBlock::Embed`]; the shared codec [`DocumentHandle`] on the
+//! An envelope is created at import and travels through every phase
+//! of one document's pipeline. Rich sources (PDFs with both text and
+//! image layers) produce one root `DocumentEnvelope<Text>` whose
+//! document hosts nested image/tabular documents via
+//! [`TextBlock::Embed`]; the shared codec [`SharedHandle`] on the
 //! root envelope services reads and mutations for every nested doc.
 //!
-//! Each stage reads from and writes to the envelope until the
-//! document is fully redacted.
+//! Phases never see the envelope directly — they operate on the
+//! narrower [`PhaseTarget`] view the orchestrator builds from it per
+//! phase iteration. The envelope is the orchestrator's bookkeeping
+//! shape: it owns the handle + per-modality document + run-shared
+//! state and is the unit of work spawned onto the per-document task
+//! pool.
 //!
 //! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
-
-mod accessors;
-mod any;
-mod policy_store;
-mod shared_data;
-pub mod value_at;
+//! [`SharedHandle`]: crate::core::SharedHandle
+//! [`PhaseTarget`]: crate::core::PhaseTarget
 
 use std::fmt;
 use std::sync::Arc;
 
-use nvisy_codec::DocumentHandle;
+use derive_more::{From, IsVariant};
 use nvisy_core::Error;
 use nvisy_core::content::{ContentData, ContentMetadata, ContentSource};
 use nvisy_core::media::DocumentType;
 use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::Modality;
-use tokio::sync::Mutex;
+use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
+use nvisy_ontology::provenance::AnyAudit;
 use uuid::Uuid;
 
-pub use self::any::AnyEnvelope;
-pub(crate) use self::policy_store::Decision;
-pub use self::policy_store::PolicyStore;
-pub use self::shared_data::SharedData;
-
-/// Shared codec handle across typed envelopes spawned from the same
-/// source. Wrapped in `Arc<Mutex<_>>` because handle redaction methods
-/// take `&mut self`; multiple modality-typed envelopes coordinate
-/// reads and mutations through the lock.
-pub type SharedHandle = Arc<Mutex<DocumentHandle>>;
+use crate::core::{SharedData, SharedHandle};
 
 /// Per-document state for one modality that flows through the
 /// pipeline.
@@ -143,5 +135,61 @@ impl<M: Modality> fmt::Debug for DocumentEnvelope<M> {
             .field("records", &self.document.audit.records.len())
             .field("contexts", &self.contexts.len())
             .finish_non_exhaustive()
+    }
+}
+
+/// A modality-erased envelope returned by the importer.
+///
+/// The importer produces one `AnyEnvelope` per uploaded file.
+/// Single-modality content (txt, csv, png, wav, …) yields the
+/// matching variant. Rich documents (PDF, DOCX) yield the `Text`
+/// variant; their image and tabular content lives inside the root
+/// [`Document<Text>`] as nested documents under [`TextBlock::Embed`]
+/// children, populated by the image/tabular extraction steps from
+/// the same shared codec handle.
+///
+/// [`Document<Text>`]: nvisy_ontology::document::Document
+/// [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
+#[derive(Debug, From, IsVariant)]
+pub enum AnyEnvelope {
+    Text(DocumentEnvelope<Text>),
+    Tabular(DocumentEnvelope<Tabular>),
+    Image(DocumentEnvelope<Image>),
+    Audio(DocumentEnvelope<Audio>),
+}
+
+impl AnyEnvelope {
+    /// Human-readable name of the contained modality. Used for
+    /// telemetry and error messages.
+    pub fn modality_name(&self) -> &'static str {
+        match self {
+            Self::Text(_) => "text",
+            Self::Tabular(_) => "tabular",
+            Self::Image(_) => "image",
+            Self::Audio(_) => "audio",
+        }
+    }
+
+    /// Borrow the underlying shared codec handle without committing
+    /// to a modality.
+    pub fn handle(&self) -> &SharedHandle {
+        match self {
+            Self::Text(e) => &e.handle,
+            Self::Tabular(e) => &e.handle,
+            Self::Image(e) => &e.handle,
+            Self::Audio(e) => &e.handle,
+        }
+    }
+
+    /// Clone the envelope's audit as a modality-erased [`AnyAudit`].
+    /// Used by the engine's run-summary collector so it doesn't have
+    /// to match on every variant.
+    pub fn audit_cloned(&self) -> AnyAudit {
+        match self {
+            Self::Text(e) => e.document.audit.clone().into(),
+            Self::Tabular(e) => e.document.audit.clone().into(),
+            Self::Image(e) => e.document.audit.clone().into(),
+            Self::Audio(e) => e.document.audit.clone().into(),
+        }
     }
 }

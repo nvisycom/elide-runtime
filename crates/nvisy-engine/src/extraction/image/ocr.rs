@@ -13,7 +13,7 @@ use nvisy_ontology::document::{Block, Document};
 use nvisy_ontology::modality::{Image, ImageExtraction};
 use serde::{Deserialize, Serialize};
 
-use crate::envelope::SharedHandle;
+use crate::core::SharedHandle;
 
 const TARGET: &str = "nvisy_engine::extraction::image::ocr";
 

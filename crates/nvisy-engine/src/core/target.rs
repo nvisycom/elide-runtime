@@ -19,21 +19,47 @@
 //!
 //! [`Phase`]: super::Phase
 //! [`Document<M>`]: nvisy_ontology::document::Document
-//! [`SharedHandle`]: crate::envelope::SharedHandle
+//! [`SharedHandle`]: self::SharedHandle
 //! [`ContentMetadata`]: nvisy_core::content::ContentMetadata
 //! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 //! [`run_id`]: Self::run_id
 
 use std::sync::Arc;
 
+use nvisy_codec::DocumentHandle;
 use nvisy_codec::handler::TextData;
 use nvisy_core::content::ContentMetadata;
 use nvisy_ontology::document::Document;
 use nvisy_ontology::modality::{Audio, AudioBlock, Image, ImageBlock, Modality, Tabular, Text};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use crate::envelope::value_at::ValueAt;
-use crate::envelope::{SharedData, SharedHandle};
+use super::SharedData;
+
+/// Shared codec handle a [`PhaseTarget`] borrows for source reads
+/// and redaction writes. Wrapped in `Arc<Mutex<_>>` because handle
+/// redaction methods take `&mut self`; phases coordinate access to
+/// the underlying document through the lock.
+///
+/// Constructed by the orchestrator from the codec output of the
+/// ingestion phase; phases see it only through `target.handle`.
+pub type SharedHandle = Arc<Mutex<DocumentHandle>>;
+
+/// Resolve a location of modality `M` to the corresponding source
+/// text, for any per-call surface that knows how to look it up.
+///
+/// Today the only implementor is [`PhaseTarget<'_, M>`] (one impl
+/// per modality, below). The trait is kept rather than inlined as
+/// inherent methods so generic phase code (dedup, redaction,
+/// validation) can bound over `for<'a> PhaseTarget<'a, M>: ValueAt<M>`
+/// and dispatch uniformly.
+#[async_trait::async_trait]
+pub trait ValueAt<M: Modality>: Sync {
+    /// Resolve a location to its source text representation, or
+    /// `None` if the underlying handle / extraction document has
+    /// nothing at that location.
+    async fn value_at(&self, location: &M) -> Option<String>;
+}
 
 /// Narrow per-call view every [`Phase`] runs against.
 ///

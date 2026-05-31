@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 pub use self::check::CheckLeaks;
 pub use self::plan::{OnLeak, Validation};
-use crate::envelope::value_at::ValueAt;
+use crate::core::ValueAt;
 use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
 
 const TARGET: &str = "nvisy_engine::validation";

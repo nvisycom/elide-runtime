@@ -11,10 +11,10 @@ use nvisy_core::content::{Content, ContentData, ContentSource};
 use nvisy_ontology::modality::Modality;
 use uuid::Uuid;
 
-use crate::envelope::DocumentEnvelope;
 use crate::ingestion::compression::CompressionService;
 use crate::ingestion::encryption::CryptoService;
 use crate::ingestion::{CompressionAlgorithm, EncryptionConfig};
+use crate::pipeline::DocumentEnvelope;
 
 const TARGET: &str = "nvisy_engine::op::export_file";
 

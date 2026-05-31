@@ -43,7 +43,7 @@ pub use self::params::DeduplicationParams;
 pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
 pub use self::span_size::SpanSize;
-use crate::envelope::value_at::ValueAt;
+use crate::core::ValueAt;
 use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
 
 const TARGET: &str = "nvisy_engine::deduplication";
@@ -170,7 +170,7 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::envelope::{SharedData, SharedHandle};
+    use crate::core::{SharedData, SharedHandle};
 
     fn conf(v: f64) -> Confidence {
         Confidence::new(v).expect("confidence in [0,1]")

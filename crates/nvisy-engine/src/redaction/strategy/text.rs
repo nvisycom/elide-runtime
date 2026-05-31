@@ -5,7 +5,7 @@ use nvisy_core::Result;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::policy::TextStrategy;
 
-use super::{TextOutputMethod, text_output_from, unsupported};
+use super::{TextOutputMethod, text_output_from};
 
 /// Convert a [`TextStrategy`] + the entity's original value into a
 /// codec [`TextRedaction`].
@@ -22,8 +22,6 @@ pub(crate) fn to_text_redaction(
         TextStrategy::Hash => TextOutputMethod::Hash,
         TextStrategy::Remove => TextOutputMethod::Remove,
         TextStrategy::Encrypt { key_id } => TextOutputMethod::Encrypt { key_id },
-        TextStrategy::Pseudonymize => return Err(unsupported("pseudonymize")),
-        TextStrategy::Tokenize { .. } => return Err(unsupported("tokenize")),
     };
     let output = text_output_from(method, original, entity_kind)?;
     Ok(TextRedaction::new(output))

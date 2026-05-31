@@ -3,7 +3,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{Mergeable, Modality, ModalityBlock, Overlap, TextExtraction};
+use super::{Modality, ModalityBlock, Overlap, TextExtraction};
 use crate::policy::TextStrategy;
 use crate::primitive::LanguageDetection;
 
@@ -72,20 +72,8 @@ impl Text {
 impl Modality for Text {
     type Block = TextBlock;
     type Metadata = TextMetadata;
-    type MethodTag = crate::policy::TextMethodTag;
     type Replacement = crate::provenance::TextReplacement;
     type Strategy = TextStrategy;
-
-    fn default_method_dominance() -> &'static [Self::MethodTag] {
-        // Mask is length-preserving (leaks length only); Replace can
-        // change length and leaks the placeholder text. Other tags
-        // never tie at the Partial tier (Recoverable / Irrecoverable
-        // already resolve the conflict).
-        &[
-            crate::policy::TextMethodTag::Mask,
-            crate::policy::TextMethodTag::Replace,
-        ]
-    }
 }
 
 /// Per-modality block payload for [`Text`]. Each variant is a
@@ -170,30 +158,6 @@ impl Overlap for Text {
     /// false-positive as overlapping.
     fn overlaps(&self, other: &Self) -> bool {
         self.page_number == other.page_number && self.start < other.end && other.start < self.end
-    }
-}
-
-impl Mergeable for Text {
-    /// Merge two text ranges by unioning byte offsets when their
-    /// non-range identity (page) matches. Context windows union when
-    /// present on both sides; otherwise the result has no context
-    /// window.
-    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
-        if self.page_number != other.page_number {
-            return Err((self, other));
-        }
-        // Context windows union only when both sides have one;
-        // otherwise the merged range drops the context window.
-        let context = self.context.zip(other.context).map(|(a, b)| ContextWindow {
-            start: a.start.min(b.start),
-            end: a.end.max(b.end),
-        });
-        Ok(Self {
-            start: self.start.min(other.start),
-            end: self.end.max(other.end),
-            context,
-            page_number: self.page_number,
-        })
     }
 }
 

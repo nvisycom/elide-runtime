@@ -41,8 +41,10 @@ pub enum TabularStrategy {
     },
     /// Clear the cell value (set to empty).
     Clear,
-    /// Drop the entire column from the output.
+    /// Drop the entire column containing this cell from the output.
     DropColumn,
+    /// Drop the entire row containing this cell from the output.
+    DropRow,
 }
 
 impl Default for TabularStrategy {
@@ -53,34 +55,13 @@ impl Default for TabularStrategy {
     }
 }
 
-/// Parameter-less tag for each [`TabularStrategy`] variant.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum TabularMethodTag {
-    /// Tag for [`TabularStrategy::Mask`].
-    Mask,
-    /// Tag for [`TabularStrategy::Replace`].
-    Replace,
-    /// Tag for [`TabularStrategy::Hash`].
-    Hash,
-    /// Tag for [`TabularStrategy::Encrypt`].
-    Encrypt,
-    /// Tag for [`TabularStrategy::Clear`].
-    Clear,
-    /// Tag for [`TabularStrategy::DropColumn`].
-    DropColumn,
-}
-
 impl RedactionStrategy for TabularStrategy {
-    type Tag = TabularMethodTag;
-
     /// - [`Hash`], [`Encrypt`] are [`Recoverable`].
     /// - [`Mask`], [`Replace`], [`Clear`] are [`Partial`] — the cell
     ///   still exists at known coordinates with an observable (empty
     ///   or masked) value.
-    /// - [`DropColumn`] is [`Irrecoverable`] — the column is gone
-    ///   schema-wide.
+    /// - [`DropColumn`], [`DropRow`] are [`Irrecoverable`] — the
+    ///   entire column or row is gone schema-wide.
     ///
     /// [`Hash`]: Self::Hash
     /// [`Encrypt`]: Self::Encrypt
@@ -88,6 +69,7 @@ impl RedactionStrategy for TabularStrategy {
     /// [`Replace`]: Self::Replace
     /// [`Clear`]: Self::Clear
     /// [`DropColumn`]: Self::DropColumn
+    /// [`DropRow`]: Self::DropRow
     /// [`Recoverable`]: LeakProfile::Recoverable
     /// [`Partial`]: LeakProfile::Partial
     /// [`Irrecoverable`]: LeakProfile::Irrecoverable
@@ -95,18 +77,7 @@ impl RedactionStrategy for TabularStrategy {
         match self {
             Self::Hash | Self::Encrypt { .. } => LeakProfile::Recoverable,
             Self::Mask { .. } | Self::Replace { .. } | Self::Clear => LeakProfile::Partial,
-            Self::DropColumn => LeakProfile::Irrecoverable,
-        }
-    }
-
-    fn method_tag(&self) -> Self::Tag {
-        match self {
-            Self::Mask { .. } => TabularMethodTag::Mask,
-            Self::Replace { .. } => TabularMethodTag::Replace,
-            Self::Hash => TabularMethodTag::Hash,
-            Self::Encrypt { .. } => TabularMethodTag::Encrypt,
-            Self::Clear => TabularMethodTag::Clear,
-            Self::DropColumn => TabularMethodTag::DropColumn,
+            Self::DropColumn | Self::DropRow => LeakProfile::Irrecoverable,
         }
     }
 }

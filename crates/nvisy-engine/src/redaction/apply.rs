@@ -25,7 +25,7 @@
 use nvisy_codec::core::Redactions;
 use nvisy_core::Result;
 use nvisy_ontology::entity::EntityKind;
-use nvisy_ontology::modality::{Mergeable, Modality, Overlap};
+use nvisy_ontology::modality::Modality;
 use nvisy_ontology::provenance::{AuditEntry, Execution};
 
 use crate::envelope::DocumentEnvelope;
@@ -76,8 +76,8 @@ pub(super) async fn build<M, R, F>(
     to_redaction: F,
 ) -> ApplyBatch<M, R>
 where
-    M: Modality + Overlap + Mergeable,
-    R: Mergeable + Clone,
+    M: Modality,
+    R: Clone,
     F: Fn(EntryView<'_, M>) -> Result<R>,
     DocumentEnvelope<M>: ValueAt<M>,
 {
@@ -132,7 +132,7 @@ where
             }
         };
 
-        batch.insert(entity.location.clone(), redaction.clone());
+        batch.push(entity.location.clone(), redaction.clone());
         applied.push((idx, redaction));
     }
 

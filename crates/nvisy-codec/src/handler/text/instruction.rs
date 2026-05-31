@@ -3,8 +3,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::core::Mergeable;
-
 /// A text redaction: the *how*. The *where* (byte range within the
 /// document) lives on the containing [`Text`] via
 /// [`Redactions`]'s `(S, R)` pairs.
@@ -60,19 +58,6 @@ impl TextOutput {
         match self {
             Self::Replace { replacement } => Some(replacement),
             Self::Remove => None,
-        }
-    }
-}
-
-impl Mergeable for TextRedaction {
-    /// Combine two redactions that target overlapping locations.
-    /// Returns `Ok` only when the outputs match; different
-    /// replacement strings hand both originals back via `Err`.
-    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
-        if self.output == other.output {
-            Ok(self)
-        } else {
-            Err((self, other))
         }
     }
 }

@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{AudioExtraction, Mergeable, Modality, ModalityBlock, Overlap};
+use super::{AudioExtraction, Modality, ModalityBlock, Overlap};
 use crate::policy::AudioStrategy;
 use crate::primitive::{LanguageDetection, TimeSpan};
 
@@ -38,18 +38,11 @@ impl Audio {
 impl Modality for Audio {
     type Block = AudioBlock;
     type Metadata = AudioMetadata;
-    type MethodTag = crate::policy::AudioMethodTag;
     /// Audio audits record only which method ran; the substitution
     /// is a binary sample transform whose parameters live on
     /// `AudioStrategy`.
     type Replacement = crate::policy::AudioMethodTag;
     type Strategy = AudioStrategy;
-
-    fn default_method_dominance() -> &'static [Self::MethodTag] {
-        // Silence is the only Partial-profile method; Remove is
-        // Irrecoverable and never ties with Silence.
-        &[crate::policy::AudioMethodTag::Silence]
-    }
 }
 
 /// Per-modality block payload for [`Audio`].
@@ -151,21 +144,5 @@ impl Overlap for Audio {
         self.audio_id == other.audio_id
             && self.speaker_id == other.speaker_id
             && self.time_span.overlaps(&other.time_span)
-    }
-}
-
-impl Mergeable for Audio {
-    /// Merge two audio intervals by unioning time spans when their
-    /// `audio_id` and `speaker_id` match. Different speakers or
-    /// different documents cannot merge.
-    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
-        if self.audio_id != other.audio_id || self.speaker_id != other.speaker_id {
-            return Err((self, other));
-        }
-        Ok(Self {
-            time_span: self.time_span.union(&other.time_span),
-            speaker_id: self.speaker_id,
-            audio_id: self.audio_id,
-        })
     }
 }

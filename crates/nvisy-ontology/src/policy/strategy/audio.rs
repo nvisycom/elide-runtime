@@ -34,8 +34,6 @@ pub enum AudioMethodTag {
 }
 
 impl RedactionStrategy for AudioStrategy {
-    type Tag = AudioMethodTag;
-
     /// - [`Silence`] is [`Partial`] — a silence of known duration on
     ///   the timeline is observable.
     /// - [`Remove`] is [`Irrecoverable`] — the segment is cut, the
@@ -49,13 +47,6 @@ impl RedactionStrategy for AudioStrategy {
         match self {
             Self::Silence => LeakProfile::Partial,
             Self::Remove => LeakProfile::Irrecoverable,
-        }
-    }
-
-    fn method_tag(&self) -> Self::Tag {
-        match self {
-            Self::Silence => AudioMethodTag::Silence,
-            Self::Remove => AudioMethodTag::Remove,
         }
     }
 }

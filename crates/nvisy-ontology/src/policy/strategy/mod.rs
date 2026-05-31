@@ -22,8 +22,8 @@ use serde::{Deserialize, Serialize};
 
 pub use self::audio::{AudioMethodTag, AudioStrategy};
 pub use self::image::{ImageMethodTag, ImageStrategy};
-pub use self::tabular::{TabularMethodTag, TabularStrategy};
-pub use self::text::{TextMethodTag, TextStrategy};
+pub use self::tabular::TabularStrategy;
+pub use self::text::TextStrategy;
 use super::condition::Condition;
 use super::selector::EntitySelector;
 use crate::modality::Modality;

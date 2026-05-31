@@ -356,7 +356,7 @@ mod tests {
     async fn redact_full_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["ssn"], vec![vec!["123-45-6789"]]);
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             cell_range(1, 0, 0, 11),
             TabularRedaction::new(TextOutput::replace("[REDACTED]")),
         );
@@ -369,7 +369,7 @@ mod tests {
     async fn redact_partial_cell() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["bio"], vec![vec!["Alice Smith"]]);
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             cell_range(1, 0, 0, 5),
             TabularRedaction::new(TextOutput::replace("[NAME]")),
         );
@@ -382,7 +382,7 @@ mod tests {
     async fn redact_header() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["secret_field"], vec![vec!["v"]]);
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             cell_range(0, 0, 0, 12),
             TabularRedaction::new(TextOutput::replace("redacted")),
         );
@@ -395,7 +395,7 @@ mod tests {
     async fn redact_unknown_row_skipped() -> Result<(), Error> {
         let mut h = handler_with_headers(vec!["a"], vec![vec!["one"]]);
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             cell_range(99, 0, 0, 1),
             TabularRedaction::new(TextOutput::replace("X")),
         );

@@ -1,6 +1,5 @@
 //! Tabular redaction instruction types.
 
-use crate::core::Mergeable;
 use crate::handler::TextOutput;
 
 /// A tabular redaction: the *how*. The *where* — cell coordinates
@@ -30,18 +29,5 @@ impl TabularRedaction {
     /// The redaction output that carries the replacement value.
     pub fn output(&self) -> &TextOutput {
         &self.output
-    }
-}
-
-impl Mergeable for TabularRedaction {
-    /// Combine two redactions that target overlapping cells. Returns
-    /// `Ok` only when the outputs match; different replacement
-    /// strings hand both originals back via `Err`.
-    fn try_merge(self, other: Self) -> Result<Self, (Self, Self)> {
-        if self.output == other.output {
-            Ok(self)
-        } else {
-            Err((self, other))
-        }
     }
 }

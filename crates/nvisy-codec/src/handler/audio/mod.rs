@@ -39,9 +39,6 @@ pub fn sort_redactions_for_audio(
     redactions: Redactions<Audio, AudioRedaction>,
 ) -> Vec<(Audio, AudioRedaction)> {
     let mut items = redactions.items;
-    items.sort_by_key(|pair| Reverse(pair.location.time_span.start_us));
+    items.sort_by_key(|(loc, _)| Reverse(loc.time_span.start_us));
     items
-        .into_iter()
-        .map(|pair| (pair.location, pair.redaction))
-        .collect()
 }

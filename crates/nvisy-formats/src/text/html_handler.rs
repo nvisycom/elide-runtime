@@ -222,7 +222,7 @@ mod tests {
         let mut h = handler_from_html(raw);
         let items: Vec<_> = h.locations().collect().await;
         let mut rs = Redactions::new();
-        rs.insert(
+        rs.push(
             items[0].location.clone(),
             TextRedaction::new(TextOutput::replace("[REDACTED]")),
         );

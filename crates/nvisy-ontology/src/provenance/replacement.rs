@@ -21,9 +21,8 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TextReplacement {
     /// The codec substituted the span with this string. Covers
-    /// `TextStrategy::Mask`, `Replace`, `Hash`, `Encrypt`,
-    /// `Pseudonymize`, and `Tokenize` — every method that emits a
-    /// string-shaped output.
+    /// `TextStrategy::Mask`, `Replace`, `Hash`, `Encrypt` — every
+    /// method that emits a string-shaped output.
     Substituted { value: String },
     /// The codec deleted the span entirely. Covers
     /// `TextStrategy::Remove`.

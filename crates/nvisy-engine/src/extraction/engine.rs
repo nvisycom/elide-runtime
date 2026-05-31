@@ -12,9 +12,9 @@ use nvisy_core::Result;
 
 #[cfg(feature = "audio")]
 use super::audio::SttExtractor;
+use super::config::ExtractionConfig;
 #[cfg(feature = "image")]
 use super::image::OcrExtractor;
-use super::config::ExtractionConfig;
 
 /// Registry of pre-built extractors, one per technique.
 ///

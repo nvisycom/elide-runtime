@@ -8,7 +8,6 @@
 //! over `DocumentEnvelope<M>: ValueAt<M>` and calls into the right
 //! implementation at the call site.
 
-use async_trait::async_trait;
 use nvisy_codec::handler::TextData;
 use nvisy_ontology::modality::{Audio, AudioBlock, Image, ImageBlock, Modality, Tabular, Text};
 
@@ -16,7 +15,7 @@ use super::DocumentEnvelope;
 
 /// Resolve a location of modality `M` to the corresponding source
 /// text, for any envelope that knows how to look it up.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait ValueAt<M: Modality>: Sync {
     /// Resolve a location to its source text representation, or
     /// `None` if the underlying handle / extraction document has
@@ -24,7 +23,7 @@ pub trait ValueAt<M: Modality>: Sync {
     async fn value_at(&self, location: &M) -> Option<String>;
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl ValueAt<Text> for DocumentEnvelope<Text> {
     async fn value_at(&self, location: &Text) -> Option<String> {
         self.handle
@@ -36,7 +35,7 @@ impl ValueAt<Text> for DocumentEnvelope<Text> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl ValueAt<Tabular> for DocumentEnvelope<Tabular> {
     async fn value_at(&self, location: &Tabular) -> Option<String> {
         self.handle
@@ -48,7 +47,7 @@ impl ValueAt<Tabular> for DocumentEnvelope<Tabular> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl ValueAt<Image> for DocumentEnvelope<Image> {
     /// Exact bounding-box match against a block's `region` returns
     /// the whole block text; sub-region matches consult the block's
@@ -72,7 +71,7 @@ impl ValueAt<Image> for DocumentEnvelope<Image> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl ValueAt<Audio> for DocumentEnvelope<Audio> {
     /// Exact time-span match against a `Speech` block returns the
     /// whole transcript; sub-segment matches consult the block's

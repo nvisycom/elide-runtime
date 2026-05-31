@@ -28,7 +28,6 @@ mod span_size;
 use std::marker::PhantomData;
 use std::mem;
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, Overlap};
@@ -116,7 +115,7 @@ impl<M: Modality> Default for DeduplicationPhase<M> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M> Phase<M> for DeduplicationPhase<M>
 where
     M: Modality + Overlap + SpanSize,

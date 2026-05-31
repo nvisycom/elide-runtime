@@ -18,7 +18,6 @@ mod params;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
@@ -74,7 +73,7 @@ impl PatternRecognizer {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Recognizer for PatternRecognizer {
     type Context = PatternScanInput;
     type Modality = Text;

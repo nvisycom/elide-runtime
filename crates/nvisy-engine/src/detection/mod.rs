@@ -23,7 +23,6 @@ mod vlm;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use async_trait::async_trait;
 pub use nvisy_agent::agent::LlmNerContext;
 use nvisy_core::Result;
 pub use nvisy_ner::Context as NerContext;
@@ -178,7 +177,7 @@ impl<M: Modality> Default for DetectionPhase<M> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M> Phase<M> for DetectionPhase<M>
 where
     M: Modality,

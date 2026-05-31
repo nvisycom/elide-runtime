@@ -16,7 +16,6 @@
 //! The generic `Validator::execute<M>` dispatches via this trait
 //! so each modality's pipeline runs the right check (or none).
 
-use async_trait::async_trait;
 use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 use nvisy_ontology::provenance::EntityRecord;
 use unicode_normalization::UnicodeNormalization;
@@ -26,7 +25,7 @@ use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
 
 /// Per-modality leak-check contract.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait CheckLeaks: Modality {
     /// Inspect the envelope and report any redacted values that
     /// remain visible. Modalities without leak-detection support
@@ -34,7 +33,7 @@ pub trait CheckLeaks: Modality {
     async fn check_leaks(envelope: &DocumentEnvelope<Self>) -> ValidationResult;
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl CheckLeaks for Text {
     async fn check_leaks(envelope: &DocumentEnvelope<Self>) -> ValidationResult {
         let redacted_text = read_text(envelope).await;
@@ -43,7 +42,7 @@ impl CheckLeaks for Text {
 }
 
 #[cfg(feature = "tabular")]
-#[async_trait]
+#[async_trait::async_trait]
 impl CheckLeaks for Tabular {
     async fn check_leaks(envelope: &DocumentEnvelope<Self>) -> ValidationResult {
         let redacted_text = read_tabular(envelope).await;
@@ -52,14 +51,14 @@ impl CheckLeaks for Tabular {
 }
 
 #[cfg(not(feature = "tabular"))]
-#[async_trait]
+#[async_trait::async_trait]
 impl CheckLeaks for Tabular {
     async fn check_leaks(_envelope: &DocumentEnvelope<Self>) -> ValidationResult {
         ValidationResult::skipped()
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl CheckLeaks for Image {
     /// Image leak detection requires visual inspection (compare the
     /// redacted region against the original). Not implemented yet —
@@ -70,7 +69,7 @@ impl CheckLeaks for Image {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl CheckLeaks for Audio {
     /// Audio leak detection requires speech/audio inspection of the
     /// post-redaction segments. Not implemented yet — tracked at

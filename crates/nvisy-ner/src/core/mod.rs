@@ -9,7 +9,6 @@
 
 mod context;
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::document::Block;
 use nvisy_ontology::entity::Entity;
@@ -29,7 +28,7 @@ pub use self::context::Context;
 /// methods that delegate to [`recognize`].
 ///
 /// [`recognize`]: Self::recognize
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Backend: Send + Sync + 'static {
     /// Recognize entities in `text` under `ctx`.
     ///

@@ -26,7 +26,6 @@ mod text;
 
 use std::marker::PhantomData;
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::modality::Modality;
 
@@ -83,7 +82,7 @@ impl<M: Modality> Default for ExtractionPhase<M> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M> Phase<M> for ExtractionPhase<M>
 where
     M: Modality,

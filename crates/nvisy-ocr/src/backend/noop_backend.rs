@@ -6,7 +6,6 @@
 //! externalised backend, and for redaction pipelines that operate
 //! purely on metadata or on entities sourced from elsewhere.
 
-use async_trait::async_trait;
 use nvisy_core::Error;
 use nvisy_ontology::document::Block;
 use nvisy_ontology::entity::{ModelKind, ModelProvenance};
@@ -27,7 +26,7 @@ impl NoopBackend {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Backend for NoopBackend {
     fn provenance(&self) -> ModelProvenance {
         ModelProvenance::new("noop-ocr", ModelKind::SelfHosted)

@@ -17,7 +17,6 @@
 //! [`nvisycom/inference`]: https://github.com/nvisycom/inference
 //! [`Endpoint::with_request_id`]: bentoml::Endpoint::with_request_id
 
-use async_trait::async_trait;
 use bentoml::prelude::*;
 use nvisy_core::{Error, Result};
 use nvisy_ontology::entity::Entity;
@@ -72,7 +71,7 @@ impl BentoBackend {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Backend for BentoBackend {
     async fn recognize(&self, text: &str, ctx: &Context) -> Result<Vec<Entity<Text>>> {
         self.recognize_batch(&[text], ctx).await

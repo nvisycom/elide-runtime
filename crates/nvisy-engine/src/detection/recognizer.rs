@@ -12,7 +12,6 @@
 //!
 //! [`DetectionEngine`]: super::DetectionEngine
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Modality;
@@ -36,7 +35,7 @@ use serde::{Deserialize, Serialize};
 /// blocking pool or call remote services.
 ///
 /// [`DetectionEngine`]: super::DetectionEngine
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Recognizer: Send + Sync {
     /// The modality this recognizer scans + emits entities for.
     type Modality: Modality;

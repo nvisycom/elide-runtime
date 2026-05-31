@@ -30,7 +30,6 @@
 
 mod params;
 
-use async_trait::async_trait;
 use nvisy_codec::handler::TextData;
 use nvisy_core::Result;
 use nvisy_ner::language::LinguaLanguagePolicy;
@@ -90,7 +89,7 @@ impl NerRecognizer {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Recognizer for NerRecognizer {
     type Context = NerScanInput;
     type Modality = Text;

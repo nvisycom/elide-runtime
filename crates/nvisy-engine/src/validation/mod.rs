@@ -15,7 +15,6 @@ mod plan;
 
 use std::marker::PhantomData;
 
-use async_trait::async_trait;
 use nvisy_core::{Error, Result};
 use nvisy_ontology::modality::Modality;
 use uuid::Uuid;
@@ -85,7 +84,7 @@ impl<M: Modality> Default for ValidationPhase<M> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M> Phase<M> for ValidationPhase<M>
 where
     M: Modality + CheckLeaks,

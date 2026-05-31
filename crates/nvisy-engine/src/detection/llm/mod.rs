@@ -22,7 +22,6 @@ mod params;
 
 use std::sync::Arc;
 
-use async_trait::async_trait;
 use nvisy_agent::agent::LlmNerContext;
 use nvisy_agent::pipeline::LlmNerPipeline;
 use nvisy_codec::handler::TextData;
@@ -69,7 +68,7 @@ pub fn build_pipeline(cfg: LlmDetection) -> Result<Arc<LlmNerPipeline>> {
     Ok(Arc::new(pipeline))
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl Recognizer for LlmNerPipeline {
     type Context = LlmNerScanInput;
     type Modality = Text;

@@ -26,7 +26,6 @@
 
 use std::marker::PhantomData;
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 
@@ -155,7 +154,7 @@ pub struct PhaseInfo {
 /// constructor on the trait — the lighter shape is intentional, and
 /// keeps `Phase<M>` object-safe so the orchestrator can iterate
 /// `Vec<Box<dyn Phase<M>>>` directly.
-#[async_trait]
+#[async_trait::async_trait]
 pub trait Phase<M: Modality>: Send + Sync {
     /// Stable introspection record. Called by the orchestrator to
     /// emit a uniform tracing span around [`Self::run`] and by

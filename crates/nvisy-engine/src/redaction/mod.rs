@@ -24,7 +24,6 @@ mod strategy;
 
 use std::marker::PhantomData;
 
-use async_trait::async_trait;
 use nvisy_core::Result;
 use nvisy_ontology::entity::is_excluded;
 use nvisy_ontology::modality::{Modality, Overlap};
@@ -68,7 +67,7 @@ impl<M: Modality> Default for RedactionPhase<M> {
     }
 }
 
-#[async_trait]
+#[async_trait::async_trait]
 impl<M> Phase<M> for RedactionPhase<M>
 where
     M: Modality + Overlap,

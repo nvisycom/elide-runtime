@@ -32,7 +32,7 @@ pub use self::config::RedactionConfig;
 use self::evaluate::TARGET;
 pub use self::evaluate::{ApplyRedactions, ApplyRedactionsImpl};
 pub use self::plan::Redaction;
-use crate::core::ValueAt;
+use crate::core::{PolicyStore, SharedHandle, ValueAt};
 use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
 
 /// Redaction phase: evaluate policies, attach an [`AuditEntry<M>`]
@@ -70,7 +70,7 @@ impl<M: Modality> Default for RedactionPhase<M> {
 impl<M> Phase<M> for RedactionPhase<M>
 where
     M: Modality + Overlap,
-    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    for<'a> crate::core::DocView<'a, M>: ValueAt<M>,
     ApplyRedactionsImpl: ApplyRedactions<M>,
 {
     fn inspect(&self) -> PhaseInfo {
@@ -92,7 +92,14 @@ where
         // precedence chain (plan override → deployment default).
         let _process_metadata = cfg.process_metadata.unwrap_or(section.process_metadata);
 
-        run_redaction(default_threshold, target).await
+        run_redaction(
+            default_threshold,
+            target.doc,
+            target.handle,
+            target.metadata,
+            &target.shared.policies,
+        )
+        .await
     }
 }
 
@@ -101,29 +108,30 @@ where
 /// test-only path can drive it without going through a `PhaseContext`.
 pub(crate) async fn run_redaction<M>(
     default_threshold: nvisy_ontology::primitive::ConfidenceThreshold,
-    target: &mut PhaseTarget<'_, M>,
+    doc: &mut nvisy_ontology::document::Document<M>,
+    handle: &SharedHandle,
+    metadata: &nvisy_core::content::ContentMetadata,
+    policies: &PolicyStore,
 ) -> Result<()>
 where
     M: Modality + Overlap,
-    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    for<'a> crate::core::DocView<'a, M>: ValueAt<M>,
     ApplyRedactionsImpl: ApplyRedactions<M>,
 {
-    if target.doc.audit.records.is_empty() {
+    if doc.audit.records.is_empty() {
         return Ok(());
     }
 
     // Drop entities that overlap an Assert-strength Exclusion
     // annotation. Defence in depth: catches both well-meaning
     // detectors and LLMs that ignored the exclusion-hint prompt.
-    let before_filter = target.doc.audit.records.len();
-    let annotations = std::mem::take(&mut target.doc.annotations);
-    target
-        .doc
-        .audit
+    let before_filter = doc.audit.records.len();
+    let annotations = std::mem::take(&mut doc.annotations);
+    doc.audit
         .records
         .retain(|record| !is_excluded(&annotations, &record.entity));
-    target.doc.annotations = annotations;
-    let dropped = before_filter - target.doc.audit.records.len();
+    doc.annotations = annotations;
+    let dropped = before_filter - doc.audit.records.len();
     if dropped > 0 {
         tracing::debug!(
             target: TARGET,
@@ -132,30 +140,29 @@ where
         );
     }
 
-    if target.doc.audit.records.is_empty() {
+    if doc.audit.records.is_empty() {
         return Ok(());
     }
 
-    let metadata = target.metadata.clone();
-    let document_labels: Vec<&str> = target.doc.labels.iter().map(|l| l.label.as_str()).collect();
+    let document_labels: Vec<&str> = doc.labels.iter().map(|l| l.label.as_str()).collect();
 
-    let mut records = std::mem::take(&mut target.doc.audit.records);
+    let mut records = std::mem::take(&mut doc.audit.records);
     evaluate::evaluate::<M>(
         &mut records,
         default_threshold,
         &document_labels,
-        &metadata,
-        target,
+        metadata,
+        policies,
     )
     .await;
-    target.doc.audit.records = records;
+    doc.audit.records = records;
 
     tracing::debug!(
         target: TARGET,
-        entries = target.doc.audit.entries().count(),
+        entries = doc.audit.entries().count(),
         "policy evaluation complete",
     );
 
-    <ApplyRedactionsImpl as ApplyRedactions<M>>::apply_pending(target).await?;
+    <ApplyRedactionsImpl as ApplyRedactions<M>>::apply_pending(doc, handle).await?;
     Ok(())
 }

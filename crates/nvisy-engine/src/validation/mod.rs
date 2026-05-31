@@ -87,7 +87,7 @@ impl<M: Modality> Default for ValidationPhase<M> {
 impl<M> Phase<M> for ValidationPhase<M>
 where
     M: Modality + CheckLeaks,
-    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    for<'a> crate::core::DocView<'a, M>: ValueAt<M>,
 {
     fn inspect(&self) -> PhaseInfo {
         PhaseInfo {
@@ -102,7 +102,7 @@ where
 
         tracing::debug!(target: TARGET, "running post-redaction validation");
 
-        let result = M::check_leaks(target).await;
+        let result = M::check_leaks(target.doc, target.handle).await;
 
         if result.skipped {
             tracing::debug!(

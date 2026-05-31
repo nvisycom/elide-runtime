@@ -28,8 +28,7 @@ use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::modality::Modality;
 use nvisy_ontology::provenance::{AuditEntry, Execution};
 
-use crate::core::ValueAt;
-use crate::pipeline::PhaseTarget;
+use crate::core::{DocView, SharedHandle, ValueAt};
 
 const TARGET: &str = "nvisy_engine::redaction::apply";
 
@@ -71,15 +70,19 @@ impl<M: Modality, R> ApplyBatch<M, R> {
 /// The returned [`ApplyBatch`] holds the batch to submit plus the
 /// per-record indices the caller will commit via [`commit`] once
 /// the codec accepts the work.
-pub(super) async fn build<M, R, F>(target: &PhaseTarget<'_, M>, to_redaction: F) -> ApplyBatch<M, R>
+pub(super) async fn build<M, R, F>(
+    doc: &nvisy_ontology::document::Document<M>,
+    handle: &SharedHandle,
+    to_redaction: F,
+) -> ApplyBatch<M, R>
 where
     M: Modality,
     R: Clone,
     F: Fn(EntryView<'_, M>) -> Result<R>,
-    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    for<'a> DocView<'a, M>: ValueAt<M>,
 {
-    let pending: Vec<usize> = target
-        .doc
+    let view = DocView::new(doc, handle);
+    let pending: Vec<usize> = doc
         .audit
         .records
         .iter()
@@ -101,13 +104,13 @@ where
     let mut failed: Vec<(usize, String)> = Vec::new();
 
     for idx in pending {
-        let record = &target.doc.audit.records[idx];
+        let record = &doc.audit.records[idx];
         let entry = record
             .audit
             .as_ref()
             .expect("filtered to records with Some(audit) above");
         let entity = &record.entity;
-        let original = target.value_at(&entity.location).await.unwrap_or_default();
+        let original = view.value_at(&entity.location).await.unwrap_or_default();
         let view = EntryView {
             entry,
             entity_kind: entity.entity_kind,
@@ -146,7 +149,7 @@ where
 /// tabular produce `TextReplacement` / `TabularReplacement`; image/
 /// audio produce the `MethodTag` of the operation that ran.
 pub(super) fn commit<M, R, ToReplacement>(
-    target: &mut PhaseTarget<'_, M>,
+    doc: &mut nvisy_ontology::document::Document<M>,
     applied: Vec<(usize, R)>,
     failed: Vec<(usize, String)>,
     to_replacement: ToReplacement,
@@ -155,7 +158,7 @@ pub(super) fn commit<M, R, ToReplacement>(
     ToReplacement: Fn(&R) -> M::Replacement,
 {
     for (idx, redaction) in applied {
-        let entry = target.doc.audit.records[idx]
+        let entry = doc.audit.records[idx]
             .audit
             .as_mut()
             .expect("record had Some(audit) when build() ran");
@@ -164,7 +167,7 @@ pub(super) fn commit<M, R, ToReplacement>(
         };
     }
     for (idx, reason) in failed {
-        let entry = target.doc.audit.records[idx]
+        let entry = doc.audit.records[idx]
             .audit
             .as_mut()
             .expect("record had Some(audit) when build() ran");

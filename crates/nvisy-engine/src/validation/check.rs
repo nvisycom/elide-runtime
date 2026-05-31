@@ -17,44 +17,44 @@
 //! so each modality's pipeline runs the right check (or none).
 
 use futures::StreamExt;
+use nvisy_ontology::document::Document;
 use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 use nvisy_ontology::provenance::EntityRecord;
 use unicode_normalization::UnicodeNormalization;
 
 use super::{LeakedValue, ValidationResult};
-use crate::core::{SharedHandle, ValueAt};
-use crate::pipeline::PhaseTarget;
+use crate::core::{DocView, SharedHandle, ValueAt};
 
 /// Per-modality leak-check contract.
 #[async_trait::async_trait]
 pub trait CheckLeaks: Modality {
-    /// Inspect the target and report any redacted values that
+    /// Inspect the document and report any redacted values that
     /// remain visible. Modalities without leak-detection support
     /// return [`ValidationResult::skipped`].
-    async fn check_leaks(target: &PhaseTarget<'_, Self>) -> ValidationResult;
+    async fn check_leaks(doc: &Document<Self>, handle: &SharedHandle) -> ValidationResult;
 }
 
 #[async_trait::async_trait]
 impl CheckLeaks for Text {
-    async fn check_leaks(target: &PhaseTarget<'_, Self>) -> ValidationResult {
-        let redacted_text = read_text(target.handle).await;
-        check_text_like::<Text>(target, redacted_text.as_deref()).await
+    async fn check_leaks(doc: &Document<Self>, handle: &SharedHandle) -> ValidationResult {
+        let redacted_text = read_text(handle).await;
+        check_text_like::<Text>(doc, handle, redacted_text.as_deref()).await
     }
 }
 
 #[cfg(feature = "tabular")]
 #[async_trait::async_trait]
 impl CheckLeaks for Tabular {
-    async fn check_leaks(target: &PhaseTarget<'_, Self>) -> ValidationResult {
-        let redacted_text = read_tabular(target.handle).await;
-        check_text_like::<Tabular>(target, redacted_text.as_deref()).await
+    async fn check_leaks(doc: &Document<Self>, handle: &SharedHandle) -> ValidationResult {
+        let redacted_text = read_tabular(handle).await;
+        check_text_like::<Tabular>(doc, handle, redacted_text.as_deref()).await
     }
 }
 
 #[cfg(not(feature = "tabular"))]
 #[async_trait::async_trait]
 impl CheckLeaks for Tabular {
-    async fn check_leaks(_target: &PhaseTarget<'_, Self>) -> ValidationResult {
+    async fn check_leaks(_doc: &Document<Self>, _handle: &SharedHandle) -> ValidationResult {
         ValidationResult::skipped()
     }
 }
@@ -65,7 +65,7 @@ impl CheckLeaks for Image {
     /// redacted region against the original). Not implemented yet —
     /// tracked at
     /// <https://github.com/nvisycom/runtime/issues/209>.
-    async fn check_leaks(_target: &PhaseTarget<'_, Self>) -> ValidationResult {
+    async fn check_leaks(_doc: &Document<Self>, _handle: &SharedHandle) -> ValidationResult {
         ValidationResult::skipped()
     }
 }
@@ -75,7 +75,7 @@ impl CheckLeaks for Audio {
     /// Audio leak detection requires speech/audio inspection of the
     /// post-redaction segments. Not implemented yet — tracked at
     /// <https://github.com/nvisycom/runtime/issues/210>.
-    async fn check_leaks(_target: &PhaseTarget<'_, Self>) -> ValidationResult {
+    async fn check_leaks(_doc: &Document<Self>, _handle: &SharedHandle) -> ValidationResult {
         ValidationResult::skipped()
     }
 }
@@ -87,18 +87,18 @@ impl CheckLeaks for Audio {
 /// whether it still contains the original. Records whose value
 /// can't be re-read are conservatively counted as passed.
 async fn check_text_like<M>(
-    target: &PhaseTarget<'_, M>,
+    doc: &Document<M>,
+    handle: &SharedHandle,
     redacted_text: Option<&str>,
 ) -> ValidationResult
 where
     M: Modality,
-    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    for<'a> DocView<'a, M>: ValueAt<M>,
 {
     let mut passed = 0usize;
     let mut leaked = Vec::new();
 
-    let applied: Vec<&EntityRecord<M>> = target
-        .doc
+    let applied: Vec<&EntityRecord<M>> = doc
         .audit
         .records
         .iter()
@@ -113,9 +113,10 @@ where
         };
     };
 
+    let view = DocView::new(doc, handle);
     let folded_text = fold_for_match(text);
     for record in &applied {
-        if let Some(value) = target.value_at(&record.entity.location).await {
+        if let Some(value) = view.value_at(&record.entity.location).await {
             let folded_value = fold_for_match(&value);
             if !value.is_empty() && folded_text.contains(&folded_value) {
                 leaked.push(LeakedValue {

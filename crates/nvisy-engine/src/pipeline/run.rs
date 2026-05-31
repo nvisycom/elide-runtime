@@ -155,22 +155,19 @@ impl Pipeline {
         }
 
         // Build the detection engine once per run by picking
-        // pre-built recognizers from the registry. `None` when the
-        // plan opted no recognizers in (`kinds` empty) — we
-        // skip the detection phase rather than fail.
-        let detection_engine = if input.plan.detection.kinds.is_empty() {
-            None
-        } else {
-            Some(Arc::new(
-                input
-                    .plan
-                    .detection
-                    .into_engine(&self.recognizers)
-                    .map_err(|e| {
-                        Error::validation(format!("detection engine assembly: {e}"), "detection")
-                    })?,
-            ))
-        };
+        // pre-built recognizers from the registry. When the plan
+        // opted no recognizers in (`kinds` empty), the engine is
+        // built empty and the detection phase short-circuits at
+        // dispatch.
+        let detection_engine = Arc::new(
+            input
+                .plan
+                .detection
+                .into_engine(&self.recognizers)
+                .map_err(|e| {
+                    Error::validation(format!("detection engine assembly: {e}"), "detection")
+                })?,
+        );
 
         let cancel = CancellationToken::new();
         let cancel_clone = cancel.clone();

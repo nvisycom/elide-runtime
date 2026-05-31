@@ -13,12 +13,13 @@
 
 use std::collections::BTreeMap;
 
+use futures::StreamExt;
 use nvisy_core::Result;
 use nvisy_ontology::document::{Block, Span};
 use nvisy_ontology::modality::{Tabular, TabularBlock};
 
 use super::{ExtractDispatch, Extraction, ExtractionEngine, PlanSlice, TabularPlan};
-use crate::envelope::DocumentEnvelope;
+use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::extraction::tabular";
 
@@ -27,12 +28,15 @@ const TARGET: &str = "nvisy_engine::extraction::tabular";
 /// text round-trips back to per-cell ranges without ambiguity.
 const CELL_SEPARATOR: &str = "\t";
 
-/// Append one [`Block<Tabular>`] per row to the envelope's
-/// document. Each block carries the concatenated row text and one
-/// span per cell mapping the cell's substring range back to the
-/// codec's per-cell [`Tabular`] coordinates.
-async fn populate_document(envelope: &mut DocumentEnvelope<Tabular>) {
-    let locations = envelope.collect_tabular_locations().await;
+/// Append one [`Block<Tabular>`] per row to the target's document.
+/// Each block carries the concatenated row text and one span per
+/// cell mapping the cell's substring range back to the codec's
+/// per-cell [`Tabular`] coordinates.
+async fn populate_document(target: &mut PhaseTarget<'_, Tabular>) {
+    let locations: Vec<_> = {
+        let guard = target.handle.lock().await;
+        guard.tabular_locations().collect().await
+    };
     if locations.is_empty() {
         return;
     }
@@ -57,7 +61,7 @@ async fn populate_document(envelope: &mut DocumentEnvelope<Tabular>) {
             if i > 0 {
                 text.push_str(CELL_SEPARATOR);
             }
-            let Some(value) = envelope.read_tabular(&cell).await else {
+            let Some(value) = target.handle.lock().await.read_tabular(&cell).await else {
                 continue;
             };
             let value = value.into_inner();
@@ -81,7 +85,7 @@ async fn populate_document(envelope: &mut DocumentEnvelope<Tabular>) {
         "populated tabular document",
     );
 
-    envelope.document.blocks.extend(blocks);
+    target.doc.blocks.extend(blocks);
 }
 
 #[async_trait::async_trait]
@@ -90,10 +94,10 @@ impl ExtractDispatch<Tabular> for ExtractionEngine {
 
     async fn extract(
         &self,
-        envelope: &mut DocumentEnvelope<Tabular>,
+        target: &mut PhaseTarget<'_, Tabular>,
         _plan: &TabularPlan,
     ) -> Result<()> {
-        populate_document(envelope).await;
+        populate_document(target).await;
         Ok(())
     }
 }

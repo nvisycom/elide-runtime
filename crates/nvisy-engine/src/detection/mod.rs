@@ -50,8 +50,7 @@ pub use self::recognizers::{ImageRecognizers, Recognizers, TextRecognizers};
 pub use self::vlm::{
     VlmDetectParams, VlmDetection, VlmVerifyParams, build_pipeline as build_vlm_pipeline,
 };
-use crate::envelope::DocumentEnvelope;
-use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
+use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
 
 /// Plan detection node — which recognizers to dispatch and the
 /// shared per-call hints.
@@ -148,8 +147,8 @@ impl Detection {
     }
 }
 
-/// Detection phase: runs configured recognizers over the envelope's
-/// blocks and writes [`EntityRecord`]s to `envelope.document.audit`.
+/// Detection phase: runs configured recognizers over the target's
+/// blocks and writes [`EntityRecord`]s to `target.doc.audit`.
 ///
 /// Stateless beyond the modality marker — the shared
 /// [`DetectionEngine`] is read from `ctx.run` each call, and the
@@ -191,16 +190,12 @@ where
         }
     }
 
-    async fn run(
-        &self,
-        ctx: &PhaseContext<'_, M>,
-        envelope: &mut DocumentEnvelope<M>,
-    ) -> Result<()> {
-        let engine = ctx
-            .run
-            .detection_engine
-            .as_ref()
-            .expect("detection phase pushed without engine — orchestrator bug");
-        DetectDispatch::<M>::detect(engine.as_ref(), envelope, &ctx.plan.detection).await
+    async fn run(&self, ctx: &PhaseContext<'_, M>, target: &mut PhaseTarget<'_, M>) -> Result<()> {
+        DetectDispatch::<M>::detect(
+            ctx.run.detection_engine.as_ref(),
+            target,
+            &ctx.plan.detection,
+        )
+        .await
     }
 }

@@ -18,7 +18,7 @@ use nvisy_core::Result;
 use nvisy_ontology::modality::Modality;
 
 use super::ExtractionEngine;
-use crate::envelope::DocumentEnvelope;
+use crate::pipeline::PhaseTarget;
 
 /// Per-modality extraction dispatch.
 ///
@@ -30,7 +30,7 @@ pub trait ExtractDispatch<M: Modality>: Send + Sync {
     /// Per-modality plan slice.
     type Plan: Default + Send + Sync;
 
-    async fn extract(&self, envelope: &mut DocumentEnvelope<M>, plan: &Self::Plan) -> Result<()>;
+    async fn extract(&self, target: &mut PhaseTarget<'_, M>, plan: &Self::Plan) -> Result<()>;
 }
 
 /// Helper that picks the per-modality plan slice out of

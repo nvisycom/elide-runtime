@@ -4,7 +4,7 @@
 //!
 //! One pass per envelope. The flow is the same for every modality:
 //!
-//! 1. Walk `envelope.document.audit.records`. For each record whose `audit`
+//! 1. Walk `target.doc.audit.records`. For each record whose `audit`
 //!    is present and [`Pending`], read the entity's `location` and
 //!    `entity_kind` directly off the record — no lookup needed.
 //! 2. Convert the entry's [`Strategy`] into a codec-side
@@ -28,8 +28,8 @@ use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::modality::Modality;
 use nvisy_ontology::provenance::{AuditEntry, Execution};
 
-use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
+use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::redaction::apply";
 
@@ -71,18 +71,15 @@ impl<M: Modality, R> ApplyBatch<M, R> {
 /// The returned [`ApplyBatch`] holds the batch to submit plus the
 /// per-record indices the caller will commit via [`commit`] once
 /// the codec accepts the work.
-pub(super) async fn build<M, R, F>(
-    envelope: &DocumentEnvelope<M>,
-    to_redaction: F,
-) -> ApplyBatch<M, R>
+pub(super) async fn build<M, R, F>(target: &PhaseTarget<'_, M>, to_redaction: F) -> ApplyBatch<M, R>
 where
     M: Modality,
     R: Clone,
     F: Fn(EntryView<'_, M>) -> Result<R>,
-    DocumentEnvelope<M>: ValueAt<M>,
+    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
 {
-    let pending: Vec<usize> = envelope
-        .document
+    let pending: Vec<usize> = target
+        .doc
         .audit
         .records
         .iter()
@@ -104,16 +101,13 @@ where
     let mut failed: Vec<(usize, String)> = Vec::new();
 
     for idx in pending {
-        let record = &envelope.document.audit.records[idx];
+        let record = &target.doc.audit.records[idx];
         let entry = record
             .audit
             .as_ref()
             .expect("filtered to records with Some(audit) above");
         let entity = &record.entity;
-        let original = envelope
-            .value_at(&entity.location)
-            .await
-            .unwrap_or_default();
+        let original = target.value_at(&entity.location).await.unwrap_or_default();
         let view = EntryView {
             entry,
             entity_kind: entity.entity_kind,
@@ -152,7 +146,7 @@ where
 /// tabular produce `TextReplacement` / `TabularReplacement`; image/
 /// audio produce the `MethodTag` of the operation that ran.
 pub(super) fn commit<M, R, ToReplacement>(
-    envelope: &mut DocumentEnvelope<M>,
+    target: &mut PhaseTarget<'_, M>,
     applied: Vec<(usize, R)>,
     failed: Vec<(usize, String)>,
     to_replacement: ToReplacement,
@@ -161,7 +155,7 @@ pub(super) fn commit<M, R, ToReplacement>(
     ToReplacement: Fn(&R) -> M::Replacement,
 {
     for (idx, redaction) in applied {
-        let entry = envelope.document.audit.records[idx]
+        let entry = target.doc.audit.records[idx]
             .audit
             .as_mut()
             .expect("record had Some(audit) when build() ran");
@@ -170,7 +164,7 @@ pub(super) fn commit<M, R, ToReplacement>(
         };
     }
     for (idx, reason) in failed {
-        let entry = envelope.document.audit.records[idx]
+        let entry = target.doc.audit.records[idx]
             .audit
             .as_mut()
             .expect("record had Some(audit) when build() ran");

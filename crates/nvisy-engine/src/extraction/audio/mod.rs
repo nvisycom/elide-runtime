@@ -14,20 +14,16 @@ use nvisy_ontology::modality::Audio;
 #[cfg(feature = "audio")]
 pub use self::stt::{SttExtractor, SttExtractorConfig};
 use super::{AudioPlan, ExtractDispatch, Extraction, ExtractionEngine, PlanSlice};
-use crate::envelope::DocumentEnvelope;
+use crate::pipeline::PhaseTarget;
 
 #[cfg(feature = "audio")]
 #[async_trait::async_trait]
 impl ExtractDispatch<Audio> for ExtractionEngine {
     type Plan = AudioPlan;
 
-    async fn extract(
-        &self,
-        envelope: &mut DocumentEnvelope<Audio>,
-        plan: &AudioPlan,
-    ) -> Result<()> {
+    async fn extract(&self, target: &mut PhaseTarget<'_, Audio>, plan: &AudioPlan) -> Result<()> {
         if let Some(ref stt) = self.stt {
-            stt.run(envelope, plan.diarization).await?;
+            stt.run(target, plan.diarization).await?;
         }
         Ok(())
     }
@@ -38,11 +34,7 @@ impl ExtractDispatch<Audio> for ExtractionEngine {
 impl ExtractDispatch<Audio> for ExtractionEngine {
     type Plan = AudioPlan;
 
-    async fn extract(
-        &self,
-        _envelope: &mut DocumentEnvelope<Audio>,
-        _plan: &AudioPlan,
-    ) -> Result<()> {
+    async fn extract(&self, _target: &mut PhaseTarget<'_, Audio>, _plan: &AudioPlan) -> Result<()> {
         Ok(())
     }
 }

@@ -21,9 +21,8 @@ use uuid::Uuid;
 
 pub use self::check::CheckLeaks;
 pub use self::plan::{OnLeak, Validation};
-use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
-use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
+use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
 
 const TARGET: &str = "nvisy_engine::validation";
 
@@ -88,7 +87,7 @@ impl<M: Modality> Default for ValidationPhase<M> {
 impl<M> Phase<M> for ValidationPhase<M>
 where
     M: Modality + CheckLeaks,
-    DocumentEnvelope<M>: ValueAt<M>,
+    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
 {
     fn inspect(&self) -> PhaseInfo {
         PhaseInfo {
@@ -98,16 +97,12 @@ where
         }
     }
 
-    async fn run(
-        &self,
-        ctx: &PhaseContext<'_, M>,
-        envelope: &mut DocumentEnvelope<M>,
-    ) -> Result<()> {
+    async fn run(&self, ctx: &PhaseContext<'_, M>, target: &mut PhaseTarget<'_, M>) -> Result<()> {
         let on_leak = ctx.plan.validation.on_leak;
 
         tracing::debug!(target: TARGET, "running post-redaction validation");
 
-        let result = M::check_leaks(envelope).await;
+        let result = M::check_leaks(target).await;
 
         if result.skipped {
             tracing::debug!(

@@ -43,9 +43,8 @@ pub use self::params::DeduplicationParams;
 pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
 pub use self::span_size::SpanSize;
-use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
-use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
+use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
 
 const TARGET: &str = "nvisy_engine::deduplication";
 
@@ -78,11 +77,11 @@ impl<M: Modality> DeduplicationPhase<M> {
         params: &DeduplicationParams,
         filter: &FilterParams,
         mut entities: Vec<Entity<M>>,
-        envelope: &DocumentEnvelope<M>,
+        target: &PhaseTarget<'_, M>,
     ) -> Vec<Entity<M>>
     where
         M: Overlap + SpanSize,
-        DocumentEnvelope<M>: ValueAt<M>,
+        for<'a> PhaseTarget<'a, M>: ValueAt<M>,
     {
         if entities.is_empty() {
             return entities;
@@ -92,7 +91,7 @@ impl<M: Modality> DeduplicationPhase<M> {
         entities.calibrate(&params.calibration);
         let dropped = entities.filter(filter);
         entities
-            .fuse(&params.strategy, params.grouping, envelope)
+            .fuse(&params.strategy, params.grouping, target)
             .await;
         let _conflict_dropped = entities.resolve_conflicts(&params.conflict_resolution);
 
@@ -119,7 +118,7 @@ impl<M: Modality> Default for DeduplicationPhase<M> {
 impl<M> Phase<M> for DeduplicationPhase<M>
 where
     M: Modality + Overlap + SpanSize,
-    DocumentEnvelope<M>: ValueAt<M>,
+    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
 {
     fn inspect(&self) -> PhaseInfo {
         PhaseInfo {
@@ -129,12 +128,8 @@ where
         }
     }
 
-    async fn run(
-        &self,
-        ctx: &PhaseContext<'_, M>,
-        envelope: &mut DocumentEnvelope<M>,
-    ) -> Result<()> {
-        if envelope.document.audit.records.is_empty() {
+    async fn run(&self, ctx: &PhaseContext<'_, M>, target: &mut PhaseTarget<'_, M>) -> Result<()> {
+        if target.doc.audit.records.is_empty() {
             return Ok(());
         }
 
@@ -148,17 +143,17 @@ where
 
         tracing::debug!(
             target: TARGET,
-            entities = envelope.document.audit.records.len(),
+            entities = target.doc.audit.records.len(),
             "running deduplication",
         );
 
         // Dedup runs before redaction evaluation, so every record's
         // `audit` is still None; we can pull entities out, dedup, and
         // rewrap without losing audit state.
-        let records = mem::take(&mut envelope.document.audit.records);
+        let records = mem::take(&mut target.doc.audit.records);
         let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
-        let deduped = Self::deduplicate(&ctx.plan.deduplication, &filter, entities, envelope).await;
-        envelope.document.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
+        let deduped = Self::deduplicate(&ctx.plan.deduplication, &filter, entities, target).await;
+        target.doc.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
         Ok(())
     }
 }
@@ -168,13 +163,14 @@ mod tests {
     use std::sync::Arc;
 
     use nvisy_core::content::ContentMetadata;
+    use nvisy_ontology::document::Document;
     use nvisy_ontology::entity::{Entity, ModelKind, RecognitionMethod};
     use nvisy_ontology::modality::{Text, TextExtraction, TextMetadata};
     use nvisy_ontology::primitive::{Confidence, ConfidenceThreshold};
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::envelope::SharedData;
+    use crate::envelope::{SharedData, SharedHandle};
 
     fn conf(v: f64) -> Confidence {
         Confidence::new(v).expect("confidence in [0,1]")
@@ -182,30 +178,56 @@ mod tests {
 
     const TEST_TEXT: &str = "John Smith";
 
-    async fn test_envelope(text: &str) -> DocumentEnvelope<Text> {
+    /// Owned per-test components used to build a [`PhaseTarget`].
+    struct Fixture {
+        handle: SharedHandle,
+        doc: Document<Text>,
+        metadata: ContentMetadata,
+        shared: Arc<SharedData>,
+    }
+
+    impl Fixture {
+        fn target(&mut self) -> PhaseTarget<'_, Text> {
+            PhaseTarget::<Text>::new(
+                &mut self.doc,
+                &self.handle,
+                uuid::Uuid::nil(),
+                &self.metadata,
+                &self.shared,
+            )
+        }
+    }
+
+    async fn test_fixture(text: &str) -> Fixture {
         let registry = crate::ingestion::registry::Registry::open(
             tempfile::tempdir().expect("tempdir").path(),
         )
         .expect("open registry");
         let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
-        let handle = nvisy_formats::test_utils::decode_text(text)
-            .await
-            .expect("decode text");
-        DocumentEnvelope::<Text>::new(
-            Arc::new(Mutex::new(handle)),
-            ContentMetadata::new().with_content_type("text/plain"),
+        let handle: SharedHandle = Arc::new(Mutex::new(
+            nvisy_formats::test_utils::decode_text(text)
+                .await
+                .expect("decode text"),
+        ));
+        let source = handle.lock().await.source();
+        let doc = Document::<Text>::new(
             TextMetadata {
                 extraction: TextExtraction::Native,
                 languages: Vec::new(),
             },
+            source,
+        );
+        Fixture {
+            handle,
+            doc,
+            metadata: ContentMetadata::new().with_content_type("text/plain"),
             shared,
-        )
-        .await
+        }
     }
 
     #[tokio::test]
     async fn confidence_threshold_filters() {
-        let doc = test_envelope("John......Jane").await;
+        let mut fix = test_fixture("John......Jane").await;
         let filter = FilterParams {
             confidence_threshold: Some(ConfidenceThreshold::clamped(0.85)),
             ..Default::default()
@@ -216,21 +238,22 @@ mod tests {
                 .with_confidence(conf(0.5))
                 .test_build(),
         ];
+        let target = fix.target();
         let result = DeduplicationPhase::<Text>::deduplicate(
             &DeduplicationParams::default(),
             &filter,
             entities,
-            &doc,
+            &target,
         )
         .await;
         assert_eq!(result.len(), 1);
-        let value = doc.value_at(&result[0].location).await;
+        let value = target.value_at(&result[0].location).await;
         assert_eq!(value.as_deref(), Some("John"));
     }
 
     #[tokio::test]
     async fn full_pipeline() {
-        let doc = test_envelope(TEST_TEXT).await;
+        let mut fix = test_fixture(TEST_TEXT).await;
         let entities: Vec<Entity<Text>> = vec![
             Entity::test_builder(0, 4)
                 .with_confidence(conf(0.7))
@@ -246,11 +269,12 @@ mod tests {
                 .with_confidence(conf(0.85))
                 .test_build(),
         ];
+        let target = fix.target();
         let result = DeduplicationPhase::<Text>::deduplicate(
             &DeduplicationParams::default(),
             &FilterParams::default(),
             entities,
-            &doc,
+            &target,
         )
         .await;
         assert_eq!(result.len(), 1);

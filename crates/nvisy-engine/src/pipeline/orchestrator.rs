@@ -34,7 +34,8 @@ use crate::extraction::{
 use crate::ingestion::{
     ExportFile as ExportFileConfig, Exporter, ImportFile as ImportFileConfig, Importer,
 };
-use crate::redaction::{ApplyRedactions, RedactionConfig, RedactionPhase};
+use crate::pipeline::PhaseTarget;
+use crate::redaction::{ApplyRedactions, ApplyRedactionsImpl, RedactionConfig, RedactionPhase};
 use crate::validation::{CheckLeaks, ValidationPhase};
 
 const TARGET: &str = "nvisy_engine::pipeline::orchestrator";
@@ -48,13 +49,11 @@ pub(crate) struct RunContext {
     /// Pre-built extractor registry from `RuntimeConfig.extraction`.
     /// Shared across every run.
     pub(crate) extraction_engine: Arc<ExtractionEngine>,
-    /// Optional shared detection engine. `None` skips the
-    /// detection phase entirely; set when the plan's
-    /// `Detection.kinds` is empty (redaction-only flows, no-op
-    /// dry runs, test harnesses). See `pipeline/run.rs` —
-    /// the engine is built lazily only when at least one
-    /// recognizer kind is requested.
-    pub(crate) detection_engine: Option<Arc<DetectionEngine>>,
+    /// Shared detection engine. Always present; when the plan
+    /// requests no recognizers, the engine is built empty and the
+    /// per-modality dispatch short-circuits on empty recognizer
+    /// lists.
+    pub(crate) detection_engine: Arc<DetectionEngine>,
     /// Server-wide redaction defaults from `RuntimeConfig.redaction`.
     /// Per-plan `Redaction` fields fall back to these.
     pub(crate) redaction_config: Arc<RedactionConfig>,
@@ -251,7 +250,9 @@ where
     ExtractionEngine: ExtractDispatch<M>,
     Extraction: PlanSlice<M>,
     DetectionEngine: DetectDispatch<M>,
-    DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send + 'static,
+    DocumentEnvelope<M>: Send + 'static,
+    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    ApplyRedactionsImpl: ApplyRedactions<M>,
     F: FnOnce(DocumentEnvelope<M>) -> AnyEnvelope + Send + 'static,
 {
     let _permit = match sem {
@@ -285,12 +286,16 @@ where
     ExtractionEngine: ExtractDispatch<M>,
     Extraction: PlanSlice<M>,
     DetectionEngine: DetectDispatch<M>,
-    DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions + Send,
+    DocumentEnvelope<M>: Send,
+    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    ApplyRedactionsImpl: ApplyRedactions<M>,
 {
     /// Walk the per-document phase sequence for one envelope.
     ///
     /// Phase order lives in [`Self::build_phases`]; the loop body
-    /// is `cancellation → tracing span → phase.run`. Export and
+    /// is `cancellation → tracing span → phase.run`. Phases see only
+    /// a narrow [`PhaseTarget`] view (doc + handle + run id +
+    /// metadata + shared) — never the envelope. Export and
     /// ingestion stay outside the `Phase<M>` Vec (see
     /// [`crate::pipeline::phase`] module docs).
     async fn run(
@@ -300,6 +305,7 @@ where
     ) -> Result<DocumentEnvelope<M>, Error> {
         let phases = self.build_phases();
         let ctx = PhaseContext::<M>::new(&self.ctx, &input.plan);
+        let run_id = envelope.shared.run_id;
 
         for phase in &phases {
             self.check_cancelled()?;
@@ -311,7 +317,14 @@ where
                 modality = info.modality.as_str(),
                 mutating = info.mutating,
             );
-            phase.run(&ctx, &mut envelope).instrument(span).await?;
+            let mut target = PhaseTarget::<M>::new(
+                &mut envelope.document,
+                &envelope.handle,
+                run_id,
+                &envelope.metadata,
+                &envelope.shared,
+            );
+            phase.run(&ctx, &mut target).instrument(span).await?;
         }
         self.check_cancelled()?;
 
@@ -336,11 +349,7 @@ where
         let mut phases: Vec<Box<dyn Phase<M>>> = Vec::with_capacity(5);
 
         phases.push(Box::new(ExtractionPhase::<M>::new()));
-
-        if self.ctx.detection_engine.is_some() {
-            phases.push(Box::new(DetectionPhase::<M>::new()));
-        }
-
+        phases.push(Box::new(DetectionPhase::<M>::new()));
         phases.push(Box::new(DeduplicationPhase::<M>::new()));
 
         if !self.ctx.dry_run {

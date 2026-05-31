@@ -13,7 +13,7 @@ use nvisy_ontology::document::{Block, Document};
 use nvisy_ontology::modality::{Image, ImageExtraction};
 use serde::{Deserialize, Serialize};
 
-use crate::envelope::{DocumentEnvelope, SharedHandle};
+use crate::envelope::SharedHandle;
 
 const TARGET: &str = "nvisy_engine::extraction::image::ocr";
 
@@ -54,25 +54,19 @@ impl OcrExtractor {
         Ok(Self { inner })
     }
 
-    /// Run OCR over the envelope's image regions, appending the
-    /// recognised blocks to [`DocumentEnvelope::document`] and
-    /// stamping the backend's provenance into
+    /// Run OCR over the image regions reachable via `handle`,
+    /// populating `doc`. Stamps the backend's provenance into
     /// [`ImageMetadata::extraction`] (replacing the
-    /// [`ImageExtraction::Pending`] tag the importer set at envelope
+    /// [`ImageExtraction::Pending`] tag the importer set at document
     /// creation).
     ///
-    /// [`ImageMetadata::extraction`]: nvisy_ontology::modality::ImageMetadata::extraction
-    /// [`ImageExtraction::Pending`]: nvisy_ontology::modality::ImageExtraction::Pending
-    pub async fn run(&self, envelope: &mut DocumentEnvelope<Image>) -> Result<()> {
-        self.run_on_doc(&mut envelope.document, &envelope.handle)
-            .await
-    }
-
-    /// Run OCR over the image regions reachable via `handle`,
-    /// populating `doc`. Decouples OCR from the envelope shape so the
+    /// Takes `(doc, handle)` rather than an envelope so the
     /// nested-document embed flow (PDF text → embedded image doc) can
     /// reuse it against a `Document<Image>` whose codec handle lives
     /// on the *outer* text envelope.
+    ///
+    /// [`ImageMetadata::extraction`]: nvisy_ontology::modality::ImageMetadata::extraction
+    /// [`ImageExtraction::Pending`]: nvisy_ontology::modality::ImageExtraction::Pending
     pub async fn run_on_doc(&self, doc: &mut Document<Image>, handle: &SharedHandle) -> Result<()> {
         doc.meta.extraction = ImageExtraction::Ocr(self.inner.provenance());
 

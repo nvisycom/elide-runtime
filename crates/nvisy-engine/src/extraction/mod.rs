@@ -37,8 +37,7 @@ pub use self::engine::ExtractionEngine;
 #[cfg(feature = "image")]
 pub use self::image::{OcrExtractor, OcrExtractorConfig};
 pub use self::plan::{AudioPlan, Extraction, ImagePlan, TabularPlan, TextPlan};
-use crate::envelope::DocumentEnvelope;
-use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
+use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
 
 impl Extraction {
     /// Borrow the per-modality plan slice keyed by `M`.
@@ -57,7 +56,7 @@ impl Extraction {
 }
 
 /// Extraction phase: walks the codec handle, populates
-/// `envelope.document.blocks`.
+/// `target.doc.blocks`.
 ///
 /// Stateless beyond the modality marker — the shared
 /// [`ExtractionEngine`] is read from `ctx.run` each call, and the
@@ -97,12 +96,8 @@ where
         }
     }
 
-    async fn run(
-        &self,
-        ctx: &PhaseContext<'_, M>,
-        envelope: &mut DocumentEnvelope<M>,
-    ) -> Result<()> {
+    async fn run(&self, ctx: &PhaseContext<'_, M>, target: &mut PhaseTarget<'_, M>) -> Result<()> {
         let plan = ctx.plan.extraction.plan_for::<M>();
-        ExtractDispatch::<M>::extract(ctx.run.extraction_engine.as_ref(), envelope, plan).await
+        ExtractDispatch::<M>::extract(ctx.run.extraction_engine.as_ref(), target, plan).await
     }
 }

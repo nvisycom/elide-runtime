@@ -14,7 +14,7 @@ use nvisy_ontology::modality::{Audio, AudioBlock, AudioExtraction};
 use nvisy_ontology::primitive::TimeSpan;
 use serde::{Deserialize, Serialize};
 
-use crate::envelope::DocumentEnvelope;
+use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::extraction::audio::stt";
 
@@ -54,30 +54,25 @@ impl SttExtractor {
         Ok(Self { stt })
     }
 
-    /// Transcribe the envelope's audio into
-    /// [`DocumentEnvelope::document`]. The handle stays as audio —
-    /// downstream text detection runs against a separate text
-    /// envelope spawned by the pipeline orchestrator.
+    /// Transcribe the target's audio into `target.doc`. The handle
+    /// stays as audio — downstream text detection runs through the
+    /// same orchestrator tree walk.
     ///
     /// `diarization` is currently advisory — diarization is not yet
     /// implemented; a warning is logged when requested. See #239.
-    pub async fn run(
-        &self,
-        envelope: &mut DocumentEnvelope<Audio>,
-        diarization: bool,
-    ) -> Result<()> {
+    pub async fn run(&self, target: &mut PhaseTarget<'_, Audio>, diarization: bool) -> Result<()> {
         // Stamp the real provenance over the importer's placeholder
         // ahead of any early returns — even an empty transcript
         // should reflect the model that ran.
         let provenance = self.stt.provenance();
-        envelope.document.meta.extraction = if diarization {
+        target.doc.meta.extraction = if diarization {
             AudioExtraction::Diarization(provenance)
         } else {
             AudioExtraction::Transcription(provenance)
         };
 
         let audio_data = {
-            let handle = envelope.handle.lock().await;
+            let handle = target.handle.lock().await;
             let DocumentHandle::Audio(ref handler) = *handle else {
                 return Ok(());
             };
@@ -89,7 +84,7 @@ impl SttExtractor {
         }
 
         tracing::debug!(target: TARGET, "transcribing audio");
-        let filename = envelope
+        let filename = target
             .metadata
             .filename
             .as_deref()
@@ -107,14 +102,11 @@ impl SttExtractor {
         }
 
         let time_span = TimeSpan::new(0, 0);
-        envelope
-            .document
-            .blocks
-            .push(Block::new(AudioBlock::Speech {
-                time_span,
-                text: stt_result.text.clone(),
-                speaker_id: None,
-            }));
+        target.doc.blocks.push(Block::new(AudioBlock::Speech {
+            time_span,
+            text: stt_result.text.clone(),
+            speaker_id: None,
+        }));
 
         tracing::debug!(target: TARGET, "audio transcript captured");
         Ok(())

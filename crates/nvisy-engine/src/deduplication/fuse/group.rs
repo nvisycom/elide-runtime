@@ -20,8 +20,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::key::GroupKey;
-use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
+use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::op::deduplication::group_entities";
 
@@ -85,19 +85,19 @@ pub(super) trait GroupEntities<M: Modality> {
     fn group(
         self,
         criteria: GroupingCriteria,
-        envelope: &DocumentEnvelope<M>,
+        target: &PhaseTarget<'_, M>,
     ) -> impl Future<Output = Vec<Vec<Entity<M>>>> + Send;
 }
 
 impl<M> GroupEntities<M> for Vec<Entity<M>>
 where
     M: Modality + Overlap,
-    DocumentEnvelope<M>: ValueAt<M>,
+    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
 {
     async fn group(
         self,
         criteria: GroupingCriteria,
-        envelope: &DocumentEnvelope<M>,
+        target: &PhaseTarget<'_, M>,
     ) -> Vec<Vec<Entity<M>>> {
         let check_overlap = criteria.requires_location_overlap();
         let is_substring = criteria.is_substring();
@@ -106,7 +106,7 @@ where
         // Phase 1: bucket by (kind, value).
         let mut buckets: HashMap<GroupKey, Vec<Entity<M>>> = HashMap::new();
         for entity in self {
-            let key = GroupKey::new(&entity, criteria, envelope).await;
+            let key = GroupKey::new(&entity, criteria, target).await;
             buckets.entry(key).or_default().push(entity);
         }
 
@@ -127,12 +127,12 @@ where
             let mut sub_groups: Vec<Vec<Entity<M>>> = Vec::new();
 
             for entity in bucket {
-                let target = sub_groups.iter_mut().find(|g| {
+                let bucket_match = sub_groups.iter_mut().find(|g| {
                     !check_overlap
                         || g.iter()
                             .any(|member| member.location.overlaps(&entity.location))
                 });
-                match target {
+                match bucket_match {
                     Some(g) => g.push(entity),
                     None => sub_groups.push(vec![entity]),
                 }
@@ -164,8 +164,8 @@ where
                         let mut any_value_match = false;
                         for a in &groups[indices[i]] {
                             for b in &groups[indices[j]] {
-                                let va = envelope.value_at(&a.location).await;
-                                let vb = envelope.value_at(&b.location).await;
+                                let va = target.value_at(&a.location).await;
+                                let vb = target.value_at(&b.location).await;
                                 if let (Some(va), Some(vb)) = (va.as_deref(), vb.as_deref())
                                     && criteria.values_match(va, vb)
                                 {

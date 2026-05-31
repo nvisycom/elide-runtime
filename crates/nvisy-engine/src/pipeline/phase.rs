@@ -1,15 +1,19 @@
 //! Per-document pipeline phase abstraction.
 //!
-//! [`Phase<M>`] unifies the operations the orchestrator runs against a
-//! single [`DocumentEnvelope<M>`]. Each phase wraps its slice of the
-//! shared [`RunContext`] and the per-request [`EngineInput`] at
-//! construction time (via [`Phase::Params`] + [`PhaseContext`]) and
-//! exposes a uniform `run` entry point.
+//! [`Phase<M>`] unifies the operations the orchestrator runs against
+//! a single [`Document<M>`] (the [`PhaseTarget`] also carries the
+//! shared codec handle, run id, and content metadata phases need).
+//! Each phase wraps its slice of the shared [`RunContext`] and the
+//! per-request [`EngineInput`] at construction time (via
+//! [`PhaseContext`]) and exposes a uniform `run` entry point.
 //!
 //! The orchestrator builds a `Vec<Box<dyn Phase<M>>>` once per
 //! envelope in fixed order, then walks it. Phase ordering lives in
 //! the `Vec` construction site, not in the loop body — misordering a
-//! phase shows up as a reviewable edit in one place.
+//! phase shows up as a reviewable edit in one place. The orchestrator
+//! is also the only piece that walks nested [`TextBlock::Embed`]
+//! children, calling each per-modality phase on the nested doc with
+//! the outer envelope's handle.
 //!
 //! Ingestion (`Importer`) and export (`Exporter`) deliberately stay
 //! outside this trait: ingestion runs *before* any envelope exists
@@ -19,10 +23,11 @@
 //! today; folding them into `Phase<M>` would require a wider
 //! contract.
 //!
-//! [`DocumentEnvelope<M>`]: crate::envelope::DocumentEnvelope
+//! [`Document<M>`]: nvisy_ontology::document::Document
 //! [`RunContext`]: super::orchestrator::RunContext
 //! [`EngineInput`]: super::default::EngineInput
 //! [`ExportFile`]: crate::ingestion::ExportFile
+//! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 
 use std::marker::PhantomData;
 
@@ -31,7 +36,7 @@ use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 
 use super::orchestrator::RunContext;
 use super::plan::Plan;
-use crate::envelope::DocumentEnvelope;
+use super::target::PhaseTarget;
 
 /// Per-run state every phase reads from when running.
 ///
@@ -122,9 +127,8 @@ pub struct PhaseInfo {
     /// Which modality this phase is specialised for, or
     /// [`ModalityKind::Agnostic`].
     pub modality: ModalityKind,
-    /// `true` when the phase mutates [`DocumentEnvelope<M>`]. Today
-    /// every `Phase<M>` mutates (the trait method takes
-    /// `&mut DocumentEnvelope<M>`), but the field is kept for
+    /// `true` when the phase mutates the [`PhaseTarget`]'s document.
+    /// Today every `Phase<M>` mutates, but the field is kept for
     /// future read-only phases (dry-run analyzers, audit-only
     /// rescans) and to document intent at the impl site.
     pub mutating: bool,
@@ -133,16 +137,18 @@ pub struct PhaseInfo {
 /// A single per-document pipeline operation.
 ///
 /// Phases are the **public interface** for everything that runs
-/// against a [`DocumentEnvelope<M>`]: extraction, detection,
-/// deduplication, redaction, validation. There is no separate
-/// `Redactor` / `Validator` / `Deduplicator` surface — the phase
-/// struct *is* the operation.
+/// against a [`Document<M>`]: extraction, detection, deduplication,
+/// redaction, validation. There is no separate `Redactor` /
+/// `Validator` / `Deduplicator` surface — the phase struct *is*
+/// the operation.
 ///
 /// # Shape
 ///
 /// The phase struct holds only the long-lived handles (registries,
 /// arcs) it needs across runs; per-call configuration flows in
-/// through the [`PhaseContext`] handed to [`Phase::run`]. Adding a
+/// through the [`PhaseContext`] handed to [`Phase::run`], and the
+/// per-call data target (the document, the shared handle, run id,
+/// content metadata) flows in through [`PhaseTarget`]. Adding a
 /// new phase is:
 ///
 /// 1. Define `FooPhase` carrying its persistent handles
@@ -154,6 +160,8 @@ pub struct PhaseInfo {
 /// constructor on the trait — the lighter shape is intentional, and
 /// keeps `Phase<M>` object-safe so the orchestrator can iterate
 /// `Vec<Box<dyn Phase<M>>>` directly.
+///
+/// [`Document<M>`]: nvisy_ontology::document::Document
 #[async_trait::async_trait]
 pub trait Phase<M: Modality>: Send + Sync {
     /// Stable introspection record. Called by the orchestrator to
@@ -161,13 +169,9 @@ pub trait Phase<M: Modality>: Send + Sync {
     /// future pre-run analyzers.
     fn inspect(&self) -> PhaseInfo;
 
-    /// Run the phase against the envelope. Phases pull per-call
+    /// Run the phase against the target. Phases pull per-call
     /// config from `ctx.plan` (and any shared run state from
-    /// `ctx.run`) and mutate the envelope in place. Cancellation is
+    /// `ctx.run`) and mutate `target.doc` in place. Cancellation is
     /// checked by the orchestrator *between* phases, not inside them.
-    async fn run(
-        &self,
-        ctx: &PhaseContext<'_, M>,
-        envelope: &mut DocumentEnvelope<M>,
-    ) -> Result<()>;
+    async fn run(&self, ctx: &PhaseContext<'_, M>, target: &mut PhaseTarget<'_, M>) -> Result<()>;
 }

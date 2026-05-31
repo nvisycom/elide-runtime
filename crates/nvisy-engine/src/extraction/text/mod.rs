@@ -19,6 +19,7 @@
 //! [`Document<Image>`]: nvisy_ontology::document::Document
 //! [`OcrExtractor::run_on_doc`]: super::super::image::OcrExtractor::run_on_doc
 
+use futures::StreamExt;
 use nvisy_codec::HandleModality;
 use nvisy_core::Result;
 use nvisy_ontology::document::{Block, Document, Span};
@@ -27,30 +28,42 @@ use nvisy_ontology::modality::{
 };
 
 use super::{ExtractDispatch, Extraction, ExtractionEngine, PlanSlice, TextPlan};
-use crate::envelope::DocumentEnvelope;
+use crate::pipeline::PhaseTarget;
 
 const TARGET: &str = "nvisy_engine::extraction::text";
 
 impl ExtractionEngine {
     /// Append one [`Block<Text>`] per codec text location to the
-    /// envelope's document. Each block's span maps its flat text
+    /// target's document. Each block's span maps its flat text
     /// (`0..text.len()`) back to the codec's [`Text`] coordinates so
     /// downstream detection can resolve entity offsets to source
     /// locations uniformly across modalities.
-    async fn populate_text_blocks(&self, envelope: &mut DocumentEnvelope<Text>) {
-        let located = envelope.collect_text_located().await;
-        if located.is_empty() {
+    async fn populate_text_blocks(&self, target: &mut PhaseTarget<'_, Text>) {
+        let locations: Vec<_> = {
+            let guard = target.handle.lock().await;
+            guard.text_locations().collect().await
+        };
+        if locations.is_empty() {
             return;
         }
 
-        let mut blocks = Vec::with_capacity(located.len());
-        for item in located {
-            let text = item.data.into_inner();
+        let mut blocks = Vec::with_capacity(locations.len());
+        for located in locations {
+            let Some(data) = target
+                .handle
+                .lock()
+                .await
+                .read_text(&located.location)
+                .await
+            else {
+                continue;
+            };
+            let text = data.into_inner();
             let span = Span {
                 text_start: 0,
                 text_end: text.len(),
                 confidence: None,
-                source: item.location,
+                source: located.location,
             };
             let block =
                 Block::new(TextBlock::Text(TextContent::Paragraph { text })).with_spans(vec![span]);
@@ -63,7 +76,7 @@ impl ExtractionEngine {
             "populated text document",
         );
 
-        envelope.document.blocks.extend(blocks);
+        target.doc.blocks.extend(blocks);
     }
 
     /// For rich handles (PDF/DOCX), append one [`TextBlock::Embed`]
@@ -81,31 +94,30 @@ impl ExtractionEngine {
     /// When no OCR backend is configured, this still appends the
     /// embed placeholders (so downstream phases can recurse into
     /// them) but leaves the nested doc's blocks empty.
-    async fn populate_image_embeds(&self, envelope: &mut DocumentEnvelope<Text>) {
+    async fn populate_image_embeds(&self, target: &mut PhaseTarget<'_, Text>) {
         let is_rich = {
-            let guard = envelope.handle.lock().await;
+            let guard = target.handle.lock().await;
             matches!(guard.modality(), HandleModality::Rich)
         };
         if !is_rich {
             return;
         }
 
-        let locations = {
-            use futures::StreamExt;
-            let guard = envelope.handle.lock().await;
-            guard.image_locations().collect::<Vec<_>>().await
+        let locations: Vec<_> = {
+            let guard = target.handle.lock().await;
+            guard.image_locations().collect().await
         };
         if locations.is_empty() {
             return;
         }
 
-        let source = envelope.source().await;
+        let source = target.doc.audit.source;
         let mut embeds_appended = 0usize;
         for _ in &locations {
             let nested =
                 Document::<Image>::new(ImageMetadata::from(ImageExtraction::Pending), source);
             let block = Block::new(TextBlock::Embed(Box::new(EmbeddedDocument::Image(nested))));
-            envelope.document.blocks.push(block);
+            target.doc.blocks.push(block);
             embeds_appended += 1;
         }
 
@@ -123,15 +135,14 @@ impl ExtractionEngine {
         // handle through. Cannot pre-collect all nested docs because
         // each OCR call needs an exclusive `&mut Document<Image>`
         // from the same block list we're iterating.
-        let handle = envelope.handle.clone();
-        for block in envelope.document.blocks.iter_mut() {
+        for block in target.doc.blocks.iter_mut() {
             let TextBlock::Embed(embed) = &mut block.kind else {
                 continue;
             };
             let EmbeddedDocument::Image(ref mut nested) = **embed else {
                 continue;
             };
-            if let Err(e) = ocr.run_on_doc(nested, &handle).await {
+            if let Err(e) = ocr.run_on_doc(nested, target.handle).await {
                 tracing::warn!(
                     target: TARGET,
                     error = %e,
@@ -146,9 +157,9 @@ impl ExtractionEngine {
 impl ExtractDispatch<Text> for ExtractionEngine {
     type Plan = TextPlan;
 
-    async fn extract(&self, envelope: &mut DocumentEnvelope<Text>, _plan: &TextPlan) -> Result<()> {
-        self.populate_text_blocks(envelope).await;
-        self.populate_image_embeds(envelope).await;
+    async fn extract(&self, target: &mut PhaseTarget<'_, Text>, _plan: &TextPlan) -> Result<()> {
+        self.populate_text_blocks(target).await;
+        self.populate_image_embeds(target).await;
         Ok(())
     }
 }

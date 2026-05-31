@@ -34,8 +34,8 @@ use super::strategy::to_audio_redaction;
 #[cfg(feature = "image")]
 use super::strategy::to_image_redaction;
 use super::strategy::{to_tabular_redaction, to_text_redaction};
-use crate::envelope::value_at::ValueAt;
-use crate::envelope::{Decision, DocumentEnvelope};
+use crate::envelope::Decision;
+use crate::pipeline::PhaseTarget;
 
 pub(crate) const TARGET: &str = "nvisy_engine::redaction";
 
@@ -47,14 +47,19 @@ pub(crate) const TARGET: &str = "nvisy_engine::redaction";
 ///
 /// [`Strategy`]: nvisy_ontology::modality::Modality::Strategy
 #[async_trait::async_trait]
-pub trait ApplyRedactions {
-    async fn apply_pending(&mut self) -> Result<()>;
+pub trait ApplyRedactions<M: nvisy_ontology::modality::Modality>: Send + Sync {
+    async fn apply_pending(target: &mut PhaseTarget<'_, M>) -> Result<()>;
 }
 
+/// Stateless marker hosting the per-modality [`ApplyRedactions`]
+/// impl. Used as the dispatch type since `PhaseTarget<'_, M>` is
+/// the per-call surface and isn't a sensible owner of trait impls.
+pub struct ApplyRedactionsImpl;
+
 #[async_trait::async_trait]
-impl ApplyRedactions for DocumentEnvelope<Text> {
-    async fn apply_pending(&mut self) -> Result<()> {
-        let assembled = apply::build(self, |view| {
+impl ApplyRedactions<Text> for ApplyRedactionsImpl {
+    async fn apply_pending(target: &mut PhaseTarget<'_, Text>) -> Result<()> {
+        let assembled = apply::build(target, |view| {
             to_text_redaction(
                 &view.entry.decision.strategy,
                 view.original,
@@ -66,10 +71,15 @@ impl ApplyRedactions for DocumentEnvelope<Text> {
             return Ok(());
         }
         if !assembled.batch.is_empty() {
-            self.apply_text_redactions(assembled.batch).await?;
+            target
+                .handle
+                .lock()
+                .await
+                .apply_text_redactions(assembled.batch)
+                .await?;
         }
         apply::commit(
-            self,
+            target,
             assembled.applied,
             assembled.failed,
             |redaction| match redaction.output().replacement_value() {
@@ -85,9 +95,11 @@ impl ApplyRedactions for DocumentEnvelope<Text> {
 
 #[cfg(feature = "tabular")]
 #[async_trait::async_trait]
-impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
-    async fn apply_pending(&mut self) -> Result<()> {
-        let assembled = apply::build(self, |view| {
+impl ApplyRedactions<nvisy_ontology::modality::Tabular> for ApplyRedactionsImpl {
+    async fn apply_pending(
+        target: &mut PhaseTarget<'_, nvisy_ontology::modality::Tabular>,
+    ) -> Result<()> {
+        let assembled = apply::build(target, |view| {
             to_tabular_redaction(
                 &view.entry.decision.strategy,
                 view.original,
@@ -99,10 +111,15 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
             return Ok(());
         }
         if !assembled.batch.is_empty() {
-            self.apply_tabular_redactions(assembled.batch).await?;
+            target
+                .handle
+                .lock()
+                .await
+                .apply_tabular_redactions(assembled.batch)
+                .await?;
         }
         apply::commit(
-            self,
+            target,
             assembled.applied,
             assembled.failed,
             |redaction| match redaction.output().replacement_value() {
@@ -123,17 +140,21 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
 
 #[cfg(not(feature = "tabular"))]
 #[async_trait::async_trait]
-impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Tabular> {
-    async fn apply_pending(&mut self) -> Result<()> {
+impl ApplyRedactions<nvisy_ontology::modality::Tabular> for ApplyRedactionsImpl {
+    async fn apply_pending(
+        _target: &mut PhaseTarget<'_, nvisy_ontology::modality::Tabular>,
+    ) -> Result<()> {
         Ok(())
     }
 }
 
 #[cfg(feature = "image")]
 #[async_trait::async_trait]
-impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
-    async fn apply_pending(&mut self) -> Result<()> {
-        let assembled = apply::build(self, |view| {
+impl ApplyRedactions<nvisy_ontology::modality::Image> for ApplyRedactionsImpl {
+    async fn apply_pending(
+        target: &mut PhaseTarget<'_, nvisy_ontology::modality::Image>,
+    ) -> Result<()> {
+        let assembled = apply::build(target, |view| {
             to_image_redaction(&view.entry.decision.strategy)
         })
         .await;
@@ -141,10 +162,15 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
             return Ok(());
         }
         if !assembled.batch.is_empty() {
-            self.apply_image_redactions(assembled.batch).await?;
+            target
+                .handle
+                .lock()
+                .await
+                .apply_image_redactions(assembled.batch)
+                .await?;
         }
         apply::commit(
-            self,
+            target,
             assembled.applied,
             assembled.failed,
             |redaction| match redaction.output() {
@@ -163,17 +189,21 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
 
 #[cfg(not(feature = "image"))]
 #[async_trait::async_trait]
-impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Image> {
-    async fn apply_pending(&mut self) -> Result<()> {
+impl ApplyRedactions<nvisy_ontology::modality::Image> for ApplyRedactionsImpl {
+    async fn apply_pending(
+        _target: &mut PhaseTarget<'_, nvisy_ontology::modality::Image>,
+    ) -> Result<()> {
         Ok(())
     }
 }
 
 #[cfg(feature = "audio")]
 #[async_trait::async_trait]
-impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
-    async fn apply_pending(&mut self) -> Result<()> {
-        let assembled = apply::build(self, |view| {
+impl ApplyRedactions<nvisy_ontology::modality::Audio> for ApplyRedactionsImpl {
+    async fn apply_pending(
+        target: &mut PhaseTarget<'_, nvisy_ontology::modality::Audio>,
+    ) -> Result<()> {
+        let assembled = apply::build(target, |view| {
             to_audio_redaction(&view.entry.decision.strategy)
         })
         .await;
@@ -181,10 +211,15 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
             return Ok(());
         }
         if !assembled.batch.is_empty() {
-            self.apply_audio_redactions(assembled.batch).await?;
+            target
+                .handle
+                .lock()
+                .await
+                .apply_audio_redactions(assembled.batch)
+                .await?;
         }
         apply::commit(
-            self,
+            target,
             assembled.applied,
             assembled.failed,
             |redaction| match redaction.output() {
@@ -202,8 +237,10 @@ impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
 
 #[cfg(not(feature = "audio"))]
 #[async_trait::async_trait]
-impl ApplyRedactions for DocumentEnvelope<nvisy_ontology::modality::Audio> {
-    async fn apply_pending(&mut self) -> Result<()> {
+impl ApplyRedactions<nvisy_ontology::modality::Audio> for ApplyRedactionsImpl {
+    async fn apply_pending(
+        _target: &mut PhaseTarget<'_, nvisy_ontology::modality::Audio>,
+    ) -> Result<()> {
         Ok(())
     }
 }
@@ -213,14 +250,13 @@ pub(crate) async fn evaluate<M>(
     default_threshold: ConfidenceThreshold,
     document_labels: &[&str],
     metadata: &ContentMetadata,
-    envelope: &DocumentEnvelope<M>,
+    target: &PhaseTarget<'_, M>,
 ) where
     M: Modality,
-    DocumentEnvelope<M>: ValueAt<M>,
 {
     for record in records {
         let entity = &record.entity;
-        let decision = envelope
+        let decision = target
             .shared
             .policies
             .resolve::<M>(entity, document_labels, metadata);
@@ -280,6 +316,7 @@ mod tests {
     use std::sync::Arc;
 
     use nvisy_core::content::ContentMetadata;
+    use nvisy_ontology::document::Document;
     use nvisy_ontology::entity::Entity;
     use nvisy_ontology::modality::{TextExtraction, TextMetadata};
     use nvisy_ontology::policy::{
@@ -291,27 +328,64 @@ mod tests {
 
     use super::super::run_redaction;
     use super::*;
-    use crate::envelope::SharedData;
+    use crate::envelope::{SharedData, SharedHandle};
 
-    async fn text_envelope(text: &str) -> DocumentEnvelope<Text> {
+    /// Owned bundle that holds everything a test needs to build a
+    /// fresh [`PhaseTarget<'_, Text>`] on demand. Tests build this
+    /// once with `text_fixture(...)`, mutate `shared.policies` to
+    /// install per-test policy, then create a target borrowing from
+    /// the bundle to drive [`run_redaction`].
+    struct Bundle {
+        handle: SharedHandle,
+        doc: Document<Text>,
+        metadata: ContentMetadata,
+        shared: Arc<SharedData>,
+    }
+
+    impl Bundle {
+        fn target(&mut self) -> PhaseTarget<'_, Text> {
+            PhaseTarget::<Text>::new(
+                &mut self.doc,
+                &self.handle,
+                uuid::Uuid::nil(),
+                &self.metadata,
+                &self.shared,
+            )
+        }
+
+        fn first_entry(&self) -> &AuditEntry<Text> {
+            self.doc.audit.records[0]
+                .audit
+                .as_ref()
+                .expect("first record has an audit entry")
+        }
+    }
+
+    async fn text_fixture(text: &str) -> Bundle {
         let registry = crate::ingestion::registry::Registry::open(
             tempfile::tempdir().expect("tempdir").path(),
         )
         .expect("open registry");
         let shared = SharedData::new(uuid::Uuid::nil(), uuid::Uuid::nil(), registry);
-        let handle = nvisy_formats::test_utils::decode_text(text)
-            .await
-            .expect("decode text");
-        DocumentEnvelope::<Text>::new(
-            Arc::new(Mutex::new(handle)),
-            ContentMetadata::new().with_content_type("text/plain"),
+        let handle: SharedHandle = Arc::new(Mutex::new(
+            nvisy_formats::test_utils::decode_text(text)
+                .await
+                .expect("decode text"),
+        ));
+        let source = handle.lock().await.source();
+        let doc = Document::<Text>::new(
             TextMetadata {
                 extraction: TextExtraction::Native,
                 languages: Vec::new(),
             },
+            source,
+        );
+        Bundle {
+            handle,
+            doc,
+            metadata: ContentMetadata::new().with_content_type("text/plain"),
             shared,
-        )
-        .await
+        }
     }
 
     fn ent(start: usize, end: usize, conf: f64) -> Entity<Text> {
@@ -350,59 +424,56 @@ mod tests {
         })
     }
 
-    fn seed_records(env: &mut DocumentEnvelope<Text>, entities: Vec<Entity<Text>>) {
-        env.document.audit.records = entities.into_iter().map(EntityRecord::new).collect();
+    fn seed_records(bundle: &mut Bundle, entities: Vec<Entity<Text>>) {
+        bundle.doc.audit.records = entities.into_iter().map(EntityRecord::new).collect();
     }
 
-    fn first_entry(env: &DocumentEnvelope<Text>) -> &AuditEntry<Text> {
-        env.document.audit.records[0]
-            .audit
-            .as_ref()
-            .expect("first record has an audit entry")
+    fn install_policies(bundle: &mut Bundle, policies: Vec<Arc<Policy<Text>>>) {
+        Arc::get_mut(&mut bundle.shared)
+            .expect("unique Arc")
+            .policies
+            .set::<Text>(policies);
     }
 
     #[tokio::test]
     async fn skips_below_threshold_no_policies() {
-        let mut env = text_envelope("john").await;
-        seed_records(&mut env, vec![ent(0, 4, 0.4)]);
-        run_redaction(ConfidenceThreshold::clamped(0.8), &mut env)
+        let mut bundle = text_fixture("john").await;
+        seed_records(&mut bundle, vec![ent(0, 4, 0.4)]);
+        run_redaction(ConfidenceThreshold::clamped(0.8), &mut bundle.target())
             .await
             .expect("execute");
-        assert_eq!(env.document.audit.entries().count(), 0);
+        assert_eq!(bundle.doc.audit.entries().count(), 0);
     }
 
     #[tokio::test]
     async fn default_strategy_above_threshold() {
-        let mut env = text_envelope("secret").await;
-        seed_records(&mut env, vec![ent(0, 6, 0.9)]);
-        run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
+        let mut bundle = text_fixture("secret").await;
+        seed_records(&mut bundle, vec![ent(0, 6, 0.9)]);
+        run_redaction(ConfidenceThreshold::clamped(0.5), &mut bundle.target())
             .await
             .expect("execute");
-        assert_eq!(env.document.audit.entries().count(), 1);
-        let entry = first_entry(&env);
+        assert_eq!(bundle.doc.audit.entries().count(), 1);
+        let entry = bundle.first_entry();
         assert!(entry.decision.policy_id.is_none());
         assert!(entry.decision.rank.is_none());
     }
 
     #[tokio::test]
     async fn matching_redact_rule_wins() {
-        let mut env = text_envelope("john").await;
-        seed_records(&mut env, vec![ent(0, 4, 0.9)]);
+        let mut bundle = text_fixture("john").await;
+        seed_records(&mut bundle, vec![ent(0, 4, 0.9)]);
         let policy = policy_with(vec![redact_rule(TextStrategy::Replace {
             placeholder: "X".into(),
         })]);
         let policy_id = policy.id;
-        Arc::get_mut(&mut env.shared)
-            .expect("unique Arc")
-            .policies
-            .set::<Text>(vec![policy]);
+        install_policies(&mut bundle, vec![policy]);
 
-        run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
+        run_redaction(ConfidenceThreshold::clamped(0.5), &mut bundle.target())
             .await
             .expect("execute");
 
-        assert_eq!(env.document.audit.entries().count(), 1);
-        let entry = first_entry(&env);
+        assert_eq!(bundle.doc.audit.entries().count(), 1);
+        let entry = bundle.first_entry();
         assert_eq!(entry.decision.policy_id, Some(policy_id));
         assert_eq!(entry.decision.rank, Some(RuleRank::new(0, 0)));
         assert!(matches!(
@@ -413,27 +484,27 @@ mod tests {
 
     #[tokio::test]
     async fn first_rule_wins_inside_policy() {
-        let mut env = text_envelope("john").await;
-        seed_records(&mut env, vec![ent(0, 4, 0.9)]);
+        let mut bundle = text_fixture("john").await;
+        seed_records(&mut bundle, vec![ent(0, 4, 0.9)]);
         // suppress comes first, redact second — first wins.
         let policy = policy_with(vec![suppress_rule(), redact_rule(TextStrategy::Hash)]);
-        Arc::get_mut(&mut env.shared)
-            .expect("unique Arc")
-            .policies
-            .set::<Text>(vec![policy]);
+        install_policies(&mut bundle, vec![policy]);
 
-        run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
+        run_redaction(ConfidenceThreshold::clamped(0.5), &mut bundle.target())
             .await
             .expect("execute");
 
-        assert_eq!(env.document.audit.entries().count(), 1);
-        assert!(matches!(first_entry(&env).execution, Execution::Suppressed));
+        assert_eq!(bundle.doc.audit.entries().count(), 1);
+        assert!(matches!(
+            bundle.first_entry().execution,
+            Execution::Suppressed
+        ));
     }
 
     #[tokio::test]
     async fn higher_precedence_policy_wins_over_lower() {
-        let mut env = text_envelope("john").await;
-        seed_records(&mut env, vec![ent(0, 4, 0.9)]);
+        let mut bundle = text_fixture("john").await;
+        seed_records(&mut bundle, vec![ent(0, 4, 0.9)]);
         // policy at index 0 (higher precedence) chooses Hash;
         // policy at index 1 chooses Replace. Hash wins.
         let p_high = policy_with(vec![redact_rule(TextStrategy::Hash)]);
@@ -441,16 +512,13 @@ mod tests {
             placeholder: "X".into(),
         })]);
         let high_id = p_high.id;
-        Arc::get_mut(&mut env.shared)
-            .expect("unique Arc")
-            .policies
-            .set::<Text>(vec![p_high, p_low]);
+        install_policies(&mut bundle, vec![p_high, p_low]);
 
-        run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
+        run_redaction(ConfidenceThreshold::clamped(0.5), &mut bundle.target())
             .await
             .expect("execute");
 
-        let entry = first_entry(&env);
+        let entry = bundle.first_entry();
         assert_eq!(entry.decision.policy_id, Some(high_id));
         assert_eq!(entry.decision.rank, Some(RuleRank::new(0, 0)));
         assert!(matches!(entry.decision.strategy, TextStrategy::Hash));
@@ -460,8 +528,8 @@ mod tests {
     async fn policy_default_falls_through_to_next_policy() {
         // p_high has no matching rule but has a default; default
         // should fire BEFORE the chain moves to p_low's rules.
-        let mut env = text_envelope("john").await;
-        seed_records(&mut env, vec![ent(0, 4, 0.9)]);
+        let mut bundle = text_fixture("john").await;
+        seed_records(&mut bundle, vec![ent(0, 4, 0.9)]);
         let p_high = Arc::new(Policy::<Text> {
             id: uuid::Uuid::now_v7(),
             name: "high".into(),
@@ -475,16 +543,13 @@ mod tests {
             placeholder: "X".into(),
         })]);
         let high_id = p_high.id;
-        Arc::get_mut(&mut env.shared)
-            .expect("unique Arc")
-            .policies
-            .set::<Text>(vec![p_high, p_low]);
+        install_policies(&mut bundle, vec![p_high, p_low]);
 
-        run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
+        run_redaction(ConfidenceThreshold::clamped(0.5), &mut bundle.target())
             .await
             .expect("execute");
 
-        let entry = first_entry(&env);
+        let entry = bundle.first_entry();
         assert_eq!(entry.decision.policy_id, Some(high_id));
         assert_eq!(entry.decision.rank, Some(RuleRank::for_default(0)));
         assert!(matches!(entry.decision.strategy, TextStrategy::Hash));

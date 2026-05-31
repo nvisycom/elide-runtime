@@ -29,12 +29,11 @@ use nvisy_ontology::entity::is_excluded;
 use nvisy_ontology::modality::{Modality, Overlap};
 
 pub use self::config::RedactionConfig;
-pub use self::evaluate::ApplyRedactions;
 use self::evaluate::TARGET;
+pub use self::evaluate::{ApplyRedactions, ApplyRedactionsImpl};
 pub use self::plan::Redaction;
-use crate::envelope::DocumentEnvelope;
 use crate::envelope::value_at::ValueAt;
-use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo};
+use crate::pipeline::{ModalityKind, Phase, PhaseContext, PhaseInfo, PhaseTarget};
 
 /// Redaction phase: evaluate policies, attach an [`AuditEntry<M>`]
 /// to each [`EntityRecord<M>`] the policy chain decides on, then
@@ -71,7 +70,8 @@ impl<M: Modality> Default for RedactionPhase<M> {
 impl<M> Phase<M> for RedactionPhase<M>
 where
     M: Modality + Overlap,
-    DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions,
+    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    ApplyRedactionsImpl: ApplyRedactions<M>,
 {
     fn inspect(&self) -> PhaseInfo {
         PhaseInfo {
@@ -81,11 +81,7 @@ where
         }
     }
 
-    async fn run(
-        &self,
-        ctx: &PhaseContext<'_, M>,
-        envelope: &mut DocumentEnvelope<M>,
-    ) -> Result<()> {
+    async fn run(&self, ctx: &PhaseContext<'_, M>, target: &mut PhaseTarget<'_, M>) -> Result<()> {
         let cfg = &ctx.plan.redaction;
         let section = &ctx.run.redaction_config;
         let default_threshold = cfg
@@ -96,7 +92,7 @@ where
         // precedence chain (plan override → deployment default).
         let _process_metadata = cfg.process_metadata.unwrap_or(section.process_metadata);
 
-        run_redaction(default_threshold, envelope).await
+        run_redaction(default_threshold, target).await
     }
 }
 
@@ -105,28 +101,29 @@ where
 /// test-only path can drive it without going through a `PhaseContext`.
 pub(crate) async fn run_redaction<M>(
     default_threshold: nvisy_ontology::primitive::ConfidenceThreshold,
-    envelope: &mut DocumentEnvelope<M>,
+    target: &mut PhaseTarget<'_, M>,
 ) -> Result<()>
 where
     M: Modality + Overlap,
-    DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions,
+    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
+    ApplyRedactionsImpl: ApplyRedactions<M>,
 {
-    if envelope.document.audit.records.is_empty() {
+    if target.doc.audit.records.is_empty() {
         return Ok(());
     }
 
     // Drop entities that overlap an Assert-strength Exclusion
     // annotation. Defence in depth: catches both well-meaning
     // detectors and LLMs that ignored the exclusion-hint prompt.
-    let before_filter = envelope.document.audit.records.len();
-    let annotations = std::mem::take(&mut envelope.document.annotations);
-    envelope
-        .document
+    let before_filter = target.doc.audit.records.len();
+    let annotations = std::mem::take(&mut target.doc.annotations);
+    target
+        .doc
         .audit
         .records
         .retain(|record| !is_excluded(&annotations, &record.entity));
-    envelope.document.annotations = annotations;
-    let dropped = before_filter - envelope.document.audit.records.len();
+    target.doc.annotations = annotations;
+    let dropped = before_filter - target.doc.audit.records.len();
     if dropped > 0 {
         tracing::debug!(
             target: TARGET,
@@ -135,35 +132,30 @@ where
         );
     }
 
-    if envelope.document.audit.records.is_empty() {
+    if target.doc.audit.records.is_empty() {
         return Ok(());
     }
 
-    let metadata = envelope.metadata.clone();
-    let document_labels: Vec<&str> = envelope
-        .document
-        .labels
-        .iter()
-        .map(|l| l.label.as_str())
-        .collect();
+    let metadata = target.metadata.clone();
+    let document_labels: Vec<&str> = target.doc.labels.iter().map(|l| l.label.as_str()).collect();
 
-    let mut records = std::mem::take(&mut envelope.document.audit.records);
+    let mut records = std::mem::take(&mut target.doc.audit.records);
     evaluate::evaluate::<M>(
         &mut records,
         default_threshold,
         &document_labels,
         &metadata,
-        envelope,
+        target,
     )
     .await;
-    envelope.document.audit.records = records;
+    target.doc.audit.records = records;
 
     tracing::debug!(
         target: TARGET,
-        entries = envelope.document.audit.entries().count(),
+        entries = target.doc.audit.entries().count(),
         "policy evaluation complete",
     );
 
-    envelope.apply_pending().await?;
+    <ApplyRedactionsImpl as ApplyRedactions<M>>::apply_pending(target).await?;
     Ok(())
 }

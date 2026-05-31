@@ -20,6 +20,7 @@ mod phase;
 mod plan;
 mod run;
 mod runs;
+mod target;
 
 pub use self::config::{EngineConfig, ResourceLimits, RuntimeConfig};
 pub use self::default::{Engine, EngineInput, EngineOutput};
@@ -29,3 +30,4 @@ pub use self::runs::{
     AnalyticsSnapshot, NodeSnapshot, NodeStatus, RunEntry, RunFilter, RunOutcome, RunSnapshot,
     RunStatus,
 };
+pub use self::target::PhaseTarget;

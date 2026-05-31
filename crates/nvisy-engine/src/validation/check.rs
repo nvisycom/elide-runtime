@@ -16,44 +16,46 @@
 //! The generic `Validator::execute<M>` dispatches via this trait
 //! so each modality's pipeline runs the right check (or none).
 
+use futures::StreamExt;
 use nvisy_ontology::modality::{Audio, Image, Modality, Tabular, Text};
 use nvisy_ontology::provenance::EntityRecord;
 use unicode_normalization::UnicodeNormalization;
 
 use super::{LeakedValue, ValidationResult};
-use crate::envelope::DocumentEnvelope;
+use crate::envelope::SharedHandle;
 use crate::envelope::value_at::ValueAt;
+use crate::pipeline::PhaseTarget;
 
 /// Per-modality leak-check contract.
 #[async_trait::async_trait]
 pub trait CheckLeaks: Modality {
-    /// Inspect the envelope and report any redacted values that
+    /// Inspect the target and report any redacted values that
     /// remain visible. Modalities without leak-detection support
     /// return [`ValidationResult::skipped`].
-    async fn check_leaks(envelope: &DocumentEnvelope<Self>) -> ValidationResult;
+    async fn check_leaks(target: &PhaseTarget<'_, Self>) -> ValidationResult;
 }
 
 #[async_trait::async_trait]
 impl CheckLeaks for Text {
-    async fn check_leaks(envelope: &DocumentEnvelope<Self>) -> ValidationResult {
-        let redacted_text = read_text(envelope).await;
-        check_text_like::<Text>(envelope, redacted_text.as_deref()).await
+    async fn check_leaks(target: &PhaseTarget<'_, Self>) -> ValidationResult {
+        let redacted_text = read_text(target.handle).await;
+        check_text_like::<Text>(target, redacted_text.as_deref()).await
     }
 }
 
 #[cfg(feature = "tabular")]
 #[async_trait::async_trait]
 impl CheckLeaks for Tabular {
-    async fn check_leaks(envelope: &DocumentEnvelope<Self>) -> ValidationResult {
-        let redacted_text = read_tabular(envelope).await;
-        check_text_like::<Tabular>(envelope, redacted_text.as_deref()).await
+    async fn check_leaks(target: &PhaseTarget<'_, Self>) -> ValidationResult {
+        let redacted_text = read_tabular(target.handle).await;
+        check_text_like::<Tabular>(target, redacted_text.as_deref()).await
     }
 }
 
 #[cfg(not(feature = "tabular"))]
 #[async_trait::async_trait]
 impl CheckLeaks for Tabular {
-    async fn check_leaks(_envelope: &DocumentEnvelope<Self>) -> ValidationResult {
+    async fn check_leaks(_target: &PhaseTarget<'_, Self>) -> ValidationResult {
         ValidationResult::skipped()
     }
 }
@@ -64,7 +66,7 @@ impl CheckLeaks for Image {
     /// redacted region against the original). Not implemented yet —
     /// tracked at
     /// <https://github.com/nvisycom/runtime/issues/209>.
-    async fn check_leaks(_envelope: &DocumentEnvelope<Self>) -> ValidationResult {
+    async fn check_leaks(_target: &PhaseTarget<'_, Self>) -> ValidationResult {
         ValidationResult::skipped()
     }
 }
@@ -74,7 +76,7 @@ impl CheckLeaks for Audio {
     /// Audio leak detection requires speech/audio inspection of the
     /// post-redaction segments. Not implemented yet — tracked at
     /// <https://github.com/nvisycom/runtime/issues/210>.
-    async fn check_leaks(_envelope: &DocumentEnvelope<Self>) -> ValidationResult {
+    async fn check_leaks(_target: &PhaseTarget<'_, Self>) -> ValidationResult {
         ValidationResult::skipped()
     }
 }
@@ -86,18 +88,18 @@ impl CheckLeaks for Audio {
 /// whether it still contains the original. Records whose value
 /// can't be re-read are conservatively counted as passed.
 async fn check_text_like<M>(
-    envelope: &DocumentEnvelope<M>,
+    target: &PhaseTarget<'_, M>,
     redacted_text: Option<&str>,
 ) -> ValidationResult
 where
     M: Modality,
-    DocumentEnvelope<M>: ValueAt<M>,
+    for<'a> PhaseTarget<'a, M>: ValueAt<M>,
 {
     let mut passed = 0usize;
     let mut leaked = Vec::new();
 
-    let applied: Vec<&EntityRecord<M>> = envelope
-        .document
+    let applied: Vec<&EntityRecord<M>> = target
+        .doc
         .audit
         .records
         .iter()
@@ -114,7 +116,7 @@ where
 
     let folded_text = fold_for_match(text);
     for record in &applied {
-        if let Some(value) = envelope.value_at(&record.entity.location).await {
+        if let Some(value) = target.value_at(&record.entity.location).await {
             let folded_value = fold_for_match(&value);
             if !value.is_empty() && folded_text.contains(&folded_value) {
                 leaked.push(LeakedValue {
@@ -136,14 +138,17 @@ where
     }
 }
 
-async fn read_text(envelope: &DocumentEnvelope<Text>) -> Option<String> {
-    let locations = envelope.collect_text_locations().await;
+async fn read_text(handle: &SharedHandle) -> Option<String> {
+    let locations: Vec<_> = {
+        let guard = handle.lock().await;
+        guard.text_locations().collect().await
+    };
     if locations.is_empty() {
         return None;
     }
     let mut buf = String::new();
     for located in &locations {
-        if let Some(data) = envelope.read_text(&located.location).await {
+        if let Some(data) = handle.lock().await.read_text(&located.location).await {
             buf.push_str(data.as_str());
         }
     }
@@ -151,14 +156,17 @@ async fn read_text(envelope: &DocumentEnvelope<Text>) -> Option<String> {
 }
 
 #[cfg(feature = "tabular")]
-async fn read_tabular(envelope: &DocumentEnvelope<Tabular>) -> Option<String> {
-    let locations = envelope.collect_tabular_locations().await;
+async fn read_tabular(handle: &SharedHandle) -> Option<String> {
+    let locations: Vec<_> = {
+        let guard = handle.lock().await;
+        guard.tabular_locations().collect().await
+    };
     if locations.is_empty() {
         return None;
     }
     let mut buf = String::new();
     for located in &locations {
-        if let Some(data) = envelope.read_tabular(&located.location).await {
+        if let Some(data) = handle.lock().await.read_tabular(&located.location).await {
             if !buf.is_empty() {
                 buf.push('\n');
             }

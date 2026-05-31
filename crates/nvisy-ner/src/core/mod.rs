@@ -12,7 +12,7 @@ mod context;
 use nvisy_core::Result;
 use nvisy_ontology::document::Block;
 use nvisy_ontology::entity::Entity;
-use nvisy_ontology::modality::Text;
+use nvisy_ontology::modality::{ModalityBlock, Text};
 
 pub use self::context::Context;
 
@@ -58,6 +58,11 @@ pub trait Backend: Send + Sync + 'static {
     /// to the block's text; the caller maps to source coordinates
     /// before storing on the document's [`Audit`].
     ///
+    /// Blocks that carry no scannable text (embedded image/tabular
+    /// children of a text container) short-circuit to an empty entity
+    /// list — those nested documents are processed through their own
+    /// modality's pipeline.
+    ///
     /// [`recognize`]: Self::recognize
     /// [`Audit`]: nvisy_ontology::provenance::Audit
     async fn recognize_block(
@@ -65,6 +70,9 @@ pub trait Backend: Send + Sync + 'static {
         block: &Block<Text>,
         ctx: &Context,
     ) -> Result<Vec<Entity<Text>>> {
-        self.recognize(block.kind.text(), ctx).await
+        match block.kind.scan_text() {
+            Some(text) => self.recognize(text, ctx).await,
+            None => Ok(Vec::new()),
+        }
     }
 }

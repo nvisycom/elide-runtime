@@ -1,13 +1,16 @@
 //! Per-document state accumulated across pipeline operations.
 //!
 //! A [`DocumentEnvelope<M>`] is created at import and travels through
-//! every operation in the pipeline for one modality. Rich sources
-//! (PDFs with both text and image layers) fan out into multiple
-//! envelopes — one per modality — that share the same codec
-//! [`DocumentHandle`] via `Arc`.
+//! every operation in the pipeline. Rich sources (PDFs with both
+//! text and image layers) produce one root `DocumentEnvelope<Text>`
+//! whose document hosts nested image/tabular documents via
+//! [`TextBlock::Embed`]; the shared codec [`DocumentHandle`] on the
+//! root envelope services reads and mutations for every nested doc.
 //!
 //! Each stage reads from and writes to the envelope until the
 //! document is fully redacted.
+//!
+//! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 
 mod accessors;
 mod any;
@@ -25,7 +28,6 @@ use nvisy_core::media::DocumentType;
 use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::Modality;
-use nvisy_ontology::provenance::Audit;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
@@ -56,16 +58,11 @@ pub struct DocumentEnvelope<M: Modality> {
     /// Per-modality document representation (text/image/audio/
     /// tabular). Populated empty at import; filled in by extraction
     /// (OCR/STT for image/audio, codec walk for text/tabular).
-    /// Structural state only — run-scoped provenance lives on
-    /// [`Self::audit`].
+    /// Carries both structural content *and* the run-scoped audit
+    /// on [`Document::audit`] so the recursive document tree
+    /// (text doc with embedded image/tabular docs) keeps every
+    /// nested doc's audit attached to the doc it describes.
     pub document: Document<M>,
-
-    /// Run-scoped provenance for the document: detected entities and
-    /// per-redaction audit entries. Lives on the envelope (not on
-    /// [`Document<M>`]) so the document type stays purely structural;
-    /// every artifact a single run produces about the document is
-    /// kept together with the rest of the run's per-document state.
-    pub audit: Audit<M>,
 
     /// IDs of reference-data [`Context`]s loaded by [`LoadContext`]
     /// nodes. Each UUID resolves through the engine's context cache.
@@ -97,13 +94,11 @@ impl<M: Modality> DocumentEnvelope<M> {
         shared: Arc<SharedData>,
     ) -> Self {
         let source = handle.lock().await.source();
-        let document = Document::new(document_meta);
-        let audit = Audit::new(source);
+        let document = Document::new(document_meta, source);
         Self {
             handle,
             metadata,
             document,
-            audit,
             contexts: Vec::new(),
             shared,
         }
@@ -126,7 +121,7 @@ impl<M: Modality> DocumentEnvelope<M> {
 
     /// Number of detected entities.
     pub fn entity_count(&self) -> usize {
-        self.audit.records.len()
+        self.document.audit.records.len()
     }
 
     /// Add detected entities (wrapped into fresh [`EntityRecord`]s).
@@ -134,7 +129,7 @@ impl<M: Modality> DocumentEnvelope<M> {
     /// [`EntityRecord`]: nvisy_ontology::provenance::EntityRecord
     pub fn add_entities(&mut self, entities: impl IntoIterator<Item = Entity<M>>) {
         for entity in entities {
-            self.audit.push_entity(entity);
+            self.document.audit.push_entity(entity);
         }
     }
 }
@@ -142,7 +137,7 @@ impl<M: Modality> DocumentEnvelope<M> {
 impl<M: Modality> fmt::Debug for DocumentEnvelope<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DocumentEnvelope")
-            .field("records", &self.audit.records.len())
+            .field("records", &self.document.audit.records.len())
             .field("contexts", &self.contexts.len())
             .finish_non_exhaustive()
     }

@@ -97,6 +97,7 @@ where
     let mut leaked = Vec::new();
 
     let applied: Vec<&EntityRecord<M>> = envelope
+        .document
         .audit
         .records
         .iter()

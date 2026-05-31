@@ -111,21 +111,22 @@ where
     M: Modality + Overlap,
     DocumentEnvelope<M>: ValueAt<M> + ApplyRedactions,
 {
-    if envelope.audit.records.is_empty() {
+    if envelope.document.audit.records.is_empty() {
         return Ok(());
     }
 
     // Drop entities that overlap an Assert-strength Exclusion
     // annotation. Defence in depth: catches both well-meaning
     // detectors and LLMs that ignored the exclusion-hint prompt.
-    let before_filter = envelope.audit.records.len();
+    let before_filter = envelope.document.audit.records.len();
     let annotations = std::mem::take(&mut envelope.document.annotations);
     envelope
+        .document
         .audit
         .records
         .retain(|record| !is_excluded(&annotations, &record.entity));
     envelope.document.annotations = annotations;
-    let dropped = before_filter - envelope.audit.records.len();
+    let dropped = before_filter - envelope.document.audit.records.len();
     if dropped > 0 {
         tracing::debug!(
             target: TARGET,
@@ -134,7 +135,7 @@ where
         );
     }
 
-    if envelope.audit.records.is_empty() {
+    if envelope.document.audit.records.is_empty() {
         return Ok(());
     }
 
@@ -146,7 +147,7 @@ where
         .map(|l| l.label.as_str())
         .collect();
 
-    let mut records = std::mem::take(&mut envelope.audit.records);
+    let mut records = std::mem::take(&mut envelope.document.audit.records);
     evaluate::evaluate::<M>(
         &mut records,
         default_threshold,
@@ -155,11 +156,11 @@ where
         envelope,
     )
     .await;
-    envelope.audit.records = records;
+    envelope.document.audit.records = records;
 
     tracing::debug!(
         target: TARGET,
-        entries = envelope.audit.entries().count(),
+        entries = envelope.document.audit.entries().count(),
         "policy evaluation complete",
     );
 

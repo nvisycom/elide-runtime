@@ -1,10 +1,15 @@
 //! [`AnyEnvelope`]: modality-erased enum over [`DocumentEnvelope<M>`].
 //!
-//! The importer produces one or more [`AnyEnvelope`]s per uploaded
-//! file. Single-modality content (txt, csv, png, wav, …) yields one
-//! entry; rich documents (PDF, DOCX) fan out into a `Text` and an
-//! `Image` entry that share one `Arc<Mutex<DocumentHandle>>` so
-//! reads and mutations stay coordinated.
+//! The importer produces one [`AnyEnvelope`] per uploaded file.
+//! Single-modality content (txt, csv, png, wav, …) yields the
+//! matching variant. Rich documents (PDF, DOCX) yield the `Text`
+//! variant; their image and tabular content lives inside the root
+//! [`Document<Text>`] as nested documents under [`TextBlock::Embed`]
+//! children, populated by the image/tabular extraction steps from
+//! the same shared codec handle.
+//!
+//! [`Document<Text>`]: nvisy_ontology::document::Document
+//! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 
 use derive_more::{From, IsVariant};
 use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
@@ -49,10 +54,10 @@ impl AnyEnvelope {
     /// to match on every variant.
     pub fn audit_cloned(&self) -> AnyAudit {
         match self {
-            Self::Text(e) => e.audit.clone().into(),
-            Self::Tabular(e) => e.audit.clone().into(),
-            Self::Image(e) => e.audit.clone().into(),
-            Self::Audio(e) => e.audit.clone().into(),
+            Self::Text(e) => e.document.audit.clone().into(),
+            Self::Tabular(e) => e.document.audit.clone().into(),
+            Self::Image(e) => e.document.audit.clone().into(),
+            Self::Audio(e) => e.document.audit.clone().into(),
         }
     }
 }

@@ -134,7 +134,7 @@ where
         ctx: &PhaseContext<'_, M>,
         envelope: &mut DocumentEnvelope<M>,
     ) -> Result<()> {
-        if envelope.audit.records.is_empty() {
+        if envelope.document.audit.records.is_empty() {
             return Ok(());
         }
 
@@ -148,17 +148,17 @@ where
 
         tracing::debug!(
             target: TARGET,
-            entities = envelope.audit.records.len(),
+            entities = envelope.document.audit.records.len(),
             "running deduplication",
         );
 
         // Dedup runs before redaction evaluation, so every record's
         // `audit` is still None; we can pull entities out, dedup, and
         // rewrap without losing audit state.
-        let records = mem::take(&mut envelope.audit.records);
+        let records = mem::take(&mut envelope.document.audit.records);
         let entities: Vec<Entity<M>> = records.into_iter().map(|r| r.entity).collect();
         let deduped = Self::deduplicate(&ctx.plan.deduplication, &filter, entities, envelope).await;
-        envelope.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
+        envelope.document.audit.records = deduped.into_iter().map(EntityRecord::new).collect();
         Ok(())
     }
 }

@@ -149,7 +149,7 @@ impl Detection {
 }
 
 /// Detection phase: runs configured recognizers over the envelope's
-/// blocks and writes [`EntityRecord`]s to `envelope.audit`.
+/// blocks and writes [`EntityRecord`]s to `envelope.document.audit`.
 ///
 /// Stateless beyond the modality marker — the shared
 /// [`DetectionEngine`] is read from `ctx.run` each call, and the

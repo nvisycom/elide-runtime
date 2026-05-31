@@ -33,7 +33,7 @@ pub use self::audio::{Audio, AudioBlock, AudioMetadata};
 pub use self::extraction::{AudioExtraction, ImageExtraction, TabularExtraction, TextExtraction};
 pub use self::image::{Image, ImageBlock, ImageMetadata, PageDimensions};
 pub use self::tabular::{ColumnHeader, Tabular, TabularBlock, TabularMetadata};
-pub use self::text::{ContextWindow, Text, TextBlock, TextMetadata};
+pub use self::text::{ContextWindow, EmbeddedDocument, Text, TextBlock, TextContent, TextMetadata};
 
 /// Marker trait implemented by every per-modality coordinate type.
 ///
@@ -58,7 +58,7 @@ pub use self::text::{ContextWindow, Text, TextBlock, TextMetadata};
 pub trait Modality: Clone + Debug + PartialEq + Send + Sync + 'static {
     /// The modality's block payload. See per-modality types:
     /// [`TextBlock`], [`ImageBlock`], [`AudioBlock`], [`TabularBlock`].
-    type Block: ModalityBlock + Clone + Debug + PartialEq + Send + Sync + 'static;
+    type Block: ModalityBlock + Clone + Debug + Send + Sync + 'static;
 
     /// Document-level metadata. Carries the importer's extraction tag
     /// ([`TextExtraction`] / [`ImageExtraction`] / [`AudioExtraction`] /

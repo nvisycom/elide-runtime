@@ -177,37 +177,39 @@ async fn dispatch(
             vec![AnyEnvelope::Audio(env)]
         }
         HandleModality::Rich => {
-            // PDF/DOCX: fan out into Text + Image envelopes sharing
-            // the same underlying handle so reads and mutations
-            // stay coordinated under the codec's mutex.
+            // PDF/DOCX: one root Text envelope. Image content surfaces
+            // as nested `Document<Image>` children via
+            // `TextBlock::Embed`, populated by the image extraction
+            // step from the same shared codec handle.
             //
             // Text envelope is `Native` because today the rich-text
             // handler always reads the embedded text layer. The
             // `Recognized` path lights up when an image-only-PDF
             // OCR fallback lands.
+            //
+            // User-supplied image annotations on a Rich source are
+            // dropped with a warn-log: under the nested model image
+            // annotations target the nested image doc, which doesn't
+            // exist until extraction runs. Re-route on demand when a
+            // real consumer materialises.
+            let dropped_image_annotations = annotations.image.len();
+            if dropped_image_annotations > 0 {
+                tracing::warn!(
+                    target: TARGET,
+                    count = dropped_image_annotations,
+                    "dropping image annotations on rich source: nested-document seeding not implemented",
+                );
+            }
             let text_meta = TextMetadata::from(TextExtraction::Native);
-            let image_meta = ImageMetadata::from(ImageExtraction::Pending);
-            let mut text_env = <DocumentEnvelope<Text>>::new(
-                Arc::clone(&handle),
-                metadata.clone(),
-                text_meta,
-                Arc::clone(shared),
-            )
-            .await;
+            let mut text_env =
+                <DocumentEnvelope<Text>>::new(handle, metadata, text_meta, Arc::clone(shared))
+                    .await;
             attach_annotations(
                 &mut text_env,
                 mem::take(&mut annotations.text),
-                annotations.labels.clone(),
-            );
-            let mut image_env =
-                <DocumentEnvelope<Image>>::new(handle, metadata, image_meta, Arc::clone(shared))
-                    .await;
-            attach_annotations(
-                &mut image_env,
-                mem::take(&mut annotations.image),
                 annotations.labels,
             );
-            vec![AnyEnvelope::Text(text_env), AnyEnvelope::Image(image_env)]
+            vec![AnyEnvelope::Text(text_env)]
         }
     }
 }
@@ -327,8 +329,8 @@ mod tests {
             panic!("expected a Text envelope");
         };
 
-        assert_eq!(env.audit.records.len(), 1);
-        let entity = &env.audit.records[0].entity;
+        assert_eq!(env.document.audit.records.len(), 1);
+        let entity = &env.document.audit.records[0].entity;
         assert_eq!(entity.entity_kind, EntityKind::PersonName);
         assert_eq!(entity.location, Text::new(0, 8));
         assert!(matches!(
@@ -364,7 +366,7 @@ mod tests {
             panic!("expected a Text envelope");
         };
 
-        assert_eq!(env.audit.records.len(), 0);
+        assert_eq!(env.document.audit.records.len(), 0);
         assert_eq!(env.document.annotations, vec![annotation]);
     }
 

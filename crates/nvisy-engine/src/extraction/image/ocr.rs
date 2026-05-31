@@ -9,11 +9,11 @@ use nvisy_codec::core::Located;
 use nvisy_codec::handler::ImageData;
 use nvisy_core::Result;
 use nvisy_ocr::{Context as OcrContext, ImageFormat, ImageInput, OcrBackend};
-use nvisy_ontology::document::Block;
+use nvisy_ontology::document::{Block, Document};
 use nvisy_ontology::modality::{Image, ImageExtraction};
 use serde::{Deserialize, Serialize};
 
-use crate::envelope::DocumentEnvelope;
+use crate::envelope::{DocumentEnvelope, SharedHandle};
 
 const TARGET: &str = "nvisy_engine::extraction::image::ocr";
 
@@ -64,9 +64,19 @@ impl OcrExtractor {
     /// [`ImageMetadata::extraction`]: nvisy_ontology::modality::ImageMetadata::extraction
     /// [`ImageExtraction::Pending`]: nvisy_ontology::modality::ImageExtraction::Pending
     pub async fn run(&self, envelope: &mut DocumentEnvelope<Image>) -> Result<()> {
-        envelope.document.meta.extraction = ImageExtraction::Ocr(self.inner.provenance());
+        self.run_on_doc(&mut envelope.document, &envelope.handle)
+            .await
+    }
 
-        let inputs = Self::collect_inputs(envelope).await;
+    /// Run OCR over the image regions reachable via `handle`,
+    /// populating `doc`. Decouples OCR from the envelope shape so the
+    /// nested-document embed flow (PDF text → embedded image doc) can
+    /// reuse it against a `Document<Image>` whose codec handle lives
+    /// on the *outer* text envelope.
+    pub async fn run_on_doc(&self, doc: &mut Document<Image>, handle: &SharedHandle) -> Result<()> {
+        doc.meta.extraction = ImageExtraction::Ocr(self.inner.provenance());
+
+        let inputs = Self::collect_inputs(handle).await;
         if inputs.is_empty() {
             return Ok(());
         }
@@ -78,7 +88,7 @@ impl OcrExtractor {
         );
 
         let blocks = self.extract(&inputs).await?;
-        envelope.document.blocks.extend(blocks);
+        doc.blocks.extend(blocks);
         Ok(())
     }
 
@@ -97,11 +107,16 @@ impl OcrExtractor {
             .await
     }
 
-    async fn collect_inputs(envelope: &DocumentEnvelope<Image>) -> Vec<Located<Image, ImageData>> {
-        let locations = envelope.collect_image_locations().await;
+    async fn collect_inputs(handle: &SharedHandle) -> Vec<Located<Image, ImageData>> {
+        let guard = handle.lock().await;
+        let locations: Vec<Located<Image>> = {
+            use futures::StreamExt;
+            guard.image_locations().collect().await
+        };
+        drop(guard);
         let mut out = Vec::with_capacity(locations.len());
         for located in locations {
-            if let Some(data) = envelope.read_image(&located.location).await {
+            if let Some(data) = handle.lock().await.read_image(&located.location).await {
                 out.push(located.with_data(data));
             }
         }

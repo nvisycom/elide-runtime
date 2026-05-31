@@ -351,11 +351,11 @@ mod tests {
     }
 
     fn seed_records(env: &mut DocumentEnvelope<Text>, entities: Vec<Entity<Text>>) {
-        env.audit.records = entities.into_iter().map(EntityRecord::new).collect();
+        env.document.audit.records = entities.into_iter().map(EntityRecord::new).collect();
     }
 
     fn first_entry(env: &DocumentEnvelope<Text>) -> &AuditEntry<Text> {
-        env.audit.records[0]
+        env.document.audit.records[0]
             .audit
             .as_ref()
             .expect("first record has an audit entry")
@@ -368,7 +368,7 @@ mod tests {
         run_redaction(ConfidenceThreshold::clamped(0.8), &mut env)
             .await
             .expect("execute");
-        assert_eq!(env.audit.entries().count(), 0);
+        assert_eq!(env.document.audit.entries().count(), 0);
     }
 
     #[tokio::test]
@@ -378,7 +378,7 @@ mod tests {
         run_redaction(ConfidenceThreshold::clamped(0.5), &mut env)
             .await
             .expect("execute");
-        assert_eq!(env.audit.entries().count(), 1);
+        assert_eq!(env.document.audit.entries().count(), 1);
         let entry = first_entry(&env);
         assert!(entry.decision.policy_id.is_none());
         assert!(entry.decision.rank.is_none());
@@ -401,7 +401,7 @@ mod tests {
             .await
             .expect("execute");
 
-        assert_eq!(env.audit.entries().count(), 1);
+        assert_eq!(env.document.audit.entries().count(), 1);
         let entry = first_entry(&env);
         assert_eq!(entry.decision.policy_id, Some(policy_id));
         assert_eq!(entry.decision.rank, Some(RuleRank::new(0, 0)));
@@ -426,7 +426,7 @@ mod tests {
             .await
             .expect("execute");
 
-        assert_eq!(env.audit.entries().count(), 1);
+        assert_eq!(env.document.audit.entries().count(), 1);
         assert!(matches!(first_entry(&env).execution, Execution::Suppressed));
     }
 

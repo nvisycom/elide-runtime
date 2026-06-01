@@ -258,10 +258,11 @@ mod tests {
 
     use super::*;
     use crate::core::SharedData;
+    use crate::ingestion::registry::Registry;
 
     fn shared() -> Arc<SharedData> {
         let dir = tempfile::tempdir().unwrap();
-        let registry = crate::ingestion::registry::Registry::open(dir.path()).unwrap();
+        let registry = Registry::open(dir.path()).unwrap();
         SharedData::new(uuid::Uuid::new_v4(), uuid::Uuid::new_v4(), registry)
     }
 

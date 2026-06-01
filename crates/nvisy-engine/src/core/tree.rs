@@ -18,8 +18,10 @@
 //!
 //! [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 
+use std::slice::IterMut;
+
 use nvisy_core::content::ContentMetadata;
-use nvisy_ontology::document::Document;
+use nvisy_ontology::document::{Block, Document};
 use nvisy_ontology::modality::{Audio, EmbeddedDocument, Image, Tabular, Text, TextBlock};
 use nvisy_ontology::provenance::AnyAudit;
 use uuid::Uuid;
@@ -181,9 +183,7 @@ impl DocumentTree {
 ///
 /// [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 pub struct EmbedsMut<'a> {
-    blocks: Option<
-        std::slice::IterMut<'a, nvisy_ontology::document::Block<nvisy_ontology::modality::Text>>,
-    >,
+    blocks: Option<IterMut<'a, Block<Text>>>,
 }
 
 impl<'a> Iterator for EmbedsMut<'a> {

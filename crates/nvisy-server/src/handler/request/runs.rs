@@ -4,7 +4,7 @@ use nvisy_engine::deduplication::DeduplicationParams;
 use nvisy_engine::detection::Detection;
 use nvisy_engine::extraction::Extraction;
 use nvisy_engine::ingestion::{ExportFile, ImportFile};
-use nvisy_engine::pipeline::RunStatus;
+use nvisy_engine::pipeline::{EngineInput, Plan, RunStatus};
 use nvisy_engine::redaction::Redaction;
 use nvisy_engine::validation::Validation;
 use schemars::JsonSchema;
@@ -59,19 +59,16 @@ pub struct NewRun {
 }
 
 impl NewRun {
-    /// Convert the request into an [`EngineInput`]
-    /// for the given actor.
-    ///
-    /// [`EngineInput`]: nvisy_engine::pipeline::EngineInput
+    /// Convert the request into an [`EngineInput`] for the given actor.
     #[must_use]
-    pub fn into_engine_input(self, actor_id: Uuid) -> nvisy_engine::pipeline::EngineInput {
-        nvisy_engine::pipeline::EngineInput {
+    pub fn into_engine_input(self, actor_id: Uuid) -> EngineInput {
+        EngineInput {
             actor_id,
             policies: self.policies,
             dry_run: self.dry_run,
             imports: self.imports,
             context_ids: self.context_ids,
-            plan: nvisy_engine::pipeline::Plan {
+            plan: Plan {
                 extraction: self.extraction,
                 detection: self.detection,
                 deduplication: self.deduplication,

@@ -11,7 +11,6 @@
 //!
 //! [`Handle<Audio>`]: crate::core::Handle
 //! [`Handle::redact`]: crate::core::Handle::redact
-//! [`AudioOutput::Remove`]: AudioOutput::Remove
 
 use std::cmp::Reverse;
 

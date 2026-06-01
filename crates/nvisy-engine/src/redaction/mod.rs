@@ -23,15 +23,20 @@ mod plan;
 mod strategy;
 
 use nvisy_core::Result;
+use nvisy_core::content::ContentMetadata;
+use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::is_excluded;
-use nvisy_ontology::modality::Modality;
+use nvisy_ontology::modality::{Modality, Overlap};
+use nvisy_ontology::primitive::ConfidenceThreshold;
 use tracing::Instrument;
 
 pub use self::config::RedactionConfig;
 use self::evaluate::TARGET;
 pub use self::evaluate::{ApplyRedactions, ApplyRedactionsImpl};
 pub use self::plan::Redaction;
-use crate::core::{DocView, DocumentTree, NodeMut, PolicyStore, RunContext, SharedHandle, ValueAt};
+use crate::core::{
+    DocumentTree, DocumentView, NodeMut, PolicyStore, RunContext, SharedHandle, ValueAt,
+};
 use crate::pipeline::EngineInput;
 
 /// Redaction phase: evaluate policies, attach an [`AuditEntry<M>`]
@@ -68,11 +73,10 @@ impl RedactionPhase {
     ) -> Result<()> {
         let span = tracing::info_span!(target: TARGET, "phase", name = "redaction");
         let cfg = &input.plan.redaction;
-        let section = &self.config;
         let default_threshold = cfg
             .confidence_threshold
-            .unwrap_or(section.confidence_threshold);
-        let _process_metadata = cfg.process_metadata.unwrap_or(section.process_metadata);
+            .unwrap_or(self.config.confidence_threshold);
+        let _process_metadata = cfg.process_metadata.unwrap_or(self.config.process_metadata);
         let policies = &ctx.shared().policies;
         // Snapshot the tree-owned handle + metadata so they don't
         // conflict with the per-node `&mut` borrows produced by
@@ -101,9 +105,9 @@ impl RedactionPhase {
 async fn dispatch(
     node: NodeMut<'_>,
     handle: &SharedHandle,
-    metadata: &nvisy_core::content::ContentMetadata,
+    metadata: &ContentMetadata,
     policies: &PolicyStore,
-    default_threshold: nvisy_ontology::primitive::ConfidenceThreshold,
+    default_threshold: ConfidenceThreshold,
 ) -> Result<()> {
     match node {
         NodeMut::Text(doc) => {
@@ -125,15 +129,15 @@ async fn dispatch(
 /// `default_threshold`. Split out as a free function so the
 /// test-only path can drive it directly.
 pub(crate) async fn run_redaction<M>(
-    default_threshold: nvisy_ontology::primitive::ConfidenceThreshold,
-    doc: &mut nvisy_ontology::document::Document<M>,
+    default_threshold: ConfidenceThreshold,
+    doc: &mut Document<M>,
     handle: &SharedHandle,
-    metadata: &nvisy_core::content::ContentMetadata,
+    metadata: &ContentMetadata,
     policies: &PolicyStore,
 ) -> Result<()>
 where
-    M: Modality + nvisy_ontology::modality::Overlap,
-    for<'a> DocView<'a, M>: ValueAt<M>,
+    M: Modality + Overlap,
+    for<'a> DocumentView<'a, M>: ValueAt<M>,
     ApplyRedactionsImpl: ApplyRedactions<M>,
 {
     if doc.audit.records.is_empty() {

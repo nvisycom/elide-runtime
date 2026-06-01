@@ -17,7 +17,12 @@ use nvisy_codec::handler::AudioOutput;
 use nvisy_codec::handler::ImageOutput;
 use nvisy_core::Result;
 use nvisy_core::content::ContentMetadata;
-use nvisy_ontology::modality::{Modality, Text};
+use nvisy_ontology::document::Document;
+#[cfg(feature = "audio")]
+use nvisy_ontology::modality::Audio;
+#[cfg(feature = "image")]
+use nvisy_ontology::modality::Image;
+use nvisy_ontology::modality::{Modality, Tabular, Text};
 #[cfg(feature = "audio")]
 use nvisy_ontology::policy::AudioMethodTag;
 #[cfg(feature = "image")]
@@ -44,13 +49,10 @@ pub(crate) const TARGET: &str = "nvisy_engine::redaction";
 /// `RedactionPhase::run` is parameterised over this so the apply
 /// path is shared.
 ///
-/// [`Strategy`]: nvisy_ontology::modality::Modality::Strategy
+/// [`Strategy`]: Modality::Strategy
 #[async_trait::async_trait]
-pub trait ApplyRedactions<M: nvisy_ontology::modality::Modality>: Send + Sync {
-    async fn apply_pending(
-        doc: &mut nvisy_ontology::document::Document<M>,
-        handle: &SharedHandle,
-    ) -> Result<()>;
+pub trait ApplyRedactions<M: Modality>: Send + Sync {
+    async fn apply_pending(doc: &mut Document<M>, handle: &SharedHandle) -> Result<()>;
 }
 
 /// Stateless marker hosting the per-modality [`ApplyRedactions`]
@@ -60,10 +62,7 @@ pub struct ApplyRedactionsImpl;
 
 #[async_trait::async_trait]
 impl ApplyRedactions<Text> for ApplyRedactionsImpl {
-    async fn apply_pending(
-        doc: &mut nvisy_ontology::document::Document<Text>,
-        handle: &SharedHandle,
-    ) -> Result<()> {
+    async fn apply_pending(doc: &mut Document<Text>, handle: &SharedHandle) -> Result<()> {
         let assembled = apply::build(doc, handle, |view| {
             to_text_redaction(
                 &view.entry.decision.strategy,
@@ -99,11 +98,8 @@ impl ApplyRedactions<Text> for ApplyRedactionsImpl {
 
 #[cfg(feature = "tabular")]
 #[async_trait::async_trait]
-impl ApplyRedactions<nvisy_ontology::modality::Tabular> for ApplyRedactionsImpl {
-    async fn apply_pending(
-        doc: &mut nvisy_ontology::document::Document<nvisy_ontology::modality::Tabular>,
-        handle: &SharedHandle,
-    ) -> Result<()> {
+impl ApplyRedactions<Tabular> for ApplyRedactionsImpl {
+    async fn apply_pending(doc: &mut Document<Tabular>, handle: &SharedHandle) -> Result<()> {
         let assembled = apply::build(doc, handle, |view| {
             to_tabular_redaction(
                 &view.entry.decision.strategy,
@@ -144,22 +140,16 @@ impl ApplyRedactions<nvisy_ontology::modality::Tabular> for ApplyRedactionsImpl 
 
 #[cfg(not(feature = "tabular"))]
 #[async_trait::async_trait]
-impl ApplyRedactions<nvisy_ontology::modality::Tabular> for ApplyRedactionsImpl {
-    async fn apply_pending(
-        _doc: &mut nvisy_ontology::document::Document<nvisy_ontology::modality::Tabular>,
-        _handle: &SharedHandle,
-    ) -> Result<()> {
+impl ApplyRedactions<Tabular> for ApplyRedactionsImpl {
+    async fn apply_pending(_doc: &mut Document<Tabular>, _handle: &SharedHandle) -> Result<()> {
         Ok(())
     }
 }
 
 #[cfg(feature = "image")]
 #[async_trait::async_trait]
-impl ApplyRedactions<nvisy_ontology::modality::Image> for ApplyRedactionsImpl {
-    async fn apply_pending(
-        doc: &mut nvisy_ontology::document::Document<nvisy_ontology::modality::Image>,
-        handle: &SharedHandle,
-    ) -> Result<()> {
+impl ApplyRedactions<Image> for ApplyRedactionsImpl {
+    async fn apply_pending(doc: &mut Document<Image>, handle: &SharedHandle) -> Result<()> {
         let assembled = apply::build(doc, handle, |view| {
             to_image_redaction(&view.entry.decision.strategy)
         })
@@ -194,22 +184,16 @@ impl ApplyRedactions<nvisy_ontology::modality::Image> for ApplyRedactionsImpl {
 
 #[cfg(not(feature = "image"))]
 #[async_trait::async_trait]
-impl ApplyRedactions<nvisy_ontology::modality::Image> for ApplyRedactionsImpl {
-    async fn apply_pending(
-        _doc: &mut nvisy_ontology::document::Document<nvisy_ontology::modality::Image>,
-        _handle: &SharedHandle,
-    ) -> Result<()> {
+impl ApplyRedactions<Image> for ApplyRedactionsImpl {
+    async fn apply_pending(_doc: &mut Document<Image>, _handle: &SharedHandle) -> Result<()> {
         Ok(())
     }
 }
 
 #[cfg(feature = "audio")]
 #[async_trait::async_trait]
-impl ApplyRedactions<nvisy_ontology::modality::Audio> for ApplyRedactionsImpl {
-    async fn apply_pending(
-        doc: &mut nvisy_ontology::document::Document<nvisy_ontology::modality::Audio>,
-        handle: &SharedHandle,
-    ) -> Result<()> {
+impl ApplyRedactions<Audio> for ApplyRedactionsImpl {
+    async fn apply_pending(doc: &mut Document<Audio>, handle: &SharedHandle) -> Result<()> {
         let assembled = apply::build(doc, handle, |view| {
             to_audio_redaction(&view.entry.decision.strategy)
         })
@@ -243,11 +227,8 @@ impl ApplyRedactions<nvisy_ontology::modality::Audio> for ApplyRedactionsImpl {
 
 #[cfg(not(feature = "audio"))]
 #[async_trait::async_trait]
-impl ApplyRedactions<nvisy_ontology::modality::Audio> for ApplyRedactionsImpl {
-    async fn apply_pending(
-        _doc: &mut nvisy_ontology::document::Document<nvisy_ontology::modality::Audio>,
-        _handle: &SharedHandle,
-    ) -> Result<()> {
+impl ApplyRedactions<Audio> for ApplyRedactionsImpl {
+    async fn apply_pending(_doc: &mut Document<Audio>, _handle: &SharedHandle) -> Result<()> {
         Ok(())
     }
 }

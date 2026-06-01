@@ -142,11 +142,14 @@ impl ContentData {
     /// Returns an error if the end index is beyond the content length
     /// or if start is greater than end.
     pub fn slice(&self, start: usize, end: usize) -> Result<Bytes> {
-        let bytes = &self.data;
-        if end > bytes.len() {
+        if end > self.data.len() {
             return Err(Error::new(
                 ErrorKind::Validation,
-                format!("Slice end {} exceeds content length {}", end, bytes.len()),
+                format!(
+                    "Slice end {} exceeds content length {}",
+                    end,
+                    self.data.len()
+                ),
             ));
         }
         if start > end {
@@ -155,7 +158,7 @@ impl ContentData {
                 format!("Slice start {start} is greater than end {end}"),
             ));
         }
-        Ok(Bytes::copy_from_slice(&bytes[start..end]))
+        Ok(Bytes::copy_from_slice(&self.data[start..end]))
     }
 
     /// Returns `true` if the content is empty.

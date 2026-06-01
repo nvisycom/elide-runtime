@@ -71,7 +71,9 @@ pub struct DetectParams {
     #[serde(default = "default_true")]
     pub enabled: bool,
     /// Sampling and retry parameters for the detect-pass agent.
-    /// Ignored when [`enabled`](Self::enabled) is `false`.
+    /// Ignored when [`enabled`] is `false`.
+    ///
+    /// [`enabled`]: Self::enabled
     #[serde(flatten)]
     pub agent: AgentConfig,
 }
@@ -85,7 +87,9 @@ pub struct VerifyParams {
     #[serde(default = "default_true")]
     pub enabled: bool,
     /// Sampling and retry parameters for the verify-pass agent.
-    /// Ignored when [`enabled`](Self::enabled) is `false`.
+    /// Ignored when [`enabled`] is `false`.
+    ///
+    /// [`enabled`]: Self::enabled
     #[serde(flatten)]
     pub agent: AgentConfig,
 }

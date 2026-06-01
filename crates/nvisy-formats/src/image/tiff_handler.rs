@@ -4,6 +4,7 @@
 //! [`ImageHandler`]: nvisy_codec::handler::ImageHandler
 
 use nvisy_core::content::ContentSource;
+use nvisy_core::media::{DocumentType, ImageFormat};
 
 /// Handler for loaded TIFF content.
 #[derive(Debug)]
@@ -14,7 +15,7 @@ pub struct TiffHandler {
 
 impl_image_handler!(
     TiffHandler,
-    nvisy_core::media::DocumentType::Image(nvisy_core::media::ImageFormat::Tiff),
+    DocumentType::Image(ImageFormat::Tiff),
     image::ImageFormat::Tiff,
     "tiff-handler",
     "tiff.encode"

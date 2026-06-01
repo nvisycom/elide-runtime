@@ -1,9 +1,11 @@
 //! [`VlmDetection`]: full bundle for constructing the VLM-driven
 //! image-modality pipeline from config alone.
 //!
-//! Mirrors [`LlmDetection`](super::super::llm::LlmDetection) shape
+//! Mirrors [`LlmDetection`] shape
 //! for parity: per-pass sub-tables ([`detect`], [`verify`]) use
 //! the same presence-and-flag pattern.
+//!
+//! [`LlmDetection`]: super::super::llm::LlmDetection
 //!
 //! - sub-table absent → disabled (no agent allocated)
 //! - sub-table present with `enabled = false` → disabled (config
@@ -52,7 +54,9 @@ pub struct VlmDetectParams {
     #[serde(default = "default_true")]
     pub enabled: bool,
     /// Sampling and retry parameters for the detect-pass agent.
-    /// Ignored when [`enabled`](Self::enabled) is `false`.
+    /// Ignored when [`enabled`] is `false`.
+    ///
+    /// [`enabled`]: Self::enabled
     #[serde(flatten)]
     pub agent: AgentConfig,
 }
@@ -65,7 +69,9 @@ pub struct VlmVerifyParams {
     #[serde(default = "default_true")]
     pub enabled: bool,
     /// Sampling and retry parameters for the verify-pass agent.
-    /// Ignored when [`enabled`](Self::enabled) is `false`.
+    /// Ignored when [`enabled`] is `false`.
+    ///
+    /// [`enabled`]: Self::enabled
     #[serde(flatten)]
     pub agent: AgentConfig,
 }

@@ -2,11 +2,13 @@
 //! `SpreadsheetFormat`, `AudioFormat`, `TextFormat`).
 //!
 //! These are the leaf sub-format types nested inside
-//! [`DocumentType`](super::DocumentType). Each enum knows how to
+//! [`DocumentType`]. Each enum knows how to
 //! parse itself from a MIME type via `from_mime`. Only
 //! `ImageFormat` carries a `mime_type` accessor — it's the one
 //! variant the workspace needs to emit a MIME string for
 //! (rendering boundary in `nvisy-ocr`).
+//!
+//! [`DocumentType`]: super::DocumentType
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

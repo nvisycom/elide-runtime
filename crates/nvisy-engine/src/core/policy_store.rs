@@ -199,6 +199,7 @@ fn condition_matches(
 
 #[cfg(test)]
 mod tests {
+    use nvisy_ontology::entity::Entity;
     use nvisy_ontology::modality::{Image, Text};
     use semver::Version;
 
@@ -256,7 +257,7 @@ mod tests {
     #[test]
     fn resolve_empty_chain_returns_fallthrough() {
         let store = PolicyStore::new();
-        let entity = nvisy_ontology::entity::Entity::<Text>::test_builder(0, 4).test_build();
+        let entity = Entity::<Text>::test_builder(0, 4).test_build();
         let metadata = ContentMetadata::new();
         assert!(matches!(
             store.resolve::<Text>(&entity, &[], &metadata),

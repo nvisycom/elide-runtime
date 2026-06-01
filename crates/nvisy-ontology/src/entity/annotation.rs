@@ -37,10 +37,12 @@ use crate::primitive::Confidence;
 /// "this *is* / *is not* sensitive, no matter what the detector
 /// says."
 ///
-/// Confidence lives on [`Hint`](Self::Hint) only because asserting
+/// Confidence lives on [`Hint`] only because asserting
 /// a thing is, by definition, certain — synthesised entities from
 /// asserted inclusions always materialise at full confidence
 /// (`1.0`).
+///
+/// [`Hint`]: Self::Hint
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]

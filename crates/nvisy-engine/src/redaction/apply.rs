@@ -24,11 +24,12 @@
 
 use nvisy_codec::core::Redactions;
 use nvisy_core::Result;
+use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::EntityKind;
 use nvisy_ontology::modality::Modality;
 use nvisy_ontology::provenance::{AuditEntry, Execution};
 
-use crate::core::{DocView, SharedHandle, ValueAt};
+use crate::core::{DocumentView, SharedHandle, ValueAt};
 
 const TARGET: &str = "nvisy_engine::redaction::apply";
 
@@ -71,7 +72,7 @@ impl<M: Modality, R> ApplyBatch<M, R> {
 /// per-record indices the caller will commit via [`commit`] once
 /// the codec accepts the work.
 pub(super) async fn build<M, R, F>(
-    doc: &nvisy_ontology::document::Document<M>,
+    doc: &Document<M>,
     handle: &SharedHandle,
     to_redaction: F,
 ) -> ApplyBatch<M, R>
@@ -79,9 +80,9 @@ where
     M: Modality,
     R: Clone,
     F: Fn(EntryView<'_, M>) -> Result<R>,
-    for<'a> DocView<'a, M>: ValueAt<M>,
+    for<'a> DocumentView<'a, M>: ValueAt<M>,
 {
-    let view = DocView::new(doc, handle);
+    let view = DocumentView::new(doc, handle);
     let pending: Vec<usize> = doc
         .audit
         .records
@@ -149,7 +150,7 @@ where
 /// tabular produce `TextReplacement` / `TabularReplacement`; image/
 /// audio produce the `MethodTag` of the operation that ran.
 pub(super) fn commit<M, R, ToReplacement>(
-    doc: &mut nvisy_ontology::document::Document<M>,
+    doc: &mut Document<M>,
     applied: Vec<(usize, R)>,
     failed: Vec<(usize, String)>,
     to_replacement: ToReplacement,

@@ -13,7 +13,7 @@
 //! - [`DocumentTree`] — the per-document tree of nodes phases walk
 //!   via [`DocumentTree::walk_mut`]; the [`NodeMut`] variant the
 //!   walk yields drives the per-modality dispatch.
-//! - [`DocView`] / [`ValueAt`] — the read-only view phases use to
+//! - [`DocumentView`] / [`ValueAt`] — the read-only view phases use to
 //!   resolve a modality-typed location to its source string.
 //! - [`Plan`] — the per-request bundle of per-phase configs phases
 //!   read from `input.plan.X`.
@@ -30,5 +30,5 @@ pub use self::plan::Plan;
 pub(crate) use self::policy_store::Decision;
 pub use self::policy_store::PolicyStore;
 pub use self::shared::SharedData;
-pub use self::target::{DocView, SharedHandle, ValueAt};
+pub use self::target::{DocumentView, SharedHandle, ValueAt};
 pub use self::tree::{AnyDocument, DocumentTree, NodeMut};

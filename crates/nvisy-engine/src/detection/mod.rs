@@ -21,8 +21,9 @@ mod vlm;
 use std::sync::Arc;
 
 pub use nvisy_agent::agent::LlmNerContext;
-use nvisy_core::Result;
+use nvisy_core::{Error, Result};
 pub use nvisy_ner::Context as NerContext;
+use nvisy_ontology::entity::EntityKind;
 pub use nvisy_pattern::{PatternContext, PatternFilter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -83,7 +84,7 @@ pub struct Detection {
     /// Entity-kind allowlist applied to every enabled recognizer.
     /// Empty = all kinds permitted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub entity_kinds: Vec<nvisy_ontology::entity::EntityKind>,
+    pub entity_kinds: Vec<EntityKind>,
 }
 
 impl Detection {
@@ -142,7 +143,7 @@ impl Detection {
         }
         builder
             .build()
-            .map_err(|e| nvisy_core::Error::validation(e.to_string(), "detection-engine"))
+            .map_err(|e| Error::validation(e.to_string(), "detection-engine"))
     }
 }
 

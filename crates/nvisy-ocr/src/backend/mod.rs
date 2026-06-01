@@ -52,7 +52,6 @@ pub enum OcrBackend {
     /// **Scaffolding only** until the wire contract is finalised
     /// upstream — see [#128].
     ///
-    /// [`BentoBackend`]: BentoBackend
     /// [#128]: https://github.com/nvisycom/runtime/issues/128
     Bento {
         /// Base URL of the `inference-ocr` Bento (for example

@@ -12,8 +12,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use nvisy_core::Error;
+use nvisy_ontology::context::Context;
 use nvisy_ontology::modality::Text;
-use nvisy_ontology::policy::{Retention, RetentionPolicy, RetentionScope};
+use nvisy_ontology::policy::{Policy, Retention, RetentionPolicy, RetentionScope};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -131,7 +132,7 @@ impl Pipeline {
         // Cache hands out Arc<Policy<Text>>; PolicyStore keeps them
         // as Arcs, so concurrent runs share the same loaded
         // instances without copying.
-        let text_policies: Vec<Arc<nvisy_ontology::policy::Policy<Text>>> = cached_policies;
+        let text_policies: Vec<Arc<Policy<Text>>> = cached_policies;
 
         let retention_rules: Vec<RetentionPolicy> = text_policies
             .iter()
@@ -271,16 +272,12 @@ impl Pipeline {
         actor_id: Uuid,
         context_ids: &[Uuid],
         policy_ids: &[Uuid],
-    ) -> (
-        ResourceGuard<nvisy_ontology::context::Context>,
-        ResourceGuard<nvisy_ontology::policy::Policy<Text>>,
-    ) {
-        let registry = &self.registry;
-
-        let context_guard = registry
+    ) -> (ResourceGuard<Context>, ResourceGuard<Policy<Text>>) {
+        let context_guard = self
+            .registry
             .context_cache()
             .acquire(context_ids, |id| async move {
-                match registry.read_context(actor_id, id).await {
+                match self.registry.read_context(actor_id, id).await {
                     Ok(ctx) => Some(ctx),
                     Err(e) => {
                         tracing::warn!(%id, error = %e, "failed to load context");
@@ -290,10 +287,11 @@ impl Pipeline {
             })
             .await;
 
-        let policy_guard = registry
+        let policy_guard = self
+            .registry
             .policy_cache()
             .acquire(policy_ids, |id| async move {
-                match registry.read_policy(actor_id, id).await {
+                match self.registry.read_policy(actor_id, id).await {
                     Ok(policy) => Some(policy),
                     Err(e) => {
                         tracing::warn!(%id, error = %e, "failed to load policy");

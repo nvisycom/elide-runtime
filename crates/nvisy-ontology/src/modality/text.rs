@@ -81,14 +81,16 @@ impl Modality for Text {
 ///
 /// Splits into two variants:
 ///
-/// - [`Text`](Self::Text) wraps a structural text-shaped kind
+/// - [`Text`] wraps a structural text-shaped kind
 ///   (paragraph, heading, list item, code, quote) — see [`TextContent`].
-/// - [`Embed`](Self::Embed) hosts a nested [`Document`] of another
+/// - [`Embed`] hosts a nested [`Document`] of another
 ///   modality (image, tabular) for sources like PDF, DOCX, or HTML
 ///   that mix text with non-text content in one flow.
 ///
 /// Per-word source spans live on the wrapping [`Block<Text>`].
 ///
+/// [`Text`]: Self::Text
+/// [`Embed`]: Self::Embed
 /// [`Block<Text>`]: crate::document::Block
 #[derive(Debug, Clone)]
 #[non_exhaustive]

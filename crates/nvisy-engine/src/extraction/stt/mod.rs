@@ -9,10 +9,13 @@ use nvisy_agent::audio::SttProvider;
 use nvisy_agent::audio::stt::{SttConfig, SttService};
 use nvisy_codec::DocumentHandle;
 use nvisy_core::Result;
-use nvisy_ontology::document::Block;
+use nvisy_core::content::ContentMetadata;
+use nvisy_ontology::document::{Block, Document};
 use nvisy_ontology::modality::{Audio, AudioBlock, AudioExtraction};
 use nvisy_ontology::primitive::TimeSpan;
 use serde::{Deserialize, Serialize};
+
+use crate::core::SharedHandle;
 
 const TARGET: &str = "nvisy_engine::extraction::audio::stt";
 
@@ -60,9 +63,9 @@ impl SttExtractor {
     /// implemented; a warning is logged when requested. See #239.
     pub async fn run(
         &self,
-        doc: &mut nvisy_ontology::document::Document<Audio>,
-        handle: &crate::core::SharedHandle,
-        metadata: &nvisy_core::content::ContentMetadata,
+        doc: &mut Document<Audio>,
+        handle: &SharedHandle,
+        metadata: &ContentMetadata,
         diarization: bool,
     ) -> Result<()> {
         // Stamp the real provenance over the importer's placeholder

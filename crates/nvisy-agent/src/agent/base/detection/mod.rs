@@ -56,13 +56,14 @@ pub struct NerHint {
 /// confidence and lets the engine's calibration map + dedup threshold
 /// shape the surviving set.
 ///
-/// [`hints`](Self::hints) are user-supplied [`Hint`]-strength
+/// [`hints`] are user-supplied [`Hint`]-strength
 /// inclusion annotations the engine lifts into the prompt so the
 /// LLM can confirm, adjust, or implicitly reject each one in the
 /// same pass as open-ended discovery. Exclusions don't flow through
 /// the prompt — they're always assertions and enforced by a
 /// post-detection filter regardless of detector.
 ///
+/// [`hints`]: Self::hints
 /// [`Hint`]: nvisy_ontology::entity::AnnotationStrength::Hint
 #[derive(Debug, Clone, Default)]
 pub struct LlmNerContext {

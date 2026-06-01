@@ -17,9 +17,10 @@ use std::sync::Arc;
 
 use derive_builder::Builder;
 use nvisy_agent::agent::NerHint;
-use nvisy_core::Result;
+use nvisy_core::{Error, Result};
+use nvisy_ontology::document::{Document, Span};
 use nvisy_ontology::entity::{Annotation, AnnotationKind, AnnotationStrength, Entity};
-use nvisy_ontology::modality::{Image, Modality, ModalityBlock, Overlap, Text};
+use nvisy_ontology::modality::{Audio, Image, Modality, ModalityBlock, Overlap, Tabular, Text};
 use tokio::task::JoinSet;
 use tracing::Instrument;
 
@@ -28,6 +29,7 @@ use super::context::{DetectionContext, VlmDetectionContext};
 use super::dyn_recognizer::{DynImageRecognizer, DynTextRecognizer};
 use super::lift::{LiftFromBlock, ProjectIntoBlock};
 use super::recognizer::Recognizer;
+use crate::core::{NodeMut, SharedHandle};
 
 pub(super) const TARGET: &str = "nvisy_engine::detection";
 
@@ -225,7 +227,7 @@ async fn collect_join_set<E: Modality>(
             }
             Err(join_err) => {
                 set.abort_all();
-                return Err(nvisy_core::Error::runtime(
+                return Err(Error::runtime(
                     format!("recognizer task panicked or was cancelled: {join_err}"),
                     "detection-engine",
                     false,
@@ -255,7 +257,7 @@ impl fmt::Debug for DetectionEngine {
 /// [`TextBlock::Embed`]: nvisy_ontology::modality::TextBlock::Embed
 pub(crate) async fn detect_text_blocks<M>(
     engine: &DetectionEngine,
-    doc: &mut nvisy_ontology::document::Document<M>,
+    doc: &mut Document<M>,
     cfg: &Detection,
     run_id: uuid::Uuid,
 ) -> Result<()>
@@ -332,7 +334,7 @@ impl DetectionEngine {
     /// is purely text-based.
     pub(crate) async fn detect_text_only<M>(
         &self,
-        doc: &mut nvisy_ontology::document::Document<M>,
+        doc: &mut Document<M>,
         cfg: &Detection,
         run_id: uuid::Uuid,
     ) -> Result<()>
@@ -358,8 +360,8 @@ impl DetectionEngine {
     #[cfg(feature = "image")]
     pub(crate) async fn detect_image_locations(
         &self,
-        doc: &mut nvisy_ontology::document::Document<Image>,
-        handle: &crate::core::SharedHandle,
+        doc: &mut Document<Image>,
+        handle: &SharedHandle,
         cfg: &Detection,
         run_id: uuid::Uuid,
     ) -> Result<()> {
@@ -378,9 +380,9 @@ impl DetectionEngine {
                 continue;
             };
             let dims = image_data.dimensions();
-            let bytes = image_data.encode_png().map_err(|e| {
-                nvisy_core::Error::runtime(e.to_string(), "detection-engine", false)
-            })?;
+            let bytes = image_data
+                .encode_png()
+                .map_err(|e| Error::runtime(e.to_string(), "detection-engine", false))?;
 
             let mut ctx = VlmDetectionContext::new(bytes, dims);
             ctx.correlation_id = Some(run_id);
@@ -409,8 +411,8 @@ impl DetectionEngine {
     #[cfg(feature = "image")]
     async fn detect_image(
         &self,
-        doc: &mut nvisy_ontology::document::Document<Image>,
-        handle: &crate::core::SharedHandle,
+        doc: &mut Document<Image>,
+        handle: &SharedHandle,
         cfg: &Detection,
         run_id: uuid::Uuid,
     ) -> Result<()> {
@@ -424,8 +426,8 @@ impl DetectionEngine {
     #[cfg(not(feature = "image"))]
     async fn detect_image(
         &self,
-        doc: &mut nvisy_ontology::document::Document<Image>,
-        _handle: &crate::core::SharedHandle,
+        doc: &mut Document<Image>,
+        _handle: &SharedHandle,
         cfg: &Detection,
         run_id: uuid::Uuid,
     ) -> Result<()> {
@@ -442,28 +444,19 @@ impl DetectionEngine {
     /// [`Self::detect_image_locations`] when the `image` feature
     /// is on, falling back to text-only otherwise.
     ///
-    /// [`NodeMut`]: crate::core::NodeMut
     /// [`DetectionPhase::apply`]: super::DetectionPhase::apply
     pub(super) async fn dispatch(
         &self,
-        node: crate::core::NodeMut<'_>,
-        handle: &crate::core::SharedHandle,
+        node: NodeMut<'_>,
+        handle: &SharedHandle,
         cfg: &Detection,
         run_id: uuid::Uuid,
     ) -> Result<()> {
         match node {
-            crate::core::NodeMut::Text(doc) => {
-                self.detect_text_only::<Text>(doc, cfg, run_id).await
-            }
-            crate::core::NodeMut::Tabular(doc) => {
-                self.detect_text_only::<nvisy_ontology::modality::Tabular>(doc, cfg, run_id)
-                    .await
-            }
-            crate::core::NodeMut::Audio(doc) => {
-                self.detect_text_only::<nvisy_ontology::modality::Audio>(doc, cfg, run_id)
-                    .await
-            }
-            crate::core::NodeMut::Image(doc) => self.detect_image(doc, handle, cfg, run_id).await,
+            NodeMut::Text(doc) => self.detect_text_only::<Text>(doc, cfg, run_id).await,
+            NodeMut::Tabular(doc) => self.detect_text_only::<Tabular>(doc, cfg, run_id).await,
+            NodeMut::Audio(doc) => self.detect_text_only::<Audio>(doc, cfg, run_id).await,
+            NodeMut::Image(doc) => self.detect_image(doc, handle, cfg, run_id).await,
         }
     }
 }
@@ -485,10 +478,7 @@ impl DetectionEngine {
 ///
 /// [`Hint`]: AnnotationStrength::Hint
 /// [`Inclusion`]: AnnotationKind::Inclusion
-fn collect_hints_for_block<M>(
-    annotations: &[Annotation<M>],
-    spans: &[nvisy_ontology::document::Span<M>],
-) -> Vec<NerHint>
+fn collect_hints_for_block<M>(annotations: &[Annotation<M>], spans: &[Span<M>]) -> Vec<NerHint>
 where
     M: Modality + Overlap + ProjectIntoBlock,
 {

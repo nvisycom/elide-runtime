@@ -15,6 +15,7 @@
 //! [`Image`]: nvisy_ontology::modality::Image
 
 use nvisy_core::content::ContentSource;
+use nvisy_core::media::{DocumentType, ImageFormat};
 
 /// Handler for loaded JPEG content.
 ///
@@ -32,7 +33,7 @@ pub struct JpegHandler {
 
 impl_image_handler!(
     JpegHandler,
-    nvisy_core::media::DocumentType::Image(nvisy_core::media::ImageFormat::Jpeg),
+    DocumentType::Image(ImageFormat::Jpeg),
     image::ImageFormat::Jpeg,
     "jpeg-handler",
     "jpeg.encode"

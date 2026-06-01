@@ -8,7 +8,7 @@
 
 use nvisy_codec::handler::Loader;
 use nvisy_core::Error;
-use nvisy_core::content::{ContentData, ContentSource};
+use nvisy_core::content::{ContentData, ContentSource, TextEncoding};
 use scraper::Html;
 
 use super::{HtmlData, HtmlHandler};
@@ -17,7 +17,7 @@ use super::{HtmlData, HtmlHandler};
 #[derive(Debug, Default)]
 pub struct HtmlParams {
     /// Character encoding of the input bytes.
-    pub encoding: nvisy_core::content::TextEncoding,
+    pub encoding: TextEncoding,
 }
 
 /// Loader that validates and parses HTML files.

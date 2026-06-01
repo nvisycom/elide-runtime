@@ -28,6 +28,7 @@ mod span_size;
 use std::mem;
 
 use nvisy_core::Result;
+use nvisy_ontology::document::Document;
 use nvisy_ontology::entity::Entity;
 use nvisy_ontology::modality::{Modality, Overlap};
 use nvisy_ontology::provenance::EntityRecord;
@@ -43,7 +44,7 @@ pub use self::params::DeduplicationParams;
 pub use self::resolve::ConflictResolution;
 use self::resolve::ResolveConflicts;
 pub use self::span_size::SpanSize;
-use crate::core::{DocView, DocumentTree, NodeMut, RunContext, SharedHandle, ValueAt};
+use crate::core::{DocumentTree, DocumentView, NodeMut, RunContext, SharedHandle, ValueAt};
 use crate::detection::Detection;
 use crate::pipeline::EngineInput;
 
@@ -109,19 +110,19 @@ impl DeduplicationPhase {
         params: &DeduplicationParams,
         filter: &FilterParams,
         mut entities: Vec<Entity<M>>,
-        doc: &nvisy_ontology::document::Document<M>,
+        doc: &Document<M>,
         handle: &SharedHandle,
     ) -> Vec<Entity<M>>
     where
         M: Modality + Overlap + SpanSize,
-        for<'a> DocView<'a, M>: ValueAt<M>,
+        for<'a> DocumentView<'a, M>: ValueAt<M>,
     {
         if entities.is_empty() {
             return entities;
         }
         let before = entities.len();
 
-        let view = DocView::new(doc, handle);
+        let view = DocumentView::new(doc, handle);
         entities.calibrate(&params.calibration);
         let dropped = entities.filter(filter);
         entities
@@ -163,14 +164,14 @@ async fn dispatch(
 }
 
 async fn dedup_one<M>(
-    doc: &mut nvisy_ontology::document::Document<M>,
+    doc: &mut Document<M>,
     handle: &SharedHandle,
     dedup: &DeduplicationParams,
     detection: &Detection,
 ) -> Result<()>
 where
     M: Modality + Overlap + SpanSize,
-    for<'a> DocView<'a, M>: ValueAt<M>,
+    for<'a> DocumentView<'a, M>: ValueAt<M>,
 {
     if doc.audit.records.is_empty() {
         return Ok(());
@@ -258,7 +259,7 @@ mod tests {
         )
         .await;
         assert_eq!(result.len(), 1);
-        let view = DocView::new(&fix.doc, &fix.handle);
+        let view = DocumentView::new(&fix.doc, &fix.handle);
         let value = view.value_at(&result[0].location).await;
         assert_eq!(value.as_deref(), Some("John"));
     }

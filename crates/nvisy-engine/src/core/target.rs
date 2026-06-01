@@ -1,4 +1,4 @@
-//! [`SharedHandle`] + [`DocView`] + [`ValueAt`]: the read-only
+//! [`SharedHandle`] + [`DocumentView`] + [`ValueAt`]: the read-only
 //! per-doc surface phase bodies use to resolve a modality-typed
 //! location to its source string.
 
@@ -25,7 +25,7 @@ pub type SharedHandle = Arc<Mutex<DocumentHandle>>;
 /// Resolve a location of modality `M` to the corresponding source
 /// text, for any per-call surface that knows how to look it up.
 ///
-/// Implemented by [`DocView<'_, M>`] (a read-only doc+handle pair).
+/// Implemented by [`DocumentView<'_, M>`] (a read-only doc+handle pair).
 /// Generic phase code (dedup, redaction, validation) bounds over
 /// `&impl ValueAt<M>` and dispatches uniformly.
 #[async_trait::async_trait]
@@ -38,9 +38,9 @@ pub trait ValueAt<M: Modality>: Sync {
 
 /// Read-only view over `(doc, handle)` carrying the per-modality
 /// [`ValueAt`] impls. Phase bodies that need to resolve source
-/// text at a typed location take a `&DocView<'_, M>` constructed
+/// text at a typed location take a `&DocumentView<'_, M>` constructed
 /// once at the top of their dispatch.
-pub struct DocView<'a, M: Modality> {
+pub struct DocumentView<'a, M: Modality> {
     /// The document the value resolver reads from. For image/audio
     /// modalities this is the source of the recognised text (no
     /// handle lookup); for text/tabular the handle is consulted.
@@ -50,7 +50,7 @@ pub struct DocView<'a, M: Modality> {
     pub handle: &'a SharedHandle,
 }
 
-impl<'a, M: Modality> DocView<'a, M> {
+impl<'a, M: Modality> DocumentView<'a, M> {
     /// Construct a doc+handle view. Borrow-only — does not take
     /// ownership and does not lock the handle.
     pub fn new(doc: &'a Document<M>, handle: &'a SharedHandle) -> Self {
@@ -59,7 +59,7 @@ impl<'a, M: Modality> DocView<'a, M> {
 }
 
 #[async_trait::async_trait]
-impl ValueAt<Text> for DocView<'_, Text> {
+impl ValueAt<Text> for DocumentView<'_, Text> {
     /// Resolve a [`Text`] location to its source text via the codec
     /// handle. Returns `None` when the handle has no readable bytes
     /// at the location.
@@ -74,7 +74,7 @@ impl ValueAt<Text> for DocView<'_, Text> {
 }
 
 #[async_trait::async_trait]
-impl ValueAt<Tabular> for DocView<'_, Tabular> {
+impl ValueAt<Tabular> for DocumentView<'_, Tabular> {
     /// Resolve a [`Tabular`] location to its source cell value via
     /// the codec handle.
     async fn value_at(&self, location: &Tabular) -> Option<String> {
@@ -88,7 +88,7 @@ impl ValueAt<Tabular> for DocView<'_, Tabular> {
 }
 
 #[async_trait::async_trait]
-impl ValueAt<Image> for DocView<'_, Image> {
+impl ValueAt<Image> for DocumentView<'_, Image> {
     /// Resolve an [`Image`] location to the OCR'd text at that
     /// region by walking the document's blocks. Exact bounding-box
     /// match against a block's `region` returns the whole block
@@ -117,7 +117,7 @@ impl ValueAt<Image> for DocView<'_, Image> {
 }
 
 #[async_trait::async_trait]
-impl ValueAt<Audio> for DocView<'_, Audio> {
+impl ValueAt<Audio> for DocumentView<'_, Audio> {
     /// Resolve an [`Audio`] location to the transcript at that time
     /// span by walking the document's blocks. Exact match returns
     /// the whole `Speech` block; sub-segment matches consult spans.

@@ -14,6 +14,7 @@ mod check;
 mod plan;
 
 use nvisy_core::{Error, Result};
+use nvisy_ontology::modality::{Audio, Image, Tabular, Text};
 use tracing::Instrument;
 use uuid::Uuid;
 
@@ -102,20 +103,17 @@ impl Default for ValidationPhase {
 
 async fn dispatch(node: NodeMut<'_>, handle: &SharedHandle, on_leak: OnLeak) -> Result<()> {
     let (result, modality) = match node {
-        NodeMut::Text(doc) => (
-            <nvisy_ontology::modality::Text as CheckLeaks>::check_leaks(doc, handle).await,
-            "text",
-        ),
+        NodeMut::Text(doc) => (<Text as CheckLeaks>::check_leaks(doc, handle).await, "text"),
         NodeMut::Tabular(doc) => (
-            <nvisy_ontology::modality::Tabular as CheckLeaks>::check_leaks(doc, handle).await,
+            <Tabular as CheckLeaks>::check_leaks(doc, handle).await,
             "tabular",
         ),
         NodeMut::Image(doc) => (
-            <nvisy_ontology::modality::Image as CheckLeaks>::check_leaks(doc, handle).await,
+            <Image as CheckLeaks>::check_leaks(doc, handle).await,
             "image",
         ),
         NodeMut::Audio(doc) => (
-            <nvisy_ontology::modality::Audio as CheckLeaks>::check_leaks(doc, handle).await,
+            <Audio as CheckLeaks>::check_leaks(doc, handle).await,
             "audio",
         ),
     };

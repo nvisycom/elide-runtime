@@ -23,7 +23,7 @@ use nvisy_ontology::provenance::EntityRecord;
 use unicode_normalization::UnicodeNormalization;
 
 use super::{LeakedValue, ValidationResult};
-use crate::core::{DocView, SharedHandle, ValueAt};
+use crate::core::{DocumentView, SharedHandle, ValueAt};
 
 /// Per-modality leak-check contract.
 #[async_trait::async_trait]
@@ -93,7 +93,7 @@ async fn check_text_like<M>(
 ) -> ValidationResult
 where
     M: Modality,
-    for<'a> DocView<'a, M>: ValueAt<M>,
+    for<'a> DocumentView<'a, M>: ValueAt<M>,
 {
     let mut passed = 0usize;
     let mut leaked = Vec::new();
@@ -113,7 +113,7 @@ where
         };
     };
 
-    let view = DocView::new(doc, handle);
+    let view = DocumentView::new(doc, handle);
     let folded_text = fold_for_match(text);
     for record in &applied {
         if let Some(value) = view.value_at(&record.entity.location).await {
